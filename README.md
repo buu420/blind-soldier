@@ -31,7 +31,7 @@ reading unverified game memory.
 ## Installation
 
 Download and run
-[Blind-Swordsman-Setup.exe](https://github.com/buu420/blind-swordsman/releases/download/v0.1.0-pre.1/Blind-Swordsman-Setup.exe).
+[Blind-Swordsman-Setup.exe](https://github.com/buu420/blind-swordsman/releases/download/v0.1.0-pre.2/Blind-Swordsman-Setup.exe).
 If that direct link changes, use the
 [Blind Swordsman Releases page](https://github.com/buu420/blind-swordsman/releases).
 
@@ -59,6 +59,13 @@ then installs the prebuilt x86 and x64 mod. It preserves unrelated 7th Heaven
 and FFNx settings. Both integrations are optional: setup detects them for
 compatibility reporting, but never installs, requires, or replaces either one.
 
+For the native Steam 2026 edition, the same verified runtime archive also
+contains the accessible `FFVII_LAUNCHER.exe`, its configuration, and a
+launcher-only x86 Prism library. Setup records and verifies the original Steam
+launcher before replacing it. Repair keeps the original backup, and uninstall
+restores it when the installed launcher is still unchanged. A launcher file
+changed after installation is preserved rather than overwritten.
+
 The native Steam 2026 x64 backend is included, but remains prerelease research
 software. The setup labels the detected runtimes and refuses unknown game
 executables instead of reading unverified memory.
@@ -72,7 +79,8 @@ executables instead of reading unverified memory.
 - Remove the mod through **Settings > Apps > Installed apps > Blind Swordsman**.
   Uninstall removes setup-owned files, preserves files changed after
   installation, and restores a recorded prior mod package only when it still
-  matches the saved backup.
+  matches the saved backup. On Steam 2026 it also restores the verified
+  original FFVII launcher.
 
 Installer state and readable logs are stored under
 `%LOCALAPPDATA%\Blind Swordsman`. The completion page includes a link that
@@ -94,9 +102,10 @@ recovery behavior.
 
 ### Launching the game
 
-- **Native Steam 2026 x64:** launch Final Fantasy VII normally from Steam or
-  run `FFVII.exe`. The installer adds the x64 bootstrap, so no separate launcher
-  step is required.
+- **Native Steam 2026 x64:** launch Final Fantasy VII normally from Steam. The
+  included FFVII launcher is screen-reader accessible, and starting the game
+  from it loads the x64 accessibility backend automatically. You may also run
+  `FFVII.exe` directly.
 - **Legacy x86 with 7th Heaven:** launch the game through 7th Heaven as usual.
 - **Legacy x86 without 7th Heaven:** use your Reloaded-II FFVII profile, or run
   `Launch-FF7Reloaded.cmd -Runtime Legacy` and provide `-ReloadedRoot` if needed.

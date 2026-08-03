@@ -55,6 +55,13 @@ backs up an existing Blind Swordsman mod folder before replacement and writes
 new state only after the result matches the selected release and detected
 locations.
 
+For native Steam 2026 installs, setup also validates and installs the bundled
+accessible `FFVII_LAUNCHER.exe`, its configuration, and its launcher-only x86
+Prism library. The original stock launcher is copied into the selected
+Reloaded-II folder's `AccessibilityBackups` directory and verified before the
+replacement is committed. An older launcher-accessibility manifest is migrated
+to this managed backup layout during update or repair.
+
 After a successful operation, setup copies itself to
 `%LOCALAPPDATA%\Programs\Blind Swordsman\Blind-Swordsman-Setup.exe`, registers
 Blind Swordsman in Windows Installed apps, and creates **Check for Blind
@@ -86,7 +93,10 @@ managed setup with `--uninstall`. Uninstall validates saved state against the
 currently detected game before changing anything. It removes setup-created
 files only when they still match their recorded hashes. Changed files are
 preserved and listed in the log. A prior mod backup is restored only when its
-recorded fingerprint still matches.
+recorded fingerprint still matches. For Steam 2026, uninstall also restores the
+verified original launcher and removes setup-created launcher support files.
+If any launcher file changed after installation, that file is preserved and
+reported instead.
 
 The installed setup EXE schedules its own removal through Windows after the
 uninstall process exits. Per-user registration, update shortcut, and install
@@ -129,7 +139,7 @@ all integrity checks.
 
 ## Unsigned prerelease warning
 
-Version `0.1.0-pre.1` is not Authenticode-signed. Windows SmartScreen can show
+Version `0.1.0-pre.2` is not Authenticode-signed. Windows SmartScreen can show
 **Unknown publisher** even when the file is intact. Download only from the
 project's GitHub Releases page and, when desired, verify it against the
 adjacent `.sha256` file. This warning is separate from the installer's own
@@ -141,17 +151,18 @@ Build the five release assets into a new output folder:
 
 ```powershell
 .\Build-BlindSwordsmanRelease.ps1 `
-  -Version "0.1.0-pre.1" `
-  -Tag "v0.1.0-pre.1" `
-  -OutputPath ".\artifacts\release\v0.1.0-pre.1"
+  -Version "0.1.0-pre.2" `
+  -Tag "v0.1.0-pre.2" `
+  -MinimumSetupVersion "0.1.0-pre.2" `
+  -OutputPath ".\artifacts\release\v0.1.0-pre.2"
 ```
 
 After verification, publish them using the authenticated GitHub CLI session:
 
 ```powershell
 .\Publish-BlindSwordsmanRelease.ps1 `
-  -Tag "v0.1.0-pre.1" `
-  -ArtifactPath ".\artifacts\release\v0.1.0-pre.1"
+  -Tag "v0.1.0-pre.2" `
+  -ArtifactPath ".\artifacts\release\v0.1.0-pre.2"
 ```
 
 The publisher reads the channel manifest, requires all exact asset names,
