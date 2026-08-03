@@ -254,6 +254,11 @@ $commands.Add((New-VerificationCommand -Name 'Verification gate Pester' -FilePat
     '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', $verificationPesterCommand
 ) -WorkingDirectory $scriptRoot))
 
+$preflightPesterCommand = "Invoke-Pester -Script '$((Join-Path $scriptRoot 'Invoke-BlindSwordsmanPreflight.Tests.ps1').Replace("'", "''"))' -EnableExit"
+$commands.Add((New-VerificationCommand -Name 'Setup preflight Pester' -FilePath 'powershell.exe' -Arguments @(
+    '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', $preflightPesterCommand
+) -WorkingDirectory $scriptRoot))
+
 $pesterCommand = "Invoke-Pester -Script '$((Join-Path $scriptRoot 'FF7SteamInstall.Tests.ps1').Replace("'", "''"))' -EnableExit"
 $commands.Add((New-VerificationCommand -Name 'Installer Pester pass 1' -FilePath 'powershell.exe' -Arguments @(
     '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', $pesterCommand

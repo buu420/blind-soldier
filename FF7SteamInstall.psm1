@@ -1886,6 +1886,7 @@ function Assert-Ff7NativeReloadedProfile {
 Export-ModuleMember -Function @(
     'Get-Ff7SteamLibraryPaths',
     'Resolve-Ff7Installation',
+    'Get-Ff7PeMachine',
     'Assert-Ff7NativeRuntimeIdentity',
     'Set-PeLargeAddressAware',
     'Initialize-Ff7CompatibilityRuntime',
