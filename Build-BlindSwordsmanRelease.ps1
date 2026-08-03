@@ -52,6 +52,9 @@ $stagingRoot = Join-Path $outputDirectory.Parent.FullName ('.{0}.staging-{1}' -f
 $assetRoot = Join-Path $stagingRoot 'assets'
 $runtimeRoot = Join-Path $stagingRoot 'runtime'
 $packagePath = Join-Path $runtimeRoot 'package\ff7.accessibility.reloaded'
+$launcherSourceRoot = Join-Path $scriptRoot 'installer-assets\launcher'
+$launcherPrismSource = Join-Path $scriptRoot 'Ff7.Accessibility.Reloaded\Native\win-x86\prism.dll'
+$launcherBundlePath = Join-Path $runtimeRoot 'launcher'
 $setupPublishRoot = Join-Path $stagingRoot 'setup-publish'
 $payloadAsset = Join-Path $assetRoot 'Blind-Swordsman-Runtime.zip'
 $setupAsset = Join-Path $assetRoot 'Blind-Swordsman-Setup.exe'
@@ -183,6 +186,108 @@ function Get-PeMachine {
     return [BitConverter]::ToUInt16($bytes, $offset + 4)
 }
 
+function Assert-ExactJsonProperties {
+    param(
+        [Parameter(Mandatory=$true)] [object] $Value,
+        [Parameter(Mandatory=$true)] [string[]] $Expected,
+        [Parameter(Mandatory=$true)] [string] $Label
+    )
+    $actual = @($Value.PSObject.Properties | ForEach-Object Name)
+    if ($actual.Count -ne $Expected.Count -or
+        @($actual | Where-Object { $Expected -cnotcontains $_ }).Count -ne 0 -or
+        @($Expected | Where-Object { $actual -cnotcontains $_ }).Count -ne 0) {
+        throw "$Label properties are invalid."
+    }
+}
+
+function Assert-LauncherAsset {
+    param(
+        [Parameter(Mandatory=$true)] [string] $Path,
+        [Parameter(Mandatory=$true)] [object] $Descriptor,
+        [Parameter(Mandatory=$true)] [string] $ExpectedName,
+        [Parameter(Mandatory=$true)] [string] $Label
+    )
+    Assert-ExactJsonProperties -Value $Descriptor -Expected @('name', 'size', 'sha256') -Label $Label
+    if ([string]$Descriptor.name -cne $ExpectedName -or
+        [string]$Descriptor.sha256 -notmatch '^[0-9A-F]{64}$' -or
+        [int64]$Descriptor.size -le 0) {
+        throw "$Label metadata is invalid."
+    }
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        throw "$Label file is missing: $Path"
+    }
+    $item = Get-Item -LiteralPath $Path -Force
+    if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or
+        [int64]$item.Length -ne [int64]$Descriptor.size) {
+        throw "$Label size or file type is invalid: $Path"
+    }
+    $actualHash = (Get-FileHash -LiteralPath $item.FullName -Algorithm SHA256).Hash.ToUpperInvariant()
+    if ($actualHash -cne [string]$Descriptor.sha256) {
+        throw "$Label SHA-256 is invalid: $Path"
+    }
+}
+
+function Copy-ValidatedLauncherBundle {
+    param(
+        [Parameter(Mandatory=$true)] [string] $SourceRoot,
+        [Parameter(Mandatory=$true)] [string] $PrismSource,
+        [Parameter(Mandatory=$true)] [string] $DestinationRoot
+    )
+    if (-not (Test-Path -LiteralPath $SourceRoot -PathType Container)) {
+        throw "Accessible launcher source is missing: $SourceRoot"
+    }
+    Assert-NoReparsePoint -Root $SourceRoot
+    $sourceFiles = @(Get-ChildItem -LiteralPath $SourceRoot -File -Recurse -Force |
+        ForEach-Object { Get-RelativeArchivePath -Root $SourceRoot -Path $_.FullName })
+    $expectedSourceFiles = @('FFVII_LAUNCHER.exe', 'FFVII_LAUNCHER.exe.config', 'launcher-bundle.json')
+    if ($sourceFiles.Count -ne $expectedSourceFiles.Count -or
+        @($sourceFiles | Where-Object { $expectedSourceFiles -cnotcontains $_ }).Count -ne 0) {
+        throw 'Accessible launcher source contains unexpected files.'
+    }
+
+    $manifestPath = Join-Path $SourceRoot 'launcher-bundle.json'
+    try {
+        $manifest = [IO.File]::ReadAllText($manifestPath) | ConvertFrom-Json
+    }
+    catch {
+        throw "Accessible launcher manifest is invalid JSON: $($_.Exception.Message)"
+    }
+    Assert-ExactJsonProperties -Value $manifest -Expected @(
+        'schemaVersion', 'stockLauncherSha256', 'launcher', 'config', 'prism',
+        'assemblyName', 'assemblyVersion') -Label 'Accessible launcher manifest'
+    if ([int]$manifest.schemaVersion -ne 1 -or
+        [string]$manifest.stockLauncherSha256 -notmatch '^[0-9A-F]{64}$' -or
+        [string]$manifest.assemblyName -cne 'FFVII_LAUNCHER' -or
+        [string]$manifest.assemblyVersion -cne '2.0.0.0') {
+        throw 'Accessible launcher manifest identity is invalid.'
+    }
+
+    $launcherSource = Join-Path $SourceRoot 'FFVII_LAUNCHER.exe'
+    $configSource = Join-Path $SourceRoot 'FFVII_LAUNCHER.exe.config'
+    Assert-LauncherAsset -Path $launcherSource -Descriptor $manifest.launcher `
+        -ExpectedName 'FFVII_LAUNCHER.exe' -Label 'Accessible launcher'
+    Assert-LauncherAsset -Path $configSource -Descriptor $manifest.config `
+        -ExpectedName 'FFVII_LAUNCHER.exe.config' -Label 'Accessible launcher configuration'
+    Assert-LauncherAsset -Path $PrismSource -Descriptor $manifest.prism `
+        -ExpectedName 'FFVII_LAUNCHER.prism.x86.dll' -Label 'Launcher Prism'
+    if ((Get-PeMachine -Path $launcherSource) -ne 0x014C -or
+        (Get-PeMachine -Path $PrismSource) -ne 0x014C) {
+        throw 'Accessible launcher and launcher Prism must both be x86 PE images.'
+    }
+    $assembly = [Reflection.AssemblyName]::GetAssemblyName($launcherSource)
+    if ($assembly.Name -cne [string]$manifest.assemblyName -or
+        $assembly.Version.ToString() -cne [string]$manifest.assemblyVersion) {
+        throw 'Accessible launcher managed assembly identity is invalid.'
+    }
+
+    New-Item -ItemType Directory -Path (Join-Path $DestinationRoot 'native\x86') -Force | Out-Null
+    Copy-Item -LiteralPath $launcherSource -Destination (Join-Path $DestinationRoot 'FFVII_LAUNCHER.exe')
+    Copy-Item -LiteralPath $configSource -Destination (Join-Path $DestinationRoot 'FFVII_LAUNCHER.exe.config')
+    Copy-Item -LiteralPath $manifestPath -Destination (Join-Path $DestinationRoot 'launcher-bundle.json')
+    Copy-Item -LiteralPath $PrismSource -Destination (Join-Path $DestinationRoot 'native\x86\FFVII_LAUNCHER.prism.x86.dll')
+    Assert-NoReparsePoint -Root $DestinationRoot
+}
+
 function Write-HashSidecar {
     param([Parameter(Mandatory=$true)] [string] $Path)
     $hash = (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToUpperInvariant()
@@ -202,6 +307,8 @@ try {
     if (-not (Test-Path -LiteralPath (Join-Path $packagePath 'ModConfig.json') -PathType Leaf)) {
         throw 'Runtime package builder did not produce ff7.accessibility.reloaded/ModConfig.json.'
     }
+    Copy-ValidatedLauncherBundle -SourceRoot $launcherSourceRoot `
+        -PrismSource $launcherPrismSource -DestinationRoot $launcherBundlePath
     New-PayloadManifest -Root $runtimeRoot
     New-DeterministicZip -Root $runtimeRoot -Destination $payloadAsset
 
