@@ -1648,6 +1648,153 @@ function Test-Ff7ExactOrderedStringList {
     return $true
 }
 
+function Install-Ff7LegacyReloadedProfile {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)] [string] $ReloadedRoot,
+        [Parameter(Mandatory=$true)] [psobject] $LegacyRuntime,
+        [Parameter(Mandatory=$true)] [string] $TemplatePath,
+        [switch] $ValidateOnly
+    )
+
+    if ([string]$LegacyRuntime.Architecture -cne 'x86') {
+        throw 'Legacy Reloaded profile requires an x86 runtime.'
+    }
+    $runtimeRoot = [IO.Path]::GetFullPath([string]$LegacyRuntime.RuntimeRoot).TrimEnd('\')
+    $gameExe = [IO.Path]::GetFullPath([string]$LegacyRuntime.GameExe)
+    if (-not (Split-Path -Leaf $gameExe).Equals('ff7_en.exe', [StringComparison]::OrdinalIgnoreCase) -or
+        -not (Split-Path -Parent $gameExe).TrimEnd('\').Equals($runtimeRoot, [StringComparison]::OrdinalIgnoreCase) -or
+        -not (Test-Path -LiteralPath $gameExe -PathType Leaf)) {
+        throw 'Legacy Reloaded profile executable does not identify the validated ff7_en.exe runtime.'
+    }
+    $gameItem = Get-Item -LiteralPath $gameExe -Force
+    if (($gameItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+        throw 'Legacy Reloaded profile executable cannot be a reparse point.'
+    }
+    if (-not (Test-Path -LiteralPath $TemplatePath -PathType Leaf)) {
+        throw "Legacy Reloaded profile template is missing: $TemplatePath"
+    }
+    try { $template = [IO.File]::ReadAllText($TemplatePath) | ConvertFrom-Json }
+    catch { throw "Legacy Reloaded profile template is invalid JSON: $($_.Exception.Message)" }
+    $requiredMods = @('reloaded.sharedlib.hooks','ff7.accessibility.reloaded')
+    $templateIsValid =
+        $template.AppId -is [string] -and [string]$template.AppId -ceq 'ff7_en.exe' -and
+        $template.AppName -is [string] -and [string]$template.AppName -ceq 'Final Fantasy VII' -and
+        $template.AppLocation -is [string] -and [string]::IsNullOrWhiteSpace([string]$template.AppLocation) -and
+        $template.WorkingDirectory -is [string] -and [string]::IsNullOrWhiteSpace([string]$template.WorkingDirectory) -and
+        $template.AutoInject -eq $false -and $template.DontInject -eq $false -and
+        $template.IsMsStore -eq $false -and $template.PreserveDisabledModOrder -eq $true -and
+        (Test-Ff7ExactOrderedStringList -Actual @($template.EnabledMods) -Expected $requiredMods) -and
+        (Test-Ff7ExactOrderedStringList -Actual @($template.SortedMods) -Expected $requiredMods)
+    if (-not $templateIsValid) {
+        throw 'Legacy Reloaded profile template does not match the required accessibility injection contract.'
+    }
+
+    $root = [IO.Path]::GetFullPath($ReloadedRoot)
+    if (Test-Path -LiteralPath $root) {
+        $rootItem = Get-Item -LiteralPath $root -Force
+        if (-not $rootItem.PSIsContainer -or
+            ($rootItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+            throw 'Legacy Reloaded root is not a safe directory.'
+        }
+    }
+    $profileDirectory = Join-Path $root 'Apps\Ff7.En.Steam'
+    $profilePath = Join-Path $profileDirectory 'AppConfig.json'
+    $existing = $null
+    if (Test-Path -LiteralPath $profilePath) {
+        $profileItem = Get-Item -LiteralPath $profilePath -Force
+        if ($profileItem.PSIsContainer -or
+            ($profileItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+            throw 'Existing legacy Reloaded profile is not a safe ordinary file.'
+        }
+        try { $existing = [IO.File]::ReadAllText($profilePath) | ConvertFrom-Json }
+        catch { throw "Existing legacy Reloaded profile is invalid JSON: $($_.Exception.Message)" }
+        if ([string]$existing.AppId -cne 'ff7_en.exe') {
+            throw "Existing legacy Reloaded profile belongs to another AppId: $($existing.AppId)"
+        }
+        $existingLocation = [string]$existing.AppLocation
+        if (-not [string]::IsNullOrWhiteSpace($existingLocation) -and
+            -not (Split-Path -Leaf $existingLocation).Equals('ff7_en.exe', [StringComparison]::OrdinalIgnoreCase)) {
+            throw "Existing legacy Reloaded profile points to another executable: $existingLocation"
+        }
+    }
+
+    $values = [ordered]@{}
+    foreach ($property in @($template.PSObject.Properties)) { $values[$property.Name] = $property.Value }
+    if ($null -ne $existing) {
+        foreach ($property in @($existing.PSObject.Properties)) { $values[$property.Name] = $property.Value }
+    }
+    foreach ($listName in @('EnabledMods','SortedMods')) {
+        $merged = New-Object 'System.Collections.Generic.List[string]'
+        $seen = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
+        foreach ($value in @($values[$listName])) {
+            if ($value -isnot [string] -or [string]::IsNullOrWhiteSpace([string]$value)) {
+                throw "Legacy Reloaded profile $listName must contain only non-empty strings."
+            }
+            if ($requiredMods -icontains [string]$value) { continue }
+            if ($seen.Add([string]$value)) { $merged.Add([string]$value) }
+        }
+        foreach ($required in $requiredMods) { $merged.Add($required) }
+        $values[$listName] = $merged.ToArray()
+    }
+    $values['AppId'] = 'ff7_en.exe'
+    if ([string]::IsNullOrWhiteSpace([string]$values['AppName'])) { $values['AppName'] = 'Final Fantasy VII' }
+    $values['AppLocation'] = $gameExe
+    $values['WorkingDirectory'] = $runtimeRoot
+    $values['AutoInject'] = $false
+    $values['DontInject'] = $false
+    $values['IsMsStore'] = $false
+    $values['PreserveDisabledModOrder'] = $true
+    $profileJson = ($values | ConvertTo-Json -Depth 10)
+    $profileBytes = (New-Object Text.UTF8Encoding($false)).GetBytes($profileJson)
+    if ($ValidateOnly) {
+        return [pscustomobject]@{ Validated=$true; ProfilePath=$profilePath; ExistingProfile=(Test-Path -LiteralPath $profilePath -PathType Leaf) }
+    }
+    if (Test-Path -LiteralPath $profileDirectory) {
+        $directoryItem = Get-Item -LiteralPath $profileDirectory -Force
+        if (-not $directoryItem.PSIsContainer -or
+            ($directoryItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+            throw 'Legacy Reloaded profile directory is unsafe.'
+        }
+    }
+    New-Item -ItemType Directory -Path $profileDirectory -Force | Out-Null
+    if (Test-Path -LiteralPath $profilePath -PathType Leaf) {
+        if ([Convert]::ToBase64String([IO.File]::ReadAllBytes($profilePath)) -eq
+            [Convert]::ToBase64String($profileBytes)) {
+            return [pscustomobject]@{ Changed=$false; ProfilePath=$profilePath; BackupPath=$null; IsResearchProfile=$false }
+        }
+    }
+    $temporary = Join-Path $profileDirectory ('.AppConfig.' + [Guid]::NewGuid().ToString('N') + '.tmp')
+    $backup = if (Test-Path -LiteralPath $profilePath -PathType Leaf) {
+        Join-Path $profileDirectory ('AppConfig.json.backup-' + [Guid]::NewGuid().ToString('N'))
+    } else { $null }
+    $changed = $false
+    try {
+        [IO.File]::WriteAllBytes($temporary, $profileBytes)
+        if ($null -ne $backup) { [IO.File]::Replace($temporary, $profilePath, $backup, $true) }
+        else { Move-Item -LiteralPath $temporary -Destination $profilePath }
+        $changed = $true
+        if ([Convert]::ToBase64String([IO.File]::ReadAllBytes($profilePath)) -ne
+            [Convert]::ToBase64String($profileBytes)) {
+            throw 'Legacy Reloaded profile failed post-install byte verification.'
+        }
+    }
+    catch {
+        $failure = $_
+        if ($changed) {
+            if (Test-Path -LiteralPath $profilePath -PathType Leaf) { Remove-Item -LiteralPath $profilePath -Force }
+            if ($null -ne $backup -and (Test-Path -LiteralPath $backup -PathType Leaf)) {
+                Move-Item -LiteralPath $backup -Destination $profilePath
+            }
+        }
+        throw $failure
+    }
+    finally {
+        if (Test-Path -LiteralPath $temporary -PathType Leaf) { Remove-Item -LiteralPath $temporary -Force }
+    }
+    return [pscustomobject]@{ Changed=$true; ProfilePath=$profilePath; BackupPath=$backup; IsResearchProfile=$false }
+}
+
 function Install-Ff7NativeReloadedProfile {
     [CmdletBinding()]
     param(
@@ -1900,6 +2047,7 @@ Export-ModuleMember -Function @(
     'Update-SeventhHeavenSettings',
     'Install-Ff7DualRuntimePackage',
     'Assert-Ff7NativeParityReleaseGate',
+    'Install-Ff7LegacyReloadedProfile',
     'Install-Ff7NativeReloadedProfile',
     'Assert-Ff7NativeReloadedProfile'
 )

@@ -173,6 +173,22 @@ static class SetupOrchestratorTests
             "X:\\SteamLibrary\\FINAL FANTASY VII Steam Edition",
             "C:\\Users\\Player\\Reloaded-II");
         Throws<InvalidDataException>(() => SetupOrchestrator.ValidateDeploymentResult(
+            state with { LegacyProfile = null },
+            manifest,
+            state.Game.GameRoot,
+            state.ReloadedRoot), "legacy deployment result without legacy profile state");
+        Throws<InvalidDataException>(() => SetupOrchestrator.ValidateDeploymentResult(
+            state with
+            {
+                LegacyProfile = state.LegacyProfile! with
+                {
+                    Path = "C:\\Users\\Player\\Reloaded-II\\Apps\\Forged\\AppConfig.json"
+                }
+            },
+            manifest,
+            state.Game.GameRoot,
+            state.ReloadedRoot), "legacy deployment result with wrong legacy profile path");
+        Throws<InvalidDataException>(() => SetupOrchestrator.ValidateDeploymentResult(
             missingLauncherState,
             manifest,
             missingLauncherState.Game.GameRoot,

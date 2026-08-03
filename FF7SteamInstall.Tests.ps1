@@ -1201,6 +1201,107 @@ Describe 'Install-Ff7DualRuntimePackage' {
     }
 }
 
+Describe 'Install-Ff7LegacyReloadedProfile' {
+    $templatePath = Join-Path $scriptRoot 'templates\Ff7.Legacy.Steam.AppConfig.json'
+
+    It 'creates a fresh legacy profile and validates without mutating in preflight mode' {
+        $fixture = New-TestDirectory
+        try {
+            $runtimeRoot = Join-Path $fixture 'game\ff7\workingdir'
+            $gameExe = Join-Path $runtimeRoot 'ff7_en.exe'
+            Write-TestTextFile -Path $gameExe -Content 'legacy game fixture'
+            $runtime = [pscustomobject]@{ Architecture='x86'; RuntimeRoot=$runtimeRoot; GameExe=$gameExe }
+            $reloadedRoot = Join-Path $fixture 'Reloaded-II'
+
+            $validation = Install-Ff7LegacyReloadedProfile -ReloadedRoot $reloadedRoot `
+                -LegacyRuntime $runtime -TemplatePath $templatePath -ValidateOnly
+            $validation.Validated | Should Be $true
+            Test-Path -LiteralPath (Join-Path $reloadedRoot 'Apps') | Should Be $false
+
+            $installed = Install-Ff7LegacyReloadedProfile -ReloadedRoot $reloadedRoot `
+                -LegacyRuntime $runtime -TemplatePath $templatePath
+            $installed.Changed | Should Be $true
+            $installed.BackupPath | Should BeNullOrEmpty
+            $profile = [IO.File]::ReadAllText($installed.ProfilePath) | ConvertFrom-Json
+            $profile.AppId | Should Be 'ff7_en.exe'
+            $profile.AppLocation | Should Be ([IO.Path]::GetFullPath($gameExe))
+            $profile.WorkingDirectory | Should Be ([IO.Path]::GetFullPath($runtimeRoot))
+            @($profile.EnabledMods) | Should Be @('reloaded.sharedlib.hooks','ff7.accessibility.reloaded')
+            @($profile.SortedMods) | Should Be @('reloaded.sharedlib.hooks','ff7.accessibility.reloaded')
+        }
+        finally { Remove-Item -LiteralPath $fixture -Recurse -Force }
+    }
+
+    It 'merges required mods after unrelated mods and is byte-idempotent' {
+        $fixture = New-TestDirectory
+        try {
+            $runtimeRoot = Join-Path $fixture 'runtime'
+            $gameExe = Join-Path $runtimeRoot 'ff7_en.exe'
+            Write-TestTextFile -Path $gameExe -Content 'legacy game fixture'
+            $runtime = [pscustomobject]@{ Architecture='x86'; RuntimeRoot=$runtimeRoot; GameExe=$gameExe }
+            $reloadedRoot = Join-Path $fixture 'Reloaded-II'
+            $profilePath = Join-Path $reloadedRoot 'Apps\Ff7.En.Steam\AppConfig.json'
+            Write-TestTextFile -Path $profilePath -Content @'
+{
+  "AppId": "ff7_en.exe",
+  "AppName": "My FFVII",
+  "AppLocation": "C:\\Old\\ff7_en.exe",
+  "AppArguments": "-existing",
+  "AppIcon": "",
+  "AutoInject": false,
+  "EnabledMods": ["existing.mod", "ff7.accessibility.reloaded", "another.mod"],
+  "WorkingDirectory": "C:\\Old",
+  "PluginData": {"keep": true},
+  "SortedMods": ["another.mod", "reloaded.sharedlib.hooks", "existing.mod"],
+  "PreserveDisabledModOrder": true,
+  "DontInject": false,
+  "IsMsStore": false
+}
+'@
+
+            $first = Install-Ff7LegacyReloadedProfile -ReloadedRoot $reloadedRoot `
+                -LegacyRuntime $runtime -TemplatePath $templatePath
+            $first.Changed | Should Be $true
+            Test-Path -LiteralPath $first.BackupPath -PathType Leaf | Should Be $true
+            $profile = [IO.File]::ReadAllText($profilePath) | ConvertFrom-Json
+            @($profile.EnabledMods) | Should Be @('existing.mod','another.mod','reloaded.sharedlib.hooks','ff7.accessibility.reloaded')
+            @($profile.SortedMods) | Should Be @('another.mod','existing.mod','reloaded.sharedlib.hooks','ff7.accessibility.reloaded')
+            $profile.AppArguments | Should Be '-existing'
+            $profile.PluginData.keep | Should Be $true
+            $installedHash = (Get-FileHash -LiteralPath $profilePath -Algorithm SHA256).Hash
+
+            $second = Install-Ff7LegacyReloadedProfile -ReloadedRoot $reloadedRoot `
+                -LegacyRuntime $runtime -TemplatePath $templatePath
+            $second.Changed | Should Be $false
+            $second.BackupPath | Should BeNullOrEmpty
+            (Get-FileHash -LiteralPath $profilePath -Algorithm SHA256).Hash | Should Be $installedHash
+            @(Get-ChildItem -LiteralPath (Split-Path -Parent $profilePath) -Filter 'AppConfig.json.backup-*' -File).Count | Should Be 1
+        }
+        finally { Remove-Item -LiteralPath $fixture -Recurse -Force }
+    }
+
+    It 'rejects a non-x86 runtime and an existing profile for another executable' {
+        $fixture = New-TestDirectory
+        try {
+            $runtimeRoot = Join-Path $fixture 'runtime'
+            $gameExe = Join-Path $runtimeRoot 'ff7_en.exe'
+            Write-TestTextFile -Path $gameExe -Content 'legacy game fixture'
+            $reloadedRoot = Join-Path $fixture 'Reloaded-II'
+            $wrongArchitecture = [pscustomobject]@{ Architecture='x64'; RuntimeRoot=$runtimeRoot; GameExe=$gameExe }
+            { Install-Ff7LegacyReloadedProfile -ReloadedRoot $reloadedRoot `
+                -LegacyRuntime $wrongArchitecture -TemplatePath $templatePath } | Should Throw
+
+            $profilePath = Join-Path $reloadedRoot 'Apps\Ff7.En.Steam\AppConfig.json'
+            Write-TestTextFile -Path $profilePath -Content '{"AppId":"another.exe","EnabledMods":[],"SortedMods":[]}'
+            $runtime = [pscustomobject]@{ Architecture='x86'; RuntimeRoot=$runtimeRoot; GameExe=$gameExe }
+            { Install-Ff7LegacyReloadedProfile -ReloadedRoot $reloadedRoot `
+                -LegacyRuntime $runtime -TemplatePath $templatePath } | Should Throw
+            ([IO.File]::ReadAllText($profilePath) | ConvertFrom-Json).AppId | Should Be 'another.exe'
+        }
+        finally { Remove-Item -LiteralPath $fixture -Recurse -Force }
+    }
+}
+
 Describe 'Install-Ff7NativeReloadedProfile' {
     $templatePath = Join-Path $scriptRoot 'templates\Ff7.Native.Steam2026.AppConfig.json'
     $parityMatrixPath = Join-Path $scriptRoot 'analysis\dual_runtime\parity-matrix.json'

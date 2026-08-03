@@ -29,6 +29,7 @@
     <EmbeddedResource Include="..\..\Invoke-BlindSwordsmanPreflight.ps1" Link="Resources\Invoke-BlindSwordsmanPreflight.ps1" LogicalName="BlindSwordsman.Resources.Invoke-BlindSwordsmanPreflight.ps1" />
     <EmbeddedResource Include="..\..\Install-FF7ReloadedMod.ps1" Link="Resources\Install-FF7ReloadedMod.ps1" LogicalName="BlindSwordsman.Resources.Install-FF7ReloadedMod.ps1" />
     <EmbeddedResource Include="..\..\Uninstall-FF7ReloadedMod.ps1" Link="Resources\Uninstall-FF7ReloadedMod.ps1" LogicalName="BlindSwordsman.Resources.Uninstall-FF7ReloadedMod.ps1" />
+    <EmbeddedResource Include="..\..\templates\Ff7.Legacy.Steam.AppConfig.json" Link="Resources\templates\Ff7.Legacy.Steam.AppConfig.json" LogicalName="BlindSwordsman.Resources.templates.Ff7.Legacy.Steam.AppConfig.json" />
     <EmbeddedResource Include="..\..\templates\Ff7.Native.Steam2026.AppConfig.json" Link="Resources\templates\Ff7.Native.Steam2026.AppConfig.json" LogicalName="BlindSwordsman.Resources.templates.Ff7.Native.Steam2026.AppConfig.json" />
     <EmbeddedResource Include="..\..\analysis\dual_runtime\parity-matrix.json" Link="Resources\analysis\dual_runtime\parity-matrix.json" LogicalName="BlindSwordsman.Resources.analysis.dual_runtime.parity-matrix.json" />
   </ItemGroup>

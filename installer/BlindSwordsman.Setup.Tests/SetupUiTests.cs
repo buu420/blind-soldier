@@ -22,6 +22,7 @@ static class SetupUiTests
         True(File.Exists(Path.Combine(resources.Root, "FF7SteamInstall.psm1")), "embedded deployment module");
         True(File.Exists(Path.Combine(resources.Root, "FF7LauncherInstall.psm1")), "embedded accessible launcher module");
         True(File.Exists(Path.Combine(resources.Root, "templates", "Ff7.Native.Steam2026.AppConfig.json")), "embedded native profile");
+        True(File.Exists(Path.Combine(resources.Root, "templates", "Ff7.Legacy.Steam.AppConfig.json")), "embedded legacy profile");
         True(File.Exists(Path.Combine(resources.Root, "analysis", "dual_runtime", "parity-matrix.json")), "embedded parity matrix");
     }
 

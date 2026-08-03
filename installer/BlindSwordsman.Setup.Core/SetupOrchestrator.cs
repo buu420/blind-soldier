@@ -92,6 +92,27 @@ public sealed class SetupOrchestrator(
             throw new InvalidDataException("Deployment result contains an unexpected mod directory.");
         }
 
+        var hasLegacyLoader = state.Loaders.Any(loader =>
+            string.Equals(loader.Id, "legacy-asi-loader", StringComparison.Ordinal));
+        if (hasLegacyLoader)
+        {
+            var expectedLegacyProfile = System.IO.Path.Combine(
+                System.IO.Path.GetFullPath(reloadedRoot),
+                "Apps",
+                "Ff7.En.Steam",
+                "AppConfig.json");
+            if (state.LegacyProfile is null ||
+                !SamePath(state.LegacyProfile.Path, expectedLegacyProfile) ||
+                state.LegacyProfile.Research)
+            {
+                throw new InvalidDataException("Legacy deployment result contains invalid Reloaded profile state.");
+            }
+        }
+        else if (state.LegacyProfile is not null)
+        {
+            throw new InvalidDataException("Deployment result unexpectedly contains a legacy Reloaded profile.");
+        }
+
         var nativeSteam2026 = string.Equals(state.Game.Version, "Steam2026", StringComparison.Ordinal);
         if (nativeSteam2026 && state.Launcher is null)
         {

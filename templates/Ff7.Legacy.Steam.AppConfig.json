@@ -1,0 +1,21 @@
+{
+  "AppId": "ff7_en.exe",
+  "AppName": "Final Fantasy VII",
+  "AppLocation": "",
+  "AppArguments": "",
+  "AppIcon": "",
+  "AutoInject": false,
+  "EnabledMods": [
+    "reloaded.sharedlib.hooks",
+    "ff7.accessibility.reloaded"
+  ],
+  "WorkingDirectory": "",
+  "PluginData": {},
+  "SortedMods": [
+    "reloaded.sharedlib.hooks",
+    "ff7.accessibility.reloaded"
+  ],
+  "PreserveDisabledModOrder": true,
+  "DontInject": false,
+  "IsMsStore": false
+}

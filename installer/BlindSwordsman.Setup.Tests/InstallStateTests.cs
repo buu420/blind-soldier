@@ -1,10 +1,12 @@
 using BlindSwordsman.Setup.Core;
+using System.Text.Json.Nodes;
 
 static class InstallStateTests
 {
     public static async Task RunAsync()
     {
         ParsesAndPersistsDeploymentStateAtomically();
+        ParsesLegacySchemaOneDeploymentState();
         ParsesPreLauncherDeploymentState();
         ParsesNativeOnlyDeploymentWithoutOpeningVoice();
         await RejectsCorruptedStateWithoutOverwritingIt();
@@ -24,12 +26,26 @@ static class InstallStateTests
         Equal("0.1.0-pre.1", loaded!.ProductVersion.ToString(), "saved product version");
         Equal("INSTALL-FINGERPRINT", loaded.Mod.Fingerprint, "saved package fingerprint");
         Equal(2, loaded.Loaders.Count, "saved loader count");
+        True(loaded.LegacyProfile is not null, "saved legacy profile state");
+        Equal(
+            "C:\\Users\\Player\\Reloaded-II\\Apps\\Ff7.En.Steam\\AppConfig.json",
+            loaded.LegacyProfile!.Path,
+            "saved legacy profile path");
         True(loaded.Launcher is not null, "saved launcher state");
         Equal(
             "EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE",
             loaded.Launcher!.Executable.InstalledSha256,
             "saved accessible launcher hash");
         Equal(0, Directory.GetFiles(fixture.Path, "*.tmp", SearchOption.TopDirectoryOnly).Length, "atomic state has no temporary file");
+    }
+
+    private static void ParsesLegacySchemaOneDeploymentState()
+    {
+        var state = DeploymentResultParser.Parse(LegacySchemaOneDeploymentResult());
+
+        Equal(1, state.SchemaVersion, "legacy schema version");
+        True(state.LegacyProfile is null, "legacy schema has no legacy-profile state");
+        True(state.Profile is not null, "legacy schema native profile remains readable");
     }
 
     private static void ParsesPreLauncherDeploymentState()
@@ -93,7 +109,7 @@ static class InstallStateTests
 
     internal static string ValidDeploymentResult() => """
         {
-          "schemaVersion": 1,
+          "schemaVersion": 2,
           "productVersion": "0.1.0-pre.1",
           "releaseTag": "v0.1.0-pre.1",
           "installedAtUtc": "2026-08-03T12:00:00.0000000Z",
@@ -115,6 +131,14 @@ static class InstallStateTests
             "backupPath": null,
             "backupSha256": null,
             "research": true
+          },
+          "legacyProfile": {
+            "path": "C:\\Users\\Player\\Reloaded-II\\Apps\\Ff7.En.Steam\\AppConfig.json",
+            "changed": true,
+            "installedSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+            "backupPath": null,
+            "backupSha256": null,
+            "research": false
           },
           "loaders": [
             {
@@ -141,6 +165,14 @@ static class InstallStateTests
           }
         }
         """;
+
+    internal static string LegacySchemaOneDeploymentResult()
+    {
+        var root = JsonNode.Parse(ValidDeploymentResult())!.AsObject();
+        root["schemaVersion"] = 1;
+        root.Remove("legacyProfile");
+        return root.ToJsonString();
+    }
 
     internal static string DeploymentResultWithLauncher() => ValidDeploymentResult().Replace(
         """  "ffnx": {""",

@@ -8,6 +8,7 @@ param(
     [string] $ParityMatrixPath,
     [string] $PackagePath,
     [string] $LauncherBundlePath,
+    [string] $PrerequisiteBundlePath,
     [string] $ResultPath,
     [string] $ProductVersion,
     [string] $ReleaseTag,
@@ -15,7 +16,8 @@ param(
     [switch] $SkipSeventhHeavenSettings,
     [switch] $AllowResearchNativeProfile,
     [Parameter(DontShow=$true)] [string] $ModulePath,
-    [Parameter(DontShow=$true)] [string] $LauncherModulePath
+    [Parameter(DontShow=$true)] [string] $LauncherModulePath,
+    [Parameter(DontShow=$true)] [string] $PrerequisiteModulePath
 )
 
 $ErrorActionPreference = 'Stop'
@@ -27,8 +29,12 @@ if ([string]::IsNullOrWhiteSpace($ModulePath)) {
 if ([string]::IsNullOrWhiteSpace($LauncherModulePath)) {
     $LauncherModulePath = Join-Path $scriptRoot 'FF7LauncherInstall.psm1'
 }
+if ([string]::IsNullOrWhiteSpace($PrerequisiteModulePath)) {
+    $PrerequisiteModulePath = Join-Path $scriptRoot 'ReloadedPrerequisiteInstall.psm1'
+}
 Import-Module $ModulePath -Force
 Import-Module $LauncherModulePath -Force
+Import-Module $PrerequisiteModulePath -Force
 if ([string]::IsNullOrWhiteSpace($ParityMatrixPath)) {
     $ParityMatrixPath = Join-Path $scriptRoot 'analysis\dual_runtime\parity-matrix.json'
 }
@@ -43,6 +49,8 @@ if (-not [string]::IsNullOrWhiteSpace($SteamRoot)) {
 $installation = Resolve-Ff7Installation @resolveArguments
 $legacyRuntime = $installation.LegacyRuntime
 $detectedNativeRuntime = $installation.NativeRuntime
+$reloadedSettingsPath = Join-Path ([Environment]::GetFolderPath('ApplicationData')) `
+    'Reloaded-Mod-Loader-II\ReloadedII.json'
 
 if ([string]::IsNullOrWhiteSpace($ReloadedRoot)) {
     if (-not [string]::IsNullOrWhiteSpace($env:RELOADED_II_ROOT)) {
@@ -50,8 +58,6 @@ if ([string]::IsNullOrWhiteSpace($ReloadedRoot)) {
     }
 }
 if ([string]::IsNullOrWhiteSpace($ReloadedRoot)) {
-    $reloadedSettingsPath = Join-Path ([Environment]::GetFolderPath('ApplicationData')) `
-        'Reloaded-Mod-Loader-II\ReloadedII.json'
     if (Test-Path -LiteralPath $reloadedSettingsPath -PathType Leaf) {
         try {
             $reloadedSettings = [IO.File]::ReadAllText($reloadedSettingsPath) | ConvertFrom-Json
@@ -88,10 +94,23 @@ if ([string]::IsNullOrWhiteSpace($ReloadedRoot)) {
     }
 }
 
+if ([string]::IsNullOrWhiteSpace($PrerequisiteBundlePath)) {
+    throw 'The verified Reloaded-II prerequisite bundle is required.'
+}
+$requiredArchitectures = @()
+if ($null -ne $legacyRuntime) { $requiredArchitectures += 'x86' }
+if ($null -ne $detectedNativeRuntime) { $requiredArchitectures += 'x64' }
+$prerequisiteResult = Install-BlindSwordsmanReloadedPrerequisites `
+    -BundlePath $PrerequisiteBundlePath `
+    -ReloadedRoot $ReloadedRoot `
+    -RequiredArchitectures $requiredArchitectures `
+    -SettingsPath $reloadedSettingsPath
+$ReloadedRoot = [IO.Path]::GetFullPath([string]$prerequisiteResult.ReloadedRoot)
 if (-not (Test-Path -LiteralPath $ReloadedRoot -PathType Container)) {
-    throw "Reloaded-II root is missing: $ReloadedRoot"
+    throw "Reloaded-II provisioning did not create the expected root: $ReloadedRoot"
 }
 $buildPackagePath = Join-Path $scriptRoot 'Build-DualRuntimePackage.ps1'
+$legacyProfileTemplate = Join-Path $scriptRoot 'templates\Ff7.Legacy.Steam.AppConfig.json'
 $nativeProfileTemplate = Join-Path $scriptRoot 'templates\Ff7.Native.Steam2026.AppConfig.json'
 $asiLoaderX86Source = Join-Path $ReloadedRoot '_asi_extract\ASILoader32.dll'
 $bootstrapperX86Source = Join-Path $ReloadedRoot 'Loader\X86\Bootstrapper\Reloaded.Mod.Loader.Bootstrapper.dll'
@@ -99,7 +118,7 @@ $asiLoaderX64Source = Join-Path $ReloadedRoot '_asi_extract\ASILoader64.dll'
 $bootstrapperX64Source = Join-Path $ReloadedRoot 'Loader\X64\Bootstrapper\Reloaded.Mod.Loader.Bootstrapper.dll'
 $requiredFiles = @()
 if ($null -ne $legacyRuntime) {
-    $requiredFiles += @($asiLoaderX86Source, $bootstrapperX86Source)
+    $requiredFiles += @($legacyProfileTemplate, $asiLoaderX86Source, $bootstrapperX86Source)
 }
 if ($null -ne $detectedNativeRuntime) {
     $requiredFiles += @($nativeProfileTemplate, $asiLoaderX64Source, $bootstrapperX64Source)
@@ -401,6 +420,10 @@ $openingVoiceTarget = if ($null -ne $legacyRuntime) {
     Join-Path $legacyRuntime.RuntimeRoot 'override\movies\opening_va.ogg'
 }
 else { $null }
+$expectedLegacyProfile = if ($null -ne $legacyRuntime) {
+    Join-Path $ReloadedRoot 'Apps\Ff7.En.Steam\AppConfig.json'
+}
+else { $null }
 $ordinaryNativeProfile = Join-Path $ReloadedRoot 'Apps\Ff7.Native.Steam2026\AppConfig.json'
 $shouldInstallNativeProfile = $null -ne $nativeRuntime -and
     ($nativeParityGate.IsReleaseReady -or $AllowResearchNativeProfile)
@@ -429,6 +452,7 @@ else {
     $null
 }
 $packageResult = $null
+$legacyProfileResult = $null
 $profileResult = $null
 $asiLoaderX86Result = $null
 $bootstrapperX86Result = $null
@@ -491,6 +515,11 @@ try {
     # first mutation. A stale ordinary native profile is unsafe while the release gate is closed.
     Install-Ff7DualRuntimePackage -PackagePath $stagedPackage `
         -ModDirectory $modDirectory -ValidateOnly | Out-Null
+    if ($null -ne $legacyRuntime) {
+        Install-Ff7LegacyReloadedProfile -ReloadedRoot $ReloadedRoot `
+            -LegacyRuntime $legacyRuntime -TemplatePath $legacyProfileTemplate `
+            -ValidateOnly | Out-Null
+    }
     if ($null -ne $nativeRuntime -and -not $nativeParityGate.IsReleaseReady -and
         (Test-Path -LiteralPath $ordinaryNativeProfile -PathType Leaf)) {
         throw "An ordinary native profile already exists while the release gate is closed: $ordinaryNativeProfile"
@@ -539,6 +568,14 @@ try {
     Install-Ff7DualRuntimePackage -PackagePath $modDirectory `
         -ModDirectory $modDirectory -ValidateOnly | Out-Null
 
+    if ($null -ne $legacyRuntime) {
+        $legacyProfileResult = Install-Ff7LegacyReloadedProfile -ReloadedRoot $ReloadedRoot `
+            -LegacyRuntime $legacyRuntime -TemplatePath $legacyProfileTemplate
+        Install-Ff7LegacyReloadedProfile -ReloadedRoot $ReloadedRoot `
+            -LegacyRuntime $legacyRuntime -TemplatePath $legacyProfileTemplate `
+            -ValidateOnly | Out-Null
+    }
+
     if ($shouldInstallNativeProfile) {
         $profileResult = Install-Ff7NativeReloadedProfile -ReloadedRoot $ReloadedRoot `
             -NativeRuntime $nativeRuntime -TemplatePath $nativeProfileTemplate `
@@ -586,6 +623,14 @@ try {
     elseif ($null -ne $nativeRuntime) {
         Write-Host 'Native Steam 2026 profile was withheld because full parity and user-led validation are not complete.'
     }
+    if ($null -ne $legacyProfileResult) {
+        if ($legacyProfileResult.Changed) {
+            Write-Host "Installed additive legacy Reloaded profile. Backup: $($legacyProfileResult.BackupPath)"
+        }
+        else {
+            Write-Host 'The legacy Reloaded profile is already current.'
+        }
+    }
     if ($shouldInstallNativeProfile) {
         Write-Host 'Installed verified x64 bootstrap files; ordinary FFVII.exe and Steam launches now load accessibility automatically.'
     }
@@ -601,8 +646,8 @@ try {
         Write-Host "Removed the legacy FFNx opening voice copy; Reloaded plays narration independently: $($openingNarrationResult.TargetPath)"
     }
 
-    # The protected legacy Reloaded profile and 7th Heaven settings are intentionally untouched.
-    Write-Host 'Protected legacy Reloaded and 7th Heaven profiles were preserved unchanged.'
+    Write-Host 'Reloaded-II and Shared Hooks were verified; existing unrelated Reloaded settings and mods were preserved.'
+    Write-Host '7th Heaven and FFNx remain optional and were not replaced.'
     Write-Host 'Installation completed without launching FFVII, Reloaded-II, or 7th Heaven.'
 
     if (-not [string]::IsNullOrWhiteSpace($ResultPath)) {
@@ -636,11 +681,24 @@ try {
             }
         }
         else { $null }
+        $legacyProfileState = if ($null -ne $legacyProfileResult) {
+            $legacyProfileBackupPath = if ([string]::IsNullOrWhiteSpace([string]$legacyProfileResult.BackupPath)) { $null } else { [IO.Path]::GetFullPath([string]$legacyProfileResult.BackupPath) }
+            $legacyProfileBackupSha256 = if ($null -eq $legacyProfileBackupPath) { $null } else { (Get-FileHash -LiteralPath $legacyProfileBackupPath -Algorithm SHA256).Hash }
+            [ordered]@{
+                path = [IO.Path]::GetFullPath([string]$legacyProfileResult.ProfilePath)
+                changed = [bool]$legacyProfileResult.Changed
+                installedSha256 = (Get-FileHash -LiteralPath ([string]$legacyProfileResult.ProfilePath) -Algorithm SHA256).Hash
+                backupPath = $legacyProfileBackupPath
+                backupSha256 = $legacyProfileBackupSha256
+                research = $false
+            }
+        }
+        else { $null }
         $packageBackupPath = if ([string]::IsNullOrWhiteSpace([string]$packageResult.BackupPath)) { $null } else { [IO.Path]::GetFullPath([string]$packageResult.BackupPath) }
         $ffnxState = if ($null -eq $ffnxResult) { $null } else { [ordered]@{ releaseTag = [string]$ffnxResult.ReleaseTag; assetName = [string]$ffnxResult.AssetName } }
         $launcherState = if ($null -eq $launcherResult) { $null } else { $launcherResult.State }
         $result = [ordered]@{
-            schemaVersion = 1
+            schemaVersion = 2
             productVersion = $ProductVersion
             releaseTag = $ReleaseTag
             installedAtUtc = [DateTime]::UtcNow.ToString('O')
@@ -656,6 +714,7 @@ try {
                 backupFingerprint = $packageBackupFingerprint
             }
             profile = $profileState
+            legacyProfile = $legacyProfileState
             loaders = $loaderResults.ToArray()
             openingVoice = if ($null -ne $legacyRuntime) {
                 [ordered]@{
@@ -712,6 +771,10 @@ catch {
         { if ($null -ne $expectedNativeProfile) {
                 Restore-NativeProfileForRollback -Result $profileResult `
                     -ExpectedProfilePath $expectedNativeProfile
+            } },
+        { if ($null -ne $expectedLegacyProfile) {
+                Restore-NativeProfileForRollback -Result $legacyProfileResult `
+                    -ExpectedProfilePath $expectedLegacyProfile
             } },
         { Restore-DualRuntimePackageForRollback -Result $packageResult `
                 -ExpectedModDirectory $modDirectory }

@@ -57,6 +57,7 @@ public sealed record InstallState(
     string ReloadedRoot,
     InstalledMod Mod,
     InstalledProfile? Profile,
+    InstalledProfile? LegacyProfile,
     IReadOnlyList<InstalledLoader> Loaders,
     OpeningVoiceState? OpeningVoice,
     FfnxState? Ffnx,
@@ -71,16 +72,19 @@ public static partial class DeploymentResultParser
         {
             using var document = JsonDocument.Parse(json, new JsonDocumentOptions { MaxDepth = 12 });
             var root = document.RootElement;
-            var hasLauncherProperty = root.TryGetProperty("launcher", out var launcherElement);
-            Exact(root,
-                hasLauncherProperty
-                    ? ["schemaVersion", "productVersion", "releaseTag", "installedAtUtc", "game", "reloadedRoot", "mod", "profile", "loaders", "openingVoice", "launcher", "ffnx"]
-                    : ["schemaVersion", "productVersion", "releaseTag", "installedAtUtc", "game", "reloadedRoot", "mod", "profile", "loaders", "openingVoice", "ffnx"],
-                "install state");
-            if (!root.GetProperty("schemaVersion").TryGetInt32(out var schema) || schema != 1)
+            if (!root.GetProperty("schemaVersion").TryGetInt32(out var schema) || schema is not (1 or 2))
             {
                 throw new InvalidDataException("Unsupported install-state schema.");
             }
+            var hasLauncherProperty = root.TryGetProperty("launcher", out var launcherElement);
+            IReadOnlyCollection<string> properties = schema switch
+            {
+                1 when hasLauncherProperty => ["schemaVersion", "productVersion", "releaseTag", "installedAtUtc", "game", "reloadedRoot", "mod", "profile", "loaders", "openingVoice", "launcher", "ffnx"],
+                1 => ["schemaVersion", "productVersion", "releaseTag", "installedAtUtc", "game", "reloadedRoot", "mod", "profile", "loaders", "openingVoice", "ffnx"],
+                2 when hasLauncherProperty => ["schemaVersion", "productVersion", "releaseTag", "installedAtUtc", "game", "reloadedRoot", "mod", "profile", "legacyProfile", "loaders", "openingVoice", "launcher", "ffnx"],
+                _ => ["schemaVersion", "productVersion", "releaseTag", "installedAtUtc", "game", "reloadedRoot", "mod", "profile", "legacyProfile", "loaders", "openingVoice", "ffnx"]
+            };
+            Exact(root, properties, "install state");
 
             var version = ParseVersion(RequiredString(root, "productVersion"));
             var releaseTag = RequiredString(root, "releaseTag");
@@ -117,27 +121,10 @@ public static partial class DeploymentResultParser
                 modBackupPath,
                 modBackupFingerprint);
 
-            InstalledProfile? profile = null;
-            var profileElement = root.GetProperty("profile");
-            if (profileElement.ValueKind != JsonValueKind.Null)
-            {
-                Exact(profileElement,
-                    ["path", "changed", "installedSha256", "backupPath", "backupSha256", "research"],
-                    "installed profile");
-                var backupPath = OptionalString(profileElement, "backupPath");
-                var backupHash = OptionalString(profileElement, "backupSha256");
-                if ((backupPath is null) != (backupHash is null))
-                {
-                    throw new InvalidDataException("Profile backup path and hash must both be present or absent.");
-                }
-                profile = new InstalledProfile(
-                    RequiredString(profileElement, "path"),
-                    RequiredBoolean(profileElement, "changed"),
-                    RequiredHash(profileElement, "installedSha256"),
-                    backupPath,
-                    backupHash is null ? null : ValidateHash(backupHash, "backupSha256"),
-                    RequiredBoolean(profileElement, "research"));
-            }
+            var profile = ParseProfile(root.GetProperty("profile"), "installed profile");
+            var legacyProfile = schema == 2
+                ? ParseProfile(root.GetProperty("legacyProfile"), "installed legacy profile")
+                : null;
 
             var loadersElement = root.GetProperty("loaders");
             if (loadersElement.ValueKind != JsonValueKind.Array || loadersElement.GetArrayLength() == 0)
@@ -208,6 +195,7 @@ public static partial class DeploymentResultParser
                 RequiredString(root, "reloadedRoot"),
                 mod,
                 profile,
+                legacyProfile,
                 loaders,
                 openingVoice,
                 ffnx,
@@ -226,6 +214,10 @@ public static partial class DeploymentResultParser
     public static string Serialize(InstallState state)
     {
         ArgumentNullException.ThrowIfNull(state);
+        if (state.SchemaVersion is not (1 or 2))
+        {
+            throw new InvalidDataException("Unsupported install-state schema.");
+        }
         using var stream = new MemoryStream();
         using (var writer = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = true }))
         {
@@ -245,20 +237,10 @@ public static partial class DeploymentResultParser
             WriteNullableString(writer, "backupPath", state.Mod.BackupPath);
             WriteNullableString(writer, "backupFingerprint", state.Mod.BackupFingerprint);
             writer.WriteEndObject();
-            if (state.Profile is null)
+            WriteProfile(writer, "profile", state.Profile);
+            if (state.SchemaVersion == 2)
             {
-                writer.WriteNull("profile");
-            }
-            else
-            {
-                writer.WriteStartObject("profile");
-                writer.WriteString("path", state.Profile.Path);
-                writer.WriteBoolean("changed", state.Profile.Changed);
-                writer.WriteString("installedSha256", state.Profile.InstalledSha256);
-                WriteNullableString(writer, "backupPath", state.Profile.BackupPath);
-                WriteNullableString(writer, "backupSha256", state.Profile.BackupSha256);
-                writer.WriteBoolean("research", state.Profile.Research);
-                writer.WriteEndObject();
+                WriteProfile(writer, "legacyProfile", state.LegacyProfile);
             }
             writer.WriteStartArray("loaders");
             foreach (var loader in state.Loaders)
@@ -312,6 +294,47 @@ public static partial class DeploymentResultParser
             writer.WriteEndObject();
         }
         return Encoding.UTF8.GetString(stream.ToArray());
+    }
+
+    private static InstalledProfile? ParseProfile(JsonElement element, string label)
+    {
+        if (element.ValueKind == JsonValueKind.Null)
+        {
+            return null;
+        }
+        Exact(element,
+            ["path", "changed", "installedSha256", "backupPath", "backupSha256", "research"],
+            label);
+        var backupPath = OptionalString(element, "backupPath");
+        var backupHash = OptionalString(element, "backupSha256");
+        if ((backupPath is null) != (backupHash is null))
+        {
+            throw new InvalidDataException($"{label} backup path and hash must both be present or absent.");
+        }
+        return new InstalledProfile(
+            RequiredString(element, "path"),
+            RequiredBoolean(element, "changed"),
+            RequiredHash(element, "installedSha256"),
+            backupPath,
+            backupHash is null ? null : ValidateHash(backupHash, "backupSha256"),
+            RequiredBoolean(element, "research"));
+    }
+
+    private static void WriteProfile(Utf8JsonWriter writer, string name, InstalledProfile? profile)
+    {
+        if (profile is null)
+        {
+            writer.WriteNull(name);
+            return;
+        }
+        writer.WriteStartObject(name);
+        writer.WriteString("path", profile.Path);
+        writer.WriteBoolean("changed", profile.Changed);
+        writer.WriteString("installedSha256", profile.InstalledSha256);
+        WriteNullableString(writer, "backupPath", profile.BackupPath);
+        WriteNullableString(writer, "backupSha256", profile.BackupSha256);
+        writer.WriteBoolean("research", profile.Research);
+        writer.WriteEndObject();
     }
 
     private static InstalledLauncherFile ParseLauncherFile(JsonElement element, string label)

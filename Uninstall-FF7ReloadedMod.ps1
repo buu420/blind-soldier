@@ -26,9 +26,13 @@ try {
 catch {
     throw "Blind Swordsman install state is invalid JSON: $($_.Exception.Message)"
 }
-if ($state.schemaVersion -ne 1 -or $null -eq $state.game -or $null -eq $state.mod -or
+$schemaVersion = [int]$state.schemaVersion
+if ($schemaVersion -notin @(1, 2) -or $null -eq $state.game -or $null -eq $state.mod -or
     [string]::IsNullOrWhiteSpace([string]$state.reloadedRoot)) {
     throw 'Blind Swordsman install state has an unsupported schema or is incomplete.'
+}
+if ($schemaVersion -eq 2 -and -not ($state.PSObject.Properties.Name -ccontains 'legacyProfile')) {
+    throw 'Blind Swordsman schema-two install state is missing legacy profile state.'
 }
 
 $installation = Resolve-Ff7Installation -GameRoot ([string]$state.game.gameRoot)
@@ -40,8 +44,10 @@ if (-not $recordedModDirectory.Equals($expectedModDirectory, [StringComparison]:
 }
 
 $allowedLoaderTargets = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
-[void]$allowedLoaderTargets.Add([IO.Path]::GetFullPath((Join-Path $installation.LegacyRuntime.RuntimeRoot 'dsound.dll')))
-[void]$allowedLoaderTargets.Add([IO.Path]::GetFullPath((Join-Path $installation.LegacyRuntime.RuntimeRoot 'Reloaded.Mod.Loader.Bootstrapper.asi')))
+if ($null -ne $installation.LegacyRuntime) {
+    [void]$allowedLoaderTargets.Add([IO.Path]::GetFullPath((Join-Path $installation.LegacyRuntime.RuntimeRoot 'dsound.dll')))
+    [void]$allowedLoaderTargets.Add([IO.Path]::GetFullPath((Join-Path $installation.LegacyRuntime.RuntimeRoot 'Reloaded.Mod.Loader.Bootstrapper.asi')))
+}
 if ($null -ne $installation.NativeRuntime) {
     [void]$allowedLoaderTargets.Add([IO.Path]::GetFullPath((Join-Path $installation.NativeRuntime.RuntimeRoot 'd3d11.dll')))
     [void]$allowedLoaderTargets.Add([IO.Path]::GetFullPath((Join-Path $installation.NativeRuntime.RuntimeRoot 'Reloaded.Mod.Loader.Bootstrapper.asi')))
@@ -62,23 +68,55 @@ foreach ($loader in @($state.loaders)) {
     })
 }
 
-$profilePlan = $null
-if ($null -ne $state.profile) {
-    $profilePath = [IO.Path]::GetFullPath([string]$state.profile.path)
-    $allowedProfiles = @(
-        [IO.Path]::GetFullPath((Join-Path $reloadedRoot 'Apps\Ff7.Native.Steam2026\AppConfig.json')),
-        [IO.Path]::GetFullPath((Join-Path $reloadedRoot 'Apps\Ff7.Native.Steam2026.Research\AppConfig.json'))
+function New-ProfileUninstallPlan {
+    param(
+        [psobject] $Profile,
+        [Parameter(Mandatory=$true)] [string[]] $AllowedPaths,
+        [Parameter(Mandatory=$true)] [string] $Label
     )
-    if ($allowedProfiles -notcontains $profilePath -or [string]$state.profile.installedSha256 -notmatch '^[0-9A-Fa-f]{64}$') {
-        throw 'Blind Swordsman install state contains an unsafe native profile.'
+    if ($null -eq $Profile) { return $null }
+    $profilePath = [IO.Path]::GetFullPath([string]$Profile.path)
+    $installedHash = [string]$Profile.installedSha256
+    if ($AllowedPaths -notcontains $profilePath -or $installedHash -notmatch '^[0-9A-Fa-f]{64}$') {
+        throw "Blind Swordsman install state contains an unsafe $Label profile."
     }
-    $profilePlan = [pscustomobject]@{
+    $backupPath = if ([string]::IsNullOrWhiteSpace([string]$Profile.backupPath)) {
+        $null
+    }
+    else {
+        [IO.Path]::GetFullPath([string]$Profile.backupPath)
+    }
+    $backupHash = if ([string]::IsNullOrWhiteSpace([string]$Profile.backupSha256)) { $null } else { [string]$Profile.backupSha256 }
+    if (($null -eq $backupPath) -ne ($null -eq $backupHash) -or
+        ($null -ne $backupHash -and $backupHash -notmatch '^[0-9A-Fa-f]{64}$')) {
+        throw "Blind Swordsman install state contains invalid $Label profile backup metadata."
+    }
+    if ($null -ne $backupPath -and
+        (-not (Split-Path -Parent $backupPath).Equals((Split-Path -Parent $profilePath), [StringComparison]::OrdinalIgnoreCase) -or
+         -not (Split-Path -Leaf $backupPath).StartsWith('AppConfig.json.backup-', [StringComparison]::Ordinal))) {
+        throw "Blind Swordsman install state contains an unsafe $Label profile backup."
+    }
+    return [pscustomobject]@{
+        Label = $Label
         Path = $profilePath
-        Changed = [bool]$state.profile.changed
-        InstalledHash = [string]$state.profile.installedSha256
-        BackupPath = if ([string]::IsNullOrWhiteSpace([string]$state.profile.backupPath)) { $null } else { [IO.Path]::GetFullPath([string]$state.profile.backupPath) }
-        BackupHash = [string]$state.profile.backupSha256
+        Changed = [bool]$Profile.changed
+        InstalledHash = $installedHash
+        BackupPath = $backupPath
+        BackupHash = $backupHash
     }
+}
+
+$profilePlans = New-Object 'System.Collections.Generic.List[object]'
+$nativeProfilePlan = New-ProfileUninstallPlan -Profile $state.profile -Label 'native' -AllowedPaths @(
+    [IO.Path]::GetFullPath((Join-Path $reloadedRoot 'Apps\Ff7.Native.Steam2026\AppConfig.json')),
+    [IO.Path]::GetFullPath((Join-Path $reloadedRoot 'Apps\Ff7.Native.Steam2026.Research\AppConfig.json'))
+)
+if ($null -ne $nativeProfilePlan) { $profilePlans.Add($nativeProfilePlan) }
+if ($schemaVersion -eq 2) {
+    $legacyProfilePlan = New-ProfileUninstallPlan -Profile $state.legacyProfile -Label 'legacy' -AllowedPaths @(
+        [IO.Path]::GetFullPath((Join-Path $reloadedRoot 'Apps\Ff7.En.Steam\AppConfig.json'))
+    )
+    if ($null -ne $legacyProfilePlan) { $profilePlans.Add($legacyProfilePlan) }
 }
 
 $backupRoot = [IO.Path]::GetFullPath((Join-Path $reloadedRoot 'AccessibilityBackups')).TrimEnd('\')
@@ -109,6 +147,9 @@ if ($null -ne $state.launcher) {
 # Restore the exact FFNx narration copy only when setup recorded removing it and
 # no replacement has appeared since installation.
 if ($null -ne $state.openingVoice -and [bool]$state.openingVoice.wasPresent) {
+    if ($null -eq $installation.LegacyRuntime) {
+        throw 'Blind Swordsman install state contains legacy opening-voice state without a legacy runtime.'
+    }
     $voiceTarget = [IO.Path]::GetFullPath([string]$state.openingVoice.target)
     $expectedVoiceTarget = [IO.Path]::GetFullPath((Join-Path $installation.LegacyRuntime.RuntimeRoot 'override\movies\opening_va.ogg'))
     $voiceSource = Join-Path $recordedModDirectory 'Assets\movies\opening_audio_description.ogg'
@@ -123,19 +164,31 @@ if ($null -ne $state.openingVoice -and [bool]$state.openingVoice.wasPresent) {
     }
 }
 
-if ($null -ne $profilePlan -and $profilePlan.Changed -and (Test-Path -LiteralPath $profilePlan.Path -PathType Leaf)) {
+foreach ($profilePlan in $profilePlans) {
+    if (-not $profilePlan.Changed -or -not (Test-Path -LiteralPath $profilePlan.Path -PathType Leaf)) { continue }
     $currentHash = (Get-FileHash -LiteralPath $profilePlan.Path -Algorithm SHA256).Hash
     if (-not $currentHash.Equals($profilePlan.InstalledHash, [StringComparison]::OrdinalIgnoreCase)) {
-        $preserved.Add("Native profile changed after installation: $($profilePlan.Path)")
+        $preserved.Add("$($profilePlan.Label) profile changed after installation: $($profilePlan.Path)")
     }
     elseif ($null -ne $profilePlan.BackupPath) {
         if (-not (Test-Path -LiteralPath $profilePlan.BackupPath -PathType Leaf) -or
             -not (Get-FileHash -LiteralPath $profilePlan.BackupPath -Algorithm SHA256).Hash.Equals($profilePlan.BackupHash, [StringComparison]::OrdinalIgnoreCase)) {
-            $preserved.Add("Native profile backup is missing or changed: $($profilePlan.BackupPath)")
+            $preserved.Add("$($profilePlan.Label) profile backup is missing or changed: $($profilePlan.BackupPath)")
         }
         else {
-            [IO.File]::Replace($profilePlan.BackupPath, $profilePlan.Path, $null, $true)
-            $restored.Add($profilePlan.Path)
+            $temporaryCurrent = Join-Path (Split-Path -Parent $profilePlan.Path) ('.uninstall-profile-' + [Guid]::NewGuid().ToString('N'))
+            Move-Item -LiteralPath $profilePlan.Path -Destination $temporaryCurrent
+            try {
+                Move-Item -LiteralPath $profilePlan.BackupPath -Destination $profilePlan.Path
+                Remove-Item -LiteralPath $temporaryCurrent -Force
+                $restored.Add($profilePlan.Path)
+            }
+            catch {
+                if (-not (Test-Path -LiteralPath $profilePlan.Path) -and (Test-Path -LiteralPath $temporaryCurrent -PathType Leaf)) {
+                    Move-Item -LiteralPath $temporaryCurrent -Destination $profilePlan.Path
+                }
+                throw
+            }
         }
     }
     else {

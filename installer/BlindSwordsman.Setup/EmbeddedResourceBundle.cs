@@ -14,6 +14,7 @@ public sealed class EmbeddedResourceBundle : IDisposable
             ["BlindSwordsman.Resources.Invoke-BlindSwordsmanPreflight.ps1"] = "Invoke-BlindSwordsmanPreflight.ps1",
             ["BlindSwordsman.Resources.Install-FF7ReloadedMod.ps1"] = "Install-FF7ReloadedMod.ps1",
             ["BlindSwordsman.Resources.Uninstall-FF7ReloadedMod.ps1"] = "Uninstall-FF7ReloadedMod.ps1",
+            ["BlindSwordsman.Resources.templates.Ff7.Legacy.Steam.AppConfig.json"] = Path.Combine("templates", "Ff7.Legacy.Steam.AppConfig.json"),
             ["BlindSwordsman.Resources.templates.Ff7.Native.Steam2026.AppConfig.json"] = Path.Combine("templates", "Ff7.Native.Steam2026.AppConfig.json"),
             ["BlindSwordsman.Resources.analysis.dual_runtime.parity-matrix.json"] = Path.Combine("analysis", "dual_runtime", "parity-matrix.json")
         };
