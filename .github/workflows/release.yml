@@ -1,0 +1,45 @@
+name: Build Blind Swordsman release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Build and validate release assets
+        shell: pwsh
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          $version = $tag.Substring(1)
+          ./Build-BlindSwordsmanRelease.ps1 -Version $version -Tag $tag -OutputPath ./artifacts/release
+
+      - name: Create GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          $channel = Get-Content ./artifacts/release/blind-swordsman-channel.json -Raw | ConvertFrom-Json
+          gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Release $tag already exists; verified assets were not overwritten."
+            exit 0
+          }
+          $arguments = @('release', 'create', $tag, '--repo', $env:GITHUB_REPOSITORY, '--generate-notes', '--title', "Blind Swordsman $($channel.version)")
+          if ($channel.track -eq 'prerelease') { $arguments += '--prerelease' }
+          $arguments += @(Get-ChildItem ./artifacts/release -File | ForEach-Object FullName)
+          gh @arguments

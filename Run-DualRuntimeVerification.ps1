@@ -245,10 +245,23 @@ $commands.Add((New-VerificationCommand -Name 'Steam2026X64.Tests' -FilePath 'dot
 $commands.Add((New-VerificationCommand -Name 'Parity.Tests' -FilePath 'dotnet' -Arguments @(
     'run', '--project', (Join-Path $scriptRoot 'Ff7.Accessibility.Parity.Tests\Ff7.Accessibility.Parity.Tests.csproj'), '-c', 'Release'
 ) -WorkingDirectory $scriptRoot))
+$commands.Add((New-VerificationCommand -Name 'Setup.Tests' -FilePath 'dotnet' -Arguments @(
+    'run', '--project', (Join-Path $scriptRoot 'installer\BlindSwordsman.Setup.Tests\BlindSwordsman.Setup.Tests.csproj'), '-c', 'Release'
+) -WorkingDirectory $scriptRoot))
 
 $verificationPesterCommand = "Invoke-Pester -Script '$((Join-Path $scriptRoot 'Run-DualRuntimeVerification.Tests.ps1').Replace("'", "''"))' -EnableExit"
 $commands.Add((New-VerificationCommand -Name 'Verification gate Pester' -FilePath 'powershell.exe' -Arguments @(
     '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', $verificationPesterCommand
+) -WorkingDirectory $scriptRoot))
+
+$preflightPesterCommand = "Invoke-Pester -Script '$((Join-Path $scriptRoot 'Invoke-BlindSwordsmanPreflight.Tests.ps1').Replace("'", "''"))' -EnableExit"
+$commands.Add((New-VerificationCommand -Name 'Setup preflight Pester' -FilePath 'powershell.exe' -Arguments @(
+    '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', $preflightPesterCommand
+) -WorkingDirectory $scriptRoot))
+
+$releaseBuilderPesterCommand = "Invoke-Pester -Script '$((Join-Path $scriptRoot 'Build-BlindSwordsmanRelease.Tests.ps1').Replace("'", "''"))' -EnableExit"
+$commands.Add((New-VerificationCommand -Name 'Release builder Pester' -FilePath 'powershell.exe' -Arguments @(
+    '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', $releaseBuilderPesterCommand
 ) -WorkingDirectory $scriptRoot))
 
 $pesterCommand = "Invoke-Pester -Script '$((Join-Path $scriptRoot 'FF7SteamInstall.Tests.ps1').Replace("'", "''"))' -EnableExit"
@@ -258,6 +271,16 @@ $commands.Add((New-VerificationCommand -Name 'Installer Pester pass 1' -FilePath
 if (-not $SkipSecondPesterRepeat) {
     $commands.Add((New-VerificationCommand -Name 'Installer Pester pass 2' -FilePath 'powershell.exe' -Arguments @(
         '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', $pesterCommand
+    ) -WorkingDirectory $scriptRoot))
+}
+
+$entrypointPesterCommand = "Invoke-Pester -Script '$((Join-Path $scriptRoot 'InstallerEntrypoint.Tests.ps1').Replace("'", "''"))' -EnableExit"
+$commands.Add((New-VerificationCommand -Name 'Installer entrypoint Pester pass 1' -FilePath 'powershell.exe' -Arguments @(
+    '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', $entrypointPesterCommand
+) -WorkingDirectory $scriptRoot))
+if (-not $SkipSecondPesterRepeat) {
+    $commands.Add((New-VerificationCommand -Name 'Installer entrypoint Pester pass 2' -FilePath 'powershell.exe' -Arguments @(
+        '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', $entrypointPesterCommand
     ) -WorkingDirectory $scriptRoot))
 }
 

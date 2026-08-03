@@ -21,7 +21,6 @@ is not tied to one particular screen reader.
 - Windows 10 or Windows 11.
 - A legal Steam installation of the original Final Fantasy VII.
 - [Reloaded-II](https://github.com/Reloaded-Project/Reloaded-II).
-- For a source installation, the [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0).
 - Optional: 7th Heaven and FFNx for the legacy x86 game path.
 
 Blind Swordsman contains separate x86 and x64 backends. The installer detects
@@ -31,44 +30,67 @@ reading unverified game memory.
 
 ## Installation
 
-### Release package
+Download and run
+[Blind-Swordsman-Setup.exe](https://github.com/buu420/blind-swordsman/releases/download/v0.1.0-pre.1/Blind-Swordsman-Setup.exe).
+If that direct link changes, use the
+[Blind Swordsman Releases page](https://github.com/buu420/blind-swordsman/releases).
 
-When a packaged build is available on the
-[Releases](https://github.com/buu420/blind-swordsman/releases) page:
+1. Close Final Fantasy VII, 7th Heaven, and Reloaded-II.
+2. Run `Blind-Swordsman-Setup.exe`. You do not need to extract a ZIP, install a
+   .NET runtime, open a terminal, or run a script.
+3. Review the detected Final Fantasy VII and Reloaded-II folders. If setup did
+   not find one, activate its labeled **Choose folder** button and select it.
+   The game is discovered from Steam libraries. Reloaded-II is discovered from
+   its own registered launcher or from a portable `Reloaded-II` folder inside
+   or alongside the game; no developer-specific folder is built into setup.
+4. Review the dependency status list. Setup will not continue until the game,
+   correct x86 and x64 loaders, and Reloaded Shared Hooks are ready.
+5. Choose **Install**. Keep the setup window open until it announces completion.
 
-1. Download the newest Blind Swordsman ZIP.
-2. Extract the ZIP to its own folder. Do not run the installer from inside the
-   ZIP.
-3. Close Final Fantasy VII, 7th Heaven, and Reloaded-II.
-4. Run `Install-FF7ReloadedMod.cmd` from the extracted folder.
-5. If Reloaded-II is not in the installer's default location, pass its folder:
+> [!WARNING]
+> The first public installer is not code-signed. Windows SmartScreen may say
+> **Unknown publisher**. Only continue when you downloaded the file from this
+> repository's Releases page. A future release can remove that warning after a
+> code-signing certificate is available.
 
-   ```powershell
-   .\Install-FF7ReloadedMod.cmd -ReloadedRoot "C:\Path\To\Reloaded-II"
-   ```
+Setup downloads the matching runtime ZIP from the same GitHub release, checks
+its exact length and SHA-256 hash, validates every file before extraction, and
+then installs the prebuilt x86 and x64 mod. It preserves unrelated 7th Heaven
+and FFNx settings. Both integrations are optional: setup detects them for
+compatibility reporting, but never installs, requires, or replaces either one.
 
-The current native x64 build is still guarded as a pre-release profile. To
-install that profile, add the following switch:
+The native Steam 2026 x64 backend is included, but remains prerelease research
+software. The setup labels the detected runtimes and refuses unknown game
+executables instead of reading unverified memory.
+
+### Update, repair, or remove
+
+- Run the installer again to update to a newer release or repair the installed
+  version.
+- Open the Start menu and choose **Check for Blind Swordsman Updates** to run a
+  manual update check. No updater runs in the background.
+- Remove the mod through **Settings > Apps > Installed apps > Blind Swordsman**.
+  Uninstall removes setup-owned files, preserves files changed after
+  installation, and restores a recorded prior mod package only when it still
+  matches the saved backup.
+
+Installer state and readable logs are stored under
+`%LOCALAPPDATA%\Blind Swordsman`. The completion page includes a link that
+opens the current setup log.
+
+### Offline or local release files
+
+Keep `Blind-Swordsman-Setup.exe`, `Blind-Swordsman-Runtime.zip`, and
+`blind-swordsman-channel.json` from the same release in one folder. From a
+Command Prompt or PowerShell window, run:
 
 ```powershell
-.\Install-FF7ReloadedMod.cmd -ReloadedRoot "C:\Path\To\Reloaded-II" -AllowResearchNativeProfile
+.\Blind-Swordsman-Setup.exe --local-manifest ".\blind-swordsman-channel.json"
 ```
 
-The installer validates both runtime payloads and required assets before it
-changes the installed mod. If an older Blind Swordsman build is present, it is
-backed up before replacement.
-
-### Install from source
-
-1. Clone or download this repository.
-2. Install the .NET 8 SDK and Reloaded-II.
-3. Close Final Fantasy VII, 7th Heaven, and Reloaded-II.
-4. Open PowerShell in the repository folder.
-5. Run the same `Install-FF7ReloadedMod.cmd` command shown above. The installer
-   builds the x86 and x64 packages and installs the correct loaders and profile.
-
-Use `-GameRoot "C:\Path\To\FINAL FANTASY VII"` if Steam detection does not
-find the game.
+Setup uses the sibling runtime ZIP only after its size and SHA-256 match the
+manifest. See [Installer details](docs/installer.md) for the full setup and
+recovery behavior.
 
 ### Launching the game
 
@@ -81,6 +103,20 @@ find the game.
 
 On a successful load, Prism announces that Final Fantasy VII accessibility is
 active.
+
+## Developer installation from source
+
+End users should use the setup EXE above. To build and deploy from a source
+checkout, install the [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0),
+close the game and launchers, then run:
+
+```powershell
+.\Install-FF7ReloadedMod.ps1 -ReloadedRoot "C:\Path\To\Reloaded-II" -AllowResearchNativeProfile
+```
+
+Add `-GameRoot "C:\Path\To\FINAL FANTASY VII"` only when Steam detection does
+not find the game. The source deployment command builds both architecture
+packages before applying the same identity and rollback checks used by setup.
 
 ## Mod keys
 
@@ -243,6 +279,20 @@ The installer supports exact verified FFVII builds and fails closed after an
 unknown game update. Do not bypass that check. Include the installer error and
 your executable version in a bug report.
 
+### Setup cannot find Reloaded-II
+
+Choose **Choose Reloaded-II folder** and select the folder containing
+`Reloaded-II.exe`, the `Loader` folder, and the `Mods` folder. Setup also checks
+that both architecture loaders and Reloaded Shared Hooks are present. Review
+the dependency list for the exact missing component.
+
+### Windows reports Unknown publisher
+
+That warning is expected for the unsigned prerelease installer. Cancel if the
+file did not come from this repository's Releases page. You can compare the
+download against `Blind-Swordsman-Setup.exe.sha256` on the same release before
+running it.
+
 ## Reporting a problem
 
 Open a GitHub issue and include:
@@ -263,8 +313,9 @@ or other private data.
 
 Blind Swordsman is created by buu420 with development assistance from Codex.
 It builds on Reloaded-II, Prism, FFNx interoperability work, Kujata metadata,
-and credited audio sources included with the project. Third-party components
-and assets remain subject to their respective licenses.
+and accessibility audio derived from the supported game. Third-party
+components, game-derived material, names, and assets remain subject to their
+respective rights and licenses.
 
 Final Fantasy VII and related names and assets are trademarks or copyrights of
 their respective owners. Blind Swordsman is an independent accessibility

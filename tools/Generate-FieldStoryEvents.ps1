@@ -1,6 +1,6 @@
 param(
     [string] $GameRoot = '',
-    [string] $KujataDataRoot = 'C:\Users\buu42\AppData\Local\Temp\kujata-data-codex',
+    [string] $KujataDataRoot = '',
     [string] $OutputPath = ''
 )
 
@@ -9,6 +9,12 @@ $ErrorActionPreference = 'Stop'
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 if (-not $GameRoot) {
     $GameRoot = (Resolve-Path (Join-Path $scriptRoot '..\..\..')).Path
+}
+if (-not $KujataDataRoot) {
+    $KujataDataRoot = $env:KUJATA_DATA_ROOT
+}
+if (-not $KujataDataRoot) {
+    throw 'Provide -KujataDataRoot or set KUJATA_DATA_ROOT.'
 }
 if (-not $OutputPath) {
     $OutputPath = Join-Path $scriptRoot '..\Ff7.Accessibility.Reloaded\Assets\navigation\field_story_events.json'

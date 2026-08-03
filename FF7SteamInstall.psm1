@@ -1461,6 +1461,7 @@ function Install-Ff7DualRuntimePackage {
         (Join-Path $target.Parent.Parent.FullName 'AccessibilityBackups')
     $backup = Join-Path $backupRoot.FullName ('{0}.backup-{1}' -f $target.Name, $operationId)
     $priorMoved = $false
+    $installedFingerprint = $null
     try {
         New-Item -ItemType Directory -Path $candidate | Out-Null
         Get-ChildItem -LiteralPath $sourceValidation.PackagePath -Force |
@@ -1485,6 +1486,7 @@ function Install-Ff7DualRuntimePackage {
                     Changed = $false
                     ModDirectory = $target.FullName
                     BackupPath = $null
+                    BackupFingerprint = $null
                     Fingerprint = $installedFingerprint
                 }
             }
@@ -1520,6 +1522,7 @@ function Install-Ff7DualRuntimePackage {
             Changed = $true
             ModDirectory = $target.FullName
             BackupPath = if ($priorMoved) { $backup } else { $null }
+            BackupFingerprint = if ($priorMoved) { $installedFingerprint } else { $null }
             Fingerprint = $candidateFingerprint
         }
     }
@@ -1886,6 +1889,7 @@ function Assert-Ff7NativeReloadedProfile {
 Export-ModuleMember -Function @(
     'Get-Ff7SteamLibraryPaths',
     'Resolve-Ff7Installation',
+    'Get-Ff7PeMachine',
     'Assert-Ff7NativeRuntimeIdentity',
     'Set-PeLargeAddressAware',
     'Initialize-Ff7CompatibilityRuntime',
