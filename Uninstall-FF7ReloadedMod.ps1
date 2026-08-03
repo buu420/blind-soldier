@@ -2,7 +2,8 @@
 param(
     [Parameter(Mandatory=$true)] [string] $StatePath,
     [Parameter(Mandatory=$true)] [string] $ResultPath,
-    [Parameter(DontShow=$true)] [string] $ModulePath
+    [Parameter(DontShow=$true)] [string] $ModulePath,
+    [Parameter(DontShow=$true)] [string] $LauncherModulePath
 )
 
 $ErrorActionPreference = 'Stop'
@@ -11,6 +12,10 @@ if ([string]::IsNullOrWhiteSpace($ModulePath)) {
     $ModulePath = Join-Path $scriptRoot 'FF7SteamInstall.psm1'
 }
 Import-Module $ModulePath -Force
+if ([string]::IsNullOrWhiteSpace($LauncherModulePath)) {
+    $LauncherModulePath = Join-Path $scriptRoot 'FF7LauncherInstall.psm1'
+}
+Import-Module $LauncherModulePath -Force
 
 if (-not (Test-Path -LiteralPath $StatePath -PathType Leaf)) {
     throw "Blind Swordsman install state is missing: $StatePath"
@@ -91,6 +96,15 @@ else {
 $removed = New-Object 'System.Collections.Generic.List[string]'
 $restored = New-Object 'System.Collections.Generic.List[string]'
 $preserved = New-Object 'System.Collections.Generic.List[string]'
+
+if ($null -ne $state.launcher) {
+    $launcherOutcome = Restore-Ff7AccessibleLauncherFromState `
+        -GameRoot ([string]$installation.GameRoot) -ReloadedRoot $reloadedRoot `
+        -State $state.launcher
+    foreach ($path in @($launcherOutcome.Removed)) { $removed.Add([string]$path) }
+    foreach ($path in @($launcherOutcome.Restored)) { $restored.Add([string]$path) }
+    foreach ($message in @($launcherOutcome.Preserved)) { $preserved.Add([string]$message) }
+}
 
 # Restore the exact FFNx narration copy only when setup recorded removing it and
 # no replacement has appeared since installation.

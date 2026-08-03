@@ -77,10 +77,28 @@ Describe 'Blind Swordsman installer entry points' {
         $command = Get-Command $installPath
         ($command.Parameters.Keys -contains 'PackagePath') | Should Be $true
         ($command.Parameters.Keys -contains 'ResultPath') | Should Be $true
+        ($command.Parameters.Keys -contains 'LauncherBundlePath') | Should Be $true
         $content = [IO.File]::ReadAllText($installPath)
         $content | Should Match 'IsNullOrWhiteSpace\(\$PackagePath\)'
         $content | Should Match 'Install-Ff7DualRuntimePackage -PackagePath \$stagedPackage'
         $content | Should Match 'install-result-'
+    }
+
+    It 'wires the accessible launcher transaction into install state, rollback, and uninstall' {
+        $installCommand = Get-Command $installPath
+        $uninstallCommand = Get-Command $uninstallPath
+        ($installCommand.Parameters.Keys -contains 'LauncherBundlePath') | Should Be $true
+        ($uninstallCommand.Parameters.Keys -contains 'LauncherModulePath') | Should Be $true
+
+        $installContent = [IO.File]::ReadAllText($installPath)
+        $installContent | Should Match 'Install-Ff7AccessibleLauncher[\s\S]+-ValidateOnly'
+        $installContent | Should Match 'Undo-Ff7AccessibleLauncherTransaction'
+        $installContent | Should Match 'Complete-Ff7AccessibleLauncherTransaction'
+        $installContent | Should Match 'launcher\s*=\s*\$launcherState'
+
+        $uninstallContent = [IO.File]::ReadAllText($uninstallPath)
+        $uninstallContent | Should Match 'Restore-Ff7AccessibleLauncherFromState'
+        $uninstallContent | Should Match '\$state\.launcher'
     }
 
     It 'removes only the exact recorded mod and installer-created unchanged loader' {

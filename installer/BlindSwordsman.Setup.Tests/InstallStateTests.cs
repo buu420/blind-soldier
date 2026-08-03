@@ -5,6 +5,7 @@ static class InstallStateTests
     public static async Task RunAsync()
     {
         ParsesAndPersistsDeploymentStateAtomically();
+        ParsesPreLauncherDeploymentState();
         await RejectsCorruptedStateWithoutOverwritingIt();
         ResolvesInstallUpdateRepairAndDowngradeModes();
         BuildsPerUserWindowsRegistration();
@@ -13,7 +14,7 @@ static class InstallStateTests
     private static void ParsesAndPersistsDeploymentStateAtomically()
     {
         using var fixture = new TemporaryDirectory();
-        var state = DeploymentResultParser.Parse(ValidDeploymentResult());
+        var state = DeploymentResultParser.Parse(DeploymentResultWithLauncher());
         var store = new InstallStateStore(System.IO.Path.Combine(fixture.Path, "install-state.json"));
 
         store.Save(state);
@@ -22,7 +23,19 @@ static class InstallStateTests
         Equal("0.1.0-pre.1", loaded!.ProductVersion.ToString(), "saved product version");
         Equal("INSTALL-FINGERPRINT", loaded.Mod.Fingerprint, "saved package fingerprint");
         Equal(2, loaded.Loaders.Count, "saved loader count");
+        True(loaded.Launcher is not null, "saved launcher state");
+        Equal(
+            "EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE",
+            loaded.Launcher!.Executable.InstalledSha256,
+            "saved accessible launcher hash");
         Equal(0, Directory.GetFiles(fixture.Path, "*.tmp", SearchOption.TopDirectoryOnly).Length, "atomic state has no temporary file");
+    }
+
+    private static void ParsesPreLauncherDeploymentState()
+    {
+        var state = DeploymentResultParser.Parse(ValidDeploymentResult());
+
+        True(state.Launcher is null, "pre-launcher install state remains readable");
     }
 
     private static async Task RejectsCorruptedStateWithoutOverwritingIt()
@@ -113,6 +126,39 @@ static class InstallStateTests
           }
         }
         """;
+
+    internal static string DeploymentResultWithLauncher() => ValidDeploymentResult().Replace(
+        """  "ffnx": {""",
+        """
+                  "launcher": {
+                    "stockLauncherSha256": "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
+                    "executable": {
+                      "target": "X:\\SteamLibrary\\FINAL FANTASY VII Steam Edition\\FFVII_LAUNCHER.exe",
+                      "installedSha256": "EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE",
+                      "changed": true,
+                      "backupPath": "C:\\Users\\Player\\Reloaded-II\\AccessibilityBackups\\ff7-launcher.backup-1234\\FFVII_LAUNCHER.exe",
+                      "backupSha256": "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+                    },
+                    "configuration": {
+                      "target": "X:\\SteamLibrary\\FINAL FANTASY VII Steam Edition\\FFVII_LAUNCHER.exe.config",
+                      "installedSha256": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+                      "changed": true,
+                      "backupPath": null,
+                      "backupSha256": null
+                    },
+                    "prism": {
+                      "target": "X:\\SteamLibrary\\FINAL FANTASY VII Steam Edition\\launcher_accessibility\\native\\x86\\FFVII_LAUNCHER.prism.x86.dll",
+                      "installedSha256": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+                      "changed": true,
+                      "backupPath": null,
+                      "backupSha256": null
+                    },
+                    "manifestPath": "X:\\SteamLibrary\\FINAL FANTASY VII Steam Edition\\launcher_accessibility\\install-manifest.json",
+                    "manifestSha256": "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC"
+                  },
+                  "ffnx": {
+        """,
+        StringComparison.Ordinal);
 
     private static void Equal<T>(T expected, T actual, string label)
     {

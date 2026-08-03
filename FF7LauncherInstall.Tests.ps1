@@ -228,5 +228,6 @@ Describe 'Accessible FFVII launcher lifecycle' {
         (Test-Path -LiteralPath $fixture.ConfigTarget) | Should Be $false
         (Test-Path -LiteralPath $fixture.PrismTarget) | Should Be $false
         (Test-Path -LiteralPath $fixture.ManifestTarget) | Should Be $false
+        (Test-Path -LiteralPath (Join-Path $fixture.ReloadedRoot 'AccessibilityBackups')) | Should Be $false
     }
 }

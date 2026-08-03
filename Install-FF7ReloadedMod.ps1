@@ -7,6 +7,7 @@ param(
     [string] $FfnxArchivePath,
     [string] $ParityMatrixPath,
     [string] $PackagePath,
+    [string] $LauncherBundlePath,
     [string] $ResultPath,
     [string] $ProductVersion,
     [string] $ReleaseTag,
@@ -19,6 +20,7 @@ $ErrorActionPreference = 'Stop'
 
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 Import-Module (Join-Path $scriptRoot 'FF7SteamInstall.psm1') -Force
+Import-Module (Join-Path $scriptRoot 'FF7LauncherInstall.psm1') -Force
 if ([string]::IsNullOrWhiteSpace($ParityMatrixPath)) {
     $ParityMatrixPath = Join-Path $scriptRoot 'analysis\dual_runtime\parity-matrix.json'
 }
@@ -412,6 +414,8 @@ $bootstrapperX64Result = $null
 $openingNarrationResult = $null
 $openingVoiceWasPresent = $false
 $ffnxResult = $null
+$launcherResult = $null
+$launcherTransactionCompleted = $false
 $resolvedResultPath = $null
 if (-not [string]::IsNullOrWhiteSpace($ResultPath)) {
     $resolvedResultPath = [IO.Path]::GetFullPath($ResultPath)
@@ -483,6 +487,13 @@ try {
     $openingNarrationSource = Join-Path $stagedPackage 'Assets\movies\opening_audio_description.ogg'
     Assert-ManagedOpeningVoiceTarget -Source $openingNarrationSource -Target $openingVoiceTarget
     $openingVoiceWasPresent = Test-Path -LiteralPath $openingVoiceTarget -PathType Leaf
+    if ($null -ne $nativeRuntime) {
+        if ([string]::IsNullOrWhiteSpace($LauncherBundlePath)) {
+            throw 'Native Steam 2026 installation requires the accessible launcher bundle.'
+        }
+        Install-Ff7AccessibleLauncher -GameRoot $installation.GameRoot -ReloadedRoot $ReloadedRoot `
+            -BundlePath $LauncherBundlePath -ValidateOnly | Out-Null
+    }
 
     $installation = Initialize-Ff7CompatibilityRuntime -Installation $installation
     if (-not $SkipFfnx -and $installation.Version -eq 'Steam2026') {
@@ -494,63 +505,35 @@ try {
         Write-Host "Installed verified FFNx $($ffnxResult.ReleaseTag) from $($ffnxResult.AssetName)."
     }
 
-    try {
-        $packageResult = Install-Ff7DualRuntimePackage -PackagePath $stagedPackage -ModDirectory $modDirectory
-        Install-Ff7DualRuntimePackage -PackagePath $modDirectory `
-            -ModDirectory $modDirectory -ValidateOnly | Out-Null
+    $packageResult = Install-Ff7DualRuntimePackage -PackagePath $stagedPackage -ModDirectory $modDirectory
+    Install-Ff7DualRuntimePackage -PackagePath $modDirectory `
+        -ModDirectory $modDirectory -ValidateOnly | Out-Null
 
-        if ($shouldInstallNativeProfile) {
-            $profileResult = Install-Ff7NativeReloadedProfile -ReloadedRoot $ReloadedRoot `
-                -NativeRuntime $nativeRuntime -TemplatePath $nativeProfileTemplate `
-                -ParityMatrixPath $ParityMatrixPath -AllowResearch:$AllowResearchNativeProfile
-            Assert-Ff7NativeReloadedProfile -ReloadedRoot $ReloadedRoot `
-                -NativeRuntime $nativeRuntime -Research:$profileResult.IsResearchProfile | Out-Null
-        }
-
-        $asiLoaderX86Result = Copy-LoaderFile -Source $asiLoaderX86Source -Target $asiLoaderX86Target
-        $bootstrapperX86Result = Copy-LoaderFile -Source $bootstrapperX86Source -Target $bootstrapperX86Target
-        if ($shouldInstallNativeProfile) {
-            $asiLoaderX64Result = Copy-LoaderFile -Source $asiLoaderX64Source -Target $asiLoaderX64Target
-            $bootstrapperX64Result = Copy-LoaderFile -Source $bootstrapperX64Source -Target $bootstrapperX64Target
-        }
-
-        # This is the final mutation: after all installed artifacts have been revalidated,
-        # remove only the exact managed FFNx copy so Reloaded owns narration playback.
-        $openingNarrationResult = Disable-Ff7OpeningMovieNativeVoiceLayer `
-            -RuntimeRoot $installation.LegacyRuntime.RuntimeRoot `
-            -SourcePath $openingNarrationSource
+    if ($shouldInstallNativeProfile) {
+        $profileResult = Install-Ff7NativeReloadedProfile -ReloadedRoot $ReloadedRoot `
+            -NativeRuntime $nativeRuntime -TemplatePath $nativeProfileTemplate `
+            -ParityMatrixPath $ParityMatrixPath -AllowResearch:$AllowResearchNativeProfile
+        Assert-Ff7NativeReloadedProfile -ReloadedRoot $ReloadedRoot `
+            -NativeRuntime $nativeRuntime -Research:$profileResult.IsResearchProfile | Out-Null
     }
-    catch {
-        $installationError = $_
-        $rollbackErrors = New-Object System.Collections.Generic.List[string]
-        foreach ($rollback in @(
-            { if ($openingVoiceWasPresent -and -not (Test-Path -LiteralPath $openingVoiceTarget -PathType Leaf)) {
-                    Copy-Item -LiteralPath $openingNarrationSource -Destination $openingVoiceTarget
-                    Assert-ManagedOpeningVoiceTarget -Source $openingNarrationSource -Target $openingVoiceTarget
-                } },
-            { Remove-NewLoaderForRollback -Result $bootstrapperX64Result -Source $bootstrapperX64Source },
-            { Remove-NewLoaderForRollback -Result $asiLoaderX64Result -Source $asiLoaderX64Source },
-            { Remove-NewLoaderForRollback -Result $bootstrapperX86Result -Source $bootstrapperX86Source },
-            { Remove-NewLoaderForRollback -Result $asiLoaderX86Result -Source $asiLoaderX86Source },
-            { if ($null -ne $expectedNativeProfile) {
-                    Restore-NativeProfileForRollback -Result $profileResult `
-                        -ExpectedProfilePath $expectedNativeProfile
-                } },
-            { Restore-DualRuntimePackageForRollback -Result $packageResult `
-                    -ExpectedModDirectory $modDirectory }
-        )) {
-            try {
-                & $rollback
-            }
-            catch {
-                $rollbackErrors.Add($_.Exception.Message)
-            }
-        }
-        if ($rollbackErrors.Count -gt 0) {
-            throw "Installation failed and rollback also reported errors. Original: $($installationError.Exception.Message) Rollback: $($rollbackErrors -join ' | ')"
-        }
-        throw $installationError
+
+    $asiLoaderX86Result = Copy-LoaderFile -Source $asiLoaderX86Source -Target $asiLoaderX86Target
+    $bootstrapperX86Result = Copy-LoaderFile -Source $bootstrapperX86Source -Target $bootstrapperX86Target
+    if ($shouldInstallNativeProfile) {
+        $asiLoaderX64Result = Copy-LoaderFile -Source $asiLoaderX64Source -Target $asiLoaderX64Target
+        $bootstrapperX64Result = Copy-LoaderFile -Source $bootstrapperX64Source -Target $bootstrapperX64Target
     }
+
+    if ($null -ne $nativeRuntime) {
+        $launcherResult = Install-Ff7AccessibleLauncher -GameRoot $installation.GameRoot `
+            -ReloadedRoot $ReloadedRoot -BundlePath $LauncherBundlePath
+    }
+
+    # This is the final game-content mutation: after all installed artifacts have been
+    # revalidated, remove only the exact managed FFNx copy so Reloaded owns narration playback.
+    $openingNarrationResult = Disable-Ff7OpeningMovieNativeVoiceLayer `
+        -RuntimeRoot $installation.LegacyRuntime.RuntimeRoot `
+        -SourcePath $openingNarrationSource
 
     if ($packageResult.Changed) {
         Write-Host "Installed the verified dual-runtime package. Backup: $($packageResult.BackupPath)"
@@ -571,6 +554,14 @@ try {
     }
     if ($shouldInstallNativeProfile) {
         Write-Host 'Installed verified x64 bootstrap files; ordinary FFVII.exe and Steam launches now load accessibility automatically.'
+    }
+    if ($null -ne $launcherResult) {
+        if ($launcherResult.Changed) {
+            Write-Host 'Installed the accessible Steam 2026 FFVII launcher and launcher-only Prism library.'
+        }
+        else {
+            Write-Host 'The accessible Steam 2026 FFVII launcher is already current.'
+        }
     }
     if ($openingNarrationResult.Removed) {
         Write-Host "Removed the legacy FFNx opening voice copy; Reloaded plays narration independently: $($openingNarrationResult.TargetPath)"
@@ -613,6 +604,7 @@ try {
         else { $null }
         $packageBackupPath = if ([string]::IsNullOrWhiteSpace([string]$packageResult.BackupPath)) { $null } else { [IO.Path]::GetFullPath([string]$packageResult.BackupPath) }
         $ffnxState = if ($null -eq $ffnxResult) { $null } else { [ordered]@{ releaseTag = [string]$ffnxResult.ReleaseTag; assetName = [string]$ffnxResult.AssetName } }
+        $launcherState = if ($null -eq $launcherResult) { $null } else { $launcherResult.State }
         $result = [ordered]@{
             schemaVersion = 1
             productVersion = $ProductVersion
@@ -636,6 +628,7 @@ try {
                 target = [IO.Path]::GetFullPath($openingVoiceTarget)
                 sourceSha256 = (Get-FileHash -LiteralPath $openingNarrationSource -Algorithm SHA256).Hash
             }
+            launcher = $launcherState
             ffnx = $ffnxState
         }
 
@@ -659,6 +652,44 @@ try {
             }
         }
     }
+    if ($null -ne $launcherResult) {
+        Complete-Ff7AccessibleLauncherTransaction -Result $launcherResult
+        $launcherTransactionCompleted = $true
+    }
+}
+catch {
+    $installationError = $_
+    $rollbackErrors = New-Object System.Collections.Generic.List[string]
+    foreach ($rollback in @(
+        { if ($openingVoiceWasPresent -and -not (Test-Path -LiteralPath $openingVoiceTarget -PathType Leaf)) {
+                Copy-Item -LiteralPath $openingNarrationSource -Destination $openingVoiceTarget
+                Assert-ManagedOpeningVoiceTarget -Source $openingNarrationSource -Target $openingVoiceTarget
+            } },
+        { if ($null -ne $launcherResult -and -not $launcherTransactionCompleted) {
+                Undo-Ff7AccessibleLauncherTransaction -Result $launcherResult
+            } },
+        { Remove-NewLoaderForRollback -Result $bootstrapperX64Result -Source $bootstrapperX64Source },
+        { Remove-NewLoaderForRollback -Result $asiLoaderX64Result -Source $asiLoaderX64Source },
+        { Remove-NewLoaderForRollback -Result $bootstrapperX86Result -Source $bootstrapperX86Source },
+        { Remove-NewLoaderForRollback -Result $asiLoaderX86Result -Source $asiLoaderX86Source },
+        { if ($null -ne $expectedNativeProfile) {
+                Restore-NativeProfileForRollback -Result $profileResult `
+                    -ExpectedProfilePath $expectedNativeProfile
+            } },
+        { Restore-DualRuntimePackageForRollback -Result $packageResult `
+                -ExpectedModDirectory $modDirectory }
+    )) {
+        try {
+            & $rollback
+        }
+        catch {
+            $rollbackErrors.Add($_.Exception.Message)
+        }
+    }
+    if ($rollbackErrors.Count -gt 0) {
+        throw "Installation failed and rollback also reported errors. Original: $($installationError.Exception.Message) Rollback: $($rollbackErrors -join ' | ')"
+    }
+    throw $installationError
 }
 finally {
     if ($ownsStagedPackage -and (Test-Path -LiteralPath $stagingParent -PathType Container)) {

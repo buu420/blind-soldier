@@ -25,7 +25,8 @@ public sealed class SetupOrchestrator(
         PreflightReport preflight,
         ReleaseChannelManifest release,
         string packagePath,
-        string resultPath)
+        string resultPath,
+        string? launcherBundlePath = null)
     {
         ArgumentNullException.ThrowIfNull(preflight);
         ArgumentNullException.ThrowIfNull(release);
@@ -49,6 +50,12 @@ public sealed class SetupOrchestrator(
         arguments.Add("-SkipFfnx");
         if (preflight.Game.Runtimes.Any(runtime => runtime.Architecture == "x64"))
         {
+            if (string.IsNullOrWhiteSpace(launcherBundlePath))
+            {
+                throw new InvalidOperationException("Native Steam 2026 deployment requires the accessible launcher bundle.");
+            }
+            arguments.Add("-LauncherBundlePath");
+            arguments.Add(System.IO.Path.GetFullPath(launcherBundlePath));
             arguments.Add("-AllowResearchNativeProfile");
         }
         return arguments;
@@ -80,6 +87,53 @@ public sealed class SetupOrchestrator(
         if (!SamePath(state.Mod.Directory, expectedMod))
         {
             throw new InvalidDataException("Deployment result contains an unexpected mod directory.");
+        }
+
+        var nativeSteam2026 = string.Equals(state.Game.Version, "Steam2026", StringComparison.Ordinal);
+        if (nativeSteam2026 && state.Launcher is null)
+        {
+            throw new InvalidDataException("Native Steam 2026 deployment result contains no accessible launcher state.");
+        }
+        if (!nativeSteam2026 && state.Launcher is not null)
+        {
+            throw new InvalidDataException("Legacy-only deployment result unexpectedly contains accessible launcher state.");
+        }
+        if (state.Launcher is not null)
+        {
+            var expectedLauncher = System.IO.Path.Combine(System.IO.Path.GetFullPath(gameRoot), "FFVII_LAUNCHER.exe");
+            var expectedConfiguration = expectedLauncher + ".config";
+            var expectedPrism = System.IO.Path.Combine(
+                System.IO.Path.GetFullPath(gameRoot),
+                "launcher_accessibility",
+                "native",
+                "x86",
+                "FFVII_LAUNCHER.prism.x86.dll");
+            var expectedManifest = System.IO.Path.Combine(
+                System.IO.Path.GetFullPath(gameRoot),
+                "launcher_accessibility",
+                "install-manifest.json");
+            if (!SamePath(state.Launcher.Executable.Target, expectedLauncher) ||
+                !SamePath(state.Launcher.Configuration.Target, expectedConfiguration) ||
+                !SamePath(state.Launcher.Prism.Target, expectedPrism) ||
+                !SamePath(state.Launcher.ManifestPath, expectedManifest))
+            {
+                throw new InvalidDataException("Deployment result contains an unexpected accessible launcher path.");
+            }
+            var backupRoot = System.IO.Path.Combine(
+                System.IO.Path.GetFullPath(reloadedRoot),
+                "AccessibilityBackups");
+            foreach (var backupPath in new[]
+                     {
+                         state.Launcher.Executable.BackupPath,
+                         state.Launcher.Configuration.BackupPath,
+                         state.Launcher.Prism.BackupPath
+                     }.Where(path => path is not null))
+            {
+                if (!IsDescendantPath(backupPath!, backupRoot))
+                {
+                    throw new InvalidDataException("Deployment result contains an unsafe accessible launcher backup path.");
+                }
+            }
         }
     }
 
@@ -131,15 +185,16 @@ public sealed class SetupOrchestrator(
             Report(progress, "Verify", 45, "Verifying and extracting the runtime package.");
             var extractedRoot = System.IO.Path.Combine(stagingRoot, "extracted");
             SafeZipExtractor.ExtractAndValidate(payloadPath, extractedRoot);
-            var packagePath = System.IO.Path.Combine(extractedRoot, "package", "ff7.accessibility.reloaded");
-            if (!Directory.Exists(packagePath))
-            {
-                throw new InvalidDataException("Runtime payload does not contain the dual-runtime mod package.");
-            }
+            var layout = ReleasePayloadLayoutValidator.Validate(extractedRoot);
 
             var resultPath = System.IO.Path.Combine(stagingRoot, "deployment-result.json");
-            var arguments = BuildDeploymentArguments(request.Preflight, request.Release, packagePath, resultPath);
-            Report(progress, "Install", 60, "Installing Blind Swordsman into Final Fantasy VII and Reloaded-II.");
+            var arguments = BuildDeploymentArguments(
+                request.Preflight,
+                request.Release,
+                layout.ModPackagePath,
+                resultPath,
+                layout.LauncherBundlePath);
+            Report(progress, "Install", 60, "Installing Blind Swordsman and its accessible launcher into Final Fantasy VII.");
             var process = await processRunner.RunAsync(
                 request.Resources.InstallScript,
                 arguments,
@@ -282,6 +337,14 @@ public sealed class SetupOrchestrator(
             System.IO.Path.GetFullPath(left).TrimEnd(System.IO.Path.DirectorySeparatorChar),
             System.IO.Path.GetFullPath(right).TrimEnd(System.IO.Path.DirectorySeparatorChar),
             StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsDescendantPath(string path, string root)
+    {
+        var normalizedRoot = System.IO.Path.GetFullPath(root)
+            .TrimEnd(System.IO.Path.DirectorySeparatorChar) + System.IO.Path.DirectorySeparatorChar;
+        var normalizedPath = System.IO.Path.GetFullPath(path);
+        return normalizedPath.StartsWith(normalizedRoot, StringComparison.OrdinalIgnoreCase);
+    }
 
     private static void Report(
         IProgress<SetupOperationProgress>? progress,

@@ -328,7 +328,10 @@ function Read-ManagedLauncherManifest {
 }
 
 function New-LauncherSnapshot {
-    param([Parameter(Mandatory=$true)] [hashtable] $Targets)
+    param(
+        [Parameter(Mandatory=$true)] [hashtable] $Targets,
+        [Parameter(Mandatory=$true)] [string] $BackupRoot
+    )
     $root = Join-Path ([IO.Path]::GetTempPath()) ('blind-swordsman-launcher-transaction-' + [Guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $root | Out-Null
     $entries = New-Object 'System.Collections.Generic.List[object]'
@@ -351,7 +354,12 @@ function New-LauncherSnapshot {
         })
         $number++
     }
-    return [pscustomobject]@{ Root = $root; Entries = $entries.ToArray() }
+    return [pscustomobject]@{
+        Root = $root
+        Entries = $entries.ToArray()
+        BackupRoot = [IO.Path]::GetFullPath($BackupRoot)
+        CreatedBackupDirectory = $null
+    }
 }
 
 function Copy-LauncherFileAtomically {
@@ -454,6 +462,38 @@ function Remove-LauncherTransactionRoot {
     }
     if (Test-Path -LiteralPath $root -PathType Container) {
         Remove-Item -LiteralPath $root -Recurse -Force
+    }
+}
+
+function Remove-LauncherCreatedBackupDirectory {
+    param([Parameter(Mandatory=$true)] [object] $Transaction)
+    if ([string]::IsNullOrWhiteSpace([string]$Transaction.CreatedBackupDirectory)) {
+        return
+    }
+    $backupRoot = [IO.Path]::GetFullPath([string]$Transaction.BackupRoot).TrimEnd('\')
+    $directory = [IO.Path]::GetFullPath([string]$Transaction.CreatedBackupDirectory).TrimEnd('\')
+    if (-not (Split-Path -Parent $directory).Equals($backupRoot, [StringComparison]::OrdinalIgnoreCase) -or
+        -not (Split-Path -Leaf $directory).StartsWith('ff7-launcher.backup-', [StringComparison]::Ordinal)) {
+        throw "Refusing unsafe launcher backup cleanup: $directory"
+    }
+    if (Test-Path -LiteralPath $directory -PathType Container) {
+        $item = Get-Item -LiteralPath $directory -Force
+        if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+            throw "Refusing reparse-point launcher backup cleanup: $directory"
+        }
+        $allowedNames = @('FFVII_LAUNCHER.exe', 'FFVII_LAUNCHER.exe.config', 'FFVII_LAUNCHER.prism.x86.dll')
+        foreach ($child in @(Get-ChildItem -LiteralPath $directory -Force)) {
+            if ($child.PSIsContainer -or
+                ($child.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or
+                $allowedNames -cnotcontains $child.Name) {
+                throw "Refusing launcher backup cleanup with unexpected contents: $($child.FullName)"
+            }
+        }
+        Remove-Item -LiteralPath $directory -Recurse -Force
+    }
+    if ((Test-Path -LiteralPath $backupRoot -PathType Container) -and
+        @(Get-ChildItem -LiteralPath $backupRoot -Force).Count -eq 0) {
+        Remove-Item -LiteralPath $backupRoot -Force
     }
 }
 
@@ -593,7 +633,7 @@ function Install-Ff7AccessibleLauncher {
         }
     }
 
-    $transaction = New-LauncherSnapshot -Targets $targets
+    $transaction = New-LauncherSnapshot -Targets $targets -BackupRoot $backupRoot
     try {
         $backupDirectory = $null
         if ($null -ne $existingOwnership -and [bool]$existingOwnership.IsLegacy) {
@@ -602,6 +642,7 @@ function Install-Ff7AccessibleLauncher {
             }
             [void](Assert-LauncherDirectory -Path $backupRoot -Label 'Reloaded-II accessibility backup root')
             $backupDirectory = Join-Path $backupRoot ('ff7-launcher.backup-' + [Guid]::NewGuid().ToString('N'))
+            $transaction.CreatedBackupDirectory = $backupDirectory
             $migratedBackup = Copy-PersistentLauncherBackup `
                 -Source ([string]$existingOwnership.LegacyStockBackupPath) `
                 -BackupDirectory $backupDirectory -LeafName 'FFVII_LAUNCHER.exe'
@@ -623,6 +664,7 @@ function Install-Ff7AccessibleLauncher {
                 }
                 [void](Assert-LauncherDirectory -Path $backupRoot -Label 'Reloaded-II accessibility backup root')
                 $backupDirectory = Join-Path $backupRoot ('ff7-launcher.backup-' + [Guid]::NewGuid().ToString('N'))
+                $transaction.CreatedBackupDirectory = $backupDirectory
             }
             $backup = Copy-PersistentLauncherBackup -Source ([string]$candidate.State.target) `
                 -BackupDirectory $backupDirectory -LeafName ([string]$candidate.Leaf)
@@ -684,6 +726,7 @@ function Install-Ff7AccessibleLauncher {
     catch {
         $installError = $_
         try { Restore-LauncherSnapshot -Transaction $transaction } catch { }
+        try { Remove-LauncherCreatedBackupDirectory -Transaction $transaction } catch { }
         try { Remove-LauncherTransactionRoot -Transaction $transaction } catch { }
         throw $installError
     }
@@ -697,6 +740,7 @@ function Undo-Ff7AccessibleLauncherTransaction {
     }
     try {
         Restore-LauncherSnapshot -Transaction $Result.Transaction
+        Remove-LauncherCreatedBackupDirectory -Transaction $Result.Transaction
     }
     finally {
         Remove-LauncherTransactionRoot -Transaction $Result.Transaction
