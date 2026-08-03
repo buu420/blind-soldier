@@ -317,7 +317,10 @@ if (Test-Path -LiteralPath $resolvedOutput) { throw "Prerequisite output already
 $outputParent = Split-Path -Parent $resolvedOutput
 if ([string]::IsNullOrWhiteSpace($outputParent)) { throw 'Prerequisite output must have a parent directory.' }
 New-Item -ItemType Directory -Path $outputParent -Force | Out-Null
-$staging = Join-Path $outputParent ('.' + [IO.Path]::GetFileName($resolvedOutput) + '.staging-' + [Guid]::NewGuid().ToString('N'))
+# bsdtar cannot reliably chdir into a near-MAX_PATH destination even when .NET
+# long-path support is enabled. Keep private extraction short, then publish the
+# fully validated tree to the caller's requested output in one move.
+$staging = Join-Path ([IO.Path]::GetTempPath()) ('bs-prereq-' + [Guid]::NewGuid().ToString('N'))
 $downloads = Join-Path $staging 'downloads'
 $bundle = Join-Path $staging 'bundle'
 $temporary = Join-Path $staging 'temporary'

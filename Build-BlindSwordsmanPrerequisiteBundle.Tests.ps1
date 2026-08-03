@@ -53,7 +53,10 @@ function New-TestZip {
 }
 
 function New-PrerequisiteFixture {
-    param([switch] $UnsafeReloadedZip)
+    param(
+        [switch] $UnsafeReloadedZip,
+        [int] $MaximumExtractorDestinationLength = 0
+    )
 
     $root = Join-Path ([IO.Path]::GetTempPath()) ('blind-swordsman-prereq-test-' + [Guid]::NewGuid().ToString('N'))
     $sources = Join-Path $root 'sources'
@@ -160,6 +163,10 @@ function New-PrerequisiteFixture {
     }.GetNewClosure()
     $sevenZipExtractor = {
         param($archivePath, $destination)
+        if ($MaximumExtractorDestinationLength -gt 0 -and
+            [IO.Path]::GetFullPath($destination).Length -gt $MaximumExtractorDestinationLength) {
+            throw 'Fixture extractor rejected an overlong destination.'
+        }
         $name = Split-Path -Leaf $archivePath
         foreach ($item in @(Get-ChildItem -LiteralPath (Join-Path $sevenZipContent $name) -Force)) {
             Copy-Item -LiteralPath $item.FullName -Destination $destination -Recurse
@@ -217,6 +224,19 @@ Describe 'Blind Swordsman prerequisite bundle builder' {
         $manifest.reloaded.version | Should Be '1.30.3'
         $manifest.sharedHooks.version | Should Be '1.16.3'
         $manifest.dotnetDesktopRuntime.version | Should Be '9.0.8'
+    }
+
+    It 'keeps private archive extraction staging short for a deeply nested release output' {
+        $fixture = New-PrerequisiteFixture -MaximumExtractorDestinationLength 180
+        $deepParent = $fixture.Root
+        foreach ($index in 1..6) { $deepParent = Join-Path $deepParent ('release-segment-' + $index) }
+        $deepOutput = Join-Path $deepParent 'prerequisites'
+
+        & $builderPath -OutputPath $deepOutput -LockPath $fixture.LockPath -NoticePath $fixture.NoticePath `
+            -ArtifactResolver $fixture.ArtifactResolver -SevenZipExtractor $fixture.SevenZipExtractor `
+            -BootstrapperX86Override $fixture.BootstrapX86 -BootstrapperX64Override $fixture.BootstrapX64 | Out-Null
+
+        Test-Path -LiteralPath (Join-Path $deepOutput 'dependency-bundle.json') -PathType Leaf | Should Be $true
     }
 
     It 'rejects a digest mismatch without publishing a partial output' {
