@@ -2,6 +2,7 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
@@ -9,5 +10,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\BlindSwordsman.Setup.Core\BlindSwordsman.Setup.Core.csproj" />
+    <ProjectReference Include="..\BlindSwordsman.Setup\BlindSwordsman.Setup.csproj" />
   </ItemGroup>
 </Project>

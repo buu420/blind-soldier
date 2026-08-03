@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <AssemblyName>Blind-Swordsman-Setup</AssemblyName>
+    <RootNamespace>BlindSwordsman.Setup</RootNamespace>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>false</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <PublishTrimmed>false</PublishTrimmed>
+    <DebugType>embedded</DebugType>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\BlindSwordsman.Setup.Core\BlindSwordsman.Setup.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\FF7SteamInstall.psm1" Link="Resources\FF7SteamInstall.psm1" LogicalName="BlindSwordsman.Resources.FF7SteamInstall.psm1" />
+    <EmbeddedResource Include="..\..\Invoke-BlindSwordsmanPreflight.ps1" Link="Resources\Invoke-BlindSwordsmanPreflight.ps1" LogicalName="BlindSwordsman.Resources.Invoke-BlindSwordsmanPreflight.ps1" />
+    <EmbeddedResource Include="..\..\Install-FF7ReloadedMod.ps1" Link="Resources\Install-FF7ReloadedMod.ps1" LogicalName="BlindSwordsman.Resources.Install-FF7ReloadedMod.ps1" />
+    <EmbeddedResource Include="..\..\Uninstall-FF7ReloadedMod.ps1" Link="Resources\Uninstall-FF7ReloadedMod.ps1" LogicalName="BlindSwordsman.Resources.Uninstall-FF7ReloadedMod.ps1" />
+    <EmbeddedResource Include="..\..\templates\Ff7.Native.Steam2026.AppConfig.json" Link="Resources\templates\Ff7.Native.Steam2026.AppConfig.json" LogicalName="BlindSwordsman.Resources.templates.Ff7.Native.Steam2026.AppConfig.json" />
+    <EmbeddedResource Include="..\..\analysis\dual_runtime\parity-matrix.json" Link="Resources\analysis\dual_runtime\parity-matrix.json" LogicalName="BlindSwordsman.Resources.analysis.dual_runtime.parity-matrix.json" />
+  </ItemGroup>
+</Project>
