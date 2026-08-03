@@ -141,7 +141,7 @@ git diff --cached --stat
 
 Expected: no `bin`, `obj`, `dist`, log, dump, Ghidra database, or downloaded toolchain files.
 
-- [ ] **Step 4: Commit the source snapshot**
+- [x] **Step 4: Commit the source snapshot**
 
 ```powershell
 git commit -m "feat: publish Blind Swordsman source"
@@ -156,22 +156,22 @@ git commit -m "feat: publish Blind Swordsman source"
 - Consumes: the authenticated `buu420` Windows Git credential and clean local `main` branch.
 - Produces: private repository `https://github.com/buu420/blind-swordsman` with `main` tracking `origin/main`.
 
-- [ ] **Step 1: Confirm the remote name is still available**
+- [x] **Step 1: Confirm the remote name is still available**
 
 Query `GET /repos/buu420/blind-swordsman`. Continue only when GitHub returns not found for the authenticated account.
 
-- [ ] **Step 2: Create the private repository**
+- [x] **Step 2: Create the private repository**
 
 Call `POST /user/repos` with name `blind-swordsman`, private visibility, issues enabled, wiki disabled, and description `Screen-reader, audio-description, spatial-audio, and navigation accessibility for Final Fantasy VII on Windows.` Do not initialize remote files.
 
-- [ ] **Step 3: Add origin and push main**
+- [x] **Step 3: Add origin and push main**
 
 ```powershell
 git remote add origin https://github.com/buu420/blind-swordsman.git
 git push -u origin main
 ```
 
-- [ ] **Step 4: Set topics and verify remote state**
+- [x] **Step 4: Set topics and verify remote state**
 
 Set topics for Final Fantasy VII, accessibility, blind gamers, screen readers,
 Reloaded-II, and FFNx. Query the repository and compare local `HEAD` to
