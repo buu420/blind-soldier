@@ -10,6 +10,7 @@ public sealed class EmbeddedResourceBundle : IDisposable
         {
             ["BlindSwordsman.Resources.FF7SteamInstall.psm1"] = "FF7SteamInstall.psm1",
             ["BlindSwordsman.Resources.FF7LauncherInstall.psm1"] = "FF7LauncherInstall.psm1",
+            ["BlindSwordsman.Resources.ReloadedPrerequisiteInstall.psm1"] = "ReloadedPrerequisiteInstall.psm1",
             ["BlindSwordsman.Resources.Invoke-BlindSwordsmanPreflight.ps1"] = "Invoke-BlindSwordsmanPreflight.ps1",
             ["BlindSwordsman.Resources.Install-FF7ReloadedMod.ps1"] = "Install-FF7ReloadedMod.ps1",
             ["BlindSwordsman.Resources.Uninstall-FF7ReloadedMod.ps1"] = "Uninstall-FF7ReloadedMod.ps1",

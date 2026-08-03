@@ -274,6 +274,16 @@ $commands.Add((New-VerificationCommand -Name 'Setup preflight Pester' -FilePath 
     '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', $preflightPesterCommand
 ) -WorkingDirectory $scriptRoot))
 
+$prerequisiteBuilderPesterCommand = "Invoke-Pester -Script '$((Join-Path $scriptRoot 'Build-BlindSwordsmanPrerequisiteBundle.Tests.ps1').Replace("'", "''"))' -EnableExit"
+$commands.Add((New-VerificationCommand -Name 'Prerequisite bundle builder Pester' -FilePath 'powershell.exe' -Arguments @(
+    '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', $prerequisiteBuilderPesterCommand
+) -WorkingDirectory $scriptRoot))
+
+$reloadedPrerequisitePesterCommand = "Invoke-Pester -Script '$((Join-Path $scriptRoot 'ReloadedPrerequisiteInstall.Tests.ps1').Replace("'", "''"))' -EnableExit"
+$commands.Add((New-VerificationCommand -Name 'Reloaded prerequisite Pester' -FilePath 'powershell.exe' -Arguments @(
+    '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', $reloadedPrerequisitePesterCommand
+) -WorkingDirectory $scriptRoot))
+
 $releaseBuilderPesterCommand = "Invoke-Pester -Script '$((Join-Path $scriptRoot 'Build-BlindSwordsmanRelease.Tests.ps1').Replace("'", "''"))' -EnableExit"
 $commands.Add((New-VerificationCommand -Name 'Release builder Pester' -FilePath 'powershell.exe' -Arguments @(
     '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', $releaseBuilderPesterCommand

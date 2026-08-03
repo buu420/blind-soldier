@@ -25,6 +25,7 @@
   <ItemGroup>
     <EmbeddedResource Include="..\..\FF7SteamInstall.psm1" Link="Resources\FF7SteamInstall.psm1" LogicalName="BlindSwordsman.Resources.FF7SteamInstall.psm1" />
     <EmbeddedResource Include="..\..\FF7LauncherInstall.psm1" Link="Resources\FF7LauncherInstall.psm1" LogicalName="BlindSwordsman.Resources.FF7LauncherInstall.psm1" />
+    <EmbeddedResource Include="..\..\ReloadedPrerequisiteInstall.psm1" Link="Resources\ReloadedPrerequisiteInstall.psm1" LogicalName="BlindSwordsman.Resources.ReloadedPrerequisiteInstall.psm1" />
     <EmbeddedResource Include="..\..\Invoke-BlindSwordsmanPreflight.ps1" Link="Resources\Invoke-BlindSwordsmanPreflight.ps1" LogicalName="BlindSwordsman.Resources.Invoke-BlindSwordsmanPreflight.ps1" />
     <EmbeddedResource Include="..\..\Install-FF7ReloadedMod.ps1" Link="Resources\Install-FF7ReloadedMod.ps1" LogicalName="BlindSwordsman.Resources.Install-FF7ReloadedMod.ps1" />
     <EmbeddedResource Include="..\..\Uninstall-FF7ReloadedMod.ps1" Link="Resources\Uninstall-FF7ReloadedMod.ps1" LogicalName="BlindSwordsman.Resources.Uninstall-FF7ReloadedMod.ps1" />
