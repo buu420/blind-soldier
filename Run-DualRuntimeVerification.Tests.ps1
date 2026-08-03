@@ -100,6 +100,7 @@ Describe 'Run-DualRuntimeVerification' {
                 'Reloaded.Tests',
                 'Steam2026X64.Tests',
                 'Parity.Tests',
+                'Setup.Tests',
                 'Verification gate Pester',
                 'Installer Pester pass 1',
                 'Installer Pester pass 2',
@@ -110,7 +111,7 @@ Describe 'Run-DualRuntimeVerification' {
             $result.VerificationSucceeded | Should Be $true
             $result.ReleaseReady | Should Be $false
             $result.PSObject.Properties['Succeeded'] | Should Be $null
-            $result.Steps.Count | Should Be 9
+            $result.Steps.Count | Should Be 10
             $result.Package.Fingerprint | Should Be 'FAKE-FINGERPRINT'
             $result.Package.X86EntryMachine | Should Be 0x014C
             $result.Package.X64EntryMachine | Should Be 0x8664
@@ -300,11 +301,12 @@ Describe 'Run-DualRuntimeVerification' {
                 'Reloaded.Tests',
                 'Steam2026X64.Tests',
                 'Parity.Tests',
+                'Setup.Tests',
                 'Verification gate Pester',
                 'Installer Pester pass 1',
                 'Build dual-runtime package'
             )
-            $result.Steps.Count | Should Be 7
+            $result.Steps.Count | Should Be 8
             @(Get-ChildItem -LiteralPath $fixture -Force).Count | Should Be 0
         }
         finally {

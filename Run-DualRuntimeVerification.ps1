@@ -245,6 +245,9 @@ $commands.Add((New-VerificationCommand -Name 'Steam2026X64.Tests' -FilePath 'dot
 $commands.Add((New-VerificationCommand -Name 'Parity.Tests' -FilePath 'dotnet' -Arguments @(
     'run', '--project', (Join-Path $scriptRoot 'Ff7.Accessibility.Parity.Tests\Ff7.Accessibility.Parity.Tests.csproj'), '-c', 'Release'
 ) -WorkingDirectory $scriptRoot))
+$commands.Add((New-VerificationCommand -Name 'Setup.Tests' -FilePath 'dotnet' -Arguments @(
+    'run', '--project', (Join-Path $scriptRoot 'installer\BlindSwordsman.Setup.Tests\BlindSwordsman.Setup.Tests.csproj'), '-c', 'Release'
+) -WorkingDirectory $scriptRoot))
 
 $verificationPesterCommand = "Invoke-Pester -Script '$((Join-Path $scriptRoot 'Run-DualRuntimeVerification.Tests.ps1').Replace("'", "''"))' -EnableExit"
 $commands.Add((New-VerificationCommand -Name 'Verification gate Pester' -FilePath 'powershell.exe' -Arguments @(
