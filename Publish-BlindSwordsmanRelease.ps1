@@ -35,8 +35,14 @@ $assets = foreach ($name in $assetNames) {
 if ($LASTEXITCODE -ne 0) {
     throw 'GitHub CLI is not authenticated.'
 }
-& gh release view $Tag --repo $Repository *> $null
-if ($LASTEXITCODE -eq 0) {
+$releaseListJson = (& gh release list --repo $Repository --limit 1000 --json tagName | Out-String)
+if ($LASTEXITCODE -ne 0) {
+    throw "Unable to query existing GitHub releases for $Repository."
+}
+$existingRelease = @($releaseListJson | ConvertFrom-Json) |
+    Where-Object { [string]$_.tagName -ceq $Tag } |
+    Select-Object -First 1
+if ($null -ne $existingRelease) {
     throw "GitHub release already exists and was not changed: $Repository $Tag"
 }
 
