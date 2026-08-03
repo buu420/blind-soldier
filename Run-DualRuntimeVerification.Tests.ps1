@@ -103,6 +103,7 @@ Describe 'Run-DualRuntimeVerification' {
                 'Setup.Tests',
                 'Verification gate Pester',
                 'Setup preflight Pester',
+                'Release builder Pester',
                 'Installer Pester pass 1',
                 'Installer Pester pass 2',
                 'Installer entrypoint Pester pass 1',
@@ -114,7 +115,7 @@ Describe 'Run-DualRuntimeVerification' {
             $result.VerificationSucceeded | Should Be $true
             $result.ReleaseReady | Should Be $false
             $result.PSObject.Properties['Succeeded'] | Should Be $null
-            $result.Steps.Count | Should Be 13
+            $result.Steps.Count | Should Be 14
             $result.Package.Fingerprint | Should Be 'FAKE-FINGERPRINT'
             $result.Package.X86EntryMachine | Should Be 0x014C
             $result.Package.X64EntryMachine | Should Be 0x8664
@@ -122,7 +123,7 @@ Describe 'Run-DualRuntimeVerification' {
             $result.Package.X64PrismMachine | Should Be 0x8664
             $result.PackageStagingCleaned | Should Be $true
             $pesterCommands = @($capturedCommands | Where-Object { $_.Name -like '*Pester*' })
-            $pesterCommands.Count | Should Be 6
+            $pesterCommands.Count | Should Be 7
             foreach ($pesterCommand in $pesterCommands) {
                 $pesterCommand.Arguments -is [object[]] | Should Be $true
                 [string]$pesterCommand.Arguments[-1] | Should Match 'Invoke-Pester -Script '
@@ -308,11 +309,12 @@ Describe 'Run-DualRuntimeVerification' {
                 'Setup.Tests',
                 'Verification gate Pester',
                 'Setup preflight Pester',
+                'Release builder Pester',
                 'Installer Pester pass 1',
                 'Installer entrypoint Pester pass 1',
                 'Build dual-runtime package'
             )
-            $result.Steps.Count | Should Be 10
+            $result.Steps.Count | Should Be 11
             @(Get-ChildItem -LiteralPath $fixture -Force).Count | Should Be 0
         }
         finally {

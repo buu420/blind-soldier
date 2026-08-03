@@ -1,0 +1,111 @@
+$ErrorActionPreference = 'Stop'
+
+$scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$builderPath = Join-Path $scriptRoot 'Build-BlindSwordsmanRelease.ps1'
+
+function New-ReleaseFixture {
+    $root = Join-Path ([IO.Path]::GetTempPath()) ('blind-swordsman-release-test-' + [Guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Path $root | Out-Null
+    return [pscustomobject]@{
+        Root = $root
+        First = Join-Path $root 'first'
+        Second = Join-Path $root 'second'
+    }
+}
+
+function New-FakePe {
+    param([Parameter(Mandatory=$true)] [string] $Path)
+    $parent = Split-Path -Parent $Path
+    New-Item -ItemType Directory -Path $parent -Force | Out-Null
+    $bytes = New-Object byte[] 512
+    $bytes[0] = 0x4D
+    $bytes[1] = 0x5A
+    [BitConverter]::GetBytes([int]0x80).CopyTo($bytes, 0x3C)
+    [BitConverter]::GetBytes([uint32]0x00004550).CopyTo($bytes, 0x80)
+    [BitConverter]::GetBytes([uint16]0x8664).CopyTo($bytes, 0x84)
+    [IO.File]::WriteAllBytes($Path, $bytes)
+}
+
+function New-FakeRuntimePackage {
+    param([Parameter(Mandatory=$true)] [string] $PackagePath)
+    New-Item -ItemType Directory -Path (Join-Path $PackagePath 'Assets') -Force | Out-Null
+    [IO.File]::WriteAllText((Join-Path $PackagePath 'ModConfig.json'), '{"ModId":"ff7.accessibility.reloaded"}')
+    [IO.File]::WriteAllText((Join-Path $PackagePath 'Assets\readme.txt'), 'deterministic payload')
+}
+
+$packageBuilder = { param($PackagePath) New-FakeRuntimePackage -PackagePath $PackagePath }
+$setupPublisher = { param($Destination) New-FakePe -Path (Join-Path $Destination 'Blind-Swordsman-Setup.exe') }
+$artifactValidator = { param($ManifestPath, $PayloadPath, $SetupPath, $Track) }
+
+Describe 'Blind Swordsman release builder' {
+    BeforeEach {
+        $fixture = New-ReleaseFixture
+    }
+
+    AfterEach {
+        if (Test-Path -LiteralPath $fixture.Root) {
+            Remove-Item -LiteralPath $fixture.Root -Recurse -Force
+        }
+    }
+
+    It 'produces exact prerelease assets with mutually consistent hashes' {
+        & $builderPath -Version '0.1.0-pre.1' -Tag 'v0.1.0-pre.1' -OutputPath $fixture.First `
+            -PackageBuilder $packageBuilder -SetupPublisher $setupPublisher -ArtifactValidator $artifactValidator | Out-Null
+
+        $names = @(Get-ChildItem -LiteralPath $fixture.First -File | Sort-Object Name | ForEach-Object Name)
+        $names | Should Be @(
+            'Blind-Swordsman-Runtime.zip',
+            'Blind-Swordsman-Runtime.zip.sha256',
+            'Blind-Swordsman-Setup.exe',
+            'Blind-Swordsman-Setup.exe.sha256',
+            'blind-swordsman-channel.json'
+        )
+        $manifest = [IO.File]::ReadAllText((Join-Path $fixture.First 'blind-swordsman-channel.json')) | ConvertFrom-Json
+        $manifest.version | Should Be '0.1.0-pre.1'
+        $manifest.releaseTag | Should Be 'v0.1.0-pre.1'
+        $manifest.track | Should Be 'prerelease'
+        $manifest.payload.size | Should Be (Get-Item (Join-Path $fixture.First $manifest.payload.name)).Length
+        $manifest.setup.size | Should Be (Get-Item (Join-Path $fixture.First $manifest.setup.name)).Length
+        $manifest.payload.sha256 | Should Be (Get-FileHash (Join-Path $fixture.First $manifest.payload.name) -Algorithm SHA256).Hash
+        $manifest.setup.sha256 | Should Be (Get-FileHash (Join-Path $fixture.First $manifest.setup.name) -Algorithm SHA256).Hash
+        [IO.File]::ReadAllText((Join-Path $fixture.First 'Blind-Swordsman-Setup.exe.sha256')) | Should Match "^$($manifest.setup.sha256)  Blind-Swordsman-Setup.exe`r?`n?$"
+    }
+
+    It 'creates an ordinally sorted payload manifest and deterministic archive' {
+        & $builderPath -Version '0.1.0-pre.1' -Tag 'v0.1.0-pre.1' -OutputPath $fixture.First `
+            -PackageBuilder $packageBuilder -SetupPublisher $setupPublisher -ArtifactValidator $artifactValidator | Out-Null
+        & $builderPath -Version '0.1.0-pre.1' -Tag 'v0.1.0-pre.1' -OutputPath $fixture.Second `
+            -PackageBuilder $packageBuilder -SetupPublisher $setupPublisher -ArtifactValidator $artifactValidator | Out-Null
+
+        (Get-FileHash (Join-Path $fixture.First 'Blind-Swordsman-Runtime.zip') -Algorithm SHA256).Hash |
+            Should Be (Get-FileHash (Join-Path $fixture.Second 'Blind-Swordsman-Runtime.zip') -Algorithm SHA256).Hash
+
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        $archive = [IO.Compression.ZipFile]::OpenRead((Join-Path $fixture.First 'Blind-Swordsman-Runtime.zip'))
+        try {
+            $entry = $archive.GetEntry('payload-manifest.json')
+            $reader = New-Object IO.StreamReader($entry.Open())
+            try { $payloadManifest = $reader.ReadToEnd() | ConvertFrom-Json } finally { $reader.Dispose() }
+            $paths = @($payloadManifest.files | ForEach-Object { [string]$_.path })
+            $sorted = @($paths | Sort-Object -CaseSensitive)
+            ($paths -join '|') | Should Be ($sorted -join '|')
+            ($paths -contains 'package/ff7.accessibility.reloaded/ModConfig.json') | Should Be $true
+        }
+        finally {
+            $archive.Dispose()
+        }
+    }
+
+    It 'rejects mismatched tags and cleans staging after failure' {
+        { & $builderPath -Version '0.1.0-pre.1' -Tag 'v0.1.0-pre.2' -OutputPath $fixture.First `
+                -PackageBuilder $packageBuilder -SetupPublisher $setupPublisher -ArtifactValidator $artifactValidator } |
+            Should Throw
+
+        $failingBuilder = { param($PackagePath) throw 'fixture package failure' }
+        { & $builderPath -Version '0.1.0-pre.1' -Tag 'v0.1.0-pre.1' -OutputPath $fixture.First `
+                -PackageBuilder $failingBuilder -SetupPublisher $setupPublisher -ArtifactValidator $artifactValidator } |
+            Should Throw
+        Test-Path -LiteralPath $fixture.First | Should Be $false
+        @(Get-ChildItem -LiteralPath $fixture.Root -Force -Filter '.first.staging-*').Count | Should Be 0
+    }
+}

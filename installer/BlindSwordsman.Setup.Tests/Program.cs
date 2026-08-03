@@ -1,5 +1,11 @@
 using BlindSwordsman.Setup.Core;
 
+if (args.Length > 0 && string.Equals(args[0], "validate-release", StringComparison.Ordinal))
+{
+    ReleaseValidationCommand.Run(args.Skip(1).ToArray());
+    return;
+}
+
 ReleaseManifestTests.Run();
 await ArtifactSecurityTests.RunAsync();
 PreflightContractTests.Run();

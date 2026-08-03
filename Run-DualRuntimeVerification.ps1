@@ -259,6 +259,11 @@ $commands.Add((New-VerificationCommand -Name 'Setup preflight Pester' -FilePath 
     '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', $preflightPesterCommand
 ) -WorkingDirectory $scriptRoot))
 
+$releaseBuilderPesterCommand = "Invoke-Pester -Script '$((Join-Path $scriptRoot 'Build-BlindSwordsmanRelease.Tests.ps1').Replace("'", "''"))' -EnableExit"
+$commands.Add((New-VerificationCommand -Name 'Release builder Pester' -FilePath 'powershell.exe' -Arguments @(
+    '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', $releaseBuilderPesterCommand
+) -WorkingDirectory $scriptRoot))
+
 $pesterCommand = "Invoke-Pester -Script '$((Join-Path $scriptRoot 'FF7SteamInstall.Tests.ps1').Replace("'", "''"))' -EnableExit"
 $commands.Add((New-VerificationCommand -Name 'Installer Pester pass 1' -FilePath 'powershell.exe' -Arguments @(
     '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', $pesterCommand
