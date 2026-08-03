@@ -185,15 +185,35 @@ catch {
 $resolvedReloadedRoot = Resolve-ReloadedDirectory -ExplicitPath $ReloadedRoot `
     -GameRoot $(if ($null -ne $gameResult) { [string]$gameResult.gameRoot } else { $null }) `
     -SettingsPath $ReloadedSettingsPath
+$reloadedExists = Test-Path -LiteralPath $resolvedReloadedRoot
 $reloadedAvailable = Test-Path -LiteralPath $resolvedReloadedRoot -PathType Container
+$reloadedCollision = $false
+if ($reloadedExists) {
+    $reloadedItem = Get-Item -LiteralPath $resolvedReloadedRoot -Force
+    $reloadedCollision = -not $reloadedItem.PSIsContainer -or
+        ($reloadedItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0
+}
 Add-Dependency -Id 'reloaded' -Name 'Reloaded-II' `
-    -Severity $(if ($reloadedAvailable) { 'required' } else { 'blocking' }) `
-    -Satisfied $reloadedAvailable `
-    -Message $(if ($reloadedAvailable) { 'Reloaded-II folder detected.' } else { "Reloaded-II was not found. A portable installation can be placed at '$resolvedReloadedRoot', or choose an existing folder." }) `
+    -Severity $(if ($reloadedCollision) { 'blocking' } else { 'required' }) `
+    -Satisfied (-not $reloadedCollision) `
+    -Message $(if ($reloadedCollision) {
+        "The selected Reloaded-II path is an unsafe file or reparse-point collision: '$resolvedReloadedRoot'."
+    } elseif ($reloadedAvailable) {
+        'Reloaded-II folder detected. Blind Swordsman setup will preserve it and install or repair required components.'
+    } else {
+        "Reloaded-II was not found. Blind Swordsman setup will install a portable copy at '$resolvedReloadedRoot'."
+    }) `
     -Path $resolvedReloadedRoot
 
-$loaderFailures = New-Object 'System.Collections.Generic.List[string]'
-if ($reloadedAvailable) {
+$loaderRepairs = New-Object 'System.Collections.Generic.List[string]'
+$loaderBlockers = New-Object 'System.Collections.Generic.List[string]'
+if ($reloadedCollision) {
+    $loaderBlockers.Add('Reloaded-II target is unsafe')
+}
+elseif ($reloadedAvailable) {
+    if (-not (Test-Path -LiteralPath (Join-Path $resolvedReloadedRoot 'Reloaded-II.exe') -PathType Leaf)) {
+        $loaderRepairs.Add('Reloaded-II core is missing')
+    }
     foreach ($loader in @(
         [pscustomobject]@{ Architecture = 'x86'; Label = 'x86 ASI loader'; Relative = '_asi_extract\ASILoader32.dll'; Machine = 0x014C },
         [pscustomobject]@{ Architecture = 'x86'; Label = 'x86 bootstrapper'; Relative = 'Loader\X86\Bootstrapper\Reloaded.Mod.Loader.Bootstrapper.dll'; Machine = 0x014C },
@@ -202,25 +222,30 @@ if ($reloadedAvailable) {
     ) | Where-Object { $requiredArchitectures -contains $_.Architecture }) {
         $loaderPath = Join-Path $resolvedReloadedRoot $loader.Relative
         if (-not (Test-Path -LiteralPath $loaderPath -PathType Leaf)) {
-            $loaderFailures.Add("$($loader.Label) is missing")
+            $loaderRepairs.Add("$($loader.Label) is missing")
             continue
         }
         try {
+            $loaderItem = Get-Item -LiteralPath $loaderPath -Force
+            if (($loaderItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+                $loaderBlockers.Add("$($loader.Label) is a reparse point")
+                continue
+            }
             $machine = Get-Ff7PeMachine -Path $loaderPath
             if ($machine -ne $loader.Machine) {
-                $loaderFailures.Add(("{0} has machine 0x{1:X4}, expected 0x{2:X4}" -f `
+                $loaderBlockers.Add(("{0} has machine 0x{1:X4}, expected 0x{2:X4}" -f `
                     $loader.Label, $machine, $loader.Machine))
             }
         }
         catch {
-            $loaderFailures.Add("$($loader.Label) is invalid: $($_.Exception.Message)")
+            $loaderBlockers.Add("$($loader.Label) is invalid: $($_.Exception.Message)")
         }
     }
 }
 else {
-    $loaderFailures.Add('Reloaded-II is unavailable')
+    $loaderRepairs.Add('Reloaded-II and its loaders are not installed')
 }
-$loadersReady = $loaderFailures.Count -eq 0
+$loadersReady = $loaderBlockers.Count -eq 0
 $requiredArchitectureLabel = $requiredArchitectures -join ' and '
 $loaderDependencyName = if ($requiredArchitectures.Count -gt 0) {
     "Reloaded-II $requiredArchitectureLabel loaders"
@@ -232,24 +257,50 @@ $loaderReadyMessage = if ($requiredArchitectures.Count -gt 0) {
 else { 'Loader requirements are unavailable until a supported game runtime is detected.' }
 Add-Dependency -Id 'reloaded-loaders' -Name $loaderDependencyName `
     -Severity $(if ($loadersReady) { 'required' } else { 'blocking' }) -Satisfied $loadersReady `
-    -Message $(if ($loadersReady) { $loaderReadyMessage } else { $loaderFailures -join '; ' }) `
+    -Message $(if (-not $loadersReady) {
+        $loaderBlockers -join '; '
+    } elseif ($loaderRepairs.Count -gt 0) {
+        "Blind Swordsman setup will install or repair the required $requiredArchitectureLabel Reloaded-II loaders. $($loaderRepairs -join '; ')"
+    } else { $loaderReadyMessage }) `
     -Path $resolvedReloadedRoot
 
 $sharedHooksRoot = Join-Path $resolvedReloadedRoot 'Mods\reloaded.sharedlib.hooks'
-$sharedHooksFailures = New-Object 'System.Collections.Generic.List[string]'
+$sharedHooksRepairs = New-Object 'System.Collections.Generic.List[string]'
+$sharedHooksBlockers = New-Object 'System.Collections.Generic.List[string]'
+$sharedHooksExists = Test-Path -LiteralPath $sharedHooksRoot
+if ($sharedHooksExists) {
+    $sharedHooksItem = Get-Item -LiteralPath $sharedHooksRoot -Force
+    if (-not $sharedHooksItem.PSIsContainer -or
+        ($sharedHooksItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+        $sharedHooksBlockers.Add('Shared Hooks target is an unsafe file or reparse point')
+    }
+}
+$sharedHooksAvailable = $sharedHooksExists -and $sharedHooksBlockers.Count -eq 0
 $sharedConfigPath = Join-Path $sharedHooksRoot 'ModConfig.json'
-if (-not (Test-Path -LiteralPath $sharedConfigPath -PathType Leaf)) {
-    $sharedHooksFailures.Add('ModConfig.json is missing')
+if (-not $sharedHooksAvailable) {
+    if ($sharedHooksBlockers.Count -eq 0) {
+        $sharedHooksRepairs.Add('Shared Hooks is not installed')
+    }
+}
+elseif (-not (Test-Path -LiteralPath $sharedConfigPath -PathType Leaf)) {
+    $sharedHooksRepairs.Add('ModConfig.json is missing')
 }
 else {
     try {
+        $sharedConfigItem = Get-Item -LiteralPath $sharedConfigPath -Force
+        if (($sharedConfigItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+            $sharedHooksBlockers.Add('ModConfig.json is a reparse point')
+            throw 'Shared Hooks configuration is unsafe.'
+        }
         $sharedConfig = [IO.File]::ReadAllText($sharedConfigPath) | ConvertFrom-Json
         if ([string]$sharedConfig.ModId -cne 'reloaded.sharedlib.hooks') {
-            $sharedHooksFailures.Add('ModConfig.json has the wrong ModId')
+            $sharedHooksBlockers.Add('ModConfig.json has the wrong ModId')
         }
     }
     catch {
-        $sharedHooksFailures.Add("ModConfig.json is invalid: $($_.Exception.Message)")
+        if ($sharedHooksBlockers.Count -eq 0) {
+            $sharedHooksRepairs.Add("ModConfig.json is invalid and needs repair: $($_.Exception.Message)")
+        }
     }
 }
 foreach ($hook in @(
@@ -258,29 +309,38 @@ foreach ($hook in @(
 ) | Where-Object { $requiredArchitectures -contains $_.Architecture }) {
     $hookPath = Join-Path $sharedHooksRoot $hook.Relative
     if (-not (Test-Path -LiteralPath $hookPath -PathType Leaf)) {
-        $sharedHooksFailures.Add("$($hook.Label) is missing")
+        $sharedHooksRepairs.Add("$($hook.Label) is missing")
         continue
     }
     try {
+        $hookItem = Get-Item -LiteralPath $hookPath -Force
+        if (($hookItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+            $sharedHooksBlockers.Add("$($hook.Label) is a reparse point")
+            continue
+        }
         $machine = Get-Ff7PeMachine -Path $hookPath
         if ($machine -ne $hook.Machine) {
-            $sharedHooksFailures.Add(("{0} has machine 0x{1:X4}, expected 0x{2:X4}" -f `
+            $sharedHooksBlockers.Add(("{0} has machine 0x{1:X4}, expected 0x{2:X4}" -f `
                 $hook.Label, $machine, $hook.Machine))
         }
     }
     catch {
-        $sharedHooksFailures.Add("$($hook.Label) is invalid: $($_.Exception.Message)")
+        $sharedHooksBlockers.Add("$($hook.Label) is invalid: $($_.Exception.Message)")
     }
 }
-$sharedHooksReady = $sharedHooksFailures.Count -eq 0
+$sharedHooksReady = $sharedHooksBlockers.Count -eq 0
 Add-Dependency -Id 'shared-hooks' -Name 'Reloaded-II Shared Hooks' `
     -Severity $(if ($sharedHooksReady) { 'required' } else { 'blocking' }) -Satisfied $sharedHooksReady `
-    -Message $(if ($sharedHooksReady) {
+    -Message $(if (-not $sharedHooksReady) {
+        $sharedHooksBlockers -join '; '
+    } elseif ($sharedHooksRepairs.Count -gt 0) {
+        "Blind Swordsman setup will install or repair Reloaded-II Shared Hooks for $requiredArchitectureLabel. $($sharedHooksRepairs -join '; ')"
+    } else {
         if ($requiredArchitectures.Count -gt 0) {
             "Reloaded-II Shared Hooks $requiredArchitectureLabel files are ready."
         }
         else { 'Shared Hooks requirements are unavailable until a supported game runtime is detected.' }
-    } else { $sharedHooksFailures -join '; ' }) `
+    }) `
     -Path $sharedHooksRoot
 
 $resolvedSeventhHeavenRoot = Resolve-SeventhHeavenDirectory -ExplicitPath $SeventhHeavenRoot

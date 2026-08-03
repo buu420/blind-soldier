@@ -208,20 +208,47 @@ Describe 'Blind Swordsman installer preflight' {
     It 'proposes a portable Reloaded-II folder inside the detected game when none is registered' {
         $report = Invoke-FixturePreflight $fixture -DetectReloaded
 
-        $report.canInstall | Should Be $false
+        $report.canInstall | Should Be $true
         $report.reloadedRoot | Should Be ([IO.Path]::GetFullPath((Join-Path $fixture.GameRoot 'Reloaded-II')))
-        ($report.dependencies | Where-Object id -eq 'reloaded').message | Should Match 'portable'
+        foreach ($id in @('reloaded','reloaded-loaders','shared-hooks')) {
+            $dependency = $report.dependencies | Where-Object id -eq $id
+            $dependency.severity | Should Be 'required'
+            $dependency.satisfied | Should Be $true
+            $dependency.message | Should Match 'setup will install'
+        }
     }
 
-    It 'makes a missing shared hooks dependency blocking without changing files' {
+    It 'keeps a fresh legacy-only game installable without Reloaded' {
+        $env:BLIND_SWORDSMAN_PREFLIGHT_RUNTIME_MODE = 'legacy-only'
+        $report = Invoke-FixturePreflight $fixture -DetectReloaded
+
+        $report.canInstall | Should Be $true
+        ($report.dependencies | Where-Object id -eq 'reloaded-loaders').name | Should Match 'x86'
+        ($report.dependencies | Where-Object id -eq 'reloaded-loaders').message | Should Match 'setup will install'
+        ($report.dependencies | Where-Object id -eq 'shared-hooks').message | Should Match 'setup will install'
+    }
+
+    It 'keeps a fresh native-only game installable without Reloaded' {
+        $env:BLIND_SWORDSMAN_PREFLIGHT_RUNTIME_MODE = 'native-only'
+        $report = Invoke-FixturePreflight $fixture -DetectReloaded
+
+        $report.canInstall | Should Be $true
+        ($report.dependencies | Where-Object id -eq 'reloaded-loaders').name | Should Match 'x64'
+        ($report.dependencies | Where-Object id -eq 'reloaded-loaders').message | Should Match 'setup will install'
+        ($report.dependencies | Where-Object id -eq 'shared-hooks').message | Should Match 'setup will install'
+    }
+
+    It 'marks missing shared hooks as setup-managed without changing files' {
         $config = Join-Path $fixture.ReloadedRoot 'Mods\reloaded.sharedlib.hooks\ModConfig.json'
         Remove-Item -LiteralPath $config
         $before = @(Get-ChildItem -LiteralPath $fixture.ReloadedRoot -Recurse -File).Count
 
         $report = Invoke-FixturePreflight $fixture
 
-        $report.canInstall | Should Be $false
-        ($report.dependencies | Where-Object id -eq 'shared-hooks').satisfied | Should Be $false
+        $report.canInstall | Should Be $true
+        ($report.dependencies | Where-Object id -eq 'shared-hooks').severity | Should Be 'required'
+        ($report.dependencies | Where-Object id -eq 'shared-hooks').satisfied | Should Be $true
+        ($report.dependencies | Where-Object id -eq 'shared-hooks').message | Should Match 'setup will install or repair'
         @(Get-ChildItem -LiteralPath $fixture.ReloadedRoot -Recurse -File).Count | Should Be $before
     }
 
