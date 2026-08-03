@@ -25,11 +25,7 @@ static class ReleaseValidationCommand
         try
         {
             SafeZipExtractor.ExtractAndValidate(payloadPath, temporary);
-            var config = Path.Combine(temporary, "package", "ff7.accessibility.reloaded", "ModConfig.json");
-            if (!File.Exists(config))
-            {
-                throw new InvalidDataException("Validated runtime payload is missing the mod package.");
-            }
+            ReleasePayloadLayoutValidator.Validate(temporary);
         }
         finally
         {

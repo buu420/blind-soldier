@@ -33,6 +33,21 @@ public sealed record OpeningVoiceState(
 
 public sealed record FfnxState(string ReleaseTag, string AssetName);
 
+public sealed record InstalledLauncherFile(
+    string Target,
+    string InstalledSha256,
+    bool Changed,
+    string? BackupPath,
+    string? BackupSha256);
+
+public sealed record InstalledLauncher(
+    string StockLauncherSha256,
+    InstalledLauncherFile Executable,
+    InstalledLauncherFile Configuration,
+    InstalledLauncherFile Prism,
+    string ManifestPath,
+    string ManifestSha256);
+
 public sealed record InstallState(
     int SchemaVersion,
     SemanticVersion ProductVersion,
@@ -44,7 +59,8 @@ public sealed record InstallState(
     InstalledProfile? Profile,
     IReadOnlyList<InstalledLoader> Loaders,
     OpeningVoiceState OpeningVoice,
-    FfnxState? Ffnx);
+    FfnxState? Ffnx,
+    InstalledLauncher? Launcher);
 
 public static partial class DeploymentResultParser
 {
@@ -55,8 +71,11 @@ public static partial class DeploymentResultParser
         {
             using var document = JsonDocument.Parse(json, new JsonDocumentOptions { MaxDepth = 12 });
             var root = document.RootElement;
+            var hasLauncherProperty = root.TryGetProperty("launcher", out var launcherElement);
             Exact(root,
-                ["schemaVersion", "productVersion", "releaseTag", "installedAtUtc", "game", "reloadedRoot", "mod", "profile", "loaders", "openingVoice", "ffnx"],
+                hasLauncherProperty
+                    ? ["schemaVersion", "productVersion", "releaseTag", "installedAtUtc", "game", "reloadedRoot", "mod", "profile", "loaders", "openingVoice", "launcher", "ffnx"]
+                    : ["schemaVersion", "productVersion", "releaseTag", "installedAtUtc", "game", "reloadedRoot", "mod", "profile", "loaders", "openingVoice", "ffnx"],
                 "install state");
             if (!root.GetProperty("schemaVersion").TryGetInt32(out var schema) || schema != 1)
             {
@@ -151,6 +170,21 @@ public static partial class DeploymentResultParser
                 RequiredString(voiceElement, "target"),
                 RequiredHash(voiceElement, "sourceSha256"));
 
+            InstalledLauncher? launcher = null;
+            if (hasLauncherProperty && launcherElement.ValueKind != JsonValueKind.Null)
+            {
+                Exact(launcherElement,
+                    ["stockLauncherSha256", "executable", "configuration", "prism", "manifestPath", "manifestSha256"],
+                    "installed launcher");
+                launcher = new InstalledLauncher(
+                    RequiredHash(launcherElement, "stockLauncherSha256"),
+                    ParseLauncherFile(launcherElement.GetProperty("executable"), "installed launcher executable"),
+                    ParseLauncherFile(launcherElement.GetProperty("configuration"), "installed launcher configuration"),
+                    ParseLauncherFile(launcherElement.GetProperty("prism"), "installed launcher Prism library"),
+                    RequiredString(launcherElement, "manifestPath"),
+                    RequiredHash(launcherElement, "manifestSha256"));
+            }
+
             FfnxState? ffnx = null;
             var ffnxElement = root.GetProperty("ffnx");
             if (ffnxElement.ValueKind != JsonValueKind.Null)
@@ -172,7 +206,8 @@ public static partial class DeploymentResultParser
                 profile,
                 loaders,
                 openingVoice,
-                ffnx);
+                ffnx,
+                launcher);
         }
         catch (InvalidDataException)
         {
@@ -237,6 +272,21 @@ public static partial class DeploymentResultParser
             writer.WriteString("target", state.OpeningVoice.Target);
             writer.WriteString("sourceSha256", state.OpeningVoice.SourceSha256);
             writer.WriteEndObject();
+            if (state.Launcher is null)
+            {
+                writer.WriteNull("launcher");
+            }
+            else
+            {
+                writer.WriteStartObject("launcher");
+                writer.WriteString("stockLauncherSha256", state.Launcher.StockLauncherSha256);
+                WriteLauncherFile(writer, "executable", state.Launcher.Executable);
+                WriteLauncherFile(writer, "configuration", state.Launcher.Configuration);
+                WriteLauncherFile(writer, "prism", state.Launcher.Prism);
+                writer.WriteString("manifestPath", state.Launcher.ManifestPath);
+                writer.WriteString("manifestSha256", state.Launcher.ManifestSha256);
+                writer.WriteEndObject();
+            }
             if (state.Ffnx is null)
             {
                 writer.WriteNull("ffnx");
@@ -251,6 +301,34 @@ public static partial class DeploymentResultParser
             writer.WriteEndObject();
         }
         return Encoding.UTF8.GetString(stream.ToArray());
+    }
+
+    private static InstalledLauncherFile ParseLauncherFile(JsonElement element, string label)
+    {
+        Exact(element, ["target", "installedSha256", "changed", "backupPath", "backupSha256"], label);
+        var backupPath = OptionalString(element, "backupPath");
+        var backupHash = OptionalString(element, "backupSha256");
+        if ((backupPath is null) != (backupHash is null))
+        {
+            throw new InvalidDataException($"{label} backup path and hash must both be present or absent.");
+        }
+        return new InstalledLauncherFile(
+            RequiredString(element, "target"),
+            RequiredHash(element, "installedSha256"),
+            RequiredBoolean(element, "changed"),
+            backupPath,
+            backupHash is null ? null : ValidateHash(backupHash, "backupSha256"));
+    }
+
+    private static void WriteLauncherFile(Utf8JsonWriter writer, string name, InstalledLauncherFile file)
+    {
+        writer.WriteStartObject(name);
+        writer.WriteString("target", file.Target);
+        writer.WriteString("installedSha256", file.InstalledSha256);
+        writer.WriteBoolean("changed", file.Changed);
+        WriteNullableString(writer, "backupPath", file.BackupPath);
+        WriteNullableString(writer, "backupSha256", file.BackupSha256);
+        writer.WriteEndObject();
     }
 
     private static SemanticVersion ParseVersion(string value)

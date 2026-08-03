@@ -6,6 +6,7 @@ static class SetupOrchestratorTests
     {
         BuildsArgumentListWithoutShellQuoting();
         NeverInstallsOptionalFfnxOrRequiresSeventhHeaven();
+        RequiresLauncherBundleOnlyForNativeRuntime();
         RejectsADeploymentResultForAnotherReleaseOrLocation();
     }
 
@@ -39,13 +40,18 @@ static class SetupOrchestratorTests
             preflight,
             manifest,
             "C:\\Stage Folder\\package\\ff7.accessibility.reloaded",
-            "C:\\State Folder\\result.json");
+            "C:\\State Folder\\result.json",
+            "C:\\Stage Folder\\launcher");
 
         Equal("-GameRoot", arguments[0], "first argument name");
         Equal("X:\\Steam Library\\FINAL FANTASY VII", arguments[1], "game root remains one argument");
         True(arguments.Contains("-AllowResearchNativeProfile"), "x64 research switch");
         True(arguments.Contains("-SkipFfnx"), "existing FFNx is not needlessly replaced");
         True(!arguments.Contains("-SeventhHeavenRoot"), "detected optional 7th Heaven is not passed to deployment");
+        Equal(
+            System.IO.Path.GetFullPath("C:\\Stage Folder\\launcher"),
+            arguments[arguments.IndexOf("-LauncherBundlePath") + 1],
+            "launcher bundle remains one argument");
         Equal("v0.1.0-pre.1", arguments[arguments.IndexOf("-ReleaseTag") + 1], "release tag argument");
     }
 
@@ -80,16 +86,77 @@ static class SetupOrchestratorTests
             preflight,
             manifest,
             "C:\\Stage Folder\\package\\ff7.accessibility.reloaded",
-            "C:\\State Folder\\result.json");
+            "C:\\State Folder\\result.json",
+            "C:\\Stage Folder\\launcher");
 
         True(arguments.Contains("-SkipFfnx"), "missing optional FFNx is not installed");
         True(arguments.Contains("-SkipSeventhHeavenSettings"), "7th Heaven settings are never required");
         True(!arguments.Contains("-SeventhHeavenRoot"), "missing optional 7th Heaven has no deployment argument");
     }
 
+    private static void RequiresLauncherBundleOnlyForNativeRuntime()
+    {
+        var nativePreflight = PreflightReportParser.Parse("""
+            {
+              "schemaVersion": 1,
+              "canInstall": true,
+              "game": {
+                "version": "Steam2026",
+                "steamAppId": "3837340",
+                "gameRoot": "X:\\Steam Library\\FINAL FANTASY VII",
+                "runtimes": [
+                  { "id": "ff7-steam-2026-x64", "architecture": "x64", "root": "X:\\Steam Library\\FINAL FANTASY VII", "executable": "X:\\Steam Library\\FINAL FANTASY VII\\FFVII.exe" }
+                ]
+              },
+              "reloadedRoot": "C:\\Users\\Player\\Reloaded II",
+              "seventhHeavenRoot": null,
+              "dependencies": [
+                { "id": "game", "name": "Final Fantasy VII", "severity": "required", "satisfied": true, "message": "Ready.", "path": "X:\\Steam Library\\FINAL FANTASY VII" },
+                { "id": "reloaded", "name": "Reloaded-II", "severity": "required", "satisfied": true, "message": "Ready.", "path": "C:\\Users\\Player\\Reloaded II" }
+              ]
+            }
+            """);
+        var legacyPreflight = PreflightReportParser.Parse("""
+            {
+              "schemaVersion": 1,
+              "canInstall": true,
+              "game": {
+                "version": "SteamLegacy",
+                "steamAppId": "39140",
+                "gameRoot": "X:\\Steam Library\\FINAL FANTASY VII",
+                "runtimes": [
+                  { "id": "ff7-steam-legacy-x86", "architecture": "x86", "root": "X:\\Steam Library\\FINAL FANTASY VII\\ff7\\workingdir", "executable": "X:\\Steam Library\\FINAL FANTASY VII\\ff7\\workingdir\\ff7_en.exe" }
+                ]
+              },
+              "reloadedRoot": "C:\\Users\\Player\\Reloaded II",
+              "seventhHeavenRoot": null,
+              "dependencies": [
+                { "id": "game", "name": "Final Fantasy VII", "severity": "required", "satisfied": true, "message": "Ready.", "path": "X:\\Steam Library\\FINAL FANTASY VII" },
+                { "id": "reloaded", "name": "Reloaded-II", "severity": "required", "satisfied": true, "message": "Ready.", "path": "C:\\Users\\Player\\Reloaded II" }
+              ]
+            }
+            """);
+        var manifest = ReleaseManifestParser.Parse(ChannelManifest(), ReleaseTrack.Prerelease);
+
+        Throws<InvalidOperationException>(() => SetupOrchestrator.BuildDeploymentArguments(
+            nativePreflight,
+            manifest,
+            "C:\\Stage\\package",
+            "C:\\Stage\\result.json",
+            null), "native runtime without launcher bundle");
+        var legacyArguments = SetupOrchestrator.BuildDeploymentArguments(
+            legacyPreflight,
+            manifest,
+            "C:\\Stage\\package",
+            "C:\\Stage\\result.json",
+            null);
+        True(!legacyArguments.Contains("-LauncherBundlePath"), "legacy-only install omits launcher bundle");
+    }
+
     private static void RejectsADeploymentResultForAnotherReleaseOrLocation()
     {
-        var state = DeploymentResultParser.Parse(InstallStateTests.ValidDeploymentResult());
+        var state = DeploymentResultParser.Parse(InstallStateTests.DeploymentResultWithLauncher());
+        var missingLauncherState = DeploymentResultParser.Parse(InstallStateTests.ValidDeploymentResult());
         var manifest = ReleaseManifestParser.Parse(ChannelManifest(), ReleaseTrack.Prerelease);
 
         SetupOrchestrator.ValidateDeploymentResult(
@@ -97,6 +164,11 @@ static class SetupOrchestratorTests
             manifest,
             "X:\\SteamLibrary\\FINAL FANTASY VII Steam Edition",
             "C:\\Users\\Player\\Reloaded-II");
+        Throws<InvalidDataException>(() => SetupOrchestrator.ValidateDeploymentResult(
+            missingLauncherState,
+            manifest,
+            missingLauncherState.Game.GameRoot,
+            missingLauncherState.ReloadedRoot), "native deployment result without launcher state");
         Throws<InvalidDataException>(() => SetupOrchestrator.ValidateDeploymentResult(
             state,
             manifest with { Version = SemanticVersion.Parse("0.1.0-pre.2"), ReleaseTag = "v0.1.0-pre.2" },

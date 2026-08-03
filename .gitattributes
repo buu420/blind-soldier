@@ -7,6 +7,7 @@
 
 *.dll binary
 *.exe binary
+installer-assets/launcher/FFVII_LAUNCHER.exe.config binary
 *.pdb binary
 *.png binary
 *.jpg binary

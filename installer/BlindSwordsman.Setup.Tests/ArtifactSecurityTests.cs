@@ -16,6 +16,7 @@ static class ArtifactSecurityTests
         await RejectsHashMismatchAndCleansPartialFile();
         ExtractsOnlyManifestedSafeZipEntries();
         RejectsTraversalAbsoluteDuplicateAndUnlistedZipEntries();
+        RejectsReleasePayloadWithoutLauncherBundle();
     }
 
     private static async Task SelectsNewestEligibleGitHubRelease()
@@ -171,6 +172,18 @@ static class ArtifactSecurityTests
                 () => SafeZipExtractor.ExtractAndValidate(zipPath, System.IO.Path.Combine(fixture.Path, "out")),
                 "unlisted ZIP entry");
         }
+    }
+
+    private static void RejectsReleasePayloadWithoutLauncherBundle()
+    {
+        using var fixture = new TemporaryDirectory();
+        var modDirectory = System.IO.Path.Combine(fixture.Path, "package", "ff7.accessibility.reloaded");
+        Directory.CreateDirectory(modDirectory);
+        File.WriteAllText(System.IO.Path.Combine(modDirectory, "ModConfig.json"), "{}");
+
+        Throws<InvalidDataException>(
+            () => ReleasePayloadLayoutValidator.Validate(fixture.Path),
+            "release payload missing accessible launcher bundle");
     }
 
     private static string ValidChannelManifest(string version, string tag, string track = "prerelease") => $$"""

@@ -83,6 +83,15 @@ Describe 'Blind Swordsman release builder' {
         Add-Type -AssemblyName System.IO.Compression.FileSystem
         $archive = [IO.Compression.ZipFile]::OpenRead((Join-Path $fixture.First 'Blind-Swordsman-Runtime.zip'))
         try {
+            $entryNames = @($archive.Entries | ForEach-Object FullName)
+            foreach ($launcherEntry in @(
+                'launcher/FFVII_LAUNCHER.exe',
+                'launcher/FFVII_LAUNCHER.exe.config',
+                'launcher/launcher-bundle.json',
+                'launcher/native/x86/FFVII_LAUNCHER.prism.x86.dll'
+            )) {
+                ($entryNames -contains $launcherEntry) | Should Be $true
+            }
             $entry = $archive.GetEntry('payload-manifest.json')
             $reader = New-Object IO.StreamReader($entry.Open())
             try { $payloadManifest = $reader.ReadToEnd() | ConvertFrom-Json } finally { $reader.Dispose() }

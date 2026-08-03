@@ -22,6 +22,21 @@ $ErrorActionPreference = 'Stop'
 
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $prototypeRoot = Split-Path -Parent $scriptRoot
+$protectedSuiteRelativePath = 'analysis\7th-heaven-4.5.2-patch\CrashGuardSmokeTests\CrashGuardSmokeTests.csproj'
+$prototypeRootCandidate = $scriptRoot
+while (-not [string]::IsNullOrWhiteSpace($prototypeRootCandidate)) {
+    $protectedSuiteCandidate = Join-Path $prototypeRootCandidate $protectedSuiteRelativePath
+    if (Test-Path -LiteralPath $protectedSuiteCandidate -PathType Leaf) {
+        $prototypeRoot = $prototypeRootCandidate
+        break
+    }
+
+    $parentCandidate = Split-Path -Parent $prototypeRootCandidate
+    if ([string]::IsNullOrWhiteSpace($parentCandidate) -or $parentCandidate -eq $prototypeRootCandidate) {
+        break
+    }
+    $prototypeRootCandidate = $parentCandidate
+}
 if ([string]::IsNullOrWhiteSpace($ParityMatrixPath)) {
     $ParityMatrixPath = Join-Path $scriptRoot 'analysis\dual_runtime\parity-matrix.json'
 }
@@ -271,6 +286,16 @@ $commands.Add((New-VerificationCommand -Name 'Installer Pester pass 1' -FilePath
 if (-not $SkipSecondPesterRepeat) {
     $commands.Add((New-VerificationCommand -Name 'Installer Pester pass 2' -FilePath 'powershell.exe' -Arguments @(
         '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', $pesterCommand
+    ) -WorkingDirectory $scriptRoot))
+}
+
+$launcherPesterCommand = "Invoke-Pester -Script '$((Join-Path $scriptRoot 'FF7LauncherInstall.Tests.ps1').Replace("'", "''"))' -EnableExit"
+$commands.Add((New-VerificationCommand -Name 'Launcher lifecycle Pester pass 1' -FilePath 'powershell.exe' -Arguments @(
+    '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', $launcherPesterCommand
+) -WorkingDirectory $scriptRoot))
+if (-not $SkipSecondPesterRepeat) {
+    $commands.Add((New-VerificationCommand -Name 'Launcher lifecycle Pester pass 2' -FilePath 'powershell.exe' -Arguments @(
+        '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', $launcherPesterCommand
     ) -WorkingDirectory $scriptRoot))
 }
 
