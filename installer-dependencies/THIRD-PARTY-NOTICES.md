@@ -1,6 +1,6 @@
-# Blind Swordsman installer prerequisites
+# Blind Soldier installer prerequisites
 
-Blind Swordsman setup redistributes the following unmodified components so a
+Blind Soldier setup redistributes the following unmodified components so a
 supported Final Fantasy VII installation is the only external product
 prerequisite.
 
@@ -11,7 +11,7 @@ prerequisite.
 - License: GNU General Public License version 3, included as
   `Reloaded-II-GPL-3.0.txt`.
 
-Reloaded-II is separate software aggregated with Blind Swordsman. Its source
+Reloaded-II is separate software aggregated with Blind Soldier. Its source
 code is available without charge at the exact source link above.
 
 ## Reloaded Shared Hooks 1.16.3

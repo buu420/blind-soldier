@@ -199,9 +199,9 @@ Add-Dependency -Id 'reloaded' -Name 'Reloaded-II' `
     -Message $(if ($reloadedCollision) {
         "The selected Reloaded-II path is an unsafe file or reparse-point collision: '$resolvedReloadedRoot'."
     } elseif ($reloadedAvailable) {
-        'Reloaded-II folder detected. Blind Swordsman setup will preserve it and install or repair required components.'
+        'Reloaded-II folder detected. Blind Soldier setup will preserve it and install or repair required components.'
     } else {
-        "Reloaded-II was not found. Blind Swordsman setup will install a portable copy at '$resolvedReloadedRoot'."
+        "Reloaded-II was not found. Blind Soldier setup will install a portable copy at '$resolvedReloadedRoot'."
     }) `
     -Path $resolvedReloadedRoot
 
@@ -260,7 +260,7 @@ Add-Dependency -Id 'reloaded-loaders' -Name $loaderDependencyName `
     -Message $(if (-not $loadersReady) {
         $loaderBlockers -join '; '
     } elseif ($loaderRepairs.Count -gt 0) {
-        "Blind Swordsman setup will install or repair the required $requiredArchitectureLabel Reloaded-II loaders. $($loaderRepairs -join '; ')"
+        "Blind Soldier setup will install or repair the required $requiredArchitectureLabel Reloaded-II loaders. $($loaderRepairs -join '; ')"
     } else { $loaderReadyMessage }) `
     -Path $resolvedReloadedRoot
 
@@ -334,7 +334,7 @@ Add-Dependency -Id 'shared-hooks' -Name 'Reloaded-II Shared Hooks' `
     -Message $(if (-not $sharedHooksReady) {
         $sharedHooksBlockers -join '; '
     } elseif ($sharedHooksRepairs.Count -gt 0) {
-        "Blind Swordsman setup will install or repair Reloaded-II Shared Hooks for $requiredArchitectureLabel. $($sharedHooksRepairs -join '; ')"
+        "Blind Soldier setup will install or repair Reloaded-II Shared Hooks for $requiredArchitectureLabel. $($sharedHooksRepairs -join '; ')"
     } else {
         if ($requiredArchitectures.Count -gt 0) {
             "Reloaded-II Shared Hooks $requiredArchitectureLabel files are ready."
@@ -347,7 +347,7 @@ $resolvedSeventhHeavenRoot = Resolve-SeventhHeavenDirectory -ExplicitPath $Seven
 $seventhHeavenAvailable = -not [string]::IsNullOrWhiteSpace($resolvedSeventhHeavenRoot) -and `
     (Test-Path -LiteralPath $resolvedSeventhHeavenRoot -PathType Container)
 Add-Dependency -Id 'seventh-heaven' -Name '7th Heaven' -Severity optional -Satisfied $seventhHeavenAvailable `
-    -Message $(if ($seventhHeavenAvailable) { 'Optional integration detected for the legacy x86 path.' } else { 'Not installed. This integration is optional; Blind Swordsman can still be installed.' }) `
+    -Message $(if ($seventhHeavenAvailable) { 'Optional integration detected for the legacy x86 path.' } else { 'Not installed. This integration is optional; Blind Soldier can still be installed.' }) `
     -Path $(if ($seventhHeavenAvailable) { $resolvedSeventhHeavenRoot } else { $null })
 
 $ffnxPath = if ($null -ne $installation -and $null -ne $installation.LegacyRuntime) {
@@ -362,7 +362,7 @@ $ffnxAvailable = -not [string]::IsNullOrWhiteSpace($ffnxPath) -and `
     (Test-Path -LiteralPath $ffnxPath -PathType Leaf) -and `
     (Test-Path -LiteralPath $ffnxConfigPath -PathType Leaf)
 Add-Dependency -Id 'ffnx' -Name 'FFNx' -Severity optional -Satisfied $ffnxAvailable `
-    -Message $(if ($ffnxAvailable) { 'Optional integration detected for the legacy x86 path.' } else { 'Not installed. This integration is optional; Blind Swordsman can still be installed.' }) `
+    -Message $(if ($ffnxAvailable) { 'Optional integration detected for the legacy x86 path.' } else { 'Not installed. This integration is optional; Blind Soldier can still be installed.' }) `
     -Path $(if ($ffnxAvailable) { $ffnxPath } else { $null })
 
 $canInstall = $null -ne $gameResult -and @($dependencies | Where-Object {

@@ -45,6 +45,9 @@ static class SetupUiTests
     private static void UsesAccessibleStandardControlsAndLogicalKeyboardOrder()
     {
         using var form = SetupForm.CreateForAccessibilityTesting();
+        Equal("Blind Soldier Setup", form.Text, "product window title");
+        Equal("Blind Soldier setup", form.AccessibleName, "accessible product name");
+        True(form.AccessibleDescription?.Contains("Blind Soldier", StringComparison.Ordinal) == true, "accessible product description");
         form.StartPosition = FormStartPosition.Manual;
         form.Location = new System.Drawing.Point(-32000, -32000);
         form.Show();

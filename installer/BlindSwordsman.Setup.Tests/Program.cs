@@ -12,7 +12,7 @@ PreflightContractTests.Run();
 await InstallStateTests.RunAsync();
 SetupOrchestratorTests.Run();
 SetupUiTests.Run();
-Console.WriteLine("Blind Swordsman setup tests passed.");
+Console.WriteLine("Blind Soldier setup tests passed.");
 
 static class ReleaseManifestTests
 {

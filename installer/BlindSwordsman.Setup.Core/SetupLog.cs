@@ -24,7 +24,7 @@ public sealed class SetupLog : IDisposable
         {
             AutoFlush = true
         };
-        Write("Blind Swordsman setup log started.");
+        Write("Blind Soldier setup log started.");
     }
 
     public string Path { get; }

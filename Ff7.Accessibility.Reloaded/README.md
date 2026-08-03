@@ -1,4 +1,4 @@
-# Blind Swordsman Reloaded-II project
+# Blind Soldier Reloaded-II project
 
 This directory contains the Reloaded-II implementation for both supported
 FFVII process architectures. End users should install the published

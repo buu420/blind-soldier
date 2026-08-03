@@ -17,8 +17,8 @@ internal static class Program
         catch (Exception exception)
         {
             MessageBox.Show(
-                $"Blind Swordsman setup could not start.{Environment.NewLine}{Environment.NewLine}{exception.Message}",
-                "Blind Swordsman Setup Error",
+                $"Blind Soldier setup could not start.{Environment.NewLine}{Environment.NewLine}{exception.Message}",
+                "Blind Soldier Setup Error",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error,
                 MessageBoxDefaultButton.Button1);

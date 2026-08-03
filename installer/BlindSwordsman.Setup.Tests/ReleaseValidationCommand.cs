@@ -34,7 +34,7 @@ static class ReleaseValidationCommand
                 Directory.Delete(temporary, recursive: true);
             }
         }
-        Console.WriteLine($"Validated Blind Swordsman release {manifest.ReleaseTag}.");
+        Console.WriteLine($"Validated Blind Soldier release {manifest.ReleaseTag}.");
     }
 
     private static void ValidateAsset(ReleaseAssetDescriptor descriptor, string path)

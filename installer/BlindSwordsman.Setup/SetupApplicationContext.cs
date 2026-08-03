@@ -72,11 +72,11 @@ public sealed class SetupApplicationContext : ApplicationContext
             {
                 if (installedState is null)
                 {
-                    throw new InvalidOperationException("Blind Swordsman is not registered as installed for this Windows user.");
+                    throw new InvalidOperationException("Blind Soldier is not registered as installed for this Windows user.");
                 }
                 mode = SetupMode.Uninstall;
                 form.SetWelcome(
-                    "Uninstall Blind Swordsman",
+                    "Uninstall Blind Soldier",
                     "Setup will remove files it owns and preserve files that changed after installation.",
                     $"Installed version: {installedState.ProductVersion}");
                 form.SetUninstallReview(installedState);
@@ -85,7 +85,7 @@ public sealed class SetupApplicationContext : ApplicationContext
             }
 
             form.SetWelcome(
-                "Welcome to Blind Swordsman Setup",
+                "Welcome to Blind Soldier Setup",
                 "This accessible setup detects Final Fantasy VII and Reloaded-II, then installs the dual-runtime accessibility mod.",
                 "Checking GitHub for the available release.");
             release = await LoadReleaseAsync(operationCancellation.Token);
@@ -99,7 +99,7 @@ public sealed class SetupApplicationContext : ApplicationContext
             if (mode == SetupMode.DowngradeBlocked)
             {
                 form.SetWelcome(
-                    "A newer Blind Swordsman version is already installed",
+                    "A newer Blind Soldier version is already installed",
                     "This setup will not replace a newer installation with an older release.",
                     $"Installed: {installedState!.ProductVersion}. Available here: {release.Version}.");
                 form.SetNextEnabled(false);
@@ -114,7 +114,7 @@ public sealed class SetupApplicationContext : ApplicationContext
                 _ => "Install"
             };
             form.SetWelcome(
-                $"{action} Blind Swordsman",
+                $"{action} Blind Soldier",
                 "The next page checks both supported game runtimes and every required Reloaded-II component.",
                 $"Available version: {release.Version}. Setup action: {action}.");
             await ScanAsync(showErrorsOnProgressPage: false);
@@ -249,7 +249,7 @@ public sealed class SetupApplicationContext : ApplicationContext
                 await orchestrator.UninstallAsync(resources.Paths, progress, operationCancellation.Token);
                 form.SetBusy(false);
                 form.ShowComplete(
-                    "Blind Swordsman was uninstalled",
+                    "Blind Soldier was uninstalled",
                     "Setup-owned files were removed. Any changed files were preserved and recorded in the setup log.",
                     log.Path);
             }
@@ -274,9 +274,9 @@ public sealed class SetupApplicationContext : ApplicationContext
                 form.ShowComplete(
                     mode switch
                     {
-                        SetupMode.Update => "Blind Swordsman was updated",
-                        SetupMode.Repair => "Blind Swordsman was repaired",
-                        _ => "Blind Swordsman was installed"
+                        SetupMode.Update => "Blind Soldier was updated",
+                        SetupMode.Repair => "Blind Soldier was repaired",
+                        _ => "Blind Soldier was installed"
                     },
                     $"Version {state.ProductVersion} is ready for both supported Final Fantasy VII runtimes.",
                     log.Path);

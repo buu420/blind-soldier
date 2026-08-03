@@ -48,7 +48,7 @@ public sealed class SetupOrchestrator(
             "-PrerequisiteBundlePath", System.IO.Path.GetFullPath(prerequisiteBundlePath),
             "-SkipSeventhHeavenSettings"
         };
-        // FFNx is an optional third-party integration. Blind Swordsman setup
+        // FFNx is an optional third-party integration. Blind Soldier setup
         // detects it for compatibility reporting but never installs or replaces it.
         arguments.Add("-SkipFfnx");
         if (preflight.Game.Runtimes.Any(runtime => runtime.Architecture == "x64"))
@@ -219,7 +219,7 @@ public sealed class SetupOrchestrator(
                 resultPath,
                 layout.LauncherBundlePath,
                 layout.PrerequisiteBundlePath);
-            Report(progress, "Install", 60, "Installing Blind Swordsman and its accessible launcher into Final Fantasy VII.");
+            Report(progress, "Install", 60, "Installing Blind Soldier and its accessible launcher into Final Fantasy VII.");
             var process = await processRunner.RunAsync(
                 request.Resources.InstallScript,
                 arguments,
@@ -232,7 +232,7 @@ public sealed class SetupOrchestrator(
             {
                 log.Write(process.StandardError);
                 throw new InvalidOperationException(
-                    $"Blind Swordsman deployment failed with exit code {process.ExitCode}: {LastUsefulLine(process.StandardError)}");
+                    $"Blind Soldier deployment failed with exit code {process.ExitCode}: {LastUsefulLine(process.StandardError)}");
             }
             if (!File.Exists(resultPath))
             {
@@ -253,7 +253,7 @@ public sealed class SetupOrchestrator(
                 state,
                 paths.InstalledSetupPath,
                 paths.StartMenuDirectory));
-            Report(progress, "Complete", 100, "Blind Swordsman installation completed.");
+            Report(progress, "Complete", 100, "Blind Soldier installation completed.");
             log.Write("Installation completed and Windows registration was written.");
             return state;
         }
@@ -271,7 +271,7 @@ public sealed class SetupOrchestrator(
         IProgress<SetupOperationProgress>? progress,
         CancellationToken cancellationToken)
     {
-        var state = stateStore.Load() ?? throw new InvalidOperationException("Blind Swordsman is not currently registered as installed.");
+        var state = stateStore.Load() ?? throw new InvalidOperationException("Blind Soldier is not currently registered as installed.");
         var stagingRoot = System.IO.Path.Combine(
             System.IO.Path.GetTempPath(),
             "blind-swordsman-uninstall-" + Guid.NewGuid().ToString("N"));
@@ -279,7 +279,7 @@ public sealed class SetupOrchestrator(
         try
         {
             var resultPath = System.IO.Path.Combine(stagingRoot, "uninstall-result.json");
-            Report(progress, "Uninstall", 20, "Removing setup-owned Blind Swordsman files.");
+            Report(progress, "Uninstall", 20, "Removing setup-owned Blind Soldier files.");
             var process = await processRunner.RunAsync(
                 resources.UninstallScript,
                 ["-StatePath", stateStore.Path, "-ResultPath", resultPath],
@@ -288,7 +288,7 @@ public sealed class SetupOrchestrator(
             {
                 log.Write(process.StandardError);
                 throw new InvalidOperationException(
-                    $"Blind Swordsman uninstall failed with exit code {process.ExitCode}: {LastUsefulLine(process.StandardError)}");
+                    $"Blind Soldier uninstall failed with exit code {process.ExitCode}: {LastUsefulLine(process.StandardError)}");
             }
             if (!File.Exists(resultPath))
             {
@@ -298,7 +298,7 @@ public sealed class SetupOrchestrator(
             WindowsRegistration.Remove(paths.StartMenuDirectory);
             stateStore.Delete();
             WindowsRegistration.RemoveInstalledSetup(paths.InstalledSetupPath);
-            Report(progress, "Complete", 100, "Blind Swordsman was uninstalled. Changed user files were preserved.");
+            Report(progress, "Complete", 100, "Blind Soldier was uninstalled. Changed user files were preserved.");
             log.Write("Uninstall completed.");
         }
         finally

@@ -1,6 +1,6 @@
-# Blind Swordsman
+# Blind Soldier
 
-Blind Swordsman is an accessibility mod for the original Windows PC version
+Blind Soldier is an accessibility mod for the original Windows PC version
 of **Final Fantasy VII**. It presents information that a sighted player would
 normally see through screen-reader speech, audio description, positional
 sounds, footsteps, and spoken navigation.
@@ -23,11 +23,11 @@ is not tied to one particular screen reader.
 - Optional: 7th Heaven and FFNx for the legacy x86 game path.
 
 **Final Fantasy VII is the only software the player must install first.** The
-Blind Swordsman setup package includes verified copies of Reloaded-II, Reloaded
+Blind Soldier setup package includes verified copies of Reloaded-II, Reloaded
 Shared Hooks, and the Microsoft .NET Desktop Runtime needed by the detected
 game architecture. Setup installs or repairs those components automatically.
 
-Blind Swordsman contains separate x86 and x64 backends. The installer detects
+Blind Soldier contains separate x86 and x64 backends. The installer detects
 either the legacy Steam 2013 runtime (`ff7_en.exe`) or the current native Steam
 2026 runtime (`FFVII.exe`) and refuses unknown executable builds instead of
 reading unverified game memory.
@@ -37,7 +37,7 @@ reading unverified game memory.
 Download and run
 [Blind-Swordsman-Setup.exe](https://github.com/buu420/blind-swordsman/releases/download/v0.1.0-pre.4/Blind-Swordsman-Setup.exe).
 If that direct link changes, use the
-[Blind Swordsman Releases page](https://github.com/buu420/blind-swordsman/releases).
+[Blind Soldier Releases page](https://github.com/buu420/blind-swordsman/releases).
 
 1. Close Final Fantasy VII, 7th Heaven, and Reloaded-II.
 2. Run `Blind-Swordsman-Setup.exe`. You do not need to extract a ZIP, install
@@ -89,18 +89,18 @@ executables instead of reading unverified memory.
 
 - Run the installer again to update to a newer release or repair the installed
   version.
-- Open the Start menu and choose **Check for Blind Swordsman Updates** to run a
+- Open the Start menu and choose **Check for Blind Soldier Updates** to run a
   manual update check. No updater runs in the background.
-- Remove the mod through **Settings > Apps > Installed apps > Blind Swordsman**.
+- Remove the mod through **Settings > Apps > Installed apps > Blind Soldier**.
   Uninstall removes setup-owned files, preserves files changed after
   installation, and restores a recorded prior mod package only when it still
   matches the saved backup. On Steam 2026 it also restores the verified
   original FFVII launcher. Reloaded-II, Shared Hooks, and .NET remain installed
   because they are shared components that other mods may use.
 
-Installer state and readable logs are stored under
-`%LOCALAPPDATA%\Blind Swordsman`. The completion page includes a link that
-opens the current setup log.
+For compatibility with existing installations, installer state and readable
+logs remain under the legacy path `%LOCALAPPDATA%\Blind Swordsman`. The
+completion page includes a link that opens the current setup log.
 
 ### Offline or local release files
 
@@ -171,7 +171,7 @@ game session; the installed configuration supplies the next launch's defaults.
 
 ## Navigation
 
-Blind Swordsman uses the same navigation controls in fields and on the world
+Blind Soldier uses the same navigation controls in fields and on the world
 map. You select a category, select a target, and then start a route.
 
 ### Quick start
@@ -209,7 +209,7 @@ currently be built.
 - **Chocobo Tracks:** reachable track areas used when catching chocobos.
 
 The world map is divided internally into connected regions, but those regions
-are not another category you must manage. Blind Swordsman shows only targets
+are not another category you must manage. Blind Soldier shows only targets
 the current character or vehicle can reach and finds the connected route
 between regions when one exists.
 
@@ -281,7 +281,7 @@ directions. It only hides the native progress control for the current session.
 
 This README explains the accessibility layer, not how to beat Final Fantasy
 VII. Use a walkthrough or strategy guide for combat tactics, puzzle solutions,
-missable items, and story choices. Blind Swordsman reports available game
+missable items, and story choices. Blind Soldier reports available game
 information and navigation targets without choosing those decisions for you.
 
 ## Troubleshooting
@@ -332,7 +332,7 @@ Open a GitHub issue and include:
 - whether you used legacy x86/7th Heaven or native Steam 2026 x64;
 - the field, menu, battle, or world-map location;
 - the exact action and keys that led to the problem;
-- what Blind Swordsman said and what you expected it to say;
+- what Blind Soldier said and what you expected it to say;
 - `ff7_accessibility_reloaded.log` from the installed
   `Mods\ff7.accessibility.reloaded` folder;
 - the matching Reloaded-II log from
@@ -343,12 +343,12 @@ or other private data.
 
 ## Credits and legal notice
 
-Blind Swordsman is created by buu420 with development assistance from Codex.
+Blind Soldier is created by buu420 with development assistance from Codex.
 It builds on Reloaded-II, Prism, FFNx interoperability work, Kujata metadata,
 and accessibility audio derived from the supported game. Third-party
 components, game-derived material, names, and assets remain subject to their
 respective rights and licenses.
 
 Final Fantasy VII and related names and assets are trademarks or copyrights of
-their respective owners. Blind Swordsman is an independent accessibility
+their respective owners. Blind Soldier is an independent accessibility
 project and is not affiliated with or endorsed by Square Enix.

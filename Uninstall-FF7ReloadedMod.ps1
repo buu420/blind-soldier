@@ -18,21 +18,21 @@ if ([string]::IsNullOrWhiteSpace($LauncherModulePath)) {
 Import-Module $LauncherModulePath -Force
 
 if (-not (Test-Path -LiteralPath $StatePath -PathType Leaf)) {
-    throw "Blind Swordsman install state is missing: $StatePath"
+    throw "Blind Soldier install state is missing: $StatePath"
 }
 try {
     $state = [IO.File]::ReadAllText([IO.Path]::GetFullPath($StatePath)) | ConvertFrom-Json
 }
 catch {
-    throw "Blind Swordsman install state is invalid JSON: $($_.Exception.Message)"
+    throw "Blind Soldier install state is invalid JSON: $($_.Exception.Message)"
 }
 $schemaVersion = [int]$state.schemaVersion
 if ($schemaVersion -notin @(1, 2) -or $null -eq $state.game -or $null -eq $state.mod -or
     [string]::IsNullOrWhiteSpace([string]$state.reloadedRoot)) {
-    throw 'Blind Swordsman install state has an unsupported schema or is incomplete.'
+    throw 'Blind Soldier install state has an unsupported schema or is incomplete.'
 }
 if ($schemaVersion -eq 2 -and -not ($state.PSObject.Properties.Name -ccontains 'legacyProfile')) {
-    throw 'Blind Swordsman schema-two install state is missing legacy profile state.'
+    throw 'Blind Soldier schema-two install state is missing legacy profile state.'
 }
 
 $installation = Resolve-Ff7Installation -GameRoot ([string]$state.game.gameRoot)
@@ -40,7 +40,7 @@ $reloadedRoot = [IO.Path]::GetFullPath([string]$state.reloadedRoot).TrimEnd('\')
 $expectedModDirectory = [IO.Path]::GetFullPath((Join-Path $reloadedRoot 'Mods\ff7.accessibility.reloaded'))
 $recordedModDirectory = [IO.Path]::GetFullPath([string]$state.mod.directory)
 if (-not $recordedModDirectory.Equals($expectedModDirectory, [StringComparison]::OrdinalIgnoreCase)) {
-    throw 'Blind Swordsman install state points to an unexpected mod directory.'
+    throw 'Blind Soldier install state points to an unexpected mod directory.'
 }
 
 $allowedLoaderTargets = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
@@ -59,7 +59,7 @@ foreach ($loader in @($state.loaders)) {
     $target = [IO.Path]::GetFullPath([string]$loader.target)
     if (-not $allowedLoaderTargets.Contains($target) -or -not $seenLoaderTargets.Add($target) -or
         [string]$loader.sha256 -notmatch '^[0-9A-Fa-f]{64}$') {
-        throw "Blind Swordsman install state contains an unsafe loader target: $target"
+        throw "Blind Soldier install state contains an unsafe loader target: $target"
     }
     $loaderPlans.Add([pscustomobject]@{
         Target = $target
@@ -78,7 +78,7 @@ function New-ProfileUninstallPlan {
     $profilePath = [IO.Path]::GetFullPath([string]$Profile.path)
     $installedHash = [string]$Profile.installedSha256
     if ($AllowedPaths -notcontains $profilePath -or $installedHash -notmatch '^[0-9A-Fa-f]{64}$') {
-        throw "Blind Swordsman install state contains an unsafe $Label profile."
+        throw "Blind Soldier install state contains an unsafe $Label profile."
     }
     $backupPath = if ([string]::IsNullOrWhiteSpace([string]$Profile.backupPath)) {
         $null
@@ -89,12 +89,12 @@ function New-ProfileUninstallPlan {
     $backupHash = if ([string]::IsNullOrWhiteSpace([string]$Profile.backupSha256)) { $null } else { [string]$Profile.backupSha256 }
     if (($null -eq $backupPath) -ne ($null -eq $backupHash) -or
         ($null -ne $backupHash -and $backupHash -notmatch '^[0-9A-Fa-f]{64}$')) {
-        throw "Blind Swordsman install state contains invalid $Label profile backup metadata."
+        throw "Blind Soldier install state contains invalid $Label profile backup metadata."
     }
     if ($null -ne $backupPath -and
         (-not (Split-Path -Parent $backupPath).Equals((Split-Path -Parent $profilePath), [StringComparison]::OrdinalIgnoreCase) -or
          -not (Split-Path -Leaf $backupPath).StartsWith('AppConfig.json.backup-', [StringComparison]::Ordinal))) {
-        throw "Blind Swordsman install state contains an unsafe $Label profile backup."
+        throw "Blind Soldier install state contains an unsafe $Label profile backup."
     }
     return [pscustomobject]@{
         Label = $Label
@@ -126,7 +126,7 @@ $modBackupPath = if ([string]::IsNullOrWhiteSpace([string]$state.mod.backupPath)
 else {
     $candidate = [IO.Path]::GetFullPath([string]$state.mod.backupPath)
     if (-not $candidate.StartsWith($backupRoot + '\', [StringComparison]::OrdinalIgnoreCase)) {
-        throw 'Blind Swordsman install state contains an unsafe package backup path.'
+        throw 'Blind Soldier install state contains an unsafe package backup path.'
     }
     $candidate
 }
@@ -148,13 +148,13 @@ if ($null -ne $state.launcher) {
 # no replacement has appeared since installation.
 if ($null -ne $state.openingVoice -and [bool]$state.openingVoice.wasPresent) {
     if ($null -eq $installation.LegacyRuntime) {
-        throw 'Blind Swordsman install state contains legacy opening-voice state without a legacy runtime.'
+        throw 'Blind Soldier install state contains legacy opening-voice state without a legacy runtime.'
     }
     $voiceTarget = [IO.Path]::GetFullPath([string]$state.openingVoice.target)
     $expectedVoiceTarget = [IO.Path]::GetFullPath((Join-Path $installation.LegacyRuntime.RuntimeRoot 'override\movies\opening_va.ogg'))
     $voiceSource = Join-Path $recordedModDirectory 'Assets\movies\opening_audio_description.ogg'
     if (-not $voiceTarget.Equals($expectedVoiceTarget, [StringComparison]::OrdinalIgnoreCase)) {
-        throw 'Blind Swordsman install state contains an unsafe opening voice target.'
+        throw 'Blind Soldier install state contains an unsafe opening voice target.'
     }
     if (-not (Test-Path -LiteralPath $voiceTarget) -and (Test-Path -LiteralPath $voiceSource -PathType Leaf) -and
         (Get-FileHash -LiteralPath $voiceSource -Algorithm SHA256).Hash.Equals([string]$state.openingVoice.sourceSha256, [StringComparison]::OrdinalIgnoreCase)) {

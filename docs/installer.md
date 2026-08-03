@@ -1,6 +1,6 @@
-# Blind Swordsman installer details
+# Blind Soldier installer details
 
-The standard Blind Swordsman installer is a self-contained, 64-bit Windows EXE
+The standard Blind Soldier installer is a self-contained, 64-bit Windows EXE
 built with .NET 8 WinForms. It uses ordinary Windows labels, text boxes, list
 boxes, progress bars, and buttons so keyboard users and screen readers receive
 the same setup information. Every meaningful progress change also has visible
@@ -70,7 +70,7 @@ The action shown by setup depends on saved per-user state:
 - A downgrade is blocked when the installed version is newer.
 
 Repair reruns the validated deployment from the current release. Deployment
-backs up an existing Blind Swordsman mod folder before replacement and writes
+backs up an existing Blind Soldier mod folder before replacement and writes
 new state only after the result matches the selected release and detected
 locations.
 
@@ -81,10 +81,10 @@ Reloaded-II folder's `AccessibilityBackups` directory and verified before the
 replacement is committed. An older launcher-accessibility manifest is migrated
 to this managed backup layout during update or repair.
 
-After a successful operation, setup copies itself to
+After a successful operation, setup copies itself to the legacy-compatible path
 `%LOCALAPPDATA%\Programs\Blind Swordsman\Blind-Swordsman-Setup.exe`, registers
-Blind Swordsman in Windows Installed apps, and creates **Check for Blind
-Swordsman Updates** in the Start menu. That shortcut performs an explicit
+Blind Soldier in Windows Installed apps, and creates **Check for Blind Soldier
+Updates** in the Start menu. That shortcut performs an explicit
 check; there is no background service or scheduled updater.
 
 If a later release requires a newer setup engine, the current setup downloads
@@ -94,7 +94,7 @@ still does not meet the release's declared minimum setup version.
 
 ## Compatibility with 7th Heaven and FFNx
 
-Blind Swordsman uses Reloaded-II for both game runtimes. On legacy x86 it is
+Blind Soldier uses Reloaded-II for both game runtimes. On legacy x86 it is
 designed to run alongside 7th Heaven and FFNx. Setup deliberately skips broad
 7th Heaven settings changes, records exact files it installs, and never
 installs or replaces FFNx. Existing mod ordering and rendering choices remain
@@ -102,12 +102,12 @@ under 7th Heaven's control.
 
 Close the game, 7th Heaven, and Reloaded-II before installation so no target
 file is locked. If another mod replaces the same loader or changes a file after
-Blind Swordsman installs it, uninstall preserves that changed file instead of
+Blind Soldier installs it, uninstall preserves that changed file instead of
 silently deleting it.
 
 ## Uninstall and recovery
 
-Use Windows **Settings > Apps > Installed apps > Blind Swordsman**, or run the
+Use Windows **Settings > Apps > Installed apps > Blind Soldier**, or run the
 managed setup with `--uninstall`. Uninstall validates saved state against the
 currently detected game before changing anything. It removes setup-created
 files only when they still match their recorded hashes. Changed files are
@@ -116,7 +116,7 @@ recorded fingerprint still matches. For Steam 2026, uninstall also restores the
 verified original launcher and removes setup-created launcher support files.
 If any launcher file changed after installation, that file is preserved and
 reported instead. Reloaded-II, Shared Hooks, and .NET remain installed because
-they are shared prerequisites that may be used by another mod. Blind Swordsman
+they are shared prerequisites that may be used by another mod. Blind Soldier
 removes or restores only its recorded FFVII profiles, game bootstrap files,
 mod folder, and accessible launcher changes.
 

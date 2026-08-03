@@ -1,4 +1,4 @@
-name: Build Blind Swordsman release
+name: Build Blind Soldier release
 
 on:
   push:
@@ -39,7 +39,7 @@ jobs:
             Write-Host "Release $tag already exists; verified assets were not overwritten."
             exit 0
           }
-          $arguments = @('release', 'create', $tag, '--repo', $env:GITHUB_REPOSITORY, '--generate-notes', '--title', "Blind Swordsman $($channel.version)")
+          $arguments = @('release', 'create', $tag, '--repo', $env:GITHUB_REPOSITORY, '--generate-notes', '--title', "Blind Soldier $($channel.version)")
           if ($channel.track -eq 'prerelease') { $arguments += '--prerelease' }
           $arguments += @(Get-ChildItem ./artifacts/release -File | ForEach-Object FullName)
           gh @arguments

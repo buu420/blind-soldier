@@ -32,9 +32,9 @@ public sealed class SetupForm : Form
     public SetupForm()
     {
         Name = "BlindSwordsmanSetupForm";
-        Text = "Blind Swordsman Setup";
-        AccessibleName = "Blind Swordsman setup";
-        AccessibleDescription = "Install, update, repair, or remove the Blind Swordsman accessibility mod for Final Fantasy VII.";
+        Text = "Blind Soldier Setup";
+        AccessibleName = "Blind Soldier setup";
+        AccessibleDescription = "Install, update, repair, or remove the Blind Soldier accessibility mod for Final Fantasy VII.";
         AutoScaleMode = AutoScaleMode.Font;
         var systemFont = SystemFonts.MessageBoxFont ?? Control.DefaultFont;
         Font = new Font(systemFont.FontFamily, Math.Max(10F, systemFont.Size));
@@ -172,7 +172,7 @@ public sealed class SetupForm : Form
             _ => "Unavailable"
         };
         var builder = new StringBuilder();
-        builder.AppendLine($"Action: {action} Blind Swordsman {release.Version}");
+        builder.AppendLine($"Action: {action} Blind Soldier {release.Version}");
         builder.AppendLine($"Final Fantasy VII: {preflight.Game?.GameRoot ?? "Not detected"}");
         builder.AppendLine($"Reloaded-II: {preflight.ReloadedRoot ?? "Not detected"}");
         builder.AppendLine($"Runtimes: {string.Join(", ", preflight.Game?.Runtimes.Select(runtime => runtime.Architecture) ?? [])}");
@@ -192,7 +192,7 @@ public sealed class SetupForm : Form
     {
         ArgumentNullException.ThrowIfNull(state);
         reviewTextBox.Text =
-            $"Action: Uninstall Blind Swordsman {state.ProductVersion}{Environment.NewLine}" +
+            $"Action: Uninstall Blind Soldier {state.ProductVersion}{Environment.NewLine}" +
             $"Final Fantasy VII: {state.Game.GameRoot}{Environment.NewLine}" +
             $"Reloaded-II: {state.ReloadedRoot}{Environment.NewLine}" +
             "Changed user files are preserved. A prior mod backup is restored only when it still matches the recorded state.";
@@ -339,12 +339,12 @@ public sealed class SetupForm : Form
     {
         var layout = PageLayout("WelcomePage");
         welcomeHeading.Name = "WelcomeHeading";
-        welcomeHeading.Text = "Welcome to Blind Swordsman Setup";
+        welcomeHeading.Text = "Welcome to Blind Soldier Setup";
         welcomeHeading.AutoSize = true;
         welcomeHeading.Font = new Font(Font, FontStyle.Bold);
         welcomeHeading.AccessibleName = welcomeHeading.Text;
         welcomeBody.Name = "WelcomeBody";
-        welcomeBody.Text = "This accessible setup detects supported Final Fantasy VII runtimes, checks Reloaded-II, and installs the same Blind Swordsman features for both versions of the game.";
+        welcomeBody.Text = "This accessible setup detects supported Final Fantasy VII runtimes, checks Reloaded-II, and installs the same Blind Soldier features for both versions of the game.";
         welcomeBody.AutoSize = true;
         welcomeBody.MaximumSize = new Size(700, 0);
         welcomeBody.AccessibleName = welcomeBody.Text;
@@ -421,7 +421,7 @@ public sealed class SetupForm : Form
     private Control BuildReviewPage()
     {
         var layout = PageLayout("ReviewPage");
-        var heading = Heading("ReviewHeading", "Ready to install Blind Swordsman");
+        var heading = Heading("ReviewHeading", "Ready to install Blind Soldier");
         reviewTextBox.Name = "ReviewTextBox";
         reviewTextBox.AccessibleName = "Installation summary";
         reviewTextBox.AccessibleDescription = "Review the action and detected paths before continuing.";
@@ -482,7 +482,7 @@ public sealed class SetupForm : Form
         completeHeading.Font = new Font(Font, FontStyle.Bold);
         completeHeading.AccessibleName = completeHeading.Text;
         completeBody.Name = "CompleteBody";
-        completeBody.Text = "Blind Swordsman is ready.";
+        completeBody.Text = "Blind Soldier is ready.";
         completeBody.AutoSize = true;
         completeBody.MaximumSize = new Size(700, 0);
         completeBody.AccessibleName = completeBody.Text;
@@ -512,7 +512,7 @@ public sealed class SetupForm : Form
         };
         ConfigureNavigationButton(finishButton, "FinishButton", "&Finish", "Finish setup", 114, (_, _) => FinishRequested?.Invoke(this, EventArgs.Empty));
         ConfigureNavigationButton(cancelButton, "CancelButton", "&Cancel", "Cancel setup", 113, (_, _) => CancelRequested?.Invoke(this, EventArgs.Empty));
-        ConfigureNavigationButton(installButton, "InstallButton", "&Install", "Install Blind Swordsman", 112, (_, _) => InstallRequested?.Invoke(this, EventArgs.Empty));
+        ConfigureNavigationButton(installButton, "InstallButton", "&Install", "Install Blind Soldier", 112, (_, _) => InstallRequested?.Invoke(this, EventArgs.Empty));
         ConfigureNavigationButton(nextButton, "NextButton", "&Next", "Next", 111, (_, _) => NextRequested?.Invoke(this, EventArgs.Empty));
         ConfigureNavigationButton(backButton, "BackButton", "&Back", "Back", 110, (_, _) => BackRequested?.Invoke(this, EventArgs.Empty));
         buttons.Controls.Add(finishButton);

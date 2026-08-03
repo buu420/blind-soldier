@@ -97,14 +97,14 @@ static class InstallStateTests
         var data = WindowsRegistration.Build(
             state,
             "C:\\Users\\Player\\AppData\\Local\\Programs\\Blind Swordsman\\Blind-Swordsman-Setup.exe",
-            "C:\\Users\\Player\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Blind Swordsman");
+            "C:\\Users\\Player\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Blind Soldier");
 
-        Equal("Blind Swordsman", data.DisplayName, "display name");
+        Equal("Blind Soldier", data.DisplayName, "display name");
         Equal("0.1.0-pre.1", data.DisplayVersion, "display version");
         True(data.UninstallCommand.EndsWith(" --uninstall", StringComparison.Ordinal), "uninstall command");
         True(data.UninstallCommand.StartsWith("\"C:\\Users\\Player", StringComparison.Ordinal), "quoted setup path");
         Equal("--check-for-updates", data.UpdateShortcut.Arguments, "update shortcut arguments");
-        True(data.UpdateShortcut.Path.EndsWith("Check for Blind Swordsman Updates.lnk", StringComparison.Ordinal), "update shortcut name");
+        True(data.UpdateShortcut.Path.EndsWith("Check for Blind Soldier Updates.lnk", StringComparison.Ordinal), "update shortcut name");
     }
 
     internal static string ValidDeploymentResult() => """

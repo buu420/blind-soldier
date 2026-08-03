@@ -51,7 +51,7 @@ try {
     if ([string]::IsNullOrWhiteSpace($NotesPath)) {
         $temporaryNotes = Join-Path ([IO.Path]::GetTempPath()) ('blind-swordsman-release-notes-' + [Guid]::NewGuid().ToString('N') + '.md')
         $notes = @"
-Blind Swordsman $($channel.version) is an early public test release of the dual-runtime Final Fantasy VII accessibility mod.
+Blind Soldier $($channel.version) is an early public test release of the dual-runtime Final Fantasy VII accessibility mod.
 
 Download `Blind-Swordsman-Setup.exe` for the standard accessible installation experience. The installer is not code-signed yet, so Windows SmartScreen may identify the publisher as unknown.
 
@@ -60,7 +60,7 @@ This release supports the legacy x86 and Steam 2026 x64 game runtimes. The x64 b
         [IO.File]::WriteAllText($temporaryNotes, $notes, (New-Object Text.UTF8Encoding($false)))
         $NotesPath = $temporaryNotes
     }
-    $arguments = @('release', 'create', $Tag, '--repo', $Repository, '--title', "Blind Swordsman $($channel.version)", '--notes-file', [IO.Path]::GetFullPath($NotesPath))
+    $arguments = @('release', 'create', $Tag, '--repo', $Repository, '--title', "Blind Soldier $($channel.version)", '--notes-file', [IO.Path]::GetFullPath($NotesPath))
     if ([string]$channel.track -ceq 'prerelease') {
         $arguments += '--prerelease'
     }

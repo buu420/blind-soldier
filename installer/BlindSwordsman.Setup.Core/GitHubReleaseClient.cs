@@ -73,7 +73,7 @@ public sealed class GitHubReleaseClient
             return manifest;
         }
 
-        throw new InvalidDataException($"No eligible {track.ToString().ToLowerInvariant()} Blind Swordsman release is available.");
+        throw new InvalidDataException($"No eligible {track.ToString().ToLowerInvariant()} Blind Soldier release is available.");
     }
 
     private async Task<string> DownloadTextAsync(Uri uri, CancellationToken cancellationToken)
