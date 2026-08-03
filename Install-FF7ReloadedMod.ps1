@@ -23,20 +23,56 @@ if ([string]::IsNullOrWhiteSpace($ParityMatrixPath)) {
     $ParityMatrixPath = Join-Path $scriptRoot 'analysis\dual_runtime\parity-matrix.json'
 }
 
+$resolveArguments = @{}
+if (-not [string]::IsNullOrWhiteSpace($GameRoot)) {
+    $resolveArguments.GameRoot = $GameRoot
+}
+if (-not [string]::IsNullOrWhiteSpace($SteamRoot)) {
+    $resolveArguments.SteamRoot = $SteamRoot
+}
+$installation = Resolve-Ff7Installation @resolveArguments
+
 if ([string]::IsNullOrWhiteSpace($ReloadedRoot)) {
-    $ReloadedRoot = if ($env:RELOADED_II_ROOT) {
-        $env:RELOADED_II_ROOT
-    }
-    else {
-        Join-Path $env:USERPROFILE 'AccessXI\external\Reloaded-II'
+    if (-not [string]::IsNullOrWhiteSpace($env:RELOADED_II_ROOT)) {
+        $ReloadedRoot = $env:RELOADED_II_ROOT
     }
 }
-if ([string]::IsNullOrWhiteSpace($SeventhHeavenRoot)) {
-    $SeventhHeavenRoot = if ($env:SEVENTH_HEAVEN_ROOT) {
-        $env:SEVENTH_HEAVEN_ROOT
+if ([string]::IsNullOrWhiteSpace($ReloadedRoot)) {
+    $reloadedSettingsPath = Join-Path ([Environment]::GetFolderPath('ApplicationData')) `
+        'Reloaded-Mod-Loader-II\ReloadedII.json'
+    if (Test-Path -LiteralPath $reloadedSettingsPath -PathType Leaf) {
+        try {
+            $reloadedSettings = [IO.File]::ReadAllText($reloadedSettingsPath) | ConvertFrom-Json
+            $registeredLauncher = [string]$reloadedSettings.LauncherPath
+            if (-not [string]::IsNullOrWhiteSpace($registeredLauncher) -and
+                (Test-Path -LiteralPath $registeredLauncher -PathType Leaf)) {
+                $ReloadedRoot = Split-Path -Parent $registeredLauncher
+            }
+        }
+        catch {
+            # Fall through to portable and common locations.
+        }
     }
-    else {
-        Join-Path $env:USERPROFILE 'Tools\7thHeaven'
+}
+if ([string]::IsNullOrWhiteSpace($ReloadedRoot)) {
+    $portableReloadedRoot = Join-Path ([string]$installation.GameRoot) 'Reloaded-II'
+    $gameParent = Split-Path -Parent ([string]$installation.GameRoot)
+    foreach ($candidate in @(
+        $portableReloadedRoot,
+        (Join-Path $gameParent 'Reloaded-II'),
+        (Join-Path ([Environment]::GetFolderPath('Desktop')) 'Reloaded-II'),
+        (Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'Programs\Reloaded-II'),
+        (Join-Path ([Environment]::GetFolderPath('ProgramFiles')) 'Reloaded-II'),
+        (Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Reloaded-II')
+    )) {
+        if (-not [string]::IsNullOrWhiteSpace($candidate) -and
+            (Test-Path -LiteralPath (Join-Path $candidate 'Reloaded-II.exe') -PathType Leaf)) {
+            $ReloadedRoot = $candidate
+            break
+        }
+    }
+    if ([string]::IsNullOrWhiteSpace($ReloadedRoot)) {
+        $ReloadedRoot = $portableReloadedRoot
     }
 }
 
@@ -92,14 +128,6 @@ Assert-LoaderPeMachine -Path $bootstrapperX86Source -ExpectedMachine 0x014C
 Assert-LoaderPeMachine -Path $asiLoaderX64Source -ExpectedMachine 0x8664
 Assert-LoaderPeMachine -Path $bootstrapperX64Source -ExpectedMachine 0x8664
 
-$resolveArguments = @{}
-if (-not [string]::IsNullOrWhiteSpace($GameRoot)) {
-    $resolveArguments.GameRoot = $GameRoot
-}
-if (-not [string]::IsNullOrWhiteSpace($SteamRoot)) {
-    $resolveArguments.SteamRoot = $SteamRoot
-}
-$installation = Resolve-Ff7Installation @resolveArguments
 $nativeRuntime = if ($installation.Version -eq 'Steam2026') {
     Assert-Ff7NativeRuntimeIdentity -Path $installation.NativeRuntime.GameExe
 }

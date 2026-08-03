@@ -63,6 +63,11 @@ public sealed class SetupApplicationContext : ApplicationContext
         try
         {
             installedState = stateStore.Load();
+            if (installedState is not null)
+            {
+                form.GameRoot = installedState.Game.GameRoot;
+                form.ReloadedRoot = installedState.ReloadedRoot;
+            }
             if (options.Uninstall)
             {
                 if (installedState is null)

@@ -5,6 +5,7 @@ static class SetupOrchestratorTests
     public static void Run()
     {
         BuildsArgumentListWithoutShellQuoting();
+        NeverInstallsOptionalFfnxOrRequiresSeventhHeaven();
         RejectsADeploymentResultForAnotherReleaseOrLocation();
     }
 
@@ -44,7 +45,46 @@ static class SetupOrchestratorTests
         Equal("X:\\Steam Library\\FINAL FANTASY VII", arguments[1], "game root remains one argument");
         True(arguments.Contains("-AllowResearchNativeProfile"), "x64 research switch");
         True(arguments.Contains("-SkipFfnx"), "existing FFNx is not needlessly replaced");
+        True(!arguments.Contains("-SeventhHeavenRoot"), "detected optional 7th Heaven is not passed to deployment");
         Equal("v0.1.0-pre.1", arguments[arguments.IndexOf("-ReleaseTag") + 1], "release tag argument");
+    }
+
+    private static void NeverInstallsOptionalFfnxOrRequiresSeventhHeaven()
+    {
+        var preflight = PreflightReportParser.Parse("""
+            {
+              "schemaVersion": 1,
+              "canInstall": true,
+              "game": {
+                "version": "Steam2026",
+                "steamAppId": "3837340",
+                "gameRoot": "X:\\Steam Library\\FINAL FANTASY VII",
+                "runtimes": [
+                  { "id": "ff7-steam-legacy-x86", "architecture": "x86", "root": "X:\\Steam Library\\FINAL FANTASY VII\\ff7\\workingdir", "executable": "X:\\Steam Library\\FINAL FANTASY VII\\ff7\\workingdir\\ff7_en.exe" },
+                  { "id": "ff7-steam-2026-x64", "architecture": "x64", "root": "X:\\Steam Library\\FINAL FANTASY VII", "executable": "X:\\Steam Library\\FINAL FANTASY VII\\FFVII.exe" }
+                ]
+              },
+              "reloadedRoot": "C:\\Users\\Player\\Reloaded II",
+              "seventhHeavenRoot": null,
+              "dependencies": [
+                { "id": "game", "name": "Final Fantasy VII", "severity": "required", "satisfied": true, "message": "Ready.", "path": "X:\\Steam Library\\FINAL FANTASY VII" },
+                { "id": "reloaded", "name": "Reloaded-II", "severity": "required", "satisfied": true, "message": "Ready.", "path": "C:\\Users\\Player\\Reloaded II" },
+                { "id": "seventh-heaven", "name": "7th Heaven", "severity": "optional", "satisfied": false, "message": "Not installed. Optional.", "path": null },
+                { "id": "ffnx", "name": "FFNx", "severity": "optional", "satisfied": false, "message": "Not installed. Optional.", "path": null }
+              ]
+            }
+            """);
+        var manifest = ReleaseManifestParser.Parse(ChannelManifest(), ReleaseTrack.Prerelease);
+
+        var arguments = SetupOrchestrator.BuildDeploymentArguments(
+            preflight,
+            manifest,
+            "C:\\Stage Folder\\package\\ff7.accessibility.reloaded",
+            "C:\\State Folder\\result.json");
+
+        True(arguments.Contains("-SkipFfnx"), "missing optional FFNx is not installed");
+        True(arguments.Contains("-SkipSeventhHeavenSettings"), "7th Heaven settings are never required");
+        True(!arguments.Contains("-SeventhHeavenRoot"), "missing optional 7th Heaven has no deployment argument");
     }
 
     private static void RejectsADeploymentResultForAnotherReleaseOrLocation()

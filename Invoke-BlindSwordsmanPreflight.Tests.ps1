@@ -55,6 +55,8 @@ Export-ModuleMember -Function Resolve-Ff7Installation,Assert-Ff7NativeRuntimeIde
         Root = $root
         GameRoot = $gameRoot
         ReloadedRoot = $reloadedRoot
+        ReloadedSettingsPath = Join-Path $root 'Reloaded-Mod-Loader-II\ReloadedII.json'
+        MissingSeventhHeavenRoot = Join-Path $root '7th Heaven not installed'
         ModulePath = $modulePath
         ResultPath = Join-Path $root 'preflight.json'
     }
@@ -72,9 +74,18 @@ function New-TestPe {
 }
 
 function Invoke-FixturePreflight {
-    param($Fixture)
-    & $preflightPath -GameRoot $Fixture.GameRoot -ReloadedRoot $Fixture.ReloadedRoot `
-        -ModulePath $Fixture.ModulePath -ResultPath $Fixture.ResultPath
+    param($Fixture, [switch] $DetectReloaded)
+    $arguments = @{
+        GameRoot = $Fixture.GameRoot
+        SeventhHeavenRoot = $Fixture.MissingSeventhHeavenRoot
+        ReloadedSettingsPath = $Fixture.ReloadedSettingsPath
+        ModulePath = $Fixture.ModulePath
+        ResultPath = $Fixture.ResultPath
+    }
+    if (-not $DetectReloaded) {
+        $arguments.ReloadedRoot = $Fixture.ReloadedRoot
+    }
+    & $preflightPath @arguments
     return [IO.File]::ReadAllText($Fixture.ResultPath) | ConvertFrom-Json
 }
 
@@ -103,6 +114,56 @@ Describe 'Blind Swordsman installer preflight' {
         ($report.dependencies | Where-Object id -eq 'reloaded').satisfied | Should Be $true
         ($report.dependencies | Where-Object id -eq 'shared-hooks').satisfied | Should Be $true
         ($report.dependencies | Where-Object id -eq 'seventh-heaven').severity | Should Be 'optional'
+    }
+
+    It 'contains no developer-specific dependency locations' {
+        foreach ($scriptName in @(
+            'Invoke-BlindSwordsmanPreflight.ps1',
+            'Install-FF7ReloadedMod.ps1',
+            'Launch-FF7Reloaded.ps1'
+        )) {
+            $scriptText = [IO.File]::ReadAllText((Join-Path $scriptRoot $scriptName))
+            $scriptText | Should Not Match 'AccessXI\\external\\Reloaded-II'
+            $scriptText | Should Not Match 'buu42'
+            $scriptText | Should Not Match 'Tools\\7thHeaven'
+        }
+    }
+
+    It 'keeps 7th Heaven and FFNx optional when neither is installed' {
+        $report = Invoke-FixturePreflight $fixture
+
+        $report.canInstall | Should Be $true
+        $report.seventhHeavenRoot | Should Be $null
+        $seventhHeaven = $report.dependencies | Where-Object id -eq 'seventh-heaven'
+        $seventhHeaven.severity | Should Be 'optional'
+        $seventhHeaven.satisfied | Should Be $false
+        $seventhHeaven.message | Should Match 'optional'
+        $ffnx = $report.dependencies | Where-Object id -eq 'ffnx'
+        $ffnx.severity | Should Be 'optional'
+        $ffnx.satisfied | Should Be $false
+        $ffnx.message | Should Match 'optional'
+    }
+
+    It 'discovers Reloaded-II from its registered launcher instead of a developer path' {
+        $settingsDirectory = Split-Path -Parent $fixture.ReloadedSettingsPath
+        New-Item -ItemType Directory -Path $settingsDirectory -Force | Out-Null
+        [IO.File]::WriteAllText(
+            $fixture.ReloadedSettingsPath,
+            (@{ LauncherPath = (Join-Path $fixture.ReloadedRoot 'Reloaded-II.exe') } | ConvertTo-Json))
+        [IO.File]::WriteAllText((Join-Path $fixture.ReloadedRoot 'Reloaded-II.exe'), 'fixture')
+
+        $report = Invoke-FixturePreflight $fixture -DetectReloaded
+
+        $report.canInstall | Should Be $true
+        $report.reloadedRoot | Should Be ([IO.Path]::GetFullPath($fixture.ReloadedRoot))
+    }
+
+    It 'proposes a portable Reloaded-II folder inside the detected game when none is registered' {
+        $report = Invoke-FixturePreflight $fixture -DetectReloaded
+
+        $report.canInstall | Should Be $false
+        $report.reloadedRoot | Should Be ([IO.Path]::GetFullPath((Join-Path $fixture.GameRoot 'Reloaded-II')))
+        ($report.dependencies | Where-Object id -eq 'reloaded').message | Should Match 'portable'
     }
 
     It 'makes a missing shared hooks dependency blocking without changing files' {

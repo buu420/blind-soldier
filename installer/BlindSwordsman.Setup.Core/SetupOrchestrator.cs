@@ -44,16 +44,9 @@ public sealed class SetupOrchestrator(
             "-ReleaseTag", release.ReleaseTag,
             "-SkipSeventhHeavenSettings"
         };
-        if (!string.IsNullOrWhiteSpace(preflight.SeventhHeavenRoot))
-        {
-            arguments.Add("-SeventhHeavenRoot");
-            arguments.Add(preflight.SeventhHeavenRoot);
-        }
-        if (preflight.Dependencies.Any(item =>
-                item.Id == "ffnx" && item.Severity == DependencySeverity.Optional && item.Satisfied))
-        {
-            arguments.Add("-SkipFfnx");
-        }
+        // FFNx is an optional third-party integration. Blind Swordsman setup
+        // detects it for compatibility reporting but never installs or replaces it.
+        arguments.Add("-SkipFfnx");
         if (preflight.Game.Runtimes.Any(runtime => runtime.Architecture == "x64"))
         {
             arguments.Add("-AllowResearchNativeProfile");

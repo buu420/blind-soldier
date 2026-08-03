@@ -52,8 +52,13 @@ Reloaded-II discovery checks, in order:
 
 - an existing recorded installation state;
 - `RELOADED_II_ROOT`;
-- the current AccessXI-compatible default beneath the user's profile;
-- common user-selected locations recorded by prior setup runs.
+- Reloaded-II's own registered launcher path;
+- a portable `Reloaded-II` folder inside or alongside the detected game;
+- common Windows installation locations.
+
+No developer or machine-specific path is compiled into setup. When Reloaded-II
+is not found, setup proposes `Reloaded-II` beneath the detected game folder as
+the portable location. Existing Reloaded-II installations are not moved.
 
 The dependency page validates Reloaded-II's x86 and x64 loader/bootstrapper
 files and the `reloaded.sharedlib.hooks` mod. A missing dependency is a blocking

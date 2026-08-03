@@ -5,7 +5,8 @@ param(
     [string] $ReloadedRoot,
     [string] $SeventhHeavenRoot,
     [Parameter(Mandatory=$true)] [string] $ResultPath,
-    [Parameter(DontShow=$true)] [string] $ModulePath
+    [Parameter(DontShow=$true)] [string] $ModulePath,
+    [Parameter(DontShow=$true)] [string] $ReloadedSettingsPath
 )
 
 $ErrorActionPreference = 'Stop'
@@ -37,17 +38,111 @@ function Add-Dependency {
     })
 }
 
-function Resolve-OptionalDirectory {
-    param([string] $ExplicitPath, [string] $EnvironmentName, [string] $DefaultPath)
+function Resolve-ReloadedDirectory {
+    param([string] $ExplicitPath, [string] $GameRoot, [string] $SettingsPath)
 
     if (-not [string]::IsNullOrWhiteSpace($ExplicitPath)) {
         return [IO.Path]::GetFullPath($ExplicitPath)
     }
-    $environmentValue = [Environment]::GetEnvironmentVariable($EnvironmentName)
+    $environmentValue = [Environment]::GetEnvironmentVariable('RELOADED_II_ROOT')
     if (-not [string]::IsNullOrWhiteSpace($environmentValue)) {
         return [IO.Path]::GetFullPath($environmentValue)
     }
-    return [IO.Path]::GetFullPath($DefaultPath)
+
+    if ([string]::IsNullOrWhiteSpace($SettingsPath)) {
+        $SettingsPath = Join-Path ([Environment]::GetFolderPath('ApplicationData')) `
+            'Reloaded-Mod-Loader-II\ReloadedII.json'
+    }
+    if (Test-Path -LiteralPath $SettingsPath -PathType Leaf) {
+        try {
+            $settings = [IO.File]::ReadAllText($SettingsPath) | ConvertFrom-Json
+            $launcherPath = [string]$settings.LauncherPath
+            if (-not [string]::IsNullOrWhiteSpace($launcherPath) -and
+                (Test-Path -LiteralPath $launcherPath -PathType Leaf)) {
+                return [IO.Path]::GetFullPath((Split-Path -Parent $launcherPath))
+            }
+        }
+        catch {
+            # A stale or malformed global Reloaded setting is ignored. The
+            # dependency report below will still provide an actionable path.
+        }
+    }
+
+    $candidates = New-Object 'System.Collections.Generic.List[string]'
+    if (-not [string]::IsNullOrWhiteSpace($GameRoot)) {
+        $candidates.Add((Join-Path $GameRoot 'Reloaded-II'))
+        $gameParent = Split-Path -Parent $GameRoot
+        if (-not [string]::IsNullOrWhiteSpace($gameParent)) {
+            $candidates.Add((Join-Path $gameParent 'Reloaded-II'))
+        }
+    }
+    foreach ($candidate in @(
+        (Join-Path ([Environment]::GetFolderPath('Desktop')) 'Reloaded-II'),
+        (Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'Programs\Reloaded-II'),
+        (Join-Path ([Environment]::GetFolderPath('ProgramFiles')) 'Reloaded-II'),
+        (Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Reloaded-II')
+    )) {
+        if (-not [string]::IsNullOrWhiteSpace($candidate)) {
+            $candidates.Add($candidate)
+        }
+    }
+    foreach ($candidate in $candidates) {
+        $fullPath = [IO.Path]::GetFullPath($candidate)
+        if (Test-Path -LiteralPath (Join-Path $fullPath 'Reloaded-II.exe') -PathType Leaf) {
+            return $fullPath
+        }
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($GameRoot)) {
+        return [IO.Path]::GetFullPath((Join-Path $GameRoot 'Reloaded-II'))
+    }
+    return [IO.Path]::GetFullPath((Join-Path `
+        ([Environment]::GetFolderPath('LocalApplicationData')) 'Programs\Reloaded-II'))
+}
+
+function Resolve-SeventhHeavenDirectory {
+    param([string] $ExplicitPath)
+
+    if (-not [string]::IsNullOrWhiteSpace($ExplicitPath)) {
+        return [IO.Path]::GetFullPath($ExplicitPath)
+    }
+    $environmentValue = [Environment]::GetEnvironmentVariable('SEVENTH_HEAVEN_ROOT')
+    if (-not [string]::IsNullOrWhiteSpace($environmentValue)) {
+        return [IO.Path]::GetFullPath($environmentValue)
+    }
+
+    foreach ($registryRoot in @(
+        'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall',
+        'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall',
+        'HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall'
+    )) {
+        foreach ($key in @(Get-ChildItem -LiteralPath $registryRoot -ErrorAction SilentlyContinue)) {
+            try {
+                $properties = Get-ItemProperty -LiteralPath $key.PSPath -ErrorAction Stop
+                if ([string]$properties.DisplayName -notmatch '^7th Heaven(?:\s|$)') { continue }
+                $installLocation = [string]$properties.InstallLocation
+                if (-not [string]::IsNullOrWhiteSpace($installLocation) -and
+                    (Test-Path -LiteralPath $installLocation -PathType Container)) {
+                    return [IO.Path]::GetFullPath($installLocation)
+                }
+            }
+            catch {
+                continue
+            }
+        }
+    }
+
+    foreach ($candidate in @(
+        (Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'Programs\7th Heaven'),
+        (Join-Path ([Environment]::GetFolderPath('ProgramFiles')) '7th Heaven'),
+        (Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) '7th Heaven')
+    )) {
+        if (-not [string]::IsNullOrWhiteSpace($candidate) -and
+            (Test-Path -LiteralPath $candidate -PathType Container)) {
+            return [IO.Path]::GetFullPath($candidate)
+        }
+    }
+    return $null
 }
 
 $installation = $null
@@ -85,14 +180,14 @@ catch {
         -Message $_.Exception.Message -Path $GameRoot
 }
 
-$defaultReloadedRoot = Join-Path ([Environment]::GetFolderPath('UserProfile')) 'AccessXI\external\Reloaded-II'
-$resolvedReloadedRoot = Resolve-OptionalDirectory -ExplicitPath $ReloadedRoot `
-    -EnvironmentName 'RELOADED_II_ROOT' -DefaultPath $defaultReloadedRoot
+$resolvedReloadedRoot = Resolve-ReloadedDirectory -ExplicitPath $ReloadedRoot `
+    -GameRoot $(if ($null -ne $gameResult) { [string]$gameResult.gameRoot } else { $null }) `
+    -SettingsPath $ReloadedSettingsPath
 $reloadedAvailable = Test-Path -LiteralPath $resolvedReloadedRoot -PathType Container
 Add-Dependency -Id 'reloaded' -Name 'Reloaded-II' `
     -Severity $(if ($reloadedAvailable) { 'required' } else { 'blocking' }) `
     -Satisfied $reloadedAvailable `
-    -Message $(if ($reloadedAvailable) { 'Reloaded-II folder found.' } else { 'Reloaded-II folder was not found. Install Reloaded-II or choose its folder.' }) `
+    -Message $(if ($reloadedAvailable) { 'Reloaded-II folder detected.' } else { "Reloaded-II was not found. A portable installation can be placed at '$resolvedReloadedRoot', or choose an existing folder." }) `
     -Path $resolvedReloadedRoot
 
 $loaderFailures = New-Object 'System.Collections.Generic.List[string]'
@@ -172,13 +267,12 @@ Add-Dependency -Id 'shared-hooks' -Name 'Reloaded-II Shared Hooks' `
     -Message $(if ($sharedHooksReady) { 'Reloaded-II Shared Hooks x86 and x64 files are ready.' } else { $sharedHooksFailures -join '; ' }) `
     -Path $sharedHooksRoot
 
-$defaultSeventhHeavenRoot = Join-Path ([Environment]::GetFolderPath('UserProfile')) 'Tools\7thHeaven'
-$resolvedSeventhHeavenRoot = Resolve-OptionalDirectory -ExplicitPath $SeventhHeavenRoot `
-    -EnvironmentName 'SEVENTH_HEAVEN_ROOT' -DefaultPath $defaultSeventhHeavenRoot
-$seventhHeavenAvailable = Test-Path -LiteralPath $resolvedSeventhHeavenRoot -PathType Container
+$resolvedSeventhHeavenRoot = Resolve-SeventhHeavenDirectory -ExplicitPath $SeventhHeavenRoot
+$seventhHeavenAvailable = -not [string]::IsNullOrWhiteSpace($resolvedSeventhHeavenRoot) -and `
+    (Test-Path -LiteralPath $resolvedSeventhHeavenRoot -PathType Container)
 Add-Dependency -Id 'seventh-heaven' -Name '7th Heaven' -Severity optional -Satisfied $seventhHeavenAvailable `
-    -Message $(if ($seventhHeavenAvailable) { '7th Heaven detected for the legacy x86 path.' } else { 'Not found. This is optional.' }) `
-    -Path $resolvedSeventhHeavenRoot
+    -Message $(if ($seventhHeavenAvailable) { 'Optional integration detected for the legacy x86 path.' } else { 'Not installed. This integration is optional; Blind Swordsman can still be installed.' }) `
+    -Path $(if ($seventhHeavenAvailable) { $resolvedSeventhHeavenRoot } else { $null })
 
 $ffnxPath = if ($null -ne $installation -and $null -ne $installation.LegacyRuntime) {
     Join-Path ([string]$installation.LegacyRuntime.RuntimeRoot) 'AF3DN.P'
@@ -192,8 +286,8 @@ $ffnxAvailable = -not [string]::IsNullOrWhiteSpace($ffnxPath) -and `
     (Test-Path -LiteralPath $ffnxPath -PathType Leaf) -and `
     (Test-Path -LiteralPath $ffnxConfigPath -PathType Leaf)
 Add-Dependency -Id 'ffnx' -Name 'FFNx' -Severity optional -Satisfied $ffnxAvailable `
-    -Message $(if ($ffnxAvailable) { 'FFNx detected for the legacy x86 path.' } else { 'Not found. The deployment path can add a verified FFNx runtime when required.' }) `
-    -Path $ffnxPath
+    -Message $(if ($ffnxAvailable) { 'Optional integration detected for the legacy x86 path.' } else { 'Not installed. This integration is optional; Blind Swordsman can still be installed.' }) `
+    -Path $(if ($ffnxAvailable) { $ffnxPath } else { $null })
 
 $canInstall = $null -ne $gameResult -and @($dependencies | Where-Object {
     $_.severity -ne 'optional' -and -not $_.satisfied

@@ -26,6 +26,14 @@ optional interoperability checks. If automatic detection is wrong, use the
 labeled folder buttons and choose the relevant root folder, then choose
 **Scan again**.
 
+The game path comes from Steam library discovery or the folder the user
+chooses. Reloaded-II discovery uses an existing saved install path, the
+`RELOADED_II_ROOT` environment variable, Reloaded-II's own registered launcher,
+then portable and common Windows locations. No path from the developer's PC is
+compiled into setup. If Reloaded-II is not installed, setup proposes
+`Reloaded-II` inside the game folder as the portable location; Reloaded-II's
+official portable mode supports keeping its launcher in a game subfolder.
+
 ## Install, update, and repair
 
 The installer queries GitHub Releases for the current channel manifest. It
@@ -62,9 +70,9 @@ still does not meet the release's declared minimum setup version.
 
 Blind Swordsman uses Reloaded-II for both game runtimes. On legacy x86 it is
 designed to run alongside 7th Heaven and FFNx. Setup deliberately skips broad
-7th Heaven settings changes, records exact files it installs, and does not
-replace an already detected FFNx driver. Existing mod ordering and rendering
-choices remain under 7th Heaven's control.
+7th Heaven settings changes, records exact files it installs, and never
+installs or replaces FFNx. Existing mod ordering and rendering choices remain
+under 7th Heaven's control.
 
 Close the game, 7th Heaven, and Reloaded-II before installation so no target
 file is locked. If another mod replaces the same loader or changes a file after

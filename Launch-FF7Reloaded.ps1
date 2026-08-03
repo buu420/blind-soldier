@@ -19,24 +19,82 @@ if ([string]::IsNullOrWhiteSpace($ParityMatrixPath)) {
     $ParityMatrixPath = Join-Path $scriptRoot 'analysis\dual_runtime\parity-matrix.json'
 }
 
-if ([string]::IsNullOrWhiteSpace($ReloadedRoot)) {
-    $ReloadedRoot = if ($env:RELOADED_II_ROOT) {
-        $env:RELOADED_II_ROOT
-    }
-    else {
-        Join-Path $env:USERPROFILE 'AccessXI\external\Reloaded-II'
+if ($Runtime -ne 'SeventhHeaven' -and [string]::IsNullOrWhiteSpace($ReloadedRoot)) {
+    if (-not [string]::IsNullOrWhiteSpace($env:RELOADED_II_ROOT)) {
+        $ReloadedRoot = $env:RELOADED_II_ROOT
     }
 }
-if ([string]::IsNullOrWhiteSpace($SeventhHeavenRoot)) {
-    $SeventhHeavenRoot = if ($env:SEVENTH_HEAVEN_ROOT) {
-        $env:SEVENTH_HEAVEN_ROOT
+if ($Runtime -ne 'SeventhHeaven' -and [string]::IsNullOrWhiteSpace($ReloadedRoot)) {
+    $reloadedSettingsPath = Join-Path ([Environment]::GetFolderPath('ApplicationData')) `
+        'Reloaded-Mod-Loader-II\ReloadedII.json'
+    if (Test-Path -LiteralPath $reloadedSettingsPath -PathType Leaf) {
+        try {
+            $reloadedSettings = [IO.File]::ReadAllText($reloadedSettingsPath) | ConvertFrom-Json
+            $registeredLauncher = [string]$reloadedSettings.LauncherPath
+            if (-not [string]::IsNullOrWhiteSpace($registeredLauncher) -and
+                (Test-Path -LiteralPath $registeredLauncher -PathType Leaf)) {
+                $ReloadedRoot = Split-Path -Parent $registeredLauncher
+            }
+        }
+        catch {
+            # Fall through to Steam and portable location discovery.
+        }
     }
-    else {
-        Join-Path $env:USERPROFILE 'Tools\7thHeaven'
+}
+if ($Runtime -ne 'SeventhHeaven' -and [string]::IsNullOrWhiteSpace($ReloadedRoot)) {
+    if ([string]::IsNullOrWhiteSpace($GameRoot)) {
+        $gameArguments = @{}
+        if (-not [string]::IsNullOrWhiteSpace($SteamRoot)) {
+            $gameArguments.SteamRoot = $SteamRoot
+        }
+        $detectedInstallation = Resolve-Ff7Installation @gameArguments
+        $GameRoot = [string]$detectedInstallation.GameRoot
+    }
+    $portableReloadedRoot = Join-Path $GameRoot 'Reloaded-II'
+    foreach ($candidate in @(
+        $portableReloadedRoot,
+        (Join-Path (Split-Path -Parent $GameRoot) 'Reloaded-II'),
+        (Join-Path ([Environment]::GetFolderPath('Desktop')) 'Reloaded-II'),
+        (Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'Programs\Reloaded-II'),
+        (Join-Path ([Environment]::GetFolderPath('ProgramFiles')) 'Reloaded-II'),
+        (Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Reloaded-II')
+    )) {
+        if (-not [string]::IsNullOrWhiteSpace($candidate) -and
+            (Test-Path -LiteralPath (Join-Path $candidate 'Reloaded-II.exe') -PathType Leaf)) {
+            $ReloadedRoot = $candidate
+            break
+        }
+    }
+    if ([string]::IsNullOrWhiteSpace($ReloadedRoot)) {
+        $ReloadedRoot = $portableReloadedRoot
+    }
+}
+
+if ($Runtime -eq 'SeventhHeaven' -and [string]::IsNullOrWhiteSpace($SeventhHeavenRoot)) {
+    if (-not [string]::IsNullOrWhiteSpace($env:SEVENTH_HEAVEN_ROOT)) {
+        $SeventhHeavenRoot = $env:SEVENTH_HEAVEN_ROOT
+    }
+    foreach ($registryRoot in @(
+        'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall',
+        'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall',
+        'HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall'
+    )) {
+        if (-not [string]::IsNullOrWhiteSpace($SeventhHeavenRoot)) { break }
+        foreach ($key in @(Get-ChildItem -LiteralPath $registryRoot -ErrorAction SilentlyContinue)) {
+            $properties = Get-ItemProperty -LiteralPath $key.PSPath -ErrorAction SilentlyContinue
+            if ([string]$properties.DisplayName -match '^7th Heaven(?:\s|$)' -and
+                -not [string]::IsNullOrWhiteSpace([string]$properties.InstallLocation)) {
+                $SeventhHeavenRoot = [string]$properties.InstallLocation
+                break
+            }
+        }
     }
 }
 
 if ($Runtime -eq 'SeventhHeaven') {
+    if ([string]::IsNullOrWhiteSpace($SeventhHeavenRoot)) {
+        throw '7th Heaven was not detected. Supply -SeventhHeavenRoot to launch it.'
+    }
     $seventhHeavenExe = Join-Path $SeventhHeavenRoot '7th Heaven.exe'
     if (-not (Test-Path -LiteralPath $seventhHeavenExe -PathType Leaf)) {
         throw "7th Heaven executable is missing: $seventhHeavenExe"

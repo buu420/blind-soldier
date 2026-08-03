@@ -138,9 +138,13 @@ public sealed class SetupForm : Form
             dependencyList.Items.Clear();
             foreach (var dependency in report.Dependencies)
             {
-                var state = dependency.Severity == DependencySeverity.Blocking
-                    ? "Not ready"
-                    : dependency.Satisfied ? "Ready" : "Optional";
+                var state = dependency.Severity switch
+                {
+                    DependencySeverity.Optional when dependency.Satisfied => "Optional, detected",
+                    DependencySeverity.Optional => "Optional, not installed",
+                    DependencySeverity.Blocking => "Not ready",
+                    _ => "Ready"
+                };
                 dependencyList.Items.Add($"{state}: {dependency.Name}. {dependency.Message}");
             }
         }
@@ -364,7 +368,7 @@ public sealed class SetupForm : Form
         var heading = Heading("LocationsHeading", "Game and dependency locations");
         var instructions = BodyLabel(
             "LocationsInstructions",
-            "Setup normally detects these folders. If a required dependency is not ready, choose the correct folder and scan again.");
+            "Setup discovers the game through Steam and Reloaded-II through its registered launcher or portable game folder. 7th Heaven and FFNx are optional. If a required dependency is not ready, choose the correct folder and scan again.");
         var gameLabel = BodyLabel("GameRootLabel", "Final Fantasy VII folder:");
         gameLabel.UseMnemonic = false;
         gameBrowseButton.Name = "GameBrowseButton";

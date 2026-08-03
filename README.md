@@ -40,6 +40,9 @@ If that direct link changes, use the
    .NET runtime, open a terminal, or run a script.
 3. Review the detected Final Fantasy VII and Reloaded-II folders. If setup did
    not find one, activate its labeled **Choose folder** button and select it.
+   The game is discovered from Steam libraries. Reloaded-II is discovered from
+   its own registered launcher or from a portable `Reloaded-II` folder inside
+   or alongside the game; no developer-specific folder is built into setup.
 4. Review the dependency status list. Setup will not continue until the game,
    correct x86 and x64 loaders, and Reloaded Shared Hooks are ready.
 5. Choose **Install**. Keep the setup window open until it announces completion.
@@ -53,8 +56,8 @@ If that direct link changes, use the
 Setup downloads the matching runtime ZIP from the same GitHub release, checks
 its exact length and SHA-256 hash, validates every file before extraction, and
 then installs the prebuilt x86 and x64 mod. It preserves unrelated 7th Heaven
-and FFNx settings. If FFNx is already working, setup does not replace it merely
-to install Blind Swordsman.
+and FFNx settings. Both integrations are optional: setup detects them for
+compatibility reporting, but never installs, requires, or replaces either one.
 
 The native Steam 2026 x64 backend is included, but remains prerelease research
 software. The setup labels the detected runtimes and refuses unknown game

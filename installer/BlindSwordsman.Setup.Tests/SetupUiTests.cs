@@ -1,4 +1,5 @@
 using BlindSwordsman.Setup;
+using BlindSwordsman.Setup.Core;
 using System.Windows.Forms;
 
 static class SetupUiTests
@@ -8,6 +9,7 @@ static class SetupUiTests
         ParsesSupportedCommandLineModesStrictly();
         ExtractsEveryEmbeddedDeploymentResource();
         UsesAccessibleStandardControlsAndLogicalKeyboardOrder();
+        DoesNotBlockOnMissingOptionalIntegrations();
         ExposesTextEquivalentsForProgressAndErrors();
     }
 
@@ -85,6 +87,41 @@ static class SetupUiTests
         True(form.OperationProgressBar.AccessibleDescription?.Contains("65 percent", StringComparison.Ordinal) == true, "progress accessible description");
         form.ShowErrorForTesting("The Reloaded-II dependency is missing.");
         True(form.VisibleStatusLog.Text.Contains("Reloaded-II dependency is missing", StringComparison.Ordinal), "visible error text");
+    }
+
+    private static void DoesNotBlockOnMissingOptionalIntegrations()
+    {
+        using var form = SetupForm.CreateForAccessibilityTesting();
+        var report = PreflightReportParser.Parse("""
+            {
+              "schemaVersion": 1,
+              "canInstall": true,
+              "game": {
+                "version": "Steam2026",
+                "steamAppId": "3837340",
+                "gameRoot": "X:\\FINAL FANTASY VII",
+                "runtimes": [
+                  { "id": "ff7-steam-legacy-x86", "architecture": "x86", "root": "X:\\FINAL FANTASY VII\\ff7\\workingdir", "executable": "X:\\FINAL FANTASY VII\\ff7\\workingdir\\ff7_en.exe" }
+                ]
+              },
+              "reloadedRoot": "C:\\Reloaded-II",
+              "seventhHeavenRoot": null,
+              "dependencies": [
+                { "id": "game", "name": "Final Fantasy VII", "severity": "required", "satisfied": true, "message": "Ready.", "path": "X:\\FINAL FANTASY VII" },
+                { "id": "reloaded", "name": "Reloaded-II", "severity": "required", "satisfied": true, "message": "Ready.", "path": "C:\\Reloaded-II" },
+                { "id": "seventh-heaven", "name": "7th Heaven", "severity": "optional", "satisfied": false, "message": "Not installed. Optional.", "path": null },
+                { "id": "ffnx", "name": "FFNx", "severity": "optional", "satisfied": false, "message": "Not installed. Optional.", "path": null }
+              ]
+            }
+            """);
+
+        form.SetPreflight(report);
+
+        True(form.WelcomeNextButton.Enabled, "missing optional integrations leave Next enabled");
+        var dependencyList = Descendants(form).OfType<ListBox>().Single(control => control.Name == "DependencyList");
+        var dependencyText = string.Join(Environment.NewLine, dependencyList.Items.Cast<object>());
+        True(dependencyText.Contains("Optional, not installed: 7th Heaven", StringComparison.Ordinal), "7th Heaven optional status");
+        True(dependencyText.Contains("Optional, not installed: FFNx", StringComparison.Ordinal), "FFNx optional status");
     }
 
     private static IEnumerable<Control> Descendants(Control root)
