@@ -1,6 +1,7 @@
 using BlindSwordsman.Setup.Core;
 
 ReleaseManifestTests.Run();
+await ArtifactSecurityTests.RunAsync();
 Console.WriteLine("Blind Swordsman setup tests passed.");
 
 static class ReleaseManifestTests
