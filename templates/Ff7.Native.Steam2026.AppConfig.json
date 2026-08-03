@@ -1,0 +1,21 @@
+{
+  "AppId": "FFVII.exe",
+  "AppName": "Final Fantasy VII (Steam 2026 Native x64)",
+  "AppLocation": "",
+  "AppArguments": "",
+  "AppIcon": "",
+  "AutoInject": false,
+  "EnabledMods": [
+    "reloaded.sharedlib.hooks",
+    "ff7.accessibility.reloaded"
+  ],
+  "WorkingDirectory": "",
+  "PluginData": {},
+  "SortedMods": [
+    "reloaded.sharedlib.hooks",
+    "ff7.accessibility.reloaded"
+  ],
+  "PreserveDisabledModOrder": true,
+  "DontInject": false,
+  "IsMsStore": false
+}

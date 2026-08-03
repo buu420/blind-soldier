@@ -1,0 +1,21 @@
+All audition files in this folder are from OpenGameArt pages marked CC0.
+
+01_fantozzi_stone_left.flac
+02_fantozzi_stone_right.flac
+03_fantozzi_sand_or_grass_left.flac
+04_fantozzi_sand_or_grass_right.flac
+Source: https://opengameart.org/content/fantozzis-footsteps-grasssand-stone
+Original author: Fantozzi, submitted by qubodup.
+License: CC0.
+
+05_tinyworlds_stone.ogg
+06_tinyworlds_wood.ogg
+07_tinyworlds_gravel.ogg
+Source: https://opengameart.org/content/different-steps-on-wood-stone-leaves-gravel-and-mud
+Original author: TinyWorlds.
+License: CC0.
+
+08_subway_step.ogg
+Source: https://opengameart.org/content/footsteps-0
+Original author: GboxMikeFozzy.
+License: CC0.

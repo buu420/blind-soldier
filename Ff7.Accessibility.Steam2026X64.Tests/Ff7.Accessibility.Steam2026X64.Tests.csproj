@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PlatformTarget>x64</PlatformTarget>
+    <RollForward>Major</RollForward>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Ff7.Accessibility.Runtime.Abstractions\Ff7.Accessibility.Runtime.Abstractions.csproj" />
+    <ProjectReference Include="..\Ff7.Accessibility.Steam2026X64\Ff7.Accessibility.Steam2026X64.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\HighwayAutoSteeringControllerTests.cs"
+             Link="SharedTests\HighwayAutoSteeringControllerTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\HighwayEngagementSteeringTrackerTests.cs"
+             Link="SharedTests\HighwayEngagementSteeringTrackerTests.cs" />
+  </ItemGroup>
+
+</Project>

@@ -123,15 +123,15 @@ git commit -m "docs: introduce Blind Swordsman"
 - Consumes: the cleaned source tree and self-contained inputs from Tasks 1 and 2.
 - Produces: a tested initial `main` history containing the complete intended mod source.
 
-- [ ] **Step 1: Run source and credential audits**
+- [x] **Step 1: Run source and credential audits**
 
 List ignored and untracked files, reject any file of 100 MB or more, and scan intended files for token, private-key, password, and credential patterns. Confirm that local paths found in fixtures or research notes contain no credential values.
 
-- [ ] **Step 2: Run the relevant validation suites**
+- [x] **Step 2: Run the relevant validation suites**
 
 Run the shared, x86, x64, parity, PowerShell installer, packaging, and dual-runtime verification commands already provided by the repository. Record any release-gate status separately from actual test failures.
 
-- [ ] **Step 3: Stage the intended tree and inspect it**
+- [x] **Step 3: Stage the intended tree and inspect it**
 
 ```powershell
 git add -A
