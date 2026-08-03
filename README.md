@@ -20,8 +20,12 @@ is not tied to one particular screen reader.
 
 - Windows 10 or Windows 11.
 - A legal Steam installation of the original Final Fantasy VII.
-- [Reloaded-II](https://github.com/Reloaded-Project/Reloaded-II).
 - Optional: 7th Heaven and FFNx for the legacy x86 game path.
+
+**Final Fantasy VII is the only software the player must install first.** The
+Blind Swordsman setup package includes verified copies of Reloaded-II, Reloaded
+Shared Hooks, and the Microsoft .NET Desktop Runtime needed by the detected
+game architecture. Setup installs or repairs those components automatically.
 
 Blind Swordsman contains separate x86 and x64 backends. The installer detects
 either the legacy Steam 2013 runtime (`ff7_en.exe`) or the current native Steam
@@ -31,23 +35,27 @@ reading unverified game memory.
 ## Installation
 
 Download and run
-[Blind-Swordsman-Setup.exe](https://github.com/buu420/blind-swordsman/releases/download/v0.1.0-pre.3/Blind-Swordsman-Setup.exe).
+[Blind-Swordsman-Setup.exe](https://github.com/buu420/blind-swordsman/releases/download/v0.1.0-pre.4/Blind-Swordsman-Setup.exe).
 If that direct link changes, use the
 [Blind Swordsman Releases page](https://github.com/buu420/blind-swordsman/releases).
 
 1. Close Final Fantasy VII, 7th Heaven, and Reloaded-II.
-2. Run `Blind-Swordsman-Setup.exe`. You do not need to extract a ZIP, install a
-   .NET runtime, open a terminal, or run a script.
-3. Review the detected Final Fantasy VII and Reloaded-II folders. If setup did
-   not find one, activate its labeled **Choose folder** button and select it.
-   The game is discovered from Steam libraries. Reloaded-II is discovered from
-   its own registered launcher or from a portable `Reloaded-II` folder inside
-   or alongside the game; no developer-specific folder is built into setup.
-4. Review the dependency status list. Setup will not continue until the game,
-   the loader and Reloaded Shared Hooks files for each detected runtime are
-   ready. An x86-only installation does not require x64 files, and an x64-only
-   installation does not require x86 files.
-5. Choose **Install**. Keep the setup window open until it announces completion.
+2. Run `Blind-Swordsman-Setup.exe`. You do not need to extract a ZIP, install
+   Reloaded-II or .NET, open a terminal, or run a script.
+3. Review the detected Final Fantasy VII folder. If setup did not find it,
+   activate **Choose game folder** and select the game's root folder.
+4. Review the Reloaded-II destination. Setup reuses a safe registered
+   Reloaded-II installation when one exists. Otherwise it creates a portable
+   `Reloaded-II` folder inside the selected game folder. You may choose a
+   different destination before installing.
+5. Review the dependency status list. Missing Reloaded-II, Shared Hooks,
+   loaders, and .NET components are shown as items setup will provide, not as
+   missing user prerequisites. An x86-only game receives only x86 runtime
+   requirements, an x64-only game receives only x64 requirements, and a dual
+   installation receives both.
+6. Choose **Install**. Keep the setup window open until it announces
+   completion. Windows may request permission while installing a missing .NET
+   desktop runtime.
 
 > [!WARNING]
 > The first public installer is not code-signed. Windows SmartScreen may say
@@ -57,9 +65,14 @@ If that direct link changes, use the
 
 Setup downloads the matching runtime ZIP from the same GitHub release, checks
 its exact length and SHA-256 hash, validates every file before extraction, and
-then installs the prebuilt x86 and x64 mod. It preserves unrelated 7th Heaven
-and FFNx settings. Both integrations are optional: setup detects them for
-compatibility reporting, but never installs, requires, or replaces either one.
+then installs the prebuilt mod and its pinned prerequisites. The archive
+contains Reloaded-II 1.30.3, Reloaded Shared Hooks 1.16.3, and Microsoft .NET
+Desktop Runtime 9.0.8 installers for x86 and x64. Setup validates the locked
+file sizes and cryptographic hashes before using them, installs .NET only when
+the detected architecture needs it, and preserves unrelated Reloaded profiles,
+mods, and preferences. It also preserves unrelated 7th Heaven and FFNx
+settings. Both integrations are optional: setup detects them for compatibility
+reporting, but never installs, requires, or replaces either one.
 
 For the native Steam 2026 edition, the same verified runtime archive also
 contains the accessible `FFVII_LAUNCHER.exe`, its configuration, and a
@@ -82,7 +95,8 @@ executables instead of reading unverified memory.
   Uninstall removes setup-owned files, preserves files changed after
   installation, and restores a recorded prior mod package only when it still
   matches the saved backup. On Steam 2026 it also restores the verified
-  original FFVII launcher.
+  original FFVII launcher. Reloaded-II, Shared Hooks, and .NET remain installed
+  because they are shared components that other mods may use.
 
 Installer state and readable logs are stored under
 `%LOCALAPPDATA%\Blind Swordsman`. The completion page includes a link that
@@ -109,8 +123,9 @@ recovery behavior.
   from it loads the x64 accessibility backend automatically. You may also run
   `FFVII.exe` directly.
 - **Legacy x86 with 7th Heaven:** launch the game through 7th Heaven as usual.
-- **Legacy x86 without 7th Heaven:** use your Reloaded-II FFVII profile, or run
-  `Launch-FF7Reloaded.cmd -Runtime Legacy` and provide `-ReloadedRoot` if needed.
+- **Legacy x86 without 7th Heaven:** launch the legacy game normally. Setup
+  installs the x86 bootstrap files and creates the required Reloaded profile,
+  so there is no separate Reloaded-II step.
 
 On a successful load, Prism announces that Final Fantasy VII accessibility is
 active.
@@ -122,10 +137,10 @@ checkout, install the [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/
 close the game and launchers, then build and extract a complete runtime payload:
 
 ```powershell
-$release = .\Build-BlindSwordsmanRelease.ps1 -Version 0.1.0-pre.3 -Tag v0.1.0-pre.3 -OutputPath ".\artifacts\developer-$([guid]::NewGuid())"
+$release = .\Build-BlindSwordsmanRelease.ps1 -Version 0.1.0-pre.4 -Tag v0.1.0-pre.4 -OutputPath ".\artifacts\developer-$([guid]::NewGuid())"
 $runtimeRoot = "$($release.OutputPath)\runtime"
 Expand-Archive -LiteralPath $release.PayloadPath -DestinationPath $runtimeRoot
-.\Install-FF7ReloadedMod.ps1 -ReloadedRoot "C:\Path\To\Reloaded-II" -PackagePath "$runtimeRoot\package" -LauncherBundlePath "$runtimeRoot\launcher" -AllowResearchNativeProfile
+.\Install-FF7ReloadedMod.ps1 -ReloadedRoot "C:\Path\To\Reloaded-II" -PackagePath "$runtimeRoot\package" -PrerequisiteBundlePath "$runtimeRoot\prerequisites" -LauncherBundlePath "$runtimeRoot\launcher" -AllowResearchNativeProfile
 ```
 
 Add `-GameRoot "C:\Path\To\FINAL FANTASY VII"` only when Steam detection does
@@ -293,12 +308,15 @@ The installer supports exact verified FFVII builds and fails closed after an
 unknown game update. Do not bypass that check. Include the installer error and
 your executable version in a bug report.
 
-### Setup cannot find Reloaded-II
+### Setup reports a Reloaded-II provisioning problem
 
-Choose **Choose Reloaded-II folder** and select the folder containing
-`Reloaded-II.exe`, the `Loader` folder, and the `Mods` folder. Setup also checks
-that both architecture loaders and Reloaded Shared Hooks are present. Review
-the dependency list for the exact missing component.
+You do not need to install Reloaded-II yourself. By default setup creates a
+portable `Reloaded-II` folder inside the game folder, or repairs a safe existing
+installation it detected. If that destination cannot be written, choose a
+different Reloaded-II folder and scan again. A collision with an unrelated
+file, unsafe link, or profile owned by another application is intentionally
+blocked instead of overwritten; the dependency list and setup log name the
+exact path.
 
 ### Windows reports Unknown publisher
 

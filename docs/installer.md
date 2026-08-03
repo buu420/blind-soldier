@@ -13,26 +13,36 @@ It recognizes the legacy x86 runtime, the Steam 2026 x64 runtime, or both when
 they are installed together. Exact executable identity checks prevent a build
 for an unknown game update from attaching to the wrong memory layout.
 
-Setup also checks:
+Setup also determines where to install or repair:
 
 - the selected Reloaded-II folder;
 - the x86 and x64 ASI loaders and bootstrapper files;
 - the x86 and x64 Reloaded Shared Hooks dependency;
+- the architecture-matched Microsoft .NET Desktop Runtime;
 - an existing 7th Heaven installation, when present;
 - an existing FFNx driver, when present.
 
-Final Fantasy VII and Reloaded-II are required. 7th Heaven and FFNx are
-optional interoperability checks. If automatic detection is wrong, use the
-labeled folder buttons and choose the relevant root folder, then choose
-**Scan again**.
+Final Fantasy VII is the only external product prerequisite. The runtime
+archive supplies pinned, verified copies of Reloaded-II 1.30.3, Reloaded Shared
+Hooks 1.16.3, and Microsoft .NET Desktop Runtime 9.0.8 installers for x86 and
+x64. Missing supplied components are reported as items setup will install or
+repair rather than reasons the player must stop. 7th Heaven and FFNx are
+optional interoperability checks. If automatic game detection is wrong, use
+the labeled folder button and choose the game root, then choose **Scan again**.
 
 The game path comes from Steam library discovery or the folder the user
 chooses. Reloaded-II discovery uses an existing saved install path, the
 `RELOADED_II_ROOT` environment variable, Reloaded-II's own registered launcher,
 then portable and common Windows locations. No path from the developer's PC is
 compiled into setup. If Reloaded-II is not installed, setup proposes
-`Reloaded-II` inside the game folder as the portable location; Reloaded-II's
-official portable mode supports keeping its launcher in a game subfolder.
+`Reloaded-II` inside the game folder as the portable location and creates it
+during installation.
+
+For an x86-only game, setup checks or installs only the x86 .NET runtime and
+deploys only x86 game bootstrap files. For an x64-only game, it does the same
+for x64 without requiring a legacy executable or FFNx path. A dual install
+receives both. Setup merges the two required mod IDs into the applicable
+Reloaded profiles while preserving unrelated profile properties and mod order.
 
 ## Install, update, and repair
 
@@ -42,6 +52,15 @@ match the release metadata. The runtime archive contains its own sorted file
 manifest. Setup rejects absolute paths, path traversal, duplicate names,
 reparse points, missing files, unlisted files, length mismatches, and hash
 mismatches before invoking deployment.
+
+The prerequisite bundle has a second locked manifest containing upstream URLs,
+versions, file lengths, SHA-256 hashes, and SHA-512 hashes for the .NET
+installers. Setup validates the complete ordinary-file tree and PE architecture
+before execution. It installs a missing .NET desktop runtime silently for only
+the detected game architecture, then verifies that runtime is present. The
+Reloaded overlay preserves user-owned `Apps`, `Mods`, `User`, and `Plugins`
+content except for the specifically owned Shared Hooks dependency and the two
+additive Final Fantasy VII profiles.
 
 The action shown by setup depends on saved per-user state:
 
@@ -96,7 +115,10 @@ preserved and listed in the log. A prior mod backup is restored only when its
 recorded fingerprint still matches. For Steam 2026, uninstall also restores the
 verified original launcher and removes setup-created launcher support files.
 If any launcher file changed after installation, that file is preserved and
-reported instead.
+reported instead. Reloaded-II, Shared Hooks, and .NET remain installed because
+they are shared prerequisites that may be used by another mod. Blind Swordsman
+removes or restores only its recorded FFVII profiles, game bootstrap files,
+mod folder, and accessible launcher changes.
 
 The installed setup EXE schedules its own removal through Windows after the
 uninstall process exits. Per-user registration, update shortcut, and install
@@ -139,7 +161,7 @@ all integrity checks.
 
 ## Unsigned prerelease warning
 
-Version `0.1.0-pre.3` is not Authenticode-signed. Windows SmartScreen can show
+Version `0.1.0-pre.4` is not Authenticode-signed. Windows SmartScreen can show
 **Unknown publisher** even when the file is intact. Download only from the
 project's GitHub Releases page and, when desired, verify it against the
 adjacent `.sha256` file. This warning is separate from the installer's own
@@ -151,18 +173,18 @@ Build the five release assets into a new output folder:
 
 ```powershell
 .\Build-BlindSwordsmanRelease.ps1 `
-  -Version "0.1.0-pre.3" `
-  -Tag "v0.1.0-pre.3" `
-  -MinimumSetupVersion "0.1.0-pre.3" `
-  -OutputPath ".\artifacts\release\v0.1.0-pre.3"
+  -Version "0.1.0-pre.4" `
+  -Tag "v0.1.0-pre.4" `
+  -MinimumSetupVersion "0.1.0-pre.4" `
+  -OutputPath ".\artifacts\release\v0.1.0-pre.4"
 ```
 
 After verification, publish them using the authenticated GitHub CLI session:
 
 ```powershell
 .\Publish-BlindSwordsmanRelease.ps1 `
-  -Tag "v0.1.0-pre.3" `
-  -ArtifactPath ".\artifacts\release\v0.1.0-pre.3"
+  -Tag "v0.1.0-pre.4" `
+  -ArtifactPath ".\artifacts\release\v0.1.0-pre.4"
 ```
 
 The publisher reads the channel manifest, requires all exact asset names,

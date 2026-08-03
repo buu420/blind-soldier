@@ -10,5 +10,5 @@ using System.Runtime.Versioning;
 [assembly: ComVisible(false)]
 [assembly: SupportedOSPlatform("windows7.0")]
 [assembly: AssemblyVersion("0.1.0.0")]
-[assembly: AssemblyFileVersion("0.1.0.2")]
-[assembly: AssemblyInformationalVersion("0.1.0-pre.3")]
+[assembly: AssemblyFileVersion("0.1.0.3")]
+[assembly: AssemblyInformationalVersion("0.1.0-pre.4")]
