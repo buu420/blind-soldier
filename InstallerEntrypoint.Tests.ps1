@@ -1,0 +1,142 @@
+$ErrorActionPreference = 'Stop'
+
+$scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$installPath = Join-Path $scriptRoot 'Install-FF7ReloadedMod.ps1'
+$uninstallPath = Join-Path $scriptRoot 'Uninstall-FF7ReloadedMod.ps1'
+
+function New-EntrypointFixture {
+    $root = Join-Path ([IO.Path]::GetTempPath()) ('blind-swordsman-entrypoint-test-' + [Guid]::NewGuid().ToString('N'))
+    $gameRoot = Join-Path $root 'game'
+    $runtimeRoot = Join-Path $gameRoot 'runtime'
+    $reloadedRoot = Join-Path $root 'Reloaded-II'
+    $modDirectory = Join-Path $reloadedRoot 'Mods\ff7.accessibility.reloaded'
+    $modulePath = Join-Path $root 'FakeInstall.psm1'
+    New-Item -ItemType Directory -Path $runtimeRoot -Force | Out-Null
+    New-Item -ItemType Directory -Path $modDirectory -Force | Out-Null
+    [IO.File]::WriteAllText((Join-Path $modDirectory 'fingerprint.txt'), 'INSTALLED')
+    [IO.File]::WriteAllText((Join-Path $runtimeRoot 'dsound.dll'), 'loader')
+
+    $module = @'
+function Resolve-Ff7Installation {
+    param([string] $GameRoot)
+    $root = [IO.Path]::GetFullPath($GameRoot)
+    return [pscustomobject]@{
+        Version = 'Steam2013'; SteamAppId = '39140'; GameRoot = $root
+        LegacyRuntime = [pscustomobject]@{ RuntimeId = 'ff7-steam-legacy-x86'; Architecture = 'x86'; RuntimeRoot = (Join-Path $root 'runtime'); GameExe = (Join-Path $root 'runtime\ff7_en.exe') }
+        NativeRuntime = $null
+    }
+}
+function Assert-Ff7DualRuntimePackage {
+    param([string] $PackagePath)
+    $marker = Join-Path $PackagePath 'fingerprint.txt'
+    if (-not (Test-Path -LiteralPath $marker -PathType Leaf)) { throw 'invalid package fixture' }
+    return [pscustomobject]@{ Fingerprint = [IO.File]::ReadAllText($marker) }
+}
+Export-ModuleMember -Function Resolve-Ff7Installation,Assert-Ff7DualRuntimePackage
+'@
+    [IO.File]::WriteAllText($modulePath, $module)
+    $loaderPath = Join-Path $runtimeRoot 'dsound.dll'
+    $state = [ordered]@{
+        schemaVersion = 1
+        productVersion = '0.1.0-pre.1'
+        releaseTag = 'v0.1.0-pre.1'
+        game = [ordered]@{ gameRoot = $gameRoot }
+        reloadedRoot = $reloadedRoot
+        mod = [ordered]@{
+            directory = $modDirectory
+            fingerprint = 'INSTALLED'
+            backupPath = $null
+            backupFingerprint = $null
+        }
+        profile = $null
+        loaders = @([ordered]@{
+            id = 'legacy-asi-loader'
+            target = $loaderPath
+            sha256 = (Get-FileHash -LiteralPath $loaderPath -Algorithm SHA256).Hash
+            changed = $true
+        })
+        openingVoice = [ordered]@{ wasPresent = $false; target = (Join-Path $runtimeRoot 'override\movies\opening_va.ogg'); sourceSha256 = $null }
+    }
+    $statePath = Join-Path $root 'install-state.json'
+    [IO.File]::WriteAllText($statePath, ($state | ConvertTo-Json -Depth 8))
+    return [pscustomobject]@{
+        Root = $root
+        GameRoot = $gameRoot
+        RuntimeRoot = $runtimeRoot
+        ReloadedRoot = $reloadedRoot
+        ModDirectory = $modDirectory
+        LoaderPath = $loaderPath
+        ModulePath = $modulePath
+        StatePath = $statePath
+        ResultPath = Join-Path $root 'uninstall-result.json'
+    }
+}
+
+Describe 'Blind Swordsman installer entry points' {
+    It 'accepts a verified prebuilt package and structured result path without requiring a source build' {
+        $command = Get-Command $installPath
+        ($command.Parameters.Keys -contains 'PackagePath') | Should Be $true
+        ($command.Parameters.Keys -contains 'ResultPath') | Should Be $true
+        $content = [IO.File]::ReadAllText($installPath)
+        $content | Should Match 'IsNullOrWhiteSpace\(\$PackagePath\)'
+        $content | Should Match 'Install-Ff7DualRuntimePackage -PackagePath \$stagedPackage'
+        $content | Should Match 'install-result-'
+    }
+
+    It 'removes only the exact recorded mod and installer-created unchanged loader' {
+        $fixture = New-EntrypointFixture
+        try {
+            & $uninstallPath -StatePath $fixture.StatePath -ResultPath $fixture.ResultPath `
+                -ModulePath $fixture.ModulePath
+
+            (Test-Path -LiteralPath $fixture.ModDirectory) | Should Be $false
+            (Test-Path -LiteralPath $fixture.LoaderPath) | Should Be $false
+            $result = [IO.File]::ReadAllText($fixture.ResultPath) | ConvertFrom-Json
+            $result.completed | Should Be $true
+            (@($result.removed) -contains $fixture.ModDirectory) | Should Be $true
+            (@($result.removed) -contains $fixture.LoaderPath) | Should Be $true
+        }
+        finally {
+            Remove-Item -LiteralPath $fixture.Root -Recurse -Force
+        }
+    }
+
+    It 'preserves a loader changed after installation and reports why' {
+        $fixture = New-EntrypointFixture
+        try {
+            [IO.File]::WriteAllText($fixture.LoaderPath, 'changed after install')
+
+            & $uninstallPath -StatePath $fixture.StatePath -ResultPath $fixture.ResultPath `
+                -ModulePath $fixture.ModulePath
+
+            (Test-Path -LiteralPath $fixture.LoaderPath -PathType Leaf) | Should Be $true
+            $result = [IO.File]::ReadAllText($fixture.ResultPath) | ConvertFrom-Json
+            ($result.preserved -join "`n") | Should Match 'changed after installation'
+        }
+        finally {
+            Remove-Item -LiteralPath $fixture.Root -Recurse -Force
+        }
+    }
+
+    It 'restores the exact recorded prior mod package during uninstall' {
+        $fixture = New-EntrypointFixture
+        try {
+            $backup = Join-Path $fixture.ReloadedRoot 'AccessibilityBackups\ff7.accessibility.reloaded.backup-test'
+            New-Item -ItemType Directory -Path $backup -Force | Out-Null
+            [IO.File]::WriteAllText((Join-Path $backup 'fingerprint.txt'), 'PREVIOUS')
+            $state = [IO.File]::ReadAllText($fixture.StatePath) | ConvertFrom-Json
+            $state.mod.backupPath = $backup
+            $state.mod.backupFingerprint = 'PREVIOUS'
+            [IO.File]::WriteAllText($fixture.StatePath, ($state | ConvertTo-Json -Depth 8))
+
+            & $uninstallPath -StatePath $fixture.StatePath -ResultPath $fixture.ResultPath `
+                -ModulePath $fixture.ModulePath
+
+            [IO.File]::ReadAllText((Join-Path $fixture.ModDirectory 'fingerprint.txt')) | Should Be 'PREVIOUS'
+            (Test-Path -LiteralPath $backup) | Should Be $false
+        }
+        finally {
+            Remove-Item -LiteralPath $fixture.Root -Recurse -Force
+        }
+    }
+}

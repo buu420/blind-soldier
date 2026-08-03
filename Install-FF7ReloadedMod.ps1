@@ -6,6 +6,10 @@ param(
     [string] $SeventhHeavenRoot,
     [string] $FfnxArchivePath,
     [string] $ParityMatrixPath,
+    [string] $PackagePath,
+    [string] $ResultPath,
+    [string] $ProductVersion,
+    [string] $ReleaseTag,
     [switch] $SkipFfnx,
     [switch] $SkipSeventhHeavenSettings,
     [switch] $AllowResearchNativeProfile
@@ -45,14 +49,17 @@ $asiLoaderX86Source = Join-Path $ReloadedRoot '_asi_extract\ASILoader32.dll'
 $bootstrapperX86Source = Join-Path $ReloadedRoot 'Loader\X86\Bootstrapper\Reloaded.Mod.Loader.Bootstrapper.dll'
 $asiLoaderX64Source = Join-Path $ReloadedRoot '_asi_extract\ASILoader64.dll'
 $bootstrapperX64Source = Join-Path $ReloadedRoot 'Loader\X64\Bootstrapper\Reloaded.Mod.Loader.Bootstrapper.dll'
-foreach ($requiredFile in @(
-    $buildPackagePath,
+$requiredFiles = @(
     $nativeProfileTemplate,
     $asiLoaderX86Source,
     $bootstrapperX86Source,
     $asiLoaderX64Source,
     $bootstrapperX64Source
-)) {
+)
+if ([string]::IsNullOrWhiteSpace($PackagePath)) {
+    $requiredFiles += $buildPackagePath
+}
+foreach ($requiredFile in $requiredFiles) {
     if (-not (Test-Path -LiteralPath $requiredFile -PathType Leaf)) {
         throw "Required installer file is missing: $requiredFile"
     }
@@ -319,8 +326,24 @@ function Restore-DualRuntimePackageForRollback {
     }
 }
 
-$stagingParent = Join-Path ([IO.Path]::GetTempPath()) ('ff7-accessibility-install-' + [Guid]::NewGuid().ToString('N'))
-$stagedPackage = Join-Path $stagingParent 'ff7.accessibility.reloaded'
+$ownsStagedPackage = [string]::IsNullOrWhiteSpace($PackagePath)
+$stagingParent = if ($ownsStagedPackage) {
+    Join-Path ([IO.Path]::GetTempPath()) ('ff7-accessibility-install-' + [Guid]::NewGuid().ToString('N'))
+}
+else { $null }
+$stagedPackage = if ($ownsStagedPackage) {
+    Join-Path $stagingParent 'ff7.accessibility.reloaded'
+}
+else {
+    if (-not (Test-Path -LiteralPath $PackagePath -PathType Container)) {
+        throw "Prebuilt dual-runtime package is missing: $PackagePath"
+    }
+    $packageItem = Get-Item -LiteralPath $PackagePath -Force
+    if (($packageItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+        throw "Prebuilt dual-runtime package cannot be a reparse point: $PackagePath"
+    }
+    [IO.Path]::GetFullPath($packageItem.FullName)
+}
 $modDirectory = Join-Path $ReloadedRoot 'Mods\ff7.accessibility.reloaded'
 $asiLoaderX86Target = Join-Path $installation.LegacyRuntime.RuntimeRoot 'dsound.dll'
 $bootstrapperX86Target = Join-Path $installation.LegacyRuntime.RuntimeRoot 'Reloaded.Mod.Loader.Bootstrapper.asi'
@@ -360,10 +383,54 @@ $asiLoaderX64Result = $null
 $bootstrapperX64Result = $null
 $openingNarrationResult = $null
 $openingVoiceWasPresent = $false
+$ffnxResult = $null
+$resolvedResultPath = $null
+if (-not [string]::IsNullOrWhiteSpace($ResultPath)) {
+    $resolvedResultPath = [IO.Path]::GetFullPath($ResultPath)
+    if (Test-Path -LiteralPath $resolvedResultPath) {
+        $resultItem = Get-Item -LiteralPath $resolvedResultPath -Force
+        if ($resultItem.PSIsContainer -or
+            ($resultItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+            throw "Installer result target is not a regular file: $resolvedResultPath"
+        }
+    }
+    $resultDirectory = Split-Path -Parent $resolvedResultPath
+    $existingResultParent = $resultDirectory
+    while (-not (Test-Path -LiteralPath $existingResultParent)) {
+        $nextParent = Split-Path -Parent $existingResultParent
+        if ([string]::IsNullOrWhiteSpace($nextParent) -or $nextParent -eq $existingResultParent) {
+            throw "Installer result path has no existing parent: $resolvedResultPath"
+        }
+        $existingResultParent = $nextParent
+    }
+    $parentItem = Get-Item -LiteralPath $existingResultParent -Force
+    if (-not $parentItem.PSIsContainer -or
+        ($parentItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+        throw "Installer result parent is unsafe: $existingResultParent"
+    }
+}
 try {
     # Build-DualRuntimePackage validates both R2R payloads, dependencies, native PE machines,
     # configuration, and assets before any installed profile or mod directory is changed.
-    & $buildPackagePath -OutputPath $stagedPackage | Out-Null
+    if ($ownsStagedPackage) {
+        & $buildPackagePath -OutputPath $stagedPackage | Out-Null
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($ResultPath)) {
+        if ([string]::IsNullOrWhiteSpace($ProductVersion)) {
+            $packageConfig = [IO.File]::ReadAllText((Join-Path $stagedPackage 'ModConfig.json')) | ConvertFrom-Json
+            $ProductVersion = [string]$packageConfig.ModVersion
+        }
+        if ($ProductVersion -notmatch '^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$') {
+            throw "Installer product version is invalid: $ProductVersion"
+        }
+        if ([string]::IsNullOrWhiteSpace($ReleaseTag)) {
+            $ReleaseTag = 'v' + $ProductVersion
+        }
+        if ($ReleaseTag -cne ('v' + $ProductVersion)) {
+            throw "Installer release tag does not match product version: $ReleaseTag"
+        }
+    }
 
     # Complete every ownership, identity, parity, template, and collision check before the
     # first mutation. A stale ordinary native profile is unsafe while the release gate is closed.
@@ -484,9 +551,89 @@ try {
     # The protected legacy Reloaded profile and 7th Heaven settings are intentionally untouched.
     Write-Host 'Protected legacy Reloaded and 7th Heaven profiles were preserved unchanged.'
     Write-Host 'Installation completed without launching FFVII, Reloaded-II, or 7th Heaven.'
+
+    if (-not [string]::IsNullOrWhiteSpace($ResultPath)) {
+        $loaderResults = New-Object 'System.Collections.Generic.List[object]'
+        foreach ($loader in @(
+            [pscustomobject]@{ Id = 'legacy-asi-loader'; Result = $asiLoaderX86Result; Source = $asiLoaderX86Source },
+            [pscustomobject]@{ Id = 'legacy-bootstrapper'; Result = $bootstrapperX86Result; Source = $bootstrapperX86Source },
+            [pscustomobject]@{ Id = 'native-asi-loader'; Result = $asiLoaderX64Result; Source = $asiLoaderX64Source },
+            [pscustomobject]@{ Id = 'native-bootstrapper'; Result = $bootstrapperX64Result; Source = $bootstrapperX64Source }
+        )) {
+            if ($null -eq $loader.Result) { continue }
+            $loaderResults.Add([ordered]@{
+                id = $loader.Id
+                target = [IO.Path]::GetFullPath([string]$loader.Result.Target)
+                sha256 = (Get-FileHash -LiteralPath $loader.Source -Algorithm SHA256).Hash
+                changed = [bool]$loader.Result.Changed
+            })
+        }
+
+        $packageBackupFingerprint = [string]$packageResult.BackupFingerprint
+        $profileState = if ($null -ne $profileResult) {
+            $profileBackupPath = if ([string]::IsNullOrWhiteSpace([string]$profileResult.BackupPath)) { $null } else { [IO.Path]::GetFullPath([string]$profileResult.BackupPath) }
+            $profileBackupSha256 = if ($null -eq $profileBackupPath) { $null } else { (Get-FileHash -LiteralPath $profileBackupPath -Algorithm SHA256).Hash }
+            [ordered]@{
+                path = [IO.Path]::GetFullPath([string]$profileResult.ProfilePath)
+                changed = [bool]$profileResult.Changed
+                installedSha256 = (Get-FileHash -LiteralPath ([string]$profileResult.ProfilePath) -Algorithm SHA256).Hash
+                backupPath = $profileBackupPath
+                backupSha256 = $profileBackupSha256
+                research = [bool]$profileResult.IsResearchProfile
+            }
+        }
+        else { $null }
+        $packageBackupPath = if ([string]::IsNullOrWhiteSpace([string]$packageResult.BackupPath)) { $null } else { [IO.Path]::GetFullPath([string]$packageResult.BackupPath) }
+        $ffnxState = if ($null -eq $ffnxResult) { $null } else { [ordered]@{ releaseTag = [string]$ffnxResult.ReleaseTag; assetName = [string]$ffnxResult.AssetName } }
+        $result = [ordered]@{
+            schemaVersion = 1
+            productVersion = $ProductVersion
+            releaseTag = $ReleaseTag
+            installedAtUtc = [DateTime]::UtcNow.ToString('O')
+            game = [ordered]@{
+                version = [string]$installation.Version
+                gameRoot = [IO.Path]::GetFullPath([string]$installation.GameRoot)
+            }
+            reloadedRoot = [IO.Path]::GetFullPath($ReloadedRoot)
+            mod = [ordered]@{
+                directory = [IO.Path]::GetFullPath([string]$packageResult.ModDirectory)
+                fingerprint = [string]$packageResult.Fingerprint
+                backupPath = $packageBackupPath
+                backupFingerprint = $packageBackupFingerprint
+            }
+            profile = $profileState
+            loaders = $loaderResults.ToArray()
+            openingVoice = [ordered]@{
+                wasPresent = [bool]$openingVoiceWasPresent
+                target = [IO.Path]::GetFullPath($openingVoiceTarget)
+                sourceSha256 = (Get-FileHash -LiteralPath $openingNarrationSource -Algorithm SHA256).Hash
+            }
+            ffnx = $ffnxState
+        }
+
+        $resultDirectory = Split-Path -Parent $resolvedResultPath
+        if (-not (Test-Path -LiteralPath $resultDirectory -PathType Container)) {
+            New-Item -ItemType Directory -Path $resultDirectory -Force | Out-Null
+        }
+        $temporaryResult = Join-Path $resultDirectory ('.install-result-' + [Guid]::NewGuid().ToString('N') + '.tmp')
+        try {
+            [IO.File]::WriteAllText($temporaryResult, ($result | ConvertTo-Json -Depth 10), (New-Object Text.UTF8Encoding($false)))
+            if (Test-Path -LiteralPath $resolvedResultPath -PathType Leaf) {
+                [IO.File]::Replace($temporaryResult, $resolvedResultPath, $null, $true)
+            }
+            else {
+                Move-Item -LiteralPath $temporaryResult -Destination $resolvedResultPath
+            }
+        }
+        finally {
+            if (Test-Path -LiteralPath $temporaryResult -PathType Leaf) {
+                Remove-Item -LiteralPath $temporaryResult -Force
+            }
+        }
+    }
 }
 finally {
-    if (Test-Path -LiteralPath $stagingParent -PathType Container) {
+    if ($ownsStagedPackage -and (Test-Path -LiteralPath $stagingParent -PathType Container)) {
         Remove-Item -LiteralPath $stagingParent -Recurse -Force
     }
 }

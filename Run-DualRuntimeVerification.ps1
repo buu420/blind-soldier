@@ -269,6 +269,16 @@ if (-not $SkipSecondPesterRepeat) {
     ) -WorkingDirectory $scriptRoot))
 }
 
+$entrypointPesterCommand = "Invoke-Pester -Script '$((Join-Path $scriptRoot 'InstallerEntrypoint.Tests.ps1').Replace("'", "''"))' -EnableExit"
+$commands.Add((New-VerificationCommand -Name 'Installer entrypoint Pester pass 1' -FilePath 'powershell.exe' -Arguments @(
+    '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', $entrypointPesterCommand
+) -WorkingDirectory $scriptRoot))
+if (-not $SkipSecondPesterRepeat) {
+    $commands.Add((New-VerificationCommand -Name 'Installer entrypoint Pester pass 2' -FilePath 'powershell.exe' -Arguments @(
+        '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', $entrypointPesterCommand
+    ) -WorkingDirectory $scriptRoot))
+}
+
 if (-not $SkipProtectedSeventhHeaven) {
     $crashGuardProject = Join-Path $prototypeRoot 'analysis\7th-heaven-4.5.2-patch\CrashGuardSmokeTests\CrashGuardSmokeTests.csproj'
     $commands.Add((New-VerificationCommand -Name '7th Heaven CrashGuardSmokeTests' -FilePath 'dotnet' -Arguments @(
