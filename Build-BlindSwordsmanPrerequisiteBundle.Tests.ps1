@@ -1,0 +1,240 @@
+$ErrorActionPreference = 'Stop'
+
+$scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$builderPath = Join-Path $scriptRoot 'Build-BlindSwordsmanPrerequisiteBundle.ps1'
+
+function New-TestPe {
+    param(
+        [Parameter(Mandatory=$true)] [string] $Path,
+        [Parameter(Mandatory=$true)] [uint16] $Machine
+    )
+
+    New-Item -ItemType Directory -Path (Split-Path -Parent $Path) -Force | Out-Null
+    $bytes = New-Object byte[] 512
+    $bytes[0] = 0x4D
+    $bytes[1] = 0x5A
+    [BitConverter]::GetBytes([int]0x80).CopyTo($bytes, 0x3C)
+    [BitConverter]::GetBytes([uint32]0x00004550).CopyTo($bytes, 0x80)
+    [BitConverter]::GetBytes($Machine).CopyTo($bytes, 0x84)
+    [IO.File]::WriteAllBytes($Path, $bytes)
+}
+
+function New-TestZip {
+    param(
+        [Parameter(Mandatory=$true)] [string] $Path,
+        [Parameter(Mandatory=$true)] [hashtable] $Entries
+    )
+
+    Add-Type -AssemblyName System.IO.Compression
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $stream = New-Object IO.FileStream($Path, [IO.FileMode]::Create, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
+    try {
+        $archive = New-Object IO.Compression.ZipArchive($stream, [IO.Compression.ZipArchiveMode]::Create, $true)
+        try {
+            foreach ($name in $Entries.Keys) {
+                $entry = $archive.CreateEntry($name)
+                $entryStream = $entry.Open()
+                try {
+                    $bytes = [Text.Encoding]::UTF8.GetBytes([string]$Entries[$name])
+                    $entryStream.Write($bytes, 0, $bytes.Length)
+                }
+                finally {
+                    $entryStream.Dispose()
+                }
+            }
+        }
+        finally {
+            $archive.Dispose()
+        }
+    }
+    finally {
+        $stream.Dispose()
+    }
+}
+
+function New-PrerequisiteFixture {
+    param([switch] $UnsafeReloadedZip)
+
+    $root = Join-Path ([IO.Path]::GetTempPath()) ('blind-swordsman-prereq-test-' + [Guid]::NewGuid().ToString('N'))
+    $sources = Join-Path $root 'sources'
+    $sevenZipContent = Join-Path $root 'sevenzip-content'
+    New-Item -ItemType Directory -Path $sources, $sevenZipContent -Force | Out-Null
+
+    $reloadedZip = Join-Path $sources 'Release.zip'
+    $reloadedEntries = @{
+        'Reloaded-II.exe' = 'fixture reloaded'
+        'Loader/X86/Reloaded.Mod.Loader.dll' = 'fixture loader x86'
+        'Loader/X64/Reloaded.Mod.Loader.dll' = 'fixture loader x64'
+        'Loader/X86/Bootstrapper/Reloaded.Mod.Loader.Bootstrapper.dll' = 'replaced after extraction'
+        'Loader/X64/Bootstrapper/Reloaded.Mod.Loader.Bootstrapper.dll' = 'replaced after extraction'
+        'Loader/Asi/UltimateAsiLoader.7z' = 'fixture nested archive'
+        'LICENSE.txt' = 'fixture Reloaded license'
+    }
+    if ($UnsafeReloadedZip) {
+        $reloadedEntries['../outside.txt'] = 'must not escape'
+    }
+    New-TestZip -Path $reloadedZip -Entries $reloadedEntries
+
+    $sharedHooksArchive = Join-Path $sources 'Reloaded.Hooks.ReloadedII1.16.3.7z'
+    [IO.File]::WriteAllText($sharedHooksArchive, 'fixture shared hooks archive')
+    $x86Runtime = Join-Path $sources 'windowsdesktop-runtime-9.0.8-win-x86.exe'
+    $x64Runtime = Join-Path $sources 'windowsdesktop-runtime-9.0.8-win-x64.exe'
+    New-TestPe -Path $x86Runtime -Machine 0x014C
+    New-TestPe -Path $x64Runtime -Machine 0x8664
+    $hooksLicense = Join-Path $sources 'Reloaded-Shared-Hooks-LGPL-3.0.txt'
+    $dotnetLicense = Join-Path $sources 'dotnet-LICENSE.txt'
+    $dotnetNotices = Join-Path $sources 'dotnet-THIRD-PARTY-NOTICES.txt'
+    [IO.File]::WriteAllText($hooksLicense, 'fixture Shared Hooks license')
+    [IO.File]::WriteAllText($dotnetLicense, 'fixture dotnet license')
+    [IO.File]::WriteAllText($dotnetNotices, 'fixture dotnet notices')
+
+    $asiContent = Join-Path $sevenZipContent 'UltimateAsiLoader.7z'
+    New-TestPe -Path (Join-Path $asiContent 'ASILoader32.dll') -Machine 0x014C
+    New-TestPe -Path (Join-Path $asiContent 'ASILoader64.dll') -Machine 0x8664
+    $hooksContent = Join-Path $sevenZipContent 'Reloaded.Hooks.ReloadedII1.16.3.7z'
+    New-Item -ItemType Directory -Path (Join-Path $hooksContent 'x86'), (Join-Path $hooksContent 'x64') -Force | Out-Null
+    [IO.File]::WriteAllText((Join-Path $hooksContent 'ModConfig.json'), '{"ModId":"reloaded.sharedlib.hooks","ModVersion":"1.16.3"}')
+    New-TestPe -Path (Join-Path $hooksContent 'x86\Reloaded.Hooks.ReloadedII.dll') -Machine 0x014C
+    New-TestPe -Path (Join-Path $hooksContent 'x64\Reloaded.Hooks.ReloadedII.dll') -Machine 0x8664
+
+    $bootstrapX86 = Join-Path $root 'bootstrap-x86.dll'
+    $bootstrapX64 = Join-Path $root 'bootstrap-x64.dll'
+    New-TestPe -Path $bootstrapX86 -Machine 0x014C
+    New-TestPe -Path $bootstrapX64 -Machine 0x8664
+
+    $record = {
+        param($path, $url, $architecture, $name)
+        $item = Get-Item -LiteralPath $path
+        [ordered]@{
+            architecture = $architecture
+            name = $name
+            url = $url
+            size = $item.Length
+            sha256 = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash
+            sha512 = (Get-FileHash -LiteralPath $path -Algorithm SHA512).Hash
+        }
+    }
+    $lock = [ordered]@{
+        schemaVersion = 1
+        reloaded = [ordered]@{
+            version = '1.30.3'; assetName = 'Release.zip'; url = 'https://fixture.invalid/Release.zip'
+            size = (Get-Item $reloadedZip).Length; sha256 = (Get-FileHash $reloadedZip -Algorithm SHA256).Hash
+            sourceCodeUrl = 'https://fixture.invalid/reloaded/source'; licensePath = 'LICENSE.txt'
+            licenseSize = ([Text.Encoding]::UTF8.GetByteCount('fixture Reloaded license'))
+            licenseSha256 = (Get-FileHash -LiteralPath (Join-Path $sources 'Reloaded-license.tmp') -Algorithm SHA256 -ErrorAction SilentlyContinue).Hash
+        }
+        sharedHooks = [ordered]@{
+            version = '1.16.3'; assetName = 'Reloaded.Hooks.ReloadedII1.16.3.7z'
+            url = 'https://fixture.invalid/Reloaded.Hooks.ReloadedII1.16.3.7z'
+            size = (Get-Item $sharedHooksArchive).Length; sha256 = (Get-FileHash $sharedHooksArchive -Algorithm SHA256).Hash
+            sourceCodeUrl = 'https://fixture.invalid/hooks/source'; licenseName = 'Reloaded-Shared-Hooks-LGPL-3.0.txt'
+            licenseUrl = 'https://fixture.invalid/Reloaded-Shared-Hooks-LGPL-3.0.txt'
+            licenseSize = (Get-Item $hooksLicense).Length; licenseSha256 = (Get-FileHash $hooksLicense -Algorithm SHA256).Hash
+        }
+        dotnetDesktopRuntime = [ordered]@{
+            version = '9.0.8'; sourceCodeUrl = 'https://fixture.invalid/dotnet/source'
+            licenseName = 'dotnet-LICENSE.txt'; licenseUrl = 'https://fixture.invalid/dotnet-LICENSE.txt'
+            licenseSize = (Get-Item $dotnetLicense).Length; licenseSha256 = (Get-FileHash $dotnetLicense -Algorithm SHA256).Hash
+            thirdPartyNoticesName = 'dotnet-THIRD-PARTY-NOTICES.txt'
+            thirdPartyNoticesUrl = 'https://fixture.invalid/dotnet-THIRD-PARTY-NOTICES.txt'
+            thirdPartyNoticesSize = (Get-Item $dotnetNotices).Length
+            thirdPartyNoticesSha256 = (Get-FileHash $dotnetNotices -Algorithm SHA256).Hash
+            installers = @(
+                (& $record $x86Runtime 'https://fixture.invalid/windowsdesktop-runtime-9.0.8-win-x86.exe' 'x86' 'windowsdesktop-runtime-9.0.8-win-x86.exe'),
+                (& $record $x64Runtime 'https://fixture.invalid/windowsdesktop-runtime-9.0.8-win-x64.exe' 'x64' 'windowsdesktop-runtime-9.0.8-win-x64.exe')
+            )
+        }
+    }
+    $licenseBytes = [Text.Encoding]::UTF8.GetBytes('fixture Reloaded license')
+    $licenseHash = [Security.Cryptography.SHA256]::Create()
+    try { $lock.reloaded.licenseSha256 = ([BitConverter]::ToString($licenseHash.ComputeHash($licenseBytes))).Replace('-', '') } finally { $licenseHash.Dispose() }
+    $lockPath = Join-Path $root 'dependency-lock.json'
+    [IO.File]::WriteAllText($lockPath, ($lock | ConvertTo-Json -Depth 8), (New-Object Text.UTF8Encoding($false)))
+    $noticePath = Join-Path $root 'THIRD-PARTY-NOTICES.md'
+    [IO.File]::WriteAllText($noticePath, 'fixture prerequisite notices')
+
+    $artifactResolver = {
+        param($url, $destination)
+        $name = [IO.Path]::GetFileName(([Uri]$url).AbsolutePath)
+        Copy-Item -LiteralPath (Join-Path $sources $name) -Destination $destination
+    }.GetNewClosure()
+    $sevenZipExtractor = {
+        param($archivePath, $destination)
+        $name = Split-Path -Leaf $archivePath
+        foreach ($item in @(Get-ChildItem -LiteralPath (Join-Path $sevenZipContent $name) -Force)) {
+            Copy-Item -LiteralPath $item.FullName -Destination $destination -Recurse
+        }
+    }.GetNewClosure()
+
+    return [pscustomobject]@{
+        Root = $root
+        Output = Join-Path $root 'output'
+        LockPath = $lockPath
+        NoticePath = $noticePath
+        ArtifactResolver = $artifactResolver
+        SevenZipExtractor = $sevenZipExtractor
+        BootstrapX86 = $bootstrapX86
+        BootstrapX64 = $bootstrapX64
+    }
+}
+
+Describe 'Blind Swordsman prerequisite bundle builder' {
+    AfterEach {
+        if ($null -ne $fixture -and (Test-Path -LiteralPath $fixture.Root)) {
+            Remove-Item -LiteralPath $fixture.Root -Recurse -Force
+        }
+        $fixture = $null
+    }
+
+    It 'builds the locked Reloaded, Shared Hooks, dotnet, and notices tree' {
+        $fixture = New-PrerequisiteFixture
+        & $builderPath -OutputPath $fixture.Output -LockPath $fixture.LockPath -NoticePath $fixture.NoticePath `
+            -ArtifactResolver $fixture.ArtifactResolver -SevenZipExtractor $fixture.SevenZipExtractor `
+            -BootstrapperX86Override $fixture.BootstrapX86 -BootstrapperX64Override $fixture.BootstrapX64 | Out-Null
+
+        foreach ($relative in @(
+            'dependency-bundle.json',
+            'reloaded\Reloaded-II.exe',
+            'reloaded\_asi_extract\ASILoader32.dll',
+            'reloaded\_asi_extract\ASILoader64.dll',
+            'reloaded\Loader\X86\Bootstrapper\Reloaded.Mod.Loader.Bootstrapper.dll',
+            'reloaded\Loader\X64\Bootstrapper\Reloaded.Mod.Loader.Bootstrapper.dll',
+            'shared-hooks\ModConfig.json',
+            'shared-hooks\x86\Reloaded.Hooks.ReloadedII.dll',
+            'shared-hooks\x64\Reloaded.Hooks.ReloadedII.dll',
+            'dotnet\windowsdesktop-runtime-9.0.8-win-x86.exe',
+            'dotnet\windowsdesktop-runtime-9.0.8-win-x64.exe',
+            'notices\THIRD-PARTY-NOTICES.md',
+            'notices\Reloaded-II-GPL-3.0.txt',
+            'notices\Reloaded-Shared-Hooks-LGPL-3.0.txt',
+            'notices\dotnet-LICENSE.txt',
+            'notices\dotnet-THIRD-PARTY-NOTICES.txt'
+        )) {
+            Test-Path -LiteralPath (Join-Path $fixture.Output $relative) -PathType Leaf | Should Be $true
+        }
+        $manifest = [IO.File]::ReadAllText((Join-Path $fixture.Output 'dependency-bundle.json')) | ConvertFrom-Json
+        $manifest.schemaVersion | Should Be 1
+        $manifest.reloaded.version | Should Be '1.30.3'
+        $manifest.sharedHooks.version | Should Be '1.16.3'
+        $manifest.dotnetDesktopRuntime.version | Should Be '9.0.8'
+    }
+
+    It 'rejects a digest mismatch without publishing a partial output' {
+        $fixture = New-PrerequisiteFixture
+        $lock = [IO.File]::ReadAllText($fixture.LockPath) | ConvertFrom-Json
+        $lock.reloaded.sha256 = 'A' * 64
+        [IO.File]::WriteAllText($fixture.LockPath, ($lock | ConvertTo-Json -Depth 8))
+
+        { & $builderPath -OutputPath $fixture.Output -LockPath $fixture.LockPath -NoticePath $fixture.NoticePath `
+                -ArtifactResolver $fixture.ArtifactResolver -SevenZipExtractor $fixture.SevenZipExtractor } | Should Throw
+        Test-Path -LiteralPath $fixture.Output | Should Be $false
+    }
+
+    It 'rejects parent traversal members before extracting a zip' {
+        $fixture = New-PrerequisiteFixture -UnsafeReloadedZip
+        { & $builderPath -OutputPath $fixture.Output -LockPath $fixture.LockPath -NoticePath $fixture.NoticePath `
+                -ArtifactResolver $fixture.ArtifactResolver -SevenZipExtractor $fixture.SevenZipExtractor } | Should Throw
+        Test-Path -LiteralPath (Join-Path $fixture.Root 'outside.txt') | Should Be $false
+        Test-Path -LiteralPath $fixture.Output | Should Be $false
+    }
+}

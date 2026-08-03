@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "reloaded": {
+    "version": "1.30.3",
+    "assetName": "Release.zip",
+    "url": "https://github.com/Reloaded-Project/Reloaded-II/releases/download/1.30.3/Release.zip",
+    "size": 24996341,
+    "sha256": "1DD59C2C4C609E4EC1CA3EFF851F083A0E15E046EF84D58081230F6DD7A159DE",
+    "sourceCodeUrl": "https://github.com/Reloaded-Project/Reloaded-II/tree/1.30.3",
+    "licensePath": "LICENSE.txt",
+    "licenseSize": 52361,
+    "licenseSha256": "3B0BEC0D74B18953F7BCB946A2B3203A9FADB45AE21E11FF4CC298B18CE5A1D9"
+  },
+  "sharedHooks": {
+    "version": "1.16.3",
+    "assetName": "Reloaded.Hooks.ReloadedII1.16.3.7z",
+    "url": "https://github.com/Sewer56/Reloaded.SharedLib.Hooks.ReloadedII/releases/download/1.16.3/Reloaded.Hooks.ReloadedII1.16.3.7z",
+    "size": 741775,
+    "sha256": "2B7C2E6118A3F1EB00A2E1E9105397B0D17A118A84596308C3A6A9FF3CB14B1B",
+    "sourceCodeUrl": "https://github.com/Sewer56/Reloaded.SharedLib.Hooks.ReloadedII/tree/1.16.3",
+    "licenseName": "Reloaded-Shared-Hooks-LGPL-3.0.txt",
+    "licenseUrl": "https://raw.githubusercontent.com/Sewer56/Reloaded.SharedLib.Hooks.ReloadedII/1.16.3/LICENSE",
+    "licenseSize": 7652,
+    "licenseSha256": "E3A994D82E644B03A792A930F574002658412F62407F5FEE083F2555C5F23118"
+  },
+  "dotnetDesktopRuntime": {
+    "version": "9.0.8",
+    "sourceCodeUrl": "https://github.com/dotnet/runtime/tree/v9.0.8",
+    "licenseName": "dotnet-LICENSE.txt",
+    "licenseUrl": "https://raw.githubusercontent.com/dotnet/runtime/v9.0.8/LICENSE.TXT",
+    "licenseSize": 1116,
+    "licenseSha256": "CFC21F5E8BD655AE997EEC916138B707B1D290B83272C02A95C9F821B8C87310",
+    "thirdPartyNoticesName": "dotnet-THIRD-PARTY-NOTICES.txt",
+    "thirdPartyNoticesUrl": "https://raw.githubusercontent.com/dotnet/runtime/v9.0.8/THIRD-PARTY-NOTICES.TXT",
+    "thirdPartyNoticesSize": 74244,
+    "thirdPartyNoticesSha256": "FA3E9D0A2C52476F04FE798D7DC4F6E7EDB7B68A3D2F4D5F59A39BCE957EEDC8",
+    "installers": [
+      {
+        "architecture": "x86",
+        "name": "windowsdesktop-runtime-9.0.8-win-x86.exe",
+        "url": "https://builds.dotnet.microsoft.com/dotnet/WindowsDesktop/9.0.8/windowsdesktop-runtime-9.0.8-win-x86.exe",
+        "size": 55593768,
+        "sha256": "C86961C869501998982271D1C5005E61741821701E0ECE4DAE765ED687CD75EE",
+        "sha512": "8A9C1B6DE95330DC339B3211C52BB8F75EC73AEF6E0361D58090FAF2C66E4E831E7DE53BCE95346091A43A4102E4B480ADE7DE3625240E7797901D3E3B8AD5CB"
+      },
+      {
+        "architecture": "x64",
+        "name": "windowsdesktop-runtime-9.0.8-win-x64.exe",
+        "url": "https://builds.dotnet.microsoft.com/dotnet/WindowsDesktop/9.0.8/windowsdesktop-runtime-9.0.8-win-x64.exe",
+        "size": 60821200,
+        "sha256": "C9473A9C3DE6500597B7B7BB3EC82730027B6786034BA1B9115B79377D0233DD",
+        "sha512": "14EEAE9E47137F0D550E4AB73ADA9C8E253F9C989EA975789D70D9F605BF946F4E9CDDF0D2BC8028CA3AD10D9277F51181DB94CB3623798FB876E637D283F93E"
+      }
+    ]
+  }
+}

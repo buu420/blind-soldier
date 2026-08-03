@@ -7,6 +7,7 @@ param(
     [string] $MinimumSetupVersion = '0.1.0-pre.3',
     [string] $Repository = 'buu420/blind-swordsman',
     [Parameter(DontShow=$true)] [scriptblock] $PackageBuilder,
+    [Parameter(DontShow=$true)] [scriptblock] $PrerequisiteBundleBuilder,
     [Parameter(DontShow=$true)] [scriptblock] $SetupPublisher,
     [Parameter(DontShow=$true)] [scriptblock] $ArtifactValidator
 )
@@ -52,6 +53,7 @@ $stagingRoot = Join-Path $outputDirectory.Parent.FullName ('.{0}.staging-{1}' -f
 $assetRoot = Join-Path $stagingRoot 'assets'
 $runtimeRoot = Join-Path $stagingRoot 'runtime'
 $packagePath = Join-Path $runtimeRoot 'package\ff7.accessibility.reloaded'
+$prerequisiteBundlePath = Join-Path $runtimeRoot 'prerequisites'
 $launcherSourceRoot = Join-Path $scriptRoot 'installer-assets\launcher'
 $launcherPrismSource = Join-Path $scriptRoot 'Ff7.Accessibility.Reloaded\Native\win-x86\prism.dll'
 $launcherBundlePath = Join-Path $runtimeRoot 'launcher'
@@ -306,6 +308,19 @@ try {
     }
     if (-not (Test-Path -LiteralPath (Join-Path $packagePath 'ModConfig.json') -PathType Leaf)) {
         throw 'Runtime package builder did not produce ff7.accessibility.reloaded/ModConfig.json.'
+    }
+    if ($null -ne $PrerequisiteBundleBuilder) {
+        & $PrerequisiteBundleBuilder $prerequisiteBundlePath
+    }
+    else {
+        & (Join-Path $scriptRoot 'Build-BlindSwordsmanPrerequisiteBundle.ps1') `
+            -OutputPath $prerequisiteBundlePath | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            throw "Prerequisite bundle builder exited with code $LASTEXITCODE."
+        }
+    }
+    if (-not (Test-Path -LiteralPath (Join-Path $prerequisiteBundlePath 'dependency-bundle.json') -PathType Leaf)) {
+        throw 'Prerequisite bundle builder did not produce dependency-bundle.json.'
     }
     Copy-ValidatedLauncherBundle -SourceRoot $launcherSourceRoot `
         -PrismSource $launcherPrismSource -DestinationRoot $launcherBundlePath
