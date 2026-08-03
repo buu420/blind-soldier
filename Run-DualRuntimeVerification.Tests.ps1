@@ -131,6 +131,9 @@ Describe 'Run-DualRuntimeVerification' {
                 [string]$pesterCommand.Arguments[-1] | Should Match 'Invoke-Pester -Script '
                 [string]$pesterCommand.Arguments[-1] | Should Not Match 'Invoke-Pester -Path '
             }
+            $protectedCommand = @($capturedCommands | Where-Object Name -eq '7th Heaven CrashGuardSmokeTests')
+            $protectedCommand.Count | Should Be 1
+            (Test-Path -LiteralPath $protectedCommand[0].WorkingDirectory -PathType Container) | Should Be $true
             $inspectedPaths.Count | Should Be 1
             $inspectedPaths[0].StartsWith([IO.Path]::GetFullPath($fixture), [StringComparison]::OrdinalIgnoreCase) |
                 Should Be $true
