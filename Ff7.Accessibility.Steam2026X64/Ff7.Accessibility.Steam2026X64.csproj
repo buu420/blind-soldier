@@ -1,0 +1,137 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PlatformTarget>x64</PlatformTarget>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Ff7.Accessibility.Core\Ff7.Accessibility.Core.csproj" />
+    <ProjectReference Include="..\Ff7.Accessibility.LegacyLayout\Ff7.Accessibility.LegacyLayout.csproj" />
+    <ProjectReference Include="..\Ff7.Accessibility.Runtime.Abstractions\Ff7.Accessibility.Runtime.Abstractions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NAudio.Vorbis" Version="1.5.0" />
+    <PackageReference Include="NAudio.WinMM" Version="2.3.0" />
+    <PackageReference Include="Reloaded.Hooks" Version="4.3.3" />
+    <PackageReference Include="Reloaded.Memory" Version="9.4.3" />
+    <PackageReference Include="Reloaded.Mod.Interfaces" Version="2.5.0" />
+    <PackageReference Include="SteamAudio.NET.Natives" Version="4.6.1" />
+    <PackageReference Include="System.Drawing.Common" Version="8.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\Ff7.Accessibility.Reloaded\ActiveMenuFrameSpeechCoordinator.cs" Link="Shared\ActiveMenuFrameSpeechCoordinator.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\PartyTargetMenuSelectionFormatter.cs" Link="Shared\PartyTargetMenuSelectionFormatter.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\PartyFormationSpeechTracker.cs" Link="Shared\PartyFormationSpeechTracker.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\BattleMenuFrameSpeechCoordinator.cs" Link="Shared\BattleMenuFrameSpeechCoordinator.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\BattleEncounterSpeechTracker.cs" Link="Shared\BattleEncounterSpeechTracker.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\BattleTargetSpeechTracker.cs" Link="Shared\BattleTargetSpeechTracker.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\BattleMessageSpeechTracker.cs" Link="Shared\BattleMessageSpeechTracker.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\BattleEnemyActionSpeechTracker.cs" Link="Shared\BattleEnemyActionSpeechTracker.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\BattleDamageSpeechTracker.cs" Link="Shared\BattleDamageSpeechTracker.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\BattleStatusSpeechTracker.cs" Link="Shared\BattleStatusSpeechTracker.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\BattleResultsSpeechTracker.cs" Link="Shared\BattleResultsSpeechTracker.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\TifaSlotSpeechTracker.cs" Link="Shared\TifaSlotSpeechTracker.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\CosmoFootstepConfig.cs" Link="Shared\CosmoFootstepConfig.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\CosmoFootstepSequencer.cs" Link="Shared\CosmoFootstepSequencer.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\WorldMapData.cs" Link="Shared\WorldMapData.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\WorldMapDataLoader.cs" Link="Shared\WorldMapDataLoader.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\WorldMapTargetCatalog.cs" Link="Shared\WorldMapTargetCatalog.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\WorldMapRoutePlanner.cs" Link="Shared\WorldMapRoutePlanner.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\WorldMapFunnel.cs" Link="Shared\WorldMapFunnel.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\WorldMapConnectedRunFormatter.cs" Link="Shared\WorldMapConnectedRunFormatter.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\WorldMapFootstepTracker.cs" Link="Shared\WorldMapFootstepTracker.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\WorldMapNavigationController.cs" Link="Shared\WorldMapNavigationController.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\WorldMapRuntimeContext.cs" Link="Shared\WorldMapRuntimeContext.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\DeferredZoneSpeechTracker.cs" Link="Shared\DeferredZoneSpeechTracker.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldCountdownSpeechCoordinator.cs" Link="Shared\FieldCountdownSpeechCoordinator.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldFootstepDistanceProbe.cs" Link="Shared\FieldFootstepDistanceProbe.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldFootstepTracker.cs" Link="Shared\FieldFootstepTracker.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldNavigationObjectReader.cs" Link="Shared\FieldNavigationObjectReader.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\ShinraElevatorObjectCatalog.cs" Link="Shared\ShinraElevatorObjectCatalog.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldNavigationNpcReader.cs" Link="Shared\FieldNavigationNpcReader.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldNavigationDynamicObstacleReader.cs" Link="Shared\FieldNavigationDynamicObstacleReader.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldObjectProximityCueTracker.cs" Link="Shared\FieldObjectProximityCueTracker.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldCutsceneDescriptionTracker.cs" Link="Shared\FieldCutsceneDescriptionTracker.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldCutsceneSpeechPriority.cs" Link="Shared\FieldCutsceneSpeechPriority.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldOpcodeParameterReader.cs" Link="Shared\FieldOpcodeAddressResolver.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldNavigationDistanceCalibration.cs" Link="Shared\FieldNavigationDistanceCalibration.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldNavigationAssistant.cs" Link="Shared\FieldNavigationAssistant.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldNavigationCorridorLookahead.cs" Link="Shared\FieldNavigationCorridorLookahead.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldNavigationMovementObserver.cs" Link="Shared\FieldNavigationMovementObserver.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldNavigationPositionContinuity.cs" Link="Shared\FieldNavigationPositionContinuity.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldNavigationPredictiveGuidance.cs" Link="Shared\FieldNavigationPredictiveGuidance.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldNavigationRouteTracker.cs" Link="Shared\FieldNavigationRouteTracker.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldNavigationRouteProgressTracker.cs" Link="Shared\FieldNavigationRouteProgressTracker.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\NativeFieldNavigationProgressBar.cs" Link="Shared\NativeFieldNavigationProgressBar.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\NavigationProgressControls.cs" Link="Shared\NavigationProgressControls.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldNavigationSpokenCue.cs" Link="Shared\FieldNavigationSpokenCue.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldWalkmeshNavigation.cs" Link="Shared\FieldWalkmeshNavigation.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldLadderStateReader.cs" Link="Shared\FieldLadderStateReader.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldLadderProximityCueTracker.cs" Link="Shared\FieldLadderProximityCueTracker.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\SwingingBarTimingCueTracker.cs" Link="Shared\SwingingBarTimingCueTracker.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\Floor60SoldierTurnCueTracker.cs" Link="Shared\Floor60SoldierTurnCueTracker.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\ImmediateWaveCuePlayer.cs" Link="Shared\ImmediateWaveCuePlayer.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldScriptNavigationCatalog.cs" Link="Shared\FieldScriptNavigationCatalog.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldScriptNavigationTransitionTracker.cs" Link="Shared\FieldScriptNavigationTransitionTracker.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldNavigationSpeechPolicy.cs" Link="Shared\FieldNavigationSpeechPolicy.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldStoryTargetReader.cs" Link="Shared\FieldStoryTargetReader.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\ReachableFieldExitTargetProvider.cs" Link="Shared\ReachableFieldExitTargetProvider.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldExitLabelResolver.cs" Link="Shared\FieldExitLabelResolver.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldMapNameCatalog.cs" Link="Shared\FieldMapNameCatalog.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldRoomDescriptorCatalog.cs" Link="Shared\FieldRoomDescriptorCatalog.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldExitProximityCueTracker.cs" Link="Shared\FieldExitProximityCueTracker.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldDialogueDrawSpeechTracker.cs" Link="Shared\FieldDialogueDrawSpeechTracker.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldAskChoiceSpeechTracker.cs" Link="Shared\FieldAskChoiceSpeechTracker.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FootstepSoundPlayer.cs" Link="Shared\FootstepSoundPlayer.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FootstepVolumePolicy.cs" Link="Shared\FootstepVolumePolicy.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\MateriaTutorialSpeechTracker.cs" Link="Shared\MateriaTutorialSpeechTracker.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\NameEntryCharacterTable.cs" Link="Shared\NameEntryCharacterTable.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\NameEntryNativeNameTracker.cs" Link="Shared\NameEntryNativeNameTracker.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\NavigationBeaconContracts.cs" Link="Shared\NavigationBeaconContracts.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\NavigationBeaconPlayer.cs" Link="Shared\NavigationBeaconPlayer.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\NavigationBeaconSound.cs" Link="Shared\NavigationBeaconSound.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\HighwayAutoSteeringController.cs" Link="Shared\HighwayAutoSteeringController.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\HighwayAccessibilityCoordinator.cs" Link="Shared\HighwayAccessibilityCoordinator.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\OpeningMovieAudioTrackPlayer.cs" Link="Shared\OpeningMovieAudioTrackPlayer.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\OpeningMovieAudioTrackVolumePolicy.cs" Link="Shared\OpeningMovieAudioTrackVolumePolicy.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\PrismNativeSpeaker.cs" Link="Shared\PrismNativeSpeaker.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\SaveMenuSpeechTracker.cs" Link="Shared\SaveMenuSpeechTracker.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\SaveSlotSpeechFormatter.cs" Link="Shared\SaveSlotSpeechFormatter.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\TitleLoadMenuSpeechTracker.cs" Link="Shared\TitleLoadMenuSpeechTracker.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\SteamAudioNative.cs" Link="Shared\SteamAudioNative.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\StaticMenuCursorSpeechTracker.cs" Link="Shared\StaticMenuCursorSpeechTracker.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\StatusMenuSpeechTracker.cs" Link="Shared\StatusMenuSpeechTracker.cs" />
+    <EmbeddedResource Include="..\Ff7.Accessibility.Reloaded\Assets\navigation\field_objects.json"
+                      Link="Assets\navigation\field_objects.json"
+                      LogicalName="Ff7.Accessibility.Reloaded.Assets.navigation.field_objects.json" />
+    <EmbeddedResource Include="..\Ff7.Accessibility.Reloaded\Assets\navigation\field_story_events.json"
+                      Link="Assets\navigation\field_story_events.json"
+                      LogicalName="Ff7.Accessibility.Reloaded.Assets.navigation.field_story_events.json" />
+    <None Include="..\Ff7.Accessibility.Reloaded\Assets\navigation\field_zone_transition.wav" Link="Assets\navigation\field_zone_transition.wav" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Ff7.Accessibility.Reloaded\Assets\navigation\navigation_beacon_214_remix.wav" Link="Assets\navigation\navigation_beacon_214_remix.wav" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Ff7.Accessibility.Reloaded\Assets\navigation\ladder_061.wav" Link="Assets\navigation\ladder_061.wav" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Ff7.Accessibility.Reloaded\Assets\navigation\swing_jump_058.wav" Link="Assets\navigation\swing_jump_058.wav" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Ff7.Accessibility.Reloaded\Assets\navigation\floor60_statue_134.wav" Link="Assets\navigation\floor60_statue_134.wav" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Ff7.Accessibility.Reloaded\Assets\highway\enemy_lower_priority_058.wav" Link="Assets\highway\enemy_lower_priority_058.wav" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Ff7.Accessibility.Reloaded\Assets\highway\enemy_important_059_short.wav" Link="Assets\highway\enemy_important_059_short.wav" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Ff7.Accessibility.Reloaded\Assets\highway\truck_beacon_478.wav" Link="Assets\highway\truck_beacon_478.wav" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Ff7.Accessibility.Reloaded\Assets\navigation\object_materia_190_pitch70.wav" Link="Assets\navigation\object_materia_190_pitch70.wav" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Ff7.Accessibility.Reloaded\Assets\navigation\object_chest_253_pitch70.wav" Link="Assets\navigation\object_chest_253_pitch70.wav" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Ff7.Accessibility.Reloaded\Assets\navigation\object_item_357_pitch70.wav" Link="Assets\navigation\object_item_357_pitch70.wav" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Ff7.Accessibility.Reloaded\Assets\footsteps\selected_subway_step.ogg" Link="Assets\footsteps\selected_subway_step.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Ff7.Accessibility.Reloaded\Assets\footsteps\cosmo\config.toml" Link="Assets\footsteps\cosmo\config.toml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Ff7.Accessibility.Reloaded\Assets\footsteps\cosmo\*.ogg" Link="Assets\footsteps\cosmo\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\external\kujata\field-id-to-world-map-coords.json" Link="Assets\world\field-id-to-world-map-coords.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\external\kujata\wm-field-menu-names.txt" Link="Assets\world\wm-field-menu-names.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Native\win-x64\prism.dll" CopyToOutputDirectory="PreserveNewest" Link="prism.dll" />
+    <None Include="$(NuGetPackageRoot)steamaudio.net.natives\4.6.1\runtimes\win-x64\native\phonon.dll" CopyToOutputDirectory="PreserveNewest" Link="phonon.dll" Condition="Exists('$(NuGetPackageRoot)steamaudio.net.natives\4.6.1\runtimes\win-x64\native\phonon.dll')" />
+  </ItemGroup>
+
+</Project>

@@ -40,15 +40,17 @@
 - Consumes: the verified parity matrix and two Kujata metadata files from the current parent workspace.
 - Produces: a repository whose build and installer paths resolve entirely beneath the repository root.
 
-- [ ] **Step 1: Add Git ignore and text-normalization rules**
+- [x] **Step 1: Add Git ignore and text-normalization rules**
 
 Ignore `bin`, `obj`, `dist`, test results, logs, crash dumps, IDE state, local backups, and `tools/ghidra`. Normalize text to LF while retaining CRLF for Windows command files.
 
-- [ ] **Step 2: Add the three verified external inputs**
+- [x] **Step 2: Add the three verified external inputs**
 
-Copy the current parity matrix byte-for-byte to `analysis/dual_runtime/parity-matrix.json`, and the two current Kujata metadata inputs to `external/kujata/`.
+Copy the current parity matrix and two Kujata metadata inputs with identical
+parsed content to `analysis/dual_runtime/` and `external/kujata/`. Repository
+line-ending normalization may change their byte hashes without changing data.
 
-- [ ] **Step 3: Repoint every production and test consumer**
+- [x] **Step 3: Repoint every production and test consumer**
 
 Use repository-local paths:
 
@@ -61,7 +63,7 @@ Join-Path $scriptRoot 'external\kujata\wm-field-menu-names.txt'
 Project files beneath a project directory use `..\analysis\...` or
 `..\external\...` as appropriate.
 
-- [ ] **Step 4: Verify copied inputs and path closure**
+- [x] **Step 4: Verify copied inputs and path closure**
 
 Run SHA-256 comparisons against the current parent-workspace files, then run:
 
@@ -71,7 +73,7 @@ rg -n "\.\.\\analysis|\.\.\\tools\\kujata" -g '*.ps1' -g '*.csproj' .
 
 Expected: no consumer reaches outside the new repository for these inputs.
 
-- [ ] **Step 5: Commit the portable repository foundation**
+- [x] **Step 5: Commit the portable repository foundation**
 
 ```powershell
 git add .gitignore .gitattributes analysis external Build-DualRuntimePackage.ps1 Install-FF7ReloadedMod.ps1 Launch-FF7Reloaded.ps1 Run-DualRuntimeVerification.ps1 Run-DualRuntimeVerification.Tests.ps1 FF7SteamInstall.Tests.ps1 Ff7.Accessibility.Parity.Tests/Ff7.Accessibility.Parity.Tests.csproj Ff7.Accessibility.Reloaded/Ff7.Accessibility.Reloaded.csproj Ff7.Accessibility.Steam2026X64/Ff7.Accessibility.Steam2026X64.csproj

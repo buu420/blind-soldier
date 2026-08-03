@@ -1,0 +1,122 @@
+{
+  "schemaVersion": 1,
+  "generatedUtc": "2026-07-20T04:44:59.9606287Z",
+  "policy": {
+    "requiredCapabilityMask": "FullParity",
+    "partialRuntimeMayBeReleased": false,
+    "staticEvidenceMayEnableSpeech": false,
+    "falseOrIncompleteSpeechIsFailure": true
+  },
+  "runtimes": {
+    "legacyX86": {
+      "runtimeId": "ff7-legacy-x86",
+      "sha256": "4274AB2D52B67E547786FD959474E020FD3052A34DBCD7DA708F86BCF5E48225",
+      "releaseStatus": "known-working-baseline"
+    },
+    "steam2026X64": {
+      "runtimeId": "ff7-steam-2026-x64",
+      "sha256": "57A23D166D69E46B9E3339F779D4A3C4FEB402A989FA7291D0D9B4A1953ABB4B",
+      "releaseStatus": "research-only-fail-closed"
+    }
+  },
+  "capabilities": [
+    {
+      "capability": "Lifecycle",
+      "legacyX86": "baseline-passing",
+      "steam2026X64": "foundation-offline-only",
+      "x64SpeechEnabled": false,
+      "staticEvidence": ["evidence-atlas.json#translated-address-resolver", "x64-battle-lifecycle-atlas.md"],
+      "offlineEvidence": ["exact fingerprint", "internal page-table and translated call-frame primitives", "serialized pointer-free coherent lifecycle capture and revision commit", "old-after-new concurrency rejection fixture", "concrete fail-closed capability diagnostics"],
+      "requiredLiveEvidence": ["decrypted runtime readiness", "clean load/suspend/resume/unload"]
+    },
+    {
+      "capability": "ForegroundInput",
+      "legacyX86": "baseline-passing",
+      "steam2026X64": "foundation-offline-only",
+      "x64SpeechEnabled": false,
+      "staticEvidence": ["evidence-atlas.json#foreground-hotkey-state"],
+      "offlineEvidence": ["exact-fingerprint Win32 foreground ownership adapter", "double foreground ownership sampling around physical key state", "shared background-safe rising-edge tracker"],
+      "requiredLiveEvidence": ["foreground ownership", "rising-edge reset", "no input synthesis or consumption"]
+    },
+    {
+      "capability": "Menus",
+      "legacyX86": "baseline-passing",
+      "steam2026X64": "candidate",
+      "x64SpeechEnabled": false,
+      "staticEvidence": ["x64-menus-dialogue-atlas.md", "evidence-atlas.json#menu-text-render-frame"],
+      "offlineEvidence": ["shared FFVII parsers", "checked shared menu and complete name-entry layouts", "exact-fingerprint direct-versus-translated menu and name-entry parity fixtures", "address-free public widget observations", "exact translated menu callback contracts", "six-callback original-once research ingress with fatal native-boundary containment"],
+      "requiredLiveEvidence": ["visible label correlation", "disabled state", "cursor grids", "scroll transitions", "tutorials", "name entry"]
+    },
+    {
+      "capability": "Dialogue",
+      "legacyX86": "baseline-passing",
+      "steam2026X64": "candidate",
+      "x64SpeechEnabled": false,
+      "staticEvidence": ["x64-menus-dialogue-atlas.md", "evidence-atlas.json#field-visible-dialogue-page"],
+      "offlineEvidence": ["shared text and flevel parsers", "complete active-window read failure invalidates the observation", "native-order retained lifecycle and chronology queue", "exact field-window-dialog-token ASK ownership", "Prism-success delivery acknowledgement and retry", "prompt/choice completeness and polling recovery barriers", "exact-fingerprint ordinary visible-window observation facade", "exact ASK current-line callback contract", "unmapped, remapped, torn, foreign-owner, and ambiguity rejection fixtures"],
+      "requiredLiveEvidence": ["single and overlapping windows", "multi-page visibility", "preview without display", "ASK prompt and selected choice"]
+    },
+    {
+      "capability": "Field",
+      "legacyX86": "baseline-passing",
+      "steam2026X64": "candidate",
+      "x64SpeechEnabled": false,
+      "staticEvidence": ["x64-field-navigation-atlas.md", "evidence-atlas.json#field-position-snapshot"],
+      "offlineEvidence": ["checked field position and transition bookends", "checked boundary and control-transform readers", "exact-fingerprint direct-versus-translated field observation facade", "unmapped, remapped, torn, and incomplete-domain rejection fixtures"],
+      "requiredLiveEvidence": ["module and field bookends", "model bounds", "zone transitions", "script and cutscene state"]
+    },
+    {
+      "capability": "Navigation",
+      "legacyX86": "baseline-passing",
+      "steam2026X64": "candidate",
+      "x64SpeechEnabled": false,
+      "staticEvidence": ["x64-field-navigation-atlas.md", "evidence-atlas.json#walkmesh-navigation-snapshot"],
+      "offlineEvidence": ["immutable shared boundary-bit snapshots", "shared checked gateway-table double snapshots", "exact-fingerprint direct-versus-translated position/control/boundary/gateway parity fixtures"],
+      "requiredLiveEvidence": ["walkmesh and neighbors", "gateways", "entities and exact labels", "routes", "footsteps and positional cues"]
+    },
+    {
+      "capability": "Battle",
+      "legacyX86": "baseline-passing",
+      "steam2026X64": "candidate",
+      "x64SpeechEnabled": false,
+      "staticEvidence": ["x64-battle-lifecycle-atlas.md", "evidence-atlas.json#battle-state-frame"],
+      "offlineEvidence": ["shared checked battle, results, and damage layouts", "private raw actor coherence before public projection", "public-constructor-enforced unsensed-enemy redaction", "visible popup-backed enemy damage and narrow defeat correlation", "exact-fingerprint direct-versus-translated battle observation parity fixtures", "per-domain unmapped, remapped, torn, overflow, index, and mask rejection"],
+      "requiredLiveEvidence": ["menus and target masks", "actions and damage", "status", "results and rewards", "unsensed enemy privacy"]
+    },
+    {
+      "capability": "Movies",
+      "legacyX86": "baseline-passing",
+      "steam2026X64": "candidate",
+      "x64SpeechEnabled": false,
+      "staticEvidence": ["x64-battle-lifecycle-atlas.md", "evidence-atlas.json#opening-movie-lifecycle"],
+      "offlineEvidence": ["shared exact opening-key dispatcher", "exact native x64 callback signature contract with opaque host address", "opening-only lifecycle state machine", "original-once native ingress with safe-return fatal degradation and no unmanaged exception escape"],
+      "requiredLiveEvidence": ["prepare success", "start rising edge", "stop/release/skip", "audio synchronization", "non-opening rejection"]
+    },
+    {
+      "capability": "Saves",
+      "legacyX86": "baseline-passing",
+      "steam2026X64": "candidate",
+      "x64SpeechEnabled": false,
+      "staticEvidence": ["x64-battle-lifecycle-atlas.md", "evidence-atlas.json#native-save-slot-preview"],
+      "offlineEvidence": ["native LocalAppData per-SteamID candidate discovery boundary", "stable double-read magic, occupancy-mask, and occupied-slot CRC contract probe", "public output limited to immutable verified occupied slots and static autosave-target occupancy", "raw selection byte and occupancy mask remain internal", "officially documented 2013 incompatibility and autosave requirement"],
+      "requiredLiveEvidence": ["occupied slot", "empty slot", "autosave or translated formats", "native row and parsed preview agreement"]
+    }
+  ],
+  "releaseGate": {
+    "legacyX86Ready": true,
+    "steam2026X64Ready": false,
+    "blockingCapabilities": [
+      "Lifecycle",
+      "ForegroundInput",
+      "Menus",
+      "Dialogue",
+      "Field",
+      "Navigation",
+      "Battle",
+      "Movies",
+      "Saves"
+    ],
+    "requiredUserLedValidation": true,
+    "userLedValidationComplete": false
+  }
+}

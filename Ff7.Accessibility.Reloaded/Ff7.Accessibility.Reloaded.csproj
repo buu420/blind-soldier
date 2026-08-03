@@ -1,0 +1,53 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PlatformTarget>x86</PlatformTarget>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Ff7.Accessibility.Core\Ff7.Accessibility.Core.csproj" />
+    <ProjectReference Include="..\Ff7.Accessibility.LegacyLayout\Ff7.Accessibility.LegacyLayout.csproj" />
+    <ProjectReference Include="..\Ff7.Accessibility.Runtime.Abstractions\Ff7.Accessibility.Runtime.Abstractions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NAudio.Vorbis" Version="1.5.0" />
+    <PackageReference Include="NAudio.WinMM" Version="2.3.0" />
+    <PackageReference Include="Reloaded.Hooks" Version="4.3.3" />
+    <PackageReference Include="Reloaded.Memory" Version="9.4.3" />
+    <PackageReference Include="Reloaded.Mod.Interfaces" Version="2.5.0" />
+    <PackageReference Include="SteamAudio.NET.Natives" Version="4.6.1" />
+    <PackageReference Include="System.Drawing.Common" Version="8.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Assets\navigation\field_objects.json" />
+    <EmbeddedResource Include="Assets\navigation\field_story_events.json" />
+    <None Include="Assets\navigation\navigation_beacon_214_remix.wav" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\navigation\field_zone_transition.wav" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\navigation\ladder_061.wav" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\navigation\swing_jump_058.wav" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\navigation\floor60_statue_134.wav" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\highway\enemy_lower_priority_058.wav" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\highway\enemy_important_059_short.wav" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\highway\truck_beacon_478.wav" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\navigation\object_materia_190_pitch70.wav" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\navigation\object_chest_253_pitch70.wav" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\navigation\object_item_357_pitch70.wav" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\opening_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="ModConfig.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\footsteps\selected_subway_step.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\footsteps\cosmo\config.toml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\footsteps\cosmo\*.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\external\kujata\field-id-to-world-map-coords.json" Link="Assets\world\field-id-to-world-map-coords.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\external\kujata\wm-field-menu-names.txt" Link="Assets\world\wm-field-menu-names.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Native\win-x86\prism.dll" CopyToOutputDirectory="PreserveNewest" Link="prism.dll" />
+    <None Include="$(NuGetPackageRoot)steamaudio.net.natives\4.6.1\runtimes\win-x86\native\phonon.dll" CopyToOutputDirectory="PreserveNewest" Link="phonon.dll" Condition="Exists('$(NuGetPackageRoot)steamaudio.net.natives\4.6.1\runtimes\win-x86\native\phonon.dll')" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,40 @@
+# .NET build output
+**/bin/
+**/obj/
+artifacts/
+dist/
+TestResults/
+coverage/
+
+# IDE and user-local state
+.vs/
+.vscode/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Logs, traces, dumps, and temporary files
+*.log
+*.trace
+*.dmp
+*.tmp
+*.temp
+*.bak
+*.orig
+*.rej
+*.pid
+
+# Local backups and package staging
+*.backup-*/
+AccessibilityBackups/
+.worktrees/
+
+# Downloaded or generated reverse-engineering workspaces
+tools/ghidra/
+
+# Operating-system metadata
+Thumbs.db
+Desktop.ini
+.DS_Store
