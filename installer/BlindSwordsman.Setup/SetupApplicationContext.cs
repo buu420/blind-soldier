@@ -1,12 +1,17 @@
 using BlindSwordsman.Setup.Core;
 using System.Diagnostics;
+using System.Reflection;
 using System.Text.Json;
 
 namespace BlindSwordsman.Setup;
 
 public sealed class SetupApplicationContext : ApplicationContext
 {
-    private static readonly SemanticVersion CurrentSetupVersion = SemanticVersion.Parse("0.1.0-pre.4");
+    private static readonly SemanticVersion CurrentSetupVersion = SemanticVersion.Parse(
+        typeof(SetupApplicationContext).Assembly
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
+            .InformationalVersion
+        ?? throw new InvalidOperationException("Blind Soldier setup has no published version."));
     private readonly SetupCommandLineOptions options;
     private readonly SetupForm form;
     private readonly InstallerPaths paths;
@@ -30,7 +35,7 @@ public sealed class SetupApplicationContext : ApplicationContext
     {
         this.options = options ?? throw new ArgumentNullException(nameof(options));
         paths = InstallerPaths.ForCurrentUser();
-        stateStore = new InstallStateStore(paths.InstallStatePath, paths.LegacyInstallStatePath);
+        stateStore = new InstallStateStore(paths.InstallStatePath);
         log = new SetupLog(paths.LogDirectory);
         resources = EmbeddedResourceBundle.Extract();
         httpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(15) };

@@ -17,10 +17,7 @@ public sealed record WindowsRegistrationData(
 public static class WindowsRegistration
 {
     private const string UninstallKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\Blind Soldier";
-    private const string LegacyUninstallKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\Blind Swordsman";
     private const string UpdateShortcutName = "Check for Blind Soldier Updates.lnk";
-    private const string LegacyStartMenuDirectoryName = "Blind Swordsman";
-    private const string LegacyUpdateShortcutName = "Check for Blind Swordsman Updates.lnk";
 
     public static WindowsRegistrationData Build(
         InstallState state,
@@ -64,18 +61,14 @@ public static class WindowsRegistration
             key.SetValue("NoRepair", 0, RegistryValueKind.DWord);
         }
 
-        Registry.CurrentUser.DeleteSubKeyTree(LegacyUninstallKeyPath, throwOnMissingSubKey: false);
-        RemoveLegacyUpdateShortcut(data.UpdateShortcut.Path);
         CreateShortcut(data.UpdateShortcut);
     }
 
     public static void Remove(string startMenuDirectory)
     {
         Registry.CurrentUser.DeleteSubKeyTree(UninstallKeyPath, throwOnMissingSubKey: false);
-        Registry.CurrentUser.DeleteSubKeyTree(LegacyUninstallKeyPath, throwOnMissingSubKey: false);
         var directory = System.IO.Path.GetFullPath(startMenuDirectory);
         RemoveShortcutAndEmptyDirectory(System.IO.Path.Combine(directory, UpdateShortcutName));
-        RemoveShortcutAndEmptyDirectory(GetLegacyUpdateShortcutPath(directory));
     }
 
     public static void RemoveInstalledSetup(string installedSetupPath)
@@ -99,22 +92,6 @@ public static class WindowsRegistration
             throw new IOException("Windows could not schedule the running setup executable for removal.",
                 new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error()));
         }
-    }
-
-    private static void RemoveLegacyUpdateShortcut(string currentShortcutPath)
-    {
-        var currentDirectory = System.IO.Path.GetDirectoryName(System.IO.Path.GetFullPath(currentShortcutPath))!;
-        var legacyShortcut = GetLegacyUpdateShortcutPath(currentDirectory);
-        if (!string.Equals(legacyShortcut, currentShortcutPath, StringComparison.OrdinalIgnoreCase))
-        {
-            RemoveShortcutAndEmptyDirectory(legacyShortcut);
-        }
-    }
-
-    private static string GetLegacyUpdateShortcutPath(string currentStartMenuDirectory)
-    {
-        var programsDirectory = System.IO.Path.GetDirectoryName(System.IO.Path.GetFullPath(currentStartMenuDirectory))!;
-        return System.IO.Path.Combine(programsDirectory, LegacyStartMenuDirectoryName, LegacyUpdateShortcutName);
     }
 
     private static void RemoveShortcutAndEmptyDirectory(string shortcut)

@@ -253,19 +253,6 @@ public sealed class SetupOrchestrator(
                 state,
                 paths.InstalledSetupPath,
                 paths.StartMenuDirectory));
-            try
-            {
-                stateStore.DeleteLegacy();
-                if (!string.IsNullOrWhiteSpace(paths.LegacyInstalledSetupPath) &&
-                    !SamePath(paths.LegacyInstalledSetupPath, paths.InstalledSetupPath))
-                {
-                    WindowsRegistration.RemoveInstalledSetup(paths.LegacyInstalledSetupPath);
-                }
-            }
-            catch (Exception exception)
-            {
-                log.Write($"The completed installation preserved legacy setup state during cleanup: {exception.Message}");
-            }
             Report(progress, "Complete", 100, "Blind Soldier installation completed.");
             log.Write("Installation completed and Windows registration was written.");
             return state;
@@ -311,11 +298,6 @@ public sealed class SetupOrchestrator(
             WindowsRegistration.Remove(paths.StartMenuDirectory);
             stateStore.Delete();
             WindowsRegistration.RemoveInstalledSetup(paths.InstalledSetupPath);
-            if (!string.IsNullOrWhiteSpace(paths.LegacyInstalledSetupPath) &&
-                !SamePath(paths.LegacyInstalledSetupPath, paths.InstalledSetupPath))
-            {
-                WindowsRegistration.RemoveInstalledSetup(paths.LegacyInstalledSetupPath);
-            }
             Report(progress, "Complete", 100, "Blind Soldier was uninstalled. Changed user files were preserved.");
             log.Write("Uninstall completed.");
         }

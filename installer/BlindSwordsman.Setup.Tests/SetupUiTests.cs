@@ -1,5 +1,6 @@
 using BlindSwordsman.Setup;
 using BlindSwordsman.Setup.Core;
+using System.Reflection;
 using System.Windows.Forms;
 
 static class SetupUiTests
@@ -7,10 +8,28 @@ static class SetupUiTests
     public static void Run()
     {
         ParsesSupportedCommandLineModesStrictly();
+        SetupEngineVersionMatchesItsPublishedAssemblyVersion();
         ExtractsEveryEmbeddedDeploymentResource();
         UsesAccessibleStandardControlsAndLogicalKeyboardOrder();
         DoesNotBlockOnMissingOptionalIntegrations();
         ExposesTextEquivalentsForProgressAndErrors();
+    }
+
+    private static void SetupEngineVersionMatchesItsPublishedAssemblyVersion()
+    {
+        var assembly = typeof(SetupApplicationContext).Assembly;
+        var publishedVersion = assembly
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
+            .InformationalVersion
+            ?? throw new InvalidOperationException("Setup has no informational version.");
+        var field = typeof(SetupApplicationContext).GetField(
+            "CurrentSetupVersion",
+            BindingFlags.NonPublic | BindingFlags.Static)
+            ?? throw new InvalidOperationException("Setup has no current-version field.");
+        var engineVersion = (SemanticVersion?)field.GetValue(null)
+            ?? throw new InvalidOperationException("Setup current version is unavailable.");
+
+        Equal(publishedVersion, engineVersion.ToString(), "setup engine version matches published assembly");
     }
 
     private static void ExtractsEveryEmbeddedDeploymentResource()

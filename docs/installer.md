@@ -87,9 +87,9 @@ Blind Soldier in Windows Installed apps, and creates **Check for Blind Soldier
 Updates** in the Start menu. That shortcut performs an explicit
 check; there is no background service or scheduled updater.
 
-When updating a release installed under the former name, setup reads the old
-install state, completes the new installation first, and then removes the old
-managed setup executable and state file.
+Setup reads state only from the current Blind Soldier path. It does not search,
+import, remove, or otherwise act on files or registration left under the former
+product name.
 
 If a later release requires a newer setup engine, the current setup downloads
 the newer EXE from the release, verifies its length and SHA-256, and continues
@@ -165,7 +165,7 @@ all integrity checks.
 
 ## Unsigned prerelease warning
 
-Version `0.1.0-pre.5` is not Authenticode-signed. Windows SmartScreen can show
+Version `0.1.0-pre.6` is not Authenticode-signed. Windows SmartScreen can show
 **Unknown publisher** even when the file is intact. Download only from the
 project's GitHub Releases page and, when desired, verify it against the
 adjacent `.sha256` file. This warning is separate from the installer's own

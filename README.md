@@ -35,7 +35,7 @@ reading unverified game memory.
 ## Installation
 
 Download and run
-[Blind-Soldier-Setup.exe](https://github.com/buu420/blind-soldier/releases/download/v0.1.0-pre.5/Blind-Soldier-Setup.exe).
+[Blind-Soldier-Setup.exe](https://github.com/buu420/blind-soldier/releases/download/v0.1.0-pre.6/Blind-Soldier-Setup.exe).
 If that direct link changes, use the
 [Blind Soldier Releases page](https://github.com/buu420/blind-soldier/releases).
 
@@ -99,9 +99,9 @@ executables instead of reading unverified memory.
   because they are shared components that other mods may use.
 
 Installer state and readable logs are stored under
-`%LOCALAPPDATA%\Blind Soldier`. Setup automatically reads and migrates state
-from the former `%LOCALAPPDATA%\Blind Swordsman` path when updating an older
-installation. The completion page includes a link that opens the current log.
+`%LOCALAPPDATA%\Blind Soldier`. Setup does not search or import state from the
+former product name. The completion page includes a link that opens the current
+log.
 
 ### Offline or local release files
 
