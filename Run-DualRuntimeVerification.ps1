@@ -274,6 +274,16 @@ if (-not $SkipSecondPesterRepeat) {
     ) -WorkingDirectory $scriptRoot))
 }
 
+$launcherPesterCommand = "Invoke-Pester -Script '$((Join-Path $scriptRoot 'FF7LauncherInstall.Tests.ps1').Replace("'", "''"))' -EnableExit"
+$commands.Add((New-VerificationCommand -Name 'Launcher lifecycle Pester pass 1' -FilePath 'powershell.exe' -Arguments @(
+    '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', $launcherPesterCommand
+) -WorkingDirectory $scriptRoot))
+if (-not $SkipSecondPesterRepeat) {
+    $commands.Add((New-VerificationCommand -Name 'Launcher lifecycle Pester pass 2' -FilePath 'powershell.exe' -Arguments @(
+        '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', $launcherPesterCommand
+    ) -WorkingDirectory $scriptRoot))
+}
+
 $entrypointPesterCommand = "Invoke-Pester -Script '$((Join-Path $scriptRoot 'InstallerEntrypoint.Tests.ps1').Replace("'", "''"))' -EnableExit"
 $commands.Add((New-VerificationCommand -Name 'Installer entrypoint Pester pass 1' -FilePath 'powershell.exe' -Arguments @(
     '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', $entrypointPesterCommand
