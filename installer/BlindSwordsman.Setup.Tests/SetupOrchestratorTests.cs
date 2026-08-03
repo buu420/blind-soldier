@@ -41,7 +41,8 @@ static class SetupOrchestratorTests
             manifest,
             "C:\\Stage Folder\\package\\ff7.accessibility.reloaded",
             "C:\\State Folder\\result.json",
-            "C:\\Stage Folder\\launcher");
+            "C:\\Stage Folder\\launcher",
+            "C:\\Stage Folder\\prerequisites");
 
         Equal("-GameRoot", arguments[0], "first argument name");
         Equal("X:\\Steam Library\\FINAL FANTASY VII", arguments[1], "game root remains one argument");
@@ -52,6 +53,10 @@ static class SetupOrchestratorTests
             System.IO.Path.GetFullPath("C:\\Stage Folder\\launcher"),
             arguments[arguments.IndexOf("-LauncherBundlePath") + 1],
             "launcher bundle remains one argument");
+        Equal(
+            System.IO.Path.GetFullPath("C:\\Stage Folder\\prerequisites"),
+            arguments[arguments.IndexOf("-PrerequisiteBundlePath") + 1],
+            "prerequisite bundle remains one argument");
         Equal("v0.1.0-pre.1", arguments[arguments.IndexOf("-ReleaseTag") + 1], "release tag argument");
     }
 
@@ -87,7 +92,8 @@ static class SetupOrchestratorTests
             manifest,
             "C:\\Stage Folder\\package\\ff7.accessibility.reloaded",
             "C:\\State Folder\\result.json",
-            "C:\\Stage Folder\\launcher");
+            "C:\\Stage Folder\\launcher",
+            "C:\\Stage Folder\\prerequisites");
 
         True(arguments.Contains("-SkipFfnx"), "missing optional FFNx is not installed");
         True(arguments.Contains("-SkipSeventhHeavenSettings"), "7th Heaven settings are never required");
@@ -143,13 +149,15 @@ static class SetupOrchestratorTests
             manifest,
             "C:\\Stage\\package",
             "C:\\Stage\\result.json",
-            null), "native runtime without launcher bundle");
+            null,
+            "C:\\Stage\\prerequisites"), "native runtime without launcher bundle");
         var legacyArguments = SetupOrchestrator.BuildDeploymentArguments(
             legacyPreflight,
             manifest,
             "C:\\Stage\\package",
             "C:\\Stage\\result.json",
-            null);
+            null,
+            "C:\\Stage\\prerequisites");
         True(!legacyArguments.Contains("-LauncherBundlePath"), "legacy-only install omits launcher bundle");
     }
 

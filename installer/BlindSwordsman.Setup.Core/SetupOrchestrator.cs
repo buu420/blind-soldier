@@ -26,7 +26,8 @@ public sealed class SetupOrchestrator(
         ReleaseChannelManifest release,
         string packagePath,
         string resultPath,
-        string? launcherBundlePath = null)
+        string? launcherBundlePath,
+        string prerequisiteBundlePath)
     {
         ArgumentNullException.ThrowIfNull(preflight);
         ArgumentNullException.ThrowIfNull(release);
@@ -34,6 +35,7 @@ public sealed class SetupOrchestrator(
         {
             throw new InvalidOperationException("Deployment arguments require a successful installer preflight.");
         }
+        ArgumentException.ThrowIfNullOrWhiteSpace(prerequisiteBundlePath);
 
         var arguments = new List<string>
         {
@@ -43,6 +45,7 @@ public sealed class SetupOrchestrator(
             "-ResultPath", System.IO.Path.GetFullPath(resultPath),
             "-ProductVersion", release.Version.ToString(),
             "-ReleaseTag", release.ReleaseTag,
+            "-PrerequisiteBundlePath", System.IO.Path.GetFullPath(prerequisiteBundlePath),
             "-SkipSeventhHeavenSettings"
         };
         // FFNx is an optional third-party integration. Blind Swordsman setup
@@ -193,7 +196,8 @@ public sealed class SetupOrchestrator(
                 request.Release,
                 layout.ModPackagePath,
                 resultPath,
-                layout.LauncherBundlePath);
+                layout.LauncherBundlePath,
+                layout.PrerequisiteBundlePath);
             Report(progress, "Install", 60, "Installing Blind Swordsman and its accessible launcher into Final Fantasy VII.");
             var process = await processRunner.RunAsync(
                 request.Resources.InstallScript,

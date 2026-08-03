@@ -16,7 +16,9 @@ static class ArtifactSecurityTests
         await RejectsHashMismatchAndCleansPartialFile();
         ExtractsOnlyManifestedSafeZipEntries();
         RejectsTraversalAbsoluteDuplicateAndUnlistedZipEntries();
+        ValidatesCompleteReleasePayloadLayout();
         RejectsReleasePayloadWithoutLauncherBundle();
+        RejectsReleasePayloadWithoutPrerequisiteBundle();
     }
 
     private static async Task SelectsNewestEligibleGitHubRelease()
@@ -184,6 +186,72 @@ static class ArtifactSecurityTests
         Throws<InvalidDataException>(
             () => ReleasePayloadLayoutValidator.Validate(fixture.Path),
             "release payload missing accessible launcher bundle");
+    }
+
+    private static void ValidatesCompleteReleasePayloadLayout()
+    {
+        using var fixture = new TemporaryDirectory();
+        CreateValidReleasePayload(fixture.Path);
+
+        var layout = ReleasePayloadLayoutValidator.Validate(fixture.Path);
+        Equal(
+            System.IO.Path.GetFullPath(System.IO.Path.Combine(fixture.Path, "package", "ff7.accessibility.reloaded")),
+            layout.ModPackagePath,
+            "validated mod package path");
+        Equal(
+            System.IO.Path.GetFullPath(System.IO.Path.Combine(fixture.Path, "launcher")),
+            layout.LauncherBundlePath,
+            "validated launcher path");
+        Equal(
+            System.IO.Path.GetFullPath(System.IO.Path.Combine(fixture.Path, "prerequisites")),
+            layout.PrerequisiteBundlePath,
+            "validated prerequisite path");
+    }
+
+    private static void RejectsReleasePayloadWithoutPrerequisiteBundle()
+    {
+        using var fixture = new TemporaryDirectory();
+        CreateValidReleasePayload(fixture.Path);
+        Directory.Delete(System.IO.Path.Combine(fixture.Path, "prerequisites"), recursive: true);
+
+        Throws<InvalidDataException>(
+            () => ReleasePayloadLayoutValidator.Validate(fixture.Path),
+            "release payload missing prerequisite bundle");
+    }
+
+    private static void CreateValidReleasePayload(string root)
+    {
+        foreach (var relative in new[]
+                 {
+                     "package/ff7.accessibility.reloaded/ModConfig.json",
+                     "launcher/launcher-bundle.json",
+                     "launcher/FFVII_LAUNCHER.exe",
+                     "launcher/FFVII_LAUNCHER.exe.config",
+                     "launcher/native/x86/FFVII_LAUNCHER.prism.x86.dll",
+                     "prerequisites/dependency-bundle.json",
+                     "prerequisites/reloaded/Reloaded-II.exe",
+                     "prerequisites/reloaded/_asi_extract/ASILoader32.dll",
+                     "prerequisites/reloaded/_asi_extract/ASILoader64.dll",
+                     "prerequisites/reloaded/Loader/X86/Reloaded.Mod.Loader.dll",
+                     "prerequisites/reloaded/Loader/X64/Reloaded.Mod.Loader.dll",
+                     "prerequisites/reloaded/Loader/X86/Bootstrapper/Reloaded.Mod.Loader.Bootstrapper.dll",
+                     "prerequisites/reloaded/Loader/X64/Bootstrapper/Reloaded.Mod.Loader.Bootstrapper.dll",
+                     "prerequisites/shared-hooks/ModConfig.json",
+                     "prerequisites/shared-hooks/x86/Reloaded.Hooks.ReloadedII.dll",
+                     "prerequisites/shared-hooks/x64/Reloaded.Hooks.ReloadedII.dll",
+                     "prerequisites/dotnet/windowsdesktop-runtime-9.0.8-win-x86.exe",
+                     "prerequisites/dotnet/windowsdesktop-runtime-9.0.8-win-x64.exe",
+                     "prerequisites/notices/THIRD-PARTY-NOTICES.md",
+                     "prerequisites/notices/Reloaded-II-GPL-3.0.txt",
+                     "prerequisites/notices/Reloaded-Shared-Hooks-LGPL-3.0.txt",
+                     "prerequisites/notices/dotnet-LICENSE.txt",
+                     "prerequisites/notices/dotnet-THIRD-PARTY-NOTICES.txt"
+                 })
+        {
+            var path = System.IO.Path.Combine(root, relative.Replace('/', System.IO.Path.DirectorySeparatorChar));
+            Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path)!);
+            File.WriteAllText(path, "fixture");
+        }
     }
 
     private static string ValidChannelManifest(string version, string tag, string track = "prerelease") => $$"""
