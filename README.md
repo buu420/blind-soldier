@@ -117,15 +117,18 @@ active.
 
 End users should use the setup EXE above. To build and deploy from a source
 checkout, install the [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0),
-close the game and launchers, then run:
+close the game and launchers, then build and extract a complete runtime payload:
 
 ```powershell
-.\Install-FF7ReloadedMod.ps1 -ReloadedRoot "C:\Path\To\Reloaded-II" -AllowResearchNativeProfile
+$release = .\Build-BlindSwordsmanRelease.ps1 -Version 0.1.0-pre.2 -Tag v0.1.0-pre.2 -OutputPath ".\artifacts\developer-$([guid]::NewGuid())"
+$runtimeRoot = "$($release.OutputPath)\runtime"
+Expand-Archive -LiteralPath $release.PayloadPath -DestinationPath $runtimeRoot
+.\Install-FF7ReloadedMod.ps1 -ReloadedRoot "C:\Path\To\Reloaded-II" -PackagePath "$runtimeRoot\package" -LauncherBundlePath "$runtimeRoot\launcher" -AllowResearchNativeProfile
 ```
 
 Add `-GameRoot "C:\Path\To\FINAL FANTASY VII"` only when Steam detection does
-not find the game. The source deployment command builds both architecture
-packages before applying the same identity and rollback checks used by setup.
+not find the game. This applies the same packaged files and the same identity,
+backup, and rollback checks used by setup.
 
 ## Mod keys
 
