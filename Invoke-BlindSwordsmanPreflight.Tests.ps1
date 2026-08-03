@@ -35,10 +35,19 @@ function Resolve-Ff7Installation {
     param([string] $GameRoot, [string] $SteamRoot)
     if ($env:BLIND_SWORDSMAN_PREFLIGHT_FAIL_GAME -eq '1') { throw 'No supported FFVII Steam installation was found.' }
     $root = [IO.Path]::GetFullPath($env:BLIND_SWORDSMAN_PREFLIGHT_GAME_ROOT)
+    $runtimeMode = [string]$env:BLIND_SWORDSMAN_PREFLIGHT_RUNTIME_MODE
+    $legacyRuntime = if ($runtimeMode -ne 'native-only') {
+        [pscustomobject]@{ RuntimeId = 'ff7-steam-legacy-x86'; Architecture = 'x86'; RuntimeRoot = (Join-Path $root 'ff7\workingdir'); GameExe = (Join-Path $root 'ff7\workingdir\ff7_en.exe') }
+    } else { $null }
+    $nativeRuntime = if ($runtimeMode -ne 'legacy-only') {
+        [pscustomobject]@{ RuntimeId = 'ff7-steam-2026-x64'; Architecture = 'x64'; RuntimeRoot = $root; GameExe = (Join-Path $root 'FFVII.exe') }
+    } else { $null }
     return [pscustomobject]@{
-        Version = 'Steam2026'; SteamAppId = '3837340'; GameRoot = $root
-        LegacyRuntime = [pscustomobject]@{ RuntimeId = 'ff7-steam-legacy-x86'; Architecture = 'x86'; RuntimeRoot = (Join-Path $root 'ff7\workingdir'); GameExe = (Join-Path $root 'ff7\workingdir\ff7_en.exe') }
-        NativeRuntime = [pscustomobject]@{ RuntimeId = 'ff7-steam-2026-x64'; Architecture = 'x64'; RuntimeRoot = $root; GameExe = (Join-Path $root 'FFVII.exe') }
+        Version = if ($runtimeMode -eq 'legacy-only') { 'Steam2013' } else { 'Steam2026' }
+        SteamAppId = if ($runtimeMode -eq 'legacy-only') { '39140' } else { '3837340' }
+        GameRoot = $root
+        LegacyRuntime = $legacyRuntime
+        NativeRuntime = $nativeRuntime
     }
 }
 function Assert-Ff7NativeRuntimeIdentity { param([string] $Path) return [pscustomobject]@{ RuntimeId = 'ff7-steam-2026-x64'; RuntimeRoot = (Split-Path -Parent $Path); GameExe = $Path } }
@@ -94,11 +103,13 @@ Describe 'Blind Swordsman installer preflight' {
         $fixture = New-PreflightFixture
         $env:BLIND_SWORDSMAN_PREFLIGHT_GAME_ROOT = $fixture.GameRoot
         $env:BLIND_SWORDSMAN_PREFLIGHT_FAIL_GAME = '0'
+        $env:BLIND_SWORDSMAN_PREFLIGHT_RUNTIME_MODE = 'dual'
     }
 
     AfterEach {
         Remove-Item Env:\BLIND_SWORDSMAN_PREFLIGHT_GAME_ROOT -ErrorAction SilentlyContinue
         Remove-Item Env:\BLIND_SWORDSMAN_PREFLIGHT_FAIL_GAME -ErrorAction SilentlyContinue
+        Remove-Item Env:\BLIND_SWORDSMAN_PREFLIGHT_RUNTIME_MODE -ErrorAction SilentlyContinue
         if (Test-Path -LiteralPath $fixture.Root) {
             Remove-Item -LiteralPath $fixture.Root -Recurse -Force
         }
@@ -114,6 +125,42 @@ Describe 'Blind Swordsman installer preflight' {
         ($report.dependencies | Where-Object id -eq 'reloaded').satisfied | Should Be $true
         ($report.dependencies | Where-Object id -eq 'shared-hooks').satisfied | Should Be $true
         ($report.dependencies | Where-Object id -eq 'seventh-heaven').severity | Should Be 'optional'
+    }
+
+    It 'requires only x86 Reloaded dependencies for a legacy-only installation' {
+        $env:BLIND_SWORDSMAN_PREFLIGHT_RUNTIME_MODE = 'legacy-only'
+        Remove-Item -LiteralPath (Join-Path $fixture.ReloadedRoot '_asi_extract\ASILoader64.dll')
+        Remove-Item -LiteralPath (Join-Path $fixture.ReloadedRoot 'Loader\X64\Bootstrapper\Reloaded.Mod.Loader.Bootstrapper.dll')
+        Remove-Item -LiteralPath (Join-Path $fixture.ReloadedRoot 'Mods\reloaded.sharedlib.hooks\x64\Reloaded.Hooks.ReloadedII.dll')
+
+        $report = Invoke-FixturePreflight $fixture
+
+        $report.canInstall | Should Be $true
+        $report.game.runtimes.Count | Should Be 1
+        $report.game.runtimes[0].architecture | Should Be 'x86'
+        $loaders = $report.dependencies | Where-Object id -eq 'reloaded-loaders'
+        $loaders.name | Should Match 'x86'
+        $loaders.name | Should Not Match 'x64'
+        $loaders.message | Should Not Match 'x64'
+        ($report.dependencies | Where-Object id -eq 'shared-hooks').message | Should Not Match 'x64'
+    }
+
+    It 'requires only x64 Reloaded dependencies for a native-only installation' {
+        $env:BLIND_SWORDSMAN_PREFLIGHT_RUNTIME_MODE = 'native-only'
+        Remove-Item -LiteralPath (Join-Path $fixture.ReloadedRoot '_asi_extract\ASILoader32.dll')
+        Remove-Item -LiteralPath (Join-Path $fixture.ReloadedRoot 'Loader\X86\Bootstrapper\Reloaded.Mod.Loader.Bootstrapper.dll')
+        Remove-Item -LiteralPath (Join-Path $fixture.ReloadedRoot 'Mods\reloaded.sharedlib.hooks\x86\Reloaded.Hooks.ReloadedII.dll')
+
+        $report = Invoke-FixturePreflight $fixture
+
+        $report.canInstall | Should Be $true
+        $report.game.runtimes.Count | Should Be 1
+        $report.game.runtimes[0].architecture | Should Be 'x64'
+        $loaders = $report.dependencies | Where-Object id -eq 'reloaded-loaders'
+        $loaders.name | Should Match 'x64'
+        $loaders.name | Should Not Match 'x86'
+        $loaders.message | Should Not Match 'x86'
+        ($report.dependencies | Where-Object id -eq 'shared-hooks').message | Should Not Match 'x86'
     }
 
     It 'contains no developer-specific dependency locations' {

@@ -13,14 +13,22 @@ param(
     [string] $ReleaseTag,
     [switch] $SkipFfnx,
     [switch] $SkipSeventhHeavenSettings,
-    [switch] $AllowResearchNativeProfile
+    [switch] $AllowResearchNativeProfile,
+    [Parameter(DontShow=$true)] [string] $ModulePath,
+    [Parameter(DontShow=$true)] [string] $LauncherModulePath
 )
 
 $ErrorActionPreference = 'Stop'
 
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-Import-Module (Join-Path $scriptRoot 'FF7SteamInstall.psm1') -Force
-Import-Module (Join-Path $scriptRoot 'FF7LauncherInstall.psm1') -Force
+if ([string]::IsNullOrWhiteSpace($ModulePath)) {
+    $ModulePath = Join-Path $scriptRoot 'FF7SteamInstall.psm1'
+}
+if ([string]::IsNullOrWhiteSpace($LauncherModulePath)) {
+    $LauncherModulePath = Join-Path $scriptRoot 'FF7LauncherInstall.psm1'
+}
+Import-Module $ModulePath -Force
+Import-Module $LauncherModulePath -Force
 if ([string]::IsNullOrWhiteSpace($ParityMatrixPath)) {
     $ParityMatrixPath = Join-Path $scriptRoot 'analysis\dual_runtime\parity-matrix.json'
 }
@@ -33,6 +41,8 @@ if (-not [string]::IsNullOrWhiteSpace($SteamRoot)) {
     $resolveArguments.SteamRoot = $SteamRoot
 }
 $installation = Resolve-Ff7Installation @resolveArguments
+$legacyRuntime = $installation.LegacyRuntime
+$detectedNativeRuntime = $installation.NativeRuntime
 
 if ([string]::IsNullOrWhiteSpace($ReloadedRoot)) {
     if (-not [string]::IsNullOrWhiteSpace($env:RELOADED_II_ROOT)) {
@@ -87,13 +97,13 @@ $asiLoaderX86Source = Join-Path $ReloadedRoot '_asi_extract\ASILoader32.dll'
 $bootstrapperX86Source = Join-Path $ReloadedRoot 'Loader\X86\Bootstrapper\Reloaded.Mod.Loader.Bootstrapper.dll'
 $asiLoaderX64Source = Join-Path $ReloadedRoot '_asi_extract\ASILoader64.dll'
 $bootstrapperX64Source = Join-Path $ReloadedRoot 'Loader\X64\Bootstrapper\Reloaded.Mod.Loader.Bootstrapper.dll'
-$requiredFiles = @(
-    $nativeProfileTemplate,
-    $asiLoaderX86Source,
-    $bootstrapperX86Source,
-    $asiLoaderX64Source,
-    $bootstrapperX64Source
-)
+$requiredFiles = @()
+if ($null -ne $legacyRuntime) {
+    $requiredFiles += @($asiLoaderX86Source, $bootstrapperX86Source)
+}
+if ($null -ne $detectedNativeRuntime) {
+    $requiredFiles += @($nativeProfileTemplate, $asiLoaderX64Source, $bootstrapperX64Source)
+}
 if ([string]::IsNullOrWhiteSpace($PackagePath)) {
     $requiredFiles += $buildPackagePath
 }
@@ -125,13 +135,17 @@ function Assert-LoaderPeMachine {
     }
 }
 
-Assert-LoaderPeMachine -Path $asiLoaderX86Source -ExpectedMachine 0x014C
-Assert-LoaderPeMachine -Path $bootstrapperX86Source -ExpectedMachine 0x014C
-Assert-LoaderPeMachine -Path $asiLoaderX64Source -ExpectedMachine 0x8664
-Assert-LoaderPeMachine -Path $bootstrapperX64Source -ExpectedMachine 0x8664
+if ($null -ne $legacyRuntime) {
+    Assert-LoaderPeMachine -Path $asiLoaderX86Source -ExpectedMachine 0x014C
+    Assert-LoaderPeMachine -Path $bootstrapperX86Source -ExpectedMachine 0x014C
+}
+if ($null -ne $detectedNativeRuntime) {
+    Assert-LoaderPeMachine -Path $asiLoaderX64Source -ExpectedMachine 0x8664
+    Assert-LoaderPeMachine -Path $bootstrapperX64Source -ExpectedMachine 0x8664
+}
 
-$nativeRuntime = if ($installation.Version -eq 'Steam2026') {
-    Assert-Ff7NativeRuntimeIdentity -Path $installation.NativeRuntime.GameExe
+$nativeRuntime = if ($null -ne $detectedNativeRuntime) {
+    Assert-Ff7NativeRuntimeIdentity -Path $detectedNativeRuntime.GameExe
 }
 else {
     $null
@@ -375,9 +389,18 @@ else {
     [IO.Path]::GetFullPath($packageItem.FullName)
 }
 $modDirectory = Join-Path $ReloadedRoot 'Mods\ff7.accessibility.reloaded'
-$asiLoaderX86Target = Join-Path $installation.LegacyRuntime.RuntimeRoot 'dsound.dll'
-$bootstrapperX86Target = Join-Path $installation.LegacyRuntime.RuntimeRoot 'Reloaded.Mod.Loader.Bootstrapper.asi'
-$openingVoiceTarget = Join-Path $installation.LegacyRuntime.RuntimeRoot 'override\movies\opening_va.ogg'
+$asiLoaderX86Target = if ($null -ne $legacyRuntime) {
+    Join-Path $legacyRuntime.RuntimeRoot 'dsound.dll'
+}
+else { $null }
+$bootstrapperX86Target = if ($null -ne $legacyRuntime) {
+    Join-Path $legacyRuntime.RuntimeRoot 'Reloaded.Mod.Loader.Bootstrapper.asi'
+}
+else { $null }
+$openingVoiceTarget = if ($null -ne $legacyRuntime) {
+    Join-Path $legacyRuntime.RuntimeRoot 'override\movies\opening_va.ogg'
+}
+else { $null }
 $ordinaryNativeProfile = Join-Path $ReloadedRoot 'Apps\Ff7.Native.Steam2026\AppConfig.json'
 $shouldInstallNativeProfile = $null -ne $nativeRuntime -and
     ($nativeParityGate.IsReleaseReady -or $AllowResearchNativeProfile)
@@ -478,15 +501,19 @@ try {
             -ParityMatrixPath $ParityMatrixPath -AllowResearch:$AllowResearchNativeProfile `
             -ValidateOnly | Out-Null
     }
-    Assert-LoaderFileTarget -Source $asiLoaderX86Source -Target $asiLoaderX86Target
-    Assert-LoaderFileTarget -Source $bootstrapperX86Source -Target $bootstrapperX86Target
+    if ($null -ne $legacyRuntime) {
+        Assert-LoaderFileTarget -Source $asiLoaderX86Source -Target $asiLoaderX86Target
+        Assert-LoaderFileTarget -Source $bootstrapperX86Source -Target $bootstrapperX86Target
+    }
     if ($shouldInstallNativeProfile) {
         Assert-LoaderFileTarget -Source $asiLoaderX64Source -Target $asiLoaderX64Target
         Assert-LoaderFileTarget -Source $bootstrapperX64Source -Target $bootstrapperX64Target
     }
     $openingNarrationSource = Join-Path $stagedPackage 'Assets\movies\opening_audio_description.ogg'
-    Assert-ManagedOpeningVoiceTarget -Source $openingNarrationSource -Target $openingVoiceTarget
-    $openingVoiceWasPresent = Test-Path -LiteralPath $openingVoiceTarget -PathType Leaf
+    if ($null -ne $legacyRuntime) {
+        Assert-ManagedOpeningVoiceTarget -Source $openingNarrationSource -Target $openingVoiceTarget
+        $openingVoiceWasPresent = Test-Path -LiteralPath $openingVoiceTarget -PathType Leaf
+    }
     if ($null -ne $nativeRuntime) {
         if ([string]::IsNullOrWhiteSpace($LauncherBundlePath)) {
             throw 'Native Steam 2026 installation requires the accessible launcher bundle.'
@@ -495,9 +522,12 @@ try {
             -BundlePath $LauncherBundlePath -ValidateOnly | Out-Null
     }
 
-    $installation = Initialize-Ff7CompatibilityRuntime -Installation $installation
-    if (-not $SkipFfnx -and $installation.Version -eq 'Steam2026') {
-        $ffnxArguments = @{ RuntimeRoot = $installation.LegacyRuntime.RuntimeRoot }
+    if ($null -ne $legacyRuntime) {
+        $installation = Initialize-Ff7CompatibilityRuntime -Installation $installation
+        $legacyRuntime = $installation.LegacyRuntime
+    }
+    if (-not $SkipFfnx -and $null -ne $legacyRuntime -and $installation.Version -eq 'Steam2026') {
+        $ffnxArguments = @{ RuntimeRoot = $legacyRuntime.RuntimeRoot }
         if (-not [string]::IsNullOrWhiteSpace($FfnxArchivePath)) {
             $ffnxArguments.ArchivePath = $FfnxArchivePath
         }
@@ -517,8 +547,10 @@ try {
             -NativeRuntime $nativeRuntime -Research:$profileResult.IsResearchProfile | Out-Null
     }
 
-    $asiLoaderX86Result = Copy-LoaderFile -Source $asiLoaderX86Source -Target $asiLoaderX86Target
-    $bootstrapperX86Result = Copy-LoaderFile -Source $bootstrapperX86Source -Target $bootstrapperX86Target
+    if ($null -ne $legacyRuntime) {
+        $asiLoaderX86Result = Copy-LoaderFile -Source $asiLoaderX86Source -Target $asiLoaderX86Target
+        $bootstrapperX86Result = Copy-LoaderFile -Source $bootstrapperX86Source -Target $bootstrapperX86Target
+    }
     if ($shouldInstallNativeProfile) {
         $asiLoaderX64Result = Copy-LoaderFile -Source $asiLoaderX64Source -Target $asiLoaderX64Target
         $bootstrapperX64Result = Copy-LoaderFile -Source $bootstrapperX64Source -Target $bootstrapperX64Target
@@ -531,9 +563,11 @@ try {
 
     # This is the final game-content mutation: after all installed artifacts have been
     # revalidated, remove only the exact managed FFNx copy so Reloaded owns narration playback.
-    $openingNarrationResult = Disable-Ff7OpeningMovieNativeVoiceLayer `
-        -RuntimeRoot $installation.LegacyRuntime.RuntimeRoot `
-        -SourcePath $openingNarrationSource
+    if ($null -ne $legacyRuntime) {
+        $openingNarrationResult = Disable-Ff7OpeningMovieNativeVoiceLayer `
+            -RuntimeRoot $legacyRuntime.RuntimeRoot `
+            -SourcePath $openingNarrationSource
+    }
 
     if ($packageResult.Changed) {
         Write-Host "Installed the verified dual-runtime package. Backup: $($packageResult.BackupPath)"
@@ -563,7 +597,7 @@ try {
             Write-Host 'The accessible Steam 2026 FFVII launcher is already current.'
         }
     }
-    if ($openingNarrationResult.Removed) {
+    if ($null -ne $openingNarrationResult -and $openingNarrationResult.Removed) {
         Write-Host "Removed the legacy FFNx opening voice copy; Reloaded plays narration independently: $($openingNarrationResult.TargetPath)"
     }
 
@@ -623,11 +657,14 @@ try {
             }
             profile = $profileState
             loaders = $loaderResults.ToArray()
-            openingVoice = [ordered]@{
-                wasPresent = [bool]$openingVoiceWasPresent
-                target = [IO.Path]::GetFullPath($openingVoiceTarget)
-                sourceSha256 = (Get-FileHash -LiteralPath $openingNarrationSource -Algorithm SHA256).Hash
+            openingVoice = if ($null -ne $legacyRuntime) {
+                [ordered]@{
+                    wasPresent = [bool]$openingVoiceWasPresent
+                    target = [IO.Path]::GetFullPath($openingVoiceTarget)
+                    sourceSha256 = (Get-FileHash -LiteralPath $openingNarrationSource -Algorithm SHA256).Hash
+                }
             }
+            else { $null }
             launcher = $launcherState
             ffnx = $ffnxState
         }

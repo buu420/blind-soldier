@@ -6,7 +6,7 @@ namespace BlindSwordsman.Setup;
 
 public sealed class SetupApplicationContext : ApplicationContext
 {
-    private static readonly SemanticVersion CurrentSetupVersion = SemanticVersion.Parse("0.1.0-pre.2");
+    private static readonly SemanticVersion CurrentSetupVersion = SemanticVersion.Parse("0.1.0-pre.3");
     private readonly SetupCommandLineOptions options;
     private readonly SetupForm form;
     private readonly InstallerPaths paths;

@@ -31,7 +31,7 @@ reading unverified game memory.
 ## Installation
 
 Download and run
-[Blind-Swordsman-Setup.exe](https://github.com/buu420/blind-swordsman/releases/download/v0.1.0-pre.2/Blind-Swordsman-Setup.exe).
+[Blind-Swordsman-Setup.exe](https://github.com/buu420/blind-swordsman/releases/download/v0.1.0-pre.3/Blind-Swordsman-Setup.exe).
 If that direct link changes, use the
 [Blind Swordsman Releases page](https://github.com/buu420/blind-swordsman/releases).
 
@@ -44,7 +44,9 @@ If that direct link changes, use the
    its own registered launcher or from a portable `Reloaded-II` folder inside
    or alongside the game; no developer-specific folder is built into setup.
 4. Review the dependency status list. Setup will not continue until the game,
-   correct x86 and x64 loaders, and Reloaded Shared Hooks are ready.
+   the loader and Reloaded Shared Hooks files for each detected runtime are
+   ready. An x86-only installation does not require x64 files, and an x64-only
+   installation does not require x86 files.
 5. Choose **Install**. Keep the setup window open until it announces completion.
 
 > [!WARNING]
@@ -120,7 +122,7 @@ checkout, install the [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/
 close the game and launchers, then build and extract a complete runtime payload:
 
 ```powershell
-$release = .\Build-BlindSwordsmanRelease.ps1 -Version 0.1.0-pre.2 -Tag v0.1.0-pre.2 -OutputPath ".\artifacts\developer-$([guid]::NewGuid())"
+$release = .\Build-BlindSwordsmanRelease.ps1 -Version 0.1.0-pre.3 -Tag v0.1.0-pre.3 -OutputPath ".\artifacts\developer-$([guid]::NewGuid())"
 $runtimeRoot = "$($release.OutputPath)\runtime"
 Expand-Archive -LiteralPath $release.PayloadPath -DestinationPath $runtimeRoot
 .\Install-FF7ReloadedMod.ps1 -ReloadedRoot "C:\Path\To\Reloaded-II" -PackagePath "$runtimeRoot\package" -LauncherBundlePath "$runtimeRoot\launcher" -AllowResearchNativeProfile

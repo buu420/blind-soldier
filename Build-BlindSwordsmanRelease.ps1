@@ -4,7 +4,7 @@ param(
     [string] $Tag,
     [string] $OutputPath,
     [ValidateSet('stable', 'prerelease')] [string] $Track,
-    [string] $MinimumSetupVersion = '0.1.0-pre.2',
+    [string] $MinimumSetupVersion = '0.1.0-pre.3',
     [string] $Repository = 'buu420/blind-swordsman',
     [Parameter(DontShow=$true)] [scriptblock] $PackageBuilder,
     [Parameter(DontShow=$true)] [scriptblock] $SetupPublisher,

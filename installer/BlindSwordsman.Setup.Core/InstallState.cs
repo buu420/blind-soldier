@@ -58,7 +58,7 @@ public sealed record InstallState(
     InstalledMod Mod,
     InstalledProfile? Profile,
     IReadOnlyList<InstalledLoader> Loaders,
-    OpeningVoiceState OpeningVoice,
+    OpeningVoiceState? OpeningVoice,
     FfnxState? Ffnx,
     InstalledLauncher? Launcher);
 
@@ -164,11 +164,15 @@ public static partial class DeploymentResultParser
             }
 
             var voiceElement = root.GetProperty("openingVoice");
-            Exact(voiceElement, ["wasPresent", "target", "sourceSha256"], "opening voice state");
-            var openingVoice = new OpeningVoiceState(
-                RequiredBoolean(voiceElement, "wasPresent"),
-                RequiredString(voiceElement, "target"),
-                RequiredHash(voiceElement, "sourceSha256"));
+            OpeningVoiceState? openingVoice = null;
+            if (voiceElement.ValueKind != JsonValueKind.Null)
+            {
+                Exact(voiceElement, ["wasPresent", "target", "sourceSha256"], "opening voice state");
+                openingVoice = new OpeningVoiceState(
+                    RequiredBoolean(voiceElement, "wasPresent"),
+                    RequiredString(voiceElement, "target"),
+                    RequiredHash(voiceElement, "sourceSha256"));
+            }
 
             InstalledLauncher? launcher = null;
             if (hasLauncherProperty && launcherElement.ValueKind != JsonValueKind.Null)
@@ -267,11 +271,18 @@ public static partial class DeploymentResultParser
                 writer.WriteEndObject();
             }
             writer.WriteEndArray();
-            writer.WriteStartObject("openingVoice");
-            writer.WriteBoolean("wasPresent", state.OpeningVoice.WasPresent);
-            writer.WriteString("target", state.OpeningVoice.Target);
-            writer.WriteString("sourceSha256", state.OpeningVoice.SourceSha256);
-            writer.WriteEndObject();
+            if (state.OpeningVoice is null)
+            {
+                writer.WriteNull("openingVoice");
+            }
+            else
+            {
+                writer.WriteStartObject("openingVoice");
+                writer.WriteBoolean("wasPresent", state.OpeningVoice.WasPresent);
+                writer.WriteString("target", state.OpeningVoice.Target);
+                writer.WriteString("sourceSha256", state.OpeningVoice.SourceSha256);
+                writer.WriteEndObject();
+            }
             if (state.Launcher is null)
             {
                 writer.WriteNull("launcher");

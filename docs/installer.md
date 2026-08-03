@@ -139,7 +139,7 @@ all integrity checks.
 
 ## Unsigned prerelease warning
 
-Version `0.1.0-pre.2` is not Authenticode-signed. Windows SmartScreen can show
+Version `0.1.0-pre.3` is not Authenticode-signed. Windows SmartScreen can show
 **Unknown publisher** even when the file is intact. Download only from the
 project's GitHub Releases page and, when desired, verify it against the
 adjacent `.sha256` file. This warning is separate from the installer's own
@@ -151,18 +151,18 @@ Build the five release assets into a new output folder:
 
 ```powershell
 .\Build-BlindSwordsmanRelease.ps1 `
-  -Version "0.1.0-pre.2" `
-  -Tag "v0.1.0-pre.2" `
-  -MinimumSetupVersion "0.1.0-pre.2" `
-  -OutputPath ".\artifacts\release\v0.1.0-pre.2"
+  -Version "0.1.0-pre.3" `
+  -Tag "v0.1.0-pre.3" `
+  -MinimumSetupVersion "0.1.0-pre.3" `
+  -OutputPath ".\artifacts\release\v0.1.0-pre.3"
 ```
 
 After verification, publish them using the authenticated GitHub CLI session:
 
 ```powershell
 .\Publish-BlindSwordsmanRelease.ps1 `
-  -Tag "v0.1.0-pre.2" `
-  -ArtifactPath ".\artifacts\release\v0.1.0-pre.2"
+  -Tag "v0.1.0-pre.3" `
+  -ArtifactPath ".\artifacts\release\v0.1.0-pre.3"
 ```
 
 The publisher reads the channel manifest, requires all exact asset names,

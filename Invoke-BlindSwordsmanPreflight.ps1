@@ -147,12 +147,13 @@ function Resolve-SeventhHeavenDirectory {
 
 $installation = $null
 $gameResult = $null
+$requiredArchitectures = @()
 try {
     $resolveArguments = @{}
     if (-not [string]::IsNullOrWhiteSpace($GameRoot)) { $resolveArguments.GameRoot = $GameRoot }
     if (-not [string]::IsNullOrWhiteSpace($SteamRoot)) { $resolveArguments.SteamRoot = $SteamRoot }
     $installation = Resolve-Ff7Installation @resolveArguments
-    if ($installation.Version -eq 'Steam2026') {
+    if ($null -ne $installation.NativeRuntime) {
         Assert-Ff7NativeRuntimeIdentity -Path ([string]$installation.NativeRuntime.GameExe) | Out-Null
     }
 
@@ -172,6 +173,7 @@ try {
         gameRoot = [IO.Path]::GetFullPath([string]$installation.GameRoot)
         runtimes = $runtimes.ToArray()
     }
+    $requiredArchitectures = @($runtimes | ForEach-Object { [string]$_.architecture } | Select-Object -Unique)
     Add-Dependency -Id 'game' -Name 'Final Fantasy VII' -Severity required -Satisfied $true `
         -Message "Supported $($installation.Version) installation detected." -Path ([string]$installation.GameRoot)
 }
@@ -193,11 +195,11 @@ Add-Dependency -Id 'reloaded' -Name 'Reloaded-II' `
 $loaderFailures = New-Object 'System.Collections.Generic.List[string]'
 if ($reloadedAvailable) {
     foreach ($loader in @(
-        [pscustomobject]@{ Label = 'x86 ASI loader'; Relative = '_asi_extract\ASILoader32.dll'; Machine = 0x014C },
-        [pscustomobject]@{ Label = 'x86 bootstrapper'; Relative = 'Loader\X86\Bootstrapper\Reloaded.Mod.Loader.Bootstrapper.dll'; Machine = 0x014C },
-        [pscustomobject]@{ Label = 'x64 ASI loader'; Relative = '_asi_extract\ASILoader64.dll'; Machine = 0x8664 },
-        [pscustomobject]@{ Label = 'x64 bootstrapper'; Relative = 'Loader\X64\Bootstrapper\Reloaded.Mod.Loader.Bootstrapper.dll'; Machine = 0x8664 }
-    )) {
+        [pscustomobject]@{ Architecture = 'x86'; Label = 'x86 ASI loader'; Relative = '_asi_extract\ASILoader32.dll'; Machine = 0x014C },
+        [pscustomobject]@{ Architecture = 'x86'; Label = 'x86 bootstrapper'; Relative = 'Loader\X86\Bootstrapper\Reloaded.Mod.Loader.Bootstrapper.dll'; Machine = 0x014C },
+        [pscustomobject]@{ Architecture = 'x64'; Label = 'x64 ASI loader'; Relative = '_asi_extract\ASILoader64.dll'; Machine = 0x8664 },
+        [pscustomobject]@{ Architecture = 'x64'; Label = 'x64 bootstrapper'; Relative = 'Loader\X64\Bootstrapper\Reloaded.Mod.Loader.Bootstrapper.dll'; Machine = 0x8664 }
+    ) | Where-Object { $requiredArchitectures -contains $_.Architecture }) {
         $loaderPath = Join-Path $resolvedReloadedRoot $loader.Relative
         if (-not (Test-Path -LiteralPath $loaderPath -PathType Leaf)) {
             $loaderFailures.Add("$($loader.Label) is missing")
@@ -219,9 +221,18 @@ else {
     $loaderFailures.Add('Reloaded-II is unavailable')
 }
 $loadersReady = $loaderFailures.Count -eq 0
-Add-Dependency -Id 'reloaded-loaders' -Name 'Reloaded-II x86 and x64 loaders' `
+$requiredArchitectureLabel = $requiredArchitectures -join ' and '
+$loaderDependencyName = if ($requiredArchitectures.Count -gt 0) {
+    "Reloaded-II $requiredArchitectureLabel loaders"
+}
+else { 'Reloaded-II loaders' }
+$loaderReadyMessage = if ($requiredArchitectures.Count -gt 0) {
+    "Required $requiredArchitectureLabel loader files are valid."
+}
+else { 'Loader requirements are unavailable until a supported game runtime is detected.' }
+Add-Dependency -Id 'reloaded-loaders' -Name $loaderDependencyName `
     -Severity $(if ($loadersReady) { 'required' } else { 'blocking' }) -Satisfied $loadersReady `
-    -Message $(if ($loadersReady) { 'Required x86 and x64 loader files are valid.' } else { $loaderFailures -join '; ' }) `
+    -Message $(if ($loadersReady) { $loaderReadyMessage } else { $loaderFailures -join '; ' }) `
     -Path $resolvedReloadedRoot
 
 $sharedHooksRoot = Join-Path $resolvedReloadedRoot 'Mods\reloaded.sharedlib.hooks'
@@ -242,9 +253,9 @@ else {
     }
 }
 foreach ($hook in @(
-    [pscustomobject]@{ Label = 'x86 shared hooks'; Relative = 'x86\Reloaded.Hooks.ReloadedII.dll'; Machine = 0x014C },
-    [pscustomobject]@{ Label = 'x64 shared hooks'; Relative = 'x64\Reloaded.Hooks.ReloadedII.dll'; Machine = 0x8664 }
-)) {
+    [pscustomobject]@{ Architecture = 'x86'; Label = 'x86 shared hooks'; Relative = 'x86\Reloaded.Hooks.ReloadedII.dll'; Machine = 0x014C },
+    [pscustomobject]@{ Architecture = 'x64'; Label = 'x64 shared hooks'; Relative = 'x64\Reloaded.Hooks.ReloadedII.dll'; Machine = 0x8664 }
+) | Where-Object { $requiredArchitectures -contains $_.Architecture }) {
     $hookPath = Join-Path $sharedHooksRoot $hook.Relative
     if (-not (Test-Path -LiteralPath $hookPath -PathType Leaf)) {
         $sharedHooksFailures.Add("$($hook.Label) is missing")
@@ -264,7 +275,12 @@ foreach ($hook in @(
 $sharedHooksReady = $sharedHooksFailures.Count -eq 0
 Add-Dependency -Id 'shared-hooks' -Name 'Reloaded-II Shared Hooks' `
     -Severity $(if ($sharedHooksReady) { 'required' } else { 'blocking' }) -Satisfied $sharedHooksReady `
-    -Message $(if ($sharedHooksReady) { 'Reloaded-II Shared Hooks x86 and x64 files are ready.' } else { $sharedHooksFailures -join '; ' }) `
+    -Message $(if ($sharedHooksReady) {
+        if ($requiredArchitectures.Count -gt 0) {
+            "Reloaded-II Shared Hooks $requiredArchitectureLabel files are ready."
+        }
+        else { 'Shared Hooks requirements are unavailable until a supported game runtime is detected.' }
+    } else { $sharedHooksFailures -join '; ' }) `
     -Path $sharedHooksRoot
 
 $resolvedSeventhHeavenRoot = Resolve-SeventhHeavenDirectory -ExplicitPath $SeventhHeavenRoot

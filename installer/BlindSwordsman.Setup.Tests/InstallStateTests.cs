@@ -6,6 +6,7 @@ static class InstallStateTests
     {
         ParsesAndPersistsDeploymentStateAtomically();
         ParsesPreLauncherDeploymentState();
+        ParsesNativeOnlyDeploymentWithoutOpeningVoice();
         await RejectsCorruptedStateWithoutOverwritingIt();
         ResolvesInstallUpdateRepairAndDowngradeModes();
         BuildsPerUserWindowsRegistration();
@@ -36,6 +37,20 @@ static class InstallStateTests
         var state = DeploymentResultParser.Parse(ValidDeploymentResult());
 
         True(state.Launcher is null, "pre-launcher install state remains readable");
+    }
+
+    private static void ParsesNativeOnlyDeploymentWithoutOpeningVoice()
+    {
+        var source = ValidDeploymentResult();
+        var voiceStart = source.IndexOf("\"openingVoice\": {", StringComparison.Ordinal);
+        True(voiceStart >= 0, "native-only opening voice marker");
+        var ffnxStart = source.IndexOf("\"ffnx\":", voiceStart, StringComparison.Ordinal);
+        True(voiceStart >= 0 && ffnxStart > voiceStart, "native-only test fixture markers");
+        var result = source[..voiceStart] + "\"openingVoice\": null,\n          " + source[ffnxStart..];
+
+        var state = DeploymentResultParser.Parse(result);
+
+        True(state.OpeningVoice is null, "native-only install has no legacy opening voice state");
     }
 
     private static async Task RejectsCorruptedStateWithoutOverwritingIt()

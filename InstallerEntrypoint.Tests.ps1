@@ -26,6 +26,7 @@ function Resolve-Ff7Installation {
         NativeRuntime = $null
     }
 }
+
 function Assert-Ff7DualRuntimePackage {
     param([string] $PackagePath)
     $marker = Join-Path $PackagePath 'fingerprint.txt'
@@ -72,7 +73,141 @@ Export-ModuleMember -Function Resolve-Ff7Installation,Assert-Ff7DualRuntimePacka
     }
 }
 
+function New-EntrypointTestPe {
+    param([string] $Path, [uint16] $Machine)
+    $parent = Split-Path -Parent $Path
+    New-Item -ItemType Directory -Path $parent -Force | Out-Null
+    $bytes = New-Object byte[] 256
+    $bytes[0] = 0x4D
+    $bytes[1] = 0x5A
+    [BitConverter]::GetBytes([int]0x80).CopyTo($bytes, 0x3C)
+    [BitConverter]::GetBytes([uint32]0x00004550).CopyTo($bytes, 0x80)
+    [BitConverter]::GetBytes($Machine).CopyTo($bytes, 0x84)
+    [IO.File]::WriteAllBytes($Path, $bytes)
+}
+
+function New-InstallEntrypointFixture {
+    param([ValidateSet('legacy-only', 'native-only')] [string] $RuntimeMode)
+
+    $root = Join-Path ([IO.Path]::GetTempPath()) ('blind-swordsman-install-entrypoint-test-' + [Guid]::NewGuid().ToString('N'))
+    $gameRoot = Join-Path $root 'game'
+    $legacyRoot = Join-Path $gameRoot 'legacy'
+    $nativeRoot = Join-Path $gameRoot 'native'
+    $reloadedRoot = Join-Path $root 'Reloaded-II'
+    $packagePath = Join-Path $root 'package'
+    $launcherBundlePath = Join-Path $root 'launcher'
+    New-Item -ItemType Directory -Path $legacyRoot,$nativeRoot,$reloadedRoot,$launcherBundlePath -Force | Out-Null
+    New-Item -ItemType Directory -Path (Join-Path $packagePath 'Assets\movies') -Force | Out-Null
+    [IO.File]::WriteAllText((Join-Path $packagePath 'ModConfig.json'), '{"ModId":"ff7.accessibility.reloaded","ModVersion":"0.1.0-pre.2"}')
+    [IO.File]::WriteAllText((Join-Path $packagePath 'fingerprint.txt'), 'TEST-PACKAGE')
+    [IO.File]::WriteAllText((Join-Path $packagePath 'Assets\movies\opening_audio_description.ogg'), 'voice')
+
+    if ($RuntimeMode -eq 'legacy-only') {
+        New-EntrypointTestPe -Path (Join-Path $reloadedRoot '_asi_extract\ASILoader32.dll') -Machine 0x014C
+        New-EntrypointTestPe -Path (Join-Path $reloadedRoot 'Loader\X86\Bootstrapper\Reloaded.Mod.Loader.Bootstrapper.dll') -Machine 0x014C
+    }
+    else {
+        New-EntrypointTestPe -Path (Join-Path $reloadedRoot '_asi_extract\ASILoader64.dll') -Machine 0x8664
+        New-EntrypointTestPe -Path (Join-Path $reloadedRoot 'Loader\X64\Bootstrapper\Reloaded.Mod.Loader.Bootstrapper.dll') -Machine 0x8664
+    }
+
+    $modulePath = Join-Path $root 'FakeInstall.psm1'
+    $module = @'
+function Resolve-Ff7Installation {
+    param([string] $GameRoot, [string] $SteamRoot)
+    $game = [IO.Path]::GetFullPath($env:BLIND_SWORDSMAN_INSTALL_TEST_GAME_ROOT)
+    $legacy = [IO.Path]::GetFullPath($env:BLIND_SWORDSMAN_INSTALL_TEST_LEGACY_ROOT)
+    $native = [IO.Path]::GetFullPath($env:BLIND_SWORDSMAN_INSTALL_TEST_NATIVE_ROOT)
+    if ($env:BLIND_SWORDSMAN_INSTALL_TEST_RUNTIME_MODE -eq 'legacy-only') {
+        $legacyRuntime = [pscustomobject]@{ RuntimeId = 'ff7-steam-legacy-x86'; Architecture = 'x86'; RuntimeRoot = $legacy; GameExe = (Join-Path $legacy 'ff7_en.exe') }
+        return [pscustomobject]@{ Version = 'Steam2013'; SteamAppId = '39140'; GameRoot = $game; RuntimeRoot = $legacy; GameExe = $legacyRuntime.GameExe; SourceExe = $null; LegacyRuntime = $legacyRuntime; NativeRuntime = $null }
+    }
+    $nativeRuntime = [pscustomobject]@{ RuntimeId = 'ff7-steam-2026-x64'; Architecture = 'x64'; RuntimeRoot = $native; GameExe = (Join-Path $native 'FFVII.exe') }
+    return [pscustomobject]@{ Version = 'Steam2026'; SteamAppId = '3837340'; GameRoot = $game; RuntimeRoot = $null; GameExe = $nativeRuntime.GameExe; SourceExe = $null; LegacyRuntime = $null; NativeRuntime = $nativeRuntime }
+}
+function Assert-Ff7NativeRuntimeIdentity { param([string] $Path) return (Resolve-Ff7Installation).NativeRuntime }
+function Assert-Ff7NativeParityReleaseGate { param([string] $ParityMatrixPath, [switch] $AllowResearch) return [pscustomobject]@{ IsReleaseReady = $true } }
+function Initialize-Ff7CompatibilityRuntime { param([psobject] $Installation) return $Installation }
+function Install-Ff7DualRuntimePackage {
+    param([string] $PackagePath, [string] $ModDirectory, [switch] $ValidateOnly)
+    if ($ValidateOnly) { return [pscustomobject]@{ Fingerprint = 'TEST-PACKAGE' } }
+    New-Item -ItemType Directory -Path $ModDirectory -Force | Out-Null
+    Copy-Item -LiteralPath (Join-Path $PackagePath 'ModConfig.json') -Destination (Join-Path $ModDirectory 'ModConfig.json') -Force
+    return [pscustomobject]@{ Changed = $true; ModDirectory = $ModDirectory; Fingerprint = 'TEST-PACKAGE'; BackupPath = $null; BackupFingerprint = $null }
+}
+function Install-Ff7NativeReloadedProfile {
+    param([string] $ReloadedRoot, [psobject] $NativeRuntime, [string] $TemplatePath, [string] $ParityMatrixPath, [switch] $AllowResearch, [switch] $ValidateOnly)
+    if ($ValidateOnly) { return }
+    $profilePath = Join-Path $ReloadedRoot 'Apps\Ff7.Native.Steam2026\AppConfig.json'
+    New-Item -ItemType Directory -Path (Split-Path -Parent $profilePath) -Force | Out-Null
+    [IO.File]::WriteAllText($profilePath, '{}')
+    return [pscustomobject]@{ Changed = $true; ProfilePath = $profilePath; BackupPath = $null; IsResearchProfile = $false }
+}
+function Assert-Ff7NativeReloadedProfile { param([string] $ReloadedRoot, [psobject] $NativeRuntime, [switch] $Research) }
+function Disable-Ff7OpeningMovieNativeVoiceLayer {
+    param([string] $RuntimeRoot, [string] $SourcePath)
+    return [pscustomobject]@{ Removed = $false; TargetPath = (Join-Path $RuntimeRoot 'override\movies\opening_va.ogg') }
+}
+Export-ModuleMember -Function *
+'@
+    [IO.File]::WriteAllText($modulePath, $module)
+
+    $launcherModulePath = Join-Path $root 'FakeLauncher.psm1'
+    $launcherModule = @'
+function Install-Ff7AccessibleLauncher {
+    param([string] $GameRoot, [string] $ReloadedRoot, [string] $BundlePath, [switch] $ValidateOnly)
+    if ($ValidateOnly) { return }
+    return [pscustomobject]@{ Changed = $false; State = $null }
+}
+function Complete-Ff7AccessibleLauncherTransaction { param([psobject] $Result) }
+function Undo-Ff7AccessibleLauncherTransaction { param([psobject] $Result) }
+Export-ModuleMember -Function *
+'@
+    [IO.File]::WriteAllText($launcherModulePath, $launcherModule)
+
+    return [pscustomobject]@{
+        Root = $root
+        RuntimeMode = $RuntimeMode
+        GameRoot = $gameRoot
+        LegacyRoot = $legacyRoot
+        NativeRoot = $nativeRoot
+        ReloadedRoot = $reloadedRoot
+        PackagePath = $packagePath
+        LauncherBundlePath = $launcherBundlePath
+        ModulePath = $modulePath
+        LauncherModulePath = $launcherModulePath
+    }
+}
+
+function Invoke-InstallEntrypointFixture {
+    param($Fixture)
+    $env:BLIND_SWORDSMAN_INSTALL_TEST_RUNTIME_MODE = $Fixture.RuntimeMode
+    $env:BLIND_SWORDSMAN_INSTALL_TEST_GAME_ROOT = $Fixture.GameRoot
+    $env:BLIND_SWORDSMAN_INSTALL_TEST_LEGACY_ROOT = $Fixture.LegacyRoot
+    $env:BLIND_SWORDSMAN_INSTALL_TEST_NATIVE_ROOT = $Fixture.NativeRoot
+    $arguments = @{
+        GameRoot = $Fixture.GameRoot
+        ReloadedRoot = $Fixture.ReloadedRoot
+        PackagePath = $Fixture.PackagePath
+        ModulePath = $Fixture.ModulePath
+        LauncherModulePath = $Fixture.LauncherModulePath
+        SkipFfnx = $true
+    }
+    if ($Fixture.RuntimeMode -eq 'native-only') {
+        $arguments.LauncherBundlePath = $Fixture.LauncherBundlePath
+        $arguments.AllowResearchNativeProfile = $true
+    }
+    & $installPath @arguments
+}
+
 Describe 'Blind Swordsman installer entry points' {
+    AfterEach {
+        Remove-Item Env:\BLIND_SWORDSMAN_INSTALL_TEST_RUNTIME_MODE -ErrorAction SilentlyContinue
+        Remove-Item Env:\BLIND_SWORDSMAN_INSTALL_TEST_GAME_ROOT -ErrorAction SilentlyContinue
+        Remove-Item Env:\BLIND_SWORDSMAN_INSTALL_TEST_LEGACY_ROOT -ErrorAction SilentlyContinue
+        Remove-Item Env:\BLIND_SWORDSMAN_INSTALL_TEST_NATIVE_ROOT -ErrorAction SilentlyContinue
+    }
+
     It 'accepts a verified prebuilt package and structured result path without requiring a source build' {
         $command = Get-Command $installPath
         ($command.Parameters.Keys -contains 'PackagePath') | Should Be $true
@@ -99,6 +234,34 @@ Describe 'Blind Swordsman installer entry points' {
         $uninstallContent = [IO.File]::ReadAllText($uninstallPath)
         $uninstallContent | Should Match 'Restore-Ff7AccessibleLauncherFromState'
         $uninstallContent | Should Match '\$state\.launcher'
+    }
+
+    It 'deploys a legacy-only installation without any x64 loader sources' {
+        $fixture = New-InstallEntrypointFixture -RuntimeMode legacy-only
+        try {
+            Invoke-InstallEntrypointFixture $fixture
+
+            Test-Path -LiteralPath (Join-Path $fixture.LegacyRoot 'dsound.dll') -PathType Leaf | Should Be $true
+            Test-Path -LiteralPath (Join-Path $fixture.LegacyRoot 'Reloaded.Mod.Loader.Bootstrapper.asi') -PathType Leaf | Should Be $true
+            Test-Path -LiteralPath (Join-Path $fixture.ReloadedRoot '_asi_extract\ASILoader64.dll') | Should Be $false
+        }
+        finally {
+            Remove-Item -LiteralPath $fixture.Root -Recurse -Force
+        }
+    }
+
+    It 'deploys a native-only installation without any x86 loader or legacy voice path' {
+        $fixture = New-InstallEntrypointFixture -RuntimeMode native-only
+        try {
+            Invoke-InstallEntrypointFixture $fixture
+
+            Test-Path -LiteralPath (Join-Path $fixture.NativeRoot 'd3d11.dll') -PathType Leaf | Should Be $true
+            Test-Path -LiteralPath (Join-Path $fixture.NativeRoot 'Reloaded.Mod.Loader.Bootstrapper.asi') -PathType Leaf | Should Be $true
+            Test-Path -LiteralPath (Join-Path $fixture.ReloadedRoot '_asi_extract\ASILoader32.dll') | Should Be $false
+        }
+        finally {
+            Remove-Item -LiteralPath $fixture.Root -Recurse -Force
+        }
     }
 
     It 'removes only the exact recorded mod and installer-created unchanged loader' {
