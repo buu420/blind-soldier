@@ -1,5 +1,9 @@
 # Blind Swordsman Reloaded-II project
 
 This directory contains the Reloaded-II implementation for both supported
-FFVII process architectures. See the repository's [main README](../README.md)
-for installation, controls, navigation instructions, and troubleshooting.
+FFVII process architectures. End users should install the published
+`Blind-Swordsman-Setup.exe`; do not copy this source directory into Reloaded-II.
+
+See the repository's [main README](../README.md) for the installer download,
+controls, navigation instructions, and troubleshooting. Developer deployment
+and release details are documented in [Installer details](../docs/installer.md).
