@@ -30,12 +30,12 @@ static class SetupUiTests
     {
         var options = SetupCommandLineOptions.Parse([
             "--check-for-updates",
-            "--local-manifest", "C:\\Release Files\\blind-swordsman-channel.json",
+            "--local-manifest", "C:\\Release Files\\blind-soldier-channel.json",
             "--update-continuation"
         ]);
 
         True(options.CheckForUpdates, "update mode");
-        Equal("C:\\Release Files\\blind-swordsman-channel.json", options.LocalManifestPath, "local manifest path");
+        Equal("C:\\Release Files\\blind-soldier-channel.json", options.LocalManifestPath, "local manifest path");
         True(options.UpdateContinuation, "update continuation");
         Throws<ArgumentException>(() => SetupCommandLineOptions.Parse(["--uninstall", "--check-for-updates"]), "conflicting modes");
         Throws<ArgumentException>(() => SetupCommandLineOptions.Parse(["--unknown"]), "unknown switch");

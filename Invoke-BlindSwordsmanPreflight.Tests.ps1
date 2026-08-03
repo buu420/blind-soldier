@@ -4,7 +4,7 @@ $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $preflightPath = Join-Path $scriptRoot 'Invoke-BlindSwordsmanPreflight.ps1'
 
 function New-PreflightFixture {
-    $root = Join-Path ([IO.Path]::GetTempPath()) ('blind-swordsman-preflight-test-' + [Guid]::NewGuid().ToString('N'))
+    $root = Join-Path ([IO.Path]::GetTempPath()) ('blind-soldier-preflight-test-' + [Guid]::NewGuid().ToString('N'))
     $gameRoot = Join-Path $root 'Final Fantasy VII'
     $reloadedRoot = Join-Path $root 'Reloaded-II'
     $modulePath = Join-Path $root 'FakeInstall.psm1'
@@ -98,7 +98,7 @@ function Invoke-FixturePreflight {
     return [IO.File]::ReadAllText($Fixture.ResultPath) | ConvertFrom-Json
 }
 
-Describe 'Blind Swordsman installer preflight' {
+Describe 'Blind Soldier installer preflight' {
     BeforeEach {
         $fixture = New-PreflightFixture
         $env:BLIND_SWORDSMAN_PREFLIGHT_GAME_ROOT = $fixture.GameRoot

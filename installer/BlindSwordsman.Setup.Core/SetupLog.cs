@@ -17,7 +17,7 @@ public sealed class SetupLog : IDisposable
         }
         Path = System.IO.Path.Combine(
             directory,
-            $"Blind-Swordsman-Setup-{DateTime.UtcNow:yyyyMMdd-HHmmss}-{Guid.NewGuid():N}.log");
+            $"Blind-Soldier-Setup-{DateTime.UtcNow:yyyyMMdd-HHmmss}-{Guid.NewGuid():N}.log");
         writer = new StreamWriter(
             new FileStream(Path, FileMode.CreateNew, FileAccess.Write, FileShare.Read),
             new UTF8Encoding(encoderShouldEmitUTF8Identifier: false))

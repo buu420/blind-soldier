@@ -175,7 +175,7 @@ public sealed class SetupOrchestrator(
 
         var stagingRoot = System.IO.Path.Combine(
             System.IO.Path.GetTempPath(),
-            "blind-swordsman-setup-" + Guid.NewGuid().ToString("N"));
+            "blind-soldier-setup-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(stagingRoot);
         log.Write($"Beginning {request.Release.ReleaseTag} deployment into {request.Preflight.Game.GameRoot}.");
         try
@@ -253,6 +253,19 @@ public sealed class SetupOrchestrator(
                 state,
                 paths.InstalledSetupPath,
                 paths.StartMenuDirectory));
+            try
+            {
+                stateStore.DeleteLegacy();
+                if (!string.IsNullOrWhiteSpace(paths.LegacyInstalledSetupPath) &&
+                    !SamePath(paths.LegacyInstalledSetupPath, paths.InstalledSetupPath))
+                {
+                    WindowsRegistration.RemoveInstalledSetup(paths.LegacyInstalledSetupPath);
+                }
+            }
+            catch (Exception exception)
+            {
+                log.Write($"The completed installation preserved legacy setup state during cleanup: {exception.Message}");
+            }
             Report(progress, "Complete", 100, "Blind Soldier installation completed.");
             log.Write("Installation completed and Windows registration was written.");
             return state;
@@ -274,7 +287,7 @@ public sealed class SetupOrchestrator(
         var state = stateStore.Load() ?? throw new InvalidOperationException("Blind Soldier is not currently registered as installed.");
         var stagingRoot = System.IO.Path.Combine(
             System.IO.Path.GetTempPath(),
-            "blind-swordsman-uninstall-" + Guid.NewGuid().ToString("N"));
+            "blind-soldier-uninstall-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(stagingRoot);
         try
         {
@@ -298,6 +311,11 @@ public sealed class SetupOrchestrator(
             WindowsRegistration.Remove(paths.StartMenuDirectory);
             stateStore.Delete();
             WindowsRegistration.RemoveInstalledSetup(paths.InstalledSetupPath);
+            if (!string.IsNullOrWhiteSpace(paths.LegacyInstalledSetupPath) &&
+                !SamePath(paths.LegacyInstalledSetupPath, paths.InstalledSetupPath))
+            {
+                WindowsRegistration.RemoveInstalledSetup(paths.LegacyInstalledSetupPath);
+            }
             Report(progress, "Complete", 100, "Blind Soldier was uninstalled. Changed user files were preserved.");
             log.Write("Uninstall completed.");
         }
@@ -335,7 +353,7 @@ public sealed class SetupOrchestrator(
             throw new InvalidDataException("Managed setup executable cannot replace a reparse point.");
         }
 
-        var temporary = System.IO.Path.Combine(directory, ".Blind-Swordsman-Setup-" + Guid.NewGuid().ToString("N") + ".tmp");
+        var temporary = System.IO.Path.Combine(directory, ".Blind-Soldier-Setup-" + Guid.NewGuid().ToString("N") + ".tmp");
         try
         {
             File.Copy(source, temporary, overwrite: false);

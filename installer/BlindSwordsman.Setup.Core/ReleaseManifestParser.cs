@@ -64,8 +64,8 @@ public static partial class ReleaseManifestParser
             var minimumSetupVersion = ParseVersion(
                 RequireString(root, "minimumSetupVersion"),
                 "minimum setup version");
-            var payload = ParseAsset(root.GetProperty("payload"), "Blind-Swordsman-Runtime.zip", "payload");
-            var setup = ParseAsset(root.GetProperty("setup"), "Blind-Swordsman-Setup.exe", "setup");
+            var payload = ParseAsset(root.GetProperty("payload"), "Blind-Soldier-Runtime.zip", "payload");
+            var setup = ParseAsset(root.GetProperty("setup"), "Blind-Soldier-Setup.exe", "setup");
             if (string.Equals(payload.Name, setup.Name, StringComparison.OrdinalIgnoreCase))
             {
                 throw new InvalidDataException("Channel manifest contains duplicate asset names.");

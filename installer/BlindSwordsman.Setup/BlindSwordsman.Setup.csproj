@@ -7,7 +7,7 @@
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
-    <AssemblyName>Blind-Swordsman-Setup</AssemblyName>
+    <AssemblyName>Blind-Soldier-Setup</AssemblyName>
     <RootNamespace>BlindSwordsman.Setup</RootNamespace>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <SelfContained>false</SelfContained>

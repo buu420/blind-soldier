@@ -10,7 +10,9 @@ static class InstallStateTests
         ParsesPreLauncherDeploymentState();
         ParsesNativeOnlyDeploymentWithoutOpeningVoice();
         await RejectsCorruptedStateWithoutOverwritingIt();
+        LoadsLegacyInstallStateAsUpgradeFallback();
         ResolvesInstallUpdateRepairAndDowngradeModes();
+        UsesBlindSoldierPathsWithLegacyUpgradeAliases();
         BuildsPerUserWindowsRegistration();
     }
 
@@ -81,6 +83,24 @@ static class InstallStateTests
         Equal("not json", await File.ReadAllTextAsync(path), "corrupted state preserved for diagnosis");
     }
 
+    private static void LoadsLegacyInstallStateAsUpgradeFallback()
+    {
+        using var fixture = new TemporaryDirectory();
+        var currentPath = System.IO.Path.Combine(fixture.Path, "Blind Soldier", "install-state.json");
+        var legacyPath = System.IO.Path.Combine(fixture.Path, "Blind Swordsman", "install-state.json");
+        Directory.CreateDirectory(System.IO.Path.GetDirectoryName(legacyPath)!);
+        File.WriteAllText(legacyPath, ValidDeploymentResult());
+        var store = new InstallStateStore(currentPath, legacyPath);
+
+        var loaded = store.Load();
+
+        Equal("0.1.0-pre.1", loaded!.ProductVersion.ToString(), "legacy state fallback version");
+        store.Save(loaded);
+        True(File.Exists(currentPath), "legacy state migrated to current path on save");
+        store.DeleteLegacy();
+        True(!File.Exists(legacyPath), "legacy state removed after completed migration");
+    }
+
     private static void ResolvesInstallUpdateRepairAndDowngradeModes()
     {
         var installed = DeploymentResultParser.Parse(ValidDeploymentResult());
@@ -91,12 +111,24 @@ static class InstallStateTests
         Equal(SetupMode.DowngradeBlocked, SetupModeResolver.Resolve(installed, SemanticVersion.Parse("0.0.9")), "downgrade blocked mode");
     }
 
+    private static void UsesBlindSoldierPathsWithLegacyUpgradeAliases()
+    {
+        var paths = InstallerPaths.ForCurrentUser();
+
+        True(paths.LocalDataRoot.EndsWith("Blind Soldier", StringComparison.Ordinal), "current state directory name");
+        True(paths.InstalledSetupPath.EndsWith("Blind Soldier\\Blind-Soldier-Setup.exe", StringComparison.Ordinal), "current managed setup name");
+        True(paths.InstallStatePath.EndsWith("Blind Soldier\\install-state.json", StringComparison.Ordinal), "current state path");
+        True(paths.LogDirectory.EndsWith("Blind Soldier\\Logs", StringComparison.Ordinal), "current log path");
+        True(paths.LegacyInstalledSetupPath!.EndsWith("Blind Swordsman\\Blind-Swordsman-Setup.exe", StringComparison.Ordinal), "legacy managed setup alias");
+        True(paths.LegacyInstallStatePath!.EndsWith("Blind Swordsman\\install-state.json", StringComparison.Ordinal), "legacy state alias");
+    }
+
     private static void BuildsPerUserWindowsRegistration()
     {
         var state = DeploymentResultParser.Parse(ValidDeploymentResult());
         var data = WindowsRegistration.Build(
             state,
-            "C:\\Users\\Player\\AppData\\Local\\Programs\\Blind Swordsman\\Blind-Swordsman-Setup.exe",
+            "C:\\Users\\Player\\AppData\\Local\\Programs\\Blind Soldier\\Blind-Soldier-Setup.exe",
             "C:\\Users\\Player\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Blind Soldier");
 
         Equal("Blind Soldier", data.DisplayName, "display name");
@@ -242,7 +274,7 @@ static class InstallStateTests
     {
         public TemporaryDirectory()
         {
-            Path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "blind-swordsman-state-test-" + Guid.NewGuid().ToString("N"));
+            Path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "blind-soldier-state-test-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(Path);
         }
 

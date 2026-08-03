@@ -16,7 +16,7 @@ function New-TestPe {
 }
 
 function New-PrerequisiteInstallFixture {
-    $root = Join-Path ([IO.Path]::GetTempPath()) ('blind-swordsman-prerequisite-install-test-' + [Guid]::NewGuid().ToString('N'))
+    $root = Join-Path ([IO.Path]::GetTempPath()) ('blind-soldier-prerequisite-install-test-' + [Guid]::NewGuid().ToString('N'))
     $bundle = Join-Path $root 'bundle'
     $reloadedSource = Join-Path $bundle 'reloaded'
     $hooksSource = Join-Path $bundle 'shared-hooks'

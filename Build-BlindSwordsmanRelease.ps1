@@ -4,7 +4,7 @@ param(
     [string] $Tag,
     [string] $OutputPath,
     [ValidateSet('stable', 'prerelease')] [string] $Track,
-    [string] $MinimumSetupVersion = '0.1.0-pre.4',
+    [string] $MinimumSetupVersion = '0.1.0-pre.5',
     [string] $Repository = 'buu420/blind-soldier',
     [Parameter(DontShow=$true)] [scriptblock] $PackageBuilder,
     [Parameter(DontShow=$true)] [scriptblock] $PrerequisiteBundleBuilder,
@@ -58,9 +58,9 @@ $launcherSourceRoot = Join-Path $scriptRoot 'installer-assets\launcher'
 $launcherPrismSource = Join-Path $scriptRoot 'Ff7.Accessibility.Reloaded\Native\win-x86\prism.dll'
 $launcherBundlePath = Join-Path $runtimeRoot 'launcher'
 $setupPublishRoot = Join-Path $stagingRoot 'setup-publish'
-$payloadAsset = Join-Path $assetRoot 'Blind-Swordsman-Runtime.zip'
-$setupAsset = Join-Path $assetRoot 'Blind-Swordsman-Setup.exe'
-$channelAsset = Join-Path $assetRoot 'blind-swordsman-channel.json'
+$payloadAsset = Join-Path $assetRoot 'Blind-Soldier-Runtime.zip'
+$setupAsset = Join-Path $assetRoot 'Blind-Soldier-Setup.exe'
+$channelAsset = Join-Path $assetRoot 'blind-soldier-channel.json'
 $utf8WithoutBom = New-Object Text.UTF8Encoding($false)
 
 function Assert-NoReparsePoint {
@@ -336,12 +336,12 @@ try {
             -p:DebugType=None -p:DebugSymbols=false -o $setupPublishRoot
         if ($LASTEXITCODE -ne 0) { throw "Setup publisher exited with code $LASTEXITCODE." }
     }
-    $publishedSetup = Join-Path $setupPublishRoot 'Blind-Swordsman-Setup.exe'
+    $publishedSetup = Join-Path $setupPublishRoot 'Blind-Soldier-Setup.exe'
     if (-not (Test-Path -LiteralPath $publishedSetup -PathType Leaf)) {
-        throw 'Setup publisher did not produce Blind-Swordsman-Setup.exe.'
+        throw 'Setup publisher did not produce Blind-Soldier-Setup.exe.'
     }
     if ((Get-PeMachine -Path $publishedSetup) -ne 0x8664) {
-        throw 'Blind-Swordsman-Setup.exe is not an x64 PE executable.'
+        throw 'Blind-Soldier-Setup.exe is not an x64 PE executable.'
     }
     Copy-Item -LiteralPath $publishedSetup -Destination $setupAsset
 
@@ -355,14 +355,14 @@ try {
         track = $Track
         minimumSetupVersion = $MinimumSetupVersion
         payload = [ordered]@{
-            name = 'Blind-Swordsman-Runtime.zip'
-            url = "$baseUrl/Blind-Swordsman-Runtime.zip"
+            name = 'Blind-Soldier-Runtime.zip'
+            url = "$baseUrl/Blind-Soldier-Runtime.zip"
             sha256 = $payloadHash
             size = [int64](Get-Item -LiteralPath $payloadAsset).Length
         }
         setup = [ordered]@{
-            name = 'Blind-Swordsman-Setup.exe'
-            url = "$baseUrl/Blind-Swordsman-Setup.exe"
+            name = 'Blind-Soldier-Setup.exe'
+            url = "$baseUrl/Blind-Soldier-Setup.exe"
             sha256 = $setupHash
             size = [int64](Get-Item -LiteralPath $setupAsset).Length
         }
@@ -384,9 +384,9 @@ try {
         Tag = $Tag
         Track = $Track
         OutputPath = $outputDirectory.FullName
-        SetupPath = Join-Path $outputDirectory.FullName 'Blind-Swordsman-Setup.exe'
-        PayloadPath = Join-Path $outputDirectory.FullName 'Blind-Swordsman-Runtime.zip'
-        ChannelPath = Join-Path $outputDirectory.FullName 'blind-swordsman-channel.json'
+        SetupPath = Join-Path $outputDirectory.FullName 'Blind-Soldier-Setup.exe'
+        PayloadPath = Join-Path $outputDirectory.FullName 'Blind-Soldier-Runtime.zip'
+        ChannelPath = Join-Path $outputDirectory.FullName 'blind-soldier-channel.json'
     }
 }
 finally {

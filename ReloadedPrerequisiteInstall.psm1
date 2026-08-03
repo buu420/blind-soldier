@@ -289,7 +289,7 @@ function Install-BlindSwordsmanReloadedPrerequisites {
         }
     }
 
-    $temporaryRoot = Join-Path ([IO.Path]::GetTempPath()) ('blind-swordsman-prerequisite-' + [Guid]::NewGuid().ToString('N'))
+    $temporaryRoot = Join-Path ([IO.Path]::GetTempPath()) ('blind-soldier-prerequisite-' + [Guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $temporaryRoot | Out-Null
     try {
         $settingsSource = Join-Path $temporaryRoot 'ReloadedII.json'
@@ -375,7 +375,7 @@ function Install-BlindSwordsmanReloadedPrerequisites {
                 if ($hadOriginal) { Copy-Item -LiteralPath $target -Destination $backup }
                 $record = [pscustomobject]@{ Target=$target; HadOriginal=$hadOriginal; Backup=$backup; Source=[string]$entry.Source; Category=[string]$entry.Category }
                 $applied.Add($record)
-                $temporaryTarget = Join-Path $parent ('.blind-swordsman-prerequisite-' + [Guid]::NewGuid().ToString('N') + '.tmp')
+                $temporaryTarget = Join-Path $parent ('.blind-soldier-prerequisite-' + [Guid]::NewGuid().ToString('N') + '.tmp')
                 try {
                     if ($null -ne $FileWriter) { & $FileWriter ([string]$entry.Source) $temporaryTarget }
                     else { Copy-Item -LiteralPath ([string]$entry.Source) -Destination $temporaryTarget }
@@ -384,7 +384,7 @@ function Install-BlindSwordsmanReloadedPrerequisites {
                     $temporaryHash = (Get-FileHash -LiteralPath $temporaryTarget -Algorithm SHA256).Hash
                     if (-not $sourceHash.Equals($temporaryHash, [StringComparison]::OrdinalIgnoreCase)) { throw "Prerequisite write verification failed for $target." }
                     if ($hadOriginal) {
-                        $replaceBackup = Join-Path $parent ('.blind-swordsman-replaced-' + [Guid]::NewGuid().ToString('N') + '.bak')
+                        $replaceBackup = Join-Path $parent ('.blind-soldier-replaced-' + [Guid]::NewGuid().ToString('N') + '.bak')
                         try { [IO.File]::Replace($temporaryTarget, $target, $replaceBackup, $true) }
                         finally {
                             if (Test-Path -LiteralPath $replaceBackup -PathType Leaf) { Remove-Item -LiteralPath $replaceBackup -Force }

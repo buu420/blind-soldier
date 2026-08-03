@@ -58,7 +58,7 @@ function New-PrerequisiteFixture {
         [int] $MaximumExtractorDestinationLength = 0
     )
 
-    $root = Join-Path ([IO.Path]::GetTempPath()) ('blind-swordsman-prereq-test-' + [Guid]::NewGuid().ToString('N'))
+    $root = Join-Path ([IO.Path]::GetTempPath()) ('blind-soldier-prereq-test-' + [Guid]::NewGuid().ToString('N'))
     $sources = Join-Path $root 'sources'
     $sevenZipContent = Join-Path $root 'sevenzip-content'
     New-Item -ItemType Directory -Path $sources, $sevenZipContent -Force | Out-Null
@@ -185,7 +185,7 @@ function New-PrerequisiteFixture {
     }
 }
 
-Describe 'Blind Swordsman prerequisite bundle builder' {
+Describe 'Blind Soldier prerequisite bundle builder' {
     AfterEach {
         if ($null -ne $fixture -and (Test-Path -LiteralPath $fixture.Root)) {
             Remove-Item -LiteralPath $fixture.Root -Recurse -Force

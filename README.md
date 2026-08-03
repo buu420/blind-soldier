@@ -35,12 +35,12 @@ reading unverified game memory.
 ## Installation
 
 Download and run
-[Blind-Swordsman-Setup.exe](https://github.com/buu420/blind-soldier/releases/download/v0.1.0-pre.4/Blind-Swordsman-Setup.exe).
+[Blind-Soldier-Setup.exe](https://github.com/buu420/blind-soldier/releases/download/v0.1.0-pre.5/Blind-Soldier-Setup.exe).
 If that direct link changes, use the
 [Blind Soldier Releases page](https://github.com/buu420/blind-soldier/releases).
 
 1. Close Final Fantasy VII, 7th Heaven, and Reloaded-II.
-2. Run `Blind-Swordsman-Setup.exe`. You do not need to extract a ZIP, install
+2. Run `Blind-Soldier-Setup.exe`. You do not need to extract a ZIP, install
    Reloaded-II or .NET, open a terminal, or run a script.
 3. Review the detected Final Fantasy VII folder. If setup did not find it,
    activate **Choose game folder** and select the game's root folder.
@@ -98,18 +98,19 @@ executables instead of reading unverified memory.
   original FFVII launcher. Reloaded-II, Shared Hooks, and .NET remain installed
   because they are shared components that other mods may use.
 
-For compatibility with existing installations, installer state and readable
-logs remain under the legacy path `%LOCALAPPDATA%\Blind Swordsman`. The
-completion page includes a link that opens the current setup log.
+Installer state and readable logs are stored under
+`%LOCALAPPDATA%\Blind Soldier`. Setup automatically reads and migrates state
+from the former `%LOCALAPPDATA%\Blind Swordsman` path when updating an older
+installation. The completion page includes a link that opens the current log.
 
 ### Offline or local release files
 
-Keep `Blind-Swordsman-Setup.exe`, `Blind-Swordsman-Runtime.zip`, and
-`blind-swordsman-channel.json` from the same release in one folder. From a
+Keep `Blind-Soldier-Setup.exe`, `Blind-Soldier-Runtime.zip`, and
+`blind-soldier-channel.json` from the same release in one folder. From a
 Command Prompt or PowerShell window, run:
 
 ```powershell
-.\Blind-Swordsman-Setup.exe --local-manifest ".\blind-swordsman-channel.json"
+.\Blind-Soldier-Setup.exe --local-manifest ".\blind-soldier-channel.json"
 ```
 
 Setup uses the sibling runtime ZIP only after its size and SHA-256 match the
@@ -322,7 +323,7 @@ exact path.
 
 That warning is expected for the unsigned prerelease installer. Cancel if the
 file did not come from this repository's Releases page. You can compare the
-download against `Blind-Swordsman-Setup.exe.sha256` on the same release before
+download against `Blind-Soldier-Setup.exe.sha256` on the same release before
 running it.
 
 ## Reporting a problem

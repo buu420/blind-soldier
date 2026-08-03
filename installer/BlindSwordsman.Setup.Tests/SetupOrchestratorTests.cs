@@ -213,14 +213,14 @@ static class SetupOrchestratorTests
           "track": "prerelease",
           "minimumSetupVersion": "0.1.0-pre.1",
           "payload": {
-            "name": "Blind-Swordsman-Runtime.zip",
-            "url": "https://github.com/buu420/blind-soldier/releases/download/v0.1.0-pre.1/Blind-Swordsman-Runtime.zip",
+            "name": "Blind-Soldier-Runtime.zip",
+            "url": "https://github.com/buu420/blind-soldier/releases/download/v0.1.0-pre.1/Blind-Soldier-Runtime.zip",
             "sha256": "{{new string('A', 64)}}",
             "size": 1234
           },
           "setup": {
-            "name": "Blind-Swordsman-Setup.exe",
-            "url": "https://github.com/buu420/blind-soldier/releases/download/v0.1.0-pre.1/Blind-Swordsman-Setup.exe",
+            "name": "Blind-Soldier-Setup.exe",
+            "url": "https://github.com/buu420/blind-soldier/releases/download/v0.1.0-pre.1/Blind-Soldier-Setup.exe",
             "sha256": "{{new string('B', 64)}}",
             "size": 5678
           }

@@ -21,7 +21,7 @@ static class ReleaseValidationCommand
         ValidateAsset(manifest.Payload, payloadPath);
         ValidateAsset(manifest.Setup, setupPath);
 
-        var temporary = Path.Combine(Path.GetTempPath(), "blind-swordsman-release-validation-" + Guid.NewGuid().ToString("N"));
+        var temporary = Path.Combine(Path.GetTempPath(), "blind-soldier-release-validation-" + Guid.NewGuid().ToString("N"));
         try
         {
             SafeZipExtractor.ExtractAndValidate(payloadPath, temporary);

@@ -16,8 +16,8 @@ public sealed record WindowsRegistrationData(
 
 public static class WindowsRegistration
 {
-    // Keep the original key so updates can repair or uninstall existing releases.
-    private const string UninstallKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\Blind Swordsman";
+    private const string UninstallKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\Blind Soldier";
+    private const string LegacyUninstallKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\Blind Swordsman";
     private const string UpdateShortcutName = "Check for Blind Soldier Updates.lnk";
     private const string LegacyStartMenuDirectoryName = "Blind Swordsman";
     private const string LegacyUpdateShortcutName = "Check for Blind Swordsman Updates.lnk";
@@ -64,6 +64,7 @@ public static class WindowsRegistration
             key.SetValue("NoRepair", 0, RegistryValueKind.DWord);
         }
 
+        Registry.CurrentUser.DeleteSubKeyTree(LegacyUninstallKeyPath, throwOnMissingSubKey: false);
         RemoveLegacyUpdateShortcut(data.UpdateShortcut.Path);
         CreateShortcut(data.UpdateShortcut);
     }
@@ -71,6 +72,7 @@ public static class WindowsRegistration
     public static void Remove(string startMenuDirectory)
     {
         Registry.CurrentUser.DeleteSubKeyTree(UninstallKeyPath, throwOnMissingSubKey: false);
+        Registry.CurrentUser.DeleteSubKeyTree(LegacyUninstallKeyPath, throwOnMissingSubKey: false);
         var directory = System.IO.Path.GetFullPath(startMenuDirectory);
         RemoveShortcutAndEmptyDirectory(System.IO.Path.Combine(directory, UpdateShortcutName));
         RemoveShortcutAndEmptyDirectory(GetLegacyUpdateShortcutPath(directory));

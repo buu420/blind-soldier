@@ -21,7 +21,7 @@ function New-MinimalX86Pe {
 }
 
 function New-LauncherFixture {
-    $root = Join-Path ([IO.Path]::GetTempPath()) ('blind-swordsman-launcher-test-' + [Guid]::NewGuid().ToString('N'))
+    $root = Join-Path ([IO.Path]::GetTempPath()) ('blind-soldier-launcher-test-' + [Guid]::NewGuid().ToString('N'))
     $gameRoot = Join-Path $root 'game'
     $reloadedRoot = Join-Path $root 'Reloaded-II'
     $bundleRoot = Join-Path $root 'bundle'

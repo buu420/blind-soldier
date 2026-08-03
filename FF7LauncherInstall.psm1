@@ -332,7 +332,7 @@ function New-LauncherSnapshot {
         [Parameter(Mandatory=$true)] [hashtable] $Targets,
         [Parameter(Mandatory=$true)] [string] $BackupRoot
     )
-    $root = Join-Path ([IO.Path]::GetTempPath()) ('blind-swordsman-launcher-transaction-' + [Guid]::NewGuid().ToString('N'))
+    $root = Join-Path ([IO.Path]::GetTempPath()) ('blind-soldier-launcher-transaction-' + [Guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $root | Out-Null
     $entries = New-Object 'System.Collections.Generic.List[object]'
     $number = 0
@@ -373,7 +373,7 @@ function Copy-LauncherFileAtomically {
         New-Item -ItemType Directory -Path $parent -Force | Out-Null
     }
     [void](Assert-LauncherDirectory -Path $parent -Label 'Launcher target directory')
-    $temporary = Join-Path $parent ('.blind-swordsman-' + [Guid]::NewGuid().ToString('N') + '.tmp')
+    $temporary = Join-Path $parent ('.blind-soldier-' + [Guid]::NewGuid().ToString('N') + '.tmp')
     $replaceBackup = $null
     try {
         Copy-Item -LiteralPath $Source -Destination $temporary
@@ -381,7 +381,7 @@ function Copy-LauncherFileAtomically {
             throw "Launcher temporary copy hash mismatch: $Target"
         }
         if (Test-Path -LiteralPath $Target -PathType Leaf) {
-            $replaceBackup = Join-Path $parent ('.blind-swordsman-replace-' + [Guid]::NewGuid().ToString('N') + '.bak')
+            $replaceBackup = Join-Path $parent ('.blind-soldier-replace-' + [Guid]::NewGuid().ToString('N') + '.bak')
             [IO.File]::Replace($temporary, $Target, $replaceBackup, $true)
         }
         else {
@@ -457,7 +457,7 @@ function Remove-LauncherTransactionRoot {
     $root = [IO.Path]::GetFullPath([string]$Transaction.Root)
     $tempPrefix = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\') + '\'
     if (-not $root.StartsWith($tempPrefix, [StringComparison]::OrdinalIgnoreCase) -or
-        -not ([IO.Path]::GetFileName($root)).StartsWith('blind-swordsman-launcher-transaction-', [StringComparison]::Ordinal)) {
+        -not ([IO.Path]::GetFileName($root)).StartsWith('blind-soldier-launcher-transaction-', [StringComparison]::Ordinal)) {
         throw "Refusing unsafe launcher transaction cleanup: $root"
     }
     if (Test-Path -LiteralPath $root -PathType Container) {

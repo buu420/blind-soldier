@@ -4,7 +4,7 @@ $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $builderPath = Join-Path $scriptRoot 'Build-BlindSwordsmanRelease.ps1'
 
 function New-ReleaseFixture {
-    $root = Join-Path ([IO.Path]::GetTempPath()) ('blind-swordsman-release-test-' + [Guid]::NewGuid().ToString('N'))
+    $root = Join-Path ([IO.Path]::GetTempPath()) ('blind-soldier-release-test-' + [Guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $root | Out-Null
     return [pscustomobject]@{
         Root = $root
@@ -96,10 +96,10 @@ function New-FakeRuntimePackage {
 
 $packageBuilder = { param($PackagePath) New-FakeRuntimePackage -PackagePath $PackagePath }
 $prerequisiteBundleBuilder = { param($BundlePath) New-FakePrerequisiteBundle -BundlePath $BundlePath }
-$setupPublisher = { param($Destination) New-FakePe -Path (Join-Path $Destination 'Blind-Swordsman-Setup.exe') }
+$setupPublisher = { param($Destination) New-FakePe -Path (Join-Path $Destination 'Blind-Soldier-Setup.exe') }
 $artifactValidator = { param($ManifestPath, $PayloadPath, $SetupPath, $Track) }
 
-Describe 'Blind Swordsman release builder' {
+Describe 'Blind Soldier release builder' {
     BeforeEach {
         $fixture = New-ReleaseFixture
     }
@@ -117,13 +117,13 @@ Describe 'Blind Swordsman release builder' {
 
         $names = @(Get-ChildItem -LiteralPath $fixture.First -File | Sort-Object Name | ForEach-Object Name)
         $names | Should Be @(
-            'Blind-Swordsman-Runtime.zip',
-            'Blind-Swordsman-Runtime.zip.sha256',
-            'Blind-Swordsman-Setup.exe',
-            'Blind-Swordsman-Setup.exe.sha256',
-            'blind-swordsman-channel.json'
+            'Blind-Soldier-Runtime.zip',
+            'Blind-Soldier-Runtime.zip.sha256',
+            'Blind-Soldier-Setup.exe',
+            'Blind-Soldier-Setup.exe.sha256',
+            'blind-soldier-channel.json'
         )
-        $manifest = [IO.File]::ReadAllText((Join-Path $fixture.First 'blind-swordsman-channel.json')) | ConvertFrom-Json
+        $manifest = [IO.File]::ReadAllText((Join-Path $fixture.First 'blind-soldier-channel.json')) | ConvertFrom-Json
         $manifest.version | Should Be '0.1.0-pre.1'
         $manifest.releaseTag | Should Be 'v0.1.0-pre.1'
         $manifest.track | Should Be 'prerelease'
@@ -131,7 +131,7 @@ Describe 'Blind Swordsman release builder' {
         $manifest.setup.size | Should Be (Get-Item (Join-Path $fixture.First $manifest.setup.name)).Length
         $manifest.payload.sha256 | Should Be (Get-FileHash (Join-Path $fixture.First $manifest.payload.name) -Algorithm SHA256).Hash
         $manifest.setup.sha256 | Should Be (Get-FileHash (Join-Path $fixture.First $manifest.setup.name) -Algorithm SHA256).Hash
-        [IO.File]::ReadAllText((Join-Path $fixture.First 'Blind-Swordsman-Setup.exe.sha256')) | Should Match "^$($manifest.setup.sha256)  Blind-Swordsman-Setup.exe`r?`n?$"
+        [IO.File]::ReadAllText((Join-Path $fixture.First 'Blind-Soldier-Setup.exe.sha256')) | Should Match "^$($manifest.setup.sha256)  Blind-Soldier-Setup.exe`r?`n?$"
     }
 
     It 'creates an ordinally sorted payload manifest and deterministic archive' {
@@ -142,11 +142,11 @@ Describe 'Blind Swordsman release builder' {
             -PackageBuilder $packageBuilder -PrerequisiteBundleBuilder $prerequisiteBundleBuilder `
             -SetupPublisher $setupPublisher -ArtifactValidator $artifactValidator | Out-Null
 
-        (Get-FileHash (Join-Path $fixture.First 'Blind-Swordsman-Runtime.zip') -Algorithm SHA256).Hash |
-            Should Be (Get-FileHash (Join-Path $fixture.Second 'Blind-Swordsman-Runtime.zip') -Algorithm SHA256).Hash
+        (Get-FileHash (Join-Path $fixture.First 'Blind-Soldier-Runtime.zip') -Algorithm SHA256).Hash |
+            Should Be (Get-FileHash (Join-Path $fixture.Second 'Blind-Soldier-Runtime.zip') -Algorithm SHA256).Hash
 
         Add-Type -AssemblyName System.IO.Compression.FileSystem
-        $archive = [IO.Compression.ZipFile]::OpenRead((Join-Path $fixture.First 'Blind-Swordsman-Runtime.zip'))
+        $archive = [IO.Compression.ZipFile]::OpenRead((Join-Path $fixture.First 'Blind-Soldier-Runtime.zip'))
         try {
             $entryNames = @($archive.Entries | ForEach-Object FullName)
             foreach ($launcherEntry in @(

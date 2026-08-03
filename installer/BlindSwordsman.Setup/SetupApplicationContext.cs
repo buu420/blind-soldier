@@ -30,7 +30,7 @@ public sealed class SetupApplicationContext : ApplicationContext
     {
         this.options = options ?? throw new ArgumentNullException(nameof(options));
         paths = InstallerPaths.ForCurrentUser();
-        stateStore = new InstallStateStore(paths.InstallStatePath);
+        stateStore = new InstallStateStore(paths.InstallStatePath, paths.LegacyInstallStatePath);
         log = new SetupLog(paths.LogDirectory);
         resources = EmbeddedResourceBundle.Extract();
         httpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(15) };

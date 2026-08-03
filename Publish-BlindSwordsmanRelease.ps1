@@ -8,7 +8,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $artifactRoot = [IO.Path]::GetFullPath($ArtifactPath)
-$channelPath = Join-Path $artifactRoot 'blind-swordsman-channel.json'
+$channelPath = Join-Path $artifactRoot 'blind-soldier-channel.json'
 if (-not (Test-Path -LiteralPath $channelPath -PathType Leaf)) {
     throw "Release channel manifest is missing: $channelPath"
 }
@@ -17,11 +17,11 @@ if ([string]$channel.releaseTag -cne $Tag) {
     throw "Artifact release tag '$($channel.releaseTag)' does not match requested tag '$Tag'."
 }
 $assetNames = @(
-    'Blind-Swordsman-Setup.exe',
-    'Blind-Swordsman-Runtime.zip',
-    'Blind-Swordsman-Setup.exe.sha256',
-    'Blind-Swordsman-Runtime.zip.sha256',
-    'blind-swordsman-channel.json'
+    'Blind-Soldier-Setup.exe',
+    'Blind-Soldier-Runtime.zip',
+    'Blind-Soldier-Setup.exe.sha256',
+    'Blind-Soldier-Runtime.zip.sha256',
+    'blind-soldier-channel.json'
 )
 $assets = foreach ($name in $assetNames) {
     $path = Join-Path $artifactRoot $name
@@ -49,11 +49,11 @@ if ($null -ne $existingRelease) {
 $temporaryNotes = $null
 try {
     if ([string]::IsNullOrWhiteSpace($NotesPath)) {
-        $temporaryNotes = Join-Path ([IO.Path]::GetTempPath()) ('blind-swordsman-release-notes-' + [Guid]::NewGuid().ToString('N') + '.md')
+        $temporaryNotes = Join-Path ([IO.Path]::GetTempPath()) ('blind-soldier-release-notes-' + [Guid]::NewGuid().ToString('N') + '.md')
         $notes = @"
 Blind Soldier $($channel.version) is an early public test release of the dual-runtime Final Fantasy VII accessibility mod.
 
-Download `Blind-Swordsman-Setup.exe` for the standard accessible installation experience. The installer is not code-signed yet, so Windows SmartScreen may identify the publisher as unknown.
+Download `Blind-Soldier-Setup.exe` for the standard accessible installation experience. The installer is not code-signed yet, so Windows SmartScreen may identify the publisher as unknown.
 
 This release supports the legacy x86 and Steam 2026 x64 game runtimes. The x64 backend remains prerelease research software.
 "@

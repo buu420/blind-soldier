@@ -81,11 +81,15 @@ Reloaded-II folder's `AccessibilityBackups` directory and verified before the
 replacement is committed. An older launcher-accessibility manifest is migrated
 to this managed backup layout during update or repair.
 
-After a successful operation, setup copies itself to the legacy-compatible path
-`%LOCALAPPDATA%\Programs\Blind Swordsman\Blind-Swordsman-Setup.exe`, registers
+After a successful operation, setup copies itself to
+`%LOCALAPPDATA%\Programs\Blind Soldier\Blind-Soldier-Setup.exe`, registers
 Blind Soldier in Windows Installed apps, and creates **Check for Blind Soldier
 Updates** in the Start menu. That shortcut performs an explicit
 check; there is no background service or scheduled updater.
+
+When updating a release installed under the former name, setup reads the old
+install state, completes the new installation first, and then removes the old
+managed setup executable and state file.
 
 If a later release requires a newer setup engine, the current setup downloads
 the newer EXE from the release, verifies its length and SHA-256, and continues
@@ -129,13 +133,13 @@ state are then removed.
 Setup writes plain-text logs to:
 
 ```text
-%LOCALAPPDATA%\Blind Swordsman\Logs
+%LOCALAPPDATA%\Blind Soldier\Logs
 ```
 
 Saved install state is:
 
 ```text
-%LOCALAPPDATA%\Blind Swordsman\install-state.json
+%LOCALAPPDATA%\Blind Soldier\install-state.json
 ```
 
 Do not edit the state file. Corrupt or unexpected state is preserved for
@@ -145,14 +149,14 @@ diagnosis and setup refuses to guess what should be removed.
 
 For an offline transfer, place these three files from one release together:
 
-- `Blind-Swordsman-Setup.exe`
-- `Blind-Swordsman-Runtime.zip`
-- `blind-swordsman-channel.json`
+- `Blind-Soldier-Setup.exe`
+- `Blind-Soldier-Runtime.zip`
+- `blind-soldier-channel.json`
 
 Run:
 
 ```powershell
-.\Blind-Swordsman-Setup.exe --local-manifest ".\blind-swordsman-channel.json"
+.\Blind-Soldier-Setup.exe --local-manifest ".\blind-soldier-channel.json"
 ```
 
 The local ZIP is accepted only when it exactly matches the manifest. If it is
@@ -161,7 +165,7 @@ all integrity checks.
 
 ## Unsigned prerelease warning
 
-Version `0.1.0-pre.4` is not Authenticode-signed. Windows SmartScreen can show
+Version `0.1.0-pre.5` is not Authenticode-signed. Windows SmartScreen can show
 **Unknown publisher** even when the file is intact. Download only from the
 project's GitHub Releases page and, when desired, verify it against the
 adjacent `.sha256` file. This warning is separate from the installer's own

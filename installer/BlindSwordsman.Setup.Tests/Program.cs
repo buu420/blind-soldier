@@ -31,7 +31,7 @@ static class ReleaseManifestTests
         Equal(1, manifest.SchemaVersion, "manifest schema");
         Equal("0.1.0-pre.1", manifest.Version.ToString(), "product version");
         Equal("v0.1.0-pre.1", manifest.ReleaseTag, "release tag");
-        Equal("Blind-Swordsman-Runtime.zip", manifest.Payload.Name, "payload name");
+        Equal("Blind-Soldier-Runtime.zip", manifest.Payload.Name, "payload name");
         Equal(64, manifest.Payload.Sha256.Length, "payload hash length");
         Equal(ReleaseTrack.Prerelease, manifest.Track, "release track");
     }
@@ -62,7 +62,7 @@ static class ReleaseManifestTests
             ReleaseManifestParser.Parse(ValidManifest().Replace(new string('A', 64), "BAD"), ReleaseTrack.Prerelease),
             "invalid SHA-256");
         Throws<InvalidDataException>(() =>
-            ReleaseManifestParser.Parse(ValidManifest().Replace("Blind-Swordsman-Setup.exe", "Blind-Swordsman-Runtime.zip"), ReleaseTrack.Prerelease),
+            ReleaseManifestParser.Parse(ValidManifest().Replace("Blind-Soldier-Setup.exe", "Blind-Soldier-Runtime.zip"), ReleaseTrack.Prerelease),
             "duplicate asset names");
         Throws<FormatException>(() => SemanticVersion.Parse("1.0"), "short semantic version");
         Throws<FormatException>(() => SemanticVersion.Parse("1.0.0-"), "empty prerelease");
@@ -83,14 +83,14 @@ static class ReleaseManifestTests
           "track": "prerelease",
           "minimumSetupVersion": "0.1.0-pre.1",
           "payload": {
-            "name": "Blind-Swordsman-Runtime.zip",
-            "url": "https://github.com/buu420/blind-soldier/releases/download/v0.1.0-pre.1/Blind-Swordsman-Runtime.zip",
+            "name": "Blind-Soldier-Runtime.zip",
+            "url": "https://github.com/buu420/blind-soldier/releases/download/v0.1.0-pre.1/Blind-Soldier-Runtime.zip",
             "sha256": "{{new string('A', 64)}}",
             "size": 1234
           },
           "setup": {
-            "name": "Blind-Swordsman-Setup.exe",
-            "url": "https://github.com/buu420/blind-soldier/releases/download/v0.1.0-pre.1/Blind-Swordsman-Setup.exe",
+            "name": "Blind-Soldier-Setup.exe",
+            "url": "https://github.com/buu420/blind-soldier/releases/download/v0.1.0-pre.1/Blind-Soldier-Setup.exe",
             "sha256": "{{new string('B', 64)}}",
             "size": 5678
           }

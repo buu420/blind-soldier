@@ -37,7 +37,7 @@ public sealed class ArtifactDownloader(HttpClient httpClient)
         try
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, asset.Url);
-            request.Headers.UserAgent.ParseAdd("Blind-Swordsman-Setup/0.1");
+            request.Headers.UserAgent.ParseAdd("Blind-Soldier-Setup/0.1");
             using var response = await httpClient.SendAsync(
                 request,
                 HttpCompletionOption.ResponseHeadersRead,

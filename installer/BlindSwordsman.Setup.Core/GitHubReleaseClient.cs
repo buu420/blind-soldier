@@ -5,7 +5,7 @@ namespace BlindSwordsman.Setup.Core;
 
 public sealed class GitHubReleaseClient
 {
-    public const string ChannelAssetName = "blind-swordsman-channel.json";
+    public const string ChannelAssetName = "blind-soldier-channel.json";
 
     private readonly HttpClient httpClient;
     private readonly string owner;
@@ -55,8 +55,8 @@ public sealed class GitHubReleaseClient
 
             var assetMap = ParseAssets(assets);
             if (!assetMap.TryGetValue(ChannelAssetName, out var channelAsset) ||
-                !assetMap.ContainsKey("Blind-Swordsman-Runtime.zip") ||
-                !assetMap.ContainsKey("Blind-Swordsman-Setup.exe"))
+                !assetMap.ContainsKey("Blind-Soldier-Runtime.zip") ||
+                !assetMap.ContainsKey("Blind-Soldier-Setup.exe"))
             {
                 continue;
             }
@@ -138,7 +138,7 @@ public sealed class GitHubReleaseClient
         }
 
         var request = new HttpRequestMessage(HttpMethod.Get, uri);
-        request.Headers.UserAgent.Add(new ProductInfoHeaderValue("Blind-Swordsman-Setup", "0.1"));
+        request.Headers.UserAgent.Add(new ProductInfoHeaderValue("Blind-Soldier-Setup", "0.1"));
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
         request.Headers.Add("X-GitHub-Api-Version", "2022-11-28");
         return request;

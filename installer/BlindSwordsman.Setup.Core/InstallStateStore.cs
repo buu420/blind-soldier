@@ -2,22 +2,26 @@ using System.Text;
 
 namespace BlindSwordsman.Setup.Core;
 
-public sealed class InstallStateStore(string path)
+public sealed class InstallStateStore(string path, string? legacyPath = null)
 {
     public string Path { get; } = System.IO.Path.GetFullPath(path);
+    public string? LegacyPath { get; } = string.IsNullOrWhiteSpace(legacyPath)
+        ? null
+        : System.IO.Path.GetFullPath(legacyPath);
 
     public InstallState? Load()
     {
-        if (!File.Exists(Path))
+        var sourcePath = File.Exists(Path) ? Path : LegacyPath;
+        if (sourcePath is null || !File.Exists(sourcePath))
         {
             return null;
         }
-        var item = new FileInfo(Path);
+        var item = new FileInfo(sourcePath);
         if ((item.Attributes & FileAttributes.ReparsePoint) != 0)
         {
             throw new InvalidDataException("Install state cannot be a reparse point.");
         }
-        return DeploymentResultParser.Parse(File.ReadAllText(Path, Encoding.UTF8));
+        return DeploymentResultParser.Parse(File.ReadAllText(sourcePath, Encoding.UTF8));
     }
 
     public void Save(InstallState state)
@@ -65,15 +69,30 @@ public sealed class InstallStateStore(string path)
 
     public void Delete()
     {
-        if (!File.Exists(Path))
+        DeletePath(Path);
+        DeleteLegacy();
+    }
+
+    public void DeleteLegacy()
+    {
+        if (LegacyPath is not null &&
+            !string.Equals(LegacyPath, Path, StringComparison.OrdinalIgnoreCase))
+        {
+            DeletePath(LegacyPath);
+        }
+    }
+
+    private static void DeletePath(string path)
+    {
+        if (!File.Exists(path))
         {
             return;
         }
-        var item = new FileInfo(Path);
+        var item = new FileInfo(path);
         if ((item.Attributes & FileAttributes.ReparsePoint) != 0)
         {
             throw new InvalidDataException("Install state cannot delete a reparse point.");
         }
-        File.Delete(Path);
+        File.Delete(path);
     }
 }

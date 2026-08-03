@@ -71,7 +71,7 @@ static class ArtifactSecurityTests
         using var fixture = new TemporaryDirectory();
         var bytes = Encoding.UTF8.GetBytes("verified runtime payload");
         var asset = new ReleaseAssetDescriptor(
-            "Blind-Swordsman-Runtime.zip",
+            "Blind-Soldier-Runtime.zip",
             new Uri("https://github.com/buu420/blind-soldier/releases/download/v1/file.zip"),
             Convert.ToHexString(SHA256.HashData(bytes)),
             bytes.Length);
@@ -95,7 +95,7 @@ static class ArtifactSecurityTests
         using var fixture = new TemporaryDirectory();
         var bytes = Encoding.UTF8.GetBytes("tampered");
         var asset = new ReleaseAssetDescriptor(
-            "Blind-Swordsman-Runtime.zip",
+            "Blind-Soldier-Runtime.zip",
             new Uri("https://github.com/buu420/blind-soldier/releases/download/v1/file.zip"),
             new string('A', 64),
             bytes.Length);
@@ -262,14 +262,14 @@ static class ArtifactSecurityTests
           "track": "{{track}}",
           "minimumSetupVersion": "0.1.0-pre.1",
           "payload": {
-            "name": "Blind-Swordsman-Runtime.zip",
-            "url": "https://github.com/buu420/blind-soldier/releases/download/{{tag}}/Blind-Swordsman-Runtime.zip",
+            "name": "Blind-Soldier-Runtime.zip",
+            "url": "https://github.com/buu420/blind-soldier/releases/download/{{tag}}/Blind-Soldier-Runtime.zip",
             "sha256": "{{new string('A', 64)}}",
             "size": 1234
           },
           "setup": {
-            "name": "Blind-Swordsman-Setup.exe",
-            "url": "https://github.com/buu420/blind-soldier/releases/download/{{tag}}/Blind-Swordsman-Setup.exe",
+            "name": "Blind-Soldier-Setup.exe",
+            "url": "https://github.com/buu420/blind-soldier/releases/download/{{tag}}/Blind-Soldier-Setup.exe",
             "sha256": "{{new string('B', 64)}}",
             "size": 5678
           }
@@ -286,20 +286,20 @@ static class ArtifactSecurityTests
         {
             new
             {
-                name = "blind-swordsman-channel.json",
-                browser_download_url = $"https://github.com/buu420/blind-soldier/releases/download/{tag}/blind-swordsman-channel.json",
+                name = "blind-soldier-channel.json",
+                browser_download_url = $"https://github.com/buu420/blind-soldier/releases/download/{tag}/blind-soldier-channel.json",
                 size = 700
             },
             new
             {
-                name = "Blind-Swordsman-Runtime.zip",
-                browser_download_url = $"https://github.com/buu420/blind-soldier/releases/download/{tag}/Blind-Swordsman-Runtime.zip",
+                name = "Blind-Soldier-Runtime.zip",
+                browser_download_url = $"https://github.com/buu420/blind-soldier/releases/download/{tag}/Blind-Soldier-Runtime.zip",
                 size = 1234
             },
             new
             {
-                name = "Blind-Swordsman-Setup.exe",
-                browser_download_url = $"https://github.com/buu420/blind-soldier/releases/download/{tag}/Blind-Swordsman-Setup.exe",
+                name = "Blind-Soldier-Setup.exe",
+                browser_download_url = $"https://github.com/buu420/blind-soldier/releases/download/{tag}/Blind-Soldier-Setup.exe",
                 size = 5678
             }
         }
@@ -431,7 +431,7 @@ static class ArtifactSecurityTests
     {
         public TemporaryDirectory()
         {
-            Path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "blind-swordsman-setup-test-" + Guid.NewGuid().ToString("N"));
+            Path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "blind-soldier-setup-test-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(Path);
         }
 

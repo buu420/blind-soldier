@@ -5,7 +5,7 @@ $installPath = Join-Path $scriptRoot 'Install-FF7ReloadedMod.ps1'
 $uninstallPath = Join-Path $scriptRoot 'Uninstall-FF7ReloadedMod.ps1'
 
 function New-EntrypointFixture {
-    $root = Join-Path ([IO.Path]::GetTempPath()) ('blind-swordsman-entrypoint-test-' + [Guid]::NewGuid().ToString('N'))
+    $root = Join-Path ([IO.Path]::GetTempPath()) ('blind-soldier-entrypoint-test-' + [Guid]::NewGuid().ToString('N'))
     $gameRoot = Join-Path $root 'game'
     $runtimeRoot = Join-Path $gameRoot 'runtime'
     $reloadedRoot = Join-Path $root 'Reloaded-II'
@@ -102,7 +102,7 @@ function New-EntrypointTestPe {
 function New-InstallEntrypointFixture {
     param([ValidateSet('legacy-only', 'native-only', 'dual')] [string] $RuntimeMode)
 
-    $root = Join-Path ([IO.Path]::GetTempPath()) ('blind-swordsman-install-entrypoint-test-' + [Guid]::NewGuid().ToString('N'))
+    $root = Join-Path ([IO.Path]::GetTempPath()) ('blind-soldier-install-entrypoint-test-' + [Guid]::NewGuid().ToString('N'))
     $gameRoot = Join-Path $root 'game'
     $legacyRoot = Join-Path $gameRoot 'legacy'
     $nativeRoot = Join-Path $gameRoot 'native'
@@ -256,7 +256,7 @@ function Invoke-InstallEntrypointFixture {
     & $installPath @arguments
 }
 
-Describe 'Blind Swordsman installer entry points' {
+Describe 'Blind Soldier installer entry points' {
     AfterEach {
         Remove-Item Env:\BLIND_SWORDSMAN_INSTALL_TEST_RUNTIME_MODE -ErrorAction SilentlyContinue
         Remove-Item Env:\BLIND_SWORDSMAN_INSTALL_TEST_GAME_ROOT -ErrorAction SilentlyContinue

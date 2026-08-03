@@ -34,7 +34,7 @@ public sealed class EmbeddedResourceBundle : IDisposable
 
     public static EmbeddedResourceBundle Extract()
     {
-        var root = Path.Combine(Path.GetTempPath(), "blind-swordsman-resources-" + Guid.NewGuid().ToString("N"));
+        var root = Path.Combine(Path.GetTempPath(), "blind-soldier-resources-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
         try
         {
