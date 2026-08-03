@@ -1,0 +1,21 @@
+{
+  "ModId": "ff7.accessibility.reloaded",
+  "ModName": "Blind Swordsman",
+  "ModAuthor": "buu42 + Codex",
+  "ModVersion": "0.1.0",
+  "ModDescription": "Pre-release screen-reader, audio-description, spatial-audio, and navigation accessibility for Final Fantasy VII on legacy x86 and Steam 2026 x64.",
+  "ModDll": "Ff7.Accessibility.Reloaded.dll",
+  "ModR2RManagedDll32": "x86/Ff7.Accessibility.Reloaded.dll",
+  "ModR2RManagedDll64": "x64/Ff7.Accessibility.Steam2026X64.dll",
+  "ModNativeDll32": "",
+  "ModNativeDll64": "",
+  "ModIcon": "",
+  "ModDependencies": [
+    "reloaded.sharedlib.hooks"
+  ],
+  "OptionalDependencies": [],
+  "SupportedAppId": [
+    "ff7_en.exe",
+    "FFVII.exe"
+  ]
+}

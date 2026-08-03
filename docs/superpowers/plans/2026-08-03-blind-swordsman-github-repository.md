@@ -91,23 +91,23 @@ git commit -m "build: make repository inputs self-contained"
 - Consumes: verified keys and category order from `Mod.cs`, `NavigationProgressControls.cs`, `FieldNavigationContracts.cs`, and `WorldMapTargetCatalog.cs`.
 - Produces: the GitHub landing page and Reloaded-II display metadata for Blind Swordsman.
 
-- [ ] **Step 1: Write the GitHub landing page**
+- [x] **Step 1: Write the GitHub landing page**
 
 Cover overview, status, requirements, release and source installation, launch paths, mod-specific keys, detailed field/world navigation, progress indicators, troubleshooting, reporting issues, credits, and non-affiliation. Recommend keeping progress enabled and state that `F5` toggles it, while `F6` and `F7` cycle 5, 10, 15, and 20 percent.
 
-- [ ] **Step 2: Replace stale nested documentation**
+- [x] **Step 2: Replace stale nested documentation**
 
 Replace the obsolete x86-only project README with a short pointer to the root README so GitHub users cannot encounter contradictory instructions.
 
-- [ ] **Step 3: Apply visible Blind Swordsman branding**
+- [x] **Step 3: Apply visible Blind Swordsman branding**
 
 Set `ModName` to `Blind Swordsman` and replace the development-only description with an accurate pre-release dual-runtime accessibility description. Preserve `ModId`, author, version, DLL names, dependencies, and supported app IDs.
 
-- [ ] **Step 4: Validate all documented controls against source**
+- [x] **Step 4: Validate all documented controls against source**
 
 Run targeted `rg` checks for `VirtualKeyU/O/J/K/L/I`, `VirtualKeyF5/F6/F7/F8`, the field category enum, and the world-map category enum. Review every README key row against those results.
 
-- [ ] **Step 5: Commit branding and documentation**
+- [x] **Step 5: Commit branding and documentation**
 
 ```powershell
 git add README.md Ff7.Accessibility.Reloaded/README.md Ff7.Accessibility.Reloaded/ModConfig.json
