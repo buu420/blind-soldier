@@ -229,13 +229,8 @@ static class ArtifactSecurityTests
                      "launcher/FFVII_LAUNCHER.exe.config",
                      "launcher/native/x86/FFVII_LAUNCHER.prism.x86.dll",
                      "prerequisites/dependency-bundle.json",
-                     "prerequisites/reloaded/Reloaded-II.exe",
                      "prerequisites/reloaded/_asi_extract/ASILoader32.dll",
                      "prerequisites/reloaded/_asi_extract/ASILoader64.dll",
-                     "prerequisites/reloaded/Loader/X86/Reloaded.Mod.Loader.dll",
-                     "prerequisites/reloaded/Loader/X64/Reloaded.Mod.Loader.dll",
-                     "prerequisites/reloaded/Loader/X86/Bootstrapper/Reloaded.Mod.Loader.Bootstrapper.dll",
-                     "prerequisites/reloaded/Loader/X64/Bootstrapper/Reloaded.Mod.Loader.Bootstrapper.dll",
                      "prerequisites/shared-hooks/ModConfig.json",
                      "prerequisites/shared-hooks/x86/Reloaded.Hooks.ReloadedII.dll",
                      "prerequisites/shared-hooks/x64/Reloaded.Hooks.ReloadedII.dll",
@@ -251,6 +246,31 @@ static class ArtifactSecurityTests
             var path = System.IO.Path.Combine(root, relative.Replace('/', System.IO.Path.DirectorySeparatorChar));
             Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path)!);
             File.WriteAllText(path, "fixture");
+        }
+        var loaderFiles = new[]
+        {
+            "Bootstrapper/Reloaded.Mod.Loader.Bootstrapper.dll",
+            "Colorful.Console.dll",
+            "DelayInjectHooks.json",
+            "Indieteur.SAMAPI.dll",
+            "Indieteur.VDFAPI.dll",
+            "McMaster.NETCore.Plugins.dll",
+            "Reloaded.Memory.dll",
+            "Reloaded.Mod.Interfaces.dll",
+            "Reloaded.Mod.Loader.deps.json",
+            "Reloaded.Mod.Loader.dll",
+            "Reloaded.Mod.Loader.IO.dll",
+            "Reloaded.Mod.Loader.runtimeconfig.json"
+        };
+        foreach (var architecture in new[] { "X86", "X64" })
+        {
+            foreach (var loaderFile in loaderFiles)
+            {
+                var relative = $"prerequisites/reloaded/Loader/{architecture}/{loaderFile}";
+                var path = System.IO.Path.Combine(root, relative.Replace('/', System.IO.Path.DirectorySeparatorChar));
+                Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path)!);
+                File.WriteAllText(path, "fixture");
+            }
         }
     }
 

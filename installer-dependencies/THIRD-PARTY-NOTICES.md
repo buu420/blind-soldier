@@ -1,8 +1,9 @@
-# Blind Soldier installer prerequisites
+# Blind Soldier packaged prerequisites
 
-Blind Soldier setup redistributes the following unmodified components so a
-supported Final Fantasy VII installation is the only external product
-prerequisite.
+Blind Soldier setup and portable releases redistribute the following
+unmodified components. The standard setup installs missing prerequisites; the
+portable native installer carries the minimal Reloaded runtime and documents
+its Microsoft .NET runtime requirement.
 
 ## Reloaded-II 1.30.3
 

@@ -226,19 +226,19 @@ Export-ModuleMember -Function Install-BlindSwordsmanReloadedPrerequisites
         LauncherBundlePath = $launcherBundlePath
         ModulePath = $modulePath
         LauncherModulePath = $launcherModulePath
+        ReloadedSettingsPath = Join-Path $root 'appdata\Reloaded-Mod-Loader-II\ReloadedII.json'
         ResultPath = Join-Path $root 'install-result.json'
     }
 }
 
 function Invoke-InstallEntrypointFixture {
-    param($Fixture)
+    param($Fixture, [switch] $DiscoverHeadlessRoot)
     $env:BLIND_SWORDSMAN_INSTALL_TEST_RUNTIME_MODE = $Fixture.RuntimeMode
     $env:BLIND_SWORDSMAN_INSTALL_TEST_GAME_ROOT = $Fixture.GameRoot
     $env:BLIND_SWORDSMAN_INSTALL_TEST_LEGACY_ROOT = $Fixture.LegacyRoot
     $env:BLIND_SWORDSMAN_INSTALL_TEST_NATIVE_ROOT = $Fixture.NativeRoot
     $arguments = @{
         GameRoot = $Fixture.GameRoot
-        ReloadedRoot = $Fixture.ReloadedRoot
         PackagePath = $Fixture.PackagePath
         PrerequisiteBundlePath = $Fixture.PrerequisiteBundlePath
         PrerequisiteModulePath = $Fixture.PrerequisiteModulePath
@@ -248,6 +248,12 @@ function Invoke-InstallEntrypointFixture {
         ProductVersion = '0.1.0-pre.2'
         ReleaseTag = 'v0.1.0-pre.2'
         SkipFfnx = $true
+    }
+    if ($DiscoverHeadlessRoot) {
+        $arguments.ReloadedSettingsPath = $Fixture.ReloadedSettingsPath
+    }
+    else {
+        $arguments.ReloadedRoot = $Fixture.ReloadedRoot
     }
     if ($Fixture.RuntimeMode -ne 'legacy-only') {
         $arguments.LauncherBundlePath = $Fixture.LauncherBundlePath
@@ -361,6 +367,28 @@ Describe 'Blind Soldier installer entry points' {
             $result.schemaVersion | Should Be 2
             $null -ne $result.profile | Should Be $true
             $null -ne $result.legacyProfile | Should Be $true
+        }
+        finally {
+            Remove-Item -LiteralPath $fixture.Root -Recurse -Force
+        }
+    }
+
+    It 'discovers a headless Reloaded root from loader paths without a manager executable' {
+        $fixture = New-InstallEntrypointFixture -RuntimeMode legacy-only
+        try {
+            $loaderPath = Join-Path $fixture.ReloadedRoot 'Loader\X86\Reloaded.Mod.Loader.dll'
+            New-Item -ItemType Directory -Path (Split-Path -Parent $loaderPath) -Force | Out-Null
+            [IO.File]::WriteAllText($loaderPath, 'headless loader fixture')
+            New-Item -ItemType Directory -Path (Split-Path -Parent $fixture.ReloadedSettingsPath) -Force | Out-Null
+            [IO.File]::WriteAllText(
+                $fixture.ReloadedSettingsPath,
+                (@{ LoaderPath32 = $loaderPath; LauncherPath = '' } | ConvertTo-Json))
+
+            Invoke-InstallEntrypointFixture $fixture -DiscoverHeadlessRoot
+
+            $result = [IO.File]::ReadAllText($fixture.ResultPath) | ConvertFrom-Json
+            [string]$result.reloadedRoot | Should Be ([IO.Path]::GetFullPath($fixture.ReloadedRoot))
+            Test-Path -LiteralPath (Join-Path $fixture.ReloadedRoot 'Reloaded-II.exe') | Should Be $false
         }
         finally {
             Remove-Item -LiteralPath $fixture.Root -Recurse -Force

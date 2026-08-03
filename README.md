@@ -34,6 +34,26 @@ reading unverified game memory.
 
 ## Installation
 
+### Portable native installer
+
+The newest compact option is
+[Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.1.0-pre.7/Blind-Soldier-Portable.zip).
+Extract every file directly into the Final Fantasy VII Steam installation
+folder, run `Blind-Soldier-Installer.exe`, accept the administrator prompt,
+and choose **Yes**. It supports an x86-only, x64-only, or combined game folder
+and registers only the versions it finds. Launch the game normally afterward.
+
+This package preserves the supplied native installer's register-only behavior.
+It includes the minimal Reloaded loader, Shared Hooks, Blind Soldier, and the
+accessible FFVII launcher, but it does not install Microsoft runtimes. Install
+Microsoft .NET Desktop Runtime 9.0.8 for each game architecture you use if it
+is missing; the installer checks each detected game architecture before making
+registry changes. Run `Blind-Soldier-Installer.exe /uninstall` to remove only
+the automatic-loading entry owned by that extraction. Extracted files are left
+in place.
+
+### Standard setup
+
 Download and run
 [Blind-Soldier-Setup.exe](https://github.com/buu420/blind-soldier/releases/download/v0.1.0-pre.6/Blind-Soldier-Setup.exe).
 If that direct link changes, use the

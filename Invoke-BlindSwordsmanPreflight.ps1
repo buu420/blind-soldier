@@ -61,6 +61,18 @@ function Resolve-ReloadedDirectory {
                 (Test-Path -LiteralPath $launcherPath -PathType Leaf)) {
                 return [IO.Path]::GetFullPath((Split-Path -Parent $launcherPath))
             }
+            foreach ($property in @('LoaderPath32','LoaderPath64')) {
+                $loaderPath = [string]$settings.$property
+                if ([string]::IsNullOrWhiteSpace($loaderPath) -or
+                    -not (Test-Path -LiteralPath $loaderPath -PathType Leaf) -or
+                    [IO.Path]::GetFileName($loaderPath) -cne 'Reloaded.Mod.Loader.dll') {
+                    continue
+                }
+                $architectureDirectory = Split-Path -Parent ([IO.Path]::GetFullPath($loaderPath))
+                $loaderDirectory = Split-Path -Parent $architectureDirectory
+                if ([IO.Path]::GetFileName($loaderDirectory) -cne 'Loader') { continue }
+                return [IO.Path]::GetFullPath((Split-Path -Parent $loaderDirectory))
+            }
         }
         catch {
             # A stale or malformed global Reloaded setting is ignored. The
@@ -88,7 +100,9 @@ function Resolve-ReloadedDirectory {
     }
     foreach ($candidate in $candidates) {
         $fullPath = [IO.Path]::GetFullPath($candidate)
-        if (Test-Path -LiteralPath (Join-Path $fullPath 'Reloaded-II.exe') -PathType Leaf) {
+        if ((Test-Path -LiteralPath (Join-Path $fullPath 'Reloaded-II.exe') -PathType Leaf) -or
+            (Test-Path -LiteralPath (Join-Path $fullPath 'Loader\X86\Reloaded.Mod.Loader.dll') -PathType Leaf) -or
+            (Test-Path -LiteralPath (Join-Path $fullPath 'Loader\X64\Reloaded.Mod.Loader.dll') -PathType Leaf)) {
             return $fullPath
         }
     }
@@ -211,14 +225,13 @@ if ($reloadedCollision) {
     $loaderBlockers.Add('Reloaded-II target is unsafe')
 }
 elseif ($reloadedAvailable) {
-    if (-not (Test-Path -LiteralPath (Join-Path $resolvedReloadedRoot 'Reloaded-II.exe') -PathType Leaf)) {
-        $loaderRepairs.Add('Reloaded-II core is missing')
-    }
     foreach ($loader in @(
         [pscustomobject]@{ Architecture = 'x86'; Label = 'x86 ASI loader'; Relative = '_asi_extract\ASILoader32.dll'; Machine = 0x014C },
         [pscustomobject]@{ Architecture = 'x86'; Label = 'x86 bootstrapper'; Relative = 'Loader\X86\Bootstrapper\Reloaded.Mod.Loader.Bootstrapper.dll'; Machine = 0x014C },
+        [pscustomobject]@{ Architecture = 'x86'; Label = 'x86 Reloaded core'; Relative = 'Loader\X86\Reloaded.Mod.Loader.dll'; Machine = $null },
         [pscustomobject]@{ Architecture = 'x64'; Label = 'x64 ASI loader'; Relative = '_asi_extract\ASILoader64.dll'; Machine = 0x8664 },
-        [pscustomobject]@{ Architecture = 'x64'; Label = 'x64 bootstrapper'; Relative = 'Loader\X64\Bootstrapper\Reloaded.Mod.Loader.Bootstrapper.dll'; Machine = 0x8664 }
+        [pscustomobject]@{ Architecture = 'x64'; Label = 'x64 bootstrapper'; Relative = 'Loader\X64\Bootstrapper\Reloaded.Mod.Loader.Bootstrapper.dll'; Machine = 0x8664 },
+        [pscustomobject]@{ Architecture = 'x64'; Label = 'x64 Reloaded core'; Relative = 'Loader\X64\Reloaded.Mod.Loader.dll'; Machine = $null }
     ) | Where-Object { $requiredArchitectures -contains $_.Architecture }) {
         $loaderPath = Join-Path $resolvedReloadedRoot $loader.Relative
         if (-not (Test-Path -LiteralPath $loaderPath -PathType Leaf)) {
@@ -231,8 +244,8 @@ elseif ($reloadedAvailable) {
                 $loaderBlockers.Add("$($loader.Label) is a reparse point")
                 continue
             }
-            $machine = Get-Ff7PeMachine -Path $loaderPath
-            if ($machine -ne $loader.Machine) {
+            $machine = if ($null -eq $loader.Machine) { $null } else { Get-Ff7PeMachine -Path $loaderPath }
+            if ($null -ne $loader.Machine -and $machine -ne $loader.Machine) {
                 $loaderBlockers.Add(("{0} has machine 0x{1:X4}, expected 0x{2:X4}" -f `
                     $loader.Label, $machine, $loader.Machine))
             }

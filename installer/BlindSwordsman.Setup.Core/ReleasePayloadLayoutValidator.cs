@@ -52,13 +52,8 @@ public static class ReleasePayloadLayoutValidator
         foreach (var (relativePath, label) in new[]
                  {
                      ("dependency-bundle.json", "prerequisite manifest"),
-                     ("reloaded/Reloaded-II.exe", "Reloaded-II executable"),
                      ("reloaded/_asi_extract/ASILoader32.dll", "x86 ASI loader"),
                      ("reloaded/_asi_extract/ASILoader64.dll", "x64 ASI loader"),
-                     ("reloaded/Loader/X86/Reloaded.Mod.Loader.dll", "x86 Reloaded loader"),
-                     ("reloaded/Loader/X64/Reloaded.Mod.Loader.dll", "x64 Reloaded loader"),
-                     ("reloaded/Loader/X86/Bootstrapper/Reloaded.Mod.Loader.Bootstrapper.dll", "x86 Reloaded bootstrapper"),
-                     ("reloaded/Loader/X64/Bootstrapper/Reloaded.Mod.Loader.Bootstrapper.dll", "x64 Reloaded bootstrapper"),
                      ("shared-hooks/ModConfig.json", "Shared Hooks configuration"),
                      ("shared-hooks/x86/Reloaded.Hooks.ReloadedII.dll", "x86 Shared Hooks entry assembly"),
                      ("shared-hooks/x64/Reloaded.Hooks.ReloadedII.dll", "x64 Shared Hooks entry assembly"),
@@ -74,6 +69,31 @@ public static class ReleasePayloadLayoutValidator
             RequireFile(
                 Path.Combine(prerequisiteBundle, relativePath.Replace('/', Path.DirectorySeparatorChar)),
                 label);
+        }
+        var loaderFiles = new[]
+        {
+            "Bootstrapper/Reloaded.Mod.Loader.Bootstrapper.dll",
+            "Colorful.Console.dll",
+            "DelayInjectHooks.json",
+            "Indieteur.SAMAPI.dll",
+            "Indieteur.VDFAPI.dll",
+            "McMaster.NETCore.Plugins.dll",
+            "Reloaded.Memory.dll",
+            "Reloaded.Mod.Interfaces.dll",
+            "Reloaded.Mod.Loader.deps.json",
+            "Reloaded.Mod.Loader.dll",
+            "Reloaded.Mod.Loader.IO.dll",
+            "Reloaded.Mod.Loader.runtimeconfig.json"
+        };
+        foreach (var architecture in new[] { "X86", "X64" })
+        {
+            foreach (var loaderFile in loaderFiles)
+            {
+                var relative = $"reloaded/Loader/{architecture}/{loaderFile}";
+                RequireFile(
+                    Path.Combine(prerequisiteBundle, relative.Replace('/', Path.DirectorySeparatorChar)),
+                    $"{architecture} Reloaded runtime file {loaderFile}");
+            }
         }
         return new ReleasePayloadLayout(modPackage, launcherBundle, prerequisiteBundle);
     }

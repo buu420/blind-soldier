@@ -2,6 +2,20 @@ $ErrorActionPreference = 'Stop'
 
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $modulePath = Join-Path $scriptRoot 'ReloadedPrerequisiteInstall.psm1'
+$reloadedLoaderFiles = @(
+    'Bootstrapper\Reloaded.Mod.Loader.Bootstrapper.dll',
+    'Colorful.Console.dll',
+    'DelayInjectHooks.json',
+    'Indieteur.SAMAPI.dll',
+    'Indieteur.VDFAPI.dll',
+    'McMaster.NETCore.Plugins.dll',
+    'Reloaded.Memory.dll',
+    'Reloaded.Mod.Interfaces.dll',
+    'Reloaded.Mod.Loader.deps.json',
+    'Reloaded.Mod.Loader.dll',
+    'Reloaded.Mod.Loader.IO.dll',
+    'Reloaded.Mod.Loader.runtimeconfig.json'
+)
 
 function New-TestPe {
     param([Parameter(Mandatory=$true)] [string] $Path, [Parameter(Mandatory=$true)] [uint16] $Machine)
@@ -24,11 +38,13 @@ function New-PrerequisiteInstallFixture {
     $notices = Join-Path $bundle 'notices'
     New-Item -ItemType Directory -Path $reloadedSource, $hooksSource, $dotnetSource, $notices -Force | Out-Null
 
-    New-TestPe -Path (Join-Path $reloadedSource 'Reloaded-II.exe') -Machine 0x014C
-    [IO.File]::WriteAllText((Join-Path $reloadedSource 'version.txt'), '1.30.3')
-    New-Item -ItemType Directory -Path (Join-Path $reloadedSource 'Loader\X86'), (Join-Path $reloadedSource 'Loader\X64') -Force | Out-Null
-    [IO.File]::WriteAllText((Join-Path $reloadedSource 'Loader\X86\Reloaded.Mod.Loader.dll'), 'loader x86')
-    [IO.File]::WriteAllText((Join-Path $reloadedSource 'Loader\X64\Reloaded.Mod.Loader.dll'), 'loader x64')
+    foreach ($architecture in @('X86','X64')) {
+        foreach ($relative in $reloadedLoaderFiles) {
+            $path = Join-Path $reloadedSource "Loader\$architecture\$relative"
+            New-Item -ItemType Directory -Path (Split-Path -Parent $path) -Force | Out-Null
+            [IO.File]::WriteAllText($path, "fixture $architecture $relative")
+        }
+    }
     New-TestPe -Path (Join-Path $reloadedSource 'Loader\X86\Bootstrapper\Reloaded.Mod.Loader.Bootstrapper.dll') -Machine 0x014C
     New-TestPe -Path (Join-Path $reloadedSource 'Loader\X64\Bootstrapper\Reloaded.Mod.Loader.Bootstrapper.dll') -Machine 0x8664
     New-TestPe -Path (Join-Path $reloadedSource '_asi_extract\ASILoader32.dll') -Machine 0x014C
@@ -121,14 +137,14 @@ Describe 'Reloaded prerequisite installation' {
             -ReloadedRoot $fixture.ReloadedRoot -RequiredArchitectures @('x86') -SettingsPath $fixture.SettingsPath `
             -RuntimeProbe $runtime.Probe -RuntimeInstaller $runtime.Installer
 
-        Test-Path -LiteralPath (Join-Path $fixture.ReloadedRoot 'Reloaded-II.exe') -PathType Leaf | Should Be $true
+        Test-Path -LiteralPath (Join-Path $fixture.ReloadedRoot 'Reloaded-II.exe') -PathType Leaf | Should Be $false
         Test-Path -LiteralPath (Join-Path $fixture.ReloadedRoot 'Loader\X86\Reloaded.Mod.Loader.dll') -PathType Leaf | Should Be $true
         Test-Path -LiteralPath (Join-Path $fixture.ReloadedRoot 'Mods\reloaded.sharedlib.hooks\x86\Reloaded.Hooks.ReloadedII.dll') -PathType Leaf | Should Be $true
         @($runtime.Installs) | Should Be @('x86')
         @($result.InstalledDotNetArchitectures) | Should Be @('x86')
         $settings = [IO.File]::ReadAllText($fixture.SettingsPath) | ConvertFrom-Json
         $settings.LoaderPath32 | Should Be ([IO.Path]::GetFullPath((Join-Path $fixture.ReloadedRoot 'Loader\X86\Reloaded.Mod.Loader.dll')))
-        $settings.LauncherPath | Should Be ([IO.Path]::GetFullPath((Join-Path $fixture.ReloadedRoot 'Reloaded-II.exe')))
+        $settings.LauncherPath | Should Be ''
     }
 
     It 'supports fresh x64-only and dual-runtime installations' {
@@ -157,8 +173,10 @@ Describe 'Reloaded prerequisite installation' {
         $runtime = New-RuntimeHarness -InitiallyInstalled @('x86')
         New-Item -ItemType Directory -Path (Join-Path $fixture.ReloadedRoot 'User\Mods') -Force | Out-Null
         [IO.File]::WriteAllText((Join-Path $fixture.ReloadedRoot 'User\Mods\keep.txt'), 'keep me')
+        New-TestPe -Path (Join-Path $fixture.ReloadedRoot 'Reloaded-II.exe') -Machine 0x014C
+        $existingManagerHash = (Get-FileHash -LiteralPath (Join-Path $fixture.ReloadedRoot 'Reloaded-II.exe') -Algorithm SHA256).Hash
         New-Item -ItemType Directory -Path (Split-Path -Parent $fixture.SettingsPath) -Force | Out-Null
-        [IO.File]::WriteAllText($fixture.SettingsPath, '{"ShowConsole":true,"LanguageFile":"custom.xaml","UnknownPreference":17}')
+        [IO.File]::WriteAllText($fixture.SettingsPath, ('{"ShowConsole":true,"LanguageFile":"custom.xaml","UnknownPreference":17,"LauncherPath":"' + ((Join-Path $fixture.ReloadedRoot 'Reloaded-II.exe').Replace('\','\\')) + '"}'))
 
         Install-BlindSwordsmanReloadedPrerequisites -BundlePath $fixture.Bundle -ReloadedRoot $fixture.ReloadedRoot `
             -RequiredArchitectures @('x86') -SettingsPath $fixture.SettingsPath `
@@ -173,6 +191,8 @@ Describe 'Reloaded prerequisite installation' {
         $settings.ShowConsole | Should Be $true
         $settings.LanguageFile | Should Be 'custom.xaml'
         $settings.UnknownPreference | Should Be 17
+        $settings.LauncherPath | Should Be ([IO.Path]::GetFullPath((Join-Path $fixture.ReloadedRoot 'Reloaded-II.exe')))
+        (Get-FileHash -LiteralPath (Join-Path $fixture.ReloadedRoot 'Reloaded-II.exe') -Algorithm SHA256).Hash | Should Be $existingManagerHash
     }
 
     It 'refuses an unrelated Shared Hooks ModId before changing Reloaded files' {
@@ -206,7 +226,8 @@ Describe 'Reloaded prerequisite installation' {
     It 'rolls back overwritten and newly created files after a forced overlay failure' {
         $runtime = New-RuntimeHarness -InitiallyInstalled @('x86')
         New-Item -ItemType Directory -Path $fixture.ReloadedRoot -Force | Out-Null
-        [IO.File]::WriteAllText((Join-Path $fixture.ReloadedRoot 'Reloaded-II.exe'), 'original bytes')
+        New-Item -ItemType Directory -Path (Join-Path $fixture.ReloadedRoot 'Loader\X86') -Force | Out-Null
+        [IO.File]::WriteAllText((Join-Path $fixture.ReloadedRoot 'Loader\X86\Colorful.Console.dll'), 'original bytes')
         $writeState = @{ Count = 0 }
         $failingWriter = {
             param($source, $temporaryTarget)
@@ -219,8 +240,8 @@ Describe 'Reloaded prerequisite installation' {
                 -RequiredArchitectures @('x86') -SettingsPath $fixture.SettingsPath `
                 -RuntimeProbe $runtime.Probe -RuntimeInstaller $runtime.Installer -FileWriter $failingWriter } |
             Should Throw 'controlled overlay failure'
-        [IO.File]::ReadAllText((Join-Path $fixture.ReloadedRoot 'Reloaded-II.exe')) | Should Be 'original bytes'
-        Test-Path -LiteralPath (Join-Path $fixture.ReloadedRoot 'version.txt') | Should Be $false
+        [IO.File]::ReadAllText((Join-Path $fixture.ReloadedRoot 'Loader\X86\Colorful.Console.dll')) | Should Be 'original bytes'
+        Test-Path -LiteralPath (Join-Path $fixture.ReloadedRoot 'Loader\X64\Colorful.Console.dll') | Should Be $false
         Test-Path -LiteralPath $fixture.SettingsPath | Should Be $false
     }
 

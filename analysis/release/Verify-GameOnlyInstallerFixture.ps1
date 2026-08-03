@@ -70,7 +70,8 @@ try {
         -Destination (Join-Path $legacyRoot 'Reloaded.Mod.Loader.Bootstrapper.asi')
 
     $checks = [ordered]@{
-        ReloadedExe = Test-Path -LiteralPath (Join-Path $reloadedRoot 'Reloaded-II.exe') -PathType Leaf
+        HeadlessReloadedX86 = Test-Path -LiteralPath (Join-Path $reloadedRoot 'Loader\X86\Reloaded.Mod.Loader.dll') -PathType Leaf
+        NoReloadedManager = -not (Test-Path -LiteralPath (Join-Path $reloadedRoot 'Reloaded-II.exe'))
         SharedHooksX86 = Test-Path -LiteralPath (Join-Path $reloadedRoot 'Mods\reloaded.sharedlib.hooks\x86\Reloaded.Hooks.ReloadedII.dll') -PathType Leaf
         Mod = Test-Path -LiteralPath (Join-Path $reloadedRoot 'Mods\ff7.accessibility.reloaded\ModConfig.json') -PathType Leaf
         LegacyProfile = Test-Path -LiteralPath (Join-Path $reloadedRoot 'Apps\Ff7.En.Steam\AppConfig.json') -PathType Leaf

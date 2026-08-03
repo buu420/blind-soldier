@@ -17,7 +17,8 @@ param(
     [switch] $AllowResearchNativeProfile,
     [Parameter(DontShow=$true)] [string] $ModulePath,
     [Parameter(DontShow=$true)] [string] $LauncherModulePath,
-    [Parameter(DontShow=$true)] [string] $PrerequisiteModulePath
+    [Parameter(DontShow=$true)] [string] $PrerequisiteModulePath,
+    [Parameter(DontShow=$true)] [string] $ReloadedSettingsPath
 )
 
 $ErrorActionPreference = 'Stop'
@@ -49,8 +50,43 @@ if (-not [string]::IsNullOrWhiteSpace($SteamRoot)) {
 $installation = Resolve-Ff7Installation @resolveArguments
 $legacyRuntime = $installation.LegacyRuntime
 $detectedNativeRuntime = $installation.NativeRuntime
-$reloadedSettingsPath = Join-Path ([Environment]::GetFolderPath('ApplicationData')) `
-    'Reloaded-Mod-Loader-II\ReloadedII.json'
+if ([string]::IsNullOrWhiteSpace($ReloadedSettingsPath)) {
+    $ReloadedSettingsPath = Join-Path ([Environment]::GetFolderPath('ApplicationData')) `
+        'Reloaded-Mod-Loader-II\ReloadedII.json'
+}
+$reloadedSettingsPath = [IO.Path]::GetFullPath($ReloadedSettingsPath)
+
+function Get-ReloadedRootFromLoaderPointer {
+    param([string] $LoaderPath)
+
+    if ([string]::IsNullOrWhiteSpace($LoaderPath) -or
+        -not (Test-Path -LiteralPath $LoaderPath -PathType Leaf)) {
+        return $null
+    }
+    $fullLoader = [IO.Path]::GetFullPath($LoaderPath)
+    if ([IO.Path]::GetFileName($fullLoader) -cne 'Reloaded.Mod.Loader.dll') {
+        return $null
+    }
+    $architectureDirectory = Split-Path -Parent $fullLoader
+    $architecture = [IO.Path]::GetFileName($architectureDirectory)
+    if ($architecture -cne 'X86' -and $architecture -cne 'X64') {
+        return $null
+    }
+    $loaderDirectory = Split-Path -Parent $architectureDirectory
+    if ([IO.Path]::GetFileName($loaderDirectory) -cne 'Loader') {
+        return $null
+    }
+    return Split-Path -Parent $loaderDirectory
+}
+
+function Test-ReloadedRootCandidate {
+    param([string] $Candidate)
+
+    if ([string]::IsNullOrWhiteSpace($Candidate)) { return $false }
+    return ((Test-Path -LiteralPath (Join-Path $Candidate 'Reloaded-II.exe') -PathType Leaf) -or
+        (Test-Path -LiteralPath (Join-Path $Candidate 'Loader\X86\Reloaded.Mod.Loader.dll') -PathType Leaf) -or
+        (Test-Path -LiteralPath (Join-Path $Candidate 'Loader\X64\Reloaded.Mod.Loader.dll') -PathType Leaf))
+}
 
 if ([string]::IsNullOrWhiteSpace($ReloadedRoot)) {
     if (-not [string]::IsNullOrWhiteSpace($env:RELOADED_II_ROOT)) {
@@ -65,6 +101,16 @@ if ([string]::IsNullOrWhiteSpace($ReloadedRoot)) {
             if (-not [string]::IsNullOrWhiteSpace($registeredLauncher) -and
                 (Test-Path -LiteralPath $registeredLauncher -PathType Leaf)) {
                 $ReloadedRoot = Split-Path -Parent $registeredLauncher
+            }
+            if ([string]::IsNullOrWhiteSpace($ReloadedRoot)) {
+                foreach ($property in @('LoaderPath32', 'LoaderPath64')) {
+                    $loaderRoot = Get-ReloadedRootFromLoaderPointer `
+                        -LoaderPath ([string]$reloadedSettings.$property)
+                    if (-not [string]::IsNullOrWhiteSpace($loaderRoot)) {
+                        $ReloadedRoot = $loaderRoot
+                        break
+                    }
+                }
             }
         }
         catch {
@@ -83,8 +129,7 @@ if ([string]::IsNullOrWhiteSpace($ReloadedRoot)) {
         (Join-Path ([Environment]::GetFolderPath('ProgramFiles')) 'Reloaded-II'),
         (Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Reloaded-II')
     )) {
-        if (-not [string]::IsNullOrWhiteSpace($candidate) -and
-            (Test-Path -LiteralPath (Join-Path $candidate 'Reloaded-II.exe') -PathType Leaf)) {
+        if (Test-ReloadedRootCandidate -Candidate $candidate) {
             $ReloadedRoot = $candidate
             break
         }

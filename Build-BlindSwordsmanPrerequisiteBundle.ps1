@@ -263,6 +263,21 @@ function Write-JsonNoBom {
     [IO.File]::WriteAllText($Path, $json, (New-Object Text.UTF8Encoding($false)))
 }
 
+$reloadedLoaderAllowlist = @(
+    'Bootstrapper\Reloaded.Mod.Loader.Bootstrapper.dll',
+    'Colorful.Console.dll',
+    'DelayInjectHooks.json',
+    'Indieteur.SAMAPI.dll',
+    'Indieteur.VDFAPI.dll',
+    'McMaster.NETCore.Plugins.dll',
+    'Reloaded.Memory.dll',
+    'Reloaded.Mod.Interfaces.dll',
+    'Reloaded.Mod.Loader.deps.json',
+    'Reloaded.Mod.Loader.dll',
+    'Reloaded.Mod.Loader.IO.dll',
+    'Reloaded.Mod.Loader.runtimeconfig.json'
+)
+
 if (-not (Test-Path -LiteralPath $LockPath -PathType Leaf)) { throw "Dependency lock is unavailable: $LockPath" }
 if (-not (Test-Path -LiteralPath $NoticePath -PathType Leaf)) { throw "Third-party notice is unavailable: $NoticePath" }
 try {
@@ -343,15 +358,28 @@ try {
             -DownloadRoot $downloads -Label ".NET $($installer.architecture) desktop runtime"
     }
 
-    $reloadedRoot = Join-Path $bundle 'reloaded'
-    Expand-SafeZip -ArchivePath $reloadedArchive -Destination $reloadedRoot
+    $reloadedFull = Join-Path $temporary 'reloaded-full'
+    Expand-SafeZip -ArchivePath $reloadedArchive -Destination $reloadedFull
     if (-not [string]::IsNullOrWhiteSpace($BootstrapperX86Override)) {
-        Copy-Item -LiteralPath $BootstrapperX86Override -Destination (Join-Path $reloadedRoot 'Loader\X86\Bootstrapper\Reloaded.Mod.Loader.Bootstrapper.dll') -Force
+        Copy-Item -LiteralPath $BootstrapperX86Override -Destination (Join-Path $reloadedFull 'Loader\X86\Bootstrapper\Reloaded.Mod.Loader.Bootstrapper.dll') -Force
     }
     if (-not [string]::IsNullOrWhiteSpace($BootstrapperX64Override)) {
-        Copy-Item -LiteralPath $BootstrapperX64Override -Destination (Join-Path $reloadedRoot 'Loader\X64\Bootstrapper\Reloaded.Mod.Loader.Bootstrapper.dll') -Force
+        Copy-Item -LiteralPath $BootstrapperX64Override -Destination (Join-Path $reloadedFull 'Loader\X64\Bootstrapper\Reloaded.Mod.Loader.Bootstrapper.dll') -Force
     }
-    $asiArchive = Join-Path $reloadedRoot 'Loader\Asi\UltimateAsiLoader.7z'
+    $reloadedRoot = Join-Path $bundle 'reloaded'
+    New-Item -ItemType Directory -Path $reloadedRoot | Out-Null
+    foreach ($architecture in @('X86','X64')) {
+        foreach ($relative in $reloadedLoaderAllowlist) {
+            $source = Join-Path $reloadedFull ("Loader\$architecture\$relative")
+            if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
+                throw "Reloaded-II archive is missing Loader\$architecture\$relative."
+            }
+            $destination = Join-Path $reloadedRoot ("Loader\$architecture\$relative")
+            New-Item -ItemType Directory -Path (Split-Path -Parent $destination) -Force | Out-Null
+            Copy-Item -LiteralPath $source -Destination $destination
+        }
+    }
+    $asiArchive = Join-Path $reloadedFull 'Loader\Asi\UltimateAsiLoader.7z'
     if (-not (Test-Path -LiteralPath $asiArchive -PathType Leaf)) { throw 'Reloaded-II archive does not contain UltimateAsiLoader.7z.' }
     $asiTemporary = Join-Path $temporary 'asi'
     Expand-SafeSevenZip -ArchivePath $asiArchive -Destination $asiTemporary
@@ -378,19 +406,27 @@ try {
     $noticesRoot = Join-Path $bundle 'notices'
     New-Item -ItemType Directory -Path $noticesRoot | Out-Null
     Copy-Item -LiteralPath $NoticePath -Destination (Join-Path $noticesRoot 'THIRD-PARTY-NOTICES.md')
-    $reloadedLicense = Join-Path $reloadedRoot ([string]$lock.reloaded.licensePath)
+    $reloadedLicense = Join-Path $reloadedFull ([string]$lock.reloaded.licensePath)
     Assert-FileRecord -Path $reloadedLicense -Size ([long]$lock.reloaded.licenseSize) -Sha256 ([string]$lock.reloaded.licenseSha256) -Label 'Reloaded-II license'
     Copy-Item -LiteralPath $reloadedLicense -Destination (Join-Path $noticesRoot 'Reloaded-II-GPL-3.0.txt')
     Copy-Item -LiteralPath $hooksLicense -Destination (Join-Path $noticesRoot ([string]$lock.sharedHooks.licenseName))
     Copy-Item -LiteralPath $dotnetLicense -Destination (Join-Path $noticesRoot ([string]$lock.dotnetDesktopRuntime.licenseName))
     Copy-Item -LiteralPath $dotnetNotices -Destination (Join-Path $noticesRoot ([string]$lock.dotnetDesktopRuntime.thirdPartyNoticesName))
 
-    foreach ($required in @(
-        'Reloaded-II.exe','Loader\X86\Reloaded.Mod.Loader.dll','Loader\X64\Reloaded.Mod.Loader.dll',
-        'Loader\X86\Bootstrapper\Reloaded.Mod.Loader.Bootstrapper.dll','Loader\X64\Bootstrapper\Reloaded.Mod.Loader.Bootstrapper.dll',
-        '_asi_extract\ASILoader32.dll','_asi_extract\ASILoader64.dll'
-    )) {
+    $requiredReloadedFiles = New-Object 'System.Collections.Generic.List[string]'
+    foreach ($architecture in @('X86','X64')) {
+        foreach ($relative in $reloadedLoaderAllowlist) {
+            $requiredReloadedFiles.Add("Loader\$architecture\$relative")
+        }
+    }
+    $requiredReloadedFiles.Add('_asi_extract\ASILoader32.dll')
+    $requiredReloadedFiles.Add('_asi_extract\ASILoader64.dll')
+    foreach ($required in $requiredReloadedFiles) {
         if (-not (Test-Path -LiteralPath (Join-Path $reloadedRoot $required) -PathType Leaf)) { throw "Reloaded-II bundle is missing $required." }
+    }
+    $actualReloadedFiles = @(Get-ChildItem -LiteralPath $reloadedRoot -File -Recurse)
+    if ($actualReloadedFiles.Count -ne $requiredReloadedFiles.Count) {
+        throw "Reloaded-II bundle contains unexpected files; expected $($requiredReloadedFiles.Count), found $($actualReloadedFiles.Count)."
     }
     foreach ($required in @('x86\Reloaded.Hooks.ReloadedII.dll','x64\Reloaded.Hooks.ReloadedII.dll')) {
         if (-not (Test-Path -LiteralPath (Join-Path $hooksRoot $required) -PathType Leaf)) { throw "Shared Hooks bundle is missing $required." }

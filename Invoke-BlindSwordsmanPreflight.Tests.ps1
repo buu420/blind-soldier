@@ -191,13 +191,18 @@ Describe 'Blind Soldier installer preflight' {
         $ffnx.message | Should Match 'optional'
     }
 
-    It 'discovers Reloaded-II from its registered launcher instead of a developer path' {
+    It 'discovers a headless Reloaded-II root from its registered loader path' {
         $settingsDirectory = Split-Path -Parent $fixture.ReloadedSettingsPath
         New-Item -ItemType Directory -Path $settingsDirectory -Force | Out-Null
         [IO.File]::WriteAllText(
             $fixture.ReloadedSettingsPath,
-            (@{ LauncherPath = (Join-Path $fixture.ReloadedRoot 'Reloaded-II.exe') } | ConvertTo-Json))
-        [IO.File]::WriteAllText((Join-Path $fixture.ReloadedRoot 'Reloaded-II.exe'), 'fixture')
+            (@{
+                LauncherPath = ''
+                LoaderPath32 = (Join-Path $fixture.ReloadedRoot 'Loader\X86\Reloaded.Mod.Loader.dll')
+                LoaderPath64 = (Join-Path $fixture.ReloadedRoot 'Loader\X64\Reloaded.Mod.Loader.dll')
+            } | ConvertTo-Json))
+        [IO.File]::WriteAllText((Join-Path $fixture.ReloadedRoot 'Loader\X86\Reloaded.Mod.Loader.dll'), 'fixture')
+        [IO.File]::WriteAllText((Join-Path $fixture.ReloadedRoot 'Loader\X64\Reloaded.Mod.Loader.dll'), 'fixture')
 
         $report = Invoke-FixturePreflight $fixture -DetectReloaded
 

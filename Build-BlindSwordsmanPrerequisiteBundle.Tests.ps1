@@ -2,6 +2,20 @@ $ErrorActionPreference = 'Stop'
 
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $builderPath = Join-Path $scriptRoot 'Build-BlindSwordsmanPrerequisiteBundle.ps1'
+$reloadedLoaderFiles = @(
+    'Bootstrapper\Reloaded.Mod.Loader.Bootstrapper.dll',
+    'Colorful.Console.dll',
+    'DelayInjectHooks.json',
+    'Indieteur.SAMAPI.dll',
+    'Indieteur.VDFAPI.dll',
+    'McMaster.NETCore.Plugins.dll',
+    'Reloaded.Memory.dll',
+    'Reloaded.Mod.Interfaces.dll',
+    'Reloaded.Mod.Loader.deps.json',
+    'Reloaded.Mod.Loader.dll',
+    'Reloaded.Mod.Loader.IO.dll',
+    'Reloaded.Mod.Loader.runtimeconfig.json'
+)
 
 function New-TestPe {
     param(
@@ -66,12 +80,17 @@ function New-PrerequisiteFixture {
     $reloadedZip = Join-Path $sources 'Release.zip'
     $reloadedEntries = @{
         'Reloaded-II.exe' = 'fixture reloaded'
-        'Loader/X86/Reloaded.Mod.Loader.dll' = 'fixture loader x86'
-        'Loader/X64/Reloaded.Mod.Loader.dll' = 'fixture loader x64'
-        'Loader/X86/Bootstrapper/Reloaded.Mod.Loader.Bootstrapper.dll' = 'replaced after extraction'
-        'Loader/X64/Bootstrapper/Reloaded.Mod.Loader.Bootstrapper.dll' = 'replaced after extraction'
+        'Reloaded-II.dll' = 'fixture manager implementation'
+        'Themes/Default.xaml' = 'fixture manager theme'
+        'Updater/Reloaded.Mod.Loader.Update.dll' = 'fixture updater'
         'Loader/Asi/UltimateAsiLoader.7z' = 'fixture nested archive'
         'LICENSE.txt' = 'fixture Reloaded license'
+    }
+    foreach ($architecture in @('X86', 'X64')) {
+        foreach ($relative in $reloadedLoaderFiles) {
+            $reloadedEntries[("Loader/{0}/{1}" -f $architecture, $relative.Replace('\', '/'))] =
+                "fixture $architecture $relative"
+        }
     }
     if ($UnsafeReloadedZip) {
         $reloadedEntries['../outside.txt'] = 'must not escape'
@@ -193,7 +212,7 @@ Describe 'Blind Soldier prerequisite bundle builder' {
         $fixture = $null
     }
 
-    It 'builds the locked Reloaded, Shared Hooks, dotnet, and notices tree' {
+    It 'builds the exact headless Reloaded closure with Shared Hooks, dotnet, and notices' {
         $fixture = New-PrerequisiteFixture
         & $builderPath -OutputPath $fixture.Output -LockPath $fixture.LockPath -NoticePath $fixture.NoticePath `
             -ArtifactResolver $fixture.ArtifactResolver -SevenZipExtractor $fixture.SevenZipExtractor `
@@ -201,7 +220,6 @@ Describe 'Blind Soldier prerequisite bundle builder' {
 
         foreach ($relative in @(
             'dependency-bundle.json',
-            'reloaded\Reloaded-II.exe',
             'reloaded\_asi_extract\ASILoader32.dll',
             'reloaded\_asi_extract\ASILoader64.dll',
             'reloaded\Loader\X86\Bootstrapper\Reloaded.Mod.Loader.Bootstrapper.dll',
@@ -224,6 +242,21 @@ Describe 'Blind Soldier prerequisite bundle builder' {
         $manifest.reloaded.version | Should Be '1.30.3'
         $manifest.sharedHooks.version | Should Be '1.16.3'
         $manifest.dotnetDesktopRuntime.version | Should Be '9.0.8'
+
+        $expectedReloadedFiles = New-Object 'System.Collections.Generic.List[string]'
+        foreach ($architecture in @('X86', 'X64')) {
+            foreach ($relative in $reloadedLoaderFiles) {
+                $expectedReloadedFiles.Add("Loader\$architecture\$relative")
+            }
+        }
+        $expectedReloadedFiles.Add('_asi_extract\ASILoader32.dll')
+        $expectedReloadedFiles.Add('_asi_extract\ASILoader64.dll')
+        $reloadedRoot = Join-Path $fixture.Output 'reloaded'
+        $actualReloadedFiles = @(Get-ChildItem -LiteralPath $reloadedRoot -File -Recurse |
+            ForEach-Object { $_.FullName.Substring($reloadedRoot.Length + 1) } | Sort-Object)
+        $expectedSorted = @($expectedReloadedFiles.ToArray() | Sort-Object)
+        ($actualReloadedFiles -join '|') | Should Be ($expectedSorted -join '|')
+        Test-Path -LiteralPath (Join-Path $reloadedRoot 'Reloaded-II.exe') | Should Be $false
     }
 
     It 'keeps private archive extraction staging short for a deeply nested release output' {

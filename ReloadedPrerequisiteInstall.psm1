@@ -94,12 +94,32 @@ function Assert-BlindSwordsmanPrerequisiteBundle {
     foreach ($directory in @($reloaded,$hooks,$dotnet,$notices)) {
         Assert-OrdinaryDirectoryTree -Root $directory -Label 'Prerequisite component directory'
     }
-    foreach ($required in @(
-        'Reloaded-II.exe','Loader\X86\Reloaded.Mod.Loader.dll','Loader\X64\Reloaded.Mod.Loader.dll',
-        'Loader\X86\Bootstrapper\Reloaded.Mod.Loader.Bootstrapper.dll','Loader\X64\Bootstrapper\Reloaded.Mod.Loader.Bootstrapper.dll',
-        '_asi_extract\ASILoader32.dll','_asi_extract\ASILoader64.dll'
-    )) {
+    $loaderFiles = @(
+        'Bootstrapper\Reloaded.Mod.Loader.Bootstrapper.dll',
+        'Colorful.Console.dll',
+        'DelayInjectHooks.json',
+        'Indieteur.SAMAPI.dll',
+        'Indieteur.VDFAPI.dll',
+        'McMaster.NETCore.Plugins.dll',
+        'Reloaded.Memory.dll',
+        'Reloaded.Mod.Interfaces.dll',
+        'Reloaded.Mod.Loader.deps.json',
+        'Reloaded.Mod.Loader.dll',
+        'Reloaded.Mod.Loader.IO.dll',
+        'Reloaded.Mod.Loader.runtimeconfig.json'
+    )
+    $requiredReloaded = New-Object 'System.Collections.Generic.List[string]'
+    foreach ($architecture in @('X86','X64')) {
+        foreach ($relative in $loaderFiles) { $requiredReloaded.Add("Loader\$architecture\$relative") }
+    }
+    $requiredReloaded.Add('_asi_extract\ASILoader32.dll')
+    $requiredReloaded.Add('_asi_extract\ASILoader64.dll')
+    foreach ($required in $requiredReloaded) {
         if (-not (Test-Path -LiteralPath (Join-Path $reloaded $required) -PathType Leaf)) { throw "Reloaded prerequisite is missing $required." }
+    }
+    $actualReloaded = @(Get-ChildItem -LiteralPath $reloaded -File -Recurse)
+    if ($actualReloaded.Count -ne $requiredReloaded.Count) {
+        throw "Reloaded prerequisite contains unexpected files; expected $($requiredReloaded.Count), found $($actualReloaded.Count)."
     }
     Assert-PeMachine -Path (Join-Path $reloaded '_asi_extract\ASILoader32.dll') -Expected 0x014C -Label 'x86 ASI loader'
     Assert-PeMachine -Path (Join-Path $reloaded '_asi_extract\ASILoader64.dll') -Expected 0x8664 -Label 'x64 ASI loader'
@@ -235,7 +255,8 @@ function New-ReloadedSettingsFile {
     $fullRoot = [IO.Path]::GetFullPath($ReloadedRoot)
     $values['LoaderPath32'] = Join-Path $fullRoot 'Loader\X86\Reloaded.Mod.Loader.dll'
     $values['LoaderPath64'] = Join-Path $fullRoot 'Loader\X64\Reloaded.Mod.Loader.dll'
-    $values['LauncherPath'] = Join-Path $fullRoot 'Reloaded-II.exe'
+    $managerPath = Join-Path $fullRoot 'Reloaded-II.exe'
+    $values['LauncherPath'] = if (Test-Path -LiteralPath $managerPath -PathType Leaf) { $managerPath } else { '' }
     $values['Bootstrapper32Path'] = Join-Path $fullRoot 'Loader\X86\Bootstrapper\Reloaded.Mod.Loader.Bootstrapper.dll'
     $values['Bootstrapper64Path'] = Join-Path $fullRoot 'Loader\X64\Bootstrapper\Reloaded.Mod.Loader.Bootstrapper.dll'
     $values['ApplicationConfigDirectory'] = Join-Path $fullRoot 'Apps'
