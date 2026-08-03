@@ -2,7 +2,7 @@
 param(
     [Parameter(Mandatory=$true)] [string] $Tag,
     [Parameter(Mandatory=$true)] [string] $ArtifactPath,
-    [string] $Repository = 'buu420/blind-swordsman',
+    [string] $Repository = 'buu420/blind-soldier',
     [string] $NotesPath
 )
 

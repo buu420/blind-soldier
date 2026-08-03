@@ -35,9 +35,9 @@ reading unverified game memory.
 ## Installation
 
 Download and run
-[Blind-Swordsman-Setup.exe](https://github.com/buu420/blind-swordsman/releases/download/v0.1.0-pre.4/Blind-Swordsman-Setup.exe).
+[Blind-Swordsman-Setup.exe](https://github.com/buu420/blind-soldier/releases/download/v0.1.0-pre.4/Blind-Swordsman-Setup.exe).
 If that direct link changes, use the
-[Blind Soldier Releases page](https://github.com/buu420/blind-swordsman/releases).
+[Blind Soldier Releases page](https://github.com/buu420/blind-soldier/releases).
 
 1. Close Final Fantasy VII, 7th Heaven, and Reloaded-II.
 2. Run `Blind-Swordsman-Setup.exe`. You do not need to extract a ZIP, install

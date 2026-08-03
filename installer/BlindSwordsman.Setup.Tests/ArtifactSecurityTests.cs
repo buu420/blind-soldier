@@ -35,7 +35,7 @@ static class ArtifactSecurityTests
 
             return TextResponse(manifest);
         });
-        var client = new GitHubReleaseClient(new HttpClient(handler), "buu420", "blind-swordsman");
+        var client = new GitHubReleaseClient(new HttpClient(handler), "buu420", "blind-soldier");
 
         var selected = await client.GetLatestAsync(ReleaseTrack.Prerelease, CancellationToken.None);
 
@@ -56,7 +56,7 @@ static class ArtifactSecurityTests
 
             return TextResponse(ValidChannelManifest("1.0.0", "v1.0.0", "stable"));
         });
-        var client = new GitHubReleaseClient(new HttpClient(handler), "buu420", "blind-swordsman");
+        var client = new GitHubReleaseClient(new HttpClient(handler), "buu420", "blind-soldier");
 
         await ThrowsAsync<InvalidDataException>(
             () => client.GetLatestAsync(ReleaseTrack.Prerelease, CancellationToken.None),
@@ -72,7 +72,7 @@ static class ArtifactSecurityTests
         var bytes = Encoding.UTF8.GetBytes("verified runtime payload");
         var asset = new ReleaseAssetDescriptor(
             "Blind-Swordsman-Runtime.zip",
-            new Uri("https://github.com/buu420/blind-swordsman/releases/download/v1/file.zip"),
+            new Uri("https://github.com/buu420/blind-soldier/releases/download/v1/file.zip"),
             Convert.ToHexString(SHA256.HashData(bytes)),
             bytes.Length);
         var progress = new List<TransferProgress>();
@@ -96,7 +96,7 @@ static class ArtifactSecurityTests
         var bytes = Encoding.UTF8.GetBytes("tampered");
         var asset = new ReleaseAssetDescriptor(
             "Blind-Swordsman-Runtime.zip",
-            new Uri("https://github.com/buu420/blind-swordsman/releases/download/v1/file.zip"),
+            new Uri("https://github.com/buu420/blind-soldier/releases/download/v1/file.zip"),
             new string('A', 64),
             bytes.Length);
         var downloader = new ArtifactDownloader(
@@ -263,13 +263,13 @@ static class ArtifactSecurityTests
           "minimumSetupVersion": "0.1.0-pre.1",
           "payload": {
             "name": "Blind-Swordsman-Runtime.zip",
-            "url": "https://github.com/buu420/blind-swordsman/releases/download/{{tag}}/Blind-Swordsman-Runtime.zip",
+            "url": "https://github.com/buu420/blind-soldier/releases/download/{{tag}}/Blind-Swordsman-Runtime.zip",
             "sha256": "{{new string('A', 64)}}",
             "size": 1234
           },
           "setup": {
             "name": "Blind-Swordsman-Setup.exe",
-            "url": "https://github.com/buu420/blind-swordsman/releases/download/{{tag}}/Blind-Swordsman-Setup.exe",
+            "url": "https://github.com/buu420/blind-soldier/releases/download/{{tag}}/Blind-Swordsman-Setup.exe",
             "sha256": "{{new string('B', 64)}}",
             "size": 5678
           }
@@ -287,19 +287,19 @@ static class ArtifactSecurityTests
             new
             {
                 name = "blind-swordsman-channel.json",
-                browser_download_url = $"https://github.com/buu420/blind-swordsman/releases/download/{tag}/blind-swordsman-channel.json",
+                browser_download_url = $"https://github.com/buu420/blind-soldier/releases/download/{tag}/blind-swordsman-channel.json",
                 size = 700
             },
             new
             {
                 name = "Blind-Swordsman-Runtime.zip",
-                browser_download_url = $"https://github.com/buu420/blind-swordsman/releases/download/{tag}/Blind-Swordsman-Runtime.zip",
+                browser_download_url = $"https://github.com/buu420/blind-soldier/releases/download/{tag}/Blind-Swordsman-Runtime.zip",
                 size = 1234
             },
             new
             {
                 name = "Blind-Swordsman-Setup.exe",
-                browser_download_url = $"https://github.com/buu420/blind-swordsman/releases/download/{tag}/Blind-Swordsman-Setup.exe",
+                browser_download_url = $"https://github.com/buu420/blind-soldier/releases/download/{tag}/Blind-Swordsman-Setup.exe",
                 size = 5678
             }
         }

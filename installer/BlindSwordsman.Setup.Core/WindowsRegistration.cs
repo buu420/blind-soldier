@@ -36,7 +36,7 @@ public static class WindowsRegistration
             "Blind Soldier",
             state.ProductVersion.ToString(),
             "buu420",
-            "https://github.com/buu420/blind-swordsman",
+            "https://github.com/buu420/blind-soldier",
             setupPath,
             $"\"{setupPath}\" --uninstall",
             new ShortcutRegistration(

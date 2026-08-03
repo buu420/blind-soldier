@@ -35,7 +35,7 @@ public sealed class SetupApplicationContext : ApplicationContext
         resources = EmbeddedResourceBundle.Extract();
         httpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(15) };
         downloader = new ArtifactDownloader(httpClient);
-        releaseClient = new GitHubReleaseClient(httpClient, "buu420", "blind-swordsman");
+        releaseClient = new GitHubReleaseClient(httpClient, "buu420", "blind-soldier");
         var processRunner = new PowerShellProcessRunner();
         preflightClient = new PreflightClient(processRunner);
         orchestrator = new SetupOrchestrator(downloader, processRunner, stateStore, paths, log);
