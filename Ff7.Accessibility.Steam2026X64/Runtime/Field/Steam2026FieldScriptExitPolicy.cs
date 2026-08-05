@@ -17,6 +17,7 @@ internal static class Steam2026FieldScriptExitPolicy
         IReadOnlyList<FieldNavigationTarget> scriptExits)
     {
         ArgumentNullException.ThrowIfNull(scriptExits);
+        scriptExits = FieldScriptExitBranchPolicy.Resolve(fieldId, gameMoment, scriptExits);
 
         // cargoin briefly restores control while Cloud automatically follows
         // the party through the hatch. It is not a player-selectable exit on

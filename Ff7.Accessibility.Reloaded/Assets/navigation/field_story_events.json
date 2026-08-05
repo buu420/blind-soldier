@@ -5,7 +5,7 @@
     "scannedGameMomentWrites":  640,
     "navigableGameMomentWrites":  382,
     "unresolvedAutomaticOrIndirectWrites":  259,
-    "definitionCount":  540,
+    "definitionCount":  544,
     "definitions":  [
                         {
                             "fieldId":  187,
@@ -10858,6 +10858,106 @@
                             "sourceEntityName":  "red",
                             "sourceScriptType":  "Talk",
                             "completesOnArrival":  true
+                        },
+                        {
+                            "fieldId":  121,
+                            "kind":  "Location",
+                            "label":  "Leave the elevator toward Reactor 1's main staircase",
+                            "entityId":  -1,
+                            "x":  -174,
+                            "y":  -6,
+                            "z":  5,
+                            "targetGameMoment":  -1,
+                            "minimumGameMoment":  12,
+                            "maximumGameMoment":  13,
+                            "priority":  100,
+                            "sourceFieldName":  "elevtr1",
+                            "sourceEntityName":  "jp0",
+                            "sourceScriptType":  "Move",
+                            "completesOnArrival":  true,
+                            "triggerLine":  {
+                                                "startX":  -174,
+                                                "startY":  -68,
+                                                "startZ":  5,
+                                                "endX":  -174,
+                                                "endY":  56,
+                                                "endZ":  5
+                                            }
+                        },
+                        {
+                            "fieldId":  122,
+                            "kind":  "Location",
+                            "label":  "Descend Reactor 1's main staircase toward Jessie and the upper piping",
+                            "entityId":  -1,
+                            "x":  -701,
+                            "y":  -249,
+                            "z":  0,
+                            "targetGameMoment":  -1,
+                            "minimumGameMoment":  12,
+                            "maximumGameMoment":  13,
+                            "priority":  100,
+                            "sourceFieldName":  "nmkin_2",
+                            "sourceEntityName":  "",
+                            "sourceScriptType":  "Gateway",
+                            "completesOnArrival":  true,
+                            "triggerLine":  {
+                                                "startX":  -730,
+                                                "startY":  -215,
+                                                "startZ":  0,
+                                                "endX":  -672,
+                                                "endY":  -284,
+                                                "endZ":  0
+                                            }
+                        },
+                        {
+                            "fieldId":  122,
+                            "kind":  "Location",
+                            "label":  "Return up Reactor 1's main staircase to the elevator",
+                            "entityId":  -1,
+                            "x":  -774,
+                            "y":  309,
+                            "z":  1571,
+                            "targetGameMoment":  -1,
+                            "minimumGameMoment":  27,
+                            "maximumGameMoment":  32,
+                            "priority":  100,
+                            "sourceFieldName":  "nmkin_2",
+                            "sourceEntityName":  "",
+                            "sourceScriptType":  "Gateway",
+                            "completesOnArrival":  true,
+                            "triggerLine":  {
+                                                "startX":  -833,
+                                                "startY":  346,
+                                                "startZ":  1571,
+                                                "endX":  -716,
+                                                "endY":  273,
+                                                "endZ":  1571
+                                            }
+                        },
+                        {
+                            "fieldId":  121,
+                            "kind":  "Location",
+                            "label":  "Leave the elevator toward Reactor 1's security rooms",
+                            "entityId":  -1,
+                            "x":  -174,
+                            "y":  -6,
+                            "z":  5,
+                            "targetGameMoment":  -1,
+                            "minimumGameMoment":  27,
+                            "maximumGameMoment":  32,
+                            "priority":  100,
+                            "sourceFieldName":  "elevtr1",
+                            "sourceEntityName":  "jp0",
+                            "sourceScriptType":  "Move",
+                            "completesOnArrival":  true,
+                            "triggerLine":  {
+                                                "startX":  -174,
+                                                "startY":  -68,
+                                                "startZ":  5,
+                                                "endX":  -174,
+                                                "endY":  56,
+                                                "endZ":  5
+                                            }
                         }
                     ]
 }

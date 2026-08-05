@@ -24,7 +24,7 @@ internal static class Steam2026FieldNavigationRuntimeTests
         ReplaysOptionalManualRoutePreflightWithoutRereadingNativeState();
         SkipsDirectionalInputWhenOnlySpatialFieldFeaturesOwnTheRuntime();
         IncludesDynamicDestinationInGatewayIdentity();
-        FiltersTrainScriptExitsByNativeProgressionState();
+        FiltersScriptExitsByNativeProgressionState();
         PublishesOnlyStableExitSnapshots();
         KeepsExitCueOwnershipIndependentFromNavigationSpeech();
         KeepsLadderCueOwnershipIndependentFromNavigationAndExitCues();
@@ -896,7 +896,7 @@ internal static class Steam2026FieldNavigationRuntimeTests
         Equal(false, string.Equals(first, changed, StringComparison.Ordinal), "a destination swap invalidates stale selection and cue identity");
     }
 
-    private static void FiltersTrainScriptExitsByNativeProgressionState()
+    private static void FiltersScriptExitsByNativeProgressionState()
     {
         static FieldNavigationTarget ScriptExit(
             int fieldId,
@@ -939,6 +939,32 @@ internal static class Steam2026FieldNavigationRuntimeTests
             passengerCar.Length,
             Steam2026FieldScriptExitPolicy.Filter(139, 108, passengerCar).Count,
             "later train missions are not rewritten by the first-ride policy");
+
+        var conditionalElevatorExit = new[]
+        {
+            ScriptExit(121, 7, 120, 122, 128, 129)
+        };
+        AssertReactorElevatorDestination(12, 122);
+        AssertReactorElevatorDestination(27, 120);
+        AssertReactorElevatorDestination(120, 129);
+        AssertReactorElevatorDestination(127, 128);
+
+        void AssertReactorElevatorDestination(int gameMoment, int expectedDestination)
+        {
+            var filtered = Steam2026FieldScriptExitPolicy.Filter(
+                121,
+                gameMoment,
+                conditionalElevatorExit);
+            Equal(1, filtered.Count, $"field 121 exposes one exit at moment {gameMoment}");
+            SequenceEqual(
+                [expectedDestination],
+                filtered[0].DestinationFieldIds ?? [],
+                $"field 121 resolves its native elevator branch at moment {gameMoment}");
+            Equal(
+                $"script-exit:121:7:{expectedDestination}",
+                filtered[0].StableId,
+                $"field 121 branch identity follows its real destination at moment {gameMoment}");
+        }
     }
 
     private static void PublishesOnlyStableExitSnapshots()

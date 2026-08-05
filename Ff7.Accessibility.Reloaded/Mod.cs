@@ -874,11 +874,21 @@ public sealed class Mod : IModV1, IModV2
             scriptExitProvider: position =>
             {
                 var result = fieldScriptNavigationCatalog?.ReadField(position.FieldId);
-                return result is null
-                    ? []
-                    : result.Exits
-                        .Where(exit => fieldScriptLineStateReader.IsEnabled(exit.TriggerEntityId))
-                        .ToArray();
+                if (result is null)
+                {
+                    return [];
+                }
+
+                var gameMoment =
+                    ReadByte(FieldNavigationObjectReader.AddressFieldBankBase) |
+                    (ReadByte(FieldNavigationObjectReader.AddressFieldBankBase + 1) << 8);
+                var enabledExits = result.Exits
+                    .Where(exit => fieldScriptLineStateReader.IsEnabled(exit.TriggerEntityId))
+                    .ToArray();
+                return FieldScriptExitBranchPolicy.Resolve(
+                    position.FieldId,
+                    gameMoment,
+                    enabledExits);
             },
             labelResolver: fieldExitLabelResolver);
         reachableFieldExitTargetProvider = new ReachableFieldExitTargetProvider(

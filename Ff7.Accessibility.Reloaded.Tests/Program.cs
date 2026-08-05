@@ -9834,6 +9834,22 @@ static void AssertFieldStoryCatalogCoversReactor1PipingAndSaveRoom()
     var definitions = FieldStoryEventCatalog.CreateAllFields();
     var expected = new Dictionary<string, (int FieldId, int X, int Y, int Z, int MinimumMoment, int MaximumMoment, FieldNavigationTriggerLine Line)>
     {
+        ["Leave the elevator toward Reactor 1's main staircase"] = (
+            121,
+            -174,
+            -6,
+            5,
+            12,
+            13,
+            new FieldNavigationTriggerLine(-174, -68, 5, -174, 56, 5)),
+        ["Descend Reactor 1's main staircase toward Jessie and the upper piping"] = (
+            122,
+            -701,
+            -249,
+            0,
+            12,
+            13,
+            new FieldNavigationTriggerLine(-730, -215, 0, -672, -284, 0)),
         ["Cross the Reactor 1 upper piping and descend toward the save point"] = (
             123,
             298,
@@ -9865,7 +9881,23 @@ static void AssertFieldStoryCatalogCoversReactor1PipingAndSaveRoom()
             2053,
             27,
             32,
-            new FieldNavigationTriggerLine(-371, 1959, 2053, -371, 1883, 2053))
+            new FieldNavigationTriggerLine(-371, 1959, 2053, -371, 1883, 2053)),
+        ["Return up Reactor 1's main staircase to the elevator"] = (
+            122,
+            -774,
+            309,
+            1571,
+            27,
+            32,
+            new FieldNavigationTriggerLine(-833, 346, 1571, -716, 273, 1571)),
+        ["Leave the elevator toward Reactor 1's security rooms"] = (
+            121,
+            -174,
+            -6,
+            5,
+            27,
+            32,
+            new FieldNavigationTriggerLine(-174, -68, 5, -174, 56, 5))
     };
 
     foreach (var item in expected)
@@ -9898,6 +9930,17 @@ static void AssertFieldStoryCatalogCoversReactor1PipingAndSaveRoom()
         (ReadByte(address + 3) << 24);
     var reader = new FieldStoryTargetReader(ReadInt32Value, ReadByte, definitions);
 
+    var elevator = new FieldPositionSnapshot(1, 121, 0, 86, 16, -6, 8, 0);
+    var mainStaircase = elevator with { FieldId = 122, X = -682, Y = 308, Z = 1571, TriangleId = 92 };
+
+    WriteUInt16(memory, FieldNavigationObjectReader.AddressFieldBankBase, 12);
+    var elevatorTargets = reader.ReadTargets(elevator);
+    AssertEqual(1, elevatorTargets.Count, "Reactor 1 elevator should expose its post-ride exit");
+    AssertEqual("Leave the elevator toward Reactor 1's main staircase", elevatorTargets[0].Label, "post-elevator objective");
+    var staircaseTargets = reader.ReadTargets(mainStaircase);
+    AssertEqual(1, staircaseTargets.Count, "Reactor 1 main staircase should expose the upper-piping route");
+    AssertEqual("Descend Reactor 1's main staircase toward Jessie and the upper piping", staircaseTargets[0].Label, "main-staircase objective");
+
     WriteUInt16(memory, FieldNavigationObjectReader.AddressFieldBankBase, 14);
     var upperRoom = new FieldPositionSnapshot(1, 123, 0, -140, 1921, 2212, 40, 0);
     var upperTargets = reader.ReadTargets(upperRoom);
@@ -9910,6 +9953,13 @@ static void AssertFieldStoryCatalogCoversReactor1PipingAndSaveRoom()
     AssertEqual("Continue past the save point to Reactor 1's core", saveTargets[0].Label, "save-room objective");
 
     WriteUInt16(memory, FieldNavigationObjectReader.AddressFieldBankBase, 27);
+    staircaseTargets = reader.ReadTargets(mainStaircase);
+    AssertEqual(1, staircaseTargets.Count, "Reactor 1 main staircase should expose the escape return");
+    AssertEqual("Return up Reactor 1's main staircase to the elevator", staircaseTargets[0].Label, "main-staircase escape objective");
+    elevatorTargets = reader.ReadTargets(elevator);
+    AssertEqual(1, elevatorTargets.Count, "Reactor 1 elevator should expose the security-room escape exit");
+    AssertEqual("Leave the elevator toward Reactor 1's security rooms", elevatorTargets[0].Label, "elevator escape objective");
+
     saveTargets = reader.ReadTargets(saveRoom);
     AssertEqual(1, saveTargets.Count, "Reactor 1 save room should expose the escape climb");
     AssertEqual("Climb back toward the Reactor 1 exit", saveTargets[0].Label, "save-room escape objective");
