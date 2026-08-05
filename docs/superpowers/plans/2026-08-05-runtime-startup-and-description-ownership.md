@@ -65,4 +65,4 @@
 - [x] Build the dual-runtime mod payload and x64/x86 manager packages with the next patch version.
 - [x] Install the x64 payload into the detected Steam 2026 folder.
 - [x] Launch the game at least three times and verify Reloaded selects `d3d11, D3DKMTWaitForVerticalBlankEvent`, Blind Soldier initializes once, and no CLR exception is recorded.
-- [ ] Validate archive contents and checksums, push the source change, publish the GitHub release, and update the Accessibility Mod Manager entry.
+- [x] Validate archive contents and checksums, push the source change, publish the GitHub release, and update the Accessibility Mod Manager entry.
