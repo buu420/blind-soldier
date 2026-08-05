@@ -2,7 +2,7 @@
   {
     "Name": "d3d11",
     "Functions": [
-      "D3D11CreateDevice"
+      "D3DKMTWaitForVerticalBlankEvent"
     ]
   }
 ]

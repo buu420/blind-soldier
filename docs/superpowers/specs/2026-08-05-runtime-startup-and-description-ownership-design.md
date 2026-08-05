@@ -19,17 +19,17 @@ This bypasses delayed initialization. It risks starting signature scans before S
 
 ### Specialize the x64 delayed hook list (selected)
 
-Ghidra confirms that the supported x64 `FFVII.exe` imports `D3D11CreateDevice` and does not import the D3DKMT vertical-blank function that crashed. Blind Soldier creates the game with its primary thread suspended, so Reloaded can finish constructing a single `D3D11CreateDevice` hook before the launcher resumes the game. The game's graphics initialization then provides the delayed start Reloaded needs after Steam startup, without background hooks racing setup. The x86 hook list remains unchanged.
+Ghidra confirms that the supported x64 `FFVII.exe` imports `D3D11CreateDevice` and does not directly import the D3DKMT vertical-blank function. A live launch proved that the launcher resumes the game before it injects Reloaded, so `D3D11CreateDevice` has already occurred by the time the hook is installed and cannot trigger the delayed mod load. Successful pre-fix logs show that the later `D3DKMTWaitForVerticalBlankEvent` callback reliably triggers after injection. Blind Soldier therefore installs only that proven later callback. One hook preserves Reloaded's Steam-DRM delayed initialization while eliminating the concurrent mutation of its large hook collection. The x86 hook list remains unchanged.
 
 ## Description Ownership
 
-A process-scoped named mutex will represent ownership of the Blind Soldier runtime. Both entry assemblies acquire it before starting speech, audio, timers, or hooks and hold it until unload. A second copy in another assembly load context will remain inert and log that ownership was denied. This prevents duplicate descriptions, footsteps, menu speech, and hooks when an update or third-party loader exposes the same mod twice.
+A process-scoped named semaphore will represent ownership of the Blind Soldier runtime. Both entry assemblies acquire it before starting speech, audio, timers, or hooks and hold it until unload. A second copy in another assembly load context will remain inert and log that ownership was denied. A semaphore is used because Reloaded may unload on a different managed thread, while mutex release is thread-affine. This prevents duplicate descriptions, footsteps, menu speech, and hooks when an update or third-party loader exposes the same mod twice.
 
 The fix will not suppress an external mod's audio based on timing guesses. If duplication remains while logs prove one Blind Soldier owner, that evidence will identify a separate Echo-S or FFNx playback conflict without risking lost descriptions.
 
 ## Packaging and Compatibility
 
-- Add a reviewed x64 `DelayInjectHooks.json` override containing only `d3d11!D3D11CreateDevice`.
+- Add a reviewed x64 `DelayInjectHooks.json` override containing only `d3d11!D3DKMTWaitForVerticalBlankEvent`.
 - Make the portable/package builder overwrite only the x64 loader copy with that file.
 - Preserve the official Reloaded-II 1.30.3 binaries and the complete x86 delayed-hook configuration.
 - Include the same x64 override in both portable and Accessibility Mod Manager release payloads.
@@ -40,4 +40,3 @@ The fix will not suppress an external mod's audio based on timing guesses. If du
 - A runtime-lease test must prove that a second acquisition for one process is rejected and that ownership can be reacquired after clean disposal.
 - Build and run all affected .NET and package tests.
 - Deploy to the installed Steam 2026 game, launch repeatedly, and verify a non-empty Reloaded log, exactly one Blind Soldier initialization, and no new CLR crash event.
-

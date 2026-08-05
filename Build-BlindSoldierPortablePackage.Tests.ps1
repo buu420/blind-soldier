@@ -184,7 +184,7 @@ Describe 'Blind Soldier direct-extract portable package' {
         @($x64).Count | Should Be 1
         [string]$x64[0].Name | Should Be 'd3d11'
         @($x64[0].Functions).Count | Should Be 1
-        [string]$x64[0].Functions[0] | Should Be 'D3D11CreateDevice'
+        [string]$x64[0].Functions[0] | Should Be 'D3DKMTWaitForVerticalBlankEvent'
 
         Get-PortableEntryText -Path $fixture.First `
             -EntryPath 'Reloaded-II/Loader/X86/DelayInjectHooks.json' |

@@ -4,9 +4,9 @@
 
 **Goal:** Stop the intermittent x64 launcher bounce and prevent more than one Blind Soldier runtime from producing descriptions in a game process.
 
-**Architecture:** Retain Reloaded-II's delayed Steam initialization but replace its x64 mass-hook configuration with the one D3D11 entry point imported by the supported executable. Add a named-mutex runtime lease shared by the x86 and x64 entry assemblies so duplicate loads fail closed before any accessibility output begins.
+**Architecture:** Retain Reloaded-II's delayed Steam initialization but replace its x64 mass-hook configuration with the one later D3D11 callback proven to fire after launcher injection. Add a named-semaphore runtime lease shared by the x86 and x64 entry assemblies so duplicate loads fail closed before any accessibility output begins.
 
-**Tech Stack:** PowerShell/Pester-style package tests, C#/.NET 9, Reloaded-II 1.30.3, native Windows mutexes through `System.Threading.Mutex`, Ghidra evidence from the supported x64 executable.
+**Tech Stack:** PowerShell/Pester-style package tests, C#/.NET 9, Reloaded-II 1.30.3, named Windows semaphores through `System.Threading.Semaphore`, Ghidra evidence from the supported x64 executable, and live Reloaded launch logs.
 
 ## Global Constraints
 
@@ -26,13 +26,13 @@
 
 **Interfaces:**
 - Consumes: the official prerequisite bundle under `reloaded/Loader/X64`.
-- Produces: an x64 package whose delayed-injection list is exactly `d3d11!D3D11CreateDevice`.
+- Produces: an x64 package whose delayed-injection list is exactly `d3d11!D3DKMTWaitForVerticalBlankEvent`.
 
-- [ ] Add a package behavior test that builds a fixture and opens the resulting ZIP.
-- [ ] Assert the x64 JSON has one DLL entry and one function, while the x86 JSON retains the fixture content.
-- [ ] Run the focused test and confirm it fails because the package still copies the broad prerequisite file.
-- [ ] Add the x64 JSON asset and overwrite the staged x64 loader configuration after prerequisite copying.
-- [ ] Run the focused and complete portable-package tests and confirm they pass.
+- [x] Add a package behavior test that builds a fixture and opens the resulting ZIP.
+- [x] Assert the x64 JSON has one DLL entry and one function, while the x86 JSON retains the fixture content.
+- [x] Run the focused test and confirm it fails because the package still copies the broad prerequisite file.
+- [x] Add the x64 JSON asset and overwrite the staged x64 loader configuration after prerequisite copying.
+- [x] Run the focused and complete portable-package tests and confirm they pass.
 
 ### Task 2: Process-scoped runtime ownership
 
@@ -46,11 +46,11 @@
 - Produces: `BlindSoldierRuntimeLease.TryAcquire(int processId, out BlindSoldierRuntimeLease? lease)` and `Dispose()`.
 - Consumes: the lease in both Reloaded entry points before runtime initialization.
 
-- [ ] Add a test that acquires one unique process-keyed lease, rejects a concurrent second lease, disposes the first, and then reacquires ownership.
-- [ ] Run the test and confirm it fails because the lease type does not exist.
-- [ ] Implement the minimal named-mutex lease.
-- [ ] Gate both entry assemblies before any accessibility subsystem starts and release the lease on unload or failed startup.
-- [ ] Run all affected .NET tests and confirm they pass.
+- [x] Add a test that acquires one unique process-keyed lease, rejects a concurrent second lease, disposes the first, and then reacquires ownership.
+- [x] Run the test and confirm it fails because the lease type does not exist.
+- [x] Implement the minimal named-semaphore lease.
+- [x] Gate both entry assemblies before any accessibility subsystem starts and release the lease on unload or failed startup.
+- [x] Run all affected .NET tests and confirm they pass.
 
 ### Task 3: Deployment and release verification
 
@@ -62,8 +62,7 @@
 - Consumes: Task 1 package output and Task 2 built assemblies.
 - Produces: an installed and published patch package.
 
-- [ ] Build the dual-runtime mod payload and x64/x86 manager packages with the next patch version.
-- [ ] Install the x64 payload into the detected Steam 2026 folder.
-- [ ] Launch the game at least three times and verify Reloaded selects `d3d11, D3D11CreateDevice`, Blind Soldier initializes once, and no CLR exception is recorded.
+- [x] Build the dual-runtime mod payload and x64/x86 manager packages with the next patch version.
+- [x] Install the x64 payload into the detected Steam 2026 folder.
+- [x] Launch the game at least three times and verify Reloaded selects `d3d11, D3DKMTWaitForVerticalBlankEvent`, Blind Soldier initializes once, and no CLR exception is recorded.
 - [ ] Validate archive contents and checksums, push the source change, publish the GitHub release, and update the Accessibility Mod Manager entry.
-
