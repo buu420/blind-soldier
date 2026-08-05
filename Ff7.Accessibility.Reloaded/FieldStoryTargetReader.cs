@@ -238,6 +238,10 @@ public sealed class FieldStoryTargetReader
             y,
             z,
             $"story:{definition.FieldId}:{definition.EntityId}:{definition.TargetGameMoment}:{definition.Label}",
+            TriggerEntityId:
+                definition.Kind == FieldStoryTargetKind.Model
+                    ? definition.EntityId
+                    : -1,
             CompletesOnArrival:
                 definition.Kind == FieldStoryTargetKind.Location &&
                 definition.CompletesOnArrival,

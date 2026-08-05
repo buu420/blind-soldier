@@ -7406,6 +7406,7 @@ static void AssertFieldNavigationObjectReaderUsesNativeModelAndCollectedState()
     AssertEqual(385, targets[0].X, "object x should come from live model state");
     AssertEqual(3125, targets[0].Y, "object y should come from live model state");
     AssertEqual(-272, targets[0].Z, "object z should come from live model state");
+    AssertEqual(11, targets[0].TriggerEntityId, "model-backed object should retain its native entity for route collision exclusion");
 
     memory[FieldNavigationObjectReader.AddressFieldBankBase + 0x400 + 32] = 1 << 3;
     AssertEqual(0, reader.ReadTargets(position).Count, "native collected bit should remove chest from Objects");
@@ -7659,6 +7660,7 @@ static void AssertFieldNavigationObjectReaderExposesStaticNativeLocations()
     AssertEqual(-827, target.X, "static native location x");
     AssertEqual(124, target.Y, "static native location y");
     AssertEqual(369, target.Z, "static native location z");
+    AssertEqual(-1, target.TriggerEntityId, "static native location should not claim a model entity");
 }
 
 static void AssertFieldNavigationObjectUsesNativeActionRangeForArrival()
@@ -9219,6 +9221,15 @@ static void AssertFieldStoryCatalogExposesOnlyVisibleOpeningFollowersWithinNativ
     avalancheMemory[FieldPositionReader.AddressFieldNumModels] = 7;
     avalancheMemory[FieldNavigationObjectReader.AddressFieldModelIdArray + avalanche.EntityId] = avalancheModelId;
     WriteLiveFieldModel(avalancheMemory, avalancheEventTable, avalancheModelId, 1157, 1619, 1298);
+    WriteUInt16(
+        avalancheMemory,
+        avalancheEventTable + FieldNavigationNpcReader.CollisionRadiusOffset,
+        48);
+    WriteUInt16(
+        avalancheMemory,
+        avalancheEventTable + avalancheModelId * FieldNavigationObjectReader.FieldEventDataStride +
+        FieldNavigationNpcReader.CollisionRadiusOffset,
+        64);
     WriteUInt16(avalancheMemory, FieldNavigationObjectReader.AddressFieldBankBase, 6);
 
     byte ReadAvalancheByte(int address) =>
@@ -9228,6 +9239,9 @@ static void AssertFieldStoryCatalogExposesOnlyVisibleOpeningFollowersWithinNativ
         (ReadAvalancheByte(address + 1) << 8) |
         (ReadAvalancheByte(address + 2) << 16) |
         (ReadAvalancheByte(address + 3) << 24);
+    short ReadAvalancheInt16(int address) => unchecked((short)(
+        ReadAvalancheByte(address) |
+        (ReadAvalancheByte(address + 1) << 8)));
 
     var avalancheReader = new FieldStoryTargetReader(
         ReadAvalancheInt32,
@@ -9238,6 +9252,18 @@ static void AssertFieldStoryCatalogExposesOnlyVisibleOpeningFollowersWithinNativ
     AssertEqual(1, targets.Count, "visible Avalanche should be the pending field 117 story objective at GameMoment 6");
     AssertEqual(1157, targets[0].X, "Avalanche story target should use the live model on native trigger triangle 62");
     AssertEqual(1619, targets[0].Y, "Avalanche story target live y position");
+    AssertEqual(
+        avalanche.EntityId,
+        targets[0].TriggerEntityId,
+        "model-backed story target should retain its native entity for route collision exclusion");
+    var avalancheObstacles = new FieldNavigationDynamicObstacleReader(
+        ReadAvalancheInt32,
+        ReadAvalancheInt16,
+        ReadAvalancheByte).Read(avalanchePosition, targets[0]);
+    AssertEqual(
+        0,
+        avalancheObstacles.Count,
+        "the selected Avalanche destination model must not block its own story route");
 
     var avalancheAddress = avalancheEventTable +
         avalancheModelId * FieldNavigationObjectReader.FieldEventDataStride;

@@ -252,6 +252,10 @@ public sealed class FieldNavigationObjectReader
                 z,
                 CreateStableId(definition),
                 FieldNavigationObjectCueClassifier.Classify(definition),
+                TriggerEntityId:
+                    definition.TargetKind == FieldNavigationObjectTargetKind.Model
+                        ? definition.EntityId
+                        : -1,
                 CompletesOnArrival: definition.Kind == FieldNavigationObjectKind.SavePoint,
                 InteractionRadius: DefaultInteractionRadius));
         }
