@@ -875,7 +875,8 @@ internal sealed class Steam2026FieldLadderSpatialCoordinator : IDisposable
         bool isHostForeground,
         bool isSuppressed,
         bool isReadCoherent,
-        DateTime nowUtc)
+        DateTime nowUtc,
+        string? prioritizedTransitionId = null)
     {
         ObjectDisposedException.ThrowIf(disposed != 0, this);
         ArgumentNullException.ThrowIfNull(liveTransitions);
@@ -896,7 +897,11 @@ internal sealed class Steam2026FieldLadderSpatialCoordinator : IDisposable
 
         activeFieldId = position.FieldId;
         isReset = false;
-        foreach (var proximityCue in tracker.Update(position, liveTransitions, nowUtc))
+        foreach (var proximityCue in tracker.Update(
+                     position,
+                     liveTransitions,
+                     nowUtc,
+                     prioritizedTransitionId))
         {
             var transition = proximityCue.Transition;
             var target = new FieldNavigationTarget(

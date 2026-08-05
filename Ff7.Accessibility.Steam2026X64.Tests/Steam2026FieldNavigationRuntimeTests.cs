@@ -40,6 +40,7 @@ internal static class Steam2026FieldNavigationRuntimeTests
         RejectsTornNativeNpcTargetsAcrossOwnershipBookends();
         AcceptsDoubleReadNativeNpcTargetsWithStableOwnership();
         PlaysOnlyCoherentForegroundUnmountedLadders();
+        PrioritizesTheObjectiveRouteLadderEntrance();
         ExposesTheExactCommittedRouteForDiagnostics();
         ExposesTheSelectedNativeTargetForDiagnostics();
         CapturesNativeTriangleResolutionAndBoundariesForPendingFootstep();
@@ -1119,6 +1120,60 @@ internal static class Steam2026FieldNavigationRuntimeTests
             now.AddSeconds(4));
         Equal(2, playback.Calls.Count, "mounted focus suppression and incoherent reads remain silent");
         Equal(1, playback.StopAllCount, "mounted state immediately stops active ladder audio once");
+    }
+
+    private static void PrioritizesTheObjectiveRouteLadderEntrance()
+    {
+        var playback = new RecordingLadderPlayback();
+        using var coordinator = new Steam2026FieldLadderSpatialCoordinator(
+            new FieldLadderProximityCueTracker(10, 110, TimeSpan.Zero),
+            playback,
+            _ => { });
+        var position = new FieldPositionSnapshot(
+            FieldPositionReader.FieldModule,
+            123,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0);
+        var wrongLadder = new FieldScriptNavigationTransition(
+            123,
+            FieldNavigationTransitionKind.Ladder,
+            8,
+            10,
+            0,
+            0,
+            100,
+            0,
+            0,
+            1,
+            "ladder:123:8",
+            FieldNavigationInput.Down);
+        var routeLadder = wrongLadder with
+        {
+            SourceEntityId = 10,
+            SourceY = 5,
+            StableId = "ladder:123:10"
+        };
+
+        coordinator.Observe(
+            position,
+            new FieldNavigationControlTransform(0),
+            [wrongLadder, routeLadder],
+            FieldLadderStateSnapshot.NotMounted,
+            isHostForeground: true,
+            isSuppressed: false,
+            isReadCoherent: true,
+            new DateTime(2026, 8, 5, 0, 0, 0, DateTimeKind.Utc),
+            prioritizedTransitionId: routeLadder.StableId);
+
+        Equal(1, playback.Calls.Count, "an active objective should play only its next ladder entrance");
+        Equal(
+            true,
+            playback.Calls[0].DistanceUnits > 10d,
+            "objective ladder spatial target should come from the prioritized entrance");
     }
 
     private static void RejectsTornNativeLadderStateAcrossOwnershipBookends()

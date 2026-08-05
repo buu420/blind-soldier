@@ -392,6 +392,7 @@ function Assert-DualRuntimePackage {
         'object_chest_253_pitch70.wav',
         'object_item_357_pitch70.wav',
         'ladder_061.wav',
+        'ladder_approach_214.wav',
         'floor60_statue_134.wav'
     )) {
         Assert-PackageFile -Path (Join-Path $PackageRoot "Assets\navigation\$fieldCueAsset") `

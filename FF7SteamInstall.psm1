@@ -1290,6 +1290,7 @@ function Assert-Ff7DualRuntimePackage {
         'Assets\navigation\object_chest_253_pitch70.wav',
         'Assets\navigation\object_item_357_pitch70.wav',
         'Assets\navigation\ladder_061.wav',
+        'Assets\navigation\ladder_approach_214.wav',
         'Assets\navigation\floor60_statue_134.wav',
         'x86\Ff7.Accessibility.Reloaded.dll',
         'x86\Ff7.Accessibility.Core.dll',

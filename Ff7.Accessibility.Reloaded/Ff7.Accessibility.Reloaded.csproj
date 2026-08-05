@@ -31,6 +31,7 @@
     <None Include="Assets\navigation\navigation_beacon_214_remix.wav" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Assets\navigation\field_zone_transition.wav" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Assets\navigation\ladder_061.wav" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\navigation\ladder_approach_214.wav" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Assets\navigation\swing_jump_058.wav" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Assets\navigation\floor60_statue_134.wav" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Assets\highway\enemy_lower_priority_058.wav" CopyToOutputDirectory="PreserveNewest" />

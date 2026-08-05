@@ -1765,27 +1765,55 @@ public sealed class FieldWalkmeshRoutePlanner :
                 continue;
             }
 
-            var landingDistance = DistanceSquared(
-                transition.TargetX,
-                transition.TargetY,
-                transition.TargetZ ?? transition.SourceZ,
-                candidate.SourceX,
-                candidate.SourceY,
-                candidate.SourceZ);
-            var reverseLandingDistance = DistanceSquared(
-                candidate.TargetX,
-                candidate.TargetY,
-                candidate.TargetZ ?? candidate.SourceZ,
-                transition.SourceX,
-                transition.SourceY,
-                transition.SourceZ);
-            if (landingDistance > maximumDistanceSquared ||
-                reverseLandingDistance > maximumDistanceSquared)
+            double score;
+            if (transition.TargetZ is int transitionTargetZ &&
+                candidate.TargetZ is int candidateTargetZ)
             {
-                continue;
+                var landingDistance = DistanceSquared(
+                    transition.TargetX,
+                    transition.TargetY,
+                    transitionTargetZ,
+                    candidate.SourceX,
+                    candidate.SourceY,
+                    candidate.SourceZ);
+                var reverseLandingDistance = DistanceSquared(
+                    candidate.TargetX,
+                    candidate.TargetY,
+                    candidateTargetZ,
+                    transition.SourceX,
+                    transition.SourceY,
+                    transition.SourceZ);
+                if (landingDistance > maximumDistanceSquared ||
+                    reverseLandingDistance > maximumDistanceSquared)
+                {
+                    continue;
+                }
+
+                score = landingDistance + reverseLandingDistance;
+            }
+            else
+            {
+                // Some original field scripts end LADER with a collapsed cleanup
+                // JUMP that writes X/Y but omits Z. In that form one cross-endpoint
+                // still identifies the opposite entrance exactly, while treating the
+                // missing Z as either source height makes the pair look disconnected.
+                var landingDistance = DistanceSquared2D(
+                    transition.TargetX,
+                    transition.TargetY,
+                    candidate.SourceX,
+                    candidate.SourceY);
+                var reverseLandingDistance = DistanceSquared2D(
+                    candidate.TargetX,
+                    candidate.TargetY,
+                    transition.SourceX,
+                    transition.SourceY);
+                score = Math.Min(landingDistance, reverseLandingDistance);
+                if (score > maximumDistanceSquared)
+                {
+                    continue;
+                }
             }
 
-            var score = landingDistance + reverseLandingDistance;
             if (score < bestScore)
             {
                 bestPair = candidate;
@@ -1832,6 +1860,17 @@ public sealed class FieldWalkmeshRoutePlanner :
         var dy = secondY - firstY;
         var dz = secondZ - firstZ;
         return dx * (double)dx + dy * (double)dy + dz * (double)dz;
+    }
+
+    private static double DistanceSquared2D(
+        int firstX,
+        int firstY,
+        int secondX,
+        int secondY)
+    {
+        var dx = secondX - firstX;
+        var dy = secondY - firstY;
+        return dx * (double)dx + dy * (double)dy;
     }
 
     private static string GetTargetId(FieldNavigationTarget target) =>

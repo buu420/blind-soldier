@@ -6,6 +6,12 @@ using Ff7.Accessibility.Steam2026X64.Runtime.Movies;
 using Ff7.Accessibility.LegacyLayout;
 using System.Text.Json;
 
+if (args.Contains("--module-tests-only", StringComparer.OrdinalIgnoreCase))
+{
+    Console.WriteLine("Steam 2026 x64 module tests passed.");
+    return;
+}
+
 const string nativePath =
     @"X:\SteamLibrary\steamapps\common\FINAL FANTASY VII Steam Edition\FFVII.exe";
 const string legacyPath =

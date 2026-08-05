@@ -3715,7 +3715,11 @@ public sealed class Mod : IModV1, IModV2
             }
 
             var transitions = fieldNavigationTransitionProvider?.Invoke(result.Position.FieldId) ?? [];
-            var proximityCues = fieldLadderProximityCueTracker.Update(result.Position, transitions, now);
+            var proximityCues = fieldLadderProximityCueTracker.Update(
+                result.Position,
+                transitions,
+                now,
+                fieldNavigationController.PrioritizedLadderTransitionId);
             foreach (var proximityCue in proximityCues)
             {
                 var transition = proximityCue.Transition;
@@ -7526,7 +7530,7 @@ public sealed class Mod : IModV1, IModV2
     private string ResolveFieldLadderCueSoundPath()
     {
         var configuredPath = string.IsNullOrWhiteSpace(config.FieldLadderCueSoundPath)
-            ? @"Assets\navigation\ladder_061.wav"
+            ? @"Assets\navigation\ladder_approach_214.wav"
             : config.FieldLadderCueSoundPath;
         return Path.IsPathRooted(configuredPath)
             ? configuredPath

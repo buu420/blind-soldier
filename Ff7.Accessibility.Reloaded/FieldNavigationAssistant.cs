@@ -245,6 +245,11 @@ public sealed class FieldNavigationController
 
     public FieldNavigationRouteGuidance? CurrentRouteGuidance => currentGuidance;
 
+    public string? PrioritizedLadderTransitionId =>
+        BeaconEnabled && pendingLadderAction is { } action
+            ? action.StableId
+            : null;
+
     public int CurrentRouteProgressPercent => routeProgressTracker.Percent;
 
     public string LastNavigationDiagnostic { get; private set; } = string.Empty;
@@ -844,7 +849,9 @@ public sealed class FieldNavigationController
         };
         return new FieldNavigationActionResult(
             action.RequiresAction
-                ? "Ladder. Press action to climb."
+                ? direction is null
+                    ? "Ladder. Press action to climb."
+                    : $"Ladder. Press action to mount, then climb {direction}."
                 : direction is null
                     ? "Climb the ladder."
                     : $"Climb {direction}.");
@@ -1004,6 +1011,10 @@ public sealed class FieldNavigationController
         {
             activeLadderExpectedLanding = pending.Destination;
             activeLadderExpectedTriangle = pending.DestinationTriangle;
+            if (pending.RequiredInput != FieldNavigationInput.None)
+            {
+                activeLadderGuidanceInput = pending.RequiredInput;
+            }
         }
         else if (lastCompletedLadderAction is { } completed &&
                  IsNear(position, completed.Destination, LadderLandingArrivalDistance) &&

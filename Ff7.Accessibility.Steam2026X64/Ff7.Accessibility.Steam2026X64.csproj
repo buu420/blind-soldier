@@ -118,6 +118,7 @@
     <None Include="..\Ff7.Accessibility.Reloaded\Assets\navigation\field_zone_transition.wav" Link="Assets\navigation\field_zone_transition.wav" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Ff7.Accessibility.Reloaded\Assets\navigation\navigation_beacon_214_remix.wav" Link="Assets\navigation\navigation_beacon_214_remix.wav" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Ff7.Accessibility.Reloaded\Assets\navigation\ladder_061.wav" Link="Assets\navigation\ladder_061.wav" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Ff7.Accessibility.Reloaded\Assets\navigation\ladder_approach_214.wav" Link="Assets\navigation\ladder_approach_214.wav" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Ff7.Accessibility.Reloaded\Assets\navigation\swing_jump_058.wav" Link="Assets\navigation\swing_jump_058.wav" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Ff7.Accessibility.Reloaded\Assets\navigation\floor60_statue_134.wav" Link="Assets\navigation\floor60_statue_134.wav" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Ff7.Accessibility.Reloaded\Assets\highway\enemy_lower_priority_058.wav" Link="Assets\highway\enemy_lower_priority_058.wav" CopyToOutputDirectory="PreserveNewest" />

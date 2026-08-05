@@ -25,7 +25,8 @@ public sealed class FieldLadderProximityCueTracker
     public IReadOnlyList<FieldLadderProximityCue> Update(
         FieldPositionSnapshot position,
         IReadOnlyList<FieldScriptNavigationTransition> transitions,
-        DateTime now)
+        DateTime now,
+        string? prioritizedTransitionId = null)
     {
         if (!FieldPositionReader.IsUsable(position))
         {
@@ -37,7 +38,12 @@ public sealed class FieldLadderProximityCueTracker
         var cues = new List<FieldLadderProximityCue>();
         foreach (var transition in transitions.Where(transition =>
                      transition.FieldId == position.FieldId &&
-                     transition.Kind == FieldNavigationTransitionKind.Ladder))
+                     transition.Kind == FieldNavigationTransitionKind.Ladder &&
+                     (string.IsNullOrWhiteSpace(prioritizedTransitionId) ||
+                      string.Equals(
+                          transition.StableId,
+                          prioritizedTransitionId,
+                          StringComparison.Ordinal))))
         {
             var gain = CalculateGain(position, transition);
             if (gain <= 0f)

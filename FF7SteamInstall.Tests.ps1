@@ -1975,6 +1975,7 @@ public static class Fixture
                 'object_chest_253_pitch70.wav',
                 'object_item_357_pitch70.wav',
                 'ladder_061.wav',
+                'ladder_approach_214.wav',
                 'floor60_statue_134.wav'
             )) {
                 Test-Path -LiteralPath (Join-Path $output "Assets\navigation\$fieldCueAsset") -PathType Leaf |

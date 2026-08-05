@@ -67,12 +67,43 @@ var blockedTriangles = (Environment.GetEnvironmentVariable("FIELD_ROUTE_DUMP_BLO
     .ToHashSet();
 var componentByTriangle = BuildComponents(triangles);
 var catalog = new FieldScriptNavigationCatalog(gameRoot);
-var fieldTransitions = catalog.ReadField(fieldId).Transitions;
+var fieldNavigation = catalog.ReadField(fieldId);
+var fieldTransitions = fieldNavigation.Transitions;
 if (string.Equals(
         Environment.GetEnvironmentVariable("FIELD_ROUTE_DUMP_TRANSITIONS"),
         "1",
         StringComparison.Ordinal))
 {
+    const int triggerSectionIndex = 7;
+    const int gatewayCount = 12;
+    const int gatewayOffset = 0x38;
+    const int gatewayStride = 0x18;
+    const int gatewayDestinationOffset = 0x12;
+    var triggerSectionOffset = BitConverter.ToInt32(
+        fieldBytes,
+        sectionOffsetsOffset + triggerSectionIndex * sizeof(int));
+    var triggerPayloadOffset = triggerSectionOffset + sizeof(int);
+    for (var gatewayIndex = 0; gatewayIndex < gatewayCount; gatewayIndex++)
+    {
+        var gatewayAddress = triggerPayloadOffset + gatewayOffset + gatewayIndex * gatewayStride;
+        var destination = BitConverter.ToInt16(fieldBytes, gatewayAddress + gatewayDestinationOffset);
+        if (destination < 0 || destination == short.MaxValue)
+        {
+            continue;
+        }
+
+        var x1 = BitConverter.ToInt16(fieldBytes, gatewayAddress);
+        var y1 = BitConverter.ToInt16(fieldBytes, gatewayAddress + 0x02);
+        var z1 = BitConverter.ToInt16(fieldBytes, gatewayAddress + 0x04);
+        var x2 = BitConverter.ToInt16(fieldBytes, gatewayAddress + 0x06);
+        var y2 = BitConverter.ToInt16(fieldBytes, gatewayAddress + 0x08);
+        var z2 = BitConverter.ToInt16(fieldBytes, gatewayAddress + 0x0A);
+        Console.WriteLine(
+            $"GATEWAY index={gatewayIndex} destination={destination} " +
+            $"line={x1},{y1},{z1}-{x2},{y2},{z2} " +
+            $"midpoint={(x1 + x2) / 2},{(y1 + y2) / 2},{(z1 + z2) / 2}");
+    }
+
     foreach (var component in componentByTriangle
                  .Select((value, triangle) => (value, triangle))
                  .GroupBy(entry => entry.value)
@@ -98,6 +129,42 @@ if (string.Equals(
             $"target={transition.TargetX},{transition.TargetY},{transition.TargetZ?.ToString() ?? "native"} " +
             $"triangle={transition.TargetTriangle} targetComponent={ComponentOf(componentByTriangle, transition.TargetTriangle)} " +
             $"input={transition.RequiredInput} action={transition.RequiresAction}");
+    }
+
+    foreach (var exit in fieldNavigation.Exits.OrderBy(exit => exit.StableId, StringComparer.Ordinal))
+    {
+        var destinations = exit.DestinationFieldIds is { Count: > 0 }
+            ? string.Join(',', exit.DestinationFieldIds)
+            : "none";
+        var trigger = exit.TriggerLine is { } line
+            ? $"{line.StartX},{line.StartY},{line.StartZ}-{line.EndX},{line.EndY},{line.EndZ}"
+            : "none";
+        Console.WriteLine(
+            $"EXIT id={exit.StableId} source={exit.X},{exit.Y},{exit.Z} " +
+            $"entity={exit.TriggerEntityId} destinations={destinations} trigger={trigger}");
+    }
+}
+
+var scriptEntityIds = (Environment.GetEnvironmentVariable("FIELD_ROUTE_DUMP_SCRIPTS") ?? string.Empty)
+    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+    .Select(int.Parse)
+    .ToHashSet();
+if (scriptEntityIds.Count != 0)
+{
+    foreach (var script in catalog.ReadAllScriptOpcodes(fieldId)
+                 .Where(script => scriptEntityIds.Contains(script.EntityId))
+                 .OrderBy(script => script.EntityId)
+                 .ThenBy(script => script.ScriptId))
+    {
+        Console.WriteLine(
+            $"SCRIPT entity={script.EntityId} name={script.EntityName} script={script.ScriptId}");
+        foreach (var opcode in script.Opcodes)
+        {
+            Console.WriteLine(
+                $"OPCODE entity={opcode.EntityId} script={opcode.ScriptId} " +
+                $"offset={opcode.ByteIndex} id=0x{opcode.Opcode:X2} " +
+                $"bytes={Convert.ToHexString(opcode.Bytes.ToArray())}");
+        }
     }
 }
 var planner = new FieldWalkmeshRoutePlanner(

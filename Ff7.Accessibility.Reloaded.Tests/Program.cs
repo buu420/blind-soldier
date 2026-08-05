@@ -14,6 +14,19 @@ if (args.Contains("--runtime-lease-only", StringComparer.OrdinalIgnoreCase))
     return;
 }
 
+if (args.Contains("--reactor-ladder-only", StringComparer.OrdinalIgnoreCase))
+{
+    AssertFieldStoryCatalogCoversReactor1PipingAndSaveRoom();
+    AssertFieldWalkmeshRoutePlannerPairsCollapsedMissingZLadderLandings();
+    AssertInstalledReactor1PipingAndSaveRoomRoutesUseNativeLadders();
+    AssertFieldNavigationControllerUsesRouteDirectionWhileMounted();
+    AssertFieldLadderProximityCueTrackerPrioritizesActiveRouteLadder();
+    AssertLadderCueConfigDefaultsEnabled();
+    AssertLadderCueAssetLoads();
+    Console.WriteLine("FFVII Reactor 1 ladder navigation tests passed.");
+    return;
+}
+
 var root = FindGameRoot();
 var sourceRoot = FindSourceRoot();
 var captures = Path.Combine(sourceRoot, "accessibility_prototype", "helper", "bin", "Debug", "net10.0-windows", "captures");
@@ -440,6 +453,7 @@ AssertFieldStoryCatalogCoversFullGameAndReactorInteractions();
 AssertFieldStoryCatalogCoversSector8TrainAndStationRoute();
 AssertFieldStoryCatalogCoversReactor5TrainEscape();
 AssertFieldStoryCatalogCoversReactor5DescentAndBombPlacement();
+AssertFieldStoryCatalogCoversReactor1PipingAndSaveRoom();
 AssertFieldNavigationControllerRecoversCoherentlyAfterSuppression();
 AssertFieldStoryCatalogCoversReactor5EscapeAndChurchProgression();
 AssertFieldStoryCatalogCoversAerisHouseFirstVisit();
@@ -471,6 +485,7 @@ AssertFieldProximityCuesIgnoreDifferentElevation();
 AssertFieldExitProximityCueTrackerStopsPassedExitAfterClimbingAway();
 AssertFieldExitProximitySpatializerTracksMovementAroundExit();
 AssertFieldLadderProximityCueTrackerUsesAllNativeLadders();
+AssertFieldLadderProximityCueTrackerPrioritizesActiveRouteLadder();
 AssertFieldNavigationTargetsCoverOpeningCategories();
 AssertFieldWalkmeshReaderReadsNativePcSection();
 AssertFieldWalkmeshReaderRetriesTransientInvalidSnapshot();
@@ -504,7 +519,10 @@ AssertFieldWalkmeshRoutePlannerRejectsLiveBoundaryCrossings();
 AssertInstalledReactorEscapeRouteRejectsLockedSecurityDoors();
 AssertFieldWalkmeshRoutePlannerUsesNativeOffMeshTransition();
 AssertFieldWalkmeshRoutePlannerPairsNativeLadderLandings();
+AssertFieldWalkmeshRoutePlannerPairsCollapsedMissingZLadderLandings();
+AssertInstalledReactor1PipingAndSaveRoomRoutesUseNativeLadders();
 AssertFieldNavigationControllerAnnouncesNativeLadderAtEntry();
+AssertFieldNavigationControllerUsesRouteDirectionWhileMounted();
 AssertFieldNavigationControllerIgnoresMidClimbLadderStateFlicker();
 AssertFieldNavigationControllerRetainsTargetDuringNativeLadderTransition();
 AssertFieldNavigationRouteTrackerCompletesNativeAction();
@@ -8856,6 +8874,59 @@ static void AssertFieldLadderProximityCueTrackerUsesAllNativeLadders()
     AssertEqual(1, tracker.Update(position, [actionLadder], now.AddMilliseconds(1600)).Count, "ladder cue repeats after interval");
 }
 
+static void AssertFieldLadderProximityCueTrackerPrioritizesActiveRouteLadder()
+{
+    var now = new DateTime(2026, 8, 5, 0, 0, 0, DateTimeKind.Utc);
+    var position = new FieldPositionSnapshot(1, 123, 0, 0, 0, 0, 0, 0);
+    var tracker = new FieldLadderProximityCueTracker(
+        innerRange: 80,
+        outerRange: 400,
+        pulseInterval: TimeSpan.FromMilliseconds(700));
+    var wrongLadder = new FieldScriptNavigationTransition(
+        123,
+        FieldNavigationTransitionKind.Ladder,
+        8,
+        30,
+        0,
+        0,
+        30,
+        0,
+        null,
+        7,
+        "ladder:123:8:down",
+        FieldNavigationInput.Down);
+    var routeLadder = wrongLadder with
+    {
+        SourceEntityId = 10,
+        SourceX = 60,
+        StableId = "ladder:123:10:down"
+    };
+
+    var cues = tracker.Update(
+        position,
+        [wrongLadder, routeLadder],
+        now,
+        prioritizedTransitionId: routeLadder.StableId);
+    AssertEqual(1, cues.Count, "an active route should pulse only its next ladder entrance");
+    AssertEqual(routeLadder.StableId, cues[0].TargetKey, "route-priority ladder identity");
+    AssertEqual(
+        0,
+        tracker.Update(
+            position,
+            [wrongLadder, routeLadder],
+            now.AddMilliseconds(699),
+            prioritizedTransitionId: routeLadder.StableId).Count,
+        "route-priority ladder cue should honor its repeat interval");
+    AssertEqual(
+        1,
+        tracker.Update(
+            position,
+            [wrongLadder, routeLadder],
+            now.AddMilliseconds(700),
+            prioritizedTransitionId: routeLadder.StableId).Count,
+        "route-priority ladder cue should continue until the caller observes a mount");
+}
+
 static void AssertFieldNavigationObjectReaderRequiresNativeBranchState()
 {
     var memory = new Dictionary<int, byte>();
@@ -9750,6 +9821,97 @@ static void AssertFieldStoryCatalogCoversReactor5DescentAndBombPlacement()
     AssertEqual(1, bombReader.ReadTargets(bombPosition).Count, "bomb target remains active until placement");
     WriteUInt16(memory, FieldNavigationObjectReader.AddressFieldBankBase, 127);
     AssertEqual(0, bombReader.ReadTargets(bombPosition).Count, "bomb target retires at the native post-placement moment");
+}
+
+static void AssertFieldStoryCatalogCoversReactor1PipingAndSaveRoom()
+{
+    var definitions = FieldStoryEventCatalog.CreateAllFields();
+    var expected = new Dictionary<string, (int FieldId, int X, int Y, int Z, int MinimumMoment, int MaximumMoment, FieldNavigationTriggerLine Line)>
+    {
+        ["Cross the Reactor 1 upper piping and descend toward the save point"] = (
+            123,
+            298,
+            1265,
+            855,
+            14,
+            26,
+            new FieldNavigationTriggerLine(260, 1264, 852, 337, 1266, 858)),
+        ["Continue past the save point to Reactor 1's core"] = (
+            124,
+            -111,
+            -195,
+            -180,
+            14,
+            26,
+            new FieldNavigationTriggerLine(-52, -148, -180, -171, -242, -181)),
+        ["Climb back toward the Reactor 1 exit"] = (
+            124,
+            250,
+            1195,
+            861,
+            27,
+            32,
+            new FieldNavigationTriggerLine(206, 1195, 856, 294, 1195, 866)),
+        ["Return to the Reactor 1 main staircase"] = (
+            123,
+            -371,
+            1921,
+            2053,
+            27,
+            32,
+            new FieldNavigationTriggerLine(-371, 1959, 2053, -371, 1883, 2053))
+    };
+
+    foreach (var item in expected)
+    {
+        var definition = definitions.Single(candidate => candidate.Label == item.Key);
+        AssertEqual(item.Value.FieldId, definition.FieldId, $"{item.Key} field");
+        AssertEqual(FieldStoryTargetKind.Location, definition.Kind, $"{item.Key} kind");
+        AssertEqual(item.Value.X, definition.X, $"{item.Key} x");
+        AssertEqual(item.Value.Y, definition.Y, $"{item.Key} y");
+        AssertEqual(item.Value.Z, definition.Z, $"{item.Key} z");
+        AssertEqual(item.Value.MinimumMoment, definition.MinimumGameMoment, $"{item.Key} minimum moment");
+        AssertEqual(item.Value.MaximumMoment, definition.MaximumGameMoment, $"{item.Key} maximum moment");
+        AssertEqual(item.Value.Line, definition.TriggerLine, $"{item.Key} native trigger geometry");
+        AssertEqual(true, definition.CompletesOnArrival, $"{item.Key} should stop at its gateway");
+    }
+
+    var returnToStairs = definitions.Single(definition =>
+        definition.Label == "Return to the Reactor 1 main staircase");
+    AssertEqual(
+        new FieldStoryStateCondition(1, 225, 0x20, 0x20),
+        returnToStairs.RequiredCondition,
+        "the escape route should not bypass helping Jessie");
+
+    var memory = new Dictionary<int, byte>();
+    byte ReadByte(int address) => memory.GetValueOrDefault(address);
+    int ReadInt32Value(int address) =>
+        ReadByte(address) |
+        (ReadByte(address + 1) << 8) |
+        (ReadByte(address + 2) << 16) |
+        (ReadByte(address + 3) << 24);
+    var reader = new FieldStoryTargetReader(ReadInt32Value, ReadByte, definitions);
+
+    WriteUInt16(memory, FieldNavigationObjectReader.AddressFieldBankBase, 14);
+    var upperRoom = new FieldPositionSnapshot(1, 123, 0, -140, 1921, 2212, 40, 0);
+    var upperTargets = reader.ReadTargets(upperRoom);
+    AssertEqual(1, upperTargets.Count, "Reactor 1 upper piping should expose the descent after Jessie speaks");
+    AssertEqual("Cross the Reactor 1 upper piping and descend toward the save point", upperTargets[0].Label, "upper piping objective");
+
+    var saveRoom = upperRoom with { FieldId = 124, X = 250, Y = 1195, Z = 861, TriangleId = 0 };
+    var saveTargets = reader.ReadTargets(saveRoom);
+    AssertEqual(1, saveTargets.Count, "Reactor 1 save room should expose the route to the core");
+    AssertEqual("Continue past the save point to Reactor 1's core", saveTargets[0].Label, "save-room objective");
+
+    WriteUInt16(memory, FieldNavigationObjectReader.AddressFieldBankBase, 27);
+    saveTargets = reader.ReadTargets(saveRoom);
+    AssertEqual(1, saveTargets.Count, "Reactor 1 save room should expose the escape climb");
+    AssertEqual("Climb back toward the Reactor 1 exit", saveTargets[0].Label, "save-room escape objective");
+
+    memory[FieldNavigationObjectReader.AddressFieldBankBase + 225] = 0x20;
+    upperTargets = reader.ReadTargets(upperRoom);
+    AssertEqual(1, upperTargets.Count, "helping Jessie should unlock the main-staircase escape target");
+    AssertEqual("Return to the Reactor 1 main staircase", upperTargets[0].Label, "upper-room escape objective");
 }
 
 static void AssertFieldStoryCatalogCoversReactor5EscapeAndChurchProgression()
@@ -15479,6 +15641,178 @@ static void AssertFieldWalkmeshRoutePlannerPairsNativeLadderLandings()
     AssertEqual(FieldNavigationInput.Up, plan.Portals[0].RequiredInput, "paired landing should retain native ladder input");
 }
 
+static void AssertFieldWalkmeshRoutePlannerPairsCollapsedMissingZLadderLandings()
+{
+    const short missing = -1;
+    var mesh = new FieldWalkmesh(
+    [
+        new FieldWalkmeshTriangle(
+            0,
+            new FieldWalkmeshVertex(0, 0, 1000),
+            new FieldWalkmeshVertex(100, 0, 1000),
+            new FieldWalkmeshVertex(0, 100, 1000),
+            missing,
+            missing,
+            missing),
+        new FieldWalkmeshTriangle(
+            1,
+            new FieldWalkmeshVertex(500, 0, 0),
+            new FieldWalkmeshVertex(600, 0, 0),
+            new FieldWalkmeshVertex(500, 100, 0),
+            missing,
+            missing,
+            missing)
+    ]);
+    var down = new FieldScriptNavigationTransition(
+        900,
+        FieldNavigationTransitionKind.Ladder,
+        7,
+        25,
+        25,
+        1000,
+        25,
+        25,
+        null,
+        0,
+        "ladder:900:7:down",
+        FieldNavigationInput.Down,
+        RequiresAction: true);
+    var up = new FieldScriptNavigationTransition(
+        900,
+        FieldNavigationTransitionKind.Ladder,
+        8,
+        525,
+        25,
+        0,
+        25,
+        25,
+        null,
+        0,
+        "ladder:900:8:up",
+        FieldNavigationInput.Up,
+        RequiresAction: true);
+    var planner = new FieldWalkmeshRoutePlanner(
+        CreateFieldWalkmeshReader(mesh.Triangles.ToArray()),
+        transitionProvider: fieldId => fieldId == 900 ? [down, up] : []);
+    var position = new FieldPositionSnapshot(1, 900, 0, 25, 25, 1000, 0, 0);
+    var target = new FieldNavigationTarget(
+        900,
+        FieldNavigationCategory.Exits,
+        "Lower platform",
+        525,
+        25,
+        0);
+
+    AssertEqual(
+        true,
+        planner.TryBuildRoute(position, target, out var plan),
+        $"a collapsed cleanup JUMP with no Z should still pair opposite ladder entrances: {planner.LastDiagnostic}");
+    AssertEqual(2, plan.TrianglePath.Count, "missing-Z ladder pair should join both walkable platforms");
+    AssertEqual(FieldNavigationInput.Down, plan.Portals[0].RequiredInput, "downward route should preserve its scripted input");
+    AssertEqual(
+        new FieldNavigationRouteWaypoint(525, 25, 0),
+        plan.Portals[0].TransitionExit,
+        "missing-Z downward ladder should land at the opposite entrance's full 3D position");
+}
+
+static void AssertInstalledReactor1PipingAndSaveRoomRoutesUseNativeLadders()
+{
+    var root = FindGameRoot();
+    var catalog = new FieldScriptNavigationCatalog(root);
+
+    var upperField = catalog.ReadField(123);
+    var upperPlanner = new FieldWalkmeshRoutePlanner(
+        CreateInstalledFieldWalkmeshReader(123),
+        transitionProvider: fieldId => fieldId == 123
+            ? upperField.Transitions
+            : Array.Empty<FieldScriptNavigationTransition>());
+    var upperStart = new FieldPositionSnapshot(
+        FieldPositionReader.FieldModule,
+        123,
+        0,
+        -140,
+        1921,
+        2212,
+        40,
+        0);
+    var lowerRoomExit = new FieldNavigationTarget(
+        123,
+        FieldNavigationCategory.Exits,
+        "No. 1 Reactor lower piping and save room",
+        298,
+        1265,
+        855,
+        "gateway:123:1:124",
+        TriggerLine: new FieldNavigationTriggerLine(260, 1264, 852, 337, 1266, 858));
+    AssertEqual(
+        true,
+        upperPlanner.TryBuildRoute(upperStart, lowerRoomExit, out var upperPlan),
+        $"field 123 should route through both downward native ladders: {upperPlanner.LastDiagnostic}");
+    var upperLadders = upperPlan.Portals
+        .Where(portal => portal.TransitionKind == FieldNavigationTransitionKind.Ladder)
+        .ToArray();
+    AssertEqual(2, upperLadders.Length, "field 123 route should traverse both ladders");
+    AssertEqual(
+        true,
+        upperLadders.All(portal => portal.RequiredInput == FieldNavigationInput.Down),
+        "field 123 descent should consistently direct the player down");
+
+    var saveField = catalog.ReadField(124);
+    var savePlanner = new FieldWalkmeshRoutePlanner(
+        CreateInstalledFieldWalkmeshReader(124),
+        transitionProvider: fieldId => fieldId == 124
+            ? saveField.Transitions
+            : Array.Empty<FieldScriptNavigationTransition>());
+    var saveRoomStart = new FieldPositionSnapshot(
+        FieldPositionReader.FieldModule,
+        124,
+        0,
+        250,
+        1195,
+        861,
+        0,
+        0);
+    var reactorCoreExit = new FieldNavigationTarget(
+        124,
+        FieldNavigationCategory.Exits,
+        "No. 1 Reactor core",
+        -111,
+        -195,
+        -180,
+        "gateway:124:1:125",
+        TriggerLine: new FieldNavigationTriggerLine(-52, -148, -180, -171, -242, -181));
+    AssertEqual(
+        true,
+        savePlanner.TryBuildRoute(saveRoomStart, reactorCoreExit, out var savePlan),
+        $"field 124 should route from the save point to the core exit: {savePlanner.LastDiagnostic}");
+    var saveLadders = savePlan.Portals
+        .Where(portal => portal.TransitionKind == FieldNavigationTransitionKind.Ladder)
+        .ToArray();
+    AssertEqual(1, saveLadders.Length, "field 124 route should traverse its native ladder");
+    AssertEqual(FieldNavigationInput.Down, saveLadders[0].RequiredInput, "field 124 core route should direct the player down");
+
+    var returnTarget = new FieldNavigationTarget(
+        124,
+        FieldNavigationCategory.Exits,
+        "No. 1 Reactor upper piping and ladder room",
+        250,
+        1195,
+        861,
+        "gateway:124:0:123",
+        TriggerLine: new FieldNavigationTriggerLine(206, 1195, 856, 294, 1195, 866));
+    var coreSide = saveRoomStart with { X = -246, Y = 1945, Z = -185, TriangleId = 28 };
+    AssertEqual(
+        true,
+        savePlanner.TryBuildRoute(coreSide, returnTarget, out var returnPlan),
+        $"field 124 should retain the upward escape route: {savePlanner.LastDiagnostic}");
+    AssertEqual(
+        true,
+        returnPlan.Portals.Any(portal =>
+            portal.TransitionKind == FieldNavigationTransitionKind.Ladder &&
+            portal.RequiredInput == FieldNavigationInput.Up),
+        "field 124 return route should tell the player to climb up");
+}
+
 static void AssertFieldNavigationControllerAnnouncesNativeLadderAtEntry()
 {
     const short missing = -1;
@@ -15537,7 +15871,7 @@ static void AssertFieldNavigationControllerAnnouncesNativeLadderAtEntry()
         controller.UpdateLiveTracking(start, noInput, transform, isSuppressed: false, arrivalDistanceUnits: 5),
         "ladder action speech must wait until the player reaches the native trigger");
     AssertEqual(
-        "Ladder. Press action to climb.",
+        "Ladder. Press action to mount, then climb down.",
         controller.UpdateLiveTracking(
             ladderEntry,
             noInput,
@@ -15593,6 +15927,94 @@ static void AssertFieldNavigationControllerAnnouncesNativeLadderAtEntry()
             arrivalDistanceUnits: 5,
             ladderState: FieldLadderStateSnapshot.NotMounted)?.Speech,
         "navigation should resume from the native ladder landing");
+}
+
+static void AssertFieldNavigationControllerUsesRouteDirectionWhileMounted()
+{
+    const short missing = -1;
+    var mesh = new FieldWalkmesh(
+    [
+        new FieldWalkmeshTriangle(
+            0,
+            new FieldWalkmeshVertex(0, 0, 1000),
+            new FieldWalkmeshVertex(100, 0, 1000),
+            new FieldWalkmeshVertex(0, 100, 1000),
+            missing,
+            missing,
+            missing),
+        new FieldWalkmeshTriangle(
+            1,
+            new FieldWalkmeshVertex(500, 0, 0),
+            new FieldWalkmeshVertex(600, 0, 0),
+            new FieldWalkmeshVertex(500, 100, 0),
+            missing,
+            missing,
+            missing)
+    ]);
+    var down = new FieldScriptNavigationTransition(
+        900,
+        FieldNavigationTransitionKind.Ladder,
+        7,
+        25,
+        25,
+        1000,
+        525,
+        25,
+        0,
+        1,
+        "ladder:900:7:down",
+        FieldNavigationInput.Down,
+        RequiresAction: true);
+    var planner = new FieldWalkmeshRoutePlanner(
+        CreateFieldWalkmeshReader(mesh.Triangles.ToArray()),
+        transitionProvider: fieldId => fieldId == 900 ? [down] : []);
+    var target = new FieldNavigationTarget(
+        900,
+        FieldNavigationCategory.Exits,
+        "Lower platform",
+        525,
+        25,
+        0,
+        "exit:lower");
+    var controller = new FieldNavigationController(new FieldNavigationTargetSource([target]), planner);
+    var entrance = new FieldPositionSnapshot(1, 900, 0, 25, 25, 1000, 0, 0);
+    var transform = new FieldNavigationControlTransform(-128);
+    var noInput = new FieldNavigationInputSnapshot(0, FieldNavigationInput.None);
+
+    controller.HandleAction(FieldNavigationAction.ToggleBeacon, entrance, transform);
+    AssertEqual(
+        "Ladder. Press action to mount, then climb down.",
+        controller.UpdateLiveTracking(
+            entrance,
+            noInput,
+            transform,
+            isSuppressed: false,
+            arrivalDistanceUnits: 5)?.Speech,
+        "the objective route should announce its climb direction before mounting");
+    var ambiguousNativeState = new FieldLadderStateSnapshot(
+        true,
+        true,
+        FieldLadderPhase.Climbing,
+        FieldNavigationInput.Up,
+        new FieldNavigationRouteWaypoint(25, 25, 1000),
+        0,
+        4,
+        1);
+
+    AssertEqual(
+        "Ladder mounted. Climb down.",
+        controller.UpdateLiveTracking(
+            entrance,
+            noInput,
+            transform,
+            isSuppressed: false,
+            arrivalDistanceUnits: 5,
+            ladderState: ambiguousNativeState)?.Speech,
+        "an active objective route should override an ambiguous native reverse bit with its required climb direction");
+    AssertEqual(
+        "climb down",
+        controller.CreateSpokenGuidance(entrance, transform, arrivalDistanceUnits: 5)?.Speech,
+        "mounted repeat guidance should retain the objective route's climb direction");
 }
 
 static void AssertFieldNavigationControllerIgnoresMidClimbLadderStateFlicker()
@@ -15836,7 +16258,7 @@ static void AssertFieldNavigationControllerDoesNotReacquireCompletedLadder()
 
     controller.HandleAction(FieldNavigationAction.ToggleBeacon, start, transform);
     AssertEqual(
-        "Ladder. Press action to climb.",
+        "Ladder. Press action to mount, then climb right.",
         controller.UpdateLiveTracking(
             entrance,
             noInput,
@@ -20397,25 +20819,25 @@ static void AssertLadderCueConfigDefaultsEnabled()
     AssertEqual(true, config.EnableFieldLadderProximityCues, "ladder proximity cues should default enabled");
     AssertEqual(80, config.FieldLadderCueInnerRangeUnits, "ladder cue inner range default");
     AssertEqual(400, config.FieldLadderCueOuterRangeUnits, "ladder cue outer range default");
-    AssertEqual(1600, config.FieldLadderCueIntervalMs, "ladder cue pulse interval default");
+    AssertEqual(700, config.FieldLadderCueIntervalMs, "ladder cue should repeat continuously until mount");
     AssertEqual(100, config.FieldLadderCueVolumePercent, "ladder cue volume default");
     AssertEqual(
-        @"Assets\navigation\ladder_061.wav",
+        @"Assets\navigation\ladder_approach_214.wav",
         config.FieldLadderCueSoundPath,
-        "ladder cue should use the supplied FFVII sound");
+        "ladder cue should use the requested FFVII 214 sound");
 }
 
 static void AssertLadderCueAssetLoads()
 {
     var outputDirectory = Path.GetDirectoryName(typeof(FieldNavigationBeacon).Assembly.Location)
         ?? throw new InvalidOperationException("Could not resolve ladder cue output directory.");
-    var path = Path.Combine(outputDirectory, "Assets", "navigation", "ladder_061.wav");
+    var path = Path.Combine(outputDirectory, "Assets", "navigation", "ladder_approach_214.wav");
     var samples = NavigationBeaconSound.LoadMonoSamples(path, expectedSampleRate: 44100);
-    AssertEqual(true, samples.Length > 1000, "supplied ladder WAV should load for positional playback");
+    AssertEqual(true, samples.Length > 1000, "supplied 214 ladder WAV should load for positional playback");
     AssertEqual(
         true,
-        samples.Length is >= 13000 and <= 14500,
-        "ladder WAV should be resampled to 70 percent speed for a clearly lower pitch");
+        samples.Length < 12000,
+        "the 214 ladder cue should remain short enough for continuous entrance pulses");
 }
 
 static void AssertFieldNavigationIgnoresNonFieldModules()

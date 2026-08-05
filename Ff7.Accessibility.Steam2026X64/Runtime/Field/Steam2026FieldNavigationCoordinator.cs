@@ -449,7 +449,8 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                 true,
                 false,
                 isLadderStateCoherent,
-                nowUtc);
+                nowUtc,
+                controller.PrioritizedLadderTransitionId);
 
             var domainFailures = new List<string>(4);
             if (!objectsCoherent)
