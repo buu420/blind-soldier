@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Text.Json;
 using Ff7.Accessibility.Core;
+using Ff7.Accessibility.Reloaded;
 using Ff7.Accessibility.Runtime.Abstractions;
 using Ff7.Accessibility.Steam2026X64.Runtime;
 using Reloaded.Hooks.Definitions;
@@ -18,6 +19,7 @@ public sealed class Mod : IModV1, IModV2
     private ILoggerV2? logger;
     private Steam2026X64RuntimeBackend? backend;
     private Steam2026ResearchSession? researchSession;
+    private BlindSoldierRuntimeLease? runtimeLease;
     private int started;
 
     public Action Disposing { get; } = () => { };
@@ -42,10 +44,17 @@ public sealed class Mod : IModV1, IModV2
 
     public void Unload()
     {
-        researchSession?.Dispose();
-        researchSession = null;
-        backend?.Dispose();
-        backend = null;
+        try
+        {
+            researchSession?.Dispose();
+            researchSession = null;
+            backend?.Dispose();
+            backend = null;
+        }
+        finally
+        {
+            ReleaseRuntimeOwnership();
+        }
     }
 
     public bool CanUnload() => true;
@@ -56,6 +65,12 @@ public sealed class Mod : IModV1, IModV2
     {
         if (Interlocked.Exchange(ref started, 1) != 0)
         {
+            return;
+        }
+
+        if (!BlindSoldierRuntimeLease.TryAcquire(Environment.ProcessId, out runtimeLease))
+        {
+            Log("Another Blind Soldier runtime already owns accessibility output for this process; this duplicate instance will remain inactive.");
             return;
         }
 
@@ -70,6 +85,7 @@ public sealed class Mod : IModV1, IModV2
             if (!fingerprint.IsSupported)
             {
                 Log("No native backend was constructed because the current executable is unsupported.");
+                ReleaseRuntimeOwnership();
                 return;
             }
 
@@ -139,8 +155,17 @@ public sealed class Mod : IModV1, IModV2
         {
             researchSession?.Dispose();
             researchSession = null;
+            backend?.Dispose();
+            backend = null;
+            ReleaseRuntimeOwnership();
             Log($"Native Steam 2026 research bootstrap remained fail-closed: {ex}");
         }
+    }
+
+    private void ReleaseRuntimeOwnership()
+    {
+        Interlocked.Exchange(ref runtimeLease, null)?.Dispose();
+        Volatile.Write(ref started, 0);
     }
 
     private void Log(string message)

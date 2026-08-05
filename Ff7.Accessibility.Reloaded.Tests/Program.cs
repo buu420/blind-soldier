@@ -7,6 +7,13 @@ using Ff7.Accessibility.Reloaded.Runtime;
 using Ff7.Accessibility.Runtime.Abstractions;
 using AccessibilityConfig = Ff7.Accessibility.Core.AccessibilityConfig;
 
+if (args.Contains("--runtime-lease-only", StringComparer.OrdinalIgnoreCase))
+{
+    BlindSoldierRuntimeLeaseTests.Run();
+    Console.WriteLine("Blind Soldier runtime lease tests passed.");
+    return;
+}
+
 var root = FindGameRoot();
 var sourceRoot = FindSourceRoot();
 var captures = Path.Combine(sourceRoot, "accessibility_prototype", "helper", "bin", "Debug", "net10.0-windows", "captures");
@@ -25790,5 +25797,37 @@ sealed class TearingLegacyAddressSpace(
         }
 
         return virtualAddress != 0;
+    }
+}
+
+static class BlindSoldierRuntimeLeaseTests
+{
+    public static void Run()
+    {
+        var processId = Environment.ProcessId;
+        if (!BlindSoldierRuntimeLease.TryAcquire(processId, out var first) || first is null)
+        {
+            throw new InvalidOperationException("The first runtime lease acquisition should succeed.");
+        }
+
+        try
+        {
+            if (BlindSoldierRuntimeLease.TryAcquire(processId, out var duplicate) || duplicate is not null)
+            {
+                duplicate?.Dispose();
+                throw new InvalidOperationException("A concurrent runtime lease should be rejected.");
+            }
+        }
+        finally
+        {
+            first.Dispose();
+        }
+
+        if (!BlindSoldierRuntimeLease.TryAcquire(processId, out var reacquired) || reacquired is null)
+        {
+            throw new InvalidOperationException("A cleanly released runtime lease should be reacquirable.");
+        }
+
+        reacquired.Dispose();
     }
 }

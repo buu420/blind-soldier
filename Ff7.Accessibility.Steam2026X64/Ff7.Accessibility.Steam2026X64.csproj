@@ -26,6 +26,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="..\Ff7.Accessibility.Reloaded\BlindSoldierRuntimeLease.cs" Link="Shared\BlindSoldierRuntimeLease.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\ActiveMenuFrameSpeechCoordinator.cs" Link="Shared\ActiveMenuFrameSpeechCoordinator.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\PartyTargetMenuSelectionFormatter.cs" Link="Shared\PartyTargetMenuSelectionFormatter.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\PartyFormationSpeechTracker.cs" Link="Shared\PartyFormationSpeechTracker.cs" />

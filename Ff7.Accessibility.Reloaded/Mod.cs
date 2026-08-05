@@ -364,6 +364,8 @@ public sealed class Mod : IModV1, IModV2
     private string lastNameEntryCursorDiagnosticKey = string.Empty;
     private int battleHookErrorCount;
     private int battleSessionActive;
+    private BlindSoldierRuntimeLease? runtimeLease;
+    private int started;
 
     public Action Disposing { get; } = () => { };
 
@@ -380,7 +382,7 @@ public sealed class Mod : IModV1, IModV2
         this.loader = loader;
         logger = loader.GetLogger() as ILoggerV2;
         LoadConfig(null);
-        StartCore();
+        StartWithRuntimeOwnership();
     }
 
     public void StartEx(IModLoaderV1 loader, IModConfigV1 modConfig)
@@ -389,11 +391,16 @@ public sealed class Mod : IModV1, IModV2
         this.modConfig = modConfig;
         logger = loader.GetLogger() as ILoggerV2;
         LoadConfig(modConfig);
-        StartCore();
+        StartWithRuntimeOwnership();
     }
 
     public void Suspend()
     {
+        if (runtimeLease is null)
+        {
+            return;
+        }
+
         fieldCountdownSpeechCoordinator.Reset();
         ffnxVoicePlaybackTracker.Reset();
         fieldNavigationGuidanceRepeatGate.Reset();
@@ -409,51 +416,93 @@ public sealed class Mod : IModV1, IModV2
 
     public void Resume()
     {
+        if (runtimeLease is null)
+        {
+            return;
+        }
+
         Speak("Final Fantasy Seven accessibility mod resumed.");
     }
 
     public void Unload()
     {
-        fieldCountdownSpeechCoordinator.Reset();
-        ffnxVoicePlaybackTracker.Reset();
-        saveMenuSpeechTracker.Reset();
-        cancellation?.Cancel();
-        if (monitorThread is { IsAlive: true } && Thread.CurrentThread != monitorThread)
+        try
         {
-            monitorThread.Join(TimeSpan.FromSeconds(1));
-        }
+            fieldCountdownSpeechCoordinator.Reset();
+            ffnxVoicePlaybackTracker.Reset();
+            saveMenuSpeechTracker.Reset();
+            cancellation?.Cancel();
+            if (monitorThread is { IsAlive: true } && Thread.CurrentThread != monitorThread)
+            {
+                monitorThread.Join(TimeSpan.FromSeconds(1));
+            }
 
-        module19WriterProbe?.Dispose();
-        openingMovieAudioTrackPlayer?.Dispose();
-        footstepSoundPlayer?.Dispose();
-        fieldZoneTransitionCuePlayer?.Dispose();
-        swingingBarTimingCuePlayer?.Dispose();
-        floor60ActionCuePlayer?.Dispose();
-        floor60StatueBeaconPlayer?.Dispose();
-        highwayAccessibilityCoordinator?.Dispose();
-        fieldExitCuePlayer?.Dispose();
-        fieldLadderCuePlayer?.Dispose();
-        fieldNavigationController.Reset();
-        fieldNavigationGuidanceRepeatGate.Reset();
-        fieldNavigationProgressSink?.Dispose();
-        fieldNavigationProgressBar?.Dispose();
-        ResetWorldMapAccessibility("mod unloaded");
-        worldMapNavigationBeaconPlayer?.Dispose();
-        worldMapNavigationProgressSink?.Dispose();
-        worldMapNavigationProgressBar?.Dispose();
-        worldMapRuntimes.Clear();
-        foreach (var player in fieldObjectCuePlayers.Values)
+            module19WriterProbe?.Dispose();
+            openingMovieAudioTrackPlayer?.Dispose();
+            footstepSoundPlayer?.Dispose();
+            fieldZoneTransitionCuePlayer?.Dispose();
+            swingingBarTimingCuePlayer?.Dispose();
+            floor60ActionCuePlayer?.Dispose();
+            floor60StatueBeaconPlayer?.Dispose();
+            highwayAccessibilityCoordinator?.Dispose();
+            fieldExitCuePlayer?.Dispose();
+            fieldLadderCuePlayer?.Dispose();
+            fieldNavigationController.Reset();
+            fieldNavigationGuidanceRepeatGate.Reset();
+            fieldNavigationProgressSink?.Dispose();
+            fieldNavigationProgressBar?.Dispose();
+            ResetWorldMapAccessibility("mod unloaded");
+            worldMapNavigationBeaconPlayer?.Dispose();
+            worldMapNavigationProgressSink?.Dispose();
+            worldMapNavigationProgressBar?.Dispose();
+            worldMapRuntimes.Clear();
+            foreach (var player in fieldObjectCuePlayers.Values)
+            {
+                player.Dispose();
+            }
+
+            fieldObjectCuePlayers.Clear();
+            speaker?.Dispose();
+        }
+        finally
         {
-            player.Dispose();
+            ReleaseRuntimeOwnership();
         }
-
-        fieldObjectCuePlayers.Clear();
-        speaker?.Dispose();
     }
 
     public bool CanUnload() => true;
 
     public bool CanSuspend() => true;
+
+    private void StartWithRuntimeOwnership()
+    {
+        if (Interlocked.Exchange(ref started, 1) != 0)
+        {
+            return;
+        }
+
+        if (!BlindSoldierRuntimeLease.TryAcquire(Environment.ProcessId, out runtimeLease))
+        {
+            Log("Another Blind Soldier runtime already owns accessibility output for this process; this duplicate instance will remain inactive.");
+            return;
+        }
+
+        try
+        {
+            StartCore();
+        }
+        catch
+        {
+            ReleaseRuntimeOwnership();
+            throw;
+        }
+    }
+
+    private void ReleaseRuntimeOwnership()
+    {
+        Interlocked.Exchange(ref runtimeLease, null)?.Dispose();
+        Volatile.Write(ref started, 0);
+    }
 
     private void StartCore()
     {
