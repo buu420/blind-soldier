@@ -224,6 +224,11 @@ public sealed class Mod : IModV1, IModV2
             config = new AccessibilityConfig();
         }
 
+        if (AccessibilityConfigMigration.ApplyLegacyLadderCueDefaults(config))
+        {
+            Log("Applied the legacy ladder-cue config upgrade to 214.wav and a 700 millisecond interval.");
+        }
+
         var configuredTrack = string.IsNullOrWhiteSpace(config.OpeningMovieAudioTrackPath)
             ? @"Assets\movies\opening_audio_description.ogg"
             : config.OpeningMovieAudioTrackPath;

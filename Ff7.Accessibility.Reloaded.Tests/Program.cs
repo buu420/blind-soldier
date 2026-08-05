@@ -21,6 +21,7 @@ if (args.Contains("--reactor-ladder-only", StringComparer.OrdinalIgnoreCase))
     AssertInstalledReactor1PipingAndSaveRoomRoutesUseNativeLadders();
     AssertFieldNavigationControllerUsesRouteDirectionWhileMounted();
     AssertFieldLadderProximityCueTrackerPrioritizesActiveRouteLadder();
+    AssertAccessibilityConfigMigratesLegacyLadderCueDefaults();
     AssertLadderCueConfigDefaultsEnabled();
     AssertLadderCueAssetLoads();
     Console.WriteLine("FFVII Reactor 1 ladder navigation tests passed.");
@@ -636,6 +637,7 @@ AssertExitCueConfigDefaultsEnabled();
 AssertExitCueAssetLoads();
 AssertLadderCueConfigDefaultsEnabled();
 AssertLadderCueAssetLoads();
+AssertAccessibilityConfigMigratesLegacyLadderCueDefaults();
 AssertFieldNavigationIgnoresNonFieldModules();
 AssertNavigationHotkeysRequireFf7ForegroundWindow();
 AssertNavigationHotkeysDoNotFireWhenRefocusedWhileHeld();
@@ -20825,6 +20827,39 @@ static void AssertLadderCueConfigDefaultsEnabled()
         @"Assets\navigation\ladder_approach_214.wav",
         config.FieldLadderCueSoundPath,
         "ladder cue should use the requested FFVII 214 sound");
+}
+
+static void AssertAccessibilityConfigMigratesLegacyLadderCueDefaults()
+{
+    var legacy = new AccessibilityConfig
+    {
+        FieldLadderCueIntervalMs = AccessibilityConfigMigration.LegacyLadderCueIntervalMs,
+        FieldLadderCueSoundPath = @"assets/navigation/LADDER_061.WAV"
+    };
+    AssertEqual(
+        true,
+        AccessibilityConfigMigration.ApplyLegacyLadderCueDefaults(legacy),
+        "an installed config containing the prior shipped ladder defaults should upgrade");
+    AssertEqual(
+        AccessibilityConfigMigration.CurrentLadderCueIntervalMs,
+        legacy.FieldLadderCueIntervalMs,
+        "legacy ladder interval migration");
+    AssertEqual(
+        AccessibilityConfigMigration.CurrentLadderCueSoundPath,
+        legacy.FieldLadderCueSoundPath,
+        "legacy ladder sound migration");
+
+    var customized = new AccessibilityConfig
+    {
+        FieldLadderCueIntervalMs = 925,
+        FieldLadderCueSoundPath = @"D:\custom\my-ladder.wav"
+    };
+    AssertEqual(
+        false,
+        AccessibilityConfigMigration.ApplyLegacyLadderCueDefaults(customized),
+        "genuinely customized ladder settings should remain untouched");
+    AssertEqual(925, customized.FieldLadderCueIntervalMs, "custom ladder interval preservation");
+    AssertEqual(@"D:\custom\my-ladder.wav", customized.FieldLadderCueSoundPath, "custom ladder sound preservation");
 }
 
 static void AssertLadderCueAssetLoads()

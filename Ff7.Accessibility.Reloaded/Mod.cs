@@ -7359,6 +7359,11 @@ public sealed class Mod : IModV1, IModV2
             Log($"Could not load config, using defaults: {ex}");
             config = new Ff7.Accessibility.Core.AccessibilityConfig();
         }
+
+        if (AccessibilityConfigMigration.ApplyLegacyLadderCueDefaults(config))
+        {
+            Log("Applied the legacy ladder-cue config upgrade to 214.wav and a 700 millisecond interval.");
+        }
     }
 
     private string ResolveModDirectory(IModConfigV1? modConfig)
