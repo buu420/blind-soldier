@@ -5,13 +5,9 @@ using Ff7.Accessibility.Reloaded;
 using Ff7.Accessibility.Runtime.Abstractions;
 using Ff7.Accessibility.Steam2026X64.Runtime.Field;
 using Ff7.Accessibility.Steam2026X64.Runtime.Input;
-using System.Runtime.CompilerServices;
 
 internal static class Steam2026FieldNavigationRuntimeTests
 {
-    [ModuleInitializer]
-    internal static void RunAtModuleLoad() => Run();
-
     internal static void Run()
     {
         RoutesTheExactSixLegacyNavigationKeysInStableOrder();

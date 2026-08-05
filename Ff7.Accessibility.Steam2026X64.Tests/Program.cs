@@ -8,6 +8,7 @@ using System.Text.Json;
 
 if (args.Contains("--module-tests-only", StringComparer.OrdinalIgnoreCase))
 {
+    Steam2026FieldNavigationRuntimeTests.Run();
     Console.WriteLine("Steam 2026 x64 module tests passed.");
     return;
 }
@@ -185,6 +186,7 @@ AssertMenuObservationReaderRejectsUnknownGuestWidgetAddresses();
 AssertMenuObservationReaderPublicConstructionRequiresExactFingerprint(native, legacy);
 Steam2026FieldObservationTests.Run(native, legacy);
 Steam2026FieldNavigationObservationTests.Run(native, legacy);
+Steam2026FieldNavigationRuntimeTests.Run();
 Steam2026FieldObjectObservationTests.Run();
 Steam2026FieldCutsceneWaitTests.Run(native);
 Steam2026FieldDialogueObservationTests.Run(native, legacy);

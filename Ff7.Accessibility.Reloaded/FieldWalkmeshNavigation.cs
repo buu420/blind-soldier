@@ -1715,6 +1715,7 @@ public sealed class FieldWalkmeshRoutePlanner :
                     transition,
                     transitions,
                     walkmesh,
+                    sourceTriangle,
                     out var pairedTriangle,
                     out var pairedLanding))
             {
@@ -1742,6 +1743,7 @@ public sealed class FieldWalkmeshRoutePlanner :
         FieldScriptNavigationTransition transition,
         IReadOnlyList<FieldScriptNavigationTransition> transitions,
         FieldWalkmesh walkmesh,
+        int sourceTriangle,
         out int targetTriangle,
         out FieldNavigationRouteWaypoint landing)
     {
@@ -1755,12 +1757,26 @@ public sealed class FieldWalkmeshRoutePlanner :
         var maximumDistanceSquared =
             LadderPairMaximumEndpointDistance * (double)LadderPairMaximumEndpointDistance;
         FieldScriptNavigationTransition? bestPair = null;
+        var bestPairTriangle = -1;
         var bestScore = double.MaxValue;
+        var missingZPairs = new List<(FieldScriptNavigationTransition Transition, int SourceTriangle)>();
         foreach (var candidate in transitions)
         {
-            if (candidate.Kind != FieldNavigationTransitionKind.Ladder ||
+            if (candidate.FieldId != transition.FieldId ||
+                candidate.Kind != FieldNavigationTransitionKind.Ladder ||
                 string.Equals(candidate.StableId, transition.StableId, StringComparison.Ordinal) ||
                 !AreOppositeLadderInputs(transition.RequiredInput, candidate.RequiredInput))
+            {
+                continue;
+            }
+
+            var candidateSourceTriangle = FieldWalkmeshPathfinder.ResolveTriangle(
+                walkmesh,
+                candidate.SourceX,
+                candidate.SourceY,
+                candidate.SourceZ,
+                preferredTriangleIndex: -1);
+            if (candidateSourceTriangle < 0)
             {
                 continue;
             }
@@ -1812,26 +1828,44 @@ public sealed class FieldWalkmeshRoutePlanner :
                 {
                     continue;
                 }
+
+                // A collapsed cleanup JUMP only leaves one trustworthy X/Y
+                // anchor. It is safe to infer the other endpoint only when the
+                // opposite entrance is on a different disconnected walkmesh
+                // island and exactly one candidate satisfies that evidence.
+                if (AreWalkmeshTrianglesConnected(walkmesh, sourceTriangle, candidateSourceTriangle))
+                {
+                    continue;
+                }
+
+                missingZPairs.Add((candidate, candidateSourceTriangle));
+                continue;
             }
 
             if (score < bestScore)
             {
                 bestPair = candidate;
+                bestPairTriangle = candidateSourceTriangle;
                 bestScore = score;
             }
         }
 
-        if (bestPair is not { } pair)
+        FieldScriptNavigationTransition pair;
+        if (bestPair is { } completePair)
+        {
+            pair = completePair;
+            targetTriangle = bestPairTriangle;
+        }
+        else if (missingZPairs.Count == 1)
+        {
+            pair = missingZPairs[0].Transition;
+            targetTriangle = missingZPairs[0].SourceTriangle;
+        }
+        else
         {
             return false;
         }
 
-        targetTriangle = FieldWalkmeshPathfinder.ResolveTriangle(
-            walkmesh,
-            pair.SourceX,
-            pair.SourceY,
-            pair.SourceZ,
-            preferredTriangleIndex: -1);
         if (targetTriangle < 0)
         {
             return false;
@@ -1839,6 +1873,44 @@ public sealed class FieldWalkmeshRoutePlanner :
 
         landing = new FieldNavigationRouteWaypoint(pair.SourceX, pair.SourceY, pair.SourceZ);
         return true;
+    }
+
+    private static bool AreWalkmeshTrianglesConnected(
+        FieldWalkmesh walkmesh,
+        int firstTriangle,
+        int secondTriangle)
+    {
+        if (firstTriangle == secondTriangle)
+        {
+            return true;
+        }
+
+        var visited = new bool[walkmesh.Triangles.Count];
+        var pending = new Queue<int>();
+        visited[firstTriangle] = true;
+        pending.Enqueue(firstTriangle);
+        while (pending.TryDequeue(out var current))
+        {
+            var triangle = walkmesh.Triangles[current];
+            for (var edgeIndex = 0; edgeIndex < 3; edgeIndex++)
+            {
+                var adjacent = triangle.GetAdjacentTriangle(edgeIndex);
+                if (adjacent < 0 || adjacent >= walkmesh.Triangles.Count || visited[adjacent])
+                {
+                    continue;
+                }
+
+                if (adjacent == secondTriangle)
+                {
+                    return true;
+                }
+
+                visited[adjacent] = true;
+                pending.Enqueue(adjacent);
+            }
+        }
+
+        return false;
     }
 
     private static bool AreOppositeLadderInputs(FieldNavigationInput first, FieldNavigationInput second) =>

@@ -18,6 +18,8 @@ if (args.Contains("--reactor-ladder-only", StringComparer.OrdinalIgnoreCase))
 {
     AssertFieldStoryCatalogCoversReactor1PipingAndSaveRoom();
     AssertFieldWalkmeshRoutePlannerPairsCollapsedMissingZLadderLandings();
+    AssertFieldWalkmeshRoutePlannerRejectsAmbiguousCollapsedMissingZLadderPairings();
+    AssertFieldWalkmeshRoutePlannerRejectsCrossFieldCollapsedMissingZLadderPairings();
     AssertInstalledReactor1PipingAndSaveRoomRoutesUseNativeLadders();
     AssertFieldNavigationControllerUsesRouteDirectionWhileMounted();
     AssertFieldLadderProximityCueTrackerPrioritizesActiveRouteLadder();
@@ -521,6 +523,8 @@ AssertInstalledReactorEscapeRouteRejectsLockedSecurityDoors();
 AssertFieldWalkmeshRoutePlannerUsesNativeOffMeshTransition();
 AssertFieldWalkmeshRoutePlannerPairsNativeLadderLandings();
 AssertFieldWalkmeshRoutePlannerPairsCollapsedMissingZLadderLandings();
+AssertFieldWalkmeshRoutePlannerRejectsAmbiguousCollapsedMissingZLadderPairings();
+AssertFieldWalkmeshRoutePlannerRejectsCrossFieldCollapsedMissingZLadderPairings();
 AssertInstalledReactor1PipingAndSaveRoomRoutesUseNativeLadders();
 AssertFieldNavigationControllerAnnouncesNativeLadderAtEntry();
 AssertFieldNavigationControllerUsesRouteDirectionWhileMounted();
@@ -15715,6 +15719,156 @@ static void AssertFieldWalkmeshRoutePlannerPairsCollapsedMissingZLadderLandings(
         new FieldNavigationRouteWaypoint(525, 25, 0),
         plan.Portals[0].TransitionExit,
         "missing-Z downward ladder should land at the opposite entrance's full 3D position");
+}
+
+static void AssertFieldWalkmeshRoutePlannerRejectsAmbiguousCollapsedMissingZLadderPairings()
+{
+    const short missing = -1;
+    var mesh = new FieldWalkmesh(
+    [
+        new FieldWalkmeshTriangle(
+            0,
+            new FieldWalkmeshVertex(0, 0, 1000),
+            new FieldWalkmeshVertex(100, 0, 1000),
+            new FieldWalkmeshVertex(0, 100, 1000),
+            missing,
+            missing,
+            missing),
+        new FieldWalkmeshTriangle(
+            1,
+            new FieldWalkmeshVertex(500, 0, 0),
+            new FieldWalkmeshVertex(600, 0, 0),
+            new FieldWalkmeshVertex(500, 100, 0),
+            missing,
+            missing,
+            missing),
+        new FieldWalkmeshTriangle(
+            2,
+            new FieldWalkmeshVertex(800, 0, 0),
+            new FieldWalkmeshVertex(900, 0, 0),
+            new FieldWalkmeshVertex(800, 100, 0),
+            missing,
+            missing,
+            missing)
+    ]);
+    var down = new FieldScriptNavigationTransition(
+        900,
+        FieldNavigationTransitionKind.Ladder,
+        7,
+        25,
+        25,
+        1000,
+        25,
+        25,
+        null,
+        0,
+        "ladder:900:7:down",
+        FieldNavigationInput.Down,
+        RequiresAction: true);
+    var firstUp = new FieldScriptNavigationTransition(
+        900,
+        FieldNavigationTransitionKind.Ladder,
+        8,
+        525,
+        25,
+        0,
+        25,
+        25,
+        null,
+        0,
+        "ladder:900:8:up",
+        FieldNavigationInput.Up,
+        RequiresAction: true);
+    var secondUp = firstUp with
+    {
+        SourceEntityId = 9,
+        SourceX = 825,
+        StableId = "ladder:900:9:up"
+    };
+    var planner = new FieldWalkmeshRoutePlanner(
+        CreateFieldWalkmeshReader(mesh.Triangles.ToArray()),
+        transitionProvider: fieldId => fieldId == 900 ? [down, firstUp, secondUp] : []);
+    var position = new FieldPositionSnapshot(1, 900, 0, 25, 25, 1000, 0, 0);
+    var target = new FieldNavigationTarget(
+        900,
+        FieldNavigationCategory.Exits,
+        "First lower platform",
+        525,
+        25,
+        0);
+
+    AssertEqual(
+        false,
+        planner.TryBuildRoute(position, target, out _),
+        "two opposite missing-Z ladders sharing one cleanup anchor must fail closed instead of selecting by enumeration order");
+}
+
+static void AssertFieldWalkmeshRoutePlannerRejectsCrossFieldCollapsedMissingZLadderPairings()
+{
+    const short missing = -1;
+    var mesh = new FieldWalkmesh(
+    [
+        new FieldWalkmeshTriangle(
+            0,
+            new FieldWalkmeshVertex(0, 0, 1000),
+            new FieldWalkmeshVertex(100, 0, 1000),
+            new FieldWalkmeshVertex(0, 100, 1000),
+            missing,
+            missing,
+            missing),
+        new FieldWalkmeshTriangle(
+            1,
+            new FieldWalkmeshVertex(500, 0, 0),
+            new FieldWalkmeshVertex(600, 0, 0),
+            new FieldWalkmeshVertex(500, 100, 0),
+            missing,
+            missing,
+            missing)
+    ]);
+    var down = new FieldScriptNavigationTransition(
+        900,
+        FieldNavigationTransitionKind.Ladder,
+        7,
+        25,
+        25,
+        1000,
+        25,
+        25,
+        null,
+        0,
+        "ladder:900:7:down",
+        FieldNavigationInput.Down,
+        RequiresAction: true);
+    var otherFieldUp = new FieldScriptNavigationTransition(
+        901,
+        FieldNavigationTransitionKind.Ladder,
+        8,
+        525,
+        25,
+        0,
+        25,
+        25,
+        null,
+        0,
+        "ladder:901:8:up",
+        FieldNavigationInput.Up,
+        RequiresAction: true);
+    var planner = new FieldWalkmeshRoutePlanner(
+        CreateFieldWalkmeshReader(mesh.Triangles.ToArray()),
+        transitionProvider: fieldId => fieldId == 900 ? [down, otherFieldUp] : []);
+    var position = new FieldPositionSnapshot(1, 900, 0, 25, 25, 1000, 0, 0);
+    var target = new FieldNavigationTarget(
+        900,
+        FieldNavigationCategory.Exits,
+        "Lower platform",
+        525,
+        25,
+        0);
+
+    AssertEqual(
+        false,
+        planner.TryBuildRoute(position, target, out _),
+        "a missing-Z ladder must never pair with an opposite transition from another field");
 }
 
 static void AssertInstalledReactor1PipingAndSaveRoomRoutesUseNativeLadders()
