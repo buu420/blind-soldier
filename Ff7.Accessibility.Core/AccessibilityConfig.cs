@@ -65,9 +65,12 @@ public sealed class AccessibilityConfig
     public bool EnableFieldLadderProximityCues { get; set; } = true;
     public int FieldLadderCueInnerRangeUnits { get; set; } = 80;
     public int FieldLadderCueOuterRangeUnits { get; set; } = 400;
-    public int FieldLadderCueIntervalMs { get; set; } = 700;
+    public int FieldLadderCueIntervalMs { get; set; } = 1600;
     public int FieldLadderCueVolumePercent { get; set; } = 100;
-    public string FieldLadderCueSoundPath { get; set; } = @"Assets\navigation\ladder_approach_214.wav";
+    public string FieldLadderCueSoundPath { get; set; } = @"Assets\navigation\ladder_061.wav";
+    public int FieldLadderMountCueIntervalMs { get; set; } = 700;
+    public int FieldLadderMountCueVolumePercent { get; set; } = 100;
+    public string FieldLadderMountCueSoundPath { get; set; } = @"Assets\navigation\ladder_approach_214.wav";
     public bool EnableFieldSwingingBarTimingCue { get; set; } = true;
     public int FieldSwingingBarTimingCueVolumePercent { get; set; } = 100;
     public string FieldSwingingBarTimingCueSoundPath { get; set; } = @"Assets\navigation\swing_jump_058.wav";

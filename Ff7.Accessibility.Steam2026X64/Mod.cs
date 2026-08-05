@@ -224,9 +224,9 @@ public sealed class Mod : IModV1, IModV2
             config = new AccessibilityConfig();
         }
 
-        if (AccessibilityConfigMigration.ApplyLegacyLadderCueDefaults(config))
+        if (AccessibilityConfigMigration.ApplySeparatedLadderCueDefaults(config))
         {
-            Log("Applied the legacy ladder-cue config upgrade to 214.wav and a 700 millisecond interval.");
+            Log("Restored the original traversal cue and separated the 214.wav ladder-mount cue.");
         }
 
         var configuredTrack = string.IsNullOrWhiteSpace(config.OpeningMovieAudioTrackPath)

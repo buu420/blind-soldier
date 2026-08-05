@@ -21,8 +21,14 @@ if (args.Contains("--reactor-ladder-only", StringComparer.OrdinalIgnoreCase))
     AssertFieldWalkmeshRoutePlannerRejectsAmbiguousCollapsedMissingZLadderPairings();
     AssertFieldWalkmeshRoutePlannerRejectsCrossFieldCollapsedMissingZLadderPairings();
     AssertInstalledReactor1PipingAndSaveRoomRoutesUseNativeLadders();
+    AssertFieldNavigationControllerAnnouncesNativeLadderAtEntry();
+    AssertFieldNavigationControllerRepeatsLadderMountPromptAndGuidesBackAfterDrift();
+    AssertFieldNavigationControllerRejectsMountedBounceAfterLanding();
+    AssertFieldNavigationControllerCompletesLadderFromLiveLandingWhenNativeStateIsUnreadable();
+    AssertFieldNavigationControllerDoesNotRecaptureCompletedLadderAfterRouteRecovery();
     AssertFieldNavigationControllerUsesRouteDirectionWhileMounted();
     AssertFieldLadderProximityCueTrackerPrioritizesActiveRouteLadder();
+    AssertFieldLadderMountCueTrackerRequiresTheActiveEntrance();
     AssertAccessibilityConfigMigratesLegacyLadderCueDefaults();
     AssertLadderCueConfigDefaultsEnabled();
     AssertLadderCueAssetLoads();
@@ -489,6 +495,7 @@ AssertFieldExitProximityCueTrackerStopsPassedExitAfterClimbingAway();
 AssertFieldExitProximitySpatializerTracksMovementAroundExit();
 AssertFieldLadderProximityCueTrackerUsesAllNativeLadders();
 AssertFieldLadderProximityCueTrackerPrioritizesActiveRouteLadder();
+AssertFieldLadderMountCueTrackerRequiresTheActiveEntrance();
 AssertFieldNavigationTargetsCoverOpeningCategories();
 AssertFieldWalkmeshReaderReadsNativePcSection();
 AssertFieldWalkmeshReaderRetriesTransientInvalidSnapshot();
@@ -527,6 +534,10 @@ AssertFieldWalkmeshRoutePlannerRejectsAmbiguousCollapsedMissingZLadderPairings()
 AssertFieldWalkmeshRoutePlannerRejectsCrossFieldCollapsedMissingZLadderPairings();
 AssertInstalledReactor1PipingAndSaveRoomRoutesUseNativeLadders();
 AssertFieldNavigationControllerAnnouncesNativeLadderAtEntry();
+AssertFieldNavigationControllerRepeatsLadderMountPromptAndGuidesBackAfterDrift();
+AssertFieldNavigationControllerRejectsMountedBounceAfterLanding();
+AssertFieldNavigationControllerCompletesLadderFromLiveLandingWhenNativeStateIsUnreadable();
+AssertFieldNavigationControllerDoesNotRecaptureCompletedLadderAfterRouteRecovery();
 AssertFieldNavigationControllerUsesRouteDirectionWhileMounted();
 AssertFieldNavigationControllerIgnoresMidClimbLadderStateFlicker();
 AssertFieldNavigationControllerRetainsTargetDuringNativeLadderTransition();
@@ -8933,6 +8944,93 @@ static void AssertFieldLadderProximityCueTrackerPrioritizesActiveRouteLadder()
         "route-priority ladder cue should continue until the caller observes a mount");
 }
 
+static void AssertFieldLadderMountCueTrackerRequiresTheActiveEntrance()
+{
+    var now = new DateTime(2026, 8, 5, 18, 40, 0, DateTimeKind.Utc);
+    var tracker = new FieldLadderMountCueTracker(
+        entranceRange: 56,
+        pulseInterval: TimeSpan.FromMilliseconds(700));
+    var ladder = new FieldScriptNavigationTransition(
+        123,
+        FieldNavigationTransitionKind.Ladder,
+        8,
+        100,
+        200,
+        300,
+        100,
+        200,
+        900,
+        7,
+        "ladder:123:8:mount",
+        FieldNavigationInput.Down,
+        RequiresAction: true);
+    var wrongLadder = ladder with
+    {
+        SourceEntityId = 9,
+        SourceX = 105,
+        StableId = "ladder:123:9:mount"
+    };
+    var outsideEntrance = new FieldPositionSnapshot(1, 123, 0, 157, 200, 300, 0, 0);
+    var atEntrance = outsideEntrance with { X = 100 };
+
+    AssertEqual(
+        0,
+        tracker.Update(
+            atEntrance,
+            [ladder, wrongLadder],
+            now,
+            prioritizedTransitionId: null).Count,
+        "the 214 mount cue must stay silent without an active route ladder");
+    AssertEqual(
+        0,
+        tracker.Update(
+            outsideEntrance,
+            [ladder, wrongLadder],
+            now,
+            prioritizedTransitionId: ladder.StableId).Count,
+        "the 214 mount cue must stay silent outside the exact entrance radius");
+    var first = tracker.Update(
+        atEntrance,
+        [ladder, wrongLadder],
+        now,
+        prioritizedTransitionId: ladder.StableId);
+    AssertEqual(1, first.Count, "the active route ladder should pulse 214 at its entrance");
+    AssertEqual(ladder.StableId, first[0].TargetKey, "mount cue transition identity");
+    AssertApprox(1f, first[0].Gain, 0.001f, "mount cue should play at full gain at the entrance");
+    AssertEqual(
+        0,
+        tracker.Update(
+            atEntrance,
+            [ladder, wrongLadder],
+            now.AddMilliseconds(699),
+            prioritizedTransitionId: ladder.StableId).Count,
+        "the mount cue should honor its repeat interval");
+    AssertEqual(
+        1,
+        tracker.Update(
+            atEntrance,
+            [ladder, wrongLadder],
+            now.AddMilliseconds(700),
+            prioritizedTransitionId: ladder.StableId).Count,
+        "the mount cue should repeat continuously while waiting to mount");
+    AssertEqual(
+        0,
+        tracker.Update(
+            outsideEntrance,
+            [ladder, wrongLadder],
+            now.AddMilliseconds(710),
+            prioritizedTransitionId: ladder.StableId).Count,
+        "moving away should stop and reset the mount cue");
+    AssertEqual(
+        1,
+        tracker.Update(
+            atEntrance,
+            [ladder, wrongLadder],
+            now.AddMilliseconds(720),
+            prioritizedTransitionId: ladder.StableId).Count,
+        "returning to the entrance should restart the mount cue immediately");
+}
+
 static void AssertFieldNavigationObjectReaderRequiresNativeBranchState()
 {
     var memory = new Dictionary<int, byte>();
@@ -16135,6 +16233,287 @@ static void AssertFieldNavigationControllerAnnouncesNativeLadderAtEntry()
         "navigation should resume from the native ladder landing");
 }
 
+static void AssertFieldNavigationControllerRepeatsLadderMountPromptAndGuidesBackAfterDrift()
+{
+    var fixture = CreateRouteAwareLadderControllerFixture();
+    var now = new DateTime(2026, 8, 5, 18, 0, 0, DateTimeKind.Utc);
+
+    fixture.Controller.HandleAction(
+        FieldNavigationAction.ToggleBeacon,
+        fixture.Start,
+        fixture.Transform);
+    AssertEqual(
+        "Ladder. Press action to mount, then climb right.",
+        fixture.Controller.UpdateLiveTracking(
+            fixture.Entrance,
+            fixture.NoInput,
+            fixture.Transform,
+            isSuppressed: false,
+            arrivalDistanceUnits: 5,
+            observedAt: now)?.Speech,
+        "the route should announce the mount instruction on first reaching the ladder entrance");
+    AssertNull(
+        fixture.Controller.UpdateLiveTracking(
+            fixture.Entrance,
+            fixture.NoInput,
+            fixture.Transform,
+            isSuppressed: false,
+            arrivalDistanceUnits: 5,
+            observedAt: now.AddMilliseconds(699)),
+        "the ladder mount prompt should honor its repeat interval");
+    AssertEqual(
+        "Ladder. Press action to mount, then climb right.",
+        fixture.Controller.UpdateLiveTracking(
+            fixture.Entrance,
+            fixture.NoInput,
+            fixture.Transform,
+            isSuppressed: false,
+            arrivalDistanceUnits: 5,
+            observedAt: now.AddMilliseconds(700))?.Speech,
+        "the ladder mount prompt should repeat continuously while the player remains at the entrance");
+
+    var drifted = fixture.Start with { X = -7 };
+    AssertNull(
+        fixture.Controller.UpdateLiveTracking(
+            drifted,
+            fixture.NoInput,
+            fixture.Transform,
+            isSuppressed: false,
+            arrivalDistanceUnits: 5,
+            observedAt: now.AddMilliseconds(1000)),
+        "leaving the entrance should stop the mount prompt");
+    AssertEqual(
+        "right 1",
+        fixture.Controller.CreateSpokenGuidance(
+            drifted,
+            fixture.Transform,
+            arrivalDistanceUnits: 5)?.Speech,
+        "ordinary live route guidance should take the player back to the ladder entrance");
+    AssertEqual(
+        "Ladder. Press action to mount, then climb right.",
+        fixture.Controller.UpdateLiveTracking(
+            fixture.Entrance,
+            fixture.NoInput,
+            fixture.Transform,
+            isSuppressed: false,
+            arrivalDistanceUnits: 5,
+            observedAt: now.AddMilliseconds(1300))?.Speech,
+        "returning to the ladder entrance should restart the mount prompt immediately");
+}
+
+static void AssertFieldNavigationControllerRejectsMountedBounceAfterLanding()
+{
+    var fixture = CreateRouteAwareLadderControllerFixture();
+    var now = new DateTime(2026, 8, 5, 18, 10, 0, DateTimeKind.Utc);
+
+    fixture.Controller.HandleAction(
+        FieldNavigationAction.ToggleBeacon,
+        fixture.Start,
+        fixture.Transform);
+    fixture.Controller.UpdateLiveTracking(
+        fixture.Entrance,
+        fixture.NoInput,
+        fixture.Transform,
+        isSuppressed: false,
+        arrivalDistanceUnits: 5,
+        observedAt: now);
+    fixture.Controller.UpdateLiveTracking(
+        fixture.Entrance,
+        fixture.NoInput,
+        fixture.Transform,
+        isSuppressed: false,
+        arrivalDistanceUnits: 5,
+        ladderState: fixture.Mounted,
+        observedAt: now.AddSeconds(1));
+    AssertEqual(
+        "Ladder complete.",
+        fixture.Controller.UpdateLiveTracking(
+            fixture.Landing,
+            fixture.NoInput,
+            fixture.Transform,
+            isSuppressed: false,
+            arrivalDistanceUnits: 5,
+            ladderState: FieldLadderStateSnapshot.NotMounted,
+            observedAt: now.AddSeconds(2))?.Speech,
+        "the first coherent dismount at the expected landing should complete the route action");
+
+    var staleReverseBounce = fixture.Mounted with
+    {
+        RequiredInput = FieldNavigationInput.Left,
+        Target = new FieldNavigationRouteWaypoint(50, 50, 0),
+        TargetTriangle = 0
+    };
+    AssertNull(
+        fixture.Controller.UpdateLiveTracking(
+            fixture.Landing,
+            fixture.NoInput,
+            fixture.Transform,
+            isSuppressed: false,
+            arrivalDistanceUnits: 5,
+            ladderState: staleReverseBounce,
+            observedAt: now.AddMilliseconds(2100)),
+        "a stale native mounted bounce at the completed landing must not remount the route ladder");
+    AssertNull(
+        fixture.Controller.CurrentRouteGuidance?.NextAction,
+        "a stale mounted bounce must not restore the completed ladder action");
+    AssertEqual(
+        "right 1",
+        fixture.Controller.CreateSpokenGuidance(
+            fixture.Landing,
+            fixture.Transform,
+            arrivalDistanceUnits: 5)?.Speech,
+        "post-landing guidance should continue toward the destination instead of repeating the climb direction");
+}
+
+static void AssertFieldNavigationControllerCompletesLadderFromLiveLandingWhenNativeStateIsUnreadable()
+{
+    var fixture = CreateRouteAwareLadderControllerFixture();
+    var now = new DateTime(2026, 8, 5, 18, 20, 0, DateTimeKind.Utc);
+
+    fixture.Controller.HandleAction(
+        FieldNavigationAction.ToggleBeacon,
+        fixture.Start,
+        fixture.Transform);
+    fixture.Controller.UpdateLiveTracking(
+        fixture.Entrance,
+        fixture.NoInput,
+        fixture.Transform,
+        isSuppressed: false,
+        arrivalDistanceUnits: 5,
+        observedAt: now);
+    fixture.Controller.UpdateLiveTracking(
+        fixture.Entrance,
+        fixture.NoInput,
+        fixture.Transform,
+        isSuppressed: false,
+        arrivalDistanceUnits: 5,
+        ladderState: fixture.Mounted,
+        observedAt: now.AddSeconds(1));
+
+    AssertEqual(
+        "Ladder complete.",
+        fixture.Controller.UpdateLiveTracking(
+            fixture.Landing,
+            fixture.NoInput,
+            fixture.Transform,
+            isSuppressed: false,
+            arrivalDistanceUnits: 5,
+            ladderState: default,
+            observedAt: now.AddSeconds(2))?.Speech,
+        "the verified live landing should complete an active ladder when the native movement read disappears");
+    AssertEqual(
+        "right 1",
+        fixture.Controller.CreateSpokenGuidance(
+            fixture.Landing,
+            fixture.Transform,
+            arrivalDistanceUnits: 5)?.Speech,
+        "unreadable native state at the landing must not retain mounted ladder speech");
+}
+
+static void AssertFieldNavigationControllerDoesNotRecaptureCompletedLadderAfterRouteRecovery()
+{
+    var fixture = CreateRouteAwareLadderControllerFixture();
+    var now = new DateTime(2026, 8, 5, 18, 30, 0, DateTimeKind.Utc);
+
+    fixture.Controller.HandleAction(
+        FieldNavigationAction.ToggleBeacon,
+        fixture.Start,
+        fixture.Transform);
+    fixture.Controller.UpdateLiveTracking(
+        fixture.Entrance,
+        fixture.NoInput,
+        fixture.Transform,
+        isSuppressed: false,
+        arrivalDistanceUnits: 5,
+        observedAt: now);
+    fixture.Controller.UpdateLiveTracking(
+        fixture.Entrance,
+        fixture.NoInput,
+        fixture.Transform,
+        isSuppressed: false,
+        arrivalDistanceUnits: 5,
+        ladderState: fixture.Mounted,
+        observedAt: now.AddSeconds(1));
+    fixture.Controller.UpdateLiveTracking(
+        fixture.Landing,
+        fixture.NoInput,
+        fixture.Transform,
+        isSuppressed: false,
+        arrivalDistanceUnits: 5,
+        ladderState: FieldLadderStateSnapshot.NotMounted,
+        observedAt: now.AddSeconds(2));
+
+    fixture.Controller.SuspendForPositionRecovery("test route ownership refresh");
+    AssertNull(
+        fixture.Controller.UpdateLiveTracking(
+            fixture.Landing,
+            fixture.NoInput,
+            fixture.Transform,
+            isSuppressed: false,
+            arrivalDistanceUnits: 5,
+            ladderState: FieldLadderStateSnapshot.NotMounted,
+            observedAt: now.AddSeconds(3)),
+        "the first recovered live position should remain quarantined");
+    AssertNull(
+        fixture.Controller.UpdateLiveTracking(
+            fixture.Landing,
+            fixture.NoInput,
+            fixture.Transform,
+            isSuppressed: false,
+            arrivalDistanceUnits: 5,
+            ladderState: FieldLadderStateSnapshot.NotMounted,
+            observedAt: now.AddMilliseconds(3200)),
+        "rebuilding the remaining route at the landing must not announce the completed ladder again");
+    AssertNull(
+        fixture.Controller.PrioritizedLadderTransitionId,
+        "route recovery must not reprioritize the completed ladder traversal");
+    AssertNull(
+        fixture.Controller.CurrentRouteGuidance?.NextAction,
+        "route recovery must keep the completed action retired");
+}
+
+static (
+    FieldNavigationController Controller,
+    FieldPositionSnapshot Start,
+    FieldPositionSnapshot Entrance,
+    FieldPositionSnapshot Landing,
+    FieldNavigationControlTransform Transform,
+    FieldNavigationInputSnapshot NoInput,
+    FieldLadderStateSnapshot Mounted) CreateRouteAwareLadderControllerFixture()
+{
+    var target = new FieldNavigationTarget(
+        900,
+        FieldNavigationCategory.Exits,
+        "Upper exit",
+        150,
+        50,
+        0,
+        "exit:route-aware-ladder");
+    var controller = new FieldNavigationController(
+        new FieldNavigationTargetSource([target]),
+        new ConfigurableCorridorRoutePlanner(includeAction: true));
+    var start = new FieldPositionSnapshot(1, 900, 0, 10, 50, 0, 0, 0);
+    var entrance = start with { X = 50 };
+    var landing = start with { X = 75, TriangleId = 1 };
+    var mounted = new FieldLadderStateSnapshot(
+        true,
+        true,
+        FieldLadderPhase.Climbing,
+        FieldNavigationInput.Right,
+        new FieldNavigationRouteWaypoint(75, 50, 0),
+        1,
+        5,
+        1);
+    return (
+        controller,
+        start,
+        entrance,
+        landing,
+        new FieldNavigationControlTransform(-128),
+        new FieldNavigationInputSnapshot(0, FieldNavigationInput.None),
+        mounted);
+}
+
 static void AssertFieldNavigationControllerUsesRouteDirectionWhileMounted()
 {
     const short missing = -1;
@@ -21025,33 +21404,47 @@ static void AssertLadderCueConfigDefaultsEnabled()
     AssertEqual(true, config.EnableFieldLadderProximityCues, "ladder proximity cues should default enabled");
     AssertEqual(80, config.FieldLadderCueInnerRangeUnits, "ladder cue inner range default");
     AssertEqual(400, config.FieldLadderCueOuterRangeUnits, "ladder cue outer range default");
-    AssertEqual(700, config.FieldLadderCueIntervalMs, "ladder cue should repeat continuously until mount");
-    AssertEqual(100, config.FieldLadderCueVolumePercent, "ladder cue volume default");
+    AssertEqual(1600, config.FieldLadderCueIntervalMs, "ordinary traversal cue interval default");
+    AssertEqual(100, config.FieldLadderCueVolumePercent, "ordinary traversal cue volume default");
+    AssertEqual(
+        @"Assets\navigation\ladder_061.wav",
+        config.FieldLadderCueSoundPath,
+        "ordinary traversal cue should retain the original FFVII sound");
+    AssertEqual(700, config.FieldLadderMountCueIntervalMs, "ladder mount cue repeat interval default");
+    AssertEqual(100, config.FieldLadderMountCueVolumePercent, "ladder mount cue volume default");
     AssertEqual(
         @"Assets\navigation\ladder_approach_214.wav",
-        config.FieldLadderCueSoundPath,
-        "ladder cue should use the requested FFVII 214 sound");
+        config.FieldLadderMountCueSoundPath,
+        "the requested 214 sound should be reserved for the at-entrance mount cue");
 }
 
 static void AssertAccessibilityConfigMigratesLegacyLadderCueDefaults()
 {
-    var legacy = new AccessibilityConfig
+    var accidentallyCombined = new AccessibilityConfig
     {
-        FieldLadderCueIntervalMs = AccessibilityConfigMigration.LegacyLadderCueIntervalMs,
-        FieldLadderCueSoundPath = @"assets/navigation/LADDER_061.WAV"
+        FieldLadderCueIntervalMs = AccessibilityConfigMigration.CombinedLadderCueIntervalMs,
+        FieldLadderCueSoundPath = @"assets/navigation/LADDER_APPROACH_214.WAV"
     };
     AssertEqual(
         true,
-        AccessibilityConfigMigration.ApplyLegacyLadderCueDefaults(legacy),
-        "an installed config containing the prior shipped ladder defaults should upgrade");
+        AccessibilityConfigMigration.ApplySeparatedLadderCueDefaults(accidentallyCombined),
+        "an installed config containing the accidentally combined cue defaults should be repaired");
     AssertEqual(
-        AccessibilityConfigMigration.CurrentLadderCueIntervalMs,
-        legacy.FieldLadderCueIntervalMs,
-        "legacy ladder interval migration");
+        AccessibilityConfigMigration.TraversalLadderCueIntervalMs,
+        accidentallyCombined.FieldLadderCueIntervalMs,
+        "ordinary traversal interval restoration");
     AssertEqual(
-        AccessibilityConfigMigration.CurrentLadderCueSoundPath,
-        legacy.FieldLadderCueSoundPath,
-        "legacy ladder sound migration");
+        AccessibilityConfigMigration.TraversalLadderCueSoundPath,
+        accidentallyCombined.FieldLadderCueSoundPath,
+        "ordinary traversal sound restoration");
+    AssertEqual(
+        AccessibilityConfigMigration.MountLadderCueIntervalMs,
+        accidentallyCombined.FieldLadderMountCueIntervalMs,
+        "separate mount cue interval");
+    AssertEqual(
+        AccessibilityConfigMigration.MountLadderCueSoundPath,
+        accidentallyCombined.FieldLadderMountCueSoundPath,
+        "separate mount cue sound");
 
     var customized = new AccessibilityConfig
     {
@@ -21060,7 +21453,7 @@ static void AssertAccessibilityConfigMigratesLegacyLadderCueDefaults()
     };
     AssertEqual(
         false,
-        AccessibilityConfigMigration.ApplyLegacyLadderCueDefaults(customized),
+        AccessibilityConfigMigration.ApplySeparatedLadderCueDefaults(customized),
         "genuinely customized ladder settings should remain untouched");
     AssertEqual(925, customized.FieldLadderCueIntervalMs, "custom ladder interval preservation");
     AssertEqual(@"D:\custom\my-ladder.wav", customized.FieldLadderCueSoundPath, "custom ladder sound preservation");
@@ -21070,12 +21463,15 @@ static void AssertLadderCueAssetLoads()
 {
     var outputDirectory = Path.GetDirectoryName(typeof(FieldNavigationBeacon).Assembly.Location)
         ?? throw new InvalidOperationException("Could not resolve ladder cue output directory.");
-    var path = Path.Combine(outputDirectory, "Assets", "navigation", "ladder_approach_214.wav");
-    var samples = NavigationBeaconSound.LoadMonoSamples(path, expectedSampleRate: 44100);
-    AssertEqual(true, samples.Length > 1000, "supplied 214 ladder WAV should load for positional playback");
+    var traversalPath = Path.Combine(outputDirectory, "Assets", "navigation", "ladder_061.wav");
+    var traversalSamples = NavigationBeaconSound.LoadMonoSamples(traversalPath, expectedSampleRate: 44100);
+    AssertEqual(true, traversalSamples.Length > 1000, "original traversal WAV should load for positional playback");
+    var mountPath = Path.Combine(outputDirectory, "Assets", "navigation", "ladder_approach_214.wav");
+    var mountSamples = NavigationBeaconSound.LoadMonoSamples(mountPath, expectedSampleRate: 44100);
+    AssertEqual(true, mountSamples.Length > 1000, "supplied 214 ladder WAV should load for mount playback");
     AssertEqual(
         true,
-        samples.Length < 12000,
+        mountSamples.Length < 12000,
         "the 214 ladder cue should remain short enough for continuous entrance pulses");
 }
 

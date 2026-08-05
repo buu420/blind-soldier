@@ -76,6 +76,7 @@
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldWalkmeshNavigation.cs" Link="Shared\FieldWalkmeshNavigation.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldLadderStateReader.cs" Link="Shared\FieldLadderStateReader.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldLadderProximityCueTracker.cs" Link="Shared\FieldLadderProximityCueTracker.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldLadderMountCueTracker.cs" Link="Shared\FieldLadderMountCueTracker.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\SwingingBarTimingCueTracker.cs" Link="Shared\SwingingBarTimingCueTracker.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\Floor60SoldierTurnCueTracker.cs" Link="Shared\Floor60SoldierTurnCueTracker.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\ImmediateWaveCuePlayer.cs" Link="Shared\ImmediateWaveCuePlayer.cs" />

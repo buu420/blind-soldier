@@ -163,7 +163,10 @@ public sealed class FieldNavigationController
     private const int LadderActionArrivalDistance = 56;
     private const int LadderLandingArrivalDistance = 96;
     private const int LadderEndpointMatchDistance = 224;
+    private const int CompletedLadderEndpointMatchDistance = 96;
     private const int DefaultSelectionArrivalDistance = 80;
+    private static readonly TimeSpan LadderMountPromptInterval =
+        TimeSpan.FromMilliseconds(700);
 
     private static readonly FieldNavigationCategory[] CategoryOrder =
     {
@@ -183,7 +186,6 @@ public sealed class FieldNavigationController
     private readonly FieldNavigationRouteProgressTracker routeProgressTracker = new();
     private readonly IFieldNavigationProgressSink? routeProgressSink;
     private readonly Dictionary<string, string> selectedTargetIds = new(StringComparer.Ordinal);
-    private readonly HashSet<string> announcedRouteActions = new(StringComparer.Ordinal);
     private FieldPositionSnapshot? lastBeaconPosition;
     private FieldNavigationTarget? beaconLockedTarget;
     private FieldNavigationRouteGuidance? currentGuidance;
@@ -196,6 +198,8 @@ public sealed class FieldNavigationController
     private bool activeLadderHasExpectedLanding;
     private bool routeStartsAfterMountedLadder;
     private bool routeRefreshPending;
+    private string ladderPromptActionId = string.Empty;
+    private DateTime nextLadderPromptAt = DateTime.MinValue;
     private FieldPositionSnapshot? positionRecoveryCandidate;
     private FieldPositionSnapshot? positionRecoveryAnchor;
     private FieldPositionSnapshot? lastAcceptedPosition;
@@ -398,7 +402,7 @@ public sealed class FieldNavigationController
         beaconCompletesOnFieldTransition = false;
         interactionArrivalPaused = false;
         interactionArrivalDistance = 0;
-        announcedRouteActions.Clear();
+        ResetLadderMountPrompt();
         routeTracker?.Reset();
         movementObserver.Reset();
         velocityEstimator.Reset();
@@ -625,6 +629,7 @@ public sealed class FieldNavigationController
             if (!activeLadderState.IsMounted)
             {
                 pendingLadderAction = null;
+                ResetLadderMountPrompt();
             }
 
             routeRefreshPending = false;
@@ -633,19 +638,42 @@ public sealed class FieldNavigationController
         var observation = movementObserver.Observe(position, input, controlTransform, isSuppressed: false);
         velocityEstimator.Observe(position, observedAt, isSuppressed: false);
 
-        if (ladderState.IsUsable && ladderState.IsMounted)
+        var completesFromLiveLanding =
+            activeLadderState.IsMounted &&
+            activeLadderHasExpectedLanding &&
+            IsAtLadderLanding(
+                position,
+                activeLadderExpectedLanding,
+                activeLadderExpectedTriangle) &&
+            (!ladderState.IsUsable ||
+             !ladderState.IsMounted ||
+             ladderState.Phase == FieldLadderPhase.Completing);
+
+        if (ladderState.IsUsable && ladderState.IsMounted && !completesFromLiveLanding)
         {
-            velocityEstimator.Reset();
-            return UpdateMountedLadder(position, ladderState);
+            CapturePendingLadderAction(currentGuidance);
+            if (ShouldAcceptMountedLadder(ladderState))
+            {
+                velocityEstimator.Reset();
+                return UpdateMountedLadder(position, ladderState);
+            }
+
+            LastNavigationDiagnostic =
+                $"ignored native mounted sample that does not own the active route ladder, " +
+                $"input={ladderState.RequiredInput}, " +
+                $"target={ladderState.Target.X},{ladderState.Target.Y},{ladderState.Target.Z}, " +
+                $"triangle={ladderState.TargetTriangle}";
+            ladderState = FieldLadderStateSnapshot.NotMounted;
         }
 
-        if (!ladderState.IsUsable && activeLadderState.IsMounted)
+        if (!ladderState.IsUsable && activeLadderState.IsMounted && !completesFromLiveLanding)
         {
             LastNavigationDiagnostic = "native ladder state temporarily unavailable; route remains frozen";
             return null;
         }
 
-        if (ladderState.IsUsable && !ladderState.IsMounted && activeLadderState.IsMounted)
+        if (activeLadderState.IsMounted &&
+            (completesFromLiveLanding || ladderState.IsUsable && !ladderState.IsMounted))
         {
             if (pendingLadderAction is { } pending &&
                 activeLadderHasExpectedLanding &&
@@ -712,7 +740,7 @@ public sealed class FieldNavigationController
 
         UpdateRouteProgress(position, target.Value, observation, observedAt);
 
-        var routeAction = CreateRouteActionSpeech(position);
+        var routeAction = CreateRouteActionSpeech(position, observedAt);
         if (routeAction is not null)
         {
             return routeAction;
@@ -818,12 +846,14 @@ public sealed class FieldNavigationController
               target.CompletesOnArrival;
     }
 
-    private FieldNavigationActionResult? CreateRouteActionSpeech(FieldPositionSnapshot position)
+    private FieldNavigationActionResult? CreateRouteActionSpeech(
+        FieldPositionSnapshot position,
+        DateTime observedAt)
     {
         CapturePendingLadderAction(currentGuidance);
-        if (pendingLadderAction is not { } action ||
-            announcedRouteActions.Contains(action.StableId))
+        if (pendingLadderAction is not { } action)
         {
+            ResetLadderMountPrompt();
             return null;
         }
 
@@ -833,10 +863,22 @@ public sealed class FieldNavigationController
         var thresholdSquared = LadderActionArrivalDistance * (double)LadderActionArrivalDistance;
         if (dx * (double)dx + dy * (double)dy + dz * (double)dz > thresholdSquared)
         {
+            ResetLadderMountPrompt(action.StableId);
             return null;
         }
 
-        announcedRouteActions.Add(action.StableId);
+        if (!string.Equals(ladderPromptActionId, action.StableId, StringComparison.Ordinal))
+        {
+            ladderPromptActionId = action.StableId;
+            nextLadderPromptAt = DateTime.MinValue;
+        }
+
+        if (observedAt < nextLadderPromptAt)
+        {
+            return null;
+        }
+
+        nextLadderPromptAt = observedAt + LadderMountPromptInterval;
         LastNavigationDiagnostic =
             $"{currentGuidance?.Diagnostic ?? "pending ladder route"}, action announced={action.StableId}";
         var direction = action.RequiredInput switch
@@ -991,6 +1033,7 @@ public sealed class FieldNavigationController
         FieldPositionSnapshot position,
         FieldLadderStateSnapshot ladderState)
     {
+        ResetLadderMountPrompt();
         if (routeTracker?.TryMeasureRemainingDistance(position, out var remainingDistance) == true)
         {
             ObserveProgress(remainingDistance);
@@ -1064,9 +1107,9 @@ public sealed class FieldNavigationController
                 speech = "Back at ladder entrance. Press action to climb.";
             }
 
-            announcedRouteActions.Remove(pending.StableId);
         }
 
+        ResetLadderMountPrompt();
         activeLadderState = FieldLadderStateSnapshot.NotMounted;
         activeLadderGuidanceInput = FieldNavigationInput.None;
         activeLadderExpectedLanding = default;
@@ -1086,12 +1129,61 @@ public sealed class FieldNavigationController
             return;
         }
 
+        if (lastCompletedLadderAction is { } completed &&
+            IsSameLadderTraversal(action, completed))
+        {
+            return;
+        }
+
         if (pendingLadderAction is null ||
             (!activeLadderState.IsMounted &&
              !string.Equals(pendingLadderAction.Value.StableId, action.StableId, StringComparison.Ordinal)))
         {
             pendingLadderAction = action;
+            ResetLadderMountPrompt(action.StableId);
         }
+    }
+
+    private bool ShouldAcceptMountedLadder(FieldLadderStateSnapshot ladderState)
+    {
+        if (activeLadderState.IsMounted || routeStartsAfterMountedLadder)
+        {
+            return true;
+        }
+
+        if (pendingLadderAction is not { } pending)
+        {
+            return lastCompletedLadderAction is null;
+        }
+
+        return (pending.DestinationTriangle >= 0 &&
+                ladderState.TargetTriangle == pending.DestinationTriangle) ||
+               IsNear(ladderState.Target, pending.Destination, LadderEndpointMatchDistance) ||
+               IsNear(ladderState.Target, pending.Waypoint, LadderEndpointMatchDistance);
+    }
+
+    private static bool IsSameLadderTraversal(
+        FieldNavigationRouteAction candidate,
+        FieldNavigationRouteAction completed)
+    {
+        if (string.Equals(candidate.StableId, completed.StableId, StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        var sameDirection =
+            IsNear(candidate.Waypoint, completed.Waypoint, CompletedLadderEndpointMatchDistance) &&
+            IsNear(candidate.Destination, completed.Destination, CompletedLadderEndpointMatchDistance);
+        var reverseDirection =
+            IsNear(candidate.Waypoint, completed.Destination, CompletedLadderEndpointMatchDistance) &&
+            IsNear(candidate.Destination, completed.Waypoint, CompletedLadderEndpointMatchDistance);
+        return sameDirection || reverseDirection;
+    }
+
+    private void ResetLadderMountPrompt(string retainedActionId = "")
+    {
+        ladderPromptActionId = retainedActionId;
+        nextLadderPromptAt = DateTime.MinValue;
     }
 
     private FieldNavigationRouteWaypoint ResolveGuidanceWaypoint(FieldNavigationRouteGuidance guidance)
@@ -1260,7 +1352,7 @@ public sealed class FieldNavigationController
         interactionArrivalDistance = 0;
         lastBeaconPosition = null;
         lastAcceptedPosition = null;
-        announcedRouteActions.Clear();
+        ResetLadderMountPrompt();
         movementObserver.Reset();
         velocityEstimator.Reset();
         LastNavigationDiagnostic = $"navigation route reset for {diagnostic}";
@@ -1306,6 +1398,7 @@ public sealed class FieldNavigationController
         if (!activeLadderState.IsMounted)
         {
             pendingLadderAction = null;
+            ResetLadderMountPrompt();
         }
 
         if (positionRecoveryAnchor is { } anchor &&

@@ -77,6 +77,7 @@ public sealed class Mod : IModV1, IModV2
     private HighwayAccessibilityCoordinator? highwayAccessibilityCoordinator;
     private NavigationBeaconPlayer? fieldExitCuePlayer;
     private NavigationBeaconPlayer? fieldLadderCuePlayer;
+    private NavigationBeaconPlayer? fieldLadderMountCuePlayer;
     private readonly Dictionary<FieldObjectCueKind, NavigationBeaconPlayer> fieldObjectCuePlayers = new();
     private CosmoFootstepSequencer? cosmoFootstepSequencer;
     private Thread? monitorThread;
@@ -266,6 +267,8 @@ public sealed class Mod : IModV1, IModV2
     private FieldObjectProximityCueTracker? fieldObjectProximityCueTracker;
     private FieldExitProximityCueTracker? fieldExitProximityCueTracker;
     private FieldLadderProximityCueTracker? fieldLadderProximityCueTracker;
+    private FieldLadderMountCueTracker? fieldLadderMountCueTracker;
+    private bool fieldLadderMountCueActive;
     private NativeFieldNavigationProgressBar? fieldNavigationProgressBar;
     private IntervalFieldNavigationProgressSink? fieldNavigationProgressSink;
     private WorldMapStateReader? worldMapStateReader;
@@ -447,6 +450,7 @@ public sealed class Mod : IModV1, IModV2
             highwayAccessibilityCoordinator?.Dispose();
             fieldExitCuePlayer?.Dispose();
             fieldLadderCuePlayer?.Dispose();
+            fieldLadderMountCuePlayer?.Dispose();
             fieldNavigationController.Reset();
             fieldNavigationGuidanceRepeatGate.Reset();
             fieldNavigationProgressSink?.Dispose();
@@ -916,6 +920,17 @@ public sealed class Mod : IModV1, IModV2
                 config.FieldLadderCueVolumePercent,
                 Log)
             : null;
+        fieldLadderMountCueTracker = new FieldLadderMountCueTracker(
+            FieldLadderMountCueTracker.DefaultEntranceRange,
+            TimeSpan.FromMilliseconds(Math.Max(100, config.FieldLadderMountCueIntervalMs)));
+        fieldLadderMountCuePlayer?.Dispose();
+        fieldLadderMountCuePlayer = config.EnableFieldLadderProximityCues
+            ? new NavigationBeaconPlayer(
+                ResolveFieldLadderMountCueSoundPath(),
+                config.FieldLadderMountCueVolumePercent,
+                Log)
+            : null;
+        fieldLadderMountCueActive = false;
         fieldNavigationController.Reset();
         fieldNavigationGuidanceRepeatGate.Reset();
         fieldNavigationProgressSink?.Dispose();
@@ -960,6 +975,10 @@ public sealed class Mod : IModV1, IModV2
             $"Field ladder proximity cues initialized: enabled={config.EnableFieldLadderProximityCues}, " +
             $"inner={config.FieldLadderCueInnerRangeUnits}, outer={config.FieldLadderCueOuterRangeUnits}, " +
             $"interval={config.FieldLadderCueIntervalMs}ms, source=all live-enabled native LADER entrances.");
+        Log(
+            $"Field ladder mount cues initialized: enabled={config.EnableFieldLadderProximityCues}, " +
+            $"range={FieldLadderMountCueTracker.DefaultEntranceRange}, " +
+            $"interval={config.FieldLadderMountCueIntervalMs}ms, source=active route LADER entrance only.");
         Log(
             "Field navigation objects initialized from native entity/model visibility and field-bank collection state " +
             $"({fieldNavigationObjects.Count} full-game definitions, source {FieldNavigationObjectCatalog.SourceCommit}).");
@@ -3679,7 +3698,9 @@ public sealed class Mod : IModV1, IModV2
     {
         if (!config.EnableFieldLadderProximityCues ||
             fieldLadderProximityCueTracker is null ||
-            fieldLadderCuePlayer is null)
+            fieldLadderCuePlayer is null ||
+            fieldLadderMountCueTracker is null ||
+            fieldLadderMountCuePlayer is null)
         {
             return;
         }
@@ -3695,8 +3716,7 @@ public sealed class Mod : IModV1, IModV2
         {
             if (fieldAudibleCueState.IsSuppressed)
             {
-                fieldLadderProximityCueTracker.Reset();
-                fieldLadderCuePlayer.StopAll();
+                ResetFieldLadderCues();
                 return;
             }
 
@@ -3704,15 +3724,14 @@ public sealed class Mod : IModV1, IModV2
                 ?? throw new InvalidOperationException("Field position reader is not initialized.");
             if (!result.IsUsable)
             {
-                fieldLadderProximityCueTracker.Reset();
+                ResetFieldLadderCues();
                 return;
             }
 
             var ladderState = fieldLadderStateReader?.Read(result.Position);
             if (ladderState is { IsUsable: true, State.IsMounted: true })
             {
-                fieldLadderProximityCueTracker.Reset();
-                fieldLadderCuePlayer.StopAll();
+                ResetFieldLadderCues();
                 return;
             }
 
@@ -3720,18 +3739,44 @@ public sealed class Mod : IModV1, IModV2
                 ?? new FieldNavigationControlReadResult(false, default, "control reader is not initialized");
             if (!control.IsUsable)
             {
-                fieldLadderProximityCueTracker.Reset();
+                ResetFieldLadderCues();
                 return;
             }
 
             var transitions = fieldNavigationTransitionProvider?.Invoke(result.Position.FieldId) ?? [];
+            var prioritizedTransitionId = fieldNavigationController.PrioritizedLadderTransitionId;
+            var wasAtMountEntrance = fieldLadderMountCueActive;
+            var mountCues = fieldLadderMountCueTracker.Update(
+                result.Position,
+                transitions,
+                now,
+                prioritizedTransitionId);
+            fieldLadderMountCueActive = fieldLadderMountCueTracker.IsAtEntrance;
+            if (fieldLadderMountCueActive && !wasAtMountEntrance)
+            {
+                fieldLadderCuePlayer.StopAll();
+            }
+            else if (!fieldLadderMountCueActive && wasAtMountEntrance)
+            {
+                fieldLadderMountCuePlayer.StopAll();
+            }
+
             var proximityCues = fieldLadderProximityCueTracker.Update(
                 result.Position,
                 transitions,
                 now,
-                fieldNavigationController.PrioritizedLadderTransitionId);
+                prioritizedTransitionId);
             foreach (var proximityCue in proximityCues)
             {
+                if (fieldLadderMountCueActive &&
+                    string.Equals(
+                        proximityCue.TargetKey,
+                        prioritizedTransitionId,
+                        StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
                 var transition = proximityCue.Transition;
                 var target = new FieldNavigationTarget(
                     transition.FieldId,
@@ -3759,6 +3804,36 @@ public sealed class Mod : IModV1, IModV2
                         $"id={proximityCue.TargetKey}.");
                 }
             }
+
+            foreach (var mountCue in mountCues)
+            {
+                var transition = mountCue.Transition;
+                var target = new FieldNavigationTarget(
+                    transition.FieldId,
+                    FieldNavigationCategory.Objects,
+                    "Ladder",
+                    transition.SourceX,
+                    transition.SourceY,
+                    transition.SourceZ,
+                    transition.StableId);
+                var spatialCue = FieldProximitySpatializer.CreateCue(
+                    result.Position,
+                    target,
+                    control.Transform);
+                if (spatialCue is null)
+                {
+                    continue;
+                }
+
+                if (fieldLadderMountCuePlayer.Play(spatialCue.Value, mountCue.Gain))
+                {
+                    Log(
+                        $"Field ladder mount cue played: entity={transition.SourceEntityId}, " +
+                        $"position=({transition.SourceX},{transition.SourceY},{transition.SourceZ}), " +
+                        $"distance={spatialCue.Value.DistanceUnits:0}, gain={mountCue.Gain:0.000}, " +
+                        $"id={mountCue.TargetKey}.");
+                }
+            }
         }
         catch (Exception ex)
         {
@@ -3768,6 +3843,15 @@ public sealed class Mod : IModV1, IModV2
                 Log($"Field ladder proximity cue error: {ex.Message}");
             }
         }
+    }
+
+    private void ResetFieldLadderCues()
+    {
+        fieldLadderProximityCueTracker?.Reset();
+        fieldLadderMountCueTracker?.Reset();
+        fieldLadderCuePlayer?.StopAll();
+        fieldLadderMountCuePlayer?.StopAll();
+        fieldLadderMountCueActive = false;
     }
 
     private void TickFieldExitProximityCues()
@@ -3878,9 +3962,12 @@ public sealed class Mod : IModV1, IModV2
 
         fieldExitCuePlayer?.StopAll();
         fieldLadderCuePlayer?.StopAll();
+        fieldLadderMountCuePlayer?.StopAll();
         fieldObjectProximityCueTracker?.Reset();
         fieldExitProximityCueTracker?.Reset();
         fieldLadderProximityCueTracker?.Reset();
+        fieldLadderMountCueTracker?.Reset();
+        fieldLadderMountCueActive = false;
         Log($"Stopped active field object, ladder, and exit cues and suppressed navigation speech: {state.Reason}.");
     }
 
@@ -7370,9 +7457,9 @@ public sealed class Mod : IModV1, IModV2
             config = new Ff7.Accessibility.Core.AccessibilityConfig();
         }
 
-        if (AccessibilityConfigMigration.ApplyLegacyLadderCueDefaults(config))
+        if (AccessibilityConfigMigration.ApplySeparatedLadderCueDefaults(config))
         {
-            Log("Applied the legacy ladder-cue config upgrade to 214.wav and a 700 millisecond interval.");
+            Log("Restored the original traversal cue and separated the 214.wav ladder-mount cue.");
         }
     }
 
@@ -7545,8 +7632,18 @@ public sealed class Mod : IModV1, IModV2
     private string ResolveFieldLadderCueSoundPath()
     {
         var configuredPath = string.IsNullOrWhiteSpace(config.FieldLadderCueSoundPath)
-            ? @"Assets\navigation\ladder_approach_214.wav"
+            ? @"Assets\navigation\ladder_061.wav"
             : config.FieldLadderCueSoundPath;
+        return Path.IsPathRooted(configuredPath)
+            ? configuredPath
+            : Path.Combine(modDirectory, configuredPath);
+    }
+
+    private string ResolveFieldLadderMountCueSoundPath()
+    {
+        var configuredPath = string.IsNullOrWhiteSpace(config.FieldLadderMountCueSoundPath)
+            ? @"Assets\navigation\ladder_approach_214.wav"
+            : config.FieldLadderMountCueSoundPath;
         return Path.IsPathRooted(configuredPath)
             ? configuredPath
             : Path.Combine(modDirectory, configuredPath);

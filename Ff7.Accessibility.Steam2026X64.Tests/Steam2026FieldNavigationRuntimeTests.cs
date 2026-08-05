@@ -37,6 +37,7 @@ internal static class Steam2026FieldNavigationRuntimeTests
         AcceptsDoubleReadNativeNpcTargetsWithStableOwnership();
         PlaysOnlyCoherentForegroundUnmountedLadders();
         PrioritizesTheObjectiveRouteLadderEntrance();
+        SeparatesTraversalAndMountCueAtTheActiveEntrance();
         ExposesTheExactCommittedRouteForDiagnostics();
         ExposesTheSelectedNativeTargetForDiagnostics();
         CapturesNativeTriangleResolutionAndBoundariesForPendingFootstep();
@@ -1196,6 +1197,117 @@ internal static class Steam2026FieldNavigationRuntimeTests
             true,
             playback.Calls[0].DistanceUnits > 10d,
             "objective ladder spatial target should come from the prioritized entrance");
+    }
+
+    private static void SeparatesTraversalAndMountCueAtTheActiveEntrance()
+    {
+        var traversalPlayback = new RecordingLadderPlayback();
+        var mountPlayback = new RecordingLadderPlayback();
+        using var coordinator = new Steam2026FieldLadderSpatialCoordinator(
+            new FieldLadderProximityCueTracker(10, 110, TimeSpan.Zero),
+            traversalPlayback,
+            _ => { },
+            mountTracker: new FieldLadderMountCueTracker(
+                entranceRange: 56,
+                pulseInterval: TimeSpan.FromMilliseconds(700)),
+            mountPlayback: mountPlayback);
+        var ladder = new FieldScriptNavigationTransition(
+            123,
+            FieldNavigationTransitionKind.Ladder,
+            10,
+            100,
+            0,
+            0,
+            100,
+            0,
+            500,
+            1,
+            "ladder:123:10:separate",
+            FieldNavigationInput.Down,
+            RequiresAction: true);
+        var approach = new FieldPositionSnapshot(
+            FieldPositionReader.FieldModule,
+            123,
+            0,
+            40,
+            0,
+            0,
+            0,
+            0);
+        var entrance = approach with { X = 100 };
+        var now = new DateTime(2026, 8, 5, 18, 50, 0, DateTimeKind.Utc);
+
+        coordinator.Observe(
+            approach,
+            new FieldNavigationControlTransform(0),
+            [ladder],
+            FieldLadderStateSnapshot.NotMounted,
+            true,
+            false,
+            true,
+            now,
+            ladder.StableId);
+        Equal(1, traversalPlayback.Calls.Count, "the original traversal sound should own the approach");
+        Equal(0, mountPlayback.Calls.Count, "214 must stay silent before the exact entrance");
+
+        coordinator.Observe(
+            entrance,
+            new FieldNavigationControlTransform(0),
+            [ladder],
+            FieldLadderStateSnapshot.NotMounted,
+            true,
+            false,
+            true,
+            now.AddMilliseconds(100),
+            ladder.StableId);
+        Equal(1, traversalPlayback.Calls.Count, "the traversal locator should yield to the mount cue at the entrance");
+        Equal(1, mountPlayback.Calls.Count, "214 should play at the active ladder entrance");
+
+        coordinator.Observe(
+            entrance,
+            new FieldNavigationControlTransform(0),
+            [ladder],
+            FieldLadderStateSnapshot.NotMounted,
+            true,
+            false,
+            true,
+            now.AddMilliseconds(799),
+            ladder.StableId);
+        Equal(1, mountPlayback.Calls.Count, "214 should honor its entrance repeat interval");
+        coordinator.Observe(
+            entrance,
+            new FieldNavigationControlTransform(0),
+            [ladder],
+            FieldLadderStateSnapshot.NotMounted,
+            true,
+            false,
+            true,
+            now.AddMilliseconds(800),
+            ladder.StableId);
+        Equal(2, mountPlayback.Calls.Count, "214 should repeat continuously until mount");
+
+        coordinator.Observe(
+            approach,
+            new FieldNavigationControlTransform(0),
+            [ladder],
+            FieldLadderStateSnapshot.NotMounted,
+            true,
+            false,
+            true,
+            now.AddMilliseconds(810),
+            ladder.StableId);
+        Equal(1, mountPlayback.StopAllCount, "moving away should stop the mount cue immediately");
+        coordinator.Observe(
+            entrance,
+            new FieldNavigationControlTransform(0),
+            [ladder],
+            FieldLadderStateSnapshot.NotMounted,
+            true,
+            false,
+            true,
+            now.AddMilliseconds(820),
+            ladder.StableId);
+        Equal(3, mountPlayback.Calls.Count, "returning to the entrance should restart 214 immediately");
     }
 
     private static void RejectsTornNativeLadderStateAcrossOwnershipBookends()

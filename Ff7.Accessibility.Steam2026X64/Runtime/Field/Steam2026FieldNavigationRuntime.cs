@@ -816,22 +816,33 @@ internal sealed class Steam2026FieldLadderSpatialCoordinator : IDisposable
 {
     private readonly FieldLadderProximityCueTracker tracker;
     private readonly ISteam2026FieldLadderSpatialPlayback playback;
+    private readonly FieldLadderMountCueTracker? mountTracker;
+    private readonly ISteam2026FieldLadderSpatialPlayback? mountPlayback;
     private readonly Action<string> log;
     private readonly bool enabled;
     private int? activeFieldId;
     private bool isReset = true;
+    private bool mountCueActive;
     private int disposed;
 
     internal Steam2026FieldLadderSpatialCoordinator(
         FieldLadderProximityCueTracker tracker,
         ISteam2026FieldLadderSpatialPlayback playback,
         Action<string> log,
-        bool enabled = true)
+        bool enabled = true,
+        FieldLadderMountCueTracker? mountTracker = null,
+        ISteam2026FieldLadderSpatialPlayback? mountPlayback = null)
     {
         this.tracker = tracker ?? throw new ArgumentNullException(nameof(tracker));
         this.playback = playback ?? throw new ArgumentNullException(nameof(playback));
+        this.mountTracker = mountTracker;
+        this.mountPlayback = mountPlayback;
         this.log = log ?? throw new ArgumentNullException(nameof(log));
         this.enabled = enabled;
+        if ((mountTracker is null) != (mountPlayback is null))
+        {
+            throw new ArgumentException("Mount tracker and playback must be supplied together.");
+        }
     }
 
     internal static Steam2026FieldLadderSpatialCoordinator Create(
@@ -845,6 +856,9 @@ internal sealed class Steam2026FieldLadderSpatialCoordinator : IDisposable
         var path = Path.IsPathRooted(config.FieldLadderCueSoundPath)
             ? config.FieldLadderCueSoundPath
             : Path.Combine(modDirectory, config.FieldLadderCueSoundPath);
+        var mountPath = Path.IsPathRooted(config.FieldLadderMountCueSoundPath)
+            ? config.FieldLadderMountCueSoundPath
+            : Path.Combine(modDirectory, config.FieldLadderMountCueSoundPath);
         var coordinator = new Steam2026FieldLadderSpatialCoordinator(
             new FieldLadderProximityCueTracker(
                 config.FieldLadderCueInnerRangeUnits,
@@ -856,7 +870,15 @@ internal sealed class Steam2026FieldLadderSpatialCoordinator : IDisposable
                 config.EnableFieldLadderProximityCues,
                 log),
             log,
-            config.EnableFieldLadderProximityCues);
+            config.EnableFieldLadderProximityCues,
+            new FieldLadderMountCueTracker(
+                FieldLadderMountCueTracker.DefaultEntranceRange,
+                TimeSpan.FromMilliseconds(Math.Max(100, config.FieldLadderMountCueIntervalMs))),
+            new Steam2026FieldLadderSpatialPlayback(
+                Path.GetFullPath(mountPath),
+                config.FieldLadderMountCueVolumePercent,
+                config.EnableFieldLadderProximityCues,
+                log));
         log(
             $"Native Steam 2026 ladder spatial cues initialized: " +
             $"enabled={config.EnableFieldLadderProximityCues}, " +
@@ -864,6 +886,12 @@ internal sealed class Steam2026FieldLadderSpatialCoordinator : IDisposable
             $"outer={config.FieldLadderCueOuterRangeUnits}, " +
             $"interval={Math.Max(100, config.FieldLadderCueIntervalMs)}ms, " +
             "source=all live-enabled native LADER entrances.");
+        log(
+            $"Native Steam 2026 ladder mount cues initialized: " +
+            $"enabled={config.EnableFieldLadderProximityCues}, " +
+            $"range={FieldLadderMountCueTracker.DefaultEntranceRange}, " +
+            $"interval={Math.Max(100, config.FieldLadderMountCueIntervalMs)}ms, " +
+            "source=active route LADER entrance only.");
         return coordinator;
     }
 
@@ -892,17 +920,45 @@ internal sealed class Steam2026FieldLadderSpatialCoordinator : IDisposable
         {
             playback.StopAll();
             tracker.Reset();
+            mountPlayback?.StopAll();
+            mountTracker?.Reset();
+            mountCueActive = false;
             log($"Native Steam 2026 ladder cues reset: field={previousField}->{position.FieldId}.");
         }
 
         activeFieldId = position.FieldId;
         isReset = false;
+        var wasAtMountEntrance = mountCueActive;
+        var mountCues = mountTracker?.Update(
+            position,
+            liveTransitions,
+            nowUtc,
+            prioritizedTransitionId) ?? Array.Empty<FieldLadderProximityCue>();
+        mountCueActive = mountTracker?.IsAtEntrance == true;
+        if (mountCueActive && !wasAtMountEntrance)
+        {
+            playback.StopAll();
+        }
+        else if (!mountCueActive && wasAtMountEntrance)
+        {
+            mountPlayback?.StopAll();
+        }
+
         foreach (var proximityCue in tracker.Update(
                      position,
                      liveTransitions,
                      nowUtc,
                      prioritizedTransitionId))
         {
+            if (mountCueActive &&
+                string.Equals(
+                    proximityCue.TargetKey,
+                    prioritizedTransitionId,
+                    StringComparison.Ordinal))
+            {
+                continue;
+            }
+
             var transition = proximityCue.Transition;
             var target = new FieldNavigationTarget(
                 transition.FieldId,
@@ -938,14 +994,27 @@ internal sealed class Steam2026FieldLadderSpatialCoordinator : IDisposable
                 log($"Native Steam 2026 ladder cue failed without fallback: {ex.Message}");
             }
         }
+
+        foreach (var mountCue in mountCues)
+        {
+            PlayCue(
+                position,
+                controlTransform,
+                mountCue,
+                mountPlayback!,
+                "ladder mount cue");
+        }
     }
 
     internal void Reset()
     {
         ObjectDisposedException.ThrowIf(disposed != 0, this);
         tracker.Reset();
+        mountTracker?.Reset();
         playback.StopAll();
+        mountPlayback?.StopAll();
         activeFieldId = null;
+        mountCueActive = false;
         isReset = true;
     }
 
@@ -957,22 +1026,69 @@ internal sealed class Steam2026FieldLadderSpatialCoordinator : IDisposable
         }
 
         tracker.Reset();
+        mountTracker?.Reset();
         playback.StopAll();
+        mountPlayback?.StopAll();
         playback.Dispose();
+        mountPlayback?.Dispose();
         activeFieldId = null;
+        mountCueActive = false;
         isReset = true;
     }
 
     private void TransitionToReset()
     {
         tracker.Reset();
+        mountTracker?.Reset();
         activeFieldId = null;
         if (!isReset)
         {
             playback.StopAll();
+            mountPlayback?.StopAll();
         }
 
+        mountCueActive = false;
         isReset = true;
+    }
+
+    private void PlayCue(
+        FieldPositionSnapshot position,
+        FieldNavigationControlTransform controlTransform,
+        FieldLadderProximityCue proximityCue,
+        ISteam2026FieldLadderSpatialPlayback targetPlayback,
+        string cueName)
+    {
+        var transition = proximityCue.Transition;
+        var target = new FieldNavigationTarget(
+            transition.FieldId,
+            FieldNavigationCategory.Objects,
+            "Ladder",
+            transition.SourceX,
+            transition.SourceY,
+            transition.SourceZ,
+            transition.StableId);
+        var spatialCue = FieldProximitySpatializer.CreateCue(position, target, controlTransform);
+        if (spatialCue is not { } cue)
+        {
+            return;
+        }
+
+        try
+        {
+            if (targetPlayback.Play(cue, proximityCue.Gain))
+            {
+                log(
+                    $"Native Steam 2026 {cueName} played: " +
+                    $"entity={transition.SourceEntityId}, " +
+                    $"position=({transition.SourceX},{transition.SourceY},{transition.SourceZ}), " +
+                    $"distance={cue.DistanceUnits:0}, gain={proximityCue.Gain:0.000}, " +
+                    $"id={proximityCue.TargetKey}.");
+            }
+        }
+        catch (Exception ex)
+        {
+            log($"Native Steam 2026 {cueName} failed without fallback: {ex.Message}");
+        }
     }
 }
 
