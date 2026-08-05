@@ -102,6 +102,21 @@ function Get-PortableEntries {
     finally { $archive.Dispose() }
 }
 
+function Get-PortableEntryText {
+    param([string] $Path, [string] $EntryPath)
+    Add-Type -AssemblyName System.IO.Compression
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $archive = [IO.Compression.ZipFile]::OpenRead($Path)
+    try {
+        $entry = $archive.GetEntry($EntryPath)
+        if ($null -eq $entry) { throw "Archive entry is missing: $EntryPath" }
+        $reader = New-Object IO.StreamReader($entry.Open())
+        try { return $reader.ReadToEnd() }
+        finally { $reader.Dispose() }
+    }
+    finally { $archive.Dispose() }
+}
+
 Describe 'Blind Soldier direct-extract portable package' {
     AfterEach {
         if ($null -ne $fixture -and (Test-Path -LiteralPath $fixture.Root)) {
@@ -156,5 +171,23 @@ Describe 'Blind Soldier direct-extract portable package' {
         }
         (Get-FileHash -LiteralPath $fixture.First -Algorithm SHA256).Hash |
             Should Be (Get-FileHash -LiteralPath $fixture.Second -Algorithm SHA256).Hash
+    }
+
+    It 'uses one deterministic x64 graphics initialization hook without changing x86' {
+        $fixture = New-PortableFixture
+        & $builderPath -OutputPath $fixture.First -Version '0.1.0-pre.7' `
+            -PrerequisiteBundlePath $fixture.Prerequisites -ModPackagePath $fixture.Mod `
+            -LauncherBundlePath $fixture.Launcher -NativeBinaryPath $fixture.Native | Out-Null
+
+        $x64 = Get-PortableEntryText -Path $fixture.First `
+            -EntryPath 'Reloaded-II/Loader/X64/DelayInjectHooks.json' | ConvertFrom-Json
+        @($x64).Count | Should Be 1
+        [string]$x64[0].Name | Should Be 'd3d11'
+        @($x64[0].Functions).Count | Should Be 1
+        [string]$x64[0].Functions[0] | Should Be 'D3D11CreateDevice'
+
+        Get-PortableEntryText -Path $fixture.First `
+            -EntryPath 'Reloaded-II/Loader/X86/DelayInjectHooks.json' |
+            Should Be 'fixture X86 DelayInjectHooks.json'
     }
 }

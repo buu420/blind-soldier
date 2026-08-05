@@ -235,6 +235,10 @@ try {
             Copy-Item -LiteralPath $source -Destination $destination
         }
     }
+    $x64DelayHooksOverride = Join-Path $scriptRoot 'installer-assets\reloaded\x64\DelayInjectHooks.json'
+    [void](Assert-File -Path $x64DelayHooksOverride -Label 'Blind Soldier x64 delayed-injection configuration')
+    Copy-Item -LiteralPath $x64DelayHooksOverride `
+        -Destination (Join-Path $targetReloaded 'Loader\X64\DelayInjectHooks.json') -Force
     Assert-PeMachine -Path (Join-Path $targetReloaded 'Loader\X86\Bootstrapper\Reloaded.Mod.Loader.Bootstrapper.dll') -Machine 0x014C -Label 'x86 Reloaded bootstrapper'
     Assert-PeMachine -Path (Join-Path $targetReloaded 'Loader\X64\Bootstrapper\Reloaded.Mod.Loader.Bootstrapper.dll') -Machine 0x8664 -Label 'x64 Reloaded bootstrapper'
 
