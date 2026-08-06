@@ -313,13 +313,16 @@ static void CheckPrivateDotNetEnvironment() {
     const wchar_t* architectureVariable = L"DOTNET_ROOT_X86";
 #endif
     CopySelf(root / L"host" / L"fxr" / L"9.0.8" / L"hostfxr.dll");
+    std::error_code canonicalError;
+    const fs::path canonicalRoot = fs::canonical(root, canonicalError);
+    CHECK(!canonicalError);
     Logger log;
     log.Open(root, L"environment.log");
     CHECK(ApplyPrivateDotNetEnvironment(architecture, root, log));
-    CHECK(ReadEnvironment(L"DOTNET_ROOT") == root.wstring());
-    CHECK(ReadEnvironment(architectureVariable) == root.wstring());
+    CHECK(ReadEnvironment(L"DOTNET_ROOT") == canonicalRoot.wstring());
+    CHECK(ReadEnvironment(architectureVariable) == canonicalRoot.wstring());
 #ifndef _WIN64
-    CHECK(ReadEnvironment(L"DOTNET_ROOT(x86)") == root.wstring());
+    CHECK(ReadEnvironment(L"DOTNET_ROOT(x86)") == canonicalRoot.wstring());
 #endif
     CHECK(!ApplyPrivateDotNetEnvironment(
         architecture, root / L"missing", log));
