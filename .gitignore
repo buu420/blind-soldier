@@ -34,6 +34,7 @@ AccessibilityBackups/
 
 # Downloaded or generated reverse-engineering workspaces
 tools/ghidra/
+analysis/native-bootstrap/local-fixtures/
 
 # Operating-system metadata
 Thumbs.db

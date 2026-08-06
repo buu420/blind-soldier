@@ -1,0 +1,156 @@
+{
+  "schemaVersion": 1,
+  "legacyStockX86": {
+    "name": "ff7_en.exe",
+    "machine": 332,
+    "sha256": "4274AB2D52B67E547786FD959474E020FD3052A34DBCD7DA708F86BCF5E48225"
+  },
+  "sevenHeavenX86": {
+    "names": [
+      "ff7.exe",
+      "ff7_en.exe"
+    ],
+    "machine": 332,
+    "requiredImports": [
+      "WINMM.DLL"
+    ],
+    "forbidEmbeddedManifest": true,
+    "profiles": [
+      {
+        "id": "7th-heaven-1.02-patch",
+        "sampleSha256": "C1437392C5E4178765FBD238DCC9B33D86D2B97337310131C874F302236E4B6F",
+        "sampleLength": 5882880,
+        "imageBase": 4194304,
+        "sections": [
+          {
+            "name": ".text",
+            "rva": 4096,
+            "virtualSize": 3884597,
+            "rawOffset": 1024,
+            "rawSize": 3885056,
+            "characteristics": 1610612768
+          },
+          {
+            "name": ".rdata",
+            "rva": 3891200,
+            "virtualSize": 15550,
+            "rawOffset": 3886080,
+            "rawSize": 15872,
+            "characteristics": 1073741888
+          },
+          {
+            "name": ".data",
+            "rva": 3907584,
+            "virtualSize": 7957596,
+            "rawOffset": 3901952,
+            "rawSize": 1978368,
+            "characteristics": 3221225536
+          },
+          {
+            "name": ".rsrc",
+            "rva": 11866112,
+            "virtualSize": 2400,
+            "rawOffset": 5880320,
+            "rawSize": 2560,
+            "characteristics": 1073741888
+          }
+        ],
+        "signatures": [
+          {
+            "rva": 186419,
+            "bytes": "E81A081900E855010000C745FC000000",
+            "mask": "FF00000000FF00000000FFFFFFFFFFFF"
+          },
+          {
+            "rva": 2144975,
+            "bytes": "558BEC51A1F00DCC00C1F8108945FC83",
+            "mask": "FFFFFFFFFF00000000FFFFFFFFFFFFFF"
+          },
+          {
+            "rva": 2343295,
+            "bytes": "558BEC83EC205657E8ECA303008945FC",
+            "mask": "FFFFFFFFFFFFFFFFFF00000000FFFFFF"
+          }
+        ]
+      },
+      {
+        "id": "7th-heaven-converted-output",
+        "sampleSha256": "68CF1B8C1D732CC00A1DDB02CED161F7C94B06680D9E8641A11C7361417375C2",
+        "sampleLength": 6421856,
+        "imageBase": 4194304,
+        "sections": [
+          {
+            "name": ".text",
+            "rva": 4096,
+            "virtualSize": 3887104,
+            "rawOffset": 1024,
+            "rawSize": 3885056,
+            "characteristics": 1610612768
+          },
+          {
+            "name": ".rdata",
+            "rva": 3891200,
+            "virtualSize": 16384,
+            "rawOffset": 3886080,
+            "rawSize": 15872,
+            "characteristics": 3221225536
+          },
+          {
+            "name": ".data",
+            "rva": 3907584,
+            "virtualSize": 7958528,
+            "rawOffset": 3901952,
+            "rawSize": 1978368,
+            "characteristics": 3221225536
+          },
+          {
+            "name": ".rsrc",
+            "rva": 11866112,
+            "virtualSize": 118784,
+            "rawOffset": 5880320,
+            "rawSize": 116736,
+            "characteristics": 1073741888
+          },
+          {
+            "name": ".dotemu",
+            "rva": 11984896,
+            "virtualSize": 4096,
+            "rawOffset": 5997056,
+            "rawSize": 500,
+            "characteristics": 3221225536
+          },
+          {
+            "name": ".bind",
+            "rva": 11988992,
+            "virtualSize": 415928,
+            "rawOffset": 5997568,
+            "rawSize": 415928,
+            "characteristics": 1610612736
+          }
+        ],
+        "signatures": [
+          {
+            "rva": 186419,
+            "bytes": "E81A081900E855010000C745FC000000",
+            "mask": "FF00000000FF00000000FFFFFFFFFFFF"
+          },
+          {
+            "rva": 2144975,
+            "bytes": "558BEC51A1F00DCC00C1F8108945FC83",
+            "mask": "FFFFFFFFFF00000000FFFFFFFFFFFFFF"
+          },
+          {
+            "rva": 2343295,
+            "bytes": "558BEC83EC205657E8ECA303008945FC",
+            "mask": "FFFFFFFFFFFFFFFFFF00000000FFFFFF"
+          }
+        ]
+      }
+    ]
+  },
+  "steam2026X64": {
+    "name": "FFVII.exe",
+    "machine": 34404,
+    "sha256": "57A23D166D69E46B9E3339F779D4A3C4FEB402A989FA7291D0D9B4A1953ABB4B"
+  }
+}

@@ -16,6 +16,7 @@
   "OptionalDependencies": [],
   "SupportedAppId": [
     "ff7_en.exe",
+    "ff7.exe",
     "FFVII.exe"
   ]
 }

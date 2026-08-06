@@ -8,6 +8,7 @@ $launcherSource = Join-Path $nativeRoot 'BlindSoldier.Launcher\launcher.cpp'
 $launcherProject = Join-Path $nativeRoot 'BlindSoldier.Launcher\BlindSoldier.Launcher.vcxproj'
 $launcherBehaviorProject = Join-Path $nativeRoot 'BlindSoldier.Launcher.Tests\BlindSoldier.Launcher.Tests.vcxproj'
 $installerBehaviorProject = Join-Path $nativeRoot 'BlindSoldier.Installer.Tests\BlindSoldier.Installer.Tests.vcxproj'
+$hostBehaviorProject = Join-Path $nativeRoot 'BlindSoldier.Host.Tests\BlindSoldier.Host.Tests.vcxproj'
 
 function Get-TestPeMachine {
     param([Parameter(Mandatory=$true)] [string] $Path)
@@ -144,6 +145,18 @@ Describe 'Blind Soldier preserved native installer workflow' {
                 -WindowStyle Hidden
             $proof.ExitCode | Should Not Be 0
         }
+    }
+
+    It 'accepts only evidence-backed FFVII host identities' {
+        $msbuild = Get-TestMsBuild
+        Test-Path -LiteralPath $hostBehaviorProject -PathType Leaf | Should Be $true
+        & $msbuild $hostBehaviorProject /nologo /m /p:Configuration=Release /p:Platform=x64 /v:minimal
+        $LASTEXITCODE | Should Be 0
+        $executable = Join-Path (Split-Path -Parent $hostBehaviorProject) `
+            'bin\Release\x64\BlindSoldier.Host.Tests.exe'
+        Test-Path -LiteralPath $executable -PathType Leaf | Should Be $true
+        & $executable
+        $LASTEXITCODE | Should Be 0
     }
 
     It 'builds an x64 installer and architecture-matched launchers' {

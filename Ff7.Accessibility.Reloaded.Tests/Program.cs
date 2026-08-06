@@ -36,6 +36,14 @@ if (args.Contains("--reactor-ladder-only", StringComparer.OrdinalIgnoreCase))
     return;
 }
 
+if (args.Contains("--host-validation-only", StringComparer.OrdinalIgnoreCase))
+{
+    AssertLegacyX86FingerprintAcceptsOnlyKnownExecutable();
+    AssertReloadedMetadataNamesEveryValidatedHost();
+    Console.WriteLine("FFVII supported-host validation tests passed.");
+    return;
+}
+
 var root = FindGameRoot();
 var sourceRoot = FindSourceRoot();
 var captures = Path.Combine(sourceRoot, "accessibility_prototype", "helper", "bin", "Debug", "net10.0-windows", "captures");
@@ -837,6 +845,7 @@ AssertAccessibilityConfigurationLivesInSharedCore();
 AssertLegacyEntryPointUsesSharedAccessibilityConfiguration();
 AssertLegacyAssemblyDoesNotDuplicateAccessibilityConfiguration();
 AssertLegacyX86FingerprintAcceptsOnlyKnownExecutable();
+AssertReloadedMetadataNamesEveryValidatedHost();
 AssertLegacyX86CapabilitiesMapEveryRequiredSubsystem();
 AssertLegacyX86CapabilityValidationFailsClosedOnMissingSignal();
 
@@ -1576,42 +1585,71 @@ static void AssertLegacyAssemblyDoesNotDuplicateAccessibilityConfiguration()
 
 static void AssertLegacyX86FingerprintAcceptsOnlyKnownExecutable()
 {
-    const string legacyPath = @"X:\SteamLibrary\steamapps\common\FINAL FANTASY VII Steam Edition\ff7\workingdir\ff7_en.exe";
-    const string nativePath = @"X:\SteamLibrary\steamapps\common\FINAL FANTASY VII Steam Edition\FFVII.exe";
-    var legacy = LegacyX86Fingerprint.Inspect(legacyPath);
-    AssertEqual(true, legacy.IsSupported, "known legacy executable fingerprint");
-    AssertEqual(false, legacy.Identity.Is64Bit, "known legacy executable architecture");
+    const string patchPath = @"C:\Users\buu42\Tools\7thHeaven\Resources\FF7_1.02_Eng_Patch\ff7.exe";
+    const string convertedPath = @"C:\Users\buu42\ff7_accessibility_analysis\input\ff7_en.exe";
+    const string nativePath = @"C:\Program Files (x86)\Steam\steamapps\common\FINAL FANTASY VII Steam Edition\FFVII.exe";
+    var patch = LegacyX86Fingerprint.Inspect(patchPath);
+    var converted = LegacyX86Fingerprint.Inspect(convertedPath);
+    AssertEqual(true, patch.IsSupported, "7th Heaven patch executable fingerprint");
+    AssertEqual(true, converted.IsSupported, "7th Heaven converted executable fingerprint");
+    AssertEqual("ff7-legacy-x86", patch.Identity.RuntimeId, "ff7.exe legacy runtime identity");
+    AssertEqual("ff7-legacy-x86", converted.Identity.RuntimeId, "ff7_en.exe legacy runtime identity");
+    AssertEqual(false, patch.Identity.Is64Bit, "7th Heaven patch architecture");
+    AssertEqual(false, converted.Identity.Is64Bit, "7th Heaven converted architecture");
     AssertEqual(
         "4274AB2D52B67E547786FD959474E020FD3052A34DBCD7DA708F86BCF5E48225",
-        legacy.Identity.Sha256,
-        "known legacy executable hash");
+        LegacyX86Fingerprint.SupportedSha256,
+        "known exact stock legacy hash");
 
     var native = LegacyX86Fingerprint.Inspect(nativePath);
     AssertEqual(false, native.IsSupported, "native x64 executable rejected by legacy backend");
     AssertEqual(true, native.Identity.Is64Bit, "native executable architecture");
     AssertEqual(true, native.Diagnostic.Contains("0x8664", StringComparison.Ordinal), "native machine diagnostic");
 
-    var alteredPath = Path.Combine(Path.GetTempPath(), $"ff7-legacy-altered-{Guid.NewGuid():N}.exe");
+    var temporaryRoot = Path.Combine(Path.GetTempPath(), $"ff7-host-tests-{Guid.NewGuid():N}");
+    Directory.CreateDirectory(temporaryRoot);
+    var alteredPath = Path.Combine(temporaryRoot, "ff7_en.exe");
+    var renamedPath = Path.Combine(temporaryRoot, "renamed.exe");
     try
     {
-        File.Copy(legacyPath, alteredPath);
-        using (var stream = new FileStream(alteredPath, FileMode.Append, FileAccess.Write, FileShare.None))
+        File.Copy(convertedPath, alteredPath);
+        using (var stream = new FileStream(alteredPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
         {
-            stream.WriteByte(0);
+            // .text raw offset 0x400 + (signature RVA 0x2D833 - .text RVA 0x1000)
+            stream.Position = 0x2CC33;
+            var original = stream.ReadByte();
+            stream.Position = 0x2CC33;
+            stream.WriteByte((byte)(original ^ 0xFF));
         }
 
         var altered = LegacyX86Fingerprint.Inspect(alteredPath);
-        AssertEqual(false, altered.IsSupported, "unknown x86 executable hash rejected");
+        AssertEqual(false, altered.IsSupported, "altered x86 game-code signature rejected");
         AssertEqual(false, altered.Identity.Is64Bit, "altered legacy executable architecture");
-        AssertEqual(true, altered.Diagnostic.Contains("SHA-256", StringComparison.Ordinal), "unknown hash diagnostic");
+        AssertEqual(true, altered.Diagnostic.Contains("signature", StringComparison.OrdinalIgnoreCase), "altered signature diagnostic");
+
+        File.Copy(convertedPath, renamedPath);
+        var renamed = LegacyX86Fingerprint.Inspect(renamedPath);
+        AssertEqual(false, renamed.IsSupported, "renamed compatible x86 executable rejected");
+        AssertEqual(true, renamed.Diagnostic.Contains("named", StringComparison.OrdinalIgnoreCase), "renamed host diagnostic");
     }
     finally
     {
-        if (File.Exists(alteredPath))
-        {
-            File.Delete(alteredPath);
-        }
+        Directory.Delete(temporaryRoot, recursive: true);
     }
+}
+
+static void AssertReloadedMetadataNamesEveryValidatedHost()
+{
+    var configPath = Path.Combine(FindSourceRoot(), "Ff7.Accessibility.Reloaded", "ModConfig.json");
+    using var document = JsonDocument.Parse(File.ReadAllText(configPath));
+    var supported = document.RootElement.GetProperty("SupportedAppId")
+        .EnumerateArray()
+        .Select(value => value.GetString())
+        .ToArray();
+    AssertEqual(
+        "ff7_en.exe|ff7.exe|FFVII.exe",
+        string.Join('|', supported),
+        "Reloaded supported host order");
 }
 
 static void AssertLegacyX86CapabilitiesMapEveryRequiredSubsystem()
