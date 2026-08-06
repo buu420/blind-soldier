@@ -61,4 +61,9 @@ bool IsCanonicalPathWithinRoot(
     fs::path& canonicalCandidate,
     std::wstring& diagnostic);
 
+bool ApplyPrivateDotNetEnvironment(
+    ExpectedHostArchitecture architecture,
+    const fs::path& runtimeRoot,
+    Logger& log);
+
 }  // namespace blind_soldier

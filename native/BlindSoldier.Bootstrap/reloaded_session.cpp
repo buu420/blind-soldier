@@ -317,4 +317,69 @@ bool ValidatePortablePayload(
     return true;
 }
 
+bool ApplyPrivateDotNetEnvironment(
+    ExpectedHostArchitecture architecture,
+    const fs::path& runtimeRoot,
+    Logger& log) {
+    std::error_code error;
+    fs::path canonicalRoot = fs::canonical(runtimeRoot, error);
+    if (error || !fs::is_directory(canonicalRoot, error)) {
+        log.W(L"Private .NET runtime root is unavailable: " +
+              runtimeRoot.wstring());
+        return false;
+    }
+    fs::path hostfxr = canonicalRoot / L"host" / L"fxr" / L"9.0.8" /
+                       L"hostfxr.dll";
+    uint16_t machine = architecture == ExpectedHostArchitecture::X86
+        ? IMAGE_FILE_MACHINE_I386 : IMAGE_FILE_MACHINE_AMD64;
+    std::wstring diagnostic;
+    if (!FileHasExpectedMachine(hostfxr, machine, diagnostic)) {
+        log.W(L"Private .NET runtime validation failed: " + diagnostic);
+        return false;
+    }
+
+    struct PriorValue {
+        std::wstring name;
+        std::wstring value;
+        bool existed = false;
+    };
+    std::vector<PriorValue> values;
+    values.push_back({L"DOTNET_ROOT"});
+    if (architecture == ExpectedHostArchitecture::X86) {
+        values.push_back({L"DOTNET_ROOT_X86"});
+        values.push_back({L"DOTNET_ROOT(x86)"});
+    } else {
+        values.push_back({L"DOTNET_ROOT_X64"});
+    }
+    for (auto& value : values) {
+        DWORD required = GetEnvironmentVariableW(value.name.c_str(), nullptr, 0);
+        if (required == 0) continue;
+        std::vector<wchar_t> buffer(required);
+        DWORD copied = GetEnvironmentVariableW(
+            value.name.c_str(), buffer.data(), required);
+        if (copied > 0 && copied < required) {
+            value.existed = true;
+            value.value.assign(buffer.data(), copied);
+        }
+    }
+    for (size_t index = 0; index < values.size(); ++index) {
+        if (SetEnvironmentVariableW(values[index].name.c_str(),
+                                    canonicalRoot.c_str())) {
+            continue;
+        }
+        DWORD win32Error = GetLastError();
+        for (size_t restore = 0; restore < index; ++restore) {
+            SetEnvironmentVariableW(values[restore].name.c_str(),
+                values[restore].existed ? values[restore].value.c_str()
+                                        : nullptr);
+        }
+        log.Err(L"SetEnvironmentVariableW(private .NET runtime)",
+                win32Error);
+        return false;
+    }
+    log.W(L"Applied process-local private .NET runtime: " +
+          canonicalRoot.wstring());
+    return true;
+}
+
 }  // namespace blind_soldier

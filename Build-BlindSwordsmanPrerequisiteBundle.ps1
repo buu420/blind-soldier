@@ -290,7 +290,7 @@ Assert-ExactProperties -Value $lock -Expected @('schemaVersion','reloaded','shar
 if ([int]$lock.schemaVersion -ne 1) { throw 'Dependency lock schemaVersion must be 1.' }
 Assert-ExactProperties -Value $lock.reloaded -Expected @('version','assetName','url','size','sha256','sourceCodeUrl','licensePath','licenseSize','licenseSha256') -Label 'Reloaded lock'
 Assert-ExactProperties -Value $lock.sharedHooks -Expected @('version','assetName','url','size','sha256','sourceCodeUrl','licenseName','licenseUrl','licenseSize','licenseSha256') -Label 'Shared Hooks lock'
-Assert-ExactProperties -Value $lock.dotnetDesktopRuntime -Expected @('version','sourceCodeUrl','licenseName','licenseUrl','licenseSize','licenseSha256','thirdPartyNoticesName','thirdPartyNoticesUrl','thirdPartyNoticesSize','thirdPartyNoticesSha256','installers') -Label '.NET lock'
+Assert-ExactProperties -Value $lock.dotnetDesktopRuntime -Expected @('version','sourceCodeUrl','licenseName','licenseUrl','licenseSize','licenseSha256','thirdPartyNoticesName','thirdPartyNoticesUrl','thirdPartyNoticesSize','thirdPartyNoticesSha256','installers','portableArchives') -Label '.NET lock'
 foreach ($urlRecord in @(
     [pscustomobject]@{ Url=[string]$lock.reloaded.url; Label='Reloaded asset URL' },
     [pscustomobject]@{ Url=[string]$lock.reloaded.sourceCodeUrl; Label='Reloaded source URL' },
@@ -325,6 +325,23 @@ foreach ($installer in $installers) {
     Assert-HttpsUrl -Url ([string]$installer.url) -Label '.NET installer URL'
     Assert-HexDigest -Digest ([string]$installer.sha256) -Length 64 -Label '.NET installer SHA-256'
     Assert-HexDigest -Digest ([string]$installer.sha512) -Length 128 -Label '.NET installer SHA-512'
+}
+$portableArchives = @($lock.dotnetDesktopRuntime.portableArchives)
+$portableKeys = @($portableArchives | ForEach-Object {
+    "$($_.architecture)|$($_.component)"
+} | Sort-Object)
+if ($portableArchives.Count -ne 4 -or
+    ($portableKeys -join ',') -cne 'x64|core,x64|windowsDesktop,x86|core,x86|windowsDesktop') {
+    throw '.NET lock must contain core and Windows Desktop portable archives for x86 and x64.'
+}
+foreach ($archive in $portableArchives) {
+    Assert-ExactProperties -Value $archive -Expected @('architecture','component','name','url','sha512') -Label ".NET $($archive.architecture) $($archive.component) portable archive lock"
+    if ([string]$archive.architecture -cnotmatch '^(x86|x64)$') { throw 'Unsupported .NET portable archive architecture.' }
+    if ([string]$archive.component -cnotmatch '^(core|windowsDesktop)$') { throw 'Unsupported .NET portable archive component.' }
+    Assert-SafeLeafName -Name ([string]$archive.name) -Label '.NET portable archive name'
+    if ([IO.Path]::GetExtension([string]$archive.name) -cne '.zip') { throw '.NET portable archive must be a ZIP file.' }
+    Assert-HttpsUrl -Url ([string]$archive.url) -Label '.NET portable archive URL'
+    Assert-HexDigest -Digest ([string]$archive.sha512) -Length 128 -Label '.NET portable archive SHA-512'
 }
 
 $resolvedOutput = [IO.Path]::GetFullPath($OutputPath)
@@ -463,6 +480,15 @@ try {
                     sourceUrl = [string]$_.url
                     sourceSize = [long]$_.size
                     sourceSha256 = [string]$_.sha256
+                    sourceSha512 = [string]$_.sha512
+                }
+            })
+            portableArchives = @($portableArchives | ForEach-Object {
+                [ordered]@{
+                    architecture = [string]$_.architecture
+                    component = [string]$_.component
+                    name = [string]$_.name
+                    sourceUrl = [string]$_.url
                     sourceSha512 = [string]$_.sha512
                 }
             })

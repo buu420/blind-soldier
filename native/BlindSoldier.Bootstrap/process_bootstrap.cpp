@@ -5,13 +5,15 @@
 
 #include <tlhelp32.h>
 
+#include <memory>
+#include <vector>
+
 namespace blind_soldier {
 namespace {
 
-class ScopedEnvironmentValue {
+class EnvironmentSnapshot {
 public:
-    ScopedEnvironmentValue(const wchar_t* name, const std::wstring& value)
-        : name_(name) {
+    explicit EnvironmentSnapshot(const wchar_t* name) : name_(name) {
         DWORD required = GetEnvironmentVariableW(name_.c_str(), nullptr, 0);
         if (required > 0) {
             std::vector<wchar_t> buffer(required);
@@ -22,22 +24,44 @@ public:
                 prior_.assign(buffer.data(), copied);
             }
         }
-        applied_ = SetEnvironmentVariableW(name_.c_str(), value.c_str()) != FALSE;
     }
 
-    ~ScopedEnvironmentValue() {
-        if (applied_) {
-            SetEnvironmentVariableW(name_.c_str(),
-                hadValue_ ? prior_.c_str() : nullptr);
-        }
+    void Restore() const {
+        SetEnvironmentVariableW(name_.c_str(),
+            hadValue_ ? prior_.c_str() : nullptr);
     }
-
-    bool Applied() const { return applied_; }
 
 private:
     std::wstring name_;
     std::wstring prior_;
     bool hadValue_ = false;
+};
+
+class ScopedPrivateDotNetEnvironment {
+public:
+    ScopedPrivateDotNetEnvironment(ExpectedHostArchitecture architecture,
+                                   const fs::path& runtimeRoot, Logger& log)
+        : root_(L"DOTNET_ROOT"),
+          architecture_(architecture == ExpectedHostArchitecture::X86
+              ? L"DOTNET_ROOT_X86" : L"DOTNET_ROOT_X64"),
+          legacyX86_(architecture == ExpectedHostArchitecture::X86
+              ? std::make_unique<EnvironmentSnapshot>(L"DOTNET_ROOT(x86)")
+              : nullptr) {
+        applied_ = ApplyPrivateDotNetEnvironment(architecture, runtimeRoot, log);
+    }
+
+    ~ScopedPrivateDotNetEnvironment() {
+        if (legacyX86_) legacyX86_->Restore();
+        architecture_.Restore();
+        root_.Restore();
+    }
+
+    bool Applied() const { return applied_; }
+
+private:
+    EnvironmentSnapshot root_;
+    EnvironmentSnapshot architecture_;
+    std::unique_ptr<EnvironmentSnapshot> legacyX86_;
     bool applied_ = false;
 };
 
@@ -283,11 +307,9 @@ BootstrapExitCode RunLaunch(const BootstrapRequest& request, Logger& log) {
     STARTUPINFOW startup{sizeof(startup)};
     PROCESS_INFORMATION process{};
     {
-        ScopedEnvironmentValue dotnetRoot(
-            L"DOTNET_ROOT", payload.privateRuntimeRoot.wstring());
-        ScopedEnvironmentValue dotnetRootX64(
-            L"DOTNET_ROOT_X64", payload.privateRuntimeRoot.wstring());
-        if (!dotnetRoot.Applied() || !dotnetRootX64.Applied())
+        ScopedPrivateDotNetEnvironment environment(
+            ExpectedHostArchitecture::X64, payload.privateRuntimeRoot, log);
+        if (!environment.Applied())
             return BootstrapExitCode::RuntimeUnavailable;
         if (!CreateProcessW(request.gameExecutable.c_str(), buffer.data(),
                 nullptr, nullptr, FALSE, CREATE_SUSPENDED, nullptr,

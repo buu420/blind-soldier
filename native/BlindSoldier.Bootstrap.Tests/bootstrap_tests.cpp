@@ -294,6 +294,44 @@ static void CheckPayloadValidation() {
     fs::remove_all(root);
 }
 
+static std::wstring ReadEnvironment(const wchar_t* name) {
+    DWORD required = GetEnvironmentVariableW(name, nullptr, 0);
+    if (required == 0) return {};
+    std::vector<wchar_t> buffer(required);
+    DWORD copied = GetEnvironmentVariableW(name, buffer.data(), required);
+    return copied > 0 && copied < required
+        ? std::wstring(buffer.data(), copied) : std::wstring();
+}
+
+static void CheckPrivateDotNetEnvironment() {
+    fs::path root = NewTestRoot(L"dotnet-environment");
+#ifdef _WIN64
+    constexpr auto architecture = ExpectedHostArchitecture::X64;
+    const wchar_t* architectureVariable = L"DOTNET_ROOT_X64";
+#else
+    constexpr auto architecture = ExpectedHostArchitecture::X86;
+    const wchar_t* architectureVariable = L"DOTNET_ROOT_X86";
+#endif
+    CopySelf(root / L"host" / L"fxr" / L"9.0.8" / L"hostfxr.dll");
+    Logger log;
+    log.Open(root, L"environment.log");
+    CHECK(ApplyPrivateDotNetEnvironment(architecture, root, log));
+    CHECK(ReadEnvironment(L"DOTNET_ROOT") == root.wstring());
+    CHECK(ReadEnvironment(architectureVariable) == root.wstring());
+#ifndef _WIN64
+    CHECK(ReadEnvironment(L"DOTNET_ROOT(x86)") == root.wstring());
+#endif
+    CHECK(!ApplyPrivateDotNetEnvironment(
+        architecture, root / L"missing", log));
+    SetEnvironmentVariableW(L"DOTNET_ROOT", nullptr);
+    SetEnvironmentVariableW(architectureVariable, nullptr);
+#ifndef _WIN64
+    SetEnvironmentVariableW(L"DOTNET_ROOT(x86)", nullptr);
+#endif
+    log.Close();
+    fs::remove_all(root);
+}
+
 static void CheckRunBoundaryRejectsInvalidArchitectureAndEscapes() {
     fs::path root = NewTestRoot(L"boundary");
     Logger log;
@@ -354,6 +392,7 @@ int wmain(int argumentCount, wchar_t** arguments) {
     CheckLoggerAppendsWithOneBom();
     CheckLeaseTimeoutAndAcquisitionAfterRelease();
     CheckPayloadValidation();
+    CheckPrivateDotNetEnvironment();
     CheckRunBoundaryRejectsInvalidArchitectureAndEscapes();
     CheckPidPathDisagreement();
     fwprintf(stdout, L"Blind Soldier bootstrap tests passed.\n");

@@ -165,6 +165,24 @@ function New-PrerequisiteFixture {
                 (& $record $x86Runtime 'https://fixture.invalid/windowsdesktop-runtime-9.0.8-win-x86.exe' 'x86' 'windowsdesktop-runtime-9.0.8-win-x86.exe'),
                 (& $record $x64Runtime 'https://fixture.invalid/windowsdesktop-runtime-9.0.8-win-x64.exe' 'x64' 'windowsdesktop-runtime-9.0.8-win-x64.exe')
             )
+            portableArchives = @(
+                [ordered]@{
+                    architecture='x86'; component='core'; name='dotnet-runtime-9.0.8-win-x86.zip'
+                    url='https://fixture.invalid/dotnet-runtime-9.0.8-win-x86.zip'; sha512=('A' * 128)
+                },
+                [ordered]@{
+                    architecture='x86'; component='windowsDesktop'; name='windowsdesktop-runtime-9.0.8-win-x86.zip'
+                    url='https://fixture.invalid/windowsdesktop-runtime-9.0.8-win-x86.zip'; sha512=('B' * 128)
+                },
+                [ordered]@{
+                    architecture='x64'; component='core'; name='dotnet-runtime-9.0.8-win-x64.zip'
+                    url='https://fixture.invalid/dotnet-runtime-9.0.8-win-x64.zip'; sha512=('C' * 128)
+                },
+                [ordered]@{
+                    architecture='x64'; component='windowsDesktop'; name='windowsdesktop-runtime-9.0.8-win-x64.zip'
+                    url='https://fixture.invalid/windowsdesktop-runtime-9.0.8-win-x64.zip'; sha512=('D' * 128)
+                }
+            )
         }
     }
     $licenseBytes = [Text.Encoding]::UTF8.GetBytes('fixture Reloaded license')
@@ -257,6 +275,8 @@ Describe 'Blind Soldier prerequisite bundle builder' {
         $expectedSorted = @($expectedReloadedFiles.ToArray() | Sort-Object)
         ($actualReloadedFiles -join '|') | Should Be ($expectedSorted -join '|')
         Test-Path -LiteralPath (Join-Path $reloadedRoot 'Reloaded-II.exe') | Should Be $false
+        Test-Path -LiteralPath (Join-Path $fixture.Output 'dotnet\dotnet-runtime-9.0.8-win-x64.zip') | Should Be $false
+        Test-Path -LiteralPath (Join-Path $fixture.Output 'dotnet\windowsdesktop-runtime-9.0.8-win-x64.zip') | Should Be $false
     }
 
     It 'keeps private archive extraction staging short for a deeply nested release output' {
