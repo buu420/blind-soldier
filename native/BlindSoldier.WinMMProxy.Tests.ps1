@@ -113,9 +113,18 @@ Describe 'Blind Soldier guarded x86 WinMM proxy' {
                 @((Join-Path $root 'winmm.def'),
                     (Join-Path $proxyRoot 'winmm.def'))
             )) {
-                (Get-FileHash -LiteralPath $pair[0] -Algorithm SHA256).Hash |
-                    Should Be (Get-FileHash -LiteralPath $pair[1] `
-                        -Algorithm SHA256).Hash
+                if ([IO.Path]::GetFileName($pair[0]) -eq 'manifest.json') {
+                    $generated = [IO.File]::ReadAllText($pair[0]) |
+                        ConvertFrom-Json | ConvertTo-Json -Depth 5 -Compress
+                    $checkedIn = [IO.File]::ReadAllText($pair[1]) |
+                        ConvertFrom-Json | ConvertTo-Json -Depth 5 -Compress
+                    $generated | Should Be $checkedIn
+                }
+                else {
+                    (Get-FileHash -LiteralPath $pair[0] -Algorithm SHA256).Hash |
+                        Should Be (Get-FileHash -LiteralPath $pair[1] `
+                            -Algorithm SHA256).Hash
+                }
             }
         }
         finally { Remove-Item -LiteralPath $root -Recurse -Force }

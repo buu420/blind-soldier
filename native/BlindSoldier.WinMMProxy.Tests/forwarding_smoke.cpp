@@ -126,11 +126,13 @@ int wmain(int argc, wchar_t** argv) {
         wcscmp(systemText, proxyText) != 0) {
         return 14;
     }
-    if (!ModulesContainBoth(proxyPath, systemPath)) return 15;
-    if (!ProxyLoggedCanonicalSystem(proxyPath)) return 16;
+    const bool modulesContainBoth = ModulesContainBoth(proxyPath, systemPath);
+    FreeLibrary(proxy);
+    const bool loggedCanonicalSystem = ProxyLoggedCanonicalSystem(proxyPath);
+    FreeLibrary(system);
+    if (!modulesContainBoth) return 15;
+    if (!loggedCanonicalSystem) return 16;
 
     std::cout << "WinMM forwarding smoke passed.\n";
-    FreeLibrary(proxy);
-    FreeLibrary(system);
     return 0;
 }
