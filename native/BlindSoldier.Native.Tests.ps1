@@ -13,6 +13,8 @@ $bootstrapProject = Join-Path $bootstrapRoot 'BlindSoldier.Bootstrap.vcxproj'
 $bootstrapBehaviorProject = Join-Path $nativeRoot 'BlindSoldier.Bootstrap.Tests\BlindSoldier.Bootstrap.Tests.vcxproj'
 $installerBehaviorProject = Join-Path $nativeRoot 'BlindSoldier.Installer.Tests\BlindSoldier.Installer.Tests.vcxproj'
 $hostBehaviorProject = Join-Path $nativeRoot 'BlindSoldier.Host.Tests\BlindSoldier.Host.Tests.vcxproj'
+$winmmProxyProject = Join-Path $nativeRoot 'BlindSoldier.WinMMProxy\BlindSoldier.WinMMProxy.vcxproj'
+$winmmProxyTests = Join-Path $nativeRoot 'BlindSoldier.WinMMProxy.Tests.ps1'
 
 function Get-TestPeMachine {
     param([Parameter(Mandatory=$true)] [string] $Path)
@@ -49,7 +51,8 @@ Describe 'Blind Soldier native bootstrap workflow' {
         foreach ($path in @(
             $commonPath, $bootstrapContract, $bootstrapSession,
             $bootstrapProcess, $bootstrapMain, $bootstrapProject,
-            $bootstrapBehaviorProject, $hostBehaviorProject
+            $bootstrapBehaviorProject, $hostBehaviorProject,
+            $winmmProxyProject, $winmmProxyTests
         )) {
             Test-Path -LiteralPath $path -PathType Leaf | Should Be $true
         }
@@ -174,5 +177,15 @@ Describe 'Blind Soldier native bootstrap workflow' {
         $x64 = Join-Path $bootstrapRoot 'bin\Release\x64\Blind-Soldier-Bootstrap-x64.exe'
         (Get-TestPeMachine -Path $x86) | Should Be 0x014C
         (Get-TestPeMachine -Path $x64) | Should Be 0x8664
+    }
+
+    It 'registers the full-surface guarded WinMM proxy gate' {
+        $suite = [IO.File]::ReadAllText($winmmProxyTests)
+        $suite | Should Match 'complete WinMM export table'
+        $suite | Should Match 'without recursion'
+        $suite | Should Match 'root discovery host gating'
+        $project = [IO.File]::ReadAllText($winmmProxyProject)
+        $project | Should Match '<RuntimeLibrary>MultiThreaded</RuntimeLibrary>'
+        $project | Should Match '<ModuleDefinitionFile>winmm\.def</ModuleDefinitionFile>'
     }
 }

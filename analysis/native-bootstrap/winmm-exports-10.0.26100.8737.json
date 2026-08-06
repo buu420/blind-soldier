@@ -1,0 +1,978 @@
+{
+    "schemaVersion":  1,
+    "source":  "Windows SysWOW64 winmm.dll",
+    "fileVersion":  "10.0.26100.8737",
+    "fileSize":  195920,
+    "sha256":  "761E7285BDCA295F82E9EC88FE73D7CF23FBDCB1757F0E043DC701BB3ECD3A51",
+    "machine":  332,
+    "ordinalBase":  2,
+    "functionCount":  193,
+    "nameCount":  192,
+    "exports":  [
+                    {
+                        "ordinal":  2,
+                        "name":  null,
+                        "noname":  true
+                    },
+                    {
+                        "ordinal":  3,
+                        "name":  "mciExecute",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  4,
+                        "name":  "CloseDriver",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  5,
+                        "name":  "DefDriverProc",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  6,
+                        "name":  "DriverCallback",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  7,
+                        "name":  "DrvGetModuleHandle",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  8,
+                        "name":  "GetDriverModuleHandle",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  9,
+                        "name":  "NotifyCallbackData",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  10,
+                        "name":  "OpenDriver",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  11,
+                        "name":  "PlaySound",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  12,
+                        "name":  "PlaySoundA",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  13,
+                        "name":  "PlaySoundW",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  14,
+                        "name":  "SendDriverMessage",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  15,
+                        "name":  "WOW32DriverCallback",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  16,
+                        "name":  "WOW32ResolveMultiMediaHandle",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  17,
+                        "name":  "WOWAppExit",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  18,
+                        "name":  "aux32Message",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  19,
+                        "name":  "auxGetDevCapsA",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  20,
+                        "name":  "auxGetDevCapsW",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  21,
+                        "name":  "auxGetNumDevs",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  22,
+                        "name":  "auxGetVolume",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  23,
+                        "name":  "auxOutMessage",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  24,
+                        "name":  "auxSetVolume",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  25,
+                        "name":  "joy32Message",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  26,
+                        "name":  "joyConfigChanged",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  27,
+                        "name":  "joyGetDevCapsA",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  28,
+                        "name":  "joyGetDevCapsW",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  29,
+                        "name":  "joyGetNumDevs",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  30,
+                        "name":  "joyGetPos",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  31,
+                        "name":  "joyGetPosEx",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  32,
+                        "name":  "joyGetThreshold",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  33,
+                        "name":  "joyReleaseCapture",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  34,
+                        "name":  "joySetCapture",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  35,
+                        "name":  "joySetThreshold",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  36,
+                        "name":  "mci32Message",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  37,
+                        "name":  "mciDriverNotify",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  38,
+                        "name":  "mciDriverYield",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  39,
+                        "name":  "mciFreeCommandResource",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  40,
+                        "name":  "mciGetCreatorTask",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  41,
+                        "name":  "mciGetDeviceIDA",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  42,
+                        "name":  "mciGetDeviceIDFromElementIDA",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  43,
+                        "name":  "mciGetDeviceIDFromElementIDW",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  44,
+                        "name":  "mciGetDeviceIDW",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  45,
+                        "name":  "mciGetDriverData",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  46,
+                        "name":  "mciGetErrorStringA",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  47,
+                        "name":  "mciGetErrorStringW",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  48,
+                        "name":  "mciGetYieldProc",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  49,
+                        "name":  "mciLoadCommandResource",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  50,
+                        "name":  "mciSendCommandA",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  51,
+                        "name":  "mciSendCommandW",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  52,
+                        "name":  "mciSendStringA",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  53,
+                        "name":  "mciSendStringW",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  54,
+                        "name":  "mciSetDriverData",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  55,
+                        "name":  "mciSetYieldProc",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  56,
+                        "name":  "mid32Message",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  57,
+                        "name":  "midiConnect",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  58,
+                        "name":  "midiDisconnect",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  59,
+                        "name":  "midiInAddBuffer",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  60,
+                        "name":  "midiInClose",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  61,
+                        "name":  "midiInGetDevCapsA",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  62,
+                        "name":  "midiInGetDevCapsW",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  63,
+                        "name":  "midiInGetErrorTextA",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  64,
+                        "name":  "midiInGetErrorTextW",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  65,
+                        "name":  "midiInGetID",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  66,
+                        "name":  "midiInGetNumDevs",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  67,
+                        "name":  "midiInMessage",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  68,
+                        "name":  "midiInOpen",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  69,
+                        "name":  "midiInPrepareHeader",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  70,
+                        "name":  "midiInReset",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  71,
+                        "name":  "midiInStart",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  72,
+                        "name":  "midiInStop",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  73,
+                        "name":  "midiInUnprepareHeader",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  74,
+                        "name":  "midiOutCacheDrumPatches",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  75,
+                        "name":  "midiOutCachePatches",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  76,
+                        "name":  "midiOutClose",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  77,
+                        "name":  "midiOutGetDevCapsA",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  78,
+                        "name":  "midiOutGetDevCapsW",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  79,
+                        "name":  "midiOutGetErrorTextA",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  80,
+                        "name":  "midiOutGetErrorTextW",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  81,
+                        "name":  "midiOutGetID",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  82,
+                        "name":  "midiOutGetNumDevs",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  83,
+                        "name":  "midiOutGetVolume",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  84,
+                        "name":  "midiOutLongMsg",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  85,
+                        "name":  "midiOutMessage",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  86,
+                        "name":  "midiOutOpen",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  87,
+                        "name":  "midiOutPrepareHeader",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  88,
+                        "name":  "midiOutReset",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  89,
+                        "name":  "midiOutSetVolume",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  90,
+                        "name":  "midiOutShortMsg",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  91,
+                        "name":  "midiOutUnprepareHeader",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  92,
+                        "name":  "midiStreamClose",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  93,
+                        "name":  "midiStreamOpen",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  94,
+                        "name":  "midiStreamOut",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  95,
+                        "name":  "midiStreamPause",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  96,
+                        "name":  "midiStreamPosition",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  97,
+                        "name":  "midiStreamProperty",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  98,
+                        "name":  "midiStreamRestart",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  99,
+                        "name":  "midiStreamStop",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  100,
+                        "name":  "mixerClose",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  101,
+                        "name":  "mixerGetControlDetailsA",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  102,
+                        "name":  "mixerGetControlDetailsW",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  103,
+                        "name":  "mixerGetDevCapsA",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  104,
+                        "name":  "mixerGetDevCapsW",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  105,
+                        "name":  "mixerGetID",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  106,
+                        "name":  "mixerGetLineControlsA",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  107,
+                        "name":  "mixerGetLineControlsW",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  108,
+                        "name":  "mixerGetLineInfoA",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  109,
+                        "name":  "mixerGetLineInfoW",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  110,
+                        "name":  "mixerGetNumDevs",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  111,
+                        "name":  "mixerMessage",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  112,
+                        "name":  "mixerOpen",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  113,
+                        "name":  "mixerSetControlDetails",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  114,
+                        "name":  "mmDrvInstall",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  115,
+                        "name":  "mmGetCurrentTask",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  116,
+                        "name":  "mmTaskBlock",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  117,
+                        "name":  "mmTaskCreate",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  118,
+                        "name":  "mmTaskSignal",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  119,
+                        "name":  "mmTaskYield",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  120,
+                        "name":  "mmioAdvance",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  121,
+                        "name":  "mmioAscend",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  122,
+                        "name":  "mmioClose",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  123,
+                        "name":  "mmioCreateChunk",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  124,
+                        "name":  "mmioDescend",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  125,
+                        "name":  "mmioFlush",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  126,
+                        "name":  "mmioGetInfo",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  127,
+                        "name":  "mmioInstallIOProcA",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  128,
+                        "name":  "mmioInstallIOProcW",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  129,
+                        "name":  "mmioOpenA",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  130,
+                        "name":  "mmioOpenW",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  131,
+                        "name":  "mmioRead",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  132,
+                        "name":  "mmioRenameA",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  133,
+                        "name":  "mmioRenameW",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  134,
+                        "name":  "mmioSeek",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  135,
+                        "name":  "mmioSendMessage",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  136,
+                        "name":  "mmioSetBuffer",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  137,
+                        "name":  "mmioSetInfo",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  138,
+                        "name":  "mmioStringToFOURCCA",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  139,
+                        "name":  "mmioStringToFOURCCW",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  140,
+                        "name":  "mmioWrite",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  141,
+                        "name":  "mmsystemGetVersion",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  142,
+                        "name":  "mod32Message",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  143,
+                        "name":  "mxd32Message",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  144,
+                        "name":  "sndPlaySoundA",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  145,
+                        "name":  "sndPlaySoundW",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  146,
+                        "name":  "tid32Message",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  147,
+                        "name":  "timeBeginPeriod",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  148,
+                        "name":  "timeEndPeriod",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  149,
+                        "name":  "timeGetDevCaps",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  150,
+                        "name":  "timeGetSystemTime",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  151,
+                        "name":  "timeGetTime",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  152,
+                        "name":  "timeKillEvent",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  153,
+                        "name":  "timeSetEvent",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  154,
+                        "name":  "waveInAddBuffer",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  155,
+                        "name":  "waveInClose",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  156,
+                        "name":  "waveInGetDevCapsA",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  157,
+                        "name":  "waveInGetDevCapsW",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  158,
+                        "name":  "waveInGetErrorTextA",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  159,
+                        "name":  "waveInGetErrorTextW",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  160,
+                        "name":  "waveInGetID",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  161,
+                        "name":  "waveInGetNumDevs",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  162,
+                        "name":  "waveInGetPosition",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  163,
+                        "name":  "waveInMessage",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  164,
+                        "name":  "waveInOpen",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  165,
+                        "name":  "waveInPrepareHeader",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  166,
+                        "name":  "waveInReset",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  167,
+                        "name":  "waveInStart",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  168,
+                        "name":  "waveInStop",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  169,
+                        "name":  "waveInUnprepareHeader",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  170,
+                        "name":  "waveOutBreakLoop",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  171,
+                        "name":  "waveOutClose",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  172,
+                        "name":  "waveOutGetDevCapsA",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  173,
+                        "name":  "waveOutGetDevCapsW",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  174,
+                        "name":  "waveOutGetErrorTextA",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  175,
+                        "name":  "waveOutGetErrorTextW",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  176,
+                        "name":  "waveOutGetID",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  177,
+                        "name":  "waveOutGetNumDevs",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  178,
+                        "name":  "waveOutGetPitch",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  179,
+                        "name":  "waveOutGetPlaybackRate",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  180,
+                        "name":  "waveOutGetPosition",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  181,
+                        "name":  "waveOutGetVolume",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  182,
+                        "name":  "waveOutMessage",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  183,
+                        "name":  "waveOutOpen",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  184,
+                        "name":  "waveOutPause",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  185,
+                        "name":  "waveOutPrepareHeader",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  186,
+                        "name":  "waveOutReset",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  187,
+                        "name":  "waveOutRestart",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  188,
+                        "name":  "waveOutSetPitch",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  189,
+                        "name":  "waveOutSetPlaybackRate",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  190,
+                        "name":  "waveOutSetVolume",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  191,
+                        "name":  "waveOutUnprepareHeader",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  192,
+                        "name":  "waveOutWrite",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  193,
+                        "name":  "wid32Message",
+                        "noname":  false
+                    },
+                    {
+                        "ordinal":  194,
+                        "name":  "wod32Message",
+                        "noname":  false
+                    }
+                ]
+}
