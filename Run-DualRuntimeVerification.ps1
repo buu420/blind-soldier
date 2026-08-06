@@ -150,7 +150,8 @@ function New-PesterCommand {
         [string] $TestName
     )
     $escaped = ([IO.Path]::GetFullPath($Path)).Replace("'", "''")
-    $command = "Invoke-Pester -Script '$escaped'"
+    $command = "Import-Module Pester -RequiredVersion 4.10.1 -Force; " +
+        "Invoke-Pester -Script '$escaped'"
     if (-not [string]::IsNullOrWhiteSpace($TestName)) {
         $command += " -TestName '$($TestName.Replace("'", "''"))'"
     }

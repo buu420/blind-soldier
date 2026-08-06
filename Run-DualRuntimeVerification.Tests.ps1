@@ -184,4 +184,18 @@ Describe 'Blind Soldier aggregate portable release gate' {
         $program | Should Match 'FF7_ACCESSIBILITY_CONVERTED_X86_HOST'
         $program | Should Match 'FF7_ACCESSIBILITY_NATIVE_X64_HOST'
     }
+
+    It 'pins the legacy Pester contract used by the release verification scripts' {
+        $workflowPath = Join-Path $PSScriptRoot `
+            '.github\workflows\release.yml'
+        $workflow = [IO.File]::ReadAllText($workflowPath)
+        $verification = [IO.File]::ReadAllText($verificationPath)
+
+        $workflow | Should Match `
+            'Install-PackageProvider\s+-Name\s+NuGet'
+        $workflow | Should Match `
+            'Install-Module\s+-Name\s+Pester\s+-RequiredVersion\s+4\.10\.1'
+        $verification | Should Match `
+            'Import-Module\s+Pester\s+-RequiredVersion\s+4\.10\.1\s+-Force'
+    }
 }

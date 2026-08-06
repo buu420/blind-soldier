@@ -45,6 +45,17 @@ jobs:
           distribution: temurin
           java-version: "21"
 
+      - name: Install pinned Pester 4 test runtime
+        shell: powershell
+        run: |
+          [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+          Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Scope CurrentUser -Force -Confirm:$false | Out-Null
+          Install-Module -Name Pester -RequiredVersion 4.10.1 -Scope CurrentUser -Force -SkipPublisherCheck -AllowClobber
+          Import-Module Pester -RequiredVersion 4.10.1 -Force
+          if ((Get-Module Pester).Version -ne [version]'4.10.1') {
+            throw 'Pester 4.10.1 was not activated for release verification.'
+          }
+
       - name: Build and validate release assets
         shell: pwsh
         run: |
