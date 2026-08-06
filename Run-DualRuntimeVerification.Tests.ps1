@@ -165,6 +165,10 @@ Describe 'Blind Soldier aggregate portable release gate' {
         $workflow | Should Match 'DOTNET_ROOT_X86'
         $workflow | Should Match 'DOTNET_ROOT_X64'
         $workflow | Should Match 'dotnet-x86'
+        $workflow | Should Match `
+            '\$x86DotNetRoot\s*=\s*\$env:DOTNET_ROOT'
+        $workflow | Should Match `
+            'DOTNET_ROOT_X86\s*=\s*\$x86DotNetRoot'
         $workflow | Should Match '(?m)^\s*workflow_dispatch:\s*$'
         $workflow | Should Match "(?m)^\s*if:\s*github\.ref_type == 'tag'\s*$"
         $workflow | Should Match '\$\{\{ inputs\.version \}\}'

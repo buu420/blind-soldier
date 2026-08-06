@@ -48,10 +48,14 @@ jobs:
       - name: Build and validate release assets
         shell: pwsh
         run: |
+          $x86DotNetRoot = $env:DOTNET_ROOT
+          if (-not (Test-Path -LiteralPath "$x86DotNetRoot\dotnet.exe" -PathType Leaf)) {
+            throw "The x86 .NET host is unavailable: $x86DotNetRoot"
+          }
           $env:PATH = "C:\Program Files\dotnet;$env:PATH"
           $env:DOTNET_ROOT = 'C:\Program Files\dotnet'
           $env:DOTNET_ROOT_X64 = 'C:\Program Files\dotnet'
-          $env:DOTNET_ROOT_X86 = "$env:RUNNER_TEMP\dotnet-x86"
+          $env:DOTNET_ROOT_X86 = $x86DotNetRoot
           ./Run-DualRuntimeVerification.ps1
           $version = if ($env:GITHUB_REF_TYPE -eq 'tag') {
             $env:GITHUB_REF_NAME.Substring(1)
