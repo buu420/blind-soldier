@@ -173,4 +173,15 @@ Describe 'Blind Soldier aggregate portable release gate' {
         $workflow | Should Match "(?m)^\s*if:\s*github\.ref_type == 'tag'\s*$"
         $workflow | Should Match '\$\{\{ inputs\.version \}\}'
     }
+
+    It 'keeps supported-host validation independent of developer-local game files' {
+        $programPath = Join-Path $PSScriptRoot `
+            'Ff7.Accessibility.Reloaded.Tests\Program.cs'
+        $program = [IO.File]::ReadAllText($programPath)
+
+        $program | Should Not Match 'C:\\Users\\buu42'
+        $program | Should Match 'FF7_ACCESSIBILITY_STOCK_X86_HOST'
+        $program | Should Match 'FF7_ACCESSIBILITY_CONVERTED_X86_HOST'
+        $program | Should Match 'FF7_ACCESSIBILITY_NATIVE_X64_HOST'
+    }
 }

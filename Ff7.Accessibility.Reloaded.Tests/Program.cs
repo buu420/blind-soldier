@@ -1585,26 +1585,58 @@ static void AssertLegacyAssemblyDoesNotDuplicateAccessibilityConfiguration()
 
 static void AssertLegacyX86FingerprintAcceptsOnlyKnownExecutable()
 {
-    const string patchPath = @"C:\Users\buu42\Tools\7thHeaven\Resources\FF7_1.02_Eng_Patch\ff7.exe";
-    const string convertedPath = @"C:\Users\buu42\ff7_accessibility_analysis\input\ff7_en.exe";
-    const string nativePath = @"C:\Program Files (x86)\Steam\steamapps\common\FINAL FANTASY VII Steam Edition\FFVII.exe";
-    var patch = LegacyX86Fingerprint.Inspect(patchPath);
-    var converted = LegacyX86Fingerprint.Inspect(convertedPath);
-    AssertEqual(true, patch.IsSupported, "7th Heaven patch executable fingerprint");
-    AssertEqual(true, converted.IsSupported, "7th Heaven converted executable fingerprint");
-    AssertEqual("ff7-legacy-x86", patch.Identity.RuntimeId, "ff7.exe legacy runtime identity");
-    AssertEqual("ff7-legacy-x86", converted.Identity.RuntimeId, "ff7_en.exe legacy runtime identity");
-    AssertEqual(false, patch.Identity.Is64Bit, "7th Heaven patch architecture");
-    AssertEqual(false, converted.Identity.Is64Bit, "7th Heaven converted architecture");
     AssertEqual(
         "4274AB2D52B67E547786FD959474E020FD3052A34DBCD7DA708F86BCF5E48225",
         LegacyX86Fingerprint.SupportedSha256,
         "known exact stock legacy hash");
 
-    var native = LegacyX86Fingerprint.Inspect(nativePath);
-    AssertEqual(false, native.IsSupported, "native x64 executable rejected by legacy backend");
-    AssertEqual(true, native.Identity.Is64Bit, "native executable architecture");
-    AssertEqual(true, native.Diagnostic.Contains("0x8664", StringComparison.Ordinal), "native machine diagnostic");
+    var runtimeRoot = Environment.GetEnvironmentVariable(
+        "FF7_ACCESSIBILITY_RUNTIME");
+    var convertedPath = Environment.GetEnvironmentVariable(
+        "FF7_ACCESSIBILITY_CONVERTED_X86_HOST");
+    if (string.IsNullOrWhiteSpace(convertedPath) &&
+        !string.IsNullOrWhiteSpace(runtimeRoot))
+    {
+        convertedPath = Path.Combine(runtimeRoot, "ff7_en.exe");
+    }
+    var patchPath = Environment.GetEnvironmentVariable(
+        "FF7_ACCESSIBILITY_STOCK_X86_HOST");
+    var nativePath = Environment.GetEnvironmentVariable(
+        "FF7_ACCESSIBILITY_NATIVE_X64_HOST");
+
+    if (!string.IsNullOrWhiteSpace(patchPath) && File.Exists(patchPath))
+    {
+        var patch = LegacyX86Fingerprint.Inspect(patchPath);
+        AssertEqual(true, patch.IsSupported,
+            "7th Heaven patch executable fingerprint");
+        AssertEqual("ff7-legacy-x86", patch.Identity.RuntimeId,
+            "ff7.exe legacy runtime identity");
+        AssertEqual(false, patch.Identity.Is64Bit,
+            "7th Heaven patch architecture");
+    }
+
+    if (!string.IsNullOrWhiteSpace(convertedPath) && File.Exists(convertedPath))
+    {
+        var converted = LegacyX86Fingerprint.Inspect(convertedPath);
+        AssertEqual(true, converted.IsSupported,
+            "7th Heaven converted executable fingerprint");
+        AssertEqual("ff7-legacy-x86", converted.Identity.RuntimeId,
+            "ff7_en.exe legacy runtime identity");
+        AssertEqual(false, converted.Identity.Is64Bit,
+            "7th Heaven converted architecture");
+    }
+
+    if (!string.IsNullOrWhiteSpace(nativePath) && File.Exists(nativePath))
+    {
+        var native = LegacyX86Fingerprint.Inspect(nativePath);
+        AssertEqual(false, native.IsSupported,
+            "native x64 executable rejected by legacy backend");
+        AssertEqual(true, native.Identity.Is64Bit,
+            "native executable architecture");
+        AssertEqual(true,
+            native.Diagnostic.Contains("0x8664", StringComparison.Ordinal),
+            "native machine diagnostic");
+    }
 
     var temporaryRoot = Path.Combine(Path.GetTempPath(), $"ff7-host-tests-{Guid.NewGuid():N}");
     Directory.CreateDirectory(temporaryRoot);
@@ -1612,25 +1644,49 @@ static void AssertLegacyX86FingerprintAcceptsOnlyKnownExecutable()
     var renamedPath = Path.Combine(temporaryRoot, "renamed.exe");
     try
     {
-        File.Copy(convertedPath, alteredPath);
-        using (var stream = new FileStream(alteredPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+        var missing = LegacyX86Fingerprint.Inspect(
+            Path.Combine(temporaryRoot, "missing", "ff7_en.exe"));
+        AssertEqual(false, missing.IsSupported,
+            "missing legacy executable rejected");
+        AssertEqual(true,
+            missing.Diagnostic.Contains(
+                "Unable to read", StringComparison.OrdinalIgnoreCase),
+            "missing legacy executable diagnostic");
+
+        if (!string.IsNullOrWhiteSpace(convertedPath) &&
+            File.Exists(convertedPath))
         {
-            // .text raw offset 0x400 + (signature RVA 0x2D833 - .text RVA 0x1000)
-            stream.Position = 0x2CC33;
-            var original = stream.ReadByte();
-            stream.Position = 0x2CC33;
-            stream.WriteByte((byte)(original ^ 0xFF));
+            File.Copy(convertedPath, alteredPath);
+            using (var stream = new FileStream(alteredPath, FileMode.Open,
+                       FileAccess.ReadWrite, FileShare.None))
+            {
+                // .text raw offset 0x400 +
+                // (signature RVA 0x2D833 - .text RVA 0x1000)
+                stream.Position = 0x2CC33;
+                var original = stream.ReadByte();
+                stream.Position = 0x2CC33;
+                stream.WriteByte((byte)(original ^ 0xFF));
+            }
+
+            var altered = LegacyX86Fingerprint.Inspect(alteredPath);
+            AssertEqual(false, altered.IsSupported,
+                "altered x86 game-code signature rejected");
+            AssertEqual(false, altered.Identity.Is64Bit,
+                "altered legacy executable architecture");
+            AssertEqual(true,
+                altered.Diagnostic.Contains(
+                    "signature", StringComparison.OrdinalIgnoreCase),
+                "altered signature diagnostic");
+
+            File.Copy(convertedPath, renamedPath);
+            var renamed = LegacyX86Fingerprint.Inspect(renamedPath);
+            AssertEqual(false, renamed.IsSupported,
+                "renamed compatible x86 executable rejected");
+            AssertEqual(true,
+                renamed.Diagnostic.Contains(
+                    "named", StringComparison.OrdinalIgnoreCase),
+                "renamed host diagnostic");
         }
-
-        var altered = LegacyX86Fingerprint.Inspect(alteredPath);
-        AssertEqual(false, altered.IsSupported, "altered x86 game-code signature rejected");
-        AssertEqual(false, altered.Identity.Is64Bit, "altered legacy executable architecture");
-        AssertEqual(true, altered.Diagnostic.Contains("signature", StringComparison.OrdinalIgnoreCase), "altered signature diagnostic");
-
-        File.Copy(convertedPath, renamedPath);
-        var renamed = LegacyX86Fingerprint.Inspect(renamedPath);
-        AssertEqual(false, renamed.IsSupported, "renamed compatible x86 executable rejected");
-        AssertEqual(true, renamed.Diagnostic.Contains("named", StringComparison.OrdinalIgnoreCase), "renamed host diagnostic");
     }
     finally
     {
