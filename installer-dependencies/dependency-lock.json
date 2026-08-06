@@ -23,6 +23,18 @@
     "licenseSize": 7652,
     "licenseSha256": "E3A994D82E644B03A792A930F574002658412F62407F5FEE083F2555C5F23118"
   },
+  "ffnx": {
+    "version": "1.24.3.0",
+    "assetName": "FFNx-Steam-v1.24.3.0.zip",
+    "url": "https://github.com/julianxhokaxhiu/FFNx/releases/download/1.24.3/FFNx-Steam-v1.24.3.0.zip",
+    "size": 54962229,
+    "sha256": "2BE45F486974F0979B849D0525EB66427DF62483EC99E9339E9773E9E52AFC0D",
+    "sourceCodeUrl": "https://github.com/julianxhokaxhiu/FFNx/tree/1.24.3",
+    "licensePath": "COPYING.TXT",
+    "licenseName": "FFNx-GPL-3.0.txt",
+    "licenseSize": 35149,
+    "licenseSha256": "3972DC9744F6499F0F9B2DBF76696F2AE7AD8AF9B23DDE66D6AF86C9DFB36986"
+  },
   "dotnetDesktopRuntime": {
     "version": "9.0.8",
     "sourceCodeUrl": "https://github.com/dotnet/runtime/tree/v9.0.8",

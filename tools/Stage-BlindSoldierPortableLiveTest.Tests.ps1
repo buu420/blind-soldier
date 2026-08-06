@@ -112,7 +112,7 @@ function New-LiveStageFixture {
                 sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash
             }
         })
-    [ordered]@{schemaVersion=1;version='0.1.4';files=$records} |
+    [ordered]@{schemaVersion=1;version='0.1.5';files=$records} |
         ConvertTo-Json -Depth 6 |
         Set-Content -LiteralPath (Join-Path $payload 'portable-manifest.json') `
             -Encoding utf8
@@ -128,6 +128,10 @@ function New-LiveStageFixture {
     New-TestPe -Path $priorLauncher -Machine 0x014C -Marker 7
     $priorLauncherHash = (Get-FileHash -LiteralPath $priorLauncher `
         -Algorithm SHA256).Hash
+    $priorProxy = Join-Path $root 'prior-accessible-winmm.dll'
+    New-TestPe -Path $priorProxy -Machine 0x014C -Marker 8
+    $priorProxyHash = (Get-FileHash -LiteralPath $priorProxy `
+        -Algorithm SHA256).Hash
     $supported = Join-Path $root 'supported-hosts.json'
     [ordered]@{
         schemaVersion = 1
@@ -142,7 +146,7 @@ function New-LiveStageFixture {
     [IO.File]::WriteAllText($verifier, @'
 param([string] $ArchivePath, [string] $ExpectedVersion)
 if (-not (Test-Path -LiteralPath $ArchivePath -PathType Leaf)) { exit 91 }
-if ($ExpectedVersion -cne '0.1.4') { exit 92 }
+if ($ExpectedVersion -cne '0.1.5') { exit 92 }
 '@)
 
     [pscustomobject]@{
@@ -159,6 +163,8 @@ if ($ExpectedVersion -cne '0.1.4') { exit 92 }
             (Join-Path $payload 'FFVII_LAUNCHER.exe') -Algorithm SHA256).Hash
         PriorLauncher=$priorLauncher
         PriorLauncherHash=$priorLauncherHash
+        PriorProxy=$priorProxy
+        PriorProxyHash=$priorProxyHash
         ProxyHash=(Get-FileHash -LiteralPath `
             (Join-Path $payload 'ff7.exe.local\winmm.dll') -Algorithm SHA256).Hash
         EntryCount=@(Get-ChildItem -LiteralPath $payload -File -Recurse).Count
@@ -206,7 +212,7 @@ function Invoke-FixtureStage {
         DestinationRoot=$DestinationRoot
         VerifierPath=$Fixture.Verifier
         SupportedHostsPath=$Fixture.Supported
-        ExpectedVersion='0.1.4'
+        ExpectedVersion='0.1.5'
     }
     if (-not [string]::IsNullOrWhiteSpace($BackupRoot)) {
         $parameters.BackupRoot = $BackupRoot
@@ -264,6 +270,23 @@ Describe 'Blind Soldier portable live staging safety' {
                 -BackupRoot $fixture.Backup
         }
         $message | Should Match 'unknown.+winmm\.dll'
+    }
+
+    It 'accepts a specifically allowlisted earlier accessible WinMM proxy' {
+        $policy = Get-Content -LiteralPath $fixture.Supported -Raw |
+            ConvertFrom-Json
+        $policy | Add-Member -NotePropertyName accessibleProxySha256 `
+            -NotePropertyValue @($fixture.PriorProxyHash)
+        $policy | ConvertTo-Json -Depth 5 |
+            Set-Content -LiteralPath $fixture.Supported -Encoding utf8
+        $collision = Join-Path $fixture.Game 'ff7.exe.local\winmm.dll'
+        New-Item -ItemType Directory -Path (Split-Path -Parent $collision) `
+            -Force | Out-Null
+        Copy-Item -LiteralPath $fixture.PriorProxy -Destination $collision
+
+        $result = Invoke-FixtureStage -Fixture $fixture -DryRun `
+            -BackupRoot $fixture.Backup
+        $result.Operation | Should Be 'DryRun'
     }
 
     It 'refuses an unrecognized launcher beside an x64 host' {

@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory=$true)] [string] $OutputPath,
-    [string] $Version = '0.1.4',
+    [string] $Version = '0.1.5',
     [string] $PrerequisiteBundlePath,
     [string] $ModPackagePath,
     [string] $BootstrapBinaryPath,
@@ -350,6 +350,21 @@ try {
         New-Item -ItemType Directory -Path (Split-Path -Parent $destination) -Force | Out-Null
         Copy-Item -LiteralPath $WinmmProxyPath -Destination $destination
     }
+    $ffnxSource = Join-Path $PrerequisiteBundlePath 'ffnx'
+    $ffnxTarget = Join-Path $root 'ff7\workingdir'
+    Copy-OrdinaryTree -Source $ffnxSource -Destination $ffnxTarget `
+        -Label 'FFNx package'
+    Remove-PortableBuildDebris -Tree $ffnxTarget -StagingRoot $root
+    foreach ($relative in @('AF3DN.P','AF4DN.P','FFNx.toml','steam_api.dll')) {
+        [void](Assert-File -Path (Join-Path $ffnxTarget $relative) `
+            -Label "FFNx $relative")
+    }
+    Assert-PeMachine -Path (Join-Path $ffnxTarget 'AF3DN.P') -Machine 0x014C `
+        -Label 'FFNx x86 D3D9 driver'
+    Assert-PeMachine -Path (Join-Path $ffnxTarget 'AF4DN.P') -Machine 0x014C `
+        -Label 'FFNx x86 D3D11 driver'
+    Assert-PeMachine -Path (Join-Path $ffnxTarget 'steam_api.dll') -Machine 0x014C `
+        -Label 'FFNx Steam x86 API library'
 
     $sourceReloaded = Join-Path $PrerequisiteBundlePath 'reloaded'
     $targetReloaded = Join-Path $root 'Reloaded-II'
@@ -459,7 +474,7 @@ try {
     foreach ($name in @(
         'THIRD-PARTY-NOTICES.md', 'Reloaded-II-GPL-3.0.txt',
         'Reloaded-Shared-Hooks-LGPL-3.0.txt', 'dotnet-LICENSE.txt',
-        'dotnet-THIRD-PARTY-NOTICES.txt')) {
+        'dotnet-THIRD-PARTY-NOTICES.txt', 'FFNx-GPL-3.0.txt')) {
         $source = Join-Path $PrerequisiteBundlePath "notices\$name"
         [void](Assert-File -Path $source -Label "Portable license $name")
         Copy-Item -LiteralPath $source -Destination (Join-Path $licenseTarget $name)
@@ -478,7 +493,9 @@ Supported layouts
 - Legacy or converted x86: extract beside ff7_en.exe or ff7.exe. The matching .local\winmm.dll starts accessibility automatically.
 - 7th Heaven nested x86: extract at the Steam 2026 root. The copies under ff7\workingdir support 7th Heaven's converted game layout.
 
-Do not replace an existing ff7_en.exe.local\winmm.dll, ff7.exe.local\winmm.dll, or nested copy unless it belongs to Blind Soldier. Move an unknown file aside first so it can be restored.
+FFNx 1.24.3.0 is included under ff7\workingdir, so the converted x86 game can launch through 7th Heaven without a separate FFNx download. The native Steam 2026 files at the package root are not replaced.
+
+Do not replace an existing executable-local winmm.dll unless it belongs to Blind Soldier. Move an unknown file aside first so it can be restored.
 
 Logs are written under Blind-Soldier\Logs. Players never need to run either bootstrap program themselves.
 

@@ -49,7 +49,13 @@ function New-TestZip {
                 $entry = $archive.CreateEntry($name)
                 $entryStream = $entry.Open()
                 try {
-                    $bytes = [Text.Encoding]::UTF8.GetBytes([string]$Entries[$name])
+                    $value = $Entries[$name]
+                    $bytes = if ($value -is [byte[]]) {
+                        $value
+                    }
+                    else {
+                        [Text.Encoding]::UTF8.GetBytes([string]$value)
+                    }
                     $entryStream.Write($bytes, 0, $bytes.Length)
                 }
                 finally {
@@ -103,6 +109,22 @@ function New-PrerequisiteFixture {
     $x64Runtime = Join-Path $sources 'windowsdesktop-runtime-9.0.8-win-x64.exe'
     New-TestPe -Path $x86Runtime -Machine 0x014C
     New-TestPe -Path $x64Runtime -Machine 0x8664
+    $ffnxSource = Join-Path $root 'ffnx-source'
+    New-TestPe -Path (Join-Path $ffnxSource 'AF3DN.P') -Machine 0x014C
+    New-TestPe -Path (Join-Path $ffnxSource 'AF4DN.P') -Machine 0x014C
+    New-TestPe -Path (Join-Path $ffnxSource 'steam_api.dll') -Machine 0x014C
+    New-Item -ItemType Directory -Path (Join-Path $ffnxSource 'shaders') -Force | Out-Null
+    [IO.File]::WriteAllText((Join-Path $ffnxSource 'FFNx.toml'), 'fixture FFNx configuration')
+    [IO.File]::WriteAllText((Join-Path $ffnxSource 'COPYING.TXT'), 'fixture FFNx GPL license')
+    [IO.File]::WriteAllText((Join-Path $ffnxSource 'FFNx.pdb'), 'debug symbols must not ship')
+    [IO.File]::WriteAllText((Join-Path $ffnxSource 'shaders\fixture.fx'), 'fixture shader')
+    $ffnxEntries = @{}
+    foreach ($file in @(Get-ChildItem -LiteralPath $ffnxSource -File -Recurse)) {
+        $relative = $file.FullName.Substring($ffnxSource.Length + 1).Replace('\','/')
+        $ffnxEntries[$relative] = [IO.File]::ReadAllBytes($file.FullName)
+    }
+    $ffnxArchive = Join-Path $sources 'FFNx-Steam-v1.24.3.0.zip'
+    New-TestZip -Path $ffnxArchive -Entries $ffnxEntries
     $hooksLicense = Join-Path $sources 'Reloaded-Shared-Hooks-LGPL-3.0.txt'
     $dotnetLicense = Join-Path $sources 'dotnet-LICENSE.txt'
     $dotnetNotices = Join-Path $sources 'dotnet-THIRD-PARTY-NOTICES.txt'
@@ -152,6 +174,16 @@ function New-PrerequisiteFixture {
             sourceCodeUrl = 'https://fixture.invalid/hooks/source'; licenseName = 'Reloaded-Shared-Hooks-LGPL-3.0.txt'
             licenseUrl = 'https://fixture.invalid/Reloaded-Shared-Hooks-LGPL-3.0.txt'
             licenseSize = (Get-Item $hooksLicense).Length; licenseSha256 = (Get-FileHash $hooksLicense -Algorithm SHA256).Hash
+        }
+        ffnx = [ordered]@{
+            version = '1.24.3.0'; assetName = 'FFNx-Steam-v1.24.3.0.zip'
+            url = 'https://fixture.invalid/FFNx-Steam-v1.24.3.0.zip'
+            size = (Get-Item $ffnxArchive).Length
+            sha256 = (Get-FileHash $ffnxArchive -Algorithm SHA256).Hash
+            sourceCodeUrl = 'https://fixture.invalid/ffnx/source'
+            licensePath = 'COPYING.TXT'; licenseName = 'FFNx-GPL-3.0.txt'
+            licenseSize = (Get-Item (Join-Path $ffnxSource 'COPYING.TXT')).Length
+            licenseSha256 = (Get-FileHash (Join-Path $ffnxSource 'COPYING.TXT') -Algorithm SHA256).Hash
         }
         dotnetDesktopRuntime = [ordered]@{
             version = '9.0.8'; sourceCodeUrl = 'https://fixture.invalid/dotnet/source'
@@ -222,6 +254,16 @@ function New-PrerequisiteFixture {
     }
 }
 
+function Invoke-PrerequisiteFixtureBuild {
+    param([psobject] $Fixture, [string] $Output)
+    & $builderPath -OutputPath $Output -LockPath $Fixture.LockPath `
+        -NoticePath $Fixture.NoticePath `
+        -ArtifactResolver $Fixture.ArtifactResolver `
+        -SevenZipExtractor $Fixture.SevenZipExtractor `
+        -BootstrapperX86Override $Fixture.BootstrapX86 `
+        -BootstrapperX64Override $Fixture.BootstrapX64 | Out-Null
+}
+
 Describe 'Blind Soldier prerequisite bundle builder' {
     AfterEach {
         if ($null -ne $fixture -and (Test-Path -LiteralPath $fixture.Root)) {
@@ -230,7 +272,7 @@ Describe 'Blind Soldier prerequisite bundle builder' {
         $fixture = $null
     }
 
-    It 'builds the exact headless Reloaded closure with Shared Hooks, dotnet, and notices' {
+    It 'builds the exact headless Reloaded closure with Shared Hooks, FFNx, dotnet, and notices' {
         $fixture = New-PrerequisiteFixture
         & $builderPath -OutputPath $fixture.Output -LockPath $fixture.LockPath -NoticePath $fixture.NoticePath `
             -ArtifactResolver $fixture.ArtifactResolver -SevenZipExtractor $fixture.SevenZipExtractor `
@@ -245,11 +287,17 @@ Describe 'Blind Soldier prerequisite bundle builder' {
             'shared-hooks\ModConfig.json',
             'shared-hooks\x86\Reloaded.Hooks.ReloadedII.dll',
             'shared-hooks\x64\Reloaded.Hooks.ReloadedII.dll',
+            'ffnx\AF3DN.P',
+            'ffnx\AF4DN.P',
+            'ffnx\FFNx.toml',
+            'ffnx\steam_api.dll',
+            'ffnx\shaders\fixture.fx',
             'dotnet\windowsdesktop-runtime-9.0.8-win-x86.exe',
             'dotnet\windowsdesktop-runtime-9.0.8-win-x64.exe',
             'notices\THIRD-PARTY-NOTICES.md',
             'notices\Reloaded-II-GPL-3.0.txt',
             'notices\Reloaded-Shared-Hooks-LGPL-3.0.txt',
+            'notices\FFNx-GPL-3.0.txt',
             'notices\dotnet-LICENSE.txt',
             'notices\dotnet-THIRD-PARTY-NOTICES.txt'
         )) {
@@ -259,6 +307,7 @@ Describe 'Blind Soldier prerequisite bundle builder' {
         $manifest.schemaVersion | Should Be 1
         $manifest.reloaded.version | Should Be '1.30.3'
         $manifest.sharedHooks.version | Should Be '1.16.3'
+        $manifest.ffnx.version | Should Be '1.24.3.0'
         $manifest.dotnetDesktopRuntime.version | Should Be '9.0.8'
 
         $expectedReloadedFiles = New-Object 'System.Collections.Generic.List[string]'
@@ -277,6 +326,7 @@ Describe 'Blind Soldier prerequisite bundle builder' {
         Test-Path -LiteralPath (Join-Path $reloadedRoot 'Reloaded-II.exe') | Should Be $false
         Test-Path -LiteralPath (Join-Path $fixture.Output 'dotnet\dotnet-runtime-9.0.8-win-x64.zip') | Should Be $false
         Test-Path -LiteralPath (Join-Path $fixture.Output 'dotnet\windowsdesktop-runtime-9.0.8-win-x64.zip') | Should Be $false
+        Test-Path -LiteralPath (Join-Path $fixture.Output 'ffnx\FFNx.pdb') | Should Be $false
     }
 
     It 'keeps private archive extraction staging short for a deeply nested release output' {
@@ -298,15 +348,15 @@ Describe 'Blind Soldier prerequisite bundle builder' {
         $lock.reloaded.sha256 = 'A' * 64
         [IO.File]::WriteAllText($fixture.LockPath, ($lock | ConvertTo-Json -Depth 8))
 
-        { & $builderPath -OutputPath $fixture.Output -LockPath $fixture.LockPath -NoticePath $fixture.NoticePath `
-                -ArtifactResolver $fixture.ArtifactResolver -SevenZipExtractor $fixture.SevenZipExtractor } | Should Throw
+        { Invoke-PrerequisiteFixtureBuild -Fixture $fixture -Output $fixture.Output } |
+            Should Throw 'locked size or cryptographic digest check'
         Test-Path -LiteralPath $fixture.Output | Should Be $false
     }
 
     It 'rejects parent traversal members before extracting a zip' {
         $fixture = New-PrerequisiteFixture -UnsafeReloadedZip
-        { & $builderPath -OutputPath $fixture.Output -LockPath $fixture.LockPath -NoticePath $fixture.NoticePath `
-                -ArtifactResolver $fixture.ArtifactResolver -SevenZipExtractor $fixture.SevenZipExtractor } | Should Throw
+        { Invoke-PrerequisiteFixtureBuild -Fixture $fixture -Output $fixture.Output } |
+            Should Throw 'unsafe path member'
         Test-Path -LiteralPath (Join-Path $fixture.Root 'outside.txt') | Should Be $false
         Test-Path -LiteralPath $fixture.Output | Should Be $false
     }

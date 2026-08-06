@@ -53,6 +53,7 @@ struct ProxyBootstrapHooks {
 bool IsSupportedFf7ProcessName(const fs::path& processImage);
 bool IsCompletePortableRoot(const fs::path& candidate);
 fs::path DeriveDiagnosticRoot(const fs::path& proxyModule);
+std::wstring BuildReadyEventName(const std::wstring& launchId);
 bool DiscoverPortableRoot(
     const fs::path& proxyModule,
     const fs::path& processImage,

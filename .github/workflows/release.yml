@@ -9,7 +9,7 @@ on:
       version:
         description: Version used for a verification-only package build
         required: true
-        default: "0.1.4"
+        default: "0.1.5"
 
 permissions:
   contents: write
@@ -58,6 +58,8 @@ jobs:
 
       - name: Build and validate release assets
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           $x86DotNetRoot = $env:DOTNET_ROOT
           if (-not (Test-Path -LiteralPath "$x86DotNetRoot\dotnet.exe" -PathType Leaf)) {
@@ -93,7 +95,11 @@ jobs:
             exit 0
           }
           $version = $tag.Substring(1)
-          $arguments = @('release', 'create', $tag, '--repo', $env:GITHUB_REPOSITORY, '--title', "Blind Soldier $version", '--notes-file', './docs/releases/v0.1.4.md')
+          $notesPath = "./docs/releases/$tag.md"
+          if (-not (Test-Path -LiteralPath $notesPath -PathType Leaf)) {
+            throw "Release notes are missing: $notesPath"
+          }
+          $arguments = @('release', 'create', $tag, '--repo', $env:GITHUB_REPOSITORY, '--title', "Blind Soldier $version", '--notes-file', $notesPath)
           if ($version.Contains('-')) { $arguments += '--prerelease' }
           $arguments += @('./artifacts/release/Blind-Soldier-Portable.zip', './artifacts/release/Blind-Soldier-Portable.zip.sha256')
           gh @arguments

@@ -23,8 +23,8 @@ is not tied to one particular screen reader.
 - Optional: 7th Heaven and FFNx for the legacy x86 game path.
 
 **Final Fantasy VII is the only software the player must install first.** The
-portable ZIP contains Reloaded-II, Reloaded Shared Hooks, Prism, and private
-x86 and x64 .NET runtimes. Nothing else must be installed globally.
+portable ZIP contains Reloaded-II, Reloaded Shared Hooks, FFNx, Prism, and
+private x86 and x64 .NET runtimes. Nothing else must be installed globally.
 
 Blind Soldier contains separate x86 and x64 backends. Its bootstrap validates
 the legacy Steam 2013 runtime (`ff7_en.exe`), converted x86 runtime (`ff7.exe`),
@@ -34,7 +34,7 @@ instead of reading unverified game memory.
 ## Installation
 
 Download
-[Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.1.4/Blind-Soldier-Portable.zip)
+[Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.1.5/Blind-Soldier-Portable.zip)
 from the [Blind Soldier Releases page](https://github.com/buu420/blind-soldier/releases).
 
 1. Close Final Fantasy VII and 7th Heaven.
@@ -70,6 +70,8 @@ under `Blind-Soldier\Bootstrap` yourself.
   loads the x64 accessibility backend automatically. Starting `FFVII.exe`
   directly is unsupported because it bypasses that accessibility boundary.
 - **Legacy x86 with 7th Heaven:** launch the game through 7th Heaven as usual.
+  FFNx 1.24.3.0 is included in the nested `ff7\workingdir` layout, so no
+  separate FFNx download is required for the converted game.
 - **Legacy x86 without 7th Heaven:** launch the legacy game normally. The
   executable-specific `.local` proxy loads the accessibility backend.
 
@@ -85,14 +87,14 @@ Visual Studio C++ Build Tools, and PowerShell, then run:
 ```powershell
 .\Build-BlindSoldierPortablePackage.ps1 `
   -OutputPath .\artifacts\Blind-Soldier-Portable.zip `
-  -Version 0.1.4
+  -Version 0.1.5
 .\Verify-BlindSoldierPortablePackage.ps1 `
   -ArchivePath .\artifacts\Blind-Soldier-Portable.zip `
-  -ExpectedVersion 0.1.4
+  -ExpectedVersion 0.1.5
 ```
 
 The builder compiles the launcher, x86/x64 brokers, and x86 proxy from source,
-then packages the pinned Reloaded and private .NET dependencies.
+then packages the pinned Reloaded, FFNx, and private .NET dependencies.
 
 ## Mod keys
 

@@ -3,7 +3,7 @@ param(
     [Parameter(Mandatory=$true)] [string] $ArchivePath,
     [Parameter(Mandatory=$true)] [string] $DestinationRoot,
     [string] $BackupRoot,
-    [string] $ExpectedVersion = '0.1.4',
+    [string] $ExpectedVersion = '0.1.5',
     [string] $VerifierPath,
     [string] $SupportedHostsPath,
     [string] $ReportPath,
@@ -236,7 +236,12 @@ function Get-SupportedHostPolicy {
             stockLauncherSha256 =
                 'B9CDAD3629703883EFC9D5C7427425CF6A8105746E674E4DD3DF783B4F044AEE'
             accessibleLauncherSha256 = @(
-                '683F704F061D943A976D764233A6B3C290ACF9E5C1B150B7180A03224CA3A912'
+                '683F704F061D943A976D764233A6B3C290ACF9E5C1B150B7180A03224CA3A912',
+                'F4F5651E86856306EF215A90C1EF6E2572BECF38A208AC9B569BD00F6B795E48'
+            )
+            accessibleProxySha256 = @(
+                'A306A9AEF702042B628A3F0AF2DF121462EF3268345896DB60E55B6FC553CA4D',
+                '287F6FD3D1BBFDE03CBAEDB391921EE0A68EDC25EDA5024615EA0350CCBC49C3'
             )
         }
     }
@@ -250,6 +255,14 @@ function Get-SupportedHostPolicy {
         foreach ($hash in @($accessibleProperty.Value)) {
             if ([string]$hash -notmatch '^[0-9A-Fa-f]{64}$') {
                 throw 'Supported accessible launcher policy is invalid.'
+            }
+        }
+    }
+    $proxyProperty = $policy.PSObject.Properties['accessibleProxySha256']
+    if ($null -ne $proxyProperty) {
+        foreach ($hash in @($proxyProperty.Value)) {
+            if ([string]$hash -notmatch '^[0-9A-Fa-f]{64}$') {
+                throw 'Supported accessible proxy policy is invalid.'
             }
         }
     }
@@ -408,13 +421,22 @@ try {
     $packageProxy = Join-Path $extractRoot 'ff7.exe.local\winmm.dll'
     $packageProxyHash = (Get-FileHash -LiteralPath $packageProxy `
         -Algorithm SHA256).Hash
+    $knownProxyHashes = @($packageProxyHash)
+    $proxyProperty = $policy.PSObject.Properties['accessibleProxySha256']
+    if ($null -ne $proxyProperty) {
+        $knownProxyHashes += @($proxyProperty.Value | ForEach-Object {
+            [string]$_
+        })
+    }
     foreach ($relative in $proxyPaths) {
         $existing = Join-Path $destinationFull $relative.Replace('/','\')
         if (Test-Path -LiteralPath $existing -PathType Leaf) {
             $existingHash = (Get-FileHash -LiteralPath $existing `
                 -Algorithm SHA256).Hash
-            if (-not $existingHash.Equals($packageProxyHash,
-                    [StringComparison]::OrdinalIgnoreCase)) {
+            $proxyRecognized = @($knownProxyHashes | Where-Object {
+                $existingHash.Equals($_, [StringComparison]::OrdinalIgnoreCase)
+            }).Count -gt 0
+            if (-not $proxyRecognized) {
                 throw "An unknown executable-local winmm.dll already exists: $existing"
             }
         }

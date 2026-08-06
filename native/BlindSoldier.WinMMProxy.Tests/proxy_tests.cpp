@@ -72,7 +72,7 @@ ProxyBootstrapContext MakeDirectContext(const fs::path& root,
         (std::wstring(processName) + L".local") / L"winmm.dll";
     context.processId = 4242;
     context.launchId = L"12345678-1234-1234-1234-1234567890AB";
-    context.readyEventName = L"Local\\BlindSoldier-Ready-test";
+    context.readyEventName = BuildReadyEventName(context.launchId);
     Touch(context.processImage);
     Touch(context.proxyModule);
     return context;
@@ -94,7 +94,8 @@ ProxyBootstrapHooks ReadyHooks(int& launchCount) {
         Check(arguments.find(L"--pid 4242") != std::wstring::npos,
               "pid argument");
         Check(arguments.find(L"--ready-event") != std::wstring::npos &&
-              event == L"Local\\BlindSoldier-Ready-test",
+              event ==
+                  L"Local\\BlindSoldier.Ready.12345678-1234-1234-1234-1234567890AB",
               "ready event argument");
         return BrokerWaitResult::Ready;
     };
@@ -224,6 +225,9 @@ void TestCoordinator() {
 }
 
 void TestArgumentsAndNames() {
+    Check(BuildReadyEventName(L"01234567") ==
+              L"Local\\BlindSoldier.Ready.01234567",
+          "proxy and broker share the canonical ready-event contract");
     Check(IsSupportedFf7ProcessName(L"C:/Game/FF7_EN.EXE"),
           "ff7_en name accepted case-insensitively");
     Check(IsSupportedFf7ProcessName(L"C:/Game/ff7.exe"),

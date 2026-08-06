@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory=$true)] [string] $ArchivePath,
-    [string] $ExpectedVersion = '0.1.4'
+    [string] $ExpectedVersion = '0.1.5'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -24,6 +24,10 @@ $required = @(
     'ff7.exe.local/winmm.dll',
     'ff7/workingdir/ff7_en.exe.local/winmm.dll',
     'ff7/workingdir/ff7.exe.local/winmm.dll',
+    'ff7/workingdir/AF3DN.P',
+    'ff7/workingdir/AF4DN.P',
+    'ff7/workingdir/FFNx.toml',
+    'ff7/workingdir/steam_api.dll',
     'Blind-Soldier/Bootstrap/x86/Blind-Soldier-Bootstrap-x86.exe',
     'Blind-Soldier/Bootstrap/x64/Blind-Soldier-Bootstrap-x64.exe',
     'Blind-Soldier/Runtime/dotnet/x86/host/fxr/9.0.8/hostfxr.dll',
@@ -37,6 +41,7 @@ $required = @(
     'Reloaded-II/Mods/reloaded.sharedlib.hooks/ModConfig.json',
     'LICENSES/dotnet-LICENSE.txt',
     'LICENSES/dotnet-THIRD-PARTY-NOTICES.txt',
+    'LICENSES/FFNx-GPL-3.0.txt',
     'README-PORTABLE.txt',
     'portable-manifest.json'
 )
@@ -317,7 +322,9 @@ try {
             $_.Name -match '^windowsdesktop-runtime-.+\.exe$' -or
             $_.Extension -in @('.pdb','.obj','.iobj','.ipdb')
         })
-    foreach ($rootForbidden in @('winmm.dll','dinput.dll')) {
+    foreach ($rootForbidden in @(
+        'winmm.dll','version.dll','dinput.dll','AF3DN.P','AF4DN.P','FFNx.toml',
+        'steam_api.dll')) {
         if (Test-Path -LiteralPath (Join-Path $verificationRoot $rootForbidden)) {
             $forbidden += Get-Item -LiteralPath (Join-Path $verificationRoot $rootForbidden)
         }
@@ -388,6 +395,15 @@ try {
         HostFxrX64 = Assert-Machine -Path (Join-Path $verificationRoot `
             'Blind-Soldier\Runtime\dotnet\x64\host\fxr\9.0.8\hostfxr.dll') `
             -Expected 0x8664 -Label 'x64 private hostfxr'
+        FFNxD3D9 = Assert-Machine -Path (Join-Path $verificationRoot `
+            'ff7\workingdir\AF3DN.P') -Expected 0x014C `
+            -Label 'FFNx x86 D3D9 driver'
+        FFNxD3D11 = Assert-Machine -Path (Join-Path $verificationRoot `
+            'ff7\workingdir\AF4DN.P') -Expected 0x014C `
+            -Label 'FFNx x86 D3D11 driver'
+        FFNxSteamApi = Assert-Machine -Path (Join-Path $verificationRoot `
+            'ff7\workingdir\steam_api.dll') -Expected 0x014C `
+            -Label 'FFNx Steam x86 API library'
     }
 
     $peCount = 0

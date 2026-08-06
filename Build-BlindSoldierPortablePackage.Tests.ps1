@@ -132,17 +132,26 @@ function New-PortableFixture {
     New-PortableTestPe -Path (Join-Path $hooks 'x86\Reloaded.Hooks.ReloadedII.dll') -Machine 0x014C
     New-PortableTestPe -Path (Join-Path $hooks 'x64\Reloaded.Hooks.ReloadedII.dll') -Machine 0x8664
 
+    $ffnx = Join-Path $prerequisites 'ffnx'
+    New-PortableTestPe -Path (Join-Path $ffnx 'AF3DN.P') -Machine 0x014C
+    New-PortableTestPe -Path (Join-Path $ffnx 'AF4DN.P') -Machine 0x014C
+    New-PortableTestPe -Path (Join-Path $ffnx 'steam_api.dll') -Machine 0x014C
+    [IO.File]::WriteAllText((Join-Path $ffnx 'FFNx.toml'), 'fixture FFNx config')
+    [IO.File]::WriteAllText((Join-Path $ffnx 'FFNx.pdb'), 'must not ship')
+    New-Item -ItemType Directory -Path (Join-Path $ffnx 'shaders') -Force | Out-Null
+    [IO.File]::WriteAllText((Join-Path $ffnx 'shaders\fixture.fx'), 'fixture shader')
+
     $notices = Join-Path $prerequisites 'notices'
     New-Item -ItemType Directory -Path $notices -Force | Out-Null
     foreach ($name in @(
         'THIRD-PARTY-NOTICES.md', 'Reloaded-II-GPL-3.0.txt',
         'Reloaded-Shared-Hooks-LGPL-3.0.txt', 'dotnet-LICENSE.txt',
-        'dotnet-THIRD-PARTY-NOTICES.txt')) {
+        'dotnet-THIRD-PARTY-NOTICES.txt', 'FFNx-GPL-3.0.txt')) {
         [IO.File]::WriteAllText((Join-Path $notices $name), "fixture $name")
     }
 
     [IO.File]::WriteAllText((Join-Path $mod 'ModConfig.json'),
-        '{"ModId":"ff7.accessibility.reloaded","ModVersion":"0.1.4","ModR2RManagedDll32":"x86/Ff7.Accessibility.Reloaded.dll","ModR2RManagedDll64":"x64/Ff7.Accessibility.Steam2026X64.dll","ModDependencies":["reloaded.sharedlib.hooks"],"SupportedAppId":["ff7_en.exe","ff7.exe","FFVII.exe"]}')
+        '{"ModId":"ff7.accessibility.reloaded","ModVersion":"0.1.5","ModR2RManagedDll32":"x86/Ff7.Accessibility.Reloaded.dll","ModR2RManagedDll64":"x64/Ff7.Accessibility.Steam2026X64.dll","ModDependencies":["reloaded.sharedlib.hooks"],"SupportedAppId":["ff7_en.exe","ff7.exe","FFVII.exe"]}')
     New-PortableTestPe -Path (Join-Path $mod 'x86\Ff7.Accessibility.Reloaded.dll') -Machine 0x014C
     New-PortableTestPe -Path (Join-Path $mod 'x64\Ff7.Accessibility.Steam2026X64.dll') -Machine 0x8664
     New-PortableTestPe -Path (Join-Path $mod 'x86\prism.dll') -Machine 0x014C
@@ -181,7 +190,7 @@ function New-PortableFixture {
 
 function Invoke-FixtureBuild {
     param([psobject] $Fixture, [string] $Output)
-    & $builderPath -OutputPath $Output -Version '0.1.4' `
+    & $builderPath -OutputPath $Output -Version '0.1.5' `
         -PrerequisiteBundlePath $Fixture.Prerequisites `
         -ModPackagePath $Fixture.Mod `
         -LauncherBundlePath $Fixture.Launcher `
@@ -268,6 +277,11 @@ Describe 'Blind Soldier direct-extract portable package' {
             'ff7_en.exe.local/winmm.dll', 'ff7.exe.local/winmm.dll',
             'ff7/workingdir/ff7_en.exe.local/winmm.dll',
             'ff7/workingdir/ff7.exe.local/winmm.dll',
+            'ff7/workingdir/AF3DN.P',
+            'ff7/workingdir/AF4DN.P',
+            'ff7/workingdir/FFNx.toml',
+            'ff7/workingdir/steam_api.dll',
+            'ff7/workingdir/shaders/fixture.fx',
             'Blind-Soldier/Bootstrap/x86/Blind-Soldier-Bootstrap-x86.exe',
             'Blind-Soldier/Bootstrap/x64/Blind-Soldier-Bootstrap-x64.exe',
             'Blind-Soldier/Runtime/dotnet/x86/host/fxr/9.0.8/hostfxr.dll',
@@ -277,16 +291,20 @@ Describe 'Blind Soldier direct-extract portable package' {
             'Reloaded-II/Mods/reloaded.sharedlib.hooks/ModConfig.json',
             'LICENSES/dotnet-LICENSE.txt',
             'LICENSES/dotnet-THIRD-PARTY-NOTICES.txt',
+            'LICENSES/FFNx-GPL-3.0.txt',
             'README-PORTABLE.txt', 'portable-manifest.json'
         )) { ($entries -ccontains $required) | Should Be $true }
 
         foreach ($forbidden in @(
             'Blind-Soldier-Installer.exe', 'Blind-Soldier-Launcher-x86.exe',
-            'Blind-Soldier-Launcher-x64.exe', 'winmm.dll', 'dinput.dll',
+            'Blind-Soldier-Launcher-x64.exe', 'winmm.dll', 'version.dll',
+            'dinput.dll',
             'Reloaded-II/ReloadedII.json')) {
             ($entries -ccontains $forbidden) | Should Be $false
         }
         @($entries | Where-Object { $_ -match '(?i)(windowsdesktop-runtime-.+\.exe|\.(pdb|obj|iobj|ipdb)$)' }).Count | Should Be 0
+        ($entries -ccontains 'AF3DN.P') | Should Be $false
+        ($entries -ccontains 'FFNx.toml') | Should Be $false
     }
 
     It 'uses four byte-identical proxy copies and no loose root proxy' {
@@ -304,10 +322,11 @@ Describe 'Blind Soldier direct-extract portable package' {
         $fixture = New-PortableFixture
         Invoke-FixtureBuild -Fixture $fixture -Output $fixture.First
         $readme = Get-PortableEntryText -Path $fixture.First -EntryPath 'README-PORTABLE.txt'
-        $readme.StartsWith("Blind Soldier 0.1.4`r`n`r`n1. Extract every file in this ZIP into your Final Fantasy VII game folder.`r`n2. Start the game normally from Steam or 7th Heaven.") | Should Be $true
+        $readme.StartsWith("Blind Soldier 0.1.5`r`n`r`n1. Extract every file in this ZIP into your Final Fantasy VII game folder.`r`n2. Start the game normally from Steam or 7th Heaven.") | Should Be $true
         $readme | Should Not Match '(?i)Blind-Soldier-Installer|/install|/uninstall|Image File Execution Options'
         $readme | Should Match '(?i)no administrator'
         $readme | Should Match '(?i)\.local\\winmm\.dll'
+        $readme | Should Match '(?i)FFNx 1\.24\.3\.0'
     }
 
     It 'is byte-for-byte deterministic for identical inputs' {
@@ -324,7 +343,7 @@ Describe 'Blind Soldier direct-extract portable package' {
     It 'rejects an unsafe ZIP member before extraction' {
         $fixture = New-PortableFixture
         New-UnsafePortableZip -Path $fixture.First
-        { & $verifierPath -ArchivePath $fixture.First -ExpectedVersion '0.1.4' } |
+        { & $verifierPath -ArchivePath $fixture.First -ExpectedVersion '0.1.5' } |
             Should Throw 'unsafe path member'
         Test-Path -LiteralPath (Join-Path $fixture.Root 'escaped.txt') |
             Should Be $false
@@ -345,7 +364,7 @@ Describe 'Blind Soldier direct-extract portable package' {
             'notices\THIRD-PARTY-NOTICES.md'),
             'Image File Execution Options must not ship')
         Invoke-FixtureBuild -Fixture $fixture -Output $fixture.First
-        { & $verifierPath -ArchivePath $fixture.First -ExpectedVersion '0.1.4' } |
+        { & $verifierPath -ArchivePath $fixture.First -ExpectedVersion '0.1.5' } |
             Should Throw 'obsolete registry workflow'
     }
 }

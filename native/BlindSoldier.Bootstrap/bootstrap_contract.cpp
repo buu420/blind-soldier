@@ -22,12 +22,12 @@ bool IsCanonicalGuid(const std::wstring& value) {
 }
 
 bool IsReadyEventName(const std::wstring& value) {
-    static constexpr wchar_t prefix[] = L"Local\\BlindSoldier.Ready.";
-    if (value.size() <= wcslen(prefix) || value.size() > 240 ||
-        value.compare(0, wcslen(prefix), prefix) != 0) {
+    const size_t prefixLength = wcslen(READY_EVENT_PREFIX);
+    if (value.size() <= prefixLength || value.size() > 240 ||
+        value.compare(0, prefixLength, READY_EVENT_PREFIX) != 0) {
         return false;
     }
-    for (size_t index = wcslen(prefix); index < value.size(); ++index) {
+    for (size_t index = prefixLength; index < value.size(); ++index) {
         wchar_t character = value[index];
         if (!iswalnum(character) && character != L'-' &&
             character != L'_' && character != L'.') {

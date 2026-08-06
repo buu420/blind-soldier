@@ -140,18 +140,23 @@ Describe 'Blind Soldier guarded x86 WinMM proxy' {
         try {
             $modifiedWinmm = Join-Path $root 'winmm.dll'
             Copy-Item -LiteralPath $systemWinmm -Destination $modifiedWinmm
-            $bytes = [IO.File]::ReadAllBytes($modifiedWinmm)
-            $peOffset = [BitConverter]::ToInt32($bytes, 0x3C)
-            $checksumOffset = $peOffset + 88
-            $bytes[$checksumOffset] = $bytes[$checksumOffset] -bxor 1
-            [IO.File]::WriteAllBytes($modifiedWinmm, $bytes)
+            $stream = [IO.File]::Open($modifiedWinmm, [IO.FileMode]::Open,
+                [IO.FileAccess]::Write, [IO.FileShare]::None)
+            try {
+                $stream.Position = $stream.Length
+                $stream.WriteByte(0x42)
+            }
+            finally { $stream.Dispose() }
 
-            {
+            $strictRejected = $false
+            try {
                 & $generatorPath -SystemWinmmPath $modifiedWinmm `
                     -ManifestPath (Join-Path $root 'strict.json') `
                     -IncludePath (Join-Path $root 'strict.inc') `
                     -DefinitionPath (Join-Path $root 'strict.def')
-            } | Should Throw
+            }
+            catch { $strictRejected = $true }
+            $strictRejected | Should Be $true
 
             & $generatorPath -SystemWinmmPath $modifiedWinmm `
                 -AllowCompatibleSystemWinmm `

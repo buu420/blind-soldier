@@ -210,7 +210,7 @@ DWORD WINAPI ProxyWorker(void*) {
         context.proxyModule = proxyPath;
         context.processId = GetCurrentProcessId();
         context.launchId = launchId;
-        context.readyEventName = L"Local\\BlindSoldier-Ready-" + launchId;
+        context.readyEventName = BuildReadyEventName(launchId);
         const ProxyBootstrapOutcome outcome = CoordinateProxyBootstrap(
             context, DefaultHooks(), g_proxyLog);
         if (outcome.state == ProxyBootstrapState::Ready ||
@@ -273,6 +273,10 @@ fs::path DeriveDiagnosticRoot(const fs::path& proxyModule) {
         return candidate.parent_path().parent_path();
     }
     return candidate;
+}
+
+std::wstring BuildReadyEventName(const std::wstring& launchId) {
+    return std::wstring(READY_EVENT_PREFIX) + launchId;
 }
 
 bool DiscoverPortableRoot(

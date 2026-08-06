@@ -24,6 +24,7 @@ namespace fs = std::filesystem;
 
 constexpr const wchar_t* SHARED_HOOKS_MOD_ID = L"reloaded.sharedlib.hooks";
 constexpr const wchar_t* ACCESSIBILITY_MOD_ID = L"ff7.accessibility.reloaded";
+constexpr const wchar_t* READY_EVENT_PREFIX = L"Local\\BlindSoldier.Ready.";
 
 class Logger {
 public:

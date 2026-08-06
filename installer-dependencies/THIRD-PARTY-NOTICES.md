@@ -22,6 +22,16 @@ code is available without charge at the exact source link above.
 - License: GNU Lesser General Public License version 3, included as
   `Reloaded-Shared-Hooks-LGPL-3.0.txt`.
 
+## FFNx 1.24.3.0
+
+- Project: https://github.com/julianxhokaxhiu/FFNx
+- Exact source: https://github.com/julianxhokaxhiu/FFNx/tree/1.24.3
+- License: GNU General Public License version 3, included as
+  `FFNx-GPL-3.0.txt`.
+
+FFNx is separate software aggregated with Blind Soldier. Its source code is
+available without charge at the exact source link above.
+
 ## Microsoft .NET Desktop Runtime 9.0.8
 
 - Project: https://github.com/dotnet/runtime

@@ -131,7 +131,50 @@ function Get-LockedArtifact {
         }
         $temporary = Join-Path $CachePath ('.download-' + [Guid]::NewGuid().ToString('N'))
         try {
-            Invoke-WebRequest -UseBasicParsing -Uri $Url -OutFile $temporary
+            try {
+                Invoke-WebRequest -UseBasicParsing -Uri $Url -OutFile $temporary
+            }
+            catch {
+                $webFailure = $_.Exception.Message
+                $downloaded = $false
+                $curl = Get-Command curl.exe -ErrorAction SilentlyContinue
+                if ($null -ne $curl) {
+                    & $curl.Source --fail --location --silent --show-error `
+                        --retry 3 --output $temporary $Url
+                    $downloaded = $LASTEXITCODE -eq 0
+                }
+                if (-not $downloaded -and $Url -match `
+                    '^https://github\.com/([^/]+)/([^/]+)/releases/download/([^/]+)/([^/?#]+)$') {
+                    $repository = "$($matches[1])/$($matches[2])"
+                    $tag = [Uri]::UnescapeDataString($matches[3])
+                    $asset = [Uri]::UnescapeDataString($matches[4])
+                    if ($asset -cne $Name) {
+                        throw "$Label URL asset name does not match its locked file name."
+                    }
+                    $gh = Get-Command gh.exe -ErrorAction SilentlyContinue
+                    if ($null -eq $gh) { $gh = Get-Command gh -ErrorAction SilentlyContinue }
+                    if ($null -ne $gh) {
+                        $ghRoot = Join-Path $DownloadRoot `
+                            ('.gh-download-' + [Guid]::NewGuid().ToString('N'))
+                        New-Item -ItemType Directory -Path $ghRoot | Out-Null
+                        & $gh.Source release download $tag --repo $repository `
+                            --pattern $asset --dir $ghRoot
+                        if ($LASTEXITCODE -eq 0) {
+                            $ghFile = Join-Path $ghRoot $asset
+                            if (Test-Path -LiteralPath $ghFile -PathType Leaf) {
+                                Copy-Item -LiteralPath $ghFile -Destination $temporary -Force
+                                $downloaded = $true
+                            }
+                        }
+                        else {
+                            $webFailure += " GitHub CLI could not resolve repository '$repository', tag '$tag', asset '$asset'."
+                        }
+                    }
+                }
+                if (-not $downloaded) {
+                    throw "Unable to download $Label with the verified HTTPS and GitHub release paths: $webFailure"
+                }
+            }
             Assert-FileRecord -Path $temporary -Size $Size -Sha256 $Sha256 -Sha512 $Sha512 -Label $Label
             Move-Item -LiteralPath $temporary -Destination $cached
         }
@@ -178,16 +221,20 @@ function Assert-NoReparsePoint {
 }
 
 function Expand-SafeZip {
-    param([Parameter(Mandatory=$true)] [string] $ArchivePath, [Parameter(Mandatory=$true)] [string] $Destination)
+    param(
+        [Parameter(Mandatory=$true)] [string] $ArchivePath,
+        [Parameter(Mandatory=$true)] [string] $Destination,
+        [string] $Label = 'ZIP archive'
+    )
     Add-Type -AssemblyName System.IO.Compression
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     $archive = [IO.Compression.ZipFile]::OpenRead($ArchivePath)
     try {
         $members = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
         foreach ($entry in $archive.Entries) {
-            $normalized = Assert-SafeArchiveMember -Name $entry.FullName -Label 'Reloaded-II ZIP'
+            $normalized = Assert-SafeArchiveMember -Name $entry.FullName -Label $Label
             if (-not $members.Add($normalized)) {
-                throw "Reloaded-II ZIP contains a case-insensitive duplicate member: $($entry.FullName)"
+                throw "$Label contains a case-insensitive duplicate member: $($entry.FullName)"
             }
         }
     }
@@ -196,7 +243,7 @@ function Expand-SafeZip {
     }
     New-Item -ItemType Directory -Path $Destination -Force | Out-Null
     [IO.Compression.ZipFile]::ExtractToDirectory($ArchivePath, $Destination)
-    Assert-NoReparsePoint -Root $Destination -Label 'Reloaded-II ZIP extraction'
+    Assert-NoReparsePoint -Root $Destination -Label "$Label extraction"
 }
 
 function Expand-SafeSevenZip {
@@ -286,10 +333,11 @@ try {
 catch {
     throw "Dependency lock is invalid JSON: $($_.Exception.Message)"
 }
-Assert-ExactProperties -Value $lock -Expected @('schemaVersion','reloaded','sharedHooks','dotnetDesktopRuntime') -Label 'Dependency lock'
+Assert-ExactProperties -Value $lock -Expected @('schemaVersion','reloaded','sharedHooks','ffnx','dotnetDesktopRuntime') -Label 'Dependency lock'
 if ([int]$lock.schemaVersion -ne 1) { throw 'Dependency lock schemaVersion must be 1.' }
 Assert-ExactProperties -Value $lock.reloaded -Expected @('version','assetName','url','size','sha256','sourceCodeUrl','licensePath','licenseSize','licenseSha256') -Label 'Reloaded lock'
 Assert-ExactProperties -Value $lock.sharedHooks -Expected @('version','assetName','url','size','sha256','sourceCodeUrl','licenseName','licenseUrl','licenseSize','licenseSha256') -Label 'Shared Hooks lock'
+Assert-ExactProperties -Value $lock.ffnx -Expected @('version','assetName','url','size','sha256','sourceCodeUrl','licensePath','licenseName','licenseSize','licenseSha256') -Label 'FFNx lock'
 Assert-ExactProperties -Value $lock.dotnetDesktopRuntime -Expected @('version','sourceCodeUrl','licenseName','licenseUrl','licenseSize','licenseSha256','thirdPartyNoticesName','thirdPartyNoticesUrl','thirdPartyNoticesSize','thirdPartyNoticesSha256','installers','portableArchives') -Label '.NET lock'
 foreach ($urlRecord in @(
     [pscustomobject]@{ Url=[string]$lock.reloaded.url; Label='Reloaded asset URL' },
@@ -297,6 +345,8 @@ foreach ($urlRecord in @(
     [pscustomobject]@{ Url=[string]$lock.sharedHooks.url; Label='Shared Hooks asset URL' },
     [pscustomobject]@{ Url=[string]$lock.sharedHooks.sourceCodeUrl; Label='Shared Hooks source URL' },
     [pscustomobject]@{ Url=[string]$lock.sharedHooks.licenseUrl; Label='Shared Hooks license URL' },
+    [pscustomobject]@{ Url=[string]$lock.ffnx.url; Label='FFNx asset URL' },
+    [pscustomobject]@{ Url=[string]$lock.ffnx.sourceCodeUrl; Label='FFNx source URL' },
     [pscustomobject]@{ Url=[string]$lock.dotnetDesktopRuntime.sourceCodeUrl; Label='.NET source URL' },
     [pscustomobject]@{ Url=[string]$lock.dotnetDesktopRuntime.licenseUrl; Label='.NET license URL' },
     [pscustomobject]@{ Url=[string]$lock.dotnetDesktopRuntime.thirdPartyNoticesUrl; Label='.NET notices URL' }
@@ -305,6 +355,8 @@ foreach ($nameRecord in @(
     [pscustomobject]@{ Name=[string]$lock.reloaded.assetName; Label='Reloaded asset name' },
     [pscustomobject]@{ Name=[string]$lock.sharedHooks.assetName; Label='Shared Hooks asset name' },
     [pscustomobject]@{ Name=[string]$lock.sharedHooks.licenseName; Label='Shared Hooks license name' },
+    [pscustomobject]@{ Name=[string]$lock.ffnx.assetName; Label='FFNx asset name' },
+    [pscustomobject]@{ Name=[string]$lock.ffnx.licenseName; Label='FFNx license name' },
     [pscustomobject]@{ Name=[string]$lock.dotnetDesktopRuntime.licenseName; Label='.NET license name' },
     [pscustomobject]@{ Name=[string]$lock.dotnetDesktopRuntime.thirdPartyNoticesName; Label='.NET notices name' }
 )) { Assert-SafeLeafName -Name $nameRecord.Name -Label $nameRecord.Label }
@@ -312,6 +364,8 @@ Assert-HexDigest -Digest ([string]$lock.reloaded.sha256) -Length 64 -Label 'Relo
 Assert-HexDigest -Digest ([string]$lock.reloaded.licenseSha256) -Length 64 -Label 'Reloaded license SHA-256'
 Assert-HexDigest -Digest ([string]$lock.sharedHooks.sha256) -Length 64 -Label 'Shared Hooks SHA-256'
 Assert-HexDigest -Digest ([string]$lock.sharedHooks.licenseSha256) -Length 64 -Label 'Shared Hooks license SHA-256'
+Assert-HexDigest -Digest ([string]$lock.ffnx.sha256) -Length 64 -Label 'FFNx SHA-256'
+Assert-HexDigest -Digest ([string]$lock.ffnx.licenseSha256) -Length 64 -Label 'FFNx license SHA-256'
 Assert-HexDigest -Digest ([string]$lock.dotnetDesktopRuntime.licenseSha256) -Length 64 -Label '.NET license SHA-256'
 Assert-HexDigest -Digest ([string]$lock.dotnetDesktopRuntime.thirdPartyNoticesSha256) -Length 64 -Label '.NET notices SHA-256'
 $installers = @($lock.dotnetDesktopRuntime.installers)
@@ -362,6 +416,8 @@ try {
         -Size ([long]$lock.reloaded.size) -Sha256 ([string]$lock.reloaded.sha256) -DownloadRoot $downloads -Label 'Reloaded-II archive'
     $hooksArchive = Get-LockedArtifact -Url ([string]$lock.sharedHooks.url) -Name ([string]$lock.sharedHooks.assetName) `
         -Size ([long]$lock.sharedHooks.size) -Sha256 ([string]$lock.sharedHooks.sha256) -DownloadRoot $downloads -Label 'Shared Hooks archive'
+    $ffnxArchive = Get-LockedArtifact -Url ([string]$lock.ffnx.url) -Name ([string]$lock.ffnx.assetName) `
+        -Size ([long]$lock.ffnx.size) -Sha256 ([string]$lock.ffnx.sha256) -DownloadRoot $downloads -Label 'FFNx archive'
     $hooksLicense = Get-LockedArtifact -Url ([string]$lock.sharedHooks.licenseUrl) -Name ([string]$lock.sharedHooks.licenseName) `
         -Size ([long]$lock.sharedHooks.licenseSize) -Sha256 ([string]$lock.sharedHooks.licenseSha256) -DownloadRoot $downloads -Label 'Shared Hooks license'
     $dotnetLicense = Get-LockedArtifact -Url ([string]$lock.dotnetDesktopRuntime.licenseUrl) -Name ([string]$lock.dotnetDesktopRuntime.licenseName) `
@@ -376,7 +432,8 @@ try {
     }
 
     $reloadedFull = Join-Path $temporary 'reloaded-full'
-    Expand-SafeZip -ArchivePath $reloadedArchive -Destination $reloadedFull
+    Expand-SafeZip -ArchivePath $reloadedArchive -Destination $reloadedFull `
+        -Label 'Reloaded-II ZIP'
     if (-not [string]::IsNullOrWhiteSpace($BootstrapperX86Override)) {
         Copy-Item -LiteralPath $BootstrapperX86Override -Destination (Join-Path $reloadedFull 'Loader\X86\Bootstrapper\Reloaded.Mod.Loader.Bootstrapper.dll') -Force
     }
@@ -415,6 +472,41 @@ try {
     try { $hooksConfig = [IO.File]::ReadAllText($hooksConfigPath) | ConvertFrom-Json } catch { throw "Shared Hooks ModConfig.json is invalid: $($_.Exception.Message)" }
     if ([string]$hooksConfig.ModId -cne 'reloaded.sharedlib.hooks') { throw 'Shared Hooks archive has an unexpected ModId.' }
 
+    $ffnxFull = Join-Path $temporary 'ffnx-full'
+    Expand-SafeZip -ArchivePath $ffnxArchive -Destination $ffnxFull `
+        -Label 'FFNx ZIP'
+    $ffnxPdb = Join-Path $ffnxFull 'FFNx.pdb'
+    if (-not (Test-Path -LiteralPath $ffnxPdb -PathType Leaf)) {
+        throw 'FFNx archive is missing the expected removable FFNx.pdb debug symbols.'
+    }
+    Remove-Item -LiteralPath $ffnxPdb -Force
+    $otherFfnxPdbs = @(Get-ChildItem -LiteralPath $ffnxFull -File -Recurse -Force |
+        Where-Object Extension -EQ '.pdb')
+    if ($otherFfnxPdbs.Count -ne 0) {
+        throw "FFNx archive contains unexpected debug symbols: $($otherFfnxPdbs.FullName -join ', ')"
+    }
+    foreach ($relative in @('AF3DN.P','AF4DN.P','FFNx.toml','steam_api.dll')) {
+        if (-not (Test-Path -LiteralPath (Join-Path $ffnxFull $relative) -PathType Leaf)) {
+            throw "FFNx archive is missing $relative."
+        }
+    }
+    $ffnxLicenseRelative = Assert-SafeArchiveMember `
+        -Name ([string]$lock.ffnx.licensePath) -Label 'FFNx license path'
+    $ffnxLicense = Join-Path $ffnxFull $ffnxLicenseRelative.Replace('/','\')
+    Assert-FileRecord -Path $ffnxLicense -Size ([long]$lock.ffnx.licenseSize) `
+        -Sha256 ([string]$lock.ffnx.licenseSha256) -Label 'FFNx license'
+    Assert-PeMachine -Path (Join-Path $ffnxFull 'AF3DN.P') -Expected 0x014C `
+        -Label 'FFNx x86 D3D9 driver'
+    Assert-PeMachine -Path (Join-Path $ffnxFull 'AF4DN.P') -Expected 0x014C `
+        -Label 'FFNx x86 D3D11 driver'
+    Assert-PeMachine -Path (Join-Path $ffnxFull 'steam_api.dll') -Expected 0x014C `
+        -Label 'FFNx Steam x86 API library'
+    $ffnxRoot = Join-Path $bundle 'ffnx'
+    New-Item -ItemType Directory -Path $ffnxRoot | Out-Null
+    foreach ($item in @(Get-ChildItem -LiteralPath $ffnxFull -Force)) {
+        Copy-Item -LiteralPath $item.FullName -Destination $ffnxRoot -Recurse
+    }
+
     $dotnetRoot = Join-Path $bundle 'dotnet'
     New-Item -ItemType Directory -Path $dotnetRoot | Out-Null
     foreach ($installer in $installers) {
@@ -427,6 +519,7 @@ try {
     Assert-FileRecord -Path $reloadedLicense -Size ([long]$lock.reloaded.licenseSize) -Sha256 ([string]$lock.reloaded.licenseSha256) -Label 'Reloaded-II license'
     Copy-Item -LiteralPath $reloadedLicense -Destination (Join-Path $noticesRoot 'Reloaded-II-GPL-3.0.txt')
     Copy-Item -LiteralPath $hooksLicense -Destination (Join-Path $noticesRoot ([string]$lock.sharedHooks.licenseName))
+    Copy-Item -LiteralPath $ffnxLicense -Destination (Join-Path $noticesRoot ([string]$lock.ffnx.licenseName))
     Copy-Item -LiteralPath $dotnetLicense -Destination (Join-Path $noticesRoot ([string]$lock.dotnetDesktopRuntime.licenseName))
     Copy-Item -LiteralPath $dotnetNotices -Destination (Join-Path $noticesRoot ([string]$lock.dotnetDesktopRuntime.thirdPartyNoticesName))
 
@@ -452,6 +545,9 @@ try {
     Assert-PeMachine -Path (Join-Path $reloadedRoot '_asi_extract\ASILoader64.dll') -Expected 0x8664 -Label 'x64 ASI loader'
     Assert-PeMachine -Path (Join-Path $reloadedRoot 'Loader\X86\Bootstrapper\Reloaded.Mod.Loader.Bootstrapper.dll') -Expected 0x014C -Label 'x86 Reloaded bootstrapper'
     Assert-PeMachine -Path (Join-Path $reloadedRoot 'Loader\X64\Bootstrapper\Reloaded.Mod.Loader.Bootstrapper.dll') -Expected 0x8664 -Label 'x64 Reloaded bootstrapper'
+    Assert-PeMachine -Path (Join-Path $ffnxRoot 'AF3DN.P') -Expected 0x014C -Label 'bundled FFNx x86 D3D9 driver'
+    Assert-PeMachine -Path (Join-Path $ffnxRoot 'AF4DN.P') -Expected 0x014C -Label 'bundled FFNx x86 D3D11 driver'
+    Assert-PeMachine -Path (Join-Path $ffnxRoot 'steam_api.dll') -Expected 0x014C -Label 'bundled FFNx Steam x86 API library'
     Assert-NoReparsePoint -Root $bundle -Label 'Prerequisite bundle'
 
     $bundleManifest = [ordered]@{
@@ -469,6 +565,14 @@ try {
             sourceSize = [long]$lock.sharedHooks.size
             sourceSha256 = [string]$lock.sharedHooks.sha256
             sourceCodeUrl = [string]$lock.sharedHooks.sourceCodeUrl
+        }
+        ffnx = [ordered]@{
+            version = [string]$lock.ffnx.version
+            sourceUrl = [string]$lock.ffnx.url
+            sourceSize = [long]$lock.ffnx.size
+            sourceSha256 = [string]$lock.ffnx.sha256
+            sourceCodeUrl = [string]$lock.ffnx.sourceCodeUrl
+            omittedFiles = @('FFNx.pdb')
         }
         dotnetDesktopRuntime = [ordered]@{
             version = [string]$lock.dotnetDesktopRuntime.version
@@ -500,6 +604,7 @@ try {
         OutputPath = $resolvedOutput
         ReloadedVersion = [string]$lock.reloaded.version
         SharedHooksVersion = [string]$lock.sharedHooks.version
+        FFNxVersion = [string]$lock.ffnx.version
         DotNetDesktopRuntimeVersion = [string]$lock.dotnetDesktopRuntime.version
     }
 }
