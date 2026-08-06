@@ -16,3 +16,4 @@ using System.Runtime.Versioning;
 [assembly: InternalsVisibleTo("FFVII_LAUNCHER.Accessibility.Tests")]
 [assembly: AssemblyFileVersion("2.0.0.0")]
 [assembly: AssemblyVersion("2.0.0.0")]
+[assembly: AssemblyInformationalVersion("2.0.0.0+blind-soldier.0.1.4")]

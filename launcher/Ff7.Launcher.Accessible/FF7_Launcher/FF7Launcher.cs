@@ -1279,44 +1279,36 @@ public class FF7Launcher : Form
 
 	private bool launch_FF7Launcher()
 	{
-		string text = "FFVII.exe";
-		bool result = true;
-		ProcessStartInfo processStartInfo = new ProcessStartInfo(text);
-		processStartInfo.UseShellExecute = true;
-		processStartInfo.ErrorDialog = true;
-		processStartInfo.ErrorDialogParentHandle = base.Handle;
+		bool result = false;
 		try
 		{
-			if (!File.Exists(text))
+			var gameLauncher = new BlindSoldierGameLauncher();
+			string accessibleError;
+			result = gameLauncher.TryLaunch(
+				AppDomain.CurrentDomain.BaseDirectory,
+				languageInstalled,
+				out accessibleError);
+			if (!result)
 			{
-				string message = new FileNotFoundException().Message;
-				throw new FileNotFoundException(message + " :  " + text);
+				AccessibilitySpeech.ResetDeduplication();
+				AccessibilitySpeech.Speak(accessibleError, interrupt: true);
+				MessageBox.Show(
+					this,
+					accessibleError,
+					Program.Title,
+					MessageBoxButtons.OK,
+					MessageBoxIcon.Error);
 			}
-			Process process;
-			if (languageInstalled == "jp")
-			{
-				processStartInfo.Arguments = "jp";
-				process = Process.Start(processStartInfo);
-				Trace.WriteLine("Program Started JP : " + configFile.m_language + " " + DateTime.Now.ToString());
-			}
-			else
-			{
-				process = Process.Start(processStartInfo);
-				Trace.WriteLine("Program Started EFIGS : " + configFile.m_language + " " + DateTime.Now.ToString());
-			}
-			process.WaitForExit();
-			Trace.WriteLine("Program End : " + DateTime.Now.ToString());
-			Trace.WriteLine("exe : " + Environment.CurrentDirectory + text);
-			string[] files = Directory.GetFiles(Environment.CurrentDirectory, "*.*", SearchOption.AllDirectories);
-			foreach (string message2 in files)
-			{
-				Trace.WriteLine(message2);
-			}
+			Trace.WriteLine("Blind Soldier bootstrap ended : " + DateTime.Now.ToString());
 		}
-		catch (Exception)
+		catch (Exception exception)
 		{
-			ComponentResourceManager componentResourceManager = new ComponentResourceManager(typeof(FF7Launcher));
-			MessageBox.Show(componentResourceManager.GetString("FileMissing"), Program.Title);
+			string accessibleError = "Blind Soldier could not start Final Fantasy VII." + Environment.NewLine +
+				"Cause: The accessible launcher encountered an unexpected error. " + exception.Message + Environment.NewLine +
+				"Action: Extract the complete Blind Soldier portable package into the FFVII game folder again.";
+			AccessibilitySpeech.ResetDeduplication();
+			AccessibilitySpeech.Speak(accessibleError, interrupt: true);
+			MessageBox.Show(this, accessibleError, Program.Title, MessageBoxButtons.OK, MessageBoxIcon.Error);
 			result = false;
 		}
 		finally

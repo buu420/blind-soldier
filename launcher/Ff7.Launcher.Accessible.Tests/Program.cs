@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
@@ -20,6 +22,9 @@ internal static class Program
         Run("Prism receives serialized null-terminated UTF-8", PrismReceivesSerializedUtf8);
         Run("Prism dependency path must be absolute", PrismDependencyPathMustBeAbsolute);
         Run("settings controls expose visible labels and values", SettingsControlsExposeVisibleLabelsAndValues);
+        Run("Play launches only the x64 Blind Soldier broker", PlayLaunchesOnlyTheX64Broker);
+        Run("missing launch files fail closed with an accessible error", MissingLaunchFilesFailClosed);
+        Run("broker failures include cause action and absolute log", BrokerFailuresAreActionable);
 
         Console.WriteLine(failures == 0
             ? "All launcher accessibility tests passed."
@@ -139,6 +144,124 @@ internal static class Program
         }
     }
 
+    private static void PlayLaunchesOnlyTheX64Broker()
+    {
+        var root = NewLaunchRoot();
+        try
+        {
+            var game = Path.Combine(root, "FFVII.exe");
+            var bootstrap = Path.Combine(root,
+                BlindSoldierGameLauncher.BootstrapRelativePath);
+            Directory.CreateDirectory(Path.GetDirectoryName(bootstrap));
+            File.WriteAllBytes(game, new byte[] { 1 });
+            File.WriteAllBytes(bootstrap, new byte[] { 2 });
+            var runner = new RecordingGameProcessRunner { ExitCode = 0 };
+            var launchId = new Guid("11111111-2222-3333-4444-555555555555");
+            var launcher = new BlindSoldierGameLauncher(runner,
+                delegate { return launchId; });
+
+            string error;
+            AssertTrue(launcher.TryLaunch(root, "jp", out error));
+            AssertEqual(string.Empty, error);
+            AssertEqual(1, runner.CallCount);
+            AssertEqual(Path.GetFullPath(bootstrap), runner.StartInfo.FileName);
+            AssertFalse(runner.StartInfo.UseShellExecute);
+            AssertEqual(Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar),
+                runner.StartInfo.WorkingDirectory);
+            AssertTrue(runner.StartInfo.Arguments.Contains("--launch"));
+            AssertTrue(runner.StartInfo.Arguments.Contains(
+                "--root \"" + Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar) + "\""));
+            AssertTrue(runner.StartInfo.Arguments.Contains(
+                "--game \"" + Path.GetFullPath(game) + "\""));
+            AssertTrue(runner.StartInfo.Arguments.Contains(
+                "--launch-id 11111111-2222-3333-4444-555555555555"));
+            AssertTrue(runner.StartInfo.Arguments.EndsWith("--game-arguments jp",
+                StringComparison.Ordinal));
+            AssertFalse(string.Equals(runner.StartInfo.FileName, game,
+                StringComparison.OrdinalIgnoreCase));
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
+    private static void MissingLaunchFilesFailClosed()
+    {
+        var root = NewLaunchRoot();
+        try
+        {
+            var runner = new RecordingGameProcessRunner();
+            var launcher = new BlindSoldierGameLauncher(runner,
+                delegate { return Guid.Empty; });
+            string error;
+            AssertFalse(launcher.TryLaunch(root, "en", out error));
+            AssertTrue(error.Contains("FFVII.exe"));
+            AssertTrue(error.Contains("Action:"));
+            AssertTrue(Path.IsPathRooted(ExtractLogPath(error)));
+            AssertEqual(0, runner.CallCount);
+
+            File.WriteAllBytes(Path.Combine(root, "FFVII.exe"),
+                new byte[] { 1 });
+            AssertFalse(launcher.TryLaunch(root, "en", out error));
+            AssertTrue(error.Contains("Blind-Soldier-Bootstrap-x64.exe"));
+            AssertEqual(0, runner.CallCount);
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
+    private static void BrokerFailuresAreActionable()
+    {
+        var root = NewLaunchRoot();
+        try
+        {
+            var game = Path.Combine(root, "FFVII.exe");
+            var bootstrap = Path.Combine(root,
+                BlindSoldierGameLauncher.BootstrapRelativePath);
+            Directory.CreateDirectory(Path.GetDirectoryName(bootstrap));
+            File.WriteAllBytes(game, new byte[] { 1 });
+            File.WriteAllBytes(bootstrap, new byte[] { 2 });
+            var launchId = new Guid("AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE");
+
+            foreach (var exitCode in new[] { 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 99 })
+            {
+                var runner = new RecordingGameProcessRunner { ExitCode = exitCode };
+                var launcher = new BlindSoldierGameLauncher(runner,
+                    delegate { return launchId; });
+                string error;
+                AssertFalse(launcher.TryLaunch(root, "en", out error));
+                AssertTrue(error.Contains("Cause:"));
+                AssertTrue(error.Contains("Action:"));
+                AssertTrue(error.Contains("Blind-Soldier-Bootstrap-x64-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.log"));
+                AssertFalse(runner.StartInfo.Arguments.Contains("--game-arguments"));
+            }
+
+            var throwingRunner = new RecordingGameProcessRunner
+            {
+                Exception = new InvalidOperationException("fixture start failure")
+            };
+            var throwingLauncher = new BlindSoldierGameLauncher(throwingRunner,
+                delegate { return launchId; });
+            string startError;
+            AssertFalse(throwingLauncher.TryLaunch(root, "en", out startError));
+            AssertTrue(startError.Contains("fixture start failure"));
+            AssertTrue(startError.Contains("Action:"));
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
+    private static string NewLaunchRoot()
+    {
+        var root = Path.Combine(Path.GetTempPath(),
+            "blind soldier launcher test " + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        return root;
+    }
+
+    private static string ExtractLogPath(string error)
+    {
+        const string marker = "Log: ";
+        var index = error.IndexOf(marker, StringComparison.Ordinal);
+        return index < 0 ? string.Empty : error.Substring(index + marker.Length).Trim();
+    }
+
     private static string ReadUtf8(IntPtr pointer)
     {
         var bytes = new List<byte>();
@@ -222,6 +345,22 @@ internal static class Program
         {
             CallCount++;
             return results.Count == 0 || results.Dequeue();
+        }
+    }
+
+    private sealed class RecordingGameProcessRunner : IGameProcessRunner
+    {
+        public int ExitCode { get; set; }
+        public Exception Exception { get; set; }
+        public int CallCount { get; private set; }
+        public ProcessStartInfo StartInfo { get; private set; }
+
+        public int Run(ProcessStartInfo startInfo)
+        {
+            CallCount++;
+            StartInfo = startInfo;
+            if (Exception != null) throw Exception;
+            return ExitCode;
         }
     }
 }
