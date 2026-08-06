@@ -4,9 +4,13 @@ $nativeRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $commonPath = Join-Path $nativeRoot 'BlindSoldier.Common\common.h'
 $installerSource = Join-Path $nativeRoot 'BlindSoldier.Installer\installer.cpp'
 $installerProject = Join-Path $nativeRoot 'BlindSoldier.Installer\BlindSoldier.Installer.vcxproj'
-$launcherSource = Join-Path $nativeRoot 'BlindSoldier.Launcher\launcher.cpp'
-$launcherProject = Join-Path $nativeRoot 'BlindSoldier.Launcher\BlindSoldier.Launcher.vcxproj'
-$launcherBehaviorProject = Join-Path $nativeRoot 'BlindSoldier.Launcher.Tests\BlindSoldier.Launcher.Tests.vcxproj'
+$bootstrapRoot = Join-Path $nativeRoot 'BlindSoldier.Bootstrap'
+$bootstrapContract = Join-Path $bootstrapRoot 'bootstrap_contract.h'
+$bootstrapSession = Join-Path $bootstrapRoot 'reloaded_session.cpp'
+$bootstrapProcess = Join-Path $bootstrapRoot 'process_bootstrap.cpp'
+$bootstrapMain = Join-Path $bootstrapRoot 'main.cpp'
+$bootstrapProject = Join-Path $bootstrapRoot 'BlindSoldier.Bootstrap.vcxproj'
+$bootstrapBehaviorProject = Join-Path $nativeRoot 'BlindSoldier.Bootstrap.Tests\BlindSoldier.Bootstrap.Tests.vcxproj'
 $installerBehaviorProject = Join-Path $nativeRoot 'BlindSoldier.Installer.Tests\BlindSoldier.Installer.Tests.vcxproj'
 $hostBehaviorProject = Join-Path $nativeRoot 'BlindSoldier.Host.Tests\BlindSoldier.Host.Tests.vcxproj'
 
@@ -40,103 +44,95 @@ function Get-TestMsBuild {
     return $path
 }
 
-Describe 'Blind Soldier preserved native installer workflow' {
-    It 'contains the adapted common, installer, launcher, and projects' {
-        foreach ($path in @($commonPath, $installerSource, $installerProject, $launcherSource, $launcherProject)) {
+Describe 'Blind Soldier native bootstrap workflow' {
+    It 'contains the common host validator, broker components, and projects' {
+        foreach ($path in @(
+            $commonPath, $bootstrapContract, $bootstrapSession,
+            $bootstrapProcess, $bootstrapMain, $bootstrapProject,
+            $bootstrapBehaviorProject, $hostBehaviorProject
+        )) {
             Test-Path -LiteralPath $path -PathType Leaf | Should Be $true
         }
     }
 
-    It 'maps both FFVII executable names to architecture-matched launchers' {
-        Test-Path -LiteralPath $installerSource -PathType Leaf | Should Be $true
-        $source = [IO.File]::ReadAllText($installerSource)
-        $source | Should Match 'Blind Soldier Accessibility Mod Installer'
-        $source | Should Match 'FFVII\.exe'
-        $source | Should Match 'ff7_en\.exe'
-        $source | Should Match 'Blind-Soldier-Launcher-x64\.exe'
-        $source | Should Match 'Blind-Soldier-Launcher-x86\.exe'
-        $source | Should Match 'SetIFEODebugger'
-        $source | Should Match 'RemoveIFEODebugger'
-        $source | Should Match '/uninstall'
+    It 'defines the shared launch and attach contract and fail-closed exit codes' {
+        $contract = [IO.File]::ReadAllText($bootstrapContract)
+        $contract | Should Match 'enum class BootstrapMode\s*\{\s*Launch,\s*Attach\s*\}'
+        foreach ($name in @(
+            'Success', 'InvalidArguments', 'UnsupportedHost', 'MissingPayload',
+            'PointerLeaseUnavailable', 'TargetUnavailable',
+            'ArchitectureMismatch', 'AppConfigFailed', 'InjectionFailed',
+            'ResumeFailed', 'RuntimeUnavailable', 'ReadySignalFailed'
+        )) { $contract | Should Match ([regex]::Escape($name)) }
+        $contract | Should Match 'TryParseBootstrapRequest'
+        $contract | Should Match 'RunBootstrap'
     }
 
-    It 'retains suspended bootstrapper injection and enables Shared Hooks first' {
-        Test-Path -LiteralPath $launcherSource -PathType Leaf | Should Be $true
-        Test-Path -LiteralPath $commonPath -PathType Leaf | Should Be $true
-        $launcher = [IO.File]::ReadAllText($launcherSource)
+    It 'owns the Reloaded pointer only through a bounded durable lease' {
+        $source = [IO.File]::ReadAllText($bootstrapSession)
+        $source | Should Match 'ReloadedPointerLease'
+        $source | Should Match 'waitMilliseconds'
+        $source | Should Match 'WAIT_TIMEOUT'
+        $source | Should Match 'blind_soldier_backup'
+        $source | Should Match 'pointer changed externally'
+        $source | Should Match 'MoveFileExW'
+        $source | Should Match 'WriteReloadedIIPointerAt'
+        $source | Should Not Match 'WaitForSingleObject\(mutex_,\s*INFINITE\)'
+    }
+
+    It 'validates the complete portable payload and ordered app configuration' {
+        $session = [IO.File]::ReadAllText($bootstrapSession)
         $common = [IO.File]::ReadAllText($commonPath)
-        $launcher | Should Match 'DEBUG_ONLY_THIS_PROCESS\s*\|\s*CREATE_SUSPENDED'
-        $launcher | Should Match 'CreateRemoteThread'
-        $launcher | Should Match 'LoadLibraryW'
-        $launcher | Should Match 'ResumeThread'
-        $launcher | Should Match '#if(?:def)?\s+_WIN64'
-        $common | Should Match 'reloaded\.sharedlib\.hooks'
-        $common | Should Match 'ff7\.accessibility\.reloaded'
+        foreach ($name in @(
+            'Reloaded.Mod.Loader.Bootstrapper.dll',
+            'Reloaded.Mod.Loader.dll', 'portable.txt',
+            'Ff7.Accessibility.Reloaded.dll',
+            'Ff7.Accessibility.Steam2026X64.dll',
+            'Reloaded.Hooks.ReloadedII.dll', 'prism.dll', 'hostfxr.dll',
+            '9.0.8'
+        )) { $session | Should Match ([regex]::Escape($name)) }
+        $session | Should Match 'IsCanonicalPathWithinRoot'
         $hooksPosition = $common.IndexOf('reloaded.sharedlib.hooks', [StringComparison]::Ordinal)
         $modPosition = $common.IndexOf('ff7.accessibility.reloaded', [StringComparison]::Ordinal)
         ($hooksPosition -ge 0 -and $modPosition -gt $hooksPosition) | Should Be $true
     }
 
-    It 'fails closed when Reloaded configuration cannot be written and serializes pointer swaps' {
-        $launcher = [IO.File]::ReadAllText($launcherSource)
-        $common = [IO.File]::ReadAllText($commonPath)
-
-        $launcher | Should Match 'CreateMutexW'
-        $launcher | Should Match 'WAIT_ABANDONED'
-        $launcher | Should Match 'MoveFileExW'
-        $launcher | Should Match 'if\s*\(\s*!WriteAppConfig\('
-        $launcher | Should Match 'if\s*\(\s*!swap\.Ready\(\)\s*\)'
-        $common | Should Match 'WriteUtf8FileAtomic'
+    It 'injects by remote module-relative LoadLibrary and never launches unmodded' {
+        $process = [IO.File]::ReadAllText($bootstrapProcess)
+        $allBootstrap = $process + [IO.File]::ReadAllText($bootstrapMain)
+        $process | Should Match 'CREATE_SUSPENDED'
+        $process | Should Match 'CreateRemoteThread'
+        $process | Should Match 'WriteProcessMemory'
+        $process | Should Match 'CreateToolhelp32Snapshot'
+        $process | Should Match 'GetModuleHandleExW'
+        $process | Should Match 'ResumeThread'
+        $process | Should Match 'QueryFullProcessImageNameW'
+        $process | Should Match 'OpenEventW'
+        $process | Should Match 'SetEvent'
+        $allBootstrap | Should Not Match 'LaunchGameUnmodded'
+        $allBootstrap | Should Not Match 'DEBUG_ONLY_THIS_PROCESS'
+        $allBootstrap | Should Not Match 'BLIND_SOLDIER_LAUNCHER_ACTIVE'
+        $allBootstrap | Should Not Match 'SetIFEODebugger'
+        $allBootstrap | Should Not Match 'run an installer'
     }
 
-    It 'resolves the injection entry point in the remote module instead of reusing a local address' {
-        $launcher = [IO.File]::ReadAllText($launcherSource)
-
-        $launcher | Should Match 'CreateToolhelp32Snapshot'
-        $launcher | Should Match 'Module32FirstW'
-        $launcher | Should Match 'GetModuleHandleExW'
-        $launcher | Should Match 'remoteModuleBase'
-        $launcher | Should Not Match 'reinterpret_cast<LPTHREAD_START_ROUTINE>\(loadLibrary\)'
+    It 'uses static runtimes and architecture-specific broker names' {
+        $project = [IO.File]::ReadAllText($bootstrapProject)
+        $project | Should Match 'Blind-Soldier-Bootstrap-x86'
+        $project | Should Match 'Blind-Soldier-Bootstrap-x64'
+        $project | Should Match '<RuntimeLibrary>MultiThreaded</RuntimeLibrary>'
+        $project | Should Match '<RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>'
+        $project | Should Match 'Release\|Win32'
+        $project | Should Match 'Release\|x64'
     }
 
-    It 'checks compatible architecture-matched .NET desktop runtimes before registration' {
-        $installer = [IO.File]::ReadAllText($installerSource)
-
-        $installer | Should Match 'Microsoft\.WindowsDesktop\.App'
-        $installer | Should Match 'HasCompatibleDesktopRuntime'
-        $installer | Should Match '9\.0\.8'
-        $installer | Should Match 'DOTNET_ROOT_X86'
-    }
-
-    It 'owns only its exact IFEO debugger value and refuses destructive conflicts' {
-        $installer = [IO.File]::ReadAllText($installerSource)
-
-        $installer | Should Match 'BlindSoldierDebuggerOwner'
-        $installer | Should Match 'RegQueryValueExW'
-        $installer | Should Match 'ERROR_ALREADY_ASSIGNED'
-        $installer | Should Match 'currentDebugger\s*!=\s*expectedDebugger'
-        $installer | Should Match 'currentOwner\s*!=\s*expectedDebugger'
-    }
-
-    It 'keeps administrator elevation and Win32 plus x64 launcher configurations' {
-        Test-Path -LiteralPath $installerProject -PathType Leaf | Should Be $true
-        Test-Path -LiteralPath $launcherProject -PathType Leaf | Should Be $true
-        $installer = [IO.File]::ReadAllText($installerProject)
-        $launcher = [IO.File]::ReadAllText($launcherProject)
-        $installer | Should Match '<UACExecutionLevel>RequireAdministrator</UACExecutionLevel>'
-        $launcher | Should Match 'Release\|Win32'
-        $launcher | Should Match 'Release\|x64'
-        $launcher | Should Match '<RuntimeLibrary>MultiThreaded</RuntimeLibrary>'
-    }
-
-    It 'passes native failure, ownership, runtime, restore, and concurrency behavior tests' {
+    It 'passes broker behavior tests in both architectures' {
         $msbuild = Get-TestMsBuild
-        foreach ($project in @($launcherBehaviorProject, $installerBehaviorProject)) {
-            Test-Path -LiteralPath $project -PathType Leaf | Should Be $true
-            & $msbuild $project /nologo /m /p:Configuration=Release /p:Platform=x64 /v:minimal
+        foreach ($platform in @('Win32','x64')) {
+            & $msbuild $bootstrapBehaviorProject /nologo /m /t:Rebuild /p:Configuration=Release /p:Platform=$platform /v:minimal
             $LASTEXITCODE | Should Be 0
-            $executable = Join-Path (Split-Path -Parent $project) `
-                ('bin\Release\x64\' + [IO.Path]::GetFileNameWithoutExtension($project) + '.exe')
+            $executable = Join-Path (Split-Path -Parent $bootstrapBehaviorProject) `
+                "bin\Release\$platform\BlindSoldier.Bootstrap.Tests.exe"
             Test-Path -LiteralPath $executable -PathType Leaf | Should Be $true
             & $executable
             $LASTEXITCODE | Should Be 0
@@ -147,38 +143,36 @@ Describe 'Blind Soldier preserved native installer workflow' {
         }
     }
 
-    It 'accepts only evidence-backed FFVII host identities' {
+    It 'retains installer ownership behavior tests while releases migrate' {
         $msbuild = Get-TestMsBuild
-        Test-Path -LiteralPath $hostBehaviorProject -PathType Leaf | Should Be $true
-        & $msbuild $hostBehaviorProject /nologo /m /p:Configuration=Release /p:Platform=x64 /v:minimal
+        Test-Path -LiteralPath $installerBehaviorProject -PathType Leaf | Should Be $true
+        & $msbuild $installerBehaviorProject /nologo /m /p:Configuration=Release /p:Platform=x64 /v:minimal
         $LASTEXITCODE | Should Be 0
-        $executable = Join-Path (Split-Path -Parent $hostBehaviorProject) `
-            'bin\Release\x64\BlindSoldier.Host.Tests.exe'
-        Test-Path -LiteralPath $executable -PathType Leaf | Should Be $true
+        $executable = Join-Path (Split-Path -Parent $installerBehaviorProject) `
+            'bin\Release\x64\BlindSoldier.Installer.Tests.exe'
         & $executable
         $LASTEXITCODE | Should Be 0
     }
 
-    It 'builds an x64 installer and architecture-matched launchers' {
-        foreach ($path in @($installerProject, $launcherProject)) {
-            Test-Path -LiteralPath $path -PathType Leaf | Should Be $true
-        }
+    It 'accepts only evidence-backed FFVII host identities' {
         $msbuild = Get-TestMsBuild
-        & $msbuild $installerProject /nologo /m /p:Configuration=Release /p:Platform=x64 /v:minimal
+        & $msbuild $hostBehaviorProject /nologo /m /p:Configuration=Release /p:Platform=x64 /v:minimal
         $LASTEXITCODE | Should Be 0
-        & $msbuild $launcherProject /nologo /m /p:Configuration=Release /p:Platform=Win32 /v:minimal
+        $executable = Join-Path (Split-Path -Parent $hostBehaviorProject) `
+            'bin\Release\x64\BlindSoldier.Host.Tests.exe'
+        & $executable
         $LASTEXITCODE | Should Be 0
-        & $msbuild $launcherProject /nologo /m /p:Configuration=Release /p:Platform=x64 /v:minimal
-        $LASTEXITCODE | Should Be 0
+    }
 
-        $installer = Join-Path $nativeRoot 'BlindSoldier.Installer\bin\Release\x64\Blind-Soldier-Installer.exe'
-        $launcherX86 = Join-Path $nativeRoot 'BlindSoldier.Launcher\bin\Release\Win32\Blind-Soldier-Launcher-x86.exe'
-        $launcherX64 = Join-Path $nativeRoot 'BlindSoldier.Launcher\bin\Release\x64\Blind-Soldier-Launcher-x64.exe'
-        foreach ($path in @($installer, $launcherX86, $launcherX64)) {
-            Test-Path -LiteralPath $path -PathType Leaf | Should Be $true
+    It 'builds architecture-matched portable brokers' {
+        $msbuild = Get-TestMsBuild
+        foreach ($platform in @('Win32','x64')) {
+            & $msbuild $bootstrapProject /nologo /m /t:Rebuild /p:Configuration=Release /p:Platform=$platform /v:minimal
+            $LASTEXITCODE | Should Be 0
         }
-        (Get-TestPeMachine -Path $installer) | Should Be 0x8664
-        (Get-TestPeMachine -Path $launcherX86) | Should Be 0x014C
-        (Get-TestPeMachine -Path $launcherX64) | Should Be 0x8664
+        $x86 = Join-Path $bootstrapRoot 'bin\Release\Win32\Blind-Soldier-Bootstrap-x86.exe'
+        $x64 = Join-Path $bootstrapRoot 'bin\Release\x64\Blind-Soldier-Bootstrap-x64.exe'
+        (Get-TestPeMachine -Path $x86) | Should Be 0x014C
+        (Get-TestPeMachine -Path $x64) | Should Be 0x8664
     }
 }

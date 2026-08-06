@@ -30,11 +30,18 @@ public:
     void Open(const fs::path& dir, const wchar_t* filename) {
         if (m_file) return;
         try {
+            std::error_code error;
+            fs::create_directories(dir, error);
+            if (error) return;
             fs::path path = dir / filename;
-            _wfopen_s(&m_file, path.c_str(), L"wb");
+            _wfopen_s(&m_file, path.c_str(), L"a+b");
             if (m_file) {
-                const unsigned char bom[3] = {0xEF, 0xBB, 0xBF};
-                fwrite(bom, 1, 3, m_file);
+                if (_fseeki64(m_file, 0, SEEK_END) == 0 &&
+                    _ftelli64(m_file) == 0) {
+                    const unsigned char bom[3] = {0xEF, 0xBB, 0xBF};
+                    fwrite(bom, 1, 3, m_file);
+                    fflush(m_file);
+                }
             }
             m_path = path;
         } catch (...) {
