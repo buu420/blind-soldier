@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
+  <PropertyGroup>
+    <AssemblyName>FFVII_LAUNCHER.Accessibility.Tests</AssemblyName>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <PlatformTarget>x86</PlatformTarget>
+    <UseWindowsForms>True</UseWindowsForms>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Ff7.Launcher.Accessible\FFVII_LAUNCHER.csproj" />
+  </ItemGroup>
+</Project>

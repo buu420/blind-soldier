@@ -101,6 +101,8 @@ Describe 'Run-DualRuntimeVerification' {
                 'Steam2026X64.Tests',
                 'Parity.Tests',
                 'Setup.Tests',
+                'Accessible launcher tests',
+                'Accessible launcher bundle Pester',
                 'Verification gate Pester',
                 'Setup preflight Pester',
                 'Prerequisite bundle builder Pester',
@@ -119,7 +121,7 @@ Describe 'Run-DualRuntimeVerification' {
             $result.VerificationSucceeded | Should Be $true
             $result.ReleaseReady | Should Be $false
             $result.PSObject.Properties['Succeeded'] | Should Be $null
-            $result.Steps.Count | Should Be 18
+            $result.Steps.Count | Should Be 20
             $result.Package.Fingerprint | Should Be 'FAKE-FINGERPRINT'
             $result.Package.X86EntryMachine | Should Be 0x014C
             $result.Package.X64EntryMachine | Should Be 0x8664
@@ -127,7 +129,7 @@ Describe 'Run-DualRuntimeVerification' {
             $result.Package.X64PrismMachine | Should Be 0x8664
             $result.PackageStagingCleaned | Should Be $true
             $pesterCommands = @($capturedCommands | Where-Object { $_.Name -like '*Pester*' })
-            $pesterCommands.Count | Should Be 11
+            $pesterCommands.Count | Should Be 12
             foreach ($pesterCommand in $pesterCommands) {
                 $pesterCommand.Arguments -is [object[]] | Should Be $true
                 [string]$pesterCommand.Arguments[-1] | Should Match 'Invoke-Pester -Script '
@@ -315,6 +317,8 @@ Describe 'Run-DualRuntimeVerification' {
                 'Steam2026X64.Tests',
                 'Parity.Tests',
                 'Setup.Tests',
+                'Accessible launcher tests',
+                'Accessible launcher bundle Pester',
                 'Verification gate Pester',
                 'Setup preflight Pester',
                 'Prerequisite bundle builder Pester',
@@ -325,7 +329,7 @@ Describe 'Run-DualRuntimeVerification' {
                 'Installer entrypoint Pester pass 1',
                 'Build dual-runtime package'
             )
-            $result.Steps.Count | Should Be 14
+            $result.Steps.Count | Should Be 16
             @(Get-ChildItem -LiteralPath $fixture -Force).Count | Should Be 0
         }
         finally {

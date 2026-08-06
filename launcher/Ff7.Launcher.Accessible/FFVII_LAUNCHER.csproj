@@ -1,0 +1,63 @@
+<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
+  <PropertyGroup>
+    <AssemblyName>FFVII_LAUNCHER</AssemblyName>
+    <GenerateAssemblyInfo>False</GenerateAssemblyInfo>
+    <OutputType>WinExe</OutputType>
+    <UseWindowsForms>True</UseWindowsForms>
+    <TargetFramework>net48</TargetFramework>
+    <PlatformTarget>x86</PlatformTarget>
+    <EnableDefaultEmbeddedResourceItems>False</EnableDefaultEmbeddedResourceItems>
+    <Deterministic>True</Deterministic>
+  </PropertyGroup>
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
+    <CheckForOverflowUnderflow>False</CheckForOverflowUnderflow>
+  </PropertyGroup>
+  <PropertyGroup>
+    <ApplicationIcon>app.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <RootNamespace />
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Embed the exact resource streams extracted from the stock 2.0.0.0
+         assembly.  Recompiling ILSpy's generated .resx files changes binary
+         resources and introduces a System.Resources.Extensions dependency. -->
+    <EmbeddedResource Include="OriginalResources\FF7_Launcher.FF7Launcher.resources" LogicalName="FF7_Launcher.FF7Launcher.resources" />
+    <EmbeddedResource Include="OriginalResources\FF7_Launcher.Properties.Resources.resources" LogicalName="FF7_Launcher.Properties.Resources.resources" />
+    <EmbeddedResource Include="OriginalResources\FF7_Launcher.Setting.resources" LogicalName="FF7_Launcher.Setting.resources" />
+    <EmbeddedResource Include="OriginalResources\FF7_Launcher.Resources.cancel.wav" LogicalName="FF7_Launcher.Resources.cancel.wav" />
+    <EmbeddedResource Include="OriginalResources\FF7_Launcher.Resources.cursor.wav" LogicalName="FF7_Launcher.Resources.cursor.wav" />
+    <EmbeddedResource Include="OriginalResources\FF7_Launcher.Resources.decide.wav" LogicalName="FF7_Launcher.Resources.decide.wav" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="..\..\Ff7.Accessibility.Reloaded\Native\win-x86\prism.dll">
+      <Link>launcher_accessibility\native\x86\FFVII_LAUNCHER.prism.x86.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="SharpDX" Version="4.2.0" GeneratePathProperty="true" />
+    <PackageReference Include="SharpDX.DirectInput" Version="4.2.0" GeneratePathProperty="true" />
+    <PackageReference Include="SharpDX.DirectSound" Version="4.2.0" GeneratePathProperty="true" />
+    <PackageReference Include="SharpDX.XInput" Version="4.2.0" GeneratePathProperty="true" />
+    <PackageReference Include="SharpDX.Direct3D11" Version="4.2.0" GeneratePathProperty="true" />
+    <PackageReference Include="SharpDX.DXGI" Version="4.2.0" GeneratePathProperty="true" />
+    <PackageReference Include="SharpDX.Desktop" Version="4.2.0" GeneratePathProperty="true" />
+    <PackageReference Include="NAudio.Core" Version="2.2.1" GeneratePathProperty="true" />
+    <PackageReference Include="NAudio.WinMM" Version="2.2.1" GeneratePathProperty="true" />
+    <!-- Steamworks.NET 2024.8.0 marks its NuGet asset as netstandard2.1 even
+         though the game ships this same assembly beside its net48 launcher.
+         PackageDownload keeps the compiler input pinned and portable without
+         asking NuGet to select an incompatible target-framework asset. -->
+    <PackageDownload Include="Steamworks.NET" Version="[2024.8.0]" />
+    <Reference Include="Steamworks.NET">
+      <HintPath>$(NuGetPackageRoot)steamworks.net\2024.8.0\lib\netstandard2.1\Steamworks.NET.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="System.Core" />
+    <Reference Include="UIAutomationProvider" />
+    <Reference Include="UIAutomationTypes" />
+    <Reference Include="WindowsBase" />
+  </ItemGroup>
+</Project>

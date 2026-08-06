@@ -263,6 +263,14 @@ $commands.Add((New-VerificationCommand -Name 'Parity.Tests' -FilePath 'dotnet' -
 $commands.Add((New-VerificationCommand -Name 'Setup.Tests' -FilePath 'dotnet' -Arguments @(
     'run', '--project', (Join-Path $scriptRoot 'installer\BlindSwordsman.Setup.Tests\BlindSwordsman.Setup.Tests.csproj'), '-c', 'Release'
 ) -WorkingDirectory $scriptRoot))
+$commands.Add((New-VerificationCommand -Name 'Accessible launcher tests' -FilePath 'dotnet' -Arguments @(
+    'run', '--project', (Join-Path $scriptRoot 'launcher\Ff7.Launcher.Accessible.Tests\FFVII_LAUNCHER.Accessibility.Tests.csproj'), '-c', 'Release'
+) -WorkingDirectory $scriptRoot))
+
+$launcherBundlePesterCommand = "Invoke-Pester -Script '$((Join-Path $scriptRoot 'Build-AccessibleLauncherBundle.Tests.ps1').Replace("'", "''"))' -EnableExit"
+$commands.Add((New-VerificationCommand -Name 'Accessible launcher bundle Pester' -FilePath 'powershell.exe' -Arguments @(
+    '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', $launcherBundlePesterCommand
+) -WorkingDirectory $scriptRoot))
 
 $verificationPesterCommand = "Invoke-Pester -Script '$((Join-Path $scriptRoot 'Run-DualRuntimeVerification.Tests.ps1').Replace("'", "''"))' -EnableExit"
 $commands.Add((New-VerificationCommand -Name 'Verification gate Pester' -FilePath 'powershell.exe' -Arguments @(
