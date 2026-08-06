@@ -23,150 +23,76 @@ is not tied to one particular screen reader.
 - Optional: 7th Heaven and FFNx for the legacy x86 game path.
 
 **Final Fantasy VII is the only software the player must install first.** The
-Blind Soldier setup package includes verified copies of Reloaded-II, Reloaded
-Shared Hooks, and the Microsoft .NET Desktop Runtime needed by the detected
-game architecture. Setup installs or repairs those components automatically.
+portable ZIP contains Reloaded-II, Reloaded Shared Hooks, Prism, and private
+x86 and x64 .NET runtimes. Nothing else must be installed globally.
 
-Blind Soldier contains separate x86 and x64 backends. The installer detects
-either the legacy Steam 2013 runtime (`ff7_en.exe`) or the current native Steam
-2026 runtime (`FFVII.exe`) and refuses unknown executable builds instead of
-reading unverified game memory.
+Blind Soldier contains separate x86 and x64 backends. Its bootstrap validates
+the legacy Steam 2013 runtime (`ff7_en.exe`), converted x86 runtime (`ff7.exe`),
+or current native Steam 2026 runtime (`FFVII.exe`) and refuses unknown builds
+instead of reading unverified game memory.
 
 ## Installation
 
-### Portable native installer
+Download
+[Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.1.4/Blind-Soldier-Portable.zip)
+from the [Blind Soldier Releases page](https://github.com/buu420/blind-soldier/releases).
 
-The newest compact option is
-[Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.1.0-pre.7/Blind-Soldier-Portable.zip).
-Extract every file directly into the Final Fantasy VII Steam installation
-folder, run `Blind-Soldier-Installer.exe`, accept the administrator prompt,
-and choose **Yes**. It supports an x86-only, x64-only, or combined game folder
-and registers only the versions it finds. Launch the game normally afterward.
+1. Close Final Fantasy VII and 7th Heaven.
+2. Extract every file in the ZIP directly into the Final Fantasy VII game
+   folder. Do not extract it into a separate subfolder.
+3. Start the game normally from Steam or 7th Heaven.
 
-This package preserves the supplied native installer's register-only behavior.
-It includes the minimal Reloaded loader, Shared Hooks, Blind Soldier, and the
-accessible FFVII launcher, but it does not install Microsoft runtimes. Install
-Microsoft .NET Desktop Runtime 9.0.8 for each game architecture you use if it
-is missing; the installer checks each detected game architecture before making
-registry changes. Run `Blind-Soldier-Installer.exe /uninstall` to remove only
-the automatic-loading entry owned by that extraction. Extracted files are left
-in place.
-
-### Standard setup
-
-Download and run
-[Blind-Soldier-Setup.exe](https://github.com/buu420/blind-soldier/releases/download/v0.1.0-pre.6/Blind-Soldier-Setup.exe).
-If that direct link changes, use the
-[Blind Soldier Releases page](https://github.com/buu420/blind-soldier/releases).
-
-1. Close Final Fantasy VII, 7th Heaven, and Reloaded-II.
-2. Run `Blind-Soldier-Setup.exe`. You do not need to extract a ZIP, install
-   Reloaded-II or .NET, open a terminal, or run a script.
-3. Review the detected Final Fantasy VII folder. If setup did not find it,
-   activate **Choose game folder** and select the game's root folder.
-4. Review the Reloaded-II destination. Setup reuses a safe registered
-   Reloaded-II installation when one exists. Otherwise it creates a portable
-   `Reloaded-II` folder inside the selected game folder. You may choose a
-   different destination before installing.
-5. Review the dependency status list. Missing Reloaded-II, Shared Hooks,
-   loaders, and .NET components are shown as items setup will provide, not as
-   missing user prerequisites. An x86-only game receives only x86 runtime
-   requirements, an x64-only game receives only x64 requirements, and a dual
-   installation receives both.
-6. Choose **Install**. Keep the setup window open until it announces
-   completion. Windows may request permission while installing a missing .NET
-   desktop runtime.
+There is no installer to run, no administrator prompt, and no registry change.
+The archive supports a legacy x86 folder, a Steam 2026 x64 folder, a combined
+folder, and 7th Heaven's nested `ff7\workingdir` layout. Never run either file
+under `Blind-Soldier\Bootstrap` yourself.
 
 > [!WARNING]
-> The first public installer is not code-signed. Windows SmartScreen may say
-> **Unknown publisher**. Only continue when you downloaded the file from this
-> repository's Releases page. A future release can remove that warning after a
-> code-signing certificate is available.
+> If one of the four supported `.local` folders already contains an unknown
+> `winmm.dll`, move it to a safe backup before extraction. Blind Soldier does
+> not merge with or overwrite another WinMM proxy safely.
 
-Setup downloads the matching runtime ZIP from the same GitHub release, checks
-its exact length and SHA-256 hash, validates every file before extraction, and
-then installs the prebuilt mod and its pinned prerequisites. The archive
-contains Reloaded-II 1.30.3, Reloaded Shared Hooks 1.16.3, and Microsoft .NET
-Desktop Runtime 9.0.8 installers for x86 and x64. Setup validates the locked
-file sizes and cryptographic hashes before using them, installs .NET only when
-the detected architecture needs it, and preserves unrelated Reloaded profiles,
-mods, and preferences. It also preserves unrelated 7th Heaven and FFNx
-settings. Both integrations are optional: setup detects them for compatibility
-reporting, but never installs, requires, or replaces either one.
+### Update or remove
 
-For the native Steam 2026 edition, the same verified runtime archive also
-contains the accessible `FFVII_LAUNCHER.exe`, its configuration, and a
-launcher-only x86 Prism library. Setup records and verifies the original Steam
-launcher before replacing it. Repair keeps the original backup, and uninstall
-restores it when the installed launcher is still unchanged. A launcher file
-changed after installation is preserved rather than overwritten.
-
-The native Steam 2026 x64 backend is included, but remains prerelease research
-software. The setup labels the detected runtimes and refuses unknown game
-executables instead of reading unverified memory.
-
-### Update, repair, or remove
-
-- Run the installer again to update to a newer release or repair the installed
-  version.
-- Open the Start menu and choose **Check for Blind Soldier Updates** to run a
-  manual update check. No updater runs in the background.
-- Remove the mod through **Settings > Apps > Installed apps > Blind Soldier**.
-  Uninstall removes setup-owned files, preserves files changed after
-  installation, and restores a recorded prior mod package only when it still
-  matches the saved backup. On Steam 2026 it also restores the verified
-  original FFVII launcher. Reloaded-II, Shared Hooks, and .NET remain installed
-  because they are shared components that other mods may use.
-
-Installer state and readable logs are stored under
-`%LOCALAPPDATA%\Blind Soldier`. Setup does not search or import state from the
-former product name. The completion page includes a link that opens the current
-log.
-
-### Offline or local release files
-
-Keep `Blind-Soldier-Setup.exe`, `Blind-Soldier-Runtime.zip`, and
-`blind-soldier-channel.json` from the same release in one folder. From a
-Command Prompt or PowerShell window, run:
-
-```powershell
-.\Blind-Soldier-Setup.exe --local-manifest ".\blind-soldier-channel.json"
-```
-
-Setup uses the sibling runtime ZIP only after its size and SHA-256 match the
-manifest. See [Installer details](docs/installer.md) for the full setup and
-recovery behavior.
+- To update or repair, close the game and extract the newer ZIP over the same
+  game folder.
+- To remove the mod, close the game and delete the files listed by
+  `portable-manifest.json`, then restore any launcher or `.local\winmm.dll` you
+  backed up before extraction.
+- Logs are written beneath `Blind-Soldier\Logs` in the game folder.
+- Steam **Verify integrity of game files** may restore the stock launcher.
+  Extract Blind Soldier again afterward to restore launcher accessibility.
 
 ### Launching the game
 
 - **Native Steam 2026 x64:** launch Final Fantasy VII normally from Steam. The
-  included FFVII launcher is screen-reader accessible, and starting the game
-  from it loads the x64 accessibility backend automatically. You may also run
-  `FFVII.exe` directly.
+  included FFVII launcher is screen-reader accessible, and its Play button
+  loads the x64 accessibility backend automatically. Starting `FFVII.exe`
+  directly is unsupported because it bypasses that accessibility boundary.
 - **Legacy x86 with 7th Heaven:** launch the game through 7th Heaven as usual.
-- **Legacy x86 without 7th Heaven:** launch the legacy game normally. Setup
-  installs the x86 bootstrap files and creates the required Reloaded profile,
-  so there is no separate Reloaded-II step.
+- **Legacy x86 without 7th Heaven:** launch the legacy game normally. The
+  executable-specific `.local` proxy loads the accessibility backend.
 
 On a successful load, Prism announces that Final Fantasy VII accessibility is
 active.
 
 ## Developer installation from source
 
-End users should use the setup EXE above. To build and deploy from a source
-checkout, install the [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0),
-close the game and launchers, then build and extract a complete runtime payload:
+End users should use the portable ZIP above. To build it from a source
+checkout, install the [.NET 9 SDK](https://dotnet.microsoft.com/download/dotnet/9.0),
+Visual Studio C++ Build Tools, and PowerShell, then run:
 
 ```powershell
-$release = .\Build-BlindSwordsmanRelease.ps1 -Version 0.1.0-pre.4 -Tag v0.1.0-pre.4 -OutputPath ".\artifacts\developer-$([guid]::NewGuid())"
-$runtimeRoot = "$($release.OutputPath)\runtime"
-Expand-Archive -LiteralPath $release.PayloadPath -DestinationPath $runtimeRoot
-.\Install-FF7ReloadedMod.ps1 -ReloadedRoot "C:\Path\To\Reloaded-II" -PackagePath "$runtimeRoot\package" -PrerequisiteBundlePath "$runtimeRoot\prerequisites" -LauncherBundlePath "$runtimeRoot\launcher" -AllowResearchNativeProfile
+.\Build-BlindSoldierPortablePackage.ps1 `
+  -OutputPath .\artifacts\Blind-Soldier-Portable.zip `
+  -Version 0.1.4
+.\Verify-BlindSoldierPortablePackage.ps1 `
+  -ArchivePath .\artifacts\Blind-Soldier-Portable.zip `
+  -ExpectedVersion 0.1.4
 ```
 
-Add `-GameRoot "C:\Path\To\FINAL FANTASY VII"` only when Steam detection does
-not find the game. This applies the same packaged files and the same identity,
-backup, and rollback checks used by setup.
+The builder compiles the launcher, x86/x64 brokers, and x86 proxy from source,
+then packages the pinned Reloaded and private .NET dependencies.
 
 ## Mod keys
 
@@ -323,28 +249,23 @@ during menus, dialogue, movies, battles, or scripted control locks that own the
 same game state. Return to controllable field or world-map movement and press
 `K` or `I` again.
 
-### Installation rejects the game executable
+### Launch rejects the game executable
 
-The installer supports exact verified FFVII builds and fails closed after an
-unknown game update. Do not bypass that check. Include the installer error and
-your executable version in a bug report.
+The bootstrap supports exact verified FFVII builds and fails closed after an
+unknown game update. Do not bypass that check. Include the spoken error, the
+matching file under `Blind-Soldier\Logs`, and your executable version in a bug
+report.
 
-### Setup reports a Reloaded-II provisioning problem
+### A `.local` WinMM collision is reported
 
-You do not need to install Reloaded-II yourself. By default setup creates a
-portable `Reloaded-II` folder inside the game folder, or repairs a safe existing
-installation it detected. If that destination cannot be written, choose a
-different Reloaded-II folder and scan again. A collision with an unrelated
-file, unsafe link, or profile owned by another application is intentionally
-blocked instead of overwritten; the dependency list and setup log name the
-exact path.
+Close the game, preserve the existing `winmm.dll`, and determine which mod owns
+it before extracting Blind Soldier. The portable package deliberately does not
+guess how to combine two proxy DLLs.
 
-### Windows reports Unknown publisher
+### The downloaded ZIP fails verification
 
-That warning is expected for the unsigned prerelease installer. Cancel if the
-file did not come from this repository's Releases page. You can compare the
-download against `Blind-Soldier-Setup.exe.sha256` on the same release before
-running it.
+Download the ZIP and `.sha256` sidecar again from the same GitHub release. Do
+not use an archive whose SHA-256 does not match the sidecar.
 
 ## Reporting a problem
 
@@ -354,8 +275,9 @@ Open a GitHub issue and include:
 - the field, menu, battle, or world-map location;
 - the exact action and keys that led to the problem;
 - what Blind Soldier said and what you expected it to say;
-- `ff7_accessibility_reloaded.log` from the installed
-  `Mods\ff7.accessibility.reloaded` folder;
+- the matching bootstrap or WinMM log under `Blind-Soldier\Logs`;
+- `ff7_accessibility_reloaded.log` from
+  `Reloaded-II\Mods\ff7.accessibility.reloaded`;
 - the matching Reloaded-II log from
   `%APPDATA%\Reloaded-Mod-Loader-II\Logs`.
 

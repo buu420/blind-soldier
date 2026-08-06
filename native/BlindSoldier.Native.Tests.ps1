@@ -125,6 +125,7 @@ Describe 'Blind Soldier native bootstrap workflow' {
         $project | Should Match 'Blind-Soldier-Bootstrap-x64'
         $project | Should Match '<RuntimeLibrary>MultiThreaded</RuntimeLibrary>'
         $project | Should Match '<RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>'
+        $project | Should Match '<AdditionalOptions>/Brepro %\(AdditionalOptions\)</AdditionalOptions>'
         $project | Should Match 'Release\|Win32'
         $project | Should Match 'Release\|x64'
     }
@@ -187,5 +188,6 @@ Describe 'Blind Soldier native bootstrap workflow' {
         $project = [IO.File]::ReadAllText($winmmProxyProject)
         $project | Should Match '<RuntimeLibrary>MultiThreaded</RuntimeLibrary>'
         $project | Should Match '<ModuleDefinitionFile>winmm\.def</ModuleDefinitionFile>'
+        $project | Should Match '<AdditionalOptions>/Brepro %\(AdditionalOptions\)</AdditionalOptions>'
     }
 }

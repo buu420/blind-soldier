@@ -103,14 +103,14 @@ function Get-LauncherDescriptor {
         [Parameter(Mandatory=$true)] [string] $Path,
         [Parameter(Mandatory=$true)] [string] $Label
     )
-    Assert-LauncherExactProperties -Value $Descriptor -Expected @('name', 'size', 'sha256') -Label $Label
-    if ([string]$Descriptor.name -cne $ExpectedName -or
+    Assert-LauncherExactProperties -Value $Descriptor -Expected @('path', 'length', 'sha256') -Label $Label
+    if ([string]$Descriptor.path -cne $ExpectedName.Replace('\','/') -or
         [string]$Descriptor.sha256 -notmatch '^[0-9A-F]{64}$' -or
-        [int64]$Descriptor.size -le 0) {
+        [int64]$Descriptor.length -le 0) {
         throw "$Label metadata is invalid."
     }
     $item = Assert-LauncherRegularFile -Path $Path -Label $Label
-    if ([int64]$item.Length -ne [int64]$Descriptor.size -or
+    if ([int64]$item.Length -ne [int64]$Descriptor.length -or
         -not (Test-LauncherHashEqual (Get-LauncherSha256 -Path $item.FullName) ([string]$Descriptor.sha256))) {
         throw "$Label length or SHA-256 does not match its manifest."
     }
@@ -157,7 +157,7 @@ function Test-Ff7AccessibleLauncherBundle {
     Assert-LauncherExactProperties -Value $manifest -Expected @(
         'schemaVersion', 'stockLauncherSha256', 'launcher', 'config', 'prism',
         'assemblyName', 'assemblyVersion') -Label 'Accessible launcher bundle manifest'
-    if ([int]$manifest.schemaVersion -ne 1 -or
+    if ([int]$manifest.schemaVersion -ne 2 -or
         [string]$manifest.stockLauncherSha256 -notmatch '^[0-9A-F]{64}$' -or
         [string]$manifest.assemblyName -cne 'FFVII_LAUNCHER' -or
         [string]$manifest.assemblyVersion -cne '2.0.0.0') {
@@ -168,7 +168,7 @@ function Test-Ff7AccessibleLauncherBundle {
         -Path (Join-Path $root 'FFVII_LAUNCHER.exe') -Label 'Accessible launcher executable'
     $config = Get-LauncherDescriptor -Descriptor $manifest.config -ExpectedName 'FFVII_LAUNCHER.exe.config' `
         -Path (Join-Path $root 'FFVII_LAUNCHER.exe.config') -Label 'Accessible launcher configuration'
-    $prism = Get-LauncherDescriptor -Descriptor $manifest.prism -ExpectedName 'FFVII_LAUNCHER.prism.x86.dll' `
+    $prism = Get-LauncherDescriptor -Descriptor $manifest.prism -ExpectedName 'native\x86\FFVII_LAUNCHER.prism.x86.dll' `
         -Path (Join-Path $root 'native\x86\FFVII_LAUNCHER.prism.x86.dll') -Label 'Accessible launcher Prism library'
     Assert-LauncherPeMachine -Path $launcher.Path -ExpectedMachine 0x014C -Label 'Accessible launcher executable'
     Assert-LauncherPeMachine -Path $prism.Path -ExpectedMachine 0x014C -Label 'Accessible launcher Prism library'

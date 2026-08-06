@@ -283,11 +283,15 @@ function Assert-DualRuntimePackage {
     if ([string]$modConfig.ModId -cne 'ff7.accessibility.reloaded') {
         throw 'Package validation failed: ModConfig.json has an unexpected ModId.'
     }
+    if ([string]$modConfig.ModVersion -cne '0.1.4') {
+        throw 'Package validation failed: ModConfig.json has an unexpected ModVersion.'
+    }
 
     $supportedApps = @($modConfig.SupportedAppId)
-    if ($supportedApps.Count -ne 2 -or
+    if ($supportedApps.Count -ne 3 -or
         [string]$supportedApps[0] -cne 'ff7_en.exe' -or
-        [string]$supportedApps[1] -cne 'FFVII.exe') {
+        [string]$supportedApps[1] -cne 'ff7.exe' -or
+        [string]$supportedApps[2] -cne 'FFVII.exe') {
         throw 'Package validation failed: ModConfig.json does not select the exact supported FFVII executables.'
     }
     if ([string]$modConfig.ModR2RManagedDll32 -cne 'x86/Ff7.Accessibility.Reloaded.dll' -or

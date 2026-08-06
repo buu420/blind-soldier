@@ -2,8 +2,7 @@ $ErrorActionPreference = 'Stop'
 
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $modulePath = Join-Path $scriptRoot 'FF7LauncherInstall.psm1'
-$assetRoot = Join-Path $scriptRoot 'installer-assets\launcher'
-$prismSource = Join-Path $scriptRoot 'Ff7.Accessibility.Reloaded\Native\win-x86\prism.dll'
+$bundleBuilder = Join-Path $scriptRoot 'Build-AccessibleLauncherBundle.ps1'
 
 function New-MinimalX86Pe {
     param(
@@ -26,15 +25,16 @@ function New-LauncherFixture {
     $reloadedRoot = Join-Path $root 'Reloaded-II'
     $bundleRoot = Join-Path $root 'bundle'
     New-Item -ItemType Directory -Path $gameRoot, $reloadedRoot, (Join-Path $bundleRoot 'native\x86') -Force | Out-Null
-    Copy-Item -LiteralPath (Join-Path $assetRoot 'FFVII_LAUNCHER.exe') -Destination $bundleRoot
-    Copy-Item -LiteralPath (Join-Path $assetRoot 'FFVII_LAUNCHER.exe.config') -Destination $bundleRoot
-    Copy-Item -LiteralPath $prismSource -Destination (Join-Path $bundleRoot 'native\x86\FFVII_LAUNCHER.prism.x86.dll')
+    Copy-Item -LiteralPath (Join-Path $script:testLauncherBundle 'FFVII_LAUNCHER.exe') -Destination $bundleRoot
+    Copy-Item -LiteralPath (Join-Path $script:testLauncherBundle 'FFVII_LAUNCHER.exe.config') -Destination $bundleRoot
+    Copy-Item -LiteralPath (Join-Path $script:testLauncherBundle 'native\x86\FFVII_LAUNCHER.prism.x86.dll') `
+        -Destination (Join-Path $bundleRoot 'native\x86\FFVII_LAUNCHER.prism.x86.dll')
 
     $launcherTarget = Join-Path $gameRoot 'FFVII_LAUNCHER.exe'
     New-MinimalX86Pe -Path $launcherTarget -Marker 17
     $stockBytes = [IO.File]::ReadAllBytes($launcherTarget)
     $stockHash = (Get-FileHash -LiteralPath $launcherTarget -Algorithm SHA256).Hash
-    $manifest = [IO.File]::ReadAllText((Join-Path $assetRoot 'launcher-bundle.json')) | ConvertFrom-Json
+    $manifest = [IO.File]::ReadAllText((Join-Path $script:testLauncherBundle 'launcher-bundle.json')) | ConvertFrom-Json
     $manifest.stockLauncherSha256 = $stockHash
     [IO.File]::WriteAllText(
         (Join-Path $bundleRoot 'launcher-bundle.json'),
@@ -105,6 +105,15 @@ function Set-LegacyLauncherInstallation {
 Describe 'Accessible FFVII launcher lifecycle' {
     BeforeAll {
         Import-Module $modulePath -Force
+        $script:testLauncherBundle = Join-Path ([IO.Path]::GetTempPath()) `
+            ('blind-soldier-launcher-source-' + [Guid]::NewGuid().ToString('N'))
+        & $bundleBuilder -OutputPath $script:testLauncherBundle -Configuration Release | Out-Null
+    }
+
+    AfterAll {
+        if (Test-Path -LiteralPath $script:testLauncherBundle) {
+            Remove-Item -LiteralPath $script:testLauncherBundle -Recurse -Force
+        }
     }
 
     BeforeEach {
@@ -132,6 +141,23 @@ Describe 'Accessible FFVII launcher lifecycle' {
         finally {
             Complete-Ff7AccessibleLauncherTransaction -Result $result
         }
+    }
+
+    It 'rejects the obsolete launcher bundle schema before changing the game' {
+        $manifestPath = Join-Path $fixture.BundleRoot 'launcher-bundle.json'
+        $manifest = [IO.File]::ReadAllText($manifestPath) | ConvertFrom-Json
+        $manifest.schemaVersion = 1
+        [IO.File]::WriteAllText($manifestPath,
+            ($manifest | ConvertTo-Json -Depth 6),
+            (New-Object Text.UTF8Encoding($false)))
+        $before = [IO.File]::ReadAllBytes($fixture.LauncherTarget)
+
+        { Install-Ff7AccessibleLauncher -GameRoot $fixture.GameRoot `
+                -ReloadedRoot $fixture.ReloadedRoot `
+                -BundlePath $fixture.BundleRoot } | Should Throw
+
+        [IO.File]::ReadAllBytes($fixture.LauncherTarget) | Should Be $before
+        Test-Path -LiteralPath $fixture.ManifestTarget | Should Be $false
     }
 
     It 'repairs idempotently while retaining the original stock backup' {

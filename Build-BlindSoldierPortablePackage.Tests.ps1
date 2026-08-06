@@ -2,6 +2,7 @@ $ErrorActionPreference = 'Stop'
 
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $builderPath = Join-Path $scriptRoot 'Build-BlindSoldierPortablePackage.ps1'
+$verifierPath = Join-Path $scriptRoot 'Verify-BlindSoldierPortablePackage.ps1'
 $loaderFiles = @(
     'Bootstrapper\Reloaded.Mod.Loader.Bootstrapper.dll',
     'Colorful.Console.dll',
@@ -18,93 +19,188 @@ $loaderFiles = @(
 )
 
 function New-PortableTestPe {
-    param([string] $Path, [uint16] $Machine)
+    param([string] $Path, [uint16] $Machine, [byte] $Marker = 0)
     New-Item -ItemType Directory -Path (Split-Path -Parent $Path) -Force | Out-Null
     $bytes = New-Object byte[] 512
-    $bytes[0] = 0x4D; $bytes[1] = 0x5A
+    $bytes[0] = 0x4D; $bytes[1] = 0x5A; $bytes[2] = $Marker
     [BitConverter]::GetBytes([int]0x80).CopyTo($bytes, 0x3C)
     [BitConverter]::GetBytes([uint32]0x00004550).CopyTo($bytes, 0x80)
     [BitConverter]::GetBytes($Machine).CopyTo($bytes, 0x84)
     [IO.File]::WriteAllBytes($Path, $bytes)
 }
 
+function New-FixtureZip {
+    param([string] $Source, [string] $Destination)
+    Add-Type -AssemblyName System.IO.Compression
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $stream = [IO.File]::Open($Destination, [IO.FileMode]::CreateNew)
+    try {
+        $zip = New-Object IO.Compression.ZipArchive(
+            $stream, [IO.Compression.ZipArchiveMode]::Create, $true)
+        try {
+            foreach ($file in @(Get-ChildItem -LiteralPath $Source -File -Recurse |
+                    Sort-Object FullName)) {
+                $relative = $file.FullName.Substring($Source.Length + 1).Replace('\','/')
+                $entry = $zip.CreateEntry($relative)
+                $entry.ExternalAttributes = 0
+                $input = [IO.File]::OpenRead($file.FullName)
+                $output = $entry.Open()
+                try { $input.CopyTo($output) }
+                finally { $output.Dispose(); $input.Dispose() }
+            }
+        }
+        finally { $zip.Dispose() }
+    }
+    finally { $stream.Dispose() }
+}
+
+function New-RuntimeFixture {
+    param([string] $Root)
+    $cache = Join-Path $Root 'runtime-cache'
+    $sources = Join-Path $Root 'runtime-sources'
+    New-Item -ItemType Directory -Path $cache, $sources -Force | Out-Null
+    $records = New-Object 'System.Collections.Generic.List[object]'
+    foreach ($architecture in @('x86','x64')) {
+        $machine = if ($architecture -ceq 'x86') { 0x014C } else { 0x8664 }
+        $core = Join-Path $sources "$architecture-core"
+        $desktop = Join-Path $sources "$architecture-desktop"
+        New-Item -ItemType Directory -Path $core, $desktop -Force | Out-Null
+        New-PortableTestPe -Path (Join-Path $core 'dotnet.exe') -Machine $machine
+        New-PortableTestPe -Path (Join-Path $core 'host\fxr\9.0.8\hostfxr.dll') -Machine $machine
+        New-PortableTestPe -Path (Join-Path $core 'shared\Microsoft.NETCore.App\9.0.8\coreclr.dll') -Machine $machine
+        [IO.File]::WriteAllText((Join-Path $core 'LICENSE.txt'), 'fixture dotnet license')
+        [IO.File]::WriteAllText((Join-Path $core 'ThirdPartyNotices.txt'), 'fixture dotnet notices')
+        New-PortableTestPe -Path (Join-Path $desktop 'shared\Microsoft.WindowsDesktop.App\9.0.8\PresentationFramework.dll') -Machine $machine
+
+        foreach ($component in @('core','windowsDesktop')) {
+            $name = if ($component -ceq 'core') {
+                "dotnet-runtime-9.0.8-win-$architecture.zip"
+            } else {
+                "windowsdesktop-runtime-9.0.8-win-$architecture.zip"
+            }
+            $source = if ($component -ceq 'core') { $core } else { $desktop }
+            $archive = Join-Path $cache $name
+            New-FixtureZip -Source $source -Destination $archive
+            $records.Add([ordered]@{
+                architecture = $architecture
+                component = $component
+                name = $name
+                url = "https://fixture.invalid/$name"
+                sha512 = (Get-FileHash -LiteralPath $archive -Algorithm SHA512).Hash
+            })
+        }
+    }
+    $lock = Join-Path $Root 'runtime-lock.json'
+    [ordered]@{
+        schemaVersion = 1
+        dotnetDesktopRuntime = [ordered]@{
+            version = '9.0.8'
+            portableArchives = @($records.ToArray())
+        }
+    } | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $lock -Encoding utf8
+    [pscustomobject]@{ Cache=$cache; Lock=$lock }
+}
+
 function New-PortableFixture {
-    $root = Join-Path ([IO.Path]::GetTempPath()) ('blind-soldier-portable-test-' + [Guid]::NewGuid().ToString('N'))
+    $root = Join-Path ([IO.Path]::GetTempPath()) (
+        'blind-soldier-portable-test-' + [Guid]::NewGuid().ToString('N'))
     $prerequisites = Join-Path $root 'prerequisites'
     $mod = Join-Path $root 'ff7.accessibility.reloaded'
     $launcher = Join-Path $root 'launcher'
-    $native = Join-Path $root 'native'
-    New-Item -ItemType Directory -Path $prerequisites, $mod, $launcher, $native -Force | Out-Null
+    $bootstrap = Join-Path $root 'bootstrap'
+    New-Item -ItemType Directory -Path $prerequisites, $mod, $launcher, $bootstrap -Force | Out-Null
 
     $reloaded = Join-Path $prerequisites 'reloaded'
     foreach ($architecture in @('X86','X64')) {
         foreach ($relative in $loaderFiles) {
             $path = Join-Path $reloaded "Loader\$architecture\$relative"
             New-Item -ItemType Directory -Path (Split-Path -Parent $path) -Force | Out-Null
-            [IO.File]::WriteAllText($path, "fixture $architecture $relative")
+            if ($relative -ceq 'Reloaded.Mod.Loader.runtimeconfig.json') {
+                [IO.File]::WriteAllText($path, '{"runtimeOptions":{"tfm":"net9.0"}}')
+            }
+            else { [IO.File]::WriteAllText($path, "fixture $architecture $relative") }
         }
     }
     New-PortableTestPe -Path (Join-Path $reloaded 'Loader\X86\Bootstrapper\Reloaded.Mod.Loader.Bootstrapper.dll') -Machine 0x014C
     New-PortableTestPe -Path (Join-Path $reloaded 'Loader\X64\Bootstrapper\Reloaded.Mod.Loader.Bootstrapper.dll') -Machine 0x8664
-    New-PortableTestPe -Path (Join-Path $reloaded '_asi_extract\ASILoader32.dll') -Machine 0x014C
-    New-PortableTestPe -Path (Join-Path $reloaded '_asi_extract\ASILoader64.dll') -Machine 0x8664
-    [IO.File]::WriteAllText((Join-Path $reloaded 'Reloaded-II.exe'), 'must not ship')
+    New-PortableTestPe -Path (Join-Path $reloaded 'Loader\X86\Reloaded.Mod.Loader.dll') -Machine 0x014C
+    New-PortableTestPe -Path (Join-Path $reloaded 'Loader\X64\Reloaded.Mod.Loader.dll') -Machine 0x8664
 
     $hooks = Join-Path $prerequisites 'shared-hooks'
     New-Item -ItemType Directory -Path (Join-Path $hooks 'x86'), (Join-Path $hooks 'x64') -Force | Out-Null
     [IO.File]::WriteAllText((Join-Path $hooks 'ModConfig.json'), '{"ModId":"reloaded.sharedlib.hooks","ModVersion":"1.16.3"}')
     New-PortableTestPe -Path (Join-Path $hooks 'x86\Reloaded.Hooks.ReloadedII.dll') -Machine 0x014C
     New-PortableTestPe -Path (Join-Path $hooks 'x64\Reloaded.Hooks.ReloadedII.dll') -Machine 0x8664
-    [IO.File]::WriteAllText((Join-Path $hooks 'Preview.png'), 'fixture preview')
 
     $notices = Join-Path $prerequisites 'notices'
     New-Item -ItemType Directory -Path $notices -Force | Out-Null
-    [IO.File]::WriteAllText((Join-Path $notices 'THIRD-PARTY-NOTICES.md'), 'fixture notices')
-    [IO.File]::WriteAllText((Join-Path $notices 'Reloaded-II-GPL-3.0.txt'), 'fixture Reloaded license')
-    [IO.File]::WriteAllText((Join-Path $notices 'Reloaded-Shared-Hooks-LGPL-3.0.txt'), 'fixture hooks license')
-    [IO.File]::WriteAllText((Join-Path $prerequisites 'dependency-bundle.json'), '{"schemaVersion":1,"reloaded":{"version":"1.30.3"},"sharedHooks":{"version":"1.16.3"},"dotnetDesktopRuntime":{"version":"9.0.8"}}')
+    foreach ($name in @(
+        'THIRD-PARTY-NOTICES.md', 'Reloaded-II-GPL-3.0.txt',
+        'Reloaded-Shared-Hooks-LGPL-3.0.txt', 'dotnet-LICENSE.txt',
+        'dotnet-THIRD-PARTY-NOTICES.txt')) {
+        [IO.File]::WriteAllText((Join-Path $notices $name), "fixture $name")
+    }
 
-    [IO.File]::WriteAllText((Join-Path $mod 'ModConfig.json'), '{"ModId":"ff7.accessibility.reloaded","ModR2RManagedDll32":"x86/Ff7.Accessibility.Reloaded.dll","ModR2RManagedDll64":"x64/Ff7.Accessibility.Steam2026X64.dll","ModDependencies":["reloaded.sharedlib.hooks"],"SupportedAppId":["ff7_en.exe","FFVII.exe"]}')
+    [IO.File]::WriteAllText((Join-Path $mod 'ModConfig.json'),
+        '{"ModId":"ff7.accessibility.reloaded","ModVersion":"0.1.4","ModR2RManagedDll32":"x86/Ff7.Accessibility.Reloaded.dll","ModR2RManagedDll64":"x64/Ff7.Accessibility.Steam2026X64.dll","ModDependencies":["reloaded.sharedlib.hooks"],"SupportedAppId":["ff7_en.exe","ff7.exe","FFVII.exe"]}')
     New-PortableTestPe -Path (Join-Path $mod 'x86\Ff7.Accessibility.Reloaded.dll') -Machine 0x014C
     New-PortableTestPe -Path (Join-Path $mod 'x64\Ff7.Accessibility.Steam2026X64.dll') -Machine 0x8664
     New-PortableTestPe -Path (Join-Path $mod 'x86\prism.dll') -Machine 0x014C
     New-PortableTestPe -Path (Join-Path $mod 'x64\prism.dll') -Machine 0x8664
-    [IO.File]::WriteAllText((Join-Path $mod 'x86\Ff7.Accessibility.Reloaded.pdb'), 'must not ship')
-    [IO.File]::WriteAllText((Join-Path $mod 'x64\Ff7.Accessibility.Steam2026X64.pdb'), 'must not ship')
+    [IO.File]::WriteAllText((Join-Path $mod 'x86\debug.pdb'), 'must not ship')
     New-Item -ItemType Directory -Path (Join-Path $mod 'Assets\movies') -Force | Out-Null
     [IO.File]::WriteAllText((Join-Path $mod 'Assets\movies\opening_audio_description.ogg'), 'fixture narration')
 
     New-PortableTestPe -Path (Join-Path $launcher 'FFVII_LAUNCHER.exe') -Machine 0x014C
     [IO.File]::WriteAllText((Join-Path $launcher 'FFVII_LAUNCHER.exe.config'), 'fixture config')
-    New-PortableTestPe -Path (Join-Path $launcher 'FFVII_LAUNCHER.prism.x86.dll') -Machine 0x014C
+    New-PortableTestPe -Path (Join-Path $launcher 'native\x86\FFVII_LAUNCHER.prism.x86.dll') -Machine 0x014C
+    $launcherManifest = [ordered]@{
+        schemaVersion=2
+        stockLauncherSha256=('A' * 64)
+        launcher=[ordered]@{path='FFVII_LAUNCHER.exe';length=(Get-Item (Join-Path $launcher 'FFVII_LAUNCHER.exe')).Length;sha256=(Get-FileHash (Join-Path $launcher 'FFVII_LAUNCHER.exe') -Algorithm SHA256).Hash}
+        config=[ordered]@{path='FFVII_LAUNCHER.exe.config';length=(Get-Item (Join-Path $launcher 'FFVII_LAUNCHER.exe.config')).Length;sha256=(Get-FileHash (Join-Path $launcher 'FFVII_LAUNCHER.exe.config') -Algorithm SHA256).Hash}
+        prism=[ordered]@{path='native/x86/FFVII_LAUNCHER.prism.x86.dll';length=(Get-Item (Join-Path $launcher 'native\x86\FFVII_LAUNCHER.prism.x86.dll')).Length;sha256=(Get-FileHash (Join-Path $launcher 'native\x86\FFVII_LAUNCHER.prism.x86.dll') -Algorithm SHA256).Hash}
+        assemblyName='FFVII_LAUNCHER'; assemblyVersion='2.0.0.0'
+    }
+    $launcherManifest | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $launcher 'launcher-bundle.json') -Encoding utf8
 
-    New-PortableTestPe -Path (Join-Path $native 'Blind-Soldier-Installer.exe') -Machine 0x8664
-    New-PortableTestPe -Path (Join-Path $native 'Blind-Soldier-Launcher-x86.exe') -Machine 0x014C
-    New-PortableTestPe -Path (Join-Path $native 'Blind-Soldier-Launcher-x64.exe') -Machine 0x8664
+    New-PortableTestPe -Path (Join-Path $bootstrap 'Blind-Soldier-Bootstrap-x86.exe') -Machine 0x014C
+    New-PortableTestPe -Path (Join-Path $bootstrap 'Blind-Soldier-Bootstrap-x64.exe') -Machine 0x8664
+    $proxy = Join-Path $root 'winmm.dll'
+    New-PortableTestPe -Path $proxy -Machine 0x014C -Marker 77
+    $runtime = New-RuntimeFixture -Root $root
 
     [pscustomobject]@{
-        Root = $root
-        Prerequisites = $prerequisites
-        Mod = $mod
-        Launcher = $launcher
-        Native = $native
-        First = Join-Path $root 'Blind-Soldier-Portable-1.zip'
-        Second = Join-Path $root 'Blind-Soldier-Portable-2.zip'
+        Root=$root; Prerequisites=$prerequisites; Mod=$mod; Launcher=$launcher
+        Bootstrap=$bootstrap; Proxy=$proxy; RuntimeCache=$runtime.Cache
+        RuntimeLock=$runtime.Lock
+        First=(Join-Path $root 'Blind-Soldier-Portable-1.zip')
+        Second=(Join-Path $root 'Blind-Soldier-Portable-2.zip')
     }
+}
+
+function Invoke-FixtureBuild {
+    param([psobject] $Fixture, [string] $Output)
+    & $builderPath -OutputPath $Output -Version '0.1.4' `
+        -PrerequisiteBundlePath $Fixture.Prerequisites `
+        -ModPackagePath $Fixture.Mod `
+        -LauncherBundlePath $Fixture.Launcher `
+        -BootstrapBinaryPath $Fixture.Bootstrap `
+        -WinmmProxyPath $Fixture.Proxy `
+        -DependencyCachePath $Fixture.RuntimeCache `
+        -DependencyLockPath $Fixture.RuntimeLock | Out-Null
 }
 
 function Get-PortableEntries {
     param([string] $Path)
-    Add-Type -AssemblyName System.IO.Compression
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     $archive = [IO.Compression.ZipFile]::OpenRead($Path)
-    try { return @($archive.Entries | Where-Object { -not [string]::IsNullOrWhiteSpace($_.Name) } | ForEach-Object FullName) }
+    try { return @($archive.Entries | Where-Object Name | ForEach-Object FullName) }
     finally { $archive.Dispose() }
 }
 
 function Get-PortableEntryText {
     param([string] $Path, [string] $EntryPath)
-    Add-Type -AssemblyName System.IO.Compression
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     $archive = [IO.Compression.ZipFile]::OpenRead($Path)
     try {
@@ -117,6 +213,43 @@ function Get-PortableEntryText {
     finally { $archive.Dispose() }
 }
 
+function Get-PortableEntryHash {
+    param([string] $Path, [string] $EntryPath)
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $archive = [IO.Compression.ZipFile]::OpenRead($Path)
+    try {
+        $entry = $archive.GetEntry($EntryPath)
+        $sha = [Security.Cryptography.SHA256]::Create()
+        try {
+            $stream = $entry.Open()
+            try { return ([BitConverter]::ToString($sha.ComputeHash($stream))).Replace('-','') }
+            finally { $stream.Dispose() }
+        }
+        finally { $sha.Dispose() }
+    }
+    finally { $archive.Dispose() }
+}
+
+function New-UnsafePortableZip {
+    param([string] $Path)
+    Add-Type -AssemblyName System.IO.Compression
+    $stream = [IO.File]::Open($Path, [IO.FileMode]::CreateNew)
+    try {
+        $archive = New-Object IO.Compression.ZipArchive(
+            $stream, [IO.Compression.ZipArchiveMode]::Create, $true)
+        try {
+            $entry = $archive.CreateEntry('../escaped.txt')
+            $writer = New-Object IO.StreamWriter($entry.Open())
+            try { $writer.Write('unsafe') } finally { $writer.Dispose() }
+        }
+        finally { $archive.Dispose() }
+    }
+    finally { $stream.Dispose() }
+    $hash = (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash
+    [IO.File]::WriteAllText($Path + '.sha256',
+        "$hash  $([IO.Path]::GetFileName($Path))`n")
+}
+
 Describe 'Blind Soldier direct-extract portable package' {
     AfterEach {
         if ($null -ne $fixture -and (Test-Path -LiteralPath $fixture.Root)) {
@@ -125,69 +258,94 @@ Describe 'Blind Soldier direct-extract portable package' {
         $fixture = $null
     }
 
-    It 'ships the preserved native installer workflow and complete accessibility payload' {
+    It 'ships the complete no-installer accessibility payload in all supported layouts' {
         $fixture = New-PortableFixture
-        & $builderPath -OutputPath $fixture.First -Version '0.1.0-pre.7' `
-            -PrerequisiteBundlePath $fixture.Prerequisites -ModPackagePath $fixture.Mod `
-            -LauncherBundlePath $fixture.Launcher -NativeBinaryPath $fixture.Native | Out-Null
-
+        Invoke-FixtureBuild -Fixture $fixture -Output $fixture.First
         $entries = @(Get-PortableEntries -Path $fixture.First)
         foreach ($required in @(
-            'Blind-Soldier-Installer.exe',
-            'Blind-Soldier-Launcher-x86.exe',
-            'Blind-Soldier-Launcher-x64.exe',
-            'FFVII_LAUNCHER.exe',
-            'FFVII_LAUNCHER.exe.config',
+            'FFVII_LAUNCHER.exe', 'FFVII_LAUNCHER.exe.config',
             'launcher_accessibility/native/x86/FFVII_LAUNCHER.prism.x86.dll',
+            'ff7_en.exe.local/winmm.dll', 'ff7.exe.local/winmm.dll',
+            'ff7/workingdir/ff7_en.exe.local/winmm.dll',
+            'ff7/workingdir/ff7.exe.local/winmm.dll',
+            'Blind-Soldier/Bootstrap/x86/Blind-Soldier-Bootstrap-x86.exe',
+            'Blind-Soldier/Bootstrap/x64/Blind-Soldier-Bootstrap-x64.exe',
+            'Blind-Soldier/Runtime/dotnet/x86/host/fxr/9.0.8/hostfxr.dll',
+            'Blind-Soldier/Runtime/dotnet/x64/host/fxr/9.0.8/hostfxr.dll',
+            'Reloaded-II/portable.txt',
             'Reloaded-II/Mods/ff7.accessibility.reloaded/ModConfig.json',
-            'Reloaded-II/Mods/ff7.accessibility.reloaded/x86/Ff7.Accessibility.Reloaded.dll',
-            'Reloaded-II/Mods/ff7.accessibility.reloaded/x64/Ff7.Accessibility.Steam2026X64.dll',
             'Reloaded-II/Mods/reloaded.sharedlib.hooks/ModConfig.json',
-            'LICENSES/Reloaded-II-GPL-3.0.txt',
-            'LICENSES/Reloaded-Shared-Hooks-LGPL-3.0.txt',
-            'README-PORTABLE.txt',
-            'portable-manifest.json'
+            'LICENSES/dotnet-LICENSE.txt',
+            'LICENSES/dotnet-THIRD-PARTY-NOTICES.txt',
+            'README-PORTABLE.txt', 'portable-manifest.json'
         )) { ($entries -ccontains $required) | Should Be $true }
 
-        $loaderEntries = @($entries | Where-Object { $_ -like 'Reloaded-II/Loader/*' } | Sort-Object)
-        $expected = New-Object 'System.Collections.Generic.List[string]'
-        foreach ($architecture in @('X86','X64')) {
-            foreach ($relative in $loaderFiles) {
-                $expected.Add(('Reloaded-II/Loader/{0}/{1}' -f $architecture, $relative.Replace('\','/')))
-            }
+        foreach ($forbidden in @(
+            'Blind-Soldier-Installer.exe', 'Blind-Soldier-Launcher-x86.exe',
+            'Blind-Soldier-Launcher-x64.exe', 'winmm.dll', 'dinput.dll',
+            'Reloaded-II/ReloadedII.json')) {
+            ($entries -ccontains $forbidden) | Should Be $false
         }
-        (($loaderEntries | Sort-Object) -join '|') | Should Be (($expected.ToArray() | Sort-Object) -join '|')
-        ($entries -contains 'Reloaded-II/Reloaded-II.exe') | Should Be $false
-        @($entries | Where-Object { $_ -like '*ASILoader*' }).Count | Should Be 0
-        @($entries | Where-Object { $_ -match '\.(pdb|obj|iobj|ipdb)$' }).Count | Should Be 0
+        @($entries | Where-Object { $_ -match '(?i)(windowsdesktop-runtime-.+\.exe|\.(pdb|obj|iobj|ipdb)$)' }).Count | Should Be 0
     }
 
-    It 'is deterministic for identical inputs' {
+    It 'uses four byte-identical proxy copies and no loose root proxy' {
         $fixture = New-PortableFixture
-        foreach ($output in @($fixture.First, $fixture.Second)) {
-            & $builderPath -OutputPath $output -Version '0.1.0-pre.7' `
-                -PrerequisiteBundlePath $fixture.Prerequisites -ModPackagePath $fixture.Mod `
-                -LauncherBundlePath $fixture.Launcher -NativeBinaryPath $fixture.Native | Out-Null
-        }
+        Invoke-FixtureBuild -Fixture $fixture -Output $fixture.First
+        $hashes = @(
+            'ff7_en.exe.local/winmm.dll', 'ff7.exe.local/winmm.dll',
+            'ff7/workingdir/ff7_en.exe.local/winmm.dll',
+            'ff7/workingdir/ff7.exe.local/winmm.dll'
+        ) | ForEach-Object { Get-PortableEntryHash -Path $fixture.First -EntryPath $_ }
+        @($hashes | Select-Object -Unique).Count | Should Be 1
+    }
+
+    It 'starts with the two-step accessible instructions and contains no registry workflow' {
+        $fixture = New-PortableFixture
+        Invoke-FixtureBuild -Fixture $fixture -Output $fixture.First
+        $readme = Get-PortableEntryText -Path $fixture.First -EntryPath 'README-PORTABLE.txt'
+        $readme.StartsWith("Blind Soldier 0.1.4`r`n`r`n1. Extract every file in this ZIP into your Final Fantasy VII game folder.`r`n2. Start the game normally from Steam or 7th Heaven.") | Should Be $true
+        $readme | Should Not Match '(?i)Blind-Soldier-Installer|/install|/uninstall|Image File Execution Options'
+        $readme | Should Match '(?i)no administrator'
+        $readme | Should Match '(?i)\.local\\winmm\.dll'
+    }
+
+    It 'is byte-for-byte deterministic for identical inputs' {
+        $fixture = New-PortableFixture
+        Invoke-FixtureBuild -Fixture $fixture -Output $fixture.First
+        Invoke-FixtureBuild -Fixture $fixture -Output $fixture.Second
         (Get-FileHash -LiteralPath $fixture.First -Algorithm SHA256).Hash |
             Should Be (Get-FileHash -LiteralPath $fixture.Second -Algorithm SHA256).Hash
+        [IO.File]::ReadAllText($fixture.First + '.sha256') |
+            Should Be ((Get-FileHash $fixture.First -Algorithm SHA256).Hash + '  ' +
+                [IO.Path]::GetFileName($fixture.First) + "`n")
     }
 
-    It 'uses one deterministic x64 graphics initialization hook without changing x86' {
+    It 'rejects an unsafe ZIP member before extraction' {
         $fixture = New-PortableFixture
-        & $builderPath -OutputPath $fixture.First -Version '0.1.0-pre.7' `
-            -PrerequisiteBundlePath $fixture.Prerequisites -ModPackagePath $fixture.Mod `
-            -LauncherBundlePath $fixture.Launcher -NativeBinaryPath $fixture.Native | Out-Null
+        New-UnsafePortableZip -Path $fixture.First
+        { & $verifierPath -ArchivePath $fixture.First -ExpectedVersion '0.1.4' } |
+            Should Throw 'unsafe path member'
+        Test-Path -LiteralPath (Join-Path $fixture.Root 'escaped.txt') |
+            Should Be $false
+    }
 
-        $x64 = Get-PortableEntryText -Path $fixture.First `
-            -EntryPath 'Reloaded-II/Loader/X64/DelayInjectHooks.json' | ConvertFrom-Json
-        @($x64).Count | Should Be 1
-        [string]$x64[0].Name | Should Be 'd3d11'
-        @($x64[0].Functions).Count | Should Be 1
-        [string]$x64[0].Functions[0] | Should Be 'D3DKMTWaitForVerticalBlankEvent'
+    It 'rejects a wrong-architecture bootstrap without producing an archive' {
+        $fixture = New-PortableFixture
+        New-PortableTestPe -Path (Join-Path $fixture.Bootstrap `
+            'Blind-Soldier-Bootstrap-x64.exe') -Machine 0x014C
+        { Invoke-FixtureBuild -Fixture $fixture -Output $fixture.First } |
+            Should Throw 'expected 0x8664'
+        Test-Path -LiteralPath $fixture.First | Should Be $false
+    }
 
-        Get-PortableEntryText -Path $fixture.First `
-            -EntryPath 'Reloaded-II/Loader/X86/DelayInjectHooks.json' |
-            Should Be 'fixture X86 DelayInjectHooks.json'
+    It 'rejects text that leaks the obsolete registry launch workflow' {
+        $fixture = New-PortableFixture
+        [IO.File]::WriteAllText((Join-Path $fixture.Prerequisites `
+            'notices\THIRD-PARTY-NOTICES.md'),
+            'Image File Execution Options must not ship')
+        Invoke-FixtureBuild -Fixture $fixture -Output $fixture.First
+        { & $verifierPath -ArchivePath $fixture.First -ExpectedVersion '0.1.4' } |
+            Should Throw 'obsolete registry workflow'
     }
 }

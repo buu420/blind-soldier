@@ -134,6 +134,12 @@ Describe 'Blind Soldier release builder' {
         [IO.File]::ReadAllText((Join-Path $fixture.First 'Blind-Soldier-Setup.exe.sha256')) | Should Match "^$($manifest.setup.sha256)  Blind-Soldier-Setup.exe`r?`n?$"
     }
 
+    It 'builds the accessible launcher from versioned source' {
+        $source = [IO.File]::ReadAllText($builderPath)
+        $source | Should Match 'Build-AccessibleLauncherBundle\.ps1'
+        $source | Should Not Match 'installer-assets[\\/]launcher'
+    }
+
     It 'creates an ordinally sorted payload manifest and deterministic archive' {
         & $builderPath -Version '0.1.0-pre.1' -Tag 'v0.1.0-pre.1' -OutputPath $fixture.First `
             -PackageBuilder $packageBuilder -PrerequisiteBundleBuilder $prerequisiteBundleBuilder `

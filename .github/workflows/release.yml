@@ -15,17 +15,25 @@ jobs:
       - name: Check out source
         uses: actions/checkout@v4
 
-      - name: Install .NET 8 SDK
+      - name: Install .NET 9 SDK
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 8.0.x
+          dotnet-version: 9.0.x
+
+      - name: Install Java 21 for Ghidra
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
 
       - name: Build and validate release assets
         shell: pwsh
         run: |
-          $tag = $env:GITHUB_REF_NAME
-          $version = $tag.Substring(1)
-          ./Build-BlindSwordsmanRelease.ps1 -Version $version -Tag $tag -OutputPath ./artifacts/release
+          ./Run-DualRuntimeVerification.ps1
+          $version = $env:GITHUB_REF_NAME.Substring(1)
+          New-Item -ItemType Directory -Path ./artifacts/release -Force | Out-Null
+          ./Build-BlindSoldierPortablePackage.ps1 -OutputPath ./artifacts/release/Blind-Soldier-Portable.zip -Version $version
+          ./Verify-BlindSoldierPortablePackage.ps1 -ArchivePath ./artifacts/release/Blind-Soldier-Portable.zip -ExpectedVersion $version
 
       - name: Create GitHub release
         shell: pwsh
@@ -33,13 +41,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $tag = $env:GITHUB_REF_NAME
-          $channel = Get-Content ./artifacts/release/blind-soldier-channel.json -Raw | ConvertFrom-Json
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
           if ($LASTEXITCODE -eq 0) {
             Write-Host "Release $tag already exists; verified assets were not overwritten."
             exit 0
           }
-          $arguments = @('release', 'create', $tag, '--repo', $env:GITHUB_REPOSITORY, '--generate-notes', '--title', "Blind Soldier $($channel.version)")
-          if ($channel.track -eq 'prerelease') { $arguments += '--prerelease' }
-          $arguments += @(Get-ChildItem ./artifacts/release -File | ForEach-Object FullName)
+          $version = $tag.Substring(1)
+          $arguments = @('release', 'create', $tag, '--repo', $env:GITHUB_REPOSITORY, '--title', "Blind Soldier $version", '--notes-file', './docs/releases/v0.1.4.md')
+          if ($version.Contains('-')) { $arguments += '--prerelease' }
+          $arguments += @('./artifacts/release/Blind-Soldier-Portable.zip', './artifacts/release/Blind-Soldier-Portable.zip.sha256')
           gh @arguments
