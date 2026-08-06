@@ -8,6 +8,8 @@
     <PlatformTarget>x86</PlatformTarget>
     <EnableDefaultEmbeddedResourceItems>False</EnableDefaultEmbeddedResourceItems>
     <Deterministic>True</Deterministic>
+    <AutoGenerateBindingRedirects>False</AutoGenerateBindingRedirects>
+    <GenerateBindingRedirectsOutputType>False</GenerateBindingRedirectsOutputType>
   </PropertyGroup>
   <PropertyGroup>
     <LangVersion>latest</LangVersion>

@@ -46,6 +46,12 @@ Describe 'Accessible FFVII launcher bundle' {
             $manifest.launcher.sha256 | Should Match '^[A-F0-9]{64}$'
             $manifest.config.sha256 | Should Match '^[A-F0-9]{64}$'
             $manifest.prism.sha256 | Should Match '^[A-F0-9]{64}$'
+
+            $configText = [IO.File]::ReadAllText(
+                (Join-Path $output 'FFVII_LAUNCHER.exe.config'))
+            $configText | Should Not Match '(?i)netstandard'
+            $configText | Should Not Match `
+                '(?i)<bindingRedirect[^>]+newVersion="2\.1\.0\.0"'
         }
         finally {
             if (Test-Path -LiteralPath $output) {

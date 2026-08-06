@@ -104,6 +104,7 @@ Describe 'Blind Soldier native bootstrap workflow' {
         $process = [IO.File]::ReadAllText($bootstrapProcess)
         $allBootstrap = $process + [IO.File]::ReadAllText($bootstrapMain)
         $process | Should Match 'CREATE_SUSPENDED'
+        $process | Should Match 'ERROR_PARTIAL_COPY'
         $process | Should Match 'CreateRemoteThread'
         $process | Should Match 'WriteProcessMemory'
         $process | Should Match 'CreateToolhelp32Snapshot'
@@ -113,6 +114,14 @@ Describe 'Blind Soldier native bootstrap workflow' {
         $process | Should Match 'OpenEventW'
         $process | Should Match 'SetEvent'
         $allBootstrap | Should Not Match 'LaunchGameUnmodded'
+        $resumePosition = $process.IndexOf(
+            'DWORD suspendCount = ResumeThread(process.hThread)',
+            [StringComparison]::Ordinal)
+        $injectPosition = $process.IndexOf(
+            'InjectResult injected = InjectDll(process.hProcess',
+            [StringComparison]::Ordinal)
+        ($resumePosition -ge 0 -and $injectPosition -gt $resumePosition) |
+            Should Be $true
         $allBootstrap | Should Not Match 'DEBUG_ONLY_THIS_PROCESS'
         $allBootstrap | Should Not Match 'BLIND_SOLDIER_LAUNCHER_ACTIVE'
         $allBootstrap | Should Not Match 'SetIFEODebugger'

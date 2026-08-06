@@ -67,18 +67,21 @@ private:
 
 LPVOID FindRemoteModuleBase(DWORD processId,
                             const std::wstring& moduleName,
-                            Logger& log) {
+    Logger& log) {
     HANDLE snapshot = INVALID_HANDLE_VALUE;
-    for (int attempt = 0; attempt < 20; ++attempt) {
+    DWORD snapshotError = ERROR_SUCCESS;
+    for (int attempt = 0; attempt < 500; ++attempt) {
         snapshot = CreateToolhelp32Snapshot(
             TH32CS_SNAPMODULE | TH32CS_SNAPMODULE32, processId);
         if (snapshot != INVALID_HANDLE_VALUE) break;
-        if (GetLastError() != ERROR_BAD_LENGTH) break;
+        snapshotError = GetLastError();
+        if (snapshotError != ERROR_BAD_LENGTH &&
+            snapshotError != ERROR_PARTIAL_COPY) break;
         Sleep(10);
     }
     if (snapshot == INVALID_HANDLE_VALUE) {
         log.Err(L"FindRemoteModuleBase: CreateToolhelp32Snapshot",
-                GetLastError());
+                snapshotError);
         return nullptr;
     }
     MODULEENTRY32W entry{};
@@ -320,6 +323,19 @@ BootstrapExitCode RunLaunch(const BootstrapRequest& request, Logger& log) {
         }
     }
 
+    DWORD suspendCount = ResumeThread(process.hThread);
+    if (suspendCount == static_cast<DWORD>(-1)) {
+        log.Err(L"ResumeThread(loader initialization)", GetLastError());
+        TerminateProcess(process.hProcess,
+                         static_cast<UINT>(BootstrapExitCode::ResumeFailed));
+        WaitForSingleObject(process.hProcess, 5000);
+        CloseHandle(process.hThread);
+        CloseHandle(process.hProcess);
+        return BootstrapExitCode::ResumeFailed;
+    }
+    log.W(L"Resumed FFVII for bounded loader initialization; prior suspend count=" +
+          std::to_wstring(suspendCount));
+
     InjectResult injected = InjectDll(process.hProcess, process.dwProcessId,
         payload.bootstrapper.wstring(), 30000, log);
     if (injected != InjectResult::Success) {
@@ -329,16 +345,6 @@ BootstrapExitCode RunLaunch(const BootstrapRequest& request, Logger& log) {
         CloseHandle(process.hThread);
         CloseHandle(process.hProcess);
         return BootstrapExitCode::InjectionFailed;
-    }
-    DWORD suspendCount = ResumeThread(process.hThread);
-    if (suspendCount == static_cast<DWORD>(-1)) {
-        log.Err(L"ResumeThread", GetLastError());
-        TerminateProcess(process.hProcess,
-                         static_cast<UINT>(BootstrapExitCode::ResumeFailed));
-        WaitForSingleObject(process.hProcess, 5000);
-        CloseHandle(process.hThread);
-        CloseHandle(process.hProcess);
-        return BootstrapExitCode::ResumeFailed;
     }
     BootstrapExitCode result = WaitForTarget(process.hProcess, log);
     CloseHandle(process.hThread);
