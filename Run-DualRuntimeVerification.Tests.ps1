@@ -154,4 +154,19 @@ Describe 'Blind Soldier aggregate portable release gate' {
             $content | Should Match ([regex]::Escape($required))
         }
     }
+
+    It 'provisions both dotnet architectures for the tagged release gate' {
+        $workflowPath = Join-Path $PSScriptRoot `
+            '.github\workflows\release.yml'
+        $workflow = [IO.File]::ReadAllText($workflowPath)
+        $workflow | Should Match '(?m)^\s*architecture:\s*x86\s*$'
+        $workflow | Should Match '(?m)^\s*8\.0\.x\s*$'
+        $workflow | Should Match '(?m)^\s*9\.0\.x\s*$'
+        $workflow | Should Match 'DOTNET_ROOT_X86'
+        $workflow | Should Match 'DOTNET_ROOT_X64'
+        $workflow | Should Match 'dotnet-x86'
+        $workflow | Should Match '(?m)^\s*workflow_dispatch:\s*$'
+        $workflow | Should Match "(?m)^\s*if:\s*github\.ref_type == 'tag'\s*$"
+        $workflow | Should Match '\$\{\{ inputs\.version \}\}'
+    }
 }

@@ -1640,7 +1640,10 @@ static void AssertLegacyX86FingerprintAcceptsOnlyKnownExecutable()
 
 static void AssertReloadedMetadataNamesEveryValidatedHost()
 {
-    var configPath = Path.Combine(FindSourceRoot(), "Ff7.Accessibility.Reloaded", "ModConfig.json");
+    var configPath = Path.Combine(
+        FindRepositoryRoot(),
+        "Ff7.Accessibility.Reloaded",
+        "ModConfig.json");
     using var document = JsonDocument.Parse(File.ReadAllText(configPath));
     var supported = document.RootElement.GetProperty("SupportedAppId")
         .EnumerateArray()
@@ -25894,6 +25897,26 @@ static string FindSourceRoot()
     }
 
     throw new DirectoryNotFoundException("Could not locate the FFVII accessibility source root.");
+}
+
+static string FindRepositoryRoot()
+{
+    var dir = new DirectoryInfo(AppContext.BaseDirectory);
+    while (dir is not null)
+    {
+        if (File.Exists(Path.Combine(
+                dir.FullName,
+                "Ff7.Accessibility.Reloaded",
+                "ModConfig.json")))
+        {
+            return dir.FullName;
+        }
+
+        dir = dir.Parent;
+    }
+
+    throw new DirectoryNotFoundException(
+        "Could not locate the Blind Soldier repository root.");
 }
 
 sealed class FixedPortalRoutePlanner : IFieldNavigationRoutePlanner
