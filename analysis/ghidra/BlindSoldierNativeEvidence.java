@@ -1,95 +1,82 @@
-// Ghidra headless post-analysis evidence for Blind Soldier's native installer
-// and architecture-matched launchers.
+// Machine-readable Ghidra evidence for an optional, locally available FFVII
+// host. Game executables are identity evidence only: registry behavior in the
+// original game is outside Blind Soldier's portable-binary policy.
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Set;
+import java.io.File;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.MessageDigest;
 
 import ghidra.app.script.GhidraScript;
-import ghidra.program.model.listing.Data;
-import ghidra.program.model.listing.DataIterator;
-import ghidra.program.model.symbol.Symbol;
-import ghidra.program.model.symbol.SymbolIterator;
+import ghidra.app.util.bin.FileByteProvider;
+import ghidra.app.util.bin.format.pe.FileHeader;
+import ghidra.app.util.bin.format.pe.NTHeader;
+import ghidra.app.util.bin.format.pe.PortableExecutable;
+import ghidra.app.util.bin.format.pe.PortableExecutable.SectionLayout;
+import java.nio.file.AccessMode;
 
 public class BlindSoldierNativeEvidence extends GhidraScript {
     @Override
     public void run() throws Exception {
-        String programName = currentProgram.getName();
-        boolean installer = programName.toLowerCase(Locale.ROOT).contains("installer");
-        List<String> required = installer
-            ? Arrays.asList(
-                "RegCreateKeyExW",
-                "RegQueryValueExW",
-                "RegSetValueExW",
-                "RegDeleteValueW",
-                "ShellExecuteExW",
-                "MessageBoxW",
-                "Image File Execution Options",
-                "Microsoft.WindowsDesktop.App",
-                "/uninstall")
-            : Arrays.asList(
-                "CreateProcessW",
-                "DebugActiveProcessStop",
-                "VirtualAllocEx",
-                "WriteProcessMemory",
-                "CreateRemoteThread",
-                "CreateToolhelp32Snapshot",
-                "Module32FirstW",
-                "GetModuleHandleExW",
-                "CreateMutexW",
-                "MoveFileExW",
-                "LoadLibraryW",
-                "ResumeThread");
-
-        Set<String> symbolNames = new LinkedHashSet<>();
-        SymbolIterator symbols = currentProgram.getSymbolTable().getAllSymbols(true);
-        while (symbols.hasNext()) {
-            monitor.checkCancelled();
-            Symbol symbol = symbols.next();
-            symbolNames.add(symbol.getName());
+        String[] args = getScriptArgs();
+        if (args.length < 3) {
+            throw new Exception("Expected report path, kind, and PE machine.");
         }
-
-        List<String> strings = new ArrayList<>();
-        DataIterator dataIterator = currentProgram.getListing().getDefinedData(true);
-        while (dataIterator.hasNext()) {
-            monitor.checkCancelled();
-            Data data = dataIterator.next();
-            Object value = data.getValue();
-            if (value instanceof String) {
-                strings.add((String)value);
-            }
-        }
-
-        println("BLIND_SOLDIER_NATIVE_EVIDENCE program=" + programName);
-        println("  language=" + currentProgram.getLanguageID());
-        println("  compiler=" + currentProgram.getCompilerSpec().getCompilerSpecID());
-        List<String> missing = new ArrayList<>();
-        for (String needle : required) {
-            boolean found = containsIgnoreCase(symbolNames, needle) ||
-                containsIgnoreCase(strings, needle);
-            println("  " + needle + "=" + found);
-            if (!found) {
-                missing.add(needle);
-            }
-        }
-        if (!missing.isEmpty()) {
-            throw new Exception("Required native evidence missing: " +
-                String.join(", ", missing));
+        Path report = Path.of(args[0]).toAbsolutePath();
+        String kind = args[1];
+        int expectedMachine = Integer.parseInt(args[2]);
+        File executable = new File(currentProgram.getExecutablePath());
+        int machine = peMachine(executable);
+        String json = "{\n" +
+            "  \"schemaVersion\": 1,\n" +
+            "  \"marker\": \"BLIND_SOLDIER_GHIDRA_EVIDENCE\",\n" +
+            "  \"kind\": \"" + escape(kind) + "\",\n" +
+            "  \"program\": \"" + escape(executable.getAbsolutePath()) + "\",\n" +
+            "  \"sha256\": \"" + sha256(executable.toPath()) + "\",\n" +
+            "  \"machine\": " + machine + ",\n" +
+            "  \"required\": { \"HostIdentity\": " +
+                (machine == expectedMachine) + " },\n" +
+            "  \"forbidden\": [],\n" +
+            "  \"exports\": [],\n" +
+            "  \"tool\": \"Ghidra headless\"\n" +
+            "}\n";
+        Files.createDirectories(report.getParent());
+        Files.writeString(report, json, StandardCharsets.UTF_8);
+        println("BLIND_SOLDIER_GHIDRA_EVIDENCE " + report);
+        if (machine != expectedMachine) {
+            throw new Exception("Host PE machine does not match the requested evidence kind.");
         }
     }
 
-    private static boolean containsIgnoreCase(Iterable<String> values,
-                                               String needle) {
-        String normalized = needle.toLowerCase(Locale.ROOT);
-        for (String value : values) {
-            if (value != null &&
-                value.toLowerCase(Locale.ROOT).contains(normalized)) {
-                return true;
+    private static int peMachine(File executable) throws Exception {
+        try (FileByteProvider provider =
+                new FileByteProvider(executable, null, AccessMode.READ)) {
+            PortableExecutable pe =
+                new PortableExecutable(provider, SectionLayout.FILE, true, false);
+            NTHeader nt = pe.getNTHeader();
+            if (nt == null) throw new Exception("Ghidra could not parse the PE header.");
+            FileHeader header = nt.getFileHeader();
+            return Short.toUnsignedInt(header.getMachine());
+        }
+    }
+
+    private static String sha256(Path path) throws Exception {
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        byte[] buffer = new byte[1024 * 1024];
+        try (java.io.InputStream input = Files.newInputStream(path)) {
+            int count;
+            while ((count = input.read(buffer)) >= 0) {
+                if (count > 0) digest.update(buffer, 0, count);
             }
         }
-        return false;
+        StringBuilder value = new StringBuilder(64);
+        for (byte item : digest.digest()) value.append(String.format("%02X", item & 0xff));
+        return value.toString();
+    }
+
+    private static String escape(String value) {
+        return value.replace("\\", "\\\\").replace("\"", "\\\"")
+            .replace("\r", "\\r").replace("\n", "\\n");
     }
 }
