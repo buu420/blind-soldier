@@ -3,7 +3,8 @@ param(
     [string] $SystemWinmmPath = "$env:WINDIR\SysWOW64\winmm.dll",
     [string] $ManifestPath,
     [string] $IncludePath,
-    [string] $DefinitionPath
+    [string] $DefinitionPath,
+    [switch] $AllowCompatibleSystemWinmm
 )
 
 $ErrorActionPreference = 'Stop'
@@ -24,6 +25,8 @@ if ([string]::IsNullOrWhiteSpace($DefinitionPath)) {
 $expectedSha256 = `
     '761E7285BDCA295F82E9EC88FE73D7CF23FBDCB1757F0E043DC701BB3ECD3A51'
 $expectedVersion = '10.0.26100.8737'
+$evidenceManifestPath = Join-Path $repoRoot `
+    'analysis\native-bootstrap\winmm-exports-10.0.26100.8737.json'
 
 function Write-Utf8NoBom {
     param([string] $Path, [string] $Content)
@@ -74,8 +77,12 @@ $item = Get-Item -LiteralPath $resolvedWinmm
 $sha256 = (Get-FileHash -LiteralPath $resolvedWinmm -Algorithm SHA256).Hash
 $version = [string]$item.VersionInfo.ProductVersion
 $machine = Get-PeMachine -Path $resolvedWinmm
-if ($sha256 -cne $expectedSha256 -or $version -cne $expectedVersion -or
-    $machine -ne 0x014C) {
+if ($machine -ne 0x014C) {
+    throw "System WinMM is not x86: machine=$machine"
+}
+$matchesEvidenceBinary = $sha256 -ceq $expectedSha256 -and
+    $version -ceq $expectedVersion
+if (-not $matchesEvidenceBinary -and -not $AllowCompatibleSystemWinmm) {
     throw "System WinMM does not match the evidence lock: version=$version machine=$machine sha256=$sha256"
 }
 
@@ -113,6 +120,19 @@ for ($index = 0; $index -lt $orderedExports.Count; $index++) {
 }
 if ([int]@($orderedExports | Where-Object noname)[0].ordinal -ne 2) {
     throw 'The expected ordinal-only WinMM export is missing.'
+}
+if ($AllowCompatibleSystemWinmm) {
+    if (-not (Test-Path -LiteralPath $evidenceManifestPath -PathType Leaf)) {
+        throw "WinMM evidence manifest is unavailable: $evidenceManifestPath"
+    }
+    $evidenceManifest = [IO.File]::ReadAllText($evidenceManifestPath) |
+        ConvertFrom-Json
+    $actualSurface = $orderedExports | ConvertTo-Json -Compress
+    $evidenceSurface = $evidenceManifest.exports |
+        Select-Object ordinal,name,noname | ConvertTo-Json -Compress
+    if ($actualSurface -cne $evidenceSurface) {
+        throw 'System WinMM export surface does not match the evidence lock.'
+    }
 }
 
 $manifest = [ordered]@{

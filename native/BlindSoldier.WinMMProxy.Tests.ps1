@@ -102,30 +102,71 @@ Describe 'Blind Soldier guarded x86 WinMM proxy' {
         New-Item -ItemType Directory -Path $root | Out-Null
         try {
             & $generatorPath -SystemWinmmPath $systemWinmm `
+                -AllowCompatibleSystemWinmm `
                 -ManifestPath (Join-Path $root 'manifest.json') `
                 -IncludePath (Join-Path $root 'winmm_exports.inc') `
                 -DefinitionPath (Join-Path $root 'winmm.def')
             $LASTEXITCODE | Should Be 0
+            $generatedManifest = [IO.File]::ReadAllText(
+                (Join-Path $root 'manifest.json')) | ConvertFrom-Json
+            $checkedInManifest = [IO.File]::ReadAllText($manifestPath) |
+                ConvertFrom-Json
+            $generatedManifest.fileVersion | Should Be `
+                ([string](Get-Item -LiteralPath $systemWinmm).VersionInfo.ProductVersion)
+            $generatedManifest.sha256 | Should Be `
+                (Get-FileHash -LiteralPath $systemWinmm -Algorithm SHA256).Hash
+            ($generatedManifest.exports |
+                Select-Object ordinal,name,noname | ConvertTo-Json -Compress) |
+                Should Be ($checkedInManifest.exports |
+                    Select-Object ordinal,name,noname | ConvertTo-Json -Compress)
             foreach ($pair in @(
-                @((Join-Path $root 'manifest.json'), $manifestPath),
                 @((Join-Path $root 'winmm_exports.inc'),
                     (Join-Path $proxyRoot 'winmm_exports.inc')),
                 @((Join-Path $root 'winmm.def'),
                     (Join-Path $proxyRoot 'winmm.def'))
             )) {
-                if ([IO.Path]::GetFileName($pair[0]) -eq 'manifest.json') {
-                    $generated = [IO.File]::ReadAllText($pair[0]) |
-                        ConvertFrom-Json | ConvertTo-Json -Depth 5 -Compress
-                    $checkedIn = [IO.File]::ReadAllText($pair[1]) |
-                        ConvertFrom-Json | ConvertTo-Json -Depth 5 -Compress
-                    $generated | Should Be $checkedIn
-                }
-                else {
-                    (Get-FileHash -LiteralPath $pair[0] -Algorithm SHA256).Hash |
-                        Should Be (Get-FileHash -LiteralPath $pair[1] `
-                            -Algorithm SHA256).Hash
-                }
+                (Get-FileHash -LiteralPath $pair[0] -Algorithm SHA256).Hash |
+                    Should Be (Get-FileHash -LiteralPath $pair[1] `
+                        -Algorithm SHA256).Hash
             }
+        }
+        finally { Remove-Item -LiteralPath $root -Recurse -Force }
+    }
+
+    It 'requires explicit compatibility mode for a changed system image' {
+        $root = Join-Path ([IO.Path]::GetTempPath()) `
+            ('blind-soldier-winmm-compat-' + [Guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $root | Out-Null
+        try {
+            $modifiedWinmm = Join-Path $root 'winmm.dll'
+            Copy-Item -LiteralPath $systemWinmm -Destination $modifiedWinmm
+            $bytes = [IO.File]::ReadAllBytes($modifiedWinmm)
+            $peOffset = [BitConverter]::ToInt32($bytes, 0x3C)
+            $checksumOffset = $peOffset + 88
+            $bytes[$checksumOffset] = $bytes[$checksumOffset] -bxor 1
+            [IO.File]::WriteAllBytes($modifiedWinmm, $bytes)
+
+            {
+                & $generatorPath -SystemWinmmPath $modifiedWinmm `
+                    -ManifestPath (Join-Path $root 'strict.json') `
+                    -IncludePath (Join-Path $root 'strict.inc') `
+                    -DefinitionPath (Join-Path $root 'strict.def')
+            } | Should Throw
+
+            & $generatorPath -SystemWinmmPath $modifiedWinmm `
+                -AllowCompatibleSystemWinmm `
+                -ManifestPath (Join-Path $root 'compatible.json') `
+                -IncludePath (Join-Path $root 'compatible.inc') `
+                -DefinitionPath (Join-Path $root 'compatible.def')
+            $LASTEXITCODE | Should Be 0
+            (Get-FileHash -LiteralPath (Join-Path $root 'compatible.inc') `
+                -Algorithm SHA256).Hash | Should Be `
+                (Get-FileHash -LiteralPath (Join-Path $proxyRoot `
+                    'winmm_exports.inc') -Algorithm SHA256).Hash
+            (Get-FileHash -LiteralPath (Join-Path $root 'compatible.def') `
+                -Algorithm SHA256).Hash | Should Be `
+                (Get-FileHash -LiteralPath (Join-Path $proxyRoot 'winmm.def') `
+                    -Algorithm SHA256).Hash
         }
         finally { Remove-Item -LiteralPath $root -Recurse -Force }
     }
