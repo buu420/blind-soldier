@@ -89,14 +89,30 @@ Describe 'Blind Soldier guarded x86 native proxies' {
         }
     }
 
-    It 'keeps heavy Version initialization out of DllMain' {
+    It 'keeps Version loading and bootstrap work in the scheduled worker' {
         $versionSource = [IO.File]::ReadAllText($versionProxySource)
         $dllMain = [regex]::Match($versionSource,
             '(?s)BOOL WINAPI DllMain\b.*?#define BS_VERSION_FORWARD')
         $dllMain.Success | Should Be $true
         $dllMain.Value | Should Not Match `
-            'LoadSystemVersion|StartBootstrapMonitor|LoadLibraryW|LoadLibraryExW|CreateThread|CreateDirectoryW|CopyFileW|MessageBoxW|DisableThreadLibraryCalls'
+            'LoadSystemVersion|StartBootstrapMonitor|LoadLibraryW|LoadLibraryExW|CreateDirectoryW|CopyFileW|MessageBoxW|DisableThreadLibraryCalls|WaitFor|Sleep'
         $dllMain.Value | Should Match 'g_proxyModule\s*=\s*instance'
+        $dllMain.Value | Should Match `
+            '(?s)CreateThread\([^;]*VersionInitializationWorker'
+
+        $resolver = [regex]::Match($versionSource,
+            '(?s)extern "C" FARPROC __cdecl ResolveVersionExport\b.*?\n}\n\nBOOL WINAPI DllMain')
+        $resolver.Success | Should Be $true
+        $resolver.Value | Should Not Match `
+            'LoadSystemVersion|StartBootstrapMonitor|CreateThread|CreateDirectoryW|CopyFileW|LoadLibraryW|LoadLibraryExW'
+        $resolver.Value | Should Match 'WaitForPublishedVersionExport'
+
+        $forwardingWait = [regex]::Match($versionSource,
+            '(?s)FARPROC WaitForPublishedVersionExport\b.*?\n}')
+        $forwardingWait.Success | Should Be $true
+        $forwardingWait.Value | Should Not Match `
+            'LoadSystemVersion|StartBootstrapMonitor|CreateThread|CreateDirectoryW|CopyFileW|LoadLibraryW|LoadLibraryExW'
+        $forwardingWait.Value | Should Match 'kForwardingReadyTimeoutMilliseconds'
     }
 
     It 'lets phase-specific readiness and broker deadlines govern' {
@@ -271,12 +287,20 @@ Describe 'Blind Soldier guarded x86 native proxies' {
             Copy-Item -LiteralPath $sourceSmoke -Destination $smoke
             Copy-Item -LiteralPath $proxy -Destination (Join-Path $root 'version.dll')
 
-            $process = Start-Process -FilePath $smoke -WorkingDirectory $root `
+            $loadOnly = Start-Process -FilePath $smoke `
+                -ArgumentList '--load-only' -WorkingDirectory $root `
                 -PassThru -WindowStyle Hidden
-            $exited = $process.WaitForExit(15000)
-            if (-not $exited) { Stop-Process -Id $process.Id -Force }
-            $exited | Should Be $true
-            if ($exited) { $process.ExitCode | Should Be 0 }
+            $loadOnlyExited = $loadOnly.WaitForExit(15000)
+            if (-not $loadOnlyExited) { Stop-Process -Id $loadOnly.Id -Force }
+            $loadOnlyExited | Should Be $true
+            if ($loadOnlyExited) { $loadOnly.ExitCode | Should Be 0 }
+
+            $immediate = Start-Process -FilePath $smoke `
+                -WorkingDirectory $root -PassThru -WindowStyle Hidden
+            $immediateExited = $immediate.WaitForExit(15000)
+            if (-not $immediateExited) { Stop-Process -Id $immediate.Id -Force }
+            $immediateExited | Should Be $true
+            if ($immediateExited) { $immediate.ExitCode | Should Be 0 }
         }
         finally { Remove-Item -LiteralPath $root -Recurse -Force }
     }

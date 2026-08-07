@@ -53,6 +53,16 @@ bool LoadedProxyAndSystemImplementation(const fs::path& proxy,
     return proxyFound && implementationFound;
 }
 
+bool VersionBootstrapLogExists(const fs::path& executableDirectory) {
+    const fs::path pattern = executableDirectory / L"Blind-Soldier" / L"Logs" /
+        L"Blind-Soldier-Version-*.log";
+    WIN32_FIND_DATAW entry{};
+    HANDLE search = FindFirstFileW(pattern.c_str(), &entry);
+    if (search == INVALID_HANDLE_VALUE) return false;
+    FindClose(search);
+    return true;
+}
+
 std::wstring RemovedManagedReadyEventName() {
     return L"Local\\BlindSoldier.ManagedReady." +
         std::to_wstring(GetCurrentProcessId());
@@ -60,7 +70,7 @@ std::wstring RemovedManagedReadyEventName() {
 
 }  // namespace
 
-int wmain() {
+int wmain(int argc, wchar_t** argv) {
     wchar_t executable[MAX_PATH * 4]{};
     if (GetModuleFileNameW(nullptr, executable, ARRAYSIZE(executable)) == 0) {
         return 10;
@@ -85,6 +95,30 @@ int wmain() {
         std::wcerr << L"Could not load the local Version proxy: "
                    << GetLastError() << L"\n";
         return 22;
+    }
+    if (argc == 2 && wcscmp(argv[1], L"--load-only") == 0) {
+        wchar_t systemDirectory[MAX_PATH * 4]{};
+        if (GetSystemDirectoryW(systemDirectory,
+                                ARRAYSIZE(systemDirectory)) == 0) {
+            return 32;
+        }
+        const fs::path systemVersion =
+            fs::path(systemDirectory) / L"version.dll";
+        const fs::path executableDirectory =
+            fs::path(executable).parent_path();
+        const ULONGLONG deadline = GetTickCount64() + 5000ULL;
+        do {
+            if (LoadedProxyAndSystemImplementation(proxy, systemVersion) &&
+                VersionBootstrapLogExists(executableDirectory)) {
+                std::cout <<
+                    "Version proxy load-only bootstrap startup passed.\n";
+                return 0;
+            }
+            Sleep(10);
+        } while (GetTickCount64() < deadline);
+        std::wcerr <<
+            L"Version proxy did not start bootstrap after load-only startup.\n";
+        return 33;
     }
     {
         wchar_t immediateSystemDirectory[MAX_PATH * 4]{};

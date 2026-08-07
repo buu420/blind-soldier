@@ -15,8 +15,12 @@ namespace {
 
 HMODULE g_proxyModule = nullptr;
 HMODULE g_systemVersion = nullptr;
-volatile LONG g_bootstrapMonitorStarted = 0;
+volatile LONG g_forwardingState = 0;
 
+constexpr LONG kForwardingPending = 0;
+constexpr LONG kForwardingReady = 1;
+constexpr LONG kForwardingFailed = 2;
+constexpr ULONGLONG kForwardingReadyTimeoutMilliseconds = 5000ULL;
 constexpr std::array<const char*, 17> kVersionExportNames = {
     "GetFileVersionInfoA",
     "GetFileVersionInfoByHandle",
@@ -175,59 +179,80 @@ DWORD WINAPI BootstrapMonitor(void*) {
     return 0;
 }
 
-bool StartBootstrapMonitor() {
-    HANDLE thread = CreateThread(nullptr, 0, BootstrapMonitor,
-                                 nullptr, 0, nullptr);
-    if (!thread) return false;
-    CloseHandle(thread);
-    return true;
-}
-
 FARPROC PublishedVersionExport(DWORD index) {
     return reinterpret_cast<FARPROC>(InterlockedCompareExchangePointer(
         reinterpret_cast<PVOID volatile*>(&g_versionExports[index]),
         nullptr, nullptr));
 }
 
+[[noreturn]] void FailVersionForwardingWithoutUi(const wchar_t* diagnostic) {
+    OutputDebugStringW(diagnostic);
+    InterlockedExchange(&g_forwardingState, kForwardingFailed);
+    TerminateProcess(GetCurrentProcess(), 0xB51D0002u);
+    ExitProcess(0xB51D0002u);
+}
+
+FARPROC WaitForPublishedVersionExport(DWORD index) {
+    const ULONGLONG deadline =
+        GetTickCount64() + kForwardingReadyTimeoutMilliseconds;
+    for (;;) {
+        const LONG state =
+            InterlockedCompareExchange(&g_forwardingState, 0, 0);
+        if (state == kForwardingReady) break;
+        if (state == kForwardingFailed) {
+            FailVersionForwardingWithoutUi(
+                L"Blind Soldier Version forwarding initialization failed.");
+        }
+        if (GetTickCount64() >= deadline) {
+            FailVersionForwardingWithoutUi(
+                L"Blind Soldier Version forwarding initialization timed out.");
+        }
+        Sleep(1);
+    }
+    FARPROC target = PublishedVersionExport(index);
+    if (!target) {
+        FailVersionForwardingWithoutUi(
+            L"Blind Soldier Version export target was not published.");
+    }
+    return target;
+}
+
 [[noreturn]] void FailVersionInitialization(const std::wstring& diagnostic) {
+    InterlockedExchange(&g_forwardingState, kForwardingFailed);
     ShowStartupFailure(diagnostic);
     TerminateProcess(GetCurrentProcess(), 0xB51D0002u);
     ExitProcess(0xB51D0002u);
+}
+
+DWORD WINAPI VersionInitializationWorker(void*) {
+    std::wstring diagnostic;
+    if (!LoadSystemVersion(diagnostic)) {
+        FailVersionInitialization(diagnostic);
+    }
+    InterlockedExchange(&g_forwardingState, kForwardingReady);
+    return BootstrapMonitor(nullptr);
 }
 
 }  // namespace
 
 extern "C" FARPROC __cdecl ResolveVersionExport(DWORD index) {
     if (index >= kVersionExportNames.size()) {
-        FailVersionInitialization(
+        FailVersionForwardingWithoutUi(
             L"The Version proxy received an invalid export index.");
     }
-
-    FARPROC target = PublishedVersionExport(index);
-    if (!target) {
-        std::wstring diagnostic;
-        if (!LoadSystemVersion(diagnostic)) {
-            target = PublishedVersionExport(index);
-            if (!target) FailVersionInitialization(diagnostic);
-        } else {
-            target = PublishedVersionExport(index);
-        }
-    }
-    if (!target) {
-        FailVersionInitialization(
-            L"The Windows version export target is unavailable.");
-    }
-
-    if (InterlockedCompareExchange(&g_bootstrapMonitorStarted, 1, 0) == 0 &&
-        !StartBootstrapMonitor()) {
-        FailVersionInitialization(
-            L"The x86 accessibility bootstrap thread could not start.");
-    }
-    return target;
+    return WaitForPublishedVersionExport(index);
 }
 
 BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, LPVOID) {
-    if (reason == DLL_PROCESS_ATTACH) g_proxyModule = instance;
+    if (reason != DLL_PROCESS_ATTACH) return TRUE;
+    g_proxyModule = instance;
+    HANDLE worker = CreateThread(nullptr, 0, VersionInitializationWorker,
+                                 nullptr, 0, nullptr);
+    if (!worker) {
+        InterlockedExchange(&g_forwardingState, kForwardingFailed);
+        return FALSE;
+    }
+    CloseHandle(worker);
     return TRUE;
 }
 
