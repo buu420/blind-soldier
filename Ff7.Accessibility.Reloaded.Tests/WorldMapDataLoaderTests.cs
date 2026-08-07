@@ -97,9 +97,8 @@ internal static class WorldMapDataLoaderTests
 
     private static string InstalledMap(string fileName) =>
         Path.Combine(
-            @"X:\SteamLibrary\steamapps\common\FINAL FANTASY VII Steam Edition",
-            "ff7",
-            "workingdir",
+            Environment.GetEnvironmentVariable("FF7_ACCESSIBILITY_DATA_ROOT") ??
+                @"X:\SteamLibrary\steamapps\common\FINAL FANTASY VII Steam Edition\ff7\workingdir",
             "data",
             "wm",
             fileName);

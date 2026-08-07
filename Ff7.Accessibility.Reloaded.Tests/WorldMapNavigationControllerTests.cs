@@ -445,11 +445,14 @@ internal static class WorldMapNavigationControllerTests
 
     private static (WorldMapData Map, WorldMapTargetCatalog Catalog, WorldMapRoutePlanner Planner) Load()
     {
+        var dataRoot = Environment.GetEnvironmentVariable("FF7_ACCESSIBILITY_DATA_ROOT") ??
+            @"X:\SteamLibrary\steamapps\common\FINAL FANTASY VII Steam Edition\ff7\workingdir";
         var map = WorldMapDataLoader.Load(
-            @"X:\SteamLibrary\steamapps\common\FINAL FANTASY VII Steam Edition\ff7\workingdir\data\wm\WM0.MAP",
+            Path.Combine(dataRoot, "data", "wm", "WM0.MAP"),
             0,
             0);
-        var sourceRoot = @"C:\FF7A11Y\accessibility_prototype";
+        var sourceRoot = Environment.GetEnvironmentVariable("FF7_ACCESSIBILITY_SOURCE_ROOT") ??
+            @"C:\FF7A11Y\accessibility_prototype";
         var catalog = WorldMapTargetCatalog.Load(
             map,
             Path.Combine(sourceRoot, "tools", "kujata", "metadata", "field-id-to-world-map-coords.json"),

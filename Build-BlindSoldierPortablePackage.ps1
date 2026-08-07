@@ -543,6 +543,22 @@ try {
             (Join-Path $policyTarget $name)
     }
 
+    $cleanupAssetRoot = Join-Path $scriptRoot 'portable-assets'
+    $cleanupCommand = Join-Path $cleanupAssetRoot `
+        'Remove-Amethyst-Registry-Entries.cmd'
+    $cleanupScript = Join-Path $cleanupAssetRoot `
+        'Remove-AmethystRegistryEntries.ps1'
+    [void](Assert-File -Path $cleanupCommand `
+        -Label 'Amethyst registry cleanup command')
+    [void](Assert-File -Path $cleanupScript `
+        -Label 'Amethyst registry cleanup implementation')
+    Copy-Item -LiteralPath $cleanupCommand -Destination (Join-Path $root `
+        'Remove-Amethyst-Registry-Entries.cmd')
+    $cleanupTarget = Join-Path $root 'Blind-Soldier\Tools'
+    New-Item -ItemType Directory -Path $cleanupTarget -Force | Out-Null
+    Copy-Item -LiteralPath $cleanupScript -Destination (Join-Path $cleanupTarget `
+        'Remove-AmethystRegistryEntries.ps1')
+
     $readme = @"
 Blind Soldier $Version
 
@@ -563,6 +579,8 @@ This ZIP contains only manifest-owned Blind Soldier files.
 Do not replace an existing layout-scoped version.dll unless it belongs to Blind Soldier. This includes a sibling workingdir\version.dll used with stock 7th Heaven. Move an unknown file aside first so it can be restored. If FFNx redirects the system Version library back to the proxy, Blind Soldier privately caches a byte-for-byte copy of this machine's own Windows version library under Local AppData and loads that distinct copy; no Windows binary is shipped in the ZIP.
 
 Logs are written under Blind-Soldier\Logs. Players never need to run either bootstrap program themselves.
+
+If an older Amethyst mod-manager installation left automatic-launch settings behind, run Remove-Amethyst-Registry-Entries.cmd once. It requests administrator access, removes only matching Blind Soldier entries, and preserves unrelated registry values. New portable installs do not need this cleanup.
 
 Steam Verify Files may restore the stock FFVII launcher. Extract this ZIP again afterward to restore the accessible launcher.
 

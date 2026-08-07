@@ -5274,9 +5274,7 @@ public sealed class Mod : IModV1, IModV2
             return;
         }
 
-        if (fieldOpcodeMessageHook is not null ||
-            fieldOpcodeAskHook is not null ||
-            fieldOpcodeAskUpdateHook is not null)
+        if (fieldOpcodeMessageHook is not null)
         {
             return;
         }
@@ -5287,42 +5285,66 @@ public sealed class Mod : IModV1, IModV2
             return;
         }
 
-        if (!fieldOpcodeAddressResolver.TryResolve(out var resolution))
+        if (!fieldOpcodeAddressResolver.TryResolveMessageHooks(out var resolution))
         {
             Log($"Could not resolve field opcode message hooks: {resolution.Diagnostic}");
             return;
         }
 
+        Log($"Resolved field opcode message hooks: {resolution.Diagnostic}");
         try
         {
-            Log($"Resolved field opcode table: {resolution.Diagnostic}");
             fieldOpcodeMessageDetour = FieldOpcodeMessageDetour;
             fieldOpcodeMessageHook = hooks.CreateHook<FieldOpcodeMessageDelegate>(
                 fieldOpcodeMessageDetour,
                 resolution.MessageOpcodeAddress,
                 -1);
             fieldOpcodeMessageHook.Activate();
+            Log($"Installed field opcode MESSAGE hook at 0x{resolution.MessageOpcodeAddress:X8}.");
+        }
+        catch (Exception ex)
+        {
+            Log($"Could not install field opcode MESSAGE hook: {ex.Message}");
+            return;
+        }
 
+        try
+        {
             fieldOpcodeAskDetour = FieldOpcodeAskDetour;
             fieldOpcodeAskHook = hooks.CreateHook<FieldOpcodeAskDelegate>(
                 fieldOpcodeAskDetour,
                 resolution.AskOpcodeAddress,
                 -1);
             fieldOpcodeAskHook.Activate();
+            Log($"Installed field opcode ASK hook at 0x{resolution.AskOpcodeAddress:X8}.");
+        }
+        catch (Exception ex)
+        {
+            Log($"Could not install field opcode ASK hook: {ex.Message}");
+            return;
+        }
 
+        if (!resolution.HasAskUpdateLoop)
+        {
+            Log(
+                "Native ASK cursor helper was not installed because the live FFNx handler moved it; " +
+                "the existing exact choice polling fallback remains active.");
+            return;
+        }
+
+        try
+        {
             fieldOpcodeAskUpdateDetour = FieldOpcodeAskUpdateDetour;
             fieldOpcodeAskUpdateHook = hooks.CreateHook<FieldOpcodeAskUpdateDelegate>(
                 fieldOpcodeAskUpdateDetour,
                 resolution.AskUpdateLoopAddress,
                 -1);
             fieldOpcodeAskUpdateHook.Activate();
-            Log(
-                $"Installed field opcode MESSAGE/ASK hooks at 0x{resolution.MessageOpcodeAddress:X8} and " +
-                $"0x{resolution.AskOpcodeAddress:X8}; native ASK cursor hook at 0x{resolution.AskUpdateLoopAddress:X8}.");
+            Log($"Installed native ASK cursor hook at 0x{resolution.AskUpdateLoopAddress:X8}.");
         }
         catch (Exception ex)
         {
-            Log($"Could not install field opcode message hooks: {ex.Message}");
+            Log($"Could not install native ASK cursor hook: {ex.Message}");
         }
     }
 

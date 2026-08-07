@@ -5,7 +5,7 @@
     "scannedGameMomentWrites":  640,
     "navigableGameMomentWrites":  382,
     "unresolvedAutomaticOrIndirectWrites":  259,
-    "definitionCount":  544,
+    "definitionCount":  546,
     "definitions":  [
                         {
                             "fieldId":  187,
@@ -251,6 +251,35 @@
                         },
                         {
                             "fieldId":  192,
+                            "kind":  "Model",
+                            "label":  "Talk to Aeris on the playground slide",
+                            "entityId":  2,
+                            "x":  0,
+                            "y":  0,
+                            "z":  0,
+                            "targetGameMoment":  185,
+                            "minimumGameMoment":  179,
+                            "maximumGameMoment":  184,
+                            "priority":  0,
+                            "sourceFieldName":  "mds6_2",
+                            "sourceEntityName":  "earith",
+                            "sourceScriptType":  "Talk",
+                            "completesOnArrival":  true,
+                            "requiredCondition":  {
+                                                      "bank":  5,
+                                                      "address":  13,
+                                                      "mask":  255,
+                                                      "value":  1
+                                                  },
+                            "completedCondition":  {
+                                                       "bank":  5,
+                                                       "address":  13,
+                                                       "mask":  255,
+                                                       "value":  2
+                                                   }
+                        },
+                        {
+                            "fieldId":  192,
                             "kind":  "Location",
                             "label":  "Leave the playground toward Wall Market",
                             "entityId":  -1,
@@ -444,7 +473,42 @@
                             "sourceFieldName":  "chrin_1b",
                             "sourceEntityName":  "earith",
                             "sourceScriptType":  "Talk",
-                            "completesOnArrival":  true
+                            "completesOnArrival":  true,
+                            "requiredCondition":  {
+                                                      "bank":  3,
+                                                      "address":  17,
+                                                      "mask":  1,
+                                                      "value":  0
+                                                  },
+                            "completedCondition":  {
+                                                       "bank":  3,
+                                                       "address":  17,
+                                                       "mask":  1,
+                                                       "value":  1
+                                                   }
+                        },
+                        {
+                            "fieldId":  183,
+                            "kind":  "Model",
+                            "label":  "Talk to Aeris again after Reno arrives",
+                            "entityId":  6,
+                            "x":  0,
+                            "y":  0,
+                            "z":  0,
+                            "targetGameMoment":  143,
+                            "minimumGameMoment":  140,
+                            "maximumGameMoment":  142,
+                            "priority":  0,
+                            "sourceFieldName":  "chrin_1b",
+                            "sourceEntityName":  "earith",
+                            "sourceScriptType":  "Talk",
+                            "completesOnArrival":  true,
+                            "requiredCondition":  {
+                                                      "bank":  3,
+                                                      "address":  17,
+                                                      "mask":  1,
+                                                      "value":  1
+                                                  }
                         },
                         {
                             "fieldId":  130,

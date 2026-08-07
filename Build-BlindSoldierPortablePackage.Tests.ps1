@@ -455,6 +455,8 @@ Describe 'Blind Soldier direct-extract portable package' {
             'LICENSES/dotnet-THIRD-PARTY-NOTICES.txt',
             'LICENSES/Reloaded-II-1.30.3-Blind-Soldier-source.md',
             'LICENSES/Reloaded-II-1.30.3-hostfxr.patch',
+            'Remove-Amethyst-Registry-Entries.cmd',
+            'Blind-Soldier/Tools/Remove-AmethystRegistryEntries.ps1',
             'README-PORTABLE.txt', 'portable-manifest.json'
         )) { ($entries -ccontains $required) | Should Be $true }
 
@@ -678,6 +680,36 @@ Describe 'Blind Soldier direct-extract portable package' {
         $readme | Should Not Match '(?i)winmm\.dll'
         $readme | Should Match '(?i)7th Heaven manages.*FFNx'
         $readme | Should Not Match '(?i)FFNx 1\.24\.3\.0.*included'
+    }
+
+    It 'ships a narrowly scoped cleanup for Amethyst lifecycle registry entries' {
+        $fixture = New-PortableFixture
+        Invoke-FixtureBuild -Fixture $fixture -Output $fixture.First
+        $command = Get-PortableEntryText -Path $fixture.First `
+            -EntryPath 'Remove-Amethyst-Registry-Entries.cmd'
+        $cleanup = Get-PortableEntryText -Path $fixture.First `
+            -EntryPath 'Blind-Soldier/Tools/Remove-AmethystRegistryEntries.ps1'
+
+        $command | Should Match '(?i)Remove-AmethystRegistryEntries\.ps1'
+        $cleanup | Should Match 'BlindSoldierDebuggerOwner'
+        $cleanup | Should Match "'ff7_en\.exe'"
+        $cleanup | Should Match "'FFVII\.exe'"
+        $cleanup | Should Match "'BlindSoldier_Launcher\.exe'"
+        $cleanup | Should Match 'RegistryView\]::Registry32'
+        $cleanup | Should Match 'RegistryView\]::Registry64'
+        $cleanup | Should Not Match `
+            '(?i)CurrentVersion\\Uninstall|7th Heaven|Steam\\|dotnet\\Setup'
+        $cleanup | Should Not Match '(?i)DeleteSubKeyTree|Remove-Item'
+    }
+
+    It 'rejects a modified registry cleanup implementation' {
+        $fixture = New-PortableFixture
+        Invoke-FixtureBuild -Fixture $fixture -Output $fixture.First
+        $variant = Join-Path $fixture.Root 'modified-cleanup.zip'
+        New-PortableArchiveVariant -Source $fixture.First -Destination $variant `
+            -AdditionalPath 'Blind-Soldier/Tools/Remove-AmethystRegistryEntries.ps1'
+        { & $verifierPath -ArchivePath $variant -ExpectedVersion '0.1.6' } |
+            Should Throw 'differs from the reviewed source'
     }
 
     It 'is byte-for-byte deterministic for identical inputs' {

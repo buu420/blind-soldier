@@ -49,6 +49,8 @@ $required = @(
     'LICENSES/dotnet-THIRD-PARTY-NOTICES.txt',
     'LICENSES/Reloaded-II-1.30.3-Blind-Soldier-source.md',
     'LICENSES/Reloaded-II-1.30.3-hostfxr.patch',
+    'Remove-Amethyst-Registry-Entries.cmd',
+    'Blind-Soldier/Tools/Remove-AmethystRegistryEntries.ps1',
     'README-PORTABLE.txt',
     'portable-manifest.json'
 )
@@ -413,6 +415,28 @@ try {
         $text = [IO.File]::ReadAllText($file.FullName)
         if ($text -match $developmentPattern) {
             throw "Portable text leaks a development path or obsolete registry workflow: $($file.FullName)"
+        }
+    }
+
+    foreach ($cleanup in @(
+        [pscustomobject]@{
+            Source = 'portable-assets\Remove-Amethyst-Registry-Entries.cmd'
+            Packaged = 'Remove-Amethyst-Registry-Entries.cmd'
+        },
+        [pscustomobject]@{
+            Source = 'portable-assets\Remove-AmethystRegistryEntries.ps1'
+            Packaged = 'Blind-Soldier\Tools\Remove-AmethystRegistryEntries.ps1'
+        }
+    )) {
+        $sourcePath = Join-Path $PSScriptRoot $cleanup.Source
+        $packagedPath = Join-Path $verificationRoot $cleanup.Packaged
+        if (-not (Test-Path -LiteralPath $sourcePath -PathType Leaf)) {
+            throw "Cleanup source is unavailable to the verifier: $sourcePath"
+        }
+        $sourceHash = (Get-FileHash -LiteralPath $sourcePath -Algorithm SHA256).Hash
+        $packagedHash = (Get-FileHash -LiteralPath $packagedPath -Algorithm SHA256).Hash
+        if ($sourceHash -cne $packagedHash) {
+            throw "Packaged cleanup differs from the reviewed source: $($cleanup.Packaged)"
         }
     }
 

@@ -443,7 +443,8 @@ Add-Definition -FieldId 184 -FieldName 'chrin_2' -Kind 'Model' -Label 'Push the 
 # Aeris's Talk script. chrin_3b uses an [OK] line to set moment 155 before the
 # roof transition. Neither transition is a native gateway, so both belong in
 # Story rather than as fabricated Exit entries.
-Add-Definition -FieldId 183 -FieldName 'chrin_1b' -Kind 'Model' -Label 'Talk to Aeris by the flowers' -EntityId 6 -TargetGameMoment 143 -MinimumGameMoment 140 -MaximumGameMoment 142 -Priority 0 -EntityName 'earith' -ScriptType 'Talk'
+Add-Definition -FieldId 183 -FieldName 'chrin_1b' -Kind 'Model' -Label 'Talk to Aeris by the flowers' -EntityId 6 -TargetGameMoment 143 -MinimumGameMoment 140 -MaximumGameMoment 142 -Priority 0 -RequiredCondition (New-Condition 3 17 0x01 0x00) -CompletedCondition (New-Condition 3 17 0x01 0x01) -EntityName 'earith' -ScriptType 'Talk'
+Add-Definition -FieldId 183 -FieldName 'chrin_1b' -Kind 'Model' -Label 'Talk to Aeris again after Reno arrives' -EntityId 6 -TargetGameMoment 143 -MinimumGameMoment 140 -MaximumGameMoment 142 -Priority 0 -RequiredCondition (New-Condition 3 17 0x01 0x01) -EntityName 'earith' -ScriptType 'Talk'
 Add-Definition -FieldId 186 -FieldName 'chrin_3b' -Kind 'Location' -Label 'Cross the final roof beam to escape the church' -EntityId 1 -X 213 -Y -12 -Z 935 -TargetGameMoment 155 -MinimumGameMoment 152 -MaximumGameMoment 154 -Priority 0 -EntityName 'jump' -ScriptType '[OK]' -TriggerLine ([ordered]@{ startX = 213; startY = 2; startZ = 935; endX = 213; endY = -25; endZ = 935 }) -KeepActiveOnArrival
 
 # The church roof scene advances GameMoment to 158. It remains 158 while the
@@ -492,10 +493,12 @@ Add-Definition -FieldId 172 -FieldName 'mds5_3' -Kind 'Location' -Label 'Enter S
 
 # Sector 6 advances through three native map states. The collapsed expressway
 # uses jp's scripted Go 1x line rather than a trigger-section gateway. Entering
-# the playground starts an automatic scene at moment 179; control returns only
-# after the Tifa carriage reveal writes moment 185, so Story intentionally stays
-# silent from 179 through 184. The Wall Market entrance scene then writes 188.
+# the playground starts a scene at moment 179. Aeris then waits on the slide in
+# temporary field state 1 until the player talks to her; that Talk advances the
+# field state to 2 and resumes the scene, which writes moment 185. The Wall
+# Market entrance scene then writes 188.
 Add-Definition -FieldId 191 -FieldName 'mds6_1' -Kind 'Location' -Label 'Continue through the Sector 6 collapsed expressway to the playground' -X 1277 -Y 345 -Z 22 -TargetGameMoment 179 -MinimumGameMoment 176 -MaximumGameMoment 178 -Priority 0 -EntityName 'jp' -ScriptType 'Go 1x' -TriggerLine ([ordered]@{ startX = 1195; startY = 427; startZ = 22; endX = 1359; endY = 263; endZ = 22 })
+Add-Definition -FieldId 192 -FieldName 'mds6_2' -Kind 'Model' -Label 'Talk to Aeris on the playground slide' -EntityId 2 -TargetGameMoment 185 -MinimumGameMoment 179 -MaximumGameMoment 184 -Priority 0 -RequiredCondition (New-Condition 5 13 0xFF 1) -CompletedCondition (New-Condition 5 13 0xFF 2) -EntityName 'earith' -ScriptType 'Talk'
 Add-Definition -FieldId 192 -FieldName 'mds6_2' -Kind 'Location' -Label 'Leave the playground toward Wall Market' -X -424 -Y 1426 -Z 0 -TargetGameMoment 188 -MinimumGameMoment 185 -MaximumGameMoment 187 -Priority 0 -ScriptType 'Gateway' -TriggerLine ([ordered]@{ startX = -717; startY = 1888; startZ = 0; endX = -131; endY = 964; endZ = 0 })
 Add-Definition -FieldId 194 -FieldName 'mds6_3' -Kind 'Location' -Label 'Continue into Wall Market' -X 63 -Y 848 -Z 0 -TargetGameMoment 188 -MinimumGameMoment 185 -MaximumGameMoment 187 -Priority 0 -ScriptType 'Gateway' -TriggerLine ([ordered]@{ startX = -225; startY = 849; startZ = 0; endX = 350; endY = 846; endZ = 0 })
 

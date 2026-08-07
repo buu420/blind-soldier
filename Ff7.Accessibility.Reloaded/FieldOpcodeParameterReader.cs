@@ -115,6 +115,38 @@ public sealed class FieldOpcodeAddressResolver
         return true;
     }
 
+    public bool TryResolveMessageHooks(out FieldOpcodeMessageHookResolution result)
+    {
+        if (!TryResolveOpcodeHandlers(
+                [OpcodeMessageIndex, OpcodeAskIndex],
+                out var handlers,
+                out var diagnostic) ||
+            !handlers.TryGetValue(OpcodeMessageIndex, out var messageOpcodeAddress) ||
+            !handlers.TryGetValue(OpcodeAskIndex, out var askOpcodeAddress))
+        {
+            result = FieldOpcodeMessageHookResolution.Invalid(diagnostic);
+            return false;
+        }
+
+        var hasAskUpdateLoop = TryResolveRelativeCall(
+            askOpcodeAddress + AskUpdateLoopCallOffset,
+            out var askUpdateLoopAddress);
+        if (!hasAskUpdateLoop)
+        {
+            askUpdateLoopAddress = 0;
+        }
+
+        var askUpdateDiagnostic = hasAskUpdateLoop
+            ? $"askUpdate=0x{askUpdateLoopAddress:X8}"
+            : $"ASK cursor helper unavailable at legacy offset 0x{askOpcodeAddress + AskUpdateLoopCallOffset:X8}";
+        result = new FieldOpcodeMessageHookResolution(
+            messageOpcodeAddress,
+            askOpcodeAddress,
+            askUpdateLoopAddress,
+            $"{diagnostic}, {askUpdateDiagnostic}");
+        return true;
+    }
+
     public bool TryResolveOpcodeHandlers(
         IEnumerable<int> opcodeIndexes,
         out IReadOnlyDictionary<int, int> handlers,
@@ -227,4 +259,20 @@ public readonly record struct FieldOpcodeAddressResolution(
 
     public static FieldOpcodeAddressResolution Invalid(string diagnostic) =>
         new(false, 0, 0, 0, 0, 0, 0, 0, diagnostic);
+}
+
+public readonly record struct FieldOpcodeMessageHookResolution(
+    int MessageOpcodeAddress,
+    int AskOpcodeAddress,
+    int AskUpdateLoopAddress,
+    string Diagnostic)
+{
+    public bool HasAskUpdateLoop => AskUpdateLoopAddress != 0;
+
+    public static FieldOpcodeMessageHookResolution Invalid(string diagnostic) =>
+        new(
+            MessageOpcodeAddress: 0,
+            AskOpcodeAddress: 0,
+            AskUpdateLoopAddress: 0,
+            Diagnostic: diagnostic);
 }

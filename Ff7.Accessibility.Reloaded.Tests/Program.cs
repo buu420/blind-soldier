@@ -17,6 +17,7 @@ if (args.Contains("--runtime-lease-only", StringComparer.OrdinalIgnoreCase))
 if (args.Contains("--7h-compatibility-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.LegacyStartupDiagnosticsTests.Run();
+    AssertFieldOpcodeAddressResolverKeepsMessageHooksWhenFfnxAskLayoutMoves();
     Console.WriteLine("7th Heaven startup diagnostics tests passed.");
     return;
 }
@@ -318,6 +319,7 @@ AssertFieldOpcodeAddressResolverUsesFfnxExecuteOpcodeTablePattern();
 AssertFieldOpcodeAddressResolverRemainsBackendSpecific();
 AssertFieldOpcodeAddressResolverFollowsFfnxReplacementHandler();
 AssertFieldOpcodeAddressResolverRefreshesCutsceneHandlersAfterAskHook();
+AssertFieldOpcodeAddressResolverKeepsMessageHooksWhenFfnxAskLayoutMoves();
 AssertFieldOpcodeAddressResolverResolvesArbitraryHandlers();
 AssertFieldOpcodeHookTargetTrackerInstallsEachNativeHandlerOnce();
 AssertFieldOpcodeParameterReaderReadsMessageParameters();
@@ -4888,6 +4890,45 @@ static void AssertFieldOpcodeAddressResolverRefreshesCutsceneHandlersAfterAskHoo
     AssertEqual(soundOpcode, refreshedSound, "cutscene refresh SOUND handler");
 }
 
+static void AssertFieldOpcodeAddressResolverKeepsMessageHooksWhenFfnxAskLayoutMoves()
+{
+    var memory = new Dictionary<int, int>();
+    var bytes = new Dictionary<int, byte>();
+    const int executeOpcode = 0x00618000;
+    const int opcodeTable = 0x00990000;
+    const int messageOpcode = 0x11234040;
+    const int askOpcode = 0x11234048;
+
+    WriteRelativeCall(
+        bytes,
+        memory,
+        FieldOpcodeAddressResolver.AddressFieldInitEvent + FieldOpcodeAddressResolver.ExecuteOpcodeCallOffset,
+        executeOpcode);
+    memory[executeOpcode + FieldOpcodeAddressResolver.ExecuteOpcodeTableOffset] = opcodeTable;
+    memory[opcodeTable + FieldOpcodeAddressResolver.OpcodeMessageIndex * sizeof(int)] = messageOpcode;
+    memory[opcodeTable + FieldOpcodeAddressResolver.OpcodeAskIndex * sizeof(int)] = askOpcode;
+
+    // Current FFNx replaces ASK with a longer handler, so the legacy +0x8E
+    // location lands in ordinary code rather than at a CALL instruction.
+    bytes[askOpcode + FieldOpcodeAddressResolver.AskUpdateLoopCallOffset] = 0xCC;
+
+    var resolver = new FieldOpcodeAddressResolver(
+        address => memory.TryGetValue(address, out var value) ? value : 0,
+        address => bytes.TryGetValue(address, out var value) ? value : (byte)0);
+
+    AssertEqual(
+        true,
+        resolver.TryResolveMessageHooks(out var resolution),
+        "MESSAGE and ASK handlers remain independently usable when the ASK cursor helper moves");
+    AssertEqual(messageOpcode, resolution.MessageOpcodeAddress, "FFNx MESSAGE handler address");
+    AssertEqual(askOpcode, resolution.AskOpcodeAddress, "FFNx ASK handler address");
+    AssertEqual(0, resolution.AskUpdateLoopAddress, "unknown FFNx ASK cursor helper must not be guessed");
+    AssertEqual(
+        false,
+        resolution.HasAskUpdateLoop,
+        "moved FFNx ASK cursor helper is optional for MESSAGE accessibility");
+}
+
 static void AssertFieldOpcodeAddressResolverResolvesArbitraryHandlers()
 {
     var memory = new Dictionary<int, int>();
@@ -7885,6 +7926,16 @@ static void AssertFieldNavigationObjectCatalogCoversTheFullGame()
         definition.EntityId == 11 &&
         definition.Kind == FieldNavigationObjectKind.Item &&
         definition.NativeId == 7), "catalog should include opening Phoenix Down chest");
+    var reactorElevatorSwitch = definitions.Single(definition =>
+        definition.FieldId == 121 &&
+        definition.EntityId == 5 &&
+        definition.Label == "Reactor elevator switch; press OK");
+    AssertEqual(FieldNavigationObjectKind.Named, reactorElevatorSwitch.Kind, "reactor elevator switch kind");
+    AssertEqual(FieldNavigationObjectTargetKind.Location, reactorElevatorSwitch.TargetKind, "reactor elevator switch target kind");
+    AssertEqual(86, reactorElevatorSwitch.StaticX, "reactor elevator switch x");
+    AssertEqual(64, reactorElevatorSwitch.StaticY, "reactor elevator switch y");
+    AssertEqual(5, reactorElevatorSwitch.StaticZ, "reactor elevator switch z");
+    AssertEqual("ele", reactorElevatorSwitch.SourceEntityName, "reactor elevator switch native entity");
     AssertEqual(true, definitions.Any(definition =>
         definition.FieldId == 125 &&
         definition.Kind == FieldNavigationObjectKind.Materia &&
@@ -10323,6 +10374,27 @@ static void AssertFieldStoryCatalogCoversReactor5EscapeAndChurchProgression()
     AssertEqual(143, aerisMeeting.TargetGameMoment, "church meeting completion moment");
     AssertEqual(140, aerisMeeting.MinimumGameMoment, "church meeting minimum moment");
     AssertEqual(142, aerisMeeting.MaximumGameMoment, "church meeting maximum moment");
+    AssertEqual(
+        new FieldStoryStateCondition(3, 17, 0x01, 0x00),
+        aerisMeeting.RequiredCondition,
+        "church meeting remains active before Reno enters");
+    AssertEqual(
+        new FieldStoryStateCondition(3, 17, 0x01, 0x01),
+        aerisMeeting.CompletedCondition,
+        "church meeting retires when Reno enters");
+
+    var aerisAfterReno = definitions.Single(candidate =>
+        candidate.FieldId == 183 &&
+        candidate.Label == "Talk to Aeris again after Reno arrives");
+    AssertEqual(FieldStoryTargetKind.Model, aerisAfterReno.Kind, "post-Reno church target kind");
+    AssertEqual(6, aerisAfterReno.EntityId, "post-Reno church target uses Aeris's model");
+    AssertEqual(143, aerisAfterReno.TargetGameMoment, "post-Reno church completion moment");
+    AssertEqual(140, aerisAfterReno.MinimumGameMoment, "post-Reno church minimum moment");
+    AssertEqual(142, aerisAfterReno.MaximumGameMoment, "post-Reno church maximum moment");
+    AssertEqual(
+        new FieldStoryStateCondition(3, 17, 0x01, 0x01),
+        aerisAfterReno.RequiredCondition,
+        "post-Reno church target follows the native arrival bit");
 
     var churchMeetingMemory = new Dictionary<int, byte>();
     const int churchMeetingEventTable = 0x02361000;
@@ -10352,7 +10424,7 @@ static void AssertFieldStoryCatalogCoversReactor5EscapeAndChurchProgression()
     var churchMeetingReader = new FieldStoryTargetReader(
         ReadChurchMeetingInt32,
         ReadChurchMeetingByte,
-        [aerisMeeting]);
+        [aerisMeeting, aerisAfterReno]);
     var churchMeetingPosition =
         new FieldPositionSnapshot(1, 183, 0, 0, 0, 0, 0, 0);
     WriteUInt16(
@@ -10361,8 +10433,17 @@ static void AssertFieldStoryCatalogCoversReactor5EscapeAndChurchProgression()
         140);
     targets = churchMeetingReader.ReadTargets(churchMeetingPosition);
     AssertEqual(1, targets.Count, "the controllable church meeting should expose Aeris");
+    AssertEqual(aerisMeeting.Label, targets[0].Label, "the initial church meeting objective");
     AssertEqual(-154, targets[0].X, "church meeting uses Aeris's live x position");
     AssertEqual(401, targets[0].Y, "church meeting uses Aeris's live y position");
+    churchMeetingMemory[
+        FieldNavigationObjectReader.AddressFieldBankBase + 0x100 + 17] = 0x01;
+    targets = churchMeetingReader.ReadTargets(churchMeetingPosition);
+    AssertEqual(1, targets.Count, "Reno's native arrival bit should advance the church objective");
+    AssertEqual(
+        aerisAfterReno.Label,
+        targets[0].Label,
+        "the church objective should tell the player to speak to Aeris again");
     WriteUInt16(
         churchMeetingMemory,
         FieldNavigationObjectReader.AddressFieldBankBase,
@@ -10854,10 +10935,42 @@ static void AssertFieldStoryCatalogCoversSector6AndWallMarketArrival()
         memory,
         FieldNavigationObjectReader.AddressFieldBankBase,
         184);
+    var playgroundAeris = definitions.Single(definition =>
+        definition.FieldId == 192 &&
+        definition.Label == "Talk to Aeris on the playground slide");
+    AssertEqual(FieldStoryTargetKind.Model, playgroundAeris.Kind, "playground Aeris target kind");
+    AssertEqual(2, playgroundAeris.EntityId, "playground Aeris native entity");
+    AssertEqual(185, playgroundAeris.TargetGameMoment, "playground conversation completion moment");
+    AssertEqual(179, playgroundAeris.MinimumGameMoment, "playground conversation minimum moment");
+    AssertEqual(184, playgroundAeris.MaximumGameMoment, "playground conversation maximum moment");
+    AssertEqual(
+        new FieldStoryStateCondition(5, 13, 0xFF, 1),
+        playgroundAeris.RequiredCondition,
+        "playground Aeris becomes available when her native wait state is one");
+    AssertEqual(
+        new FieldStoryStateCondition(5, 13, 0xFF, 2),
+        playgroundAeris.CompletedCondition,
+        "playground Aeris retires when the player starts the conversation");
+
+    const int playgroundEventTable = 0x02372000;
+    WriteUInt32(memory, FieldNavigationObjectReader.AddressFieldEventDataPtr, playgroundEventTable);
+    memory[FieldPositionReader.AddressFieldNumModels] = 3;
+    memory[FieldNavigationObjectReader.AddressFieldModelIdArray + playgroundAeris.EntityId] = 2;
+    WriteLiveFieldModel(memory, playgroundEventTable, 2, -7, -167, 122);
+    memory[FieldNavigationObjectReader.AddressTemporaryFieldBankBase + 13] = 1;
+    var playgroundTargets = reader.ReadTargets(
+        new FieldPositionSnapshot(1, 192, 0, 0, 0, 0, 0, 0));
+    AssertEqual(1, playgroundTargets.Count, "the controllable playground pause should expose Aeris");
+    AssertEqual(playgroundAeris.Label, playgroundTargets[0].Label, "playground pause objective");
+    AssertEqual(-7, playgroundTargets[0].X, "playground target follows Aeris's native slide x");
+    AssertEqual(-167, playgroundTargets[0].Y, "playground target follows Aeris's native slide y");
+    AssertEqual(122, playgroundTargets[0].Z, "playground target follows Aeris's native slide elevation");
+
+    memory[FieldNavigationObjectReader.AddressTemporaryFieldBankBase + 13] = 2;
     AssertEqual(
         0,
         reader.ReadTargets(new FieldPositionSnapshot(1, 192, 0, 0, 0, 0, 0, 0)).Count,
-        "the automatic playground scene should not expose Story guidance before control returns");
+        "starting the playground conversation should retire the Aeris target");
 
     AssertOnlyTarget(192, 185, "Leave the playground toward Wall Market");
     AssertOnlyTarget(194, 185, "Continue into Wall Market");

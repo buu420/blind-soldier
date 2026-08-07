@@ -313,8 +313,9 @@ internal static class EchoSCompatibilityTests
 
     private static void ReadsEveryScriptInAFieldAsOneCoherentSnapshot()
     {
-        var catalog = new FieldScriptNavigationCatalog(
-            @"X:\SteamLibrary\steamapps\common\FINAL FANTASY VII Steam Edition\ff7\workingdir");
+        var dataRoot = Environment.GetEnvironmentVariable("FF7_ACCESSIBILITY_DATA_ROOT") ??
+            @"X:\SteamLibrary\steamapps\common\FINAL FANTASY VII Steam Edition\ff7\workingdir";
+        var catalog = new FieldScriptNavigationCatalog(dataRoot);
         var scripts = catalog.ReadAllScriptOpcodes(116);
 
         Equal(true, scripts.Count > 1, "opening field script population");

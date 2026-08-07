@@ -454,6 +454,11 @@ foreach ($file in Get-ChildItem -LiteralPath $fieldJsonRoot -Filter '*.json') {
 Add-Definition 116 'md1stin' 9 'gu0' 'md1stinshinra_guard.char' 'Item' 0 '' 1 15 32 0x03
 Add-Definition 116 'md1stin' 10 'gu1' 'md1stinshinra_guard.char' 'Item' 0 '' 1 15 32 0x03
 
+# Reactor 1 and Reactor 5 share elevtr1. Its fixed background switch is entity
+# ele's native Main interaction point, so keep it trackable under Objects on
+# both the initial descent and the later escape return.
+Add-Definition -FieldId 121 -FieldName 'elevtr1' -EntityId 5 -EntityName 'ele' -ModelResource '' -Kind 'Named' -Label 'Reactor elevator switch; press OK' -TargetKind 'Location' -StaticX 86 -StaticY 64 -StaticZ 5
+
 # The Sector 5 church barrel puzzle uses four visible barrel models. Their Talk
 # scripts call Aerith's rescue scripts, so the generic native NPC label resolver
 # otherwise mistakes each barrel for Aerith. Keep all four visible objects
