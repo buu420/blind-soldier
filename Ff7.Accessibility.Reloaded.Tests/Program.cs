@@ -14,6 +14,13 @@ if (args.Contains("--runtime-lease-only", StringComparer.OrdinalIgnoreCase))
     return;
 }
 
+if (args.Contains("--7h-compatibility-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.LegacyStartupDiagnosticsTests.Run();
+    Console.WriteLine("7th Heaven startup diagnostics tests passed.");
+    return;
+}
+
 if (args.Contains("--reactor-ladder-only", StringComparer.OrdinalIgnoreCase))
 {
     AssertFieldStoryCatalogCoversReactor1PipingAndSaveRoom();
@@ -198,6 +205,7 @@ AssertFfnxRuntimeDetectorRecognizesDriverModules();
 Ff7.Accessibility.Reloaded.Tests.NavigationProgressControlTests.Run();
 FfnxPopupSpeechTests.Run();
 Ff7.Accessibility.Reloaded.Tests.EchoSCompatibilityTests.Run();
+Ff7.Accessibility.Reloaded.Tests.LegacyStartupDiagnosticsTests.Run();
 AssertOpeningMoviePathResolverUsesFfnxOverrideOnlyWhenLoaded();
 AssertPrismBackendOutputIsSerialized();
 AssertMenuTextRenderDiagnosticsFiltersAndDedupes();

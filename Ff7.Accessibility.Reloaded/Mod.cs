@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using Ff7.Accessibility.Core;
 using Ff7.Accessibility.LegacyLayout;
+using Ff7.Accessibility.Reloaded.Runtime;
 using Reloaded.Hooks.Definitions;
 using Reloaded.Mod.Interfaces.Internal;
 
@@ -372,18 +373,11 @@ public sealed class Mod : IModV1, IModV2
 
     public Action Disposing { get; } = () => { };
 
-    public Mod()
-    {
-        // Reloaded initializes the process runtime before 7th Heaven invokes
-        // AppWrapper. Enable its profile deserializer at the earliest managed
-        // entry point so IRO mounting does not depend on loader timing.
-        LegacySeventhHeavenRuntimeCompatibility.Enable();
-    }
-
     public void Start(IModLoaderV1 loader)
     {
         this.loader = loader;
         logger = loader.GetLogger() as ILoggerV2;
+        LogLegacyStartupDiagnostics();
         LoadConfig(null);
         StartWithRuntimeOwnership();
     }
@@ -393,6 +387,7 @@ public sealed class Mod : IModV1, IModV2
         this.loader = loader;
         this.modConfig = modConfig;
         logger = loader.GetLogger() as ILoggerV2;
+        LogLegacyStartupDiagnostics();
         LoadConfig(modConfig);
         StartWithRuntimeOwnership();
     }
@@ -477,6 +472,26 @@ public sealed class Mod : IModV1, IModV2
     public bool CanUnload() => true;
 
     public bool CanSuspend() => true;
+    private void LogLegacyStartupDiagnostics()
+    {
+        var snapshot = LegacyStartupDiagnostics.Capture();
+        Log(string.Format(
+            "Startup diagnostics: pid={0}, bitness={1}.",
+            Environment.ProcessId,
+            snapshot.Is64Bit ? "x64" : "x86"));
+        foreach (var module in snapshot.NativeModules)
+        {
+            Log("Startup diagnostics native module: " + module);
+        }
+
+        foreach (var assembly in snapshot.ManagedAssemblies)
+        {
+            Log("Startup diagnostics managed assembly: " + assembly);
+        }
+
+        Log("Startup diagnostics classification: " + LegacyStartupDiagnostics.Classify(snapshot) + ".");
+    }
+
 
     private void StartWithRuntimeOwnership()
     {
@@ -485,7 +500,9 @@ public sealed class Mod : IModV1, IModV2
             return;
         }
 
-        if (!BlindSoldierRuntimeLease.TryAcquire(Environment.ProcessId, out runtimeLease))
+        var acquired = BlindSoldierRuntimeLease.TryAcquire(Environment.ProcessId, out runtimeLease);
+        Log("Startup runtime lease: " + (acquired ? "acquired" : "duplicate instance rejected") + ".");
+        if (!acquired)
         {
             Log("Another Blind Soldier runtime already owns accessibility output for this process; this duplicate instance will remain inactive.");
             return;
@@ -494,6 +511,7 @@ public sealed class Mod : IModV1, IModV2
         try
         {
             StartCore();
+            Log("hooks and Prism speech backend initialized");
         }
         catch
         {

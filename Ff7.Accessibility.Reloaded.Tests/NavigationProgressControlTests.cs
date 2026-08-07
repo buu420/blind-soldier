@@ -12,7 +12,6 @@ internal static class NavigationProgressControlTests
         OneToggleControlsFieldAndWorldRouteIndicators();
         IntervalKeysWrapThroughTheFourSupportedValues();
         HotkeyRouterSamplesF5ThroughF7OnceAndInOrder();
-        LegacyCompatibilityEnablesTheRuntimeBeforeSeventhHeavenDeserializes();
     }
 
     private static void DefaultsMatchTheAccessibleFivePercentMode()
@@ -127,21 +126,6 @@ internal static class NavigationProgressControlTests
             [NavigationProgressHotkeyAction.Toggle, NavigationProgressHotkeyAction.NextInterval],
             actions,
             "pressed progress actions");
-    }
-
-    private static void LegacyCompatibilityEnablesTheRuntimeBeforeSeventhHeavenDeserializes()
-    {
-        const string switchName =
-            "System.Runtime.Serialization.EnableUnsafeBinaryFormatterSerialization";
-        AppContext.SetSwitch(switchName, false);
-
-        _ = new Mod();
-        _ = new Mod();
-
-        Equal(
-            true,
-            AppContext.TryGetSwitch(switchName, out var enabled) && enabled,
-            "7th Heaven BinaryFormatter compatibility switch");
     }
 
     private static void Equal<T>(T expected, T actual, string message)
