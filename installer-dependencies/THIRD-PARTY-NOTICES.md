@@ -15,6 +15,12 @@ its Microsoft .NET runtime requirement.
 Reloaded-II is separate software aggregated with Blind Soldier. Its source
 code is available without charge at the exact source link above.
 
+## Ultimate ASI Loader
+
+- Project: https://github.com/ThirteenAG/Ultimate-ASI-Loader
+- License: MIT. The x86 loader distributed inside Reloaded-II is renamed to
+  `dsound.dll` so it can load Blind Soldier's late ASI bootstrap.
+
 ## Reloaded Shared Hooks 1.16.3
 
 - Project: https://github.com/Sewer56/Reloaded.SharedLib.Hooks.ReloadedII
@@ -22,15 +28,6 @@ code is available without charge at the exact source link above.
 - License: GNU Lesser General Public License version 3, included as
   `Reloaded-Shared-Hooks-LGPL-3.0.txt`.
 
-## FFNx 1.24.3.0
-
-- Project: https://github.com/julianxhokaxhiu/FFNx
-- Exact source: https://github.com/julianxhokaxhiu/FFNx/tree/1.24.3
-- License: GNU General Public License version 3, included as
-  `FFNx-GPL-3.0.txt`.
-
-FFNx is separate software aggregated with Blind Soldier. Its source code is
-available without charge at the exact source link above.
 
 ## Microsoft .NET Desktop Runtime 9.0.8
 

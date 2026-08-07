@@ -1,3 +1,5 @@
+> **Status:** Superseded by the stock 7th Heaven bootstrap design on 2026-08-06.
+
 # Bundled FFNx for 7th Heaven Design
 
 ## Goal

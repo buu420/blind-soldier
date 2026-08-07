@@ -20,11 +20,13 @@ is not tied to one particular screen reader.
 
 - Windows 10 or Windows 11.
 - A legal Steam installation of the original Final Fantasy VII.
-- Optional: 7th Heaven and FFNx for the legacy x86 game path.
+- Optional: 7th Heaven for the legacy x86 game path. Its normal FFNx runtime is
+  managed by 7th Heaven, not by Blind Soldier.
 
-**Final Fantasy VII is the only software the player must install first.** The
-portable ZIP contains Reloaded-II, Reloaded Shared Hooks, FFNx, Prism, and
-private x86 and x64 .NET runtimes. Nothing else must be installed globally.
+**Final Fantasy VII is the only software a native Steam player must install first.**
+Players using legacy x86 through 7th Heaven need a normal official or source 7th
+Heaven installation, which owns its FFNx runtime. The portable ZIP contains
+Reloaded-II, Reloaded Shared Hooks, Prism, and private x86 and x64 .NET runtimes.
 
 Blind Soldier contains separate x86 and x64 backends. Its bootstrap validates
 the legacy Steam 2013 runtime (`ff7_en.exe`), converted x86 runtime (`ff7.exe`),
@@ -34,7 +36,7 @@ instead of reading unverified game memory.
 ## Installation
 
 Download
-[Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.1.5/Blind-Soldier-Portable.zip)
+[Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.1.6/Blind-Soldier-Portable.zip)
 from the [Blind Soldier Releases page](https://github.com/buu420/blind-soldier/releases).
 
 1. Close Final Fantasy VII and 7th Heaven.
@@ -49,15 +51,21 @@ under `Blind-Soldier\Bootstrap` yourself.
 
 > [!WARNING]
 > If one of the four supported `.local` folders already contains an unknown
-> `winmm.dll`, move it to a safe backup before extraction. Blind Soldier does
-> not merge with or overwrite another WinMM proxy safely.
+> `version.dll`, move it to a safe backup before extraction. Blind Soldier does
+> not merge with or overwrite another Version proxy safely.
+
+For x86 FF7, the proxy forwards all 17 Windows Version APIs. If FFNx redirects
+the system request back to the proxy, Blind Soldier makes a private byte-for-byte
+copy of this PC's own Windows library under
+`%LOCALAPPDATA%\Blind Soldier\NativeCache` and loads that distinct copy. The
+release does not ship a Windows system DLL.
 
 ### Update or remove
 
 - To update or repair, close the game and extract the newer ZIP over the same
   game folder.
 - To remove the mod, close the game and delete the files listed by
-  `portable-manifest.json`, then restore any launcher or `.local\winmm.dll` you
+  `portable-manifest.json`, then restore any launcher or `.local\version.dll` you
   backed up before extraction.
 - Logs are written beneath `Blind-Soldier\Logs` in the game folder.
 - Steam **Verify integrity of game files** may restore the stock launcher.
@@ -70,10 +78,10 @@ under `Blind-Soldier\Bootstrap` yourself.
   loads the x64 accessibility backend automatically. Starting `FFVII.exe`
   directly is unsupported because it bypasses that accessibility boundary.
 - **Legacy x86 with 7th Heaven:** launch the game through 7th Heaven as usual.
-  FFNx 1.24.3.0 is included in the nested `ff7\workingdir` layout, so no
-  separate FFNx download is required for the converted game.
+  7th Heaven manages the normal FFNx installation for that converted game. Blind
+  Soldier never ships or overwrites FFNx files.
 - **Legacy x86 without 7th Heaven:** launch the legacy game normally. The
-  executable-specific `.local` proxy loads the accessibility backend.
+  executable-specific `.local\version.dll` proxy loads the accessibility backend.
 
 On a successful load, Prism announces that Final Fantasy VII accessibility is
 active.
@@ -87,14 +95,14 @@ Visual Studio C++ Build Tools, and PowerShell, then run:
 ```powershell
 .\Build-BlindSoldierPortablePackage.ps1 `
   -OutputPath .\artifacts\Blind-Soldier-Portable.zip `
-  -Version 0.1.5
+  -Version 0.1.6
 .\Verify-BlindSoldierPortablePackage.ps1 `
   -ArchivePath .\artifacts\Blind-Soldier-Portable.zip `
-  -ExpectedVersion 0.1.5
+  -ExpectedVersion 0.1.6
 ```
 
-The builder compiles the launcher, x86/x64 brokers, and x86 proxy from source,
-then packages the pinned Reloaded, FFNx, and private .NET dependencies.
+The builder compiles the launcher, x86/x64 brokers, and x86 Version proxy from source,
+then packages the pinned Reloaded and private .NET dependencies; 7th Heaven manages FFNx.
 
 ## Mod keys
 
@@ -258,9 +266,9 @@ unknown game update. Do not bypass that check. Include the spoken error, the
 matching file under `Blind-Soldier\Logs`, and your executable version in a bug
 report.
 
-### A `.local` WinMM collision is reported
+### A `.local` Version collision is reported
 
-Close the game, preserve the existing `winmm.dll`, and determine which mod owns
+Close the game, preserve the existing `version.dll`, and determine which mod owns
 it before extracting Blind Soldier. The portable package deliberately does not
 guess how to combine two proxy DLLs.
 
@@ -277,7 +285,7 @@ Open a GitHub issue and include:
 - the field, menu, battle, or world-map location;
 - the exact action and keys that led to the problem;
 - what Blind Soldier said and what you expected it to say;
-- the matching bootstrap or WinMM log under `Blind-Soldier\Logs`;
+- the matching bootstrap or Version log under `Blind-Soldier\Logs`;
 - `ff7_accessibility_reloaded.log` from
   `Reloaded-II\Mods\ff7.accessibility.reloaded`;
 - the matching Reloaded-II log from

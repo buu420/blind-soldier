@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory=$true)] [string] $ArchivePath,
-    [string] $ExpectedVersion = '0.1.5'
+    [string] $ExpectedVersion = '0.1.6'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -20,14 +20,10 @@ $required = @(
     'FFVII_LAUNCHER.exe',
     'FFVII_LAUNCHER.exe.config',
     'launcher_accessibility/native/x86/FFVII_LAUNCHER.prism.x86.dll',
-    'ff7_en.exe.local/winmm.dll',
-    'ff7.exe.local/winmm.dll',
-    'ff7/workingdir/ff7_en.exe.local/winmm.dll',
-    'ff7/workingdir/ff7.exe.local/winmm.dll',
-    'ff7/workingdir/AF3DN.P',
-    'ff7/workingdir/AF4DN.P',
-    'ff7/workingdir/FFNx.toml',
-    'ff7/workingdir/steam_api.dll',
+    'ff7_en.exe.local/version.dll',
+    'ff7.exe.local/version.dll',
+    'ff7/workingdir/ff7_en.exe.local/version.dll',
+    'ff7/workingdir/ff7.exe.local/version.dll',
     'Blind-Soldier/Bootstrap/x86/Blind-Soldier-Bootstrap-x86.exe',
     'Blind-Soldier/Bootstrap/x64/Blind-Soldier-Bootstrap-x64.exe',
     'Blind-Soldier/Runtime/dotnet/x86/host/fxr/9.0.8/hostfxr.dll',
@@ -41,10 +37,15 @@ $required = @(
     'Reloaded-II/Mods/reloaded.sharedlib.hooks/ModConfig.json',
     'LICENSES/dotnet-LICENSE.txt',
     'LICENSES/dotnet-THIRD-PARTY-NOTICES.txt',
-    'LICENSES/FFNx-GPL-3.0.txt',
     'README-PORTABLE.txt',
     'portable-manifest.json'
 )
+$forbiddenExternalFileNames = @(
+    'AF3DN.P','AF4DN.P','FFNx.toml','steam_api.dll','dinput.dll',
+    'AppProxy.dll','AppProxy.runtimeconfig.json','AppWrapper.dll','nethost.dll',
+    'winmm.dll'
+)
+
 $loaderFiles = @(
     'Bootstrapper/Reloaded.Mod.Loader.Bootstrapper.dll',
     'Colorful.Console.dll',
@@ -175,7 +176,7 @@ function Get-Dumpbin {
     $vswhere = Join-Path ${env:ProgramFiles(x86)} `
         'Microsoft Visual Studio\Installer\vswhere.exe'
     if (-not (Test-Path -LiteralPath $vswhere -PathType Leaf)) {
-        throw 'Visual Studio vswhere.exe is unavailable for WinMM export verification.'
+        throw 'Visual Studio vswhere.exe is unavailable for native export verification.'
     }
     $install = (& $vswhere -latest -products '*' `
         -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
@@ -186,7 +187,7 @@ function Get-Dumpbin {
         Sort-Object FullName -Descending | Select-Object -First 1 `
         -ExpandProperty FullName
     if (-not (Test-Path -LiteralPath $dumpbin -PathType Leaf)) {
-        throw 'MSVC dumpbin.exe is unavailable for WinMM export verification.'
+        throw 'MSVC dumpbin.exe is unavailable for native export verification.'
     }
     return $dumpbin
 }
@@ -313,6 +314,10 @@ try {
 
     $forbidden = @(Get-ChildItem -LiteralPath $verificationRoot -File -Recurse |
         Where-Object {
+            $_.Name -in $forbiddenExternalFileNames -or
+            $_.Name -ieq 'winmm.dll' -or
+            $_.Name -ieq 'dsound.dll' -or
+            $_.Extension -ieq '.asi' -or
             $_.Name -in @(
                 'Blind-Soldier-Installer.exe',
                 'Blind-Soldier-Launcher-x86.exe',
@@ -322,9 +327,7 @@ try {
             $_.Name -match '^windowsdesktop-runtime-.+\.exe$' -or
             $_.Extension -in @('.pdb','.obj','.iobj','.ipdb')
         })
-    foreach ($rootForbidden in @(
-        'winmm.dll','version.dll','dinput.dll','AF3DN.P','AF4DN.P','FFNx.toml',
-        'steam_api.dll')) {
+    foreach ($rootForbidden in @('version.dll')) {
         if (Test-Path -LiteralPath (Join-Path $verificationRoot $rootForbidden)) {
             $forbidden += Get-Item -LiteralPath (Join-Path $verificationRoot $rootForbidden)
         }
@@ -395,15 +398,9 @@ try {
         HostFxrX64 = Assert-Machine -Path (Join-Path $verificationRoot `
             'Blind-Soldier\Runtime\dotnet\x64\host\fxr\9.0.8\hostfxr.dll') `
             -Expected 0x8664 -Label 'x64 private hostfxr'
-        FFNxD3D9 = Assert-Machine -Path (Join-Path $verificationRoot `
-            'ff7\workingdir\AF3DN.P') -Expected 0x014C `
-            -Label 'FFNx x86 D3D9 driver'
-        FFNxD3D11 = Assert-Machine -Path (Join-Path $verificationRoot `
-            'ff7\workingdir\AF4DN.P') -Expected 0x014C `
-            -Label 'FFNx x86 D3D11 driver'
-        FFNxSteamApi = Assert-Machine -Path (Join-Path $verificationRoot `
-            'ff7\workingdir\steam_api.dll') -Expected 0x014C `
-            -Label 'FFNx Steam x86 API library'
+        VersionProxy = Assert-Machine -Path (Join-Path $verificationRoot `
+            'ff7_en.exe.local\version.dll') -Expected 0x014C `
+            -Label 'x86 Blind Soldier Version proxy'
     }
 
     $peCount = 0
@@ -436,29 +433,44 @@ try {
         }
     }
 
-    $proxyPaths = @(
-        'ff7_en.exe.local\winmm.dll', 'ff7.exe.local\winmm.dll',
-        'ff7\workingdir\ff7_en.exe.local\winmm.dll',
-        'ff7\workingdir\ff7.exe.local\winmm.dll') |
+    $versionProxyPaths = @(
+        'ff7_en.exe.local\version.dll', 'ff7.exe.local\version.dll',
+        'ff7\workingdir\ff7_en.exe.local\version.dll',
+        'ff7\workingdir\ff7.exe.local\version.dll') |
         ForEach-Object { Join-Path $verificationRoot $_ }
-    $proxyHashes = @($proxyPaths | ForEach-Object {
+    $versionProxyHashes = @($versionProxyPaths | ForEach-Object {
         (Get-FileHash -LiteralPath $_ -Algorithm SHA256).Hash
     } | Select-Object -Unique)
-    if ($proxyHashes.Count -ne 1) {
-        throw 'The four WinMM proxy copies are not byte-identical.'
+    if ($versionProxyHashes.Count -ne 1) {
+        throw 'The four Blind Soldier Version proxy copies are not byte-identical.'
     }
-    foreach ($proxy in $proxyPaths) {
-        [void](Assert-Machine -Path $proxy -Expected 0x014C -Label 'x86 WinMM proxy')
+    foreach ($proxy in $versionProxyPaths) {
+        [void](Assert-Machine -Path $proxy -Expected 0x014C `
+            -Label 'x86 Blind Soldier Version proxy')
     }
-    $exportManifestPath = Join-Path $scriptRoot `
-        'analysis\native-bootstrap\winmm-exports-10.0.26100.8737.json'
-    $expectedExports = @(([IO.File]::ReadAllText($exportManifestPath) |
-        ConvertFrom-Json).exports | Select-Object ordinal,name,noname)
-    $actualExports = @(Get-DumpbinExports -Dumpbin (Get-Dumpbin) `
-        -Path $proxyPaths[0])
-    if (($actualExports | ConvertTo-Json -Compress) -cne
-        ($expectedExports | ConvertTo-Json -Compress)) {
-        throw 'The WinMM proxy does not match the complete locked export table.'
+    $expectedVersionExports = @(
+        'GetFileVersionInfoA', 'GetFileVersionInfoByHandle',
+        'GetFileVersionInfoExA', 'GetFileVersionInfoExW',
+        'GetFileVersionInfoSizeA', 'GetFileVersionInfoSizeExA',
+        'GetFileVersionInfoSizeExW', 'GetFileVersionInfoSizeW',
+        'GetFileVersionInfoW', 'VerFindFileA', 'VerFindFileW',
+        'VerInstallFileA', 'VerInstallFileW', 'VerLanguageNameA',
+        'VerLanguageNameW', 'VerQueryValueA', 'VerQueryValueW')
+    $versionExports = @(Get-DumpbinExports -Dumpbin (Get-Dumpbin) `
+        -Path $versionProxyPaths[0])
+    if ($versionExports.Count -ne $expectedVersionExports.Count) {
+        throw 'The Blind Soldier Version proxy does not export exactly 17 APIs.'
+    }
+    for ($index = 0; $index -lt $expectedVersionExports.Count; $index++) {
+        $actual = $versionExports[$index]
+        if ($actual.ordinal -ne ($index + 1) -or
+            [string]$actual.name -cne $expectedVersionExports[$index]) {
+            throw 'The Blind Soldier Version proxy export table is not an exact Windows Version match.'
+        }
+    }
+    $versionDependencies = (& (Get-Dumpbin) /dependents $versionProxyPaths[0]) -join "`n"
+    if ($versionDependencies -match '(?i)VCRUNTIME|MSVCP|ucrtbase') {
+        throw 'The Blind Soldier Version proxy depends on a dynamic C runtime.'
     }
 
     $readme = [IO.File]::ReadAllText((Join-Path $verificationRoot `
@@ -480,8 +492,8 @@ try {
         LoaderFiles=24
         PeFiles=$peCount
         ForbiddenFiles=0
-        ProxySha256=$proxyHashes[0]
-        ProxyExports=$actualExports.Count
+        VersionProxySha256=$versionProxyHashes[0]
+        VersionProxyExports=$versionExports.Count
         Machines=[pscustomobject]$machines
         ModId=[string]$modConfig.ModId
         SharedHooksId=[string]$hooksConfig.ModId

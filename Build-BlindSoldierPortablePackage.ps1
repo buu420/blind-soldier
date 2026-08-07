@@ -1,11 +1,11 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory=$true)] [string] $OutputPath,
-    [string] $Version = '0.1.5',
+    [string] $Version = '0.1.6',
     [string] $PrerequisiteBundlePath,
     [string] $ModPackagePath,
     [string] $BootstrapBinaryPath,
-    [string] $WinmmProxyPath,
+    [string] $VersionProxyPath,
     [string] $LauncherBundlePath,
     [string] $DependencyCachePath,
     [string] $DependencyLockPath
@@ -285,7 +285,7 @@ try {
     }
 
     if ([string]::IsNullOrWhiteSpace($BootstrapBinaryPath) -or
-        [string]::IsNullOrWhiteSpace($WinmmProxyPath)) {
+        [string]::IsNullOrWhiteSpace($VersionProxyPath)) {
         $msbuild = Get-MsBuildPath
         if ([string]::IsNullOrWhiteSpace($BootstrapBinaryPath)) {
             $project = Join-Path $scriptRoot `
@@ -306,16 +306,16 @@ try {
                 'native\BlindSoldier.Bootstrap\bin\Release\x64\Blind-Soldier-Bootstrap-x64.exe') `
                 -Destination $BootstrapBinaryPath
         }
-        if ([string]::IsNullOrWhiteSpace($WinmmProxyPath)) {
+        if ([string]::IsNullOrWhiteSpace($VersionProxyPath)) {
             $project = Join-Path $scriptRoot `
-                'native\BlindSoldier.WinMMProxy\BlindSoldier.WinMMProxy.vcxproj'
+                'native\BlindSoldier.VersionProxy\BlindSoldier.VersionProxy.vcxproj'
             & $msbuild $project /nologo /m /t:Rebuild `
                 /p:Configuration=Release /p:Platform=Win32 /v:minimal
             if ($LASTEXITCODE -ne 0) {
-                throw "Native WinMM proxy build exited with code $LASTEXITCODE."
+                throw "Native Version proxy build exited with code $LASTEXITCODE."
             }
-            $WinmmProxyPath = Join-Path $scriptRoot `
-                'native\BlindSoldier.WinMMProxy\bin\Release\Win32\winmm.dll'
+            $VersionProxyPath = Join-Path $scriptRoot `
+                'native\BlindSoldier.VersionProxy\bin\Release\Win32\version.dll'
         }
     }
 
@@ -327,8 +327,8 @@ try {
         Assert-OrdinaryTree -Root ([IO.Path]::GetFullPath($tree.Path)) -Label $tree.Label
     }
     Assert-LauncherBundle -Path ([IO.Path]::GetFullPath($LauncherBundlePath))
-    Assert-PeMachine -Path $WinmmProxyPath -Machine 0x014C `
-        -Label 'Blind Soldier x86 WinMM proxy'
+    Assert-PeMachine -Path $VersionProxyPath -Machine 0x014C `
+        -Label 'Blind Soldier x86 Version proxy'
 
     $bootstrapX86 = Join-Path $BootstrapBinaryPath 'Blind-Soldier-Bootstrap-x86.exe'
     $bootstrapX64 = Join-Path $BootstrapBinaryPath 'Blind-Soldier-Bootstrap-x64.exe'
@@ -342,29 +342,15 @@ try {
         New-Item -ItemType Directory -Path (Split-Path -Parent $destination) -Force | Out-Null
         Copy-Item -LiteralPath $record.Source -Destination $destination
     }
-    foreach ($relative in @(
-        'ff7_en.exe.local\winmm.dll', 'ff7.exe.local\winmm.dll',
-        'ff7\workingdir\ff7_en.exe.local\winmm.dll',
-        'ff7\workingdir\ff7.exe.local\winmm.dll')) {
-        $destination = Join-Path $root $relative
-        New-Item -ItemType Directory -Path (Split-Path -Parent $destination) -Force | Out-Null
-        Copy-Item -LiteralPath $WinmmProxyPath -Destination $destination
+    foreach ($directory in @(
+        'ff7_en.exe.local', 'ff7.exe.local',
+        'ff7\workingdir\ff7_en.exe.local',
+        'ff7\workingdir\ff7.exe.local')) {
+        $targetDirectory = Join-Path $root $directory
+        New-Item -ItemType Directory -Path $targetDirectory -Force | Out-Null
+        Copy-Item -LiteralPath $VersionProxyPath `
+            -Destination (Join-Path $targetDirectory 'version.dll')
     }
-    $ffnxSource = Join-Path $PrerequisiteBundlePath 'ffnx'
-    $ffnxTarget = Join-Path $root 'ff7\workingdir'
-    Copy-OrdinaryTree -Source $ffnxSource -Destination $ffnxTarget `
-        -Label 'FFNx package'
-    Remove-PortableBuildDebris -Tree $ffnxTarget -StagingRoot $root
-    foreach ($relative in @('AF3DN.P','AF4DN.P','FFNx.toml','steam_api.dll')) {
-        [void](Assert-File -Path (Join-Path $ffnxTarget $relative) `
-            -Label "FFNx $relative")
-    }
-    Assert-PeMachine -Path (Join-Path $ffnxTarget 'AF3DN.P') -Machine 0x014C `
-        -Label 'FFNx x86 D3D9 driver'
-    Assert-PeMachine -Path (Join-Path $ffnxTarget 'AF4DN.P') -Machine 0x014C `
-        -Label 'FFNx x86 D3D11 driver'
-    Assert-PeMachine -Path (Join-Path $ffnxTarget 'steam_api.dll') -Machine 0x014C `
-        -Label 'FFNx Steam x86 API library'
 
     $sourceReloaded = Join-Path $PrerequisiteBundlePath 'reloaded'
     $targetReloaded = Join-Path $root 'Reloaded-II'
@@ -474,7 +460,7 @@ try {
     foreach ($name in @(
         'THIRD-PARTY-NOTICES.md', 'Reloaded-II-GPL-3.0.txt',
         'Reloaded-Shared-Hooks-LGPL-3.0.txt', 'dotnet-LICENSE.txt',
-        'dotnet-THIRD-PARTY-NOTICES.txt', 'FFNx-GPL-3.0.txt')) {
+        'dotnet-THIRD-PARTY-NOTICES.txt')) {
         $source = Join-Path $PrerequisiteBundlePath "notices\$name"
         [void](Assert-File -Path $source -Label "Portable license $name")
         Copy-Item -LiteralPath $source -Destination (Join-Path $licenseTarget $name)
@@ -490,18 +476,19 @@ No installer is required. No administrator access, registry change, or separate 
 
 Supported layouts
 - Steam 2026 x64: extract beside FFVII.exe and FFVII_LAUNCHER.exe. Use Steam or the included accessible launcher. Its Play button starts the packaged x64 accessibility bootstrap automatically.
-- Legacy or converted x86: extract beside ff7_en.exe or ff7.exe. The matching .local\winmm.dll starts accessibility automatically.
+- Legacy or converted x86: extract beside ff7_en.exe or ff7.exe. The matching .local\version.dll forwards the game's normal Version APIs and starts accessibility.
 - 7th Heaven nested x86: extract at the Steam 2026 root. The copies under ff7\workingdir support 7th Heaven's converted game layout.
 
-FFNx 1.24.3.0 is included under ff7\workingdir, so the converted x86 game can launch through 7th Heaven without a separate FFNx download. The native Steam 2026 files at the package root are not replaced.
+Official 7th Heaven manages its own FFNx installation. Blind Soldier coexists with a normal official or source 7th Heaven install and does not ship, replace, or overwrite any FFNx file.
+This ZIP contains only manifest-owned Blind Soldier files.
 
-Do not replace an existing executable-local winmm.dll unless it belongs to Blind Soldier. Move an unknown file aside first so it can be restored.
+Do not replace an existing executable-local version.dll unless it belongs to Blind Soldier. Move an unknown file aside first so it can be restored. If FFNx redirects the system Version library back to the proxy, Blind Soldier privately caches a byte-for-byte copy of this machine's own Windows version library under Local AppData and loads that distinct copy; no Windows binary is shipped in the ZIP.
 
 Logs are written under Blind-Soldier\Logs. Players never need to run either bootstrap program themselves.
 
 Steam Verify Files may restore the stock FFVII launcher. Extract this ZIP again afterward to restore the accessible launcher.
 
-To remove Blind Soldier, close FFVII and delete the files and folders extracted from this ZIP. Restore any launcher or .local file you backed up before extraction.
+To remove Blind Soldier, close FFVII and delete only the Blind Soldier files listed in portable-manifest.json. Restore any launcher or .local file you backed up before extraction.
 "@
     $readme = ($readme.Trim() -replace "`r?`n", "`r`n") + "`r`n"
     [IO.File]::WriteAllText((Join-Path $root 'README-PORTABLE.txt'),
