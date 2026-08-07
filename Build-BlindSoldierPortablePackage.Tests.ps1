@@ -1,4 +1,5 @@
 if ($MyInvocation.InvocationName -ne '&') {
+    # Prerequisite: Windows PowerShell with Pester 4.10.1 installed; no fallback.
     # Pester invokes test scripts with &, while direct -File invocation owns
     # the process exit code and reports the pinned Pester result.
     Import-Module Pester -RequiredVersion 4.10.1 -Force -ErrorAction Stop
@@ -117,15 +118,78 @@ function New-RuntimeFixture {
     [pscustomobject]@{ Cache=$cache; Lock=$lock }
 }
 
-function Get-PortableTestVersionProxy {
-    $proxy = Join-Path $scriptRoot `
-        'native\BlindSoldier.VersionProxy\bin\Release\Win32\version.dll'
-    if (-not (Test-Path -LiteralPath $proxy -PathType Leaf)) {
-        throw "Build the native Version proxy before running package tests: $proxy"
+$script:portableTestVersionProxyRoot = $null
+$script:portableTestVersionProxy = $null
+
+function Get-PortableTestMsBuild {
+    $vswhere = Join-Path ${env:ProgramFiles(x86)} `
+        'Microsoft Visual Studio\Installer\vswhere.exe'
+    if (-not (Test-Path -LiteralPath $vswhere -PathType Leaf)) {
+        throw 'Visual Studio vswhere.exe is unavailable for the portable package test proxy build.'
     }
-    return $proxy
+    $installation = (& $vswhere -latest -products '*' `
+        -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
+        -property installationPath | Select-Object -First 1)
+    if ([string]::IsNullOrWhiteSpace($installation)) {
+        throw 'Visual Studio C++ Build Tools are unavailable for the portable package test proxy build.'
+    }
+    $msbuild = Join-Path $installation 'MSBuild\Current\Bin\MSBuild.exe'
+    if (-not (Test-Path -LiteralPath $msbuild -PathType Leaf)) {
+        throw "MSBuild is unavailable for the portable package test proxy build: $msbuild"
+    }
+    return $msbuild
 }
 
+function Remove-PortableTestVersionProxy {
+    if ($null -ne $script:portableTestVersionProxyRoot -and
+            (Test-Path -LiteralPath $script:portableTestVersionProxyRoot)) {
+        Remove-Item -LiteralPath $script:portableTestVersionProxyRoot -Recurse -Force
+    }
+    $script:portableTestVersionProxyRoot = $null
+    $script:portableTestVersionProxy = $null
+}
+
+function Get-PortableTestVersionProxy {
+    if ($null -ne $script:portableTestVersionProxy -and
+            (Test-Path -LiteralPath $script:portableTestVersionProxy -PathType Leaf)) {
+        return $script:portableTestVersionProxy
+    }
+    $project = Join-Path $scriptRoot `
+        'native\BlindSoldier.VersionProxy\BlindSoldier.VersionProxy.vcxproj'
+    if (-not (Test-Path -LiteralPath $project -PathType Leaf)) {
+        throw "Version proxy project is unavailable for the portable package test: $project"
+    }
+    $root = Join-Path ([IO.Path]::GetTempPath()) (
+        'blind-soldier-portable-version-proxy-' + [Guid]::NewGuid().ToString('N'))
+    try {
+        $output = Join-Path $root 'out'
+        $intermediate = Join-Path $root 'obj'
+        New-Item -ItemType Directory -Path $output, $intermediate -Force | Out-Null
+        $outputProperty = $output.TrimEnd('\') + '\'
+        $intermediateProperty = $intermediate.TrimEnd('\') + '\'
+        $arguments = @(
+            $project, '/nologo', '/m', '/t:Rebuild', '/p:Configuration=Release',
+            '/p:Platform=Win32', "/p:OutDir=$outputProperty",
+            "/p:IntDir=$intermediateProperty")
+        & (Get-PortableTestMsBuild) @arguments | Out-Host
+        if ($LASTEXITCODE -ne 0) {
+            throw "Version proxy test build failed with exit code $LASTEXITCODE."
+        }
+        $proxy = Join-Path $output 'version.dll'
+        if (-not (Test-Path -LiteralPath $proxy -PathType Leaf)) {
+            throw "Version proxy test build did not produce version.dll: $proxy"
+        }
+        $script:portableTestVersionProxyRoot = $root
+        $script:portableTestVersionProxy = $proxy
+        return $proxy
+    }
+    catch {
+        if (Test-Path -LiteralPath $root) {
+            Remove-Item -LiteralPath $root -Recurse -Force
+        }
+        throw
+    }
+}
 function New-PortableFixture {
     $root = Join-Path ([IO.Path]::GetTempPath()) (
         'blind-soldier-portable-test-' + [Guid]::NewGuid().ToString('N'))
@@ -211,7 +275,7 @@ function New-PortableFixture {
 
     [pscustomobject]@{
         Root=$root; Prerequisites=$prerequisites; Mod=$mod; Launcher=$launcher
-        Bootstrap=$bootstrap; VersionProxy=$versionProxy; RuntimeCache=$runtime.Cache
+        Bootstrap=$bootstrap; VersionProxy=$versionProxy; VersionProxyBuildRoot=$script:portableTestVersionProxyRoot; RuntimeCache=$runtime.Cache
         RuntimeLock=$runtime.Lock
         First=(Join-Path $root 'Blind-Soldier-Portable-1.zip')
         Second=(Join-Path $root 'Blind-Soldier-Portable-2.zip')
@@ -345,6 +409,10 @@ Describe 'Blind Soldier direct-extract portable package' {
         $fixture = $null
     }
 
+    AfterAll {
+        Remove-PortableTestVersionProxy
+    }
+
     It 'ships the complete no-installer accessibility payload in all supported layouts' {
         $fixture = New-PortableFixture
         Invoke-FixtureBuild -Fixture $fixture -Output $fixture.First
@@ -416,6 +484,19 @@ Describe 'Blind Soldier direct-extract portable package' {
         (Get-PortableEntries -Path $fixture.First) -ccontains 'version.dll' |
             Should Be $false
     }
+    It 'builds the verifier Version proxy from current source into owned temporary output' {
+        $fixture = New-PortableFixture
+        $ignoredProxyOutput = Join-Path $scriptRoot `
+            'native\BlindSoldier.VersionProxy\bin\Release\Win32\version.dll'
+        $fixture.VersionProxy | Should Not Be $ignoredProxyOutput
+        $fixture.VersionProxy | Should Match ([regex]::Escape(
+            [IO.Path]::GetFullPath($fixture.VersionProxyBuildRoot)))
+        Test-Path -LiteralPath $fixture.VersionProxyBuildRoot -PathType Container |
+            Should Be $true
+        Test-Path -LiteralPath $fixture.VersionProxy -PathType Leaf |
+            Should Be $true
+    }
+
     It 'contains exactly the four allowed Windows-canonical Version proxy paths' {
         $fixture = New-PortableFixture
         Invoke-FixtureBuild -Fixture $fixture -Output $fixture.First
