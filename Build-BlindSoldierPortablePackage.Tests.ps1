@@ -370,10 +370,13 @@ function New-PortableArchiveVariant {
                 -Force | Out-Null
             [IO.File]::WriteAllBytes($additional, @(0x4D,0x5A,0x00))
         }
+        [string[]]$variantFiles = @(Get-ChildItem -LiteralPath $stage -File -Recurse |
+            Where-Object Name -cne 'portable-manifest.json' |
+            ForEach-Object FullName)
+        [Array]::Sort($variantFiles, [StringComparer]::Ordinal)
         $records = @(
-            foreach ($file in @(Get-ChildItem -LiteralPath $stage -File -Recurse |
-                    Where-Object Name -cne 'portable-manifest.json' |
-                    Sort-Object FullName)) {
+            foreach ($path in $variantFiles) {
+                $file = Get-Item -LiteralPath $path
                 $relative = $file.FullName.Substring($stage.Length + 1).Replace('\','/')
                 [ordered]@{
                     path=$relative
@@ -461,7 +464,8 @@ Describe 'Blind Soldier direct-extract portable package' {
             Should Be 0
         @($entries | Where-Object { $_ -match '(?i)\.asi$' }).Count | Should Be 0
         $forbiddenExternal = @(
-            'AF3DN.P','AF4DN.P','FFNx.toml','steam_api.dll','dinput.dll',
+            'AF3DN.P','AF4DN.P','FFNx.dll','7H_GameDriver.dll','FFNx.toml',
+            'steam_api.dll','steam_api64.dll','dinput.dll',
             'AppProxy.dll','AppProxy.runtimeconfig.json','AppWrapper.dll','nethost.dll',
             'winmm.dll'
         )
@@ -522,6 +526,29 @@ Describe 'Blind Soldier direct-extract portable package' {
             -AdditionalPath 'hidden/version.dll'
         { & $verifierPath -ArchivePath $variant -ExpectedVersion '0.1.6' } |
             Should Throw 'exactly four Version proxy entries'
+    }
+
+    It 'rejects every recognized external FFNx runtime entry point' {
+        $fixture = New-PortableFixture
+        Invoke-FixtureBuild -Fixture $fixture -Output $fixture.First
+        $unexpected = New-Object 'System.Collections.Generic.List[string]'
+        foreach ($fileName in @('FFNx.dll','7H_GameDriver.dll','steam_api64.dll')) {
+            $variant = Join-Path $fixture.Root ('external-{0}.zip' -f $fileName)
+            New-PortableArchiveVariant -Source $fixture.First -Destination $variant `
+                -AdditionalPath ('zz-external/{0}' -f $fileName)
+            try {
+                & $verifierPath -ArchivePath $variant -ExpectedVersion '0.1.6' |
+                    Out-Null
+                $unexpected.Add(('{0}: completed' -f $fileName))
+            }
+            catch {
+                if ($_.Exception.Message -notlike '*forbidden files*') {
+                    $unexpected.Add(('{0}: {1}' -f $fileName,
+                        $_.Exception.Message))
+                }
+            }
+        }
+        ($unexpected -join '; ') | Should Be ''
     }
 
     It 'rejects an otherwise-valid archive with unordered manifest records' {

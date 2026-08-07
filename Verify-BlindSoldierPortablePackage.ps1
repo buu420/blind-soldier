@@ -41,7 +41,8 @@ $required = @(
     'portable-manifest.json'
 )
 $forbiddenExternalFileNames = @(
-    'AF3DN.P','AF4DN.P','FFNx.toml','steam_api.dll','dinput.dll',
+    'AF3DN.P','AF4DN.P','FFNx.dll','7H_GameDriver.dll','FFNx.toml',
+    'steam_api.dll','steam_api64.dll','dinput.dll',
     'AppProxy.dll','AppProxy.runtimeconfig.json','AppWrapper.dll','nethost.dll',
     'winmm.dll'
 )

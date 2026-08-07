@@ -134,13 +134,16 @@ function New-LiveStageFixture {
         -Algorithm SHA256).Hash
     $externalRelativePaths = @(
         'dinput.dll','AppProxy.dll','AppProxy.runtimeconfig.json',
-        'AppWrapper.dll','nethost.dll','AF3DN.P','AF4DN.P','FFNx.toml',
-        'steam_api.dll','ff7\workingdir\dinput.dll',
+        'AppWrapper.dll','nethost.dll','AF3DN.P','AF4DN.P','FFNx.dll',
+        '7H_GameDriver.dll','FFNx.toml','steam_api.dll','steam_api64.dll',
+        'ff7\workingdir\dinput.dll',
         'ff7\workingdir\AppProxy.dll',
         'ff7\workingdir\AppProxy.runtimeconfig.json',
         'ff7\workingdir\AppWrapper.dll','ff7\workingdir\nethost.dll',
         'ff7\workingdir\AF3DN.P','ff7\workingdir\AF4DN.P',
-        'ff7\workingdir\FFNx.toml','ff7\workingdir\steam_api.dll')
+        'ff7\workingdir\FFNx.dll','ff7\workingdir\7H_GameDriver.dll',
+        'ff7\workingdir\FFNx.toml','ff7\workingdir\steam_api.dll',
+        'ff7\workingdir\steam_api64.dll')
     foreach ($relative in $externalRelativePaths) {
         $path = Join-Path $game $relative
         New-Item -ItemType Directory -Path (Split-Path -Parent $path) -Force |
@@ -382,6 +385,32 @@ Describe 'Blind Soldier portable live staging safety' {
                 -BackupRoot $fixture.Backup
         }
         $message | Should Match '7th Heaven|FFNx|external'
+    }
+
+    It 'refuses every recognized FFNx runtime entry point in an archive' {
+        $unexpected = New-Object 'System.Collections.Generic.List[string]'
+        foreach ($fileName in @('FFNx.dll','7H_GameDriver.dll','steam_api64.dll')) {
+            $externalMember = Join-Path $fixture.Payload `
+                ('Blind-Soldier\embedded\{0}' -f $fileName)
+            New-Item -ItemType Directory -Path (Split-Path -Parent $externalMember) `
+                -Force | Out-Null
+            [IO.File]::WriteAllText($externalMember,
+                'package must not own this file')
+            Update-FixtureArchive -Fixture $fixture
+            try {
+                Invoke-FixtureStage -Fixture $fixture -DryRun `
+                    -BackupRoot $fixture.Backup | Out-Null
+                $unexpected.Add(('{0}: completed' -f $fileName))
+            }
+            catch {
+                if ($_.Exception.Message -notmatch '7th Heaven|FFNx|external') {
+                    $unexpected.Add(('{0}: {1}' -f $fileName,
+                        $_.Exception.Message))
+                }
+            }
+            Remove-Item -LiteralPath $externalMember -Force
+        }
+        ($unexpected -join '; ') | Should Be ''
     }
 
     It 'default policy recognizes prior Blind Soldier Version proxies' {

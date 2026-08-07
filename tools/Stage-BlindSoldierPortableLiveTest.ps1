@@ -27,13 +27,16 @@ $versionProxyPaths = @(
 )
 $externalOwnedPaths = @(
     'dinput.dll','AppProxy.dll','AppProxy.runtimeconfig.json',
-    'AppWrapper.dll','nethost.dll','AF3DN.P','AF4DN.P','FFNx.toml',
-    'steam_api.dll','ff7/workingdir/dinput.dll',
+    'AppWrapper.dll','nethost.dll','AF3DN.P','AF4DN.P','FFNx.dll',
+    '7H_GameDriver.dll','FFNx.toml','steam_api.dll','steam_api64.dll',
+    'ff7/workingdir/dinput.dll',
     'ff7/workingdir/AppProxy.dll',
     'ff7/workingdir/AppProxy.runtimeconfig.json',
     'ff7/workingdir/AppWrapper.dll','ff7/workingdir/nethost.dll',
     'ff7/workingdir/AF3DN.P','ff7/workingdir/AF4DN.P',
-    'ff7/workingdir/FFNx.toml','ff7/workingdir/steam_api.dll'
+    'ff7/workingdir/FFNx.dll','ff7/workingdir/7H_GameDriver.dll',
+    'ff7/workingdir/FFNx.toml','ff7/workingdir/steam_api.dll',
+    'ff7/workingdir/steam_api64.dll'
 )
 
 function Write-JsonUtf8 {
