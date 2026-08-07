@@ -10,6 +10,18 @@ internal readonly record struct LegacyStartupSnapshot(
 
 internal static class LegacyStartupDiagnostics
 {
+    private static readonly HashSet<string> RecognizedReloadedNativeModuleNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Reloaded.Mod.Loader.dll",
+        "Reloaded.Mod.Interfaces.dll"
+    };
+
+    private static readonly HashSet<string> RecognizedReloadedManagedAssemblyNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Reloaded.Mod.Loader",
+        "Reloaded.Mod.Interfaces"
+    };
+
     internal static string Classify(LegacyStartupSnapshot snapshot)
     {
         var hasAppLoader = HasModule(snapshot.NativeModules, "dinput.dll") ||
@@ -83,40 +95,63 @@ internal static class LegacyStartupDiagnostics
             managedAssemblies);
     }
 
-    private static bool IsRelevantNativeModule(ProcessModule module, string? executableDirectory)
+    internal static bool IsRelevantNativeEvidence(
+        string? moduleName,
+        string? modulePath,
+        string? productName,
+        string? executableDirectory)
     {
-        var moduleName = module.ModuleName;
-        if (string.Equals(moduleName, "dinput.dll", StringComparison.OrdinalIgnoreCase))
+        if (string.IsNullOrWhiteSpace(moduleName))
+        {
+            return false;
+        }
+
+        if (string.Equals(moduleName, "dinput.dll", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(moduleName, "AppLoader.dll", StringComparison.OrdinalIgnoreCase))
         {
             return string.Equals(
-                TryGetDirectory(module.FileName),
+                TryGetDirectory(modulePath),
                 executableDirectory,
                 StringComparison.OrdinalIgnoreCase);
         }
 
-        if (string.Equals(moduleName, "AppLoader.dll", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(moduleName, "coreclr.dll", StringComparison.OrdinalIgnoreCase) ||
+        return string.Equals(moduleName, "coreclr.dll", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(moduleName, "hostfxr.dll", StringComparison.OrdinalIgnoreCase) ||
-            moduleName.StartsWith("Reloaded", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
+            IsRecognizedReloadedNativeModuleName(moduleName) ||
+            FfnxRuntimeDetector.IsFfnxModule(moduleName, productName);
+    }
 
+    internal static bool IsRecognizedReloadedNativeModuleName(string? moduleName) =>
+        !string.IsNullOrWhiteSpace(moduleName) &&
+        RecognizedReloadedNativeModuleNames.Contains(moduleName);
+
+    internal static bool IsRecognizedReloadedManagedAssemblyName(string? assemblyName) =>
+        !string.IsNullOrWhiteSpace(assemblyName) &&
+        RecognizedReloadedManagedAssemblyNames.Contains(assemblyName);
+
+    private static bool IsRelevantNativeModule(ProcessModule module, string? executableDirectory)
+    {
+        string? productName = null;
         try
         {
-            return FfnxRuntimeDetector.IsFfnxModule(
-                moduleName,
-                FileVersionInfo.GetVersionInfo(module.FileName).ProductName);
+            productName = FileVersionInfo.GetVersionInfo(module.FileName).ProductName;
         }
         catch
         {
-            return false;
+            // Version metadata is only needed to identify FFNx.
         }
+
+        return IsRelevantNativeEvidence(
+            module.ModuleName,
+            module.FileName,
+            productName,
+            executableDirectory);
     }
 
     private static bool IsRelevantManagedAssembly(Assembly assembly) =>
         string.Equals(assembly.GetName().Name, "AppProxy", StringComparison.OrdinalIgnoreCase) ||
-        string.Equals(assembly.GetName().Name, "AppWrapper", StringComparison.OrdinalIgnoreCase);
+        string.Equals(assembly.GetName().Name, "AppWrapper", StringComparison.OrdinalIgnoreCase) ||
+        IsRecognizedReloadedManagedAssemblyName(assembly.GetName().Name);
 
     private static string DescribeModule(ProcessModule module)
     {
@@ -149,10 +184,12 @@ internal static class LegacyStartupDiagnostics
             evidence.StartsWith($"{assemblyName} |", StringComparison.OrdinalIgnoreCase));
 
     private static bool HasReloadedModule(IReadOnlyList<string> modules) =>
-        modules.Any(evidence => evidence.StartsWith("Reloaded", StringComparison.OrdinalIgnoreCase));
+        RecognizedReloadedNativeModuleNames.Any(moduleName =>
+            HasModule(modules, moduleName));
 
     private static bool HasReloadedAssembly(IReadOnlyList<string> assemblies) =>
-        assemblies.Any(evidence => evidence.StartsWith("Reloaded", StringComparison.OrdinalIgnoreCase));
+        RecognizedReloadedManagedAssemblyNames.Any(assemblyName =>
+            HasAssembly(assemblies, assemblyName));
 
     private static string? TryGetDirectory(string? path)
     {

@@ -14,6 +14,9 @@ internal static class LegacyStartupDiagnosticsTests
         ClassifiesStockSeventhHeavenLateAttach();
         ClassifiesDirectReloadedStartup();
         ClassifiesIncompleteEvidenceAsUnexpected();
+        RejectsUnrecognizedReloadedPrefixes();
+        RecognizesExactReloadedEvidenceForCapture();
+        RequiresExecutableDirectoryForAppLoaderEvidence();
         DoesNotRetainTheObsoleteManagedStartupContract();
     }
 
@@ -26,8 +29,7 @@ internal static class LegacyStartupDiagnosticsTests
                 "dinput.dll | 4.5.2.0 | C:\\FF7\\dinput.dll",
                 "FFNx.dll | 1.24.3.0 | C:\\FF7\\FFNx.dll",
                 "coreclr.dll | 9.0.0.0 | C:\\FF7\\coreclr.dll",
-                "hostfxr.dll | 9.0.0.0 | C:\\FF7\\hostfxr.dll",
-                "Reloaded-II.dll | 1.0.0.0 | C:\\FF7\\Reloaded-II.dll"
+                "hostfxr.dll | 9.0.0.0 | C:\\FF7\\hostfxr.dll"
             ],
             ManagedAssemblies:
             [
@@ -49,8 +51,7 @@ internal static class LegacyStartupDiagnosticsTests
             NativeModules:
             [
                 "coreclr.dll | 8.0.0.0 | C:\\FF7\\coreclr.dll",
-                "hostfxr.dll | 8.0.0.0 | C:\\FF7\\hostfxr.dll",
-                "Reloaded-II.dll | 1.0.0.0 | C:\\FF7\\Reloaded-II.dll"
+                "hostfxr.dll | 8.0.0.0 | C:\\FF7\\hostfxr.dll"
             ],
             ManagedAssemblies:
             [
@@ -71,8 +72,7 @@ internal static class LegacyStartupDiagnosticsTests
             [
                 "dinput.dll | 4.5.2.0 | C:\\FF7\\dinput.dll",
                 "coreclr.dll | 9.0.0.0 | C:\\FF7\\coreclr.dll",
-                "hostfxr.dll | 9.0.0.0 | C:\\FF7\\hostfxr.dll",
-                "Reloaded-II.dll | 1.0.0.0 | C:\\FF7\\Reloaded-II.dll"
+                "hostfxr.dll | 9.0.0.0 | C:\\FF7\\hostfxr.dll"
             ],
             ManagedAssemblies:
             [
@@ -84,6 +84,86 @@ internal static class LegacyStartupDiagnosticsTests
             "partial-unexpected",
             LegacyStartupDiagnostics.Classify(snapshot),
             "incomplete startup evidence classification");
+    }
+
+    private static void RejectsUnrecognizedReloadedPrefixes()
+    {
+        var snapshot = new LegacyStartupSnapshot(
+            Is64Bit: false,
+            NativeModules:
+            [
+                "coreclr.dll | 8.0.0.0 | C:\\FF7\\coreclr.dll",
+                "hostfxr.dll | 8.0.0.0 | C:\\FF7\\hostfxr.dll"
+            ],
+            ManagedAssemblies:
+            [
+                "Reloaded.Unrelated | 1.0.0.0 | C:\\FF7\\Reloaded.Unrelated.dll"
+            ]);
+
+        Equal(
+            "partial-unexpected",
+            LegacyStartupDiagnostics.Classify(snapshot),
+            "unrecognized Reloaded managed prefix classification");
+        Equal(
+            false,
+            LegacyStartupDiagnostics.IsRecognizedReloadedNativeModuleName("Reloaded.Unrelated.dll"),
+            "unrecognized Reloaded native prefix");
+    }
+
+    private static void RecognizesExactReloadedEvidenceForCapture()
+    {
+        Equal(
+            true,
+            LegacyStartupDiagnostics.IsRecognizedReloadedManagedAssemblyName("Reloaded.Mod.Loader"),
+            "Reloaded mod loader managed evidence");
+        Equal(
+            true,
+            LegacyStartupDiagnostics.IsRecognizedReloadedManagedAssemblyName("Reloaded.Mod.Interfaces"),
+            "Reloaded interfaces managed evidence");
+        Equal(
+            true,
+            LegacyStartupDiagnostics.IsRecognizedReloadedNativeModuleName("Reloaded.Mod.Loader.dll"),
+            "Reloaded mod loader native evidence");
+        Equal(
+            false,
+            LegacyStartupDiagnostics.IsRecognizedReloadedManagedAssemblyName("Reloaded.Unrelated"),
+            "unrecognized Reloaded managed prefix");
+    }
+
+    private static void RequiresExecutableDirectoryForAppLoaderEvidence()
+    {
+        Equal(
+            true,
+            LegacyStartupDiagnostics.IsRelevantNativeEvidence(
+                "dinput.dll",
+                "C:\\FF7\\dinput.dll",
+                productName: null,
+                executableDirectory: "C:\\FF7"),
+            "local dinput evidence");
+        Equal(
+            true,
+            LegacyStartupDiagnostics.IsRelevantNativeEvidence(
+                "AppLoader.dll",
+                "C:\\FF7\\AppLoader.dll",
+                productName: null,
+                executableDirectory: "C:\\FF7"),
+            "local AppLoader evidence");
+        Equal(
+            false,
+            LegacyStartupDiagnostics.IsRelevantNativeEvidence(
+                "dinput.dll",
+                "C:\\Other\\dinput.dll",
+                productName: null,
+                executableDirectory: "C:\\FF7"),
+            "non-local dinput evidence");
+        Equal(
+            false,
+            LegacyStartupDiagnostics.IsRelevantNativeEvidence(
+                "AppLoader.dll",
+                "C:\\Other\\AppLoader.dll",
+                productName: null,
+                executableDirectory: "C:\\FF7"),
+            "non-local AppLoader evidence");
     }
 
     private static void DoesNotRetainTheObsoleteManagedStartupContract()
