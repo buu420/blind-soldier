@@ -488,7 +488,7 @@ Logs are written under Blind-Soldier\Logs. Players never need to run either boot
 
 Steam Verify Files may restore the stock FFVII launcher. Extract this ZIP again afterward to restore the accessible launcher.
 
-To remove Blind Soldier, close FFVII and delete only the Blind Soldier files listed in portable-manifest.json. Restore any launcher or .local file you backed up before extraction.
+To remove Blind Soldier, close FFVII, read portable-manifest.json from this ZIP, and delete only the Blind Soldier files named in that manifest. Restore any launcher or .local file you backed up before extraction.
 "@
     $readme = ($readme.Trim() -replace "`r?`n", "`r`n") + "`r`n"
     [IO.File]::WriteAllText((Join-Path $root 'README-PORTABLE.txt'),

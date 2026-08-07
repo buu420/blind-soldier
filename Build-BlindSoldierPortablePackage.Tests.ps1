@@ -1,3 +1,13 @@
+if ($MyInvocation.InvocationName -ne '&') {
+    # Pester invokes test scripts with &, while direct -File invocation owns
+    # the process exit code and reports the pinned Pester result.
+    Import-Module Pester -RequiredVersion 4.10.1 -Force -ErrorAction Stop
+    $result = Invoke-Pester -Script $MyInvocation.MyCommand.Path -PassThru
+    if ($result.FailedCount -gt 0) {
+        exit 1
+    }
+    exit 0
+}
 $ErrorActionPreference = 'Stop'
 
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -26,6 +36,8 @@ function New-PortableTestPe {
     [BitConverter]::GetBytes([int]0x80).CopyTo($bytes, 0x3C)
     [BitConverter]::GetBytes([uint32]0x00004550).CopyTo($bytes, 0x80)
     [BitConverter]::GetBytes($Machine).CopyTo($bytes, 0x84)
+    $magic = if ($Machine -eq 0x014C) { [uint16]0x10B } else { [uint16]0x20B }
+    [BitConverter]::GetBytes($magic).CopyTo($bytes, 0x98)
     [IO.File]::WriteAllBytes($Path, $bytes)
 }
 
@@ -38,8 +50,12 @@ function New-FixtureZip {
         $zip = New-Object IO.Compression.ZipArchive(
             $stream, [IO.Compression.ZipArchiveMode]::Create, $true)
         try {
-            foreach ($file in @(Get-ChildItem -LiteralPath $Source -File -Recurse |
-                    Sort-Object FullName)) {
+            [string[]]$paths = @(Get-ChildItem -LiteralPath $Source -File -Recurse |
+                ForEach-Object FullName)
+            [Array]::Sort($paths, [StringComparer]::Ordinal)
+            foreach ($path in $paths) {
+                $file = Get-Item -LiteralPath $path
+
                 $relative = $file.FullName.Substring($Source.Length + 1).Replace('\','/')
                 $entry = $zip.CreateEntry($relative)
                 $entry.ExternalAttributes = 0
@@ -101,6 +117,15 @@ function New-RuntimeFixture {
     [pscustomobject]@{ Cache=$cache; Lock=$lock }
 }
 
+function Get-PortableTestVersionProxy {
+    $proxy = Join-Path $scriptRoot `
+        'native\BlindSoldier.VersionProxy\bin\Release\Win32\version.dll'
+    if (-not (Test-Path -LiteralPath $proxy -PathType Leaf)) {
+        throw "Build the native Version proxy before running package tests: $proxy"
+    }
+    return $proxy
+}
+
 function New-PortableFixture {
     $root = Join-Path ([IO.Path]::GetTempPath()) (
         'blind-soldier-portable-test-' + [Guid]::NewGuid().ToString('N'))
@@ -118,7 +143,13 @@ function New-PortableFixture {
             if ($relative -ceq 'Reloaded.Mod.Loader.runtimeconfig.json') {
                 [IO.File]::WriteAllText($path, '{"runtimeOptions":{"tfm":"net9.0"}}')
             }
-            else { [IO.File]::WriteAllText($path, "fixture $architecture $relative") }
+            elseif ([IO.Path]::GetExtension($relative) -ieq '.dll') {
+                $machine = if ($architecture -ceq 'X86') { 0x014C } else { 0x8664 }
+                New-PortableTestPe -Path $path -Machine $machine
+            }
+            else {
+                [IO.File]::WriteAllText($path, "fixture $architecture $relative")
+            }
         }
     }
     New-PortableTestPe -Path (Join-Path $reloaded 'Loader\X86\Bootstrapper\Reloaded.Mod.Loader.Bootstrapper.dll') -Machine 0x014C
@@ -175,8 +206,7 @@ function New-PortableFixture {
 
     New-PortableTestPe -Path (Join-Path $bootstrap 'Blind-Soldier-Bootstrap-x86.exe') -Machine 0x014C
     New-PortableTestPe -Path (Join-Path $bootstrap 'Blind-Soldier-Bootstrap-x64.exe') -Machine 0x8664
-    $versionProxy = Join-Path $root 'version.dll'
-    New-PortableTestPe -Path $versionProxy -Machine 0x014C -Marker 77
+    $versionProxy = Get-PortableTestVersionProxy
     $runtime = New-RuntimeFixture -Root $root
 
     [pscustomobject]@{
@@ -240,14 +270,14 @@ function Get-PortableEntryHash {
 }
 
 function New-UnsafePortableZip {
-    param([string] $Path)
+    param([string] $Path, [string] $EntryName = '../escaped.txt')
     Add-Type -AssemblyName System.IO.Compression
     $stream = [IO.File]::Open($Path, [IO.FileMode]::CreateNew)
     try {
         $archive = New-Object IO.Compression.ZipArchive(
             $stream, [IO.Compression.ZipArchiveMode]::Create, $true)
         try {
-            $entry = $archive.CreateEntry('../escaped.txt')
+            $entry = $archive.CreateEntry($EntryName)
             $writer = New-Object IO.StreamWriter($entry.Open())
             try { $writer.Write('unsafe') } finally { $writer.Dispose() }
         }
@@ -257,6 +287,54 @@ function New-UnsafePortableZip {
     $hash = (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash
     [IO.File]::WriteAllText($Path + '.sha256',
         "$hash  $([IO.Path]::GetFileName($Path))`n")
+}
+function New-PortableArchiveVariant {
+    param(
+        [string] $Source,
+        [string] $Destination,
+        [string] $AdditionalPath,
+        [switch] $ReverseManifest
+    )
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $stage = Join-Path ([IO.Path]::GetTempPath()) (
+        'blind-soldier-portable-variant-' + [Guid]::NewGuid().ToString('N'))
+    try {
+        [IO.Compression.ZipFile]::ExtractToDirectory($Source, $stage)
+        if (-not [string]::IsNullOrWhiteSpace($AdditionalPath)) {
+            $additional = Join-Path $stage $AdditionalPath.Replace('/','\')
+            New-Item -ItemType Directory -Path (Split-Path -Parent $additional) `
+                -Force | Out-Null
+            [IO.File]::WriteAllBytes($additional, @(0x4D,0x5A,0x00))
+        }
+        $records = @(
+            foreach ($file in @(Get-ChildItem -LiteralPath $stage -File -Recurse |
+                    Where-Object Name -cne 'portable-manifest.json' |
+                    Sort-Object FullName)) {
+                $relative = $file.FullName.Substring($stage.Length + 1).Replace('\','/')
+                [ordered]@{
+                    path=$relative
+                    length=$file.Length
+                    sha256=(Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash
+                }
+            }
+        )
+        if ($ReverseManifest) {
+            $records = @($records | Sort-Object { $_.path } -Descending)
+        }
+        [ordered]@{schemaVersion=1;version='0.1.6';files=$records} |
+            ConvertTo-Json -Depth 6 |
+            Set-Content -LiteralPath (Join-Path $stage 'portable-manifest.json') `
+                -Encoding utf8
+        New-FixtureZip -Source $stage -Destination $Destination
+        $hash = (Get-FileHash -LiteralPath $Destination -Algorithm SHA256).Hash
+        [IO.File]::WriteAllText($Destination + '.sha256',
+            "$hash  $([IO.Path]::GetFileName($Destination))`n")
+    }
+    finally {
+        if (Test-Path -LiteralPath $stage) {
+            Remove-Item -LiteralPath $stage -Recurse -Force
+        }
+    }
 }
 
 Describe 'Blind Soldier direct-extract portable package' {
@@ -338,7 +416,66 @@ Describe 'Blind Soldier direct-extract portable package' {
         (Get-PortableEntries -Path $fixture.First) -ccontains 'version.dll' |
             Should Be $false
     }
+    It 'contains exactly the four allowed Windows-canonical Version proxy paths' {
+        $fixture = New-PortableFixture
+        Invoke-FixtureBuild -Fixture $fixture -Output $fixture.First
+        $allowed = @(
+            'ff7_en.exe.local/version.dll', 'ff7.exe.local/version.dll',
+            'ff7/workingdir/ff7_en.exe.local/version.dll',
+            'ff7/workingdir/ff7.exe.local/version.dll'
+        )
+        $canonicalVersionPaths = @(
+            Get-PortableEntries -Path $fixture.First | Where-Object {
+                [IO.Path]::GetFileName($_.Replace('/','\')).TrimEnd(' ','.') -ieq 'version.dll'
+            } | Sort-Object
+        )
+        $canonicalVersionPaths.Count | Should Be 4
+        ($canonicalVersionPaths -join '|') | Should Be (($allowed | Sort-Object) -join '|')
+    }
 
+    It 'rejects an extra nested Windows-canonical Version proxy path' {
+        $fixture = New-PortableFixture
+        Invoke-FixtureBuild -Fixture $fixture -Output $fixture.First
+        $variant = Join-Path $fixture.Root 'extra-version.zip'
+        New-PortableArchiveVariant -Source $fixture.First -Destination $variant `
+            -AdditionalPath 'hidden/version.dll'
+        { & $verifierPath -ArchivePath $variant -ExpectedVersion '0.1.6' } |
+            Should Throw 'exactly four Version proxy entries'
+    }
+
+    It 'rejects an otherwise-valid archive with unordered manifest records' {
+        $fixture = New-PortableFixture
+        Invoke-FixtureBuild -Fixture $fixture -Output $fixture.First
+        $variant = Join-Path $fixture.Root 'unordered-manifest.zip'
+        New-PortableArchiveVariant -Source $fixture.First -Destination $variant `
+            -ReverseManifest:$true
+        $inspection = Join-Path $fixture.Root 'unordered-manifest-inspection'
+        [IO.Compression.ZipFile]::ExtractToDirectory($variant, $inspection)
+        $variantManifest = [IO.File]::ReadAllText(
+            (Join-Path $inspection 'portable-manifest.json')) | ConvertFrom-Json
+        $variantManifest.files[0].path |
+            Should Be 'Reloaded-II/User/Mods/.keep'
+
+        $manifestFailure = $null
+        try {
+            & $verifierPath -ArchivePath $variant -ExpectedVersion '0.1.6'
+        }
+        catch {
+            $manifestFailure = $_
+        }
+        $manifestFailure.Exception.Message |
+            Should BeLike '*Portable manifest records are not in ordinal order*'
+    }
+
+    It 'passes the production verifier with the real Version proxy fixture' {
+        $fixture = New-PortableFixture
+        Invoke-FixtureBuild -Fixture $fixture -Output $fixture.First
+        $result = & $verifierPath -ArchivePath $fixture.First -ExpectedVersion '0.1.6'
+        $result.Version | Should Be '0.1.6'
+        $result.VersionProxyExports | Should Be 17
+        $result.SidecarVerified | Should Be $true
+        $result.SafeExtraction | Should Be $true
+    }
     It 'starts with the two-step accessible instructions and contains no registry workflow' {
         $fixture = New-PortableFixture
         Invoke-FixtureBuild -Fixture $fixture -Output $fixture.First
@@ -373,6 +510,22 @@ Describe 'Blind Soldier direct-extract portable package' {
             Should Be $false
     }
 
+    It 'rejects a raw ZIP component that ends in a period' {
+        $fixture = New-PortableFixture
+        New-UnsafePortableZip -Path $fixture.First `
+            -EntryName 'ff7/workingdir/AF3DN.P.'
+        { & $verifierPath -ArchivePath $fixture.First -ExpectedVersion '0.1.6' } |
+            Should Throw 'unsafe Windows path component'
+    }
+
+    It 'rejects a raw ZIP component that ends in a space' {
+        $fixture = New-PortableFixture
+        New-UnsafePortableZip -Path $fixture.First `
+            -EntryName 'payload.asi '
+        { & $verifierPath -ArchivePath $fixture.First -ExpectedVersion '0.1.6' } |
+            Should Throw 'unsafe Windows path component'
+    }
+
     It 'rejects a wrong-architecture bootstrap without producing an archive' {
         $fixture = New-PortableFixture
         New-PortableTestPe -Path (Join-Path $fixture.Bootstrap `
@@ -390,5 +543,10 @@ Describe 'Blind Soldier direct-extract portable package' {
         Invoke-FixtureBuild -Fixture $fixture -Output $fixture.First
         { & $verifierPath -ArchivePath $fixture.First -ExpectedVersion '0.1.6' } |
             Should Throw 'obsolete registry workflow'
+    }
+    if ($env:BLIND_SOLDIER_PESTER_FORCE_FAILURE -eq '1') {
+        It 'propagates a deliberate Pester failure to the invoking process' {
+            $true | Should Be $false
+        }
     }
 }

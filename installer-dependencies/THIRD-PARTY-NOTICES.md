@@ -18,8 +18,8 @@ code is available without charge at the exact source link above.
 ## Ultimate ASI Loader
 
 - Project: https://github.com/ThirteenAG/Ultimate-ASI-Loader
-- License: MIT. The x86 loader distributed inside Reloaded-II is renamed to
-  `dsound.dll` so it can load Blind Soldier's late ASI bootstrap.
+- License: MIT. This notice is retained for provenance; the portable ZIP does not
+  ship `dsound.dll`, Ultimate ASI Loader, or an ASI bootstrap.
 
 ## Reloaded Shared Hooks 1.16.3
 

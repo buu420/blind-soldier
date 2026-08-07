@@ -78,6 +78,9 @@ function Assert-SafeZipEntry {
             $part -ceq '..') {
             throw "Portable ZIP contains an unsafe path member: $name"
         }
+        if ($part.EndsWith(' ') -or $part.EndsWith('.')) {
+            throw "Portable ZIP contains an unsafe Windows path component: $name"
+        }
     }
     $external = [BitConverter]::ToUInt32(
         [BitConverter]::GetBytes([int]$Entry.ExternalAttributes), 0)
@@ -95,6 +98,8 @@ function Expand-SafePortableZip {
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     $archive = [IO.Compression.ZipFile]::OpenRead($Path)
     try {
+        $orderedMembers = New-Object 'System.Collections.Generic.List[string]'
+
         $members = New-Object 'System.Collections.Generic.HashSet[string]' `
             ([StringComparer]::OrdinalIgnoreCase)
         $prefix = [IO.Path]::GetFullPath($Destination).TrimEnd('\') + '\'
@@ -103,6 +108,7 @@ function Expand-SafePortableZip {
             if (-not $members.Add($relative)) {
                 throw "Portable ZIP contains a case-insensitive duplicate member: $($entry.FullName)"
             }
+            $orderedMembers.Add($relative)
             if ([string]::IsNullOrEmpty($entry.Name)) {
                 throw "Portable ZIP contains an unnecessary directory member: $($entry.FullName)"
             }
@@ -123,7 +129,7 @@ function Expand-SafePortableZip {
             }
             finally { $source.Dispose() }
         }
-        return @($members)
+        return @($orderedMembers)
     }
     finally { $archive.Dispose() }
 }
@@ -225,11 +231,32 @@ try {
     New-Item -ItemType Directory -Path $verificationRoot | Out-Null
     $entryNames = @(Expand-SafePortableZip -Path $archivePathFull `
         -Destination $verificationRoot)
-    [string[]]$sortedNames = @($entryNames)
+    [string[]]$sortedNames = [string[]]$entryNames.Clone()
     [Array]::Sort($sortedNames, [StringComparer]::Ordinal)
     if (($entryNames -join '|') -cne ($sortedNames -join '|')) {
         throw 'ZIP entries are not in deterministic ordinal order.'
     }
+    [string[]]$allowedVersionProxyPaths = @(
+        'ff7_en.exe.local/version.dll',
+        'ff7.exe.local/version.dll',
+        'ff7/workingdir/ff7_en.exe.local/version.dll',
+        'ff7/workingdir/ff7.exe.local/version.dll'
+    )
+    [string[]]$versionProxyEntries = @($entryNames | Where-Object {
+        $baseName = [IO.Path]::GetFileName($_.Replace('/','\')).TrimEnd(
+            [char[]]@(' ', '.'))
+        $baseName -ieq 'version.dll'
+    })
+    [string[]]$sortedVersionProxyEntries = [string[]]$versionProxyEntries.Clone()
+    [string[]]$sortedAllowedVersionProxyPaths = [string[]]$allowedVersionProxyPaths.Clone()
+    [Array]::Sort($sortedVersionProxyEntries, [StringComparer]::Ordinal)
+    [Array]::Sort($sortedAllowedVersionProxyPaths, [StringComparer]::Ordinal)
+    if ($versionProxyEntries.Count -ne 4 -or
+            ($sortedVersionProxyEntries -join '|') -cne
+            ($sortedAllowedVersionProxyPaths -join '|')) {
+        throw 'Portable archive must contain exactly four Version proxy entries at the approved .local paths.'
+    }
+
     foreach ($item in @(Get-Item -LiteralPath $verificationRoot -Force) +
             @(Get-ChildItem -LiteralPath $verificationRoot -Recurse -Force)) {
         if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
@@ -254,6 +281,16 @@ try {
         [string]$manifest.version -cne $ExpectedVersion) {
         throw 'Portable manifest identity does not match the requested release.'
     }
+    [string[]]$manifestRecordPaths = @($manifest.files | ForEach-Object {
+        [string]$_.path
+    })
+    [string[]]$sortedManifestRecordPaths = [string[]]$manifestRecordPaths.Clone()
+    [Array]::Sort($sortedManifestRecordPaths, [StringComparer]::Ordinal)
+    if (($manifestRecordPaths -join '|') -cne
+            ($sortedManifestRecordPaths -join '|')) {
+        throw 'Portable manifest records are not in ordinal order.'
+    }
+
     $actualFiles = New-Object `
         'System.Collections.Generic.Dictionary[string,System.IO.FileInfo]' `
         ([StringComparer]::OrdinalIgnoreCase)
