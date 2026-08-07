@@ -79,6 +79,8 @@ function New-LiveStageFixture {
     $stockLauncher = Join-Path $game 'FFVII_LAUNCHER.exe'
     New-TestPe -Path $hostPath -Machine 0x8664 -Marker 1
     New-TestPe -Path $stockLauncher -Machine 0x014C -Marker 2
+    $legacyHost = Join-Path $root 'legacy-host.exe'
+    New-TestPe -Path $legacyHost -Machine 0x014C -Marker 9
 
     New-TestPe -Path (Join-Path $payload 'FFVII_LAUNCHER.exe') `
         -Machine 0x014C -Marker 3
@@ -97,6 +99,10 @@ function New-LiveStageFixture {
     foreach ($relative in @(
         'ff7_en.exe.local\version.dll',
         'ff7.exe.local\version.dll',
+        'workingdir\version.dll',
+        'workingdir\ff7_en.exe.local\version.dll',
+        'workingdir\ff7.exe.local\version.dll',
+        'ff7\workingdir\version.dll',
         'ff7\workingdir\ff7_en.exe.local\version.dll',
         'ff7\workingdir\ff7.exe.local\version.dll')) {
         $target = Join-Path $payload $relative
@@ -125,6 +131,8 @@ function New-LiveStageFixture {
     Write-Sidecar -Archive $archive
 
     $hostHash = (Get-FileHash -LiteralPath $hostPath -Algorithm SHA256).Hash
+    $legacyHostHash = (Get-FileHash -LiteralPath $legacyHost `
+        -Algorithm SHA256).Hash
     $stockLauncherHash = (Get-FileHash -LiteralPath $stockLauncher `
         -Algorithm SHA256).Hash
     $priorLauncher = Join-Path $root 'prior-accessible-launcher.exe'
@@ -146,7 +154,7 @@ function New-LiveStageFixture {
         'ambient','hext','lighting','music','sfx','shaders','time',
         'vibrate','voice')
     $externalRelativePaths = @(
-        foreach ($rootRelative in @('', 'ff7\workingdir')) {
+        foreach ($rootRelative in @('', 'workingdir', 'ff7\workingdir')) {
             foreach ($fileName in $externalFiles) {
                 if ([string]::IsNullOrEmpty($rootRelative)) { $fileName }
                 else { Join-Path $rootRelative $fileName }
@@ -166,9 +174,12 @@ function New-LiveStageFixture {
     $supported = Join-Path $root 'supported-hosts.json'
     [ordered]@{
         schemaVersion = 1
-        hosts = @([ordered]@{
-            fileName='FFVII.exe'; machine=34404; sha256=$hostHash
-        })
+        hosts = @(
+            [ordered]@{fileName='FFVII.exe';machine=34404;sha256=$hostHash},
+            [ordered]@{
+                fileName='ff7_en.exe';machine=332;sha256=$legacyHostHash
+            }
+        )
         stockLauncherSha256 = $stockLauncherHash
     } | ConvertTo-Json -Depth 5 |
         Set-Content -LiteralPath $supported -Encoding utf8
@@ -189,6 +200,8 @@ if ($ExpectedVersion -cne '0.1.6') { exit 92 }
         Verifier=$verifier
         Backup=(Join-Path $root 'backup')
         HostHash=$hostHash
+        LegacyHost=$legacyHost
+        LegacyHostHash=$legacyHostHash
         StockLauncherHash=$stockLauncherHash
         PackageLauncherHash=(Get-FileHash -LiteralPath `
             (Join-Path $payload 'FFVII_LAUNCHER.exe') -Algorithm SHA256).Hash
@@ -355,6 +368,24 @@ Describe 'Blind Soldier portable live staging safety' {
         $message | Should Match 'reparse'
     }
 
+    It 'accepts a stock 7th Heaven host in a direct working directory' {
+        Remove-Item -LiteralPath (Join-Path $fixture.Game 'FFVII.exe')
+        $workingDirectory = Join-Path $fixture.Game 'workingdir'
+        New-Item -ItemType Directory -Path $workingDirectory -Force |
+            Out-Null
+        $workingHost = Join-Path $workingDirectory 'ff7_en.exe'
+        Copy-Item -LiteralPath $fixture.LegacyHost -Destination $workingHost
+
+        $result = Invoke-FixtureStage -Fixture $fixture -DryRun `
+            -BackupRoot $fixture.Backup
+
+        @($result.AcceptedHosts).Count | Should Be 1
+        $result.AcceptedHosts[0].RelativePath |
+            Should Be 'workingdir/ff7_en.exe'
+        (Get-FileHash -LiteralPath $result.AcceptedHosts[0].Path `
+            -Algorithm SHA256).Hash | Should Be $fixture.LegacyHostHash
+    }
+
     It 'refuses an unknown executable-local Version proxy' {
         $collision = Join-Path $fixture.Game 'ff7.exe.local\version.dll'
         New-TestPe -Path $collision -Machine 0x014C -Marker 99
@@ -363,6 +394,17 @@ Describe 'Blind Soldier portable live staging safety' {
                 -BackupRoot $fixture.Backup
         }
         $message | Should Match 'unknown.+version\.dll'
+    }
+
+    It 'refuses an unknown sibling Version proxy in a stock 7th Heaven working directory' {
+        $collision = Join-Path $fixture.Game 'workingdir\version.dll'
+        New-TestPe -Path $collision -Machine 0x014C -Marker 98
+        $message = Get-ThrownMessage {
+            Invoke-FixtureStage -Fixture $fixture -DryRun `
+                -BackupRoot $fixture.Backup
+        }
+        $message | Should Match 'unknown.+version\.dll'
+        Test-Path -LiteralPath $collision | Should Be $true
     }
 
     It 'backs up a specifically allowlisted earlier accessible Version proxy' {
@@ -686,12 +728,16 @@ Describe 'Blind Soldier portable live staging safety' {
             $functionAst.Extent.Text))
         try { $policy = & $module { Get-SupportedHostPolicy } }
         finally { Remove-Module $module -Force }
-        $policy.PSObject.Properties.Name |
-            Should Contain 'accessibleVersionProxySha256'
-        @($policy.accessibleVersionProxySha256) | Should Contain `
-            '64E2803E3E321581FF0A58E64543BD082FFD6272941FEDB5BB3F14DCC79B7C90'
-        @($policy.accessibleVersionProxySha256) | Should Contain `
-            'E46DC04803F56C880D7753003F7EED73754F6B2C07D1BCFB48BCCC4DE8AA8E82'
+        (@($policy.PSObject.Properties.Name) -contains `
+            'accessibleVersionProxySha256') | Should Be $true
+        (@($policy.accessibleVersionProxySha256) -contains `
+            '64E2803E3E321581FF0A58E64543BD082FFD6272941FEDB5BB3F14DCC79B7C90') | Should Be $true
+        (@($policy.accessibleVersionProxySha256) -contains `
+            'E46DC04803F56C880D7753003F7EED73754F6B2C07D1BCFB48BCCC4DE8AA8E82') | Should Be $true
+        (@($policy.accessibleVersionProxySha256) -contains `
+            '2C3131907619D52B8131706C29AFC664DE36E3BF3DDD2D4C0CB6BB3DFF5622FF') | Should Be $true
+        (@($policy.accessibleVersionProxySha256) -contains `
+            '2E0119F8CEF025286079E5FDD94F5E3A8EB526BDD3D03250CBF3C06DF91402F8') | Should Be $true
     }
 
     It 'refuses an unsafe archive member before invoking the verifier' {
@@ -757,7 +803,7 @@ Describe 'Blind Soldier portable live staging safety' {
         ($actualExternalFiles -join '|') |
             Should Be ($expectedExternalFiles -join '|')
         @($result.ExternalFiles | Where-Object Type -eq 'Directory').Count |
-            Should Be 36
+            Should Be 54
         @($result.Files | Where-Object Action -eq 'Replace').Count |
             Should BeGreaterThan 0
         (Get-FileHash -LiteralPath (Join-Path $fixture.Game `

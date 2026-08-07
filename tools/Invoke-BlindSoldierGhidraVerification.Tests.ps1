@@ -31,6 +31,10 @@ $expectedVersionExports = @(
 )
 $expectedArchiveEntries = @(
     'ff7_en.exe.local/version.dll','ff7.exe.local/version.dll',
+    'workingdir/version.dll',
+    'workingdir/ff7_en.exe.local/version.dll',
+    'workingdir/ff7.exe.local/version.dll',
+    'ff7/workingdir/version.dll',
     'ff7/workingdir/ff7_en.exe.local/version.dll',
     'ff7/workingdir/ff7.exe.local/version.dll',
     'Blind-Soldier/Bootstrap/x86/Blind-Soldier-Bootstrap-x86.exe',
@@ -343,8 +347,8 @@ try {
         ConvertFrom-Json
     Assert-True ($summary.portableArchiveSha256 -ceq $archiveHash) `
         'Ghidra summary is not bound to the portable archive digest.'
-    Assert-True (@($summary.versionProxyEntries).Count -eq 4) `
-        'Ghidra summary did not record all four packaged Version proxies.'
+    Assert-True (@($summary.versionProxyEntries).Count -eq 8) `
+        'Ghidra summary did not record all eight packaged Version proxies.'
     Assert-True (@($summary.versionProxyEntries.sha256 | Select-Object -Unique).Count -eq 1) `
         'Ghidra summary did not prove identical Version proxy bytes.'
 

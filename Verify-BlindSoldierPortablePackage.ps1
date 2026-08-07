@@ -26,6 +26,10 @@ $required = @(
     'launcher_accessibility/native/x86/FFVII_LAUNCHER.prism.x86.dll',
     'ff7_en.exe.local/version.dll',
     'ff7.exe.local/version.dll',
+    'workingdir/version.dll',
+    'workingdir/ff7_en.exe.local/version.dll',
+    'workingdir/ff7.exe.local/version.dll',
+    'ff7/workingdir/version.dll',
     'ff7/workingdir/ff7_en.exe.local/version.dll',
     'ff7/workingdir/ff7.exe.local/version.dll',
     'Blind-Soldier/Bootstrap/x86/Blind-Soldier-Bootstrap-x86.exe',
@@ -43,6 +47,8 @@ $required = @(
     'Reloaded-II/Mods/reloaded.sharedlib.hooks/ModConfig.json',
     'LICENSES/dotnet-LICENSE.txt',
     'LICENSES/dotnet-THIRD-PARTY-NOTICES.txt',
+    'LICENSES/Reloaded-II-1.30.3-Blind-Soldier-source.md',
+    'LICENSES/Reloaded-II-1.30.3-hostfxr.patch',
     'README-PORTABLE.txt',
     'portable-manifest.json'
 )
@@ -248,6 +254,10 @@ try {
     [string[]]$allowedVersionProxyPaths = @(
         'ff7_en.exe.local/version.dll',
         'ff7.exe.local/version.dll',
+        'workingdir/version.dll',
+        'workingdir/ff7_en.exe.local/version.dll',
+        'workingdir/ff7.exe.local/version.dll',
+        'ff7/workingdir/version.dll',
         'ff7/workingdir/ff7_en.exe.local/version.dll',
         'ff7/workingdir/ff7.exe.local/version.dll'
     )
@@ -260,10 +270,10 @@ try {
     [string[]]$sortedAllowedVersionProxyPaths = [string[]]$allowedVersionProxyPaths.Clone()
     [Array]::Sort($sortedVersionProxyEntries, [StringComparer]::Ordinal)
     [Array]::Sort($sortedAllowedVersionProxyPaths, [StringComparer]::Ordinal)
-    if ($versionProxyEntries.Count -ne 4 -or
+    if ($versionProxyEntries.Count -ne 8 -or
             ($sortedVersionProxyEntries -join '|') -cne
             ($sortedAllowedVersionProxyPaths -join '|')) {
-        throw 'Portable archive must contain exactly four Version proxy entries at the approved .local paths.'
+        throw 'Portable archive must contain exactly eight Version proxy entries at the approved layout-scoped paths.'
     }
 
     foreach ($item in @(Get-Item -LiteralPath $verificationRoot -Force) +
@@ -356,6 +366,22 @@ try {
         if ([string]$runtimeConfig.runtimeOptions.tfm -cne 'net9.0') {
             throw "$architecture Reloaded runtime target is not net9.0."
         }
+        if ($architecture -ceq 'X86') {
+            $options = $runtimeConfig.runtimeOptions
+            if ([string]$options.framework.name -cne 'Microsoft.NETCore.App' -or
+                [string]$options.framework.version -cne '9.0.0' -or
+                [string]$options.rollForward -cne 'LatestMinor' -or
+                $null -ne $options.PSObject.Properties['frameworks']) {
+                throw 'x86 Reloaded runtime configuration is not the Blind Soldier stock-7th-Heaven compatibility configuration.'
+            }
+            $runtimeConfigHash = (Get-FileHash -LiteralPath (Join-Path `
+                $loaderRoot 'Reloaded.Mod.Loader.runtimeconfig.json') `
+                -Algorithm SHA256).Hash
+            if ($runtimeConfigHash -cne
+                '2CD7DD1EBB7A203244AFEF13B91A64780EC0BAEDA3086A6EA3FAD5073531AA3F') {
+                throw 'x86 Reloaded compatibility runtime configuration has an unexpected SHA-256 hash.'
+            }
+        }
     }
 
     $forbidden = @(Get-ChildItem -LiteralPath $verificationRoot -File -Recurse |
@@ -381,7 +407,7 @@ try {
         throw "Portable archive contains forbidden files: $($forbidden.FullName -join ', ')"
     }
 
-    $developmentPattern = '(?i)([A-Z]:\\Users\\[^\\]+\\|\.worktrees\\|blind-soldier-source|Image File Execution Options|RegCreateKeyEx(?:A|W)?|RegSetValue(?:Ex)?(?:A|W)?|"Debugger"\s*:|(?:^|\s)/install(?:\s|$)|(?:^|\s)/uninstall(?:\s|$))'
+    $developmentPattern = '(?i)([A-Z]:\\Users\\[^\\]+\\|\.worktrees\\|(?:^|[\\/])blind-soldier-source(?:[\\/]|$)|Image File Execution Options|RegCreateKeyEx(?:A|W)?|RegSetValue(?:Ex)?(?:A|W)?|"Debugger"\s*:|(?:^|\s)/install(?:\s|$)|(?:^|\s)/uninstall(?:\s|$))'
     foreach ($file in @(Get-ChildItem -LiteralPath $verificationRoot -File `
             -Recurse | Where-Object Extension -In @('.txt','.json','.md'))) {
         $text = [IO.File]::ReadAllText($file.FullName)
@@ -422,6 +448,10 @@ try {
         BootstrapperX86 = Assert-Machine -Path (Join-Path $verificationRoot `
             'Reloaded-II\Loader\X86\Bootstrapper\Reloaded.Mod.Loader.Bootstrapper.dll') `
             -Expected 0x014C -Label 'x86 Reloaded bootstrapper'
+        BootstrapperX86Sha256 = (Get-FileHash -LiteralPath (Join-Path `
+            $verificationRoot `
+            'Reloaded-II\Loader\X86\Bootstrapper\Reloaded.Mod.Loader.Bootstrapper.dll') `
+            -Algorithm SHA256).Hash
         BootstrapperX64 = Assert-Machine -Path (Join-Path $verificationRoot `
             'Reloaded-II\Loader\X64\Bootstrapper\Reloaded.Mod.Loader.Bootstrapper.dll') `
             -Expected 0x8664 -Label 'x64 Reloaded bootstrapper'
@@ -446,6 +476,10 @@ try {
         VersionProxy = Assert-Machine -Path (Join-Path $verificationRoot `
             'ff7_en.exe.local\version.dll') -Expected 0x014C `
             -Label 'x86 Blind Soldier Version proxy'
+    }
+    if ($machines.BootstrapperX86Sha256 -cne
+        '997A8EC95434239AFEFF0802849043EC49ED51459394D5DC97375D1914606329') {
+        throw 'x86 Reloaded compatibility bootstrapper has an unexpected SHA-256 hash.'
     }
 
     $peCount = 0
@@ -480,6 +514,10 @@ try {
 
     $versionProxyPaths = @(
         'ff7_en.exe.local\version.dll', 'ff7.exe.local\version.dll',
+        'workingdir\version.dll',
+        'workingdir\ff7_en.exe.local\version.dll',
+        'workingdir\ff7.exe.local\version.dll',
+        'ff7\workingdir\version.dll',
         'ff7\workingdir\ff7_en.exe.local\version.dll',
         'ff7\workingdir\ff7.exe.local\version.dll') |
         ForEach-Object { Join-Path $verificationRoot $_ }
@@ -487,7 +525,7 @@ try {
         (Get-FileHash -LiteralPath $_ -Algorithm SHA256).Hash
     } | Select-Object -Unique)
     if ($versionProxyHashes.Count -ne 1) {
-        throw 'The four Blind Soldier Version proxy copies are not byte-identical.'
+        throw 'The eight Blind Soldier Version proxy copies are not byte-identical.'
     }
     foreach ($proxy in $versionProxyPaths) {
         [void](Assert-Machine -Path $proxy -Expected 0x014C `

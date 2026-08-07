@@ -1,0 +1,55 @@
+diff --git a/source/Reloaded.Mod.Loader.Bootstrapper/CoreCLR.cpp b/source/Reloaded.Mod.Loader.Bootstrapper/CoreCLR.cpp
+index 6ac6cf8..4084bf9 100644
+--- a/source/Reloaded.Mod.Loader.Bootstrapper/CoreCLR.cpp
++++ b/source/Reloaded.Mod.Loader.Bootstrapper/CoreCLR.cpp
+@@ -1,5 +1,6 @@
+ #include "pch.h"
+ #include "CoreCLR.hpp"
++#include "HostFxrStatus.hpp"
+ #include <iostream>
+ 
+ CoreCLR::CoreCLR(int* success)
+@@ -61,7 +62,7 @@ load_assembly_and_get_function_pointer_fn CoreCLR::get_dotnet_load_assembly(cons
+ 	// Load .NET Core
+ 	hostfxr_handle context = nullptr;
+ 	int rc = m_init_fptr(config_path, nullptr, &context);
+-	if (rc != 0 || context == nullptr)
++	if (!IsSuccessfulHostFxrInitialization(rc, context))
+ 	{
+ 		m_close_fptr(context);
+ 		return nullptr;
+diff --git a/source/Reloaded.Mod.Loader.Bootstrapper/HostFxrStatus.hpp b/source/Reloaded.Mod.Loader.Bootstrapper/HostFxrStatus.hpp
+new file mode 100644
+index 0000000..4f05af1
+--- /dev/null
++++ b/source/Reloaded.Mod.Loader.Bootstrapper/HostFxrStatus.hpp
+@@ -0,0 +1,9 @@
++#pragma once
++
++constexpr bool IsSuccessfulHostFxrInitialization(int result, const void* context)
++{
++    // hostfxr uses non-negative values for success, including the cases where
++    // a compatible runtime is already initialized in the target process.
++    return result >= 0 && context != nullptr;
++}
+diff --git a/source/Reloaded.Mod.Loader.Bootstrapper/HostFxrStatusTests.cpp b/source/Reloaded.Mod.Loader.Bootstrapper/HostFxrStatusTests.cpp
+new file mode 100644
+index 0000000..b9a947d
+--- /dev/null
++++ b/source/Reloaded.Mod.Loader.Bootstrapper/HostFxrStatusTests.cpp
+@@ -0,0 +1,16 @@
++#include "HostFxrStatus.hpp"
++
++#include <cassert>
++
++int main()
++{
++    const void* context = reinterpret_cast<const void*>(1);
++
++    assert(IsSuccessfulHostFxrInitialization(0, context));
++    assert(IsSuccessfulHostFxrInitialization(1, context));
++    assert(IsSuccessfulHostFxrInitialization(2, context));
++    assert(!IsSuccessfulHostFxrInitialization(-1, context));
++    assert(!IsSuccessfulHostFxrInitialization(0, nullptr));
++    return 0;
++}

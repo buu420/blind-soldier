@@ -444,10 +444,12 @@ AppLoaderObservation Observation(SupportedHostKind hostKind,
                                  std::string appLoaderLog,
                                  bool wrapperProfilePresent,
                                  bool recognizedFfnxModulePresent = false,
-                                 bool processAlive = true) {
+                                 bool processAlive = true,
+                                 bool stockWrapperModulesPresent = false) {
     AppLoaderObservation observation;
     observation.hostKind = hostKind;
     observation.stockLoaderSignaturePresent = stockLoaderSignaturePresent;
+    observation.stockWrapperModulesPresent = stockWrapperModulesPresent;
     observation.recognizedFfnxModulePresent = recognizedFfnxModulePresent;
     observation.processAlive = processAlive;
     observation.elapsedMilliseconds = elapsedMilliseconds;
@@ -543,6 +545,38 @@ void TestAppLoaderReadiness() {
                    "current AppLoader init and success are ready");
         Check(ready.ready && ready.seventhHeaven,
               "7th Heaven readiness flags are correct");
+    }
+
+    {
+        AppLoaderReadinessTracker gate(3000, 120000);
+        const auto waiting = gate.Observe(Observation(
+            SupportedHostKind::SevenHeavenX86, true, 20, "", false,
+            false, true, true));
+        CheckState(waiting, AppLoaderGateState::WaitingForCurrentLog,
+            "stock wrappers wait until a recognized FFNx module is loaded");
+        Check(!waiting.ready && waiting.seventhHeaven,
+            "stock wrappers alone identify 7th Heaven without injecting early");
+    }
+
+
+    {
+        AppLoaderReadinessTracker gate(3000, 120000);
+        const auto ready = gate.Observe(Observation(
+            SupportedHostKind::SevenHeavenX86, true, 20, "", false,
+            true, true, true));
+        CheckState(ready, AppLoaderGateState::ReadySeventhHeaven,
+            "loaded stock wrapper modules survive an exclusively locked AppLoader log");
+        Check(ready.ready && ready.seventhHeaven,
+            "loaded stock wrapper modules are authoritative 7th Heaven readiness");
+    }
+
+    {
+        AppLoaderReadinessTracker gate(3000, 120000);
+        CheckState(gate.Observe(Observation(
+            SupportedHostKind::SevenHeavenX86, true, 20, "", true,
+            true, true, true)),
+            AppLoaderGateState::WaitingForProfileConsumption,
+            "loaded stock wrapper modules still wait for profile consumption");
     }
 
     {

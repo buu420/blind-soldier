@@ -5,6 +5,7 @@
   "sourceSha256": "2BE45F486974F0979B849D0525EB66427DF62483EC99E9339E9773E9E52AFC0D",
   "deploymentRoots": [
     "",
+    "workingdir",
     "ff7/workingdir"
   ],
   "ownedFiles": [

@@ -14,6 +14,16 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$reloadedX86CompatibilityRoot = Join-Path $scriptRoot `
+    'installer-assets\reloaded\x86'
+$reloadedX86Bootstrapper = Join-Path $reloadedX86CompatibilityRoot `
+    'Reloaded.Mod.Loader.Bootstrapper.dll'
+$reloadedX86RuntimeConfig = Join-Path $reloadedX86CompatibilityRoot `
+    'Reloaded.Mod.Loader.runtimeconfig.json'
+$reloadedX86BootstrapperSha256 = `
+    '997A8EC95434239AFEFF0802849043EC49ED51459394D5DC97375D1914606329'
+$reloadedX86RuntimeConfigSha256 = `
+    '2CD7DD1EBB7A203244AFEF13B91A64780EC0BAEDA3086A6EA3FAD5073531AA3F'
 $semanticVersionPattern = '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$'
 if ($Version -notmatch $semanticVersionPattern) { throw "Invalid semantic version: $Version" }
 
@@ -71,6 +81,21 @@ function Assert-File {
     $item = Get-Item -LiteralPath $Path -Force
     if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
         throw "$Label cannot be a reparse point: $Path"
+    }
+    return $item
+}
+
+function Assert-ExactFile {
+    param(
+        [string] $Path,
+        [int64] $Length,
+        [string] $Sha256,
+        [string] $Label
+    )
+    $item = Assert-File -Path $Path -Label $Label
+    $actualHash = (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash
+    if ($item.Length -ne $Length -or $actualHash -cne $Sha256) {
+        throw "$Label does not match the live-tested release asset."
     }
     return $item
 }
@@ -352,6 +377,21 @@ try {
             -Destination (Join-Path $targetDirectory 'version.dll')
     }
 
+    foreach ($directory in @(
+        'workingdir\ff7_en.exe.local', 'workingdir\ff7.exe.local')) {
+        $targetDirectory = Join-Path $root $directory
+        New-Item -ItemType Directory -Path $targetDirectory -Force | Out-Null
+        Copy-Item -LiteralPath $VersionProxyPath `
+            -Destination (Join-Path $targetDirectory 'version.dll')
+    }
+    foreach ($relative in @(
+        'workingdir\version.dll', 'ff7\workingdir\version.dll')) {
+        $destination = Join-Path $root $relative
+        New-Item -ItemType Directory -Path (Split-Path -Parent $destination) `
+            -Force | Out-Null
+        Copy-Item -LiteralPath $VersionProxyPath -Destination $destination
+    }
+
     $sourceReloaded = Join-Path $PrerequisiteBundlePath 'reloaded'
     $targetReloaded = Join-Path $root 'Reloaded-II'
     foreach ($architecture in @('X86','X64')) {
@@ -363,6 +403,18 @@ try {
             Copy-Item -LiteralPath $source -Destination $destination
         }
     }
+    [void](Assert-ExactFile -Path $reloadedX86Bootstrapper -Length 132096 `
+        -Sha256 $reloadedX86BootstrapperSha256 `
+        -Label 'Blind Soldier x86 Reloaded compatibility bootstrapper')
+    [void](Assert-ExactFile -Path $reloadedX86RuntimeConfig -Length 521 `
+        -Sha256 $reloadedX86RuntimeConfigSha256 `
+        -Label 'Blind Soldier x86 Reloaded compatibility runtime configuration')
+    Copy-Item -LiteralPath $reloadedX86Bootstrapper -Destination (Join-Path `
+        $targetReloaded `
+        'Loader\X86\Bootstrapper\Reloaded.Mod.Loader.Bootstrapper.dll') -Force
+    Copy-Item -LiteralPath $reloadedX86RuntimeConfig -Destination (Join-Path `
+        $targetReloaded 'Loader\X86\Reloaded.Mod.Loader.runtimeconfig.json') `
+        -Force
     $x64DelayHooksOverride = Join-Path $scriptRoot `
         'installer-assets\reloaded\x64\DelayInjectHooks.json'
     [void](Assert-File -Path $x64DelayHooksOverride `
@@ -465,6 +517,20 @@ try {
         [void](Assert-File -Path $source -Label "Portable license $name")
         Copy-Item -LiteralPath $source -Destination (Join-Path $licenseTarget $name)
     }
+    foreach ($record in @(
+        [pscustomobject]@{
+            Source='README.md'
+            Target='Reloaded-II-1.30.3-Blind-Soldier-source.md'
+        },
+        [pscustomobject]@{
+            Source='Reloaded-II-1.30.3-hostfxr.patch'
+            Target='Reloaded-II-1.30.3-hostfxr.patch'
+        }
+    )) {
+        $source = Join-Path $reloadedX86CompatibilityRoot $record.Source
+        [void](Assert-File -Path $source -Label "Reloaded source material $($record.Source)")
+        Copy-Item -LiteralPath $source -Destination (Join-Path $licenseTarget $record.Target)
+    }
 
     $policyTarget = Join-Path $root 'Blind-Soldier\Policy'
     New-Item -ItemType Directory -Path $policyTarget -Force | Out-Null
@@ -488,18 +554,19 @@ No installer is required. No administrator access, registry change, or separate 
 Supported layouts
 - Steam 2026 x64: extract beside FFVII.exe and FFVII_LAUNCHER.exe. Use Steam or the included accessible launcher. Its Play button starts the packaged x64 accessibility bootstrap automatically.
 - Legacy or converted x86: extract beside ff7_en.exe or ff7.exe. The matching .local\version.dll forwards the game's normal Version APIs and starts accessibility.
+- Stock 7th Heaven x86: extract at the directory that contains workingdir, or at the Steam root that contains ff7\workingdir. Blind Soldier's sibling workingdir\version.dll starts accessibility when FFNx loads it; no file in the 7th Heaven installation is replaced or edited.
 - 7th Heaven nested x86: extract at the Steam 2026 root. The copies under ff7\workingdir support 7th Heaven's converted game layout.
 
 Official stable 7th Heaven manages its own FFNx installation; this release is verified against 7th Heaven 4.5.2. Blind Soldier coexists without shipping, replacing, or overwriting any FFNx file. Development builds targeting .NET 10 are outside this release's verified compatibility set.
 This ZIP contains only manifest-owned Blind Soldier files.
 
-Do not replace an existing executable-local version.dll unless it belongs to Blind Soldier. Move an unknown file aside first so it can be restored. If FFNx redirects the system Version library back to the proxy, Blind Soldier privately caches a byte-for-byte copy of this machine's own Windows version library under Local AppData and loads that distinct copy; no Windows binary is shipped in the ZIP.
+Do not replace an existing layout-scoped version.dll unless it belongs to Blind Soldier. This includes a sibling workingdir\version.dll used with stock 7th Heaven. Move an unknown file aside first so it can be restored. If FFNx redirects the system Version library back to the proxy, Blind Soldier privately caches a byte-for-byte copy of this machine's own Windows version library under Local AppData and loads that distinct copy; no Windows binary is shipped in the ZIP.
 
 Logs are written under Blind-Soldier\Logs. Players never need to run either bootstrap program themselves.
 
 Steam Verify Files may restore the stock FFVII launcher. Extract this ZIP again afterward to restore the accessible launcher.
 
-To remove Blind Soldier, close FFVII, read portable-manifest.json from this ZIP, and delete only the Blind Soldier files named in that manifest. Restore any launcher or .local file you backed up before extraction.
+To remove Blind Soldier, close FFVII, read portable-manifest.json from this ZIP, and delete only the Blind Soldier files named in that manifest. Restore any launcher or version.dll you backed up before extraction.
 "@
     $readme = ($readme.Trim() -replace "`r?`n", "`r`n") + "`r`n"
     [IO.File]::WriteAllText((Join-Path $root 'README-PORTABLE.txt'),

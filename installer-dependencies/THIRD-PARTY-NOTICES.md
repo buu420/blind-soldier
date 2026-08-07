@@ -17,9 +17,15 @@ requirement.
 - Exact source: https://github.com/Reloaded-Project/Reloaded-II/tree/1.30.3
 - License: GNU General Public License version 3, included as
   `Reloaded-II-GPL-3.0.txt`.
+- Blind Soldier's x86 copy contains a hostfxr compatibility correction. The
+  exact source patch is included as `Reloaded-II-1.30.3-hostfxr.patch`; the
+  matching source and reproducible build instructions are included as
+  `Reloaded-II-1.30.3-Blind-Soldier-source.md`.
 
 Reloaded-II is separate software aggregated with Blind Soldier. Its source code
-is available without charge at the exact source link above.
+is available without charge at the exact source link above. This correction is
+limited to Blind Soldier's bundled x86 Reloaded host. It does not replace or
+edit any file in a 7th Heaven installation.
 
 ### Reloaded Shared Hooks 1.16.3
 

@@ -186,6 +186,10 @@ function New-PortableArchiveBinding {
     $proxyNames = @(
         'ff7_en.exe.local/version.dll',
         'ff7.exe.local/version.dll',
+        'workingdir/version.dll',
+        'workingdir/ff7_en.exe.local/version.dll',
+        'workingdir/ff7.exe.local/version.dll',
+        'ff7/workingdir/version.dll',
         'ff7/workingdir/ff7_en.exe.local/version.dll',
         'ff7/workingdir/ff7.exe.local/version.dll')
     $x86Name = 'Blind-Soldier/Bootstrap/x86/Blind-Soldier-Bootstrap-x86.exe'

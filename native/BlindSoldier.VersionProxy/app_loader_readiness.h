@@ -23,6 +23,7 @@ enum class AppLoaderGateState {
 struct AppLoaderObservation {
     SupportedHostKind hostKind = SupportedHostKind::None;
     bool stockLoaderSignaturePresent = false;
+    bool stockWrapperModulesPresent = false;
     bool recognizedFfnxModulePresent = false;
     bool processAlive = true;
     ULONGLONG elapsedMilliseconds = 0;

@@ -47,13 +47,17 @@ from the [Blind Soldier Releases page](https://github.com/buu420/blind-soldier/r
 
 There is no installer to run, no administrator prompt, and no registry change.
 The archive supports a legacy x86 folder, a Steam 2026 x64 folder, a combined
-folder, and 7th Heaven's nested `ff7\workingdir` layout. Never run either file
-under `Blind-Soldier\Bootstrap` yourself.
+folder, stock 7th Heaven's sibling `workingdir` layout, and 7th Heaven's nested
+`ff7\workingdir` layout. Blind Soldier does not replace or edit any file in the
+7th Heaven installation. Never run either file under `Blind-Soldier\Bootstrap`
+yourself.
 
 > [!WARNING]
-> If one of the four supported `.local` folders already contains an unknown
-> `version.dll`, move it to a safe backup before extraction. Blind Soldier does
-> not merge with or overwrite another Version proxy safely.
+> If one of the eight supported layout-scoped paths already contains an unknown
+> `version.dll`, move it to a safe backup before extraction. These paths include
+> the executable-specific `.local` folders and the stock 7th Heaven sibling
+> `workingdir`. Blind Soldier does not merge with or overwrite another Version
+> proxy safely.
 
 For x86 FF7, the proxy forwards all 17 Windows Version APIs. If FFNx redirects
 the system request back to the proxy, Blind Soldier makes a private byte-for-byte
@@ -80,7 +84,8 @@ release does not ship a Windows system DLL.
   directly is unsupported because it bypasses that accessibility boundary.
 - **Legacy x86 with 7th Heaven:** launch the game through 7th Heaven as usual.
   7th Heaven manages the normal FFNx installation for that converted game. Blind
-  Soldier never ships or overwrites FFNx files.
+  Soldier never ships or overwrites FFNx files, and its compatibility path does
+  not modify the stock 7th Heaven application.
 - **Legacy x86 without 7th Heaven:** launch the legacy game normally. The
   executable-specific `.local\version.dll` proxy loads the accessibility backend.
 
@@ -103,7 +108,9 @@ Visual Studio C++ Build Tools, and PowerShell, then run:
 ```
 
 The builder compiles the launcher, x86/x64 brokers, and x86 Version proxy from source,
-then packages the pinned Reloaded and private .NET dependencies; 7th Heaven manages FFNx.
+then packages the pinned Reloaded and private .NET dependencies. The x86 Reloaded
+compatibility patch and its exact build instructions ship in `LICENSES`; 7th
+Heaven manages FFNx and remains unmodified.
 
 ## Mod keys
 
@@ -267,7 +274,7 @@ unknown game update. Do not bypass that check. Include the spoken error, the
 matching file under `Blind-Soldier\Logs`, and your executable version in a bug
 report.
 
-### A `.local` Version collision is reported
+### A Version proxy collision is reported
 
 Close the game, preserve the existing `version.dll`, and determine which mod owns
 it before extracting Blind Soldier. The portable package deliberately does not

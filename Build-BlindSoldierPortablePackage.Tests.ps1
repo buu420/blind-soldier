@@ -425,6 +425,10 @@ Describe 'Blind Soldier direct-extract portable package' {
             'launcher_accessibility/native/x86/FFVII_LAUNCHER.prism.x86.dll',
             'ff7_en.exe.local/version.dll',
             'ff7.exe.local/version.dll',
+            'workingdir/version.dll',
+            'workingdir/ff7_en.exe.local/version.dll',
+            'workingdir/ff7.exe.local/version.dll',
+            'ff7/workingdir/version.dll',
             'ff7/workingdir/ff7_en.exe.local/version.dll',
             'ff7/workingdir/ff7.exe.local/version.dll',
             'Blind-Soldier/Bootstrap/x86/Blind-Soldier-Bootstrap-x86.exe',
@@ -449,6 +453,8 @@ Describe 'Blind Soldier direct-extract portable package' {
             'Reloaded-II/Mods/reloaded.sharedlib.hooks/x64/Reloaded.Hooks.ReloadedII.dll',
             'LICENSES/dotnet-LICENSE.txt',
             'LICENSES/dotnet-THIRD-PARTY-NOTICES.txt',
+            'LICENSES/Reloaded-II-1.30.3-Blind-Soldier-source.md',
+            'LICENSES/Reloaded-II-1.30.3-hostfxr.patch',
             'README-PORTABLE.txt', 'portable-manifest.json'
         )) { ($entries -ccontains $required) | Should Be $true }
 
@@ -478,11 +484,15 @@ Describe 'Blind Soldier direct-extract portable package' {
         }
     }
 
-    It 'uses four architecture-scoped Version proxies and no root x86 proxy' {
+    It 'uses eight layout-scoped Version proxies and no root x86 proxy' {
         $fixture = New-PortableFixture
         Invoke-FixtureBuild -Fixture $fixture -Output $fixture.First
         $hashes = @(
             'ff7_en.exe.local/version.dll', 'ff7.exe.local/version.dll',
+            'workingdir/version.dll',
+            'workingdir/ff7_en.exe.local/version.dll',
+            'workingdir/ff7.exe.local/version.dll',
+            'ff7/workingdir/version.dll',
             'ff7/workingdir/ff7_en.exe.local/version.dll',
             'ff7/workingdir/ff7.exe.local/version.dll'
         ) | ForEach-Object { Get-PortableEntryHash -Path $fixture.First -EntryPath $_ }
@@ -503,11 +513,15 @@ Describe 'Blind Soldier direct-extract portable package' {
             Should Be $true
     }
 
-    It 'contains exactly the four allowed Windows-canonical Version proxy paths' {
+    It 'contains exactly the eight allowed Windows-canonical Version proxy paths' {
         $fixture = New-PortableFixture
         Invoke-FixtureBuild -Fixture $fixture -Output $fixture.First
         $allowed = @(
             'ff7_en.exe.local/version.dll', 'ff7.exe.local/version.dll',
+            'workingdir/version.dll',
+            'workingdir/ff7_en.exe.local/version.dll',
+            'workingdir/ff7.exe.local/version.dll',
+            'ff7/workingdir/version.dll',
             'ff7/workingdir/ff7_en.exe.local/version.dll',
             'ff7/workingdir/ff7.exe.local/version.dll'
         )
@@ -516,7 +530,7 @@ Describe 'Blind Soldier direct-extract portable package' {
                 [IO.Path]::GetFileName($_.Replace('/','\')).TrimEnd(' ','.') -ieq 'version.dll'
             } | Sort-Object
         )
-        $canonicalVersionPaths.Count | Should Be 4
+        $canonicalVersionPaths.Count | Should Be 8
         ($canonicalVersionPaths -join '|') | Should Be (($allowed | Sort-Object) -join '|')
     }
 
@@ -527,7 +541,30 @@ Describe 'Blind Soldier direct-extract portable package' {
         New-PortableArchiveVariant -Source $fixture.First -Destination $variant `
             -AdditionalPath 'hidden/version.dll'
         { & $verifierPath -ArchivePath $variant -ExpectedVersion '0.1.6' } |
-            Should Throw 'exactly four Version proxy entries'
+            Should Throw 'exactly eight Version proxy entries'
+    }
+
+    It 'ships the live-tested x86 host compatibility assets without changing x64 Reloaded' {
+        $fixture = New-PortableFixture
+        Invoke-FixtureBuild -Fixture $fixture -Output $fixture.First
+        Get-PortableEntryHash -Path $fixture.First -EntryPath `
+            'Reloaded-II/Loader/X86/Bootstrapper/Reloaded.Mod.Loader.Bootstrapper.dll' |
+            Should Be '997A8EC95434239AFEFF0802849043EC49ED51459394D5DC97375D1914606329'
+
+        $runtime = Get-PortableEntryText -Path $fixture.First -EntryPath `
+            'Reloaded-II/Loader/X86/Reloaded.Mod.Loader.runtimeconfig.json' |
+            ConvertFrom-Json
+        $runtime.runtimeOptions.framework.name | Should Be 'Microsoft.NETCore.App'
+        $runtime.runtimeOptions.framework.version | Should Be '9.0.0'
+        $runtime.runtimeOptions.rollForward | Should Be 'LatestMinor'
+        ($null -eq $runtime.runtimeOptions.PSObject.Properties['frameworks']) | Should Be $true
+
+        $x64Hash = Get-PortableEntryHash -Path $fixture.First -EntryPath `
+            'Reloaded-II/Loader/X64/Bootstrapper/Reloaded.Mod.Loader.Bootstrapper.dll'
+        $fixtureX64Hash = (Get-FileHash -LiteralPath (Join-Path $fixture.Prerequisites `
+            'reloaded\Loader\X64\Bootstrapper\Reloaded.Mod.Loader.Bootstrapper.dll') `
+            -Algorithm SHA256).Hash
+        $x64Hash | Should Be $fixtureX64Hash
     }
 
     It 'rejects every recognized external FFNx runtime entry point' {
@@ -560,6 +597,9 @@ Describe 'Blind Soldier direct-extract portable package' {
         foreach ($relative in @(
             'COPYING.TXT',
             'ambient/nested/field.wav',
+            'workingdir/FFNx.pdb',
+            'workingdir/ShAdErS/nested/effect.fx',
+            'workingdir/AppLoader.log',
             'ff7/workingdir/FFNx.pdb',
             'ff7/workingdir/ShAdErS/nested/effect.fx',
             '.7thWrapperProfile',
@@ -599,10 +639,12 @@ Describe 'Blind Soldier direct-extract portable package' {
             -ReverseManifest:$true
         $inspection = Join-Path $fixture.Root 'unordered-manifest-inspection'
         [IO.Compression.ZipFile]::ExtractToDirectory($variant, $inspection)
+        $originalManifest = Get-PortableEntryText -Path $fixture.First `
+            -EntryPath 'portable-manifest.json' | ConvertFrom-Json
         $variantManifest = [IO.File]::ReadAllText(
             (Join-Path $inspection 'portable-manifest.json')) | ConvertFrom-Json
         $variantManifest.files[0].path |
-            Should Be 'Reloaded-II/User/Mods/.keep'
+            Should Be ([string]$originalManifest.files[-1].path)
 
         $manifestFailure = $null
         try {

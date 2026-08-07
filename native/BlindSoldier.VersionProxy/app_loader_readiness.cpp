@@ -152,6 +152,13 @@ bool HasStockLoaderSignature(const fs::path& gameDirectory) {
     return true;
 }
 
+bool HasLoadedStockWrapperModules(const fs::path& gameDirectory) {
+    return LoadedModuleMatches(
+               L"AppProxy.dll", gameDirectory / L"AppProxy.dll") &&
+           LoadedModuleMatches(
+               L"AppWrapper.dll", gameDirectory / L"AppWrapper.dll");
+}
+
 bool HasRecognizedFfnxModule() {
     for (const wchar_t* name : {L"AF3DN.P", L"7H_GameDriver.dll",
                                 L"FFNx.dll"}) {
@@ -263,6 +270,7 @@ AppLoaderGateDecision AppLoaderReadinessTracker::Observe(
 
     seventhHeaven_ = seventhHeaven_ ||
         observation.stockLoaderSignaturePresent ||
+        observation.stockWrapperModulesPresent ||
         observation.wrapperProfilePresent || sawCurrentInit;
 
     if (!observation.processAlive) {
@@ -283,6 +291,15 @@ AppLoaderGateDecision AppLoaderReadinessTracker::Observe(
             return Decision(AppLoaderGateState::Discovering, false, false);
         }
         return Decision(AppLoaderGateState::ReadyDirect, true, false);
+    }
+
+    if (observation.stockWrapperModulesPresent &&
+        observation.recognizedFfnxModulePresent) {
+        if (observation.wrapperProfilePresent) {
+            return Decision(AppLoaderGateState::WaitingForProfileConsumption,
+                            false, true);
+        }
+        return Decision(AppLoaderGateState::ReadySeventhHeaven, true, true);
     }
 
     if (!sawCurrentInit) {
@@ -340,6 +357,8 @@ StockRuntimeReadinessResult WaitForStockRuntimeReadiness(
         observation.hostKind = host.kind;
         observation.stockLoaderSignaturePresent =
             HasStockLoaderSignature(gameDirectory);
+        observation.stockWrapperModulesPresent =
+            HasLoadedStockWrapperModules(gameDirectory);
         observation.recognizedFfnxModulePresent = HasRecognizedFfnxModule();
         observation.processAlive = CurrentProcessAlive();
         observation.elapsedMilliseconds = GetTickCount64() - started;

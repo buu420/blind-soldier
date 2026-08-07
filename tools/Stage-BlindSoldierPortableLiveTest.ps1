@@ -26,6 +26,10 @@ $utf8 = New-Object Text.UTF8Encoding($false)
 $versionProxyPaths = @(
     'ff7_en.exe.local/version.dll',
     'ff7.exe.local/version.dll',
+    'workingdir/version.dll',
+    'workingdir/ff7_en.exe.local/version.dll',
+    'workingdir/ff7.exe.local/version.dll',
+    'ff7/workingdir/version.dll',
     'ff7/workingdir/ff7_en.exe.local/version.dll',
     'ff7/workingdir/ff7.exe.local/version.dll'
 )
@@ -413,7 +417,9 @@ function Get-SupportedHostPolicy {
             )
             accessibleVersionProxySha256 = @(
                 '64E2803E3E321581FF0A58E64543BD082FFD6272941FEDB5BB3F14DCC79B7C90',
-                'E46DC04803F56C880D7753003F7EED73754F6B2C07D1BCFB48BCCC4DE8AA8E82'
+                'E46DC04803F56C880D7753003F7EED73754F6B2C07D1BCFB48BCCC4DE8AA8E82',
+                '2C3131907619D52B8131706C29AFC664DE36E3BF3DDD2D4C0CB6BB3DFF5622FF',
+                '2E0119F8CEF025286079E5FDD94F5E3A8EB526BDD3D03250CBF3C06DF91402F8'
             )
         }
     }
@@ -447,22 +453,45 @@ function Assert-SupportedGameRoot {
     $accepted = New-Object 'System.Collections.Generic.List[object]'
     $presentHostNames = New-Object 'System.Collections.Generic.HashSet[string]' `
         ([StringComparer]::OrdinalIgnoreCase)
-    foreach ($name in @($Policy.hosts | ForEach-Object fileName |
-            Select-Object -Unique)) {
-        $candidate = Join-Path $Root ([string]$name)
-        if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) { continue }
-        [void]$presentHostNames.Add([string]$name)
-        $hash = (Get-FileHash -LiteralPath $candidate -Algorithm SHA256).Hash
-        $machine = Get-PeMachine -Path $candidate
-        $match = @($Policy.hosts | Where-Object {
-            [string]$_.fileName -ieq [string]$name -and
-            [int]$_.machine -eq [int]$machine -and
-            [string]$_.sha256 -ieq $hash
-        } | Select-Object -First 1)
-        if ($match.Count -eq 1) {
-            $accepted.Add([pscustomobject]@{
-                Path=$candidate;FileName=[string]$name;Machine=[int]$machine;Sha256=$hash
-            })
+    $layouts = @(
+        [pscustomobject]@{Prefix='';X86Only=$false},
+        [pscustomobject]@{Prefix='workingdir';X86Only=$true},
+        [pscustomobject]@{Prefix='ff7\workingdir';X86Only=$true}
+    )
+    $hostNames = @($Policy.hosts | ForEach-Object fileName |
+        Select-Object -Unique)
+    foreach ($layout in $layouts) {
+        foreach ($name in $hostNames) {
+            if ($layout.X86Only -and
+                [string]$name -notin @('ff7_en.exe','ff7.exe')) {
+                continue
+            }
+            $relative = if ([string]::IsNullOrEmpty($layout.Prefix)) {
+                [string]$name
+            }
+            else { Join-Path ([string]$layout.Prefix) ([string]$name) }
+            $candidate = Assert-TargetPathSegments -Root $Root `
+                -Relative $relative
+            if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) {
+                continue
+            }
+            [void]$presentHostNames.Add([string]$name)
+            $hash = (Get-FileHash -LiteralPath $candidate -Algorithm SHA256).Hash
+            $machine = Get-PeMachine -Path $candidate
+            $match = @($Policy.hosts | Where-Object {
+                [string]$_.fileName -ieq [string]$name -and
+                [int]$_.machine -eq [int]$machine -and
+                [string]$_.sha256 -ieq $hash
+            } | Select-Object -First 1)
+            if ($match.Count -eq 1) {
+                $accepted.Add([pscustomobject]@{
+                    Path=$candidate
+                    RelativePath=$relative.Replace('\','/')
+                    FileName=[string]$name
+                    Machine=[int]$machine
+                    Sha256=$hash
+                })
+            }
         }
     }
     if ($accepted.Count -eq 0) {
@@ -690,7 +719,7 @@ try {
                 $existingHash.Equals($_, [StringComparison]::OrdinalIgnoreCase)
             }).Count -gt 0
             if (-not $proxyRecognized) {
-                throw "An unknown executable-local version.dll already exists: $existing"
+                throw "An unknown layout-scoped version.dll already exists: $existing"
             }
         }
     }
