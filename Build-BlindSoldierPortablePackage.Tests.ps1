@@ -429,6 +429,8 @@ Describe 'Blind Soldier direct-extract portable package' {
             'ff7/workingdir/ff7.exe.local/version.dll',
             'Blind-Soldier/Bootstrap/x86/Blind-Soldier-Bootstrap-x86.exe',
             'Blind-Soldier/Bootstrap/x64/Blind-Soldier-Bootstrap-x64.exe',
+            'Blind-Soldier/Policy/BlindSoldier.ExternalOwnership.json',
+            'Blind-Soldier/Policy/BlindSoldier.ExternalOwnership.psm1',
             'Blind-Soldier/Runtime/dotnet/x86/host/fxr/9.0.8/hostfxr.dll',
             'Blind-Soldier/Runtime/dotnet/x64/host/fxr/9.0.8/hostfxr.dll',
             'Reloaded-II/portable.txt',
@@ -551,6 +553,44 @@ Describe 'Blind Soldier direct-extract portable package' {
         ($unexpected -join '; ') | Should Be ''
     }
 
+    It 'rejects the pinned FFNx tree at each canonical deployment root' {
+        $fixture = New-PortableFixture
+        Invoke-FixtureBuild -Fixture $fixture -Output $fixture.First
+        $unexpected = New-Object 'System.Collections.Generic.List[string]'
+        foreach ($relative in @(
+            'COPYING.TXT',
+            'ambient/nested/field.wav',
+            'ff7/workingdir/FFNx.pdb',
+            'ff7/workingdir/ShAdErS/nested/effect.fx',
+            '.7thWrapperProfile',
+            'ff7/workingdir/AppLoader.log')) {
+            $safeName = $relative.Replace('/','-').Replace('\','-')
+            $variant = Join-Path $fixture.Root ("external-$safeName.zip")
+            New-PortableArchiveVariant -Source $fixture.First `
+                -Destination $variant -AdditionalPath $relative
+            try {
+                & $verifierPath -ArchivePath $variant -ExpectedVersion '0.1.6' |
+                    Out-Null
+                $unexpected.Add("$relative`: completed")
+            }
+            catch {
+                if ($_.Exception.Message -notmatch '7th Heaven|FFNx|external') {
+                    $unexpected.Add("$relative`: $($_.Exception.Message)")
+                }
+            }
+        }
+        ($unexpected -join '; ') | Should Be ''
+    }
+
+    It 'allows Blind Soldier owned paths whose leaf matches an FFNx directory prefix' {
+        $fixture = New-PortableFixture
+        Invoke-FixtureBuild -Fixture $fixture -Output $fixture.First
+        $variant = Join-Path $fixture.Root 'owned-music.zip'
+        New-PortableArchiveVariant -Source $fixture.First -Destination $variant `
+            -AdditionalPath 'Blind-Soldier/Assets/music/owned.ogg'
+        $result = & $verifierPath -ArchivePath $variant -ExpectedVersion '0.1.6'
+        $result.Version | Should Be '0.1.6'
+    }
     It 'rejects an otherwise-valid archive with unordered manifest records' {
         $fixture = New-PortableFixture
         Invoke-FixtureBuild -Fixture $fixture -Output $fixture.First

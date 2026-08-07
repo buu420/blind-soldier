@@ -466,6 +466,17 @@ try {
         Copy-Item -LiteralPath $source -Destination (Join-Path $licenseTarget $name)
     }
 
+    $policyTarget = Join-Path $root 'Blind-Soldier\Policy'
+    New-Item -ItemType Directory -Path $policyTarget -Force | Out-Null
+    foreach ($name in @(
+        'BlindSoldier.ExternalOwnership.json',
+        'BlindSoldier.ExternalOwnership.psm1')) {
+        $source = Join-Path (Join-Path $scriptRoot 'tools') $name
+        [void](Assert-File -Path $source -Label "External ownership policy $name")
+        Copy-Item -LiteralPath $source -Destination `
+            (Join-Path $policyTarget $name)
+    }
+
     $readme = @"
 Blind Soldier $Version
 

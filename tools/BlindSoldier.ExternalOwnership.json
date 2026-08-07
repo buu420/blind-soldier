@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "ffnx-steam-1.24.3.0",
+  "sourceAsset": "FFNx-Steam-v1.24.3.0.zip",
+  "sourceSha256": "2BE45F486974F0979B849D0525EB66427DF62483EC99E9339E9773E9E52AFC0D",
+  "deploymentRoots": [
+    "",
+    "ff7/workingdir"
+  ],
+  "ownedFiles": [
+    "AF3DN.P",
+    "AF4DN.P",
+    "COPYING.TXT",
+    "FFNx.pdb",
+    "FFNx.toml",
+    "steam_api.dll"
+  ],
+  "ownedDirectoryPrefixes": [
+    "ambient",
+    "hext",
+    "lighting",
+    "music",
+    "sfx",
+    "shaders",
+    "time",
+    "vibrate",
+    "voice"
+  ],
+  "globalFileNames": [
+    "AF3DN.P",
+    "AF4DN.P",
+    "FFNx.pdb",
+    "FFNx.toml",
+    "steam_api.dll",
+    "dinput.dll",
+    "AppLoader.dll",
+    "AppProxy.dll",
+    "AppProxy.runtimeconfig.json",
+    "AppWrapper.dll",
+    "nethost.dll",
+    "FFNx.dll",
+    "7H_GameDriver.dll",
+    "steam_api64.dll",
+    ".7thWrapperProfile",
+    "AppLoader.log",
+    "AppProxy.bootstrap.log",
+    "AppWrapper.bootstrap.log",
+    "FFNx.log"
+  ]
+}

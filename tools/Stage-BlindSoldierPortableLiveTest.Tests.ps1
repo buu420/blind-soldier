@@ -48,14 +48,17 @@ function Write-Sidecar {
 }
 
 function New-UnsafeZip {
-    param([string] $Destination)
+    param(
+        [string] $Destination,
+        [string] $EntryName = '../escaped.txt'
+    )
     Add-Type -AssemblyName System.IO.Compression
     $stream = [IO.File]::Open($Destination, [IO.FileMode]::CreateNew)
     try {
         $archive = New-Object IO.Compression.ZipArchive(
             $stream, [IO.Compression.ZipArchiveMode]::Create, $true)
         try {
-            $entry = $archive.CreateEntry('../escaped.txt')
+            $entry = $archive.CreateEntry($EntryName)
             $writer = New-Object IO.StreamWriter($entry.Open())
             try { $writer.Write('unsafe') } finally { $writer.Dispose() }
         }
@@ -132,18 +135,28 @@ function New-LiveStageFixture {
     New-TestPe -Path $priorProxy -Machine 0x014C -Marker 8
     $priorProxyHash = (Get-FileHash -LiteralPath $priorProxy `
         -Algorithm SHA256).Hash
+    $externalFiles = @(
+        'AF3DN.P','AF4DN.P','COPYING.TXT','FFNx.pdb','FFNx.toml',
+        'steam_api.dll','dinput.dll','AppLoader.dll','AppProxy.dll',
+        'AppProxy.runtimeconfig.json','AppWrapper.dll','nethost.dll',
+        'FFNx.dll','7H_GameDriver.dll','steam_api64.dll',
+        '.7thWrapperProfile','AppLoader.log','AppProxy.bootstrap.log',
+        'AppWrapper.bootstrap.log','FFNx.log')
+    $externalDirectories = @(
+        'ambient','hext','lighting','music','sfx','shaders','time',
+        'vibrate','voice')
     $externalRelativePaths = @(
-        'dinput.dll','AppProxy.dll','AppProxy.runtimeconfig.json',
-        'AppWrapper.dll','nethost.dll','AF3DN.P','AF4DN.P','FFNx.dll',
-        '7H_GameDriver.dll','FFNx.toml','steam_api.dll','steam_api64.dll',
-        'ff7\workingdir\dinput.dll',
-        'ff7\workingdir\AppProxy.dll',
-        'ff7\workingdir\AppProxy.runtimeconfig.json',
-        'ff7\workingdir\AppWrapper.dll','ff7\workingdir\nethost.dll',
-        'ff7\workingdir\AF3DN.P','ff7\workingdir\AF4DN.P',
-        'ff7\workingdir\FFNx.dll','ff7\workingdir\7H_GameDriver.dll',
-        'ff7\workingdir\FFNx.toml','ff7\workingdir\steam_api.dll',
-        'ff7\workingdir\steam_api64.dll')
+        foreach ($rootRelative in @('', 'ff7\workingdir')) {
+            foreach ($fileName in $externalFiles) {
+                if ([string]::IsNullOrEmpty($rootRelative)) { $fileName }
+                else { Join-Path $rootRelative $fileName }
+            }
+            foreach ($directoryName in $externalDirectories) {
+                $nested = Join-Path $directoryName 'nested\owned.dat'
+                if ([string]::IsNullOrEmpty($rootRelative)) { $nested }
+                else { Join-Path $rootRelative $nested }
+            }
+        })
     foreach ($relative in $externalRelativePaths) {
         $path = Join-Path $game $relative
         New-Item -ItemType Directory -Path (Split-Path -Parent $path) -Force |
@@ -282,6 +295,32 @@ function Update-FixtureArchive {
     Write-Sidecar -Archive $Fixture.Archive
 }
 
+function Add-FixturePayloadFile {
+    param(
+        [psobject] $Fixture,
+        [string] $RelativePath,
+        [string] $Content = 'adversarial fixture'
+    )
+    $path = Join-Path $Fixture.Payload $RelativePath
+    New-Item -ItemType Directory -Path (Split-Path -Parent $path) -Force |
+        Out-Null
+    [IO.File]::WriteAllText($path, $Content)
+    Update-FixtureArchive -Fixture $Fixture
+    return $path
+}
+
+function Get-TestShortPath {
+    param([string] $Path)
+    if ($null -eq ('BlindSoldierTest.NativeShortPath' -as [type])) {
+        Add-Type -Namespace BlindSoldierTest -Name NativeShortPath `
+            -MemberDefinition '[System.Runtime.InteropServices.DllImport("kernel32.dll", CharSet=System.Runtime.InteropServices.CharSet.Unicode, SetLastError=true)] public static extern uint GetShortPathName(string longPath, System.Text.StringBuilder shortPath, uint bufferLength);'
+    }
+    $buffer = New-Object Text.StringBuilder 32768
+    $length = [BlindSoldierTest.NativeShortPath]::GetShortPathName(
+        [IO.Path]::GetFullPath($Path), $buffer, [uint32]$buffer.Capacity)
+    if ($length -eq 0 -or $length -ge $buffer.Capacity) { return $null }
+    return $buffer.ToString()
+}
 Describe 'Blind Soldier portable live staging safety' {
     BeforeEach { $fixture = New-LiveStageFixture }
     AfterEach {
@@ -413,6 +452,178 @@ Describe 'Blind Soldier portable live staging safety' {
         ($unexpected -join '; ') | Should Be ''
     }
 
+    It 'rejects the pinned FFNx tree only at its canonical deployment roots' {
+        $unexpected = New-Object 'System.Collections.Generic.List[string]'
+        foreach ($relative in @(
+            'COPYING.TXT',
+            'ambient\nested\field.wav',
+            'ff7\workingdir\FFNx.pdb',
+            'ff7\workingdir\ShAdErS\nested\effect.fx',
+            '.7thWrapperProfile',
+            'ff7\workingdir\AppLoader.log')) {
+            $path = Add-FixturePayloadFile -Fixture $fixture -RelativePath $relative
+            try {
+                Invoke-FixtureStage -Fixture $fixture -DryRun `
+                    -BackupRoot $fixture.Backup | Out-Null
+                $unexpected.Add("$relative`: completed")
+            }
+            catch {
+                if ($_.Exception.Message -notmatch '7th Heaven|FFNx|external') {
+                    $unexpected.Add("$relative`: $($_.Exception.Message)")
+                }
+            }
+            Remove-Item -LiteralPath $path -Force
+        }
+        ($unexpected -join '; ') | Should Be ''
+    }
+
+    It 'allows a Blind Soldier owned directory whose leaf matches an FFNx prefix' {
+        Add-FixturePayloadFile -Fixture $fixture `
+            -RelativePath 'Blind-Soldier\Assets\music\owned.ogg' | Out-Null
+        $result = Invoke-FixtureStage -Fixture $fixture -DryRun `
+            -BackupRoot $fixture.Backup
+        (@($result.Files.RelativePath) -contains `
+            'Blind-Soldier/Assets/music/owned.ogg') | Should Be $true
+    }
+
+    It 'rejects a BackupRoot spelled through an 8.3 alias inside DestinationRoot' {
+        $inside = Join-Path $fixture.Game `
+            'Backup Ownership Location With Spaces'
+        New-Item -ItemType Directory -Path $inside -Force | Out-Null
+        $shortInside = Get-TestShortPath -Path $inside
+        if ([string]::IsNullOrWhiteSpace($shortInside) -or
+            $shortInside -notmatch '~') {
+            Write-Warning 'This volume does not expose an 8.3 alias; alias assertion skipped.'
+            $true | Should Be $true
+            return
+        }
+        $message = Get-ThrownMessage {
+            Invoke-FixtureStage -Fixture $fixture -DryRun `
+                -BackupRoot (Join-Path $shortInside 'snapshot')
+        }
+        $message | Should Match 'BackupRoot cannot be inside DestinationRoot'
+    }
+
+    It 'rejects an existing FFNx file reached through its Windows short-name alias' {
+        $protected = Join-Path $fixture.Game 'FFNx.toml'
+        $shortPath = Get-TestShortPath -Path $protected
+        $shortLeaf = if ([string]::IsNullOrWhiteSpace($shortPath)) { $null }
+            else { Split-Path -Leaf $shortPath }
+        if ([string]::IsNullOrWhiteSpace($shortLeaf) -or
+            $shortLeaf -ieq 'FFNx.toml' -or $shortLeaf -notmatch '~') {
+            Write-Warning 'This volume does not expose an 8.3 alias; alias assertion skipped.'
+            $true | Should Be $true
+            return
+        }
+        $before = (Get-FileHash -LiteralPath $protected -Algorithm SHA256).Hash
+        Add-FixturePayloadFile -Fixture $fixture -RelativePath $shortLeaf `
+            -Content 'must never reach the external FFNx file' | Out-Null
+        $message = Get-ThrownMessage {
+            Invoke-FixtureStage -Fixture $fixture -DryRun `
+                -BackupRoot $fixture.Backup
+        }
+        $message | Should Match '7th Heaven|FFNx|external|alias'
+        (Get-FileHash -LiteralPath $protected -Algorithm SHA256).Hash |
+            Should Be $before
+    }
+
+    It 'rejects a hard-linked target before any overlay or backup' {
+        $protected = Join-Path $fixture.Game 'FFNx.toml'
+        $ownedTarget = Join-Path $fixture.Game 'Blind-Soldier\owned.txt'
+        Add-FixturePayloadFile -Fixture $fixture `
+            -RelativePath 'Blind-Soldier\owned.txt' `
+            -Content 'replacement through a hard link' | Out-Null
+        New-Item -ItemType Directory -Path (Split-Path -Parent $ownedTarget) `
+            -Force | Out-Null
+        New-Item -ItemType HardLink -Path $ownedTarget -Target $protected | Out-Null
+        $externalBefore = (Get-FileHash -LiteralPath $protected -Algorithm SHA256).Hash
+        $launcherBefore = (Get-FileHash -LiteralPath (Join-Path $fixture.Game `
+            'FFVII_LAUNCHER.exe') -Algorithm SHA256).Hash
+        $message = Get-ThrownMessage {
+            Invoke-FixtureStage -Fixture $fixture -BackupRoot $fixture.Backup
+        }
+        $message | Should Match 'hard link|external'
+        (Get-FileHash -LiteralPath $protected -Algorithm SHA256).Hash |
+            Should Be $externalBefore
+        (Get-FileHash -LiteralPath (Join-Path $fixture.Game `
+            'FFVII_LAUNCHER.exe') -Algorithm SHA256).Hash | Should Be $launcherBefore
+        Test-Path -LiteralPath (Join-Path $fixture.Game 'portable-manifest.json') |
+            Should Be $false
+        Test-Path -LiteralPath $fixture.Backup | Should Be $false
+    }
+
+    It 'rolls back earlier overlays when a later copy fails' {
+        $firstRelative = 'Blind-Soldier\a-first.txt'
+        $laterRelative = 'Blind-Soldier\z-readonly.txt'
+        Add-FixturePayloadFile -Fixture $fixture -RelativePath $firstRelative `
+            -Content 'new first content' | Out-Null
+        Add-FixturePayloadFile -Fixture $fixture -RelativePath $laterRelative `
+            -Content 'new later content' | Out-Null
+        $firstTarget = Join-Path $fixture.Game $firstRelative
+        $laterTarget = Join-Path $fixture.Game $laterRelative
+        New-Item -ItemType Directory -Path (Split-Path -Parent $firstTarget) `
+            -Force | Out-Null
+        [IO.File]::WriteAllText($firstTarget, 'original first content')
+        [IO.File]::WriteAllText($laterTarget, 'original later content')
+        $firstBefore = (Get-FileHash -LiteralPath $firstTarget `
+            -Algorithm SHA256).Hash
+        $laterBefore = (Get-FileHash -LiteralPath $laterTarget `
+            -Algorithm SHA256).Hash
+        $launcher = Join-Path $fixture.Game 'FFVII_LAUNCHER.exe'
+        $launcherBefore = (Get-FileHash -LiteralPath $launcher `
+            -Algorithm SHA256).Hash
+        $laterItem = Get-Item -LiteralPath $laterTarget -Force
+        $laterItem.Attributes = $laterItem.Attributes -bor `
+            [IO.FileAttributes]::ReadOnly
+        try {
+            $message = Get-ThrownMessage {
+                Invoke-FixtureStage -Fixture $fixture `
+                    -BackupRoot $fixture.Backup
+            }
+        }
+        finally {
+            $laterItem = Get-Item -LiteralPath $laterTarget -Force
+            $laterItem.Attributes = $laterItem.Attributes -band `
+                (-bnot [IO.FileAttributes]::ReadOnly)
+        }
+        $message | Should Match 'access|denied|read-only'
+        (Get-FileHash -LiteralPath $firstTarget -Algorithm SHA256).Hash |
+            Should Be $firstBefore
+        (Get-FileHash -LiteralPath $laterTarget -Algorithm SHA256).Hash |
+            Should Be $laterBefore
+        (Get-FileHash -LiteralPath $launcher -Algorithm SHA256).Hash |
+            Should Be $launcherBefore
+        Test-Path -LiteralPath (Join-Path $fixture.Game 'portable-manifest.json') |
+            Should Be $false
+    }
+
+    It 'keeps post-copy external validation inside the rollback transaction' {
+        $tokens = $null
+        $errors = $null
+        $ast = [Management.Automation.Language.Parser]::ParseFile(
+            $stagerPath, [ref]$tokens, [ref]$errors)
+        @($errors).Count | Should Be 0
+        $transactions = @($ast.FindAll({
+            param($node)
+            $node -is [Management.Automation.Language.TryStatementAst] -and
+                $node.Body.Extent.Text -match '\[IO\.File\]::Copy' -and
+                $node.CatchClauses.Count -eq 1 -and
+                $node.Body.Extent.Text -match `
+                    'Assert-ExternalOwnershipUnchanged'
+        }, $true))
+        $transactions.Count | Should Be 1
+        $transactions[0].CatchClauses.Count | Should Be 1
+        $transactions[0].CatchClauses[0].Body.Extent.Text |
+            Should Match 'BeforeExists'
+        $transactions[0].CatchClauses[0].Body.Extent.Text |
+            Should Match 'externalAfterRollback'
+        $transactions[0].CatchClauses[0].Body.Extent.Text |
+            Should Match 'Assert-TargetPathSegments'
+        $transactions[0].CatchClauses[0].Body.Extent.Text |
+            Should Match 'backupFilesRoot'
+        $transactions[0].Body.Extent.Text |
+            Should Match 'copyCanonicalTargets'
+    }
     It 'default policy recognizes prior Blind Soldier Version proxies' {
         $tokens = $null
         $errors = $null
@@ -448,6 +659,29 @@ Describe 'Blind Soldier portable live staging safety' {
         $message | Should Match 'unsafe'
     }
 
+    It 'independently rejects a trailing-dot ZIP component before its custom verifier' {
+        $unsafe = Join-Path $fixture.Root 'trailing-dot.zip'
+        New-UnsafeZip -Destination $unsafe `
+            -EntryName 'ff7/workingdir/FFNx.toml.'
+        $fixture.Archive = $unsafe
+        $message = Get-ThrownMessage {
+            Invoke-FixtureStage -Fixture $fixture -DryRun `
+                -BackupRoot $fixture.Backup
+        }
+        $message | Should Match 'unsafe Windows path component'
+    }
+
+    It 'independently rejects a trailing-space ZIP component before its custom verifier' {
+        $unsafe = Join-Path $fixture.Root 'trailing-space.zip'
+        New-UnsafeZip -Destination $unsafe `
+            -EntryName 'ff7/workingdir/FFNx.toml '
+        $fixture.Archive = $unsafe
+        $message = Get-ThrownMessage {
+            Invoke-FixtureStage -Fixture $fixture -DryRun `
+                -BackupRoot $fixture.Backup
+        }
+        $message | Should Match 'unsafe Windows path component'
+    }
     It 'requires a backup ownership location for a nonempty destination' {
         $message = Get-ThrownMessage {
             Invoke-FixtureStage -Fixture $fixture -DryRun
@@ -469,10 +703,15 @@ Describe 'Blind Soldier portable live staging safety' {
 
         $result.Operation | Should Be 'DryRun'
         @($result.Files.RelativePath | Sort-Object) | Should Be $fixture.ManifestPaths
-        @($result.ExternalFiles.RelativePath | Sort-Object) |
-            Should Be @($fixture.ExternalRelativePaths | ForEach-Object {
-                $_.Replace('\','/')
-            } | Sort-Object)
+        $actualExternalFiles = @($result.ExternalFiles |
+            Where-Object Type -eq 'File' | ForEach-Object RelativePath |
+            Sort-Object)
+        $expectedExternalFiles = @($fixture.ExternalRelativePaths |
+            ForEach-Object { $_.Replace('\','/') } | Sort-Object)
+        ($actualExternalFiles -join '|') |
+            Should Be ($expectedExternalFiles -join '|')
+        @($result.ExternalFiles | Where-Object Type -eq 'Directory').Count |
+            Should Be 36
         @($result.Files | Where-Object Action -eq 'Replace').Count |
             Should BeGreaterThan 0
         (Get-FileHash -LiteralPath (Join-Path $fixture.Game `

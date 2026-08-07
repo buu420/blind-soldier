@@ -7,6 +7,10 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$ownershipModulePath = Join-Path (Join-Path $scriptRoot 'tools') `
+    'BlindSoldier.ExternalOwnership.psm1'
+Import-Module $ownershipModulePath -Force -ErrorAction Stop | Out-Null
+$externalOwnershipPolicy = Import-BlindSoldierExternalOwnershipPolicy
 $archivePathFull = [IO.Path]::GetFullPath($ArchivePath)
 $sidecarPath = $archivePathFull + '.sha256'
 if (-not (Test-Path -LiteralPath $archivePathFull -PathType Leaf)) {
@@ -26,6 +30,8 @@ $required = @(
     'ff7/workingdir/ff7.exe.local/version.dll',
     'Blind-Soldier/Bootstrap/x86/Blind-Soldier-Bootstrap-x86.exe',
     'Blind-Soldier/Bootstrap/x64/Blind-Soldier-Bootstrap-x64.exe',
+    'Blind-Soldier/Policy/BlindSoldier.ExternalOwnership.json',
+    'Blind-Soldier/Policy/BlindSoldier.ExternalOwnership.psm1',
     'Blind-Soldier/Runtime/dotnet/x86/host/fxr/9.0.8/hostfxr.dll',
     'Blind-Soldier/Runtime/dotnet/x64/host/fxr/9.0.8/hostfxr.dll',
     'Blind-Soldier/Runtime/dotnet/x86/shared/Microsoft.NETCore.App/9.0.8/coreclr.dll',
@@ -39,12 +45,6 @@ $required = @(
     'LICENSES/dotnet-THIRD-PARTY-NOTICES.txt',
     'README-PORTABLE.txt',
     'portable-manifest.json'
-)
-$forbiddenExternalFileNames = @(
-    'AF3DN.P','AF4DN.P','FFNx.dll','7H_GameDriver.dll','FFNx.toml',
-    'steam_api.dll','steam_api64.dll','dinput.dll',
-    'AppProxy.dll','AppProxy.runtimeconfig.json','AppWrapper.dll','nethost.dll',
-    'winmm.dll'
 )
 
 $loaderFiles = @(
@@ -232,6 +232,14 @@ try {
     New-Item -ItemType Directory -Path $verificationRoot | Out-Null
     $entryNames = @(Expand-SafePortableZip -Path $archivePathFull `
         -Destination $verificationRoot)
+    $externalEntries = @($entryNames | Where-Object {
+        Test-BlindSoldierExternalOwnedPath `
+            -Policy $externalOwnershipPolicy -RelativePath ([string]$_)
+    })
+    if ($externalEntries.Count -gt 0) {
+        throw ("Portable archive contains forbidden files owned by 7th Heaven or FFNx external ownership: {0}" -f
+            ($externalEntries -join ', '))
+    }
     [string[]]$sortedNames = [string[]]$entryNames.Clone()
     [Array]::Sort($sortedNames, [StringComparer]::Ordinal)
     if (($entryNames -join '|') -cne ($sortedNames -join '|')) {
@@ -352,7 +360,6 @@ try {
 
     $forbidden = @(Get-ChildItem -LiteralPath $verificationRoot -File -Recurse |
         Where-Object {
-            $_.Name -in $forbiddenExternalFileNames -or
             $_.Name -ieq 'winmm.dll' -or
             $_.Name -ieq 'dsound.dll' -or
             $_.Extension -ieq '.asi' -or

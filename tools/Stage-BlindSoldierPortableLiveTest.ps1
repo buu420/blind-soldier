@@ -13,6 +13,10 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$ownershipModulePath = Join-Path $scriptRoot `
+    'BlindSoldier.ExternalOwnership.psm1'
+Import-Module $ownershipModulePath -Force -ErrorAction Stop | Out-Null
+$externalOwnershipPolicy = Import-BlindSoldierExternalOwnershipPolicy
 if ([string]::IsNullOrWhiteSpace($VerifierPath)) {
     $VerifierPath = Join-Path (Split-Path -Parent $scriptRoot) `
         'Verify-BlindSoldierPortablePackage.ps1'
@@ -24,19 +28,6 @@ $versionProxyPaths = @(
     'ff7.exe.local/version.dll',
     'ff7/workingdir/ff7_en.exe.local/version.dll',
     'ff7/workingdir/ff7.exe.local/version.dll'
-)
-$externalOwnedPaths = @(
-    'dinput.dll','AppProxy.dll','AppProxy.runtimeconfig.json',
-    'AppWrapper.dll','nethost.dll','AF3DN.P','AF4DN.P','FFNx.dll',
-    '7H_GameDriver.dll','FFNx.toml','steam_api.dll','steam_api64.dll',
-    'ff7/workingdir/dinput.dll',
-    'ff7/workingdir/AppProxy.dll',
-    'ff7/workingdir/AppProxy.runtimeconfig.json',
-    'ff7/workingdir/AppWrapper.dll','ff7/workingdir/nethost.dll',
-    'ff7/workingdir/AF3DN.P','ff7/workingdir/AF4DN.P',
-    'ff7/workingdir/FFNx.dll','ff7/workingdir/7H_GameDriver.dll',
-    'ff7/workingdir/FFNx.toml','ff7/workingdir/steam_api.dll',
-    'ff7/workingdir/steam_api64.dll'
 )
 
 function Write-JsonUtf8 {
@@ -62,24 +53,79 @@ function Get-RelativePathSafe {
 
 function Get-ExternalOwnershipSnapshot {
     param([Parameter(Mandatory=$true)] [string] $Root)
-    $records = New-Object 'System.Collections.Generic.List[object]'
-    foreach ($relative in $externalOwnedPaths) {
-        $path = Join-Path $Root $relative.Replace('/','\')
+    $records = New-Object `
+        'System.Collections.Generic.Dictionary[string,object]' `
+        ([StringComparer]::OrdinalIgnoreCase)
+
+    foreach ($relative in @(Get-BlindSoldierExternalOwnedFilePaths `
+            -Policy $externalOwnershipPolicy)) {
+        $path = Join-Path $Root ([string]$relative).Replace('/','\')
         if (-not (Test-Path -LiteralPath $path)) { continue }
-        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
-            throw "A 7th Heaven or FFNx owned path is not a file: $path"
-        }
         $item = Get-Item -LiteralPath $path -Force
         if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
             throw "A 7th Heaven or FFNx owned file is a reparse point: $path"
         }
-        $records.Add([pscustomobject][ordered]@{
-            RelativePath=$relative
+        if ($item.PSIsContainer) {
+            throw "A 7th Heaven or FFNx owned path is not a file: $path"
+        }
+        $key = ([string]$relative).Replace('\','/')
+        if ($records.ContainsKey($key)) {
+            throw "A 7th Heaven or FFNx ownership path collides: $key"
+        }
+        $records.Add($key, [pscustomobject][ordered]@{
+            Type='File'
+            RelativePath=$key
             Length=[int64]$item.Length
-            Sha256=(Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash
+            Sha256=(Get-FileHash -LiteralPath $item.FullName `
+                -Algorithm SHA256).Hash
         })
     }
-    return $records.ToArray()
+
+    foreach ($relative in @(Get-BlindSoldierExternalOwnedDirectoryPaths `
+            -Policy $externalOwnershipPolicy)) {
+        $path = Join-Path $Root ([string]$relative).Replace('/','\')
+        if (-not (Test-Path -LiteralPath $path)) { continue }
+        $rootItem = Get-Item -LiteralPath $path -Force
+        if (($rootItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+            throw "A 7th Heaven or FFNx owned directory is a reparse point: $path"
+        }
+        if (-not $rootItem.PSIsContainer) {
+            throw "A 7th Heaven or FFNx owned directory is not a directory: $path"
+        }
+        $pending = New-Object 'System.Collections.Generic.Stack[object]'
+        $pending.Push($rootItem)
+        while ($pending.Count -gt 0) {
+            $item = $pending.Pop()
+            if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+                throw "A 7th Heaven or FFNx owned tree contains a reparse point: $($item.FullName)"
+            }
+            $key = Get-RelativePathSafe -Root $Root -Path $item.FullName
+            if ($records.ContainsKey($key)) {
+                throw "A 7th Heaven or FFNx ownership path collides: $key"
+            }
+            if ($item.PSIsContainer) {
+                $records.Add($key, [pscustomobject][ordered]@{
+                    Type='Directory'
+                    RelativePath=$key
+                    Length=$null
+                    Sha256=$null
+                })
+                $children = @(Get-ChildItem -LiteralPath $item.FullName -Force |
+                    Sort-Object FullName -Descending)
+                foreach ($child in $children) { $pending.Push($child) }
+            }
+            else {
+                $records.Add($key, [pscustomobject][ordered]@{
+                    Type='File'
+                    RelativePath=$key
+                    Length=[int64]$item.Length
+                    Sha256=(Get-FileHash -LiteralPath $item.FullName `
+                        -Algorithm SHA256).Hash
+                })
+            }
+        }
+    }
+    return @($records.Values | Sort-Object RelativePath)
 }
 
 function Assert-ExternalOwnershipUnchanged {
@@ -87,36 +133,53 @@ function Assert-ExternalOwnershipUnchanged {
         [Parameter(Mandatory=$true)] [object[]] $Before,
         [Parameter(Mandatory=$true)] [object[]] $After
     )
-    $beforeRecords = @($Before)
-    $afterRecords = @($After)
-    if ($beforeRecords.Count -ne $afterRecords.Count) {
-        throw 'A 7th Heaven or FFNx owned file was added or removed during staging.'
+    $beforeMap = New-Object `
+        'System.Collections.Generic.Dictionary[string,object]' `
+        ([StringComparer]::OrdinalIgnoreCase)
+    $afterMap = New-Object `
+        'System.Collections.Generic.Dictionary[string,object]' `
+        ([StringComparer]::OrdinalIgnoreCase)
+    foreach ($record in @($Before)) {
+        if ($beforeMap.ContainsKey([string]$record.RelativePath)) {
+            throw "External ownership snapshot contains a duplicate: $($record.RelativePath)"
+        }
+        $beforeMap.Add([string]$record.RelativePath, $record)
     }
-    for ($index = 0; $index -lt $beforeRecords.Count; ++$index) {
-        $beforeRecord = $beforeRecords[$index]
-        $afterRecord = $afterRecords[$index]
-        if ([string]$beforeRecord.RelativePath -cne
-                [string]$afterRecord.RelativePath -or
-            [int64]$beforeRecord.Length -ne [int64]$afterRecord.Length -or
-            -not ([string]$beforeRecord.Sha256).Equals(
+    foreach ($record in @($After)) {
+        if ($afterMap.ContainsKey([string]$record.RelativePath)) {
+            throw "External ownership snapshot contains a duplicate: $($record.RelativePath)"
+        }
+        $afterMap.Add([string]$record.RelativePath, $record)
+    }
+    if ($beforeMap.Count -ne $afterMap.Count) {
+        throw 'A 7th Heaven or FFNx owned path was added or removed during staging.'
+    }
+    foreach ($key in $beforeMap.Keys) {
+        if (-not $afterMap.ContainsKey($key)) {
+            throw "A 7th Heaven or FFNx owned path was removed during staging: $key"
+        }
+        $beforeRecord = $beforeMap[$key]
+        $afterRecord = $afterMap[$key]
+        if ([string]$beforeRecord.Type -cne [string]$afterRecord.Type) {
+            throw "A 7th Heaven or FFNx owned path changed type during staging: $key"
+        }
+        if ([string]$beforeRecord.Type -ceq 'File' -and
+            ([int64]$beforeRecord.Length -ne [int64]$afterRecord.Length -or
+             -not ([string]$beforeRecord.Sha256).Equals(
                 [string]$afterRecord.Sha256,
-                [StringComparison]::OrdinalIgnoreCase)) {
-            throw "A 7th Heaven or FFNx owned file changed during staging: $($beforeRecord.RelativePath)"
+                [StringComparison]::OrdinalIgnoreCase))) {
+            throw "A 7th Heaven or FFNx owned file changed during staging: $key"
         }
     }
 }
 
 function Assert-NoExternalArchiveMembers {
     param([Parameter(Mandatory=$true)] [string[]] $Members)
-    $protectedNames = New-Object 'System.Collections.Generic.HashSet[string]' `
-        ([StringComparer]::OrdinalIgnoreCase)
-    foreach ($relative in $externalOwnedPaths) {
-        [void]$protectedNames.Add([IO.Path]::GetFileName($relative))
-    }
     foreach ($member in @($Members)) {
-        $name = [IO.Path]::GetFileName(([string]$member).Replace('/','\'))
-        if ($protectedNames.Contains($name)) {
-            throw "Portable ZIP cannot contain a 7th Heaven or FFNx owned file: $member"
+        if (Test-BlindSoldierExternalOwnedPath `
+                -Policy $externalOwnershipPolicy `
+                -RelativePath ([string]$member)) {
+            throw "Portable ZIP cannot contain a 7th Heaven or FFNx external ownership path: $member"
         }
     }
 }
@@ -150,6 +213,37 @@ function Assert-NoReparseAncestor {
     }
 }
 
+function Resolve-CanonicalPathThroughExistingAncestors {
+    param([string] $Path, [string] $Label)
+    $current = [IO.Path]::GetFullPath($Path).TrimEnd('\')
+    $missing = New-Object 'System.Collections.Generic.Stack[string]'
+    while (-not (Test-Path -LiteralPath $current)) {
+        $leaf = Split-Path -Leaf $current
+        $parent = Split-Path -Parent $current
+        if ([string]::IsNullOrWhiteSpace($leaf) -or
+            [string]::IsNullOrWhiteSpace($parent) -or
+            $parent.Equals($current, [StringComparison]::OrdinalIgnoreCase)) {
+            throw "$Label cannot be canonicalized: $Path"
+        }
+        $missing.Push($leaf)
+        $current = $parent
+    }
+    Assert-NoReparseAncestor -Path $current -Label $Label
+    $item = Get-Item -LiteralPath $current -Force
+    $canonical = $item.FullName.TrimEnd('\')
+    while ($missing.Count -gt 0) {
+        $canonical = Join-Path $canonical $missing.Pop()
+    }
+    return [IO.Path]::GetFullPath($canonical).TrimEnd('\')
+}
+
+function Test-IsHardLinkItem {
+    param([object] $Item)
+    $linkTypeProperty = $Item.PSObject.Properties['LinkType']
+    return $null -ne $linkTypeProperty -and
+        [string]$linkTypeProperty.Value -ieq 'HardLink'
+}
+
 function Assert-SafeZipEntry {
     param([IO.Compression.ZipArchiveEntry] $Entry)
     $name = $Entry.FullName
@@ -166,6 +260,9 @@ function Assert-SafeZipEntry {
         if ([string]::IsNullOrWhiteSpace($part) -or $part -ceq '.' -or
             $part -ceq '..') {
             throw "Portable ZIP contains an unsafe path member: $name"
+        }
+        if ($part.EndsWith(' ') -or $part.EndsWith('.')) {
+            throw "Portable ZIP contains an unsafe Windows path component: $name"
         }
     }
     $external = [BitConverter]::ToUInt32(
@@ -406,20 +503,55 @@ function Assert-SupportedGameRoot {
 
 function Assert-TargetPathSegments {
     param([string] $Root, [string] $Relative)
-    $current = $Root
-    $parts = $Relative.Replace('/','\').Split('\')
-    for ($index = 0; $index -lt $parts.Length - 1; $index++) {
-        $current = Join-Path $current $parts[$index]
-        if (Test-Path -LiteralPath $current) {
-            $item = Get-Item -LiteralPath $current -Force
-            if (-not $item.PSIsContainer) {
-                throw "Portable overlay parent is not a directory: $current"
-            }
+    $rootFull = [IO.Path]::GetFullPath($Root).TrimEnd('\')
+    if (-not (Test-Path -LiteralPath $rootFull -PathType Container)) {
+        throw "Portable overlay root disappeared: $rootFull"
+    }
+    Assert-NoReparseAncestor -Path $rootFull -Label 'Portable overlay root'
+    $canonicalRoot = (Get-Item -LiteralPath $rootFull -Force).FullName.TrimEnd('\')
+    if (-not $canonicalRoot.Equals($rootFull,
+            [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Portable overlay root changed identity: $rootFull"
+    }
+    $requested = $Relative.Replace('\','/').Trim('/')
+    $current = $rootFull
+    $parts = $requested.Replace('/','\').Split('\')
+    for ($index = 0; $index -lt $parts.Length; $index++) {
+        $candidate = Join-Path $current $parts[$index]
+        if (Test-Path -LiteralPath $candidate) {
+            $item = Get-Item -LiteralPath $candidate -Force
             if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
-                throw "Portable overlay cannot cross a reparse point: $current"
+                throw "Portable overlay cannot cross a reparse point: $candidate"
             }
+            if ($index -lt $parts.Length - 1 -and -not $item.PSIsContainer) {
+                throw "Portable overlay parent is not a directory: $candidate"
+            }
+            if ($index -eq $parts.Length - 1 -and
+                (Test-IsHardLinkItem -Item $item)) {
+                throw "Portable overlay target is a hard link with external ownership risk: $candidate"
+            }
+            $current = $item.FullName
+        }
+        else {
+            $current = [IO.Path]::GetFullPath($candidate)
         }
     }
+    $canonicalRelative = Get-RelativePathSafe -Root $rootFull -Path $current
+    if (-not $canonicalRelative.Equals($requested,
+            [StringComparison]::OrdinalIgnoreCase)) {
+        if (Test-BlindSoldierExternalOwnedPath `
+                -Policy $externalOwnershipPolicy `
+                -RelativePath $canonicalRelative) {
+            throw "Portable overlay path is an alias for a 7th Heaven or FFNx external ownership path: $Relative"
+        }
+        throw "Portable overlay path uses a Windows alias for a different target: $Relative"
+    }
+    if (Test-BlindSoldierExternalOwnedPath `
+            -Policy $externalOwnershipPolicy `
+            -RelativePath $canonicalRelative) {
+        throw "Portable overlay cannot target a 7th Heaven or FFNx external ownership path: $Relative"
+    }
+    return [IO.Path]::GetFullPath($current)
 }
 
 $archiveFull = [IO.Path]::GetFullPath($ArchivePath)
@@ -429,6 +561,8 @@ if (-not (Test-Path -LiteralPath $destinationFull -PathType Container)) {
     throw "DestinationRoot is missing: $destinationFull"
 }
 Assert-NoReparseAncestor -Path $destinationFull -Label 'DestinationRoot'
+$destinationFull = Resolve-CanonicalPathThroughExistingAncestors `
+    -Path $destinationFull -Label 'DestinationRoot'
 
 if (-not (Test-Path -LiteralPath $archiveFull -PathType Leaf)) {
     throw "Portable archive is missing: $archiveFull"
@@ -461,6 +595,8 @@ if ($destinationItems.Count -gt 0 -and [string]::IsNullOrWhiteSpace($BackupRoot)
 $backupFull = $null
 if (-not [string]::IsNullOrWhiteSpace($BackupRoot)) {
     $backupFull = Assert-NotDriveRoot -Path $BackupRoot -Label 'BackupRoot'
+    $backupFull = Resolve-CanonicalPathThroughExistingAncestors `
+        -Path $backupFull -Label 'BackupRoot'
     $destinationPrefix = $destinationFull.TrimEnd('\') + '\'
     if ($backupFull.Equals($destinationFull,
             [StringComparison]::OrdinalIgnoreCase) -or
@@ -520,10 +656,16 @@ try {
     }
 
     $filePlans = New-Object 'System.Collections.Generic.List[object]'
+    $canonicalTargets = New-Object `
+        'System.Collections.Generic.HashSet[string]' `
+        ([StringComparer]::OrdinalIgnoreCase)
     foreach ($relative in $members) {
-        Assert-TargetPathSegments -Root $destinationFull -Relative $relative
         $source = Join-Path $extractRoot $relative.Replace('/','\')
-        $target = Join-Path $destinationFull $relative.Replace('/','\')
+        $target = Assert-TargetPathSegments -Root $destinationFull `
+            -Relative $relative
+        if (-not $canonicalTargets.Add($target)) {
+            throw "Multiple portable members resolve to the same destination: $relative"
+        }
         if (Test-Path -LiteralPath $target -PathType Container) {
             throw "A directory collides with a portable file: $target"
         }
@@ -580,8 +722,15 @@ try {
         return $report
     }
 
-    New-Item -ItemType Directory -Path (Join-Path $backupFull 'files') `
-        -Force | Out-Null
+    $backupFilesRoot = Join-Path $backupFull 'files'
+    New-Item -ItemType Directory -Path $backupFilesRoot -Force | Out-Null
+    Assert-NoReparseAncestor -Path $backupFull -Label 'BackupRoot'
+    $canonicalBackupFull = Resolve-CanonicalPathThroughExistingAncestors `
+        -Path $backupFull -Label 'BackupRoot'
+    if (-not $canonicalBackupFull.Equals($backupFull,
+            [StringComparison]::OrdinalIgnoreCase)) {
+        throw "BackupRoot changed identity: $backupFull"
+    }
     $snapshot = [ordered]@{
         schemaVersion=1
         version=$ExpectedVersion
@@ -600,49 +749,122 @@ try {
     }
     foreach ($plan in @($filePlans | Where-Object {
             $_.BeforeExists -and $_.Action -eq 'Replace' })) {
-        $source = Join-Path $destinationFull `
-            $plan.RelativePath.Replace('/','\')
-        $backup = Join-Path (Join-Path $backupFull 'files') `
-            $plan.RelativePath.Replace('/','\')
+        $source = Assert-TargetPathSegments -Root $destinationFull `
+            -Relative $plan.RelativePath
+        $currentItem = Get-Item -LiteralPath $source -Force
+        $currentHash = (Get-FileHash -LiteralPath $source `
+            -Algorithm SHA256).Hash
+        if ([int64]$currentItem.Length -ne [int64]$plan.BeforeLength -or
+            -not $currentHash.Equals([string]$plan.BeforeSha256,
+                [StringComparison]::OrdinalIgnoreCase)) {
+            throw "A portable target changed after planning: $($plan.RelativePath)"
+        }
+        $backup = Assert-TargetPathSegments -Root $backupFilesRoot `
+            -Relative $plan.RelativePath
         New-Item -ItemType Directory -Path (Split-Path -Parent $backup) `
             -Force | Out-Null
+        $backup = Assert-TargetPathSegments -Root $backupFilesRoot `
+            -Relative $plan.RelativePath
         [IO.File]::Copy($source, $backup, $false)
     }
-    Write-JsonUtf8 -Path (Join-Path $backupFull 'ownership-snapshot.json') `
-        -Value $snapshot
+    $snapshotPath = Assert-TargetPathSegments -Root $backupFull `
+        -Relative 'ownership-snapshot.json'
+    Write-JsonUtf8 -Path $snapshotPath -Value $snapshot
 
     $externalBeforeCopy = @(Get-ExternalOwnershipSnapshot -Root $destinationFull)
     Assert-ExternalOwnershipUnchanged -Before $externalBefore `
         -After $externalBeforeCopy
     $applied = New-Object 'System.Collections.Generic.List[object]'
     try {
+        $copyCanonicalTargets = New-Object `
+            'System.Collections.Generic.HashSet[string]' `
+            ([StringComparer]::OrdinalIgnoreCase)
         foreach ($plan in @($filePlans | Where-Object Action -ne 'Unchanged')) {
             $source = Join-Path $extractRoot $plan.RelativePath.Replace('/','\')
-            $target = Join-Path $destinationFull $plan.RelativePath.Replace('/','\')
+            $target = Assert-TargetPathSegments -Root $destinationFull `
+                -Relative $plan.RelativePath
+            if (-not $copyCanonicalTargets.Add($target)) {
+                throw "Multiple portable members resolve to the same live destination: $($plan.RelativePath)"
+            }
             New-Item -ItemType Directory -Path (Split-Path -Parent $target) `
                 -Force | Out-Null
-            [IO.File]::Copy($source, $target, $true)
+            $target = Assert-TargetPathSegments -Root $destinationFull `
+                -Relative $plan.RelativePath
+            if ($plan.BeforeExists) {
+                if (-not (Test-Path -LiteralPath $target -PathType Leaf)) {
+                    throw "A portable target disappeared after planning: $($plan.RelativePath)"
+                }
+                $currentItem = Get-Item -LiteralPath $target -Force
+                $currentHash = (Get-FileHash -LiteralPath $target `
+                    -Algorithm SHA256).Hash
+                if ([int64]$currentItem.Length -ne [int64]$plan.BeforeLength -or
+                    -not $currentHash.Equals([string]$plan.BeforeSha256,
+                        [StringComparison]::OrdinalIgnoreCase)) {
+                    throw "A portable target changed after planning: $($plan.RelativePath)"
+                }
+            }
+            elseif (Test-Path -LiteralPath $target) {
+                throw "A portable target appeared after planning: $($plan.RelativePath)"
+            }
             $applied.Add($plan)
+            [IO.File]::Copy($source, $target, $true)
         }
+        $externalAfter = @(Get-ExternalOwnershipSnapshot -Root $destinationFull)
+        Assert-ExternalOwnershipUnchanged -Before $externalBefore `
+            -After $externalAfter
     }
     catch {
-        foreach ($plan in @($applied.ToArray()) | Sort-Object -Descending) {
-            $target = Join-Path $destinationFull $plan.RelativePath.Replace('/','\')
-            if ($plan.BeforeExists) {
-                $backup = Join-Path (Join-Path $backupFull 'files') `
-                    $plan.RelativePath.Replace('/','\')
-                [IO.File]::Copy($backup, $target, $true)
+        $primaryFailure = $_
+        $rollbackFailures = New-Object 'System.Collections.Generic.List[string]'
+        for ($index = $applied.Count - 1; $index -ge 0; $index--) {
+            $plan = $applied[$index]
+            try {
+                $target = Assert-TargetPathSegments -Root $destinationFull `
+                    -Relative $plan.RelativePath
+                if ($plan.BeforeExists) {
+                    $alreadyOriginal = $false
+                    if (Test-Path -LiteralPath $target -PathType Leaf) {
+                        $currentItem = Get-Item -LiteralPath $target -Force
+                        $currentHash = (Get-FileHash -LiteralPath $target `
+                            -Algorithm SHA256).Hash
+                        $alreadyOriginal =
+                            [int64]$currentItem.Length -eq [int64]$plan.BeforeLength -and
+                            $currentHash.Equals([string]$plan.BeforeSha256,
+                                [StringComparison]::OrdinalIgnoreCase)
+                    }
+                    if (-not $alreadyOriginal) {
+                        $backup = Assert-TargetPathSegments `
+                            -Root $backupFilesRoot `
+                            -Relative $plan.RelativePath
+                        [IO.File]::Copy($backup, $target, $true)
+                    }
+                }
+                elseif (Test-Path -LiteralPath $target -PathType Leaf) {
+                    [IO.File]::Delete($target)
+                }
             }
-            elseif (Test-Path -LiteralPath $target -PathType Leaf) {
-                [IO.File]::Delete($target)
+            catch {
+                $rollbackFailures.Add(
+                    "$($plan.RelativePath): $($_.Exception.Message)")
             }
         }
-        throw
+        try {
+            $externalAfterRollback = @(
+                Get-ExternalOwnershipSnapshot -Root $destinationFull)
+            Assert-ExternalOwnershipUnchanged -Before $externalBefore `
+                -After $externalAfterRollback
+        }
+        catch {
+            $rollbackFailures.Add(
+                "external ownership: $($_.Exception.Message)")
+        }
+        if ($rollbackFailures.Count -gt 0) {
+            throw ("Portable staging failed: {0} Rollback could not complete: {1}" -f
+                $primaryFailure.Exception.Message,
+                ($rollbackFailures -join '; '))
+        }
+        throw $primaryFailure
     }
-
-    $externalAfter = @(Get-ExternalOwnershipSnapshot -Root $destinationFull)
-    Assert-ExternalOwnershipUnchanged -Before $externalBefore `
-        -After $externalAfter
     if (-not [string]::IsNullOrWhiteSpace($ReportPath)) {
         Write-JsonUtf8 -Path ([IO.Path]::GetFullPath($ReportPath)) `
             -Value $report
