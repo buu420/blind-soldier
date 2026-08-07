@@ -102,14 +102,30 @@ function Invoke-VerificationCommand {
             $output = @($invocation.Output | ForEach-Object { [string]$_ })
         }
         else {
+            try {
+                $resolvedCommand = @(Get-Command -Name $Command.FilePath `
+                    -CommandType Application -ErrorAction Stop)[0]
+            }
+            catch {
+                throw "Verification executable '$($Command.FilePath)' is unavailable. $($_.Exception.Message)"
+            }
+            if ($null -eq $resolvedCommand -or
+                [string]::IsNullOrWhiteSpace([string]$resolvedCommand.Source)) {
+                throw "Verification executable '$($Command.FilePath)' is unavailable."
+            }
             Push-Location -LiteralPath $Command.WorkingDirectory
             try {
                 $priorPreference = $ErrorActionPreference
                 try {
-                    $ErrorActionPreference = 'Continue'
-                    $output = @(& $Command.FilePath @($Command.Arguments) 2>&1 |
+                    $ErrorActionPreference = 'Stop'
+                    $LASTEXITCODE = $null
+                    $output = @(& $resolvedCommand.Source `
+                        @($Command.Arguments) 2>&1 |
                         ForEach-Object { [string]$_ })
                     $exitCode = $LASTEXITCODE
+                    if ($null -eq $exitCode) {
+                        throw "Verification executable '$($Command.FilePath)' returned no process exit code."
+                    }
                 }
                 finally { $ErrorActionPreference = $priorPreference }
             }
@@ -150,7 +166,14 @@ function New-PesterCommand {
         [string] $TestName
     )
     $escaped = ([IO.Path]::GetFullPath($Path)).Replace("'", "''")
-    $command = "Import-Module Pester -RequiredVersion 4.10.1 -Force; " +
+    $command = "`$ErrorActionPreference = 'Stop'; " +
+        "try { Import-Module Pester -RequiredVersion 4.10.1 -Force -ErrorAction Stop } " +
+        "catch { throw ('Pinned Pester 4.10.1 is unavailable. ' + `$_.Exception.Message) }; " +
+        "`$pesterModules = @(Get-Module -Name Pester); " +
+        "if (`$pesterModules.Count -ne 1 -or " +
+        "`$pesterModules[0].Version -ne [version]'4.10.1') { " +
+        "`$versions = ((`$pesterModules | ForEach-Object { `$_.Version.ToString() }) -join ', '); " +
+        "throw ('Release verification requires exactly Pester 4.10.1 loaded; found: ' + `$versions) }; " +
         "Invoke-Pester -Script '$escaped'"
     if (-not [string]::IsNullOrWhiteSpace($TestName)) {
         $command += " -TestName '$($TestName.Replace("'", "''"))'"
@@ -189,8 +212,15 @@ else {
     $portableModes = @(
         '--runtime-lease-only','--host-validation-only',
         '--7h-compatibility-only')
-    $portableCommand = "foreach (`$mode in @('$($portableModes -join "','")')) { " +
-        "& dotnet run --project '$escapedProject' -c Release -- `$mode; " +
+    $portableCommand = "`$ErrorActionPreference = 'Stop'; " +
+        "try { `$dotnetCommand = @(Get-Command -Name 'dotnet' " +
+        "-CommandType Application -ErrorAction Stop)[0] } " +
+        "catch { throw ('dotnet executable is unavailable. ' + `$_.Exception.Message) }; " +
+        "foreach (`$mode in @('$($portableModes -join "','")')) { " +
+        "`$LASTEXITCODE = `$null; " +
+        "& `$dotnetCommand.Source run --project '$escapedProject' -c Release -- `$mode; " +
+        "if (`$null -eq `$LASTEXITCODE) { " +
+        "throw 'dotnet executable returned no process exit code.' }; " +
         "if (`$LASTEXITCODE -ne 0) { exit `$LASTEXITCODE } }"
     $commands.Add((New-VerificationCommand -Name 'Reloaded.Tests' `
         -FilePath 'powershell.exe' -Arguments @('-NoProfile',
@@ -256,7 +286,8 @@ $commands.Add((New-VerificationCommand -Name 'Ghidra.NativeEvidence' `
     -FilePath 'powershell.exe' -Arguments @(
         '-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',
         (Join-Path $scriptRoot `
-            'tools\Invoke-BlindSoldierGhidraVerification.ps1')) `
+            'tools\Invoke-BlindSoldierGhidraVerification.ps1'),
+        '-ArchivePath',$portableArchive) `
     -WorkingDirectory $scriptRoot))
 
 $results = New-Object 'System.Collections.Generic.List[object]'

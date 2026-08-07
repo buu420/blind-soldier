@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
     [string] $GhidraRoot,
+    [string] $ArchivePath,
     [string] $X86BrokerPath,
     [string] $X64BrokerPath,
     [string] $ProxyPath,
@@ -18,6 +19,12 @@ $pinnedDigest = 'B62E81A0390618466C019C60D8C2F796CED2509C4C1AEA4A37644A77272CF99
 $scriptDirectory = Join-Path $repoRoot 'analysis\ghidra'
 $versionDefinitionPath = Join-Path $repoRoot `
     'native\BlindSoldier.VersionProxy\version.def'
+$explicitBinaryInputs = $PSBoundParameters.ContainsKey('X86BrokerPath') -or
+    $PSBoundParameters.ContainsKey('X64BrokerPath') -or
+    $PSBoundParameters.ContainsKey('ProxyPath')
+if (-not [string]::IsNullOrWhiteSpace($ArchivePath) -and $explicitBinaryInputs) {
+    throw 'ArchivePath cannot be combined with explicit broker or proxy paths.'
+}
 
 if ([string]::IsNullOrWhiteSpace($X86BrokerPath)) {
     $X86BrokerPath = Join-Path $repoRoot `
@@ -132,6 +139,146 @@ function Assert-EvidenceRecord {
     }
 }
 
+function Get-ArchiveEntrySha256 {
+    param([Parameter(Mandatory=$true)] [IO.Compression.ZipArchiveEntry] $Entry)
+    $algorithm = [Security.Cryptography.SHA256]::Create()
+    $stream = $Entry.Open()
+    try { $bytes = $algorithm.ComputeHash($stream) }
+    finally { $stream.Dispose(); $algorithm.Dispose() }
+    return ([BitConverter]::ToString($bytes)).Replace('-', '')
+}
+
+function Copy-ArchiveEntryExact {
+    param(
+        [Parameter(Mandatory=$true)] [IO.Compression.ZipArchiveEntry] $Entry,
+        [Parameter(Mandatory=$true)] [string] $Destination
+    )
+    $input = $Entry.Open()
+    $output = [IO.File]::Open($Destination, [IO.FileMode]::CreateNew,
+        [IO.FileAccess]::Write, [IO.FileShare]::None)
+    try { $input.CopyTo($output) }
+    finally { $output.Dispose(); $input.Dispose() }
+}
+
+function Remove-ValidatedArchiveExtractionRoot {
+    param([string] $Path)
+    if ([string]::IsNullOrWhiteSpace($Path) -or
+        -not (Test-Path -LiteralPath $Path -PathType Container)) { return }
+    $resolved = [IO.Path]::GetFullPath($Path)
+    $prefix = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\') + '\'
+    $leaf = Split-Path -Leaf $resolved
+    if (-not $resolved.StartsWith($prefix,
+            [StringComparison]::OrdinalIgnoreCase) -or
+        -not $leaf.StartsWith('blind-soldier-ghidra-archive-',
+            [StringComparison]::Ordinal)) {
+        throw "Refusing to clean an untrusted Ghidra archive path: $resolved"
+    }
+    Remove-Item -LiteralPath $resolved -Recurse -Force
+}
+
+function New-PortableArchiveBinding {
+    param([Parameter(Mandatory=$true)] [string] $Path)
+    Add-Type -AssemblyName System.IO.Compression
+    $fullPath = [IO.Path]::GetFullPath($Path)
+    if (-not (Test-Path -LiteralPath $fullPath -PathType Leaf)) {
+        throw "Portable archive is unavailable for Ghidra analysis: $fullPath"
+    }
+    $proxyNames = @(
+        'ff7_en.exe.local/version.dll',
+        'ff7.exe.local/version.dll',
+        'ff7/workingdir/ff7_en.exe.local/version.dll',
+        'ff7/workingdir/ff7.exe.local/version.dll')
+    $x86Name = 'Blind-Soldier/Bootstrap/x86/Blind-Soldier-Bootstrap-x86.exe'
+    $x64Name = 'Blind-Soldier/Bootstrap/x64/Blind-Soldier-Bootstrap-x64.exe'
+    $required = @($proxyNames) + @($x86Name, $x64Name)
+    $archiveHash = (Get-FileHash -LiteralPath $fullPath -Algorithm SHA256).Hash
+    $extractionRoot = $null
+    try {
+        $stream = [IO.File]::Open($fullPath, [IO.FileMode]::Open,
+            [IO.FileAccess]::Read, [IO.FileShare]::Read)
+        try {
+            $zip = [IO.Compression.ZipArchive]::new($stream,
+                [IO.Compression.ZipArchiveMode]::Read, $true)
+            try {
+                $entries = New-Object `
+                    'System.Collections.Generic.Dictionary[string,object]' `
+                    ([StringComparer]::Ordinal)
+                $seen = New-Object `
+                    'System.Collections.Generic.HashSet[string]' `
+                    ([StringComparer]::OrdinalIgnoreCase)
+                foreach ($entry in $zip.Entries) {
+                    $normalized = $entry.FullName.Replace('\','/')
+                    if (-not $seen.Add($normalized)) {
+                        throw "Portable archive contains duplicate or case-aliased entry: $($entry.FullName)"
+                    }
+                    if ($required -icontains $normalized -and
+                        ($required -cnotcontains $normalized -or
+                            $entry.FullName -cne $normalized)) {
+                        throw "Portable archive contains a case-aliased required entry: $($entry.FullName)"
+                    }
+                    if ($required -ccontains $normalized) {
+                        $entries.Add($normalized, $entry)
+                    }
+                }
+                foreach ($name in $required) {
+                    if (-not $entries.ContainsKey($name)) {
+                        throw "Portable archive is missing a Ghidra input: $name"
+                    }
+                }
+                $proxyEvidence = @($proxyNames | ForEach-Object {
+                    [pscustomobject]@{
+                        entry = $_
+                        sha256 = Get-ArchiveEntrySha256 -Entry $entries[$_]
+                    }
+                })
+                if (@($proxyEvidence.sha256 | Select-Object -Unique).Count -ne 1) {
+                    throw 'Portable archive Version proxy entries are not byte-identical.'
+                }
+                $extractionRoot = Join-Path ([IO.Path]::GetTempPath()) `
+                    ('blind-soldier-ghidra-archive-' +
+                        [Guid]::NewGuid().ToString('N'))
+                New-Item -ItemType Directory -Path $extractionRoot | Out-Null
+                $x86Path = Join-Path $extractionRoot 'bootstrap-x86.exe'
+                $x64Path = Join-Path $extractionRoot 'bootstrap-x64.exe'
+                $proxyPath = Join-Path $extractionRoot 'version.dll'
+                Copy-ArchiveEntryExact -Entry $entries[$x86Name] `
+                    -Destination $x86Path
+                Copy-ArchiveEntryExact -Entry $entries[$x64Name] `
+                    -Destination $x64Path
+                Copy-ArchiveEntryExact -Entry $entries[$proxyNames[0]] `
+                    -Destination $proxyPath
+                return [pscustomobject]@{
+                    ArchivePath = $fullPath
+                    ArchiveSha256 = $archiveHash
+                    ExtractionRoot = $extractionRoot
+                    X86Path = $x86Path
+                    X64Path = $x64Path
+                    ProxyPath = $proxyPath
+                    X86Entry = $x86Name
+                    X64Entry = $x64Name
+                    ProxyEntry = $proxyNames[0]
+                    VersionProxyEntries = $proxyEvidence
+                }
+            }
+            finally { $zip.Dispose() }
+        }
+        finally { $stream.Dispose() }
+    }
+    catch {
+        Remove-ValidatedArchiveExtractionRoot -Path $extractionRoot
+        throw
+    }
+}
+$archiveBinding = $null
+$archiveExtractionRoot = $null
+try {
+    if (-not [string]::IsNullOrWhiteSpace($ArchivePath)) {
+        $archiveBinding = New-PortableArchiveBinding -Path $ArchivePath
+        $archiveExtractionRoot = $archiveBinding.ExtractionRoot
+        $X86BrokerPath = $archiveBinding.X86Path
+        $X64BrokerPath = $archiveBinding.X64Path
+        $ProxyPath = $archiveBinding.ProxyPath
+    }
 if ([string]::IsNullOrWhiteSpace($GhidraRoot)) {
     $installed = & (Join-Path $toolsRoot 'Install-PinnedGhidra.ps1')
     $GhidraRoot = [string]$installed.GhidraRoot
@@ -141,7 +288,8 @@ $ghidra = Assert-GhidraInstallation -Root $GhidraRoot
 foreach ($script in @(
     'BlindSoldierNativeEvidence.java',
     'BlindSoldierBootstrapEvidence.java',
-    'BlindSoldierVersionEvidence.java'
+    'BlindSoldierVersionEvidence.java',
+    'BlindSoldierVersionEvidenceRules.java'
 )) {
     $path = Join-Path $scriptDirectory $script
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
@@ -174,6 +322,7 @@ if ($expectedExports.Count -ne 17) {
 $specifications = New-Object 'System.Collections.Generic.List[object]'
 $specifications.Add([pscustomobject]@{
     Kind = 'bootstrap-x86'; ProgramPath = $X86BrokerPath
+    ArchiveEntry = $archiveBinding.X86Entry
     ExpectedMachine = 0x014C
     ScriptName = 'BlindSoldierBootstrapEvidence.java'
     RequiredEvidence = @(
@@ -183,6 +332,7 @@ $specifications.Add([pscustomobject]@{
 })
 $specifications.Add([pscustomobject]@{
     Kind = 'bootstrap-x64'; ProgramPath = $X64BrokerPath
+    ArchiveEntry = $archiveBinding.X64Entry
     ExpectedMachine = 0x8664
     ScriptName = 'BlindSoldierBootstrapEvidence.java'
     RequiredEvidence = @(
@@ -192,12 +342,15 @@ $specifications.Add([pscustomobject]@{
 })
 $specifications.Add([pscustomobject]@{
     Kind = 'version-proxy'; ProgramPath = $ProxyPath
+    ArchiveEntry = $archiveBinding.ProxyEntry
     ExpectedMachine = 0x014C
     ScriptName = 'BlindSoldierVersionEvidence.java'
     RequiredEvidence = @(
-        'SystemVersionLoad','HardenedVersionCache',
-        'AppLoaderSignatureFiles','OrderedAppLoaderMarkers',
-        'AppLoaderTimeout120000','HostRootGuards','WorkerAndBroker',
+        'SystemVersionLoaderCluster','VersionCacheValidationCluster',
+        'AppLoaderSignatureCluster','AppLoaderMarkerParser',
+        'AppLoaderTimeoutStateCluster','SupportedHostNameValidation',
+        'PackageRootBoundaryValidation',
+        'VersionWorkerAndPortableBrokerPrimitives',
         'NoWinmmForwardingSurface','NoEmbeddedExternalRuntime')
 })
 foreach ($hostPath in @($HostPaths)) {
@@ -209,6 +362,7 @@ foreach ($hostPath in @($HostPaths)) {
     $specifications.Add([pscustomobject]@{
         Kind = if ($machine -eq 0x014C) { 'host-x86' } else { 'host-x64' }
         ProgramPath = $hostPath
+        ArchiveEntry = $null
         ExpectedMachine = $machine
         ScriptName = 'BlindSoldierNativeEvidence.java'
         RequiredEvidence = @('HostIdentity')
@@ -243,6 +397,10 @@ foreach ($specification in $specifications) {
         LogPath = $logPath
         AnalyzeHeadlessPath = [string]$ghidra.AnalyzeHeadless
         GhidraRoot = [string]$ghidra.Root
+        ArchiveEntry = [string]$specification.ArchiveEntry
+        PortableArchiveSha256 = if ($null -eq $archiveBinding) {
+            $null
+        } else { [string]$archiveBinding.ArchiveSha256 }
     }
     if ($null -ne $AnalysisInvoker) {
         $invocation = & $AnalysisInvoker $request
@@ -304,7 +462,16 @@ foreach ($specification in $specifications) {
     catch { throw "Ghidra evidence report is invalid JSON: $reportPath. Log: $logPath" }
     Assert-EvidenceRecord -Request $request -Evidence $evidence `
         -ExpectedExports $expectedExports
-    $evidence.program = $request.ProgramPath
+    $programIdentity = if ([string]::IsNullOrWhiteSpace(
+            $request.ArchiveEntry)) {
+        $request.ProgramPath
+    }
+    else { "$($archiveBinding.ArchivePath)!/$($request.ArchiveEntry)" }
+    $evidence.program = $programIdentity
+    $evidence | Add-Member -NotePropertyName archiveEntry `
+        -NotePropertyValue $request.ArchiveEntry -Force
+    $evidence | Add-Member -NotePropertyName portableArchiveSha256 `
+        -NotePropertyValue $request.PortableArchiveSha256 -Force
     [IO.File]::WriteAllText($reportPath,
         ($evidence | ConvertTo-Json -Depth 16),
         [Text.UTF8Encoding]::new($false))
@@ -313,9 +480,15 @@ foreach ($specification in $specifications) {
 
 $summaryPath = Join-Path $OutputDirectory 'summary.json'
 $summary = [ordered]@{
-    schemaVersion = 1
+    schemaVersion = 2
     marker = 'BLIND_SOLDIER_GHIDRA_VERIFICATION'
     ghidraArchiveSha256 = $pinnedDigest
+    portableArchiveSha256 = if ($null -eq $archiveBinding) {
+        $null
+    } else { $archiveBinding.ArchiveSha256 }
+    versionProxyEntries = if ($null -eq $archiveBinding) {
+        @()
+    } else { @($archiveBinding.VersionProxyEntries) }
     verificationSucceeded = $true
     evidence = @($records.ToArray())
 }
@@ -326,6 +499,16 @@ $summary = [ordered]@{
     VerificationSucceeded = $true
     GhidraRoot = [string]$ghidra.Root
     GhidraArchiveSha256 = $pinnedDigest
+    PortableArchiveSha256 = if ($null -eq $archiveBinding) {
+        $null
+    } else { $archiveBinding.ArchiveSha256 }
+    VersionProxyEntries = if ($null -eq $archiveBinding) {
+        @()
+    } else { @($archiveBinding.VersionProxyEntries) }
     SummaryPath = $summaryPath
     Evidence = $records.ToArray()
+}
+}
+finally {
+    Remove-ValidatedArchiveExtractionRoot -Path $archiveExtractionRoot
 }

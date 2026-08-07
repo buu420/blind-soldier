@@ -24,9 +24,10 @@ is not tied to one particular screen reader.
   managed by 7th Heaven, not by Blind Soldier.
 
 **Final Fantasy VII is the only software a native Steam player must install first.**
-Players using legacy x86 through 7th Heaven need a normal official or source 7th
-Heaven installation, which owns its FFNx runtime. The portable ZIP contains
-Reloaded-II, Reloaded Shared Hooks, Prism, and private x86 and x64 .NET runtimes.
+Players using legacy x86 through 7th Heaven need the official stable 7th Heaven
+4.5.2 release, which owns its FFNx runtime. The portable ZIP contains Reloaded-II,
+Reloaded Shared Hooks, Prism, and private x86 and x64 .NET runtimes. Development
+builds targeting .NET 10 are not part of this release's verified compatibility set.
 
 Blind Soldier contains separate x86 and x64 backends. Its bootstrap validates
 the legacy Steam 2013 runtime (`ff7_en.exe`), converted x86 runtime (`ff7.exe`),

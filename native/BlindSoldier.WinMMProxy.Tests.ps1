@@ -117,15 +117,15 @@ Describe 'Blind Soldier guarded x86 native proxies' {
         $forwardingWait.Value | Should Match 'kForwardingReadyTimeoutMilliseconds'
     }
 
-    It 'lets phase-specific readiness and broker deadlines govern' {
+    It 'uses the mode-specific outer bootstrap wait budget' {
         $stateSource = [IO.File]::ReadAllText($proxyStateSource)
         $portableWait = [regex]::Match($stateSource,
             '(?s)void WaitForPortableBootstrap\(\).*?\n}\n\n}  // namespace blind_soldier')
         $portableWait.Success | Should Be $true
         $portableWait.Value | Should Match `
-            'WaitForSingleObject\(g_workerFinished,\s*INFINITE\)'
+            '(?s)WaitForSingleObject\(g_workerFinished,\s*PortableBootstrapWaitMilliseconds\(\s*g_requireStockRuntimeReadiness\s*\)\)'
         $portableWait.Value | Should Not Match `
-            'kStockRuntimeReadinessTimeoutMilliseconds\s*\+|waitMilliseconds|151000'
+            'kStockRuntimeReadinessTimeoutMilliseconds\s*\+|151000'
     }
 
     It 'locks every named and ordinal-only export of the observed system WinMM' {

@@ -490,7 +490,7 @@ Supported layouts
 - Legacy or converted x86: extract beside ff7_en.exe or ff7.exe. The matching .local\version.dll forwards the game's normal Version APIs and starts accessibility.
 - 7th Heaven nested x86: extract at the Steam 2026 root. The copies under ff7\workingdir support 7th Heaven's converted game layout.
 
-Official 7th Heaven manages its own FFNx installation. Blind Soldier coexists with a normal official or source 7th Heaven install and does not ship, replace, or overwrite any FFNx file.
+Official stable 7th Heaven manages its own FFNx installation; this release is verified against 7th Heaven 4.5.2. Blind Soldier coexists without shipping, replacing, or overwriting any FFNx file. Development builds targeting .NET 10 are outside this release's verified compatibility set.
 This ZIP contains only manifest-owned Blind Soldier files.
 
 Do not replace an existing executable-local version.dll unless it belongs to Blind Soldier. Move an unknown file aside first so it can be restored. If FFNx redirects the system Version library back to the proxy, Blind Soldier privately caches a byte-for-byte copy of this machine's own Windows version library under Local AppData and loads that distinct copy; no Windows binary is shipped in the ZIP.

@@ -4,6 +4,12 @@ $toolsRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoRoot = Split-Path -Parent $toolsRoot
 $installerPath = Join-Path $toolsRoot 'Install-PinnedGhidra.ps1'
 $verifierPath = Join-Path $toolsRoot 'Invoke-BlindSoldierGhidraVerification.ps1'
+$versionCollectorPath = Join-Path $repoRoot `
+    'analysis\ghidra\BlindSoldierVersionEvidence.java'
+$versionRulesPath = Join-Path $repoRoot `
+    'analysis\ghidra\BlindSoldierVersionEvidenceRules.java'
+$versionRulesTestPath = Join-Path $repoRoot `
+    'analysis\ghidra\BlindSoldierVersionEvidenceRules.Tests.java'
 $expectedVersionExports = @(
     @{ordinal=1;name='GetFileVersionInfoA';noname=$false},
     @{ordinal=2;name='GetFileVersionInfoByHandle';noname=$false},
@@ -23,6 +29,12 @@ $expectedVersionExports = @(
     @{ordinal=16;name='VerQueryValueA';noname=$false},
     @{ordinal=17;name='VerQueryValueW';noname=$false}
 )
+$expectedArchiveEntries = @(
+    'ff7_en.exe.local/version.dll','ff7.exe.local/version.dll',
+    'ff7/workingdir/ff7_en.exe.local/version.dll',
+    'ff7/workingdir/ff7.exe.local/version.dll',
+    'Blind-Soldier/Bootstrap/x86/Blind-Soldier-Bootstrap-x86.exe',
+    'Blind-Soldier/Bootstrap/x64/Blind-Soldier-Bootstrap-x64.exe')
 $pinnedDigest = 'B62E81A0390618466C019C60D8C2F796CED2509C4C1AEA4A37644A77272CF99D'
 
 function Assert-True {
@@ -109,11 +121,51 @@ function New-EvidenceFixture {
     }
 }
 
+function New-EvidenceArchive {
+    param(
+        [string] $Path,
+        [psobject] $Fixture,
+        [switch] $DivergentProxy,
+        [switch] $AliasedProxy
+    )
+    Add-Type -AssemblyName System.IO.Compression
+    $stream = [IO.File]::Open($Path, [IO.FileMode]::CreateNew)
+    try {
+        $zip = [IO.Compression.ZipArchive]::new($stream,
+            [IO.Compression.ZipArchiveMode]::Create, $true)
+        try {
+            foreach ($name in $expectedArchiveEntries) {
+                $source = if ($name -like '*Bootstrap/x86/*') { $Fixture.X86 }
+                    elseif ($name -like '*Bootstrap/x64/*') { $Fixture.X64 }
+                    else { $Fixture.Proxy }
+                $bytes = [IO.File]::ReadAllBytes($source)
+                if ($DivergentProxy -and $name -ceq
+                        'ff7/workingdir/ff7.exe.local/version.dll') {
+                    $bytes[0x100] = $bytes[0x100] -bxor 0x5A
+                }
+                $entry = $zip.CreateEntry($name)
+                $target = $entry.Open()
+                try { $target.Write($bytes, 0, $bytes.Length) }
+                finally { $target.Dispose() }
+            }
+            if ($AliasedProxy) {
+                $bytes = [IO.File]::ReadAllBytes($Fixture.Proxy)
+                $entry = $zip.CreateEntry('FF7_EN.EXE.LOCAL\version.dll')
+                $target = $entry.Open()
+                try { $target.Write($bytes, 0, $bytes.Length) }
+                finally { $target.Dispose() }
+            }
+        }
+        finally { $zip.Dispose() }
+    }
+    finally { $stream.Dispose() }
+}
 function New-EvidenceInvoker {
     param(
         [ValidateSet('Good','MissingMarker','RegistryForbidden',
             'MissingRequired','IncompleteExports','ProxyRemoteInjection')]
-        [string] $Mode = 'Good'
+        [string] $Mode = 'Good',
+        [System.Collections.Generic.List[object]] $Requests
     )
     $versionExports = @($expectedVersionExports | ForEach-Object {
         [pscustomobject]@{
@@ -124,6 +176,7 @@ function New-EvidenceInvoker {
     })
     return {
         param($Request)
+        if ($null -ne $Requests) { $Requests.Add($Request) }
         $requiredNames = if ($Request.Kind -ceq 'bootstrap-x86') {
             @('OpenProcess','QueryFullProcessImageNameW','VirtualAllocEx',
                 'WriteProcessMemory','CreateRemoteThread','LoadLibraryW',
@@ -135,9 +188,11 @@ function New-EvidenceInvoker {
                 'MoveFileExW','ResumeThread','PrivateRuntime')
         }
         elseif ($Request.Kind -ceq 'version-proxy') {
-            @('SystemVersionLoad','HardenedVersionCache',
-                'AppLoaderSignatureFiles','OrderedAppLoaderMarkers',
-                'AppLoaderTimeout120000','HostRootGuards','WorkerAndBroker',
+            @('SystemVersionLoaderCluster','VersionCacheValidationCluster',
+                'AppLoaderSignatureCluster','AppLoaderMarkerParser',
+                'AppLoaderTimeoutStateCluster','SupportedHostNameValidation',
+                'PackageRootBoundaryValidation',
+                'VersionWorkerAndPortableBrokerPrimitives',
                 'NoWinmmForwardingSurface','NoEmbeddedExternalRuntime')
         }
         else { @('HostIdentity') }
@@ -161,7 +216,7 @@ function New-EvidenceInvoker {
         }
         if ($Mode -ceq 'MissingRequired' -and
             $Request.Kind -ceq 'version-proxy') {
-            $required['OrderedAppLoaderMarkers'] = $false
+            $required['AppLoaderMarkerParser'] = $false
         }
         if ($Mode -ceq 'IncompleteExports' -and
             $Request.Kind -ceq 'version-proxy') {
@@ -193,11 +248,50 @@ foreach ($requiredFile in @($installerPath, $verifierPath)) {
     Assert-True (Test-Path -LiteralPath $requiredFile -PathType Leaf) `
         "Required Ghidra tool is missing: $requiredFile"
 }
+foreach ($requiredRuleFile in @($versionCollectorPath, $versionRulesPath,
+        $versionRulesTestPath)) {
+    Assert-True (Test-Path -LiteralPath $requiredRuleFile -PathType Leaf) `
+        "Required Version evidence rule source is missing: $requiredRuleFile"
+}
+
+$collectorSource = [IO.File]::ReadAllText($versionCollectorPath)
+Assert-True ($collectorSource -match 'getDefaultAddressSpace\(\)') `
+    'Version evidence collector does not resolve the default address space.'
+Assert-True ($collectorSource -match (
+    '(?s)object\s+instanceof\s+Scalar.*?getUnsignedValue\(\).*?' +
+    'defaultSpace\.getAddress\(value\).*?getBlock\(candidate\).*?' +
+    'block\.isInitialized\(\).*?targetAddresses\.add\(candidate\)')) `
+    ('Version evidence collector does not map absolute scalar operands only ' +
+        'into initialized memory.')
+Assert-True ($collectorSource -match 'PartitionCodeSubModel' -and
+    $collectorSource -match 'resolveSyntheticFunctionFacts') `
+    ('Version evidence collector does not assign decoded orphan instructions ' +
+        'to recovered subroutines.')
+Assert-True ($collectorSource -notmatch
+    'BLIND_SOLDIER_(?:WORKER|OPERAND)_WITNESS') `
+    'Temporary Version evidence witness output remains in production.'
 
 $testRoot = Join-Path ([IO.Path]::GetTempPath()) `
     ('blind-soldier-ghidra-tests-' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $testRoot | Out-Null
 try {
+    $javaClasses = Join-Path $testRoot 'java-classes'
+    New-Item -ItemType Directory -Path $javaClasses | Out-Null
+    $javac = @(Get-Command javac.exe -CommandType Application `
+        -ErrorAction Stop)[0].Source
+    $java = (Get-Command java.exe -CommandType Application `
+        -ErrorAction Stop)[0].Source
+    $compileOutput = @(& $javac -encoding UTF-8 -d $javaClasses `
+        $versionRulesPath $versionRulesTestPath 2>&1 |
+        ForEach-Object { [string]$_ })
+    Assert-True ($LASTEXITCODE -eq 0) `
+        "Version evidence Java rules did not compile: $($compileOutput -join '; ')"
+    $ruleOutput = @(& $java -cp $javaClasses `
+        BlindSoldierVersionEvidenceRulesTests 2>&1 |
+        ForEach-Object { [string]$_ })
+    Assert-True ($LASTEXITCODE -eq 0) `
+        "Version evidence Java predicates failed: $($ruleOutput -join '; ')"
+
     $archive = Join-Path $testRoot 'fixture-ghidra.zip'
     New-TestGhidraArchive -Path $archive
     $archiveDigest = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash
@@ -217,6 +311,61 @@ try {
 
     $fixture = New-EvidenceFixture -Root (Join-Path $testRoot 'wrapper')
     $goodInvoker = New-EvidenceInvoker -Mode Good
+    $archivePath = Join-Path $testRoot 'bound-portable.zip'
+    New-EvidenceArchive -Path $archivePath -Fixture $fixture
+    $archiveHash = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash
+    $archiveRequests = New-Object 'System.Collections.Generic.List[object]'
+    $archiveInvoker = New-EvidenceInvoker -Mode Good -Requests $archiveRequests
+    $archiveOutput = Join-Path $testRoot 'archive-evidence'
+    $archiveResult = & $verifierPath -GhidraRoot $fixture.GhidraRoot `
+        -ArchivePath $archivePath -OutputDirectory $archiveOutput `
+        -AnalysisInvoker $archiveInvoker
+    Assert-True ($archiveResult.PortableArchiveSha256 -ceq $archiveHash) `
+        'Archive-bound verification returned the wrong archive digest.'
+    Assert-True ($archiveRequests.Count -eq 3) `
+        'Archive-bound verification did not analyze exactly two brokers and one proxy.'
+    Assert-True ((@($archiveRequests.ArchiveEntry | Sort-Object) -join '|') -ceq
+        ((@('Blind-Soldier/Bootstrap/x64/Blind-Soldier-Bootstrap-x64.exe',
+            'Blind-Soldier/Bootstrap/x86/Blind-Soldier-Bootstrap-x86.exe',
+            'ff7_en.exe.local/version.dll') | Sort-Object) -join '|')) `
+        'Archive-bound verification analyzed the wrong package entries.'
+    foreach ($request in $archiveRequests) {
+        Assert-True (-not (Test-Path -LiteralPath $request.ProgramPath)) `
+            'Archive extraction was not cleaned after Ghidra analysis.'
+    }
+    $archiveVersion = @($archiveResult.Evidence | Where-Object {
+        $_.kind -ceq 'version-proxy'
+    })[0]
+    Assert-True ($archiveVersion.archiveEntry -ceq
+        'ff7_en.exe.local/version.dll') `
+        'Version evidence is not bound to its package entry.'
+    $summary = [IO.File]::ReadAllText((Join-Path $archiveOutput 'summary.json')) |
+        ConvertFrom-Json
+    Assert-True ($summary.portableArchiveSha256 -ceq $archiveHash) `
+        'Ghidra summary is not bound to the portable archive digest.'
+    Assert-True (@($summary.versionProxyEntries).Count -eq 4) `
+        'Ghidra summary did not record all four packaged Version proxies.'
+    Assert-True (@($summary.versionProxyEntries.sha256 | Select-Object -Unique).Count -eq 1) `
+        'Ghidra summary did not prove identical Version proxy bytes.'
+
+    $divergentArchive = Join-Path $testRoot 'divergent-portable.zip'
+    New-EvidenceArchive -Path $divergentArchive -Fixture $fixture -DivergentProxy
+    Assert-ThrowsLike -Name 'divergent packaged Version proxies' `
+        -Pattern 'Version proxy entries.*byte-identical' -Action {
+            & $verifierPath -GhidraRoot $fixture.GhidraRoot `
+                -ArchivePath $divergentArchive `
+                -OutputDirectory (Join-Path $testRoot 'divergent-evidence') `
+                -AnalysisInvoker $goodInvoker
+        }
+    $aliasedArchive = Join-Path $testRoot 'aliased-portable.zip'
+    New-EvidenceArchive -Path $aliasedArchive -Fixture $fixture -AliasedProxy
+    Assert-ThrowsLike -Name 'case or slash aliased packaged Version proxy' `
+        -Pattern 'duplicate|case-aliased' -Action {
+            & $verifierPath -GhidraRoot $fixture.GhidraRoot `
+                -ArchivePath $aliasedArchive `
+                -OutputDirectory (Join-Path $testRoot 'aliased-evidence') `
+                -AnalysisInvoker $goodInvoker
+        }
     Assert-ThrowsLike -Name 'missing program' -Pattern 'program.*unavailable' `
         -Action {
             & $verifierPath -GhidraRoot $fixture.GhidraRoot `
@@ -245,8 +394,8 @@ try {
         }
 
     $missingRequiredInvoker = New-EvidenceInvoker -Mode MissingRequired
-    Assert-ThrowsLike -Name 'missing ordered AppLoader markers' `
-        -Pattern 'OrderedAppLoaderMarkers' -Action {
+    Assert-ThrowsLike -Name 'missing AppLoader marker parser evidence' `
+        -Pattern 'AppLoaderMarkerParser' -Action {
             & $verifierPath -GhidraRoot $fixture.GhidraRoot `
                 -X86BrokerPath $fixture.X86 -X64BrokerPath $fixture.X64 `
                 -ProxyPath $fixture.Proxy -OutputDirectory $fixture.Output `
@@ -296,6 +445,11 @@ try {
             "$kind lost its expected remote-injection evidence."
     }
 
+    Write-Host 'PASS: collector maps absolute scalar operands only into initialized memory'
+    Write-Host 'PASS: Java fixtures exercise relational Version evidence rules'
+    Write-Host 'PASS: Ghidra evidence is bound to the exact portable archive'
+    Write-Host 'PASS: wrapper rejects divergent packaged Version proxies'
+    Write-Host 'PASS: wrapper rejects aliased packaged Version proxies'
     Write-Host 'PASS: pinned acquisition rejects a wrong archive digest'
     Write-Host 'PASS: pinned acquisition rejects missing 64-bit Java 21'
     Write-Host 'PASS: wrapper rejects a missing program'

@@ -7,15 +7,19 @@ import java.nio.file.AccessMode;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.Deque;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 
 import ghidra.app.script.GhidraScript;
 import ghidra.app.util.bin.FileByteProvider;
@@ -27,20 +31,38 @@ import ghidra.app.util.bin.format.pe.NTHeader;
 import ghidra.app.util.bin.format.pe.OptionalHeader;
 import ghidra.app.util.bin.format.pe.PortableExecutable;
 import ghidra.app.util.bin.format.pe.PortableExecutable.SectionLayout;
+import ghidra.program.model.block.CodeBlock;
+import ghidra.program.model.block.PartitionCodeSubModel;
+import ghidra.program.model.address.Address;
+import ghidra.program.model.address.AddressOutOfBoundsException;
+import ghidra.program.model.address.AddressSpace;
 import ghidra.program.model.listing.Data;
 import ghidra.program.model.listing.DataIterator;
 import ghidra.program.model.listing.Instruction;
 import ghidra.program.model.listing.InstructionIterator;
+import ghidra.program.model.listing.Function;
+import ghidra.program.model.listing.FunctionIterator;
+import ghidra.program.model.listing.FunctionManager;
+import ghidra.program.model.listing.Listing;
 import ghidra.program.model.scalar.Scalar;
+import ghidra.program.model.mem.Memory;
+import ghidra.program.model.mem.MemoryBlock;
+import ghidra.program.model.symbol.Reference;
+import ghidra.program.model.symbol.ReferenceIterator;
+import ghidra.program.model.symbol.ReferenceManager;
 import ghidra.program.model.symbol.Symbol;
 import ghidra.program.model.symbol.SymbolIterator;
+import ghidra.program.model.symbol.SymbolTable;
 
 public class BlindSoldierVersionEvidence extends GhidraScript {
-    private static final String[] FORBIDDEN = {
-        "RegCreateKeyEx", "RegSetValue", "Image File Execution Options",
-        "Debugger", "/install", "/uninstall",
-        "VirtualAllocEx", "WriteProcessMemory", "CreateRemoteThread"
+    private static final String[] BEHAVIORAL_FORBIDDEN = {
+        "Image File Execution Options", "Debugger", "/install", "/uninstall"
     };
+    private static final String[] WORKER_WIDE_EVIDENCE = {
+        "Local\\BlindSoldier.Ready.", "CreateProcessW(x86 accessibility broker)",
+        "x86 broker started: "
+    };
+    private static final int BACK_REFERENCE_DEPTH = 2;
 
     @Override
     public void run() throws Exception {
@@ -58,53 +80,21 @@ public class BlindSoldierVersionEvidence extends GhidraScript {
         File executable = new File(currentProgram.getExecutablePath());
         byte[] bytes = Files.readAllBytes(executable.toPath());
         PeEvidence pe = readPe(executable);
-        Set<String> evidence = collectEvidence(bytes);
-
-        LinkedHashMap<String, Boolean> required = new LinkedHashMap<>();
-        required.put("SystemVersionLoad",
-            contains(evidence, "GetSystemDirectoryW") &&
-            contains(evidence, "version.dll") &&
-            contains(evidence, "LoadLibraryW") &&
-            contains(evidence, "LoadLibraryExW"));
-        required.put("HardenedVersionCache",
-            contains(evidence, "version-system-x86-") &&
-            contains(evidence, "NativeCache") &&
-            contains(evidence, "MoveFileExW") &&
-            contains(evidence, "BCryptCreateHash") &&
-            contains(evidence, "BCryptHashData"));
-        required.put("AppLoaderSignatureFiles",
-            contains(evidence, "dinput.dll") &&
-            contains(evidence, "AppProxy.runtimeconfig.json") &&
-            contains(evidence, "AppProxy.dll") &&
-            contains(evidence, "AppWrapper.dll") &&
-            contains(evidence, "nethost.dll"));
-        required.put("OrderedAppLoaderMarkers",
-            contains(evidence, "AppLoader init log") &&
-            contains(evidence, "AppLoader started successfully") &&
-            contains(evidence, "waiting-for-success") &&
-            contains(evidence, "ready-seventh-heaven"));
-        required.put("AppLoaderTimeout120000", containsScalar(120000L));
-        required.put("HostRootGuards",
-            contains(evidence, "ff7_en.exe") &&
-            contains(evidence, "ff7.exe") &&
-            contains(evidence, "within four parent directories"));
-        required.put("WorkerAndBroker",
-            contains(evidence, "CreateThread") &&
-            contains(evidence, "CreateProcessW") &&
-            contains(evidence, "Blind-Soldier-Bootstrap-x86.exe") &&
-            contains(evidence, "Local\\BlindSoldier.Ready."));
-        required.put("NoWinmmForwardingSurface",
-            !contains(evidence, "GetSystemWow64DirectoryW") &&
-            !hasWinmmExport(pe.exports));
-        required.put("NoEmbeddedExternalRuntime",
-            !hasNestedPortableExecutable(bytes) && !hasZipArchive(bytes));
-
-        List<String> forbidden = new ArrayList<>();
-        for (String name : FORBIDDEN) {
-            boolean found = name.equals("Debugger")
-                ? containsExact(evidence, name) : contains(evidence, name);
-            if (found) forbidden.add(name);
+        BlindSoldierVersionEvidenceRules.ProgramFacts facts =
+            collectFacts(bytes, pe.exports);
+        LinkedHashMap<String, Boolean> required =
+            BlindSoldierVersionEvidenceRules.evaluate(facts);
+        List<String> forbidden = new ArrayList<>(
+            BlindSoldierVersionEvidenceRules.forbiddenImports(facts));
+        Set<String> raw = new LinkedHashSet<>();
+        addRawStrings(raw, bytes, false);
+        addRawStrings(raw, bytes, true);
+        for (String marker : BEHAVIORAL_FORBIDDEN) {
+            boolean found = marker.equals("Debugger")
+                ? containsRawExact(raw, marker) : containsRaw(raw, marker);
+            if (found && !forbidden.contains(marker)) forbidden.add(marker);
         }
+        forbidden.sort(String.CASE_INSENSITIVE_ORDER);
 
         writeReport(report, kind, executable, pe.machine, required, forbidden,
             pe.exports);
@@ -116,49 +106,408 @@ public class BlindSoldierVersionEvidence extends GhidraScript {
         }
     }
 
-    private Set<String> collectEvidence(byte[] bytes) throws Exception {
-        Set<String> result = new LinkedHashSet<>();
-        SymbolIterator symbols =
-            currentProgram.getSymbolTable().getAllSymbols(true);
-        while (symbols.hasNext()) {
+    private BlindSoldierVersionEvidenceRules.ProgramFacts collectFacts(
+            byte[] bytes, List<ExportInfo> exports) throws Exception {
+        BlindSoldierVersionEvidenceRules.ProgramFacts facts =
+            new BlindSoldierVersionEvidenceRules.ProgramFacts()
+                .nestedPortableExecutable(hasNestedPortableExecutable(bytes))
+                .zipArchive(hasZipArchive(bytes));
+        for (ExportInfo item : exports) {
+            if (item.getName() != null) facts.exportName(item.getName());
+        }
+
+        FunctionManager functionManager = currentProgram.getFunctionManager();
+        Listing listing = currentProgram.getListing();
+        ReferenceManager references = currentProgram.getReferenceManager();
+        SymbolTable symbols = currentProgram.getSymbolTable();
+        Map<Address, Function> functions = new LinkedHashMap<>();
+        Map<Address, BlindSoldierVersionEvidenceRules.FunctionFacts> byEntry =
+            new LinkedHashMap<>();
+        FunctionIterator functionIterator = functionManager.getFunctions(true);
+        while (functionIterator.hasNext()) {
             monitor.checkCancelled();
-            Symbol symbol = symbols.next();
-            result.add(symbol.getName());
-            if (symbol.getParentNamespace() != null) {
-                result.add(symbol.getParentNamespace().getName() + "!" +
-                    symbol.getName());
+            Function function = functionIterator.next();
+            if (function.isExternal()) continue;
+            BlindSoldierVersionEvidenceRules.FunctionFacts functionFacts =
+                new BlindSoldierVersionEvidenceRules.FunctionFacts(
+                    functionId(function));
+            functions.put(function.getEntryPoint(), function);
+            byEntry.put(function.getEntryPoint(), functionFacts);
+            facts.function(functionFacts);
+        }
+
+        Set<String> importNames = new LinkedHashSet<>();
+        SymbolIterator externalSymbols = symbols.getExternalSymbols();
+        while (externalSymbols.hasNext()) {
+            monitor.checkCancelled();
+            Symbol symbol = externalSymbols.next();
+            String name = BlindSoldierVersionEvidenceRules.normalizeSymbol(
+                symbol.getName());
+            facts.importName(name);
+            importNames.add(name);
+            walkBackReferences(symbol.getAddress(), functionManager, byEntry,
+                references, value -> value.symbol(name));
+        }
+        FunctionIterator externalFunctions = functionManager.getExternalFunctions();
+        while (externalFunctions.hasNext()) {
+            monitor.checkCancelled();
+            String name = BlindSoldierVersionEvidenceRules.normalizeSymbol(
+                externalFunctions.next().getName());
+            facts.importName(name);
+            importNames.add(name);
+        }
+        attachImportedSymbolBackReferences(importNames, functionManager,
+            byEntry, references, symbols);
+        attachTargetedUtf16StringBackReferences(functionManager, byEntry,
+            references);
+
+        for (Map.Entry<Address, Function> item : functions.entrySet()) {
+            monitor.checkCancelled();
+            Function function = item.getValue();
+            String targetId = functionId(function);
+            walkBackReferences(item.getKey(), functionManager, byEntry,
+                references, value -> value.calls(targetId));
+            BlindSoldierVersionEvidenceRules.FunctionFacts functionFacts =
+                byEntry.get(item.getKey());
+            for (Function called : function.getCalledFunctions(monitor)) {
+                Function thunk = called.getThunkedFunction(true);
+                if (called.isExternal()) {
+                    functionFacts.symbol(called.getName());
+                }
+                else {
+                    functionFacts.calls(functionId(called));
+                }
+                if (thunk != null && thunk.isExternal()) {
+                    functionFacts.symbol(thunk.getName());
+                }
             }
         }
-        DataIterator data = currentProgram.getListing().getDefinedData(true);
-        while (data.hasNext()) {
-            monitor.checkCancelled();
-            Data item = data.next();
-            Object value = item.getValue();
-            if (value instanceof String) result.add((String)value);
-        }
-        addRawStrings(result, bytes, false);
-        addRawStrings(result, bytes, true);
-        return result;
-    }
 
-    private boolean containsScalar(long value) throws Exception {
-        InstructionIterator instructions =
-            currentProgram.getListing().getInstructions(true);
+        Memory instructionMemory = currentProgram.getMemory();
+        AddressSpace defaultSpace = currentProgram.getAddressFactory()
+            .getDefaultAddressSpace();
+        PartitionCodeSubModel subroutineModel =
+            new PartitionCodeSubModel(currentProgram, false);
+        Map<Address, BlindSoldierVersionEvidenceRules.FunctionFacts>
+            syntheticByStart = new LinkedHashMap<>();
+        InstructionIterator instructions = listing.getInstructions(true);
         while (instructions.hasNext()) {
             monitor.checkCancelled();
             Instruction instruction = instructions.next();
+            Function owner = functionManager.getFunctionContaining(
+                instruction.getAddress());
+            BlindSoldierVersionEvidenceRules.FunctionFacts functionFacts = null;
+            if (owner != null && !owner.isExternal()) {
+                functionFacts = byEntry.get(owner.getEntryPoint());
+            }
+            else {
+                functionFacts = resolveSyntheticFunctionFacts(
+                    instruction.getAddress(), subroutineModel,
+                    syntheticByStart, facts);
+            }
+            if (functionFacts == null) continue;
+            Set<Address> targetAddresses = new LinkedHashSet<>();
             for (int index = 0; index < instruction.getNumOperands(); ++index) {
                 for (Object object : instruction.getOpObjects(index)) {
-                    if (object instanceof Scalar &&
-                            ((Scalar)object).getUnsignedValue() == value) {
-                        return true;
+                    if (object instanceof Scalar) {
+                        Scalar scalar = (Scalar)object;
+                        long value = scalar.getUnsignedValue();
+                        functionFacts.scalar(value);
+                        try {
+                            Address candidate = defaultSpace.getAddress(value);
+                            MemoryBlock block = instructionMemory.getBlock(candidate);
+                            if (block != null && block.isInitialized()) {
+                                targetAddresses.add(candidate);
+                            }
+                        }
+                        catch (AddressOutOfBoundsException ignored) {
+                        }
+                    }
+                    else if (object instanceof Address) {
+                        targetAddresses.add((Address)object);
                     }
                 }
             }
+            for (Reference reference : references.getReferencesFrom(
+                    instruction.getAddress())) {
+                targetAddresses.add(reference.getToAddress());
+            }
+            for (Address targetAddress : targetAddresses) {
+                Function target = functionManager.getFunctionAt(targetAddress);
+                if (target == null) {
+                    target = functionManager.getFunctionContaining(targetAddress);
+                }
+                if (target != null) {
+                    Function thunk = target.getThunkedFunction(true);
+                    if (target.isExternal()) {
+                        functionFacts.symbol(target.getName());
+                    }
+                    else {
+                        functionFacts.calls(functionId(target));
+                    }
+                    if (thunk != null && thunk.isExternal()) {
+                        functionFacts.symbol(thunk.getName());
+                    }
+                }
+                else if (instruction.getFlowType().isCall()) {
+                    BlindSoldierVersionEvidenceRules.FunctionFacts syntheticTarget =
+                        resolveSyntheticFunctionFacts(targetAddress,
+                            subroutineModel, syntheticByStart, facts);
+                    if (syntheticTarget != null) {
+                        functionFacts.calls(syntheticTarget.id);
+                    }
+                }
+                for (Symbol symbol : symbols.getSymbols(targetAddress)) {
+                    String name = BlindSoldierVersionEvidenceRules.normalizeSymbol(
+                        symbol.getName());
+                    if (containsIgnoreCase(importNames, name)) {
+                        functionFacts.symbol(name);
+                    }
+                }
+                if (instruction.getFlowType().isCall()) {
+                    attachImportedCallTarget(targetAddress, importNames,
+                        functionManager, listing, references, symbols,
+                        functionFacts);
+                }
+                Data data = listing.getDefinedDataContaining(targetAddress);
+                if (data != null && data.getValue() instanceof String) {
+                    functionFacts.stringValue((String)data.getValue());
+                }
+                else {
+                    String decoded = readBoundedUtf16Le(targetAddress);
+                    if (decoded != null) functionFacts.stringValue(decoded);
+                }
+            }
+        }
+
+        DataIterator dataIterator = listing.getDefinedData(true);
+        while (dataIterator.hasNext()) {
+            monitor.checkCancelled();
+            Data data = dataIterator.next();
+            Object value = data.getValue();
+            if (value instanceof String) {
+                String stringValue = (String)value;
+                walkBackReferences(data.getAddress(), functionManager, byEntry,
+                    references, item -> item.stringValue(stringValue));
+            }
+        }
+        return facts;
+    }
+
+    private BlindSoldierVersionEvidenceRules.FunctionFacts
+            resolveSyntheticFunctionFacts(Address address,
+            PartitionCodeSubModel subroutineModel,
+            Map<Address, BlindSoldierVersionEvidenceRules.FunctionFacts>
+                syntheticByStart,
+            BlindSoldierVersionEvidenceRules.ProgramFacts facts)
+            throws Exception {
+        if (address == null || !address.isMemoryAddress()) return null;
+        CodeBlock block = subroutineModel.getFirstCodeBlockContaining(
+            address, monitor);
+        if (block == null) return null;
+        Address start = block.getFirstStartAddress();
+        if (start == null) return null;
+        BlindSoldierVersionEvidenceRules.FunctionFacts functionFacts =
+            syntheticByStart.get(start);
+        if (functionFacts == null) {
+            functionFacts = new BlindSoldierVersionEvidenceRules.FunctionFacts(
+                "subroutine:" + start);
+            syntheticByStart.put(start, functionFacts);
+            facts.function(functionFacts);
+        }
+        return functionFacts;
+    }
+
+    private void attachImportedSymbolBackReferences(Set<String> importNames,
+            FunctionManager functionManager,
+            Map<Address, BlindSoldierVersionEvidenceRules.FunctionFacts> byEntry,
+            ReferenceManager references, SymbolTable symbols) throws Exception {
+        SymbolIterator all = symbols.getAllSymbols(true);
+        while (all.hasNext()) {
+            monitor.checkCancelled();
+            Symbol symbol = all.next();
+            String imported = BlindSoldierVersionEvidenceRules.matchImportedSymbol(
+                symbol.getName(), importNames);
+            if (imported != null) {
+                walkBackReferences(symbol.getAddress(), functionManager, byEntry,
+                    references, value -> value.symbol(imported));
+            }
+        }
+    }
+
+    private void attachTargetedUtf16StringBackReferences(
+            FunctionManager functionManager,
+            Map<Address, BlindSoldierVersionEvidenceRules.FunctionFacts> byEntry,
+            ReferenceManager references) throws Exception {
+        Memory memory = currentProgram.getMemory();
+        for (String value : WORKER_WIDE_EVIDENCE) {
+            byte[] pattern = (value + "\0").getBytes(StandardCharsets.UTF_16LE);
+            for (MemoryBlock block : memory.getBlocks()) {
+                if (!block.isInitialized()) continue;
+                Address cursor = block.getStart();
+                while (cursor != null && block.contains(cursor)) {
+                    monitor.checkCancelled();
+                    Address found = memory.findBytes(cursor, block.getEnd(),
+                        pattern, null, true, monitor);
+                    if (found == null) break;
+                    walkBackReferences(found, functionManager, byEntry,
+                        references, item -> item.stringValue(value));
+                    Address next = found.next();
+                    if (next == null || !block.contains(next)) break;
+                    cursor = next;
+                }
+            }
+        }
+    }
+
+    private String readBoundedUtf16Le(Address start) {
+        if (start == null || !start.isMemoryAddress()) return null;
+        Memory memory = currentProgram.getMemory();
+        if (!memory.contains(start)) return null;
+        StringBuilder value = new StringBuilder();
+        try {
+            for (int index = 0; index < 512; ++index) {
+                Address lowAddress = start.add((long)index * 2L);
+                Address highAddress = lowAddress.add(1L);
+                if (!memory.contains(lowAddress) || !memory.contains(highAddress)) {
+                    return null;
+                }
+                int low = Byte.toUnsignedInt(memory.getByte(lowAddress));
+                int high = Byte.toUnsignedInt(memory.getByte(highAddress));
+                char character = (char)((high << 8) | low);
+                if (character == 0) {
+                    return value.length() >= 4 ? value.toString() : null;
+                }
+                if (Character.isISOControl(character) ||
+                        Character.isSurrogate(character) ||
+                        character == '\uffff') {
+                    return null;
+                }
+                value.append(character);
+            }
+        }
+        catch (Exception ignored) {
+            return null;
+        }
+        return null;
+    }
+
+    private void attachImportedCallTarget(Address target,
+            Set<String> importNames, FunctionManager functionManager,
+            Listing listing, ReferenceManager references, SymbolTable symbols,
+            BlindSoldierVersionEvidenceRules.FunctionFacts functionFacts) {
+        attachImportedAddress(target, importNames, functionManager, symbols,
+            functionFacts);
+        Data pointer = listing.getDefinedDataAt(target);
+        if (pointer != null) {
+            Object value = pointer.getValue();
+            if (value instanceof Address) {
+                attachImportedAddress((Address)value, importNames,
+                    functionManager, symbols, functionFacts);
+            }
+            for (Reference reference : pointer.getValueReferences()) {
+                attachImportedReference(reference, importNames,
+                    functionManager, symbols, functionFacts);
+            }
+        }
+        for (Reference reference : references.getReferencesFrom(target)) {
+            attachImportedReference(reference, importNames, functionManager,
+                symbols, functionFacts);
+        }
+    }
+
+    private void attachImportedReference(Reference reference,
+            Set<String> importNames, FunctionManager functionManager,
+            SymbolTable symbols,
+            BlindSoldierVersionEvidenceRules.FunctionFacts functionFacts) {
+        Symbol associated = symbols.getSymbol(reference);
+        if (associated != null) {
+            attachImportCandidate(associated.getName(), importNames,
+                functionFacts);
+        }
+        attachImportedAddress(reference.getToAddress(), importNames,
+            functionManager, symbols, functionFacts);
+    }
+
+    private void attachImportedAddress(Address address,
+            Set<String> importNames, FunctionManager functionManager,
+            SymbolTable symbols,
+            BlindSoldierVersionEvidenceRules.FunctionFacts functionFacts) {
+        if (address == null) return;
+        for (Symbol symbol : symbols.getSymbols(address)) {
+            attachImportCandidate(symbol.getName(), importNames, functionFacts);
+        }
+        Function target = functionManager.getFunctionAt(address);
+        if (target == null) target = functionManager.getFunctionContaining(address);
+        if (target == null) return;
+        attachImportCandidate(target.getName(), importNames, functionFacts);
+        Function thunk = target.getThunkedFunction(true);
+        if (thunk != null) {
+            attachImportCandidate(thunk.getName(), importNames, functionFacts);
+        }
+    }
+
+    private static void attachImportCandidate(String candidate,
+            Set<String> importNames,
+            BlindSoldierVersionEvidenceRules.FunctionFacts functionFacts) {
+        String imported = BlindSoldierVersionEvidenceRules.matchImportedSymbol(
+            candidate, importNames);
+        if (imported != null) functionFacts.symbol(imported);
+    }
+
+    private static String functionId(Function function) {
+        return function.getEntryPoint().toString();
+    }
+
+    private void walkBackReferences(Address target,
+            FunctionManager functionManager,
+            Map<Address, BlindSoldierVersionEvidenceRules.FunctionFacts> byEntry,
+            ReferenceManager references,
+            Consumer<BlindSoldierVersionEvidenceRules.FunctionFacts> sink)
+            throws Exception {
+        Deque<AddressDepth> pending = new ArrayDeque<>();
+        Set<Address> visited = new HashSet<>();
+        pending.addLast(new AddressDepth(target, 0));
+        while (!pending.isEmpty()) {
+            monitor.checkCancelled();
+            AddressDepth current = pending.removeFirst();
+            if (!visited.add(current.address)) continue;
+            ReferenceIterator iterator = references.getReferencesTo(
+                current.address);
+            while (iterator.hasNext()) {
+                monitor.checkCancelled();
+                Reference reference = iterator.next();
+                Address from = reference.getFromAddress();
+                Function owner = functionManager.getFunctionContaining(from);
+                if (owner != null && !owner.isExternal()) {
+                    BlindSoldierVersionEvidenceRules.FunctionFacts functionFacts =
+                        byEntry.get(owner.getEntryPoint());
+                    if (functionFacts != null) sink.accept(functionFacts);
+                }
+                else if (current.depth < BACK_REFERENCE_DEPTH &&
+                        from.isMemoryAddress()) {
+                    pending.addLast(new AddressDepth(from, current.depth + 1));
+                }
+            }
+        }
+    }
+
+    private static boolean containsIgnoreCase(Set<String> values, String value) {
+        for (String item : values) {
+            if (item.equalsIgnoreCase(value)) return true;
         }
         return false;
     }
 
+    private static final class AddressDepth {
+        final Address address;
+        final int depth;
+
+        AddressDepth(Address address, int depth) {
+            this.address = address;
+            this.depth = depth;
+        }
+    }
     private static void addRawStrings(Set<String> values, byte[] bytes,
                                       boolean wide) {
         int phases = wide ? 2 : 1;
@@ -178,23 +527,6 @@ public class BlindSoldierVersionEvidence extends GhidraScript {
             }
             if (current.length() >= 4) values.add(current.toString());
         }
-    }
-
-    private static boolean hasWinmmExport(List<ExportInfo> exports) {
-        for (ExportInfo item : exports) {
-            String name = item.getName();
-            if (name == null) continue;
-            String normalized = name.toLowerCase(Locale.ROOT);
-            if (normalized.startsWith("wave") ||
-                    normalized.startsWith("midi") ||
-                    normalized.startsWith("mixer") ||
-                    normalized.startsWith("joy") ||
-                    normalized.startsWith("timeget") ||
-                    normalized.startsWith("playsound")) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private static boolean hasNestedPortableExecutable(byte[] bytes) {
@@ -260,7 +592,7 @@ public class BlindSoldierVersionEvidence extends GhidraScript {
         }
     }
 
-    private static boolean contains(Set<String> values, String needle) {
+    private static boolean containsRaw(Set<String> values, String needle) {
         String normalized = needle.toLowerCase(Locale.ROOT);
         for (String value : values) {
             if (value != null &&
@@ -271,7 +603,7 @@ public class BlindSoldierVersionEvidence extends GhidraScript {
         return false;
     }
 
-    private static boolean containsExact(Set<String> values, String needle) {
+    private static boolean containsRawExact(Set<String> values, String needle) {
         for (String value : values) {
             if (value != null && value.equalsIgnoreCase(needle)) return true;
         }

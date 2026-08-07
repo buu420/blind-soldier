@@ -237,30 +237,6 @@ AppLoaderReadinessTracker::AppLoaderReadinessTracker(
 
 AppLoaderGateDecision AppLoaderReadinessTracker::Observe(
     const AppLoaderObservation& observation) {
-    seventhHeaven_ = seventhHeaven_ ||
-        observation.hostKind == SupportedHostKind::SevenHeavenX86 ||
-        observation.stockLoaderSignaturePresent ||
-        observation.recognizedFfnxModulePresent;
-
-    if (!observation.processAlive) {
-        return Decision(AppLoaderGateState::Failed, false, seventhHeaven_,
-                        L"The Final Fantasy VII process exited before readiness.");
-    }
-    if (observation.elapsedMilliseconds >= timeoutMilliseconds_) {
-        return Decision(AppLoaderGateState::Failed, false, seventhHeaven_,
-                        L"Timed out waiting for AppLoader readiness.");
-    }
-    if (!seventhHeaven_) {
-        if (observation.hostKind != SupportedHostKind::LegacyStockX86) {
-            return Decision(AppLoaderGateState::Failed, false, false,
-                            L"Unsupported host cannot use direct readiness.");
-        }
-        if (observation.elapsedMilliseconds < directDiscoveryMilliseconds_) {
-            return Decision(AppLoaderGateState::Discovering, false, false);
-        }
-        return Decision(AppLoaderGateState::ReadyDirect, true, false);
-    }
-
     bool sawCurrentInit = false;
     bool sawCurrentSuccess = false;
     size_t start = 0;
@@ -283,6 +259,30 @@ AppLoaderGateDecision AppLoaderReadinessTracker::Observe(
         }
         if (end == observation.appLoaderLog.size()) break;
         start = end + 1;
+    }
+
+    seventhHeaven_ = seventhHeaven_ ||
+        observation.stockLoaderSignaturePresent ||
+        observation.wrapperProfilePresent || sawCurrentInit;
+
+    if (!observation.processAlive) {
+        return Decision(AppLoaderGateState::Failed, false, seventhHeaven_,
+                        L"The Final Fantasy VII process exited before readiness.");
+    }
+    if (observation.elapsedMilliseconds >= timeoutMilliseconds_) {
+        return Decision(AppLoaderGateState::Failed, false, seventhHeaven_,
+                        L"Timed out waiting for AppLoader readiness.");
+    }
+    if (!seventhHeaven_) {
+        if (observation.hostKind != SupportedHostKind::LegacyStockX86 &&
+            observation.hostKind != SupportedHostKind::SevenHeavenX86) {
+            return Decision(AppLoaderGateState::Failed, false, false,
+                            L"Unsupported host cannot use direct readiness.");
+        }
+        if (observation.elapsedMilliseconds < directDiscoveryMilliseconds_) {
+            return Decision(AppLoaderGateState::Discovering, false, false);
+        }
+        return Decision(AppLoaderGateState::ReadyDirect, true, false);
     }
 
     if (!sawCurrentInit) {

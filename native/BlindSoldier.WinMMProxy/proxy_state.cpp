@@ -606,7 +606,9 @@ void WaitForPortableBootstrap() {
         InterlockedCompareExchange(&g_proxyState, 0, 0));
     if (state == ProxyBootstrapState::Pending) {
         const DWORD wait = g_workerFinished
-            ? WaitForSingleObject(g_workerFinished, INFINITE)
+            ? WaitForSingleObject(g_workerFinished,
+                PortableBootstrapWaitMilliseconds(
+                    g_requireStockRuntimeReadiness))
             : WAIT_FAILED;
         if (wait != WAIT_OBJECT_0) {
             InterlockedCompareExchange(

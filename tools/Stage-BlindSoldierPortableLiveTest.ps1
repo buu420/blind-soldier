@@ -554,6 +554,45 @@ function Assert-TargetPathSegments {
     return [IO.Path]::GetFullPath($current)
 }
 
+function New-PortableTargetParentDirectories {
+    param(
+        [string] $Root,
+        [string] $Relative,
+        [object] $CreatedDirectories,
+        [object] $CreatedDirectorySet
+    )
+    $requested = $Relative.Replace('\','/').Trim('/')
+    $parts = $requested.Split('/')
+    $parentRelative = ''
+    for ($index = 0; $index -lt $parts.Length - 1; $index++) {
+        $parentRelative = if ([string]::IsNullOrEmpty($parentRelative)) {
+            $parts[$index]
+        }
+        else { $parentRelative + '/' + $parts[$index] }
+        $directory = Assert-TargetPathSegments -Root $Root `
+            -Relative $parentRelative
+        if (Test-Path -LiteralPath $directory) {
+            if (-not (Test-Path -LiteralPath $directory -PathType Container)) {
+                throw "Portable overlay parent is not a directory: $directory"
+            }
+            continue
+        }
+        $createdItem = New-Item -ItemType Directory -Path $directory `
+            -ErrorAction Stop
+        $createdFull = [IO.Path]::GetFullPath($createdItem.FullName)
+        if ($CreatedDirectorySet.Add($createdFull)) {
+            $CreatedDirectories.Add($createdFull)
+        }
+        $validated = Assert-TargetPathSegments -Root $Root `
+            -Relative $parentRelative
+        if (-not $validated.Equals($createdFull,
+                [StringComparison]::OrdinalIgnoreCase) -or
+            -not (Test-Path -LiteralPath $validated -PathType Container)) {
+            throw "Portable overlay parent changed identity: $directory"
+        }
+    }
+    return Assert-TargetPathSegments -Root $Root -Relative $Relative
+}
 $archiveFull = [IO.Path]::GetFullPath($ArchivePath)
 $destinationFull = Assert-NotDriveRoot -Path $DestinationRoot `
     -Label 'DestinationRoot'
@@ -775,6 +814,11 @@ try {
     Assert-ExternalOwnershipUnchanged -Before $externalBefore `
         -After $externalBeforeCopy
     $applied = New-Object 'System.Collections.Generic.List[object]'
+    $createdDirectories = New-Object `
+        'System.Collections.Generic.List[string]'
+    $createdDirectorySet = New-Object `
+        'System.Collections.Generic.HashSet[string]' `
+        ([StringComparer]::OrdinalIgnoreCase)
     try {
         $copyCanonicalTargets = New-Object `
             'System.Collections.Generic.HashSet[string]' `
@@ -786,10 +830,10 @@ try {
             if (-not $copyCanonicalTargets.Add($target)) {
                 throw "Multiple portable members resolve to the same live destination: $($plan.RelativePath)"
             }
-            New-Item -ItemType Directory -Path (Split-Path -Parent $target) `
-                -Force | Out-Null
-            $target = Assert-TargetPathSegments -Root $destinationFull `
-                -Relative $plan.RelativePath
+            $target = New-PortableTargetParentDirectories `
+                -Root $destinationFull -Relative $plan.RelativePath `
+                -CreatedDirectories $createdDirectories `
+                -CreatedDirectorySet $createdDirectorySet
             if ($plan.BeforeExists) {
                 if (-not (Test-Path -LiteralPath $target -PathType Leaf)) {
                     throw "A portable target disappeared after planning: $($plan.RelativePath)"
@@ -846,6 +890,28 @@ try {
             catch {
                 $rollbackFailures.Add(
                     "$($plan.RelativePath): $($_.Exception.Message)")
+            }
+        }
+        for ($index = $createdDirectories.Count - 1; $index -ge 0;
+             $index--) {
+            $directory = $createdDirectories[$index]
+            try {
+                if (-not (Test-Path -LiteralPath $directory)) { continue }
+                $relative = Get-RelativePathSafe -Root $destinationFull `
+                    -Path $directory
+                $validated = Assert-TargetPathSegments `
+                    -Root $destinationFull -Relative $relative
+                if (-not $validated.Equals($directory,
+                        [StringComparison]::OrdinalIgnoreCase) -or
+                    -not (Test-Path -LiteralPath $validated `
+                        -PathType Container)) {
+                    throw "Created directory changed identity: $directory"
+                }
+                [IO.Directory]::Delete($validated, $false)
+            }
+            catch {
+                $rollbackFailures.Add(
+                    "$directory`: $($_.Exception.Message)")
             }
         }
         try {

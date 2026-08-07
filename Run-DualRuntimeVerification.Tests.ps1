@@ -13,6 +13,41 @@ function New-GateFixture {
     }
 }
 
+function New-FakePesterModule {
+    param(
+        [Parameter(Mandatory=$true)] [string] $ModuleRoot,
+        [Parameter(Mandatory=$true)] [version] $Version,
+        [string] $ImportAfterLoad
+    )
+    $versionRoot = Join-Path $ModuleRoot (Join-Path 'Pester' $Version.ToString())
+    New-Item -ItemType Directory -Path $versionRoot -Force | Out-Null
+    $manifestPath = Join-Path $versionRoot 'Pester.psd1'
+    $modulePath = Join-Path $versionRoot 'Pester.psm1'
+    $manifest = "@{`n" +
+        "RootModule = 'Pester.psm1'`n" +
+        "ModuleVersion = '$Version'`n" +
+        "GUID = '1ad6d69f-7bdb-4ab9-8cde-045ac62e167b'`n" +
+        "FunctionsToExport = @('Invoke-Pester')`n" +
+        "}`n"
+    $module = ''
+    if (-not [string]::IsNullOrWhiteSpace($ImportAfterLoad)) {
+        $escapedImport = $ImportAfterLoad.Replace("'", "''")
+        $module += "Import-Module -Name '$escapedImport' -Force -Global -ErrorAction Stop`n"
+    }
+    $module += @'
+function Invoke-Pester {
+    param([string] $Script, [string] $TestName, [switch] $EnableExit)
+    if ($EnableExit) { exit 0 }
+}
+Export-ModuleMember -Function Invoke-Pester
+'@
+    [IO.File]::WriteAllText($manifestPath, $manifest,
+        [Text.UTF8Encoding]::new($false))
+    [IO.File]::WriteAllText($modulePath, $module,
+        [Text.UTF8Encoding]::new($false))
+    return $manifestPath
+}
+
 Describe 'Blind Soldier aggregate portable release gate' {
     It 'passes an explicit licensed game-data runtime only to the full Reloaded suite' {
         $fixture = New-GateFixture
@@ -70,6 +105,13 @@ Describe 'Blind Soldier aggregate portable release gate' {
                 Should Be '0.1.6'
             $verify.Arguments[([array]::IndexOf($verify.Arguments,
                 '-ExpectedVersion') + 1)] | Should Be '0.1.6'
+            $ghidra = @($invocations | Where-Object {
+                $_.Name -ceq 'Ghidra.NativeEvidence'
+            })[0]
+            $builtArchive = [string]$build.Arguments[([array]::IndexOf(
+                $build.Arguments, '-OutputPath') + 1)]
+            [string]$ghidra.Arguments[([array]::IndexOf($ghidra.Arguments,
+                '-ArchivePath') + 1)] | Should Be $builtArchive
             @($invocations.Name) | Should Be @(
                 'Shared.Tests','Reloaded.Tests','Steam2026X64.Tests',
                 'Parity.Tests','AccessibleLauncher.Tests',
@@ -221,4 +263,155 @@ Describe 'Blind Soldier aggregate portable release gate' {
         $verification | Should Match `
             'Import-Module\s+Pester\s+-RequiredVersion\s+4\.10\.1\s+-Force'
     }
+    It 'fails at the first gate when its executable is missing even after a zero exit code' {
+        $fixture = New-GateFixture
+        $priorPath = $env:PATH
+        try {
+            $emptyPath = Join-Path $fixture.Root 'empty-path'
+            New-Item -ItemType Directory -Path $emptyPath | Out-Null
+            $env:PATH = $emptyPath
+            $global:LASTEXITCODE = 0
+            $message = $null
+            try {
+                & $verificationPath -TempParent $fixture.Temp `
+                    -LogDirectory $fixture.Logs
+                throw 'ASSERTION FAILED: missing executable gate completed.'
+            }
+            catch {
+                if ($_.Exception.Message -like 'ASSERTION FAILED:*') { throw }
+                $message = $_.Exception.Message
+            }
+            $message | Should Match "Verification executable 'dotnet' is unavailable"
+            [IO.File]::ReadAllText((Join-Path $fixture.Logs `
+                'Shared.Tests.log')) | Should Match 'dotnet'
+        }
+        finally {
+            $env:PATH = $priorPath
+            Remove-Item -LiteralPath $fixture.Root -Recurse -Force
+        }
+    }
+
+    It 'fails the portable Reloaded loop when its inner dotnet command is missing' {
+        $fixture = New-GateFixture
+        $priorPath = $env:PATH
+        try {
+            $systemPowerShell = (Get-Command powershell.exe `
+                -CommandType Application -ErrorAction Stop).Source
+            $commands = New-Object 'System.Collections.Generic.List[object]'
+            $invoker = {
+                param($Command)
+                $commands.Add($Command)
+                [pscustomobject]@{ ExitCode=0; Output=@('ok') }
+            }.GetNewClosure()
+            & $verificationPath -CommandInvoker $invoker `
+                -TempParent $fixture.Temp -LogDirectory $fixture.Logs |
+                Out-Null
+            $command = @($commands | Where-Object Name -CEQ `
+                'Reloaded.Tests')[0]
+            $emptyPath = Join-Path $fixture.Root 'empty-path'
+            New-Item -ItemType Directory -Path $emptyPath | Out-Null
+            $env:PATH = $emptyPath
+            $priorPreference = $ErrorActionPreference
+            try {
+                $ErrorActionPreference = 'Continue'
+                $output = @(& $systemPowerShell @($command.Arguments) 2>&1 |
+                    ForEach-Object { [string]$_ })
+                $exitCode = $LASTEXITCODE
+            }
+            finally {
+                $ErrorActionPreference = $priorPreference
+            }
+            $exitCode | Should Not Be 0
+            ($output -join "`n") | Should Match 'dotnet.*unavailable'
+        }
+        finally {
+            $env:PATH = $priorPath
+            Remove-Item -LiteralPath $fixture.Root -Recurse -Force
+        }
+    }
+
+    It 'does not fall back to Pester 3 when pinned Pester 4 is unavailable' {
+        $fixture = New-GateFixture
+        $priorModulePath = $env:PSModulePath
+        try {
+            $systemPowerShell = (Get-Command powershell.exe `
+                -CommandType Application -ErrorAction Stop).Source
+            $commands = New-Object 'System.Collections.Generic.List[object]'
+            $invoker = {
+                param($Command)
+                $commands.Add($Command)
+                [pscustomobject]@{ ExitCode=0; Output=@('ok') }
+            }.GetNewClosure()
+            & $verificationPath -CommandInvoker $invoker `
+                -TempParent $fixture.Temp -LogDirectory $fixture.Logs |
+                Out-Null
+            $command = @($commands | Where-Object Name -CEQ `
+                'NativeProxy.Tests')[0]
+            $moduleRoot = Join-Path $fixture.Root 'modules'
+            New-FakePesterModule -ModuleRoot $moduleRoot `
+                -Version ([version]'3.4.0') | Out-Null
+            $env:PSModulePath = $moduleRoot
+            $priorPreference = $ErrorActionPreference
+            try {
+                $ErrorActionPreference = 'Continue'
+                $output = @(& $systemPowerShell @($command.Arguments) 2>&1 |
+                    ForEach-Object { [string]$_ })
+                $exitCode = $LASTEXITCODE
+            }
+            finally {
+                $ErrorActionPreference = $priorPreference
+            }
+            $exitCode | Should Not Be 0
+            ($output -join "`n") | Should Match 'Pester 4\.10\.1'
+        }
+        finally {
+            $env:PSModulePath = $priorModulePath
+            Remove-Item -LiteralPath $fixture.Root -Recurse -Force
+        }
+    }
+
+    It 'rejects a Pester 4 import that leaves another Pester version loaded' {
+        $fixture = New-GateFixture
+        $priorModulePath = $env:PSModulePath
+        try {
+            $systemPowerShell = (Get-Command powershell.exe `
+                -CommandType Application -ErrorAction Stop).Source
+            $commands = New-Object 'System.Collections.Generic.List[object]'
+            $invoker = {
+                param($Command)
+                $commands.Add($Command)
+                [pscustomobject]@{ ExitCode=0; Output=@('ok') }
+            }.GetNewClosure()
+            & $verificationPath -CommandInvoker $invoker `
+                -TempParent $fixture.Temp -LogDirectory $fixture.Logs |
+                Out-Null
+            $command = @($commands | Where-Object Name -CEQ `
+                'NativeProxy.Tests')[0]
+            $moduleRoot = Join-Path $fixture.Root 'modules'
+            $pester3 = New-FakePesterModule -ModuleRoot $moduleRoot `
+                -Version ([version]'3.4.0')
+            New-FakePesterModule -ModuleRoot $moduleRoot `
+                -Version ([version]'4.10.1') -ImportAfterLoad $pester3 |
+                Out-Null
+            $env:PSModulePath = $moduleRoot
+            $priorPreference = $ErrorActionPreference
+            try {
+                $ErrorActionPreference = 'Continue'
+                $output = @(& $systemPowerShell @($command.Arguments) 2>&1 |
+                    ForEach-Object { [string]$_ })
+                $exitCode = $LASTEXITCODE
+            }
+            finally {
+                $ErrorActionPreference = $priorPreference
+            }
+            $exitCode | Should Not Be 0
+            ($output -join "`n") | Should Match `
+                'exactly Pester 4\.10\.1'
+        }
+        finally {
+            $env:PSModulePath = $priorModulePath
+            Remove-Item -LiteralPath $fixture.Root -Recurse -Force
+        }
+    }
+
 }

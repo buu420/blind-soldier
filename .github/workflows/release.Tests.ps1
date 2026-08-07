@@ -12,7 +12,7 @@ Describe 'Blind Soldier release workflow evidence binding' {
             './Verify-BlindSoldierPortablePackage.ps1 -ArchivePath ./artifacts/release/Blind-Soldier-Portable.zip',
             [StringComparison]::Ordinal)
         $ghidraIndex = $workflow.IndexOf(
-            './tools/Invoke-BlindSoldierGhidraVerification.ps1',
+            './tools/Invoke-BlindSoldierGhidraVerification.ps1 -ArchivePath ./artifacts/release/Blind-Soldier-Portable.zip',
             [StringComparison]::Ordinal)
 
         $buildIndex | Should BeGreaterThan -1

@@ -85,7 +85,7 @@ jobs:
           New-Item -ItemType Directory -Path ./artifacts/release -Force | Out-Null
           ./Build-BlindSoldierPortablePackage.ps1 -OutputPath ./artifacts/release/Blind-Soldier-Portable.zip -Version $version
           ./Verify-BlindSoldierPortablePackage.ps1 -ArchivePath ./artifacts/release/Blind-Soldier-Portable.zip -ExpectedVersion $version
-          ./tools/Invoke-BlindSoldierGhidraVerification.ps1
+          ./tools/Invoke-BlindSoldierGhidraVerification.ps1 -ArchivePath ./artifacts/release/Blind-Soldier-Portable.zip
 
       - name: Create GitHub release
         if: github.ref_type == 'tag'

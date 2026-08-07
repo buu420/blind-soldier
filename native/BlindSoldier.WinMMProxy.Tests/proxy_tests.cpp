@@ -380,6 +380,13 @@ void TestVersionReadinessCoordinatorBoundary() {
     log.Close();
 }
 
+void TestBootstrapWaitBudgets() {
+    Check(PortableBootstrapWaitMilliseconds(false) ==
+              kProxyReadyTimeoutMilliseconds,
+          "direct WinMM bootstrap retains the 30 second outer bound");
+    Check(PortableBootstrapWaitMilliseconds(true) == INFINITE,
+          "stock 7th Heaven Version bootstrap uses phase-specific deadlines");
+}
 void TestArgumentsAndNames() {
     Check(BuildReadyEventName(L"01234567") ==
               L"Local\\BlindSoldier.Ready.01234567",
@@ -481,19 +488,47 @@ void TestAppLoaderReadiness() {
               "unsupported host fails closed with a diagnostic");
     }
 
+    {
+        AppLoaderReadinessTracker gate(3000, 120000);
+        CheckState(gate.Observe(Observation(SupportedHostKind::SevenHeavenX86,
+            false, 2999, "", false, true)),
+            AppLoaderGateState::Discovering,
+            "converted FFNx-only no-mod host remains in discovery");
+        const auto ready = gate.Observe(Observation(
+            SupportedHostKind::SevenHeavenX86, false, 3000, "", false, true));
+        CheckState(ready, AppLoaderGateState::ReadyDirect,
+            "converted FFNx-only no-mod host becomes ready direct");
+        Check(ready.ready && !ready.seventhHeaven,
+            "FFNx presence alone does not claim an AppLoader run");
+    }
+
+    {
+        AppLoaderReadinessTracker gate(3000, 120000);
+        const auto ready = gate.Observe(Observation(
+            SupportedHostKind::SevenHeavenX86, false, 3000, "", false));
+        CheckState(ready, AppLoaderGateState::ReadyDirect,
+            "converted no-mod host becomes ready direct without FFNx evidence");
+    }
+
     for (const int evidence : {0, 1, 2}) {
         AppLoaderReadinessTracker gate(3000, 120000);
+        const bool stockLoader = evidence == 0;
+        const bool wrapperProfile = evidence == 1;
+        const std::string currentLog = evidence == 2
+            ? CurrentLine("init log") : "";
         const auto first = gate.Observe(Observation(
-            evidence == 0 ? SupportedHostKind::SevenHeavenX86 :
-                            SupportedHostKind::LegacyStockX86,
-            evidence == 1, 3001, "", false, evidence == 2));
-        CheckState(first, AppLoaderGateState::WaitingForCurrentLog,
-                   "7th Heaven evidence enters AppLoader branch");
+            SupportedHostKind::SevenHeavenX86, stockLoader, 10,
+            currentLog, wrapperProfile));
+        CheckState(first, evidence == 2
+                ? AppLoaderGateState::WaitingForSuccess
+                : AppLoaderGateState::WaitingForCurrentLog,
+            "real AppLoader-run evidence enters the AppLoader branch");
         const auto sticky = gate.Observe(Observation(
-            SupportedHostKind::LegacyStockX86, false, 3002, "", false));
+            SupportedHostKind::SevenHeavenX86, false, 11, "", false));
         CheckState(sticky, AppLoaderGateState::WaitingForCurrentLog,
-                   "7th Heaven evidence stays sticky");
-        Check(sticky.seventhHeaven, "sticky branch is identified as 7th Heaven");
+            "real AppLoader-run evidence stays sticky");
+        Check(sticky.seventhHeaven,
+            "sticky branch is identified as an AppLoader run");
     }
 
     {
@@ -605,6 +640,7 @@ int wmain() {
     TestRootDiscovery();
     TestCoordinator();
     TestVersionReadinessCoordinatorBoundary();
+    TestBootstrapWaitBudgets();
     TestArgumentsAndNames();
     TestAppLoaderReadiness();
     if (failures == 0) {

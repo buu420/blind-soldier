@@ -10,6 +10,12 @@ constexpr size_t kWinmmExportCount = 193;
 constexpr DWORD kProxyReadyTimeoutMilliseconds = 30000;
 constexpr int kProxyRootSearchDepth = 4;
 
+constexpr DWORD PortableBootstrapWaitMilliseconds(
+    bool requireStockRuntimeReadiness) {
+    return requireStockRuntimeReadiness
+        ? INFINITE : kProxyReadyTimeoutMilliseconds;
+}
+
 enum class ProxyBootstrapState : LONG {
     Pending,
     ForwardOnly,

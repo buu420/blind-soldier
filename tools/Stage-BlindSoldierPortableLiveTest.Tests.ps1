@@ -597,6 +597,45 @@ Describe 'Blind Soldier portable live staging safety' {
             Should Be $false
     }
 
+    It 'restores the destination directory tree after a failed fresh overlay' {
+        $firstRelative = 'Blind-Soldier\fresh\deep\a-first.txt'
+        $laterRelative = 'zz-readonly.txt'
+        Add-FixturePayloadFile -Fixture $fixture -RelativePath $firstRelative `
+            -Content 'new file in fresh directories' | Out-Null
+        Add-FixturePayloadFile -Fixture $fixture -RelativePath $laterRelative `
+            -Content 'new later content' | Out-Null
+        $laterTarget = Join-Path $fixture.Game $laterRelative
+        [IO.File]::WriteAllText($laterTarget, 'original later content')
+        $directoriesBefore = @(
+            Get-ChildItem -LiteralPath $fixture.Game -Directory -Recurse |
+                ForEach-Object {
+                    $_.FullName.Substring($fixture.Game.Length + 1)
+                } | Sort-Object)
+        $laterItem = Get-Item -LiteralPath $laterTarget -Force
+        $laterItem.Attributes = $laterItem.Attributes -bor `
+            [IO.FileAttributes]::ReadOnly
+        try {
+            $message = Get-ThrownMessage {
+                Invoke-FixtureStage -Fixture $fixture `
+                    -BackupRoot $fixture.Backup
+            }
+        }
+        finally {
+            $laterItem = Get-Item -LiteralPath $laterTarget -Force
+            $laterItem.Attributes = $laterItem.Attributes -band `
+                (-bnot [IO.FileAttributes]::ReadOnly)
+        }
+        $message | Should Match 'access|denied|read-only'
+        Test-Path -LiteralPath (Join-Path $fixture.Game $firstRelative) |
+            Should Be $false
+        $directoriesAfter = @(
+            Get-ChildItem -LiteralPath $fixture.Game -Directory -Recurse |
+                ForEach-Object {
+                    $_.FullName.Substring($fixture.Game.Length + 1)
+                } | Sort-Object)
+        ($directoriesAfter -join "`n") | Should Be `
+            ($directoriesBefore -join "`n")
+    }
     It 'keeps post-copy external validation inside the rollback transaction' {
         $tokens = $null
         $errors = $null
