@@ -1,9 +1,12 @@
 #include "../BlindSoldier.WinMMProxy/proxy_state.h"
+#include "../BlindSoldier.VersionProxy/app_loader_readiness.h"
 
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace fs = std::filesystem;
 using namespace blind_soldier;
@@ -78,6 +81,19 @@ ProxyBootstrapContext MakeDirectContext(const fs::path& root,
     return context;
 }
 
+ProxyBootstrapContext MakeSiblingContext(const fs::path& root,
+                                         const wchar_t* processName) {
+    ProxyBootstrapContext context;
+    context.processImage = root / processName;
+    context.proxyModule = root / L"version.dll";
+    context.processId = 4242;
+    context.launchId = L"12345678-1234-1234-1234-1234567890AB";
+    context.readyEventName = BuildReadyEventName(context.launchId);
+    Touch(context.processImage);
+    Touch(context.proxyModule);
+    return context;
+}
+
 ProxyBootstrapHooks ReadyHooks(int& launchCount) {
     ProxyBootstrapHooks hooks;
     hooks.isCompleteRoot = IsCompletePortableRoot;
@@ -103,6 +119,43 @@ ProxyBootstrapHooks ReadyHooks(int& launchCount) {
 }
 
 void TestRootDiscovery() {
+    {
+        TempTree tree(L"version-direct");
+        MakeComplete(tree.root);
+        const auto context = MakeSiblingContext(tree.root, L"ff7_en.exe");
+        fs::path root;
+        std::wstring diagnostic;
+        const bool discovered = DiscoverPortableRoot(
+            context.proxyModule, context.processImage,
+            IsCompletePortableRoot, root, diagnostic);
+        Check(discovered, "sibling version proxy root discovered");
+        if (discovered) {
+            Check(fs::equivalent(root, tree.root),
+                  "sibling version proxy root exact");
+        }
+        Check(fs::equivalent(DeriveDiagnosticRoot(context.proxyModule),
+                             tree.root),
+              "sibling version diagnostic root");
+    }
+    {
+        TempTree tree(L"version-nested");
+        MakeComplete(tree.root);
+        const fs::path working = tree.root / L"ff7" / L"workingdir";
+        const auto context = MakeSiblingContext(working, L"ff7.exe");
+        fs::path root;
+        std::wstring diagnostic;
+        const bool discovered = DiscoverPortableRoot(
+            context.proxyModule, context.processImage,
+            IsCompletePortableRoot, root, diagnostic);
+        Check(discovered, "nested sibling version proxy root discovered");
+        if (discovered) {
+            Check(fs::equivalent(root, tree.root),
+                  "nested sibling version proxy root exact");
+        }
+        Check(fs::equivalent(DeriveDiagnosticRoot(context.proxyModule),
+                             tree.root),
+              "nested sibling version diagnostic root");
+    }
     {
         TempTree tree(L"direct");
         MakeComplete(tree.root);
@@ -228,6 +281,12 @@ void TestArgumentsAndNames() {
     Check(BuildReadyEventName(L"01234567") ==
               L"Local\\BlindSoldier.Ready.01234567",
           "proxy and broker share the canonical ready-event contract");
+    Check(BuildManagedReadyEventName(7) ==
+              L"Local\\BlindSoldier.ManagedReady.7",
+          "managed-ready event uses the canonical PID-scoped contract");
+    Check(BuildManagedReadyEventName(4294967295UL) ==
+              L"Local\\BlindSoldier.ManagedReady.4294967295",
+          "managed-ready event preserves the full decimal DWORD PID");
     Check(IsSupportedFf7ProcessName(L"C:/Game/FF7_EN.EXE"),
           "ff7_en name accepted case-insensitively");
     Check(IsSupportedFf7ProcessName(L"C:/Game/ff7.exe"),
@@ -239,12 +298,185 @@ void TestArgumentsAndNames() {
           "Windows trailing slash quoting");
 }
 
+FILETIME FileTimeBeforeNow(ULONGLONG milliseconds) {
+    FILETIME now{};
+    GetSystemTimeAsFileTime(&now);
+    ULARGE_INTEGER value{};
+    value.LowPart = now.dwLowDateTime;
+    value.HighPart = now.dwHighDateTime;
+    value.QuadPart -= milliseconds * 10000ULL;
+    FILETIME result{};
+    result.dwLowDateTime = value.LowPart;
+    result.dwHighDateTime = value.HighPart;
+    return result;
+}
+
+std::string CurrentTimestamp() {
+    SYSTEMTIME local{};
+    GetLocalTime(&local);
+    char timestamp[24]{};
+    sprintf_s(timestamp, "%04u-%02u-%02u %02u:%02u:%02u.%03u",
+              local.wYear, local.wMonth, local.wDay, local.wHour,
+              local.wMinute, local.wSecond, local.wMilliseconds);
+    return timestamp;
+}
+
+std::string CurrentLine(const char* message) {
+    return CurrentTimestamp() + " INFO  AppLoader " + message;
+}
+
+std::string CurrentLines(std::initializer_list<const char*> messages) {
+    std::string result;
+    for (const char* message : messages) {
+        if (!result.empty()) result += '\n';
+        result += CurrentLine(message);
+    }
+    return result;
+}
+
+AppLoaderObservation Observation(SupportedHostKind hostKind,
+                                 bool stockLoaderSignaturePresent,
+                                 ULONGLONG elapsedMilliseconds,
+                                 std::string appLoaderLog,
+                                 bool wrapperProfilePresent,
+                                 bool recognizedFfnxModulePresent = false,
+                                 bool processAlive = true) {
+    AppLoaderObservation observation;
+    observation.hostKind = hostKind;
+    observation.stockLoaderSignaturePresent = stockLoaderSignaturePresent;
+    observation.recognizedFfnxModulePresent = recognizedFfnxModulePresent;
+    observation.processAlive = processAlive;
+    observation.elapsedMilliseconds = elapsedMilliseconds;
+    observation.appLoaderLog = std::move(appLoaderLog);
+    observation.processCreation = FileTimeBeforeNow(60000);
+    observation.wrapperProfilePresent = wrapperProfilePresent;
+    return observation;
+}
+
+void CheckState(const AppLoaderGateDecision& decision,
+                AppLoaderGateState expected, const char* label) {
+    Check(decision.state == expected, label);
+}
+
+void TestAppLoaderReadiness() {
+    {
+        AppLoaderReadinessTracker gate(3000, 120000);
+        CheckState(gate.Observe(Observation(SupportedHostKind::LegacyStockX86,
+                                            false, 2999, "", false)),
+                   AppLoaderGateState::Discovering,
+                   "exact stock host remains discovering before 3000 ms");
+        const auto decision = gate.Observe(Observation(
+            SupportedHostKind::LegacyStockX86, false, 3000, "", false));
+        CheckState(decision, AppLoaderGateState::ReadyDirect,
+                   "exact stock host becomes ready direct at 3000 ms");
+        Check(decision.ready && !decision.seventhHeaven,
+              "direct readiness flags are correct");
+    }
+
+    for (const int evidence : {0, 1, 2}) {
+        AppLoaderReadinessTracker gate(3000, 120000);
+        const auto first = gate.Observe(Observation(
+            evidence == 0 ? SupportedHostKind::SevenHeavenX86 :
+                            SupportedHostKind::LegacyStockX86,
+            evidence == 1, 3001, "", false, evidence == 2));
+        CheckState(first, AppLoaderGateState::WaitingForCurrentLog,
+                   "7th Heaven evidence enters AppLoader branch");
+        const auto sticky = gate.Observe(Observation(
+            SupportedHostKind::LegacyStockX86, false, 3002, "", false));
+        CheckState(sticky, AppLoaderGateState::WaitingForCurrentLog,
+                   "7th Heaven evidence stays sticky");
+        Check(sticky.seventhHeaven, "sticky branch is identified as 7th Heaven");
+    }
+
+    {
+        AppLoaderReadinessTracker gate(3000, 120000);
+        CheckState(gate.Observe(Observation(SupportedHostKind::SevenHeavenX86,
+            true, 10, CurrentLine("init log"), false)),
+            AppLoaderGateState::WaitingForSuccess,
+            "current AppLoader init waits for success");
+        const auto ready = gate.Observe(Observation(SupportedHostKind::SevenHeavenX86,
+            true, 20, CurrentLines({"init log", "started successfully"}), false));
+        CheckState(ready, AppLoaderGateState::ReadySeventhHeaven,
+                   "current AppLoader init and success are ready");
+        Check(ready.ready && ready.seventhHeaven,
+              "7th Heaven readiness flags are correct");
+    }
+
+    {
+        AppLoaderReadinessTracker gate(3000, 120000);
+        CheckState(gate.Observe(Observation(SupportedHostKind::SevenHeavenX86,
+            true, 10, CurrentLine("started successfully"), false)),
+            AppLoaderGateState::WaitingForCurrentLog,
+            "success without init is rejected");
+        CheckState(gate.Observe(Observation(SupportedHostKind::SevenHeavenX86,
+            true, 10,
+            "2001-01-01 00:00:00.000 INFO  AppLoader init log\n"
+            "2001-01-01 00:00:01.000 INFO  AppLoader started successfully", false)),
+            AppLoaderGateState::WaitingForCurrentLog,
+            "stale prior-process records are rejected");
+    }
+
+    {
+        AppLoaderReadinessTracker gate(3000, 120000);
+        CheckState(gate.Observe(Observation(SupportedHostKind::SevenHeavenX86,
+            true, 10,
+            CurrentLines({"init log", "started successfully", "init log"}), false)),
+            AppLoaderGateState::WaitingForSuccess,
+            "only the last current init section is used");
+        CheckState(gate.Observe(Observation(SupportedHostKind::SevenHeavenX86,
+            true, 10, CurrentLines({"started successfully", "init log"}), false)),
+            AppLoaderGateState::WaitingForSuccess,
+            "success before last init is rejected");
+        CheckState(gate.Observe(Observation(SupportedHostKind::SevenHeavenX86,
+            true, 10, CurrentLines({"init log", "started successful"}), false)),
+            AppLoaderGateState::WaitingForSuccess,
+            "truncated success line waits");
+    }
+
+    {
+        AppLoaderReadinessTracker gate(3000, 120000);
+        CheckState(gate.Observe(Observation(SupportedHostKind::SevenHeavenX86,
+            true, 10, CurrentLines({"init log", "started successfully"}), true)),
+            AppLoaderGateState::WaitingForProfileConsumption,
+            "present wrapper profile waits for consumption");
+        const auto timedOut = gate.Observe(Observation(SupportedHostKind::SevenHeavenX86,
+            true, 120000, CurrentLines({"init log", "started successfully"}), true));
+        CheckState(timedOut, AppLoaderGateState::Failed,
+                   "wrapper profile consumption fails at timeout");
+        Check(!timedOut.diagnostic.empty(), "profile timeout has diagnostic");
+    }
+
+    {
+        AppLoaderReadinessTracker gate(3000, 120000);
+        CheckState(gate.Observe(Observation(SupportedHostKind::SevenHeavenX86,
+            true, 10, CurrentLines({"init log", "started successfully"}), true)),
+            AppLoaderGateState::WaitingForProfileConsumption,
+            "wrapper profile is initially pending");
+        CheckState(gate.Observe(Observation(SupportedHostKind::SevenHeavenX86,
+            true, 11, CurrentLines({"init log", "started successfully"}), false)),
+            AppLoaderGateState::ReadySeventhHeaven,
+            "profile removal completes readiness");
+    }
+
+    for (const int failure : {0, 1}) {
+        AppLoaderReadinessTracker gate(3000, 120000);
+        const auto decision = gate.Observe(Observation(
+            SupportedHostKind::SevenHeavenX86, true,
+            failure == 0 ? 10 : 120000, "", false, false, failure != 0));
+        CheckState(decision, AppLoaderGateState::Failed,
+                   "process exit and timeout fail the gate");
+        Check(!decision.diagnostic.empty(),
+              "process exit and timeout provide diagnostics");
+    }
+}
+
 }  // namespace
 
 int wmain() {
     TestRootDiscovery();
     TestCoordinator();
     TestArgumentsAndNames();
+    TestAppLoaderReadiness();
     if (failures == 0) {
         std::cout << "Blind Soldier WinMM proxy behavior tests passed.\n";
     }
