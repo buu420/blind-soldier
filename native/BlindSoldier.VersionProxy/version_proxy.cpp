@@ -15,6 +15,7 @@ namespace {
 
 HMODULE g_proxyModule = nullptr;
 HMODULE g_systemVersion = nullptr;
+volatile LONG g_bootstrapMonitorStarted = 0;
 
 constexpr std::array<const char*, 17> kVersionExportNames = {
     "GetFileVersionInfoA",
@@ -99,52 +100,64 @@ bool BuildCachedSystemVersion(const std::wstring& source,
         cachedData.nFileSizeHigh == sourceData.nFileSizeHigh;
 }
 
-bool ResolveVersionExports(HMODULE module) {
+bool ResolveVersionExports(
+    HMODULE module, std::array<FARPROC, 17>& resolved) {
     if (!module || module == g_proxyModule) return false;
     for (size_t index = 0; index < kVersionExportNames.size(); ++index) {
-        g_versionExports[index] = GetProcAddress(
-            module, kVersionExportNames[index]);
-        if (!g_versionExports[index]) return false;
+        resolved[index] = GetProcAddress(module, kVersionExportNames[index]);
+        if (!resolved[index]) return false;
     }
     return true;
 }
 
-bool LoadSystemVersion(HMODULE proxyModule) {
-    g_proxyModule = proxyModule;
+void PublishVersionExports(const std::array<FARPROC, 17>& resolved) {
+    for (size_t index = 0; index < resolved.size(); ++index) {
+        InterlockedCompareExchangePointer(
+            reinterpret_cast<PVOID volatile*>(&g_versionExports[index]),
+            reinterpret_cast<PVOID>(resolved[index]), nullptr);
+    }
+}
+
+bool LoadSystemVersion(std::wstring& diagnostic) {
     std::array<wchar_t, MAX_PATH> directory{};
     const UINT length = GetSystemDirectoryW(
         directory.data(), static_cast<UINT>(directory.size()));
     if (length == 0 || length >= directory.size()) {
-        ShowStartupFailure(L"The canonical Windows system directory is unavailable.");
+        diagnostic = L"The canonical Windows system directory is unavailable.";
         return false;
     }
     std::wstring path(directory.data(), length);
     path += L"\\version.dll";
+    std::array<FARPROC, 17> resolved{};
     HMODULE candidate = LoadLibraryW(path.c_str());
-    if (ResolveVersionExports(candidate)) {
+    if (ResolveVersionExports(candidate, resolved)) {
+        PublishVersionExports(resolved);
         g_systemVersion = candidate;
         return true;
     }
 
-    // FFNx can load this proxy while its own import table is being resolved.
-    // In that loader context Windows may return the already-loading local
-    // version.dll even for the absolute System32 path. Forwarding to that
-    // handle jumps straight back into these stubs and spins the game forever.
-    // A byte-for-byte copy of this machine's own system DLL under a distinct
-    // basename avoids the collision without redistributing an OS binary.
+    // FFNx can return the already-loading local version.dll even for the
+    // absolute System32 path. Resolve a distinct cached basename outside
+    // DllMain so no loader/cache work runs while the loader lock is held.
     std::wstring cached;
     if (!BuildCachedSystemVersion(path, cached)) {
-        ShowStartupFailure(L"The Windows version library could not be prepared for FFNx. Error " +
-                           std::to_wstring(GetLastError()) + L".");
+        const DWORD error = GetLastError();
+        diagnostic =
+            L"The Windows version library could not be prepared for FFNx. Error " +
+            std::to_wstring(error) + L".";
         return false;
     }
     candidate = LoadLibraryExW(cached.c_str(), nullptr,
                                LOAD_WITH_ALTERED_SEARCH_PATH);
-    if (!ResolveVersionExports(candidate)) {
-        ShowStartupFailure(L"The Windows version library could not be loaded without recursion. Error " +
-                           std::to_wstring(GetLastError()) + L".");
+    resolved.fill(nullptr);
+    if (!ResolveVersionExports(candidate, resolved)) {
+        const DWORD error = GetLastError();
+        diagnostic =
+            L"The Windows version library could not be loaded without recursion. Error " +
+            std::to_wstring(error) + L".";
         return false;
     }
+    PublishVersionExports(resolved);
     g_systemVersion = candidate;
     return true;
 }
@@ -162,34 +175,68 @@ DWORD WINAPI BootstrapMonitor(void*) {
     return 0;
 }
 
-bool StartBootstrapMonitor(HMODULE module) {
-    g_proxyModule = module;
+bool StartBootstrapMonitor() {
     HANDLE thread = CreateThread(nullptr, 0, BootstrapMonitor,
                                  nullptr, 0, nullptr);
-    if (!thread) {
-        ShowStartupFailure(L"The x86 accessibility bootstrap thread could not start.");
-        return false;
-    }
+    if (!thread) return false;
     CloseHandle(thread);
     return true;
 }
 
+FARPROC PublishedVersionExport(DWORD index) {
+    return reinterpret_cast<FARPROC>(InterlockedCompareExchangePointer(
+        reinterpret_cast<PVOID volatile*>(&g_versionExports[index]),
+        nullptr, nullptr));
+}
+
+[[noreturn]] void FailVersionInitialization(const std::wstring& diagnostic) {
+    ShowStartupFailure(diagnostic);
+    TerminateProcess(GetCurrentProcess(), 0xB51D0002u);
+    ExitProcess(0xB51D0002u);
+}
+
 }  // namespace
 
-BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, LPVOID) {
-    if (reason == DLL_PROCESS_ATTACH) {
-        DisableThreadLibraryCalls(instance);
-        if (!LoadSystemVersion(instance) ||
-            !StartBootstrapMonitor(instance)) {
-            return FALSE;
+extern "C" FARPROC __cdecl ResolveVersionExport(DWORD index) {
+    if (index >= kVersionExportNames.size()) {
+        FailVersionInitialization(
+            L"The Version proxy received an invalid export index.");
+    }
+
+    FARPROC target = PublishedVersionExport(index);
+    if (!target) {
+        std::wstring diagnostic;
+        if (!LoadSystemVersion(diagnostic)) {
+            target = PublishedVersionExport(index);
+            if (!target) FailVersionInitialization(diagnostic);
+        } else {
+            target = PublishedVersionExport(index);
         }
     }
+    if (!target) {
+        FailVersionInitialization(
+            L"The Windows version export target is unavailable.");
+    }
+
+    if (InterlockedCompareExchange(&g_bootstrapMonitorStarted, 1, 0) == 0 &&
+        !StartBootstrapMonitor()) {
+        FailVersionInitialization(
+            L"The x86 accessibility bootstrap thread could not start.");
+    }
+    return target;
+}
+
+BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, LPVOID) {
+    if (reason == DLL_PROCESS_ATTACH) g_proxyModule = instance;
     return TRUE;
 }
 
 #define BS_VERSION_FORWARD(stub, index)                 \
 extern "C" __declspec(naked) void stub() {             \
-    __asm { jmp dword ptr [g_versionExports + index * 4] } \
+    __asm push index                                     \
+    __asm call ResolveVersionExport                      \
+    __asm add esp, 4                                     \
+    __asm jmp eax                                        \
 }
 
 #include "version_exports.inc"

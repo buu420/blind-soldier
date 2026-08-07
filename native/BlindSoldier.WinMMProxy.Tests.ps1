@@ -9,6 +9,8 @@ $proxyRoot = Join-Path $nativeRoot 'BlindSoldier.WinMMProxy'
 $proxyProject = Join-Path $proxyRoot 'BlindSoldier.WinMMProxy.vcxproj'
 $versionRoot = Join-Path $nativeRoot 'BlindSoldier.VersionProxy'
 $versionProject = Join-Path $versionRoot 'BlindSoldier.VersionProxy.vcxproj'
+$versionProxySource = Join-Path $versionRoot 'version_proxy.cpp'
+$proxyStateSource = Join-Path $proxyRoot 'proxy_state.cpp'
 $proxyBehaviorProject = Join-Path $nativeRoot `
     'BlindSoldier.WinMMProxy.Tests\BlindSoldier.WinMMProxy.Tests.vcxproj'
 $forwardingProject = Join-Path $nativeRoot `
@@ -85,6 +87,27 @@ Describe 'Blind Soldier guarded x86 native proxies' {
         )) {
             Test-Path -LiteralPath $path -PathType Leaf | Should Be $true
         }
+    }
+
+    It 'keeps heavy Version initialization out of DllMain' {
+        $versionSource = [IO.File]::ReadAllText($versionProxySource)
+        $dllMain = [regex]::Match($versionSource,
+            '(?s)BOOL WINAPI DllMain\b.*?#define BS_VERSION_FORWARD')
+        $dllMain.Success | Should Be $true
+        $dllMain.Value | Should Not Match `
+            'LoadSystemVersion|StartBootstrapMonitor|LoadLibraryW|LoadLibraryExW|CreateThread|CreateDirectoryW|CopyFileW|MessageBoxW|DisableThreadLibraryCalls'
+        $dllMain.Value | Should Match 'g_proxyModule\s*=\s*instance'
+    }
+
+    It 'lets phase-specific readiness and broker deadlines govern' {
+        $stateSource = [IO.File]::ReadAllText($proxyStateSource)
+        $portableWait = [regex]::Match($stateSource,
+            '(?s)void WaitForPortableBootstrap\(\).*?\n}\n\n}  // namespace blind_soldier')
+        $portableWait.Success | Should Be $true
+        $portableWait.Value | Should Match `
+            'WaitForSingleObject\(g_workerFinished,\s*INFINITE\)'
+        $portableWait.Value | Should Not Match `
+            'kStockRuntimeReadinessTimeoutMilliseconds\s*\+|waitMilliseconds|151000'
     }
 
     It 'locks every named and ordinal-only export of the observed system WinMM' {

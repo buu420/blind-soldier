@@ -97,6 +97,26 @@ bool CanonicalizePath(const fs::path& path, fs::path& canonical) {
     return !error && !canonical.empty() && canonical.is_absolute();
 }
 
+
+fs::path AbsoluteProcessImagePath(const fs::path& processImage) {
+    std::error_code error;
+    fs::path absolute = fs::absolute(processImage, error);
+    if (!error && !absolute.empty() && absolute.is_absolute()) {
+        return absolute.lexically_normal();
+    }
+
+    std::array<wchar_t, 32768> currentImage{};
+    const DWORD length = GetModuleFileNameW(
+        nullptr, currentImage.data(), static_cast<DWORD>(currentImage.size()));
+    if (length != 0 && length < currentImage.size()) {
+        fs::path current(currentImage.data(), currentImage.data() + length);
+        if (current.is_absolute()) return current.lexically_normal();
+    }
+    return fs::path(L"C:\\") /
+        (processImage.filename().empty() ? L"ff7_en.exe"
+                                         : processImage.filename());
+}
+
 bool IsOrdinaryFile(const fs::path& path) {
     const DWORD attributes = GetFileAttributesW(path.c_str());
     return attributes != INVALID_FILE_ATTRIBUTES &&
@@ -285,15 +305,19 @@ StockRuntimeReadinessResult WaitForStockRuntimeReadiness(
     Logger& log,
     DWORD pollMilliseconds,
     ULONGLONG timeoutMilliseconds) {
-    fs::path canonicalImage;
     StockRuntimeReadinessResult result;
+    const fs::path absoluteImage = AbsoluteProcessImagePath(processImage);
+    fs::path appLoaderLog =
+        absoluteImage.parent_path() / L"AppLoader.log";
+    fs::path canonicalImage;
     if (!CanonicalizePath(processImage, canonicalImage)) {
         result.diagnostic =
-            L"The FFVII executable path could not be resolved for AppLoader readiness.";
+            L"The FFVII executable path could not be resolved for AppLoader readiness. AppLoader.log: " +
+            appLoaderLog.wstring();
         return result;
     }
     const fs::path gameDirectory = canonicalImage.parent_path();
-    const fs::path appLoaderLog = gameDirectory / L"AppLoader.log";
+    appLoaderLog = gameDirectory / L"AppLoader.log";
     const fs::path wrapperProfile = gameDirectory / L".7thWrapperProfile";
 
     FILETIME processCreation{};

@@ -588,21 +588,16 @@ void WaitForPortableBootstrap() {
     ProxyBootstrapState state = static_cast<ProxyBootstrapState>(
         InterlockedCompareExchange(&g_proxyState, 0, 0));
     if (state == ProxyBootstrapState::Pending) {
-        const DWORD waitMilliseconds = g_requireStockRuntimeReadiness
-            ? static_cast<DWORD>(
-                kStockRuntimeReadinessTimeoutMilliseconds +
-                kProxyReadyTimeoutMilliseconds + 1000ULL)
-            : kProxyReadyTimeoutMilliseconds;
         const DWORD wait = g_workerFinished
-            ? WaitForSingleObject(g_workerFinished, waitMilliseconds)
+            ? WaitForSingleObject(g_workerFinished, INFINITE)
             : WAIT_FAILED;
         if (wait != WAIT_OBJECT_0) {
             InterlockedCompareExchange(
                 &g_proxyState,
-                static_cast<LONG>(ProxyBootstrapState::TimedOut),
+                static_cast<LONG>(ProxyBootstrapState::Failed),
                 static_cast<LONG>(ProxyBootstrapState::Pending));
             SetFailureMessage(
-                L"Blind Soldier could not start accessibility.\n\nCause: The portable startup gate timed out.\n\nAction: Restart the game and reinstall Blind Soldier if this repeats.");
+                L"Blind Soldier could not start accessibility.\n\nCause: Waiting for the portable bootstrap worker failed.\n\nAction: Restart the game and reinstall Blind Soldier if this repeats.");
         }
         state = static_cast<ProxyBootstrapState>(
             InterlockedCompareExchange(&g_proxyState, 0, 0));

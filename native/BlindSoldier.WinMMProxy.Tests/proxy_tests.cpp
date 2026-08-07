@@ -576,6 +576,27 @@ void TestAppLoaderReadiness() {
         Check(!decision.diagnostic.empty(),
               "process exit and timeout provide diagnostics");
     }
+
+
+    {
+        TempTree tree(L"absolute-readiness-diagnostic");
+        Logger log;
+        log.Open(tree.root / L"logs", L"test.log");
+        const auto failed = WaitForStockRuntimeReadiness(
+            fs::path(L"?:\\invalid\\ff7_en.exe"), SupportedHost(), log, 0, 1);
+        const std::wstring marker = L"AppLoader.log: ";
+        const size_t markerAt = failed.diagnostic.find(marker);
+        Check(!failed.ready && markerAt != std::wstring::npos,
+              "readiness failure names AppLoader log");
+        if (markerAt != std::wstring::npos) {
+            const fs::path reported(
+                failed.diagnostic.substr(markerAt + marker.size()));
+            Check(reported.is_absolute() &&
+                      reported.filename() == L"AppLoader.log",
+                  "readiness failure reports an absolute AppLoader log path");
+        }
+        log.Close();
+    }
 }
 
 }  // namespace

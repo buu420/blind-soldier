@@ -86,6 +86,32 @@ int wmain() {
                    << GetLastError() << L"\n";
         return 22;
     }
+    {
+        wchar_t immediateSystemDirectory[MAX_PATH * 4]{};
+        if (GetSystemDirectoryW(immediateSystemDirectory,
+                                ARRAYSIZE(immediateSystemDirectory)) == 0) {
+            return 30;
+        }
+        const fs::path immediateSystemVersion =
+            fs::path(immediateSystemDirectory) / L"version.dll";
+        using ImmediateGetSizeW = DWORD (WINAPI*)(LPCWSTR, LPDWORD);
+        using ImmediateLanguageNameW = DWORD (WINAPI*)(DWORD, LPWSTR, DWORD);
+        const auto immediateGetSizeW = reinterpret_cast<ImmediateGetSizeW>(
+            GetProcAddress(proxyModule, "GetFileVersionInfoSizeW"));
+        const auto immediateLanguageNameW =
+            reinterpret_cast<ImmediateLanguageNameW>(
+                GetProcAddress(proxyModule, "VerLanguageNameW"));
+        DWORD ignored = 0;
+        wchar_t languageName[128]{};
+        if (!immediateGetSizeW || !immediateLanguageNameW ||
+            immediateGetSizeW(immediateSystemVersion.c_str(), &ignored) == 0 ||
+            immediateLanguageNameW(GetUserDefaultLangID(), languageName,
+                                   ARRAYSIZE(languageName)) == 0) {
+            std::wcerr << L"Immediate Version forwarding failed after load: "
+                       << GetLastError() << L"\n";
+            return 31;
+        }
+    }
     SetLastError(ERROR_SUCCESS);
     HANDLE removedEvent = OpenEventW(
         SYNCHRONIZE, FALSE, managedReadyEventName.c_str());
