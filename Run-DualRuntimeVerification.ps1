@@ -118,11 +118,11 @@ function Invoke-VerificationCommand {
                 $priorPreference = $ErrorActionPreference
                 try {
                     $ErrorActionPreference = 'Stop'
-                    $LASTEXITCODE = $null
+                    $global:LASTEXITCODE = $null
                     $output = @(& $resolvedCommand.Source `
                         @($Command.Arguments) 2>&1 |
                         ForEach-Object { [string]$_ })
-                    $exitCode = $LASTEXITCODE
+                    $exitCode = $global:LASTEXITCODE
                     if ($null -eq $exitCode) {
                         throw "Verification executable '$($Command.FilePath)' returned no process exit code."
                     }

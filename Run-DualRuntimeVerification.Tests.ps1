@@ -414,4 +414,14 @@ Describe 'Blind Soldier aggregate portable release gate' {
         }
     }
 
+    It 'captures native exit codes without a local LASTEXITCODE shadow' {
+        $source = [IO.File]::ReadAllText($verificationPath)
+        $source | Should Not Match `
+            '(?m)^\s*\$LASTEXITCODE\s*=\s*\$null\s*$'
+        $source | Should Match `
+            '(?m)^\s*\$global:LASTEXITCODE\s*=\s*\$null\s*$'
+        $source | Should Match `
+            '\$exitCode\s*=\s*\$global:LASTEXITCODE'
+    }
+
 }
