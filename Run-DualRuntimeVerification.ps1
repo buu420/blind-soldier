@@ -187,7 +187,8 @@ if ($hasGameDataRuntime) {
 else {
     $escapedProject = $reloadedProject.Replace("'", "''")
     $portableModes = @(
-        '--runtime-lease-only','--host-validation-only')
+        '--runtime-lease-only','--host-validation-only',
+        '--7h-compatibility-only')
     $portableCommand = "foreach (`$mode in @('$($portableModes -join "','")')) { " +
         "& dotnet run --project '$escapedProject' -c Release -- `$mode; " +
         "if (`$LASTEXITCODE -ne 0) { exit `$LASTEXITCODE } }"
@@ -233,7 +234,7 @@ $commands.Add((New-VerificationCommand -Name 'Bootstrap.Tests x86/x64' `
     -FilePath 'powershell.exe' -Arguments @('-NoProfile','-NonInteractive',
         '-ExecutionPolicy','Bypass','-Command',$bootstrapCommand) `
     -WorkingDirectory $scriptRoot))
-$commands.Add((New-PesterCommand -Name 'WinMMProxy.Tests' `
+$commands.Add((New-PesterCommand -Name 'NativeProxy.Tests' `
     -Path (Join-Path $scriptRoot 'native\BlindSoldier.WinMMProxy.Tests.ps1')))
 $commands.Add((New-PesterCommand -Name 'PortableDotNetRuntime.Tests' `
     -Path (Join-Path $scriptRoot 'PortableDotNetRuntime.Tests.ps1')))
@@ -243,13 +244,13 @@ $commands.Add((New-VerificationCommand -Name 'PortablePackage.Build' `
     -FilePath 'powershell.exe' -Arguments @(
         '-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',
         (Join-Path $scriptRoot 'Build-BlindSoldierPortablePackage.ps1'),
-        '-OutputPath',$portableArchive,'-Version','0.1.5') `
+        '-OutputPath',$portableArchive,'-Version','0.1.6') `
     -WorkingDirectory $scriptRoot))
 $commands.Add((New-VerificationCommand -Name 'PortablePackage.Verify' `
     -FilePath 'powershell.exe' -Arguments @(
         '-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',
         (Join-Path $scriptRoot 'Verify-BlindSoldierPortablePackage.ps1'),
-        '-ArchivePath',$portableArchive,'-ExpectedVersion','0.1.5') `
+        '-ArchivePath',$portableArchive,'-ExpectedVersion','0.1.6') `
     -WorkingDirectory $scriptRoot))
 $commands.Add((New-VerificationCommand -Name 'Ghidra.NativeEvidence' `
     -FilePath 'powershell.exe' -Arguments @(

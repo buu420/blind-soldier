@@ -13,7 +13,7 @@ $bootstrapProject = Join-Path $bootstrapRoot 'BlindSoldier.Bootstrap.vcxproj'
 $bootstrapBehaviorProject = Join-Path $nativeRoot 'BlindSoldier.Bootstrap.Tests\BlindSoldier.Bootstrap.Tests.vcxproj'
 $installerBehaviorProject = Join-Path $nativeRoot 'BlindSoldier.Installer.Tests\BlindSoldier.Installer.Tests.vcxproj'
 $hostBehaviorProject = Join-Path $nativeRoot 'BlindSoldier.Host.Tests\BlindSoldier.Host.Tests.vcxproj'
-$winmmProxyProject = Join-Path $nativeRoot 'BlindSoldier.WinMMProxy\BlindSoldier.WinMMProxy.vcxproj'
+$versionProxyProject = Join-Path $nativeRoot 'BlindSoldier.VersionProxy\BlindSoldier.VersionProxy.vcxproj'
 $winmmProxyTests = Join-Path $nativeRoot 'BlindSoldier.WinMMProxy.Tests.ps1'
 
 function Get-TestPeMachine {
@@ -52,7 +52,7 @@ Describe 'Blind Soldier native bootstrap workflow' {
             $commonPath, $bootstrapContract, $bootstrapSession,
             $bootstrapProcess, $bootstrapMain, $bootstrapProject,
             $bootstrapBehaviorProject, $hostBehaviorProject,
-            $winmmProxyProject, $winmmProxyTests
+            $versionProxyProject, $winmmProxyTests
         )) {
             Test-Path -LiteralPath $path -PathType Leaf | Should Be $true
         }
@@ -189,14 +189,52 @@ Describe 'Blind Soldier native bootstrap workflow' {
         (Get-TestPeMachine -Path $x64) | Should Be 0x8664
     }
 
-    It 'registers the full-surface guarded WinMM proxy gate' {
+    It 'builds the x86 Version proxy without dormant WinMM forwarding' {
+        $msbuild = Get-TestMsBuild
+        & $msbuild $versionProxyProject /nologo /m /t:Rebuild `
+            /p:Configuration=Release /p:Platform=Win32 /v:minimal
+        $LASTEXITCODE | Should Be 0
+        $versionProxy = Join-Path (Split-Path -Parent $versionProxyProject) `
+            'bin\Release\Win32\version.dll'
+        Test-Path -LiteralPath $versionProxy -PathType Leaf | Should Be $true
+        (Get-TestPeMachine -Path $versionProxy) | Should Be 0x014C
+        $bytes = [IO.File]::ReadAllBytes($versionProxy)
+        $ascii = [Text.Encoding]::ASCII.GetString($bytes)
+        $unicode = [Text.Encoding]::Unicode.GetString($bytes)
+        foreach ($marker in @(
+            'GetSystemWow64DirectoryW', 'canonical system WinMM',
+            'Canonical SysWOW64 WinMM'
+        )) {
+            $ascii.IndexOf($marker,
+                [StringComparison]::OrdinalIgnoreCase) | Should Be -1
+            $unicode.IndexOf($marker,
+                [StringComparison]::OrdinalIgnoreCase) | Should Be -1
+        }
+        $vswhere = Join-Path ${env:ProgramFiles(x86)} `
+            'Microsoft Visual Studio\Installer\vswhere.exe'
+        $dumpbin = (& $vswhere -latest -products '*' -find `
+            'VC\Tools\MSVC\**\bin\Hostx64\x86\dumpbin.exe' |
+            Select-Object -First 1)
+        Test-Path -LiteralPath $dumpbin -PathType Leaf | Should Be $true
+        $dependents = @(& $dumpbin /nologo /dependents $versionProxy)
+        $LASTEXITCODE | Should Be 0
+        ($dependents -join "`n") | Should Not Match `
+            '(?im)^\s*winmm\.dll\s*$'
+    }
+
+    It 'registers the Version proxy and retained native compatibility gate' {
         $suite = [IO.File]::ReadAllText($winmmProxyTests)
-        $suite | Should Match 'complete WinMM export table'
-        $suite | Should Match 'without recursion'
-        $suite | Should Match 'root discovery host gating'
-        $project = [IO.File]::ReadAllText($winmmProxyProject)
+        $suite | Should Match 'Version APIs while starting the sibling x86 bootstrap'
+        $suite | Should Match 'cache-tests'
+        $suite | Should Match 'canonical system module without recursion'
+        $project = [IO.File]::ReadAllText($versionProxyProject)
         $project | Should Match '<RuntimeLibrary>MultiThreaded</RuntimeLibrary>'
-        $project | Should Match '<ModuleDefinitionFile>winmm\.def</ModuleDefinitionFile>'
+        $project | Should Match '<ModuleDefinitionFile>version\.def</ModuleDefinitionFile>'
         $project | Should Match '<AdditionalOptions>/Brepro %\(AdditionalOptions\)</AdditionalOptions>'
+        $project | Should Match 'app_loader_readiness\.cpp'
+        $project | Should Match 'version_cache\.cpp'
+        $project | Should Match 'BLIND_SOLDIER_NO_WINMM_FORWARDING'
+        $suite | Should Match 'BlindSoldier\.VersionForwardingSmoke\.vcxproj'
+        $suite | Should Match 'BlindSoldier\.WinMMForwardingSmoke\.vcxproj'
     }
 }

@@ -4,8 +4,25 @@ $toolsRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoRoot = Split-Path -Parent $toolsRoot
 $installerPath = Join-Path $toolsRoot 'Install-PinnedGhidra.ps1'
 $verifierPath = Join-Path $toolsRoot 'Invoke-BlindSoldierGhidraVerification.ps1'
-$exportManifestPath = Join-Path $repoRoot `
-    'analysis\native-bootstrap\winmm-exports-10.0.26100.8737.json'
+$expectedVersionExports = @(
+    @{ordinal=1;name='GetFileVersionInfoA';noname=$false},
+    @{ordinal=2;name='GetFileVersionInfoByHandle';noname=$false},
+    @{ordinal=3;name='GetFileVersionInfoExA';noname=$false},
+    @{ordinal=4;name='GetFileVersionInfoExW';noname=$false},
+    @{ordinal=5;name='GetFileVersionInfoSizeA';noname=$false},
+    @{ordinal=6;name='GetFileVersionInfoSizeExA';noname=$false},
+    @{ordinal=7;name='GetFileVersionInfoSizeExW';noname=$false},
+    @{ordinal=8;name='GetFileVersionInfoSizeW';noname=$false},
+    @{ordinal=9;name='GetFileVersionInfoW';noname=$false},
+    @{ordinal=10;name='VerFindFileA';noname=$false},
+    @{ordinal=11;name='VerFindFileW';noname=$false},
+    @{ordinal=12;name='VerInstallFileA';noname=$false},
+    @{ordinal=13;name='VerInstallFileW';noname=$false},
+    @{ordinal=14;name='VerLanguageNameA';noname=$false},
+    @{ordinal=15;name='VerLanguageNameW';noname=$false},
+    @{ordinal=16;name='VerQueryValueA';noname=$false},
+    @{ordinal=17;name='VerQueryValueW';noname=$false}
+)
 $pinnedDigest = 'B62E81A0390618466C019C60D8C2F796CED2509C4C1AEA4A37644A77272CF99D'
 
 function Assert-True {
@@ -76,7 +93,7 @@ function New-EvidenceFixture {
         Join-Path $ghidra '.blind-soldier-ghidra.json') -Encoding utf8
     $x86 = Join-Path $programs 'Blind-Soldier-Bootstrap-x86.exe'
     $x64 = Join-Path $programs 'Blind-Soldier-Bootstrap-x64.exe'
-    $proxy = Join-Path $programs 'winmm.dll'
+    $proxy = Join-Path $programs 'version.dll'
     $hostProgram = Join-Path $programs 'FFVII.exe'
     New-TestPe -Path $x86 -Machine 0x014C
     New-TestPe -Path $x64 -Machine 0x8664
@@ -92,66 +109,84 @@ function New-EvidenceFixture {
     }
 }
 
-function Get-GoodEvidence {
-    param([psobject] $Request)
-    $required = [ordered]@{}
-    if ($Request.Kind -ceq 'bootstrap-x86') {
-        foreach ($name in @(
-            'OpenProcess','QueryFullProcessImageNameW','VirtualAllocEx',
-            'WriteProcessMemory','CreateRemoteThread','LoadLibraryW',
-            'CreateMutexW','MoveFileExW','SetEvent','PrivateRuntime')) {
-            $required[$name] = $true
+function New-EvidenceInvoker {
+    param(
+        [ValidateSet('Good','MissingMarker','RegistryForbidden',
+            'MissingRequired','IncompleteExports','ProxyRemoteInjection')]
+        [string] $Mode = 'Good'
+    )
+    $versionExports = @($expectedVersionExports | ForEach-Object {
+        [pscustomobject]@{
+            ordinal=[int]$_.ordinal
+            name=[string]$_.name
+            noname=[bool]$_.noname
         }
-    }
-    elseif ($Request.Kind -ceq 'bootstrap-x64') {
-        foreach ($name in @(
-            'CreateProcessW','VirtualAllocEx','WriteProcessMemory',
-            'CreateRemoteThread','LoadLibraryW','CreateMutexW','MoveFileExW',
-            'ResumeThread','PrivateRuntime')) {
-            $required[$name] = $true
+    })
+    return {
+        param($Request)
+        $requiredNames = if ($Request.Kind -ceq 'bootstrap-x86') {
+            @('OpenProcess','QueryFullProcessImageNameW','VirtualAllocEx',
+                'WriteProcessMemory','CreateRemoteThread','LoadLibraryW',
+                'CreateMutexW','MoveFileExW','SetEvent','PrivateRuntime')
         }
-    }
-    elseif ($Request.Kind -ceq 'winmm-proxy') {
-        foreach ($name in @(
-            'GetSystemWow64DirectoryW','AbsoluteSystemWinmm','CreateThread',
-            'WaitForSingleObject','WaitForMultipleObjects','MessageBoxW',
-            'TerminateProcess','HostGuards','BoundedParentSearch')) {
-            $required[$name] = $true
+        elseif ($Request.Kind -ceq 'bootstrap-x64') {
+            @('CreateProcessW','VirtualAllocEx','WriteProcessMemory',
+                'CreateRemoteThread','LoadLibraryW','CreateMutexW',
+                'MoveFileExW','ResumeThread','PrivateRuntime')
         }
-    }
-    else {
-        $required['HostIdentity'] = $true
-    }
-    $exports = @()
-    if ($Request.Kind -ceq 'winmm-proxy') {
-        $exports = @(([IO.File]::ReadAllText($exportManifestPath) |
-            ConvertFrom-Json).exports | Select-Object ordinal,name,noname)
-    }
-    return [ordered]@{
-        schemaVersion = 1
-        marker = 'BLIND_SOLDIER_GHIDRA_EVIDENCE'
-        kind = $Request.Kind
-        program = [IO.Path]::GetFullPath($Request.ProgramPath)
-        sha256 = (Get-FileHash -LiteralPath $Request.ProgramPath `
-            -Algorithm SHA256).Hash
-        machine = $Request.ExpectedMachine
-        required = $required
-        forbidden = @()
-        exports = $exports
-        tool = 'Ghidra 12.1.2 fixture'
-    }
-}
-
-function Write-Evidence {
-    param([psobject] $Request, [hashtable] $Changes)
-    $evidence = Get-GoodEvidence -Request $Request
-    foreach ($name in $Changes.Keys) { $evidence[$name] = $Changes[$name] }
-    New-Item -ItemType Directory -Path (Split-Path -Parent $Request.ReportPath) `
-        -Force | Out-Null
-    [IO.File]::WriteAllText($Request.ReportPath,
-        ($evidence | ConvertTo-Json -Depth 12),
-        [Text.UTF8Encoding]::new($false))
-    return [pscustomobject]@{ ExitCode = 0; Output = @('fixture analyzed') }
+        elseif ($Request.Kind -ceq 'version-proxy') {
+            @('SystemVersionLoad','HardenedVersionCache',
+                'AppLoaderSignatureFiles','OrderedAppLoaderMarkers',
+                'AppLoaderTimeout120000','HostRootGuards','WorkerAndBroker',
+                'NoWinmmForwardingSurface','NoEmbeddedExternalRuntime')
+        }
+        else { @('HostIdentity') }
+        $required = [ordered]@{}
+        foreach ($name in $requiredNames) { $required[$name] = $true }
+        $exports = if ($Request.Kind -ceq 'version-proxy') {
+            @($versionExports | ForEach-Object {
+                [ordered]@{
+                    ordinal=[int]$_.ordinal
+                    name=[string]$_.name
+                    noname=[bool]$_.noname
+                }
+            })
+        }
+        else { @() }
+        $marker = 'BLIND_SOLDIER_GHIDRA_EVIDENCE'
+        $forbidden = @()
+        if ($Mode -ceq 'MissingMarker') { $marker = 'WRONG_MARKER' }
+        if ($Mode -ceq 'RegistryForbidden') {
+            $forbidden = @('RegSetValueExW')
+        }
+        if ($Mode -ceq 'MissingRequired' -and
+            $Request.Kind -ceq 'version-proxy') {
+            $required['OrderedAppLoaderMarkers'] = $false
+        }
+        if ($Mode -ceq 'IncompleteExports' -and
+            $Request.Kind -ceq 'version-proxy') {
+            $exports = @($exports | Select-Object -First 16)
+        }
+        if ($Mode -ceq 'ProxyRemoteInjection' -and
+            $Request.Kind -ceq 'version-proxy') {
+            $forbidden = @('VirtualAllocEx')
+        }
+        $evidence = [ordered]@{
+            schemaVersion=1;marker=$marker;kind=$Request.Kind
+            program=[IO.Path]::GetFullPath($Request.ProgramPath)
+            sha256=(Get-FileHash -LiteralPath $Request.ProgramPath `
+                -Algorithm SHA256).Hash
+            machine=$Request.ExpectedMachine;required=$required
+            forbidden=$forbidden;exports=$exports
+            analyzer=$Request.ScriptName;tool='Ghidra 12.1.2 fixture'
+        }
+        New-Item -ItemType Directory -Path `
+            (Split-Path -Parent $Request.ReportPath) -Force | Out-Null
+        [IO.File]::WriteAllText($Request.ReportPath,
+            ($evidence | ConvertTo-Json -Depth 12),
+            [Text.UTF8Encoding]::new($false))
+        [pscustomobject]@{ExitCode=0;Output=@('fixture analyzed')}
+    }.GetNewClosure()
 }
 
 foreach ($requiredFile in @($installerPath, $verifierPath)) {
@@ -181,10 +216,7 @@ try {
     }
 
     $fixture = New-EvidenceFixture -Root (Join-Path $testRoot 'wrapper')
-    $goodInvoker = {
-        param($Request)
-        Write-Evidence -Request $Request -Changes @{}
-    }.GetNewClosure()
+    $goodInvoker = New-EvidenceInvoker -Mode Good
     Assert-ThrowsLike -Name 'missing program' -Pattern 'program.*unavailable' `
         -Action {
             & $verifierPath -GhidraRoot $fixture.GhidraRoot `
@@ -194,12 +226,7 @@ try {
                 -AnalysisInvoker $goodInvoker
         }
 
-    $missingMarkerInvoker = {
-        param($Request)
-        Write-Evidence -Request $Request -Changes @{
-            marker = 'NOT_THE_REQUIRED_MARKER'
-        }
-    }.GetNewClosure()
+    $missingMarkerInvoker = New-EvidenceInvoker -Mode MissingMarker
     Assert-ThrowsLike -Name 'missing evidence marker' `
         -Pattern 'evidence marker' -Action {
             & $verifierPath -GhidraRoot $fixture.GhidraRoot `
@@ -208,12 +235,7 @@ try {
                 -AnalysisInvoker $missingMarkerInvoker
         }
 
-    $registryInvoker = {
-        param($Request)
-        Write-Evidence -Request $Request -Changes @{
-            forbidden = @('RegSetValueExW')
-        }
-    }.GetNewClosure()
+    $registryInvoker = New-EvidenceInvoker -Mode RegistryForbidden
     Assert-ThrowsLike -Name 'registry-writing import' `
         -Pattern 'forbidden native evidence' -Action {
             & $verifierPath -GhidraRoot $fixture.GhidraRoot `
@@ -222,18 +244,27 @@ try {
                 -AnalysisInvoker $registryInvoker
         }
 
-    $incompleteExportsInvoker = {
-        param($Request)
-        $changes = @{}
-        if ($Request.Kind -ceq 'winmm-proxy') {
-            $all = @(([IO.File]::ReadAllText($exportManifestPath) |
-                ConvertFrom-Json).exports | Select-Object ordinal,name,noname)
-            $changes.exports = @($all | Select-Object -First 192)
+    $missingRequiredInvoker = New-EvidenceInvoker -Mode MissingRequired
+    Assert-ThrowsLike -Name 'missing ordered AppLoader markers' `
+        -Pattern 'OrderedAppLoaderMarkers' -Action {
+            & $verifierPath -GhidraRoot $fixture.GhidraRoot `
+                -X86BrokerPath $fixture.X86 -X64BrokerPath $fixture.X64 `
+                -ProxyPath $fixture.Proxy -OutputDirectory $fixture.Output `
+                -AnalysisInvoker $missingRequiredInvoker
         }
-        Write-Evidence -Request $Request -Changes $changes
-    }.GetNewClosure()
-    Assert-ThrowsLike -Name 'incomplete WinMM exports' `
-        -Pattern 'WinMM export table' -Action {
+
+    $remoteInjectionInvoker = New-EvidenceInvoker -Mode ProxyRemoteInjection
+    Assert-ThrowsLike -Name 'remote injection import in Version proxy' `
+        -Pattern 'VirtualAllocEx' -Action {
+            & $verifierPath -GhidraRoot $fixture.GhidraRoot `
+                -X86BrokerPath $fixture.X86 -X64BrokerPath $fixture.X64 `
+                -ProxyPath $fixture.Proxy -OutputDirectory $fixture.Output `
+                -AnalysisInvoker $remoteInjectionInvoker
+        }
+
+    $incompleteExportsInvoker = New-EvidenceInvoker -Mode IncompleteExports
+    Assert-ThrowsLike -Name 'incomplete Version exports' `
+        -Pattern 'Version export table' -Action {
             & $verifierPath -GhidraRoot $fixture.GhidraRoot `
                 -X86BrokerPath $fixture.X86 -X64BrokerPath $fixture.X64 `
                 -ProxyPath $fixture.Proxy -OutputDirectory $fixture.Output `
@@ -249,13 +280,30 @@ try {
         'Successful fixture verification did not return success.'
     Assert-True (@($result.Evidence).Count -eq 4) `
         'Successful fixture verification did not return four evidence records.'
+    $versionEvidence = @($result.Evidence | Where-Object {
+        $_.kind -ceq 'version-proxy'
+    })
+    Assert-True ($versionEvidence.Count -eq 1) `
+        'Successful fixture verification did not analyze one Version proxy.'
+    Assert-True (@($versionEvidence[0].exports).Count -eq 17) `
+        'Successful fixture verification did not preserve all 17 Version exports.'
+    Assert-True ($versionEvidence[0].analyzer -ceq `
+        'BlindSoldierVersionEvidence.java') `
+        'Successful fixture verification used the wrong Version analyzer.'
+    foreach ($kind in @('bootstrap-x86','bootstrap-x64')) {
+        $broker = @($result.Evidence | Where-Object kind -CEQ $kind)[0]
+        Assert-True ($broker.required.VirtualAllocEx -eq $true) `
+            "$kind lost its expected remote-injection evidence."
+    }
 
     Write-Host 'PASS: pinned acquisition rejects a wrong archive digest'
     Write-Host 'PASS: pinned acquisition rejects missing 64-bit Java 21'
     Write-Host 'PASS: wrapper rejects a missing program'
     Write-Host 'PASS: wrapper rejects a missing evidence marker'
     Write-Host 'PASS: wrapper rejects registry-writing evidence'
-    Write-Host 'PASS: wrapper rejects an incomplete WinMM export table'
+    Write-Host 'PASS: wrapper rejects missing AppLoader readiness evidence'
+    Write-Host 'PASS: wrapper rejects remote injection in the Version proxy'
+    Write-Host 'PASS: wrapper rejects an incomplete Version export table'
     Write-Host 'PASS: wrapper accepts complete machine-readable evidence'
 }
 finally {

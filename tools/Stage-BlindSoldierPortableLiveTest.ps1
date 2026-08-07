@@ -3,7 +3,7 @@ param(
     [Parameter(Mandatory=$true)] [string] $ArchivePath,
     [Parameter(Mandatory=$true)] [string] $DestinationRoot,
     [string] $BackupRoot,
-    [string] $ExpectedVersion = '0.1.5',
+    [string] $ExpectedVersion = '0.1.6',
     [string] $VerifierPath,
     [string] $SupportedHostsPath,
     [string] $ReportPath,
@@ -19,11 +19,21 @@ if ([string]::IsNullOrWhiteSpace($VerifierPath)) {
 }
 
 $utf8 = New-Object Text.UTF8Encoding($false)
-$proxyPaths = @(
-    'ff7_en.exe.local/winmm.dll',
-    'ff7.exe.local/winmm.dll',
-    'ff7/workingdir/ff7_en.exe.local/winmm.dll',
-    'ff7/workingdir/ff7.exe.local/winmm.dll'
+$versionProxyPaths = @(
+    'ff7_en.exe.local/version.dll',
+    'ff7.exe.local/version.dll',
+    'ff7/workingdir/ff7_en.exe.local/version.dll',
+    'ff7/workingdir/ff7.exe.local/version.dll'
+)
+$externalOwnedPaths = @(
+    'dinput.dll','AppProxy.dll','AppProxy.runtimeconfig.json',
+    'AppWrapper.dll','nethost.dll','AF3DN.P','AF4DN.P','FFNx.toml',
+    'steam_api.dll','ff7/workingdir/dinput.dll',
+    'ff7/workingdir/AppProxy.dll',
+    'ff7/workingdir/AppProxy.runtimeconfig.json',
+    'ff7/workingdir/AppWrapper.dll','ff7/workingdir/nethost.dll',
+    'ff7/workingdir/AF3DN.P','ff7/workingdir/AF4DN.P',
+    'ff7/workingdir/FFNx.toml','ff7/workingdir/steam_api.dll'
 )
 
 function Write-JsonUtf8 {
@@ -45,6 +55,67 @@ function Get-RelativePathSafe {
         throw "Path escaped the expected root: $pathFull"
     }
     return $pathFull.Substring($rootFull.Length).Replace('\','/')
+}
+
+function Get-ExternalOwnershipSnapshot {
+    param([Parameter(Mandatory=$true)] [string] $Root)
+    $records = New-Object 'System.Collections.Generic.List[object]'
+    foreach ($relative in $externalOwnedPaths) {
+        $path = Join-Path $Root $relative.Replace('/','\')
+        if (-not (Test-Path -LiteralPath $path)) { continue }
+        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+            throw "A 7th Heaven or FFNx owned path is not a file: $path"
+        }
+        $item = Get-Item -LiteralPath $path -Force
+        if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+            throw "A 7th Heaven or FFNx owned file is a reparse point: $path"
+        }
+        $records.Add([pscustomobject][ordered]@{
+            RelativePath=$relative
+            Length=[int64]$item.Length
+            Sha256=(Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash
+        })
+    }
+    return $records.ToArray()
+}
+
+function Assert-ExternalOwnershipUnchanged {
+    param(
+        [Parameter(Mandatory=$true)] [object[]] $Before,
+        [Parameter(Mandatory=$true)] [object[]] $After
+    )
+    $beforeRecords = @($Before)
+    $afterRecords = @($After)
+    if ($beforeRecords.Count -ne $afterRecords.Count) {
+        throw 'A 7th Heaven or FFNx owned file was added or removed during staging.'
+    }
+    for ($index = 0; $index -lt $beforeRecords.Count; ++$index) {
+        $beforeRecord = $beforeRecords[$index]
+        $afterRecord = $afterRecords[$index]
+        if ([string]$beforeRecord.RelativePath -cne
+                [string]$afterRecord.RelativePath -or
+            [int64]$beforeRecord.Length -ne [int64]$afterRecord.Length -or
+            -not ([string]$beforeRecord.Sha256).Equals(
+                [string]$afterRecord.Sha256,
+                [StringComparison]::OrdinalIgnoreCase)) {
+            throw "A 7th Heaven or FFNx owned file changed during staging: $($beforeRecord.RelativePath)"
+        }
+    }
+}
+
+function Assert-NoExternalArchiveMembers {
+    param([Parameter(Mandatory=$true)] [string[]] $Members)
+    $protectedNames = New-Object 'System.Collections.Generic.HashSet[string]' `
+        ([StringComparer]::OrdinalIgnoreCase)
+    foreach ($relative in $externalOwnedPaths) {
+        [void]$protectedNames.Add([IO.Path]::GetFileName($relative))
+    }
+    foreach ($member in @($Members)) {
+        $name = [IO.Path]::GetFileName(([string]$member).Replace('/','\'))
+        if ($protectedNames.Contains($name)) {
+            throw "Portable ZIP cannot contain a 7th Heaven or FFNx owned file: $member"
+        }
+    }
 }
 
 function Assert-NotDriveRoot {
@@ -239,9 +310,9 @@ function Get-SupportedHostPolicy {
                 '683F704F061D943A976D764233A6B3C290ACF9E5C1B150B7180A03224CA3A912',
                 'F4F5651E86856306EF215A90C1EF6E2572BECF38A208AC9B569BD00F6B795E48'
             )
-            accessibleProxySha256 = @(
-                'A306A9AEF702042B628A3F0AF2DF121462EF3268345896DB60E55B6FC553CA4D',
-                '287F6FD3D1BBFDE03CBAEDB391921EE0A68EDC25EDA5024615EA0350CCBC49C3'
+            accessibleVersionProxySha256 = @(
+                '64E2803E3E321581FF0A58E64543BD082FFD6272941FEDB5BB3F14DCC79B7C90',
+                'E46DC04803F56C880D7753003F7EED73754F6B2C07D1BCFB48BCCC4DE8AA8E82'
             )
         }
     }
@@ -258,11 +329,12 @@ function Get-SupportedHostPolicy {
             }
         }
     }
-    $proxyProperty = $policy.PSObject.Properties['accessibleProxySha256']
+    $proxyProperty = $policy.PSObject.Properties[
+        'accessibleVersionProxySha256']
     if ($null -ne $proxyProperty) {
         foreach ($hash in @($proxyProperty.Value)) {
             if ([string]$hash -notmatch '^[0-9A-Fa-f]{64}$') {
-                throw 'Supported accessible proxy policy is invalid.'
+                throw 'Supported accessible Version proxy policy is invalid.'
             }
         }
     }
@@ -406,6 +478,7 @@ try {
     New-Item -ItemType Directory -Path $extractRoot | Out-Null
     $members = @(Expand-ValidatedArchive -Path $archiveFull `
         -Destination $extractRoot -Version $ExpectedVersion)
+    Assert-NoExternalArchiveMembers -Members $members
 
     $global:LASTEXITCODE = 0
     & $VerifierPath -ArchivePath $archiveFull -ExpectedVersion $ExpectedVersion |
@@ -418,17 +491,18 @@ try {
     $acceptedHosts = @(Assert-SupportedGameRoot -Root $destinationFull `
         -Policy $policy -PackageRoot $extractRoot)
 
-    $packageProxy = Join-Path $extractRoot 'ff7.exe.local\winmm.dll'
+    $externalBefore = @(Get-ExternalOwnershipSnapshot -Root $destinationFull)
+    $packageProxy = Join-Path $extractRoot 'ff7.exe.local\version.dll'
     $packageProxyHash = (Get-FileHash -LiteralPath $packageProxy `
         -Algorithm SHA256).Hash
     $knownProxyHashes = @($packageProxyHash)
-    $proxyProperty = $policy.PSObject.Properties['accessibleProxySha256']
+    $proxyProperty = $policy.PSObject.Properties['accessibleVersionProxySha256']
     if ($null -ne $proxyProperty) {
         $knownProxyHashes += @($proxyProperty.Value | ForEach-Object {
             [string]$_
         })
     }
-    foreach ($relative in $proxyPaths) {
+    foreach ($relative in $versionProxyPaths) {
         $existing = Join-Path $destinationFull $relative.Replace('/','\')
         if (Test-Path -LiteralPath $existing -PathType Leaf) {
             $existingHash = (Get-FileHash -LiteralPath $existing `
@@ -437,7 +511,7 @@ try {
                 $existingHash.Equals($_, [StringComparison]::OrdinalIgnoreCase)
             }).Count -gt 0
             if (-not $proxyRecognized) {
-                throw "An unknown executable-local winmm.dll already exists: $existing"
+                throw "An unknown executable-local version.dll already exists: $existing"
             }
         }
     }
@@ -489,9 +563,13 @@ try {
         RegistryMutation=$false
         AcceptedHosts=$acceptedHosts
         Files=@($filePlans.ToArray())
+        ExternalFiles=@($externalBefore)
     }
 
     if ($DryRun) {
+        $externalAfter = @(Get-ExternalOwnershipSnapshot -Root $destinationFull)
+        Assert-ExternalOwnershipUnchanged -Before $externalBefore `
+            -After $externalAfter
         if (-not [string]::IsNullOrWhiteSpace($ReportPath)) {
             Write-JsonUtf8 -Path ([IO.Path]::GetFullPath($ReportPath)) `
                 -Value $report
@@ -530,6 +608,9 @@ try {
     Write-JsonUtf8 -Path (Join-Path $backupFull 'ownership-snapshot.json') `
         -Value $snapshot
 
+    $externalBeforeCopy = @(Get-ExternalOwnershipSnapshot -Root $destinationFull)
+    Assert-ExternalOwnershipUnchanged -Before $externalBefore `
+        -After $externalBeforeCopy
     $applied = New-Object 'System.Collections.Generic.List[object]'
     try {
         foreach ($plan in @($filePlans | Where-Object Action -ne 'Unchanged')) {
@@ -556,6 +637,9 @@ try {
         throw
     }
 
+    $externalAfter = @(Get-ExternalOwnershipSnapshot -Root $destinationFull)
+    Assert-ExternalOwnershipUnchanged -Before $externalBefore `
+        -After $externalAfter
     if (-not [string]::IsNullOrWhiteSpace($ReportPath)) {
         Write-JsonUtf8 -Path ([IO.Path]::GetFullPath($ReportPath)) `
             -Value $report

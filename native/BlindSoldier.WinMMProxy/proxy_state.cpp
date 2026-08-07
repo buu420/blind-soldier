@@ -8,13 +8,17 @@
 #include <memory>
 #include <vector>
 
+#if !defined(BLIND_SOLDIER_NO_WINMM_FORWARDING)
 extern "C" FARPROC g_winmmExports[blind_soldier::kWinmmExportCount] = {};
+#endif
 
 namespace blind_soldier {
 namespace {
 
 HMODULE g_proxyModule = nullptr;
+#if !defined(BLIND_SOLDIER_NO_WINMM_FORWARDING)
 bool g_loadWinmmForForwarding = true;
+#endif
 bool g_requireStockRuntimeReadiness = false;
 std::function<StockRuntimeReadinessResult(
     const fs::path&, const HostValidationResult&, Logger&)>
@@ -106,6 +110,7 @@ std::wstring FailureMessage() {
     return message;
 }
 
+#if !defined(BLIND_SOLDIER_NO_WINMM_FORWARDING)
 bool LoadCanonicalSystemWinmm(Logger& log) {
     std::vector<wchar_t> directory(32768);
     const UINT length = GetSystemWow64DirectoryW(
@@ -159,6 +164,7 @@ bool LoadCanonicalSystemWinmm(Logger& log) {
     log.W(L"canonical system WinMM loaded: " + canonical.wstring());
     return true;
 }
+#endif
 
 ProxyBootstrapHooks DefaultHooks() {
     ProxyBootstrapHooks hooks;
@@ -192,6 +198,7 @@ DWORD WINAPI ProxyWorker(void*) {
             logName;
         g_proxyLog.Open(g_proxyLogPath.parent_path(), logName.c_str());
         g_proxyLog.W(L"bootstrap module=" + proxyPath.wstring());
+#if !defined(BLIND_SOLDIER_NO_WINMM_FORWARDING)
         if (g_loadWinmmForForwarding &&
             !LoadCanonicalSystemWinmm(g_proxyLog)) {
             CompleteWorker(ProxyBootstrapState::Failed,
@@ -203,6 +210,10 @@ DWORD WINAPI ProxyWorker(void*) {
             g_proxyLog.W(L"native " + g_bootstrapComponent +
                 L" bootstrap active; WinMM forwarding is not required");
         }
+#else
+        g_proxyLog.W(L"native " + g_bootstrapComponent +
+            L" bootstrap active");
+#endif
 
         const fs::path processImage = ModulePath(nullptr);
         if (!IsSupportedFf7ProcessName(processImage)) {
@@ -553,9 +564,11 @@ BrokerWaitResult StartBrokerAndWaitForReady(
     return result;
 }
 
+#if !defined(BLIND_SOLDIER_NO_WINMM_FORWARDING)
 void InitializeWinmmProxy(HMODULE module) {
     InitializePortableBootstrap(module, true, L"WinMM");
 }
+#endif
 
 void InitializePortableBootstrap(
     HMODULE module, bool loadWinmmForForwarding, const wchar_t* componentName,
@@ -564,7 +577,11 @@ void InitializePortableBootstrap(
         const fs::path&, const HostValidationResult&, Logger&)>
         waitForStockRuntime) {
     g_proxyModule = module;
+#if !defined(BLIND_SOLDIER_NO_WINMM_FORWARDING)
     g_loadWinmmForForwarding = loadWinmmForForwarding;
+#else
+    (void)loadWinmmForForwarding;
+#endif
     g_requireStockRuntimeReadiness = requireStockRuntimeReadiness;
     g_waitForStockRuntime = std::move(waitForStockRuntime);
     g_bootstrapComponent = componentName && *componentName
@@ -620,6 +637,8 @@ void WaitForPortableBootstrap() {
 
 }  // namespace blind_soldier
 
+#if !defined(BLIND_SOLDIER_NO_WINMM_FORWARDING)
 extern "C" void __cdecl EnsureWinmmAndBootstrapReady() {
     blind_soldier::WaitForPortableBootstrap();
 }
+#endif

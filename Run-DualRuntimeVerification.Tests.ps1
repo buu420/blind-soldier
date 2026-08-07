@@ -55,12 +55,27 @@ Describe 'Blind Soldier aggregate portable release gate' {
             }.GetNewClosure()
             $result = & $verificationPath -CommandInvoker $invoker `
                 -TempParent $fixture.Temp -LogDirectory $fixture.Logs
+            $reloadedPortable = @($invocations | Where-Object Name -CEQ `
+                'Reloaded.Tests')[0]
+            $reloadedCommand = [string]$reloadedPortable.Arguments[-1]
+            foreach ($mode in @('--runtime-lease-only',
+                    '--host-validation-only','--7h-compatibility-only')) {
+                $reloadedCommand | Should Match ([regex]::Escape($mode))
+            }
+            $build = @($invocations | Where-Object Name -CEQ `
+                'PortablePackage.Build')[0]
+            $verify = @($invocations | Where-Object Name -CEQ `
+                'PortablePackage.Verify')[0]
+            $build.Arguments[([array]::IndexOf($build.Arguments,'-Version') + 1)] |
+                Should Be '0.1.6'
+            $verify.Arguments[([array]::IndexOf($verify.Arguments,
+                '-ExpectedVersion') + 1)] | Should Be '0.1.6'
             @($invocations.Name) | Should Be @(
                 'Shared.Tests','Reloaded.Tests','Steam2026X64.Tests',
                 'Parity.Tests','AccessibleLauncher.Tests',
                 'VerificationGate.Tests','AccessibleLauncherBundle.Tests',
                 'NativeHost.Tests','Bootstrap.Tests x86/x64',
-                'WinMMProxy.Tests','PortableDotNetRuntime.Tests',
+                'NativeProxy.Tests','PortableDotNetRuntime.Tests',
                 'PortablePackage.Tests','PortablePackage.Build',
                 'PortablePackage.Verify','Ghidra.NativeEvidence')
             $result.VerificationSucceeded | Should Be $true
@@ -100,7 +115,7 @@ Describe 'Blind Soldier aggregate portable release gate' {
                 -TempParent $fixture.Temp -LogDirectory $fixture.Logs } |
                 Should Throw "Verification step 'Bootstrap.Tests x86/x64' failed with exit code 19. Log: $expectedLog"
             @($names)[-1] | Should Be 'Bootstrap.Tests x86/x64'
-            @($names) -contains 'WinMMProxy.Tests' | Should Be $false
+            @($names) -contains 'NativeProxy.Tests' | Should Be $false
             [IO.File]::ReadAllText($expectedLog) |
                 Should Match 'controlled native failure'
             @(Get-ChildItem -LiteralPath $fixture.Temp -Force).Count |
@@ -148,7 +163,7 @@ Describe 'Blind Soldier aggregate portable release gate' {
         }
         foreach ($required in @(
             'AccessibleLauncher.Tests','AccessibleLauncherBundle.Tests',
-            'NativeHost.Tests','Bootstrap.Tests x86/x64','WinMMProxy.Tests',
+            'NativeHost.Tests','Bootstrap.Tests x86/x64','NativeProxy.Tests',
             'PortableDotNetRuntime.Tests','PortablePackage.Tests',
             'PortablePackage.Verify','Ghidra.NativeEvidence')) {
             $content | Should Match ([regex]::Escape($required))
@@ -172,6 +187,14 @@ Describe 'Blind Soldier aggregate portable release gate' {
         $workflow | Should Match '(?m)^\s*workflow_dispatch:\s*$'
         $workflow | Should Match "(?m)^\s*if:\s*github\.ref_type == 'tag'\s*$"
         $workflow | Should Match '\$\{\{ inputs\.version \}\}'
+        $workflow | Should Match `
+            '(?m)^\s*default:\s*["'']0\.1\.6["'']\s*$'
+
+        $assemblyInfoPath = Join-Path $PSScriptRoot `
+            'launcher\Ff7.Launcher.Accessible\Properties\AssemblyInfo.cs'
+        $assemblyInfo = [IO.File]::ReadAllText($assemblyInfoPath)
+        $assemblyInfo | Should Match `
+            'blind-soldier\.0\.1\.6'
     }
 
     It 'keeps supported-host validation independent of developer-local game files' {

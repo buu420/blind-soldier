@@ -16,8 +16,8 @@ $toolsRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoRoot = Split-Path -Parent $toolsRoot
 $pinnedDigest = 'B62E81A0390618466C019C60D8C2F796CED2509C4C1AEA4A37644A77272CF99D'
 $scriptDirectory = Join-Path $repoRoot 'analysis\ghidra'
-$exportManifestPath = Join-Path $repoRoot `
-    'analysis\native-bootstrap\winmm-exports-10.0.26100.8737.json'
+$versionDefinitionPath = Join-Path $repoRoot `
+    'native\BlindSoldier.VersionProxy\version.def'
 
 if ([string]::IsNullOrWhiteSpace($X86BrokerPath)) {
     $X86BrokerPath = Join-Path $repoRoot `
@@ -29,7 +29,7 @@ if ([string]::IsNullOrWhiteSpace($X64BrokerPath)) {
 }
 if ([string]::IsNullOrWhiteSpace($ProxyPath)) {
     $ProxyPath = Join-Path $repoRoot `
-        'native\BlindSoldier.WinMMProxy\bin\Release\Win32\winmm.dll'
+        'native\BlindSoldier.VersionProxy\bin\Release\Win32\version.dll'
 }
 if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
     $OutputDirectory = Join-Path $repoRoot 'artifacts\ghidra'
@@ -125,10 +125,10 @@ function Assert-EvidenceRecord {
             throw "Ghidra required evidence '$name' is missing from $($Request.ProgramPath). Log: $($Request.LogPath)"
         }
     }
-    if ($Request.Kind -ceq 'winmm-proxy' -and
+    if ($Request.Kind -ceq 'version-proxy' -and
         -not (Test-ExactExports -Actual @($Evidence.exports) `
             -Expected $ExpectedExports)) {
-        throw "Ghidra WinMM export table is incomplete or differs from the locked manifest. Log: $($Request.LogPath)"
+        throw "Ghidra Version export table is incomplete or differs from version.def. Log: $($Request.LogPath)"
     }
 }
 
@@ -141,20 +141,34 @@ $ghidra = Assert-GhidraInstallation -Root $GhidraRoot
 foreach ($script in @(
     'BlindSoldierNativeEvidence.java',
     'BlindSoldierBootstrapEvidence.java',
-    'BlindSoldierWinmmEvidence.java'
+    'BlindSoldierVersionEvidence.java'
 )) {
     $path = Join-Path $scriptDirectory $script
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
         throw "Required Ghidra script is unavailable: $path"
     }
 }
-if (-not (Test-Path -LiteralPath $exportManifestPath -PathType Leaf)) {
-    throw "Locked WinMM export manifest is unavailable: $exportManifestPath"
+if (-not (Test-Path -LiteralPath $versionDefinitionPath -PathType Leaf)) {
+    throw "Locked Version definition is unavailable: $versionDefinitionPath"
 }
-$expectedExports = @(([IO.File]::ReadAllText($exportManifestPath) |
-    ConvertFrom-Json).exports | Select-Object ordinal,name,noname)
-if ($expectedExports.Count -ne 193) {
-    throw "Locked WinMM export manifest does not contain 193 exports: $exportManifestPath"
+$expectedExports = @(& {
+    foreach ($line in Get-Content -LiteralPath $versionDefinitionPath) {
+        $trimmed = $line.Trim()
+        if ([string]::IsNullOrWhiteSpace($trimmed) -or
+            $trimmed -match '^(LIBRARY|EXPORTS)\b') { continue }
+        if ($trimmed -notmatch `
+                '^([A-Za-z_][A-Za-z0-9_]*)=\S+\s+@(\d+)(?:\s+(NONAME))?$') {
+            throw "Locked Version definition contains an invalid export: $trimmed"
+        }
+        [pscustomobject]@{
+            ordinal=[int]$matches[2]
+            name=[string]$matches[1]
+            noname=([string]$matches[3] -ceq 'NONAME')
+        }
+    }
+} | Sort-Object ordinal)
+if ($expectedExports.Count -ne 17) {
+    throw "Locked Version definition does not contain 17 exports: $versionDefinitionPath"
 }
 
 $specifications = New-Object 'System.Collections.Generic.List[object]'
@@ -177,13 +191,14 @@ $specifications.Add([pscustomobject]@{
         'ResumeThread','PrivateRuntime')
 })
 $specifications.Add([pscustomobject]@{
-    Kind = 'winmm-proxy'; ProgramPath = $ProxyPath
+    Kind = 'version-proxy'; ProgramPath = $ProxyPath
     ExpectedMachine = 0x014C
-    ScriptName = 'BlindSoldierWinmmEvidence.java'
+    ScriptName = 'BlindSoldierVersionEvidence.java'
     RequiredEvidence = @(
-        'GetSystemWow64DirectoryW','AbsoluteSystemWinmm','CreateThread',
-        'WaitForSingleObject','WaitForMultipleObjects','MessageBoxW',
-        'TerminateProcess','HostGuards','BoundedParentSearch')
+        'SystemVersionLoad','HardenedVersionCache',
+        'AppLoaderSignatureFiles','OrderedAppLoaderMarkers',
+        'AppLoaderTimeout120000','HostRootGuards','WorkerAndBroker',
+        'NoWinmmForwardingSurface','NoEmbeddedExternalRuntime')
 })
 foreach ($hostPath in @($HostPaths)) {
     if ([string]::IsNullOrWhiteSpace($hostPath)) { continue }
@@ -260,7 +275,7 @@ foreach ($specification in $specifications) {
                 '-scriptPath', $scriptDirectory,
                 '-postScript', $request.ScriptName,
                 $request.ReportPath, $request.Kind,
-                ([string]$request.ExpectedMachine), $exportManifestPath,
+                ([string]$request.ExpectedMachine), $versionDefinitionPath,
                 '-deleteProject')
             $analysisOutput = @(& $request.AnalyzeHeadlessPath @arguments 2>&1 |
                 ForEach-Object { [string]$_ })

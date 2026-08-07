@@ -92,10 +92,10 @@ function New-LiveStageFixture {
     $proxySource = Join-Path $payload 'proxy.dll'
     New-TestPe -Path $proxySource -Machine 0x014C -Marker 6
     foreach ($relative in @(
-        'ff7_en.exe.local\winmm.dll',
-        'ff7.exe.local\winmm.dll',
-        'ff7\workingdir\ff7_en.exe.local\winmm.dll',
-        'ff7\workingdir\ff7.exe.local\winmm.dll')) {
+        'ff7_en.exe.local\version.dll',
+        'ff7.exe.local\version.dll',
+        'ff7\workingdir\ff7_en.exe.local\version.dll',
+        'ff7\workingdir\ff7.exe.local\version.dll')) {
         $target = Join-Path $payload $relative
         New-Item -ItemType Directory -Path (Split-Path -Parent $target) -Force |
             Out-Null
@@ -112,7 +112,7 @@ function New-LiveStageFixture {
                 sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash
             }
         })
-    [ordered]@{schemaVersion=1;version='0.1.5';files=$records} |
+    [ordered]@{schemaVersion=1;version='0.1.6';files=$records} |
         ConvertTo-Json -Depth 6 |
         Set-Content -LiteralPath (Join-Path $payload 'portable-manifest.json') `
             -Encoding utf8
@@ -128,10 +128,25 @@ function New-LiveStageFixture {
     New-TestPe -Path $priorLauncher -Machine 0x014C -Marker 7
     $priorLauncherHash = (Get-FileHash -LiteralPath $priorLauncher `
         -Algorithm SHA256).Hash
-    $priorProxy = Join-Path $root 'prior-accessible-winmm.dll'
+    $priorProxy = Join-Path $root 'prior-accessible-version.dll'
     New-TestPe -Path $priorProxy -Machine 0x014C -Marker 8
     $priorProxyHash = (Get-FileHash -LiteralPath $priorProxy `
         -Algorithm SHA256).Hash
+    $externalRelativePaths = @(
+        'dinput.dll','AppProxy.dll','AppProxy.runtimeconfig.json',
+        'AppWrapper.dll','nethost.dll','AF3DN.P','AF4DN.P','FFNx.toml',
+        'steam_api.dll','ff7\workingdir\dinput.dll',
+        'ff7\workingdir\AppProxy.dll',
+        'ff7\workingdir\AppProxy.runtimeconfig.json',
+        'ff7\workingdir\AppWrapper.dll','ff7\workingdir\nethost.dll',
+        'ff7\workingdir\AF3DN.P','ff7\workingdir\AF4DN.P',
+        'ff7\workingdir\FFNx.toml','ff7\workingdir\steam_api.dll')
+    foreach ($relative in $externalRelativePaths) {
+        $path = Join-Path $game $relative
+        New-Item -ItemType Directory -Path (Split-Path -Parent $path) -Force |
+            Out-Null
+        [IO.File]::WriteAllText($path, "external-owner:$relative")
+    }
     $supported = Join-Path $root 'supported-hosts.json'
     [ordered]@{
         schemaVersion = 1
@@ -146,7 +161,7 @@ function New-LiveStageFixture {
     [IO.File]::WriteAllText($verifier, @'
 param([string] $ArchivePath, [string] $ExpectedVersion)
 if (-not (Test-Path -LiteralPath $ArchivePath -PathType Leaf)) { exit 91 }
-if ($ExpectedVersion -cne '0.1.5') { exit 92 }
+if ($ExpectedVersion -cne '0.1.6') { exit 92 }
 '@)
 
     [pscustomobject]@{
@@ -166,8 +181,10 @@ if ($ExpectedVersion -cne '0.1.5') { exit 92 }
         PriorProxy=$priorProxy
         PriorProxyHash=$priorProxyHash
         ProxyHash=(Get-FileHash -LiteralPath `
-            (Join-Path $payload 'ff7.exe.local\winmm.dll') -Algorithm SHA256).Hash
+            (Join-Path $payload 'ff7.exe.local\version.dll') -Algorithm SHA256).Hash
         EntryCount=@(Get-ChildItem -LiteralPath $payload -File -Recurse).Count
+        ManifestPaths=@($records.path + 'portable-manifest.json' | Sort-Object)
+        ExternalRelativePaths=@($externalRelativePaths | Sort-Object)
     }
 }
 
@@ -212,7 +229,7 @@ function Invoke-FixtureStage {
         DestinationRoot=$DestinationRoot
         VerifierPath=$Fixture.Verifier
         SupportedHostsPath=$Fixture.Supported
-        ExpectedVersion='0.1.5'
+        ExpectedVersion='0.1.6'
     }
     if (-not [string]::IsNullOrWhiteSpace($BackupRoot)) {
         $parameters.BackupRoot = $BackupRoot
@@ -226,6 +243,40 @@ function Get-ThrownMessage {
     try { & $Action | Out-Null }
     catch { return $_.Exception.Message }
     throw 'Expected the action to throw, but it completed successfully.'
+}
+
+function Get-FileSafetySnapshot {
+    param([string] $Root, [string[]] $RelativePaths)
+    return @($RelativePaths | Sort-Object | ForEach-Object {
+        $path = Join-Path $Root $_
+        $item = Get-Item -LiteralPath $path
+        [ordered]@{
+            path = $_.Replace('\','/')
+            length = [int64]$item.Length
+            sha256 = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash
+        }
+    }) | ConvertTo-Json -Depth 4 -Compress
+}
+
+function Update-FixtureArchive {
+    param([psobject] $Fixture)
+    $manifestPath = Join-Path $Fixture.Payload 'portable-manifest.json'
+    Remove-Item -LiteralPath $manifestPath -Force
+    $records = @(Get-ChildItem -LiteralPath $Fixture.Payload -File -Recurse |
+        Sort-Object FullName | ForEach-Object {
+            [ordered]@{
+                path=$_.FullName.Substring($Fixture.Payload.Length + 1).Replace('\','/')
+                length=[int64]$_.Length
+                sha256=(Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash
+            }
+        })
+    [ordered]@{schemaVersion=1;version='0.1.6';files=$records} |
+        ConvertTo-Json -Depth 6 |
+        Set-Content -LiteralPath $manifestPath -Encoding utf8
+    Remove-Item -LiteralPath $Fixture.Archive,($Fixture.Archive + '.sha256') `
+        -Force
+    New-TestZip -Source $Fixture.Payload -Destination $Fixture.Archive
+    Write-Sidecar -Archive $Fixture.Archive
 }
 
 Describe 'Blind Soldier portable live staging safety' {
@@ -262,31 +313,36 @@ Describe 'Blind Soldier portable live staging safety' {
         $message | Should Match 'reparse'
     }
 
-    It 'refuses an unknown executable-local WinMM proxy' {
-        $collision = Join-Path $fixture.Game 'ff7.exe.local\winmm.dll'
+    It 'refuses an unknown executable-local Version proxy' {
+        $collision = Join-Path $fixture.Game 'ff7.exe.local\version.dll'
         New-TestPe -Path $collision -Machine 0x014C -Marker 99
         $message = Get-ThrownMessage {
             Invoke-FixtureStage -Fixture $fixture -DryRun `
                 -BackupRoot $fixture.Backup
         }
-        $message | Should Match 'unknown.+winmm\.dll'
+        $message | Should Match 'unknown.+version\.dll'
     }
 
-    It 'accepts a specifically allowlisted earlier accessible WinMM proxy' {
+    It 'backs up a specifically allowlisted earlier accessible Version proxy' {
         $policy = Get-Content -LiteralPath $fixture.Supported -Raw |
             ConvertFrom-Json
-        $policy | Add-Member -NotePropertyName accessibleProxySha256 `
+        $policy | Add-Member -NotePropertyName accessibleVersionProxySha256 `
             -NotePropertyValue @($fixture.PriorProxyHash)
         $policy | ConvertTo-Json -Depth 5 |
             Set-Content -LiteralPath $fixture.Supported -Encoding utf8
-        $collision = Join-Path $fixture.Game 'ff7.exe.local\winmm.dll'
+        $collision = Join-Path $fixture.Game 'ff7.exe.local\version.dll'
         New-Item -ItemType Directory -Path (Split-Path -Parent $collision) `
             -Force | Out-Null
         Copy-Item -LiteralPath $fixture.PriorProxy -Destination $collision
 
-        $result = Invoke-FixtureStage -Fixture $fixture -DryRun `
+        $result = Invoke-FixtureStage -Fixture $fixture `
             -BackupRoot $fixture.Backup
-        $result.Operation | Should Be 'DryRun'
+        $result.Operation | Should Be 'Applied'
+        (Get-FileHash -LiteralPath $collision -Algorithm SHA256).Hash |
+            Should Be $fixture.ProxyHash
+        (Get-FileHash -LiteralPath (Join-Path $fixture.Backup `
+            'files\ff7.exe.local\version.dll') -Algorithm SHA256).Hash |
+            Should Be $fixture.PriorProxyHash
     }
 
     It 'refuses an unrecognized launcher beside an x64 host' {
@@ -314,6 +370,44 @@ Describe 'Blind Soldier portable live staging safety' {
         $result.Operation | Should Be 'DryRun'
     }
 
+    It 'refuses to stage files owned by stock 7th Heaven or FFNx' {
+        $externalMember = Join-Path $fixture.Payload `
+            'Blind-Soldier\embedded\dinput.dll'
+        New-Item -ItemType Directory -Path (Split-Path -Parent $externalMember) -Force | Out-Null
+        [IO.File]::WriteAllText($externalMember,
+            'package must not own this file')
+        Update-FixtureArchive -Fixture $fixture
+        $message = Get-ThrownMessage {
+            Invoke-FixtureStage -Fixture $fixture -DryRun `
+                -BackupRoot $fixture.Backup
+        }
+        $message | Should Match '7th Heaven|FFNx|external'
+    }
+
+    It 'default policy recognizes prior Blind Soldier Version proxies' {
+        $tokens = $null
+        $errors = $null
+        $ast = [Management.Automation.Language.Parser]::ParseFile(
+            $stagerPath, [ref]$tokens, [ref]$errors)
+        @($errors).Count | Should Be 0
+        $functionAst = @($ast.FindAll({
+            param($node)
+            $node -is [Management.Automation.Language.FunctionDefinitionAst] -and
+                $node.Name -ceq 'Get-SupportedHostPolicy'
+        }, $true))[0]
+        $functionAst | Should Not BeNullOrEmpty
+        $module = New-Module -ScriptBlock ([scriptblock]::Create(
+            $functionAst.Extent.Text))
+        try { $policy = & $module { Get-SupportedHostPolicy } }
+        finally { Remove-Module $module -Force }
+        $policy.PSObject.Properties.Name |
+            Should Contain 'accessibleVersionProxySha256'
+        @($policy.accessibleVersionProxySha256) | Should Contain `
+            '64E2803E3E321581FF0A58E64543BD082FFD6272941FEDB5BB3F14DCC79B7C90'
+        @($policy.accessibleVersionProxySha256) | Should Contain `
+            'E46DC04803F56C880D7753003F7EED73754F6B2C07D1BCFB48BCCC4DE8AA8E82'
+    }
+
     It 'refuses an unsafe archive member before invoking the verifier' {
         $unsafe = Join-Path $fixture.Root 'unsafe.zip'
         New-UnsafeZip -Destination $unsafe
@@ -334,23 +428,34 @@ Describe 'Blind Soldier portable live staging safety' {
 
     It 'reports every overlay during dry-run and changes neither files nor registry' {
         $registryBefore = Get-RegistrySafetySnapshot
+        $externalBefore = Get-FileSafetySnapshot -Root $fixture.Game `
+            -RelativePaths $fixture.ExternalRelativePaths
         $launcherBefore = (Get-FileHash -LiteralPath `
             (Join-Path $fixture.Game 'FFVII_LAUNCHER.exe') -Algorithm SHA256).Hash
         $result = Invoke-FixtureStage -Fixture $fixture -DryRun `
             -BackupRoot $fixture.Backup
         $registryAfter = Get-RegistrySafetySnapshot
+        $externalAfter = Get-FileSafetySnapshot -Root $fixture.Game `
+            -RelativePaths $fixture.ExternalRelativePaths
 
         $result.Operation | Should Be 'DryRun'
-        @($result.Files).Count | Should Be $fixture.EntryCount
+        @($result.Files.RelativePath | Sort-Object) | Should Be $fixture.ManifestPaths
+        @($result.ExternalFiles.RelativePath | Sort-Object) |
+            Should Be @($fixture.ExternalRelativePaths | ForEach-Object {
+                $_.Replace('\','/')
+            } | Sort-Object)
         @($result.Files | Where-Object Action -eq 'Replace').Count |
             Should BeGreaterThan 0
         (Get-FileHash -LiteralPath (Join-Path $fixture.Game `
             'FFVII_LAUNCHER.exe') -Algorithm SHA256).Hash | Should Be $launcherBefore
         (Test-Path -LiteralPath $fixture.Backup) | Should Be $false
         $registryAfter | Should Be $registryBefore
+        $externalAfter | Should Be $externalBefore
     }
 
     It 'backs up replaced files and writes an ownership snapshot before overlay' {
+        $externalBefore = Get-FileSafetySnapshot -Root $fixture.Game `
+            -RelativePaths $fixture.ExternalRelativePaths
         $result = Invoke-FixtureStage -Fixture $fixture `
             -BackupRoot $fixture.Backup
         $result.Operation | Should Be 'Applied'
@@ -364,5 +469,8 @@ Describe 'Blind Soldier portable live staging safety' {
             'ownership-snapshot.json') -PathType Leaf) | Should Be $true
         (Test-Path -LiteralPath (Join-Path $fixture.Game `
             'portable-manifest.json') -PathType Leaf) | Should Be $true
+        (Get-FileSafetySnapshot -Root $fixture.Game `
+            -RelativePaths $fixture.ExternalRelativePaths) |
+            Should Be $externalBefore
     }
 }
