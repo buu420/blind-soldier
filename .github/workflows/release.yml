@@ -55,6 +55,10 @@ jobs:
           if ((Get-Module Pester).Version -ne [version]'4.10.1') {
             throw 'Pester 4.10.1 was not activated for release verification.'
           }
+          $contract = Invoke-Pester -Script ./.github/workflows/release.Tests.ps1 -PassThru
+          if ($contract.FailedCount -ne 0) {
+            throw 'The release workflow evidence-binding contract failed.'
+          }
 
       - name: Build and validate release assets
         shell: pwsh
@@ -81,6 +85,7 @@ jobs:
           New-Item -ItemType Directory -Path ./artifacts/release -Force | Out-Null
           ./Build-BlindSoldierPortablePackage.ps1 -OutputPath ./artifacts/release/Blind-Soldier-Portable.zip -Version $version
           ./Verify-BlindSoldierPortablePackage.ps1 -ArchivePath ./artifacts/release/Blind-Soldier-Portable.zip -ExpectedVersion $version
+          ./tools/Invoke-BlindSoldierGhidraVerification.ps1
 
       - name: Create GitHub release
         if: github.ref_type == 'tag'
