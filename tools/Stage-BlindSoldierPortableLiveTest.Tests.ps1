@@ -412,6 +412,13 @@ Describe 'Blind Soldier portable live staging safety' {
         $result.Operation | Should Be 'DryRun'
     }
 
+    It 'keeps the released 0.1.5 accessible launcher on the upgrade allowlist' {
+        $source = [IO.File]::ReadAllText($stagerPath)
+        $source | Should Match `
+            'D1AD9546A2B1489B90FF73727AB31722150874B7DE8A41E63E634C4ED750BCC6'
+    }
+
+
     It 'refuses to stage files owned by stock 7th Heaven or FFNx' {
         $externalMember = Join-Path $fixture.Payload `
             'Blind-Soldier\embedded\dinput.dll'
