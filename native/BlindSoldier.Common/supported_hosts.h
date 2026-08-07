@@ -45,6 +45,8 @@ const wchar_t* LegacyStockSha256();
 const wchar_t* Steam2026Sha256();
 const std::vector<StructuralHostProfile>& SevenHeavenProfiles();
 
+std::wstring ComputeSha256(const std::vector<uint8_t>& bytes);
+
 HostValidationResult ValidateSupportedHostEvidence(
     const fs::path& executableName,
     ExpectedHostArchitecture expectedArchitecture,

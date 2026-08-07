@@ -30,6 +30,8 @@ bool EqualsIgnoreCase(const std::string& left, const char* right) {
     return true;
 }
 
+}  // namespace
+
 std::wstring ComputeSha256(const std::vector<uint8_t>& bytes) {
     BCRYPT_ALG_HANDLE algorithm = nullptr;
     BCRYPT_HASH_HANDLE hash = nullptr;
@@ -83,6 +85,8 @@ std::wstring ComputeSha256(const std::vector<uint8_t>& bytes) {
     }
     return result;
 }
+
+namespace {
 
 bool HasImport(const PeImageInfo& image, const char* module) {
     return std::any_of(image.imports.begin(), image.imports.end(),

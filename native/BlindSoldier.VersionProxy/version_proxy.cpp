@@ -1,5 +1,6 @@
 #include "../BlindSoldier.WinMMProxy/proxy_state.h"
 #include "app_loader_readiness.h"
+#include "version_cache.h"
 
 #if !defined(_M_IX86)
 #error Blind Soldier Version proxy must be built for x86.
@@ -7,7 +8,6 @@
 
 #include <array>
 #include <string>
-#include <vector>
 
 extern "C" FARPROC g_versionExports[17] = {};
 
@@ -50,60 +50,6 @@ void ShowStartupFailure(const std::wstring& cause) {
                 MB_OK | MB_ICONERROR | MB_SYSTEMMODAL);
 }
 
-bool EnsureDirectory(const std::wstring& path) {
-    if (CreateDirectoryW(path.c_str(), nullptr)) return true;
-    if (GetLastError() != ERROR_ALREADY_EXISTS) return false;
-    const DWORD attributes = GetFileAttributesW(path.c_str());
-    return attributes != INVALID_FILE_ATTRIBUTES &&
-        (attributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
-}
-
-bool BuildCachedSystemVersion(const std::wstring& source,
-                              std::wstring& cached) {
-    WIN32_FILE_ATTRIBUTE_DATA sourceData{};
-    if (!GetFileAttributesExW(source.c_str(), GetFileExInfoStandard,
-                              &sourceData)) {
-        return false;
-    }
-    std::array<wchar_t, 32768> localAppData{};
-    const DWORD localLength = GetEnvironmentVariableW(
-        L"LOCALAPPDATA", localAppData.data(),
-        static_cast<DWORD>(localAppData.size()));
-    if (localLength == 0 || localLength >= localAppData.size()) return false;
-
-    const std::wstring productDirectory =
-        std::wstring(localAppData.data(), localLength) + L"\\Blind Soldier";
-    const std::wstring cacheDirectory = productDirectory + L"\\NativeCache";
-    if (!EnsureDirectory(productDirectory) ||
-        !EnsureDirectory(cacheDirectory)) {
-        return false;
-    }
-
-    ULARGE_INTEGER size{};
-    size.LowPart = sourceData.nFileSizeLow;
-    size.HighPart = sourceData.nFileSizeHigh;
-    ULARGE_INTEGER modified{};
-    modified.LowPart = sourceData.ftLastWriteTime.dwLowDateTime;
-    modified.HighPart = sourceData.ftLastWriteTime.dwHighDateTime;
-    cached = cacheDirectory + L"\\version-system-x86-" +
-        std::to_wstring(size.QuadPart) + L"-" +
-        std::to_wstring(modified.QuadPart) + L".dll";
-
-    if (!CopyFileW(source.c_str(), cached.c_str(), TRUE)) {
-        const DWORD error = GetLastError();
-        if (error != ERROR_FILE_EXISTS && error != ERROR_ALREADY_EXISTS) {
-            return false;
-        }
-    }
-    WIN32_FILE_ATTRIBUTE_DATA cachedData{};
-    if (!GetFileAttributesExW(cached.c_str(), GetFileExInfoStandard,
-                              &cachedData)) {
-        return false;
-    }
-    return cachedData.nFileSizeLow == sourceData.nFileSizeLow &&
-        cachedData.nFileSizeHigh == sourceData.nFileSizeHigh;
-}
-
 bool ResolveVersionExports(
     HMODULE module, std::array<FARPROC, 17>& resolved) {
     if (!module || module == g_proxyModule) return false;
@@ -143,8 +89,8 @@ bool LoadSystemVersion(std::wstring& diagnostic) {
     // FFNx can return the already-loading local version.dll even for the
     // absolute System32 path. Resolve a distinct cached basename outside
     // DllMain so no loader/cache work runs while the loader lock is held.
-    std::wstring cached;
-    if (!BuildCachedSystemVersion(path, cached)) {
+    blind_soldier::fs::path cached;
+    if (!blind_soldier::BuildCachedSystemVersion(path, cached)) {
         const DWORD error = GetLastError();
         diagnostic =
             L"The Windows version library could not be prepared for FFNx. Error " +

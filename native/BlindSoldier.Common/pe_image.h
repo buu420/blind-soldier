@@ -24,6 +24,7 @@ struct PeImportInfo {
 struct PeImageInfo {
     bool valid = false;
     uint16_t machine = 0;
+    uint16_t fileCharacteristics = 0;
     uint64_t imageBase = 0;
     uint32_t sizeOfHeaders = 0;
     bool hasEmbeddedManifest = false;

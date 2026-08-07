@@ -261,7 +261,8 @@ PeImageInfo InspectPeImage(const fs::path& path) {
         uint16_t optionalSize = 0;
         if (!ReadValue(image.fileBytes, coffOffset, image.machine) ||
             !ReadValue(image.fileBytes, coffOffset + 2, sectionCount) ||
-            !ReadValue(image.fileBytes, coffOffset + 16, optionalSize)) {
+            !ReadValue(image.fileBytes, coffOffset + 16, optionalSize) ||
+            !ReadValue(image.fileBytes, coffOffset + 18, image.fileCharacteristics)) {
             image.diagnostic = L"Executable has a truncated COFF header.";
             return image;
         }

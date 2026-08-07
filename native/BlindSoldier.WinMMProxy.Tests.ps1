@@ -80,6 +80,8 @@ Describe 'Blind Soldier guarded x86 native proxies' {
             (Join-Path $proxyRoot 'winmm.def'),
             $versionProject,
             (Join-Path $versionRoot 'version_proxy.cpp'),
+            (Join-Path $versionRoot 'version_cache.h'),
+            (Join-Path $versionRoot 'version_cache.cpp'),
             (Join-Path $versionRoot 'version_exports.inc'),
             (Join-Path $versionRoot 'version.def'),
             $proxyBehaviorProject, $forwardingProject,
@@ -286,6 +288,9 @@ Describe 'Blind Soldier guarded x86 native proxies' {
             $smoke = Join-Path $root 'BlindSoldier.VersionForwardingSmoke.exe'
             Copy-Item -LiteralPath $sourceSmoke -Destination $smoke
             Copy-Item -LiteralPath $proxy -Destination (Join-Path $root 'version.dll')
+
+            & $smoke '--cache-tests'
+            $LASTEXITCODE | Should Be 0
 
             $loadOnly = Start-Process -FilePath $smoke `
                 -ArgumentList '--load-only' -WorkingDirectory $root `
