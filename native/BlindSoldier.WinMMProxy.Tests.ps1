@@ -7,10 +7,14 @@ $manifestPath = Join-Path $repoRoot `
 $generatorPath = Join-Path $repoRoot 'tools\Generate-WinmmForwarders.ps1'
 $proxyRoot = Join-Path $nativeRoot 'BlindSoldier.WinMMProxy'
 $proxyProject = Join-Path $proxyRoot 'BlindSoldier.WinMMProxy.vcxproj'
+$versionRoot = Join-Path $nativeRoot 'BlindSoldier.VersionProxy'
+$versionProject = Join-Path $versionRoot 'BlindSoldier.VersionProxy.vcxproj'
 $proxyBehaviorProject = Join-Path $nativeRoot `
     'BlindSoldier.WinMMProxy.Tests\BlindSoldier.WinMMProxy.Tests.vcxproj'
 $forwardingProject = Join-Path $nativeRoot `
     'BlindSoldier.WinMMProxy.Tests\BlindSoldier.WinMMForwardingSmoke.vcxproj'
+$versionForwardingProject = Join-Path $nativeRoot `
+    'BlindSoldier.WinMMProxy.Tests\BlindSoldier.VersionForwardingSmoke.vcxproj'
 $systemWinmm = Join-Path $env:WINDIR 'SysWOW64\winmm.dll'
 
 function Get-WinmmTestTools {
@@ -63,7 +67,7 @@ function Get-TestPeMachine {
     return [BitConverter]::ToUInt16($bytes, $offset + 4)
 }
 
-Describe 'Blind Soldier guarded x86 WinMM proxy' {
+Describe 'Blind Soldier guarded x86 native proxies' {
     It 'contains the locked evidence generator proxy and behavior fixtures' {
         foreach ($path in @(
             $manifestPath, $generatorPath, $proxyProject,
@@ -72,7 +76,12 @@ Describe 'Blind Soldier guarded x86 WinMM proxy' {
             (Join-Path $proxyRoot 'proxy_state.cpp'),
             (Join-Path $proxyRoot 'winmm_exports.inc'),
             (Join-Path $proxyRoot 'winmm.def'),
-            $proxyBehaviorProject, $forwardingProject
+            $versionProject,
+            (Join-Path $versionRoot 'version_proxy.cpp'),
+            (Join-Path $versionRoot 'version_exports.inc'),
+            (Join-Path $versionRoot 'version.def'),
+            $proxyBehaviorProject, $forwardingProject,
+            $versionForwardingProject
         )) {
             Test-Path -LiteralPath $path -PathType Leaf | Should Be $true
         }
@@ -201,6 +210,52 @@ Describe 'Blind Soldier guarded x86 WinMM proxy' {
         $actual = @(Get-DumpbinExports -Dumpbin $tools.Dumpbin -Path $proxy)
         ($actual | ConvertTo-Json -Compress) | Should Be `
             ($expected | ConvertTo-Json -Compress)
+    }
+
+    It 'forwards Version APIs while starting the sibling x86 bootstrap' {
+        $tools = Get-WinmmTestTools
+        Test-Path -LiteralPath $versionProject -PathType Leaf | Should Be $true
+        & $tools.MsBuild $versionProject /nologo /m /t:Rebuild `
+            /p:Configuration=Release /p:Platform=Win32 /v:minimal
+        $LASTEXITCODE | Should Be 0
+        & $tools.MsBuild $versionForwardingProject /nologo /m /t:Rebuild `
+            /p:Configuration=Release /p:Platform=Win32 /v:minimal
+        $LASTEXITCODE | Should Be 0
+
+        $proxy = Join-Path $versionRoot 'bin\Release\Win32\version.dll'
+        (Get-TestPeMachine $proxy) | Should Be 0x014C
+        $exports = (& $tools.Dumpbin /exports $proxy) -join "`n"
+        foreach ($name in @(
+            'GetFileVersionInfoA', 'GetFileVersionInfoByHandle',
+            'GetFileVersionInfoExA', 'GetFileVersionInfoExW',
+            'GetFileVersionInfoSizeA', 'GetFileVersionInfoSizeExA',
+            'GetFileVersionInfoSizeExW', 'GetFileVersionInfoSizeW',
+            'GetFileVersionInfoW', 'VerFindFileA', 'VerFindFileW',
+            'VerInstallFileA', 'VerInstallFileW', 'VerLanguageNameA',
+            'VerLanguageNameW', 'VerQueryValueA', 'VerQueryValueW')) {
+            $exports | Should Match ("(?m)\s" + [regex]::Escape($name) + "\s*$")
+        }
+        $dependents = (& $tools.Dumpbin /dependents $proxy) -join "`n"
+        $dependents | Should Not Match '(?i)VCRUNTIME|MSVCP|ucrtbase'
+
+        $root = Join-Path ([IO.Path]::GetTempPath()) `
+            ('blind-soldier-version-sibling-' + [Guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $root | Out-Null
+        try {
+            $sourceSmoke = Join-Path (Split-Path -Parent $versionForwardingProject) `
+                'bin\Release\Win32\BlindSoldier.VersionForwardingSmoke.exe'
+            $smoke = Join-Path $root 'BlindSoldier.VersionForwardingSmoke.exe'
+            Copy-Item -LiteralPath $sourceSmoke -Destination $smoke
+            Copy-Item -LiteralPath $proxy -Destination (Join-Path $root 'version.dll')
+
+            $process = Start-Process -FilePath $smoke -WorkingDirectory $root `
+                -PassThru -WindowStyle Hidden
+            $exited = $process.WaitForExit(15000)
+            if (-not $exited) { Stop-Process -Id $process.Id -Force }
+            $exited | Should Be $true
+            if ($exited) { $process.ExitCode | Should Be 0 }
+        }
+        finally { Remove-Item -LiteralPath $root -Recurse -Force }
     }
 
     It 'forwards representative APIs to the canonical system module without recursion' {

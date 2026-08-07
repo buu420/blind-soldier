@@ -14,6 +14,12 @@ namespace blind_soldier {
 namespace {
 
 HMODULE g_proxyModule = nullptr;
+bool g_loadWinmmForForwarding = true;
+bool g_requireStockRuntimeReadiness = false;
+std::function<StockRuntimeReadinessResult(
+    const fs::path&, const HostValidationResult&, Logger&)>
+    g_waitForStockRuntime;
+std::wstring g_bootstrapComponent = L"WinMM";
 HANDLE g_workerFinished = nullptr;
 volatile LONG g_proxyState = static_cast<LONG>(ProxyBootstrapState::Pending);
 volatile LONG g_failureShown = 0;
@@ -160,6 +166,7 @@ ProxyBootstrapHooks DefaultHooks() {
     hooks.validateHost = [](const fs::path& path) {
         return ValidateSupportedHost(path, ExpectedHostArchitecture::X86);
     };
+    hooks.waitForStockRuntime = g_waitForStockRuntime;
     hooks.applyPrivateRuntime = ApplyPrivateDotNetEnvironmentForProxy;
     hooks.startBrokerAndWait = StartBrokerAndWaitForReady;
     return hooks;
@@ -177,23 +184,29 @@ DWORD WINAPI ProxyWorker(void*) {
         const fs::path proxyPath = ModulePath(g_proxyModule);
         const fs::path diagnosticRoot = DeriveDiagnosticRoot(proxyPath);
         const std::wstring launchId = NewLaunchId();
-        const std::wstring logName = L"Blind-Soldier-WinMM-" +
+        const std::wstring logName = L"Blind-Soldier-" +
+            g_bootstrapComponent + L"-" +
             (launchId.empty() ? std::to_wstring(GetCurrentProcessId())
                               : launchId) + L".log";
         g_proxyLogPath = diagnosticRoot / L"Blind-Soldier" / L"Logs" /
             logName;
         g_proxyLog.Open(g_proxyLogPath.parent_path(), logName.c_str());
-        g_proxyLog.W(L"proxy module=" + proxyPath.wstring());
-        if (!LoadCanonicalSystemWinmm(g_proxyLog)) {
+        g_proxyLog.W(L"bootstrap module=" + proxyPath.wstring());
+        if (g_loadWinmmForForwarding &&
+            !LoadCanonicalSystemWinmm(g_proxyLog)) {
             CompleteWorker(ProxyBootstrapState::Failed,
                 FailureText(L"The canonical Windows multimedia library could not be loaded.",
                             g_proxyLogPath));
             return 1;
         }
+        if (!g_loadWinmmForForwarding) {
+            g_proxyLog.W(L"native " + g_bootstrapComponent +
+                L" bootstrap active; WinMM forwarding is not required");
+        }
 
         const fs::path processImage = ModulePath(nullptr);
         if (!IsSupportedFf7ProcessName(processImage)) {
-            g_proxyLog.W(L"unrelated process; WinMM forwarding only: " +
+            g_proxyLog.W(L"unrelated process; bootstrap skipped: " +
                          processImage.wstring());
             CompleteWorker(ProxyBootstrapState::ForwardOnly);
             return 0;
@@ -211,6 +224,8 @@ DWORD WINAPI ProxyWorker(void*) {
         context.processId = GetCurrentProcessId();
         context.launchId = launchId;
         context.readyEventName = BuildReadyEventName(launchId);
+        context.requireStockRuntimeReadiness =
+            g_requireStockRuntimeReadiness;
         const ProxyBootstrapOutcome outcome = CoordinateProxyBootstrap(
             context, DefaultHooks(), g_proxyLog);
         if (outcome.state == ProxyBootstrapState::Ready ||
@@ -265,6 +280,11 @@ fs::path DeriveDiagnosticRoot(const fs::path& proxyModule) {
     const std::wstring leaf = ToLower(localDirectory.filename().wstring());
     if (leaf.size() < 10 ||
         leaf.compare(leaf.size() - 10, 10, L".exe.local") != 0) {
+        if (leaf == L"workingdir" &&
+            ToLower(localDirectory.parent_path().filename().wstring()) ==
+                L"ff7") {
+            return localDirectory.parent_path().parent_path();
+        }
         return localDirectory;
     }
     fs::path candidate = localDirectory.parent_path();
@@ -294,19 +314,28 @@ bool DiscoverPortableRoot(
     fs::path canonicalProcess;
     if (!Canonicalize(proxyModule, canonicalProxy) ||
         !Canonicalize(processImage, canonicalProcess)) {
-        diagnostic = L"The game or WinMM proxy path could not be resolved.";
+        diagnostic = L"The game or bootstrap module path could not be resolved.";
         return false;
     }
     const fs::path localDirectory = canonicalProxy.parent_path();
     const std::wstring expectedLocal = ToLower(
         canonicalProcess.filename().wstring() + L".local");
-    if (ToLower(localDirectory.filename().wstring()) != expectedLocal) {
-        diagnostic = L"The WinMM proxy is not in the executable-specific .local directory.";
+    const bool executableLocal =
+        ToLower(localDirectory.filename().wstring()) == expectedLocal;
+    fs::path canonicalProcessDirectory;
+    const bool siblingVersion =
+        ToLower(canonicalProxy.filename().wstring()) == L"version.dll" &&
+        Canonicalize(canonicalProcess.parent_path(), canonicalProcessDirectory) &&
+        _wcsicmp(localDirectory.c_str(), canonicalProcessDirectory.c_str()) == 0;
+    if (!executableLocal && !siblingVersion) {
+        diagnostic = L"The bootstrap module is neither the executable-specific .local module nor the sibling x86 version.dll.";
         return false;
     }
 
     std::vector<fs::path> matches;
-    fs::path candidate = localDirectory.parent_path();
+    fs::path candidate = executableLocal
+        ? localDirectory.parent_path()
+        : localDirectory;
     for (int depth = 0; depth < kProxyRootSearchDepth && !candidate.empty();
          ++depth) {
         fs::path canonicalCandidate;
@@ -376,7 +405,9 @@ ProxyBootstrapOutcome CoordinateProxyBootstrap(
         return outcome;
     }
     if (!hooks.validateHost || !hooks.applyPrivateRuntime ||
-        !hooks.startBrokerAndWait) {
+        !hooks.startBrokerAndWait ||
+        (context.requireStockRuntimeReadiness &&
+         !hooks.waitForStockRuntime)) {
         outcome.diagnostic = L"The proxy bootstrap hooks are incomplete.";
         return outcome;
     }
@@ -391,6 +422,16 @@ ProxyBootstrapOutcome CoordinateProxyBootstrap(
         outcome.diagnostic = L"This FFVII executable failed the supported-host integrity check: " +
             host.diagnostic;
         return outcome;
+    }
+    if (context.requireStockRuntimeReadiness) {
+        const StockRuntimeReadinessResult readiness =
+            hooks.waitForStockRuntime(context.processImage, host, log);
+        if (!readiness.ready) {
+            outcome.diagnostic = readiness.diagnostic.empty()
+                ? L"The stock FFVII runtime did not become ready."
+                : readiness.diagnostic;
+            return outcome;
+        }
     }
     if (!hooks.applyPrivateRuntime(outcome.packageRoot, log)) {
         outcome.diagnostic = L"The private x86 .NET 9.0.8 runtime is unavailable.";
@@ -513,7 +554,21 @@ BrokerWaitResult StartBrokerAndWaitForReady(
 }
 
 void InitializeWinmmProxy(HMODULE module) {
+    InitializePortableBootstrap(module, true, L"WinMM");
+}
+
+void InitializePortableBootstrap(
+    HMODULE module, bool loadWinmmForForwarding, const wchar_t* componentName,
+    bool requireStockRuntimeReadiness,
+    std::function<StockRuntimeReadinessResult(
+        const fs::path&, const HostValidationResult&, Logger&)>
+        waitForStockRuntime) {
     g_proxyModule = module;
+    g_loadWinmmForForwarding = loadWinmmForForwarding;
+    g_requireStockRuntimeReadiness = requireStockRuntimeReadiness;
+    g_waitForStockRuntime = std::move(waitForStockRuntime);
+    g_bootstrapComponent = componentName && *componentName
+        ? componentName : L"Bootstrap";
     g_workerFinished = CreateEventW(nullptr, TRUE, FALSE, nullptr);
     if (!g_workerFinished) {
         InterlockedExchange(&g_proxyState,
@@ -523,40 +578,41 @@ void InitializeWinmmProxy(HMODULE module) {
     HANDLE worker = CreateThread(nullptr, 0, ProxyWorker, nullptr, 0, nullptr);
     if (!worker) {
         CompleteWorker(ProxyBootstrapState::Failed,
-            L"Blind Soldier could not start accessibility.\n\nCause: The WinMM proxy worker could not start.\n\nAction: Restart the game. If this repeats, reinstall Blind Soldier.");
+            L"Blind Soldier could not start accessibility.\n\nCause: The portable bootstrap worker could not start.\n\nAction: Restart the game. If this repeats, reinstall Blind Soldier.");
         return;
     }
     CloseHandle(worker);
 }
 
-}  // namespace blind_soldier
-
-extern "C" void __cdecl EnsureWinmmAndBootstrapReady() {
-    using blind_soldier::ProxyBootstrapState;
-    LONG raw = InterlockedCompareExchange(&blind_soldier::g_proxyState, 0, 0);
-    ProxyBootstrapState state = static_cast<ProxyBootstrapState>(raw);
+void WaitForPortableBootstrap() {
+    ProxyBootstrapState state = static_cast<ProxyBootstrapState>(
+        InterlockedCompareExchange(&g_proxyState, 0, 0));
     if (state == ProxyBootstrapState::Pending) {
-        const DWORD wait = blind_soldier::g_workerFinished
-            ? WaitForSingleObject(blind_soldier::g_workerFinished,
-                                  blind_soldier::kProxyReadyTimeoutMilliseconds)
+        const DWORD waitMilliseconds = g_requireStockRuntimeReadiness
+            ? static_cast<DWORD>(
+                kStockRuntimeReadinessTimeoutMilliseconds +
+                kProxyReadyTimeoutMilliseconds + 1000ULL)
+            : kProxyReadyTimeoutMilliseconds;
+        const DWORD wait = g_workerFinished
+            ? WaitForSingleObject(g_workerFinished, waitMilliseconds)
             : WAIT_FAILED;
         if (wait != WAIT_OBJECT_0) {
             InterlockedCompareExchange(
-                &blind_soldier::g_proxyState,
+                &g_proxyState,
                 static_cast<LONG>(ProxyBootstrapState::TimedOut),
                 static_cast<LONG>(ProxyBootstrapState::Pending));
-            blind_soldier::SetFailureMessage(
-                L"Blind Soldier could not start accessibility.\n\nCause: The WinMM startup gate timed out.\n\nAction: Restart the game and reinstall Blind Soldier if this repeats.");
+            SetFailureMessage(
+                L"Blind Soldier could not start accessibility.\n\nCause: The portable startup gate timed out.\n\nAction: Restart the game and reinstall Blind Soldier if this repeats.");
         }
         state = static_cast<ProxyBootstrapState>(
-            InterlockedCompareExchange(&blind_soldier::g_proxyState, 0, 0));
+            InterlockedCompareExchange(&g_proxyState, 0, 0));
     }
     if (state == ProxyBootstrapState::Ready ||
         state == ProxyBootstrapState::ForwardOnly) {
         return;
     }
-    if (InterlockedCompareExchange(&blind_soldier::g_failureShown, 1, 0) == 0) {
-        const std::wstring failureMessage = blind_soldier::FailureMessage();
+    if (InterlockedCompareExchange(&g_failureShown, 1, 0) == 0) {
+        const std::wstring failureMessage = FailureMessage();
         MessageBoxW(nullptr,
             failureMessage.empty()
                 ? L"Blind Soldier could not start accessibility. Restart the game and reinstall Blind Soldier if this repeats."
@@ -565,4 +621,10 @@ extern "C" void __cdecl EnsureWinmmAndBootstrapReady() {
     }
     TerminateProcess(GetCurrentProcess(), 0xB51D0001u);
     ExitProcess(0xB51D0001u);
+}
+
+}  // namespace blind_soldier
+
+extern "C" void __cdecl EnsureWinmmAndBootstrapReady() {
+    blind_soldier::WaitForPortableBootstrap();
 }

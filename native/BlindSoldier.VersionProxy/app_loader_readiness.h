@@ -8,6 +8,8 @@
 
 namespace blind_soldier {
 
+constexpr ULONGLONG kStockRuntimeReadinessTimeoutMilliseconds = 120000;
+
 enum class AppLoaderGateState {
     Discovering,
     WaitingForCurrentLog,
@@ -36,11 +38,18 @@ struct AppLoaderGateDecision {
     std::wstring diagnostic;
 };
 
+struct StockRuntimeReadinessResult {
+    bool ready = false;
+    bool seventhHeaven = false;
+    std::wstring diagnostic;
+};
+
 class AppLoaderReadinessTracker {
 public:
     explicit AppLoaderReadinessTracker(
         ULONGLONG directDiscoveryMilliseconds = 3000,
-        ULONGLONG timeoutMilliseconds = 120000);
+        ULONGLONG timeoutMilliseconds =
+        kStockRuntimeReadinessTimeoutMilliseconds);
     AppLoaderGateDecision Observe(const AppLoaderObservation& observation);
 
 private:
@@ -48,5 +57,12 @@ private:
     ULONGLONG timeoutMilliseconds_;
     bool seventhHeaven_ = false;
 };
+
+StockRuntimeReadinessResult WaitForStockRuntimeReadiness(
+    const fs::path& processImage,
+    const HostValidationResult& host,
+    Logger& log,
+    DWORD pollMilliseconds = 25,
+    ULONGLONG timeoutMilliseconds = 120000);
 
 }  // namespace blind_soldier

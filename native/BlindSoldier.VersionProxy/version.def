@@ -1,0 +1,19 @@
+LIBRARY "version"
+EXPORTS
+    GetFileVersionInfoA=BlindSoldierVersionForward_000 @1
+    GetFileVersionInfoByHandle=BlindSoldierVersionForward_001 @2
+    GetFileVersionInfoExA=BlindSoldierVersionForward_002 @3
+    GetFileVersionInfoExW=BlindSoldierVersionForward_003 @4
+    GetFileVersionInfoSizeA=BlindSoldierVersionForward_004 @5
+    GetFileVersionInfoSizeExA=BlindSoldierVersionForward_005 @6
+    GetFileVersionInfoSizeExW=BlindSoldierVersionForward_006 @7
+    GetFileVersionInfoSizeW=BlindSoldierVersionForward_007 @8
+    GetFileVersionInfoW=BlindSoldierVersionForward_008 @9
+    VerFindFileA=BlindSoldierVersionForward_009 @10
+    VerFindFileW=BlindSoldierVersionForward_010 @11
+    VerInstallFileA=BlindSoldierVersionForward_011 @12
+    VerInstallFileW=BlindSoldierVersionForward_012 @13
+    VerLanguageNameA=BlindSoldierVersionForward_013 @14
+    VerLanguageNameW=BlindSoldierVersionForward_014 @15
+    VerQueryValueA=BlindSoldierVersionForward_015 @16
+    VerQueryValueW=BlindSoldierVersionForward_016 @17

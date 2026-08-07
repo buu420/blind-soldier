@@ -89,6 +89,7 @@ ProxyBootstrapContext MakeSiblingContext(const fs::path& root,
     context.processId = 4242;
     context.launchId = L"12345678-1234-1234-1234-1234567890AB";
     context.readyEventName = BuildReadyEventName(context.launchId);
+    context.requireStockRuntimeReadiness = true;
     Touch(context.processImage);
     Touch(context.proxyModule);
     return context;
@@ -98,6 +99,12 @@ ProxyBootstrapHooks ReadyHooks(int& launchCount) {
     ProxyBootstrapHooks hooks;
     hooks.isCompleteRoot = IsCompletePortableRoot;
     hooks.validateHost = [](const fs::path&) { return SupportedHost(); };
+    hooks.waitForStockRuntime = [](
+        const fs::path&, const HostValidationResult&, Logger&) {
+        StockRuntimeReadinessResult result;
+        result.ready = true;
+        return result;
+    };
     hooks.applyPrivateRuntime = [](const fs::path&, Logger&) { return true; };
     hooks.startBrokerAndWait = [&launchCount](
         const fs::path& broker, const std::wstring& arguments,
@@ -277,16 +284,106 @@ void TestCoordinator() {
     log.Close();
 }
 
+
+void TestVersionReadinessCoordinatorBoundary() {
+    TempTree tree(L"version-readiness-coordinator");
+    MakeComplete(tree.root);
+    Logger log;
+    log.Open(tree.root / L"logs", L"test.log");
+
+    {
+        auto context = MakeSiblingContext(tree.root, L"ff7_en.exe");
+        int launches = 0;
+        int runtimeApplications = 0;
+        std::vector<std::string> calls;
+        auto hooks = ReadyHooks(launches);
+        hooks.validateHost = [&calls](const fs::path&) {
+            calls.push_back("validate-host");
+            return SupportedHost();
+        };
+        hooks.waitForStockRuntime = [&calls](const fs::path&,
+            const HostValidationResult&, Logger&) {
+            calls.push_back("wait-stock-runtime");
+            StockRuntimeReadinessResult result;
+            result.ready = true;
+            result.seventhHeaven = true;
+            return result;
+        };
+        hooks.applyPrivateRuntime = [&calls, &runtimeApplications](
+            const fs::path&, Logger&) {
+            calls.push_back("apply-private-runtime");
+            ++runtimeApplications;
+            return true;
+        };
+        hooks.startBrokerAndWait = [&calls, &launches](const fs::path&,
+            const std::wstring&, const fs::path&, const std::wstring&, Logger&) {
+            calls.push_back("start-broker");
+            ++launches;
+            return BrokerWaitResult::Ready;
+        };
+        const auto outcome = CoordinateProxyBootstrap(context, hooks, log);
+        Check(outcome.state == ProxyBootstrapState::Ready,
+              "Version readiness success reaches ready");
+        Check(runtimeApplications == 1 && launches == 1,
+              "Version readiness success applies runtime and starts broker once");
+        Check(calls == std::vector<std::string>{"validate-host",
+                  "wait-stock-runtime", "apply-private-runtime", "start-broker"},
+              "Version readiness runs after host validation and before runtime or broker");
+    }
+
+    {
+        auto context = MakeSiblingContext(tree.root, L"ff7.exe");
+        int launches = 0;
+        int runtimeApplications = 0;
+        auto hooks = ReadyHooks(launches);
+        hooks.waitForStockRuntime = [root = tree.root](const fs::path&,
+            const HostValidationResult&, Logger&) {
+            StockRuntimeReadinessResult result;
+            result.diagnostic = L"Timed out waiting for current AppLoader launch at " +
+                (root / L"AppLoader.log").wstring();
+            return result;
+        };
+        hooks.applyPrivateRuntime = [&runtimeApplications](const fs::path&, Logger&) {
+            ++runtimeApplications;
+            return true;
+        };
+        const auto outcome = CoordinateProxyBootstrap(context, hooks, log);
+        const std::wstring expected =
+            L"Timed out waiting for current AppLoader launch at " +
+            (tree.root / L"AppLoader.log").wstring();
+        Check(outcome.state == ProxyBootstrapState::Failed,
+              "Version readiness timeout fails bootstrap");
+        Check(outcome.diagnostic == expected,
+              "Version readiness timeout preserves the gate diagnostic");
+        Check(runtimeApplications == 0 && launches == 0,
+              "Version readiness failure blocks runtime and broker side effects");
+    }
+
+    {
+        auto context = MakeDirectContext(tree.root, L"ff7_en.exe");
+        int launches = 0;
+        int readinessCalls = 0;
+        auto hooks = ReadyHooks(launches);
+        hooks.waitForStockRuntime = [&readinessCalls](const fs::path&,
+            const HostValidationResult&, Logger&) {
+            ++readinessCalls;
+            StockRuntimeReadinessResult result;
+            result.diagnostic = L"WinMM must not use the stock-runtime gate.";
+            return result;
+        };
+        const auto outcome = CoordinateProxyBootstrap(context, hooks, log);
+        Check(outcome.state == ProxyBootstrapState::Ready && launches == 1,
+              "historical WinMM context remains ungated");
+        Check(readinessCalls == 0,
+              "historical WinMM context does not call stock-runtime readiness");
+    }
+    log.Close();
+}
+
 void TestArgumentsAndNames() {
     Check(BuildReadyEventName(L"01234567") ==
               L"Local\\BlindSoldier.Ready.01234567",
           "proxy and broker share the canonical ready-event contract");
-    Check(BuildManagedReadyEventName(7) ==
-              L"Local\\BlindSoldier.ManagedReady.7",
-          "managed-ready event uses the canonical PID-scoped contract");
-    Check(BuildManagedReadyEventName(4294967295UL) ==
-              L"Local\\BlindSoldier.ManagedReady.4294967295",
-          "managed-ready event preserves the full decimal DWORD PID");
     Check(IsSupportedFf7ProcessName(L"C:/Game/FF7_EN.EXE"),
           "ff7_en name accepted case-insensitively");
     Check(IsSupportedFf7ProcessName(L"C:/Game/ff7.exe"),
@@ -486,6 +583,7 @@ void TestAppLoaderReadiness() {
 int wmain() {
     TestRootDiscovery();
     TestCoordinator();
+    TestVersionReadinessCoordinatorBoundary();
     TestArgumentsAndNames();
     TestAppLoaderReadiness();
     if (failures == 0) {

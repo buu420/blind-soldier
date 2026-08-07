@@ -1,7 +1,9 @@
 #include "app_loader_readiness.h"
 
+#include <array>
 #include <cstddef>
 #include <string_view>
+#include <vector>
 
 namespace blind_soldier {
 namespace {
@@ -86,6 +88,126 @@ AppLoaderGateDecision Decision(AppLoaderGateState state, bool ready,
     return result;
 }
 
+
+constexpr DWORD kMaximumAppLoaderLogBytes = 4U * 1024U * 1024U;
+
+bool CanonicalizePath(const fs::path& path, fs::path& canonical) {
+    std::error_code error;
+    canonical = fs::weakly_canonical(path, error);
+    return !error && !canonical.empty() && canonical.is_absolute();
+}
+
+bool IsOrdinaryFile(const fs::path& path) {
+    const DWORD attributes = GetFileAttributesW(path.c_str());
+    return attributes != INVALID_FILE_ATTRIBUTES &&
+        (attributes & (FILE_ATTRIBUTE_DIRECTORY |
+                       FILE_ATTRIBUTE_REPARSE_POINT)) == 0;
+}
+
+bool LoadedModuleMatches(const wchar_t* moduleName,
+                         const fs::path& expectedPath) {
+    const HMODULE module = GetModuleHandleW(moduleName);
+    if (!module) return false;
+    std::array<wchar_t, 32768> buffer{};
+    const DWORD length = GetModuleFileNameW(
+        module, buffer.data(), static_cast<DWORD>(buffer.size()));
+    if (length == 0 || length >= buffer.size()) return false;
+    fs::path canonicalModule;
+    fs::path canonicalExpected;
+    return CanonicalizePath(fs::path(buffer.data(), buffer.data() + length),
+                            canonicalModule) &&
+        CanonicalizePath(expectedPath, canonicalExpected) &&
+        _wcsicmp(canonicalModule.c_str(), canonicalExpected.c_str()) == 0;
+}
+
+bool HasStockLoaderSignature(const fs::path& gameDirectory) {
+    if (!LoadedModuleMatches(L"dinput.dll", gameDirectory / L"dinput.dll")) {
+        return false;
+    }
+    for (const wchar_t* name : {L"AppProxy.runtimeconfig.json",
+                                L"AppProxy.dll", L"AppWrapper.dll",
+                                L"nethost.dll"}) {
+        if (!IsOrdinaryFile(gameDirectory / name)) return false;
+    }
+    return true;
+}
+
+bool HasRecognizedFfnxModule() {
+    for (const wchar_t* name : {L"AF3DN.P", L"7H_GameDriver.dll",
+                                L"FFNx.dll"}) {
+        if (GetModuleHandleW(name)) return true;
+    }
+    return false;
+}
+
+std::string ReadAppLoaderLogTail(const fs::path& path) {
+    HANDLE file = CreateFileW(
+        path.c_str(), GENERIC_READ,
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (file == INVALID_HANDLE_VALUE) return {};
+
+    LARGE_INTEGER size{};
+    if (!GetFileSizeEx(file, &size) || size.QuadPart <= 0) {
+        CloseHandle(file);
+        return {};
+    }
+    const ULONGLONG byteCount = static_cast<ULONGLONG>(size.QuadPart) >
+        kMaximumAppLoaderLogBytes
+        ? kMaximumAppLoaderLogBytes
+        : static_cast<ULONGLONG>(size.QuadPart);
+    LARGE_INTEGER offset{};
+    offset.QuadPart = size.QuadPart - static_cast<LONGLONG>(byteCount);
+    if (!SetFilePointerEx(file, offset, nullptr, FILE_BEGIN)) {
+        CloseHandle(file);
+        return {};
+    }
+
+    std::vector<char> bytes(static_cast<size_t>(byteCount));
+    DWORD read = 0;
+    const BOOL readOk = ReadFile(file, bytes.data(),
+        static_cast<DWORD>(bytes.size()), &read, nullptr);
+    CloseHandle(file);
+    if (!readOk) return {};
+
+    std::string text(bytes.data(), bytes.data() + read);
+    if (offset.QuadPart != 0) {
+        const size_t firstNewline = text.find('\n');
+        if (firstNewline == std::string::npos) return {};
+        text.erase(0, firstNewline + 1);
+    }
+    constexpr std::string_view initMarker = " INFO  AppLoader init log";
+    const size_t lastInit = text.rfind(initMarker);
+    if (lastInit != std::string::npos) {
+        const size_t lineStart = text.rfind('\n', lastInit);
+        text.erase(0, lineStart == std::string::npos ? 0 : lineStart + 1);
+    }
+    return text;
+}
+
+bool CurrentProcessAlive() {
+    DWORD exitCode = 0;
+    return GetExitCodeProcess(GetCurrentProcess(), &exitCode) != FALSE &&
+        exitCode == STILL_ACTIVE;
+}
+
+const wchar_t* GateStateName(AppLoaderGateState state) {
+    switch (state) {
+        case AppLoaderGateState::Discovering: return L"discovering";
+        case AppLoaderGateState::WaitingForCurrentLog:
+            return L"waiting-for-current-log";
+        case AppLoaderGateState::WaitingForSuccess:
+            return L"waiting-for-success";
+        case AppLoaderGateState::WaitingForProfileConsumption:
+            return L"waiting-for-profile-consumption";
+        case AppLoaderGateState::ReadyDirect: return L"ready-direct";
+        case AppLoaderGateState::ReadySeventhHeaven:
+            return L"ready-seventh-heaven";
+        case AppLoaderGateState::Failed: return L"failed";
+    }
+    return L"unknown";
+}
+
 }  // namespace
 
 AppLoaderReadinessTracker::AppLoaderReadinessTracker(
@@ -155,5 +277,77 @@ AppLoaderGateDecision AppLoaderReadinessTracker::Observe(
     }
     return Decision(AppLoaderGateState::ReadySeventhHeaven, true, true);
 }
+
+
+StockRuntimeReadinessResult WaitForStockRuntimeReadiness(
+    const fs::path& processImage,
+    const HostValidationResult& host,
+    Logger& log,
+    DWORD pollMilliseconds,
+    ULONGLONG timeoutMilliseconds) {
+    fs::path canonicalImage;
+    StockRuntimeReadinessResult result;
+    if (!CanonicalizePath(processImage, canonicalImage)) {
+        result.diagnostic =
+            L"The FFVII executable path could not be resolved for AppLoader readiness.";
+        return result;
+    }
+    const fs::path gameDirectory = canonicalImage.parent_path();
+    const fs::path appLoaderLog = gameDirectory / L"AppLoader.log";
+    const fs::path wrapperProfile = gameDirectory / L".7thWrapperProfile";
+
+    FILETIME processCreation{};
+    FILETIME exitTime{};
+    FILETIME kernelTime{};
+    FILETIME userTime{};
+    if (!GetProcessTimes(GetCurrentProcess(), &processCreation, &exitTime,
+                         &kernelTime, &userTime)) {
+        result.diagnostic = L"The FFVII process creation time could not be read. "
+            L"AppLoader.log: " + appLoaderLog.wstring();
+        return result;
+    }
+
+    AppLoaderReadinessTracker tracker(3000, timeoutMilliseconds);
+    const ULONGLONG started = GetTickCount64();
+    bool loggedState = false;
+    AppLoaderGateState previousState = AppLoaderGateState::Discovering;
+    for (;;) {
+        AppLoaderObservation observation;
+        observation.hostKind = host.kind;
+        observation.stockLoaderSignaturePresent =
+            HasStockLoaderSignature(gameDirectory);
+        observation.recognizedFfnxModulePresent = HasRecognizedFfnxModule();
+        observation.processAlive = CurrentProcessAlive();
+        observation.elapsedMilliseconds = GetTickCount64() - started;
+        observation.appLoaderLog = ReadAppLoaderLogTail(appLoaderLog);
+        observation.processCreation = processCreation;
+        observation.wrapperProfilePresent =
+            GetFileAttributesW(wrapperProfile.c_str()) != INVALID_FILE_ATTRIBUTES;
+
+        const AppLoaderGateDecision decision = tracker.Observe(observation);
+        if (!loggedState || decision.state != previousState) {
+            log.W(L"AppLoader readiness state=" +
+                  std::wstring(GateStateName(decision.state)));
+            previousState = decision.state;
+            loggedState = true;
+        }
+        if (decision.ready) {
+            result.ready = true;
+            result.seventhHeaven = decision.seventhHeaven;
+            return result;
+        }
+        if (decision.state == AppLoaderGateState::Failed) {
+            result.seventhHeaven = decision.seventhHeaven;
+            result.diagnostic = decision.diagnostic.empty()
+                ? L"AppLoader readiness failed. AppLoader.log: " +
+                    appLoaderLog.wstring()
+                : decision.diagnostic + L" AppLoader.log: " +
+                    appLoaderLog.wstring();
+            return result;
+        }
+        Sleep(pollMilliseconds);
+    }
+}
+
 
 }  // namespace blind_soldier

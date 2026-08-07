@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../BlindSoldier.Common/supported_hosts.h"
+#include "../BlindSoldier.VersionProxy/app_loader_readiness.h"
 
 #include <functional>
 
@@ -33,6 +33,7 @@ struct ProxyBootstrapContext {
     DWORD processId = 0;
     std::wstring launchId;
     std::wstring readyEventName;
+    bool requireStockRuntimeReadiness = false;
 };
 
 struct ProxyBootstrapOutcome {
@@ -44,6 +45,9 @@ struct ProxyBootstrapOutcome {
 struct ProxyBootstrapHooks {
     std::function<bool(const fs::path&)> isCompleteRoot;
     std::function<HostValidationResult(const fs::path&)> validateHost;
+    std::function<StockRuntimeReadinessResult(
+        const fs::path&, const HostValidationResult&, Logger&)>
+        waitForStockRuntime;
     std::function<bool(const fs::path&, Logger&)> applyPrivateRuntime;
     std::function<BrokerWaitResult(
         const fs::path&, const std::wstring&, const fs::path&,
@@ -78,6 +82,13 @@ BrokerWaitResult StartBrokerAndWaitForReady(
     Logger& log);
 
 void InitializeWinmmProxy(HMODULE module);
+void InitializePortableBootstrap(
+    HMODULE module, bool loadWinmmForForwarding, const wchar_t* componentName,
+    bool requireStockRuntimeReadiness = false,
+    std::function<StockRuntimeReadinessResult(
+        const fs::path&, const HostValidationResult&, Logger&)>
+        waitForStockRuntime = {});
+void WaitForPortableBootstrap();
 
 }  // namespace blind_soldier
 
