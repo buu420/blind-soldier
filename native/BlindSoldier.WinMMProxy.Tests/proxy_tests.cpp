@@ -373,6 +373,17 @@ void TestAppLoaderReadiness() {
               "direct readiness flags are correct");
     }
 
+    for (const auto hostKind : {SupportedHostKind::None,
+                                SupportedHostKind::Steam2026X64}) {
+        AppLoaderReadinessTracker gate(3000, 120000);
+        const auto decision = gate.Observe(Observation(hostKind, false, 3000,
+                                                       "", false));
+        CheckState(decision, AppLoaderGateState::Failed,
+                   "unsupported host never becomes direct-ready");
+        Check(!decision.ready && !decision.diagnostic.empty(),
+              "unsupported host fails closed with a diagnostic");
+    }
+
     for (const int evidence : {0, 1, 2}) {
         AppLoaderReadinessTracker gate(3000, 120000);
         const auto first = gate.Observe(Observation(

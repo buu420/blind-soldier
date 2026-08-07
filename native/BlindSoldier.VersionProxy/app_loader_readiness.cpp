@@ -109,6 +109,10 @@ AppLoaderGateDecision AppLoaderReadinessTracker::Observe(
                         L"Timed out waiting for AppLoader readiness.");
     }
     if (!seventhHeaven_) {
+        if (observation.hostKind != SupportedHostKind::LegacyStockX86) {
+            return Decision(AppLoaderGateState::Failed, false, false,
+                            L"Unsupported host cannot use direct readiness.");
+        }
         if (observation.elapsedMilliseconds < directDiscoveryMilliseconds_) {
             return Decision(AppLoaderGateState::Discovering, false, false);
         }
