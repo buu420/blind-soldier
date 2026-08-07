@@ -280,7 +280,7 @@ Describe 'Blind Soldier guarded x86 native proxies' {
         $dependents | Should Not Match '(?i)VCRUNTIME|MSVCP|ucrtbase'
 
         $root = Join-Path ([IO.Path]::GetTempPath()) `
-            ('blind-soldier-version-sibling-' + [Guid]::NewGuid().ToString('N'))
+            ('bs-version-' + [Guid]::NewGuid().ToString('N'))
         New-Item -ItemType Directory -Path $root | Out-Null
         try {
             $sourceSmoke = Join-Path (Split-Path -Parent $versionForwardingProject) `
@@ -290,6 +290,19 @@ Describe 'Blind Soldier guarded x86 native proxies' {
             Copy-Item -LiteralPath $proxy -Destination (Join-Path $root 'version.dll')
 
             & $smoke '--cache-tests'
+            $LASTEXITCODE | Should Be 0
+
+            $fallbackRoot = Join-Path $root 'proxy-fallback'
+            New-Item -ItemType Directory -Path $fallbackRoot | Out-Null
+            $fallbackSmoke = Join-Path $fallbackRoot `
+                'BlindSoldier.VersionForwardingSmoke.exe'
+            Copy-Item -LiteralPath $sourceSmoke -Destination $fallbackSmoke
+            $localDirectory = Join-Path $fallbackRoot `
+                'BlindSoldier.VersionForwardingSmoke.exe.local'
+            New-Item -ItemType Directory -Path $localDirectory | Out-Null
+            Copy-Item -LiteralPath $proxy -Destination `
+                (Join-Path $localDirectory 'version.dll')
+            & $fallbackSmoke '--proxy-fallback'
             $LASTEXITCODE | Should Be 0
 
             $loadOnly = Start-Process -FilePath $smoke `

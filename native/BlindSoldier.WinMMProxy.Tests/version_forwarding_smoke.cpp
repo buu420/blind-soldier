@@ -8,7 +8,6 @@
 
 #include <algorithm>
 #include <array>
-#include <barrier>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -134,24 +133,28 @@ bool TestSameSizeCorruptCandidate(const fs::path& source,
                                   const fs::path& root) {
     const fs::path cache = root / L"same-size-corrupt";
     fs::create_directories(cache);
-    fs::path cached;
+    blind_soldier::ValidatedVersionCacheLease cached;
     if (!blind_soldier::BuildCachedSystemVersion(source, cache, cached)) {
         std::wcerr << L"Could not seed same-size cache candidate.\n";
         return false;
     }
-    const auto original = blind_soldier::InspectPeImage(cached).fileBytes;
+    const fs::path cachedPath = cached.path();
+    const auto original =
+        blind_soldier::InspectPeImage(cachedPath).fileBytes;
     if (original.size() < 64) return false;
     auto corrupt = original;
     corrupt[0] ^= 0xFF;
-    if (!WriteBytes(cached, corrupt)) return false;
-    fs::path result;
+    cached.Reset();
+    if (!WriteBytes(cachedPath, corrupt)) return false;
+    blind_soldier::ValidatedVersionCacheLease result;
     const bool accepted =
         blind_soldier::BuildCachedSystemVersion(source, cache, result);
     if (accepted) {
         std::wcerr << L"Same-size corrupt cached file was accepted.\n";
         return false;
     }
-    return fs::exists(cached) && fs::file_size(cached) == original.size();
+    return fs::exists(cachedPath) &&
+        fs::file_size(cachedPath) == original.size();
 }
 
 bool TestWrongMachineCandidate(const fs::path& source, const fs::path& root) {
@@ -171,7 +174,7 @@ bool TestWrongMachineCandidate(const fs::path& source, const fs::path& root) {
     const auto wrong = blind_soldier::InspectPeImage(fixture);
     if (!wrong.valid || wrong.machine != IMAGE_FILE_MACHINE_AMD64) return false;
 
-    fs::path rejectedSource;
+    blind_soldier::ValidatedVersionCacheLease rejectedSource;
     if (blind_soldier::BuildCachedSystemVersion(
             fixture, root / L"wrong-machine-source-cache", rejectedSource)) {
         return false;
@@ -179,12 +182,14 @@ bool TestWrongMachineCandidate(const fs::path& source, const fs::path& root) {
 
     const fs::path cache = root / L"wrong-machine-candidate-cache";
     fs::create_directories(cache);
-    fs::path candidate;
-    if (!blind_soldier::BuildCachedSystemVersion(source, cache, candidate) ||
-        !WriteBytes(candidate, bytes)) {
+    blind_soldier::ValidatedVersionCacheLease candidate;
+    if (!blind_soldier::BuildCachedSystemVersion(source, cache, candidate)) {
         return false;
     }
-    fs::path rejectedCandidate;
+    const fs::path candidatePath = candidate.path();
+    candidate.Reset();
+    if (!WriteBytes(candidatePath, bytes)) return false;
+    blind_soldier::ValidatedVersionCacheLease rejectedCandidate;
     return !blind_soldier::BuildCachedSystemVersion(
         source, cache, rejectedCandidate);
 }
@@ -226,21 +231,23 @@ bool CreateJunction(const fs::path& junction, const fs::path& target) {
 bool TestReparseCollision(const fs::path& source, const fs::path& root) {
     const fs::path cache = root / L"reparse-collision";
     fs::create_directories(cache);
-    fs::path cached;
-    if (!blind_soldier::BuildCachedSystemVersion(source, cache, cached) ||
-        !DeleteFileW(cached.c_str())) {
+    blind_soldier::ValidatedVersionCacheLease cached;
+    if (!blind_soldier::BuildCachedSystemVersion(source, cache, cached)) {
         return false;
     }
-    if (!CreateJunction(cached, root / L"junction-target")) {
+    const fs::path cachedPath = cached.path();
+    cached.Reset();
+    if (!DeleteFileW(cachedPath.c_str()) ||
+        !CreateJunction(cachedPath, root / L"junction-target")) {
         std::wcerr << L"Could not create junction collision.\n";
         return false;
     }
-    const DWORD attributes = GetFileAttributesW(cached.c_str());
+    const DWORD attributes = GetFileAttributesW(cachedPath.c_str());
     if (attributes == INVALID_FILE_ATTRIBUTES ||
         (attributes & FILE_ATTRIBUTE_REPARSE_POINT) == 0) {
         return false;
     }
-    fs::path result;
+    blind_soldier::ValidatedVersionCacheLease result;
     return !blind_soldier::BuildCachedSystemVersion(source, cache, result);
 }
 
@@ -255,10 +262,11 @@ bool TestContentChangeChangesName(const fs::path& source,
     }
     const fs::path cache = root / L"content-change-cache";
     fs::create_directories(cache);
-    fs::path first;
+    blind_soldier::ValidatedVersionCacheLease first;
     if (!blind_soldier::BuildCachedSystemVersion(fixture, cache, first)) {
         return false;
     }
+    const fs::path firstPath = first.path();
     auto bytes = blind_soldier::InspectPeImage(fixture).fileBytes;
     if (bytes.empty()) return false;
     bytes.back() ^= 0x5A;
@@ -272,15 +280,169 @@ bool TestContentChangeChangesName(const fs::path& source,
         &originalData.ftLastWriteTime);
     CloseHandle(file);
     if (!restored || !blind_soldier::InspectPeImage(fixture).valid) return false;
-    fs::path second;
-    return blind_soldier::BuildCachedSystemVersion(fixture, cache, second) &&
-        first != second && IsContentAddressedCacheName(first) &&
-        IsContentAddressedCacheName(second);
+    blind_soldier::ValidatedVersionCacheLease second;
+    if (!blind_soldier::BuildCachedSystemVersion(
+            fixture, cache, second)) return false;
+    const fs::path secondPath = second.path();
+    return firstPath != secondPath &&
+        IsContentAddressedCacheName(firstPath) &&
+        IsContentAddressedCacheName(secondPath);
 }
 
-bool TestConcurrentPublication(const fs::path& source,
+size_t CountTemporaryFiles(const fs::path& directory) {
+    size_t count = 0;
+    for (const auto& entry : fs::directory_iterator(directory)) {
+        if (entry.path().extension() == L".tmp") ++count;
+    }
+    return count;
+}
+
+bool PartialCopyFailure(const fs::path&, const fs::path& destination,
+                        void*) {
+    HANDLE file = CreateFileW(destination.c_str(), GENERIC_WRITE,
+                              FILE_SHARE_READ, nullptr, CREATE_NEW,
+                              FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (file == INVALID_HANDLE_VALUE) return false;
+    const std::array<uint8_t, 32> partial{};
+    DWORD written = 0;
+    const BOOL writeResult = WriteFile(file, partial.data(),
+                                       static_cast<DWORD>(partial.size()),
+                                       &written, nullptr);
+    CloseHandle(file);
+    if (!writeResult || written != partial.size()) return false;
+    SetLastError(ERROR_WRITE_FAULT);
+    return false;
+}
+
+bool CorruptCopy(const fs::path& source, const fs::path& destination,
+                 void*) {
+    if (!CopyFileW(source.c_str(), destination.c_str(), TRUE)) return false;
+    HANDLE file = CreateFileW(destination.c_str(), GENERIC_WRITE,
+                              FILE_SHARE_READ, nullptr, OPEN_EXISTING,
+                              FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (file == INVALID_HANDLE_VALUE) return false;
+    const uint8_t corrupt = 0;
+    DWORD written = 0;
+    const BOOL writeResult = WriteFile(file, &corrupt, 1, &written, nullptr);
+    CloseHandle(file);
+    return writeResult && written == 1;
+}
+
+bool RefusePublish(const fs::path&, const fs::path&, void*) {
+    SetLastError(ERROR_ACCESS_DENIED);
+    return false;
+}
+
+bool RefuseDelete(const fs::path&, void*) {
+    SetLastError(ERROR_ACCESS_DENIED);
+    return false;
+}
+
+bool TestCacheResultPinsIdentity(const fs::path& source,
+                                 const fs::path& root) {
+    const fs::path cache = root / L"pinned-result";
+    fs::create_directories(cache);
+    blind_soldier::ValidatedVersionCacheLease cached;
+    if (!blind_soldier::BuildCachedSystemVersion(source, cache, cached)) {
+        return false;
+    }
+    HANDLE replacement = CreateFileW(
+        cached.path().c_str(), GENERIC_WRITE | DELETE,
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (replacement != INVALID_HANDLE_VALUE) {
+        CloseHandle(replacement);
+        std::wcerr <<
+            L"Validated cache result did not retain a restrictive handle.\n";
+        return false;
+    }
+    return GetLastError() == ERROR_SHARING_VIOLATION;
+}
+
+bool TestOwnedTemporaryCleanup(const fs::path& source,
                                const fs::path& root) {
-    constexpr size_t threadCount = 16;
+    struct FailureCase {
+        const wchar_t* name;
+        blind_soldier::VersionCacheCopyFile copy;
+        blind_soldier::VersionCacheMoveFile move;
+    };
+    const FailureCase cases[] = {
+        {L"partial-copy", PartialCopyFailure, nullptr},
+        {L"validation", CorruptCopy, nullptr},
+        {L"publish", nullptr, RefusePublish},
+    };
+    for (const auto& failure : cases) {
+        const fs::path cache = root / failure.name;
+        fs::create_directories(cache);
+        blind_soldier::VersionCacheBuildOptions options{};
+        options.copyFile = failure.copy;
+        options.moveFile = failure.move;
+        blind_soldier::ValidatedVersionCacheLease cached;
+        if (blind_soldier::BuildCachedSystemVersion(
+                source, cache, cached, &options) ||
+            CountTemporaryFiles(cache) != 0) {
+            std::wcerr << L"Owned temporary survived " << failure.name
+                       << L" failure.\n";
+            return false;
+        }
+    }
+
+    const fs::path cache = root / L"cleanup-error";
+    fs::create_directories(cache);
+    blind_soldier::VersionCacheBuildOptions options{};
+    options.copyFile = PartialCopyFailure;
+    options.deleteFile = RefuseDelete;
+    blind_soldier::ValidatedVersionCacheLease cached;
+    const bool succeeded = blind_soldier::BuildCachedSystemVersion(
+        source, cache, cached, &options);
+    const DWORD error = GetLastError();
+    if (succeeded || error != ERROR_ACCESS_DENIED ||
+        CountTemporaryFiles(cache) != 1) {
+        return false;
+    }
+    for (const auto& entry : fs::directory_iterator(cache)) {
+        if (entry.path().extension() == L".tmp") {
+            DeleteFileW(entry.path().c_str());
+        }
+    }
+    return CountTemporaryFiles(cache) == 0;
+}
+
+struct RaceBarrier {
+    HANDLE ready = nullptr;
+    HANDLE release = nullptr;
+};
+
+bool WaitImmediatelyBeforePublish(void* context) {
+    auto* barrier = static_cast<RaceBarrier*>(context);
+    if (!ReleaseSemaphore(barrier->ready, 1, nullptr)) return false;
+    const DWORD wait = WaitForSingleObject(barrier->release, 15000);
+    if (wait == WAIT_OBJECT_0) return true;
+    SetLastError(wait == WAIT_TIMEOUT ? ERROR_TIMEOUT : GetLastError());
+    return false;
+}
+
+std::wstring QuoteArgument(const std::wstring& argument) {
+    std::wstring quoted = L"\"";
+    size_t slashes = 0;
+    for (const wchar_t character : argument) {
+        if (character == L'\\') {
+            ++slashes;
+        } else {
+            if (character == L'\"') quoted.append(slashes + 1, L'\\');
+            quoted.append(slashes, L'\\');
+            slashes = 0;
+            quoted.push_back(character);
+        }
+    }
+    quoted.append(slashes * 2, L'\\');
+    quoted.push_back(L'\"');
+    return quoted;
+}
+
+bool TestCrossProcessPublication(const fs::path& source,
+                                 const fs::path& root) {
+    constexpr size_t processCount = 6;
     const fs::path fixture = root / L"race-source.dll";
     auto bytes = blind_soldier::InspectPeImage(source).fileBytes;
     if (bytes.empty()) return false;
@@ -291,68 +453,110 @@ bool TestConcurrentPublication(const fs::path& source,
     }
     const fs::path cache = root / L"race-cache";
     fs::create_directories(cache);
-    std::barrier gate(static_cast<ptrdiff_t>(threadCount));
-    std::array<bool, threadCount> succeeded{};
-    std::array<fs::path, threadCount> results{};
-    std::array<std::thread, threadCount> threads;
-    for (size_t index = 0; index < threadCount; ++index) {
-        threads[index] = std::thread([&, index]() {
-            gate.arrive_and_wait();
-            succeeded[index] = blind_soldier::BuildCachedSystemVersion(
-                fixture, cache, results[index]);
-        });
-    }
-    for (auto& thread : threads) thread.join();
-    for (size_t index = 0; index < threadCount; ++index) {
-        if (!succeeded[index] || results[index] != results[0]) return false;
-    }
-    size_t published = 0;
-    size_t temporary = 0;
-    for (const auto& entry : fs::directory_iterator(cache)) {
-        if (IsContentAddressedCacheName(entry.path())) ++published;
-        if (entry.path().extension() == L".tmp") ++temporary;
-    }
-    return published == 1 && temporary == 0;
-}
 
-bool TestDistinctValidatedImplementation(const fs::path& source,
-                                         const fs::path& proxy,
-                                         const fs::path& root) {
-    const fs::path cache = root / L"successful-fallback";
-    fs::create_directories(cache);
-    fs::path cached;
-    if (!blind_soldier::BuildCachedSystemVersion(source, cache, cached) ||
-        !IsContentAddressedCacheName(cached)) {
+    wchar_t executableBuffer[MAX_PATH * 4]{};
+    if (!GetModuleFileNameW(nullptr, executableBuffer,
+                            ARRAYSIZE(executableBuffer))) return false;
+    const fs::path executable = executableBuffer;
+    const std::wstring unique = std::to_wstring(GetCurrentProcessId()) + L"." +
+        std::to_wstring(GetTickCount64());
+    const std::wstring readyName =
+        L"Local\\BlindSoldier.VersionCacheRace.Ready." + unique;
+    const std::wstring releaseName =
+        L"Local\\BlindSoldier.VersionCacheRace.Release." + unique;
+    HANDLE ready = CreateSemaphoreW(nullptr, 0, processCount,
+                                    readyName.c_str());
+    HANDLE release = CreateEventW(nullptr, TRUE, FALSE, releaseName.c_str());
+    if (!ready || !release) {
+        if (ready) CloseHandle(ready);
+        if (release) CloseHandle(release);
         return false;
     }
-    const auto image = blind_soldier::InspectPeImage(cached);
-    if (!image.valid || image.machine != IMAGE_FILE_MACHINE_I386 ||
-        (image.fileCharacteristics & IMAGE_FILE_DLL) == 0) return false;
-    const HMODULE proxyModule = LoadLibraryW(proxy.c_str());
-    const HMODULE implementation = LoadLibraryExW(
-        cached.c_str(), nullptr, LOAD_WITH_ALTERED_SEARCH_PATH);
-    if (!proxyModule || !implementation || proxyModule == implementation) {
-        return false;
+
+    std::array<HANDLE, processCount> processes{};
+    bool spawned = true;
+    for (size_t index = 0; index < processCount; ++index) {
+        std::wstring command = QuoteArgument(executable.wstring()) +
+            L" --cache-race-child " + QuoteArgument(fixture.wstring()) +
+            L" " + QuoteArgument(cache.wstring()) + L" " +
+            QuoteArgument(readyName) + L" " + QuoteArgument(releaseName);
+        STARTUPINFOW startup{};
+        startup.cb = sizeof(startup);
+        PROCESS_INFORMATION process{};
+        if (!CreateProcessW(executable.c_str(), command.data(), nullptr,
+                            nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr,
+                            &startup, &process)) {
+            spawned = false;
+            break;
+        }
+        CloseHandle(process.hThread);
+        processes[index] = process.hProcess;
     }
-    constexpr const char* exports[] = {
-        "GetFileVersionInfoA", "GetFileVersionInfoByHandle",
-        "GetFileVersionInfoExA", "GetFileVersionInfoExW",
-        "GetFileVersionInfoSizeA", "GetFileVersionInfoSizeExA",
-        "GetFileVersionInfoSizeExW", "GetFileVersionInfoSizeW",
-        "GetFileVersionInfoW", "VerFindFileA", "VerFindFileW",
-        "VerInstallFileA", "VerInstallFileW", "VerLanguageNameA",
-        "VerLanguageNameW", "VerQueryValueA", "VerQueryValueW"
-    };
-    for (const char* name : exports) {
-        if (!GetProcAddress(proxyModule, name) ||
-            !GetProcAddress(implementation, name)) {
-            return false;
+    bool synchronized = spawned;
+    if (synchronized) {
+        for (size_t index = 0; index < processCount; ++index) {
+            if (WaitForSingleObject(ready, 15000) != WAIT_OBJECT_0) {
+                synchronized = false;
+                break;
+            }
         }
     }
-    return LoadedProxyAndSystemImplementation(proxy, cached);
+    SetEvent(release);
+
+    size_t publishedResults = 0;
+    size_t raceWinnerResults = 0;
+    for (HANDLE process : processes) {
+        if (!process) continue;
+        const DWORD wait = WaitForSingleObject(process, 15000);
+        DWORD exitCode = MAXDWORD;
+        if (wait == WAIT_OBJECT_0) GetExitCodeProcess(process, &exitCode);
+        else TerminateProcess(process, 99);
+        CloseHandle(process);
+        if (exitCode == 60) ++publishedResults;
+        if (exitCode == 61) ++raceWinnerResults;
+    }
+    CloseHandle(release);
+    CloseHandle(ready);
+
+    size_t published = 0;
+    for (const auto& entry : fs::directory_iterator(cache)) {
+        if (IsContentAddressedCacheName(entry.path())) ++published;
+    }
+    const bool passed = synchronized && publishedResults == 1 &&
+        raceWinnerResults == processCount - 1 && published == 1 &&
+        CountTemporaryFiles(cache) == 0;
+    if (passed) {
+        std::cout << "      publication outcomes: Published="
+                  << publishedResults << ", RaceWinner(ERROR_ALREADY_EXISTS)="
+                  << raceWinnerResults << "\n";
+    }
+    return passed;
 }
 
-int RunCacheIntegrityTests(const fs::path& source, const fs::path& proxy) {
+bool FindLoadedCachedVersion(const fs::path& cacheDirectory,
+                             fs::path& loaded) {
+    HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE,
+                                               GetCurrentProcessId());
+    if (snapshot == INVALID_HANDLE_VALUE) return false;
+    MODULEENTRY32W entry{};
+    entry.dwSize = sizeof(entry);
+    bool found = false;
+    if (Module32FirstW(snapshot, &entry)) {
+        do {
+            const fs::path candidate = entry.szExePath;
+            if (IsCachedSystemVersion(candidate) &&
+                EqualPath(candidate.parent_path(), cacheDirectory)) {
+                loaded = candidate;
+                found = true;
+                break;
+            }
+        } while (Module32NextW(snapshot, &entry));
+    }
+    CloseHandle(snapshot);
+    return found;
+}
+
+int RunCacheIntegrityTests(const fs::path& source) {
     TempDirectory temporary{CreateTempDirectory()};
     if (temporary.path.empty()) return 40;
     struct CacheCase {
@@ -364,7 +568,9 @@ int RunCacheIntegrityTests(const fs::path& source, const fs::path& proxy) {
         {"wrong-machine source and candidate", TestWrongMachineCandidate},
         {"reparse-point collision", TestReparseCollision},
         {"source-content address change", TestContentChangeChangesName},
-        {"concurrent identical publication", TestConcurrentPublication}
+        {"validated result pins cache identity", TestCacheResultPinsIdentity},
+        {"owned temporary cleanup", TestOwnedTemporaryCleanup},
+        {"cross-process identical publication", TestCrossProcessPublication},
     };
     int failures = 0;
     for (const auto& test : cases) {
@@ -375,17 +581,81 @@ int RunCacheIntegrityTests(const fs::path& source, const fs::path& proxy) {
             ++failures;
         }
     }
-    if (TestDistinctValidatedImplementation(
-            source, proxy, temporary.path)) {
-        std::cout << "  [+] distinct validated implementation load\n";
-    } else {
-        std::cerr << "  [-] distinct validated implementation load\n";
-        ++failures;
-    }
     if (failures == 0) {
-        std::cout << "Version cache integrity passed (6 cases).\n";
+        std::cout << "Version cache integrity passed (7 cases).\n";
     }
     return failures == 0 ? 0 : 41;
+}
+
+int RunProxyFallbackIntegration(const fs::path& executable) {
+    const fs::path root = executable.parent_path();
+    const fs::path localProxy = root /
+        (executable.filename().wstring() + L".local") / L"version.dll";
+    const fs::path localAppData = root / L"IsolatedLocalAppData";
+    if (!CreateDirectoryW(localAppData.c_str(), nullptr) &&
+        GetLastError() != ERROR_ALREADY_EXISTS) {
+        return 50;
+    }
+    if (!SetEnvironmentVariableW(L"LOCALAPPDATA", localAppData.c_str())) {
+        return 51;
+    }
+    const HMODULE proxyModule = LoadLibraryW(localProxy.c_str());
+    if (!proxyModule) return 52;
+    using LanguageNameW = DWORD (WINAPI*)(DWORD, LPWSTR, DWORD);
+    const auto languageNameW = reinterpret_cast<LanguageNameW>(
+        GetProcAddress(proxyModule, "VerLanguageNameW"));
+    wchar_t languageName[128]{};
+    if (!languageNameW ||
+        languageNameW(GetUserDefaultLangID(), languageName,
+                      ARRAYSIZE(languageName)) == 0) return 53;
+
+    const fs::path cacheDirectory =
+        localAppData / L"Blind Soldier" / L"NativeCache";
+    fs::path loadedCache;
+    const ULONGLONG deadline = GetTickCount64() + 5000ULL;
+    do {
+        if (FindLoadedCachedVersion(cacheDirectory, loadedCache)) break;
+        Sleep(10);
+    } while (GetTickCount64() < deadline);
+    if (loadedCache.empty() || !IsContentAddressedCacheName(loadedCache) ||
+        EqualPath(localProxy, loadedCache)) {
+        std::wcerr << L"Proxy fallback did not load its isolated cache.\n";
+        return 55;
+    }
+    std::cout << "Proxy-owned Version fallback integration passed.\n";
+    return 0;
+}
+
+int RunCacheRaceChild(int argc, wchar_t** argv) {
+    if (argc != 6) return 62;
+    HANDLE ready = OpenSemaphoreW(SEMAPHORE_MODIFY_STATE, FALSE, argv[4]);
+    HANDLE release = OpenEventW(SYNCHRONIZE, FALSE, argv[5]);
+    if (!ready || !release) {
+        if (ready) CloseHandle(ready);
+        if (release) CloseHandle(release);
+        return 63;
+    }
+    RaceBarrier barrier{ready, release};
+    blind_soldier::VersionCachePublicationResult publication =
+        blind_soldier::VersionCachePublicationResult::None;
+    blind_soldier::VersionCacheBuildOptions options{};
+    options.context = &barrier;
+    options.beforePublish = WaitImmediatelyBeforePublish;
+    options.publicationResult = &publication;
+    blind_soldier::ValidatedVersionCacheLease cached;
+    const bool succeeded = blind_soldier::BuildCachedSystemVersion(
+        argv[2], argv[3], cached, &options);
+    const DWORD error = GetLastError();
+    CloseHandle(release);
+    CloseHandle(ready);
+    if (!succeeded) return 64;
+    if (publication ==
+            blind_soldier::VersionCachePublicationResult::Published &&
+        error == ERROR_SUCCESS) return 60;
+    if (publication ==
+            blind_soldier::VersionCachePublicationResult::RaceWinner &&
+        error == ERROR_ALREADY_EXISTS) return 61;
+    return 65;
 }
 
 }  // namespace
@@ -396,6 +666,8 @@ int wmain(int argc, wchar_t** argv) {
         return 10;
     }
     const fs::path proxy = fs::path(executable).parent_path() / L"version.dll";
+    if (argc >= 2 && wcscmp(argv[1], L"--cache-race-child") == 0)
+        return RunCacheRaceChild(argc, argv);
     if (argc == 2 && wcscmp(argv[1], L"--cache-tests") == 0) {
         wchar_t systemDirectory[MAX_PATH * 4]{};
         if (GetSystemDirectoryW(systemDirectory,
@@ -403,8 +675,10 @@ int wmain(int argc, wchar_t** argv) {
             return 42;
         }
         return RunCacheIntegrityTests(
-            fs::path(systemDirectory) / L"version.dll", proxy);
+            fs::path(systemDirectory) / L"version.dll");
     }
+    if (argc == 2 && wcscmp(argv[1], L"--proxy-fallback") == 0)
+        return RunProxyFallbackIntegration(executable);
     const std::wstring managedReadyEventName = RemovedManagedReadyEventName();
     SetLastError(ERROR_SUCCESS);
     HANDLE unexpectedEvent = OpenEventW(

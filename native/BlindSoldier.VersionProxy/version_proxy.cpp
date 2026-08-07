@@ -89,7 +89,7 @@ bool LoadSystemVersion(std::wstring& diagnostic) {
     // FFNx can return the already-loading local version.dll even for the
     // absolute System32 path. Resolve a distinct cached basename outside
     // DllMain so no loader/cache work runs while the loader lock is held.
-    blind_soldier::fs::path cached;
+    blind_soldier::ValidatedVersionCacheLease cached;
     if (!blind_soldier::BuildCachedSystemVersion(path, cached)) {
         const DWORD error = GetLastError();
         diagnostic =
@@ -97,7 +97,7 @@ bool LoadSystemVersion(std::wstring& diagnostic) {
             std::to_wstring(error) + L".";
         return false;
     }
-    candidate = LoadLibraryExW(cached.c_str(), nullptr,
+    candidate = LoadLibraryExW(cached.path().c_str(), nullptr,
                                LOAD_WITH_ALTERED_SEARCH_PATH);
     resolved.fill(nullptr);
     if (!ResolveVersionExports(candidate, resolved)) {
