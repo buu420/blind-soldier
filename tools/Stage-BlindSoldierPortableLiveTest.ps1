@@ -3,7 +3,7 @@ param(
     [Parameter(Mandatory=$true)] [string] $ArchivePath,
     [Parameter(Mandatory=$true)] [string] $DestinationRoot,
     [string] $BackupRoot,
-    [string] $ExpectedVersion = '0.1.7',
+    [string] $ExpectedVersion = '0.1.8',
     [string] $VerifierPath,
     [string] $SupportedHostsPath,
     [string] $ReportPath,
