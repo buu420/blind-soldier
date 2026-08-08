@@ -134,6 +134,27 @@ Progress intervals are `5`, `10`, `15`, and `20` percent. `F6` and `F7` wrap
 around at either end. Key changes to progress settings last for the current
 game session; the installed configuration supplies the next launch's defaults.
 
+### Battle status keys
+
+These keys are active only during battle. `L` checks the selected member's
+limit gauge in battle and remains the next-target navigation key everywhere
+else.
+
+| Key | Action |
+| --- | --- |
+| `1` | Select and identify party member 1 |
+| `2` | Select and identify party member 2 |
+| `3` | Select and identify party member 3 |
+| `H` | Read current and maximum HP |
+| `M` | Read current and maximum MP |
+| `D` | Read active debuffs and other harmful conditions |
+| `S` | Read active buffs |
+| `L` | Read the native limit gauge percentage |
+
+An empty numbered slot is announced as unavailable and does not replace the
+last valid selection. Buff and debuff queries explicitly say when there are
+none.
+
 ## Navigation
 
 Blind Soldier uses the same navigation controls in fields and on the world

@@ -150,42 +150,7 @@ public sealed class BattleStatusSpeechTracker
         _ => $"{name}'s {StatusName(bit)} wore off."
     };
 
-    private static string StatusName(int bit) => bit switch
-    {
-        0 => "Death",
-        1 => "Near Death",
-        2 => "Sleep",
-        3 => "Poison",
-        4 => "Sadness",
-        5 => "Fury",
-        6 => "Confusion",
-        7 => "Silence",
-        8 => "Haste",
-        9 => "Slow",
-        10 => "Stop",
-        11 => "Frog",
-        12 => "Small",
-        13 => "Slow Numb",
-        14 => "Petrify",
-        15 => "Regen",
-        16 => "Barrier",
-        17 => "Magic Barrier",
-        18 => "Reflect",
-        19 => "Dual",
-        20 => "Shield",
-        21 => "Death Sentence",
-        22 => "Manipulate",
-        23 => "Berserk",
-        24 => "Peerless",
-        25 => "Paralysis",
-        26 => "Darkness",
-        27 => "Dual Drain",
-        28 => "Death Force",
-        29 => "Resist",
-        30 => "Lucky Girl",
-        31 => "Imprisoned",
-        _ => "Unknown Status"
-    };
+    private static string StatusName(int bit) => BattleStatusCatalog.Name(bit);
 
     private readonly record struct ActorStatusState(string Name, bool IsEnemy, uint Mask);
 }

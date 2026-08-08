@@ -23,25 +23,36 @@ if (-not $OutputPath) {
 $fieldJsonRoot = Join-Path $KujataDataRoot 'data\field\flevel.lgp'
 $chaptersPath = Join-Path $KujataDataRoot 'metadata\chapters.json'
 $mapListPath = Join-Path $GameRoot 'data\field\flevel\maplist'
+$mapListJsonPath = Join-Path $fieldJsonRoot 'maplist.json'
 if (-not (Test-Path -LiteralPath $fieldJsonRoot)) {
     throw "Missing Kujata field data: $fieldJsonRoot"
 }
 if (-not (Test-Path -LiteralPath $chaptersPath)) {
     throw "Missing Kujata chapter metadata: $chaptersPath"
 }
-if (-not (Test-Path -LiteralPath $mapListPath)) {
-    throw "Missing FFVII map list: $mapListPath"
-}
-
-$mapBytes = [IO.File]::ReadAllBytes($mapListPath)
-$fieldCount = [BitConverter]::ToUInt16($mapBytes, 0)
 $fieldIds = @{}
-for ($fieldId = 0; $fieldId -lt $fieldCount; $fieldId++) {
-    $offset = 2 + $fieldId * 32
-    $fieldName = [Text.Encoding]::ASCII.GetString($mapBytes, $offset, 32).Split([char]0)[0].Trim()
-    if ($fieldName) {
-        $fieldIds[$fieldName] = $fieldId
+if (Test-Path -LiteralPath $mapListPath) {
+    $mapBytes = [IO.File]::ReadAllBytes($mapListPath)
+    $fieldCount = [BitConverter]::ToUInt16($mapBytes, 0)
+    for ($fieldId = 0; $fieldId -lt $fieldCount; $fieldId++) {
+        $offset = 2 + $fieldId * 32
+        $fieldName = [Text.Encoding]::ASCII.GetString($mapBytes, $offset, 32).Split([char]0)[0].Trim()
+        if ($fieldName) {
+            $fieldIds[$fieldName] = $fieldId
+        }
     }
+}
+elseif (Test-Path -LiteralPath $mapListJsonPath) {
+    $mapNames = Get-Content -Raw -LiteralPath $mapListJsonPath | ConvertFrom-Json
+    for ($fieldId = 0; $fieldId -lt $mapNames.Count; $fieldId++) {
+        $fieldName = [string]$mapNames[$fieldId]
+        if ($fieldName) {
+            $fieldIds[$fieldName] = $fieldId
+        }
+    }
+}
+else {
+    throw "Missing FFVII map list: $mapListPath and $mapListJsonPath"
 }
 
 $chapterByField = @{}
@@ -517,6 +528,49 @@ Add-Definition -FieldId 195 -FieldName 'mrkt2' -Kind 'Location' -Label 'Continue
         clearance = 120
     })
 Add-Definition -FieldId 205 -FieldName 'mrkt1' -Kind 'Location' -Label 'Enter Corneo Hall' -X 4 -Y -9 -Z 0 -TargetGameMoment 191 -MinimumGameMoment 190 -MaximumGameMoment 190 -Priority 0 -ScriptType 'Gateway' -TriggerLine ([ordered]@{ startX = -63; startY = -9; startZ = 0; endX = 70; endY = -9; endZ = 0 })
+
+# Corneo's doorman advances the story to moment 191, but the disguise quest
+# itself advances through persistent flags without changing GameMoment. Mirror
+# each mandatory interior objective on both Wall Market hub screens so Story
+# always exposes the next reachable gateway and retires it as soon as the
+# destination script changes the corresponding native flag.
+Add-Definition -FieldId 195 -FieldName 'mrkt2' -Kind 'Location' -Label 'Enter the boutique and ask the clothes-shop clerk for help' -X -436 -Y 2014 -Z 0 -TargetGameMoment 192 -MinimumGameMoment 191 -MaximumGameMoment 191 -Priority 0 -CompletedCondition (New-Condition 1 162 0x80 0x80) -ScriptType 'Gateway'
+
+Add-Definition -FieldId 195 -FieldName 'mrkt2' -Kind 'Location' -Label 'Continue north to find the clothes-shop owner at the bar' -X -135 -Y 2496 -Z 0 -TargetGameMoment 192 -MinimumGameMoment 191 -MaximumGameMoment 191 -Priority 0 -RequiredCondition (New-Condition 1 162 0x80 0x80) -CompletedCondition (New-Condition 1 161 0xE0 0 -AnyBitSet) -ScriptType 'Gateway' -TriggerLine ([ordered]@{ startX = -251; startY = 2500; startZ = 0; endX = -19; endY = 2492; endZ = 0 }) -RouteDetours @(
+    [ordered]@{
+        blockedLine = [ordered]@{ startX = 100; startY = 1700; startZ = 0; endX = 400; endY = 1700; endZ = 0 }
+        x = -150
+        y = 2000
+        z = 0
+        clearance = 120
+    })
+Add-Definition -FieldId 205 -FieldName 'mrkt1' -Kind 'Location' -Label 'Enter the bar and speak with the clothes-shop owner' -X -666 -Y -1653 -Z 0 -TargetGameMoment 192 -MinimumGameMoment 191 -MaximumGameMoment 191 -Priority 0 -RequiredCondition (New-Condition 1 162 0x80 0x80) -CompletedCondition (New-Condition 1 161 0xE0 0 -AnyBitSet) -ScriptType 'Gateway'
+
+Add-Definition -FieldId 205 -FieldName 'mrkt1' -Kind 'Location' -Label 'Return to lower Wall Market for the finished dress' -X -134 -Y -3083 -Z 0 -TargetGameMoment 192 -MinimumGameMoment 191 -MaximumGameMoment 191 -Priority 0 -RequiredCondition (New-Condition 1 161 0xE0 0 -AnyBitSet) -CompletedCondition (New-Condition 1 161 0x08 0x08) -ScriptType 'Gateway'
+Add-Definition -FieldId 195 -FieldName 'mrkt2' -Kind 'Location' -Label 'Return to the boutique and collect the finished dress' -X -436 -Y 2014 -Z 0 -TargetGameMoment 192 -MinimumGameMoment 191 -MaximumGameMoment 191 -Priority 0 -RequiredCondition (New-Condition 1 161 0xE0 0 -AnyBitSet) -CompletedCondition (New-Condition 1 161 0x08 0x08) -ScriptType 'Gateway'
+
+Add-Definition -FieldId 195 -FieldName 'mrkt2' -Kind 'Location' -Label "Continue north to the Men's Hall for a wig" -X -135 -Y 2496 -Z 0 -TargetGameMoment 192 -MinimumGameMoment 191 -MaximumGameMoment 191 -Priority 0 -RequiredCondition (New-Condition 1 161 0x08 0x08) -CompletedCondition (New-Condition 1 160 0x80 0x80) -ScriptType 'Gateway' -TriggerLine ([ordered]@{ startX = -251; startY = 2500; startZ = 0; endX = -19; endY = 2492; endZ = 0 }) -RouteDetours @(
+    [ordered]@{
+        blockedLine = [ordered]@{ startX = 100; startY = 1700; startZ = 0; endX = 400; endY = 1700; endZ = 0 }
+        x = -150
+        y = 2000
+        z = 0
+        clearance = 120
+    })
+Add-Definition -FieldId 205 -FieldName 'mrkt1' -Kind 'Location' -Label "Enter the Men's Hall and complete the squat contest" -X 214 -Y -2394 -Z 0 -TargetGameMoment 192 -MinimumGameMoment 191 -MaximumGameMoment 191 -Priority 0 -RequiredCondition (New-Condition 1 161 0x08 0x08) -CompletedCondition (New-Condition 1 160 0x80 0x80) -ScriptType 'Gateway'
+
+Add-Definition -FieldId 205 -FieldName 'mrkt1' -Kind 'Location' -Label 'Return to lower Wall Market and change clothes at the boutique' -X -134 -Y -3083 -Z 0 -TargetGameMoment 192 -MinimumGameMoment 191 -MaximumGameMoment 191 -Priority 0 -RequiredCondition (New-Condition 1 160 0x80 0x80) -CompletedCondition (New-Condition 3 162 0x02 0x02) -ScriptType 'Gateway'
+Add-Definition -FieldId 195 -FieldName 'mrkt2' -Kind 'Location' -Label 'Return to the boutique fitting room and change clothes' -X -436 -Y 2014 -Z 0 -TargetGameMoment 192 -MinimumGameMoment 191 -MaximumGameMoment 191 -Priority 0 -RequiredCondition (New-Condition 1 160 0x80 0x80) -CompletedCondition (New-Condition 3 162 0x02 0x02) -ScriptType 'Gateway'
+
+Add-Definition -FieldId 195 -FieldName 'mrkt2' -Kind 'Location' -Label 'Continue north to Corneo Hall while disguised' -X -135 -Y 2496 -Z 0 -MinimumGameMoment 192 -MaximumGameMoment 192 -Priority 0 -RequiredCondition (New-Condition 3 162 0x03 0x03) -ScriptType 'Gateway' -TriggerLine ([ordered]@{ startX = -251; startY = 2500; startZ = 0; endX = -19; endY = 2492; endZ = 0 }) -RouteDetours @(
+    [ordered]@{
+        blockedLine = [ordered]@{ startX = 100; startY = 1700; startZ = 0; endX = 400; endY = 1700; endZ = 0 }
+        x = -150
+        y = 2000
+        z = 0
+        clearance = 120
+    })
+Add-Definition -FieldId 205 -FieldName 'mrkt1' -Kind 'Location' -Label 'Enter Corneo Hall while disguised' -X 4 -Y -9 -Z 0 -MinimumGameMoment 192 -MaximumGameMoment 192 -Priority 0 -RequiredCondition (New-Condition 3 162 0x03 0x03) -ScriptType 'Gateway' -TriggerLine ([ordered]@{ startX = -63; startY = -9; startZ = 0; endX = 70; endY = -9; endZ = 0 })
 
 Add-Definition -FieldId 144 -FieldName 'mds7st1' -Kind 'Location' -Label 'Continue toward the Sector 7 station' -X 1688 -Y 676 -Z 0 -TargetGameMoment 69 -MinimumGameMoment 63 -MaximumGameMoment 68 -Priority 0 -ScriptType 'Gateway'
 Add-Definition -FieldId 145 -FieldName 'mds7st2' -Kind 'Location' -Label 'Return to Sector 7 station by the upper route' -X -2154 -Y 3390 -Z 101 -TargetGameMoment 69 -MinimumGameMoment 63 -MaximumGameMoment 68 -Priority 0 -ScriptType 'Gateway'

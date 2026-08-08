@@ -252,6 +252,7 @@ public sealed class Mod : IModV1, IModV2
     private readonly BattleEncounterSpeechTracker battleEncounterSpeechTracker = new();
     private readonly BattleEnemyActionSpeechTracker battleEnemyActionSpeechTracker = new();
     private readonly BattleStatusSpeechTracker battleStatusSpeechTracker = new();
+    private readonly BattleStatusHotkeyController battleStatusHotkeyController = new();
     private readonly TifaSlotSpeechTracker tifaSlotSpeechTracker = new();
     private volatile bool battleVictoryActive;
     private FootstepProbeScheduler? footstepProbeScheduler;
@@ -1114,6 +1115,7 @@ public sealed class Mod : IModV1, IModV2
                 TickFfnxVoicePlaybackEvents();
                 TickFootstepProbe();
                 TickBattleSessionState();
+                TickBattleStatusHotkeys();
                 TickHighwayAccessibility();
                 TickFieldZoneTransitionCue();
                 TickFieldSwingingBarTimingCue();
@@ -1870,6 +1872,37 @@ public sealed class Mod : IModV1, IModV2
         {
             ResetBattleInteractionSpeech();
         }
+    }
+
+    private void TickBattleStatusHotkeys()
+    {
+        var currentModule = ReadByte(BattleStateReader.AddressCurrentModule);
+        var isForeground = foregroundProcessGate.IsCurrentProcessForeground();
+        var battleActive = config.EnableSpeech &&
+            currentModule == BattleStateReader.BattleModule &&
+            !battleVictoryActive;
+        var speech = battleStatusHotkeyController.Poll(
+            battleActive,
+            virtualKey => WasNavigationKeyPressed(virtualKey, isForeground),
+            ReadBattleStatusMember);
+        if (string.IsNullOrWhiteSpace(speech))
+        {
+            return;
+        }
+
+        Log($"Battle status hotkey: slot={battleStatusHotkeyController.SelectedPartySlot + 1}, text={speech}");
+        Speak(speech, interrupt: true);
+    }
+
+    private BattleStatusMemberSnapshot? ReadBattleStatusMember(int partySlot)
+    {
+        if (battleStateReader?.TryReadPartyActor(partySlot, out var actor) != true ||
+            savemapPartyReader?.TryReadLimitGauge(partySlot, out var limitGauge) != true)
+        {
+            return null;
+        }
+
+        return new BattleStatusMemberSnapshot(actor, limitGauge);
     }
 
     private void TickOpeningMovieDescription()

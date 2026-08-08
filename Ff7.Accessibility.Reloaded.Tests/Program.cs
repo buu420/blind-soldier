@@ -44,6 +44,14 @@ if (args.Contains("--reactor-ladder-only", StringComparer.OrdinalIgnoreCase))
     return;
 }
 
+if (args.Contains("--wall-market-battle-status-only", StringComparer.OrdinalIgnoreCase))
+{
+    WallMarketStoryRoutingTests.Run();
+    BattleStatusHotkeyTests.Run();
+    Console.WriteLine("FFVII Wall Market story and battle status hotkey tests passed.");
+    return;
+}
+
 if (args.Contains("--host-validation-only", StringComparer.OrdinalIgnoreCase))
 {
     AssertLegacyX86FingerprintAcceptsOnlyKnownExecutable();

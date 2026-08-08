@@ -9,6 +9,7 @@ public sealed class SavemapPartyReader
     public const int CharacterNameOffset = 0x10;
     public const int LevelOffset = 0x01;
     public const int LimitLevelOffset = 0x0E;
+    public const int LimitGaugeOffset = 0x0F;
     public const int EquippedWeaponOffset = 0x1C;
     public const int EquippedArmorOffset = 0x1D;
     public const int EquippedAccessoryOffset = 0x1E;
@@ -91,6 +92,27 @@ public sealed class SavemapPartyReader
         }
 
         snapshot = candidate;
+        return true;
+    }
+
+    public bool TryReadLimitGauge(int partySlot, out byte value)
+    {
+        value = 0;
+        if (partySlot is < 0 or >= 3 ||
+            !TryReadByte(savemapAddress + PartyMembersOffset + partySlot, out var characterId) ||
+            characterId >= 9)
+        {
+            return false;
+        }
+
+        var characterBase = GetCharacterBase(characterId);
+        if (!TryReadByte(characterBase + LimitGaugeOffset, out var candidate) ||
+            !VerifyPartySlot(partySlot, characterId))
+        {
+            return false;
+        }
+
+        value = candidate;
         return true;
     }
 
