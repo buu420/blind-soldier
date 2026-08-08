@@ -31,9 +31,13 @@ public sealed class SaveMenuSpeechTracker
         }
     }
 
+    public static bool IsSupportedHostModule(int currentModule) =>
+        currentModule == InGameMenuModule ||
+        currentModule == WorldMapStateReader.WorldModule;
+
     public void ObserveModule(int currentModule)
     {
-        if (currentModule == InGameMenuModule)
+        if (IsSupportedHostModule(currentModule))
         {
             return;
         }
@@ -64,7 +68,7 @@ public sealed class SaveMenuSpeechTracker
     {
         lock (sync)
         {
-            if (currentModule != InGameMenuModule || !isForeground)
+            if (!IsSupportedHostModule(currentModule) || !isForeground)
             {
                 ResetCore();
                 isActive = false;
@@ -239,29 +243,23 @@ public sealed class SaveMenuSpeechTracker
             widget.Columns == 5 && widget.Rows == 2 &&
             widget.First is >= 0 and < 5 && widget.Cursor is >= 0 and < 2)
         {
-            if (!isActive)
-            {
-                ResetCore();
-                isActive = true;
-            }
-
-            ObservePageSignal(SaveMenuPage.SaveFiles);
+            AcquirePage(SaveMenuPage.SaveFiles);
             return;
         }
 
-        if (isActive && widget.Address == SaveMenuStateReader.AddressGameWidget &&
+        if (widget.Address == SaveMenuStateReader.AddressGameWidget &&
             widget.Columns == 1 && widget.Rows is 3 or 4 &&
             widget.Cursor is >= 0 and <= 3)
         {
-            ObservePageSignal(SaveMenuPage.Games);
+            AcquirePage(SaveMenuPage.Games);
             return;
         }
 
-        if (isActive && widget.Address == SaveMenuStateReader.AddressConfirmationWidget &&
+        if (widget.Address == SaveMenuStateReader.AddressConfirmationWidget &&
             widget.Columns == 1 && widget.Rows == 2 &&
             widget.Cursor is 0 or 1)
         {
-            ObservePageSignal(SaveMenuPage.Confirmation);
+            AcquirePage(SaveMenuPage.Confirmation);
             return;
         }
 
@@ -271,6 +269,18 @@ public sealed class SaveMenuSpeechTracker
             ResetCore();
             isActive = false;
         }
+    }
+
+    private void AcquirePage(SaveMenuPage page)
+    {
+        if (!isActive)
+        {
+            ResetCore();
+            isActive = true;
+            return;
+        }
+
+        ObservePageSignal(page);
     }
 
     private static string CreatePreviewKey(Ff7SaveSlotPreview? preview) => preview is not { } value

@@ -26,6 +26,35 @@ internal static class Steam2026BattleObservationTests
 
     internal static Steam2026FingerprintResult SupportedFingerprint => supportedFingerprint;
 
+    internal static void ReadsNativeEnemySkillCategoryMapping()
+    {
+        var fixture = BattleObservationFixture.CreatePopulated();
+        fixture.WriteByte(BattleStateReader.AddressMenuWindowStates + 1, 0);
+        fixture.WriteByte(
+            BattleStateReader.AddressMenuWindowStates + 4,
+            BattleStateReader.ActiveWindowState);
+        fixture.WriteInt32(BattleStateReader.AddressEnemySkillCursorColumn, 0);
+        fixture.WriteInt32(BattleStateReader.AddressEnemySkillCursorRow, 0);
+        fixture.WriteInt32(BattleStateReader.AddressEnemySkillScrollRow, 0);
+        fixture.WriteByte(BattleStateReader.AddressEnemySkillRecords, 10);
+        fixture.WriteByte(
+            BattleStateReader.AddressEnemySkillRecords + BattleStateReader.AbilityMpCostOffset,
+            8);
+        var resolvers = new Steam2026BattleTextResolvers(
+            abilityId => abilityId == 0x52 ? "Matra Magic" : null,
+            abilityId => abilityId == 0x52 ? "Non-elemental attack on all opponents" : null,
+            _ => null,
+            _ => null,
+            _ => null,
+            _ => null);
+        var reader = new Steam2026BattleObservationReader(fixture.Direct, resolvers);
+
+        Equal(true, reader.TryReadResearchSnapshot(4, out var snapshot), "x64 Enemy Skill snapshot");
+        Equal(0x52, snapshot.Menu.Selection.EntryId, "x64 normalized Enemy Skill action id");
+        Equal("Matra Magic", snapshot.Menu.Selection.Name, "x64 native Enemy Skill name");
+        Equal(8, snapshot.Menu.Selection.MpCost, "x64 native Enemy Skill MP cost");
+    }
+
     public static void Run(
         Steam2026FingerprintResult supported,
         Steam2026FingerprintResult unsupported)

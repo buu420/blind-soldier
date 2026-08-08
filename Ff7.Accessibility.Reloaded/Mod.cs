@@ -4308,7 +4308,7 @@ public sealed class Mod : IModV1, IModV2
             currentModule,
             isForeground,
             IsNameEntryMenuActive());
-        if (currentModule != SaveMenuSpeechTracker.InGameMenuModule ||
+        if (!SaveMenuSpeechTracker.IsSupportedHostModule(currentModule) ||
             !isForeground)
         {
             return;
