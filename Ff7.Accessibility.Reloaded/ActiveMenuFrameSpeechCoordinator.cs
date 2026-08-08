@@ -74,7 +74,20 @@ public sealed class ActiveMenuFrameSpeechCoordinator
 
             string? speech;
             string? nativeSelectionIdentity = null;
-            if (widget.Kind is MenuWidgetKind.CharacterList or
+            if (widget.Kind == MenuWidgetKind.LimitCommand)
+            {
+                if (widget.Columns != 2 || widget.Rows != 1 || widget.First is < 0 or > 1)
+                {
+                    ClearPendingSelection(widget.Address);
+                    return;
+                }
+
+                // The legacy Limit screen stores Set/Check in the widget's
+                // first field and can update it without drawing a cursor.
+                speech = widget.First == 0 ? "Set" : "Check";
+                nativeSelectionIdentity = $"limit-command:{widget.First}";
+            }
+            else if (widget.Kind is MenuWidgetKind.CharacterList or
                 MenuWidgetKind.EquipmentSlot or
                 MenuWidgetKind.EquipmentList or
                 MenuWidgetKind.MateriaList or
@@ -456,6 +469,12 @@ public sealed class ActiveMenuFrameSpeechCoordinator
     private static string TrimLimitText(string text)
     {
         var trimmed = text.Trim();
+        const string switchControl = "[SWITCH]";
+        while (trimmed.StartsWith(switchControl, StringComparison.OrdinalIgnoreCase))
+        {
+            trimmed = trimmed[switchControl.Length..].TrimStart();
+        }
+
         var firstLetterOrDigit = 0;
         while (firstLetterOrDigit < trimmed.Length &&
                !char.IsLetterOrDigit(trimmed[firstLetterOrDigit]))

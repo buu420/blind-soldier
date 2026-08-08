@@ -15,6 +15,13 @@ if (args.Contains("--module-tests-only", StringComparer.OrdinalIgnoreCase))
     return;
 }
 
+if (args.Contains("--repeat-speech-only", StringComparer.OrdinalIgnoreCase))
+{
+    Steam2026ResearchAccessibilityOutputTests.Run();
+    Console.WriteLine("Steam 2026 x64 repeat-speech tests passed.");
+    return;
+}
+
 const string nativePath =
     @"X:\SteamLibrary\steamapps\common\FINAL FANTASY VII Steam Edition\FFVII.exe";
 const string legacyPath =

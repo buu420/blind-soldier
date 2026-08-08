@@ -13,6 +13,10 @@ public sealed class SavemapPartyReader
     public const int EquippedWeaponOffset = 0x1C;
     public const int EquippedArmorOffset = 0x1D;
     public const int EquippedAccessoryOffset = 0x1E;
+    // Ghidra: the Order handler at 0x006CA346 XORs bit zero of this byte
+    // when the same party member is confirmed twice. Set means front row;
+    // clear means back row.
+    public const int RowFlagsOffset = 0x20;
     public const int CurrentHpOffset = 0x2C;
     public const int CurrentMpOffset = 0x30;
     public const int MaxHpOffset = 0x38;
@@ -92,6 +96,34 @@ public sealed class SavemapPartyReader
         }
 
         snapshot = candidate;
+        return true;
+    }
+
+    public bool TryReadPartySlotWithRow(int partySlot, out PartyMemberRowSnapshot snapshot)
+    {
+        snapshot = default;
+        if (partySlot is < 0 or >= 3 ||
+            !TryReadByte(savemapAddress + PartyMembersOffset + partySlot, out var characterId) ||
+            !TryReadCharacter(characterId, out var member))
+        {
+            return false;
+        }
+
+        var rowAddress = GetCharacterBase(characterId) + RowFlagsOffset;
+        if (!TryReadByte(rowAddress, out var rowFlags) ||
+            !TryReadByte(savemapAddress + PartyMembersOffset + partySlot, out var characterBookend) ||
+            characterBookend != characterId ||
+            !TryReadByte(rowAddress, out var rowFlagsBookend) ||
+            rowFlagsBookend != rowFlags)
+        {
+            return false;
+        }
+
+        snapshot = new PartyMemberRowSnapshot(
+            member.CharacterId,
+            member.Name,
+            (rowFlags & 1) != 0 ? PartyBattleRow.Front : PartyBattleRow.Back,
+            rowFlags);
         return true;
     }
 
@@ -577,6 +609,18 @@ public sealed class SavemapPartyReader
 }
 
 public readonly record struct PartyMemberSnapshot(int CharacterId, string Name);
+
+public enum PartyBattleRow
+{
+    Back,
+    Front
+}
+
+public readonly record struct PartyMemberRowSnapshot(
+    int CharacterId,
+    string Name,
+    PartyBattleRow Row,
+    byte RawFlags);
 
 public readonly record struct StatusMenuSnapshot(
     int PartySlot,

@@ -104,6 +104,7 @@
     <Compile Include="..\Ff7.Accessibility.Reloaded\OpeningMovieAudioTrackPlayer.cs" Link="Shared\OpeningMovieAudioTrackPlayer.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\OpeningMovieAudioTrackVolumePolicy.cs" Link="Shared\OpeningMovieAudioTrackVolumePolicy.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\PrismNativeSpeaker.cs" Link="Shared\PrismNativeSpeaker.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\RepeatLastSpeechController.cs" Link="Shared\RepeatLastSpeechController.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\SaveMenuSpeechTracker.cs" Link="Shared\SaveMenuSpeechTracker.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\SaveSlotSpeechFormatter.cs" Link="Shared\SaveSlotSpeechFormatter.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\TitleLoadMenuSpeechTracker.cs" Link="Shared\TitleLoadMenuSpeechTracker.cs" />

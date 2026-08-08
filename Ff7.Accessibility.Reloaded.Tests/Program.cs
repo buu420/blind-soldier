@@ -70,6 +70,19 @@ if (args.Contains("--host-validation-only", StringComparer.OrdinalIgnoreCase))
     return;
 }
 
+if (args.Contains("--menu-repeat-only", StringComparer.OrdinalIgnoreCase))
+{
+    AssertOrderMenuSelectionReadsNativeRowsAndPendingMember();
+    AssertRepeatLastSpeechHotkeyRepeatsOnlyDeliveredSpeech();
+    AssertActiveMenuFrameReadsNativeLimitCommandWithoutCursorDraw();
+    AssertActiveMenuFrameIgnoresParentCommandInsideLimitLevel();
+    AssertActiveMenuFrameIgnoresParentCommandInsideLimitMoveList();
+    AssertStaticMenuCursorSpeechReadsNativeConfigRowWithoutCursorDraw();
+    AssertStaticMenuCursorSpeechUsesNativeConfigValue();
+    Console.WriteLine("FFVII x86 Config, Limit, Order, and repeat-speech tests passed.");
+    return;
+}
+
 var root = FindGameRoot();
 var sourceRoot = FindSourceRoot();
 var captures = Path.Combine(sourceRoot, "accessibility_prototype", "helper", "bin", "Debug", "net10.0-windows", "captures");
@@ -325,6 +338,7 @@ AssertBattleResultsResetsForTheNextBattle();
 AssertBattleDamagePopupReaderReadsOnlyFirstFrameNativePopups();
 AssertBattleDamageSpeechReportsDamageAndRecovery();
 AssertSavemapPartyReaderReadsPartyMemberAndEquipment();
+AssertOrderMenuSelectionReadsNativeRowsAndPendingMember();
 AssertSavemapPartyReaderUsesNativeEquipmentSelector();
 AssertSavemapPartyReaderReadsNativeStatusSummary();
 AssertFieldDialogStringReaderUsesFfnxCurrentDialogPointer();
@@ -692,6 +706,7 @@ AssertAccessibilityConfigMigratesLegacyLadderCueDefaults();
 AssertFieldNavigationIgnoresNonFieldModules();
 AssertNavigationHotkeysRequireFf7ForegroundWindow();
 AssertNavigationHotkeysDoNotFireWhenRefocusedWhileHeld();
+AssertRepeatLastSpeechHotkeyRepeatsOnlyDeliveredSpeech();
 AssertNativeFieldHookQueueCopiesEventsWithoutAllocatingOnCapture();
 AssertNativeFieldHookQueueDropsOverflowWithoutInventingEvents();
 AssertNativeTextDrawQueueCopiesEventsWithoutAllocatingOnCapture();
@@ -772,6 +787,7 @@ AssertActiveMenuFrameDeduplicatesMateriaByNativeSelectionIdentity();
 AssertActiveMenuFrameScopesRepeatSuppressionByWidget();
 AssertActiveMenuFrameKeepsRepeatSuppressionAcrossPartialFrames();
 AssertActiveMenuFrameKeepsLimitHistoryAcrossRootFrames();
+AssertActiveMenuFrameReadsNativeLimitCommandWithoutCursorDraw();
 AssertActiveMenuFrameIgnoresParentCommandInsideLimitLevel();
 AssertActiveMenuFrameIgnoresParentCommandInsideLimitMoveList();
 AssertMateriaTutorialSpeechReadsNativeInstructionsOnce();
@@ -783,6 +799,7 @@ AssertActiveMenuFrameReadsChangingSoundVolume();
 AssertMagicMenuSelectionReaderReadsLiveSpellRecord();
 AssertActiveMenuFrameIncludesLiveMagicMpCost();
 AssertStaticMenuCursorSpeechReadsConfigRows();
+AssertStaticMenuCursorSpeechReadsNativeConfigRowWithoutCursorDraw();
 AssertStaticMenuCursorSpeechUsesNativeConfigValue();
 AssertStaticMenuCursorSpeechReadsQuitChoices();
 AssertStaticMenuCursorSpeechReadsDrawOnlyQuitChoices();
@@ -4533,6 +4550,60 @@ static void AssertSavemapPartyReaderReadsPartyMemberAndEquipment()
     AssertEqual("Weapon, Buster Sword", weapon.Text, "native weapon selection text");
     AssertEqual("Armor, Iron Bangle", armor.Text, "native armor selection text");
     AssertEqual("Accessory, Power Wrist", accessory.Text, "native accessory selection text");
+}
+
+static void AssertOrderMenuSelectionReadsNativeRowsAndPendingMember()
+{
+    var memory = new Dictionary<int, byte>();
+    var partyBase = SavemapPartyReader.AddressSavemap + SavemapPartyReader.PartyMembersOffset;
+    var cloudBase = SavemapPartyReader.AddressSavemap + SavemapPartyReader.CharactersOffset;
+    var barretBase = cloudBase + SavemapPartyReader.CharacterSize;
+    memory[partyBase] = 0;
+    memory[partyBase + 1] = 1;
+    WriteFf7Text(memory, cloudBase + SavemapPartyReader.CharacterNameOffset, "Cloud", 12);
+    WriteFf7Text(memory, barretBase + SavemapPartyReader.CharacterNameOffset, "Barret", 12);
+    memory[cloudBase + SavemapPartyReader.RowFlagsOffset] = 0xFF;
+    memory[barretBase + SavemapPartyReader.RowFlagsOffset] = 0xFE;
+    WriteUInt32(memory, OrderMenuSelectionReader.AddressSelectionLatch, 0);
+    memory[OrderMenuSelectionReader.AddressSelectedPartySlot] = 0;
+
+    var addressSpace = new DictionaryLegacyAddressSpace(memory);
+    var reader = new OrderMenuSelectionReader(
+        addressSpace,
+        new SavemapPartyReader(addressSpace));
+
+    AssertEqual(
+        true,
+        reader.TryRead(OrderMenuSelectionReader.OrderPartyWidget, 0, out var cloud),
+        "Order should read the highlighted party member");
+    AssertEqual("Cloud, front row", cloud.Text, "Order should expose Cloud's visible row");
+
+    WriteUInt32(memory, OrderMenuSelectionReader.AddressSelectionLatch, 1);
+    AssertEqual(
+        true,
+        reader.TryRead(OrderMenuSelectionReader.OrderPartyWidget, 0, out var selectedCloud),
+        "Order should read the first selected party member");
+    AssertEqual(
+        "Cloud, front row. Selected. Select Cloud again to change rows, or choose another member to swap",
+        selectedCloud.Text,
+        "Order should explain how the selected member can change row or swap");
+
+    AssertEqual(
+        true,
+        reader.TryRead(OrderMenuSelectionReader.OrderPartyWidget, 1, out var barret),
+        "Order should retain pending-member context while moving the cursor");
+    AssertEqual(
+        "Barret, back row. Cloud selected. Select Barret to swap",
+        barret.Text,
+        "Order should announce both the highlighted row and pending swap");
+
+    WriteUInt32(memory, OrderMenuSelectionReader.AddressSelectionLatch, 0);
+    memory[cloudBase + SavemapPartyReader.RowFlagsOffset] = 0xFE;
+    AssertEqual(
+        true,
+        reader.TryRead(OrderMenuSelectionReader.OrderPartyWidget, 0, out var movedCloud),
+        "Order should reread the same character after a native row change");
+    AssertEqual("Cloud, back row", movedCloud.Text, "Order should announce the completed row change");
 }
 
 static void AssertSavemapPartyReaderUsesNativeEquipmentSelector()
@@ -21755,6 +21826,52 @@ static void AssertNavigationHotkeysDoNotFireWhenRefocusedWhileHeld()
     AssertEqual(false, tracker.Observe(key, isDown: true, isForeground: true), "held foreground key should not repeat");
 }
 
+static void AssertRepeatLastSpeechHotkeyRepeatsOnlyDeliveredSpeech()
+{
+    var controller = new RepeatLastSpeechController();
+    var tracker = new NavigationKeyPressTracker();
+    var spoken = new List<string>();
+    var isDown = false;
+    var isForeground = true;
+
+    bool Poll() => controller.Poll(
+        virtualKey => tracker.Observe(virtualKey, isDown, isForeground),
+        text =>
+        {
+            spoken.Add(text);
+            return true;
+        });
+
+    isDown = true;
+    AssertEqual(false, Poll(), "R should stay silent before Blind Soldier has delivered speech");
+    isDown = false;
+    AssertEqual(false, Poll(), "releasing R only rearms the repeat hotkey");
+
+    controller.RememberDelivered("Cloud, front row");
+    isDown = true;
+    AssertEqual(true, Poll(), "R should repeat the last delivered Blind Soldier utterance");
+    AssertEqual("Cloud, front row", spoken.Single(), "R should repeat the exact utterance");
+    AssertEqual(false, Poll(), "holding R should not repeat continuously");
+
+    isDown = false;
+    AssertEqual(false, Poll(), "R release should remain silent");
+    isDown = true;
+    AssertEqual(true, Poll(), "a new R press should repeat again");
+    AssertEqual(
+        "Cloud, front row",
+        spoken.Last(),
+        "repeating speech must not replace the remembered utterance");
+
+    isDown = false;
+    AssertEqual(false, Poll(), "R release before background test");
+    isForeground = false;
+    isDown = true;
+    AssertEqual(false, Poll(), "R pressed in another application must stay silent");
+    isForeground = true;
+    AssertEqual(false, Poll(), "R held while returning to FFVII must not fire late");
+    AssertEqual(0x52, RepeatLastSpeechController.VirtualKeyR, "repeat speech must use the R key");
+}
+
 static unsafe void AssertNativeTextDrawQueueCopiesEventsWithoutAllocatingOnCapture()
 {
     var queue = new NativeTextDrawEventQueue(capacity: 4, maxTextBytes: 8);
@@ -23983,6 +24100,21 @@ static void AssertActiveMenuFrameKeepsLimitHistoryAcrossRootFrames()
     AssertEqual("Check", coordinator.Poll(), "a Limit command should speak again after its widget has been inactive");
 }
 
+static void AssertActiveMenuFrameReadsNativeLimitCommandWithoutCursorDraw()
+{
+    var coordinator = new ActiveMenuFrameSpeechCoordinator();
+    var command = new ActiveMenuWidgetSnapshot(
+        0x00DCA1D0, "Limit command", MenuWidgetKind.LimitCommand,
+        0, 0, 2, 1, 0, 0, 0);
+    var now = DateTime.UtcNow;
+
+    coordinator.CompleteFrame(command, now);
+    AssertEqual("Set", coordinator.Poll(), "Limit Set should come from the native command column without a cursor draw");
+
+    coordinator.CompleteFrame(command with { First = 1 }, now.AddMilliseconds(16));
+    AssertEqual("Check", coordinator.Poll(), "Limit Check should come from the native command column without a cursor draw");
+}
+
 static void AssertActiveMenuFrameIgnoresParentCommandInsideLimitLevel()
 {
     var coordinator = new ActiveMenuFrameSpeechCoordinator();
@@ -23997,7 +24129,7 @@ static void AssertActiveMenuFrameIgnoresParentCommandInsideLimitLevel()
     AssertNull(coordinator.Poll(), "a Limit level widget must ignore the still-drawn parent Set command");
 
     coordinator.ObserveDraw(new MenuTextRenderEntry("LEVEL 1", 56, 193, 7, 0x3E99999A));
-    coordinator.ObserveDraw(new MenuTextRenderEntry("\"Braver", 75, 219, 7, 0x3DCED917));
+    coordinator.ObserveDraw(new MenuTextRenderEntry("[SWITCH]\"Braver", 75, 219, 7, 0x3DCED917));
     coordinator.ObserveCursor(new MenuCursorDrawObservation("B", 5, 0, 201, 0x3DCCCCCD));
     coordinator.CompleteFrame(widget, now.AddMilliseconds(16));
     AssertEqual("LEVEL 1. Braver", coordinator.Poll(), "a Limit level should include its native learned Limit name");
@@ -24008,7 +24140,7 @@ static void AssertActiveMenuFrameIgnoresParentCommandInsideLimitLevel()
     AssertNull(coordinator.Poll(), "a Limit level widget must ignore the still-drawn parent Check command");
 
     coordinator.ObserveDraw(new MenuTextRenderEntry("LEVEL 1", 56, 193, 7, 0x3E99999A));
-    coordinator.ObserveDraw(new MenuTextRenderEntry("\"Braver", 75, 219, 7, 0x3DCED917));
+    coordinator.ObserveDraw(new MenuTextRenderEntry("[SWITCH]\"Braver", 75, 219, 7, 0x3DCED917));
     coordinator.ObserveCursor(new MenuCursorDrawObservation("B", 5, 0, 201, 0x3DCCCCCD));
     coordinator.CompleteFrame(widget, now.AddMilliseconds(48));
     AssertNull(coordinator.Poll(), "a stable Limit level and name should not repeat after parent partial frames");
@@ -24030,8 +24162,8 @@ static void AssertActiveMenuFrameIgnoresParentCommandInsideLimitMoveList()
     coordinator.CompleteFrame(widget, now);
     AssertNull(coordinator.Poll(), "a Limit move list must ignore the still-drawn parent Check command");
 
-    coordinator.ObserveDraw(new MenuTextRenderEntry("\"Attacks one opponent", 42, 133, 7, 0x3DCED917));
-    coordinator.ObserveDraw(new MenuTextRenderEntry("\"Braver", 75, 219, 7, 0x3DCED917));
+    coordinator.ObserveDraw(new MenuTextRenderEntry("[SWITCH]\"Attacks one opponent", 42, 133, 7, 0x3DCED917));
+    coordinator.ObserveDraw(new MenuTextRenderEntry("[SWITCH]\"Braver", 75, 219, 7, 0x3DCED917));
     coordinator.ObserveCursor(new MenuCursorDrawObservation("B", 5, 28, 225, 0));
     coordinator.CompleteFrame(widget, now.AddMilliseconds(16));
     AssertEqual(
@@ -24044,8 +24176,8 @@ static void AssertActiveMenuFrameIgnoresParentCommandInsideLimitMoveList()
     coordinator.CompleteFrame(widget, now.AddMilliseconds(32));
     AssertNull(coordinator.Poll(), "parent Check fragments must remain silent after a Limit move was spoken");
 
-    coordinator.ObserveDraw(new MenuTextRenderEntry("\"Attacks one opponent", 42, 133, 7, 0x3DCED917));
-    coordinator.ObserveDraw(new MenuTextRenderEntry("\"Braver", 75, 219, 7, 0x3DCED917));
+    coordinator.ObserveDraw(new MenuTextRenderEntry("[SWITCH]\"Attacks one opponent", 42, 133, 7, 0x3DCED917));
+    coordinator.ObserveDraw(new MenuTextRenderEntry("[SWITCH]\"Braver", 75, 219, 7, 0x3DCED917));
     coordinator.ObserveCursor(new MenuCursorDrawObservation("B", 5, 28, 225, 0));
     coordinator.CompleteFrame(widget, now.AddMilliseconds(48));
     AssertNull(coordinator.Poll(), "a stable learned Limit move should not repeat");
@@ -24330,6 +24462,53 @@ static void AssertStaticMenuCursorSpeechReadsConfigRows()
         tracker.Poll(now.AddMilliseconds(140)),
         "Config should include the native value and help text for the selected row");
     AssertNull(tracker.Poll(now.AddMilliseconds(180)), "a stable Config cursor should not repeat");
+}
+
+static void AssertStaticMenuCursorSpeechReadsNativeConfigRowWithoutCursorDraw()
+{
+    var now = new DateTime(2026, 8, 8, 20, 0, 0, DateTimeKind.Utc);
+    var tracker = new StaticMenuCursorSpeechTracker(TimeSpan.FromMilliseconds(30));
+    var rows = new[]
+    {
+        "Window color", "Sound", "Controller", "Cursor", "ATB",
+        "Battle speed", "Battle message", "Field message", "Camera angle", "Magic order"
+    };
+
+    tracker.ObserveDraw(new MenuTextRenderEntry("Config", 508, 13, 7, 0x3A83126F), now);
+    tracker.ObserveDraw(new MenuTextRenderEntry("Select magic placement", 16, 13, 7, 0x3DCCCCCD), now);
+    for (var row = 0; row < rows.Length; row++)
+    {
+        tracker.ObserveDraw(
+            new MenuTextRenderEntry(rows[row], 62, (uint)(79 + row * 40), 5, 0x3DCCCCCD),
+            now.AddMilliseconds(2));
+    }
+
+    tracker.ObserveConfigRow(rowIndex: 9, now: now.AddMilliseconds(4));
+    AssertNull(tracker.Poll(now.AddMilliseconds(20)), "native Config row should still honor settle time");
+    AssertEqual(
+        "Magic order. Select magic placement",
+        tracker.Poll(now.AddMilliseconds(40)),
+        "rendered Config ownership should use its native row index even while the host module is transitioning");
+
+    var next = now.AddMilliseconds(100);
+    tracker.ObserveDraw(new MenuTextRenderEntry("Config", 508, 13, 7, 0x3A83126F), next);
+    tracker.ObserveDraw(new MenuTextRenderEntry("Select controller settings", 16, 13, 7, 0x3DCCCCCD), next);
+    for (var row = 0; row < rows.Length; row++)
+    {
+        tracker.ObserveDraw(
+            new MenuTextRenderEntry(rows[row], 62, (uint)(79 + row * 40), 5, 0x3DCCCCCD),
+            next);
+    }
+
+    tracker.ObserveConfigRow(rowIndex: 2, now: next.AddMilliseconds(2));
+    AssertEqual(
+        "Controller. Normal. Select controller settings",
+        tracker.Poll(
+            next.AddMilliseconds(40),
+            label => label == "Controller"
+                ? new NativeMenuSelection("Normal", null, "config:Controller:0")
+                : null),
+        "native Config row speech should retain the exact current value");
 }
 
 static void AssertStaticMenuCursorSpeechUsesNativeConfigValue()

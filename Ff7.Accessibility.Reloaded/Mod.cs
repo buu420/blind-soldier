@@ -235,6 +235,7 @@ public sealed class Mod : IModV1, IModV2
     private ConfigMenuValueReader? configMenuValueReader;
     private Kernel2TextDatabase? kernel2TextDatabase;
     private SavemapPartyReader? savemapPartyReader;
+    private OrderMenuSelectionReader? orderMenuSelectionReader;
     private EquipmentMenuSelectionReader? equipmentMenuSelectionReader;
     private MateriaMenuSelectionReader? materiaMenuSelectionReader;
     private ShopMenuStateReader? shopMenuStateReader;
@@ -348,6 +349,8 @@ public sealed class Mod : IModV1, IModV2
     private string lastFieldAudibleCueStateDiagnostic = string.Empty;
     private string lastFieldNavigationDiagnostic = string.Empty;
     private readonly NavigationKeyPressTracker navigationKeyPressTracker = new();
+    private readonly NavigationKeyPressTracker repeatLastSpeechKeyTracker = new();
+    private readonly RepeatLastSpeechController repeatLastSpeechController = new();
     private NavigationProgressController navigationProgressController = new(true, 5);
     private readonly ForegroundProcessGate foregroundProcessGate = new(
         GetForegroundWindow,
@@ -770,6 +773,9 @@ public sealed class Mod : IModV1, IModV2
             resolveArmorName,
             resolveAccessoryName,
             resolveInventoryObjectDescription: resolveItemDescription);
+        orderMenuSelectionReader = new OrderMenuSelectionReader(
+            legacyAddressSpace,
+            savemapPartyReader);
         equipmentMenuSelectionReader = new EquipmentMenuSelectionReader(
             legacyAddressSpace,
             resolveWeaponName,
@@ -1108,6 +1114,7 @@ public sealed class Mod : IModV1, IModV2
                 }
 
                 TickExitShortcutDiagnostics();
+                TickRepeatLastSpeech();
                 TickNavigationProgressControls();
                 TickDeferredFieldTextDraws();
                 TickDeferredNativeFieldHooks();
@@ -1363,6 +1370,27 @@ public sealed class Mod : IModV1, IModV2
             $"fieldState=0x{ReadByte(Module19WriterCatalog.AddressFieldModuleState):X2}, " +
             $"control={exit.ControlActive}, q={exit.QActive}, " +
             $"controlQRecent={exit.ControlQRecent}, foreground={exit.WasForeground}.");
+    }
+
+    private void TickRepeatLastSpeech()
+    {
+        try
+        {
+            repeatLastSpeechController.Poll(
+                virtualKey => repeatLastSpeechKeyTracker.Observe(
+                    virtualKey,
+                    (GetAsyncKeyState(virtualKey) & 0x8000) != 0,
+                    foregroundProcessGate.IsCurrentProcessForeground()),
+                text =>
+                {
+                    Log($"Repeat last speech: {text}");
+                    return config.EnableSpeech && speaker?.Speak(text, interrupt: true) == true;
+                });
+        }
+        catch (Exception ex)
+        {
+            Log($"Repeat last speech hotkey error: {ex.Message}");
+        }
     }
 
     private static bool IsKeyActive(short state) =>
@@ -4515,6 +4543,12 @@ public sealed class Mod : IModV1, IModV2
             }
 
             if (probe.Kind == MenuWidgetKind.CharacterList &&
+                orderMenuSelectionReader?.TryRead(probe.Address, cursor, out var order) == true)
+            {
+                return order;
+            }
+
+            if (probe.Kind == MenuWidgetKind.CharacterList &&
                 savemapPartyReader.TryReadPartySlot(cursor, out var partyMember))
             {
                 return new NativeMenuSelection(
@@ -4582,6 +4616,12 @@ public sealed class Mod : IModV1, IModV2
                 configMenuValueReader?.ReadSoundVolume(snapshot.Cursor) is { } soundVolume)
             {
                 return snapshot with { NativeSelection = soundVolume };
+            }
+
+            if (snapshot.Kind == MenuWidgetKind.CharacterList &&
+                orderMenuSelectionReader?.TryRead(snapshot.Address, snapshot.Cursor, out var order) == true)
+            {
+                return snapshot with { NativeSelection = order };
             }
 
             if (snapshot.Kind == MenuWidgetKind.CharacterList &&
@@ -4692,6 +4732,9 @@ public sealed class Mod : IModV1, IModV2
         }
 
         var now = DateTime.UtcNow;
+        staticMenuCursorSpeechTracker.ObserveConfigRow(
+            ReadInt32(ConfigMenuValueReader.AddressCurrentRow),
+            now);
         if (partyFormationSpeechTracker.IsActive(now))
         {
             activeMenuFrameSpeechCoordinator.DiscardPending();
@@ -7572,7 +7615,13 @@ public sealed class Mod : IModV1, IModV2
     private bool Speak(string text, bool interrupt)
     {
         Log($"Speak: {text}");
-        return config.EnableSpeech && speaker?.Speak(text, interrupt) == true;
+        var delivered = config.EnableSpeech && speaker?.Speak(text, interrupt) == true;
+        if (delivered)
+        {
+            repeatLastSpeechController.RememberDelivered(text);
+        }
+
+        return delivered;
     }
 
     private void LoadConfig(IModConfigV1? modConfig)

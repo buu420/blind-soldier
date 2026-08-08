@@ -8,6 +8,7 @@ internal sealed class Steam2026ResearchAccessibilityOutput : IAccessibilityOutpu
     private readonly PrismNativeSpeaker speaker;
     private readonly Action<string> log;
     private readonly ISteam2026MovieNarrationPlayback? movieNarrationPlayback;
+    private readonly RepeatLastSpeechController repeatLastSpeechController = new();
     private int disposed;
 
     internal Steam2026ResearchAccessibilityOutput(
@@ -66,8 +67,21 @@ internal sealed class Steam2026ResearchAccessibilityOutput : IAccessibilityOutpu
             throw new InvalidOperationException("Prism did not accept the speech request.");
         }
 
+        repeatLastSpeechController.RememberDelivered(text);
         log($"Speak: {text}");
     }
+
+    internal bool RepeatLast() =>
+        repeatLastSpeechController.Repeat(text =>
+        {
+            if (!speaker.Speak(text, interrupt: true))
+            {
+                return false;
+            }
+
+            log($"Repeat last speech: {text}");
+            return true;
+        });
 
     internal bool TryIsSpeaking(out bool speaking) =>
         speaker.TryIsSpeaking(out speaking);

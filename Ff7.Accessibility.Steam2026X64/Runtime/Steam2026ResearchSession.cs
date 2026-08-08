@@ -377,6 +377,22 @@ internal sealed class Steam2026ResearchSession : IDisposable
                 // a delayed false rising edge.
                 var autoSteeringTogglePressed =
                     foregroundInput.ObserveRisingEdge(0x77);
+                if (foregroundInput.ObserveRisingEdge(RepeatLastSpeechController.VirtualKeyR))
+                {
+                    try
+                    {
+                        output.RepeatLast();
+                    }
+                    catch (Exception ex)
+                    {
+                        LogRuntimeFault(
+                            $"Repeat last speech hotkey failed: {ex.Message}",
+                            now,
+                            ref lastRuntimeFault,
+                            ref lastRuntimeFaultLogUtc);
+                    }
+                }
+
                 foreach (var action in NavigationProgressHotkeyRouter.ReadActions(
                              foregroundInput.ObserveRisingEdge))
                 {

@@ -37,7 +37,7 @@ instead of reading unverified game memory.
 ## Installation
 
 Download
-[Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.1.9/Blind-Soldier-Portable.zip)
+[Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.1.10/Blind-Soldier-Portable.zip)
 from the [Blind Soldier Releases page](https://github.com/buu420/blind-soldier/releases).
 
 1. Close Final Fantasy VII and 7th Heaven.
@@ -104,10 +104,10 @@ Visual Studio C++ Build Tools, and PowerShell, then run:
 ```powershell
 .\Build-BlindSoldierPortablePackage.ps1 `
   -OutputPath .\artifacts\Blind-Soldier-Portable.zip `
-  -Version 0.1.9
+  -Version 0.1.10
 .\Verify-BlindSoldierPortablePackage.ps1 `
   -ArchivePath .\artifacts\Blind-Soldier-Portable.zip `
-  -ExpectedVersion 0.1.9
+  -ExpectedVersion 0.1.10
 ```
 
 The builder compiles the launcher, x86/x64 brokers, and x86 Version proxy from source,
@@ -122,6 +122,7 @@ foreground. The normal game controls are unchanged.
 
 | Key | Action |
 | --- | --- |
+| `R` | Repeat the last message Blind Soldier spoke |
 | `U` | Previous navigation category |
 | `O` | Next navigation category |
 | `J` | Previous target in the selected category |

@@ -6,6 +6,7 @@ public sealed class StaticMenuCursorSpeechTracker
     private const int RootMainMenuContext = 0x3A83126F;
     private const int ConfigContext = 0x3DCCCCCD;
     private const int QuitPromptContext = 0x3C23D70A;
+    private const int ConfigRowCount = 10;
     private static readonly TimeSpan ScreenEvidenceWindow = TimeSpan.FromMilliseconds(300);
     private static readonly TimeSpan NewScreenGap = TimeSpan.FromMilliseconds(250);
 
@@ -16,6 +17,7 @@ public sealed class StaticMenuCursorSpeechTracker
     private DateTime lastQuitPromptAt = DateTime.MinValue;
     private int configGeneration;
     private int quitGeneration;
+    private PendingConfigRow? pendingConfigRow;
     private PendingCursor? pendingCursor;
     private PendingQuitChoice? pendingQuitChoice;
     private DateTime lastQuitCursorAt = DateTime.MinValue;
@@ -40,6 +42,7 @@ public sealed class StaticMenuCursorSpeechTracker
             {
                 if (ObserveScreenTitle(ref lastConfigTitleAt, ref configGeneration, now))
                 {
+                    pendingConfigRow = null;
                     pendingCursor = null;
                     pendingQuitChoice = null;
                 }
@@ -96,6 +99,42 @@ public sealed class StaticMenuCursorSpeechTracker
         }
     }
 
+    public void ObserveConfigRow(int rowIndex, DateTime now)
+    {
+        if (rowIndex is < 0 or >= ConfigRowCount)
+        {
+            return;
+        }
+
+        lock (sync)
+        {
+            Prune(now);
+            if (!IsRecent(lastConfigTitleAt, now))
+            {
+                return;
+            }
+
+            // This x86 build updates a native Config row index but does not
+            // consistently call either cursor renderer. The module byte can
+            // transition independently while the in-game menu animates, so the
+            // rendered Config title establishes ownership and native row state
+            // supplies the authoritative selection.
+            if (pendingCursor is { Kind: StaticMenuKind.Config })
+            {
+                pendingCursor = null;
+            }
+
+            if (pendingConfigRow is { } current &&
+                current.Generation == configGeneration &&
+                current.RowIndex == rowIndex)
+            {
+                return;
+            }
+
+            pendingConfigRow = new PendingConfigRow(configGeneration, rowIndex, now);
+        }
+    }
+
     public string? Poll(
         DateTime now,
         Func<string, NativeMenuSelection?>? resolveNativeValue = null)
@@ -103,6 +142,35 @@ public sealed class StaticMenuCursorSpeechTracker
         lock (sync)
         {
             Prune(now);
+            if (pendingConfigRow is { } configRow)
+            {
+                if (now - configRow.SeenAt < settleTime)
+                {
+                    return null;
+                }
+
+                if (!IsRecent(lastConfigTitleAt, now))
+                {
+                    pendingConfigRow = null;
+                    return null;
+                }
+
+                var configSpeech = BuildConfigSpeech(configRow.RowIndex, resolveNativeValue);
+                if (string.IsNullOrWhiteSpace(configSpeech))
+                {
+                    return null;
+                }
+
+                var configKey = $"{StaticMenuKind.Config}\u001f{configRow.Generation}\u001fnative-row\u001f{configRow.RowIndex}\u001f{configSpeech}";
+                if (string.Equals(configKey, lastSpokenKey, StringComparison.Ordinal))
+                {
+                    return null;
+                }
+
+                lastSpokenKey = configKey;
+                return configSpeech;
+            }
+
             if (pendingCursor is { } pending)
             {
                 if (now - pending.SeenAt < settleTime)
@@ -160,6 +228,7 @@ public sealed class StaticMenuCursorSpeechTracker
     {
         lock (sync)
         {
+            pendingConfigRow = null;
             pendingCursor = null;
             pendingQuitChoice = null;
             recentText.Clear();
@@ -185,7 +254,33 @@ public sealed class StaticMenuCursorSpeechTracker
             return null;
         }
 
-        var selectedRow = rows[0].Entry;
+        return BuildConfigSpeech(rows[0].Entry, resolveNativeValue);
+    }
+
+    private string? BuildConfigSpeech(
+        int rowIndex,
+        Func<string, NativeMenuSelection?>? resolveNativeValue)
+    {
+        var rows = recentText.Values
+            .Where(item => item.Entry.Context == ConfigContext)
+            .Where(item => item.Entry.X is >= 40 and <= 180)
+            .Where(item => item.Entry.Y is >= 60 and <= 460)
+            .OrderBy(item => item.Entry.Y)
+            .ThenBy(item => item.Entry.X)
+            .Select(item => item.Entry)
+            .ToList();
+        if (rowIndex < 0 || rowIndex >= rows.Count)
+        {
+            return null;
+        }
+
+        return BuildConfigSpeech(rows[rowIndex], resolveNativeValue);
+    }
+
+    private string BuildConfigSpeech(
+        MenuTextRenderEntry selectedRow,
+        Func<string, NativeMenuSelection?>? resolveNativeValue)
+    {
         var values = recentText.Values
             .Where(item => item.Entry.Context == ConfigContext)
             .Where(item => item.Entry.X >= 220)
@@ -352,6 +447,11 @@ public sealed class StaticMenuCursorSpeechTracker
         StaticMenuKind Kind,
         int Generation,
         MenuCursorDrawObservation Cursor,
+        DateTime SeenAt);
+
+    private readonly record struct PendingConfigRow(
+        int Generation,
+        int RowIndex,
         DateTime SeenAt);
 
     private readonly record struct PendingQuitChoice(

@@ -1,6 +1,7 @@
 using Ff7.Accessibility.Core;
 using Ff7.Accessibility.Reloaded;
 using Ff7.Accessibility.Steam2026X64.Runtime;
+using System.Runtime.InteropServices;
 
 internal static class Steam2026ResearchAccessibilityOutputTests
 {
@@ -10,6 +11,7 @@ internal static class Steam2026ResearchAccessibilityOutputTests
         LeavesUnrelatedCuesDisabled();
         RequiresAnAbsoluteNarrationPath();
         ReportsPrismSpeechCompletionWhenTheBackendSupportsIt();
+        RepeatsLastDeliveredSpeechWithoutReplacingIt();
         NarrationCompletionReleasesDialogueWithoutReprotectingIt();
     }
 
@@ -104,6 +106,32 @@ internal static class Steam2026ResearchAccessibilityOutputTests
         isSpeaking = false;
         Equal(true, output.TryIsSpeaking(out active), "Prism completion query availability");
         Equal(false, active, "completed Prism narration state");
+    }
+
+    private static void RepeatsLastDeliveredSpeechWithoutReplacingIt()
+    {
+        var spoken = new List<(string Text, bool Interrupt)>();
+        using var speaker = new PrismNativeSpeaker(
+            _ => { },
+            context: (nint)1,
+            backend: (nint)1,
+            output: (_, text, interrupt) =>
+            {
+                spoken.Add((Marshal.PtrToStringUTF8(text) ?? string.Empty, interrupt));
+                return PrismError.Ok;
+            },
+            shutdown: _ => { });
+        using var output = new Steam2026ResearchAccessibilityOutput(speaker, _ => { });
+
+        Equal(false, output.RepeatLast(), "R is silent before x64 speech has been delivered");
+        output.Speak("Barret, back row", interrupt: false);
+        Equal(true, output.RepeatLast(), "R repeats the last x64 utterance");
+        Equal(2, spoken.Count, "normal and repeated x64 speech count");
+        Equal("Barret, back row", spoken[1].Text, "x64 repeat text");
+        Equal(true, spoken[1].Interrupt, "repeated speech interrupts stale output immediately");
+
+        Equal(true, output.RepeatLast(), "repeating must leave the same utterance available");
+        Equal("Barret, back row", spoken[2].Text, "repeat does not replace remembered speech");
     }
 
     private static void NarrationCompletionReleasesDialogueWithoutReprotectingIt()

@@ -2,6 +2,7 @@ namespace Ff7.Accessibility.Reloaded;
 
 public sealed class ConfigMenuValueReader
 {
+    public const int AddressCurrentRow = 0x00DC10F0;
     public const int AddressBattleSpeed = 0x00DC0E10;
     public const int AddressBattleMessageSpeed = 0x00DC0E11;
     public const int AddressSettingsBits = 0x00DC0E12;
