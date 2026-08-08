@@ -102,9 +102,9 @@ Describe 'Blind Soldier aggregate portable release gate' {
             $verify = @($invocations | Where-Object Name -CEQ `
                 'PortablePackage.Verify')[0]
             $build.Arguments[([array]::IndexOf($build.Arguments,'-Version') + 1)] |
-                Should Be '0.1.6'
+                Should Be '0.1.7'
             $verify.Arguments[([array]::IndexOf($verify.Arguments,
-                '-ExpectedVersion') + 1)] | Should Be '0.1.6'
+                '-ExpectedVersion') + 1)] | Should Be '0.1.7'
             $ghidra = @($invocations | Where-Object {
                 $_.Name -ceq 'Ghidra.NativeEvidence'
             })[0]
@@ -230,13 +230,13 @@ Describe 'Blind Soldier aggregate portable release gate' {
         $workflow | Should Match "(?m)^\s*if:\s*github\.ref_type == 'tag'\s*$"
         $workflow | Should Match '\$\{\{ inputs\.version \}\}'
         $workflow | Should Match `
-            '(?m)^\s*default:\s*["'']0\.1\.6["'']\s*$'
+            '(?m)^\s*default:\s*["'']0\.1\.7["'']\s*$'
 
         $assemblyInfoPath = Join-Path $PSScriptRoot `
             'launcher\Ff7.Launcher.Accessible\Properties\AssemblyInfo.cs'
         $assemblyInfo = [IO.File]::ReadAllText($assemblyInfoPath)
         $assemblyInfo | Should Match `
-            'blind-soldier\.0\.1\.6'
+            'blind-soldier\.0\.1\.7'
     }
 
     It 'keeps supported-host validation independent of developer-local game files' {

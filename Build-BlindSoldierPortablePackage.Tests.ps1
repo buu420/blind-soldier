@@ -246,7 +246,7 @@ function New-PortableFixture {
     }
 
     [IO.File]::WriteAllText((Join-Path $mod 'ModConfig.json'),
-        '{"ModId":"ff7.accessibility.reloaded","ModVersion":"0.1.6","ModR2RManagedDll32":"x86/Ff7.Accessibility.Reloaded.dll","ModR2RManagedDll64":"x64/Ff7.Accessibility.Steam2026X64.dll","ModDependencies":["reloaded.sharedlib.hooks"],"SupportedAppId":["ff7_en.exe","ff7.exe","FFVII.exe"]}')
+        '{"ModId":"ff7.accessibility.reloaded","ModVersion":"0.1.7","ModR2RManagedDll32":"x86/Ff7.Accessibility.Reloaded.dll","ModR2RManagedDll64":"x64/Ff7.Accessibility.Steam2026X64.dll","ModDependencies":["reloaded.sharedlib.hooks"],"SupportedAppId":["ff7_en.exe","ff7.exe","FFVII.exe"]}')
     New-PortableTestPe -Path (Join-Path $mod 'x86\Ff7.Accessibility.Reloaded.dll') -Machine 0x014C
     New-PortableTestPe -Path (Join-Path $mod 'x64\Ff7.Accessibility.Steam2026X64.dll') -Machine 0x8664
     New-PortableTestPe -Path (Join-Path $mod 'x86\prism.dll') -Machine 0x014C
@@ -284,7 +284,7 @@ function New-PortableFixture {
 
 function Invoke-FixtureBuild {
     param([psobject] $Fixture, [string] $Output)
-    & $builderPath -OutputPath $Output -Version '0.1.6' `
+    & $builderPath -OutputPath $Output -Version '0.1.7' `
         -PrerequisiteBundlePath $Fixture.Prerequisites `
         -ModPackagePath $Fixture.Mod `
         -LauncherBundlePath $Fixture.Launcher `
@@ -388,7 +388,7 @@ function New-PortableArchiveVariant {
         if ($ReverseManifest) {
             $records = @($records | Sort-Object { $_.path } -Descending)
         }
-        [ordered]@{schemaVersion=1;version='0.1.6';files=$records} |
+        [ordered]@{schemaVersion=1;version='0.1.7';files=$records} |
             ConvertTo-Json -Depth 6 |
             Set-Content -LiteralPath (Join-Path $stage 'portable-manifest.json') `
                 -Encoding utf8
@@ -542,7 +542,7 @@ Describe 'Blind Soldier direct-extract portable package' {
         $variant = Join-Path $fixture.Root 'extra-version.zip'
         New-PortableArchiveVariant -Source $fixture.First -Destination $variant `
             -AdditionalPath 'hidden/version.dll'
-        { & $verifierPath -ArchivePath $variant -ExpectedVersion '0.1.6' } |
+        { & $verifierPath -ArchivePath $variant -ExpectedVersion '0.1.7' } |
             Should Throw 'exactly eight Version proxy entries'
     }
 
@@ -578,7 +578,7 @@ Describe 'Blind Soldier direct-extract portable package' {
             New-PortableArchiveVariant -Source $fixture.First -Destination $variant `
                 -AdditionalPath ('zz-external/{0}' -f $fileName)
             try {
-                & $verifierPath -ArchivePath $variant -ExpectedVersion '0.1.6' |
+                & $verifierPath -ArchivePath $variant -ExpectedVersion '0.1.7' |
                     Out-Null
                 $unexpected.Add(('{0}: completed' -f $fileName))
             }
@@ -611,7 +611,7 @@ Describe 'Blind Soldier direct-extract portable package' {
             New-PortableArchiveVariant -Source $fixture.First `
                 -Destination $variant -AdditionalPath $relative
             try {
-                & $verifierPath -ArchivePath $variant -ExpectedVersion '0.1.6' |
+                & $verifierPath -ArchivePath $variant -ExpectedVersion '0.1.7' |
                     Out-Null
                 $unexpected.Add("$relative`: completed")
             }
@@ -630,8 +630,8 @@ Describe 'Blind Soldier direct-extract portable package' {
         $variant = Join-Path $fixture.Root 'owned-music.zip'
         New-PortableArchiveVariant -Source $fixture.First -Destination $variant `
             -AdditionalPath 'Blind-Soldier/Assets/music/owned.ogg'
-        $result = & $verifierPath -ArchivePath $variant -ExpectedVersion '0.1.6'
-        $result.Version | Should Be '0.1.6'
+        $result = & $verifierPath -ArchivePath $variant -ExpectedVersion '0.1.7'
+        $result.Version | Should Be '0.1.7'
     }
     It 'rejects an otherwise-valid archive with unordered manifest records' {
         $fixture = New-PortableFixture
@@ -650,7 +650,7 @@ Describe 'Blind Soldier direct-extract portable package' {
 
         $manifestFailure = $null
         try {
-            & $verifierPath -ArchivePath $variant -ExpectedVersion '0.1.6'
+            & $verifierPath -ArchivePath $variant -ExpectedVersion '0.1.7'
         }
         catch {
             $manifestFailure = $_
@@ -662,8 +662,8 @@ Describe 'Blind Soldier direct-extract portable package' {
     It 'passes the production verifier with the real Version proxy fixture' {
         $fixture = New-PortableFixture
         Invoke-FixtureBuild -Fixture $fixture -Output $fixture.First
-        $result = & $verifierPath -ArchivePath $fixture.First -ExpectedVersion '0.1.6'
-        $result.Version | Should Be '0.1.6'
+        $result = & $verifierPath -ArchivePath $fixture.First -ExpectedVersion '0.1.7'
+        $result.Version | Should Be '0.1.7'
         $result.VersionProxyExports | Should Be 17
         $result.SidecarVerified | Should Be $true
         $result.SafeExtraction | Should Be $true
@@ -672,7 +672,7 @@ Describe 'Blind Soldier direct-extract portable package' {
         $fixture = New-PortableFixture
         Invoke-FixtureBuild -Fixture $fixture -Output $fixture.First
         $readme = Get-PortableEntryText -Path $fixture.First -EntryPath 'README-PORTABLE.txt'
-        $readme.StartsWith("Blind Soldier 0.1.6`r`n`r`n1. Extract every file in this ZIP into your Final Fantasy VII game folder.`r`n2. Start the game normally from Steam or 7th Heaven.") | Should Be $true
+        $readme.StartsWith("Blind Soldier 0.1.7`r`n`r`n1. Extract every file in this ZIP into your Final Fantasy VII game folder.`r`n2. Start the game normally from Steam or 7th Heaven.") | Should Be $true
         $readme | Should Not Match '(?i)Blind-Soldier-Installer|/install|/uninstall|Image File Execution Options'
         $readme | Should Match '(?i)no administrator'
         $readme | Should Match '(?i)\.local\\version\.dll'
@@ -708,7 +708,7 @@ Describe 'Blind Soldier direct-extract portable package' {
         $variant = Join-Path $fixture.Root 'modified-cleanup.zip'
         New-PortableArchiveVariant -Source $fixture.First -Destination $variant `
             -AdditionalPath 'Blind-Soldier/Tools/Remove-AmethystRegistryEntries.ps1'
-        { & $verifierPath -ArchivePath $variant -ExpectedVersion '0.1.6' } |
+        { & $verifierPath -ArchivePath $variant -ExpectedVersion '0.1.7' } |
             Should Throw 'differs from the reviewed source'
     }
 
@@ -726,7 +726,7 @@ Describe 'Blind Soldier direct-extract portable package' {
     It 'rejects an unsafe ZIP member before extraction' {
         $fixture = New-PortableFixture
         New-UnsafePortableZip -Path $fixture.First
-        { & $verifierPath -ArchivePath $fixture.First -ExpectedVersion '0.1.6' } |
+        { & $verifierPath -ArchivePath $fixture.First -ExpectedVersion '0.1.7' } |
             Should Throw 'unsafe path member'
         Test-Path -LiteralPath (Join-Path $fixture.Root 'escaped.txt') |
             Should Be $false
@@ -736,7 +736,7 @@ Describe 'Blind Soldier direct-extract portable package' {
         $fixture = New-PortableFixture
         New-UnsafePortableZip -Path $fixture.First `
             -EntryName 'ff7/workingdir/AF3DN.P.'
-        { & $verifierPath -ArchivePath $fixture.First -ExpectedVersion '0.1.6' } |
+        { & $verifierPath -ArchivePath $fixture.First -ExpectedVersion '0.1.7' } |
             Should Throw 'unsafe Windows path component'
     }
 
@@ -744,7 +744,7 @@ Describe 'Blind Soldier direct-extract portable package' {
         $fixture = New-PortableFixture
         New-UnsafePortableZip -Path $fixture.First `
             -EntryName 'payload.asi '
-        { & $verifierPath -ArchivePath $fixture.First -ExpectedVersion '0.1.6' } |
+        { & $verifierPath -ArchivePath $fixture.First -ExpectedVersion '0.1.7' } |
             Should Throw 'unsafe Windows path component'
     }
 
@@ -763,7 +763,7 @@ Describe 'Blind Soldier direct-extract portable package' {
             'notices\THIRD-PARTY-NOTICES.md'),
             'Image File Execution Options must not ship')
         Invoke-FixtureBuild -Fixture $fixture -Output $fixture.First
-        { & $verifierPath -ArchivePath $fixture.First -ExpectedVersion '0.1.6' } |
+        { & $verifierPath -ArchivePath $fixture.First -ExpectedVersion '0.1.7' } |
             Should Throw 'obsolete registry workflow'
     }
     if ($env:BLIND_SOLDIER_PESTER_FORCE_FAILURE -eq '1') {

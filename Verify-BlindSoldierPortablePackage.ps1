@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory=$true)] [string] $ArchivePath,
-    [string] $ExpectedVersion = '0.1.6'
+    [string] $ExpectedVersion = '0.1.7'
 )
 
 $ErrorActionPreference = 'Stop'

@@ -121,7 +121,7 @@ function New-LiveStageFixture {
                 sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash
             }
         })
-    [ordered]@{schemaVersion=1;version='0.1.6';files=$records} |
+    [ordered]@{schemaVersion=1;version='0.1.7';files=$records} |
         ConvertTo-Json -Depth 6 |
         Set-Content -LiteralPath (Join-Path $payload 'portable-manifest.json') `
             -Encoding utf8
@@ -188,7 +188,7 @@ function New-LiveStageFixture {
     [IO.File]::WriteAllText($verifier, @'
 param([string] $ArchivePath, [string] $ExpectedVersion)
 if (-not (Test-Path -LiteralPath $ArchivePath -PathType Leaf)) { exit 91 }
-if ($ExpectedVersion -cne '0.1.6') { exit 92 }
+if ($ExpectedVersion -cne '0.1.7') { exit 92 }
 '@)
 
     [pscustomobject]@{
@@ -258,7 +258,7 @@ function Invoke-FixtureStage {
         DestinationRoot=$DestinationRoot
         VerifierPath=$Fixture.Verifier
         SupportedHostsPath=$Fixture.Supported
-        ExpectedVersion='0.1.6'
+        ExpectedVersion='0.1.7'
     }
     if (-not [string]::IsNullOrWhiteSpace($BackupRoot)) {
         $parameters.BackupRoot = $BackupRoot
@@ -299,7 +299,7 @@ function Update-FixtureArchive {
                 sha256=(Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash
             }
         })
-    [ordered]@{schemaVersion=1;version='0.1.6';files=$records} |
+    [ordered]@{schemaVersion=1;version='0.1.7';files=$records} |
         ConvertTo-Json -Depth 6 |
         Set-Content -LiteralPath $manifestPath -Encoding utf8
     Remove-Item -LiteralPath $Fixture.Archive,($Fixture.Archive + '.sha256') `
