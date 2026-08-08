@@ -1329,7 +1329,7 @@ function Assert-Ff7DualRuntimePackage {
     }
     $supportedAppIds = @($modConfig.SupportedAppId)
     if (-not (Test-Ff7ExactOrderedStringList -Actual $supportedAppIds `
-            -Expected @('ff7_en.exe', 'FFVII.exe'))) {
+            -Expected @('ff7_en.exe', 'ff7.exe', 'FFVII.exe'))) {
         throw 'Dual-runtime package validation failed: ModConfig.json does not contain the exact supported executable identities.'
     }
 

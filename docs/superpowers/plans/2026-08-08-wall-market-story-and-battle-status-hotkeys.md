@@ -19,11 +19,12 @@
 
 **Files:**
 - Modify `Ff7.Accessibility.LegacyLayout/SavemapPartyReader.cs`
+- Modify `Ff7.Accessibility.LegacyLayout/BattleStateReader.cs`
 - Add `Ff7.Accessibility.LegacyLayout/BattleStatusCatalog.cs`
 - Add `Ff7.Accessibility.LegacyLayout/BattleStatusHotkeyController.cs`
 - Modify `Ff7.Accessibility.Reloaded/BattleStatusSpeechTracker.cs`
 
-1. Add coherent party-slot reading for the native character limit byte at offset `0x0F`.
+1. Validate the persisted character limit byte at offset `0x0F`, then add a coherent party-identity-backed read of the live battle gauge at `0x009A8DC0 + partySlot * 0x34`.
 2. Add one shared native status-name catalog and beneficial-status classification.
 3. Implement the shared key map, party selection state, live snapshot formatting, and limit conversion.
 4. Replace the automatic tracker’s private status-name table with the shared catalog.
@@ -47,7 +48,7 @@
 
 1. Poll the eight physical keys through the existing foreground rising-edge tracker.
 2. Gate speech to live battle module ownership and suppress it during results.
-3. Build snapshots from `BattleStateReader` plus the coherent native limit byte.
+3. Build one coherent snapshot from the live actor and live battle limit record.
 4. Speak through Prism with immediate interruption and reset held state across ownership changes.
 5. Run x86 focused tests.
 

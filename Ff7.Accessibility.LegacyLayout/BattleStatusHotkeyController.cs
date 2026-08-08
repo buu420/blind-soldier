@@ -65,13 +65,20 @@ public sealed class BattleStatusHotkeyController
     public string? Poll(
         bool battleActive,
         Func<int, bool> observeRisingEdge,
-        Func<int, BattleStatusMemberSnapshot?> readMember)
+        Func<int, BattleStatusMemberSnapshot?> readMember,
+        bool observeLimitKey = true,
+        bool resetSelectionWhenInactive = true)
     {
         ArgumentNullException.ThrowIfNull(observeRisingEdge);
         ArgumentNullException.ThrowIfNull(readMember);
         string? speech = null;
         foreach (var binding in Bindings)
         {
+            if (!observeLimitKey && binding.Command == BattleStatusHotkeyCommand.Limit)
+            {
+                continue;
+            }
+
             var pressed = observeRisingEdge(binding.VirtualKey);
             if (battleActive && pressed && speech is null)
             {
@@ -79,7 +86,7 @@ public sealed class BattleStatusHotkeyController
             }
         }
 
-        if (!battleActive)
+        if (!battleActive && resetSelectionWhenInactive)
         {
             Reset();
         }

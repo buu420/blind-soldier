@@ -4,45 +4,72 @@ internal static class WallMarketStoryRoutingTests
 {
     private const int LowerWallMarket = 195;
     private const int UpperWallMarket = 205;
+    private static readonly FieldNavigationTriggerLine NorthGateway =
+        new(-251, 2500, 0, -19, 2492, 0);
+    private static readonly FieldNavigationTriggerLine CorneoHallGateway =
+        new(-63, -9, 0, 70, -9, 0);
 
     internal static void Run()
     {
         AssertTarget(
             LowerWallMarket,
             191,
-            "Enter the boutique and ask the clothes-shop clerk for help");
+            "Enter the boutique and ask the clothes-shop clerk for help",
+            -436,
+            2014,
+            0);
 
         AssertTarget(
             LowerWallMarket,
             191,
             "Continue north to find the clothes-shop owner at the bar",
+            -135,
+            2496,
+            0,
+            NorthGateway,
             bank1: new Dictionary<int, byte> { [162] = 0x80 });
         AssertTarget(
             UpperWallMarket,
             191,
             "Enter the bar and speak with the clothes-shop owner",
+            -666,
+            -1653,
+            0,
             bank1: new Dictionary<int, byte> { [162] = 0x80 });
 
         AssertTarget(
             UpperWallMarket,
             191,
             "Return to lower Wall Market for the finished dress",
+            -134,
+            -3083,
+            0,
             bank1: new Dictionary<int, byte> { [161] = 0x80, [162] = 0x80 });
         AssertTarget(
             LowerWallMarket,
             191,
             "Return to the boutique and collect the finished dress",
+            -436,
+            2014,
+            0,
             bank1: new Dictionary<int, byte> { [161] = 0x80, [162] = 0x80 });
 
         AssertTarget(
             LowerWallMarket,
             191,
             "Continue north to the Men's Hall for a wig",
+            -135,
+            2496,
+            0,
+            NorthGateway,
             bank1: new Dictionary<int, byte> { [161] = 0x88, [162] = 0x80 });
         AssertTarget(
             UpperWallMarket,
             191,
             "Enter the Men's Hall and complete the squat contest",
+            214,
+            -2394,
+            0,
             bank1: new Dictionary<int, byte> { [161] = 0x88, [162] = 0x80 });
 
         // Exact current save state: dress and wig obtained, disguise not worn.
@@ -50,6 +77,10 @@ internal static class WallMarketStoryRoutingTests
             LowerWallMarket,
             191,
             "Return to the boutique fitting room and change clothes",
+            -436,
+            2014,
+            0,
+            expectedTriggerLine: null,
             bank1: new Dictionary<int, byte>
             {
                 [160] = 0x84,
@@ -61,6 +92,10 @@ internal static class WallMarketStoryRoutingTests
             UpperWallMarket,
             191,
             "Return to lower Wall Market and change clothes at the boutique",
+            -134,
+            -3083,
+            0,
+            expectedTriggerLine: null,
             bank1: new Dictionary<int, byte>
             {
                 [160] = 0x84,
@@ -73,11 +108,19 @@ internal static class WallMarketStoryRoutingTests
             LowerWallMarket,
             192,
             "Continue north to Corneo Hall while disguised",
+            -135,
+            2496,
+            0,
+            NorthGateway,
             bank3: new Dictionary<int, byte> { [162] = 0x03 });
         AssertTarget(
             UpperWallMarket,
             192,
             "Enter Corneo Hall while disguised",
+            4,
+            -9,
+            0,
+            CorneoHallGateway,
             bank3: new Dictionary<int, byte> { [162] = 0x03 });
     }
 
@@ -85,6 +128,10 @@ internal static class WallMarketStoryRoutingTests
         int fieldId,
         int gameMoment,
         string expectedLabel,
+        int expectedX,
+        int expectedY,
+        int expectedZ,
+        FieldNavigationTriggerLine? expectedTriggerLine = null,
         IReadOnlyDictionary<int, byte>? bank1 = null,
         IReadOnlyDictionary<int, byte>? bank3 = null)
     {
@@ -121,6 +168,13 @@ internal static class WallMarketStoryRoutingTests
 
         AssertEqual(1, targets.Count, $"{expectedLabel} target count");
         AssertEqual(expectedLabel, targets[0].Label, $"field {fieldId} moment {gameMoment}");
+        AssertEqual(expectedX, targets[0].X, $"{expectedLabel} X");
+        AssertEqual(expectedY, targets[0].Y, $"{expectedLabel} Y");
+        AssertEqual(expectedZ, targets[0].Z, $"{expectedLabel} Z");
+        AssertEqual(
+            expectedTriggerLine,
+            targets[0].TriggerLine,
+            $"{expectedLabel} trigger line");
     }
 
     private static void WriteBank(

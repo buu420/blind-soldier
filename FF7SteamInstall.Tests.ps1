@@ -1919,8 +1919,8 @@ public static class Fixture
             $config = [IO.File]::ReadAllText($configPath) | ConvertFrom-Json
             [string]::IsNullOrWhiteSpace([string]$config.ModR2RManagedDll32) | Should Be $false
             [string]::IsNullOrWhiteSpace([string]$config.ModR2RManagedDll64) | Should Be $false
-            @($config.SupportedAppId) -contains 'ff7_en.exe' | Should Be $true
-            @($config.SupportedAppId) -contains 'FFVII.exe' | Should Be $true
+            (@($config.SupportedAppId) -join '|') |
+                Should Be 'ff7_en.exe|ff7.exe|FFVII.exe'
 
             $x86Assembly = Join-Path $output $config.ModR2RManagedDll32
             $x64Assembly = Join-Path $output $config.ModR2RManagedDll64

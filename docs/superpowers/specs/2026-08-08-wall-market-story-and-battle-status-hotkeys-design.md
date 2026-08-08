@@ -9,7 +9,7 @@ Restore state-aware Story navigation through the first Wall Market visit and add
 - The Wall Market interior objectives already exist. The missing layer is the outdoor gateway chain between lower Wall Market, upper Wall Market, the boutique, the bar, the gym, and Corneo Hall.
 - The current save is at game moment 191 with the dress and wig obtained, but the fitting-room change incomplete. Story must therefore lead from lower Wall Market to the boutique fitting room.
 - Battle HP, MP, maximum values, and status masks are available from the live battle actor structures.
-- Ghidra confirms the native limit byte at character-record offset `0x0F`, with character records at savemap offset `0x54`, stride `0x84`, and `0xFF` representing a full gauge. The battle engine copies this value into battle state and writes it back, so it is a live native source.
+- Ghidra confirms that character-record offset `0x0F` is the persisted limit value. Battle setup copies it into the live battle records at `0x009A8DC0 + partySlot * 0x34`, and battle cleanup copies that live value back to the savemap. The hotkey therefore reads the live battle record, where `0xFF` represents a full gauge, rather than reporting the stale battle-entry savemap value.
 - Hotkeys must never consume or synthesize game input. They only observe foreground key transitions and speak state visible to a sighted player.
 
 ## Wall Market Story chain
@@ -64,6 +64,8 @@ The existing battle-status announcement tracker will use the same shared status 
 - Simulate each Wall Market flag phase and assert the correct outdoor and interior Story target.
 - Reproduce the current save flags and assert that lower Wall Market leads to the boutique fitting room.
 - Verify party-slot selection, empty slots, HP, MP, no-status speech, mixed buff/debuff classification, and limit conversion at empty, partial, and full values.
+- Seed different persisted and live limit values, then change the live value between polls and verify speech follows it.
+- Verify `L` belongs to battle status in battle and remains Next Target for field and world navigation.
 - Verify foreground and battle gating in both runtime adapters.
 - Run shared, x86, x64 module, and parity tests before packaging.
 - Deploy both runtime builds to the local game installations for live testing.

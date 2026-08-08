@@ -259,7 +259,9 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         var observedActions = frame.Lifecycle.ModuleId == WorldMapStateReader.WorldModule
             ? Array.Empty<FieldNavigationAction>()
             : Steam2026FieldNavigationKeyRouter.ReadActions(
-                foregroundInput.ObserveRisingEdge);
+                foregroundInput.ObserveRisingEdge,
+                observeLimitKey:
+                    frame.Lifecycle.ModuleId == FieldPositionReader.FieldModule);
         ObserveSwingingBarTimingCue(frame, nowUtc);
         ObserveFloor60SoldierTurnCue(frame, nowUtc);
         var navigationEnabled = config.EnableFieldNavigationAssistant;

@@ -253,6 +253,7 @@ public sealed class Mod : IModV1, IModV2
     private readonly BattleEnemyActionSpeechTracker battleEnemyActionSpeechTracker = new();
     private readonly BattleStatusSpeechTracker battleStatusSpeechTracker = new();
     private readonly BattleStatusHotkeyController battleStatusHotkeyController = new();
+    private readonly BattleStatusLimitKeyFrameRouter battleStatusLimitKeyFrameRouter = new();
     private readonly TifaSlotSpeechTracker tifaSlotSpeechTracker = new();
     private volatile bool battleVictoryActive;
     private FootstepProbeScheduler? footstepProbeScheduler;
@@ -1874,17 +1875,60 @@ public sealed class Mod : IModV1, IModV2
         }
     }
 
+    internal static bool ShouldOwnBattleStatusHotkeys(
+        AccessibilityConfig config,
+        bool battleQueryReadable,
+        bool battleQueryActive)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+        return config.EnableSpeech &&
+            battleQueryReadable &&
+            battleQueryActive;
+    }
+
+    internal static bool NavigationOwnsBattleStatusLimitKey(
+        AccessibilityConfig config,
+        int currentModule)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+        return currentModule switch
+        {
+            FieldPositionReader.FieldModule => config.EnableFieldNavigationAssistant,
+            WorldMapStateReader.WorldModule => config.EnableWorldMapNavigationAssistant,
+            _ => false
+        };
+    }
+
     private void TickBattleStatusHotkeys()
     {
         var currentModule = ReadByte(BattleStateReader.AddressCurrentModule);
         var isForeground = foregroundProcessGate.IsCurrentProcessForeground();
-        var battleActive = config.EnableSpeech &&
-            currentModule == BattleStateReader.BattleModule &&
-            !battleVictoryActive;
+        var navigationOwnsLimitKey = NavigationOwnsBattleStatusLimitKey(
+            config,
+            currentModule);
+        var isLimitDown =
+            (GetAsyncKeyState(VirtualKeyL) & unchecked((short)0x8000)) != 0;
+        var battleLimitPressed = battleStatusLimitKeyFrameRouter.BeginFrame(
+            isLimitDown,
+            isForeground,
+            currentModule,
+            navigationOwnsLimitKey);
+        var battleQueryActive = false;
+        var battleQueryReadable = battleStateReader is not null &&
+            battleStateReader.TryReadBattleQueryActive(out battleQueryActive);
+        var battleActive = ShouldOwnBattleStatusHotkeys(
+            config,
+            battleQueryReadable,
+            battleQueryActive);
         var speech = battleStatusHotkeyController.Poll(
             battleActive,
-            virtualKey => WasNavigationKeyPressed(virtualKey, isForeground),
-            ReadBattleStatusMember);
+            virtualKey => virtualKey == VirtualKeyL
+                ? battleLimitPressed
+                : WasNavigationKeyPressed(virtualKey, isForeground),
+            ReadBattleStatusMember,
+            observeLimitKey: true,
+            resetSelectionWhenInactive:
+                battleQueryReadable && !battleQueryActive);
         if (string.IsNullOrWhiteSpace(speech))
         {
             return;
@@ -1896,13 +1940,9 @@ public sealed class Mod : IModV1, IModV2
 
     private BattleStatusMemberSnapshot? ReadBattleStatusMember(int partySlot)
     {
-        if (battleStateReader?.TryReadPartyActor(partySlot, out var actor) != true ||
-            savemapPartyReader?.TryReadLimitGauge(partySlot, out var limitGauge) != true)
-        {
-            return null;
-        }
-
-        return new BattleStatusMemberSnapshot(actor, limitGauge);
+        return battleStateReader?.TryReadPartyStatusMember(partySlot, out var member) == true
+            ? member
+            : null;
     }
 
     private void TickOpeningMovieDescription()
@@ -3235,11 +3275,15 @@ public sealed class Mod : IModV1, IModV2
     {
         if (!config.EnableWorldMapFootstepFeedback && !config.EnableWorldMapNavigationAssistant)
         {
+            battleStatusLimitKeyFrameRouter.DiscardNavigationPress(
+                WorldMapStateReader.WorldModule);
             return;
         }
 
         var now = DateTime.UtcNow;
-        if (now - lastWorldMapScanAt < TimeSpan.FromMilliseconds(Math.Max(30, config.WorldMapScanIntervalMs)))
+        if (now - lastWorldMapScanAt < TimeSpan.FromMilliseconds(Math.Max(30, config.WorldMapScanIntervalMs)) &&
+            !battleStatusLimitKeyFrameRouter.HasNavigationPress(
+                WorldMapStateReader.WorldModule))
         {
             return;
         }
@@ -3250,6 +3294,8 @@ public sealed class Mod : IModV1, IModV2
             var module = ReadByte(WorldMapStateReader.AddressCurrentModule);
             if (module != WorldMapStateReader.WorldModule)
             {
+                battleStatusLimitKeyFrameRouter.DiscardNavigationPress(
+                    WorldMapStateReader.WorldModule);
                 if (WorldMapNavigationLifecycle.IsCombatInterruptionModule(module))
                 {
                     foreach (var context in worldMapRuntimes.Values)
@@ -3290,6 +3336,8 @@ public sealed class Mod : IModV1, IModV2
                             stateResult.State.WorldProgress)),
                     out var runtime))
             {
+                battleStatusLimitKeyFrameRouter.DiscardNavigationPress(
+                    WorldMapStateReader.WorldModule);
                 foreach (var context in worldMapRuntimes.Values)
                 {
                     context.Footsteps.Reset();
@@ -3323,6 +3371,8 @@ public sealed class Mod : IModV1, IModV2
 
             if (!isForeground)
             {
+                battleStatusLimitKeyFrameRouter.DiscardNavigationPress(
+                    WorldMapStateReader.WorldModule);
                 runtime.Footsteps.Reset();
                 worldMapNavigationBeaconPlayer?.StopAll();
                 return;
@@ -3342,12 +3392,15 @@ public sealed class Mod : IModV1, IModV2
 
             if (!config.EnableWorldMapNavigationAssistant)
             {
+                battleStatusLimitKeyFrameRouter.DiscardNavigationPress(
+                    WorldMapStateReader.WorldModule);
                 runtime.Navigation.Suspend("world navigation disabled");
                 worldMapNavigationBeaconPlayer?.StopAll();
                 return;
             }
 
-            foreach (var action in ReadFieldNavigationActions())
+            foreach (var action in ReadFieldNavigationActions(
+                         WorldMapStateReader.WorldModule))
             {
                 ProcessWorldMapNavigationOutput(runtime, runtime.Navigation.HandleAction(action, state, now));
             }
@@ -3364,6 +3417,8 @@ public sealed class Mod : IModV1, IModV2
         }
         catch (Exception ex)
         {
+            battleStatusLimitKeyFrameRouter.DiscardNavigationPress(
+                WorldMapStateReader.WorldModule);
             worldMapAccessibilityErrorCount++;
             worldMapNavigationBeaconPlayer?.StopAll();
             if (worldMapAccessibilityErrorCount <= 10)
@@ -3440,11 +3495,15 @@ public sealed class Mod : IModV1, IModV2
     {
         if (!config.EnableFieldNavigationAssistant)
         {
+            battleStatusLimitKeyFrameRouter.DiscardNavigationPress(
+                FieldPositionReader.FieldModule);
             return;
         }
 
         var now = DateTime.UtcNow;
-        if (now - lastFieldNavigationScanAt < TimeSpan.FromMilliseconds(Math.Max(30, config.FieldNavigationScanIntervalMs)))
+        if (now - lastFieldNavigationScanAt < TimeSpan.FromMilliseconds(Math.Max(30, config.FieldNavigationScanIntervalMs)) &&
+            !battleStatusLimitKeyFrameRouter.HasNavigationPress(
+                FieldPositionReader.FieldModule))
         {
             return;
         }
@@ -3455,6 +3514,8 @@ public sealed class Mod : IModV1, IModV2
             var result = fieldPositionReader?.Read() ?? throw new InvalidOperationException("Field position reader is not initialized.");
             if (!result.IsUsable)
             {
+                battleStatusLimitKeyFrameRouter.DiscardNavigationPress(
+                    FieldPositionReader.FieldModule);
                 fieldNavigationController.SuspendForPositionRecovery(result.Diagnostic);
                 return;
             }
@@ -3474,6 +3535,12 @@ public sealed class Mod : IModV1, IModV2
                 fieldAudibleCueState,
                 ladderState,
                 ladderResult.IsUsable);
+            var navigationForeground = foregroundProcessGate.IsCurrentProcessForeground();
+            if (navigationSuppressed || !navigationForeground)
+            {
+                battleStatusLimitKeyFrameRouter.DiscardNavigationPress(
+                    FieldPositionReader.FieldModule);
+            }
 
             if (config.EnableFieldNavigationDiagnostics)
             {
@@ -3592,9 +3659,9 @@ public sealed class Mod : IModV1, IModV2
 
             }
 
-            foreach (var action in navigationSuppressed
+            foreach (var action in navigationSuppressed || !navigationForeground
                          ? Array.Empty<FieldNavigationAction>()
-                         : ReadFieldNavigationActions())
+                         : ReadFieldNavigationActions(FieldPositionReader.FieldModule))
             {
                 var speech = fieldNavigationController.HandleAction(
                     action,
@@ -3652,6 +3719,8 @@ public sealed class Mod : IModV1, IModV2
         }
         catch (Exception ex)
         {
+            battleStatusLimitKeyFrameRouter.DiscardNavigationPress(
+                FieldPositionReader.FieldModule);
             fieldNavigationErrorCount++;
             if (fieldNavigationErrorCount <= 10)
             {
@@ -4057,7 +4126,7 @@ public sealed class Mod : IModV1, IModV2
             autoSteeringToggleRequested);
     }
 
-    private IEnumerable<FieldNavigationAction> ReadFieldNavigationActions()
+    private IEnumerable<FieldNavigationAction> ReadFieldNavigationActions(int ownerModule)
     {
         var isForeground = foregroundProcessGate.IsCurrentProcessForeground();
         if (WasNavigationKeyPressed(VirtualKeyU, isForeground))
@@ -4075,7 +4144,7 @@ public sealed class Mod : IModV1, IModV2
             yield return FieldNavigationAction.PreviousTarget;
         }
 
-        if (WasNavigationKeyPressed(VirtualKeyL, isForeground))
+        if (battleStatusLimitKeyFrameRouter.TakeNavigationPress(ownerModule))
         {
             yield return FieldNavigationAction.NextTarget;
         }

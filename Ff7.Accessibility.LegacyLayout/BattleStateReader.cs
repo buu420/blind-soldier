@@ -24,6 +24,8 @@ public sealed class BattleStateReader
 
     public const int AddressBattleActors = 0x009AB0DC;
     public const int BattleActorSize = 0x68;
+    public const int AddressBattleLimitGauges = 0x009A8DC0;
+    public const int BattleLimitGaugeRecordSize = 0x34;
     public const int ActorStatusMaskOffset = 0x00;
     public const int ActorFlagsOffset = 0x05;
     public const int ActorInstanceIdOffset = 0x08;
@@ -180,6 +182,31 @@ public sealed class BattleStateReader
     public bool TryReadVictorySignal(out bool isVictory)
     {
         isVictory = false;
+        if (!TryReadBattleLifecycle(out var module, out var outcome))
+        {
+            return false;
+        }
+
+        isVictory = module == BattleModule && outcome != 0;
+        return true;
+    }
+
+    public bool TryReadBattleQueryActive(out bool isActive)
+    {
+        isActive = false;
+        if (!TryReadBattleLifecycle(out var module, out var outcome))
+        {
+            return false;
+        }
+
+        isActive = module == BattleModule && outcome == 0;
+        return true;
+    }
+
+    private bool TryReadBattleLifecycle(out byte module, out ushort outcome)
+    {
+        module = default;
+        outcome = default;
         try
         {
             if (addressSpace is not null)
@@ -194,7 +221,8 @@ public sealed class BattleStateReader
                     return false;
                 }
 
-                isVictory = moduleBefore == BattleModule && outcomeBefore != 0;
+                module = moduleBefore;
+                outcome = outcomeBefore;
                 return true;
             }
 
@@ -214,12 +242,14 @@ public sealed class BattleStateReader
                 return false;
             }
 
-            isVictory = legacyModuleBefore == BattleModule && legacyOutcomeBefore != 0;
+            module = legacyModuleBefore;
+            outcome = legacyOutcomeBefore;
             return true;
         }
         catch
         {
-            isVictory = false;
+            module = default;
+            outcome = default;
             return false;
         }
     }
@@ -691,6 +721,89 @@ public sealed class BattleStateReader
 
         actor = candidate.Actor.ToPublicSnapshot();
         return true;
+    }
+
+    public bool TryReadPartyStatusMember(
+        int partySlot,
+        out BattleStatusMemberSnapshot member)
+    {
+        member = default;
+        if (partySlot is < 0 or >= PartyActorCount)
+        {
+            return false;
+        }
+
+        PartyStatusMemberCandidate candidate;
+        if (addressSpace is null)
+        {
+            candidate = ReadPartyStatusMemberCandidate(partySlot);
+        }
+        else if (!TryReadCoherent(
+                     () => ReadPartyStatusMemberCandidate(partySlot),
+                     static (left, right) => left == right,
+                     out candidate))
+        {
+            return false;
+        }
+
+        if (!candidate.Success ||
+            candidate.Module != BattleModule ||
+            candidate.CharacterId >= 9 ||
+            candidate.ActorInstanceId == byte.MaxValue)
+        {
+            return false;
+        }
+
+        member = new BattleStatusMemberSnapshot(
+            candidate.Actor.ToPublicSnapshot(),
+            candidate.LimitGauge);
+        return true;
+    }
+
+    private PartyStatusMemberCandidate ReadPartyStatusMemberCandidate(int partySlot)
+    {
+        if (!TryComputeAddress(
+                SavemapPartyReader.AddressSavemap + SavemapPartyReader.PartyMembersOffset,
+                partySlot,
+                1,
+                out var partySlotAddress) ||
+            !TryComputeAddress(
+                AddressBattleActors,
+                partySlot,
+                BattleActorSize,
+                out var actorBase) ||
+            !TryComputeAddress(
+                AddressBattleLimitGauges,
+                partySlot,
+                BattleLimitGaugeRecordSize,
+                out var limitGaugeAddress) ||
+            !TryReadByte(AddressCurrentModule, out var moduleBefore) ||
+            !TryReadByte(partySlotAddress, out var characterBefore) ||
+            !TryReadByte(actorBase + ActorInstanceIdOffset, out var actorInstanceBefore) ||
+            moduleBefore != BattleModule ||
+            characterBefore >= 9 ||
+            actorInstanceBefore == byte.MaxValue ||
+            actorInstanceBefore != characterBefore ||
+            !TryReadActorCore(partySlot, false, out var actor) ||
+            !TryReadByte(limitGaugeAddress, out var limitGauge) ||
+            !TryReadByte(AddressCurrentModule, out var moduleAfter) ||
+            !TryReadByte(partySlotAddress, out var characterAfter) ||
+            !TryReadByte(actorBase + ActorInstanceIdOffset, out var actorInstanceAfter) ||
+            moduleBefore != moduleAfter ||
+            characterBefore != characterAfter ||
+            actorInstanceBefore != actorInstanceAfter ||
+            actorInstanceAfter != characterAfter)
+        {
+            return default;
+        }
+
+        return new PartyStatusMemberCandidate(
+            true,
+            moduleBefore,
+            characterBefore,
+            actorInstanceBefore,
+            actor,
+            limitGauge);
     }
 
     public bool TryReadBattleActor(int actorIndex, out BattleActorSnapshot actor)
@@ -1642,6 +1755,14 @@ public sealed class BattleStateReader
         byte RequiredMp);
 
     private readonly record struct ActorCandidate(bool Success, RawBattleActorSnapshot Actor);
+
+    private readonly record struct PartyStatusMemberCandidate(
+        bool Success,
+        byte Module,
+        byte CharacterId,
+        byte ActorInstanceId,
+        RawBattleActorSnapshot Actor,
+        byte LimitGauge);
 
     private enum ActorSlotReadState
     {

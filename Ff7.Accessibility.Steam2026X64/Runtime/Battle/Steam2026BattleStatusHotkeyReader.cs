@@ -9,8 +9,6 @@ namespace Ff7.Accessibility.Steam2026X64.Runtime.Battle;
 /// </summary>
 internal sealed class Steam2026BattleStatusHotkeyReader
 {
-    private readonly ILegacyAddressSpace addressSpace;
-    private readonly SavemapPartyReader partyReader;
     private readonly BattleStateReader battleReader;
 
     internal Steam2026BattleStatusHotkeyReader(
@@ -26,29 +24,23 @@ internal sealed class Steam2026BattleStatusHotkeyReader
 
     internal Steam2026BattleStatusHotkeyReader(ILegacyAddressSpace addressSpace)
     {
-        this.addressSpace = addressSpace ?? throw new ArgumentNullException(nameof(addressSpace));
-        partyReader = new SavemapPartyReader(addressSpace);
+        ArgumentNullException.ThrowIfNull(addressSpace);
+        var partyReader = new SavemapPartyReader(addressSpace);
         battleReader = new BattleStateReader(addressSpace, partyReader);
     }
 
     internal bool IsBattleQueryActive()
     {
-        return addressSpace.TryReadByte(
-                   checked((uint)BattleStateReader.AddressCurrentModule),
-                   out var module) &&
-               module == BattleStateReader.BattleModule &&
-               battleReader.TryReadVictorySignal(out var victory) &&
-               !victory;
+        return TryReadBattleQueryActive(out var isActive) && isActive;
     }
+
+    internal bool TryReadBattleQueryActive(out bool isActive) =>
+        battleReader.TryReadBattleQueryActive(out isActive);
 
     internal BattleStatusMemberSnapshot? ReadMember(int partySlot)
     {
-        if (!battleReader.TryReadPartyActor(partySlot, out var actor) ||
-            !partyReader.TryReadLimitGauge(partySlot, out var limitGauge))
-        {
-            return null;
-        }
-
-        return new BattleStatusMemberSnapshot(actor, limitGauge);
+        return battleReader.TryReadPartyStatusMember(partySlot, out var member)
+            ? member
+            : null;
     }
 }
