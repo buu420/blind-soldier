@@ -13,14 +13,19 @@ internal static class Steam2026FieldNavigationKeyRouter
     internal const int VirtualKeyI = 0x49;
 
     internal static IReadOnlyList<FieldNavigationAction> ReadActions(
-        Func<int, bool> observeRisingEdge)
+        Func<int, bool> observeRisingEdge,
+        bool observeLimitKey = true)
     {
         ArgumentNullException.ThrowIfNull(observeRisingEdge);
         var actions = new List<FieldNavigationAction>(6);
         AddIfPressed(VirtualKeyU, FieldNavigationAction.PreviousCategory);
         AddIfPressed(VirtualKeyO, FieldNavigationAction.NextCategory);
         AddIfPressed(VirtualKeyJ, FieldNavigationAction.PreviousTarget);
-        AddIfPressed(VirtualKeyL, FieldNavigationAction.NextTarget);
+        if (observeLimitKey)
+        {
+            AddIfPressed(VirtualKeyL, FieldNavigationAction.NextTarget);
+        }
+
         AddIfPressed(VirtualKeyK, FieldNavigationAction.RepeatTarget);
         AddIfPressed(VirtualKeyI, FieldNavigationAction.ToggleBeacon);
         return actions;

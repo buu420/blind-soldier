@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory=$true)] [string] $OutputPath,
-    [string] $Version = '0.1.7',
+    [string] $Version = '0.1.8',
     [string] $PrerequisiteBundlePath,
     [string] $ModPackagePath,
     [string] $BootstrapBinaryPath,

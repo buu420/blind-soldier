@@ -37,7 +37,7 @@ instead of reading unverified game memory.
 ## Installation
 
 Download
-[Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.1.7/Blind-Soldier-Portable.zip)
+[Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.1.8/Blind-Soldier-Portable.zip)
 from the [Blind Soldier Releases page](https://github.com/buu420/blind-soldier/releases).
 
 1. Close Final Fantasy VII and 7th Heaven.
@@ -101,10 +101,10 @@ Visual Studio C++ Build Tools, and PowerShell, then run:
 ```powershell
 .\Build-BlindSoldierPortablePackage.ps1 `
   -OutputPath .\artifacts\Blind-Soldier-Portable.zip `
-  -Version 0.1.7
+  -Version 0.1.8
 .\Verify-BlindSoldierPortablePackage.ps1 `
   -ArchivePath .\artifacts\Blind-Soldier-Portable.zip `
-  -ExpectedVersion 0.1.7
+  -ExpectedVersion 0.1.8
 ```
 
 The builder compiles the launcher, x86/x64 brokers, and x86 Version proxy from source,
@@ -133,6 +133,27 @@ foreground. The normal game controls are unchanged.
 Progress intervals are `5`, `10`, `15`, and `20` percent. `F6` and `F7` wrap
 around at either end. Key changes to progress settings last for the current
 game session; the installed configuration supplies the next launch's defaults.
+
+### Battle status keys
+
+These keys are active only during battle. `L` checks the selected member's
+limit gauge in battle and remains the next-target navigation key everywhere
+else.
+
+| Key | Action |
+| --- | --- |
+| `1` | Select and identify party member 1 |
+| `2` | Select and identify party member 2 |
+| `3` | Select and identify party member 3 |
+| `H` | Read current and maximum HP |
+| `M` | Read current and maximum MP |
+| `D` | Read active debuffs and other harmful conditions |
+| `S` | Read active buffs |
+| `L` | Read the native limit gauge percentage |
+
+An empty numbered slot is announced as unavailable and does not replace the
+last valid selection. Buff and debuff queries explicitly say when there are
+none.
 
 ## Navigation
 

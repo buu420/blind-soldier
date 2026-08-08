@@ -44,6 +44,24 @@ if (args.Contains("--reactor-ladder-only", StringComparer.OrdinalIgnoreCase))
     return;
 }
 
+if (args.Contains("--wall-market-battle-status-only", StringComparer.OrdinalIgnoreCase))
+{
+    WallMarketStoryRoutingTests.Run();
+    BattleStatusHotkeyTests.Run();
+    Console.WriteLine("FFVII Wall Market story and battle status hotkey tests passed.");
+    return;
+}
+
+if (args.Contains("--save-enemy-skill-only", StringComparer.OrdinalIgnoreCase))
+{
+    AssertKernel2TextDatabaseReadsNativeDescriptionsAndEquipmentNames();
+    AssertSaveMenuNestedWidgetsAcquireOwnershipWithoutOuterObservation();
+    AssertSaveMenuSpeechSupportsWorldMapHostModule();
+    AssertBattleStateReaderReadsNativeAbilitySubmenuSelections();
+    Console.WriteLine("FFVII Save and Enemy Skill regression tests passed.");
+    return;
+}
+
 if (args.Contains("--host-validation-only", StringComparer.OrdinalIgnoreCase))
 {
     AssertLegacyX86FingerprintAcceptsOnlyKnownExecutable();
@@ -2442,6 +2460,8 @@ static void AssertKernel2TextDatabaseReadsNativeDescriptionsAndEquipmentNames()
     AssertEqual("Restores MP by 100", database.ResolveItemDescription(3), "kernel2 ether description");
     AssertEqual("Cure", database.ResolveSpellName(0), "kernel2 spell name");
     AssertEqual("Restores HP", database.ResolveSpellDescription(0), "kernel2 spell description");
+    AssertEqual("Choco/Mog", database.ResolveSpellName(0x38), "kernel2 first Summon name");
+    AssertEqual("Matra Magic", database.ResolveSpellName(0x52), "kernel2 Matra Magic name");
     AssertEqual("Buster Sword", database.ResolveWeaponName(0), "kernel2 weapon name");
     AssertEqual("Bronze Bangle", database.ResolveArmorName(0), "kernel2 armor name");
     AssertEqual("Power Wrist", database.ResolveAccessoryName(0), "kernel2 accessory name");
@@ -2677,33 +2697,36 @@ static void AssertBattleStateReaderReadsNativeAbilitySubmenuSelections()
             ScrollAddress = BattleStateReader.AddressMagicScrollRow,
             Columns = 3,
             RecordAddress = BattleStateReader.AddressMagicRecords,
-            EntryId = (byte)27,
+            LocalEntryId = (byte)27,
+            ResolvedEntryId = 27,
             Name = "Fire",
             Mp = (byte)4
         },
         new
         {
             State = (short)4,
-            ColumnAddress = BattleStateReader.AddressSummonCursorColumn,
-            RowAddress = BattleStateReader.AddressSummonCursorRow,
-            ScrollAddress = BattleStateReader.AddressSummonScrollRow,
+            ColumnAddress = BattleStateReader.AddressEnemySkillCursorColumn,
+            RowAddress = BattleStateReader.AddressEnemySkillCursorRow,
+            ScrollAddress = BattleStateReader.AddressEnemySkillScrollRow,
             Columns = 2,
-            RecordAddress = BattleStateReader.AddressSummonRecords,
-            EntryId = (byte)60,
-            Name = "Choco/Mog",
-            Mp = (byte)14
+            RecordAddress = BattleStateReader.AddressEnemySkillRecords,
+            LocalEntryId = (byte)10,
+            ResolvedEntryId = 0x52,
+            Name = "Matra Magic",
+            Mp = (byte)8
         },
         new
         {
             State = (short)7,
-            ColumnAddress = BattleStateReader.AddressEnemySkillCursorColumn,
-            RowAddress = BattleStateReader.AddressEnemySkillCursorRow,
-            ScrollAddress = BattleStateReader.AddressEnemySkillScrollRow,
+            ColumnAddress = BattleStateReader.AddressSummonCursorColumn,
+            RowAddress = BattleStateReader.AddressSummonCursorRow,
+            ScrollAddress = BattleStateReader.AddressSummonScrollRow,
             Columns = 1,
-            RecordAddress = BattleStateReader.AddressEnemySkillRecords,
-            EntryId = (byte)55,
-            Name = "Matra Magic",
-            Mp = (byte)8
+            RecordAddress = BattleStateReader.AddressSummonRecords,
+            LocalEntryId = (byte)0,
+            ResolvedEntryId = 0x38,
+            Name = "Choco/Mog",
+            Mp = (byte)14
         }
     };
 
@@ -2722,17 +2745,17 @@ static void AssertBattleStateReaderReadsNativeAbilitySubmenuSelections()
         WriteUInt32(memory, item.ScrollAddress, 2);
         var selectedIndex = selectedColumn + 1 * item.Columns + 2 * item.Columns;
         var recordAddress = item.RecordAddress + selectedIndex * BattleStateReader.AbilityRecordSize;
-        memory[recordAddress] = item.EntryId;
+        memory[recordAddress] = item.LocalEntryId;
         memory[recordAddress + BattleStateReader.AbilityMpCostOffset] = item.Mp;
 
         var reader = CreateBattleStateReader(
             memory,
-            abilityId => abilityId == item.EntryId ? item.Name : null,
-            abilityId => abilityId == item.EntryId ? $"{item.Name} description" : null);
+            abilityId => abilityId == item.ResolvedEntryId ? item.Name : null,
+            abilityId => abilityId == item.ResolvedEntryId ? $"{item.Name} description" : null);
         var selection = reader.ReadMenuState(item.State).Selection
             ?? throw new InvalidOperationException($"Expected native battle selection for state {item.State}.");
 
-        AssertEqual(item.EntryId, selection.EntryId, $"native battle state {item.State} ability id");
+        AssertEqual(item.ResolvedEntryId, selection.EntryId, $"native battle state {item.State} ability id");
         AssertEqual(item.Name, selection.Name, $"native battle state {item.State} ability name");
         AssertEqual((int?)item.Mp, selection.MpCost, $"native battle state {item.State} MP cost");
     }
@@ -23039,6 +23062,96 @@ static void AssertSaveMenuSpeechTracksPageOwnershipAndReacquiresOuterSlot()
         Rows = 11
     });
     AssertEqual(false, tracker.IsActive, "root menu revokes in-game save ownership");
+}
+
+static void AssertSaveMenuNestedWidgetsAcquireOwnershipWithoutOuterObservation()
+{
+    var now = new DateTime(2026, 8, 8, 1, 19, 0, DateTimeKind.Utc);
+    var tracker = new SaveMenuSpeechTracker(TimeSpan.Zero);
+    var gameWidget = new ActiveMenuWidgetSnapshot(
+        SaveMenuStateReader.AddressGameWidget,
+        "Save game slot",
+        MenuWidgetKind.Generic,
+        0,
+        1,
+        1,
+        3,
+        0,
+        0,
+        0);
+
+    tracker.ObserveHostState(
+        SaveMenuSpeechTracker.InGameMenuModule,
+        isForeground: true,
+        isNameEntryActive: false,
+        gameWidget);
+    AssertEqual(true, tracker.IsActive, "exact nested Save game widget acquires ownership");
+    tracker.Observe(
+        new SaveMenuStateSnapshot(SaveMenuPage.Games, 1, 2, Ff7SaveSlotPreview.Empty, 0),
+        now);
+    AssertEqual("Game 2. Empty.", tracker.Poll(now), "nested Save game speaks without outer widget");
+
+    tracker.Reset();
+    var confirmationWidget = gameWidget with
+    {
+        Address = SaveMenuStateReader.AddressConfirmationWidget,
+        Name = "Save confirmation",
+        Cursor = 1,
+        Rows = 2
+    };
+    tracker.ObserveHostState(
+        SaveMenuSpeechTracker.InGameMenuModule,
+        isForeground: true,
+        isNameEntryActive: false,
+        confirmationWidget);
+    AssertEqual(true, tracker.IsActive, "exact nested Save confirmation widget acquires ownership");
+    tracker.Observe(
+        new SaveMenuStateSnapshot(SaveMenuPage.Confirmation, 1, 2, Ff7SaveSlotPreview.Empty, 1),
+        now.AddMilliseconds(10));
+    AssertEqual(
+        "Are you sure? No.",
+        tracker.Poll(now.AddMilliseconds(10)),
+        "nested Save confirmation speaks without outer widget");
+}
+
+static void AssertSaveMenuSpeechSupportsWorldMapHostModule()
+{
+    var now = new DateTime(2026, 8, 8, 2, 20, 0, DateTimeKind.Utc);
+    var tracker = new SaveMenuSpeechTracker(TimeSpan.Zero);
+    var saveWidget = new ActiveMenuWidgetSnapshot(
+        SaveMenuStateReader.AddressSaveFileWidget,
+        "Save file or Quit choice",
+        MenuWidgetKind.Generic,
+        0,
+        0,
+        5,
+        2,
+        0,
+        0,
+        0);
+
+    tracker.ObserveHostState(
+        WorldMapStateReader.WorldModule,
+        isForeground: true,
+        isNameEntryActive: false,
+        saveWidget);
+    AssertEqual(true, tracker.IsActive, "world-map Save widget acquires native Save ownership");
+
+    tracker.ObserveModule(WorldMapStateReader.WorldModule);
+    tracker.ObserveHostState(
+        WorldMapStateReader.WorldModule,
+        isForeground: true,
+        isNameEntryActive: false);
+    tracker.Observe(
+        new SaveMenuStateSnapshot(SaveMenuPage.SaveFiles, 1, 0, null, 0),
+        now);
+    AssertEqual(
+        "Save 1.",
+        tracker.Poll(now),
+        "world-map Save ownership survives draw and monitor polling");
+
+    tracker.ObserveModule(BattleStateReader.BattleModule);
+    AssertEqual(false, tracker.IsActive, "battle transition revokes world-map Save ownership");
 }
 
 static void AssertSaveMenuExactWidgetOutranksAmbiguousNameEntryState()

@@ -24,6 +24,8 @@ public sealed class BattleStateReader
 
     public const int AddressBattleActors = 0x009AB0DC;
     public const int BattleActorSize = 0x68;
+    public const int AddressBattleLimitGauges = 0x009A8DC0;
+    public const int BattleLimitGaugeRecordSize = 0x34;
     public const int ActorStatusMaskOffset = 0x00;
     public const int ActorFlagsOffset = 0x05;
     public const int ActorInstanceIdOffset = 0x08;
@@ -68,18 +70,21 @@ public sealed class BattleStateReader
     public const int RootCommandRecordSize = 6;
     public const int AbilityRecordSize = 8;
     public const int AbilityMpCostOffset = 1;
+    public const int MagicActionIdBase = 0x00;
+    public const int SummonActionIdBase = 0x38;
+    public const int EnemySkillActionIdBase = 0x48;
     public const int AddressMagicRecords = 0x00DBA5A0;
-    public const int AddressEnemySkillRecords = 0x00DBA760;
-    public const int AddressSummonRecords = 0x00DBA7E0;
+    public const int AddressSummonRecords = 0x00DBA760;
+    public const int AddressEnemySkillRecords = 0x00DBA7E0;
     public const int AddressMagicCursorColumn = 0x00DC2110;
     public const int AddressMagicCursorRow = 0x00DC2114;
     public const int AddressMagicScrollRow = 0x00DC2124;
-    public const int AddressEnemySkillCursorColumn = 0x00DC2148;
-    public const int AddressEnemySkillCursorRow = 0x00DC214C;
-    public const int AddressEnemySkillScrollRow = 0x00DC215C;
-    public const int AddressSummonCursorColumn = 0x00DC2180;
-    public const int AddressSummonCursorRow = 0x00DC2184;
-    public const int AddressSummonScrollRow = 0x00DC2194;
+    public const int AddressSummonCursorColumn = 0x00DC2148;
+    public const int AddressSummonCursorRow = 0x00DC214C;
+    public const int AddressSummonScrollRow = 0x00DC215C;
+    public const int AddressEnemySkillCursorColumn = 0x00DC2180;
+    public const int AddressEnemySkillCursorRow = 0x00DC2184;
+    public const int AddressEnemySkillScrollRow = 0x00DC2194;
     public const int AddressItemCursorRow = 0x00DC20DC;
     public const int AddressItemScrollRow = 0x00DC20EC;
     public const int AddressBattleItems = 0x009AC354;
@@ -180,6 +185,31 @@ public sealed class BattleStateReader
     public bool TryReadVictorySignal(out bool isVictory)
     {
         isVictory = false;
+        if (!TryReadBattleLifecycle(out var module, out var outcome))
+        {
+            return false;
+        }
+
+        isVictory = module == BattleModule && outcome != 0;
+        return true;
+    }
+
+    public bool TryReadBattleQueryActive(out bool isActive)
+    {
+        isActive = false;
+        if (!TryReadBattleLifecycle(out var module, out var outcome))
+        {
+            return false;
+        }
+
+        isActive = module == BattleModule && outcome == 0;
+        return true;
+    }
+
+    private bool TryReadBattleLifecycle(out byte module, out ushort outcome)
+    {
+        module = default;
+        outcome = default;
         try
         {
             if (addressSpace is not null)
@@ -194,7 +224,8 @@ public sealed class BattleStateReader
                     return false;
                 }
 
-                isVictory = moduleBefore == BattleModule && outcomeBefore != 0;
+                module = moduleBefore;
+                outcome = outcomeBefore;
                 return true;
             }
 
@@ -214,12 +245,14 @@ public sealed class BattleStateReader
                 return false;
             }
 
-            isVictory = legacyModuleBefore == BattleModule && legacyOutcomeBefore != 0;
+            module = legacyModuleBefore;
+            outcome = legacyOutcomeBefore;
             return true;
         }
         catch
         {
-            isVictory = false;
+            module = default;
+            outcome = default;
             return false;
         }
     }
@@ -693,6 +726,89 @@ public sealed class BattleStateReader
         return true;
     }
 
+    public bool TryReadPartyStatusMember(
+        int partySlot,
+        out BattleStatusMemberSnapshot member)
+    {
+        member = default;
+        if (partySlot is < 0 or >= PartyActorCount)
+        {
+            return false;
+        }
+
+        PartyStatusMemberCandidate candidate;
+        if (addressSpace is null)
+        {
+            candidate = ReadPartyStatusMemberCandidate(partySlot);
+        }
+        else if (!TryReadCoherent(
+                     () => ReadPartyStatusMemberCandidate(partySlot),
+                     static (left, right) => left == right,
+                     out candidate))
+        {
+            return false;
+        }
+
+        if (!candidate.Success ||
+            candidate.Module != BattleModule ||
+            candidate.CharacterId >= 9 ||
+            candidate.ActorInstanceId == byte.MaxValue)
+        {
+            return false;
+        }
+
+        member = new BattleStatusMemberSnapshot(
+            candidate.Actor.ToPublicSnapshot(),
+            candidate.LimitGauge);
+        return true;
+    }
+
+    private PartyStatusMemberCandidate ReadPartyStatusMemberCandidate(int partySlot)
+    {
+        if (!TryComputeAddress(
+                SavemapPartyReader.AddressSavemap + SavemapPartyReader.PartyMembersOffset,
+                partySlot,
+                1,
+                out var partySlotAddress) ||
+            !TryComputeAddress(
+                AddressBattleActors,
+                partySlot,
+                BattleActorSize,
+                out var actorBase) ||
+            !TryComputeAddress(
+                AddressBattleLimitGauges,
+                partySlot,
+                BattleLimitGaugeRecordSize,
+                out var limitGaugeAddress) ||
+            !TryReadByte(AddressCurrentModule, out var moduleBefore) ||
+            !TryReadByte(partySlotAddress, out var characterBefore) ||
+            !TryReadByte(actorBase + ActorInstanceIdOffset, out var actorInstanceBefore) ||
+            moduleBefore != BattleModule ||
+            characterBefore >= 9 ||
+            actorInstanceBefore == byte.MaxValue ||
+            actorInstanceBefore != characterBefore ||
+            !TryReadActorCore(partySlot, false, out var actor) ||
+            !TryReadByte(limitGaugeAddress, out var limitGauge) ||
+            !TryReadByte(AddressCurrentModule, out var moduleAfter) ||
+            !TryReadByte(partySlotAddress, out var characterAfter) ||
+            !TryReadByte(actorBase + ActorInstanceIdOffset, out var actorInstanceAfter) ||
+            moduleBefore != moduleAfter ||
+            characterBefore != characterAfter ||
+            actorInstanceBefore != actorInstanceAfter ||
+            actorInstanceAfter != characterAfter)
+        {
+            return default;
+        }
+
+        return new PartyStatusMemberCandidate(
+            true,
+            moduleBefore,
+            characterBefore,
+            actorInstanceBefore,
+            actor,
+            limitGauge);
+    }
+
     public bool TryReadBattleActor(int actorIndex, out BattleActorSnapshot actor)
     {
         if (addressSpace is null)
@@ -1019,12 +1135,13 @@ public sealed class BattleStateReader
             3 => TryReadSideCommandSelection(19, out selection),
             4 => TryReadAbilitySelection(
                 partySlot,
-                AddressSummonCursorColumn,
-                AddressSummonCursorRow,
-                AddressSummonScrollRow,
+                AddressEnemySkillCursorColumn,
+                AddressEnemySkillCursorRow,
+                AddressEnemySkillScrollRow,
                 2,
-                AddressSummonRecords,
+                AddressEnemySkillRecords,
                 12,
+                EnemySkillActionIdBase,
                 currentMp,
                 out selection),
             6 => TryReadAbilitySelection(
@@ -1035,16 +1152,18 @@ public sealed class BattleStateReader
                 3,
                 AddressMagicRecords,
                 54,
+                MagicActionIdBase,
                 currentMp,
                 out selection),
             7 => TryReadAbilitySelection(
                 partySlot,
-                AddressEnemySkillCursorColumn,
-                AddressEnemySkillCursorRow,
-                AddressEnemySkillScrollRow,
+                AddressSummonCursorColumn,
+                AddressSummonCursorRow,
+                AddressSummonScrollRow,
                 1,
-                AddressEnemySkillRecords,
+                AddressSummonRecords,
                 16,
+                SummonActionIdBase,
                 currentMp,
                 out selection),
             0x18 => TryReadLimitSelection(partySlot, out selection),
@@ -1202,6 +1321,7 @@ public sealed class BattleStateReader
         int columns,
         int recordsAddress,
         int recordCount,
+        int actionIdBase,
         int expectedCurrentMp,
         out BattleMenuSelectionSnapshot selection)
     {
@@ -1227,7 +1347,16 @@ public sealed class BattleStateReader
             return false;
         }
 
-        var abilityId = stateBefore.AbilityId;
+        // FUN_0041963c resolves submenu-local action ids through the native
+        // category bases: Magic 0x00, Summon 0x38, and Enemy Skill 0x48.
+        // Reading the local byte as a KERNEL2 index turns Matra Magic (10)
+        // into the ordinary spell Toad, so normalize it before text lookup.
+        var abilityId = stateBefore.AbilityId + actionIdBase;
+        if (actionIdBase < 0 || abilityId >= 0xE0)
+        {
+            return false;
+        }
+
         var name = resolveAbilityName(abilityId);
         if (string.IsNullOrWhiteSpace(name))
         {
@@ -1642,6 +1771,14 @@ public sealed class BattleStateReader
         byte RequiredMp);
 
     private readonly record struct ActorCandidate(bool Success, RawBattleActorSnapshot Actor);
+
+    private readonly record struct PartyStatusMemberCandidate(
+        bool Success,
+        byte Module,
+        byte CharacterId,
+        byte ActorInstanceId,
+        RawBattleActorSnapshot Actor,
+        byte LimitGauge);
 
     private enum ActorSlotReadState
     {

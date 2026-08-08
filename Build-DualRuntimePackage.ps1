@@ -283,7 +283,7 @@ function Assert-DualRuntimePackage {
     if ([string]$modConfig.ModId -cne 'ff7.accessibility.reloaded') {
         throw 'Package validation failed: ModConfig.json has an unexpected ModId.'
     }
-    if ([string]$modConfig.ModVersion -cne '0.1.7') {
+    if ([string]$modConfig.ModVersion -cne '0.1.8') {
         throw 'Package validation failed: ModConfig.json has an unexpected ModVersion.'
     }
 

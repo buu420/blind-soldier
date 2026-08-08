@@ -150,6 +150,7 @@ internal sealed class Steam2026ResearchSession : IDisposable
         Steam2026FieldFootstepNavigationProbe? fieldFootstepNavigationProbe = null;
         Steam2026BattleRendererHookSet? battleRendererHookSet = null;
         Steam2026BattleAccessibilityCoordinator? battleAccessibilityCoordinator = null;
+        Steam2026BattleStatusHotkeyReader? battleStatusHotkeyReader = null;
         var hooksPermanentlyDisabled = false;
         var nativeSystemMenuHooksPermanentlyDisabled = false;
         var fieldMessageHooksPermanentlyDisabled = false;
@@ -165,6 +166,7 @@ internal sealed class Steam2026ResearchSession : IDisposable
         var shopMenuSpeechTracker = new ShopMenuSpeechTracker();
         var dialogueIngressSequencer = new Steam2026DialogueIngressSequencer();
         var battleOptions = CreateBattleOptions(config);
+        var battleStatusHotkeyController = new BattleStatusHotkeyController();
         var foregroundInput = Steam2026ForegroundInputAdapter.CreateCurrentProcess(fingerprint);
         var navigationProgressController = new NavigationProgressController(
             config.EnableNavigationProgressIndicators,
@@ -362,6 +364,7 @@ internal sealed class Steam2026ResearchSession : IDisposable
                     battleRendererHookSet?.Dispose();
                     battleRendererHookSet = null;
                     battleAccessibilityCoordinator?.Reset();
+                    battleStatusHotkeyController.Reset();
                     footstepCoordinator?.Reset();
                     fieldFootstepNavigationProbe?.ResetCorrelation();
                     dispatcher.Cleanup("during native x64 research reset");
@@ -459,6 +462,8 @@ internal sealed class Steam2026ResearchSession : IDisposable
                             new Steam2026FieldDialogueObservationReader(sharedFieldAddressSpace);
                         var candidateFieldZoneSpeechCoordinator =
                             new Steam2026FieldZoneSpeechCoordinator(sharedFieldAddressSpace);
+                        var candidateBattleStatusHotkeyReader =
+                            new Steam2026BattleStatusHotkeyReader(sharedFieldAddressSpace);
                         var candidateFieldObjectReader =
                             new Steam2026FieldObjectObservationReader(
                                 sharedFieldAddressSpace,
@@ -524,6 +529,7 @@ internal sealed class Steam2026ResearchSession : IDisposable
                         cutsceneDescriptions = candidateCutsceneDescriptions;
                         cutsceneDialogueProbe = candidateCutsceneDialogueProbe;
                         fieldZoneSpeechCoordinator = candidateFieldZoneSpeechCoordinator;
+                        battleStatusHotkeyReader = candidateBattleStatusHotkeyReader;
                         fieldObjectReader = candidateFieldObjectReader;
                         fieldNavigationCoordinator?.Dispose();
                         fieldNavigationCoordinator = candidateFieldNavigation;
@@ -1120,6 +1126,58 @@ internal sealed class Steam2026ResearchSession : IDisposable
                     }
 
                     Steam2026NavigationProbeSnapshot? navigationProbeSnapshot = null;
+                    // Battle status owns L before suspended field navigation samples
+                    // the shared U/O/J/L/K/I key set later in this frame.
+                    try
+                    {
+                        var battleQueryActive = false;
+                        var battleQueryReadable = battleStatusHotkeyReader is not null
+                            && battleStatusHotkeyReader.TryReadBattleQueryActive(
+                                out battleQueryActive);
+                        var ownsBattleStatusHotkeys = config.EnableSpeech
+                            && lifecycle is
+                            {
+                                IsForeground: true,
+                                IsShuttingDown: false,
+                                ModuleId: BattleStateReader.BattleModule
+                            }
+                            && battleQueryReadable
+                            && battleQueryActive;
+                        var statusSpeech =
+                            Steam2026FrameInputOwnership.PollBattleStatusBeforeNavigation(
+                                battleStatusHotkeyController,
+                                ownsBattleStatusHotkeys,
+                                lifecycle?.ModuleId ?? -1,
+                                lifecycle?.ModuleId switch
+                                {
+                                    FieldPositionReader.FieldModule =>
+                                        fieldNavigationCoordinator is not null,
+                                    WorldMapStateReader.WorldModule =>
+                                        worldMapAccessibilityCoordinator is not null,
+                                    _ => false
+                                },
+                                foregroundInput,
+                                slot => battleStatusHotkeyReader?.ReadMember(slot),
+                                resetSelectionWhenInactive:
+                                    battleQueryReadable && !battleQueryActive);
+                        if (!string.IsNullOrWhiteSpace(statusSpeech))
+                        {
+                            output.Speak(statusSpeech, interrupt: true);
+                            log(
+                                $"Native Steam 2026 battle status hotkey: "
+                                + $"slot={battleStatusHotkeyController.SelectedPartySlot + 1}, "
+                                + $"text={statusSpeech}");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        LogRuntimeFault(
+                            $"Native battle status hotkey failed: {ex.Message}",
+                            now,
+                            ref lastRuntimeFault,
+                            ref lastRuntimeFaultLogUtc);
+                    }
+
                     try
                     {
                         worldMapAccessibilityCoordinator?.Observe(frame, now);
@@ -1630,6 +1688,23 @@ internal sealed class Steam2026ResearchSession : IDisposable
                         titleLoadMenuBridge?.SetOwnership(false);
                         titleLoadMenuBridge?.ResetIngress();
                         nameEntryPromptSpeechCoordinator.Reset();
+                    }
+                }
+                else
+                {
+                    try
+                    {
+                        Steam2026FrameInputOwnership.SynchronizeBattleStatusWithoutFrame(
+                            battleStatusHotkeyController,
+                            foregroundInput);
+                    }
+                    catch (Exception ex)
+                    {
+                        LogRuntimeFault(
+                            $"Native battle status input synchronization failed: {ex.Message}",
+                            now,
+                            ref lastRuntimeFault,
+                            ref lastRuntimeFaultLogUtc);
                     }
                 }
 
