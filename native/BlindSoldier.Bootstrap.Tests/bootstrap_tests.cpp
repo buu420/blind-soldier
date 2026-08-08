@@ -22,6 +22,39 @@ using namespace blind_soldier;
 static const wchar_t* kLaunchId =
     L"01234567-89ab-cdef-0123-456789abcdef";
 
+static int RunDelayedModuleChild(int argumentCount, wchar_t** arguments) {
+    if (argumentCount != 5) return 110;
+    HANDLE load = OpenEventW(SYNCHRONIZE, FALSE, arguments[2]);
+    HANDLE ready = OpenEventW(EVENT_MODIFY_STATE, FALSE, arguments[3]);
+    HANDLE release = OpenEventW(SYNCHRONIZE, FALSE, arguments[4]);
+    if (!load || !ready || !release) {
+        if (load) CloseHandle(load);
+        if (ready) CloseHandle(ready);
+        if (release) CloseHandle(release);
+        return 111;
+    }
+    if (!SetEvent(ready) || WaitForSingleObject(load, 5000) != WAIT_OBJECT_0) {
+        CloseHandle(release);
+        CloseHandle(ready);
+        CloseHandle(load);
+        return 112;
+    }
+    Sleep(75);
+    HMODULE module = LoadLibraryW(L"winhttp.dll");
+    if (!module) {
+        CloseHandle(release);
+        CloseHandle(ready);
+        CloseHandle(load);
+        return 113;
+    }
+    DWORD wait = WaitForSingleObject(release, 5000);
+    FreeLibrary(module);
+    CloseHandle(release);
+    CloseHandle(ready);
+    CloseHandle(load);
+    return wait == WAIT_OBJECT_0 ? 0 : 114;
+}
+
 static fs::path NewTestRoot(const wchar_t* suffix) {
     fs::path root = fs::temp_directory_path() /
         (L"blind-soldier-bootstrap-tests-" +
@@ -384,10 +417,74 @@ static void CheckPidPathDisagreement() {
 #endif
 }
 
+static void CheckDelayedModuleReadiness() {
+    fs::path root = NewTestRoot(L"module-readiness");
+    Logger log;
+    log.Open(root, L"module-readiness.log");
+    const std::wstring suffix = std::to_wstring(GetCurrentProcessId()) +
+        L"." + std::to_wstring(GetTickCount64());
+    const std::wstring loadName =
+        L"Local\\BlindSoldier.Bootstrap.Tests.Load." + suffix;
+    const std::wstring readyName =
+        L"Local\\BlindSoldier.Bootstrap.Tests.Ready." + suffix;
+    const std::wstring releaseName =
+        L"Local\\BlindSoldier.Bootstrap.Tests.Release." + suffix;
+    HANDLE load = CreateEventW(nullptr, TRUE, FALSE, loadName.c_str());
+    HANDLE ready = CreateEventW(nullptr, TRUE, FALSE, readyName.c_str());
+    HANDLE release = CreateEventW(nullptr, TRUE, FALSE, releaseName.c_str());
+    CHECK(load != nullptr);
+    CHECK(ready != nullptr);
+    CHECK(release != nullptr);
+
+    const fs::path self = SelfPath();
+    std::wstring command = L"\"" + self.wstring() +
+        L"\" --delayed-module-child \"" + loadName + L"\" \"" +
+        readyName + L"\" \"" + releaseName + L"\"";
+    std::vector<wchar_t> commandLine(command.begin(), command.end());
+    commandLine.push_back(L'\0');
+    STARTUPINFOW startup{sizeof(startup)};
+    PROCESS_INFORMATION child{};
+    CHECK(CreateProcessW(self.c_str(), commandLine.data(), nullptr, nullptr,
+                         FALSE, CREATE_NO_WINDOW, nullptr,
+                         self.parent_path().c_str(), &startup, &child));
+    CloseHandle(child.hThread);
+    CHECK(WaitForSingleObject(ready, 5000) == WAIT_OBJECT_0);
+
+    LPVOID beforeLoad = WaitForRemoteModuleBase(
+        child.hProcess, child.dwProcessId, L"winhttp.dll", 0, log);
+    std::thread trigger([load]() {
+        Sleep(100);
+        SetEvent(load);
+    });
+    LPVOID afterLoad = WaitForRemoteModuleBase(
+        child.hProcess, child.dwProcessId, L"winhttp.dll", 2000, log);
+    trigger.join();
+    SetEvent(release);
+    DWORD childWait = WaitForSingleObject(child.hProcess, 5000);
+    DWORD childExit = STILL_ACTIVE;
+    if (childWait == WAIT_OBJECT_0)
+        GetExitCodeProcess(child.hProcess, &childExit);
+    CloseHandle(child.hProcess);
+    CloseHandle(release);
+    CloseHandle(ready);
+    CloseHandle(load);
+    log.Close();
+    fs::remove_all(root);
+
+    CHECK(beforeLoad == nullptr);
+    CHECK(afterLoad != nullptr);
+    CHECK(childWait == WAIT_OBJECT_0);
+    CHECK(childExit == 0);
+}
+
 int wmain(int argumentCount, wchar_t** arguments) {
     if (argumentCount > 1 &&
         wcscmp(arguments[1], L"--prove-check-failure") == 0) {
         CHECK(false);
+    }
+    if (argumentCount > 1 &&
+        wcscmp(arguments[1], L"--delayed-module-child") == 0) {
+        return RunDelayedModuleChild(argumentCount, arguments);
     }
     CheckParseFailures();
     CheckParserPreservesQuotedValues();
@@ -398,6 +495,7 @@ int wmain(int argumentCount, wchar_t** arguments) {
     CheckPrivateDotNetEnvironment();
     CheckRunBoundaryRejectsInvalidArchitectureAndEscapes();
     CheckPidPathDisagreement();
+    CheckDelayedModuleReadiness();
     fwprintf(stdout, L"Blind Soldier bootstrap tests passed.\n");
     return 0;
 }

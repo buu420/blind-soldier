@@ -15,6 +15,10 @@ enum class InjectResult {
     LoadLibraryFailed
 };
 
+LPVOID WaitForRemoteModuleBase(HANDLE process, DWORD processId,
+                               const std::wstring& moduleName,
+                               DWORD timeoutMilliseconds, Logger& log);
+
 InjectResult InjectDll(HANDLE process, DWORD processId,
                        const std::wstring& dllPath,
                        DWORD timeoutMilliseconds, Logger& log);

@@ -128,6 +128,25 @@ Describe 'Blind Soldier native bootstrap workflow' {
         $allBootstrap | Should Not Match 'run an installer'
     }
 
+    It 'waits for the resumed target module list to become ready' {
+        $process = [IO.File]::ReadAllText($bootstrapProcess)
+        $process | Should Match 'LPVOID WaitForRemoteModuleBase'
+        $process | Should Match (
+            'for\s*\(\s*;;\s*\)\s*\{[\s\S]*?' +
+            'WaitForSingleObject\(process,\s*0\)')
+        $process | Should Match (
+            'for\s*\(\s*;;\s*\)\s*\{[\s\S]*?' +
+            'CreateToolhelp32Snapshot[\s\S]*?CloseHandle\(snapshot\)' +
+            '[\s\S]*?Sleep\(10\)')
+        $process | Should Match 'ERROR_BAD_LENGTH'
+        $process | Should Match 'ERROR_PARTIAL_COPY'
+        $process | Should Match (
+            'WaitForRemoteModuleBase\(\s*process,\s*processId,' +
+            '[\s\S]*?5000,\s*log\)')
+        $process | Should Match 'Timed out waiting for remote module'
+        $process | Should Match 'Target exited while waiting for remote module'
+    }
+
     It 'uses static runtimes and architecture-specific broker names' {
         $project = [IO.File]::ReadAllText($bootstrapProject)
         $project | Should Match 'Blind-Soldier-Bootstrap-x86'

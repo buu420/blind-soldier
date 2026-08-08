@@ -65,42 +65,8 @@ private:
     bool applied_ = false;
 };
 
-LPVOID FindRemoteModuleBase(DWORD processId,
-                            const std::wstring& moduleName,
-    Logger& log) {
-    HANDLE snapshot = INVALID_HANDLE_VALUE;
-    DWORD snapshotError = ERROR_SUCCESS;
-    for (int attempt = 0; attempt < 500; ++attempt) {
-        snapshot = CreateToolhelp32Snapshot(
-            TH32CS_SNAPMODULE | TH32CS_SNAPMODULE32, processId);
-        if (snapshot != INVALID_HANDLE_VALUE) break;
-        snapshotError = GetLastError();
-        if (snapshotError != ERROR_BAD_LENGTH &&
-            snapshotError != ERROR_PARTIAL_COPY) break;
-        Sleep(10);
-    }
-    if (snapshot == INVALID_HANDLE_VALUE) {
-        log.Err(L"FindRemoteModuleBase: CreateToolhelp32Snapshot",
-                snapshotError);
-        return nullptr;
-    }
-    MODULEENTRY32W entry{};
-    entry.dwSize = sizeof(entry);
-    LPVOID result = nullptr;
-    if (Module32FirstW(snapshot, &entry)) {
-        do {
-            if (_wcsicmp(entry.szModule, moduleName.c_str()) == 0) {
-                result = entry.modBaseAddr;
-                break;
-            }
-        } while (Module32NextW(snapshot, &entry));
-    }
-    CloseHandle(snapshot);
-    if (!result) log.W(L"Remote module not found: " + moduleName);
-    return result;
-}
-
-LPTHREAD_START_ROUTINE ResolveRemoteLoadLibraryW(DWORD processId,
+LPTHREAD_START_ROUTINE ResolveRemoteLoadLibraryW(HANDLE process,
+                                                  DWORD processId,
                                                   Logger& log) {
     HMODULE kernel32 = GetModuleHandleW(L"kernel32.dll");
     FARPROC loadLibrary = kernel32
@@ -127,8 +93,8 @@ LPTHREAD_START_ROUTINE ResolveRemoteLoadLibraryW(DWORD processId,
         return nullptr;
     }
     fs::path owner(path.data(), path.data() + length);
-    LPVOID remoteBase = FindRemoteModuleBase(
-        processId, owner.filename().wstring(), log);
+    LPVOID remoteBase = WaitForRemoteModuleBase(
+        process, processId, owner.filename().wstring(), 5000, log);
     if (!remoteBase) return nullptr;
     uintptr_t relative = reinterpret_cast<uintptr_t>(loadLibrary) -
                          reinterpret_cast<uintptr_t>(localOwner);
@@ -233,6 +199,84 @@ BootstrapExitCode ValidateHostFile(
 
 }  // namespace
 
+LPVOID WaitForRemoteModuleBase(HANDLE process, DWORD processId,
+                               const std::wstring& moduleName,
+                               DWORD timeoutMilliseconds, Logger& log) {
+    const ULONGLONG started = GetTickCount64();
+    DWORD snapshotError = ERROR_SUCCESS;
+    DWORD enumerationError = ERROR_SUCCESS;
+    unsigned int attempts = 0;
+    for (;;) {
+        ++attempts;
+        DWORD targetState = WaitForSingleObject(process, 0);
+        if (targetState == WAIT_OBJECT_0) {
+            log.W(L"Target exited while waiting for remote module: " +
+                  moduleName);
+            return nullptr;
+        }
+        if (targetState == WAIT_FAILED) {
+            log.Err(L"WaitForRemoteModuleBase: WaitForSingleObject",
+                    GetLastError());
+            return nullptr;
+        }
+        if (targetState != WAIT_TIMEOUT) {
+            log.W(L"Unexpected target wait state while waiting for remote "
+                  L"module: " + std::to_wstring(targetState));
+            return nullptr;
+        }
+
+        HANDLE snapshot = CreateToolhelp32Snapshot(
+            TH32CS_SNAPMODULE | TH32CS_SNAPMODULE32, processId);
+        if (snapshot == INVALID_HANDLE_VALUE) {
+            snapshotError = GetLastError();
+            if (snapshotError != ERROR_BAD_LENGTH &&
+                snapshotError != ERROR_PARTIAL_COPY) {
+                log.Err(L"WaitForRemoteModuleBase: "
+                        L"CreateToolhelp32Snapshot", snapshotError);
+                return nullptr;
+            }
+        } else {
+            snapshotError = ERROR_SUCCESS;
+            enumerationError = ERROR_SUCCESS;
+            MODULEENTRY32W entry{};
+            entry.dwSize = sizeof(entry);
+            LPVOID result = nullptr;
+            if (Module32FirstW(snapshot, &entry)) {
+                do {
+                    if (_wcsicmp(entry.szModule, moduleName.c_str()) == 0) {
+                        result = entry.modBaseAddr;
+                        break;
+                    }
+                } while (Module32NextW(snapshot, &entry));
+                if (!result) enumerationError = GetLastError();
+            } else {
+                enumerationError = GetLastError();
+            }
+            CloseHandle(snapshot);
+            if (result) return result;
+        }
+        const ULONGLONG elapsed = GetTickCount64() - started;
+        if (elapsed >= timeoutMilliseconds) {
+            std::wstring diagnostic =
+                L"Timed out waiting for remote module: " + moduleName +
+                L"; attempts=" + std::to_wstring(attempts) +
+                L"; elapsed_ms=" + std::to_wstring(elapsed);
+            if (snapshotError != ERROR_SUCCESS) {
+                diagnostic += L"; snapshot_error=" +
+                    std::to_wstring(snapshotError);
+            }
+            if (enumerationError != ERROR_SUCCESS &&
+                enumerationError != ERROR_NO_MORE_FILES) {
+                diagnostic += L"; enumeration_error=" +
+                    std::to_wstring(enumerationError);
+            }
+            log.W(diagnostic);
+            return nullptr;
+        }
+        Sleep(10);
+    }
+}
+
 InjectResult InjectDll(HANDLE process, DWORD processId,
                        const std::wstring& dllPath,
                        DWORD timeoutMilliseconds, Logger& log) {
@@ -249,7 +293,7 @@ InjectResult InjectDll(HANDLE process, DWORD processId,
         return InjectResult::WriteFailed;
     }
     LPTHREAD_START_ROUTINE loadLibrary =
-        ResolveRemoteLoadLibraryW(processId, log);
+        ResolveRemoteLoadLibraryW(process, processId, log);
     if (!loadLibrary) {
         VirtualFreeEx(process, remote, 0, MEM_RELEASE);
         return InjectResult::ResolveFailed;

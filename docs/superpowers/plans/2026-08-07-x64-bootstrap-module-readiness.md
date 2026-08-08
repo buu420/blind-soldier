@@ -28,15 +28,15 @@
 - Produces: `LPVOID WaitForRemoteModuleBase(HANDLE process, DWORD processId, const std::wstring& moduleName, DWORD timeoutMilliseconds, Logger& log)`.
 - Consumes: Windows process handles, process IDs, event handles, and `Logger`.
 
-- [ ] **Step 1: Expose the current lookup through the wished-for readiness helper**
+- [x] **Step 1: Expose the current lookup through the wished-for readiness helper**
 
 Add the exact signature above to `process_bootstrap.h` and move the existing one-shot lookup behind it without changing its behavior. Rebuild and run the existing behavior test first to verify this is a behavior-preserving refactor. This gives the delayed-load test a real production seam while ensuring its RED result is a behavioral failure rather than an unresolved-symbol build error.
 
-- [ ] **Step 2: Write the delayed-load child-process test**
+- [x] **Step 2: Write the delayed-load child-process test**
 
 Add a child mode that waits on a named event, sleeps briefly, calls `LoadLibraryW` for a module not linked by the test executable, and remains alive until a release event. In the parent, create the events, start the child, begin `WaitForRemoteModuleBase`, signal the load event from a short-delay thread, assert a non-null base, then release and join the child.
 
-- [ ] **Step 3: Run the x64 behavior test and verify RED**
+- [x] **Step 3: Run the x64 behavior test and verify RED**
 
 Run a sanitized-path MSBuild rebuild of `native/BlindSoldier.Bootstrap.Tests/BlindSoldier.Bootstrap.Tests.vcxproj` for `Release|x64`, then run the executable.
 
@@ -52,27 +52,27 @@ Expected: the new delayed-module assertion fails because the current implementat
 - Consumes: the `WaitForRemoteModuleBase` declaration from Task 1.
 - Produces: a lookup that returns the remote base when found and `nullptr` only on process exit, non-retryable failure, or timeout.
 
-- [ ] **Step 1: Move lookup into the declared helper**
+- [x] **Step 1: Move lookup into the declared helper**
 
 For each attempt, check `WaitForSingleObject(process, 0)`, create a new `TH32CS_SNAPMODULE | TH32CS_SNAPMODULE32` snapshot, enumerate with `Module32FirstW` and `Module32NextW`, close the snapshot, and return immediately when `_wcsicmp` matches.
 
-- [ ] **Step 2: Add bounded retry and diagnostics**
+- [x] **Step 2: Add bounded retry and diagnostics**
 
 Use `GetTickCount64` to enforce `timeoutMilliseconds`; sleep 10 milliseconds between attempts. Retry absent modules plus `ERROR_BAD_LENGTH` and `ERROR_PARTIAL_COPY`, while logging and returning immediately for other snapshot errors.
 
-- [ ] **Step 3: Pass the process handle through resolution**
+- [x] **Step 3: Pass the process handle through resolution**
 
 Change `ResolveRemoteLoadLibraryW` to accept `HANDLE process` and call `WaitForRemoteModuleBase(process, processId, owner.filename().wstring(), 5000, log)`. Update `InjectDll` to pass its existing process handle.
 
-- [ ] **Step 4: Strengthen the source contract**
+- [x] **Step 4: Strengthen the source contract**
 
 Assert in `BlindSoldier.Native.Tests.ps1` that the source includes the readiness helper, target-exit check, fresh-snapshot loop, 10-millisecond retry interval, and 5000-millisecond production timeout.
 
-- [ ] **Step 5: Run GREEN verification**
+- [x] **Step 5: Run GREEN verification**
 
 Rebuild and run the behavior tests in Win32 and x64, then run the native Pester suite. Expected: bootstrap behavior and build tests pass in both architectures; the pre-existing protected-registry installer test may require elevation and must be reported separately if the environment denies it.
 
-- [ ] **Step 6: Commit the focused fix**
+- [x] **Step 6: Commit the focused fix**
 
 Stage only the bootstrap source, header, native behavior test, source contract, design, and plan. Commit with `fix: wait for target module readiness`.
 
