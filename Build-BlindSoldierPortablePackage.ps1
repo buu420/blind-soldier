@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory=$true)] [string] $OutputPath,
-    [string] $Version = '0.1.8',
+    [string] $Version = '0.1.9',
     [string] $PrerequisiteBundlePath,
     [string] $ModPackagePath,
     [string] $BootstrapBinaryPath,
@@ -546,16 +546,22 @@ try {
     $cleanupAssetRoot = Join-Path $scriptRoot 'portable-assets'
     $cleanupCommand = Join-Path $cleanupAssetRoot `
         'Remove-Amethyst-Registry-Entries.cmd'
+    $automaticCleanupCommand = Join-Path $cleanupAssetRoot `
+        'Remove-AmethystRegistryEntries-Automatic.cmd'
     $cleanupScript = Join-Path $cleanupAssetRoot `
         'Remove-AmethystRegistryEntries.ps1'
     [void](Assert-File -Path $cleanupCommand `
         -Label 'Amethyst registry cleanup command')
     [void](Assert-File -Path $cleanupScript `
         -Label 'Amethyst registry cleanup implementation')
+    [void](Assert-File -Path $automaticCleanupCommand `
+        -Label 'Automatic Amethyst registry cleanup command')
     Copy-Item -LiteralPath $cleanupCommand -Destination (Join-Path $root `
         'Remove-Amethyst-Registry-Entries.cmd')
     $cleanupTarget = Join-Path $root 'Blind-Soldier\Tools'
     New-Item -ItemType Directory -Path $cleanupTarget -Force | Out-Null
+    Copy-Item -LiteralPath $automaticCleanupCommand -Destination (Join-Path `
+        $cleanupTarget 'Remove-AmethystRegistryEntries-Automatic.cmd')
     Copy-Item -LiteralPath $cleanupScript -Destination (Join-Path $cleanupTarget `
         'Remove-AmethystRegistryEntries.ps1')
 
@@ -569,7 +575,7 @@ No installer is required. No administrator access, registry change, or separate 
 
 Supported layouts
 - Steam 2026 x64: extract beside FFVII.exe and FFVII_LAUNCHER.exe. Use Steam or the included accessible launcher. Its Play button starts the packaged x64 accessibility bootstrap automatically.
-- Legacy or converted x86: extract beside ff7_en.exe or ff7.exe. The matching .local\version.dll forwards the game's normal Version APIs and starts accessibility.
+- Stock Steam 2013 without 7th Heaven: use the Blind Soldier (2013) Accessibility Mod Manager entry. Its game-specific package installs the x86 Version proxy directly beside ff7_en.exe.
 - Stock 7th Heaven x86: extract at the directory that contains workingdir, or at the Steam root that contains ff7\workingdir. Blind Soldier's sibling workingdir\version.dll starts accessibility when FFNx loads it; no file in the 7th Heaven installation is replaced or edited.
 - 7th Heaven nested x86: extract at the Steam 2026 root. The copies under ff7\workingdir support 7th Heaven's converted game layout.
 

@@ -48,6 +48,27 @@ void MakeComplete(const fs::path& root) {
     }
 }
 
+bool CreateJunction(const fs::path& link, const fs::path& target) {
+    std::wstring command = L"cmd.exe /d /c mklink /J \"" +
+        link.wstring() + L"\" \"" + target.wstring() + L"\" >nul";
+    std::vector<wchar_t> commandLine(command.begin(), command.end());
+    commandLine.push_back(L'\0');
+    STARTUPINFOW startup{};
+    startup.cb = sizeof(startup);
+    PROCESS_INFORMATION process{};
+    if (!CreateProcessW(nullptr, commandLine.data(), nullptr, nullptr, FALSE,
+                        CREATE_NO_WINDOW, nullptr, nullptr, &startup,
+                        &process)) {
+        return false;
+    }
+    WaitForSingleObject(process.hProcess, INFINITE);
+    DWORD exitCode = ERROR_GEN_FAILURE;
+    GetExitCodeProcess(process.hProcess, &exitCode);
+    CloseHandle(process.hThread);
+    CloseHandle(process.hProcess);
+    return exitCode == 0;
+}
+
 struct TempTree {
     explicit TempTree(const wchar_t* label) : root(NewTempRoot(label)) {
         fs::create_directories(root);
@@ -162,6 +183,31 @@ void TestRootDiscovery() {
         Check(fs::equivalent(DeriveDiagnosticRoot(context.proxyModule),
                              tree.root),
               "nested sibling version diagnostic root");
+    }
+    {
+        TempTree target(L"mapped-target");
+        TempTree aliases(L"mapped-alias");
+        MakeComplete(target.root);
+        const fs::path visibleRoot = aliases.root / L"game-drive";
+        const bool linked = CreateJunction(visibleRoot, target.root);
+        Check(linked, "mapped-path fixture created");
+        if (linked) {
+            const auto context = MakeSiblingContext(
+                visibleRoot, L"ff7_en.exe");
+            fs::path root;
+            std::wstring diagnostic;
+            const bool discovered = DiscoverPortableRoot(
+                context.proxyModule, context.processImage,
+                IsCompletePortableRoot, root, diagnostic);
+            Check(discovered, "mapped-path sibling root discovered");
+            if (discovered) {
+                Check(root.lexically_normal() ==
+                          visibleRoot.lexically_normal(),
+                      "mapped-path alias preserved for Reloaded");
+            }
+            std::error_code error;
+            fs::remove(visibleRoot, error);
+        }
     }
     {
         TempTree tree(L"direct");

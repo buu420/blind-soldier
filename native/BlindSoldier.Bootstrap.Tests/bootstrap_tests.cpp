@@ -87,6 +87,27 @@ static void CopySelf(const fs::path& path) {
     CHECK(!error);
 }
 
+static bool CreateJunction(const fs::path& link, const fs::path& target) {
+    std::wstring command = L"cmd.exe /d /c mklink /J \"" +
+        link.wstring() + L"\" \"" + target.wstring() + L"\" >nul";
+    std::vector<wchar_t> commandLine(command.begin(), command.end());
+    commandLine.push_back(L'\0');
+    STARTUPINFOW startup{};
+    startup.cb = sizeof(startup);
+    PROCESS_INFORMATION process{};
+    if (!CreateProcessW(nullptr, commandLine.data(), nullptr, nullptr, FALSE,
+                        CREATE_NO_WINDOW, nullptr, nullptr, &startup,
+                        &process)) {
+        return false;
+    }
+    WaitForSingleObject(process.hProcess, INFINITE);
+    DWORD exitCode = ERROR_GEN_FAILURE;
+    GetExitCodeProcess(process.hProcess, &exitCode);
+    CloseHandle(process.hThread);
+    CloseHandle(process.hProcess);
+    return exitCode == 0;
+}
+
 static BootstrapRequest Parse(const std::vector<std::wstring>& arguments) {
     BootstrapRequest request{};
     std::wstring error;
@@ -327,6 +348,41 @@ static void CheckPayloadValidation() {
     fs::remove_all(root);
 }
 
+static void CheckPayloadValidationPreservesVisibleRoot() {
+    fs::path target = NewTestRoot(L"payload-alias-target");
+    fs::path aliases = NewTestRoot(L"payload-alias-container");
+    fs::path visibleRoot = aliases / L"mapped-game-root";
+#ifdef _WIN64
+    constexpr auto architecture = ExpectedHostArchitecture::X64;
+    const wchar_t* gameName = L"FFVII.exe";
+#else
+    constexpr auto architecture = ExpectedHostArchitecture::X86;
+    const wchar_t* gameName = L"ff7_en.exe";
+#endif
+    PopulatePayload(target, architecture);
+    CopySelf(target / gameName);
+    CHECK(CreateJunction(visibleRoot, target));
+
+    BootstrapRequest request{};
+    request.packageRoot = visibleRoot;
+    request.gameExecutable = visibleRoot / gameName;
+    Logger log;
+    log.Open(target / L"Blind-Soldier" / L"Logs", L"alias.log");
+    ValidatedPayload payload;
+    CHECK(ValidatePortablePayload(request, architecture, payload, log,
+                                  false));
+    CHECK(payload.packageRoot.lexically_normal() ==
+          visibleRoot.lexically_normal());
+    CHECK(payload.reloadedRoot.lexically_normal() ==
+          (visibleRoot / L"Reloaded-II").lexically_normal());
+    log.Close();
+
+    std::error_code error;
+    fs::remove(visibleRoot, error);
+    fs::remove_all(aliases, error);
+    fs::remove_all(target, error);
+}
+
 static std::wstring ReadEnvironment(const wchar_t* name) {
     DWORD required = GetEnvironmentVariableW(name, nullptr, 0);
     if (required == 0) return {};
@@ -492,6 +548,7 @@ int wmain(int argumentCount, wchar_t** arguments) {
     CheckLoggerAppendsWithOneBom();
     CheckLeaseTimeoutAndAcquisitionAfterRelease();
     CheckPayloadValidation();
+    CheckPayloadValidationPreservesVisibleRoot();
     CheckPrivateDotNetEnvironment();
     CheckRunBoundaryRejectsInvalidArchitectureAndEscapes();
     CheckPidPathDisagreement();

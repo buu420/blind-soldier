@@ -37,7 +37,7 @@ instead of reading unverified game memory.
 ## Installation
 
 Download
-[Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.1.8/Blind-Soldier-Portable.zip)
+[Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.1.9/Blind-Soldier-Portable.zip)
 from the [Blind Soldier Releases page](https://github.com/buu420/blind-soldier/releases).
 
 1. Close Final Fantasy VII and 7th Heaven.
@@ -46,10 +46,12 @@ from the [Blind Soldier Releases page](https://github.com/buu420/blind-soldier/r
 3. Start the game normally from Steam or 7th Heaven.
 
 There is no installer to run, no administrator prompt, and no registry change.
-The archive supports a legacy x86 folder, a Steam 2026 x64 folder, a combined
-folder, stock 7th Heaven's sibling `workingdir` layout, and 7th Heaven's nested
-`ff7\workingdir` layout. Blind Soldier does not replace or edit any file in the
-7th Heaven installation. Never run either file under `Blind-Soldier\Bootstrap`
+The archive supports Steam 2026 x64, stock 7th Heaven's sibling `workingdir`
+layout, and 7th Heaven's nested `ff7\workingdir` layout. For stock Steam 2013
+without 7th Heaven, use the **Blind Soldier (2013)** entry in Accessibility Mod
+Manager. Its game-specific package installs the x86 bootstrap proxy directly
+beside `ff7_en.exe`. Blind Soldier does not replace or edit any file in the 7th
+Heaven installation. Never run either file under `Blind-Soldier\Bootstrap`
 yourself.
 
 > [!WARNING]
@@ -86,8 +88,9 @@ release does not ship a Windows system DLL.
   7th Heaven manages the normal FFNx installation for that converted game. Blind
   Soldier never ships or overwrites FFNx files, and its compatibility path does
   not modify the stock 7th Heaven application.
-- **Legacy x86 without 7th Heaven:** launch the legacy game normally. The
-  executable-specific `.local\version.dll` proxy loads the accessibility backend.
+- **Legacy x86 without 7th Heaven:** install the **Blind Soldier (2013)**
+  mod-manager entry, then launch the legacy game normally. Its sibling
+  `version.dll` loads the accessibility backend without a registry change.
 
 On a successful load, Prism announces that Final Fantasy VII accessibility is
 active.
@@ -101,10 +104,10 @@ Visual Studio C++ Build Tools, and PowerShell, then run:
 ```powershell
 .\Build-BlindSoldierPortablePackage.ps1 `
   -OutputPath .\artifacts\Blind-Soldier-Portable.zip `
-  -Version 0.1.8
+  -Version 0.1.9
 .\Verify-BlindSoldierPortablePackage.ps1 `
   -ArchivePath .\artifacts\Blind-Soldier-Portable.zip `
-  -ExpectedVersion 0.1.8
+  -ExpectedVersion 0.1.9
 ```
 
 The builder compiles the launcher, x86/x64 brokers, and x86 Version proxy from source,

@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory=$true)] [string] $ArchivePath,
-    [string] $ExpectedVersion = '0.1.8'
+    [string] $ExpectedVersion = '0.1.9'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -50,6 +50,7 @@ $required = @(
     'LICENSES/Reloaded-II-1.30.3-Blind-Soldier-source.md',
     'LICENSES/Reloaded-II-1.30.3-hostfxr.patch',
     'Remove-Amethyst-Registry-Entries.cmd',
+    'Blind-Soldier/Tools/Remove-AmethystRegistryEntries-Automatic.cmd',
     'Blind-Soldier/Tools/Remove-AmethystRegistryEntries.ps1',
     'README-PORTABLE.txt',
     'portable-manifest.json'
@@ -426,6 +427,10 @@ try {
         [pscustomobject]@{
             Source = 'portable-assets\Remove-AmethystRegistryEntries.ps1'
             Packaged = 'Blind-Soldier\Tools\Remove-AmethystRegistryEntries.ps1'
+        },
+        [pscustomobject]@{
+            Source = 'portable-assets\Remove-AmethystRegistryEntries-Automatic.cmd'
+            Packaged = 'Blind-Soldier\Tools\Remove-AmethystRegistryEntries-Automatic.cmd'
         }
     )) {
         $sourcePath = Join-Path $PSScriptRoot $cleanup.Source

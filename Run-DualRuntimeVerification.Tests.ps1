@@ -102,9 +102,9 @@ Describe 'Blind Soldier aggregate portable release gate' {
             $verify = @($invocations | Where-Object Name -CEQ `
                 'PortablePackage.Verify')[0]
             $build.Arguments[([array]::IndexOf($build.Arguments,'-Version') + 1)] |
-                Should Be '0.1.8'
+                Should Be '0.1.9'
             $verify.Arguments[([array]::IndexOf($verify.Arguments,
-                '-ExpectedVersion') + 1)] | Should Be '0.1.8'
+                '-ExpectedVersion') + 1)] | Should Be '0.1.9'
             $ghidra = @($invocations | Where-Object {
                 $_.Name -ceq 'Ghidra.NativeEvidence'
             })[0]

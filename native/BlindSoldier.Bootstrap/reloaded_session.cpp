@@ -238,14 +238,24 @@ bool ValidatePortablePayload(
     bool writeAppConfig) {
     payload = {};
     std::error_code error;
+    fs::path visibleRoot = fs::absolute(request.packageRoot, error);
+    if (error || visibleRoot.empty()) {
+        log.W(L"ValidatePortablePayload: package root cannot be made absolute: " +
+              request.packageRoot.wstring());
+        return false;
+    }
+    visibleRoot = visibleRoot.lexically_normal();
     fs::path canonicalRoot = fs::canonical(request.packageRoot, error);
     if (error || !fs::is_directory(canonicalRoot, error)) {
         log.W(L"ValidatePortablePayload: package root is unavailable: " +
               request.packageRoot.wstring());
         return false;
     }
-    payload.packageRoot = canonicalRoot;
-    payload.reloadedRoot = canonicalRoot / L"Reloaded-II";
+    // Retain the caller-visible alias after canonical validation. In
+    // particular, Reloaded's native directory scanner can enumerate X:\ paths
+    // on a mapped share, but not the UNC path returned by fs::canonical.
+    payload.packageRoot = visibleRoot;
+    payload.reloadedRoot = visibleRoot / L"Reloaded-II";
     const wchar_t* loaderArch = architecture == ExpectedHostArchitecture::X86
         ? L"X86" : L"X64";
     const wchar_t* modArch = architecture == ExpectedHostArchitecture::X86

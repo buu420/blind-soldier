@@ -343,16 +343,29 @@ bool DiscoverPortableRoot(
         return false;
     }
 
-    std::vector<fs::path> matches;
+    struct RootMatch {
+        fs::path visible;
+        fs::path canonical;
+    };
+    std::vector<RootMatch> matches;
+    std::error_code absoluteError;
+    fs::path visibleProxy = fs::absolute(proxyModule, absoluteError);
+    if (absoluteError || visibleProxy.empty()) {
+        diagnostic = L"The bootstrap module path could not be made absolute.";
+        return false;
+    }
+    visibleProxy = visibleProxy.lexically_normal();
+    const fs::path visibleLocalDirectory = visibleProxy.parent_path();
     fs::path candidate = executableLocal
-        ? localDirectory.parent_path()
-        : localDirectory;
+        ? visibleLocalDirectory.parent_path()
+        : visibleLocalDirectory;
     for (int depth = 0; depth < kProxyRootSearchDepth && !candidate.empty();
          ++depth) {
         fs::path canonicalCandidate;
         if (Canonicalize(candidate, canonicalCandidate) &&
             isCompleteRoot(canonicalCandidate)) {
-            matches.push_back(canonicalCandidate);
+            matches.push_back({candidate.lexically_normal(),
+                               canonicalCandidate});
         }
         candidate = candidate.parent_path();
     }
@@ -364,11 +377,14 @@ bool DiscoverPortableRoot(
         diagnostic = L"More than one complete Blind Soldier package root was found.";
         return false;
     }
-    if (!IsWithin(matches.front(), canonicalProcess)) {
+    if (!IsWithin(matches.front().canonical, canonicalProcess)) {
         diagnostic = L"The running FFVII executable is outside the discovered package root.";
         return false;
     }
-    packageRoot = matches.front();
+    // Keep the executable-visible path (for example X:\) after validating its
+    // canonical target. Reloaded's native directory enumerator accepts mapped
+    // drive paths but cannot enumerate a canonical UNC path produced from one.
+    packageRoot = matches.front().visible;
     return true;
 }
 

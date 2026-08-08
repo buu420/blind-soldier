@@ -456,6 +456,7 @@ Describe 'Blind Soldier direct-extract portable package' {
             'LICENSES/Reloaded-II-1.30.3-Blind-Soldier-source.md',
             'LICENSES/Reloaded-II-1.30.3-hostfxr.patch',
             'Remove-Amethyst-Registry-Entries.cmd',
+            'Blind-Soldier/Tools/Remove-AmethystRegistryEntries-Automatic.cmd',
             'Blind-Soldier/Tools/Remove-AmethystRegistryEntries.ps1',
             'README-PORTABLE.txt', 'portable-manifest.json'
         )) { ($entries -ccontains $required) | Should Be $true }
@@ -675,7 +676,7 @@ Describe 'Blind Soldier direct-extract portable package' {
         $readme.StartsWith("Blind Soldier 0.1.8`r`n`r`n1. Extract every file in this ZIP into your Final Fantasy VII game folder.`r`n2. Start the game normally from Steam or 7th Heaven.") | Should Be $true
         $readme | Should Not Match '(?i)Blind-Soldier-Installer|/install|/uninstall|Image File Execution Options'
         $readme | Should Match '(?i)no administrator'
-        $readme | Should Match '(?i)\.local\\version\.dll'
+        $readme | Should Match '(?i)Mod Manager.*directly beside ff7_en\.exe'
         $readme | Should Match '(?i)machine.s own Windows version library'
         $readme | Should Not Match '(?i)winmm\.dll'
         $readme | Should Match '(?i)7th Heaven manages.*FFNx'
@@ -689,8 +690,12 @@ Describe 'Blind Soldier direct-extract portable package' {
             -EntryPath 'Remove-Amethyst-Registry-Entries.cmd'
         $cleanup = Get-PortableEntryText -Path $fixture.First `
             -EntryPath 'Blind-Soldier/Tools/Remove-AmethystRegistryEntries.ps1'
+        $automatic = Get-PortableEntryText -Path $fixture.First `
+            -EntryPath 'Blind-Soldier/Tools/Remove-AmethystRegistryEntries-Automatic.cmd'
 
         $command | Should Match '(?i)Remove-AmethystRegistryEntries\.ps1'
+        $automatic | Should Match '(?i)Remove-AmethystRegistryEntries\.ps1'
+        $automatic | Should Not Match '(?i)pause'
         $cleanup | Should Match 'BlindSoldierDebuggerOwner'
         $cleanup | Should Match "'ff7_en\.exe'"
         $cleanup | Should Match "'FFVII\.exe'"
