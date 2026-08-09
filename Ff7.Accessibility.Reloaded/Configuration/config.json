@@ -1,4 +1,5 @@
 {
+  "GameLanguage": "auto",
   "EnableSpeech": true,
   "EnableRuntimeMenuSpeech": true,
   "EnableRuntimeDialogueSpeech": true,

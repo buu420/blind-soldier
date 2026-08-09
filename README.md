@@ -95,6 +95,35 @@ release does not ship a Windows system DLL.
 On a successful load, Prism announces that Final Fantasy VII accessibility is
 active.
 
+## Language support
+
+Blind Soldier supports the current Windows game's English, French, German,
+Spanish, and Japanese releases on both the x86 and x64 backends. With the
+default `"GameLanguage": "auto"` setting, it detects the active language from
+the game executable, Steam manifest, and installed language data. Menus,
+dialogue, item names, spell names, and other native game text are read from the
+matching localized FFVII data rather than translated or guessed by the mod.
+
+Blind Soldier's own generated messages—such as navigation, battle status, and
+accessibility prompts—use its matching `en`, `fr`, `de`, `es`, or `ja`
+translation catalog. If an individual generated description has not been
+translated yet, Blind Soldier speaks that message in English so the player
+still receives the visual information. The opening movie's recorded audio
+description is English in this first multilingual test build.
+
+To override automatic detection, edit
+`Reloaded-II\Mods\ff7.accessibility.reloaded\Configuration\config.json` and set
+`GameLanguage` to `en`, `fr`, `de`, `es`, or `ja`. The full names `English`,
+`French`, `German`, `Spanish`, and `Japanese` are also accepted. Use `auto` to
+restore detection.
+
+Translators can override or extend generated messages without rebuilding the
+mod by creating
+`Reloaded-II\Mods\ff7.accessibility.reloaded\Languages\<code>.json`. The file
+must be a JSON object whose keys are the original English messages and whose
+values are their translations. Invalid or oversized override files are ignored
+and reported in the Blind Soldier log.
+
 ## Developer installation from source
 
 End users should use the portable ZIP above. To build it from a source

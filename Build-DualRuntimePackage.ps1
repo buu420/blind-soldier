@@ -382,6 +382,9 @@ function Assert-DualRuntimePackage {
     if ($configuration -isnot [Management.Automation.PSCustomObject]) {
         throw 'Package validation failed: invalid Configuration/config.json root; expected an object.'
     }
+    if ([string]$configuration.GameLanguage -cne 'auto') {
+        throw 'Package validation failed: Configuration/config.json must ship with GameLanguage set to auto.'
+    }
     Assert-PackageFile -Path (Join-Path $PackageRoot 'Assets\movies\opening_audio_description.ogg') `
         -Description 'opening movie audio description asset'
     Assert-PackageFile -Path (Join-Path $PackageRoot 'Assets\world\field-id-to-world-map-coords.json') `
@@ -390,6 +393,8 @@ function Assert-DualRuntimePackage {
         -Description 'world-map location name metadata'
     Assert-PackageFile -Path (Join-Path $PackageRoot 'Assets\footsteps\cosmo\config.toml') `
         -Description 'Cosmo Memory footstep mapping'
+    Assert-PackageFile -Path (Join-Path $PackageRoot 'LICENSES\FF7Tools-text-table-notice.md') `
+        -Description 'FF7Tools text-table license notice'
     foreach ($fieldCueAsset in @(
         'field_zone_transition.wav',
         'object_materia_190_pitch70.wav',
@@ -417,6 +422,7 @@ $configurationSource = Join-Path $legacyProjectRoot 'Configuration'
 $assetsSource = Join-Path $legacyProjectRoot 'Assets'
 $worldCoordinateSource = Join-Path $scriptRoot 'external\kujata\field-id-to-world-map-coords.json'
 $worldMenuNameSource = Join-Path $scriptRoot 'external\kujata\wm-field-menu-names.txt'
+$ff7ToolsNoticeSource = Join-Path $scriptRoot 'docs\third-party\ff7tools-notice.md'
 
 foreach ($requiredPath in @(
     $legacyProject,
@@ -425,7 +431,8 @@ foreach ($requiredPath in @(
     $configurationSource,
     $assetsSource,
     $worldCoordinateSource,
-    $worldMenuNameSource
+    $worldMenuNameSource,
+    $ff7ToolsNoticeSource
 )) {
     if (-not (Test-Path -LiteralPath $requiredPath)) {
         throw "Required dual-runtime package input is missing: $requiredPath"
@@ -490,6 +497,10 @@ try {
     New-Item -ItemType Directory -Path $worldAssetDirectory -Force | Out-Null
     Copy-Item -LiteralPath $worldCoordinateSource -Destination $worldAssetDirectory -Force
     Copy-Item -LiteralPath $worldMenuNameSource -Destination $worldAssetDirectory -Force
+    $licenseDirectory = Join-Path $stagingRoot 'LICENSES'
+    New-Item -ItemType Directory -Path $licenseDirectory -Force | Out-Null
+    Copy-Item -LiteralPath $ff7ToolsNoticeSource `
+        -Destination (Join-Path $licenseDirectory 'FF7Tools-text-table-notice.md') -Force
 
     Assert-DualRuntimePackage -PackageRoot $stagingRoot
 

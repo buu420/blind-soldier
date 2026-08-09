@@ -455,6 +455,7 @@ Describe 'Blind Soldier direct-extract portable package' {
             'LICENSES/dotnet-THIRD-PARTY-NOTICES.txt',
             'LICENSES/Reloaded-II-1.30.3-Blind-Soldier-source.md',
             'LICENSES/Reloaded-II-1.30.3-hostfxr.patch',
+            'LICENSES/FF7Tools-text-table-notice.md',
             'Remove-Amethyst-Registry-Entries.cmd',
             'Blind-Soldier/Tools/Remove-AmethystRegistryEntries-Automatic.cmd',
             'Blind-Soldier/Tools/Remove-AmethystRegistryEntries.ps1',
@@ -681,6 +682,9 @@ Describe 'Blind Soldier direct-extract portable package' {
         $readme | Should Not Match '(?i)winmm\.dll'
         $readme | Should Match '(?i)7th Heaven manages.*FFNx'
         $readme | Should Not Match '(?i)FFNx 1\.24\.3\.0.*included'
+        $readme | Should Match '(?i)English, French, German, Spanish, and Japanese'
+        $readme | Should Match '(?i)GameLanguage value is auto'
+        $readme | Should Match '(?i)missing individual translation falls back to English'
     }
 
     It 'ships a narrowly scoped cleanup for Amethyst lifecycle registry entries' {

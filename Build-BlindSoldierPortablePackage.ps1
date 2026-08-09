@@ -531,6 +531,12 @@ try {
         [void](Assert-File -Path $source -Label "Reloaded source material $($record.Source)")
         Copy-Item -LiteralPath $source -Destination (Join-Path $licenseTarget $record.Target)
     }
+    $ff7ToolsNoticeSource = Join-Path $scriptRoot `
+        'docs\third-party\ff7tools-notice.md'
+    [void](Assert-File -Path $ff7ToolsNoticeSource `
+        -Label 'FF7Tools text-table license notice')
+    Copy-Item -LiteralPath $ff7ToolsNoticeSource -Destination `
+        (Join-Path $licenseTarget 'FF7Tools-text-table-notice.md')
 
     $policyTarget = Join-Path $root 'Blind-Soldier\Policy'
     New-Item -ItemType Directory -Path $policyTarget -Force | Out-Null
@@ -581,6 +587,14 @@ Supported layouts
 
 Official stable 7th Heaven manages its own FFNx installation; this release is verified against 7th Heaven 4.5.2. Blind Soldier coexists without shipping, replacing, or overwriting any FFNx file. Development builds targeting .NET 10 are outside this release's verified compatibility set.
 This ZIP contains only manifest-owned Blind Soldier files.
+
+Language support
+- English, French, German, Spanish, and Japanese are supported on both backends.
+- The default GameLanguage value is auto. Blind Soldier detects the active FFVII language and reads native menu, dialogue, item, and spell text from that language's game files.
+- Generated navigation, battle-status, and accessibility messages are localized. A missing individual translation falls back to English so visual information is not omitted.
+- The opening movie's recorded audio description is English in this multilingual test build.
+- To override detection, set GameLanguage in Reloaded-II\Mods\ff7.accessibility.reloaded\Configuration\config.json to en, fr, de, es, ja, or auto.
+- Translators may add Reloaded-II\Mods\ff7.accessibility.reloaded\Languages\CODE.json using English source messages as JSON keys and translations as values.
 
 Do not replace an existing layout-scoped version.dll unless it belongs to Blind Soldier. This includes a sibling workingdir\version.dll used with stock 7th Heaven. Move an unknown file aside first so it can be restored. If FFNx redirects the system Version library back to the proxy, Blind Soldier privately caches a byte-for-byte copy of this machine's own Windows version library under Local AppData and loads that distinct copy; no Windows binary is shipped in the ZIP.
 

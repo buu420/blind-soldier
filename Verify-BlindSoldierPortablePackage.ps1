@@ -49,6 +49,7 @@ $required = @(
     'LICENSES/dotnet-THIRD-PARTY-NOTICES.txt',
     'LICENSES/Reloaded-II-1.30.3-Blind-Soldier-source.md',
     'LICENSES/Reloaded-II-1.30.3-hostfxr.patch',
+    'LICENSES/FF7Tools-text-table-notice.md',
     'Remove-Amethyst-Registry-Entries.cmd',
     'Blind-Soldier/Tools/Remove-AmethystRegistryEntries-Automatic.cmd',
     'Blind-Soldier/Tools/Remove-AmethystRegistryEntries.ps1',
