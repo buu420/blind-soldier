@@ -2,6 +2,7 @@ namespace Ff7.Accessibility.Core;
 
 public sealed class AccessibilityConfig
 {
+    public string GameLanguage { get; set; } = "auto";
     public bool EnableSpeech { get; set; } = true;
     public bool EnableRuntimeMenuSpeech { get; set; } = true;
     public bool EnableRuntimeDialogueSpeech { get; set; } = true;
