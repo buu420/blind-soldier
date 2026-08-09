@@ -129,6 +129,44 @@ function Get-ZipNames {
     finally { $archive.Dispose() }
 }
 
+function Add-ZipEntry {
+    param(
+        [string] $ArchivePath,
+        [string] $Relative,
+        [byte[]] $Bytes = ([Text.Encoding]::UTF8.GetBytes('fixture'))
+    )
+    Add-Type -AssemblyName System.IO.Compression
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $stream = [IO.File]::Open($ArchivePath, [IO.FileMode]::Open,
+        [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
+    try {
+        $archive = New-Object IO.Compression.ZipArchive($stream,
+            [IO.Compression.ZipArchiveMode]::Update, $true)
+        try {
+            $entry = $archive.CreateEntry($Relative)
+            $target = $entry.Open()
+            try { $target.Write($Bytes, 0, $Bytes.Length) }
+            finally { $target.Dispose() }
+        }
+        finally { $archive.Dispose() }
+    }
+    finally { $stream.Dispose() }
+}
+
+function Get-TestPeBytes {
+    param([uint16] $Machine)
+    $root = Join-Path ([IO.Path]::GetTempPath()) `
+        ('blind-soldier-test-pe-' + [Guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Path $root | Out-Null
+    try {
+        Write-TestPe -Root $root -Relative 'test.dll' -Machine $Machine
+        return [IO.File]::ReadAllBytes((Join-Path $root 'test.dll'))
+    }
+    finally {
+        Remove-Item -LiteralPath $root -Recurse -Force
+    }
+}
+
 Describe 'Blind Soldier 2013 x86 portable package' {
     It 'keeps the complete x86 runtime and excludes 2026 and x64 files' {
         $temp = Join-Path ([IO.Path]::GetTempPath()) `
@@ -183,6 +221,144 @@ Describe 'Blind Soldier 2013 x86 portable package' {
                 -ExpectedVersion $testVersion -ExpectedSourceArchivePath $source
             $result.Profile | Should Be 'legacy-x86'
             $result.Version | Should Be $testVersion
+        }
+        finally {
+            if (Test-Path -LiteralPath $temp) {
+                Remove-Item -LiteralPath $temp -Recurse -Force
+            }
+        }
+    }
+
+    It 'builds byte-identical archives from the same verified source' {
+        $temp = Join-Path ([IO.Path]::GetTempPath()) `
+            ('blind-soldier-2013-determinism-' + [Guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $temp | Out-Null
+        try {
+            $source = New-DualFixtureArchive -TemporaryRoot $temp
+            $sourceVerifier = { param($ArchivePath, $ExpectedVersion) }
+            $first = Join-Path $temp 'first.zip'
+            $second = Join-Path $temp 'second.zip'
+            & $builderPath -SourceArchivePath $source -OutputPath $first `
+                -Version $testVersion -SourceVerifier $sourceVerifier | Out-Null
+            & $builderPath -SourceArchivePath $source -OutputPath $second `
+                -Version $testVersion -SourceVerifier $sourceVerifier | Out-Null
+
+            (Get-FileHash -LiteralPath $first -Algorithm SHA256).Hash |
+                Should Be (Get-FileHash -LiteralPath $second -Algorithm SHA256).Hash
+        }
+        finally {
+            if (Test-Path -LiteralPath $temp) {
+                Remove-Item -LiteralPath $temp -Recurse -Force
+            }
+        }
+    }
+
+    It 'rejects an unsafe member in the dual-runtime source ZIP' {
+        $temp = Join-Path ([IO.Path]::GetTempPath()) `
+            ('blind-soldier-2013-unsafe-' + [Guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $temp | Out-Null
+        try {
+            $source = New-DualFixtureArchive -TemporaryRoot $temp
+            Add-ZipEntry -ArchivePath $source -Relative '../escaped.txt'
+            $output = Join-Path $temp 'unsafe.zip'
+            $sourceVerifier = { param($ArchivePath, $ExpectedVersion) }
+
+            { & $builderPath -SourceArchivePath $source -OutputPath $output `
+                -Version $testVersion -SourceVerifier $sourceVerifier } |
+                Should Throw
+            Test-Path -LiteralPath $output | Should Be $false
+        }
+        finally {
+            if (Test-Path -LiteralPath $temp) {
+                Remove-Item -LiteralPath $temp -Recurse -Force
+            }
+        }
+    }
+
+    It 'rejects a source archive changed by its verifier' {
+        $temp = Join-Path ([IO.Path]::GetTempPath()) `
+            ('blind-soldier-2013-mutation-' + [Guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $temp | Out-Null
+        try {
+            $source = New-DualFixtureArchive -TemporaryRoot $temp
+            $output = Join-Path $temp 'mutation.zip'
+            $sourceVerifier = {
+                param($ArchivePath, $ExpectedVersion)
+                Add-ZipEntry -ArchivePath $ArchivePath -Relative 'changed.txt'
+            }
+
+            { & $builderPath -SourceArchivePath $source -OutputPath $output `
+                -Version $testVersion -SourceVerifier $sourceVerifier } |
+                Should Throw
+            Test-Path -LiteralPath $output | Should Be $false
+        }
+        finally {
+            if (Test-Path -LiteralPath $temp) {
+                Remove-Item -LiteralPath $temp -Recurse -Force
+            }
+        }
+    }
+
+    It 'rejects a source mod version that differs from the requested package' {
+        $temp = Join-Path ([IO.Path]::GetTempPath()) `
+            ('blind-soldier-2013-version-' + [Guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $temp | Out-Null
+        try {
+            $source = New-DualFixtureArchive -TemporaryRoot $temp
+            $output = Join-Path $temp 'version.zip'
+            $sourceVerifier = { param($ArchivePath, $ExpectedVersion) }
+
+            { & $builderPath -SourceArchivePath $source -OutputPath $output `
+                -Version '0.2.2-beta.1' -SourceVerifier $sourceVerifier } |
+                Should Throw
+            Test-Path -LiteralPath $output | Should Be $false
+        }
+        finally {
+            if (Test-Path -LiteralPath $temp) {
+                Remove-Item -LiteralPath $temp -Recurse -Force
+            }
+        }
+    }
+
+    It 'rejects and removes a derivative containing any nested x64 executable' {
+        $temp = Join-Path ([IO.Path]::GetTempPath()) `
+            ('blind-soldier-2013-x64-' + [Guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $temp | Out-Null
+        try {
+            $source = New-DualFixtureArchive -TemporaryRoot $temp
+            Add-ZipEntry -ArchivePath $source `
+                -Relative 'Reloaded-II/Mods/ff7.accessibility.reloaded/Assets/x64/bad.dll' `
+                -Bytes (Get-TestPeBytes -Machine 0x8664)
+            $output = Join-Path $temp 'x64.zip'
+            $sourceVerifier = { param($ArchivePath, $ExpectedVersion) }
+
+            { & $builderPath -SourceArchivePath $source -OutputPath $output `
+                -Version $testVersion -SourceVerifier $sourceVerifier } |
+                Should Throw
+            Test-Path -LiteralPath $output | Should Be $false
+            Test-Path -LiteralPath ($output + '.sha256') | Should Be $false
+        }
+        finally {
+            if (Test-Path -LiteralPath $temp) {
+                Remove-Item -LiteralPath $temp -Recurse -Force
+            }
+        }
+    }
+
+    It 'refuses to overwrite an existing package output' {
+        $temp = Join-Path ([IO.Path]::GetTempPath()) `
+            ('blind-soldier-2013-existing-' + [Guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $temp | Out-Null
+        try {
+            $source = New-DualFixtureArchive -TemporaryRoot $temp
+            $output = Join-Path $temp 'existing.zip'
+            [IO.File]::WriteAllText($output, 'keep me')
+            $sourceVerifier = { param($ArchivePath, $ExpectedVersion) }
+
+            { & $builderPath -SourceArchivePath $source -OutputPath $output `
+                -Version $testVersion -SourceVerifier $sourceVerifier } |
+                Should Throw
+            [IO.File]::ReadAllText($output) | Should Be 'keep me'
         }
         finally {
             if (Test-Path -LiteralPath $temp) {
