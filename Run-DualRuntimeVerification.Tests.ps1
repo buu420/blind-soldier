@@ -71,6 +71,8 @@ Describe 'Blind Soldier aggregate portable release gate' {
             $reloaded[0].FilePath | Should Be 'dotnet'
             $reloaded[0].Environment.FF7_ACCESSIBILITY_RUNTIME |
                 Should Be ([IO.Path]::GetFullPath($runtime))
+            $reloaded[0].Environment.FF7_ACCESSIBILITY_DATA_ROOT |
+                Should Be ([IO.Path]::GetFullPath($runtime))
             $result.GameDataIntegrationRan | Should Be $true
         }
         finally { Remove-Item -LiteralPath $fixture.Root -Recurse -Force }

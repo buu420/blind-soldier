@@ -151,7 +151,7 @@ public sealed class Mod : IModV1, IModV2
     private bool menuTableDumped;
     private DateTime lastOpeningMovieProbeAt = DateTime.MinValue;
     private bool openingMovieDetected;
-    private bool openingMovieFileActive;
+    private bool openingMoviePlaybackActive;
     private bool ffnxRuntimeLoaded;
     private CurrentProcessLegacyAddressSpace? currentProcessLegacyAddressSpace;
     private FfnxPopupStateReader? ffnxPopupStateReader;
@@ -2060,37 +2060,54 @@ public sealed class Mod : IModV1, IModV2
         var openingPath = ResolveOpeningMoviePath();
         if (openingPath is null)
         {
-            openingMovieFileActive = false;
+            openingMoviePlaybackActive = false;
             openingMovieAudioTrackPlayer?.Stop("movie path unavailable");
             return;
         }
 
-        var isOpen = RestartManagerProbe.IsFileOpenByProcess(openingPath, Process.GetCurrentProcess().Id);
-        openingMovieFileActive = isOpen;
+        var fileHandleActive = RestartManagerProbe.IsFileOpenByProcess(
+            openingPath,
+            Process.GetCurrentProcess().Id);
+        var nativeFieldIdBefore = ReadUInt16(FieldPositionReader.AddressFieldId);
+        var nativeCueState = default(FieldAudibleCueState);
+        var nativeStateReadable =
+            fieldAudibleCueStateReader?.TryRead(out nativeCueState) == true;
+        var nativeFieldIdAfter = ReadUInt16(FieldPositionReader.AddressFieldId);
+        nativeStateReadable &= nativeFieldIdBefore == nativeFieldIdAfter;
+        var activity = OpeningMovieActivityPolicy.Resolve(
+            fileHandleActive,
+            nativeStateReadable,
+            nativeCueState.Module,
+            nativeFieldIdBefore,
+            nativeCueState.MovieActive);
+        var isActive = activity.IsActive;
+        openingMoviePlaybackActive = isActive;
         if (openingMovieDetected)
         {
             if (openingMovieDescription.IsRunning &&
-                !isOpen &&
+                !isActive &&
                 openingMovieDescription.ElapsedSeconds < OpeningMovieDescription.MovieEndSeconds)
             {
-                Log($"Opening movie handle closed early at {openingMovieDescription.ElapsedSeconds:0.0}s; stopping screenreader description.");
+                Log($"Opening movie ended early at {openingMovieDescription.ElapsedSeconds:0.0}s; stopping screenreader description.");
                 openingMovieDescription.Stop();
             }
 
-            if (!isOpen)
+            if (!isActive)
             {
                 openingMovieAudioTrackPlayer?.Stop("movie ended or skipped");
             }
 
-            CompleteOpeningMovieProbeLifetime(isOpen);
+            CompleteOpeningMovieProbeLifetime(isActive);
 
             return;
         }
 
-        if (isOpen)
+        if (isActive)
         {
             openingMovieDetected = true;
-            Log($"Detected active opening movie file handle: {openingPath}");
+            Log(
+                $"Detected active opening movie: signal={activity.Signal}, " +
+                $"path={openingPath}");
             if (config.EnableOpeningMovieDescription)
             {
                 openingMovieDescription.Start();
@@ -2104,7 +2121,7 @@ public sealed class Mod : IModV1, IModV2
             }
         }
 
-        CompleteOpeningMovieProbeLifetime(isOpen);
+        CompleteOpeningMovieProbeLifetime(isActive);
     }
 
     private void CompleteOpeningMovieProbeLifetime(bool movieFileActive)
@@ -2440,7 +2457,7 @@ public sealed class Mod : IModV1, IModV2
             var openingMovieBlocked = DeferredZoneSpeechTracker.ShouldBlockForOpeningMovie(
                 fieldId,
                 openingMovieDetected,
-                openingMovieFileActive,
+                openingMoviePlaybackActive,
                 openingMovieDescription?.IsRunning == true);
             var narrationPending = HasPendingFieldCutsceneNarration(fieldId);
             var narrationProtected = fieldCutsceneSpeechPriority.ShouldQueueDialogue(fieldId, now);

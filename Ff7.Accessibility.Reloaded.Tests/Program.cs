@@ -77,6 +77,13 @@ if (args.Contains("--host-validation-only", StringComparer.OrdinalIgnoreCase))
     return;
 }
 
+if (args.Contains("--opening-movie-only", StringComparer.OrdinalIgnoreCase))
+{
+    AssertOpeningMovieActivityUsesNativeStateForVirtualFfnxMovies();
+    Console.WriteLine("FFVII opening movie activity tests passed.");
+    return;
+}
+
 if (args.Contains("--menu-repeat-only", StringComparer.OrdinalIgnoreCase))
 {
     AssertOrderMenuSelectionReadsNativeRowsAndPendingMember();
@@ -271,6 +278,7 @@ FfnxPopupSpeechTests.Run();
 Ff7.Accessibility.Reloaded.Tests.EchoSCompatibilityTests.Run();
 Ff7.Accessibility.Reloaded.Tests.LegacyStartupDiagnosticsTests.Run();
 AssertOpeningMoviePathResolverUsesFfnxOverrideOnlyWhenLoaded();
+AssertOpeningMovieActivityUsesNativeStateForVirtualFfnxMovies();
 AssertPrismBackendOutputIsSerialized();
 AssertMenuTextRenderDiagnosticsFiltersAndDedupes();
 AssertRenderedMenuTextSpeechTrackerPrefersHighlightedText();
@@ -2175,6 +2183,64 @@ static void AssertOpeningMoviePathResolverUsesFfnxOverrideOnlyWhenLoaded()
         "FFNx without an override should monitor the data movie");
 }
 
+static void AssertOpeningMovieActivityUsesNativeStateForVirtualFfnxMovies()
+{
+    AssertEqual(
+        OpeningMovieActivitySignal.NativeFieldMovieState,
+        OpeningMovieActivityPolicy.Resolve(
+            fileHandleActive: false,
+            nativeStateReadable: true,
+            nativeModule: FieldPositionReader.FieldModule,
+            nativeFieldId: DeferredZoneSpeechTracker.OpeningFieldId,
+            nativeMovieActive: 1).Signal,
+        "virtual FFNx opening movie uses the native field-movie signal");
+    AssertEqual(
+        OpeningMovieActivitySignal.FileHandle,
+        OpeningMovieActivityPolicy.Resolve(
+            fileHandleActive: true,
+            nativeStateReadable: false,
+            nativeModule: 0,
+            nativeFieldId: 0,
+            nativeMovieActive: 0).Signal,
+        "physical opening movie retains file-handle priority");
+    AssertEqual(
+        OpeningMovieActivitySignal.None,
+        OpeningMovieActivityPolicy.Resolve(
+            fileHandleActive: false,
+            nativeStateReadable: true,
+            nativeModule: 5,
+            nativeFieldId: DeferredZoneSpeechTracker.OpeningFieldId,
+            nativeMovieActive: 1).Signal,
+        "stale movie state outside the field module is rejected");
+    AssertEqual(
+        OpeningMovieActivitySignal.None,
+        OpeningMovieActivityPolicy.Resolve(
+            fileHandleActive: false,
+            nativeStateReadable: true,
+            nativeModule: FieldPositionReader.FieldModule,
+            nativeFieldId: DeferredZoneSpeechTracker.OpeningFieldId + 1,
+            nativeMovieActive: 1).Signal,
+        "field movies outside the opening field cannot start opening narration");
+    AssertEqual(
+        OpeningMovieActivitySignal.None,
+        OpeningMovieActivityPolicy.Resolve(
+            fileHandleActive: false,
+            nativeStateReadable: false,
+            nativeModule: FieldPositionReader.FieldModule,
+            nativeFieldId: DeferredZoneSpeechTracker.OpeningFieldId,
+            nativeMovieActive: 1).Signal,
+        "unreadable native movie state fails closed");
+    AssertEqual(
+        OpeningMovieActivitySignal.None,
+        OpeningMovieActivityPolicy.Resolve(
+            fileHandleActive: false,
+            nativeStateReadable: true,
+            nativeModule: FieldPositionReader.FieldModule,
+            nativeFieldId: DeferredZoneSpeechTracker.OpeningFieldId,
+            nativeMovieActive: 0).Signal,
+        "inactive native movie state does not start narration");
+}
+
 static void AssertMenuTextRenderDiagnosticsFiltersAndDedupes()
 {
     var now = new DateTime(2026, 7, 3, 0, 0, 0, DateTimeKind.Utc);
@@ -2356,7 +2422,7 @@ static void AssertFf7EncodedFieldTextDecodesForSpeech()
     AssertEqual("SOLDIER, huh?", Ff7EncodedTextDecoder.Decode(commaControl), "decoded comma control text");
 
     var ellipsisControl = new byte[] { 0x4f, 0x56, 0x45, 0x52, 0xa9, 0x29, 0x07, 0x4d, 0xff };
-    AssertEqual("over... I'm", Ff7EncodedTextDecoder.Decode(ellipsisControl), "decoded ellipsis control text");
+    AssertEqual("over…I'm", Ff7EncodedTextDecoder.Decode(ellipsisControl), "decoded ellipsis control text");
 
     var controllerButtons = new byte[] { 0xf6, 0x00, 0xf7, 0x00, 0xf8, 0x00, 0xf9, 0xff };
     AssertEqual(
@@ -22322,7 +22388,7 @@ static void AssertFlevelFieldTextResolverReadsStaticDialogText()
 
     var missingRuntimeLine = resolver.ReadMessageById(117, 41);
     AssertEqual("flevel md1_1 message 41", missingRuntimeLine.Source, "static flevel message 41 source");
-    AssertEqual("Ex-SOLDIER, huh? I don't trust ya!", missingRuntimeLine.Text, "static flevel message 41 text");
+    AssertEqual("“Ex-SOLDIER, huh? I don't trust ya!”", missingRuntimeLine.Text, "static flevel message 41 text");
 
     var knownRuntimeLine = resolver.ReadMessageById(117, 42);
     AssertEqual("flevel md1_1 message 42", knownRuntimeLine.Source, "static flevel message 42 source");
@@ -22330,7 +22396,9 @@ static void AssertFlevelFieldTextResolverReadsStaticDialogText()
         true,
         knownRuntimeLine.Text is
             "Barret Press the Directional buttons while pressing [CANCEL] to run." or
-            "Barret Press the D-pad while pressing [CANCEL] to run.",
+            "Barret Press the D-pad while pressing [CANCEL] to run." or
+            "Barret “Press the Directional buttons while pressing [CANCEL] to run.”" or
+            "Barret “Press the D-pad while pressing [CANCEL] to run.”",
         $"verified PC flevel message 42 text, got '{knownRuntimeLine.Text}'");
 }
 
@@ -22343,9 +22411,9 @@ static void AssertFlevelFieldTextResolverPreservesAskChoiceLines()
 
     AssertEqual(4, lines.Count, "native md8_2 ASK line count");
     AssertEqual("Flower girl", lines[0], "native md8_2 speaker line");
-    AssertEqual("What happened?", lines[1], "native md8_2 prompt line");
+    AssertEqual("“What happened?”", lines[1], "native md8_2 prompt line");
     AssertEqual("You'd better get out of here", lines[2], "native md8_2 first ASK choice");
-    AssertEqual("Nothing... hey...", lines[3], "native md8_2 second ASK choice");
+    AssertEqual("Nothing…hey…", lines[3], "native md8_2 second ASK choice");
 }
 
 static void AssertCosmoFootstepConfigParsesSequentialEntries()

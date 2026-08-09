@@ -222,6 +222,7 @@ if ($hasGameDataRuntime) {
             '-c','Release') -WorkingDirectory $scriptRoot `
         -Environment @{
             FF7_ACCESSIBILITY_RUNTIME = $GameRuntimePath
+            FF7_ACCESSIBILITY_DATA_ROOT = $GameRuntimePath
         }))
 }
 else {
