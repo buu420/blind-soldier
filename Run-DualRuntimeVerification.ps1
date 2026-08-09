@@ -4,6 +4,7 @@ param(
     [string] $Mode = 'Research',
     [string] $ParityMatrixPath,
     [string] $GameRuntimePath,
+    [string] $PackageVersion,
     [switch] $RequireGameDataIntegration,
 
     # Retained for command-line compatibility with older local automation.
@@ -20,6 +21,20 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+if ([string]::IsNullOrWhiteSpace($PackageVersion)) {
+    $modConfigPath = Join-Path $scriptRoot `
+        'Ff7.Accessibility.Reloaded\ModConfig.json'
+    try {
+        $PackageVersion = [string]((Get-Content -LiteralPath $modConfigPath `
+            -Raw | ConvertFrom-Json).ModVersion)
+    }
+    catch {
+        throw "The package version could not be read from '$modConfigPath'. $($_.Exception.Message)"
+    }
+}
+if ([string]::IsNullOrWhiteSpace($PackageVersion)) {
+    throw 'A non-empty package version is required for release verification.'
+}
 if ([string]::IsNullOrWhiteSpace($ParityMatrixPath)) {
     $ParityMatrixPath = Join-Path $scriptRoot `
         'analysis\dual_runtime\parity-matrix.json'
@@ -274,13 +289,13 @@ $commands.Add((New-VerificationCommand -Name 'PortablePackage.Build' `
     -FilePath 'powershell.exe' -Arguments @(
         '-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',
         (Join-Path $scriptRoot 'Build-BlindSoldierPortablePackage.ps1'),
-        '-OutputPath',$portableArchive,'-Version','0.2.0') `
+        '-OutputPath',$portableArchive,'-Version',$PackageVersion) `
     -WorkingDirectory $scriptRoot))
 $commands.Add((New-VerificationCommand -Name 'PortablePackage.Verify' `
     -FilePath 'powershell.exe' -Arguments @(
         '-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',
         (Join-Path $scriptRoot 'Verify-BlindSoldierPortablePackage.ps1'),
-        '-ArchivePath',$portableArchive,'-ExpectedVersion','0.2.0') `
+        '-ArchivePath',$portableArchive,'-ExpectedVersion',$PackageVersion) `
     -WorkingDirectory $scriptRoot))
 $commands.Add((New-VerificationCommand -Name 'Ghidra.NativeEvidence' `
     -FilePath 'powershell.exe' -Arguments @(

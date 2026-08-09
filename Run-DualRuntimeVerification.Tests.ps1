@@ -101,10 +101,13 @@ Describe 'Blind Soldier aggregate portable release gate' {
                 'PortablePackage.Build')[0]
             $verify = @($invocations | Where-Object Name -CEQ `
                 'PortablePackage.Verify')[0]
+            $expectedPackageVersion = [string]((Get-Content `
+                (Join-Path $scriptRoot 'Ff7.Accessibility.Reloaded\ModConfig.json') `
+                -Raw | ConvertFrom-Json).ModVersion)
             $build.Arguments[([array]::IndexOf($build.Arguments,'-Version') + 1)] |
-                Should Be '0.2.0'
+                Should Be $expectedPackageVersion
             $verify.Arguments[([array]::IndexOf($verify.Arguments,
-                '-ExpectedVersion') + 1)] | Should Be '0.2.0'
+                '-ExpectedVersion') + 1)] | Should Be $expectedPackageVersion
             $ghidra = @($invocations | Where-Object {
                 $_.Name -ceq 'Ghidra.NativeEvidence'
             })[0]
