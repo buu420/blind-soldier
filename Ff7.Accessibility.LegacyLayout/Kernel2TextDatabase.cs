@@ -2,6 +2,12 @@ namespace Ff7.Accessibility.Reloaded;
 
 public sealed class Kernel2TextDatabase
 {
+    private static readonly int[] ExpectedSectionCounts =
+    [
+        32, 256, 128, 128, 32, 32, 96, 64, 32,
+        256, 128, 128, 32, 32, 96, 64, 128, 16
+    ];
+
     private readonly IndexedTextSection itemNames;
     private readonly IndexedTextSection itemDescriptions;
     private readonly IndexedTextSection spellNames;
@@ -17,36 +23,23 @@ public sealed class Kernel2TextDatabase
     private readonly IndexedTextSection materiaDescriptions;
     private readonly IndexedTextSection battleTexts;
 
-    private Kernel2TextDatabase(
-        IndexedTextSection itemNames,
-        IndexedTextSection itemDescriptions,
-        IndexedTextSection spellNames,
-        IndexedTextSection spellDescriptions,
-        IndexedTextSection weaponNames,
-        IndexedTextSection weaponDescriptions,
-        IndexedTextSection armorNames,
-        IndexedTextSection armorDescriptions,
-        IndexedTextSection accessoryNames,
-        IndexedTextSection accessoryDescriptions,
-        IndexedTextSection commandNames,
-        IndexedTextSection materiaNames,
-        IndexedTextSection materiaDescriptions,
-        IndexedTextSection battleTexts)
+    private Kernel2TextDatabase(IReadOnlyList<IndexedTextSection> sections)
     {
-        this.itemNames = itemNames;
-        this.itemDescriptions = itemDescriptions;
-        this.spellNames = spellNames;
-        this.spellDescriptions = spellDescriptions;
-        this.weaponNames = weaponNames;
-        this.weaponDescriptions = weaponDescriptions;
-        this.armorNames = armorNames;
-        this.armorDescriptions = armorDescriptions;
-        this.accessoryNames = accessoryNames;
-        this.accessoryDescriptions = accessoryDescriptions;
-        this.commandNames = commandNames;
-        this.materiaNames = materiaNames;
-        this.materiaDescriptions = materiaDescriptions;
-        this.battleTexts = battleTexts;
+        commandNames = sections[8];
+        spellNames = sections[9];
+        itemNames = sections[10];
+        weaponNames = sections[11];
+        armorNames = sections[12];
+        accessoryNames = sections[13];
+        materiaNames = sections[14];
+        battleTexts = sections[16];
+
+        spellDescriptions = sections[1];
+        itemDescriptions = sections[2];
+        weaponDescriptions = sections[3];
+        armorDescriptions = sections[4];
+        accessoryDescriptions = sections[5];
+        materiaDescriptions = sections[6];
     }
 
     public string? ResolveItemName(int id) => itemNames.Resolve(id);
@@ -101,20 +94,77 @@ public sealed class Kernel2TextDatabase
 
     public string? ResolveBattleText(int id) => battleTexts.Resolve(id);
 
-    private static string? ResolveBattleActionText(
-        IndexedTextSection section,
-        int rawActionId)
+    public static Kernel2TextDatabase? TryCreate(string gameRootDirectory, Action<string>? log = null)
     {
-        if (rawActionId is < 0 or > byte.MaxValue or 0x7F)
+        var language = Ff7GameLanguageDetector.Detect(gameRootDirectory, log: log);
+        return TryCreate(language, log);
+    }
+
+    public static Kernel2TextDatabase? TryCreate(
+        Ff7GameLanguageContext language,
+        Action<string>? log = null)
+    {
+        var path = language.Kernel2Path;
+        if (!File.Exists(path))
+        {
+            log?.Invoke($"kernel2 text database unavailable; missing {path}");
+            return null;
+        }
+
+        try
+        {
+            var decoded = Ff7LzsDecoder.DecodeFieldFile(File.ReadAllBytes(path));
+            var database = TryCreateFromDecodedKernel2(decoded, language.Descriptor);
+            if (database is null)
+            {
+                log?.Invoke($"kernel2 text database unavailable; invalid 18-section structure in {path}");
+                return null;
+            }
+
+            log?.Invoke($"kernel2 text database loaded for {language.DisplayName} from {path}");
+            return database;
+        }
+        catch (Exception exception) when (
+            exception is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException)
+        {
+            log?.Invoke($"kernel2 text database unavailable; {exception.Message}");
+            return null;
+        }
+    }
+
+    internal static Kernel2TextDatabase? TryCreateFromDecodedKernel2(byte[] decoded) =>
+        TryCreateFromDecodedKernel2(decoded, Ff7GameLanguages.Get(Ff7GameLanguage.English));
+
+    internal static Kernel2TextDatabase? TryCreateFromDecodedKernel2(
+        byte[] decoded,
+        Ff7GameLanguageDescriptor language)
+    {
+        if (!TryReadSequentialSections(decoded, language, out var sections) ||
+            sections.Count != ExpectedSectionCounts.Length)
         {
             return null;
         }
 
-        // FF7's battle string category 3 applies a base of 0x80 while the
-        // result remains below 0xE0. Higher action ids, including Tifa's
-        // slot-selected limits, already address their final KERNEL2 record.
+        for (var index = 0; index < ExpectedSectionCounts.Length; index++)
+        {
+            if (sections[index].Count != ExpectedSectionCounts[index])
+            {
+                return null;
+            }
+        }
+
+        return new Kernel2TextDatabase(sections);
+    }
+
+    private static string? ResolveBattleActionText(IndexedTextSection section, int rawActionId)
+    {
+        if (rawActionId is < 0 or > byte.MaxValue or 0x7f)
+        {
+            return null;
+        }
+
         var shiftedId = rawActionId + 0x80;
-        var textId = shiftedId < 0xE0 ? shiftedId : rawActionId;
+        var textId = shiftedId < 0xe0 ? shiftedId : rawActionId;
         return NormalizeBattleActionText(section.Resolve(textId));
     }
 
@@ -125,152 +175,28 @@ public sealed class Kernel2TextDatabase
             return null;
         }
 
-        const string switchPrefix = "[SWITCH]";
-        var normalized = text.Trim();
-        if (normalized.StartsWith(switchPrefix, StringComparison.Ordinal))
-        {
-            normalized = normalized[switchPrefix.Length..].TrimStart();
-        }
-
-        normalized = normalized.TrimStart('"').Trim();
+        var normalized = text.Trim().TrimStart('"').Trim();
         return normalized.Length == 0 ? null : normalized;
     }
 
-    public static Kernel2TextDatabase? TryCreate(string gameRootDirectory, Action<string>? log = null)
-    {
-        var path = Path.Combine(gameRootDirectory, "data", "lang-en", "kernel", "kernel2.bin");
-        if (!File.Exists(path))
-        {
-            log?.Invoke($"kernel2 text database unavailable; missing {path}");
-            return null;
-        }
-
-        try
-        {
-            var decoded = Ff7LzsDecoder.DecodeFieldFile(File.ReadAllBytes(path));
-            var database = TryCreateFromDecodedKernel2(decoded);
-            if (database is null)
-            {
-                log?.Invoke($"kernel2 text database unavailable; required sections were not found in {path}");
-                return null;
-            }
-
-            log?.Invoke($"kernel2 text database loaded from {path}");
-            return database;
-        }
-        catch (Exception ex)
-        {
-            log?.Invoke($"kernel2 text database unavailable; {ex.Message}");
-            return null;
-        }
-    }
-
-    internal static Kernel2TextDatabase? TryCreateFromDecodedKernel2(byte[] decoded)
-    {
-        if (!TryFindSection(decoded, Signature(0, "Potion", 3, "Ether", 7, "Phoenix Down"), out var itemNames) ||
-            !TryFindSection(decoded, Signature(0, "Restores HP by 100", 3, "Restores MP by 100", 7, "Restores life"), out var itemDescriptions) ||
-            !TryFindSection(decoded, Signature(0, "Cure", 27, "Fire", 33, "Bolt"), out var spellNames) ||
-            !TryFindSection(decoded, Signature(0, "Restores HP", 27, "Fire element attack", 33, "Lightning element attack"), out var spellDescriptions) ||
-            !TryFindSection(decoded, Signature(0, "Buster Sword", 1, "Mythril Saber", 2, "Hardedge"), out var weaponNames) ||
-            !TryFindSection(decoded, Signature(0, "Bronze Bangle", 1, "Iron Bangle", 2, "Titan Bangle"), out var armorNames) ||
-            !TryFindSection(decoded, Signature(0, "Power Wrist", 1, "Protect Vest", 2, "Earring"), out var accessoryNames) ||
-            !TryFindSection(decoded, Signature(1, "Attack", 2, "Magic", 3, "Summon"), out var commandNames) ||
-            !TryFindSection(decoded, Signature(0, "MP Plus", 1, "HP Plus", 2, "Speed Plus"), out var materiaNames) ||
-            !TryReadSequentialSections(decoded, out var sections) ||
-            sections.Count <= 16)
-        {
-            return null;
-        }
-
-        return new Kernel2TextDatabase(
-            itemNames,
-            itemDescriptions,
-            spellNames,
-            spellDescriptions,
-            weaponNames,
-            sections[3],
-            armorNames,
-            sections[4],
-            accessoryNames,
-            sections[5],
-            commandNames,
-            materiaNames,
-            sections[6],
-            sections[16]);
-    }
-
-    private static Dictionary<int, string> Signature(
-        int index0,
-        string text0,
-        int index1,
-        string text1,
-        int index2,
-        string text2) =>
-        new()
-        {
-            [index0] = text0,
-            [index1] = text1,
-            [index2] = text2
-        };
-
-    private static bool TryFindSection(
+    private static bool TryReadSequentialSections(
         byte[] decoded,
-        IReadOnlyDictionary<int, string> expectedEntries,
-        out IndexedTextSection section)
-    {
-        section = default;
-        for (var start = 0; start <= decoded.Length - 8; start++)
-        {
-            var sectionSize = ReadInt32(decoded, start);
-            if (sectionSize < 32 || start + sectionSize > decoded.Length)
-            {
-                continue;
-            }
-
-            var tableBase = start + sizeof(int);
-            var firstStringOffset = ReadUInt16(decoded, tableBase);
-            if (firstStringOffset < sizeof(ushort) ||
-                firstStringOffset >= sectionSize - sizeof(int) ||
-                firstStringOffset % sizeof(ushort) != 0)
-            {
-                continue;
-            }
-
-            var count = firstStringOffset / sizeof(ushort);
-            if (count is < 3 or > 512)
-            {
-                continue;
-            }
-
-            var candidate = new IndexedTextSection(decoded, tableBase, start + sectionSize, count);
-            var matches = expectedEntries.All(pair =>
-                string.Equals(candidate.Resolve(pair.Key), pair.Value, StringComparison.Ordinal));
-            if (!matches)
-            {
-                continue;
-            }
-
-            section = candidate;
-            return true;
-        }
-
-        return false;
-    }
-
-    private static bool TryReadSequentialSections(byte[] decoded, out IReadOnlyList<IndexedTextSection> sections)
+        Ff7GameLanguageDescriptor language,
+        out IReadOnlyList<IndexedTextSection> sections)
     {
         var result = new List<IndexedTextSection>();
         var start = 0;
         while (start + sizeof(int) + sizeof(ushort) <= decoded.Length)
         {
             var sectionSize = ReadInt32(decoded, start);
-            if (sectionSize < sizeof(ushort) || start + sizeof(int) + sectionSize > decoded.Length)
+            var tableBase = start + sizeof(int);
+            if (sectionSize < sizeof(ushort) || sectionSize > decoded.Length - tableBase)
             {
                 sections = [];
                 return false;
             }
 
-            var tableBase = start + sizeof(int);
+            var sectionEnd = tableBase + sectionSize;
             var firstStringOffset = ReadUInt16(decoded, tableBase);
             if (firstStringOffset < sizeof(ushort) ||
                 firstStringOffset >= sectionSize ||
@@ -281,14 +207,21 @@ public sealed class Kernel2TextDatabase
             }
 
             var count = firstStringOffset / sizeof(ushort);
-            if (count is < 1 or > 4096)
+            if (count is < 1 or > 4096 || tableBase + (count * sizeof(ushort)) > sectionEnd)
             {
                 sections = [];
                 return false;
             }
 
-            result.Add(new IndexedTextSection(decoded, tableBase, tableBase + sectionSize, count));
-            start += sizeof(int) + sectionSize;
+            var candidate = new IndexedTextSection(decoded, tableBase, sectionEnd, count, language);
+            if (!candidate.HasCoherentOffsets())
+            {
+                sections = [];
+                return false;
+            }
+
+            result.Add(candidate);
+            start = sectionEnd;
         }
 
         sections = result;
@@ -304,8 +237,31 @@ public sealed class Kernel2TextDatabase
     private static ushort ReadUInt16(byte[] bytes, int offset) =>
         (ushort)(bytes[offset] | (bytes[offset + 1] << 8));
 
-    private readonly record struct IndexedTextSection(byte[] Decoded, int TableBase, int SectionEnd, int Count)
+    private readonly record struct IndexedTextSection(
+        byte[] Decoded,
+        int TableBase,
+        int SectionEnd,
+        int Count,
+        Ff7GameLanguageDescriptor Language)
     {
+        public bool HasCoherentOffsets()
+        {
+            var minimum = Count * sizeof(ushort);
+            var previous = minimum;
+            for (var index = 0; index < Count; index++)
+            {
+                var offset = ReadUInt16(Decoded, TableBase + (index * sizeof(ushort)));
+                if (offset < minimum || offset < previous || offset >= SectionEnd - TableBase)
+                {
+                    return false;
+                }
+
+                previous = offset;
+            }
+
+            return true;
+        }
+
         public string? Resolve(int id)
         {
             if (id < 0 || id >= Count)
@@ -320,7 +276,11 @@ public sealed class Kernel2TextDatabase
                 return null;
             }
 
-            var text = Ff7EncodedTextDecoder.DecodeTerminated(Decoded.AsSpan(address, SectionEnd - address));
+            var text = Ff7EncodedTextDecoder.DecodeKernelTerminated(
+                Decoded.AsSpan(address, SectionEnd - address),
+                Language)
+                .Replace("“", string.Empty, StringComparison.Ordinal)
+                .Replace("”", string.Empty, StringComparison.Ordinal);
             return string.IsNullOrWhiteSpace(text) ? null : text;
         }
     }

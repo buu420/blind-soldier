@@ -43,6 +43,8 @@ HighwayStateReaderTests.Run();
 HighwayRoadStateReaderTests.Run();
 WallMarketSquatCueTests.Run();
 GameLanguageDetectorTests.Run();
+LocalizedTextDecoderTests.Run();
+LocalizedKernel2Tests.Run();
 Console.WriteLine("FFVII shared layout tests passed.");
 
 static void AssertBattleLayoutReadersLiveInSharedAssembly()

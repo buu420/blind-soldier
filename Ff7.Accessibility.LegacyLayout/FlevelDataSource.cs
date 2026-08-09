@@ -6,12 +6,27 @@ public sealed class FlevelDataSource
     private readonly LgpArchiveReader? archive;
 
     public FlevelDataSource(string gameRootDirectory)
+        : this(gameRootDirectory, Ff7GameLanguageDetector.Detect(gameRootDirectory))
     {
-        var fieldDirectory = Path.Combine(gameRootDirectory, "data", "field");
-        var extractedCandidate = Path.Combine(fieldDirectory, "flevel");
-        var extractedMapList = Path.Combine(extractedCandidate, "maplist");
-        if (File.Exists(extractedMapList))
+    }
+
+    public FlevelDataSource(string gameRootDirectory, Ff7GameLanguageContext language)
+    {
+        var fieldDirectory = Path.Combine(language.DataDirectory, "field");
+        var extractedNames = new[]
         {
+            Path.GetFileNameWithoutExtension(language.Descriptor.FieldArchiveName),
+            "flevel"
+        }.Distinct(StringComparer.OrdinalIgnoreCase);
+        foreach (var extractedName in extractedNames)
+        {
+            var extractedCandidate = Path.Combine(fieldDirectory, extractedName);
+            var extractedMapList = Path.Combine(extractedCandidate, "maplist");
+            if (!File.Exists(extractedMapList))
+            {
+                continue;
+            }
+
             var names = FieldMapListResolver.ReadFieldNames(extractedMapList);
             if (names.Count != 0)
             {
@@ -21,17 +36,13 @@ public sealed class FlevelDataSource
                 Diagnostic = $"extracted field data: {extractedCandidate}";
                 return;
             }
-
-            FieldNames = new Dictionary<int, string>();
-            Diagnostic = $"extracted maplist contains no field names: {extractedMapList}";
-            return;
         }
 
-        var archivePath = Path.Combine(fieldDirectory, "flevel.lgp");
+        var archivePath = language.FieldArchivePath;
         if (!File.Exists(archivePath))
         {
             FieldNames = new Dictionary<int, string>();
-            Diagnostic = $"no extracted maplist or flevel.lgp exists under {fieldDirectory}";
+            Diagnostic = $"no extracted maplist or {language.Descriptor.FieldArchiveName} exists under {fieldDirectory}";
             return;
         }
 
@@ -41,7 +52,7 @@ public sealed class FlevelDataSource
             if (!candidate.TryReadFile("maplist", out var mapListBytes))
             {
                 FieldNames = new Dictionary<int, string>();
-                Diagnostic = $"flevel.lgp does not contain maplist: {archivePath}";
+                Diagnostic = $"{language.Descriptor.FieldArchiveName} does not contain maplist: {archivePath}";
                 return;
             }
 
@@ -49,19 +60,19 @@ public sealed class FlevelDataSource
             if (names.Count == 0)
             {
                 FieldNames = names;
-                Diagnostic = $"flevel.lgp maplist contains no field names: {archivePath}";
+                Diagnostic = $"{language.Descriptor.FieldArchiveName} maplist contains no field names: {archivePath}";
                 return;
             }
 
             archive = candidate;
             FieldNames = names;
             IsUsable = true;
-            Diagnostic = $"native flevel.lgp archive: {archivePath}";
+            Diagnostic = $"native {language.Descriptor.FieldArchiveName} archive: {archivePath}";
         }
         catch (Exception exception) when (exception is IOException or InvalidDataException or UnauthorizedAccessException)
         {
             FieldNames = new Dictionary<int, string>();
-            Diagnostic = $"could not read flevel.lgp {archivePath}: {exception.Message}";
+            Diagnostic = $"could not read {language.Descriptor.FieldArchiveName} {archivePath}: {exception.Message}";
         }
     }
 

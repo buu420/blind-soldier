@@ -8,11 +8,18 @@ public sealed class FlevelFieldTextResolver
     private const int ScriptHeaderStringOffsetOffset = 4;
 
     private readonly FlevelDataSource flevelDataSource;
+    private readonly Ff7GameLanguageDescriptor language;
     private readonly Dictionary<string, IReadOnlyDictionary<int, FieldMessageText>> fieldMessageCache = new(StringComparer.OrdinalIgnoreCase);
 
     public FlevelFieldTextResolver(string gameRootDirectory)
+        : this(gameRootDirectory, Ff7GameLanguageDetector.Detect(gameRootDirectory))
     {
-        flevelDataSource = new FlevelDataSource(gameRootDirectory);
+    }
+
+    public FlevelFieldTextResolver(string gameRootDirectory, Ff7GameLanguageContext languageContext)
+    {
+        language = languageContext.Descriptor;
+        flevelDataSource = new FlevelDataSource(gameRootDirectory, languageContext);
     }
 
     public FieldMessageCandidate ReadMessageById(int fieldId, int messageId)
@@ -94,7 +101,7 @@ public sealed class FlevelFieldTextResolver
         return messages;
     }
 
-    private static IReadOnlyDictionary<int, FieldMessageText> ReadMessages(byte[] fieldFileBytes)
+    private IReadOnlyDictionary<int, FieldMessageText> ReadMessages(byte[] fieldFileBytes)
     {
         var fieldBytes = Ff7LzsDecoder.DecodeFieldFile(fieldFileBytes);
         if (fieldBytes.Length < FieldHeaderSectionOffsetsOffset + sizeof(int))
@@ -146,10 +153,10 @@ public sealed class FlevelFieldTextResolver
 
             var maxLength = Math.Max(0, sectionOneEnd - textOffset);
             var encodedText = fieldBytes.AsSpan(textOffset, maxLength);
-            var text = Ff7EncodedTextDecoder.DecodeTerminated(encodedText);
+            var text = Ff7EncodedTextDecoder.DecodeFieldTerminated(encodedText, language);
             if (text.Length != 0)
             {
-                var pages = Ff7EncodedTextDecoder.DecodePages(encodedText);
+                var pages = Ff7EncodedTextDecoder.DecodeFieldPages(encodedText, language);
                 messages[messageId] = new FieldMessageText(
                     text,
                     pages
