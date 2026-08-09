@@ -30,6 +30,13 @@ if (args.Contains("--wall-market-squat-only", StringComparer.OrdinalIgnoreCase))
     return;
 }
 
+if (args.Contains("--multilingual-menu-only", StringComparer.OrdinalIgnoreCase))
+{
+    Steam2026InGameMenuSpeechBridgeTests.Run();
+    Console.WriteLine("Steam 2026 x64 multilingual menu regression tests passed.");
+    return;
+}
+
 const string nativePath =
     @"X:\SteamLibrary\steamapps\common\FINAL FANTASY VII Steam Edition\FFVII.exe";
 const string legacyPath =
@@ -2616,6 +2623,7 @@ static MenuParityFixture CreatePopulatedMenuFixture()
         MagicMenuSelectionReader.AddressCurrentMp + MagicMenuSelectionReader.CharacterBlockSize,
         40);
     fixture.WriteByte(ConfigMenuValueReader.AddressBattleSpeed, 128);
+    fixture.WriteInt32(ConfigMenuValueReader.AddressCurrentRow, 5);
     fixture.WriteUInt16(ConfigMenuValueReader.AddressSettingsBits, 0x0040);
     fixture.WriteInt32(ConfigMenuValueReader.AddressSoundModalState, ConfigMenuValueReader.SoundModalActiveState);
     fixture.WriteInt32(ConfigMenuValueReader.AddressMusicVolume, 73);

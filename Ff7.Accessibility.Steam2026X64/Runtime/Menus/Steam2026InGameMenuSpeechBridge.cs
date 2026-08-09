@@ -617,7 +617,8 @@ internal sealed class Steam2026InGameMenuSpeechBridge
             snapshot.Text is not { } text || text.Source != snapshot.CallbackKind ||
             snapshot.Cursor is not null || snapshot.ActiveWidget is not null ||
             text.Context != QuitPromptContext ||
-            !string.Equals(text.Text.Trim(), "Do you want to quit", StringComparison.OrdinalIgnoreCase))
+            text.Text.Trim().Length < 4 ||
+            !text.Text.Any(char.IsLetterOrDigit))
         {
             return false;
         }

@@ -116,15 +116,14 @@ public sealed class MateriaTutorialSpeechTracker
     private static bool IsTutorialSentinel(MenuTextRenderEntry entry) =>
         entry.X is >= 40 and <= 100 &&
         entry.Y >= 400 &&
-        string.Equals(entry.Text.Trim(), "Tutorial", StringComparison.OrdinalIgnoreCase);
+        entry.Text.Any(char.IsLetterOrDigit);
 
     private static bool IsInstruction(MenuTextRenderEntry entry) =>
         entry.Color == 7 &&
         entry.X <= 120 &&
         entry.Y <= 220 &&
         entry.Text.Length >= 4 &&
-        entry.Text.Any(char.IsLetter) &&
-        !string.Equals(entry.Text.Trim(), "Tutorial", StringComparison.OrdinalIgnoreCase);
+        entry.Text.Any(char.IsLetter);
 
     private static bool IsRecent(DateTime seenAt, DateTime now) =>
         seenAt != DateTime.MinValue && now - seenAt <= EvidenceWindow;

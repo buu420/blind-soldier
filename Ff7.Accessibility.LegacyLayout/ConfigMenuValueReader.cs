@@ -82,6 +82,36 @@ public sealed class ConfigMenuValueReader
         return null;
     }
 
+    public NativeMenuSelection? ReadCurrentMainValue(string nativeRowLabel)
+    {
+        if (string.IsNullOrWhiteSpace(nativeRowLabel) ||
+            !TryReadInt32(AddressCurrentRow, out var rowIndex))
+        {
+            return null;
+        }
+
+        var label = nativeRowLabel.Trim();
+        var selection = rowIndex switch
+        {
+            2 => ReadSettingsChoice(label, 2, "Normal", "Customize"),
+            3 => ReadSettingsChoice(label, 4, "Initial", "Memory"),
+            4 => ReadSettingsChoice(label, 6, "Active", "Recommended", "Wait"),
+            5 => ReadSlider(label, AddressBattleSpeed),
+            6 => ReadSlider(label, AddressBattleMessageSpeed),
+            7 => ReadSlider(label, AddressFieldMessageSpeed),
+            8 => ReadSettingsChoice(label, 8, "Auto", "Fixed"),
+            _ => null
+        };
+        if (selection is null ||
+            !TryReadInt32(AddressCurrentRow, out var rowBookend) ||
+            rowBookend != rowIndex)
+        {
+            return null;
+        }
+
+        return selection;
+    }
+
     public NativeMenuSelection? ReadSoundVolume(int cursor)
     {
         if (!TryReadInt32(AddressSoundModalState, out var modalState) || modalState != SoundModalActiveState)
@@ -148,6 +178,19 @@ public sealed class ConfigMenuValueReader
             choices[index],
             null,
             $"config:{label}:{index}");
+    }
+
+    private NativeMenuSelection? ReadSettingsChoice(
+        string label,
+        int shift,
+        params string[] choices)
+    {
+        if (!TryReadUInt16(AddressSettingsBits, out var settings))
+        {
+            return null;
+        }
+
+        return ReadChoice(label, (settings >> shift) & 0x03, choices);
     }
 
     private bool TryReadByte(int address, out byte value)

@@ -58,13 +58,13 @@ public sealed class MenuTextRenderDiagnostics
                 break;
             }
 
-            if (ch is >= ' ' and <= '~')
-            {
-                builder.Append(ch);
-            }
-            else if (char.IsWhiteSpace(ch))
+            if (char.IsWhiteSpace(ch))
             {
                 builder.Append(' ');
+            }
+            else if (!char.IsControl(ch))
+            {
+                builder.Append(ch);
             }
         }
 

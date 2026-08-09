@@ -109,7 +109,7 @@ public sealed class StaticMenuCursorSpeechTracker
         lock (sync)
         {
             Prune(now);
-            if (!IsRecent(lastConfigTitleAt, now))
+            if (!IsRecent(lastConfigTitleAt, now) || !HasConfigLayoutEvidence(now))
             {
                 return;
             }
@@ -184,6 +184,11 @@ public sealed class StaticMenuCursorSpeechTracker
                 if (!IsRecent(screenSeenAt, now))
                 {
                     pendingCursor = null;
+                    return null;
+                }
+
+                if (pending.Kind == StaticMenuKind.Config && !HasConfigLayoutEvidence(now))
+                {
                     return null;
                 }
 
@@ -401,19 +406,44 @@ public sealed class StaticMenuCursorSpeechTracker
         entry.Context == RootMainMenuContext &&
         entry.X == 508 &&
         entry.Y <= 20 &&
-        string.Equals(entry.Text, "Config", StringComparison.OrdinalIgnoreCase);
+        LooksLikeSpeechCandidate(entry.Text);
 
     private static bool IsQuitPrompt(MenuTextRenderEntry entry) =>
         entry.Context == QuitPromptContext &&
         ((entry.X is >= 200 and <= 240 && entry.Y is >= 140 and <= 175) ||
          (entry.X is >= 100 and <= 120 && entry.Y is >= 70 and <= 90)) &&
-        string.Equals(entry.Text.Trim(), "Do you want to quit", StringComparison.OrdinalIgnoreCase);
+        entry.Text.Trim().Length >= 4 &&
+        LooksLikeSpeechCandidate(entry.Text);
 
     private static bool IsQuitChoice(MenuTextRenderEntry entry) =>
         entry.Context == QuitPromptContext &&
-        ((entry.Y is >= 260 and <= 320) || (entry.Y is >= 130 and <= 160)) &&
-        (string.Equals(entry.Text.Trim(), "Yes", StringComparison.OrdinalIgnoreCase) ||
-         string.Equals(entry.Text.Trim(), "No", StringComparison.OrdinalIgnoreCase));
+        (((entry.X is >= 180 and <= 260) || (entry.X is >= 380 and <= 460)) &&
+            entry.Y is >= 260 and <= 320 ||
+         ((entry.X is >= 90 and <= 130) || (entry.X is >= 190 and <= 230)) &&
+            entry.Y is >= 130 and <= 160) &&
+        LooksLikeSpeechCandidate(entry.Text);
+
+    private bool HasConfigLayoutEvidence(DateTime now)
+    {
+        var hasHelp = recentText.Values.Any(item =>
+            item.Entry.Context == ConfigContext &&
+            item.Entry.X <= 32 &&
+            item.Entry.Y <= 32 &&
+            IsRecent(item.SeenAt, now));
+        if (!hasHelp)
+        {
+            return false;
+        }
+
+        return recentText.Values
+            .Where(item => item.Entry.Context == ConfigContext &&
+                item.Entry.X is >= 40 and <= 180 &&
+                item.Entry.Y is >= 60 and <= 460 &&
+                IsRecent(item.SeenAt, now))
+            .Select(item => item.Entry.Y)
+            .Distinct()
+            .Any();
+    }
 
     private static bool IsConfigCursor(MenuCursorDrawObservation cursor) =>
         cursor.Context == ConfigContext &&

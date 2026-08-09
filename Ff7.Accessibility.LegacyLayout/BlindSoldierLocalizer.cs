@@ -105,11 +105,14 @@ public sealed partial class BlindSoldierLocalizer
                 LogEnglishFallback(template.Source);
             }
 
-            return template.Apply(target, match);
+            return template.Apply(target, match, LocalizeCapturedValue);
         }
 
         return text;
     }
+
+    private string LocalizeCapturedValue(string value) =>
+        localized.TryGetValue(value, out var translation) ? translation : value;
 
     private void LogEnglishFallback(string key)
     {
@@ -238,12 +241,12 @@ public sealed partial class BlindSoldierLocalizer
                 literalLength);
         }
 
-        public string Apply(string target, Match match) =>
+        public string Apply(string target, Match match, Func<string, string> localizeCapture) =>
             PlaceholderPattern().Replace(target, placeholder =>
             {
                 var index = int.Parse(placeholder.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
                 return GroupNames.TryGetValue(index, out var groupName)
-                    ? match.Groups[groupName].Value
+                    ? localizeCapture(match.Groups[groupName].Value)
                     : placeholder.Value;
             });
     }

@@ -16,20 +16,23 @@ public sealed class InGameMenuSpeechCoordinator
     private const int CursorVerticalTolerance = 18;
     private const int CursorHorizontalOverlapTolerance = 16;
     private const int CursorHorizontalLeadMax = 160;
-    private static readonly HashSet<string> ConfigMainLabels = new(StringComparer.OrdinalIgnoreCase)
+    // These two visible labels share the character-name rectangle in the
+    // legacy Status layout. There is no separate native row identity for the
+    // renderer fallback, so use the exact shipped-language semantic set while
+    // the authoritative savemap-backed character selection remains preferred.
+    private static readonly HashSet<string> NonCharacterStatusLabels = new(StringComparer.OrdinalIgnoreCase)
     {
-        "Window color",
-        "Sound",
-        "Controller",
-        "Cursor",
-        "ATB",
-        "Battle speed",
-        "Battle message",
-        "Field message",
-        "Camera angle",
-        "Magic order"
+        "next level",
+        "Limit level",
+        "Niveau suivant",
+        "Niveau de limite",
+        "Nächste Stufe",
+        "Limit-Stufe",
+        "Siguiente nivel",
+        "Nivel de límite",
+        "次のレベルまで",
+        "リミットレベル"
     };
-
     private readonly TimeSpan settleTime;
     private readonly Func<string, string?>? resolveDescriptionByName;
     private readonly object sync = new();
@@ -1106,17 +1109,7 @@ public sealed class InGameMenuSpeechCoordinator
             return false;
         }
 
-        if (string.Equals(entry.Text, "NEW GAME", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        if (string.Equals(entry.Text.TrimEnd('?'), "Continue", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        return false;
+        return LooksLikeSpeechCandidate(entry.Text);
     }
 
     private static bool IsSelectableText(MenuTextRenderEntry entry)
@@ -1252,8 +1245,7 @@ public sealed class InGameMenuSpeechCoordinator
         (entry.Context == FieldStatusContext || entry.Context == ClockGilContext) &&
         entry.X is >= 80 and <= 220 &&
         entry.Y is >= 12 and <= 140 &&
-        !string.Equals(entry.Text, "next level", StringComparison.OrdinalIgnoreCase) &&
-        !string.Equals(entry.Text, "Limit level", StringComparison.OrdinalIgnoreCase);
+        !NonCharacterStatusLabels.Contains(entry.Text.Trim());
 
     private static bool IsMagicSpellGridText(MenuTextRenderEntry entry) =>
         LooksLikeSpeechCandidate(entry.Text) &&
@@ -1286,10 +1278,10 @@ public sealed class InGameMenuSpeechCoordinator
         IsCommandRowProbe(state) ? CandidatePriority.CommandSelection : CandidatePriority.WidgetSelection;
 
     private static bool IsConfigMainLabel(MenuTextRenderEntry entry) =>
+        LooksLikeSpeechCandidate(entry.Text) &&
         entry.Context == ConfigHelpContext &&
         entry.X is >= 40 and <= 180 &&
-        entry.Y is >= 60 and <= 460 &&
-        ConfigMainLabels.Contains(entry.Text.Trim());
+        entry.Y is >= 60 and <= 460;
 
     private static bool IsConfigChoiceValue(MenuTextRenderEntry entry) =>
         entry.Context == ConfigHelpContext &&
@@ -1307,10 +1299,7 @@ public sealed class InGameMenuSpeechCoordinator
         !IsItemDescription(entry);
 
     private static bool IsItemMenuCommandText(MenuTextRenderEntry entry) =>
-        IsCommandRowText(entry) &&
-        (string.Equals(entry.Text, "Use", StringComparison.OrdinalIgnoreCase) ||
-         string.Equals(entry.Text, "Arrange", StringComparison.OrdinalIgnoreCase) ||
-         string.Equals(entry.Text, "Key Items", StringComparison.OrdinalIgnoreCase));
+        IsCommandRowText(entry) && LooksLikeSpeechCandidate(entry.Text);
 
     private static string CreateScreenKey(MenuTextRenderEntry entry) =>
         $"{entry.Text}\u001f{entry.X}\u001f{entry.Y}\u001f{entry.Color}\u001f{entry.Context}";

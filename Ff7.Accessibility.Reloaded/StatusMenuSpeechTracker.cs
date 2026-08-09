@@ -11,6 +11,7 @@ public sealed class StatusMenuSpeechTracker
     private readonly object sync = new();
     private DateTime lastTitleAt = DateTime.MinValue;
     private DateTime lastDetailsAt = DateTime.MinValue;
+    private DateTime lastConfigHelpAt = DateTime.MinValue;
     private int generation;
     private PendingStatus? pending;
     private string lastSpokenKey = string.Empty;
@@ -24,6 +25,11 @@ public sealed class StatusMenuSpeechTracker
     {
         lock (sync)
         {
+            if (entry.Context == ConfigContext && entry.X <= 32 && entry.Y <= 32)
+            {
+                lastConfigHelpAt = now;
+            }
+
             if (IsStatusTitle(entry))
             {
                 if (lastTitleAt == DateTime.MinValue || now - lastTitleAt > NewScreenGap)
@@ -56,7 +62,8 @@ public sealed class StatusMenuSpeechTracker
             if (pending is not { } current ||
                 now - current.SeenAt < settleTime ||
                 !IsRecent(lastTitleAt, now) ||
-                !IsRecent(lastDetailsAt, now))
+                !IsRecent(lastDetailsAt, now) ||
+                IsRecent(lastConfigHelpAt, now))
             {
                 return null;
             }
@@ -86,6 +93,7 @@ public sealed class StatusMenuSpeechTracker
             pending = null;
             lastTitleAt = DateTime.MinValue;
             lastDetailsAt = DateTime.MinValue;
+            lastConfigHelpAt = DateTime.MinValue;
         }
     }
 
@@ -136,13 +144,15 @@ public sealed class StatusMenuSpeechTracker
         entry.Context == RootMainMenuContext &&
         entry.X == 508 &&
         entry.Y <= 20 &&
-        string.Equals(entry.Text, "Status", StringComparison.OrdinalIgnoreCase);
+        !string.IsNullOrWhiteSpace(entry.Text) &&
+        entry.Text.Any(char.IsLetterOrDigit);
 
     private static bool IsStatusDetailsSignal(MenuTextRenderEntry entry) =>
         entry.Context == ConfigContext &&
         entry.X is >= 50 and <= 70 &&
         entry.Y is >= 110 and <= 130 &&
-        string.Equals(entry.Text, "Strength", StringComparison.OrdinalIgnoreCase);
+        !string.IsNullOrWhiteSpace(entry.Text) &&
+        entry.Text.Any(char.IsLetterOrDigit);
 
     private readonly record struct PendingStatus(int Generation, DateTime SeenAt);
 }

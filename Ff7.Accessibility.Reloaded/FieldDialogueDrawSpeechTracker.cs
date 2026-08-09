@@ -15,33 +15,6 @@ public sealed class FieldDialogueDrawSpeechTracker
     private static readonly TimeSpan CandidateLifetime = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan RepeatSuppression = TimeSpan.FromSeconds(4);
 
-    private static readonly HashSet<string> MenuTexts = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "Item",
-        "Magic",
-        "Materia",
-        "Equip",
-        "Status",
-        "Order",
-        "Limit",
-        "Config",
-        "PHS",
-        "Save",
-        "Quit",
-        "Use",
-        "Arrange",
-        "Key Items",
-        "Space",
-        "Delete",
-        "Select",
-        "Default",
-        "NEW GAME",
-        "Continue",
-        "Continue?",
-        "Yes",
-        "No"
-    };
-
     private readonly TimeSpan stableTime;
     private readonly object sync = new();
     private readonly Dictionary<string, Candidate> candidates = new(StringComparer.Ordinal);
@@ -149,6 +122,11 @@ public sealed class FieldDialogueDrawSpeechTracker
         }
 
         normalized = entry with { Text = text };
+        if (currentModule == NameEntryModule && IsNameEntryPrompt(normalized, text))
+        {
+            return true;
+        }
+
         return !IsIgnoredText(normalized);
     }
 
@@ -167,7 +145,7 @@ public sealed class FieldDialogueDrawSpeechTracker
         return entry.Context == ItemMenuContext &&
             entry.X <= 80 &&
             entry.Y <= 64 &&
-            string.Equals(normalizedText.TrimEnd('.'), "Please enter a name", StringComparison.OrdinalIgnoreCase);
+            LooksLikeSpeechCandidate(normalizedText);
     }
 
     private static bool IsIgnoredText(MenuTextRenderEntry entry)
@@ -187,7 +165,9 @@ public sealed class FieldDialogueDrawSpeechTracker
             return true;
         }
 
-        if (MenuTexts.Contains(entry.Text))
+        if (entry.Context == ItemMenuContext &&
+            ((entry.Y <= 48 && entry.X is >= 40 and <= 340) ||
+             (entry.X >= 480 && entry.Y <= 80)))
         {
             return true;
         }
@@ -219,8 +199,7 @@ public sealed class FieldDialogueDrawSpeechTracker
             return false;
         }
 
-        return string.Equals(entry.Text, "NEW GAME", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(entry.Text.TrimEnd('?'), "Continue", StringComparison.OrdinalIgnoreCase);
+        return LooksLikeSpeechCandidate(entry.Text);
     }
 
     private static bool LooksLikeSpeechCandidate(string text)
@@ -248,13 +227,13 @@ public sealed class FieldDialogueDrawSpeechTracker
                 break;
             }
 
-            if (ch is >= ' ' and <= '~')
-            {
-                builder.Append(ch);
-            }
-            else if (char.IsWhiteSpace(ch))
+            if (char.IsWhiteSpace(ch))
             {
                 builder.Append(' ');
+            }
+            else if (!char.IsControl(ch))
+            {
+                builder.Append(ch);
             }
         }
 

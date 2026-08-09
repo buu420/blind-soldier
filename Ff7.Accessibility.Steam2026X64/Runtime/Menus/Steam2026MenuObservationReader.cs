@@ -158,7 +158,7 @@ public sealed class Steam2026MenuObservationReader
         out NativeMenuSelection selection)
     {
         selection = default;
-        var candidate = configReader.ReadMainValue(nativeRowLabel);
+        var candidate = configReader.ReadCurrentMainValue(nativeRowLabel);
         if (candidate is null)
         {
             return false;

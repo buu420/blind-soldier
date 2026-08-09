@@ -23,6 +23,8 @@ public sealed class PartyFormationSpeechTracker
     private int screenGeneration;
     private bool introPending;
     private string promptState = string.Empty;
+    private string promptInstruction = string.Empty;
+    private string screenTitle = string.Empty;
     private PendingSelection? pendingSelection;
     private PendingSpeech? pendingStatus;
     private string? reserveName;
@@ -50,7 +52,11 @@ public sealed class PartyFormationSpeechTracker
             {
                 if (!IsActiveCore(now))
                 {
-                    BeginScreen();
+                    BeginScreen(text);
+                }
+                else
+                {
+                    screenTitle = text;
                 }
 
                 lastTitleSeenUtc = now;
@@ -69,9 +75,9 @@ public sealed class PartyFormationSpeechTracker
                 return;
             }
 
-            if (TryClassifyPrompt(entry, text, out var nextPromptState))
+            if (TryClassifyPrompt(entry, text, out var prompt))
             {
-                ObservePrompt(nextPromptState, now);
+                ObservePrompt(prompt, now);
                 return;
             }
 
@@ -179,10 +185,11 @@ public sealed class PartyFormationSpeechTracker
             var key = $"{selection.Key}:{selectionText}";
             if (introPending)
             {
-                var instruction = string.Equals(promptState, "incomplete", StringComparison.Ordinal)
-                    ? "Please make a party of three."
+                var instruction = promptInstruction.Length > 0
+                    ? promptInstruction
                     : "Press Start when finished.";
-                speech = $"Reform. {selectionText} {instruction}";
+                var title = screenTitle.Length > 0 ? screenTitle : "Reform";
+                speech = $"{title}. {selectionText} {instruction}";
                 key = $"{key}:intro:{promptState}";
                 introPending = false;
             }
@@ -199,26 +206,24 @@ public sealed class PartyFormationSpeechTracker
         }
     }
 
-    private void ObservePrompt(string nextPromptState, DateTime now)
+    private void ObservePrompt(PromptObservation prompt, DateTime now)
     {
-        if (string.Equals(promptState, nextPromptState, StringComparison.Ordinal))
+        promptInstruction = prompt.Instruction;
+        if (string.Equals(promptState, prompt.State, StringComparison.Ordinal))
         {
             return;
         }
 
         var previous = promptState;
-        promptState = nextPromptState;
+        promptState = prompt.State;
         if (previous.Length == 0)
         {
             return;
         }
 
-        var text = string.Equals(nextPromptState, "incomplete", StringComparison.Ordinal)
-            ? "Please make a party of three."
-            : "Party complete. Press Start when finished.";
         pendingStatus = new PendingSpeech(
-            text,
-            $"{screenGeneration}:prompt:{nextPromptState}",
+            prompt.TransitionSpeech,
+            $"{screenGeneration}:prompt:{prompt.State}",
             now);
     }
 
@@ -313,16 +318,16 @@ public sealed class PartyFormationSpeechTracker
 
     private static bool IsReformTitle(MenuTextRenderEntry entry, string text) =>
         entry.Context == 0 &&
-        string.Equals(text, "Reform", StringComparison.OrdinalIgnoreCase) &&
+        text.Any(char.IsLetterOrDigit) &&
         ((IsNear(entry.X, 508, 16) && IsNear(entry.Y, 14, 10)) ||
          (IsNear(entry.X, 262, 10) && IsNear(entry.Y, 7, 6)));
 
     private static bool TryClassifyPrompt(
         MenuTextRenderEntry entry,
         string text,
-        out string prompt)
+        out PromptObservation prompt)
     {
-        prompt = string.Empty;
+        prompt = default;
         if (entry.Context != PartyTextContext ||
             !((IsNear(entry.X, 26, 12) && IsNear(entry.Y, 13, 10)) ||
               (IsNear(entry.X, 13, 8) && IsNear(entry.Y, 7, 6))))
@@ -332,17 +337,29 @@ public sealed class PartyFormationSpeechTracker
 
         if (string.Equals(text, "Select with START button.", StringComparison.OrdinalIgnoreCase))
         {
-            prompt = "complete";
+            prompt = new PromptObservation(
+                "complete",
+                "Press Start when finished.",
+                "Party complete. Press Start when finished.");
             return true;
         }
 
         if (string.Equals(text, "Please make a party of three.", StringComparison.OrdinalIgnoreCase))
         {
-            prompt = "incomplete";
+            prompt = new PromptObservation(
+                "incomplete",
+                "Please make a party of three.",
+                "Please make a party of three.");
             return true;
         }
 
-        return false;
+        if (text.Length < 2 || !text.Any(char.IsLetterOrDigit))
+        {
+            return false;
+        }
+
+        prompt = new PromptObservation($"native:{text}", text, text);
+        return true;
     }
 
     private static bool TryMapGridIndex(
@@ -408,11 +425,13 @@ public sealed class PartyFormationSpeechTracker
         now >= lastTitleSeenUtc &&
         now - lastTitleSeenUtc <= ScreenEvidenceWindow;
 
-    private void BeginScreen()
+    private void BeginScreen(string title)
     {
         screenGeneration++;
         introPending = true;
         promptState = string.Empty;
+        promptInstruction = string.Empty;
+        screenTitle = title;
         pendingSelection = null;
         pendingStatus = null;
         reserveName = null;
@@ -427,6 +446,8 @@ public sealed class PartyFormationSpeechTracker
         lastTitleSeenUtc = DateTime.MinValue;
         introPending = false;
         promptState = string.Empty;
+        promptInstruction = string.Empty;
+        screenTitle = string.Empty;
         pendingSelection = null;
         pendingStatus = null;
         reserveName = null;
@@ -451,4 +472,9 @@ public sealed class PartyFormationSpeechTracker
         DateTime SeenAtUtc);
 
     private readonly record struct PendingSpeech(string Text, string Key, DateTime SeenAtUtc);
+
+    private readonly record struct PromptObservation(
+        string State,
+        string Instruction,
+        string TransitionSpeech);
 }

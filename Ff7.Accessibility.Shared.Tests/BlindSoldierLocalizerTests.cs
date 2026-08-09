@@ -6,6 +6,7 @@ internal static class BlindSoldierLocalizerTests
     {
         LocalizesExactCoreSpeechInEverySupportedLanguage();
         LocalizesTemplatesWithoutChangingCapturedNativeNames();
+        LocalizesGeneratedMenuSummaries();
         LeavesUnknownNativeTextUntouched();
         FallsBackToEnglishForAMissingKnownTranslation();
         LoadsAValidBoundedExternalOverride();
@@ -39,12 +40,36 @@ internal static class BlindSoldierLocalizerTests
             "arriba 20",
             Create(Ff7GameLanguage.Spanish).Localize("up 20"),
             "Spanish direction template");
+        Equal(
+            "Histoire, Aeris. Itinéraire indisponible.",
+            Create(Ff7GameLanguage.French).Localize("Story, Aeris. Route unavailable."),
+            "known generated template captures are localized while native names remain unchanged");
     }
 
     private static void LeavesUnknownNativeTextUntouched()
     {
         const string nativeText = "Épée broyante";
         Equal(nativeText, Create(Ff7GameLanguage.French).Localize(nativeText), "native text pass-through");
+    }
+
+    private static void LocalizesGeneratedMenuSummaries()
+    {
+        var japanese = Create(Ff7GameLanguage.Japanese);
+        Equal("ニューゲーム", japanese.Localize("New Game"), "Japanese generated title label");
+        Equal(
+            "編成。パーティ枠 1、クラウド。STARTボタンで決定",
+            japanese.Localize("編成. Party slot 1, クラウド. STARTボタンで決定"),
+            "Japanese party formation summary");
+
+        var french = Create(Ff7GameLanguage.French);
+        Equal(
+            "Vitesse des messages. 50 pour cent de rapide à lent. Régler la vitesse",
+            french.Localize("Vitesse des messages. 50 percent from Fast to Slow. Régler la vitesse"),
+            "French generated Config slider value");
+        Equal(
+            "Sélectionnez un fichier de sauvegarde. Sauvegarde 2, vide.",
+            french.Localize("Select a save data file. Save 2, empty."),
+            "French generated save-file summary");
     }
 
     private static void FallsBackToEnglishForAMissingKnownTranslation()

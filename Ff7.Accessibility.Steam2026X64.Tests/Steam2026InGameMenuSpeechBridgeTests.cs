@@ -19,6 +19,7 @@ internal static class Steam2026InGameMenuSpeechBridgeTests
         SecondaryEquipmentReaderUsesCheckedSelectorBookends();
         ReadsConfigValueHelpAndStatusSummary();
         ReadsExactQuitChoiceAcrossNameEntryOwnershipCollision();
+        ReadsLocalizedQuitChoiceAcrossNameEntryOwnershipCollision();
         RetainsExactQuitChoiceAcrossTrailingUnrelatedDraw();
         ReadsExactLowResolutionQuitChoiceAcrossModuleTransition();
         ReadsMateriaTutorialInstructions();
@@ -720,6 +721,55 @@ internal static class Steam2026InGameMenuSpeechBridgeTests
             true,
             bridge.HasExactQuitOwnership(now.AddMilliseconds(3)),
             "the session poll gate retains exact Quit ownership");
+    }
+
+    private static void ReadsLocalizedQuitChoiceAcrossNameEntryOwnershipCollision()
+    {
+        var bridge = CreateBridge(settleTime: TimeSpan.Zero);
+        var now = UtcNow();
+        var sequence = 0L;
+
+        ObserveText(
+            bridge,
+            ref sequence,
+            now,
+            "ゲームを終了しますか？",
+            220,
+            158,
+            7,
+            0x3C23D70A,
+            isNameEntryActive: true);
+        ObserveText(
+            bridge,
+            ref sequence,
+            now.AddMilliseconds(1),
+            "はい",
+            212,
+            296,
+            0,
+            0x3C23D70A,
+            isNameEntryActive: true);
+        ObserveText(
+            bridge,
+            ref sequence,
+            now.AddMilliseconds(2),
+            "いいえ",
+            414,
+            296,
+            7,
+            0x3C23D70A,
+            isNameEntryActive: true);
+        ObserveCursor(
+            bridge,
+            ref sequence,
+            now.AddMilliseconds(3),
+            364,
+            304,
+            RootContext,
+            isNameEntryActive: true);
+
+        Equal("いいえ", bridge.Poll(now.AddMilliseconds(3)), "localized native Quit choice");
+        Equal(true, bridge.HasExactQuitOwnership(now.AddMilliseconds(3)), "localized Quit ownership");
     }
 
     private static void RetainsExactQuitChoiceAcrossTrailingUnrelatedDraw()

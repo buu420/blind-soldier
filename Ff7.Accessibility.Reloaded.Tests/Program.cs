@@ -90,6 +90,31 @@ if (args.Contains("--menu-repeat-only", StringComparer.OrdinalIgnoreCase))
     return;
 }
 
+if (args.Contains("--multilingual-menu-only", StringComparer.OrdinalIgnoreCase))
+{
+    MultilingualMenuRegressionTests.Run();
+    AssertMenuTextRenderDiagnosticsFiltersAndDedupes();
+    PartyFormationSpeechTrackerTests.Run();
+    AssertStaticMenuCursorSpeechReadsConfigRows();
+    AssertStaticMenuCursorSpeechReadsNativeConfigRowWithoutCursorDraw();
+    AssertStaticMenuCursorSpeechUsesNativeConfigValue();
+    AssertStaticMenuCursorSpeechReadsQuitChoices();
+    AssertStaticMenuCursorSpeechReadsDrawOnlyQuitChoices();
+    AssertStaticMenuCursorSpeechClearsStaleCursorWhenQuitReopensDrawOnly();
+    AssertStatusMenuSpeechReadsOneNativeSummaryPerOpen();
+    AssertTitleLoadMenuSpeaksNativeSaveFileGrid();
+    AssertTitleLoadMenuSpeaksSelectedGamePreview();
+    AssertTitleLoadMenuUnknownNativeStateStaysSilent();
+    AssertMateriaTutorialSpeechReadsNativeInstructionsOnce();
+    AssertMateriaTutorialSpeechQueuesEveryNewInstructionLine();
+    AssertFieldDialogueDrawSpeechSpeaksStableNativeDrawLine();
+    AssertFieldDialogueDrawSpeechIgnoresMenuAndHudText();
+    AssertFieldDialogueDrawSpeechDoesNotRepeatVisibleLine();
+    AssertFieldDialogueDrawSpeechSpeaksNameEntryPromptOutsideFieldModule();
+    Console.WriteLine("FFVII multilingual menu regression tests passed.");
+    return;
+}
+
 var root = FindGameRoot();
 var sourceRoot = FindSourceRoot();
 var captures = Path.Combine(sourceRoot, "accessibility_prototype", "helper", "bin", "Debug", "net10.0-windows", "captures");

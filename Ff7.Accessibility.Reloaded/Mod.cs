@@ -4907,7 +4907,7 @@ public sealed class Mod : IModV1, IModV2
 
         try
         {
-            return configMenuValueReader.ReadMainValue(nativeRowLabel);
+            return configMenuValueReader.ReadCurrentMainValue(nativeRowLabel);
         }
         catch (Exception ex)
         {

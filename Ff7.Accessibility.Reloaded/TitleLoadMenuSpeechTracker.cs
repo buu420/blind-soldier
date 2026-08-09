@@ -110,7 +110,7 @@ public sealed class TitleLoadMenuSpeechTracker
             }
 
             var text = entry.Text.Trim();
-            if (string.Equals(text, "Select a save game.", StringComparison.OrdinalIgnoreCase))
+            if (IsGameSelectionPrompt(entry, text))
             {
                 if (screen is not (LoadScreen.SaveFiles or LoadScreen.Games))
                 {
@@ -134,7 +134,7 @@ public sealed class TitleLoadMenuSpeechTracker
                 return;
             }
 
-            if (string.Equals(text, "GAME", StringComparison.OrdinalIgnoreCase))
+            if (IsGameHeader(entry, text))
             {
                 gameHeaderArmed = true;
                 gameHeaderSeenAt = now;
@@ -337,6 +337,17 @@ public sealed class TitleLoadMenuSpeechTracker
             ? $"game:{saveFile}:{game}:missing"
             : $"game:{saveFile}:{game}:{value.IsEmpty}:{value.Level}:{value.PlaySeconds}:{value.Gil}:" +
                 $"{value.LeadCharacterName}:{value.Location}";
+
+    private static bool IsGameSelectionPrompt(MenuTextRenderEntry entry, string text) =>
+        entry.X <= 32 &&
+        entry.Y <= 32 &&
+        text.Length >= 4 &&
+        text.Any(char.IsLetterOrDigit);
+
+    private static bool IsGameHeader(MenuTextRenderEntry entry, string text) =>
+        entry.X is >= 320 and <= 380 &&
+        entry.Y <= 32 &&
+        text.Any(char.IsLetter);
 
     private enum LoadScreen
     {
