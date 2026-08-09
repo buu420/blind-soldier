@@ -7,6 +7,7 @@ internal sealed class Steam2026ResearchAccessibilityOutput : IAccessibilityOutpu
 {
     private readonly PrismNativeSpeaker speaker;
     private readonly Action<string> log;
+    private readonly BlindSoldierLocalizer localizer;
     private readonly ISteam2026MovieNarrationPlayback? movieNarrationPlayback;
     private readonly RepeatLastSpeechController repeatLastSpeechController = new();
     private int disposed;
@@ -14,7 +15,21 @@ internal sealed class Steam2026ResearchAccessibilityOutput : IAccessibilityOutpu
     internal Steam2026ResearchAccessibilityOutput(
         PrismNativeSpeaker speaker,
         Action<string> log)
-        : this(speaker, log, movieNarrationPlayback: null)
+        : this(
+            speaker,
+            BlindSoldierLocalizer.Create(
+                Ff7GameLanguages.Get(Ff7GameLanguage.English),
+                modDirectory: null),
+            log,
+            movieNarrationPlayback: null)
+    {
+    }
+
+    internal Steam2026ResearchAccessibilityOutput(
+        PrismNativeSpeaker speaker,
+        BlindSoldierLocalizer localizer,
+        Action<string> log)
+        : this(speaker, localizer, log, movieNarrationPlayback: null)
     {
     }
 
@@ -25,6 +40,26 @@ internal sealed class Steam2026ResearchAccessibilityOutput : IAccessibilityOutpu
         Action<string> log)
         : this(
             speaker,
+            BlindSoldierLocalizer.Create(
+                Ff7GameLanguages.Get(Ff7GameLanguage.English),
+                modDirectory: null),
+            log,
+            new Steam2026MovieNarrationPlayback(
+                absoluteOpeningMovieAudioTrackPath,
+                openingMovieAudioTrackVolumePercent,
+                log))
+    {
+    }
+
+    internal Steam2026ResearchAccessibilityOutput(
+        PrismNativeSpeaker speaker,
+        string absoluteOpeningMovieAudioTrackPath,
+        int openingMovieAudioTrackVolumePercent,
+        BlindSoldierLocalizer localizer,
+        Action<string> log)
+        : this(
+            speaker,
+            localizer,
             log,
             new Steam2026MovieNarrationPlayback(
                 absoluteOpeningMovieAudioTrackPath,
@@ -39,6 +74,9 @@ internal sealed class Steam2026ResearchAccessibilityOutput : IAccessibilityOutpu
         Action<string> log)
         : this(
             speaker,
+            BlindSoldierLocalizer.Create(
+                Ff7GameLanguages.Get(Ff7GameLanguage.English),
+                modDirectory: null),
             log,
             movieNarrationPlayback
             ?? throw new ArgumentNullException(nameof(movieNarrationPlayback)))
@@ -47,10 +85,12 @@ internal sealed class Steam2026ResearchAccessibilityOutput : IAccessibilityOutpu
 
     private Steam2026ResearchAccessibilityOutput(
         PrismNativeSpeaker speaker,
+        BlindSoldierLocalizer localizer,
         Action<string> log,
         ISteam2026MovieNarrationPlayback? movieNarrationPlayback)
     {
         this.speaker = speaker ?? throw new ArgumentNullException(nameof(speaker));
+        this.localizer = localizer ?? throw new ArgumentNullException(nameof(localizer));
         this.log = log ?? throw new ArgumentNullException(nameof(log));
         this.movieNarrationPlayback = movieNarrationPlayback;
     }
@@ -62,13 +102,14 @@ internal sealed class Steam2026ResearchAccessibilityOutput : IAccessibilityOutpu
             return;
         }
 
-        if (!speaker.Speak(text, interrupt))
+        var localizedText = localizer.Localize(text);
+        if (!speaker.Speak(localizedText, interrupt))
         {
             throw new InvalidOperationException("Prism did not accept the speech request.");
         }
 
-        repeatLastSpeechController.RememberDelivered(text);
-        log($"Speak: {text}");
+        repeatLastSpeechController.RememberDelivered(localizedText);
+        log($"Speak: {localizedText}");
     }
 
     internal bool RepeatLast() =>

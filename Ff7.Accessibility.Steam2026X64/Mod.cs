@@ -130,6 +130,12 @@ public sealed class Mod : IModV1, IModV2
                 "data",
                 "movies",
                 "opening.avi"));
+            var gameLanguage = Ff7GameLanguageDetector.Detect(
+                gameWorkingDirectory,
+                config.GameLanguage,
+                executablePath,
+                steamManifestPaths: null,
+                log: Log);
             Log($"Native Steam 2026 legacy data root: {gameWorkingDirectory}");
             Log($"Native Steam 2026 opening movie identity: {openingMoviePath}");
             researchSession = new Steam2026ResearchSession(
@@ -142,6 +148,7 @@ public sealed class Mod : IModV1, IModV2
                 modDirectory,
                 gameWorkingDirectory,
                 openingMoviePath,
+                gameLanguage,
                 Log);
             researchSession.Start();
             Log(

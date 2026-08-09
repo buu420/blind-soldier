@@ -110,8 +110,15 @@ public sealed class FieldScriptNavigationCatalog
     private readonly object cacheLock = new();
 
     public FieldScriptNavigationCatalog(string gameRootDirectory)
+        : this(gameRootDirectory, Ff7GameLanguageDetector.Detect(gameRootDirectory))
     {
-        flevelDataSource = new FlevelDataSource(gameRootDirectory);
+    }
+
+    public FieldScriptNavigationCatalog(
+        string gameRootDirectory,
+        Ff7GameLanguageContext language)
+    {
+        flevelDataSource = new FlevelDataSource(gameRootDirectory, language);
         fieldNames = flevelDataSource.FieldNames;
     }
 

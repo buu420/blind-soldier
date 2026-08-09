@@ -12,6 +12,7 @@ internal static class Steam2026ResearchAccessibilityOutputTests
         RequiresAnAbsoluteNarrationPath();
         ReportsPrismSpeechCompletionWhenTheBackendSupportsIt();
         RepeatsLastDeliveredSpeechWithoutReplacingIt();
+        LocalizesBeforePrismAndRepeatStorage();
         NarrationCompletionReleasesDialogueWithoutReprotectingIt();
     }
 
@@ -132,6 +133,33 @@ internal static class Steam2026ResearchAccessibilityOutputTests
 
         Equal(true, output.RepeatLast(), "repeating must leave the same utterance available");
         Equal("Barret, back row", spoken[2].Text, "repeat does not replace remembered speech");
+    }
+
+    private static void LocalizesBeforePrismAndRepeatStorage()
+    {
+        var spoken = new List<string>();
+        using var speaker = new PrismNativeSpeaker(
+            _ => { },
+            context: (nint)1,
+            backend: (nint)1,
+            output: (_, text, _) =>
+            {
+                spoken.Add(Marshal.PtrToStringUTF8(text) ?? string.Empty);
+                return PrismError.Ok;
+            },
+            shutdown: _ => { });
+        var localizer = BlindSoldierLocalizer.Create(
+            Ff7GameLanguages.Get(Ff7GameLanguage.French),
+            modDirectory: null);
+        using var output = new Steam2026ResearchAccessibilityOutput(
+            speaker,
+            localizer,
+            _ => { });
+
+        output.Speak("Route complete.", interrupt: false);
+        Equal("Itinéraire terminé.", spoken[0], "localized x64 Prism speech");
+        Equal(true, output.RepeatLast(), "localized speech is repeatable");
+        Equal("Itinéraire terminé.", spoken[1], "repeat stores localized x64 speech");
     }
 
     private static void NarrationCompletionReleasesDialogueWithoutReprotectingIt()

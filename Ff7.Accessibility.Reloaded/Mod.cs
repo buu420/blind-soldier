@@ -141,6 +141,10 @@ public sealed class Mod : IModV1, IModV2
     private OpeningMovieAudioTrackPlayer? openingMovieAudioTrackPlayer;
     private string modDirectory = AppContext.BaseDirectory;
     private string? gameRootDirectory;
+    private Ff7GameLanguageContext? gameLanguage;
+    private BlindSoldierLocalizer localizer = BlindSoldierLocalizer.Create(
+        Ff7GameLanguages.Get(Ff7GameLanguage.English),
+        modDirectory: null);
     private string logPath = ModPaths.ResolveLogPath(null);
     private string lastTitleMenuItem = string.Empty;
     private int titleMenuMissCount;
@@ -588,6 +592,19 @@ public sealed class Mod : IModV1, IModV2
         Log($"Log path: {logPath}");
         gameRootDirectory = ResolveGameRootDirectory();
         Log($"Game root directory: {gameRootDirectory ?? "<unknown>"}");
+        var executablePath = Process.GetCurrentProcess().MainModule?.FileName;
+        gameLanguage = Ff7GameLanguageDetector.Detect(
+            gameRootDirectory ?? AppContext.BaseDirectory,
+            config.GameLanguage,
+            executablePath,
+            steamManifestPaths: null,
+            log: Log);
+        Ff7EncodedTextDecoder.SetDefaultLanguage(gameLanguage.Descriptor);
+        localizer = BlindSoldierLocalizer.Create(gameLanguage.Descriptor, modDirectory, Log);
+        if (gameLanguage.Language != Ff7GameLanguage.English && config.EnableOpeningMovieAudioTrack)
+        {
+            Log("The packaged opening-movie audio description is English; localized Prism cues remain available as fallback.");
+        }
         ffnxRuntimeLoaded = FfnxRuntimeDetector.IsLoaded(Process.GetCurrentProcess());
         Log($"Opening movie audio backend: Reloaded synchronized track (FFNx loaded={ffnxRuntimeLoaded}).");
 
@@ -626,7 +643,7 @@ public sealed class Mod : IModV1, IModV2
             titleLoadMenuDataReader.ReadSlot);
         Log("Title Continue previews use the native renderer cache.");
 
-        kernel2TextDatabase = gameRootDirectory is null ? null : Kernel2TextDatabase.TryCreate(gameRootDirectory, Log);
+        kernel2TextDatabase = Kernel2TextDatabase.TryCreate(gameLanguage, Log);
         fieldDialogueDrawSpeechTracker = new FieldDialogueDrawSpeechTracker(TimeSpan.FromMilliseconds(Math.Max(0, config.FieldDialogueDrawStableMs)));
         nameEntryMenuSpeechTracker = new NameEntryMenuSpeechTracker(TimeSpan.FromMilliseconds(Math.Max(0, config.NameEntryMenuSpeechSettleMs)));
         nameEntryNativeNameTracker = new NameEntryNativeNameTracker(TimeSpan.FromMilliseconds(750));
@@ -712,7 +729,9 @@ public sealed class Mod : IModV1, IModV2
         mainMenuStateReader = new MainMenuStateReader(legacyAddressSpace);
         nameEntryStateReader = new NameEntryStateReader(legacyAddressSpace);
         saveMenuStateReader = new SaveMenuStateReader(legacyAddressSpace);
-        flevelFieldTextResolver = gameRootDirectory is null ? null : new FlevelFieldTextResolver(gameRootDirectory);
+        flevelFieldTextResolver = gameRootDirectory is null
+            ? null
+            : new FlevelFieldTextResolver(gameRootDirectory, gameLanguage);
         fieldOpcodeAddressResolver = new FieldOpcodeAddressResolver(ReadInt32, ReadByte);
         fieldOpcodeParameterReader = new FieldOpcodeParameterReader(legacyAddressSpace);
         fieldScriptContextReader = new FieldScriptContextReader(legacyAddressSpace);
@@ -854,7 +873,7 @@ public sealed class Mod : IModV1, IModV2
         fieldGatewayTargetReader = new FieldGatewayTargetReader(legacyAddressSpace);
         fieldScriptNavigationCatalog = gameRootDirectory is null
             ? null
-            : new FieldScriptNavigationCatalog(gameRootDirectory);
+            : new FieldScriptNavigationCatalog(gameRootDirectory, gameLanguage);
         var fieldMapNameCatalog = fieldScriptNavigationCatalog is null || flevelFieldTextResolver is null
             ? null
             : new FieldMapNameCatalog(fieldScriptNavigationCatalog, flevelFieldTextResolver);
@@ -7650,11 +7669,12 @@ public sealed class Mod : IModV1, IModV2
 
     private bool Speak(string text, bool interrupt)
     {
-        Log($"Speak: {text}");
-        var delivered = config.EnableSpeech && speaker?.Speak(text, interrupt) == true;
+        var localizedText = localizer.Localize(text);
+        Log($"Speak: {localizedText}");
+        var delivered = config.EnableSpeech && speaker?.Speak(localizedText, interrupt) == true;
         if (delivered)
         {
-            repeatLastSpeechController.RememberDelivered(text);
+            repeatLastSpeechController.RememberDelivered(localizedText);
         }
 
         return delivered;
@@ -7781,7 +7801,9 @@ public sealed class Mod : IModV1, IModV2
             return new Dictionary<int, string>();
         }
 
-        var source = new FlevelDataSource(gameRootDirectory);
+        var source = gameLanguage is null
+            ? new FlevelDataSource(gameRootDirectory)
+            : new FlevelDataSource(gameRootDirectory, gameLanguage);
         var fieldNames = source.FieldNames;
         Log($"flevel data source: {source.Diagnostic}");
         if (fieldNames.Count == 0)

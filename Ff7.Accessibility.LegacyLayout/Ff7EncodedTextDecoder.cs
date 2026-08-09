@@ -8,6 +8,7 @@ public sealed record Ff7DecodedTextPage(IReadOnlyList<Ff7DecodedTextLine> Lines)
 
 public static class Ff7EncodedTextDecoder
 {
+    private static Ff7GameLanguageDescriptor? defaultLanguage;
     private static readonly string[] PartyNames =
     [
         "Cloud", "Barret", "Tifa", "Aerith", "Red XIII",
@@ -17,17 +18,26 @@ public static class Ff7EncodedTextDecoder
     private static Ff7GameLanguageDescriptor English =>
         Ff7GameLanguages.Get(Ff7GameLanguage.English);
 
+    private static Ff7GameLanguageDescriptor DefaultLanguage =>
+        Volatile.Read(ref defaultLanguage) ?? English;
+
+    public static void SetDefaultLanguage(Ff7GameLanguageDescriptor language)
+    {
+        ArgumentNullException.ThrowIfNull(language);
+        Volatile.Write(ref defaultLanguage, language);
+    }
+
     // Compatibility entry points. Existing memory readers contain field text.
-    public static string Decode(ReadOnlySpan<byte> bytes) => DecodeField(bytes, English);
+    public static string Decode(ReadOnlySpan<byte> bytes) => DecodeField(bytes, DefaultLanguage);
 
     public static string DecodeTerminated(ReadOnlySpan<byte> bytes) =>
-        DecodeFieldTerminated(bytes, English);
+        DecodeFieldTerminated(bytes, DefaultLanguage);
 
     public static IReadOnlyList<string> DecodeLines(ReadOnlySpan<byte> bytes) =>
-        DecodeFieldLines(bytes, English);
+        DecodeFieldLines(bytes, DefaultLanguage);
 
     public static IReadOnlyList<Ff7DecodedTextPage> DecodePages(ReadOnlySpan<byte> bytes) =>
-        DecodeFieldPages(bytes, English);
+        DecodeFieldPages(bytes, DefaultLanguage);
 
     public static string DecodeField(ReadOnlySpan<byte> bytes, Ff7GameLanguageDescriptor language)
     {

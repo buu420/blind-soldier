@@ -33,6 +33,7 @@ internal sealed class Steam2026ResearchSession : IDisposable
     private readonly string modDirectory;
     private readonly string gameWorkingDirectory;
     private readonly string expectedOpeningMoviePath;
+    private readonly Ff7GameLanguageContext gameLanguage;
     private readonly Action<string> log;
     private readonly CancellationTokenSource cancellation = new();
     private readonly ManualResetEventSlim resumeGate = new(initialState: true);
@@ -51,6 +52,7 @@ internal sealed class Steam2026ResearchSession : IDisposable
         string modDirectory,
         string gameWorkingDirectory,
         string expectedOpeningMoviePath,
+        Ff7GameLanguageContext gameLanguage,
         Action<string> log)
     {
         this.fingerprint = fingerprint ?? throw new ArgumentNullException(nameof(fingerprint));
@@ -70,6 +72,7 @@ internal sealed class Steam2026ResearchSession : IDisposable
                 "The exact opening movie path is required.",
                 nameof(expectedOpeningMoviePath))
             : Path.GetFullPath(expectedOpeningMoviePath);
+        this.gameLanguage = gameLanguage ?? throw new ArgumentNullException(nameof(gameLanguage));
         this.log = log ?? throw new ArgumentNullException(nameof(log));
         worker = new Thread(Run)
         {
@@ -124,6 +127,7 @@ internal sealed class Steam2026ResearchSession : IDisposable
 
     private void Run()
     {
+        Ff7EncodedTextDecoder.SetDefaultLanguage(gameLanguage.Descriptor);
         Steam2026ResearchObservationPump? pump = null;
         Steam2026MenuObservationReader? menuReader = null;
         Steam2026NativeTitleMenuReader? nativeTitleReader = null;
@@ -206,13 +210,19 @@ internal sealed class Steam2026ResearchSession : IDisposable
         var fieldProbeWorkerCycle = 0L;
         Steam2026FieldFootstepCoordinator? footstepCoordinator = null;
         Steam2026FieldObjectSpatialCoordinator? fieldObjectSpatialCoordinator = null;
-        var kernel2TextDatabase = Kernel2TextDatabase.TryCreate(gameWorkingDirectory, log);
+        var kernel2TextDatabase = Kernel2TextDatabase.TryCreate(gameLanguage, log);
+        var localizer = BlindSoldierLocalizer.Create(gameLanguage.Descriptor, modDirectory, log);
+        if (gameLanguage.Language != Ff7GameLanguage.English && config.EnableOpeningMovieAudioTrack)
+        {
+            log("The packaged opening-movie audio description is English; localized Prism cues remain available as fallback.");
+        }
 
         using var speaker = new PrismNativeSpeaker(log);
         using var output = new Steam2026ResearchAccessibilityOutput(
             speaker,
             config.OpeningMovieAudioTrackPath,
             config.OpeningMovieAudioTrackVolumePercent,
+            localizer,
             log);
         var nameEntrySpeechCoordinator = new Steam2026NameEntrySpeechCoordinator(
             config.EnableNameEntryMenuSpeech,
@@ -285,6 +295,7 @@ internal sealed class Steam2026ResearchSession : IDisposable
                 config,
                 modDirectory,
                 gameWorkingDirectory,
+                gameLanguage,
                 log,
                 fieldFootstepNavigationProbe);
             log("Native Steam 2026 field footstep coordinator is ready.");
@@ -501,7 +512,8 @@ internal sealed class Steam2026ResearchSession : IDisposable
                                 (text, interrupt) => output.Speak(text, interrupt),
                                 log,
                                 fieldFootstepNavigationProbe,
-                                navigationProgressController);
+                                navigationProgressController,
+                                gameLanguage);
                         }
                         catch (Exception ex)
                         {

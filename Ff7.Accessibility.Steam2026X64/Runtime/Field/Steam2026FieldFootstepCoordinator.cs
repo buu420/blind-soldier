@@ -56,6 +56,21 @@ internal sealed class Steam2026FieldFootstepCoordinator : IDisposable
         Action<string> log,
         Steam2026FieldFootstepNavigationProbe? probe = null)
     {
+        var language = Ff7GameLanguageDetector.Detect(
+            gameWorkingDirectory,
+            config.GameLanguage,
+            log: log);
+        return Create(config, modDirectory, gameWorkingDirectory, language, log, probe);
+    }
+
+    internal static Steam2026FieldFootstepCoordinator Create(
+        AccessibilityConfig config,
+        string modDirectory,
+        string gameWorkingDirectory,
+        Ff7GameLanguageContext language,
+        Action<string> log,
+        Steam2026FieldFootstepNavigationProbe? probe = null)
+    {
         ArgumentNullException.ThrowIfNull(config);
         ArgumentException.ThrowIfNullOrWhiteSpace(modDirectory);
         ArgumentException.ThrowIfNullOrWhiteSpace(gameWorkingDirectory);
@@ -86,6 +101,7 @@ internal sealed class Steam2026FieldFootstepCoordinator : IDisposable
                 config,
                 modDirectory,
                 gameWorkingDirectory,
+                language,
                 log);
         }
 
@@ -223,6 +239,7 @@ internal sealed class Steam2026FieldFootstepCoordinator : IDisposable
         AccessibilityConfig config,
         string modDirectory,
         string gameWorkingDirectory,
+        Ff7GameLanguageContext language,
         Action<string> log)
     {
         try
@@ -239,7 +256,7 @@ internal sealed class Steam2026FieldFootstepCoordinator : IDisposable
                 return _ => null;
             }
 
-            var fieldData = new FlevelDataSource(gameWorkingDirectory);
+            var fieldData = new FlevelDataSource(gameWorkingDirectory, language);
             if (!fieldData.IsUsable || fieldData.FieldNames.Count == 0)
             {
                 log($"Native Steam 2026 Cosmo footsteps lack authoritative field names: {fieldData.Diagnostic}");

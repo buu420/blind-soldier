@@ -85,7 +85,8 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         Action<string, bool> speak,
         Action<string> log,
         Steam2026FieldFootstepNavigationProbe? probe = null,
-        NavigationProgressController? progressController = null)
+        NavigationProgressController? progressController = null,
+        Ff7GameLanguageContext? languageContext = null)
     {
         this.config = config ?? throw new ArgumentNullException(nameof(config));
         ArgumentNullException.ThrowIfNull(addressSpace);
@@ -128,7 +129,11 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         squatMinigameCueCoordinator = new SquatMinigameCueCoordinator(
             new SquatMinigameStateReader(addressSpace));
         floor60GuardTimingStateReader = new Floor60GuardTimingStateReader(addressSpace);
-        scriptCatalog = new FieldScriptNavigationCatalog(gameRootDirectory);
+        var language = languageContext ?? Ff7GameLanguageDetector.Detect(
+            gameRootDirectory,
+            config.GameLanguage,
+            log: log);
+        scriptCatalog = new FieldScriptNavigationCatalog(gameRootDirectory, language);
 
         routePlanner = new Steam2026FailClosedFieldRoutePlanner(
             new FieldWalkmeshRoutePlanner(
@@ -140,7 +145,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             _ => currentExits,
             routePlanner);
 
-        var textResolver = new FlevelFieldTextResolver(gameRootDirectory);
+        var textResolver = new FlevelFieldTextResolver(gameRootDirectory, language);
         var mapNames = new FieldMapNameCatalog(scriptCatalog, textResolver);
         var mapNameReader = new FieldMapNameReader(
             (address, length) => ReadEncodedText(addressSpace, address, length));
