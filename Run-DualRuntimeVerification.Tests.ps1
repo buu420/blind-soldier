@@ -232,14 +232,20 @@ Describe 'Blind Soldier aggregate portable release gate' {
         $workflow | Should Match '(?m)^\s*workflow_dispatch:\s*$'
         $workflow | Should Match "(?m)^\s*if:\s*github\.ref_type == 'tag'\s*$"
         $workflow | Should Match '\$\{\{ inputs\.version \}\}'
-        $workflow | Should Match `
-            '(?m)^\s*default:\s*["'']0\.2\.0["'']\s*$'
+        $expectedPackageVersion = [string]((Get-Content `
+            (Join-Path $PSScriptRoot `
+                'Ff7.Accessibility.Reloaded\ModConfig.json') `
+            -Raw | ConvertFrom-Json).ModVersion)
+        $escapedPackageVersion = [regex]::Escape($expectedPackageVersion)
+        $workflow | Should Match (
+            '(?m)^\s*default:\s*["'']' + $escapedPackageVersion +
+            '["'']\s*$')
 
         $assemblyInfoPath = Join-Path $PSScriptRoot `
             'launcher\Ff7.Launcher.Accessible\Properties\AssemblyInfo.cs'
         $assemblyInfo = [IO.File]::ReadAllText($assemblyInfoPath)
         $assemblyInfo | Should Match `
-            'blind-soldier\.0\.2\.0'
+            ([regex]::Escape("blind-soldier.$expectedPackageVersion"))
     }
 
     It 'keeps supported-host validation independent of developer-local game files' {
