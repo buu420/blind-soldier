@@ -86,6 +86,8 @@ jobs:
           ./Build-BlindSoldierPortablePackage.ps1 -OutputPath ./artifacts/release/Blind-Soldier-Portable.zip -Version $version
           ./Verify-BlindSoldierPortablePackage.ps1 -ArchivePath ./artifacts/release/Blind-Soldier-Portable.zip -ExpectedVersion $version
           ./tools/Invoke-BlindSoldierGhidraVerification.ps1 -ArchivePath ./artifacts/release/Blind-Soldier-Portable.zip
+          ./Build-BlindSoldier2013PortablePackage.ps1 -SourceArchivePath ./artifacts/release/Blind-Soldier-Portable.zip -OutputPath ./artifacts/release/Blind-Soldier-2013-x86-Portable.zip -Version $version
+          ./Verify-BlindSoldier2013PortablePackage.ps1 -ArchivePath ./artifacts/release/Blind-Soldier-2013-x86-Portable.zip -ExpectedVersion $version -ExpectedSourceArchivePath ./artifacts/release/Blind-Soldier-Portable.zip
 
       - name: Create GitHub release
         if: github.ref_type == 'tag'
@@ -106,5 +108,10 @@ jobs:
           }
           $arguments = @('release', 'create', $tag, '--repo', $env:GITHUB_REPOSITORY, '--title', "Blind Soldier $version", '--notes-file', $notesPath)
           if ($version.Contains('-')) { $arguments += '--prerelease' }
-          $arguments += @('./artifacts/release/Blind-Soldier-Portable.zip', './artifacts/release/Blind-Soldier-Portable.zip.sha256')
+          $arguments += @(
+            './artifacts/release/Blind-Soldier-Portable.zip',
+            './artifacts/release/Blind-Soldier-Portable.zip.sha256',
+            './artifacts/release/Blind-Soldier-2013-x86-Portable.zip',
+            './artifacts/release/Blind-Soldier-2013-x86-Portable.zip.sha256'
+          )
           gh @arguments

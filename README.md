@@ -36,26 +36,35 @@ instead of reading unverified game memory.
 
 ## Installation
 
-Download
-[Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.2.1-beta.1/Blind-Soldier-Portable.zip)
-from the [Blind Soldier Releases page](https://github.com/buu420/blind-soldier/releases).
+Choose one download from the
+[Blind Soldier Releases page](https://github.com/buu420/blind-soldier/releases):
+
+- [Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.2.1-beta.1/Blind-Soldier-Portable.zip)
+  is the complete dual-runtime package. Use it for Steam 2026 x64 or when one
+  extracted package must support both x86 and x64 installations.
+- [Blind-Soldier-2013-x86-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.2.1-beta.1/Blind-Soldier-2013-x86-Portable.zip)
+  is the smaller legacy-only package. Use it for the 2013 x86 game, including
+  stock 7th Heaven/FFNx. It deliberately contains no Steam 2026 launcher or
+  x64 files.
 
 1. Close Final Fantasy VII and 7th Heaven.
-2. Extract every file in the ZIP directly into the Final Fantasy VII game
-   folder. Do not extract it into a separate subfolder.
+2. For Steam 2026 or direct 2013 launch, extract every file in the selected ZIP
+   directly into the Final Fantasy VII game folder. Do not extract it into a
+   separate subfolder. For 7th Heaven, extract the x86 ZIP into the directory
+   that contains its `workingdir` folder, not inside `workingdir` itself.
 3. Start the game normally from Steam or 7th Heaven.
 
 There is no installer to run, no administrator prompt, and no registry change.
-The archive supports Steam 2026 x64, stock 7th Heaven's sibling `workingdir`
-layout, and 7th Heaven's nested `ff7\workingdir` layout. For stock Steam 2013
-without 7th Heaven, use the **Blind Soldier (2013)** entry in Accessibility Mod
-Manager. Its game-specific package installs the x86 bootstrap proxy directly
-beside `ff7_en.exe`. Blind Soldier does not replace or edit any file in the 7th
-Heaven installation. Never run either file under `Blind-Soldier\Bootstrap`
-yourself.
+The dual-runtime archive supports Steam 2026 x64, stock 7th Heaven's sibling
+`workingdir` layout, and 7th Heaven's nested `ff7\workingdir` layout. The x86
+archive supports direct 2013 launch and the sibling `workingdir` layout while
+omitting the 2026 launcher, nested 2026 compatibility layout, x64 backend, x64
+Reloaded loader, and x64 private .NET runtime. Neither archive replaces or
+edits a 7th Heaven or FFNx file. Never run a file under
+`Blind-Soldier\Bootstrap` yourself.
 
 > [!WARNING]
-> If one of the eight supported layout-scoped paths already contains an unknown
+> If a supported layout-scoped path already contains an unknown
 > `version.dll`, move it to a safe backup before extraction. These paths include
 > the executable-specific `.local` folders and the stock 7th Heaven sibling
 > `workingdir`. Blind Soldier does not merge with or overwrite another Version
@@ -88,9 +97,9 @@ release does not ship a Windows system DLL.
   7th Heaven manages the normal FFNx installation for that converted game. Blind
   Soldier never ships or overwrites FFNx files, and its compatibility path does
   not modify the stock 7th Heaven application.
-- **Legacy x86 without 7th Heaven:** install the **Blind Soldier (2013)**
-  mod-manager entry, then launch the legacy game normally. Its sibling
-  `version.dll` loads the accessibility backend without a registry change.
+- **Legacy x86 without 7th Heaven:** extract the x86-only ZIP beside
+  `ff7_en.exe`, then launch the legacy game normally. Its sibling `version.dll`
+  loads the accessibility backend without a registry change.
 
 On a successful load, Prism announces that Final Fantasy VII accessibility is
 active.
@@ -137,10 +146,20 @@ Visual Studio C++ Build Tools, and PowerShell, then run:
 .\Verify-BlindSoldierPortablePackage.ps1 `
   -ArchivePath .\artifacts\Blind-Soldier-Portable.zip `
   -ExpectedVersion 0.2.1-beta.1
+.\Build-BlindSoldier2013PortablePackage.ps1 `
+  -SourceArchivePath .\artifacts\Blind-Soldier-Portable.zip `
+  -OutputPath .\artifacts\Blind-Soldier-2013-x86-Portable.zip `
+  -Version 0.2.1-beta.1
+.\Verify-BlindSoldier2013PortablePackage.ps1 `
+  -ArchivePath .\artifacts\Blind-Soldier-2013-x86-Portable.zip `
+  -ExpectedVersion 0.2.1-beta.1 `
+  -ExpectedSourceArchivePath .\artifacts\Blind-Soldier-Portable.zip
 ```
 
 The builder compiles the launcher, x86/x64 brokers, and x86 Version proxy from source,
-then packages the pinned Reloaded and private .NET dependencies. The x86 Reloaded
+then packages the pinned Reloaded and private .NET dependencies. The second
+builder derives the x86-only archive from that verified dual-runtime package;
+it does not rebuild or substitute the native proxy. The x86 Reloaded
 compatibility patch and its exact build instructions ship in `LICENSES`; 7th
 Heaven manages FFNx and remains unmodified.
 

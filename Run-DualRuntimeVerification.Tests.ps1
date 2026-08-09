@@ -115,6 +115,20 @@ Describe 'Blind Soldier aggregate portable release gate' {
                 $build.Arguments, '-OutputPath') + 1)]
             [string]$ghidra.Arguments[([array]::IndexOf($ghidra.Arguments,
                 '-ArchivePath') + 1)] | Should Be $builtArchive
+            $legacyBuild = @($invocations | Where-Object Name -CEQ `
+                'LegacyPortablePackage.Build')[0]
+            $legacyVerify = @($invocations | Where-Object Name -CEQ `
+                'LegacyPortablePackage.Verify')[0]
+            $legacyBuild.Arguments[([array]::IndexOf($legacyBuild.Arguments,
+                '-SourceArchivePath') + 1)] | Should Be $builtArchive
+            $legacyBuild.Arguments[([array]::IndexOf($legacyBuild.Arguments,
+                '-Version') + 1)] | Should Be $expectedPackageVersion
+            $legacyArchive = [string]$legacyBuild.Arguments[([array]::IndexOf(
+                $legacyBuild.Arguments, '-OutputPath') + 1)]
+            $legacyVerify.Arguments[([array]::IndexOf($legacyVerify.Arguments,
+                '-ArchivePath') + 1)] | Should Be $legacyArchive
+            $legacyVerify.Arguments[([array]::IndexOf($legacyVerify.Arguments,
+                '-ExpectedSourceArchivePath') + 1)] | Should Be $builtArchive
             @($invocations.Name) | Should Be @(
                 'Shared.Tests','Reloaded.Tests','Steam2026X64.Tests',
                 'Parity.Tests','AccessibleLauncher.Tests',
@@ -122,12 +136,15 @@ Describe 'Blind Soldier aggregate portable release gate' {
                 'NativeHost.Tests','Bootstrap.Tests x86/x64',
                 'NativeProxy.Tests','PortableDotNetRuntime.Tests',
                 'PortablePackage.Tests','PortablePackage.Build',
-                'PortablePackage.Verify','Ghidra.NativeEvidence')
+                'PortablePackage.Verify','Ghidra.NativeEvidence',
+                'LegacyPortablePackage.Tests','LegacyPortablePackage.Build',
+                'LegacyPortablePackage.Verify')
             $result.VerificationSucceeded | Should Be $true
             $result.Mode | Should Be 'Research'
-            $result.Steps.Count | Should Be 15
+            $result.Steps.Count | Should Be 18
             $result.PackageStagingCleaned | Should Be $true
             $result.PortableArchiveSha256 | Should Be $null
+            $result.LegacyPortableArchiveSha256 | Should Be $null
             foreach ($step in $result.Steps) {
                 Test-Path -LiteralPath $step.LogPath -PathType Leaf |
                     Should Be $true
@@ -210,7 +227,9 @@ Describe 'Blind Soldier aggregate portable release gate' {
             'AccessibleLauncher.Tests','AccessibleLauncherBundle.Tests',
             'NativeHost.Tests','Bootstrap.Tests x86/x64','NativeProxy.Tests',
             'PortableDotNetRuntime.Tests','PortablePackage.Tests',
-            'PortablePackage.Verify','Ghidra.NativeEvidence')) {
+            'PortablePackage.Verify','Ghidra.NativeEvidence',
+            'LegacyPortablePackage.Tests','LegacyPortablePackage.Build',
+            'LegacyPortablePackage.Verify')) {
             $content | Should Match ([regex]::Escape($required))
         }
     }

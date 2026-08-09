@@ -205,6 +205,8 @@ if (-not (Test-Path -LiteralPath $TempParent -PathType Container)) {
 $verificationRoot = Join-Path ([IO.Path]::GetFullPath($TempParent)) `
     ('blind-soldier-release-gate-' + [Guid]::NewGuid().ToString('N'))
 $portableArchive = Join-Path $verificationRoot 'Blind-Soldier-Portable.zip'
+$legacyPortableArchive = Join-Path $verificationRoot `
+    'Blind-Soldier-2013-x86-Portable.zip'
 $commands = New-Object 'System.Collections.Generic.List[object]'
 
 $commands.Add((New-VerificationCommand -Name 'Shared.Tests' `
@@ -304,9 +306,28 @@ $commands.Add((New-VerificationCommand -Name 'Ghidra.NativeEvidence' `
             'tools\Invoke-BlindSoldierGhidraVerification.ps1'),
         '-ArchivePath',$portableArchive) `
     -WorkingDirectory $scriptRoot))
+$commands.Add((New-PesterCommand -Name 'LegacyPortablePackage.Tests' `
+    -Path (Join-Path $scriptRoot `
+        'Build-BlindSoldier2013PortablePackage.Tests.ps1')))
+$commands.Add((New-VerificationCommand -Name 'LegacyPortablePackage.Build' `
+    -FilePath 'powershell.exe' -Arguments @(
+        '-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',
+        (Join-Path $scriptRoot 'Build-BlindSoldier2013PortablePackage.ps1'),
+        '-SourceArchivePath',$portableArchive,
+        '-OutputPath',$legacyPortableArchive,'-Version',$PackageVersion) `
+    -WorkingDirectory $scriptRoot))
+$commands.Add((New-VerificationCommand -Name 'LegacyPortablePackage.Verify' `
+    -FilePath 'powershell.exe' -Arguments @(
+        '-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',
+        (Join-Path $scriptRoot 'Verify-BlindSoldier2013PortablePackage.ps1'),
+        '-ArchivePath',$legacyPortableArchive,
+        '-ExpectedVersion',$PackageVersion,
+        '-ExpectedSourceArchivePath',$portableArchive) `
+    -WorkingDirectory $scriptRoot))
 
 $results = New-Object 'System.Collections.Generic.List[object]'
 $archiveSha256 = $null
+$legacyArchiveSha256 = $null
 try {
     New-Item -ItemType Directory -Path $verificationRoot | Out-Null
     foreach ($command in $commands) {
@@ -319,6 +340,11 @@ try {
         }
         $archiveSha256 = (Get-FileHash -LiteralPath $portableArchive `
             -Algorithm SHA256).Hash
+        if (-not (Test-Path -LiteralPath $legacyPortableArchive -PathType Leaf)) {
+            throw "Legacy portable release gate did not produce its archive: $legacyPortableArchive"
+        }
+        $legacyArchiveSha256 = (Get-FileHash `
+            -LiteralPath $legacyPortableArchive -Algorithm SHA256).Hash
     }
 }
 finally {
@@ -341,6 +367,7 @@ finally {
     ReleaseReady = [bool]$parityGate.IsReleaseReady
     Steps = $results.ToArray()
     PortableArchiveSha256 = $archiveSha256
+    LegacyPortableArchiveSha256 = $legacyArchiveSha256
     GameDataIntegrationRan = $hasGameDataRuntime
     PackageStagingCleaned = -not (Test-Path -LiteralPath $verificationRoot)
     LogDirectory = $LogDirectory
