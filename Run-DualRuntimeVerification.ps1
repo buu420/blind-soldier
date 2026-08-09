@@ -274,13 +274,13 @@ $commands.Add((New-VerificationCommand -Name 'PortablePackage.Build' `
     -FilePath 'powershell.exe' -Arguments @(
         '-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',
         (Join-Path $scriptRoot 'Build-BlindSoldierPortablePackage.ps1'),
-        '-OutputPath',$portableArchive,'-Version','0.1.10') `
+        '-OutputPath',$portableArchive,'-Version','0.1.11') `
     -WorkingDirectory $scriptRoot))
 $commands.Add((New-VerificationCommand -Name 'PortablePackage.Verify' `
     -FilePath 'powershell.exe' -Arguments @(
         '-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',
         (Join-Path $scriptRoot 'Verify-BlindSoldierPortablePackage.ps1'),
-        '-ArchivePath',$portableArchive,'-ExpectedVersion','0.1.10') `
+        '-ArchivePath',$portableArchive,'-ExpectedVersion','0.1.11') `
     -WorkingDirectory $scriptRoot))
 $commands.Add((New-VerificationCommand -Name 'Ghidra.NativeEvidence' `
     -FilePath 'powershell.exe' -Arguments @(

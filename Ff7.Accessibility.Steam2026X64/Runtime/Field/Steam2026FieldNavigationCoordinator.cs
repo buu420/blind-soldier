@@ -52,6 +52,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
     private readonly Steam2026FieldLadderSpatialCoordinator ladderSpatial;
     private readonly SwingingBarTimingCueTracker swingingBarTimingCueTracker = new();
     private readonly ImmediateWaveCuePlayer? swingingBarTimingCuePlayer;
+    private readonly SquatMinigameCueCoordinator squatMinigameCueCoordinator;
     private readonly Floor60SoldierTurnCueTracker floor60SoldierTurnCueTracker;
     private readonly Floor60GuardTimingStateReader floor60GuardTimingStateReader;
     private readonly ImmediateWaveCuePlayer? floor60ActionCuePlayer;
@@ -124,6 +125,8 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             ReadInt16,
             ReadByte);
         lineStateReader = new FieldScriptLineStateReader(addressSpace);
+        squatMinigameCueCoordinator = new SquatMinigameCueCoordinator(
+            new SquatMinigameStateReader(addressSpace));
         floor60GuardTimingStateReader = new Floor60GuardTimingStateReader(addressSpace);
         scriptCatalog = new FieldScriptNavigationCatalog(gameRootDirectory);
 
@@ -235,6 +238,12 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             $"window={SwingingBarTimingCueTracker.SuccessWindowStart}-" +
             $"{SwingingBarTimingCueTracker.SuccessWindowEnd}.");
         log(
+            $"Native Steam 2026 Wall Market squat prompts initialized: " +
+            $"enabled={config.EnableSquatMinigamePrompts}, " +
+            $"field={SquatMinigameStateReader.GymFieldId}, entity={SquatMinigameStateReader.CloudEntityId}, " +
+            $"script={SquatMinigameStateReader.ControllerScriptId}, " +
+            $"state=0x{SquatMinigameStateReader.AddressExpectedStep:X8}.");
+        log(
             $"Native Steam 2026 floor 60 guard accessibility initialized: " +
             $"enabled={config.EnableFloor60SoldierTurnCue}, " +
             $"field={Floor60SoldierTurnCueTracker.FloorId}, " +
@@ -263,6 +272,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                 observeLimitKey:
                     frame.Lifecycle.ModuleId == FieldPositionReader.FieldModule);
         ObserveSwingingBarTimingCue(frame, nowUtc);
+        ObserveSquatMinigameCue(frame, nowUtc);
         ObserveFloor60SoldierTurnCue(frame, nowUtc);
         var navigationEnabled = config.EnableFieldNavigationAssistant;
         var ownershipDisposition = ResolveOwnershipDisposition(
@@ -273,7 +283,9 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             frame.Lifecycle.ModuleId,
             foregroundInput.IsCurrentProcessForeground(),
             config.EnableFieldLadderProximityCues,
-            config.EnableFieldSwingingBarTimingCue || config.EnableFloor60SoldierTurnCue);
+            config.EnableFieldSwingingBarTimingCue ||
+            config.EnableSquatMinigamePrompts ||
+            config.EnableFloor60SoldierTurnCue);
         if (observedActions.Count != 0)
         {
             LogInputDiagnostic(
@@ -780,6 +792,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         exitSpatial.Reset();
         ladderSpatial.Reset();
         swingingBarTimingCueTracker.Reset();
+        squatMinigameCueCoordinator.Reset();
         floor60SoldierTurnCueTracker.Reset();
         floor60StatueBeaconPlayer?.StopAll();
         currentObjects = NoTargets;
@@ -809,6 +822,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         exitSpatial.Reset();
         ladderSpatial.Reset();
         swingingBarTimingCueTracker.Reset();
+        squatMinigameCueCoordinator.Reset();
         floor60SoldierTurnCueTracker.Reset();
         floor60StatueBeaconPlayer?.StopAll();
         nextScanUtc = DateTime.MinValue;
@@ -835,6 +849,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         ladderSpatial.Dispose();
         swingingBarTimingCuePlayer?.Dispose();
         swingingBarTimingCueTracker.Reset();
+        squatMinigameCueCoordinator.Reset();
         floor60ActionCuePlayer?.Dispose();
         floor60StatueBeaconPlayer?.Dispose();
         floor60SoldierTurnCueTracker.Reset();
@@ -907,6 +922,29 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             $"triangle={positionResult.Position.TriangleId}, waiting={attemptWaiting}, control={userControl}";
         swingingBarTimingCuePlayer?.Play(reason);
         Speak("Jump now.", interrupt: true, nowUtc, "native swinging-bar timing");
+    }
+
+    private void ObserveSquatMinigameCue(
+        RuntimeFrameObservation frame,
+        DateTime nowUtc)
+    {
+        if (!config.EnableSquatMinigamePrompts ||
+            frame.Lifecycle.IsShuttingDown ||
+            !frame.Lifecycle.IsForeground ||
+            frame.Lifecycle.ModuleId != FieldPositionReader.FieldModule ||
+            !foregroundInput.IsCurrentProcessForeground())
+        {
+            squatMinigameCueCoordinator.Reset();
+            return;
+        }
+
+        var prompt = squatMinigameCueCoordinator.Observe();
+        if (string.IsNullOrWhiteSpace(prompt))
+        {
+            return;
+        }
+
+        Speak(prompt, interrupt: true, nowUtc, "native Wall Market squat cue");
     }
 
     private void ObserveFloor60SoldierTurnCue(

@@ -71,6 +71,7 @@
   "EnableFieldSwingingBarTimingCue": true,
   "FieldSwingingBarTimingCueVolumePercent": 100,
   "FieldSwingingBarTimingCueSoundPath": "Assets\\navigation\\swing_jump_058.wav",
+  "EnableSquatMinigamePrompts": true,
   "EnableFloor60SoldierTurnCue": true,
   "Floor60SoldierTurnCueVolumePercent": 100,
   "Floor60StatueBeaconIntervalMs": 500,

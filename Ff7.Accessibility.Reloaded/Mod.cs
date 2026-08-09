@@ -206,6 +206,7 @@ public sealed class Mod : IModV1, IModV2
     private FieldZoneTransitionCueTracker fieldZoneTransitionCueTracker =
         new(TimeSpan.FromMilliseconds(300));
     private readonly SwingingBarTimingCueTracker swingingBarTimingCueTracker = new();
+    private SquatMinigameCueCoordinator? squatMinigameCueCoordinator;
     private Floor60SoldierTurnCueTracker floor60SoldierTurnCueTracker = new();
     private Floor60GuardTimingStateReader? floor60GuardTimingStateReader;
     private FieldMessageReader? fieldMessageReader;
@@ -409,6 +410,7 @@ public sealed class Mod : IModV1, IModV2
         fieldNavigationGuidanceRepeatGate.Reset();
         saveMenuSpeechTracker.Reset();
         DiscardCompetingSaveMenuSpeech();
+        squatMinigameCueCoordinator?.Reset();
         floor60SoldierTurnCueTracker.Reset();
         floor60StatueBeaconPlayer?.StopAll();
         floor60ActionCuePlayer?.Dispose();
@@ -434,6 +436,7 @@ public sealed class Mod : IModV1, IModV2
             fieldCountdownSpeechCoordinator.Reset();
             ffnxVoicePlaybackTracker.Reset();
             saveMenuSpeechTracker.Reset();
+            squatMinigameCueCoordinator?.Reset();
             cancellation?.Cancel();
             if (monitorThread is { IsAlive: true } && Thread.CurrentThread != monitorThread)
             {
@@ -599,6 +602,8 @@ public sealed class Mod : IModV1, IModV2
             TimeSpan.FromMilliseconds(Math.Max(100, config.FieldMessageStableMs)));
         var legacyAddressSpace = new CurrentProcessLegacyAddressSpace();
         currentProcessLegacyAddressSpace = legacyAddressSpace;
+        squatMinigameCueCoordinator = new SquatMinigameCueCoordinator(
+            new SquatMinigameStateReader(legacyAddressSpace));
         highwayAccessibilityCoordinator?.Dispose();
         highwayAccessibilityCoordinator = new HighwayAccessibilityCoordinator(
             config,
@@ -660,6 +665,11 @@ public sealed class Mod : IModV1, IModV2
             $"index={SwingingBarTimingCueTracker.FrameCounterIndex}, " +
             $"window={SwingingBarTimingCueTracker.SuccessWindowStart}-" +
             $"{SwingingBarTimingCueTracker.SuccessWindowEnd}.");
+        Log(
+            $"Wall Market squat prompts initialized: enabled={config.EnableSquatMinigamePrompts}, " +
+            $"field={SquatMinigameStateReader.GymFieldId}, entity={SquatMinigameStateReader.CloudEntityId}, " +
+            $"script={SquatMinigameStateReader.ControllerScriptId}, " +
+            $"state=0x{SquatMinigameStateReader.AddressExpectedStep:X8}.");
         floor60SoldierTurnCueTracker = new Floor60SoldierTurnCueTracker(
             TimeSpan.FromMilliseconds(Math.Max(0, config.Floor60StatueBeaconIntervalMs)),
             Math.Max(0, config.Floor60StatueArrivalDistanceUnits),
@@ -1127,6 +1137,7 @@ public sealed class Mod : IModV1, IModV2
                 TickHighwayAccessibility();
                 TickFieldZoneTransitionCue();
                 TickFieldSwingingBarTimingCue();
+                TickSquatMinigameCue();
                 TickFloor60SoldierTurnCue();
                 TickTitleMenuReader();
                 TickOpeningMovieDescription();
@@ -1214,6 +1225,11 @@ public sealed class Mod : IModV1, IModV2
         }
 
         if (config.EnableFieldSwingingBarTimingCue)
+        {
+            sleep = Math.Min(sleep, 30);
+        }
+
+        if (config.EnableSquatMinigamePrompts)
         {
             sleep = Math.Min(sleep, 30);
         }
@@ -1719,6 +1735,26 @@ public sealed class Mod : IModV1, IModV2
         swingingBarTimingCuePlayer?.Play(reason);
         Speak("Jump now.", interrupt: true);
         Log($"Swinging-bar native success window announced: {reason}.");
+    }
+
+    private void TickSquatMinigameCue()
+    {
+        if (!config.EnableSquatMinigamePrompts ||
+            !foregroundProcessGate.IsCurrentProcessForeground() ||
+            squatMinigameCueCoordinator is null)
+        {
+            squatMinigameCueCoordinator?.Reset();
+            return;
+        }
+
+        var prompt = squatMinigameCueCoordinator.Observe();
+        if (string.IsNullOrWhiteSpace(prompt))
+        {
+            return;
+        }
+
+        Speak(prompt, interrupt: true);
+        Log($"Wall Market squat visual step announced from native state: {prompt}.");
     }
 
     private void TickFloor60SoldierTurnCue()

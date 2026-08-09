@@ -52,6 +52,13 @@ if (args.Contains("--wall-market-battle-status-only", StringComparer.OrdinalIgno
     return;
 }
 
+if (args.Contains("--wall-market-squat-only", StringComparer.OrdinalIgnoreCase))
+{
+    WallMarketSquatRuntimeTests.Run();
+    Console.WriteLine("FFVII x86 Wall Market squat cue runtime tests passed.");
+    return;
+}
+
 if (args.Contains("--save-enemy-skill-only", StringComparer.OrdinalIgnoreCase))
 {
     AssertKernel2TextDatabaseReadsNativeDescriptionsAndEquipmentNames();

@@ -74,6 +74,7 @@ public sealed class AccessibilityConfig
     public bool EnableFieldSwingingBarTimingCue { get; set; } = true;
     public int FieldSwingingBarTimingCueVolumePercent { get; set; } = 100;
     public string FieldSwingingBarTimingCueSoundPath { get; set; } = @"Assets\navigation\swing_jump_058.wav";
+    public bool EnableSquatMinigamePrompts { get; set; } = true;
     public bool EnableFloor60SoldierTurnCue { get; set; } = true;
     public int Floor60SoldierTurnCueVolumePercent { get; set; } = 100;
     public int Floor60StatueBeaconIntervalMs { get; set; } = 500;

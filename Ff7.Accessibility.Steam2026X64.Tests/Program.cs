@@ -3,6 +3,7 @@ using Ff7.Accessibility.Reloaded;
 using Ff7.Accessibility.Steam2026X64;
 using Ff7.Accessibility.Steam2026X64.Runtime.Menus;
 using Ff7.Accessibility.Steam2026X64.Runtime.Movies;
+using Ff7.Accessibility.Steam2026X64.Runtime.Field;
 using Ff7.Accessibility.LegacyLayout;
 using System.Text.Json;
 
@@ -19,6 +20,13 @@ if (args.Contains("--repeat-speech-only", StringComparer.OrdinalIgnoreCase))
 {
     Steam2026ResearchAccessibilityOutputTests.Run();
     Console.WriteLine("Steam 2026 x64 repeat-speech tests passed.");
+    return;
+}
+
+if (args.Contains("--wall-market-squat-only", StringComparer.OrdinalIgnoreCase))
+{
+    Steam2026WallMarketSquatRuntimeTests.Run();
+    Console.WriteLine("Steam 2026 x64 Wall Market squat cue runtime tests passed.");
     return;
 }
 

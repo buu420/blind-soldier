@@ -41,6 +41,7 @@ FieldCountdownReaderTests.Run();
 NameEntryStateReaderTests.Run();
 HighwayStateReaderTests.Run();
 HighwayRoadStateReaderTests.Run();
+WallMarketSquatCueTests.Run();
 Console.WriteLine("FFVII shared layout tests passed.");
 
 static void AssertBattleLayoutReadersLiveInSharedAssembly()
@@ -760,7 +761,12 @@ static void AssertFieldFoundationReadersLiveInSharedAssembly()
         typeof(FieldNavigationControlReader),
         typeof(FieldNavigationControlReadResult),
         typeof(FieldNavigationControlTransform),
-        typeof(FieldNavigationStickDirection)
+        typeof(FieldNavigationStickDirection),
+        typeof(SquatMinigameStateReader),
+        typeof(SquatMinigameSnapshot),
+        typeof(SquatMinigameStep),
+        typeof(SquatMinigamePromptTracker),
+        typeof(SquatMinigameCueCoordinator)
     ];
 
     foreach (var fieldType in fieldTypes)
