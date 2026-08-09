@@ -6,7 +6,10 @@ param(
     [scriptblock] $PublishInvoker,
 
     [Parameter(DontShow=$true)]
-    [string] $ModConfigSourceOverride
+    [string] $ModConfigSourceOverride,
+
+    [Parameter(DontShow=$true)]
+    [string] $ExpectedModVersion
 )
 
 $ErrorActionPreference = 'Stop'
@@ -269,7 +272,10 @@ function Invoke-R2RPublish {
 }
 
 function Assert-DualRuntimePackage {
-    param([Parameter(Mandatory=$true)] [string] $PackageRoot)
+    param(
+        [Parameter(Mandatory=$true)] [string] $PackageRoot,
+        [Parameter(Mandatory=$true)] [string] $ExpectedVersion
+    )
 
     $modConfigPath = Join-Path $PackageRoot 'ModConfig.json'
     Assert-PackageFile -Path $modConfigPath -Description 'Reloaded ModConfig.json'
@@ -283,7 +289,7 @@ function Assert-DualRuntimePackage {
     if ([string]$modConfig.ModId -cne 'ff7.accessibility.reloaded') {
         throw 'Package validation failed: ModConfig.json has an unexpected ModId.'
     }
-    if ([string]$modConfig.ModVersion -cne '0.2.0') {
+    if ([string]$modConfig.ModVersion -cne $ExpectedVersion) {
         throw 'Package validation failed: ModConfig.json has an unexpected ModVersion.'
     }
 
@@ -418,6 +424,18 @@ $modConfigSource = if ([string]::IsNullOrWhiteSpace($ModConfigSourceOverride)) {
 else {
     [IO.Path]::GetFullPath($ModConfigSourceOverride)
 }
+if ([string]::IsNullOrWhiteSpace($ExpectedModVersion)) {
+    try {
+        $ExpectedModVersion = [string](
+            [IO.File]::ReadAllText($modConfigSource) | ConvertFrom-Json).ModVersion
+    }
+    catch {
+        throw "Required dual-runtime ModConfig.json is invalid. $($_.Exception.Message)"
+    }
+}
+if ([string]::IsNullOrWhiteSpace($ExpectedModVersion)) {
+    throw 'ExpectedModVersion must be a non-empty package version.'
+}
 $configurationSource = Join-Path $legacyProjectRoot 'Configuration'
 $assetsSource = Join-Path $legacyProjectRoot 'Assets'
 $worldCoordinateSource = Join-Path $scriptRoot 'external\kujata\field-id-to-world-map-coords.json'
@@ -502,7 +520,7 @@ try {
     Copy-Item -LiteralPath $ff7ToolsNoticeSource `
         -Destination (Join-Path $licenseDirectory 'FF7Tools-text-table-notice.md') -Force
 
-    Assert-DualRuntimePackage -PackageRoot $stagingRoot
+    Assert-DualRuntimePackage -PackageRoot $stagingRoot -ExpectedVersion $ExpectedModVersion
 
     if (Test-Path -LiteralPath $outputRoot) {
         Move-Item -LiteralPath $outputRoot -Destination $backupRoot

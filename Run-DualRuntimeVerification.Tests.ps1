@@ -248,6 +248,17 @@ Describe 'Blind Soldier aggregate portable release gate' {
             ([regex]::Escape("blind-soldier.$expectedPackageVersion"))
     }
 
+    It 'passes the selected release version through the inner dual-runtime packager' {
+        $portableBuilder = [IO.File]::ReadAllText(
+            (Join-Path $PSScriptRoot 'Build-BlindSoldierPortablePackage.ps1'))
+        $dualRuntimeBuilder = [IO.File]::ReadAllText(
+            (Join-Path $PSScriptRoot 'Build-DualRuntimePackage.ps1'))
+
+        $portableBuilder | Should Match '-ExpectedModVersion\s+\$Version'
+        $dualRuntimeBuilder | Should Match '\[string\]\s+\$ExpectedModVersion'
+        $dualRuntimeBuilder | Should Not Match "ModVersion\s+-cne\s+'0\.2\.0'"
+    }
+
     It 'keeps supported-host validation independent of developer-local game files' {
         $programPath = Join-Path $PSScriptRoot `
             'Ff7.Accessibility.Reloaded.Tests\Program.cs'

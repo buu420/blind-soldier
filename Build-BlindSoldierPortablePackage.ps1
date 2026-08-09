@@ -299,7 +299,7 @@ try {
     if ([string]::IsNullOrWhiteSpace($ModPackagePath)) {
         $ModPackagePath = Join-Path $inputs 'ff7.accessibility.reloaded'
         & (Join-Path $scriptRoot 'Build-DualRuntimePackage.ps1') `
-            -OutputPath $ModPackagePath | Out-Null
+            -OutputPath $ModPackagePath -ExpectedModVersion $Version | Out-Null
         if ($LASTEXITCODE -ne 0) { throw "Dual-runtime package builder exited with code $LASTEXITCODE." }
     }
     if ([string]::IsNullOrWhiteSpace($LauncherBundlePath)) {
