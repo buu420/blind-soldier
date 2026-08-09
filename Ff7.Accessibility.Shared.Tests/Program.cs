@@ -45,6 +45,7 @@ WallMarketSquatCueTests.Run();
 GameLanguageDetectorTests.Run();
 LocalizedTextDecoderTests.Run();
 LocalizedKernel2Tests.Run();
+BlindSoldierLocalizerTests.Run();
 Console.WriteLine("FFVII shared layout tests passed.");
 
 static void AssertBattleLayoutReadersLiveInSharedAssembly()
