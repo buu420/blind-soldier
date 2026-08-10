@@ -1,6 +1,7 @@
 $ErrorActionPreference = 'Stop'
 
 $workflowPath = Join-Path $PSScriptRoot 'release.yml'
+$releaseTrackResolverPath = Join-Path $PSScriptRoot '..\..\tools\Resolve-BlindSoldierReleaseTrack.ps1'
 
 Describe 'Blind Soldier release workflow evidence binding' {
     It 'runs Ghidra after building and verifying the publishable portable archive' {
@@ -46,5 +47,15 @@ Describe 'Blind Soldier release workflow evidence binding' {
         )) {
             $workflow | Should Match ([regex]::Escape($asset))
         }
+    }
+
+    It 'keeps unsuffixed zero-major versions on the prerelease track' {
+        (& $releaseTrackResolverPath -Version '0.2.2') | Should Be 'prerelease'
+        (& $releaseTrackResolverPath -Version '0.3.0') | Should Be 'prerelease'
+        (& $releaseTrackResolverPath -Version '1.0.0') | Should Be 'stable'
+
+        $workflow = [IO.File]::ReadAllText($workflowPath)
+        $workflow | Should Match ([regex]::Escape(
+            './tools/Resolve-BlindSoldierReleaseTrack.ps1 -Version $version'))
     }
 }

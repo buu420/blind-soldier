@@ -9,7 +9,7 @@ on:
       version:
         description: Version used for a verification-only package build
         required: true
-        default: "0.2.1-beta.3"
+        default: "0.2.2"
 
 permissions:
   contents: write
@@ -102,12 +102,13 @@ jobs:
             exit 0
           }
           $version = $tag.Substring(1)
+          $releaseTrack = ./tools/Resolve-BlindSoldierReleaseTrack.ps1 -Version $version
           $notesPath = "./docs/releases/$tag.md"
           if (-not (Test-Path -LiteralPath $notesPath -PathType Leaf)) {
             throw "Release notes are missing: $notesPath"
           }
           $arguments = @('release', 'create', $tag, '--repo', $env:GITHUB_REPOSITORY, '--title', "Blind Soldier $version", '--notes-file', $notesPath)
-          if ($version.Contains('-')) { $arguments += '--prerelease' }
+          if ($releaseTrack -eq 'prerelease') { $arguments += '--prerelease' }
           $arguments += @(
             './artifacts/release/Blind-Soldier-Portable.zip',
             './artifacts/release/Blind-Soldier-Portable.zip.sha256',
