@@ -9,6 +9,7 @@ internal static class WorldMapNavigationControllerTests
         UsesTheApprovedFieldNavigationActionsAndCategoryOrder();
         ListsOnlyDestinationsReachableOnTheCurrentWorldSurface();
         StartsTheKalmRouteFromMidgarInsteadOfClaimingArrival();
+        ExposesTheCurrentWorldRouteAsAutomaticDirectionalInput();
         NeverEmitsWorldMapAudioBeaconCues();
         DoesNotRepeatAnUnchangedWorldMapLegOnTheTimer();
         DoesNotRepeatOneDirectionAcrossConnectedWorldWaypoints();
@@ -87,6 +88,34 @@ internal static class WorldMapNavigationControllerTests
 
         var observed = controller.Observe(StateAt(map, kalm), now.AddSeconds(1));
         Equal<NavigationBeaconCue?>(null, observed?.Beacon, "active route has no audio beacon");
+    }
+
+    private static void ExposesTheCurrentWorldRouteAsAutomaticDirectionalInput()
+    {
+        var (map, catalog, planner) = Load();
+        var midgar = catalog.Locations.Single(target => target.Label == "Midgar");
+        var controller = new WorldMapNavigationController(
+            map,
+            planner,
+            (state, category) => catalog.ReadTargets(category, state.RegionId, state.GameMoment));
+        var state = StateAt(map, midgar);
+
+        _ = controller.HandleAction(FieldNavigationAction.NextCategory, state);
+        _ = controller.HandleAction(FieldNavigationAction.ToggleBeacon, state);
+
+        Equal(
+            true,
+            controller.TryResolveAutomaticInput(state, out var direction),
+            "active world route exposes an automatic direction");
+        Equal(
+            true,
+            direction is >= FieldNavigationInput.Up and <= FieldNavigationInput.UpLeft,
+            "world route direction is one of the same eight navigation inputs");
+        controller.Suspend("test complete");
+        Equal(
+            false,
+            controller.TryResolveAutomaticInput(state, out _),
+            "suspended world navigation never emits movement");
     }
 
     private static void DoesNotRepeatAnUnchangedWorldMapLegOnTheTimer()

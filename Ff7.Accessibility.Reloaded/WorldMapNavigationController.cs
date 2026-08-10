@@ -308,6 +308,40 @@ public sealed class WorldMapNavigationController
             : new WorldMapNavigationOutput(speech, null);
     }
 
+    public bool TryResolveAutomaticInput(
+        WorldMapStateSnapshot state,
+        out FieldNavigationInput input)
+    {
+        input = FieldNavigationInput.None;
+        if (!beaconEnabled || combatPaused || !IsUsable(state) ||
+            activeRoute is not { Waypoints.Count: > 0 } route || activeTarget is null)
+        {
+            return false;
+        }
+
+        var run = WorldMapConnectedRunFormatter.Resolve(
+            routeStart,
+            route.Waypoints,
+            waypointIndex,
+            state,
+            map.WrapWidth,
+            map.WrapHeight,
+            distanceUnitsPerCount);
+        input = run.Direction switch
+        {
+            "up" => FieldNavigationInput.Up,
+            "up-right" => FieldNavigationInput.UpRight,
+            "right" => FieldNavigationInput.Right,
+            "down-right" => FieldNavigationInput.DownRight,
+            "down" => FieldNavigationInput.Down,
+            "down-left" => FieldNavigationInput.DownLeft,
+            "left" => FieldNavigationInput.Left,
+            "up-left" => FieldNavigationInput.UpLeft,
+            _ => FieldNavigationInput.None
+        };
+        return input is >= FieldNavigationInput.Up and <= FieldNavigationInput.UpLeft;
+    }
+
     public void Suspend(string diagnostic)
     {
         if (!beaconEnabled)

@@ -58,6 +58,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
     private readonly ImmediateWaveCuePlayer? floor60ActionCuePlayer;
     private readonly NavigationBeaconPlayer? floor60StatueBeaconPlayer;
     private readonly Steam2026FieldNavigationPendingActionBuffer pendingActions = new();
+    private readonly NavigationAutoWalkController autoWalk;
     private readonly Steam2026FieldExitPublicationGate exitPublicationGate = new();
     private readonly Action<string, bool> speak;
     private readonly Action<string> log;
@@ -73,6 +74,9 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
     private DateTime lastFailureLogUtc = DateTime.MinValue;
     private string lastFailureMessage = string.Empty;
     private string lastStateDiagnostic = string.Empty;
+    private string lastAutoWalkFailure = string.Empty;
+    private bool pendingAutoWalkStart;
+    private bool autoWalkRouteToggleQueued;
     private int disposed;
 
     internal Steam2026FieldNavigationCoordinator(
@@ -86,7 +90,8 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         Action<string> log,
         Steam2026FieldFootstepNavigationProbe? probe = null,
         NavigationProgressController? progressController = null,
-        Ff7GameLanguageContext? languageContext = null)
+        Ff7GameLanguageContext? languageContext = null,
+        NavigationAutoWalkController? autoWalk = null)
     {
         this.config = config ?? throw new ArgumentNullException(nameof(config));
         ArgumentNullException.ThrowIfNull(addressSpace);
@@ -98,6 +103,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         this.speak = speak ?? throw new ArgumentNullException(nameof(speak));
         this.log = log ?? throw new ArgumentNullException(nameof(log));
         this.probe = probe;
+        this.autoWalk = autoWalk ?? NavigationAutoWalkController.CreateCurrentProcess();
 
         int ReadInt32(int address) => ReadCheckedInt32(addressSpace, address);
         short ReadInt16(int address) => ReadCheckedInt16(addressSpace, address);
@@ -231,7 +237,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             : null;
         log(
             "Native Steam 2026 field navigation initialized from checked translated " +
-            "position/control/walkmesh/boundary/gateway state; keys=U,O,J,L,K,I; " +
+            "position/control/walkmesh/boundary/gateway state; keys=U,O,J,L,K,I,P auto walk; " +
             "NPC targets use checked native model/talk/LINE state and native dialogue speaker names; " +
             "routes also honor translated native model collision widths and collision-disable state.");
         log(
@@ -276,6 +282,9 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                 foregroundInput.ObserveRisingEdge,
                 observeLimitKey:
                     frame.Lifecycle.ModuleId == FieldPositionReader.FieldModule);
+        var autoWalkToggleRequested = frame.Lifecycle.ModuleId != WorldMapStateReader.WorldModule &&
+            NavigationAutoWalkKeyRouter.ObserveToggle(foregroundInput.ObserveRisingEdge) &&
+            frame.Lifecycle.ModuleId == FieldPositionReader.FieldModule;
         ObserveSwingingBarTimingCue(frame, nowUtc);
         ObserveSquatMinigameCue(frame, nowUtc);
         ObserveFloor60SoldierTurnCue(frame, nowUtc);
@@ -311,6 +320,26 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             return;
         }
 
+        if (autoWalkToggleRequested && autoWalk.IsEnabledFor(NavigationAutoWalkDomain.Field))
+        {
+            _ = autoWalk.Stop();
+            pendingAutoWalkStart = false;
+            autoWalkRouteToggleQueued = false;
+            Speak("Auto walk off.", interrupt: true, nowUtc, "P toggle");
+        }
+        else if (autoWalkToggleRequested)
+        {
+            pendingAutoWalkStart = true;
+            autoWalkRouteToggleQueued = false;
+        }
+
+        if (autoWalk.IsEnabledFor(NavigationAutoWalkDomain.Field) &&
+            observedActions.Any(action => action != FieldNavigationAction.RepeatTarget))
+        {
+            _ = autoWalk.Stop();
+            Speak("Auto walk off.", interrupt: true, nowUtc, "navigation selection changed");
+        }
+
         if (navigationEnabled)
         {
             pendingActions.Capture(observedActions);
@@ -320,7 +349,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             pendingActions.Clear();
         }
 
-        if (nowUtc < nextScanUtc && pendingActions.Count == 0)
+        if (nowUtc < nextScanUtc && pendingActions.Count == 0 && !pendingAutoWalkStart)
         {
             return;
         }
@@ -351,6 +380,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                     false,
                     nowUtc);
                 LogReadFailure($"base state unavailable: {baseDiagnostic}", nowUtc);
+                autoWalk.Suspend();
                 return;
             }
 
@@ -382,6 +412,11 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                     cue,
                     ladder,
                     isLadderStateCoherent);
+                if (navigationSuppressed)
+                {
+                    pendingAutoWalkStart = false;
+                    autoWalkRouteToggleQueued = false;
+                }
                 var liveSpeech = controller.UpdateLiveTracking(
                     position,
                     input,
@@ -395,6 +430,8 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                     guidanceRepeatGate.Reset();
                     Speak(live.Speech, interrupt: true, nowUtc, "native ladder tracking");
                 }
+
+                UpdateAutoWalk(position, control, canMove: !navigationSuppressed, nowUtc);
 
                 if (!navigationSuppressed && FieldNavigationSpeechPolicy.IsDue(
                         nowUtc,
@@ -519,6 +556,9 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             if (!navigationEnabled)
             {
                 controller.Reset();
+                autoWalk.Reset();
+                pendingAutoWalkStart = false;
+                autoWalkRouteToggleQueued = false;
                 guidanceRepeatGate.Reset();
                 lastNavigationSpeechUtc = DateTime.MinValue;
                 return;
@@ -530,6 +570,11 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                 npcsCoherent,
                 objectsCoherent,
                 routeCoherent);
+            if (pendingAutoWalkStart && !controller.BeaconEnabled && !autoWalkRouteToggleQueued)
+            {
+                pendingActions.Capture([FieldNavigationAction.ToggleBeacon]);
+                autoWalkRouteToggleQueued = true;
+            }
             if (pendingActions.TryTakeEmergencyBeaconOff(
                     position.FieldId,
                     controller.BeaconEnabled,
@@ -566,6 +611,23 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                     guidanceRepeatGate.Reset();
                     Speak(actionSpeech.Speech, interrupt: true, nowUtc, $"action={action}");
                 }
+
+                if (action == FieldNavigationAction.ToggleBeacon && autoWalkRouteToggleQueued)
+                {
+                    autoWalkRouteToggleQueued = false;
+                    if (!controller.BeaconEnabled)
+                    {
+                        pendingAutoWalkStart = false;
+                    }
+                }
+            }
+
+            if (pendingAutoWalkStart && controller.BeaconEnabled &&
+                autoWalk.TryStart(NavigationAutoWalkDomain.Field, routeActive: true))
+            {
+                pendingAutoWalkStart = false;
+                autoWalkRouteToggleQueued = false;
+                Speak("Auto walk on.", interrupt: true, nowUtc, "P toggle");
             }
 
             var canUpdateLiveTracking = Steam2026FieldNavigationActionGate.CanUpdateLiveTracking(
@@ -588,6 +650,9 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                     Speak(live.Speech, interrupt: true, nowUtc, "live tracking");
                 }
             }
+
+
+            UpdateAutoWalk(position, control, canMove: canUpdateLiveTracking, nowUtc);
 
             var canCreateGuidance = Steam2026FieldNavigationActionGate.CanUpdateLiveTracking(
                 controller.CurrentCategory,
@@ -621,6 +686,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         }
         catch (Exception ex)
         {
+            autoWalk.Suspend();
             exitSpatial.Observe(default, default, NoTargets, true, false, false, nowUtc);
             ladderSpatial.Observe(
                 default,
@@ -792,6 +858,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
     {
         ObjectDisposedException.ThrowIf(disposed != 0, this);
         controller.Reset();
+        autoWalk.Reset();
         guidanceRepeatGate.Reset();
         pendingActions.Clear();
         exitSpatial.Reset();
@@ -811,6 +878,9 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         lastFailureLogUtc = DateTime.MinValue;
         lastFailureMessage = string.Empty;
         lastStateDiagnostic = string.Empty;
+        lastAutoWalkFailure = string.Empty;
+        pendingAutoWalkStart = false;
+        autoWalkRouteToggleQueued = false;
     }
 
     /// <summary>
@@ -823,6 +893,9 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
     {
         ObjectDisposedException.ThrowIf(disposed != 0, this);
         pendingActions.Clear();
+        autoWalk.Suspend();
+        pendingAutoWalkStart = false;
+        autoWalkRouteToggleQueued = false;
         exitPublicationGate.Reset();
         exitSpatial.Reset();
         ladderSpatial.Reset();
@@ -838,6 +911,15 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         lastStateDiagnostic = string.Empty;
     }
 
+    internal void SynchronizeAutoWalkWithoutFrame()
+    {
+        ObjectDisposedException.ThrowIf(disposed != 0, this);
+        _ = NavigationAutoWalkKeyRouter.ObserveToggle(foregroundInput.ObserveRisingEdge);
+        autoWalk.Suspend();
+        pendingAutoWalkStart = false;
+        autoWalkRouteToggleQueued = false;
+    }
+
     public void Dispose()
     {
         if (Interlocked.Exchange(ref disposed, 1) != 0)
@@ -846,6 +928,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         }
 
         controller.Reset();
+        autoWalk.Dispose();
         guidanceRepeatGate.Reset();
         navigationProgressSink.Dispose();
         navigationProgressBar.Dispose();
@@ -864,6 +947,41 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         currentExits = NoTargets;
         currentReachableExits = NoTargets;
         exitPublicationGate.Reset();
+    }
+
+    private void UpdateAutoWalk(
+        FieldPositionSnapshot position,
+        FieldNavigationControlTransform control,
+        bool canMove,
+        DateTime nowUtc)
+    {
+        if (!autoWalk.IsEnabledFor(NavigationAutoWalkDomain.Field))
+        {
+            return;
+        }
+
+        var direction = FieldNavigationInput.None;
+        var hasDirection = canMove && controller.TryResolveAutomaticInput(
+            position,
+            control,
+            Math.Max(0, config.FieldNavigationArrivalDistanceUnits),
+            out direction);
+        var result = autoWalk.Drive(
+            hasDirection ? direction : FieldNavigationInput.None,
+            canMove: hasDirection,
+            routeActive: controller.BeaconEnabled);
+        if (result.Success)
+        {
+            lastAutoWalkFailure = string.Empty;
+            return;
+        }
+
+        if (!string.Equals(result.Diagnostic, lastAutoWalkFailure, StringComparison.Ordinal))
+        {
+            lastAutoWalkFailure = result.Diagnostic;
+            LogInputDiagnostic($"auto walk failed closed: {result.Diagnostic}");
+            Speak("Auto walk stopped because directional input failed.", true, nowUtc, "input failure");
+        }
     }
 
     private void ObserveSwingingBarTimingCue(

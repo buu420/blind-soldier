@@ -310,17 +310,21 @@ internal static class Steam2026FieldNavigationRuntimeTests
             [target]);
         const uint processId = 42;
         var navigationKeysDown = false;
+        var autoWalkKeyDown = false;
         var foregroundInput = new Steam2026ForegroundInputAdapter(
             () => (nint)1,
             _ => processId,
-            key => navigationKeysDown &&
-                (key == Steam2026FieldNavigationKeyRouter.VirtualKeyU ||
-                 key == Steam2026FieldNavigationKeyRouter.VirtualKeyI)
+            key => (navigationKeysDown &&
+                    (key == Steam2026FieldNavigationKeyRouter.VirtualKeyU ||
+                     key == Steam2026FieldNavigationKeyRouter.VirtualKeyI)) ||
+                   (autoWalkKeyDown && key == NavigationAutoWalkKeyRouter.VirtualKeyP)
                 ? unchecked((short)0x8000)
                 : (short)0,
             processId);
         var spoken = new List<(string Text, bool Interrupt)>();
         var diagnostics = new List<string>();
+        var autoWalkSink = new RecordingKeyboardInputSink();
+        var autoWalk = new NavigationAutoWalkController(autoWalkSink);
         var config = new AccessibilityConfig
         {
             EnableFieldNavigationAssistant = true,
@@ -337,7 +341,8 @@ internal static class Steam2026FieldNavigationRuntimeTests
             Path.GetTempPath(),
             AppContext.BaseDirectory,
             (text, interrupt) => spoken.Add((text, interrupt)),
-            diagnostics.Add);
+            diagnostics.Add,
+            autoWalk: autoWalk);
         var now = new DateTime(2026, 7, 23, 23, 0, 0, DateTimeKind.Utc);
         var frame = new RuntimeFrameObservation(
             now,
@@ -357,6 +362,10 @@ internal static class Steam2026FieldNavigationRuntimeTests
         coordinator.Observe(frame, now + TimeSpan.FromSeconds(2));
         navigationKeysDown = false;
         coordinator.Observe(frame, now + TimeSpan.FromSeconds(4));
+        autoWalkKeyDown = true;
+        coordinator.Observe(frame, now + TimeSpan.FromSeconds(6));
+        autoWalkKeyDown = false;
+        coordinator.Observe(frame, now + TimeSpan.FromSeconds(8));
 
         Equal(
             true,
@@ -367,6 +376,14 @@ internal static class Steam2026FieldNavigationRuntimeTests
             true,
             spoken[^1].Interrupt,
             "new dynamic guidance supersedes queued stale directions");
+        Equal(
+            true,
+            spoken.Any(item => string.Equals(item.Text, "Auto walk on.", StringComparison.Ordinal)),
+            "P starts auto walk on the already selected coherent route");
+        Equal(
+            true,
+            autoWalkSink.Batches.SelectMany(batch => batch).Any(transition => transition.IsKeyDown),
+            "x64 field integration injects the route-owned directional key");
     }
 
     private static void PlaysOnlyCoherentForegroundReachableExitPoints()
@@ -1893,6 +1910,17 @@ internal static class Steam2026FieldNavigationRuntimeTests
             LastReadWasCoherent = false;
             waypoint = default;
             return false;
+        }
+    }
+
+    private sealed class RecordingKeyboardInputSink : IHighwayKeyboardInputSink
+    {
+        internal List<IReadOnlyList<HighwayKeyboardTransition>> Batches { get; } = [];
+
+        public HighwayKeyboardSendResult Send(IReadOnlyList<HighwayKeyboardTransition> transitions)
+        {
+            Batches.Add(transitions.ToArray());
+            return new HighwayKeyboardSendResult(transitions.Count, 0);
         }
     }
 }

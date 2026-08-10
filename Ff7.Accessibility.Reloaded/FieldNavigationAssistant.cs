@@ -1029,6 +1029,55 @@ public sealed class FieldNavigationController
                 : $"{speech}, then {predictiveTurn}");
     }
 
+    /// <summary>
+    /// Resolves the same screen-relative direction used by spoken navigation
+    /// without mutating route state. Interaction points deliberately return no
+    /// input so auto walk cannot press through a ladder or object prompt.
+    /// </summary>
+    public bool TryResolveAutomaticInput(
+        FieldPositionSnapshot position,
+        FieldNavigationControlTransform controlTransform,
+        int arrivalDistanceUnits,
+        out FieldNavigationInput input)
+    {
+        input = FieldNavigationInput.None;
+        if (BeaconEnabled && activeLadderState.IsMounted)
+        {
+            input = activeLadderGuidanceInput;
+            return IsDirectionalInput(input);
+        }
+
+        if (!BeaconEnabled ||
+            interactionArrivalPaused ||
+            !FieldPositionReader.IsUsable(position) ||
+            position.FieldId != beaconFieldId ||
+            currentGuidance is null)
+        {
+            return false;
+        }
+
+        var target = GetBeaconTarget(position);
+        if (target is null ||
+            IsWithinArrivalDistance(position, target.Value, arrivalDistanceUnits, currentGuidance))
+        {
+            return false;
+        }
+
+        if (pendingLadderAction is { RequiresAction: true } action &&
+            IsNear(position, action.Waypoint, LadderActionArrivalDistance))
+        {
+            return false;
+        }
+
+        var waypoint = ResolveGuidanceWaypoint(currentGuidance.Value);
+        var recommendation = movementObserver.ResolveStickDirection(
+            waypoint.X - position.X,
+            waypoint.Y - position.Y,
+            controlTransform);
+        input = recommendation.Input;
+        return IsDirectionalInput(input);
+    }
+
     private FieldNavigationActionResult? UpdateMountedLadder(
         FieldPositionSnapshot position,
         FieldLadderStateSnapshot ladderState)

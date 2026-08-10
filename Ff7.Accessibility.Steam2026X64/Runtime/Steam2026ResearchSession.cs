@@ -1287,6 +1287,7 @@ internal sealed class Steam2026ResearchSession : IDisposable
                     footstepCoordinator?.Reset();
                     fieldFootstepNavigationProbe?.ResetCorrelation();
                     fieldObjectSpatialCoordinator?.Reset("field frame unreadable");
+                    fieldNavigationCoordinator?.SynchronizeAutoWalkWithoutFrame();
                     fieldNavigationCoordinator?.Suspend();
                     worldMapAccessibilityCoordinator?.Suspend("runtime frame unreadable");
                     highwayAccessibilityCoordinator?.Reset("runtime frame unreadable");

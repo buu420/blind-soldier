@@ -182,6 +182,7 @@ foreground. The normal game controls are unchanged.
 | `L` | Next target in the selected category |
 | `K` | Repeat the selected target, or report the active route and progress |
 | `I` | Start navigation to the selected target, or stop the active route |
+| `P` | Start or stop automatic walking to the selected navigation target |
 | `F5` | Turn route progress indicators off or on |
 | `F6` | Select the previous progress interval |
 | `F7` | Select the next progress interval |
@@ -222,9 +223,10 @@ map. You select a category, select a target, and then start a route.
 1. Press `U` or `O` to choose a category.
 2. Press `J` or `L` to browse targets. Each target is spoken with its name and
    an initial direction or distance when that information is available.
-3. Press `I` to start the route.
-4. Follow the spoken directions. Press `K` at any time to hear the target,
-   current direction, and route progress again.
+3. Press `I` to start a route you will follow manually, or press `P` to start
+   the route and walk it automatically.
+4. Follow the spoken directions when walking manually. Press `K` at any time
+   to hear the target, current direction, and route progress again.
 5. The route completes when you reach the target's usable interaction area or
    pass through its destination exit. Press `I` to cancel sooner.
 
@@ -281,6 +283,25 @@ not cause constant corrections. During supported ladders, the spoken direction
 describes the control input needed to continue along the route, including
 horizontal climbs. Routes pause across battles and other temporary ownership
 changes and resume when the game returns to the navigable field or world map.
+
+### Auto walk
+
+After selecting a destination with `J` or `L`, press `P`. Blind Soldier starts
+the same native-walkmesh route used by spoken navigation and holds only the
+directional controls needed for the current route segment. Press `P` again to
+stop automatic movement without changing the selected target.
+
+Auto walk never presses the action or confirm button. At a door, switch, chest,
+NPC, ladder entrance, or other interaction point, it releases the directional
+keys and leaves the interaction to you. Once Cloud is mounted on a supported
+ladder, auto walk can follow the route's live climb direction, including a
+horizontal climb.
+
+For safety, all directions are released during dialogue, menus, movies,
+battles, control locks, loading transitions, focus loss, unreadable game state,
+route failure, and arrival. A route paused by a normal battle or transition can
+resume when the same valid route returns. Changing the category or target
+automatically stops the current auto walk before selecting a different route.
 
 ### Progress indicators
 
@@ -343,7 +364,7 @@ information and navigation targets without choosing those decisions for you.
 Navigation is intentionally disabled while another application has focus and
 during menus, dialogue, movies, battles, or scripted control locks that own the
 same game state. Return to controllable field or world-map movement and press
-`K` or `I` again.
+`K`, `I`, or `P` again.
 
 ### Launch rejects the game executable
 

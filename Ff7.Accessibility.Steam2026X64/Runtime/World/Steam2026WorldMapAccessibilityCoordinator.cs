@@ -25,6 +25,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
     private readonly NavigationBeaconPlayer? beaconPlayer;
     private readonly FootstepSoundPlayer footstepPlayer;
     private readonly CosmoFootstepSequencer? cosmoFootsteps;
+    private readonly NavigationAutoWalkController autoWalk;
     private readonly Action<string, bool> speak;
     private readonly Action<string> log;
     private DateTime nextScanUtc = DateTime.MinValue;
@@ -33,6 +34,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
     private string lastNavigationDiagnostic = string.Empty;
     private string lastFootstepDiagnostic = string.Empty;
     private string lastSuppressionKey = string.Empty;
+    private string lastAutoWalkFailure = string.Empty;
     private bool wasActive;
     private int disposed;
 
@@ -44,7 +46,8 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         string modDirectory,
         Action<string, bool> speak,
         Action<string> log,
-        NavigationProgressController? progressController = null)
+        NavigationProgressController? progressController = null,
+        NavigationAutoWalkController? autoWalk = null)
     {
         this.config = config ?? throw new ArgumentNullException(nameof(config));
         ArgumentNullException.ThrowIfNull(addressSpace);
@@ -53,6 +56,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(modDirectory);
         this.speak = speak ?? throw new ArgumentNullException(nameof(speak));
         this.log = log ?? throw new ArgumentNullException(nameof(log));
+        this.autoWalk = autoWalk ?? NavigationAutoWalkController.CreateCurrentProcess();
 
         stateReader = new WorldMapStateReader(addressSpace);
         entityReader = new WorldMapEntityReader(addressSpace);
@@ -153,7 +157,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         log(
             "Native Steam 2026 world-map accessibility uses the shared x86 controller: " +
             "Locations, Story, Transportation, Events, Chocobo Tracks; " +
-            "keys=U,O,J,L,K,I; live native entities; reversible accessible route progress.");
+            "keys=U,O,J,L,K,I,P auto walk; live native entities; reversible accessible route progress.");
     }
 
     internal void Observe(RuntimeFrameObservation frame, DateTime nowUtc)
@@ -172,6 +176,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
                 }
 
                 beaconPlayer?.StopAll();
+                autoWalk.Suspend();
                 return;
             }
 
@@ -187,12 +192,39 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         // including background frames, so refocus cannot create delayed edges.
         var actions = Steam2026FieldNavigationKeyRouter.ReadActions(
             foregroundInput.ObserveRisingEdge);
+        var autoWalkToggleRequested = NavigationAutoWalkKeyRouter.ObserveToggle(
+            foregroundInput.ObserveRisingEdge);
         wasActive = true;
         var isForeground =
             foregroundInput.IsCurrentProcessForeground() &&
             frame.Lifecycle.IsForeground &&
             !frame.Lifecycle.IsShuttingDown;
-        if (nowUtc < nextScanUtc && actions.Count == 0)
+        if (!isForeground)
+        {
+            // Keep sampling above so a held key cannot become a delayed edge,
+            // but never dispatch a background command or retain movement.
+            actions = Array.Empty<FieldNavigationAction>();
+            autoWalkToggleRequested = false;
+            autoWalk.Suspend();
+        }
+
+        if (autoWalkToggleRequested && autoWalk.IsEnabledFor(NavigationAutoWalkDomain.WorldMap))
+        {
+            _ = autoWalk.Stop();
+            speak("Auto walk off.", true);
+            log("Native Steam 2026 world-map auto walk: P toggle off.");
+            autoWalkToggleRequested = false;
+        }
+
+        if (autoWalk.IsEnabledFor(NavigationAutoWalkDomain.WorldMap) &&
+            actions.Any(action => action != FieldNavigationAction.RepeatTarget))
+        {
+            _ = autoWalk.Stop();
+            speak("Auto walk off.", true);
+            log("Native Steam 2026 world-map auto walk stopped because the selection changed.");
+        }
+
+        if (nowUtc < nextScanUtc && actions.Count == 0 && !autoWalkToggleRequested)
         {
             return;
         }
@@ -233,6 +265,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         {
             runtime.Footsteps.Reset();
             beaconPlayer?.StopAll();
+            autoWalk.Suspend();
             return;
         }
 
@@ -246,6 +279,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         {
             runtime.Navigation.Suspend("world navigation disabled");
             beaconPlayer?.StopAll();
+            autoWalk.Reset();
             return;
         }
 
@@ -254,7 +288,26 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
             ProcessOutput(runtime, runtime.Navigation.HandleAction(action, state, nowUtc));
         }
 
+        if (autoWalkToggleRequested)
+        {
+            if (!runtime.Navigation.BeaconEnabled)
+            {
+                ProcessOutput(
+                    runtime,
+                    runtime.Navigation.HandleAction(FieldNavigationAction.ToggleBeacon, state, nowUtc));
+            }
+
+            if (autoWalk.TryStart(
+                    NavigationAutoWalkDomain.WorldMap,
+                    runtime.Navigation.BeaconEnabled))
+            {
+                speak("Auto walk on.", true);
+                log("Native Steam 2026 world-map auto walk: P toggle on.");
+            }
+        }
+
         ProcessOutput(runtime, runtime.Navigation.Observe(state, nowUtc));
+        UpdateAutoWalk(runtime, state);
         LogDiagnostic("navigation", runtime.Navigation.LastDiagnostic, ref lastNavigationDiagnostic);
     }
 
@@ -266,6 +319,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         }
 
         beaconPlayer?.StopAll();
+        autoWalk.Suspend();
         log($"Native Steam 2026 world-map accessibility suspended: {diagnostic}.");
     }
 
@@ -280,6 +334,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
 
         beaconPlayer?.StopAll();
         progressSink?.Deactivate();
+        autoWalk.Reset();
         nextScanUtc = DateTime.MinValue;
         wasActive = false;
         log($"Native Steam 2026 world-map accessibility reset: {diagnostic}.");
@@ -301,6 +356,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         progressSink?.Dispose();
         progressBar?.Dispose();
         footstepPlayer.Dispose();
+        autoWalk.Dispose();
         runtimes.Clear();
     }
 
@@ -364,6 +420,33 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         }
 
         beaconPlayer?.StopAll();
+        autoWalk.Suspend();
+    }
+
+    private void UpdateAutoWalk(WorldMapRuntimeContext runtime, WorldMapStateSnapshot state)
+    {
+        if (!autoWalk.IsEnabledFor(NavigationAutoWalkDomain.WorldMap))
+        {
+            return;
+        }
+
+        var hasDirection = runtime.Navigation.TryResolveAutomaticInput(state, out var direction);
+        var result = autoWalk.Drive(
+            hasDirection ? direction : FieldNavigationInput.None,
+            canMove: hasDirection,
+            routeActive: runtime.Navigation.BeaconEnabled);
+        if (result.Success)
+        {
+            lastAutoWalkFailure = string.Empty;
+            return;
+        }
+
+        if (!string.Equals(result.Diagnostic, lastAutoWalkFailure, StringComparison.Ordinal))
+        {
+            lastAutoWalkFailure = result.Diagnostic;
+            log($"Native Steam 2026 world-map auto walk failed closed: {result.Diagnostic}");
+            speak("Auto walk stopped because directional input failed.", true);
+        }
     }
 
     private void LogDiagnostic(string kind, string diagnostic, ref string prior)

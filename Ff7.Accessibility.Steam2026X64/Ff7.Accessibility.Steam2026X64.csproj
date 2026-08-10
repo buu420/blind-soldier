@@ -100,6 +100,7 @@
     <Compile Include="..\Ff7.Accessibility.Reloaded\NavigationBeaconPlayer.cs" Link="Shared\NavigationBeaconPlayer.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\NavigationBeaconSound.cs" Link="Shared\NavigationBeaconSound.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\HighwayAutoSteeringController.cs" Link="Shared\HighwayAutoSteeringController.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\NavigationAutoWalkController.cs" Link="Shared\NavigationAutoWalkController.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\HighwayAccessibilityCoordinator.cs" Link="Shared\HighwayAccessibilityCoordinator.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\OpeningMovieAudioTrackPlayer.cs" Link="Shared\OpeningMovieAudioTrackPlayer.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\OpeningMovieAudioTrackVolumePolicy.cs" Link="Shared\OpeningMovieAudioTrackVolumePolicy.cs" />

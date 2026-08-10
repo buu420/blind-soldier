@@ -283,6 +283,9 @@ public sealed class Mod : IModV1, IModV2
     private WorldMapStateReader? worldMapStateReader;
     private WorldMapEntityReader? worldMapEntityReader;
     private readonly Dictionary<(int MapType, int ProgressStage), WorldMapRuntimeContext> worldMapRuntimes = [];
+    private NavigationAutoWalkController? navigationAutoWalkController;
+    private NavigationAutoWalkDomain pendingNavigationAutoWalkToggle;
+    private string lastNavigationAutoWalkFailure = string.Empty;
     private NativeFieldNavigationProgressBar? worldMapNavigationProgressBar;
     private IntervalFieldNavigationProgressSink? worldMapNavigationProgressSink;
     private NavigationBeaconPlayer? worldMapNavigationBeaconPlayer;
@@ -419,6 +422,8 @@ public sealed class Mod : IModV1, IModV2
         floor60StatueBeaconPlayer?.StopAll();
         floor60ActionCuePlayer?.Dispose();
         highwayAccessibilityCoordinator?.Reset("mod suspended");
+        navigationAutoWalkController?.Reset();
+        pendingNavigationAutoWalkToggle = NavigationAutoWalkDomain.None;
         ResetWorldMapAccessibility("mod suspended");
         Speak("Final Fantasy Seven accessibility mod suspended.");
     }
@@ -455,6 +460,9 @@ public sealed class Mod : IModV1, IModV2
             floor60ActionCuePlayer?.Dispose();
             floor60StatueBeaconPlayer?.Dispose();
             highwayAccessibilityCoordinator?.Dispose();
+            navigationAutoWalkController?.Dispose();
+            navigationAutoWalkController = null;
+            pendingNavigationAutoWalkToggle = NavigationAutoWalkDomain.None;
             fieldExitCuePlayer?.Dispose();
             fieldLadderCuePlayer?.Dispose();
             fieldLadderMountCuePlayer?.Dispose();
@@ -628,6 +636,10 @@ public sealed class Mod : IModV1, IModV2
             modDirectory,
             (text, interrupt) => { _ = Speak(text, interrupt); },
             Log);
+        navigationAutoWalkController?.Dispose();
+        navigationAutoWalkController = NavigationAutoWalkController.CreateCurrentProcess();
+        pendingNavigationAutoWalkToggle = NavigationAutoWalkDomain.None;
+        lastNavigationAutoWalkFailure = string.Empty;
         floor60GuardTimingStateReader = new Floor60GuardTimingStateReader(legacyAddressSpace);
         TryInitializeFfnxPopupReader(force: true);
         mainMenuSpeechScheduler = new MainMenuSpeechScheduler(TimeSpan.FromMilliseconds(Math.Max(0, config.MainMenuSpeechSettleMs)));
@@ -1055,6 +1067,7 @@ public sealed class Mod : IModV1, IModV2
             "Navigation progress controls: F5 toggle; F6 previous interval; F7 next interval; " +
             $"enabled={navigationProgressController.Enabled}; " +
             $"interval={navigationProgressController.IntervalPercent} percent.");
+        Log("Navigation auto walk initialized: P starts or stops walking to the selected field or world-map target.");
         fieldObjectProximityCueTracker = new FieldObjectProximityCueTracker(
             config.FieldObjectCueInnerRangeUnits,
             config.FieldObjectCueOuterRangeUnits,
@@ -1145,6 +1158,7 @@ public sealed class Mod : IModV1, IModV2
                 TickExitShortcutDiagnostics();
                 TickRepeatLastSpeech();
                 TickNavigationProgressControls();
+                TickNavigationAutoWalkToggleInput();
                 TickDeferredFieldTextDraws();
                 TickDeferredNativeFieldHooks();
                 TickEchoSDisclaimerSpeech();
@@ -1189,6 +1203,7 @@ public sealed class Mod : IModV1, IModV2
                 try
                 {
                     highwayAccessibilityCoordinator?.Reset("x86 monitor loop fault");
+                    navigationAutoWalkController?.Suspend();
                 }
                 catch (Exception resetException)
                 {
@@ -3377,13 +3392,16 @@ public sealed class Mod : IModV1, IModV2
         {
             battleStatusLimitKeyFrameRouter.DiscardNavigationPress(
                 WorldMapStateReader.WorldModule);
+            DiscardNavigationAutoWalkToggle(NavigationAutoWalkDomain.WorldMap);
+            StopNavigationAutoWalk(NavigationAutoWalkDomain.WorldMap, announce: false);
             return;
         }
 
         var now = DateTime.UtcNow;
         if (now - lastWorldMapScanAt < TimeSpan.FromMilliseconds(Math.Max(30, config.WorldMapScanIntervalMs)) &&
             !battleStatusLimitKeyFrameRouter.HasNavigationPress(
-                WorldMapStateReader.WorldModule))
+                WorldMapStateReader.WorldModule) &&
+            !HasNavigationAutoWalkToggle(NavigationAutoWalkDomain.WorldMap))
         {
             return;
         }
@@ -3396,6 +3414,7 @@ public sealed class Mod : IModV1, IModV2
             {
                 battleStatusLimitKeyFrameRouter.DiscardNavigationPress(
                     WorldMapStateReader.WorldModule);
+                DiscardNavigationAutoWalkToggle(NavigationAutoWalkDomain.WorldMap);
                 if (WorldMapNavigationLifecycle.IsCombatInterruptionModule(module))
                 {
                     foreach (var context in worldMapRuntimes.Values)
@@ -3405,7 +3424,17 @@ public sealed class Mod : IModV1, IModV2
                     }
 
                     worldMapNavigationBeaconPlayer?.StopAll();
+                    SuspendNavigationAutoWalk(NavigationAutoWalkDomain.WorldMap);
                     return;
+                }
+
+                if (module == FieldPositionReader.FieldModule)
+                {
+                    StopNavigationAutoWalk(NavigationAutoWalkDomain.WorldMap, announce: false);
+                }
+                else
+                {
+                    SuspendNavigationAutoWalk(NavigationAutoWalkDomain.WorldMap);
                 }
 
                 if (worldMapWasActive)
@@ -3438,12 +3467,14 @@ public sealed class Mod : IModV1, IModV2
             {
                 battleStatusLimitKeyFrameRouter.DiscardNavigationPress(
                     WorldMapStateReader.WorldModule);
+                DiscardNavigationAutoWalkToggle(NavigationAutoWalkDomain.WorldMap);
                 foreach (var context in worldMapRuntimes.Values)
                 {
                     context.Footsteps.Reset();
                 }
 
                 worldMapNavigationBeaconPlayer?.StopAll();
+                SuspendNavigationAutoWalk(NavigationAutoWalkDomain.WorldMap);
                 return;
             }
 
@@ -3473,8 +3504,10 @@ public sealed class Mod : IModV1, IModV2
             {
                 battleStatusLimitKeyFrameRouter.DiscardNavigationPress(
                     WorldMapStateReader.WorldModule);
+                DiscardNavigationAutoWalkToggle(NavigationAutoWalkDomain.WorldMap);
                 runtime.Footsteps.Reset();
                 worldMapNavigationBeaconPlayer?.StopAll();
+                SuspendNavigationAutoWalk(NavigationAutoWalkDomain.WorldMap);
                 return;
             }
 
@@ -3494,18 +3527,31 @@ public sealed class Mod : IModV1, IModV2
             {
                 battleStatusLimitKeyFrameRouter.DiscardNavigationPress(
                     WorldMapStateReader.WorldModule);
+                DiscardNavigationAutoWalkToggle(NavigationAutoWalkDomain.WorldMap);
                 runtime.Navigation.Suspend("world navigation disabled");
                 worldMapNavigationBeaconPlayer?.StopAll();
+                StopNavigationAutoWalk(NavigationAutoWalkDomain.WorldMap, announce: false);
                 return;
             }
 
-            foreach (var action in ReadFieldNavigationActions(
-                         WorldMapStateReader.WorldModule))
+            var actions = ReadFieldNavigationActions(WorldMapStateReader.WorldModule).ToArray();
+            if (actions.Any(IsNavigationSelectionAction))
+            {
+                StopNavigationAutoWalk(NavigationAutoWalkDomain.WorldMap, announce: true);
+            }
+
+            foreach (var action in actions)
             {
                 ProcessWorldMapNavigationOutput(runtime, runtime.Navigation.HandleAction(action, state, now));
             }
 
+            if (TakeNavigationAutoWalkToggle(NavigationAutoWalkDomain.WorldMap))
+            {
+                ToggleWorldMapAutoWalk(runtime, state, now);
+            }
+
             ProcessWorldMapNavigationOutput(runtime, runtime.Navigation.Observe(state, now));
+            UpdateWorldMapAutoWalk(runtime, state);
             if (config.EnableWorldMapNavigationDiagnostics &&
                 !string.Equals(runtime.Navigation.LastDiagnostic, lastWorldMapNavigationDiagnostic, StringComparison.Ordinal))
             {
@@ -3519,8 +3565,10 @@ public sealed class Mod : IModV1, IModV2
         {
             battleStatusLimitKeyFrameRouter.DiscardNavigationPress(
                 WorldMapStateReader.WorldModule);
+            DiscardNavigationAutoWalkToggle(NavigationAutoWalkDomain.WorldMap);
             worldMapAccessibilityErrorCount++;
             worldMapNavigationBeaconPlayer?.StopAll();
+            SuspendNavigationAutoWalk(NavigationAutoWalkDomain.WorldMap);
             if (worldMapAccessibilityErrorCount <= 10)
             {
                 Log($"World-map accessibility error: {ex.Message}");
@@ -3597,13 +3645,16 @@ public sealed class Mod : IModV1, IModV2
         {
             battleStatusLimitKeyFrameRouter.DiscardNavigationPress(
                 FieldPositionReader.FieldModule);
+            DiscardNavigationAutoWalkToggle(NavigationAutoWalkDomain.Field);
+            StopNavigationAutoWalk(NavigationAutoWalkDomain.Field, announce: false);
             return;
         }
 
         var now = DateTime.UtcNow;
         if (now - lastFieldNavigationScanAt < TimeSpan.FromMilliseconds(Math.Max(30, config.FieldNavigationScanIntervalMs)) &&
             !battleStatusLimitKeyFrameRouter.HasNavigationPress(
-                FieldPositionReader.FieldModule))
+                FieldPositionReader.FieldModule) &&
+            !HasNavigationAutoWalkToggle(NavigationAutoWalkDomain.Field))
         {
             return;
         }
@@ -3616,7 +3667,9 @@ public sealed class Mod : IModV1, IModV2
             {
                 battleStatusLimitKeyFrameRouter.DiscardNavigationPress(
                     FieldPositionReader.FieldModule);
+                DiscardNavigationAutoWalkToggle(NavigationAutoWalkDomain.Field);
                 fieldNavigationController.SuspendForPositionRecovery(result.Diagnostic);
+                SuspendNavigationAutoWalk(NavigationAutoWalkDomain.Field);
                 return;
             }
 
@@ -3636,10 +3689,12 @@ public sealed class Mod : IModV1, IModV2
                 ladderState,
                 ladderResult.IsUsable);
             var navigationForeground = foregroundProcessGate.IsCurrentProcessForeground();
-            if (navigationSuppressed || !navigationForeground)
+            if (navigationSuppressed || !navigationForeground || !controlResult.IsUsable)
             {
                 battleStatusLimitKeyFrameRouter.DiscardNavigationPress(
                     FieldPositionReader.FieldModule);
+                DiscardNavigationAutoWalkToggle(NavigationAutoWalkDomain.Field);
+                SuspendNavigationAutoWalk(NavigationAutoWalkDomain.Field);
             }
 
             if (config.EnableFieldNavigationDiagnostics)
@@ -3759,9 +3814,15 @@ public sealed class Mod : IModV1, IModV2
 
             }
 
-            foreach (var action in navigationSuppressed || !navigationForeground
-                         ? Array.Empty<FieldNavigationAction>()
-                         : ReadFieldNavigationActions(FieldPositionReader.FieldModule))
+            var actions = navigationSuppressed || !navigationForeground
+                ? Array.Empty<FieldNavigationAction>()
+                : ReadFieldNavigationActions(FieldPositionReader.FieldModule).ToArray();
+            if (actions.Any(IsNavigationSelectionAction))
+            {
+                StopNavigationAutoWalk(NavigationAutoWalkDomain.Field, announce: true);
+            }
+
+            foreach (var action in actions)
             {
                 var speech = fieldNavigationController.HandleAction(
                     action,
@@ -3778,6 +3839,21 @@ public sealed class Mod : IModV1, IModV2
                 Speak(speech.Value.Speech);
                 lastNavigationSpeechAt = now;
             }
+
+            if (!navigationSuppressed && navigationForeground && controlResult.IsUsable &&
+                TakeNavigationAutoWalkToggle(NavigationAutoWalkDomain.Field))
+            {
+                ToggleFieldAutoWalk(
+                    result.Position,
+                    controlResult.Transform,
+                    ladderState,
+                    now);
+            }
+
+            UpdateFieldAutoWalk(
+                result.Position,
+                controlResult,
+                navigationSuppressed || !navigationForeground);
 
             if (FieldNavigationSpeechPolicy.IsDue(
                     now,
@@ -3821,6 +3897,8 @@ public sealed class Mod : IModV1, IModV2
         {
             battleStatusLimitKeyFrameRouter.DiscardNavigationPress(
                 FieldPositionReader.FieldModule);
+            DiscardNavigationAutoWalkToggle(NavigationAutoWalkDomain.Field);
+            SuspendNavigationAutoWalk(NavigationAutoWalkDomain.Field);
             fieldNavigationErrorCount++;
             if (fieldNavigationErrorCount <= 10)
             {
@@ -4202,6 +4280,233 @@ public sealed class Mod : IModV1, IModV2
             Speak(speech, interrupt: true);
         }
     }
+
+    private void TickNavigationAutoWalkToggleInput()
+    {
+        var module = ReadByte(FieldPositionReader.AddressCurrentModule);
+        var foreground = foregroundProcessGate.IsCurrentProcessForeground();
+        var domain = module switch
+        {
+            FieldPositionReader.FieldModule when config.EnableFieldNavigationAssistant =>
+                NavigationAutoWalkDomain.Field,
+            WorldMapStateReader.WorldModule when config.EnableWorldMapNavigationAssistant =>
+                NavigationAutoWalkDomain.WorldMap,
+            _ => NavigationAutoWalkDomain.None
+        };
+        var togglePressed = NavigationAutoWalkKeyRouter.ObserveToggle(
+            virtualKey => WasNavigationKeyPressed(
+                virtualKey,
+                foreground && domain != NavigationAutoWalkDomain.None));
+
+        if (!foreground)
+        {
+            pendingNavigationAutoWalkToggle = NavigationAutoWalkDomain.None;
+            navigationAutoWalkController?.Suspend();
+            return;
+        }
+
+        if (domain == NavigationAutoWalkDomain.None)
+        {
+            pendingNavigationAutoWalkToggle = NavigationAutoWalkDomain.None;
+            navigationAutoWalkController?.Suspend();
+            return;
+        }
+
+        if (domain == NavigationAutoWalkDomain.Field)
+        {
+            StopNavigationAutoWalk(NavigationAutoWalkDomain.WorldMap, announce: false);
+        }
+        else
+        {
+            StopNavigationAutoWalk(NavigationAutoWalkDomain.Field, announce: false);
+        }
+
+        if (togglePressed)
+        {
+            pendingNavigationAutoWalkToggle = domain;
+        }
+    }
+
+    private bool HasNavigationAutoWalkToggle(NavigationAutoWalkDomain domain) =>
+        pendingNavigationAutoWalkToggle == domain;
+
+    private bool TakeNavigationAutoWalkToggle(NavigationAutoWalkDomain domain)
+    {
+        if (pendingNavigationAutoWalkToggle != domain)
+        {
+            return false;
+        }
+
+        pendingNavigationAutoWalkToggle = NavigationAutoWalkDomain.None;
+        return true;
+    }
+
+    private void DiscardNavigationAutoWalkToggle(NavigationAutoWalkDomain domain)
+    {
+        if (pendingNavigationAutoWalkToggle == domain)
+        {
+            pendingNavigationAutoWalkToggle = NavigationAutoWalkDomain.None;
+        }
+    }
+
+    private void ToggleFieldAutoWalk(
+        FieldPositionSnapshot position,
+        FieldNavigationControlTransform controlTransform,
+        FieldLadderStateSnapshot ladderState,
+        DateTime now)
+    {
+        if (StopNavigationAutoWalk(NavigationAutoWalkDomain.Field, announce: true))
+        {
+            return;
+        }
+
+        if (!fieldNavigationController.BeaconEnabled)
+        {
+            var speech = fieldNavigationController.HandleAction(
+                FieldNavigationAction.ToggleBeacon,
+                position,
+                controlTransform,
+                ladderState);
+            if (speech is { } value)
+            {
+                Log($"Field navigation speech: {value.Speech}");
+                fieldNavigationGuidanceRepeatGate.Reset();
+                Speak(value.Speech);
+                lastNavigationSpeechAt = now;
+            }
+        }
+
+        if (fieldNavigationController.BeaconEnabled &&
+            navigationAutoWalkController?.TryStart(
+                NavigationAutoWalkDomain.Field,
+                routeActive: true) == true)
+        {
+            Log("Field navigation auto walk started for the selected target.");
+            Speak("Auto walk on.", interrupt: true);
+        }
+    }
+
+    private void ToggleWorldMapAutoWalk(
+        WorldMapRuntimeContext runtime,
+        WorldMapStateSnapshot state,
+        DateTime now)
+    {
+        if (StopNavigationAutoWalk(NavigationAutoWalkDomain.WorldMap, announce: true))
+        {
+            return;
+        }
+
+        if (!runtime.Navigation.BeaconEnabled)
+        {
+            ProcessWorldMapNavigationOutput(
+                runtime,
+                runtime.Navigation.HandleAction(FieldNavigationAction.ToggleBeacon, state, now));
+        }
+
+        if (runtime.Navigation.BeaconEnabled &&
+            navigationAutoWalkController?.TryStart(
+                NavigationAutoWalkDomain.WorldMap,
+                routeActive: true) == true)
+        {
+            Log("World-map navigation auto walk started for the selected target.");
+            Speak("Auto walk on.", interrupt: true);
+        }
+    }
+
+    private void UpdateFieldAutoWalk(
+        FieldPositionSnapshot position,
+        FieldNavigationControlReadResult control,
+        bool movementSuppressed)
+    {
+        if (navigationAutoWalkController?.IsEnabledFor(NavigationAutoWalkDomain.Field) != true)
+        {
+            return;
+        }
+
+        var direction = FieldNavigationInput.None;
+        var hasDirection = control.IsUsable &&
+            fieldNavigationController.TryResolveAutomaticInput(
+                position,
+                control.Transform,
+                Math.Max(0, config.FieldNavigationArrivalDistanceUnits),
+                out direction);
+        var result = navigationAutoWalkController.Drive(
+            hasDirection ? direction : FieldNavigationInput.None,
+            canMove: hasDirection && !movementSuppressed,
+            routeActive: fieldNavigationController.BeaconEnabled);
+        HandleNavigationAutoWalkInputResult(result, NavigationAutoWalkDomain.Field);
+    }
+
+    private void UpdateWorldMapAutoWalk(
+        WorldMapRuntimeContext runtime,
+        WorldMapStateSnapshot state)
+    {
+        if (navigationAutoWalkController?.IsEnabledFor(NavigationAutoWalkDomain.WorldMap) != true)
+        {
+            return;
+        }
+
+        var hasDirection = runtime.Navigation.TryResolveAutomaticInput(state, out var direction);
+        var result = navigationAutoWalkController.Drive(
+            hasDirection ? direction : FieldNavigationInput.None,
+            canMove: hasDirection,
+            routeActive: runtime.Navigation.BeaconEnabled);
+        HandleNavigationAutoWalkInputResult(result, NavigationAutoWalkDomain.WorldMap);
+    }
+
+    private void HandleNavigationAutoWalkInputResult(
+        HighwayAutoSteeringInputResult result,
+        NavigationAutoWalkDomain domain)
+    {
+        if (result.Success)
+        {
+            lastNavigationAutoWalkFailure = string.Empty;
+            return;
+        }
+
+        if (string.Equals(lastNavigationAutoWalkFailure, result.Diagnostic, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        lastNavigationAutoWalkFailure = result.Diagnostic;
+        Log($"{domain} auto walk stopped: {result.Diagnostic}");
+        Speak("Auto walk stopped. Directional input is unavailable.", interrupt: true);
+    }
+
+    private bool StopNavigationAutoWalk(
+        NavigationAutoWalkDomain domain,
+        bool announce)
+    {
+        if (navigationAutoWalkController?.IsEnabledFor(domain) != true)
+        {
+            return false;
+        }
+
+        navigationAutoWalkController.Stop();
+        lastNavigationAutoWalkFailure = string.Empty;
+        Log($"{domain} auto walk stopped.");
+        if (announce)
+        {
+            Speak("Auto walk off.", interrupt: true);
+        }
+
+        return true;
+    }
+
+    private void SuspendNavigationAutoWalk(NavigationAutoWalkDomain domain)
+    {
+        if (navigationAutoWalkController?.IsEnabledFor(domain) == true)
+        {
+            navigationAutoWalkController.Suspend();
+        }
+    }
+
+    private static bool IsNavigationSelectionAction(FieldNavigationAction action) =>
+        action is FieldNavigationAction.PreviousCategory or
+            FieldNavigationAction.NextCategory or
+            FieldNavigationAction.PreviousTarget or
+            FieldNavigationAction.NextTarget;
 
     private void TickHighwayAccessibility()
     {

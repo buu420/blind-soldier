@@ -59,6 +59,14 @@ if (args.Contains("--wall-market-squat-only", StringComparer.OrdinalIgnoreCase))
     return;
 }
 
+if (args.Contains("--auto-walk-only", StringComparer.OrdinalIgnoreCase))
+{
+    NavigationAutoWalkControllerTests.Run();
+    AssertFieldStoryCatalogAdvancesThroughTrainGraveyardTrainPositions();
+    Console.WriteLine("FFVII auto-walk and Train Graveyard navigation tests passed.");
+    return;
+}
+
 if (args.Contains("--save-enemy-skill-only", StringComparer.OrdinalIgnoreCase))
 {
     AssertKernel2TextDatabaseReadsNativeDescriptionsAndEquipmentNames();
@@ -288,6 +296,7 @@ HighwaySteeringTrackerTests.Run();
 HighwayEngagementSteeringTrackerTests.Run();
 HighwayAutoSteeringModeTrackerTests.Run();
 HighwayAutoSteeringControllerTests.Run();
+NavigationAutoWalkControllerTests.Run();
 HighwayAccessibilityCoordinatorTests.Run();
 AssertMenuTextRendererDelegateHasReloadedFunctionAttribute();
 AssertFieldMessageOpenDelegateHasReloadedFunctionAttribute();
@@ -558,7 +567,7 @@ AssertFieldStoryCatalogCoversReactor5EscapeAndChurchProgression();
 AssertFieldStoryCatalogCoversAerisHouseFirstVisit();
 AssertFieldStoryCatalogCoversSector6AndWallMarketArrival();
 AssertInstalledAerisHouseSneakRouteAvoidsAllCatchLines();
-AssertFieldStoryCatalogKeepsTrainGraveyardExitStableAcrossTrainPositions();
+AssertFieldStoryCatalogAdvancesThroughTrainGraveyardTrainPositions();
 AssertFieldStoryCatalogGuidesEntireSupportPillarEscape();
 AssertFieldStoryTargetReaderPreservesTunnelTriggerLine();
 AssertFieldStoryCatalogCoversSector7AndWallMarketMandatoryActions();
@@ -10015,7 +10024,7 @@ static void AssertFieldStoryTargetReaderPreservesTunnelTriggerLine()
     AssertEqual(expectedDuctLine, ductTargets[0].TriggerLine, "duct target must route to the actual trigger");
 }
 
-static void AssertFieldStoryCatalogKeepsTrainGraveyardExitStableAcrossTrainPositions()
+static void AssertFieldStoryCatalogAdvancesThroughTrainGraveyardTrainPositions()
 {
     var definitions = FieldStoryEventCatalog.CreateAllFields()
         .Where(candidate =>
@@ -10025,21 +10034,14 @@ static void AssertFieldStoryCatalogKeepsTrainGraveyardExitStableAcrossTrainPosit
             candidate.MaximumGameMoment == 214 &&
             candidate.Priority == 0)
         .ToArray();
-    var expectedLine = new FieldNavigationTriggerLine(-1993, 2926, 0, -1801, 2363, 0);
+    var firstTrainLine = new FieldNavigationTriggerLine(1691, 3064, 0, 1790, 3124, 0);
+    var upperTrainLine = new FieldNavigationTriggerLine(776, 3453, 0, 871, 3511, 0);
+    var stationExitLine = new FieldNavigationTriggerLine(-1993, 2926, 0, -1801, 2363, 0);
 
     AssertEqual(
-        1,
+        3,
         definitions.Length,
-        "Train Graveyard Story must expose one stable destination instead of competing train states");
-    var definition = definitions.Single();
-    AssertEqual(
-        "Leave the Train Graveyard for Sector 7 Station",
-        definition.Label,
-        "Train Graveyard Story destination label");
-    AssertEqual(-1897, definition.X, "Train Graveyard Story should use the proven lower gateway midpoint");
-    AssertEqual(2644, definition.Y, "Train Graveyard Story lower gateway y coordinate");
-    AssertEqual(expectedLine, definition.TriggerLine, "Train Graveyard Story must retain the exact native gateway line");
-    AssertEqual(true, definition.CompletesOnArrival, "Train Graveyard Story beacon should stop on the exit line");
+        "Train Graveyard Story must expose both native train controls before the station exit");
 
     var memory = new Dictionary<int, byte>();
     WriteUInt16(memory, FieldNavigationObjectReader.AddressFieldBankBase, 212);
@@ -10053,22 +10055,32 @@ static void AssertFieldStoryCatalogKeepsTrainGraveyardExitStableAcrossTrainPosit
     var reader = new FieldStoryTargetReader(ReadInt32Value, ReadByte, definitions);
     var position = new FieldPositionSnapshot(1, 145, 0, 0, 0, 0, 104, 0);
 
-    foreach (var trainPositionState in new byte[] { 0, 3, 7 })
+    var expectedByState = new[]
     {
-        memory[FieldNavigationObjectReader.AddressFieldBankBase + 164] = trainPositionState;
+        (State: (byte)0, Label: "Move the first Train Graveyard train", Line: firstTrainLine),
+        (State: (byte)3, Label: "Move the upper Train Graveyard train", Line: upperTrainLine),
+        (State: (byte)7, Label: "Leave the Train Graveyard for Sector 7 Station", Line: stationExitLine)
+    };
+    foreach (var expected in expectedByState)
+    {
+        memory[FieldNavigationObjectReader.AddressFieldBankBase + 164] = expected.State;
         var targets = reader.ReadTargets(position);
         AssertEqual(
             1,
             targets.Count,
-            $"Train Graveyard Story must remain singular when native train state is {trainPositionState}");
+            $"Train Graveyard Story must remain singular when native train state is {expected.State}");
         AssertEqual(
-            definition.Label,
+            expected.Label,
             targets[0].Label,
-            $"Train Graveyard Story must not change when native train state is {trainPositionState}");
+            $"Train Graveyard Story must advance at native train state {expected.State}");
         AssertEqual(
-            expectedLine,
+            expected.Line,
             targets[0].TriggerLine,
-            $"Train Graveyard Story must preserve its gateway line when native train state is {trainPositionState}");
+            $"Train Graveyard Story must route to the native trigger at state {expected.State}");
+        AssertEqual(
+            true,
+            targets[0].CompletesOnArrival,
+            $"Train Graveyard stage {expected.State} must stop at its actual trigger");
     }
 }
 

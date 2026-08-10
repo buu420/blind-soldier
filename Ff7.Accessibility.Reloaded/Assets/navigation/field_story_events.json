@@ -5553,6 +5553,68 @@
                         {
                             "fieldId":  145,
                             "kind":  "Location",
+                            "label":  "Move the first Train Graveyard train",
+                            "entityId":  -1,
+                            "x":  1740,
+                            "y":  3094,
+                            "z":  0,
+                            "targetGameMoment":  215,
+                            "minimumGameMoment":  212,
+                            "maximumGameMoment":  214,
+                            "priority":  0,
+                            "sourceFieldName":  "mds7st2",
+                            "sourceEntityName":  "line20",
+                            "sourceScriptType":  "Move",
+                            "completesOnArrival":  true,
+                            "requiredCondition":  {
+                                                      "bank":  1,
+                                                      "address":  164,
+                                                      "mask":  7,
+                                                      "value":  0
+                                                  },
+                            "triggerLine":  {
+                                                "startX":  1691,
+                                                "startY":  3064,
+                                                "startZ":  0,
+                                                "endX":  1790,
+                                                "endY":  3124,
+                                                "endZ":  0
+                                            }
+                        },
+                        {
+                            "fieldId":  145,
+                            "kind":  "Location",
+                            "label":  "Move the upper Train Graveyard train",
+                            "entityId":  -1,
+                            "x":  823,
+                            "y":  3482,
+                            "z":  0,
+                            "targetGameMoment":  215,
+                            "minimumGameMoment":  212,
+                            "maximumGameMoment":  214,
+                            "priority":  0,
+                            "sourceFieldName":  "mds7st2",
+                            "sourceEntityName":  "line30",
+                            "sourceScriptType":  "Move",
+                            "completesOnArrival":  true,
+                            "requiredCondition":  {
+                                                      "bank":  1,
+                                                      "address":  164,
+                                                      "mask":  7,
+                                                      "value":  3
+                                                  },
+                            "triggerLine":  {
+                                                "startX":  776,
+                                                "startY":  3453,
+                                                "startZ":  0,
+                                                "endX":  871,
+                                                "endY":  3511,
+                                                "endZ":  0
+                                            }
+                        },
+                        {
+                            "fieldId":  145,
+                            "kind":  "Location",
                             "label":  "Leave the Train Graveyard for Sector 7 Station",
                             "entityId":  -1,
                             "x":  -1897,
@@ -5566,6 +5628,12 @@
                             "sourceEntityName":  "",
                             "sourceScriptType":  "Gateway",
                             "completesOnArrival":  true,
+                            "requiredCondition":  {
+                                                      "bank":  1,
+                                                      "address":  164,
+                                                      "mask":  7,
+                                                      "value":  7
+                                                  },
                             "triggerLine":  {
                                                 "startX":  -1993,
                                                 "startY":  2926,

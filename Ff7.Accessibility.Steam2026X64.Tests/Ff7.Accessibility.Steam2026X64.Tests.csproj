@@ -19,6 +19,8 @@
              Link="SharedTests\HighwayAutoSteeringControllerTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\HighwayEngagementSteeringTrackerTests.cs"
              Link="SharedTests\HighwayEngagementSteeringTrackerTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\NavigationAutoWalkControllerTests.cs"
+             Link="SharedTests\NavigationAutoWalkControllerTests.cs" />
   </ItemGroup>
 
 </Project>

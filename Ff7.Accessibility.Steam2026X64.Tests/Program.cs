@@ -12,6 +12,7 @@ if (args.Contains("--module-tests-only", StringComparer.OrdinalIgnoreCase))
     Steam2026BattleStatusHotkeyTests.Run();
     Steam2026BattleObservationTests.ReadsNativeEnemySkillCategoryMapping();
     Steam2026FieldNavigationRuntimeTests.Run();
+    NavigationAutoWalkControllerTests.Run();
     Console.WriteLine("Steam 2026 x64 module tests passed.");
     return;
 }
@@ -136,6 +137,7 @@ catch (InvalidOperationException)
 AssertEqual(true, startThrew, "incomplete x64 backend refuses startup");
 Steam2026ForegroundInputTests.Run(native, legacy);
 HighwayAutoSteeringControllerTests.Run();
+NavigationAutoWalkControllerTests.Run();
 HighwayEngagementSteeringTrackerTests.Run();
 Steam2026ResearchSpeechPolicyTests.Run();
 Steam2026ResearchAccessibilityOutputTests.Run();
