@@ -123,8 +123,12 @@ false announcement is worse than silence.
 ## Configuration and overrides
 
 `AccessibilityConfig.GameLanguage` defaults to `auto`. Accepted values are
-case-insensitive `auto`, `en`, `fr`, `de`, `es`, and `ja`, plus the matching
-Steam language names.
+case-insensitive `auto`, `en`, `fr`, `de`, `es`, `ja`, and the Bunio Polish fan
+translation profile `pl`, plus the matching language names. The Polish profile
+retains English game-asset paths and English generated-message behavior while
+decoding the translation's repurposed one-byte font slots as Polish characters.
+Automatic detection recognizes the verified Polish translation font fingerprint;
+`pl` remains available as an explicit override for compatible variants.
 
 Bundled catalogs are embedded in the shared assembly so a partial package
 cannot silently remove required core translations. An optional

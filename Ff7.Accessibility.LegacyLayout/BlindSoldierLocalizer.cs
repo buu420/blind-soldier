@@ -70,7 +70,8 @@ public sealed partial class BlindSoldierLocalizer
 
     public string Localize(string text)
     {
-        if (string.IsNullOrWhiteSpace(text) || language.Language == Ff7GameLanguage.English)
+        if (string.IsNullOrWhiteSpace(text) ||
+            string.Equals(language.Code, "en", StringComparison.OrdinalIgnoreCase))
         {
             return text;
         }

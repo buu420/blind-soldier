@@ -5,13 +5,48 @@ internal static class GameLanguageDetectorTests
     public static void Run()
     {
         MapsEverySupportedLanguageToItsNativeAssets();
+        ParsesPolishFanTranslationProfile();
+        RecognizesKnownPolishTranslationFingerprint();
         ExplicitOverrideWinsWhenItsDataExists();
+        ExplicitPolishOverrideUsesEnglishAssetPaths();
         ExecutableSuffixWinsDuringAutomaticDetection();
         MatchingSteamManifestSuppliesTheLanguage();
         AStaleOverrideFallsThroughInsteadOfSelectingMissingData();
         AStaleManifestFallsThroughToTheOnlyUsableLanguage();
         InvalidOverrideFallsThroughToAutomaticDetection();
         EnglishIsTheFinalFallback();
+    }
+
+    private static void ParsesPolishFanTranslationProfile()
+    {
+        Equal(true, Ff7GameLanguages.TryParse("pl", out var descriptor), "Polish language code");
+        Equal(Ff7GameLanguage.English, descriptor.Language, "Polish base game language");
+        Equal("pl", descriptor.Code, "Polish code");
+        Equal("Polish", descriptor.DisplayName, "Polish display name");
+        Equal("lang-en", descriptor.LanguageDirectoryName, "Polish language directory");
+        Equal("flevel.lgp", descriptor.FieldArchiveName, "Polish field archive");
+        Equal(Ff7TextEncodingProfile.PolishFanTranslation, descriptor.TextEncodingProfile, "Polish text encoding");
+        Equal(false, descriptor.UsesJapaneseEncoding, "Polish Japanese encoding flag");
+        Equal(5, Ff7GameLanguages.All.Count, "official language enumeration excludes fan profiles");
+    }
+
+    private static void RecognizesKnownPolishTranslationFingerprint()
+    {
+        Equal(
+            true,
+            Ff7GameLanguageDetector.TryMatchFanTranslationFingerprint(
+                13_170,
+                "84886B3F59DFB302A2936B3924E8C468790D582C3F11FC0508106DA42A01FEA3",
+                out var descriptor),
+            "Polish WINDOW.BIN fingerprint");
+        Equal("pl", descriptor.Code, "fingerprinted Polish profile");
+        Equal(
+            false,
+            Ff7GameLanguageDetector.TryMatchFanTranslationFingerprint(
+                13_266,
+                "E4D135CE630E59D0DF17A23C7BF1BCA2B590464D4F8F4E3D42E8C0E5A448C2A8",
+                out _),
+            "vanilla English WINDOW.BIN fingerprint");
     }
 
     private static void MapsEverySupportedLanguageToItsNativeAssets()
@@ -46,6 +81,21 @@ internal static class GameLanguageDetectorTests
 
         Equal(Ff7GameLanguage.French, context.Language, "explicit override");
         Equal(Ff7GameLanguageDetectionSource.Configuration, context.Source, "override source");
+    }
+
+    private static void ExplicitPolishOverrideUsesEnglishAssetPaths()
+    {
+        using var game = TestGame.Create("en");
+        var context = Ff7GameLanguageDetector.Detect(
+            game.Root,
+            "pl",
+            Path.Combine(game.Root, "ff7_en.exe"),
+            Array.Empty<string>());
+
+        Equal(Ff7GameLanguage.English, context.Language, "Polish base language override");
+        Equal("pl", context.Code, "Polish override code");
+        Equal(Ff7TextEncodingProfile.PolishFanTranslation, context.Descriptor.TextEncodingProfile, "Polish override encoding");
+        Equal(Ff7GameLanguageDetectionSource.Configuration, context.Source, "Polish override source");
     }
 
     private static void ExecutableSuffixWinsDuringAutomaticDetection()

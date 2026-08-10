@@ -10,6 +10,7 @@ internal static class BlindSoldierLocalizerTests
         LeavesUnknownNativeTextUntouched();
         FallsBackToEnglishForAMissingKnownTranslation();
         LoadsAValidBoundedExternalOverride();
+        LoadsAPolishExternalOverrideWithoutChangingNativeDialogue();
         RejectsInvalidAndOversizedOverrides();
     }
 
@@ -96,6 +97,25 @@ internal static class BlindSoldierLocalizerTests
             Ff7GameLanguages.Get(Ff7GameLanguage.French),
             directory.Path);
         Equal("Trajet terminé.", localizer.Localize("Route complete."), "external override");
+    }
+
+    private static void LoadsAPolishExternalOverrideWithoutChangingNativeDialogue()
+    {
+        using var directory = TemporaryDirectory.Create();
+        var languageDirectory = Path.Combine(directory.Path, "Languages");
+        Directory.CreateDirectory(languageDirectory);
+        File.WriteAllText(
+            Path.Combine(languageDirectory, "pl.json"),
+            "{\"Route complete.\":\"Trasa ukończona.\"}");
+
+        var localizer = BlindSoldierLocalizer.Create(
+            Ff7GameLanguages.PolishFanTranslation,
+            directory.Path);
+        Equal("Trasa ukończona.", localizer.Localize("Route complete."), "Polish external override");
+        Equal(
+            "Nie możesz wziąć więcej Materii.",
+            localizer.Localize("Nie możesz wziąć więcej Materii."),
+            "Polish native dialogue pass-through");
     }
 
     private static void RejectsInvalidAndOversizedOverrides()

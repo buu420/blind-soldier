@@ -1,9 +1,14 @@
+using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 
 namespace Ff7.Accessibility.Reloaded;
 
 public static partial class Ff7GameLanguageDetector
 {
+    private const long PolishTranslationWindowBinLength = 13_170;
+    private const string PolishTranslationWindowBinSha256 =
+        "84886B3F59DFB302A2936B3924E8C468790D582C3F11FC0508106DA42A01FEA3";
+
     public static Ff7GameLanguageContext Detect(
         string gameRootDirectory,
         string? configuredLanguage = "auto",
@@ -31,6 +36,17 @@ public static partial class Ff7GameLanguageDetector
             {
                 log?.Invoke($"Blind Soldier language override '{configured}' is not supported; continuing automatic detection.");
             }
+        }
+
+        if (TryReadFanTranslationFingerprint(dataDirectory, out var translatedLanguage) &&
+            HasUsableKernel(dataDirectory, translatedLanguage))
+        {
+            return Select(
+                translatedLanguage,
+                dataDirectory,
+                Ff7GameLanguageDetectionSource.TranslationFingerprint,
+                "installed Polish translation font",
+                log);
         }
 
         if (TryReadExecutableLanguage(executablePath, out var executableLanguage) &&
@@ -95,6 +111,46 @@ public static partial class Ff7GameLanguageDetector
 
     private static bool HasUsableKernel(string dataDirectory, Ff7GameLanguageDescriptor language) =>
         File.Exists(Path.Combine(dataDirectory, language.LanguageDirectoryName, "kernel", "kernel2.bin"));
+
+    private static bool TryReadFanTranslationFingerprint(
+        string dataDirectory,
+        out Ff7GameLanguageDescriptor language)
+    {
+        language = Ff7GameLanguages.Get(Ff7GameLanguage.English);
+        var windowBinPath = Path.Combine(dataDirectory, "lang-en", "kernel", "WINDOW.BIN");
+        try
+        {
+            using var stream = File.OpenRead(windowBinPath);
+            if (stream.Length != PolishTranslationWindowBinLength)
+            {
+                return false;
+            }
+
+            var sha256 = Convert.ToHexString(SHA256.HashData(stream));
+            return TryMatchFanTranslationFingerprint(stream.Length, sha256, out language);
+        }
+        catch (Exception exception) when (
+            exception is IOException or UnauthorizedAccessException or CryptographicException)
+        {
+            return false;
+        }
+    }
+
+    internal static bool TryMatchFanTranslationFingerprint(
+        long fileLength,
+        string? sha256,
+        out Ff7GameLanguageDescriptor language)
+    {
+        language = Ff7GameLanguages.Get(Ff7GameLanguage.English);
+        if (fileLength != PolishTranslationWindowBinLength ||
+            !string.Equals(sha256, PolishTranslationWindowBinSha256, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        language = Ff7GameLanguages.PolishFanTranslation;
+        return true;
+    }
 
     private static bool TryReadExecutableLanguage(string? executablePath, out Ff7GameLanguageDescriptor language)
     {

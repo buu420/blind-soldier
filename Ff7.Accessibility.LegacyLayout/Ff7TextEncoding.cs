@@ -92,9 +92,18 @@ internal static class Ff7TextEncoding
         "犠快劇拠厄抵適程繰腹橋白処匹杯暑坊週秀看軽" +
         "棊和平王姫庭観航横帳丘亭財律布規謀積刻陥類";
 
-    public static bool TryReadNormal(byte value, bool japanese, out char character)
+    public static bool TryReadNormal(
+        byte value,
+        Ff7TextEncodingProfile profile,
+        out char character)
     {
-        var table = japanese ? Japanese : Western;
+        if (profile == Ff7TextEncodingProfile.PolishFanTranslation &&
+            TryReadPolishFanTranslationCharacter(value, out character))
+        {
+            return true;
+        }
+
+        var table = profile == Ff7TextEncodingProfile.Japanese ? Japanese : Western;
         if (value >= table.Length)
         {
             character = '\uFFFD';
@@ -103,6 +112,29 @@ internal static class Ff7TextEncoding
 
         character = table[value];
         return true;
+    }
+
+    private static bool TryReadPolishFanTranslationCharacter(byte value, out char character)
+    {
+        // The Bunio Polish translation replaces these Western-font glyph slots.
+        // Field and kernel text still carry the original one-byte slot numbers.
+        character = value switch
+        {
+            0x67 => 'ą',
+            0x74 => 'ć',
+            0x75 => 'ł',
+            0x76 => 'ń',
+            0x78 => 'ę',
+            0x79 => 'Ł',
+            0x7a => 'Ś',
+            0x7b => 'Ć',
+            0x7c => 'ź',
+            0x8d => 'ż',
+            0x91 => 'Ż',
+            0xa0 => 'ś',
+            _ => '\0'
+        };
+        return character != '\0';
     }
 
     public static bool TryReadKanji(byte bank, byte code, out char character)

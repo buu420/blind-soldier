@@ -5,6 +5,7 @@ internal static class LocalizedTextDecoderTests
     public static void Run()
     {
         DecodesWesternExtendedCharacters();
+        DecodesPolishFanTranslationCharacters();
         DecodesJapaneseKanaAndKanji();
         PreservesFieldPagesChoicesAndLocalizedText();
         RepresentsUnknownCodesInsteadOfDroppingTheLine();
@@ -24,6 +25,56 @@ internal static class LocalizedTextDecoderTests
                 new byte[] { 0x60, 0x52, 0x47, 0x45, 0x52, 0xff },
                 Ff7GameLanguages.Get(Ff7GameLanguage.German)),
             "German field accents");
+    }
+
+    private static void DecodesPolishFanTranslationCharacters()
+    {
+        var parsed = Ff7GameLanguages.TryParse("pl", out var polish);
+        Equal(true, parsed, "Polish translation profile");
+
+        Equal(
+            "Nie możesz wziąć więcej Materii.",
+            Ff7EncodedTextDecoder.DecodeFieldTerminated(
+                new byte[]
+                {
+                    0x2e, 0x49, 0x45, 0x00,
+                    0x4d, 0x4f, 0x8d, 0x45, 0x53, 0x5a, 0x00,
+                    0x57, 0x5a, 0x49, 0x67, 0x74, 0x00,
+                    0x57, 0x49, 0x78, 0x43, 0x45, 0x4a, 0x00,
+                    0x2d, 0x41, 0x54, 0x45, 0x52, 0x49, 0x49, 0x0e,
+                    0xff
+                },
+                polish),
+            "Polish translated field dialogue");
+
+        Equal(
+            "Zażółć gęślą jaźń. Łatwo. ŚĆ. Żaden.",
+            Ff7EncodedTextDecoder.DecodeFieldTerminated(
+                new byte[]
+                {
+                    0x3a, 0x41, 0x8d, 0x77, 0x75, 0x74, 0x00,
+                    0x47, 0x78, 0xa0, 0x4c, 0x67, 0x00,
+                    0x4a, 0x41, 0x7c, 0x76, 0x0e, 0x00,
+                    0x79, 0x41, 0x54, 0x57, 0x4f, 0x0e, 0x00,
+                    0x7a, 0x7b, 0x0e, 0x00,
+                    0x91, 0x41, 0x44, 0x45, 0x4e, 0x0e,
+                    0xff
+                },
+                polish),
+            "complete Polish translated field alphabet sample");
+
+        Equal(
+            "Zażółć gęślą jaźń.",
+            Ff7EncodedTextDecoder.DecodeKernelTerminated(
+                new byte[]
+                {
+                    0x3a, 0x41, 0x8d, 0x77, 0x75, 0x74, 0x00,
+                    0x47, 0x78, 0xa0, 0x4c, 0x67, 0x00,
+                    0x4a, 0x41, 0x7c, 0x76, 0x0e,
+                    0xff
+                },
+                polish),
+            "Polish translated kernel text");
     }
 
     private static void DecodesJapaneseKanaAndKanji()

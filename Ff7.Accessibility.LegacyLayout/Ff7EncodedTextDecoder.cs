@@ -74,6 +74,7 @@ public static class Ff7EncodedTextDecoder
     {
         var builder = new StringBuilder(bytes.Length);
         var japanese = language.UsesJapaneseEncoding;
+        var encodingProfile = language.TextEncodingProfile;
         for (var index = 0; index < bytes.Length; index++)
         {
             var value = bytes[index];
@@ -84,7 +85,7 @@ public static class Ff7EncodedTextDecoder
 
             if (value < 0xe7)
             {
-                AppendNormal(builder, value, japanese);
+                AppendNormal(builder, value, encodingProfile);
                 continue;
             }
 
@@ -134,6 +135,7 @@ public static class Ff7EncodedTextDecoder
         var isChoice = false;
         var terminated = false;
         var japanese = language.UsesJapaneseEncoding;
+        var encodingProfile = language.TextEncodingProfile;
 
         void FinishLine()
         {
@@ -162,7 +164,7 @@ public static class Ff7EncodedTextDecoder
             var normalLimit = japanese ? 0xe7 : 0xe0;
             if (value < normalLimit)
             {
-                AppendNormal(builder, value, japanese);
+                AppendNormal(builder, value, encodingProfile);
                 continue;
             }
 
@@ -257,9 +259,12 @@ public static class Ff7EncodedTextDecoder
             : Array.Empty<Ff7DecodedTextPage>();
     }
 
-    private static void AppendNormal(StringBuilder builder, byte value, bool japanese)
+    private static void AppendNormal(
+        StringBuilder builder,
+        byte value,
+        Ff7TextEncodingProfile encodingProfile)
     {
-        if (Ff7TextEncoding.TryReadNormal(value, japanese, out var character))
+        if (Ff7TextEncoding.TryReadNormal(value, encodingProfile, out var character))
         {
             builder.Append(character);
         }

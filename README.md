@@ -107,9 +107,11 @@ active.
 ## Language support
 
 Blind Soldier supports the current Windows game's English, French, German,
-Spanish, and Japanese releases on both the x86 and x64 backends. With the
+Spanish, and Japanese releases on both the x86 and x64 backends. It also
+supports the Bunio Polish fan translation's native dialogue and item text. With the
 default `"GameLanguage": "auto"` setting, it detects the active language from
-the game executable, Steam manifest, and installed language data. Menus,
+the game executable, Steam manifest, installed language data, and the known
+Polish translation font. Menus,
 dialogue, item names, spell names, and other native game text are read from the
 matching localized FFVII data rather than translated or guessed by the mod.
 
@@ -122,9 +124,12 @@ description is English in this first multilingual test build.
 
 To override automatic detection, edit
 `Reloaded-II\Mods\ff7.accessibility.reloaded\Configuration\config.json` and set
-`GameLanguage` to `en`, `fr`, `de`, `es`, or `ja`. The full names `English`,
-`French`, `German`, `Spanish`, and `Japanese` are also accepted. Use `auto` to
-restore detection.
+`GameLanguage` to `en`, `fr`, `de`, `es`, `ja`, or `pl`. The full names
+`English`, `French`, `German`, `Spanish`, `Japanese`, and `Polish` are also
+accepted. Use `auto` to restore detection. The Polish profile deliberately uses
+the translation's English asset paths while applying its Polish font mapping;
+Blind Soldier's generated prompts and recorded opening description remain in
+English unless a Polish override catalog or recording is supplied.
 
 Translators can override or extend generated messages without rebuilding the
 mod by creating
