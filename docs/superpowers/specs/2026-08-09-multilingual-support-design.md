@@ -127,7 +127,9 @@ case-insensitive `auto`, `en`, `fr`, `de`, `es`, `ja`, and the Bunio Polish fan
 translation profile `pl`, plus the matching language names. The Polish profile
 retains English game-asset paths and English generated-message behavior while
 decoding the translation's repurposed one-byte font slots as Polish characters.
-Automatic detection recognizes the verified Polish translation font fingerprint;
+Automatic detection recognizes the verified Polish translation font fingerprint
+or a semantic signature in its translated `kernel2.bin` when another mod has
+replaced or hidden the font file;
 `pl` remains available as an explicit override for compatible variants.
 
 Bundled catalogs are embedded in the shared assembly so a partial package

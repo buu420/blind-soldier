@@ -118,8 +118,10 @@ if (args.Contains("--multilingual-menu-only", StringComparer.OrdinalIgnoreCase))
     AssertStaticMenuCursorSpeechClearsStaleCursorWhenQuitReopensDrawOnly();
     AssertStatusMenuSpeechReadsOneNativeSummaryPerOpen();
     AssertTitleLoadMenuSpeaksNativeSaveFileGrid();
+    AssertTitleLoadMenuKeepsSaveFileSpeechAcrossTransientNativeState();
+    AssertTitleLoadMenuSpeaksSaveFileWhenAvailabilityIsTemporarilyUnreadable();
     AssertTitleLoadMenuSpeaksSelectedGamePreview();
-    AssertTitleLoadMenuUnknownNativeStateStaysSilent();
+    AssertTitleLoadMenuDoesNotInventUnknownNativeDetails();
     AssertMateriaTutorialSpeechReadsNativeInstructionsOnce();
     AssertMateriaTutorialSpeechQueuesEveryNewInstructionLine();
     AssertFieldDialogueDrawSpeechSpeaksStableNativeDrawLine();
@@ -787,7 +789,7 @@ AssertTitleMenuCursorReaderUsesNativeCursorPosition();
 AssertFf7PcSaveFileReaderReadsNativePreviewAndEmptySlots();
 AssertTitleLoadMenuSpeaksNativeSaveFileGrid();
 AssertTitleLoadMenuSpeaksSelectedGamePreview();
-AssertTitleLoadMenuUnknownNativeStateStaysSilent();
+AssertTitleLoadMenuDoesNotInventUnknownNativeDetails();
 AssertTitleLoadMenuDataReaderUsesNativePreviewCache();
 AssertSaveMenuStateReaderReadsEmptySlotsAndConfirmation();
 AssertSaveMenuStateReaderReadsOuterPageDuringWidgetTransition();
@@ -22843,6 +22845,69 @@ static void AssertTitleLoadMenuSpeaksNativeSaveFileGrid()
         "load menu should announce again after returning from the title menu");
 }
 
+static void AssertTitleLoadMenuKeepsSaveFileSpeechAcrossTransientNativeState()
+{
+    var now = new DateTime(2026, 8, 10, 12, 13, 25, DateTimeKind.Utc);
+    var tracker = new TitleLoadMenuSpeechTracker(
+        TimeSpan.FromMilliseconds(40),
+        _ => true,
+        (_, _) => null);
+    var fileWidget = new ActiveMenuWidgetSnapshot(
+        TitleLoadMenuSpeechTracker.SaveFileWidgetAddress,
+        "Load save data file",
+        MenuWidgetKind.TitleSaveFile,
+        0,
+        0,
+        5,
+        2,
+        0,
+        0,
+        0);
+
+    tracker.ObserveWidget(fileWidget, TitleMenuCursorReader.TitleModule, now);
+    tracker.ObserveState(
+        new TitleLoadMenuStateSnapshot(
+            TitleLoadMenuPage.CheckingComplete,
+            1,
+            true,
+            0,
+            null),
+        TitleMenuCursorReader.TitleModule,
+        now.AddMilliseconds(10));
+
+    AssertEqual(
+        "Select a save data file. Save 1.",
+        tracker.Poll(now.AddMilliseconds(40)),
+        "transient native load state must not cancel visible save-file speech");
+}
+
+static void AssertTitleLoadMenuSpeaksSaveFileWhenAvailabilityIsTemporarilyUnreadable()
+{
+    var now = new DateTime(2026, 8, 10, 12, 13, 25, DateTimeKind.Utc);
+    var tracker = new TitleLoadMenuSpeechTracker(
+        TimeSpan.FromMilliseconds(40),
+        _ => null,
+        (_, _) => null);
+    var fileWidget = new ActiveMenuWidgetSnapshot(
+        TitleLoadMenuSpeechTracker.SaveFileWidgetAddress,
+        "Load save data file",
+        MenuWidgetKind.TitleSaveFile,
+        0,
+        0,
+        5,
+        2,
+        0,
+        0,
+        0);
+
+    tracker.ObserveWidget(fileWidget, TitleMenuCursorReader.TitleModule, now);
+
+    AssertEqual(
+        "Select a save data file. Save 1.",
+        tracker.Poll(now.AddMilliseconds(40)),
+        "visible save-file selection must remain accessible while availability refreshes");
+}
+
 static void AssertTitleLoadMenuSpeaksSelectedGamePreview()
 {
     var now = new DateTime(2026, 7, 15, 19, 32, 34, DateTimeKind.Utc);
@@ -22910,7 +22975,7 @@ static void AssertTitleLoadMenuSpeaksSelectedGamePreview()
     AssertNull(tracker.Poll(now.AddMilliseconds(350)), "unanchored number must not invent a game selection");
 }
 
-static void AssertTitleLoadMenuUnknownNativeStateStaysSilent()
+static void AssertTitleLoadMenuDoesNotInventUnknownNativeDetails()
 {
     var now = new DateTime(2026, 7, 21, 23, 0, 0, DateTimeKind.Utc);
     var tracker = new TitleLoadMenuSpeechTracker(
@@ -22931,7 +22996,10 @@ static void AssertTitleLoadMenuUnknownNativeStateStaysSilent()
             0),
         TitleMenuCursorReader.TitleModule,
         now);
-    AssertNull(tracker.Poll(now), "unreadable Continue availability must not be called empty");
+    AssertEqual(
+        "Select a save data file. Save 1.",
+        tracker.Poll(now),
+        "visible Continue file remains readable without inventing its availability");
 
     tracker.ObserveDraw(
         new MenuTextRenderEntry("Select a save game.", 0, 0, 0, 0),

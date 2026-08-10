@@ -45,7 +45,7 @@ public static partial class Ff7GameLanguageDetector
                 translatedLanguage,
                 dataDirectory,
                 Ff7GameLanguageDetectionSource.TranslationFingerprint,
-                "installed Polish translation font",
+                "installed Polish translation data",
                 log);
         }
 
@@ -121,16 +121,48 @@ public static partial class Ff7GameLanguageDetector
         try
         {
             using var stream = File.OpenRead(windowBinPath);
-            if (stream.Length != PolishTranslationWindowBinLength)
+            if (stream.Length == PolishTranslationWindowBinLength)
+            {
+                var sha256 = Convert.ToHexString(SHA256.HashData(stream));
+                if (TryMatchFanTranslationFingerprint(stream.Length, sha256, out language))
+                {
+                    return true;
+                }
+            }
+        }
+        catch (Exception exception) when (
+            exception is IOException or UnauthorizedAccessException or CryptographicException)
+        {
+        }
+
+        return TryReadPolishKernelTextFingerprint(dataDirectory, out language);
+    }
+
+    private static bool TryReadPolishKernelTextFingerprint(
+        string dataDirectory,
+        out Ff7GameLanguageDescriptor language)
+    {
+        language = Ff7GameLanguages.Get(Ff7GameLanguage.English);
+        var path = Path.Combine(dataDirectory, "lang-en", "kernel", "kernel2.bin");
+        try
+        {
+            var decoded = Ff7LzsDecoder.DecodeFieldFile(File.ReadAllBytes(path));
+            var database = Kernel2TextDatabase.TryCreateFromDecodedKernel2(
+                decoded,
+                Ff7GameLanguages.PolishFanTranslation);
+            if (database?.ResolveItemDescription(0) != "Przywraca 100 HP" ||
+                database.ResolveItemDescription(2) != "W pełni odnawia HP" ||
+                database.ResolveItemDescription(20) != "Eksplozja rażąca przeciwnika" ||
+                database.ResolveItemDescription(100) != "Autograf Mistrza Dio")
             {
                 return false;
             }
 
-            var sha256 = Convert.ToHexString(SHA256.HashData(stream));
-            return TryMatchFanTranslationFingerprint(stream.Length, sha256, out language);
+            language = Ff7GameLanguages.PolishFanTranslation;
+            return true;
         }
         catch (Exception exception) when (
-            exception is IOException or UnauthorizedAccessException or CryptographicException)
+            exception is IOException or UnauthorizedAccessException or InvalidDataException or ArgumentException)
         {
             return false;
         }

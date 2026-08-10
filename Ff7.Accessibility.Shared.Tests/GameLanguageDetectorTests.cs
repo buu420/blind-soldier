@@ -7,6 +7,7 @@ internal static class GameLanguageDetectorTests
         MapsEverySupportedLanguageToItsNativeAssets();
         ParsesPolishFanTranslationProfile();
         RecognizesKnownPolishTranslationFingerprint();
+        RecognizesPolishKernelTextWhenTheTranslationFontIsUnavailable();
         ExplicitOverrideWinsWhenItsDataExists();
         ExplicitPolishOverrideUsesEnglishAssetPaths();
         ExecutableSuffixWinsDuringAutomaticDetection();
@@ -47,6 +48,109 @@ internal static class GameLanguageDetectorTests
                 "E4D135CE630E59D0DF17A23C7BF1BCA2B590464D4F8F4E3D42E8C0E5A448C2A8",
                 out _),
             "vanilla English WINDOW.BIN fingerprint");
+    }
+
+    private static void RecognizesPolishKernelTextWhenTheTranslationFontIsUnavailable()
+    {
+        using var game = TestGame.Create("en");
+        game.WriteKernel2(BuildPolishKernel2());
+        var manifest = Path.Combine(game.Root, "appmanifest_3837340.acf");
+        File.WriteAllText(
+            manifest,
+            "\"AppState\" { \"installdir\" \"" + Path.GetFileName(game.Root) +
+            "\" \"UserConfig\" { \"language\" \"english\" } }");
+
+        var context = Ff7GameLanguageDetector.Detect(
+            game.Root,
+            "auto",
+            Path.Combine(game.Root, "ff7_en.exe"),
+            new[] { manifest });
+
+        Equal("pl", context.Code, "Polish KERNEL2 semantic fingerprint");
+        Equal(
+            Ff7GameLanguageDetectionSource.TranslationFingerprint,
+            context.Source,
+            "Polish KERNEL2 detection source");
+        Equal(
+            "installed Polish translation data",
+            context.DetectionDetail,
+            "Polish KERNEL2 detection detail");
+    }
+
+    private static byte[] BuildPolishKernel2()
+    {
+        int[] sectionCounts =
+        [
+            32, 256, 128, 128, 32, 32, 96, 64, 32,
+            256, 128, 128, 32, 32, 96, 64, 128, 16
+        ];
+        using var decoded = new MemoryStream();
+        for (var section = 0; section < sectionCounts.Length; section++)
+        {
+            var strings = Enumerable.Range(0, sectionCounts[section])
+                .Select(index => section == 2 ? index switch
+                {
+                    0 => EncodePolish("Przywraca 100 HP"),
+                    2 => EncodePolish("W pełni odnawia HP"),
+                    20 => EncodePolish("Eksplozja rażąca przeciwnika"),
+                    100 => EncodePolish("Autograf Mistrza Dio"),
+                    _ => EncodePolish($"Opis {index}")
+                } : EncodePolish($"S{section:D2}I{index:D3}"))
+                .ToArray();
+            var tableSize = strings.Length * sizeof(ushort);
+            var sectionSize = tableSize + strings.Sum(value => value.Length);
+            decoded.Write(BitConverter.GetBytes(sectionSize));
+            var relativeOffset = tableSize;
+            foreach (var value in strings)
+            {
+                decoded.Write(BitConverter.GetBytes((ushort)relativeOffset));
+                relativeOffset += value.Length;
+            }
+
+            foreach (var value in strings)
+            {
+                decoded.Write(value);
+            }
+        }
+
+        var uncompressed = decoded.ToArray();
+        using var lzs = new MemoryStream();
+        for (var offset = 0; offset < uncompressed.Length; offset += 8)
+        {
+            var count = Math.Min(8, uncompressed.Length - offset);
+            lzs.WriteByte((byte)((1 << count) - 1));
+            lzs.Write(uncompressed, offset, count);
+        }
+
+        return lzs.ToArray();
+    }
+
+    private static byte[] EncodePolish(string value)
+    {
+        var bytes = new List<byte>(value.Length + 1);
+        foreach (var character in value)
+        {
+            bytes.Add(character switch
+            {
+                'ą' => 0x67,
+                'ć' => 0x74,
+                'ł' => 0x75,
+                'ń' => 0x76,
+                'ę' => 0x78,
+                'Ł' => 0x79,
+                'Ś' => 0x7a,
+                'Ć' => 0x7b,
+                'ź' => 0x7c,
+                'ż' => 0x8d,
+                'Ż' => 0x91,
+                'ś' => 0xa0,
+                >= ' ' and <= '~' => (byte)(character - 0x20),
+                _ => throw new InvalidOperationException($"Unsupported Polish fixture character: {character}")
+            });
+        }
+
+        bytes.Add(0xff);
+        return bytes.ToArray();
     }
 
     private static void MapsEverySupportedLanguageToItsNativeAssets()
@@ -234,6 +338,13 @@ internal static class GameLanguageDetectorTests
             var root = Path.Combine(Path.GetTempPath(), "blind-soldier-language-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(Path.Combine(root, "data", "field"));
             return new TestGame(root);
+        }
+
+        public void WriteKernel2(byte[] bytes)
+        {
+            File.WriteAllBytes(
+                Path.Combine(Root, "data", "lang-en", "kernel", "kernel2.bin"),
+                bytes);
         }
 
         public void Dispose()

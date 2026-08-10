@@ -74,23 +74,20 @@ public sealed class TitleLoadMenuSpeechTracker
             }
 
             var hasData = saveFileHasData(selectedSaveFile);
-            if (!hasData.HasValue)
-            {
-                pending = null;
-                return;
-            }
-
             observedSaveFile = selectedSaveFile;
-            var key = $"save-file:{selectedSaveFile}:{hasData}";
+            var key = $"save-file:{selectedSaveFile}:{hasData?.ToString() ?? "unknown"}";
             if (!entering && string.Equals(key, observedKey, StringComparison.Ordinal))
             {
                 return;
             }
 
             observedKey = key;
-            var label = hasData.Value
-                ? $"Save {selectedSaveFile}."
-                : $"Save {selectedSaveFile}, empty.";
+            var label = hasData switch
+            {
+                true => $"Save {selectedSaveFile}.",
+                false => $"Save {selectedSaveFile}, empty.",
+                null => $"Save {selectedSaveFile}."
+            };
             Queue(entering ? $"Select a save data file. {label}" : label, key, now);
         }
     }
@@ -255,6 +252,9 @@ public sealed class TitleLoadMenuSpeechTracker
 
                 case TitleLoadMenuPage.Loading:
                     ObserveStatus(LoadScreen.Loading, "loading", "Loading.", now);
+                    return;
+
+                case TitleLoadMenuPage.CheckingComplete:
                     return;
 
                 case TitleLoadMenuPage.TitleRoot:
