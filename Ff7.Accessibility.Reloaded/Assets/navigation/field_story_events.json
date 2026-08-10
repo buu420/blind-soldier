@@ -5,7 +5,7 @@
     "scannedGameMomentWrites":  640,
     "navigableGameMomentWrites":  382,
     "unresolvedAutomaticOrIndirectWrites":  259,
-    "definitionCount":  557,
+    "definitionCount":  560,
     "definitions":  [
                         {
                             "fieldId":  188,
@@ -5584,6 +5584,37 @@
                         {
                             "fieldId":  145,
                             "kind":  "Location",
+                            "label":  "Move the first Train Graveyard train back into place",
+                            "entityId":  -1,
+                            "x":  1740,
+                            "y":  3094,
+                            "z":  0,
+                            "targetGameMoment":  215,
+                            "minimumGameMoment":  212,
+                            "maximumGameMoment":  214,
+                            "priority":  0,
+                            "sourceFieldName":  "mds7st2",
+                            "sourceEntityName":  "line20",
+                            "sourceScriptType":  "Move",
+                            "completesOnArrival":  true,
+                            "requiredCondition":  {
+                                                      "bank":  1,
+                                                      "address":  164,
+                                                      "mask":  7,
+                                                      "value":  2
+                                                  },
+                            "triggerLine":  {
+                                                "startX":  1691,
+                                                "startY":  3064,
+                                                "startZ":  0,
+                                                "endX":  1790,
+                                                "endY":  3124,
+                                                "endZ":  0
+                                            }
+                        },
+                        {
+                            "fieldId":  145,
+                            "kind":  "Location",
                             "label":  "Move the upper Train Graveyard train",
                             "entityId":  -1,
                             "x":  823,
@@ -5610,16 +5641,46 @@
                                                 "endX":  871,
                                                 "endY":  3511,
                                                 "endZ":  0
-                                            }
+                                            },
+                            "routeDetours":  [
+                                                 {
+                                                     "blockedLine":  {
+                                                                         "startX":  798,
+                                                                         "startY":  2547,
+                                                                         "startZ":  0,
+                                                                         "endX":  896,
+                                                                         "endY":  2610,
+                                                                         "endZ":  0
+                                                                     },
+                                                     "x":  720,
+                                                     "y":  2480,
+                                                     "z":  0,
+                                                     "clearance":  30
+                                                 },
+                                                 {
+                                                     "blockedLine":  {
+                                                                         "startX":  798,
+                                                                         "startY":  2547,
+                                                                         "startZ":  0,
+                                                                         "endX":  896,
+                                                                         "endY":  2610,
+                                                                         "endZ":  0
+                                                                     },
+                                                     "x":  720,
+                                                     "y":  2680,
+                                                     "z":  0,
+                                                     "clearance":  30
+                                                 }
+                                             ]
                         },
                         {
                             "fieldId":  145,
                             "kind":  "Location",
                             "label":  "Leave the Train Graveyard for Sector 7 Station",
                             "entityId":  -1,
-                            "x":  -1897,
-                            "y":  2644,
-                            "z":  0,
+                            "x":  -2153,
+                            "y":  3390,
+                            "z":  101,
                             "targetGameMoment":  215,
                             "minimumGameMoment":  212,
                             "maximumGameMoment":  214,
@@ -5635,12 +5696,12 @@
                                                       "value":  7
                                                   },
                             "triggerLine":  {
-                                                "startX":  -1993,
-                                                "startY":  2926,
-                                                "startZ":  0,
-                                                "endX":  -1801,
-                                                "endY":  2363,
-                                                "endZ":  0
+                                                "startX":  -2212,
+                                                "startY":  3557,
+                                                "startZ":  101,
+                                                "endX":  -2095,
+                                                "endY":  3223,
+                                                "endZ":  101
                                             }
                         },
                         {

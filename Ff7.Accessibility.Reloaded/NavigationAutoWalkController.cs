@@ -26,8 +26,12 @@ internal static class NavigationAutoWalkKeyRouter
 /// </summary>
 internal sealed class NavigationAutoWalkController : IDisposable
 {
+    private const int MissingObservedDirectionSamplesBeforeReassert = 3;
+
     private readonly HighwayAutoSteeringController directionalInput;
     private NavigationAutoWalkDomain domain;
+    private FieldNavigationInput commandedInput;
+    private int missingObservedDirectionSamples;
     private bool disposed;
 
     internal NavigationAutoWalkController(IHighwayKeyboardInputSink sink)
@@ -70,7 +74,8 @@ internal sealed class NavigationAutoWalkController : IDisposable
     internal HighwayAutoSteeringInputResult Drive(
         FieldNavigationInput input,
         bool canMove,
-        bool routeActive)
+        bool routeActive,
+        FieldNavigationInput? observedInput = null)
     {
         if (disposed)
         {
@@ -81,6 +86,7 @@ internal sealed class NavigationAutoWalkController : IDisposable
         {
             var release = directionalInput.ReleaseAll();
             domain = NavigationAutoWalkDomain.None;
+            ResetDirectionObservation();
             LastDiagnostic = release.Success
                 ? "auto walk stopped because navigation is inactive"
                 : release.Diagnostic;
@@ -90,6 +96,7 @@ internal sealed class NavigationAutoWalkController : IDisposable
         if (!Enabled || !canMove || !IsDirectional(input))
         {
             var release = directionalInput.ReleaseAll();
+            ResetDirectionObservation();
             LastDiagnostic = release.Success
                 ? !Enabled
                     ? "auto walk inactive"
@@ -98,13 +105,54 @@ internal sealed class NavigationAutoWalkController : IDisposable
             return release;
         }
 
+        var directionChanged = input != commandedInput;
         var result = directionalInput.Apply(Map(input));
         if (!result.Success)
         {
             _ = directionalInput.ReleaseAll();
             domain = NavigationAutoWalkDomain.None;
+            ResetDirectionObservation();
             LastDiagnostic = result.Diagnostic;
             return result;
+        }
+
+        if (directionChanged)
+        {
+            commandedInput = input;
+            missingObservedDirectionSamples = 0;
+        }
+        else if (observedInput == FieldNavigationInput.None)
+        {
+            missingObservedDirectionSamples++;
+            if (missingObservedDirectionSamples >= MissingObservedDirectionSamplesBeforeReassert)
+            {
+                var release = directionalInput.ReleaseAll();
+                if (!release.Success)
+                {
+                    domain = NavigationAutoWalkDomain.None;
+                    ResetDirectionObservation();
+                    LastDiagnostic = release.Diagnostic;
+                    return release;
+                }
+
+                result = directionalInput.Apply(Map(input));
+                if (!result.Success)
+                {
+                    _ = directionalInput.ReleaseAll();
+                    domain = NavigationAutoWalkDomain.None;
+                    ResetDirectionObservation();
+                    LastDiagnostic = result.Diagnostic;
+                    return result;
+                }
+
+                missingObservedDirectionSamples = 0;
+                LastDiagnostic = $"auto walk reasserted swallowed direction {input}";
+                return result;
+            }
+        }
+        else if (observedInput.HasValue)
+        {
+            missingObservedDirectionSamples = 0;
         }
 
         LastDiagnostic = $"auto walk direction {input}";
@@ -119,6 +167,7 @@ internal sealed class NavigationAutoWalkController : IDisposable
         }
 
         var result = directionalInput.ReleaseAll();
+        ResetDirectionObservation();
         LastDiagnostic = result.Success
             ? Enabled ? "auto walk suspended" : "auto walk inactive"
             : result.Diagnostic;
@@ -134,6 +183,7 @@ internal sealed class NavigationAutoWalkController : IDisposable
         var wasEnabled = Enabled;
         var result = directionalInput.ReleaseAll();
         domain = NavigationAutoWalkDomain.None;
+        ResetDirectionObservation();
         LastDiagnostic = result.Success ? "auto walk stopped" : result.Diagnostic;
         return wasEnabled;
     }
@@ -147,6 +197,7 @@ internal sealed class NavigationAutoWalkController : IDisposable
 
         _ = directionalInput.ReleaseAll();
         domain = NavigationAutoWalkDomain.None;
+        ResetDirectionObservation();
         LastDiagnostic = "auto walk reset";
     }
 
@@ -159,7 +210,14 @@ internal sealed class NavigationAutoWalkController : IDisposable
 
         directionalInput.Dispose();
         domain = NavigationAutoWalkDomain.None;
+        ResetDirectionObservation();
         disposed = true;
+    }
+
+    private void ResetDirectionObservation()
+    {
+        commandedInput = FieldNavigationInput.None;
+        missingObservedDirectionSamples = 0;
     }
 
     private static bool IsDirectional(FieldNavigationInput input) =>

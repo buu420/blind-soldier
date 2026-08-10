@@ -10036,12 +10036,12 @@ static void AssertFieldStoryCatalogAdvancesThroughTrainGraveyardTrainPositions()
         .ToArray();
     var firstTrainLine = new FieldNavigationTriggerLine(1691, 3064, 0, 1790, 3124, 0);
     var upperTrainLine = new FieldNavigationTriggerLine(776, 3453, 0, 871, 3511, 0);
-    var stationExitLine = new FieldNavigationTriggerLine(-1993, 2926, 0, -1801, 2363, 0);
+    var stationExitLine = new FieldNavigationTriggerLine(-2212, 3557, 101, -2095, 3223, 101);
 
     AssertEqual(
-        3,
+        4,
         definitions.Length,
-        "Train Graveyard Story must expose both native train controls before the station exit");
+        "Train Graveyard Story must expose recovery, both native train controls, and the station exit");
 
     var memory = new Dictionary<int, byte>();
     WriteUInt16(memory, FieldNavigationObjectReader.AddressFieldBankBase, 212);
@@ -10058,6 +10058,7 @@ static void AssertFieldStoryCatalogAdvancesThroughTrainGraveyardTrainPositions()
     var expectedByState = new[]
     {
         (State: (byte)0, Label: "Move the first Train Graveyard train", Line: firstTrainLine),
+        (State: (byte)2, Label: "Move the first Train Graveyard train back into place", Line: firstTrainLine),
         (State: (byte)3, Label: "Move the upper Train Graveyard train", Line: upperTrainLine),
         (State: (byte)7, Label: "Leave the Train Graveyard for Sector 7 Station", Line: stationExitLine)
     };
@@ -10082,6 +10083,31 @@ static void AssertFieldStoryCatalogAdvancesThroughTrainGraveyardTrainPositions()
             targets[0].CompletesOnArrival,
             $"Train Graveyard stage {expected.State} must stop at its actual trigger");
     }
+
+    var upperTrainDefinition = definitions.Single(definition =>
+        definition.Label == "Move the upper Train Graveyard train");
+    AssertEqual(
+        2,
+        upperTrainDefinition.RouteDetours?.Length ?? 0,
+        "upper-train Story must use both checkpoints around the first train's native reverse trigger");
+    AssertEqual(
+        new FieldNavigationRouteDetour(
+            new FieldNavigationTriggerLine(798, 2547, 0, 896, 2610, 0),
+            720,
+            2480,
+            0,
+            30),
+        upperTrainDefinition.RouteDetours?[0],
+        "upper-train Story should first move left before the first train's reverse trigger");
+    AssertEqual(
+        new FieldNavigationRouteDetour(
+            new FieldNavigationTriggerLine(798, 2547, 0, 896, 2610, 0),
+            720,
+            2680,
+            0,
+            30),
+        upperTrainDefinition.RouteDetours?[1],
+        "upper-train Story should then continue north beyond the first train's reverse trigger");
 }
 
 static void AssertFieldStoryCatalogGuidesEntireSupportPillarEscape()

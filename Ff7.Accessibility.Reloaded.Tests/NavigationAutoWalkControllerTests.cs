@@ -8,6 +8,7 @@ internal static class NavigationAutoWalkControllerTests
         SamplesPAsAForegroundRisingEdgeWithoutDelayedActivation();
         StartsOnlyForAnActiveRouteAndTogglesOffCleanly();
         DrivesTheCurrentRouteDirectionAndReleasesDuringSuspension();
+        ReassertsAnOwnedDirectionWhenTheGameStopsReportingIt();
         FailsClosedAfterPartialDirectionalInputFailure();
         ResolvesFieldRouteAndMountedLadderDirections();
     }
@@ -121,6 +122,47 @@ internal static class NavigationAutoWalkControllerTests
             true,
             controller.LastDiagnostic.Contains("inserted 1 of 2", StringComparison.OrdinalIgnoreCase),
             "failure preserves actionable input diagnostics");
+    }
+
+    private static void ReassertsAnOwnedDirectionWhenTheGameStopsReportingIt()
+    {
+        var sink = new RecordingSink();
+        using var controller = new NavigationAutoWalkController(sink);
+        _ = controller.TryStart(NavigationAutoWalkDomain.Field, routeActive: true);
+
+        _ = controller.Drive(
+            FieldNavigationInput.Left,
+            canMove: true,
+            routeActive: true,
+            observedInput: FieldNavigationInput.None);
+        Equal(1, sink.Batches.Count, "the initial route direction is pressed once");
+
+        _ = controller.Drive(
+            FieldNavigationInput.Left,
+            canMove: true,
+            routeActive: true,
+            observedInput: FieldNavigationInput.None);
+        _ = controller.Drive(
+            FieldNavigationInput.Left,
+            canMove: true,
+            routeActive: true,
+            observedInput: FieldNavigationInput.None);
+        _ = controller.Drive(
+            FieldNavigationInput.Left,
+            canMove: true,
+            routeActive: true,
+            observedInput: FieldNavigationInput.None);
+
+        Equal(3, sink.Batches.Count,
+            "three missing native samples reassert the swallowed route direction");
+        SequenceEqual(
+            [new HighwayKeyboardTransition(HighwayAutoSteeringController.ScanCodeLeft, false)],
+            sink.Batches[1],
+            "reassertion first releases the stale owned key");
+        SequenceEqual(
+            [new HighwayKeyboardTransition(HighwayAutoSteeringController.ScanCodeLeft, true)],
+            sink.Batches[2],
+            "reassertion presses the required route direction again");
     }
 
     private static void ResolvesFieldRouteAndMountedLadderDirections()

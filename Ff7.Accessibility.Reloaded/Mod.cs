@@ -3853,7 +3853,8 @@ public sealed class Mod : IModV1, IModV2
             UpdateFieldAutoWalk(
                 result.Position,
                 controlResult,
-                navigationSuppressed || !navigationForeground);
+                navigationSuppressed || !navigationForeground,
+                input.Direction);
 
             if (FieldNavigationSpeechPolicy.IsDue(
                     now,
@@ -4416,7 +4417,8 @@ public sealed class Mod : IModV1, IModV2
     private void UpdateFieldAutoWalk(
         FieldPositionSnapshot position,
         FieldNavigationControlReadResult control,
-        bool movementSuppressed)
+        bool movementSuppressed,
+        FieldNavigationInput observedInput)
     {
         if (navigationAutoWalkController?.IsEnabledFor(NavigationAutoWalkDomain.Field) != true)
         {
@@ -4433,7 +4435,8 @@ public sealed class Mod : IModV1, IModV2
         var result = navigationAutoWalkController.Drive(
             hasDirection ? direction : FieldNavigationInput.None,
             canMove: hasDirection && !movementSuppressed,
-            routeActive: fieldNavigationController.BeaconEnabled);
+            routeActive: fieldNavigationController.BeaconEnabled,
+            observedInput: observedInput);
         HandleNavigationAutoWalkInputResult(result, NavigationAutoWalkDomain.Field);
     }
 

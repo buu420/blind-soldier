@@ -611,12 +611,29 @@ Add-Definition -FieldId 213 -FieldName 'colne_b3' -Kind 'Location' -Label 'Use t
 # GameMoment to 212. The generic automatic extraction points back into the
 # sewer at that exact moment, so this native forward chain replaces it.
 # Bank 1 byte 164 records the two trains' live geometry. Native line20 advances
-# the normal state from 0 to 3, then line30 advances 3 to 7. The station exit
-# remains disconnected until both trains form the walkable bridge.
+# state 0 or recovery state 2 to 3; line21 reverses 3 to 2; then line30 advances
+# 3 to 7. The direct walkmesh route from line20's landing point to line30
+# crosses line21, so route left of that trigger. Once both trains form the
+# walkable bridge, the native path uses the ladders and upper station gateway.
 Add-Definition -FieldId 144 -FieldName 'mds7st1' -Kind 'Location' -Label 'Continue into the Train Graveyard' -X 1688 -Y 676 -Z 0 -TargetGameMoment 215 -MinimumGameMoment 212 -MaximumGameMoment 214 -Priority 0 -ScriptType 'Gateway'
 Add-Definition -FieldId 145 -FieldName 'mds7st2' -Kind 'Location' -Label 'Move the first Train Graveyard train' -X 1740 -Y 3094 -Z 0 -TargetGameMoment 215 -MinimumGameMoment 212 -MaximumGameMoment 214 -Priority 0 -RequiredCondition (New-Condition 1 164 0x07 0x00) -EntityName 'line20' -ScriptType 'Move' -TriggerLine ([ordered]@{ startX = 1691; startY = 3064; startZ = 0; endX = 1790; endY = 3124; endZ = 0 })
-Add-Definition -FieldId 145 -FieldName 'mds7st2' -Kind 'Location' -Label 'Move the upper Train Graveyard train' -X 823 -Y 3482 -Z 0 -TargetGameMoment 215 -MinimumGameMoment 212 -MaximumGameMoment 214 -Priority 0 -RequiredCondition (New-Condition 1 164 0x07 0x03) -EntityName 'line30' -ScriptType 'Move' -TriggerLine ([ordered]@{ startX = 776; startY = 3453; startZ = 0; endX = 871; endY = 3511; endZ = 0 })
-Add-Definition -FieldId 145 -FieldName 'mds7st2' -Kind 'Location' -Label 'Leave the Train Graveyard for Sector 7 Station' -X -1897 -Y 2644 -Z 0 -TargetGameMoment 215 -MinimumGameMoment 212 -MaximumGameMoment 214 -Priority 0 -RequiredCondition (New-Condition 1 164 0x07 0x07) -ScriptType 'Gateway' -TriggerLine ([ordered]@{ startX = -1993; startY = 2926; startZ = 0; endX = -1801; endY = 2363; endZ = 0 })
+Add-Definition -FieldId 145 -FieldName 'mds7st2' -Kind 'Location' -Label 'Move the first Train Graveyard train back into place' -X 1740 -Y 3094 -Z 0 -TargetGameMoment 215 -MinimumGameMoment 212 -MaximumGameMoment 214 -Priority 0 -RequiredCondition (New-Condition 1 164 0x07 0x02) -EntityName 'line20' -ScriptType 'Move' -TriggerLine ([ordered]@{ startX = 1691; startY = 3064; startZ = 0; endX = 1790; endY = 3124; endZ = 0 })
+Add-Definition -FieldId 145 -FieldName 'mds7st2' -Kind 'Location' -Label 'Move the upper Train Graveyard train' -X 823 -Y 3482 -Z 0 -TargetGameMoment 215 -MinimumGameMoment 212 -MaximumGameMoment 214 -Priority 0 -RequiredCondition (New-Condition 1 164 0x07 0x03) -EntityName 'line30' -ScriptType 'Move' -TriggerLine ([ordered]@{ startX = 776; startY = 3453; startZ = 0; endX = 871; endY = 3511; endZ = 0 }) -RouteDetours @(
+    [ordered]@{
+        blockedLine = [ordered]@{ startX = 798; startY = 2547; startZ = 0; endX = 896; endY = 2610; endZ = 0 }
+        x = 720
+        y = 2480
+        z = 0
+        clearance = 30
+    },
+    [ordered]@{
+        blockedLine = [ordered]@{ startX = 798; startY = 2547; startZ = 0; endX = 896; endY = 2610; endZ = 0 }
+        x = 720
+        y = 2680
+        z = 0
+        clearance = 30
+    })
+Add-Definition -FieldId 145 -FieldName 'mds7st2' -Kind 'Location' -Label 'Leave the Train Graveyard for Sector 7 Station' -X -2153 -Y 3390 -Z 101 -TargetGameMoment 215 -MinimumGameMoment 212 -MaximumGameMoment 214 -Priority 0 -RequiredCondition (New-Condition 1 164 0x07 0x07) -ScriptType 'Gateway' -TriggerLine ([ordered]@{ startX = -2212; startY = 3557; startZ = 101; endX = -2095; endY = 3223; endZ = 101 })
 Add-Definition -FieldId 146 -FieldName 'mds7st3' -Kind 'Location' -Label 'Continue from the Train Graveyard to the Sector 7 pillar' -X -3796 -Y 1694 -Z 0 -TargetGameMoment 215 -MinimumGameMoment 212 -MaximumGameMoment 214 -Priority 0 -ScriptType 'Gateway'
 
 # The playable pillar climb begins after the station scene at moment 221.
