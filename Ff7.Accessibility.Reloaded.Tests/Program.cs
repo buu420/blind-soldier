@@ -35,6 +35,8 @@ if (args.Contains("--reactor-ladder-only", StringComparer.OrdinalIgnoreCase))
     AssertFieldNavigationControllerCompletesLadderFromLiveLandingWhenNativeStateIsUnreadable();
     AssertFieldNavigationControllerDoesNotRecaptureCompletedLadderAfterRouteRecovery();
     AssertFieldNavigationControllerUsesRouteDirectionWhileMounted();
+    AssertFieldNavigationBeaconTracksStableLiveTargetAndStopsWhenItDisappears();
+    AssertFieldNavigationCorrectsRouteAgainstMountedLadder();
     AssertFieldLadderProximityCueTrackerPrioritizesActiveRouteLadder();
     AssertFieldLadderMountCueTrackerRequiresTheActiveEntrance();
     AssertAccessibilityConfigMigratesLegacyLadderCueDefaults();
@@ -527,6 +529,7 @@ AssertWallClimbNavigationUsesNativeBranchAndCompositeLandings();
 AssertInstalledWallClimbRouteIncludesVerticalAndHorizontalClimbs();
 AssertWallClimbFinalLadderUsesUpAndRetainsRetry();
 AssertFieldNavigationCanActivateWhileAlreadyMountedOnNativeLadder();
+AssertFieldNavigationCorrectsRouteAgainstMountedLadder();
 AssertFieldScriptNavigationCatalogPreservesTunnelTriggerLines();
 AssertFieldScriptNavigationCatalogRejectsSelfMapResetLines();
 AssertFieldScriptNavigationCatalogReadsNativeMapNames();
@@ -13309,6 +13312,109 @@ static void AssertFieldNavigationCanActivateWhileAlreadyMountedOnNativeLadder()
         "navigation should resume the connected route from the native ladder landing");
 }
 
+static void AssertFieldNavigationCorrectsRouteAgainstMountedLadder()
+{
+    var catalog = new FieldScriptNavigationCatalog(FindGameRoot());
+    var saveField = catalog.ReadField(124);
+    var planner = new FieldWalkmeshRoutePlanner(
+        CreateInstalledFieldWalkmeshReader(124),
+        transitionProvider: fieldId =>
+            fieldId == 124
+                ? saveField.Transitions
+                : Array.Empty<FieldScriptNavigationTransition>());
+    var upperPipingExit = new FieldNavigationTarget(
+        124,
+        FieldNavigationCategory.Story,
+        "Climb back toward the Reactor 1 exit",
+        250,
+        1195,
+        861,
+        "story:reactor-return",
+        TriggerLine: new FieldNavigationTriggerLine(206, 1195, 856, 294, 1195, 866));
+    var controller = new FieldNavigationController(
+        new FieldNavigationTargetSource([upperPipingExit]),
+        planner);
+    var midDescent = new FieldPositionSnapshot(
+        FieldPositionReader.FieldModule,
+        124,
+        0,
+        -220,
+        2008,
+        533,
+        21,
+        128);
+    var mountedDown = new FieldLadderStateSnapshot(
+        true,
+        true,
+        FieldLadderPhase.Climbing,
+        FieldNavigationInput.Down,
+        new FieldNavigationRouteWaypoint(-233, 1956, -185),
+        27,
+        4,
+        0);
+    var transform = new FieldNavigationControlTransform(0);
+
+    controller.HandleAction(
+        FieldNavigationAction.NextCategory,
+        midDescent,
+        transform,
+        ladderState: mountedDown);
+    var activation = controller.HandleAction(
+        FieldNavigationAction.ToggleBeacon,
+        midDescent,
+        transform,
+        ladderState: mountedDown);
+
+    AssertEqual(true, controller.BeaconEnabled, "the Reactor return route should activate mid-ladder");
+    AssertContains(activation?.Speech ?? string.Empty, "climb up");
+    AssertEqual(
+        false,
+        (activation?.Speech ?? string.Empty).Contains("climb down", StringComparison.Ordinal),
+        "the route must reverse the active ladder immediately instead of completing the wrong descent");
+    AssertEqual(
+        "climb up",
+        controller.CreateSpokenGuidance(midDescent, transform, arrivalDistanceUnits: 5)?.Speech,
+        "repeat guidance should retain the route-owned Up input while native motion still points Down");
+
+    controller.UpdateLiveTracking(
+        midDescent,
+        new FieldNavigationInputSnapshot(0, FieldNavigationInput.None),
+        transform,
+        isSuppressed: false,
+        arrivalDistanceUnits: 5,
+        ladderState: mountedDown);
+    AssertEqual(
+        "climb up",
+        controller.CreateSpokenGuidance(midDescent, transform, arrivalDistanceUnits: 5)?.Speech,
+        "a repeated mounted sample must not switch the active route back to Down");
+
+    var routeAction = controller.CurrentRouteGuidance?.NextAction ??
+        throw new InvalidOperationException("the installed Reactor return route should expose its native ladder action");
+    AssertEqual(FieldNavigationInput.Up, routeAction.RequiredInput, "the installed return ladder input");
+    var upperLanding = midDescent with
+    {
+        X = routeAction.Destination.X,
+        Y = routeAction.Destination.Y,
+        Z = routeAction.Destination.Z,
+        TriangleId = checked((ushort)routeAction.DestinationTriangle)
+    };
+    controller.UpdateLiveTracking(
+        upperLanding,
+        new FieldNavigationInputSnapshot(0, FieldNavigationInput.None),
+        transform,
+        isSuppressed: false,
+        arrivalDistanceUnits: 5,
+        ladderState: FieldLadderStateSnapshot.NotMounted);
+    AssertEqual(true, controller.BeaconEnabled, "the route should continue from the upper ladder landing");
+    AssertEqual(
+        false,
+        string.Equals(
+            "climb down",
+            controller.CreateSpokenGuidance(upperLanding, transform, arrivalDistanceUnits: 5)?.Speech,
+            StringComparison.Ordinal),
+        "reaching the intended landing must not send Cloud back down the same ladder");
+}
+
 static void AssertFieldScriptNavigationCatalogPreservesTunnelTriggerLines()
 {
     var field = new FieldScriptNavigationCatalog(FindGameRoot()).ReadField(161);
@@ -21286,12 +21392,20 @@ static void AssertFieldNavigationControllerSpeaksRequiredPressDirection()
 
 static void AssertFieldNavigationBeaconTracksStableLiveTargetAndStopsWhenItDisappears()
 {
+    var storyTarget = new FieldNavigationTarget(
+        900,
+        FieldNavigationCategory.Story,
+        "Press the walkway door button",
+        0,
+        300,
+        0,
+        "story:900:walkway-door");
     IReadOnlyList<FieldNavigationTarget> liveTargets =
     [
         new FieldNavigationTarget(900, FieldNavigationCategory.Objects, "Potion", 100, 100, 0, "object:900:4")
     ];
     var source = new FieldNavigationTargetSource(
-        [],
+        [storyTarget],
         _ => liveTargets);
     var controller = new FieldNavigationController(source, new SingleTriangleRoutePlanner());
     var position = new FieldPositionSnapshot(1, 900, 0, 0, 0, 0, 0, 0);
@@ -21328,6 +21442,16 @@ static void AssertFieldNavigationBeaconTracksStableLiveTargetAndStopsWhenItDisap
     AssertEqual(false, controller.BeaconEnabled, "beacon should switch off when the locked object disappears");
     AssertContains(update?.Speech ?? string.Empty, "Potion");
     AssertContains(update?.Speech ?? string.Empty, "Navigation off");
+    AssertEqual(
+        FieldNavigationCategory.Story,
+        controller.CurrentCategory,
+        "collecting the selected object should recover the category to the live story objective");
+    var recoveredSelection = controller.HandleAction(
+        FieldNavigationAction.RepeatTarget,
+        position,
+        noRotation);
+    AssertContains(recoveredSelection?.Speech ?? string.Empty, "Story");
+    AssertContains(recoveredSelection?.Speech ?? string.Empty, "Press the walkway door button");
 }
 
 static void AssertFieldNavigationExitStopsWhenItBecomesUnreachable()

@@ -176,6 +176,13 @@ public sealed class FieldNavigationController
         FieldNavigationCategory.Objects
     };
 
+    private static readonly FieldNavigationCategory[] RemovedTargetRecoveryCategoryOrder =
+    {
+        FieldNavigationCategory.Story,
+        FieldNavigationCategory.Exits,
+        FieldNavigationCategory.Npcs
+    };
+
     private readonly FieldNavigationTargetSource source;
     private readonly IFieldNavigationRoutePlanner? routePlanner;
     private readonly FieldNavigationRouteTracker? routeTracker;
@@ -590,26 +597,31 @@ public sealed class FieldNavigationController
 
         if (target is null)
         {
+            FieldNavigationActionResult completion;
             if (interactionArrivalPaused)
             {
-                return CompleteNavigation(
+                completion = CompleteNavigation(
                     $"{beaconTargetLabel} completed. Navigation off.",
                     "native target removed after interaction arrival",
                     completed: true);
             }
-
-            if (beaconCategory == FieldNavigationCategory.Exits)
+            else if (beaconCategory == FieldNavigationCategory.Exits)
             {
-                return CompleteNavigation(
+                completion = CompleteNavigation(
                     $"{beaconTargetLabel} is no longer reachable. Navigation off.",
                     "native exit route blocked",
                     completed: false);
             }
+            else
+            {
+                completion = CompleteNavigation(
+                    $"{beaconTargetLabel} no longer available. Navigation off.",
+                    "native target removed",
+                    completed: false);
+            }
 
-            return CompleteNavigation(
-                $"{beaconTargetLabel} no longer available. Navigation off.",
-                "native target removed",
-                completed: false);
+            RecoverCategoryAfterTargetRemoval(position);
+            return completion;
         }
 
         if (positionContinuityTracker.Observe(
@@ -1602,6 +1614,25 @@ public sealed class FieldNavigationController
         }
     }
 
+    private void RecoverCategoryAfterTargetRemoval(FieldPositionSnapshot position)
+    {
+        if (source.GetTargets(position, CurrentCategory).Count > 0)
+        {
+            return;
+        }
+
+        foreach (var category in RemovedTargetRecoveryCategoryOrder)
+        {
+            if (source.GetTargets(position, category).Count == 0)
+            {
+                continue;
+            }
+
+            categoryIndex = Array.IndexOf(CategoryOrder, category);
+            return;
+        }
+    }
+
     private FieldNavigationCategory PeekCategory(int delta)
     {
         var index = (categoryIndex + delta) % CategoryOrder.Length;
@@ -1841,6 +1872,7 @@ public sealed class FieldNavigationController
             target.TriggerLine is not null &&
             beaconDestinationFieldIds.Length > 0;
         currentGuidance = guidance;
+        var correctedMountedRoute = false;
         if (ladderState.IsUsable && ladderState.IsMounted)
         {
             activeLadderState = ladderState;
@@ -1848,7 +1880,19 @@ public sealed class FieldNavigationController
             activeLadderExpectedLanding = ladderState.Target;
             activeLadderExpectedTriangle = ladderState.TargetTriangle;
             activeLadderHasExpectedLanding = true;
-            routeStartsAfterMountedLadder = true;
+            if (TryResolveMountedRouteCorrection(ladderState, guidance, out var correction))
+            {
+                pendingLadderAction = correction;
+                activeLadderGuidanceInput = correction.RequiredInput;
+                activeLadderExpectedLanding = correction.Destination;
+                activeLadderExpectedTriangle = correction.DestinationTriangle;
+                routeStartsAfterMountedLadder = false;
+                correctedMountedRoute = true;
+            }
+            else
+            {
+                routeStartsAfterMountedLadder = true;
+            }
         }
         else
         {
@@ -1869,10 +1913,29 @@ public sealed class FieldNavigationController
         }
 
         StartRouteProgress(initialRemainingDistance);
-        LastNavigationDiagnostic = routeStartsAfterMountedLadder
-            ? $"{guidance.Diagnostic}, route projected from active native ladder landing"
-            : guidance.Diagnostic;
+        LastNavigationDiagnostic = correctedMountedRoute
+            ? $"{guidance.Diagnostic}, route corrected against active native ladder"
+            : routeStartsAfterMountedLadder
+                ? $"{guidance.Diagnostic}, route projected from active native ladder landing"
+                : guidance.Diagnostic;
         return true;
+    }
+
+    private static bool TryResolveMountedRouteCorrection(
+        FieldLadderStateSnapshot ladderState,
+        FieldNavigationRouteGuidance guidance,
+        out FieldNavigationRouteAction correction)
+    {
+        if (guidance.NextAction is { Kind: FieldNavigationTransitionKind.Ladder } candidate &&
+            candidate.RequiredInput == Opposite(ladderState.RequiredInput) &&
+            IsNear(candidate.Waypoint, ladderState.Target, LadderEndpointMatchDistance))
+        {
+            correction = candidate;
+            return true;
+        }
+
+        correction = default;
+        return false;
     }
 
     private FieldNavigationTarget? GetBeaconTarget(FieldPositionSnapshot position)
