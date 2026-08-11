@@ -140,8 +140,8 @@ internal static class WorldMapRoutePlannerTests
             0);
         var catalog = WorldMapTargetCatalog.Load(
             map,
-            Path.Combine(sourceRoot, "tools", "kujata", "metadata", "field-id-to-world-map-coords.json"),
-            Path.Combine(sourceRoot, "tools", "kujata", "metadata-src", "world-map", "wm-field-menu-names.txt"));
+            Path.Combine(sourceRoot, "external", "kujata", "field-id-to-world-map-coords.json"),
+            Path.Combine(sourceRoot, "external", "kujata", "wm-field-menu-names.txt"));
         return (map, catalog);
     }
 

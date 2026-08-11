@@ -56,6 +56,7 @@ public class DumpLegacySquatCueEvidence extends GhidraScript {
         printOpcodeHandler(opcodeTable, 0x30, "IFKEY");
         printOpcodeHandler(opcodeTable, 0x80, "SETBYTE");
         printOpcodeHandler(opcodeTable, 0x14, "IFUB");
+        printOpcodeHandler(opcodeTable, 0x16, "IFSW");
         printFunctionAt(0x00612303L, "IFKEY_MASK_TEST");
         printFunctionAt(0x0060F750L, "FIELD_BANK_READ");
         printFunctionAt(0x0060FA7DL, "FIELD_BANK_WRITE");

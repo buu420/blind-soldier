@@ -68,6 +68,36 @@ public sealed class WorldMapTargetCatalog
         "Glacier"
     ];
 
+    // Game Moment is FFVII's native primary-story variable. Some consecutive
+    // overworld stops intentionally share one value; keep those candidates in
+    // story order and let the native terrain planner hide unreachable ones.
+    private static readonly WorldStoryStage[] StoryStages =
+    [
+        new(341, 384, ["Kalm"]),
+        new(385, 386, ["Chocobo Farm", "Mythril Mine (Midgar side)"]),
+        new(387, 414, ["Junon"]),
+        new(415, 426, ["Mt. Corel"]),
+        new(427, 468, ["North Corel"]),
+        new(469, 522, ["Cosmo Canyon"]),
+        new(523, 534, ["Nibelheim (Town Side)", "Mt. Nibel (Nibelheim Side)", "Rocket Town (South Side)"]),
+        new(535, 565, ["Rocket Town (South Side)"]),
+        new(566, 582, ["North Corel"]),
+        new(583, 637, ["Temple of the Ancients"]),
+        new(638, 676, ["Bone Village"]),
+        new(677, 769, ["Icicle Inn (South Side)"]),
+        new(1033, 1099, ["Mideel"]),
+        new(1110, 1115, ["North Corel", "Condor"]),
+        new(1116, 1117, ["Condor", "Mideel"]),
+        new(1118, 1198, ["Mideel"]),
+        new(1199, 1298, ["Junon"]),
+        new(1299, 1307, ["Rocket Town (North Side)"]),
+        new(1389, 1391, ["Cosmo Canyon"]),
+        new(1392, 1395, ["Bone Village"]),
+        new(1397, 1399, ["Bone Village"]),
+        new(1570, 1597, ["Midgar"]),
+        new(1620, 1997, ["Northern Crater"])
+    ];
+
     public static IReadOnlyList<WorldMapNavigationCategory> CategoryOrder { get; } =
     [
         WorldMapNavigationCategory.Locations,
@@ -175,6 +205,27 @@ public sealed class WorldMapTargetCatalog
         WorldMapStateSnapshot state,
         IReadOnlyList<WorldMapEntitySnapshot> entities)
     {
+        if (category == WorldMapNavigationCategory.Story)
+        {
+            var staticTargets = ReadStoryTargets(state.GameMoment);
+            if (state.WorldMapType != map.WorldMapType || entities.Count == 0)
+            {
+                return staticTargets;
+            }
+
+            var dynamicTargets = entities
+                .Where(entity => !entity.IsPlayer)
+                .Select(entity => CreateEntityTarget(category, state, entity))
+                .Where(target => target is not null)
+                .Select(target => target!)
+                .OrderBy(target => target.Label, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(target => target.StableId, StringComparer.Ordinal)
+                .ToArray();
+            return dynamicTargets.Length == 0
+                ? staticTargets
+                : staticTargets.Concat(dynamicTargets).ToArray();
+        }
+
         if (category is not (WorldMapNavigationCategory.Transportation or WorldMapNavigationCategory.Events))
         {
             return ReadTargets(category, state.RegionId, state.GameMoment);
@@ -202,6 +253,12 @@ public sealed class WorldMapTargetCatalog
     {
         var label = category switch
         {
+            WorldMapNavigationCategory.Story => player.GameMoment switch
+            {
+                1396 when entity.ModelId == 26 => "Key of the Ancients",
+                >= 1400 and <= 1569 when entity.ModelId == 10 => "Diamond Weapon",
+                _ => null
+            },
             WorldMapNavigationCategory.Transportation => entity.ModelId switch
             {
                 3 => "Highwind",
@@ -266,42 +323,48 @@ public sealed class WorldMapTargetCatalog
 
         return new WorldMapNavigationTarget(
             category,
-            category == WorldMapNavigationCategory.Transportation
-                ? WorldMapTargetKind.Transportation
-                : WorldMapTargetKind.Event,
+            category switch
+            {
+                WorldMapNavigationCategory.Story => WorldMapTargetKind.Story,
+                WorldMapNavigationCategory.Transportation => WorldMapTargetKind.Transportation,
+                _ => WorldMapTargetKind.Event
+            },
             label,
             entity.X,
             entity.Y,
             entity.Z,
             triangleId,
             entity.RegionId,
-            $"world-entity:{entity.GuestPointer:X8}:{entity.ModelId}",
+            category == WorldMapNavigationCategory.Story
+                ? $"world-story-entity:{entity.GuestPointer:X8}:{entity.ModelId}"
+                : $"world-entity:{entity.GuestPointer:X8}:{entity.ModelId}",
             arrivals);
     }
 
     private IReadOnlyList<WorldMapNavigationTarget> ReadStoryTargets(int gameMoment)
     {
-        // GameMoment 341 is set as the party leaves Midgar. The first visible
-        // world objective is explicitly stated in dialogue and represented by
-        // the native Kalm entrance. Later objectives are added only when their
-        // native progression ranges have been verified; silence is preferable
-        // to exposing a future destination.
-        if (gameMoment >= 341 &&
-            locationsByLabel.TryGetValue("Kalm", out var kalm))
+        var stage = StoryStages.FirstOrDefault(candidate =>
+            gameMoment >= candidate.MinimumGameMoment &&
+            gameMoment <= candidate.MaximumGameMoment);
+        if (stage is null)
         {
-            return
-            [
-                kalm with
-                {
-                    Category = WorldMapNavigationCategory.Story,
-                    Kind = WorldMapTargetKind.Story,
-                    StableId = "world-story:kalm"
-                }
-            ];
+            return [];
         }
 
-        return [];
+        return stage.LocationLabels
+            .Select(label => locationsByLabel.TryGetValue(label, out var location) ? location : null)
+            .Where(location => location is not null)
+            .Select(location => location! with
+            {
+                Category = WorldMapNavigationCategory.Story,
+                Kind = WorldMapTargetKind.Story,
+                StableId = $"world-story:{CreateStableName(location.Label)}"
+            })
+            .ToArray();
     }
+
+    private static string CreateStableName(string label) =>
+        Regex.Replace(label.ToLowerInvariant(), "[^a-z0-9]+", "-").Trim('-');
 
     private static IReadOnlyDictionary<int, string> ReadMenuNames(string path)
     {
@@ -329,6 +392,7 @@ public sealed class WorldMapTargetCatalog
         value
             .Replace("Mithryl", "Mythril", StringComparison.OrdinalIgnoreCase)
             .Replace("Coral", "Corel", StringComparison.OrdinalIgnoreCase)
+            .Replace("Ancient Forset", "Ancient Forest", StringComparison.OrdinalIgnoreCase)
             .TrimEnd('*')
             .Trim();
 
@@ -431,4 +495,9 @@ public sealed class WorldMapTargetCatalog
     }
 
     private sealed record CoordinateRecord(int MeshX, int MeshY, int CoorX, int CoorY);
+
+    private sealed record WorldStoryStage(
+        int MinimumGameMoment,
+        int MaximumGameMoment,
+        IReadOnlyList<string> LocationLabels);
 }

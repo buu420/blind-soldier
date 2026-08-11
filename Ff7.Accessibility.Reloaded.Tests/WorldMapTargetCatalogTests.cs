@@ -13,6 +13,8 @@ internal static class WorldMapTargetCatalogTests
         GroupsNativeChocoboTracksByRegion();
         BuildsTransportationAndEventsOnlyFromLiveNativeEntities();
         SelectsKalmAsTheFirstWorldStoryObjective();
+        SelectsOnlyTheCurrentMainStoryDestinationsThroughTheEnding();
+        BuildsDynamicStoryObjectivesOnlyFromMatchingLiveNativeEntities();
     }
 
     private static void JoinsWorldLocationNamesByNativeFieldId()
@@ -130,6 +132,90 @@ internal static class WorldMapTargetCatalogTests
         Equal("Kalm", story[0].Label, "first world story objective");
     }
 
+    private static void SelectsOnlyTheCurrentMainStoryDestinationsThroughTheEnding()
+    {
+        var catalog = LoadCatalog();
+        StoryLabels(catalog, 340, []);
+        StoryLabels(catalog, 341, ["Kalm"]);
+        StoryLabels(catalog, 385, ["Chocobo Farm", "Mythril Mine (Midgar side)"]);
+        StoryLabels(catalog, 387, ["Junon"]);
+        StoryLabels(catalog, 415, ["Mt. Corel"]);
+        StoryLabels(catalog, 427, ["North Corel"]);
+        StoryLabels(catalog, 469, ["Cosmo Canyon"]);
+        StoryLabels(catalog, 523,
+            ["Nibelheim (Town Side)", "Mt. Nibel (Nibelheim Side)", "Rocket Town (South Side)"]);
+        StoryLabels(catalog, 566, ["North Corel"]);
+        StoryLabels(catalog, 583, ["Temple of the Ancients"]);
+        StoryLabels(catalog, 638, ["Bone Village"]);
+        StoryLabels(catalog, 677, ["Icicle Inn (South Side)"]);
+        StoryLabels(catalog, 770, []);
+        StoryLabels(catalog, 1033, ["Mideel"]);
+        StoryLabels(catalog, 1110, ["North Corel", "Condor"]);
+        StoryLabels(catalog, 1116, ["Condor", "Mideel"]);
+        StoryLabels(catalog, 1199, ["Junon"]);
+        StoryLabels(catalog, 1299, ["Rocket Town (North Side)"]);
+        StoryLabels(catalog, 1389, ["Cosmo Canyon"]);
+        StoryLabels(catalog, 1392, ["Bone Village"]);
+        StoryLabels(catalog, 1396, []);
+        StoryLabels(catalog, 1397, ["Bone Village"]);
+        StoryLabels(catalog, 1400, []);
+        StoryLabels(catalog, 1570, ["Midgar"]);
+        StoryLabels(catalog, 1598, []);
+        StoryLabels(catalog, 1620, ["Northern Crater"]);
+        StoryLabels(catalog, 1998, []);
+    }
+
+    private static void BuildsDynamicStoryObjectivesOnlyFromMatchingLiveNativeEntities()
+    {
+        var map = LoadMap();
+        var catalog = LoadCatalog(map);
+        var kalm = catalog.Locations.Single(target => target.Label == "Kalm");
+        var triangle = map.Triangles[kalm.TriangleId];
+        var template = new WorldMapStateSnapshot(
+            WorldMapStateReader.WorldModule, map.WorldMapType, 0, 1396,
+            kalm.X, kalm.Y, kalm.Z, 0, 0,
+            triangle.TerrainId, kalm.RegionId,
+            0, 30, 0, new FieldNavigationControlTransform(0));
+        WorldMapEntitySnapshot[] entities =
+        [
+            new(0x1000, 0x2000, true, kalm.X, kalm.Y, kalm.Z, triangle.TerrainId, kalm.RegionId, 0, 1),
+            new(0x2000, 0x3000, false, kalm.X + 20, kalm.Y, kalm.Z, triangle.TerrainId, kalm.RegionId, 26, 1),
+            new(0x3000, 0x4000, false, kalm.X + 40, kalm.Y, kalm.Z, triangle.TerrainId, kalm.RegionId, 10, 1)
+        ];
+
+        var key = catalog.ReadTargets(WorldMapNavigationCategory.Story, template, entities);
+        SequenceEqual(["Key of the Ancients"], key.Select(target => target.Label),
+            "the live key is the only story target during the underwater search");
+        Equal(WorldMapTargetKind.Story, key[0].Kind, "dynamic key uses story target kind");
+
+        var diamond = catalog.ReadTargets(
+            WorldMapNavigationCategory.Story,
+            template with { GameMoment = 1400 },
+            entities);
+        SequenceEqual(["Diamond Weapon"], diamond.Select(target => target.Label),
+            "the live weapon is the only story target during its approach");
+
+        var afterDiamond = catalog.ReadTargets(
+            WorldMapNavigationCategory.Story,
+            template with { GameMoment = 1570 },
+            entities);
+        SequenceEqual(["Midgar"], afterDiamond.Select(target => target.Label),
+            "the defeated weapon is no longer exposed after its progression window");
+    }
+
+    private static void StoryLabels(
+        WorldMapTargetCatalog catalog,
+        int gameMoment,
+        IReadOnlyList<string> expected)
+    {
+        var actual = catalog.ReadTargets(WorldMapNavigationCategory.Story, regionId: 0, gameMoment);
+        SequenceEqual(expected, actual.Select(target => target.Label), $"story targets at game moment {gameMoment}");
+        Equal(true, actual.All(target => target.Category == WorldMapNavigationCategory.Story),
+            $"story category at game moment {gameMoment}");
+        Equal(true, actual.All(target => target.Kind == WorldMapTargetKind.Story),
+            $"story kind at game moment {gameMoment}");
+    }
+
     private static WorldMapTargetCatalog LoadCatalog()
     {
         return LoadCatalog(LoadMap());
@@ -152,8 +238,8 @@ internal static class WorldMapTargetCatalogTests
             @"C:\FF7A11Y\accessibility_prototype";
         return WorldMapTargetCatalog.Load(
             map,
-            Path.Combine(sourceRoot, "tools", "kujata", "metadata", "field-id-to-world-map-coords.json"),
-            Path.Combine(sourceRoot, "tools", "kujata", "metadata-src", "world-map", "wm-field-menu-names.txt"));
+            Path.Combine(sourceRoot, "external", "kujata", "field-id-to-world-map-coords.json"),
+            Path.Combine(sourceRoot, "external", "kujata", "wm-field-menu-names.txt"));
     }
 
     private static void SequenceEqual<T>(IEnumerable<T> expected, IEnumerable<T> actual, string label)

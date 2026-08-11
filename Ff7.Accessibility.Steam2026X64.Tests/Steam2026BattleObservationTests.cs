@@ -583,6 +583,13 @@ internal sealed class BattleObservationFixture
             BattleStateReader.EnemyNameLength);
         var actor = BattleStateReader.AddressBattleActors + actorIndex * BattleStateReader.BattleActorSize;
         WriteByte(actor + BattleStateReader.ActorInstanceIdOffset, checked((byte)sceneEnemyIndex));
+        if (!Direct.TryReadUInt16((uint)BattleStateReader.AddressActiveEnemyMask, out var activeMask))
+        {
+            activeMask = 0;
+        }
+        WriteUInt16(
+            BattleStateReader.AddressActiveEnemyMask,
+            activeMask | (1 << actorIndex));
         WriteInt32(actor + BattleStateReader.ActorStatusMaskOffset, 0);
         WriteUInt16(actor + BattleStateReader.ActorCurrentMpOffset, 0);
         WriteUInt16(actor + BattleStateReader.ActorMaxMpOffset, 0);
@@ -698,6 +705,7 @@ internal sealed class BattleObservationFixture
         WriteFf7Text((uint)BattleStateReader.AddressEnemyData, "Grunt", BattleStateReader.EnemyNameLength);
         var enemy = BattleStateReader.AddressBattleActors + 4 * BattleStateReader.BattleActorSize;
         WriteByte(enemy + BattleStateReader.ActorInstanceIdOffset, 0);
+        WriteUInt16(BattleStateReader.AddressActiveEnemyMask, 1 << 4);
         WriteInt32(enemy + BattleStateReader.ActorStatusMaskOffset, 1 << 3);
         WriteUInt16(enemy + BattleStateReader.ActorCurrentMpOffset, 12);
         WriteUInt16(enemy + BattleStateReader.ActorMaxMpOffset, 18);

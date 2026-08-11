@@ -36,6 +36,9 @@ public sealed class BattleStateReader
 
     public const int AddressEnemySceneIndexRecords = 0x009A8794;
     public const int EnemySceneIndexRecordSize = 0x10;
+    // FUN_005d0690 clears this word before enemy setup and sets bit 4..9
+    // only when the corresponding enemy battle actor is instantiated.
+    public const int AddressActiveEnemyMask = 0x009AB0BA;
     public const int AddressEnemyData = 0x009A8E9C;
     public const int EnemyDataSize = 0xB8;
     public const int EnemyNameLength = 24;
@@ -919,6 +922,12 @@ public sealed class BattleStateReader
 
         if (isEnemy)
         {
+            var activeEnemyMask = readUInt16(AddressActiveEnemyMask);
+            if ((activeEnemyMask & (1 << actorIndex)) == 0)
+            {
+                return ActorSlotReadState.Inactive;
+            }
+
             var enemySlot = actorIndex - FirstEnemyActorIndex;
             if (!TryComputeAddress(
                     AddressEnemySceneIndexRecords,

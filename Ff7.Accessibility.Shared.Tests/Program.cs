@@ -327,6 +327,10 @@ static void AssertBattleStateReaderChecksEncounterActionAndActorCollections()
     incompleteActors.Write(
         incompleteEnemyBase + BattleStateReader.ActorInstanceIdOffset,
         [1]);
+    WriteUInt16(
+        incompleteActors,
+        (uint)BattleStateReader.AddressActiveEnemyMask,
+        (1 << 4) | (1 << 9));
     incompleteActors.Remove(
         (uint)BattleStateReader.AddressEnemySceneIndexRecords +
         5u * BattleStateReader.EnemySceneIndexRecordSize);
@@ -637,6 +641,7 @@ static ContiguousLegacyAddressSpace CreateValidBattleEncounterMemory()
     }
 
     memory.Write((uint)BattleStateReader.AddressEnemySceneIndexRecords, [0]);
+    WriteUInt16(memory, (uint)BattleStateReader.AddressActiveEnemyMask, 1 << 4);
     WriteFf7Text(
         memory,
         (uint)BattleStateReader.AddressEnemyData,
@@ -676,6 +681,14 @@ static void AddBattleEnemy(
     memory.Write(
         actorBase + BattleStateReader.ActorInstanceIdOffset,
         [checked((byte)sceneEnemyIndex)]);
+    if (!memory.TryReadUInt16((uint)BattleStateReader.AddressActiveEnemyMask, out var activeMask))
+    {
+        activeMask = 0;
+    }
+    WriteUInt16(
+        memory,
+        (uint)BattleStateReader.AddressActiveEnemyMask,
+        checked((ushort)(activeMask | (1 << actorIndex))));
     WriteUInt32(memory, actorBase + BattleStateReader.ActorStatusMaskOffset, 0);
     WriteUInt16(memory, actorBase + BattleStateReader.ActorCurrentMpOffset, 0);
     WriteUInt16(memory, actorBase + BattleStateReader.ActorMaxMpOffset, 0);

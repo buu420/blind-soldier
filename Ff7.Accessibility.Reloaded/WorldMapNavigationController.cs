@@ -20,12 +20,14 @@ public readonly record struct WorldMapNavigationProbeSnapshot(
 
 public static class WorldMapNavigationLifecycle
 {
-    // Ghidra: the world-map dispatcher enters module 0x17 only for the
-    // native battle-transition branch, then hands ownership to module 2.
+    // Ghidra: the world-map dispatcher enters module 0x17 for battle entry,
+    // hands ownership to module 2, and battle completion writes module 0x11
+    // before the dispatcher restores world-map module 3.
     public const int BattleTransitionModule = 0x17;
+    public const int PostBattleResultsModule = 0x11;
 
     public static bool IsCombatInterruptionModule(int module) =>
-        module is BattleTransitionModule or BattleStateReader.BattleModule;
+        module is BattleTransitionModule or BattleStateReader.BattleModule or PostBattleResultsModule;
 }
 
 /// <summary>

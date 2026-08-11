@@ -141,10 +141,26 @@ if (args.Contains("--multilingual-menu-only", StringComparer.OrdinalIgnoreCase))
     return;
 }
 
+if (args.Contains("--world-map-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.WorldMapTargetCatalogTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.WorldMapRoutePlannerTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.WorldMapNavigationControllerTests.Run();
+    Console.WriteLine("FFVII shared world-map accessibility tests passed.");
+    return;
+}
+
 if (args.Contains("--kalm-ranch-navigation-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.KalmRanchNavigationTests.Run();
     Console.WriteLine("FFVII Kalm and Chocobo Ranch navigation tests passed.");
+    return;
+}
+
+if (args.Contains("--reported-navigation-regressions-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.ReportedNavigationRegressionTests.Run();
+    Console.WriteLine("FFVII reported navigation and encounter regression tests passed.");
     return;
 }
 

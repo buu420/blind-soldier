@@ -784,7 +784,7 @@ public sealed class FieldNavigationController
                         position,
                         target.Value,
                         resumeDistance,
-                        guidance: null))
+                        currentGuidance))
                 {
                     return null;
                 }
@@ -1721,6 +1721,17 @@ public sealed class FieldNavigationController
             var selectionRoute = new FieldNavigationRouteTracker(routePlanner);
             if (selectionRoute.TryStart(position, target.Value, out var guidance))
             {
+                // A freshly built native route can begin on the exact funnel
+                // point Cloud already occupies. The live tracker advances or
+                // applies its corridor lookahead on its first update, but a
+                // selection summary previously formatted the unadvanced
+                // startup point and could therefore say "at destination" for
+                // a target that was still several steps away.
+                if (selectionRoute.TryUpdate(position, target.Value, out var updatedGuidance))
+                {
+                    guidance = updatedGuidance;
+                }
+
                 routeDistance = guidance.RemainingDistance;
                 var waypoint = guidance.Waypoint;
                 spokenOffset = FormatSpokenRoute(

@@ -281,9 +281,15 @@ internal static class WorldMapNavigationControllerTests
         Equal(true,
             WorldMapNavigationLifecycle.IsCombatInterruptionModule(BattleStateReader.BattleModule),
             "battle module preserves the route");
+        Equal(true,
+            WorldMapNavigationLifecycle.IsCombatInterruptionModule(0x11),
+            "native post-battle results module preserves the route");
         Equal(false,
             WorldMapNavigationLifecycle.IsCombatInterruptionModule(FieldPositionReader.FieldModule),
             "entering a field remains a permanent world-map exit");
+        Equal(false,
+            WorldMapNavigationLifecycle.IsCombatInterruptionModule(0x13),
+            "quit module remains a permanent world-map exit");
     }
 
     private static void ConnectsCollinearWorldWaypointsIntoOneSpokenRun()
@@ -484,8 +490,8 @@ internal static class WorldMapNavigationControllerTests
             @"C:\FF7A11Y\accessibility_prototype";
         var catalog = WorldMapTargetCatalog.Load(
             map,
-            Path.Combine(sourceRoot, "tools", "kujata", "metadata", "field-id-to-world-map-coords.json"),
-            Path.Combine(sourceRoot, "tools", "kujata", "metadata-src", "world-map", "wm-field-menu-names.txt"));
+            Path.Combine(sourceRoot, "external", "kujata", "field-id-to-world-map-coords.json"),
+            Path.Combine(sourceRoot, "external", "kujata", "wm-field-menu-names.txt"));
         return (map, catalog, new WorldMapRoutePlanner(map));
     }
 
