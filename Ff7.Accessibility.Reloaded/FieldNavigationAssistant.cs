@@ -533,6 +533,7 @@ public sealed class FieldNavigationController
         {
             var category = beaconCategory;
             var label = beaconTargetLabel;
+            var departedFieldId = beaconFieldId;
             var expectedDestinations = beaconDestinationFieldIds;
             var completesOnFieldTransition = beaconCompletesOnFieldTransition;
             var destinationMatches =
@@ -543,6 +544,7 @@ public sealed class FieldNavigationController
             var reason = reached
                 ? $"matching field transition to {position.FieldId}"
                 : $"native target field changed to {position.FieldId}";
+            ClearSelectionsForField(departedFieldId);
             if (reached)
             {
                 CompleteRouteProgress();
@@ -667,7 +669,7 @@ public sealed class FieldNavigationController
             if (ShouldAcceptMountedLadder(ladderState))
             {
                 velocityEstimator.Reset();
-                return UpdateMountedLadder(position, ladderState);
+                return UpdateMountedLadder(position, target.Value, observation, controlTransform, ladderState, observedAt);
             }
 
             LastNavigationDiagnostic =
@@ -1092,10 +1094,32 @@ public sealed class FieldNavigationController
 
     private FieldNavigationActionResult? UpdateMountedLadder(
         FieldPositionSnapshot position,
-        FieldLadderStateSnapshot ladderState)
+        FieldNavigationTarget target,
+        FieldNavigationMovementObservation observation,
+        FieldNavigationControlTransform controlTransform,
+        FieldLadderStateSnapshot ladderState,
+        DateTime observedAt)
     {
         ResetLadderMountPrompt();
-        if (routeTracker?.TryMeasureRemainingDistance(position, out var remainingDistance) == true)
+        FieldNavigationRouteGuidance? liveRouteGuidance = null;
+        if (!routeStartsAfterMountedLadder &&
+            routeTracker?.TryUpdate(
+                position,
+                target,
+                observation,
+                observedAt,
+                out var updatedGuidance) == true)
+        {
+            liveRouteGuidance = updatedGuidance;
+            currentGuidance = updatedGuidance;
+            if (updatedGuidance.Replanned)
+            {
+                RestartProgressSegment(ResolveProgressRemainingDistance(updatedGuidance));
+            }
+
+            ObserveProgress(ResolveProgressRemainingDistance(updatedGuidance));
+        }
+        else if (routeTracker?.TryMeasureRemainingDistance(position, out var remainingDistance) == true)
         {
             ObserveProgress(remainingDistance);
         }
@@ -1107,6 +1131,7 @@ public sealed class FieldNavigationController
         var wasMounted = activeLadderState.IsMounted;
         activeLadderState = ladderState;
         activeLadderGuidanceInput = ladderState.RequiredInput;
+        var guidanceSource = "native";
         activeLadderExpectedLanding = ladderState.Target;
         activeLadderExpectedTriangle = ladderState.TargetTriangle;
         activeLadderHasExpectedLanding = true;
@@ -1118,6 +1143,7 @@ public sealed class FieldNavigationController
             if (pending.RequiredInput != FieldNavigationInput.None)
             {
                 activeLadderGuidanceInput = pending.RequiredInput;
+                guidanceSource = "route action";
             }
         }
         else if (lastCompletedLadderAction is { } completed &&
@@ -1129,10 +1155,31 @@ public sealed class FieldNavigationController
             activeLadderExpectedLanding = completed.Destination;
             activeLadderExpectedTriangle = completed.DestinationTriangle;
             activeLadderGuidanceInput = Opposite(ladderState.RequiredInput);
+            guidanceSource = "reverse route action";
+        }
+        else if (!routeStartsAfterMountedLadder &&
+                 pendingLadderAction is null &&
+                 liveRouteGuidance is { } routeGuidance)
+        {
+            // Some field walkmeshes, notably Floor 63's crawlspace, report the
+            // same native movement mode as a ladder even though the route bends
+            // across several horizontal and vertical segments. Keep advancing
+            // the actual route and let its live waypoint own each turn.
+            var waypoint = ResolveGuidanceWaypoint(routeGuidance);
+            var routeInput = movementObserver.ResolveStickDirection(
+                waypoint.X - position.X,
+                waypoint.Y - position.Y,
+                controlTransform).Input;
+            if (IsDirectionalInput(routeInput))
+            {
+                activeLadderGuidanceInput = routeInput;
+                guidanceSource = "live route";
+            }
         }
 
         LastNavigationDiagnostic =
             $"ladder mounted, phase={ladderState.Phase}, input={activeLadderGuidanceInput}, " +
+            $"source={guidanceSource}, " +
             $"nativeTarget={ladderState.Target.X},{ladderState.Target.Y},{ladderState.Target.Z}, " +
             $"expectedLanding={activeLadderExpectedLanding.X},{activeLadderExpectedLanding.Y},{activeLadderExpectedLanding.Z}";
         if (wasMounted)
@@ -2052,6 +2099,14 @@ public sealed class FieldNavigationController
 
     private static string CreateSelectionKey(int fieldId, FieldNavigationCategory category) =>
         $"{fieldId}:{category}";
+
+    private void ClearSelectionsForField(int fieldId)
+    {
+        foreach (var category in CategoryOrder)
+        {
+            selectedTargetIds.Remove(CreateSelectionKey(fieldId, category));
+        }
+    }
 
     private static string GetCategoryDisplayName(FieldNavigationCategory category) =>
         category switch

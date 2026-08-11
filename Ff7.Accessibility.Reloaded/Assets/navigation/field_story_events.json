@@ -4522,7 +4522,7 @@
                                                   },
                             "completedCondition":  {
                                                        "bank":  3,
-                                                       "address":  172,
+                                                       "address":  181,
                                                        "mask":  128,
                                                        "value":  128
                                                    }
@@ -4572,20 +4572,12 @@
                             "sourceEntityName":  "MLINE",
                             "sourceScriptType":  "[OK]",
                             "completesOnArrival":  true,
-                            "requiredConditions":  [
-                                                       {
-                                                           "bank":  3,
-                                                           "address":  177,
-                                                           "mask":  14,
-                                                           "value":  14
-                                                       },
-                                                       {
-                                                           "bank":  3,
-                                                           "address":  172,
-                                                           "mask":  128,
-                                                           "value":  128
-                                                       }
-                                                   ],
+                            "requiredCondition":  {
+                                                      "bank":  3,
+                                                      "address":  177,
+                                                      "mask":  14,
+                                                      "value":  14
+                                                  },
                             "completedCondition":  {
                                                        "bank":  3,
                                                        "address":  181,
@@ -4617,7 +4609,7 @@
                                                   },
                             "completedCondition":  {
                                                        "bank":  3,
-                                                       "address":  172,
+                                                       "address":  181,
                                                        "mask":  128,
                                                        "value":  128
                                                    }
@@ -4675,9 +4667,9 @@
                                                   },
                             "completedCondition":  {
                                                        "bank":  3,
-                                                       "address":  172,
-                                                       "mask":  64,
-                                                       "value":  64
+                                                       "address":  177,
+                                                       "mask":  8,
+                                                       "value":  8
                                                    }
                         },
                         {
@@ -4727,9 +4719,9 @@
                             "completesOnArrival":  true,
                             "requiredCondition":  {
                                                       "bank":  3,
-                                                      "address":  172,
-                                                      "mask":  64,
-                                                      "value":  64
+                                                      "address":  177,
+                                                      "mask":  2,
+                                                      "value":  2
                                                   },
                             "completedCondition":  {
                                                        "bank":  3,
@@ -4762,9 +4754,9 @@
                                                   },
                             "completedCondition":  {
                                                        "bank":  3,
-                                                       "address":  172,
-                                                       "mask":  64,
-                                                       "value":  64
+                                                       "address":  177,
+                                                       "mask":  8,
+                                                       "value":  8
                                                    }
                         },
                         {

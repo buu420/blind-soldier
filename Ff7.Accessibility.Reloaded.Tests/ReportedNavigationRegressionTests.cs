@@ -11,6 +11,9 @@ internal static class ReportedNavigationRegressionTests
         RouteArrivalPauseUsesTheSameDistanceAsResumeHysteresis();
         PostCollapseAerisHouseStoryUsesTheNativeUpstairsState();
         Floor63StoryTracksTheNativeCouponAndDuctSequence();
+        Floor63CouponRouteSurvivesClearedDuctEntryBits();
+        Floor63FieldReentrySelectsTheNewNearestObjective();
+        Floor63MountedDuctFollowsTheRouteThroughAnElbow();
         EncounterCountUsesTheNativeActiveEnemyMask();
     }
 
@@ -190,14 +193,18 @@ internal static class ReportedNavigationRegressionTests
             "Collect the A Coupon", "after opening D4");
 
         memory[PersistentBank(177)] = 0x12;
-        AssertOnlyStory(reader, Position(245, -900, 100, 0),
-            "Enter the A Coupon room duct", "after collecting A Coupon");
+        AssertStoryContains(reader, Position(245, -900, 100, 0),
+            "after collecting A Coupon",
+            "Enter the A Coupon room duct",
+            "Collect the B Coupon");
         AssertOnlyStory(reader, Position(246, -827, 124, 369),
             "Crawl to the shaft for the B Coupon room", "inside the duct after A Coupon");
 
-        memory[PersistentBank(172)] = 0x40;
-        AssertOnlyStory(reader, Position(245, 315, 73, 0),
-            "Collect the B Coupon", "after dropping into the B Coupon room");
+        memory[PersistentBank(172)] = 0x00;
+        AssertStoryContains(reader, Position(245, 315, 73, 0),
+            "after dropping into the B Coupon room",
+            "Enter the A Coupon room duct",
+            "Collect the B Coupon");
 
         memory[PersistentBank(177)] = 0x1A;
         AssertOnlyStory(reader, Position(245, 250, 0, 0),
@@ -208,20 +215,163 @@ internal static class ReportedNavigationRegressionTests
             "Collect the C Coupon", "after opening D12");
 
         memory[PersistentBank(177)] = 0x1E;
-        AssertOnlyStory(reader, Position(245, -200, 100, 0),
-            "Enter the B Coupon room duct", "after collecting all coupons");
+        AssertStoryContains(reader, Position(245, -200, 100, 0),
+            "after collecting all coupons",
+            "Enter the B Coupon room duct",
+            "Exchange the Floor 63 coupons at the computer");
         AssertOnlyStory(reader, Position(246, 384, 123, 369),
             "Crawl to the floor 63 computer shaft", "inside the duct with all coupons");
 
-        memory[PersistentBank(172)] = 0xC0;
-        AssertOnlyStory(reader, Position(245, 900, -500, 0),
-            "Exchange the Floor 63 coupons at the computer", "after returning to the computer");
+        memory[PersistentBank(172)] = 0x00;
+        AssertStoryContains(reader, Position(245, 900, -500, 0),
+            "after returning to the computer",
+            "Enter the B Coupon room duct",
+            "Exchange the Floor 63 coupons at the computer");
 
         memory[PersistentBank(181)] = 0x80;
         var remaining = reader.ReadTargets(Position(245, 900, -500, 0));
         Require(
             remaining.All(target => target.Label != "Exchange the Floor 63 coupons at the computer"),
             "the exchange objective remained active after the native completion bit was set");
+    }
+
+    private static void Floor63CouponRouteSurvivesClearedDuctEntryBits()
+    {
+        var memory = new Dictionary<int, byte>();
+        WriteUInt16(memory, FieldNavigationObjectReader.AddressFieldBankBase, 263);
+        ConfigureVisibleModel(memory, entityId: 15, modelId: 1, x: 920, y: -570, z: 0);
+        ConfigureVisibleModel(memory, entityId: 44, modelId: 2, x: 302, y: -31, z: 0);
+        var reader = CreateStoryReader(memory);
+
+        // blin63_t consumes the entry selector and clears all three bits as soon
+        // as the duct field loads. Returning to the main floor therefore has a
+        // zero byte here even after a successful A-to-B traversal.
+        memory[PersistentBank(177)] = 0x12;
+        memory[PersistentBank(172)] = 0x00;
+        var afterA = reader.ReadTargets(Position(245, 315, 73, 0));
+        Require(
+            afterA.Any(target => target.Label == "Collect the B Coupon"),
+            "cleared duct-entry bits hid the B Coupon objective after a successful A-room crawl");
+
+        memory[PersistentBank(177)] = 0x1E;
+        var afterAllCoupons = reader.ReadTargets(Position(245, 900, -500, 0));
+        Require(
+            afterAllCoupons.Any(target => target.Label == "Exchange the Floor 63 coupons at the computer"),
+            "cleared duct-entry bits hid the coupon exchange after returning to the computer room");
+
+        var objects = FieldNavigationObjectCatalog.CreateAllFields()
+            .Where(definition =>
+                definition.FieldId is 245 or 246 &&
+                !string.IsNullOrWhiteSpace(definition.Label))
+            .ToDictionary(definition => definition.Label!, StringComparer.Ordinal);
+        Require(
+            objects["B Coupon"].RequiredAddress == 177 &&
+            objects["B Coupon"].RequiredMask == 0x02,
+            "the Object catalog still gated B Coupon on the transient duct selector");
+        Require(
+            objects["A Coupon room duct entrance"].CollectedAddress == 177 &&
+            objects["A Coupon room duct entrance"].CollectedMask == 0x08 &&
+            objects["Shaft to B Coupon room"].CollectedAddress == 177 &&
+            objects["Shaft to B Coupon room"].CollectedMask == 0x08,
+            "the Object catalog still used transient duct bits as A-to-B completion state");
+        Require(
+            objects["B Coupon room duct entrance"].CollectedAddress == 181 &&
+            objects["B Coupon room duct entrance"].CollectedMask == 0x80 &&
+            objects["Shaft to floor 63 computer room"].CollectedAddress == 181 &&
+            objects["Shaft to floor 63 computer room"].CollectedMask == 0x80,
+            "the Object catalog still used transient duct bits as coupon-exchange completion state");
+    }
+
+    private static void Floor63MountedDuctFollowsTheRouteThroughAnElbow()
+    {
+        var target = new FieldNavigationTarget(
+            246,
+            FieldNavigationCategory.Story,
+            "Crawl to the shaft for the B Coupon room",
+            100,
+            100,
+            0,
+            "story:floor63-b-shaft",
+            CompletesOnArrival: false);
+        var controller = new FieldNavigationController(
+            new FieldNavigationTargetSource([target]),
+            new DuctElbowPlanner());
+        var transform = new FieldNavigationControlTransform(-128);
+        var noInput = new FieldNavigationInputSnapshot(0, FieldNavigationInput.None);
+        var start = Position(246, 0, 0, 0);
+
+        controller.HandleAction(FieldNavigationAction.NextCategory, start, transform);
+        controller.HandleAction(FieldNavigationAction.ToggleBeacon, start, transform);
+        var mountedRight = new FieldLadderStateSnapshot(
+            true,
+            true,
+            FieldLadderPhase.Climbing,
+            FieldNavigationInput.Right,
+            new FieldNavigationRouteWaypoint(200, 0, 0),
+            0,
+            5,
+            1);
+        controller.UpdateLiveTracking(
+            start,
+            noInput,
+            transform,
+            isSuppressed: false,
+            arrivalDistanceUnits: 5,
+            ladderState: mountedRight);
+
+        var elbow = start with { X = 100 };
+        controller.UpdateLiveTracking(
+            elbow,
+            noInput,
+            transform,
+            isSuppressed: false,
+            arrivalDistanceUnits: 5,
+            ladderState: mountedRight);
+
+        Require(
+            controller.TryResolveAutomaticInput(elbow, transform, 5, out var input) &&
+            input == FieldNavigationInput.Up,
+            $"the mounted duct retained {input} at a route elbow instead of turning Up");
+        Require(
+            controller.CreateSpokenGuidance(elbow, transform, 5)?.Speech == "climb up",
+            "spoken duct guidance retained the previous Right segment at the route elbow");
+    }
+
+    private static void Floor63FieldReentrySelectsTheNewNearestObjective()
+    {
+        var aDuct = new FieldNavigationTarget(
+            245, FieldNavigationCategory.Story, "Enter the A Coupon room duct",
+            -864, 119, 0, "story:floor63-a-duct", CompletesOnArrival: false);
+        var bCoupon = new FieldNavigationTarget(
+            245, FieldNavigationCategory.Story, "Collect the B Coupon",
+            302, -31, 0, "story:floor63-b-coupon", CompletesOnArrival: false);
+        var ductShaft = new FieldNavigationTarget(
+            246, FieldNavigationCategory.Story, "Crawl to the shaft for the B Coupon room",
+            384, 123, 369, "story:floor63-b-shaft", CompletesOnArrival: false);
+        var controller = new FieldNavigationController(
+            new FieldNavigationTargetSource([aDuct, bCoupon, ductShaft]),
+            new MultiFieldDirectPlanner());
+        var transform = new FieldNavigationControlTransform(-128);
+        var noInput = new FieldNavigationInputSnapshot(0, FieldNavigationInput.None);
+        var aRoom = Position(245, -900, 100, 0);
+
+        controller.HandleAction(FieldNavigationAction.NextCategory, aRoom, transform);
+        Require(
+            controller.HandleAction(FieldNavigationAction.RepeatTarget, aRoom, transform)?.Speech
+                .Contains(aDuct.Label, StringComparison.Ordinal) == true,
+            "the setup did not select the A-room duct");
+        controller.HandleAction(FieldNavigationAction.ToggleBeacon, aRoom, transform);
+        controller.UpdateLiveTracking(
+            Position(246, -827, 124, 369), noInput, transform, isSuppressed: false);
+
+        var bRoom = Position(245, 315, 73, 0);
+        var selectedAfterReturn = controller.HandleAction(
+            FieldNavigationAction.RepeatTarget,
+            bRoom,
+            transform)?.Speech;
+        Require(
+            selectedAfterReturn?.Contains(bCoupon.Label, StringComparison.Ordinal) == true,
+            $"returning from the duct retained the stale A-room objective: {selectedAfterReturn}");
     }
 
     private static void EncounterCountUsesTheNativeActiveEnemyMask()
@@ -350,6 +500,18 @@ internal static class ReportedNavigationRegressionTests
         Require(
             labels.Length == 1 && labels[0] == expected,
             $"{phase}: expected only '{expected}', got '{string.Join(" | ", labels)}'");
+    }
+
+    private static void AssertStoryContains(
+        FieldStoryTargetReader reader,
+        FieldPositionSnapshot position,
+        string phase,
+        params string[] expected)
+    {
+        var labels = reader.ReadTargets(position).Select(target => target.Label).ToArray();
+        Require(
+            expected.All(label => labels.Contains(label, StringComparer.Ordinal)),
+            $"{phase}: expected '{string.Join(" | ", expected)}', got '{string.Join(" | ", labels)}'");
     }
 
     private static void WriteFf7Text(
@@ -483,6 +645,89 @@ internal static class ReportedNavigationRegressionTests
         {
             waypoint = new FieldNavigationRouteWaypoint(70, 0, 0);
             return position.FieldId == 901 && target.FieldId == 901;
+        }
+    }
+
+    private sealed class DuctElbowPlanner : IFieldNavigationRoutePlanner
+    {
+        public string LastDiagnostic => "reported Floor 63 duct elbow";
+
+        public bool TryResolvePlayerTriangle(FieldPositionSnapshot position, out int triangle)
+        {
+            triangle = 0;
+            return position.FieldId == 246;
+        }
+
+        public bool TryBuildRoute(
+            FieldPositionSnapshot position,
+            FieldNavigationTarget target,
+            out FieldNavigationRoutePlan plan)
+        {
+            plan = new FieldNavigationRoutePlan(
+                246,
+                $"{target.FieldId}:{target.StableId}",
+                [0],
+                [],
+                new FieldNavigationRouteWaypoint(target.X, target.Y, target.Z),
+                0,
+                StableWaypointsOverride:
+                [
+                    new FieldNavigationRouteStep(
+                        new FieldNavigationRouteWaypoint(100, 0, 0),
+                        0,
+                        MustReach: true),
+                    new FieldNavigationRouteStep(
+                        new FieldNavigationRouteWaypoint(100, 100, 0),
+                        0,
+                        MustReach: true)
+                ]);
+            return position.FieldId == 246 && target.FieldId == 246;
+        }
+
+        public bool TryGetNextWaypoint(
+            FieldPositionSnapshot position,
+            FieldNavigationTarget target,
+            out FieldNavigationRouteWaypoint waypoint)
+        {
+            waypoint = position.X < 100
+                ? new FieldNavigationRouteWaypoint(100, 0, 0)
+                : new FieldNavigationRouteWaypoint(100, 100, 0);
+            return position.FieldId == 246 && target.FieldId == 246;
+        }
+    }
+
+    private sealed class MultiFieldDirectPlanner : IFieldNavigationRoutePlanner
+    {
+        public string LastDiagnostic => "reported Floor 63 field re-entry";
+
+        public bool TryResolvePlayerTriangle(FieldPositionSnapshot position, out int triangle)
+        {
+            triangle = 0;
+            return position.FieldId is 245 or 246;
+        }
+
+        public bool TryBuildRoute(
+            FieldPositionSnapshot position,
+            FieldNavigationTarget target,
+            out FieldNavigationRoutePlan plan)
+        {
+            plan = new FieldNavigationRoutePlan(
+                target.FieldId,
+                target.StableId,
+                [0],
+                [],
+                new FieldNavigationRouteWaypoint(target.X, target.Y, target.Z),
+                0);
+            return position.FieldId == target.FieldId;
+        }
+
+        public bool TryGetNextWaypoint(
+            FieldPositionSnapshot position,
+            FieldNavigationTarget target,
+            out FieldNavigationRouteWaypoint waypoint)
+        {
+            waypoint = new FieldNavigationRouteWaypoint(target.X, target.Y, target.Z);
+            return position.FieldId == target.FieldId;
         }
     }
 }

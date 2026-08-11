@@ -8847,13 +8847,13 @@ static void AssertFloor63CouponRouteUsesNativeDoorAndCouponState()
     var aDuct = definitions.Single(definition => definition.Label == "A Coupon room duct entrance");
     AssertEqual(177, aDuct.RequiredAddress, "A duct requires A Coupon");
     AssertEqual((byte)0x02, aDuct.RequiredMask, "A duct coupon mask");
-    AssertEqual(172, aDuct.CollectedAddress, "A duct completion address");
-    AssertEqual((byte)0x40, aDuct.CollectedMask, "A-to-B duct traversal bit");
+    AssertEqual(177, aDuct.CollectedAddress, "A duct completion uses persistent coupon state");
+    AssertEqual((byte)0x08, aDuct.CollectedMask, "A duct hides after B Coupon is collected");
 
     var bCoupon = definitions.Single(definition => definition.Label == "B Coupon");
-    AssertEqual(172, bCoupon.RequiredAddress, "B Coupon requires arrival through the A-room duct");
-    AssertEqual((byte)0x40, bCoupon.RequiredMask, "B-room duct arrival mask");
-    AssertEqual((byte)0x40, bCoupon.RequiredValue, "B-room duct arrival value");
+    AssertEqual(177, bCoupon.RequiredAddress, "B Coupon requires the persistent A Coupon state");
+    AssertEqual((byte)0x02, bCoupon.RequiredMask, "B Coupon A-coupon mask");
+    AssertEqual((byte)0x02, bCoupon.RequiredValue, "B Coupon A-coupon value");
 
     var thirdDoor = definitions.Single(definition =>
         definition.Label == "Coupon route door 3 of 3, between B and C Coupon rooms");
@@ -8871,18 +8871,20 @@ static void AssertFloor63CouponRouteUsesNativeDoorAndCouponState()
     AssertEqual((byte)0x08, cCoupon.RequiredValue, "C Coupon D12 value");
 
     var bDuct = definitions.Single(definition => definition.Label == "B Coupon room duct entrance");
-    AssertEqual(177, bDuct.RequiredAddress, "return duct requires C Coupon");
-    AssertEqual((byte)0x04, bDuct.RequiredMask, "return duct C Coupon mask");
-    AssertEqual(172, bDuct.CollectedAddress, "return duct completion address");
-    AssertEqual((byte)0x80, bDuct.CollectedMask, "computer-room duct return bit");
+    AssertEqual(177, bDuct.RequiredAddress, "return duct requires all coupons");
+    AssertEqual((byte)0x0E, bDuct.RequiredMask, "return duct all-coupon mask");
+    AssertEqual(181, bDuct.CollectedAddress, "return duct hides after coupon exchange");
+    AssertEqual((byte)0x80, bDuct.CollectedMask, "coupon exchange completion bit");
 
     var ductTargets = definitions
         .Where(definition => definition.FieldId == 246)
         .ToDictionary(definition => definition.Label!, StringComparer.Ordinal);
     AssertEqual((byte)0x02, ductTargets["Shaft to B Coupon room"].RequiredMask, "B shaft requires A Coupon");
-    AssertEqual((byte)0x40, ductTargets["Shaft to B Coupon room"].CollectedMask, "B shaft hides after B-room arrival");
+    AssertEqual(177, ductTargets["Shaft to B Coupon room"].CollectedAddress, "B shaft uses persistent coupon state");
+    AssertEqual((byte)0x08, ductTargets["Shaft to B Coupon room"].CollectedMask, "B shaft hides after B Coupon");
     AssertEqual((byte)0x0E, ductTargets["Shaft to floor 63 computer room"].RequiredMask, "computer shaft requires all coupons");
     AssertEqual((byte)0x0E, ductTargets["Shaft to floor 63 computer room"].RequiredValue, "computer shaft all-coupon value");
+    AssertEqual(181, ductTargets["Shaft to floor 63 computer room"].CollectedAddress, "computer shaft uses coupon exchange completion");
 
     var doorDefinitions = definitions
         .Where(definition => definition.Label?.StartsWith("Coupon route door", StringComparison.Ordinal) == true)
