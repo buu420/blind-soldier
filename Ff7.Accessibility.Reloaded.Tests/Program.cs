@@ -141,6 +141,13 @@ if (args.Contains("--multilingual-menu-only", StringComparer.OrdinalIgnoreCase))
     return;
 }
 
+if (args.Contains("--kalm-ranch-navigation-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.KalmRanchNavigationTests.Run();
+    Console.WriteLine("FFVII Kalm and Chocobo Ranch navigation tests passed.");
+    return;
+}
+
 var root = FindGameRoot();
 var sourceRoot = FindSourceRoot();
 var captures = Path.Combine(sourceRoot, "accessibility_prototype", "helper", "bin", "Debug", "net10.0-windows", "captures");

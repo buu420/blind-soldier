@@ -230,7 +230,46 @@ public sealed class FieldNavigationNpcReader
             [(216, 9)] = "Woman changing",
             [(216, 10)] = "Woman exercising",
 
-            [(218, 24)] = "Honey Bee Inn hostess"
+            [(218, 24)] = "Honey Bee Inn hostess",
+
+            // Kalm and Chocobo Ranch. These labels were checked against each
+            // native Talk entity and its visible field model. Models with an
+            // empty/noninteractive Talk script are deliberately omitted.
+            [(328, 12)] = "Weapon shopkeeper",
+            [(328, 13)] = "Materia shopkeeper",
+            [(329, 8)] = "Item shopkeeper",
+            [(330, 9)] = "Bartender",
+            [(330, 11)] = "Man",
+            [(330, 12)] = "Man",
+            [(331, 11)] = "Innkeeper",
+            [(333, 7)] = "Woman",
+            [(334, 6)] = "Girl",
+            [(335, 16)] = "Man",
+            [(335, 17)] = "Old man",
+            [(335, 18)] = "Man",
+            [(335, 19)] = "Woman",
+            [(335, 20)] = "Man",
+            [(335, 21)] = "Man",
+            [(335, 22)] = "Boy",
+            [(336, 8)] = "Old man",
+            [(336, 9)] = "Dog",
+            [(338, 6)] = "Man",
+            [(339, 7)] = "Boy",
+            [(339, 8)] = "Girl",
+            [(341, 8)] = "Woman",
+            [(342, 5)] = "Old man",
+            [(342, 6)] = "Chocobo",
+            [(343, 4)] = "Chocobo",
+            [(343, 5)] = "Chocobo",
+            [(344, 4)] = "Choco Bill",
+            [(345, 4)] = "Chole",
+            [(345, 5)] = "Choco Billy",
+            [(345, 7)] = "Chocobo",
+            [(345, 8)] = "Chocobo",
+            [(345, 9)] = "Chocobo",
+            [(345, 10)] = "Chocobo",
+            [(345, 11)] = "Chocobo",
+            [(345, 12)] = "Chocobo"
         };
 
     private static readonly IReadOnlyDictionary<
@@ -292,7 +331,8 @@ public sealed class FieldNavigationNpcReader
                 .Concat(Enumerable.Range(172, 9))
                 .Concat([188, 189, 190])
                 .Concat(Enumerable.Range(195, 17))
-                .Concat([214, 216, 218]));
+                .Concat([214, 216, 218])
+                .Concat(Enumerable.Range(328, 18)));
 
     private readonly Func<int, int> readInt32;
     private readonly Func<int, short> readInt16;

@@ -845,6 +845,26 @@ Add-Definition -FieldId 234 -FieldName 'blin1' -Kind 'Location' -Label 'Meet the
 Add-Definition -FieldId 170 -FieldName 'mds5_5' -Kind 'Location' -Label 'Meet the party and choose the group for the journey' -EntityId 8 -X 563 -Y -2830 -Z 0 -TargetGameMoment 341 -MinimumGameMoment 335 -MaximumGameMoment 340 -Priority 0 -EntityName 'ln0' -ScriptType 'Move' -TriggerLine ([ordered]@{ startX = 22; startY = -2723; startZ = 0; endX = 1104; endY = -2938; endZ = 0 })
 Add-Definition -FieldId 170 -FieldName 'mds5_5' -Kind 'Location' -Label 'Leave Midgar for the world map' -X 472 -Y -2877 -Z 0 -MinimumGameMoment 341 -MaximumGameMoment 341 -Priority 0 -ScriptType 'Gateway' -TriggerLine ([ordered]@{ startX = 47; startY = -2777; startZ = 0; endX = 897; endY = -2977; endZ = 0 })
 
+# Kalm remains at GameMoment 341 while the party enters town and gathers in
+# the inn. The town arrival LINE records Bank 3, byte 128, bit 1; the inn's
+# two upstairs LINE regions advance temporary byte 6 before the flashback
+# director writes GameMoment 344. When the flashback ends at moment 385, the
+# downstairs LINE grants the PHS and records Bank 3, byte 131, bit 0.
+Add-Definition -FieldId 335 -FieldName 'elm' -Kind 'Location' -Label 'Follow the party into Kalm' -X -360 -Y -799 -Z -2 -MinimumGameMoment 341 -MaximumGameMoment 341 -Priority 0 -CompletedCondition (New-Condition 3 128 0x02 0x02) -EntityName 'first' -ScriptType '[OK]' -TriggerLine ([ordered]@{ startX = -614; startY = -589; startZ = -2; endX = -107; endY = -1009; endZ = -2 })
+Add-Definition -FieldId 335 -FieldName 'elm' -Kind 'Location' -Label 'Enter the Kalm inn' -X -575 -Y -448 -Z -2 -MinimumGameMoment 341 -MaximumGameMoment 341 -Priority 0 -RequiredCondition (New-Condition 3 128 0x02 0x02) -ScriptType 'Gateway' -TriggerLine ([ordered]@{ startX = -582; startY = -488; startZ = -2; endX = -568; endY = -407; endZ = -2 })
+Add-Definition -FieldId 331 -FieldName 'elminn_1' -Kind 'Location' -Label 'Go upstairs and meet the party' -X 70 -Y 124 -Z 186 -MinimumGameMoment 341 -MaximumGameMoment 341 -Priority 0 -ScriptType 'Gateway' -TriggerLine ([ordered]@{ startX = 68; startY = 173; startZ = 183; endX = 71; endY = 74; endZ = 190 })
+Add-Definition -FieldId 332 -FieldName 'elminn_2' -Kind 'Location' -Label 'Join Aeris and the party upstairs' -X 253 -Y 115 -Z -6 -TargetGameMoment 344 -MinimumGameMoment 341 -MaximumGameMoment 343 -Priority 0 -RequiredCondition (New-Condition 5 6 0xFF 0) -CompletedCondition (New-Condition 5 6 0xFF 1) -EntityName 'line1' -ScriptType '[OK]' -TriggerLine ([ordered]@{ startX = 175; startY = 37; startZ = -6; endX = 331; endY = 192; endZ = -6 })
+Add-Definition -FieldId 332 -FieldName 'elminn_2' -Kind 'Location' -Label "Stand with the party and begin Cloud's story" -X 170 -Y -164 -Z -6 -TargetGameMoment 344 -MinimumGameMoment 341 -MaximumGameMoment 343 -Priority 0 -RequiredCondition (New-Condition 5 6 0xFF 1) -EntityName 'line2' -ScriptType '[OK]' -TriggerLine ([ordered]@{ startX = 346; startY = -75; startZ = -6; endX = -7; endY = -253; endZ = -6 })
+Add-Definition -FieldId 332 -FieldName 'elminn_2' -Kind 'Location' -Label "Go downstairs after Cloud's story" -X -44 -Y 131 -Z -180 -MinimumGameMoment 385 -MaximumGameMoment 385 -Priority 0 -CompletedCondition (New-Condition 3 131 0x01 0x01) -ScriptType 'Gateway' -TriggerLine ([ordered]@{ startX = -58; startY = 190; startZ = -196; endX = -29; endY = 71; endZ = -163 })
+Add-Definition -FieldId 331 -FieldName 'elminn_1' -Kind 'Location' -Label 'Meet the party downstairs and receive the PHS' -X 74 -Y -228 -Z -1 -MinimumGameMoment 385 -MaximumGameMoment 385 -Priority 0 -CompletedCondition (New-Condition 3 131 0x01 0x01) -EntityName 'line3' -ScriptType '[OK]' -TriggerLine ([ordered]@{ startX = 178; startY = -178; startZ = -1; endX = -30; endY = -278; endZ = -1 })
+
+# Choco/Mog is an optional visual reward and must not block Story. The
+# mandatory early-Ranch objective is buying the Chocobo Lure from Choco Billy;
+# his purchase script sets Bank 3, byte 64, bit 6. The same fields are reused
+# for later breeding visits, so this guidance is limited to moments 385-565.
+Add-Definition -FieldId 343 -FieldName 'farm' -Kind 'Location' -Label 'Enter the stable and buy the Chocobo Lure' -X 911 -Y 1881 -Z 2 -MinimumGameMoment 385 -MaximumGameMoment 565 -Priority 0 -CompletedCondition (New-Condition 3 64 0x40 0x40) -ScriptType 'Gateway' -TriggerLine ([ordered]@{ startX = 850; startY = 1862; startZ = 1; endX = 972; endY = 1899; endZ = 2 })
+Add-Definition -FieldId 345 -FieldName 'frcyo' -Kind 'Model' -Label 'Talk to Choco Billy and buy the Chocobo Lure' -EntityId 5 -MinimumGameMoment 385 -MaximumGameMoment 565 -Priority 0 -CompletedCondition (New-Condition 3 64 0x40 0x40) -EntityName 'choco' -ScriptType 'Talk'
+
 # These Shinra Building objectives have unambiguous native model or LINE
 # targets. Ambiguous alternate guard lines and model-slot triangle puzzles are
 # intentionally omitted until they can be represented without false targets.
