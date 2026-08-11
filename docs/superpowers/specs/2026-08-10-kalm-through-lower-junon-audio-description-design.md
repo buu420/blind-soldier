@@ -51,9 +51,7 @@ Extend the shared `FieldCutsceneDescriptionCatalog` with a Kalm-through-Lower-Ju
 
 ### FMVs
 
-Add a shared field-movie description tracker for FMVs that need more than one visual cue. A native movie-start observation selects a catalog entry and starts its relative timeline. The tracker emits each cue once, stops when movie playback or the owning field ends, and resets safely after skips or torn native reads.
-
-Single-beat or very short FMVs may use one native field-script cue when that preserves the complete visual information. Multi-beat FMVs use the timed tracker rather than one oversized paragraph.
+The completed visual audit found one concise, meaningful beat in each scoped FMV. Each movie therefore uses its exact native `MOVIE` opcode as a one-shot catalog cue. This is more skip-safe than introducing delayed narration and preserves the complete sighted-equivalent information without an oversized paragraph.
 
 ### Speech ownership
 
@@ -77,7 +75,7 @@ Every implemented cue must have both a visual source timestamp and a native trig
 ## Testing
 
 - Catalog tests assert unique native cue keys and expected coverage for each story segment.
-- Tracker tests prove chronological emission, one-shot behavior, skip handling, movie-end reset, field-change reset, and no delayed cue after control returns.
+- Catalog and runtime tests prove one-shot native `MOVIE` matching, global key uniqueness, exact x86 script bytes, and x64 ingress-opcode support. Because this slice has no delayed beats, a movie timeline tracker is intentionally excluded.
 - Shared parity tests require identical cue text and ordering in x86 and x64.
 - Focused builds and existing cutscene/dialogue regression suites must remain green.
 - Deploy both runtime assemblies without overwriting user configuration, then live-test from a Kalm save through Lower Junon.

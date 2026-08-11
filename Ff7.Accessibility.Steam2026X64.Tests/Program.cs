@@ -38,6 +38,37 @@ if (args.Contains("--multilingual-menu-only", StringComparer.OrdinalIgnoreCase))
     return;
 }
 
+if (args.Contains("--kalm-junon-descriptions-only", StringComparer.OrdinalIgnoreCase))
+{
+    var cues = FieldCutsceneDescriptionCatalog.CreateKalmThroughLowerJunonDescriptions();
+    AssertEqual(25, cues.Count, "shared Kalm through Lower Junon cue count in x64 build");
+    AssertEqual(
+        cues.Count,
+        cues.Select(cue => cue.Key).Distinct().Count(),
+        "shared Kalm through Lower Junon x64 cue keys");
+    var supportedOpcodes = new HashSet<int>
+    {
+        FieldOpcodeAddressResolver.OpcodeRequestIndex,
+        FieldOpcodeAddressResolver.OpcodeRequestSwIndex,
+        FieldOpcodeAddressResolver.OpcodeRequestEwIndex,
+        FieldOpcodeAddressResolver.OpcodeSplitIndex,
+        FieldOpcodeAddressResolver.OpcodeWaitIndex,
+        FieldOpcodeAddressResolver.OpcodeSoundIndex,
+        FieldOpcodeAddressResolver.OpcodeMovieIndex
+    };
+    AssertEqual(
+        true,
+        cues.All(cue => supportedOpcodes.Contains(cue.Opcode)),
+        "every new cue must use an x64 native-ingress opcode");
+    AssertEqual(
+        "332:238,277:0,279:4,282:48,282:32,311:207,312:106,313:50,318:26,323:48,323:236," +
+        "332:3,304:66,290:4,292:22,292:10,327:290,332:85,343:24,348:13,349:99,428:142,429:117,434:9,359:79",
+        string.Join(',', cues.Select(cue => $"{cue.FieldId}:{cue.ByteIndex}")),
+        "shared Kalm through Lower Junon x64 cue ordering");
+    Console.WriteLine("Steam 2026 x64 Kalm through Lower Junon description tests passed.");
+    return;
+}
+
 const string nativePath =
     @"X:\SteamLibrary\steamapps\common\FINAL FANTASY VII Steam Edition\FFVII.exe";
 const string legacyPath =

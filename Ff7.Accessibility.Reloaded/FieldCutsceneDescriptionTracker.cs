@@ -58,7 +58,8 @@ public static class FieldCutsceneDescriptionCatalog
         .. CreateSector8EscapeDescriptions(),
         .. CreateTrainAndSector7Descriptions(),
         .. CreateReactor5AndAerisDescriptions(),
-        .. CreateWallMarketThroughMotorcycleDescriptions()
+        .. CreateWallMarketThroughMotorcycleDescriptions(),
+        .. CreateKalmThroughLowerJunonDescriptions()
     ];
 
     public static IReadOnlyList<FieldCutsceneDescriptionCue> CreateOpeningTrainArrival() =>
@@ -915,6 +916,182 @@ public static class FieldCutsceneDescriptionCatalog
             0,
             11,
             "At dawn, the party gathers at the broken highway's end, with open land stretching beyond Midgar.")
+    ];
+
+    public static IReadOnlyList<FieldCutsceneDescriptionCue> CreateKalmThroughLowerJunonDescriptions() =>
+    [
+        new(
+            332,
+            5,
+            3,
+            238,
+            "The upstairs room fades away as Cloud's story becomes a memory from five years earlier."),
+        new(
+            277,
+            4,
+            1,
+            0,
+            "Inside a swaying Shinra truck, sixteen-year-old Cloud rides through heavy rain beside Sephiroth and two masked infantrymen.",
+            FieldOpcodeAddressResolver.OpcodeSoundIndex),
+        new(
+            279,
+            2,
+            1,
+            4,
+            "Cloud, Sephiroth, and two infantrymen arrive outside the misty mountain town of Nibelheim.",
+            FieldOpcodeAddressResolver.OpcodeRequestEwIndex),
+        new(
+            282,
+            8,
+            1,
+            48,
+            "Tifa arrives as their guide, wearing a wide-brimmed cowboy hat, boots, and a short skirt.",
+            FieldOpcodeAddressResolver.OpcodeRequestEwIndex),
+        new(
+            282,
+            11,
+            13,
+            32,
+            "The photographer snaps a picture of Tifa standing between Cloud and Sephiroth.",
+            FieldOpcodeAddressResolver.OpcodeSoundIndex),
+        new(
+            311,
+            0,
+            0,
+            207,
+            "Jagged peaks and deep ravines surround Mt. Nibel as the group climbs toward the reactor high on the mountainside.",
+            FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        new(
+            312,
+            10,
+            3,
+            106,
+            "The rope bridge tears loose. Tifa, Cloud, Sephiroth, and the two infantrymen plunge into the ravine.",
+            FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        new(
+            313,
+            0,
+            0,
+            50,
+            "Cloud, Sephiroth, Tifa, and one infantryman regroup on a rocky ledge below the broken bridge."),
+        new(
+            318,
+            8,
+            3,
+            26,
+            "The cavern opens around a luminous turquoise Mako spring, with glowing energy streaming through the rock.",
+            FieldOpcodeAddressResolver.OpcodeSplitIndex),
+        new(
+            323,
+            8,
+            1,
+            48,
+            "Cloud peers through the pod's small window and recoils from a malformed human shape suspended inside.",
+            FieldOpcodeAddressResolver.OpcodeRequestIndex),
+        new(
+            323,
+            9,
+            7,
+            236,
+            "A metal pod bursts open, spilling a twisted human-shaped creature onto the reactor floor.",
+            FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        new(
+            332,
+            5,
+            4,
+            3,
+            "The memory pauses. Back in the Kalm inn, Cloud's companions sit around him as he continues the story.",
+            FieldOpcodeAddressResolver.OpcodeRequestEwIndex),
+        new(
+            304,
+            0,
+            0,
+            66,
+            "In the mansion basement, Sephiroth sits alone at a circular library desk, reading research notes by lamplight."),
+        new(
+            290,
+            1,
+            1,
+            4,
+            "Nibelheim is ablaze. Flames pour from the houses as injured villagers lie across the square.",
+            FieldOpcodeAddressResolver.OpcodeSoundIndex),
+        new(
+            292,
+            1,
+            1,
+            22,
+            "Framed by the burning town, Sephiroth turns toward Cloud, then walks away through the flames with his sword in hand.",
+            FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        new(
+            292,
+            2,
+            1,
+            10,
+            "Framed by the burning town, Sephiroth turns toward Cloud, then walks away through the flames with his sword in hand.",
+            FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        new(
+            327,
+            0,
+            0,
+            290,
+            "Sephiroth tears away the metal figure covering Jenova's chamber. Cloud confronts him beneath the exposed form.",
+            FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        new(
+            332,
+            4,
+            0,
+            85,
+            "The flashback ends. Back at the Kalm inn, Cloud sits with the others, unable to remember how the confrontation ended.",
+            FieldOpcodeAddressResolver.OpcodeRequestEwIndex),
+        new(
+            343,
+            9,
+            1,
+            24,
+            "Four yellow chocobos line up and perform a lively synchronized dance.",
+            FieldOpcodeAddressResolver.OpcodeRequestIndex),
+        new(
+            348,
+            0,
+            0,
+            13,
+            "A gigantic Midgar Zolom hangs impaled high on a dead tree, its body twisted around the trunk.",
+            FieldOpcodeAddressResolver.OpcodeSplitIndex),
+        new(
+            349,
+            0,
+            0,
+            99,
+            "In the mine, Rude blocks the passage while Elena and Tseng stand behind him in dark blue Turk suits.",
+            FieldOpcodeAddressResolver.OpcodeRequestIndex),
+        new(
+            428,
+            5,
+            0,
+            142,
+            "The party enters Lower Junon, a dim fishing village beneath the towering Shinra fortress.",
+            FieldOpcodeAddressResolver.OpcodeRequestEwIndex),
+        new(
+            429,
+            2,
+            0,
+            117,
+            "A flying sea creature snatches Priscilla from the shore and drags her toward the water.",
+            FieldOpcodeAddressResolver.OpcodeRequestEwIndex),
+        new(
+            434,
+            1,
+            0,
+            9,
+            "After the fight, Priscilla lies motionless on the wet beach while the party gathers around her.",
+            FieldOpcodeAddressResolver.OpcodeRequestSwIndex),
+        new(
+            359,
+            0,
+            0,
+            79,
+            "The view sweeps from Lower Junon up the vast metal fortress to the Mako cannon and airfield above.",
+            FieldOpcodeAddressResolver.OpcodeMovieIndex)
     ];
 }
 

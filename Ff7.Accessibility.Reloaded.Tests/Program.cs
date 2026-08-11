@@ -94,6 +94,13 @@ if (args.Contains("--opening-movie-only", StringComparer.OrdinalIgnoreCase))
     return;
 }
 
+if (args.Contains("--kalm-junon-descriptions-only", StringComparer.OrdinalIgnoreCase))
+{
+    AssertFieldCutsceneDescriptionCatalogCoversKalmThroughLowerJunon();
+    Console.WriteLine("FFVII Kalm through Lower Junon description tests passed.");
+    return;
+}
+
 if (args.Contains("--menu-repeat-only", StringComparer.OrdinalIgnoreCase))
 {
     AssertOrderMenuSelectionReadsNativeRowsAndPendingMember();
@@ -419,6 +426,7 @@ AssertFieldCutsceneDescriptionCatalogCoversSector8EscapeActions();
 AssertFieldCutsceneDescriptionCatalogCoversTrainAndSector7();
 AssertFieldCutsceneDescriptionCatalogCoversReactor5AndAeris();
 AssertFieldCutsceneDescriptionCatalogCoversWallMarketThroughMotorcycleEscape();
+AssertFieldCutsceneDescriptionCatalogCoversKalmThroughLowerJunon();
 AssertFieldCutsceneDescriptionTrackerSpeaksExactCueOnce();
 AssertFieldCutsceneDescriptionTrackerRequiresCatalogedOpcode();
 AssertFieldCutsceneDescriptionTrackerResetsOnFieldReentry();
@@ -5657,6 +5665,75 @@ static void AssertFieldCutsceneDescriptionCatalogCoversWallMarketThroughMotorcyc
             true,
             nativeOpcodes.Any(opcode => opcode.ByteIndex == cue.ByteIndex && opcode.Opcode == cue.Opcode),
             $"late Midgar cue field={cue.FieldId} entity={cue.EntityId} script={cue.ScriptId} byte={cue.ByteIndex} must use its exact installed native opcode");
+    }
+}
+
+static void AssertFieldCutsceneDescriptionCatalogCoversKalmThroughLowerJunon()
+{
+    var cues = FieldCutsceneDescriptionCatalog.CreateKalmThroughLowerJunonDescriptions();
+    AssertEqual(25, cues.Count, "Kalm through Lower Junon cue count including native entry variants");
+    AssertEqual(
+        "277,279,282,290,292,304,311,312,313,318,323,327,332,343,348,349,359,428,429,434",
+        string.Join(',', cues.Select(cue => cue.FieldId).Distinct().Order()),
+        "Kalm through Lower Junon fields covered");
+    AssertEqual(cues.Count, cues.Select(cue => cue.Key).Distinct().Count(), "Kalm through Lower Junon cue keys must be unique");
+    AssertEqual(true, cues.All(cue => !string.IsNullOrWhiteSpace(cue.Text)), "Kalm through Lower Junon narration must not be blank");
+
+    AssertEqual(
+        "332:5:3:238:24;277:4:1:0:F1;279:2:1:4:03;282:8:1:48:03;282:11:13:32:F1;" +
+        "311:0:0:207:F9;312:10:3:106:F9;313:0:0:50:24;318:8:3:26:09;323:8:1:48:01;" +
+        "323:9:7:236:F9;332:5:4:3:03;304:0:0:66:24;290:1:1:4:F1;292:1:1:22:F9;" +
+        "292:2:1:10:F9;327:0:0:290:F9;332:4:0:85:03;343:9:1:24:01;348:0:0:13:09;" +
+        "349:0:0:99:01;428:5:0:142:03;429:2:0:117:03;434:1:0:9:02;359:0:0:79:F9",
+        string.Join(';', cues.Select(cue =>
+            $"{cue.FieldId}:{cue.EntityId}:{cue.ScriptId}:{cue.ByteIndex}:{cue.Opcode:X2}")),
+        "Kalm through Lower Junon exact native anchors and chronological order");
+
+    AssertContains(cues.Single(cue => cue.FieldId == 277).Text, "Shinra truck");
+    AssertContains(cues.Single(cue => cue.FieldId == 282 && cue.EntityId == 8).Text, "cowboy hat");
+    AssertContains(cues.Single(cue => cue.FieldId == 311).Text, "Mt. Nibel");
+    AssertContains(cues.Single(cue => cue.FieldId == 312).Text, "rope bridge");
+    AssertContains(cues.Single(cue => cue.FieldId == 318).Text, "Mako spring");
+    AssertContains(cues.Single(cue => cue.FieldId == 323 && cue.EntityId == 9).Text, "pod");
+    AssertContains(cues.Single(cue => cue.FieldId == 304).Text, "library desk");
+    AssertEqual(2, cues.Count(cue => cue.FieldId == 292), "both Nibelheim fire movie entry variants must be covered");
+    AssertContains(cues.Single(cue => cue.FieldId == 327).Text, "Jenova");
+    AssertContains(cues.Single(cue => cue.FieldId == 343).Text, "chocobos");
+    AssertContains(cues.Single(cue => cue.FieldId == 348).Text, "impaled");
+    AssertContains(cues.Single(cue => cue.FieldId == 349).Text, "Turk suits");
+    AssertContains(cues.Single(cue => cue.FieldId == 428).Text, "Lower Junon");
+    AssertContains(cues.Single(cue => cue.FieldId == 429).Text, "Priscilla");
+    AssertContains(cues.Single(cue => cue.FieldId == 434).Text, "motionless");
+    AssertContains(cues.Single(cue => cue.FieldId == 359).Text, "Mako cannon");
+
+    var allEarlyCues = FieldCutsceneDescriptionCatalog.CreateEarlyGameDescriptions();
+    AssertEqual(
+        allEarlyCues.Count,
+        allEarlyCues.Select(cue => cue.Key).Distinct().Count(),
+        "the complete shared cutscene catalog must keep globally unique native keys");
+    _ = new FieldCutsceneDescriptionTracker(allEarlyCues);
+    AssertEqual(
+        cues.Count,
+        allEarlyCues.Count(cue => cues.Select(candidate => candidate.Key).Contains(cue.Key)),
+        "the shared early-game catalog must include every Kalm through Lower Junon cue once");
+    AssertEqual(
+        1,
+        allEarlyCues.Count(cue =>
+            cue.FieldId == 322 &&
+            cue.EntityId == 6 &&
+            cue.ScriptId == 3 &&
+            cue.ByteIndex == 104 &&
+            cue.Text.Contains("seizes Sephiroth's sword", StringComparison.Ordinal)),
+        "the already shared Tifa reactor action must remain covered without a duplicate key");
+
+    var nativeCatalog = new FieldScriptNavigationCatalog(FindGameRoot());
+    foreach (var cue in cues)
+    {
+        var nativeOpcodes = nativeCatalog.ReadScriptOpcodes(cue.FieldId, cue.EntityId, cue.ScriptId);
+        AssertEqual(
+            true,
+            nativeOpcodes.Any(opcode => opcode.ByteIndex == cue.ByteIndex && opcode.Opcode == cue.Opcode),
+            $"Kalm/Junon cue field={cue.FieldId} entity={cue.EntityId} script={cue.ScriptId} byte={cue.ByteIndex} must use its exact installed vanilla opcode");
     }
 }
 
