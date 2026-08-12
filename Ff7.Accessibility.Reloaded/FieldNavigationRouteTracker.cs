@@ -68,6 +68,8 @@ public sealed class FieldNavigationRouteTracker
     private bool obstacleRecoveryReady;
     private int obstacleRecoveryAttempt;
     private FieldNavigationRouteWaypoint? obstacleRecoveryWaypoint;
+    private FieldNavigationRouteWaypoint obstacleRecoveryOrigin;
+    private double obstacleRecoveryInitialDistance;
     private DateTime? obstacleRecoveryLastProgressAt;
 
     public FieldNavigationRouteTracker(IFieldNavigationRoutePlanner planner)
@@ -183,7 +185,11 @@ public sealed class FieldNavigationRouteTracker
 
         var previousPosition = lastPosition;
         lastPosition = position;
-        UpdateObstacleRecoveryState(previousPosition, position, movement, observedAt);
+        UpdateObstacleRecoveryState(
+            previousPosition,
+            position,
+            movement,
+            observedAt);
 
         if (HasTargetMoved(plan, target))
         {
@@ -371,6 +377,10 @@ public sealed class FieldNavigationRouteTracker
                 if (obstacleRecoveryWaypoint != recoveryWaypoint)
                 {
                     obstacleRecoveryWaypoint = recoveryWaypoint;
+                    obstacleRecoveryOrigin = ToWaypoint(position);
+                    obstacleRecoveryInitialDistance = Distance(
+                        obstacleRecoveryOrigin,
+                        recoveryWaypoint);
                     obstacleRecoveryLastProgressAt = observedAt;
                     ResetBlockedMovementEvidence();
                 }
@@ -508,6 +518,8 @@ public sealed class FieldNavigationRouteTracker
         ResetBlockedMovementEvidence();
         obstacleRecoveryAttempt = 0;
         obstacleRecoveryWaypoint = null;
+        obstacleRecoveryOrigin = default;
+        obstacleRecoveryInitialDistance = 0d;
         obstacleRecoveryLastProgressAt = null;
     }
 
@@ -1047,8 +1059,10 @@ public sealed class FieldNavigationRouteTracker
         FieldNavigationMovementObservation movement,
         DateTime observedAt)
     {
+        var current = ToWaypoint(position);
         if (obstacleRecoveryWaypoint is { } recovery &&
-            Distance(ToWaypoint(position), recovery) <= ObstacleRecoveryArrivalDistance)
+            Distance(current, recovery) <= GetObstacleRecoveryArrivalDistance() &&
+            Distance(obstacleRecoveryOrigin, current) >= BlockedProgressDistance)
         {
             ClearObstacleRecovery(resetAttempt: true);
             ResetBlockedMovementEvidence();
@@ -1128,7 +1142,6 @@ public sealed class FieldNavigationRouteTracker
             return;
         }
 
-        var current = ToWaypoint(position);
         if (blockedMovementSince is not null &&
             (movement.IsMoving ||
              Distance(blockedMovementOrigin, current) >= BlockedProgressDistance))
@@ -1168,6 +1181,12 @@ public sealed class FieldNavigationRouteTracker
             observedAt - blockedMovementSince.Value >= BlockedDurationBeforeRecovery;
     }
 
+    private double GetObstacleRecoveryArrivalDistance() =>
+        Math.Clamp(
+            obstacleRecoveryInitialDistance * 0.35d,
+            BlockedProgressDistance,
+            ObstacleRecoveryArrivalDistance);
+
     private void BeginBlockedMovementEvidence(
         FieldNavigationRouteWaypoint position,
         FieldNavigationInput input,
@@ -1194,6 +1213,8 @@ public sealed class FieldNavigationRouteTracker
     private void ClearObstacleRecovery(bool resetAttempt)
     {
         obstacleRecoveryWaypoint = null;
+        obstacleRecoveryOrigin = default;
+        obstacleRecoveryInitialDistance = 0d;
         obstacleRecoveryLastProgressAt = null;
         if (resetAttempt)
         {

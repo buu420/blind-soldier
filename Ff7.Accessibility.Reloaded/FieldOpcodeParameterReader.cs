@@ -6,6 +6,7 @@ public sealed class FieldOpcodeAddressResolver
     public const int ExecuteOpcodeCallOffset = 0x80;
     public const int ExecuteOpcodeTableOffset = 0x10D;
     public const int AskUpdateLoopCallOffset = 0x8E;
+    private const int FfnxAskWrapperScanLength = 0x340;
     public const int OpcodeWaitIndex = 0x24;
     public const int OpcodeTimerIndex = 0x38;
     public const int OpcodeMessageIndex = 0x40;
@@ -128,23 +129,110 @@ public sealed class FieldOpcodeAddressResolver
             return false;
         }
 
-        var hasAskUpdateLoop = TryResolveRelativeCall(
-            askOpcodeAddress + AskUpdateLoopCallOffset,
-            out var askUpdateLoopAddress);
+        var hasAskUpdateLoop = TryResolveAskUpdateLoop(
+            askOpcodeAddress,
+            out var askUpdateLoopAddress,
+            out var askUpdateDiagnostic);
         if (!hasAskUpdateLoop)
         {
             askUpdateLoopAddress = 0;
         }
 
-        var askUpdateDiagnostic = hasAskUpdateLoop
-            ? $"askUpdate=0x{askUpdateLoopAddress:X8}"
-            : $"ASK cursor helper unavailable at legacy offset 0x{askOpcodeAddress + AskUpdateLoopCallOffset:X8}";
         result = new FieldOpcodeMessageHookResolution(
             messageOpcodeAddress,
             askOpcodeAddress,
             askUpdateLoopAddress,
             $"{diagnostic}, {askUpdateDiagnostic}");
         return true;
+    }
+
+    private bool TryResolveAskUpdateLoop(
+        int askOpcodeAddress,
+        out int askUpdateLoopAddress,
+        out string diagnostic)
+    {
+        if (TryResolveRelativeCall(
+                askOpcodeAddress + AskUpdateLoopCallOffset,
+                out askUpdateLoopAddress))
+        {
+            diagnostic = $"askUpdate=0x{askUpdateLoopAddress:X8} from live ASK handler";
+            return true;
+        }
+
+        if (TryResolveFfnxVoiceAskWrapper(
+                askOpcodeAddress,
+                out var originalAskOpcodeAddress,
+                out var originalAskPointerSlot) &&
+            TryResolveRelativeCall(
+                originalAskOpcodeAddress + AskUpdateLoopCallOffset,
+                out askUpdateLoopAddress))
+        {
+            diagnostic =
+                $"askUpdate=0x{askUpdateLoopAddress:X8} through FFNx voice wrapper " +
+                $"(originalAsk=0x{originalAskOpcodeAddress:X8}, pointerSlot=0x{originalAskPointerSlot:X8})";
+            return true;
+        }
+
+        askUpdateLoopAddress = 0;
+        diagnostic =
+            $"ASK cursor helper unavailable at live handler offset 0x{askOpcodeAddress + AskUpdateLoopCallOffset:X8}";
+        return false;
+    }
+
+    private bool TryResolveFfnxVoiceAskWrapper(
+        int askOpcodeAddress,
+        out int originalAskOpcodeAddress,
+        out int originalAskPointerSlot)
+    {
+        // FFNx's opcode_voice_ask ends by forwarding its original argument to
+        // opcode_old_ask through a global function-pointer slot:
+        //   push [ebp+8]; mov [eax+8],bl; mov eax,[slot]; call eax;
+        //   add esp,4; pop edi; pop esi; pop ebx; mov esp,ebp; pop ebp; ret
+        // Locate that bounded, validated tail instead of assuming the live ASK
+        // table entry is still the game's original handler.
+        for (var offset = 0; offset <= FfnxAskWrapperScanLength - 23; offset++)
+        {
+            var candidate = askOpcodeAddress + offset;
+            if (readByte(candidate) != 0xFF ||
+                readByte(candidate + 1) != 0x75 ||
+                readByte(candidate + 2) != 0x08 ||
+                readByte(candidate + 3) != 0x88 ||
+                readByte(candidate + 4) != 0x58 ||
+                readByte(candidate + 5) != 0x08 ||
+                readByte(candidate + 6) != 0xA1 ||
+                readByte(candidate + 11) != 0xFF ||
+                readByte(candidate + 12) != 0xD0 ||
+                readByte(candidate + 13) != 0x83 ||
+                readByte(candidate + 14) != 0xC4 ||
+                readByte(candidate + 15) != 0x04 ||
+                readByte(candidate + 16) != 0x5F ||
+                readByte(candidate + 17) != 0x5E ||
+                readByte(candidate + 18) != 0x5B ||
+                readByte(candidate + 19) != 0x8B ||
+                readByte(candidate + 20) != 0xE5 ||
+                readByte(candidate + 21) != 0x5D ||
+                readByte(candidate + 22) != 0xC3)
+            {
+                continue;
+            }
+
+            var pointerSlot = readInt32(candidate + 7);
+            var originalAsk = IsPlausibleCodeAddress(pointerSlot)
+                ? readInt32(pointerSlot)
+                : 0;
+            if (!IsPlausibleCodeAddress(originalAsk) || originalAsk == askOpcodeAddress)
+            {
+                continue;
+            }
+
+            originalAskOpcodeAddress = originalAsk;
+            originalAskPointerSlot = pointerSlot;
+            return true;
+        }
+
+        originalAskOpcodeAddress = 0;
+        originalAskPointerSlot = 0;
+        return false;
     }
 
     public bool TryResolveOpcodeHandlers(

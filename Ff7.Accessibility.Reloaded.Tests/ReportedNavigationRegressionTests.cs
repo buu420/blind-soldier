@@ -210,9 +210,9 @@ internal static class ReportedNavigationRegressionTests
         AssertOnlyStory(reader, Position(245, 250, 0, 0),
             "Open coupon route door 3 of 3", "after collecting B Coupon");
 
-        memory[PersistentBank(175)] = 0x08;
+        memory[PersistentBank(175)] = 0x80;
         AssertOnlyStory(reader, Position(245, 0, 0, 0),
-            "Collect the C Coupon", "after opening D12");
+            "Collect the C Coupon", "after opening D16");
 
         memory[PersistentBank(177)] = 0x1E;
         AssertStoryContains(reader, Position(245, -200, 100, 0),

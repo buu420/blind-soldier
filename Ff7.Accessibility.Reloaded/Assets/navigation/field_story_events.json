@@ -4546,8 +4546,8 @@
                             "requiredCondition":  {
                                                       "bank":  3,
                                                       "address":  175,
-                                                      "mask":  8,
-                                                      "value":  8
+                                                      "mask":  128,
+                                                      "value":  128
                                                   },
                             "completedCondition":  {
                                                        "bank":  3,
@@ -4619,15 +4619,15 @@
                             "kind":  "Location",
                             "label":  "Open coupon route door 3 of 3",
                             "entityId":  -1,
-                            "x":  10,
-                            "y":  -42,
+                            "x":  -148,
+                            "y":  -356,
                             "z":  0,
                             "targetGameMoment":  264,
                             "minimumGameMoment":  263,
                             "maximumGameMoment":  263,
                             "priority":  -1,
                             "sourceFieldName":  "blin63_1",
-                            "sourceEntityName":  "D12",
+                            "sourceEntityName":  "D16",
                             "sourceScriptType":  "[OK]",
                             "completesOnArrival":  false,
                             "requiredCondition":  {
@@ -4639,8 +4639,8 @@
                             "completedCondition":  {
                                                        "bank":  3,
                                                        "address":  175,
-                                                       "mask":  8,
-                                                       "value":  8
+                                                       "mask":  128,
+                                                       "value":  128
                                                    }
                         },
                         {

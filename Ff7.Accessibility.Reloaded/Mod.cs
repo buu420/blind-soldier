@@ -5852,8 +5852,8 @@ public sealed class Mod : IModV1, IModV2
         if (!resolution.HasAskUpdateLoop)
         {
             Log(
-                "Native ASK cursor helper was not installed because the live FFNx handler moved it; " +
-                "the existing exact choice polling fallback remains active.");
+                "Native ASK cursor helper was not installed because the live handler layout is unknown; " +
+                "visible-window polling can read the question and options but cannot identify the highlighted choice.");
             return;
         }
 

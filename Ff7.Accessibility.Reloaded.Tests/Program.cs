@@ -18,6 +18,7 @@ if (args.Contains("--7h-compatibility-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.LegacyStartupDiagnosticsTests.Run();
     AssertFieldOpcodeAddressResolverKeepsMessageHooksWhenFfnxAskLayoutMoves();
+    AssertFieldOpcodeAddressResolverFindsAskCursorThroughFfnxVoiceWrapper();
     Console.WriteLine("7th Heaven startup diagnostics tests passed.");
     return;
 }
@@ -64,6 +65,13 @@ if (args.Contains("--wall-market-squat-only", StringComparer.OrdinalIgnoreCase))
 if (args.Contains("--auto-walk-only", StringComparer.OrdinalIgnoreCase))
 {
     NavigationAutoWalkControllerTests.Run();
+    AssertFieldCorridorLookaheadCreatesObstacleRecoverySideStep();
+    AssertFieldCorridorLookaheadAvoidsLiveModelCollision();
+    AssertFieldNavigationRouteTrackerKeepsObstacleRecoveryUntilClear();
+    AssertFieldNavigationRouteTrackerDoesNotDiscardShortRecoveryBeforeMovement();
+    AssertFieldNavigationRouteTrackerRetainsBlockedEvidenceAcrossDirectionChanges();
+    AssertFieldNavigationRouteTrackerTreatsQuantizedWalkingAsProgress();
+    AssertFieldNavigationRouteTrackerAbandonsRecoveryWhenRouteProgressResumes();
     AssertFieldStoryCatalogAdvancesThroughTrainGraveyardTrainPositions();
     Console.WriteLine("FFVII auto-walk and Train Graveyard navigation tests passed.");
     return;
@@ -159,6 +167,7 @@ if (args.Contains("--kalm-ranch-navigation-only", StringComparer.OrdinalIgnoreCa
 
 if (args.Contains("--reported-navigation-regressions-only", StringComparer.OrdinalIgnoreCase))
 {
+    AssertFloor63CouponRouteUsesNativeDoorAndCouponState();
     Ff7.Accessibility.Reloaded.Tests.ReportedNavigationRegressionTests.Run();
     Console.WriteLine("FFVII reported navigation and encounter regression tests passed.");
     return;
@@ -435,6 +444,7 @@ AssertFieldOpcodeAddressResolverRemainsBackendSpecific();
 AssertFieldOpcodeAddressResolverFollowsFfnxReplacementHandler();
 AssertFieldOpcodeAddressResolverRefreshesCutsceneHandlersAfterAskHook();
 AssertFieldOpcodeAddressResolverKeepsMessageHooksWhenFfnxAskLayoutMoves();
+AssertFieldOpcodeAddressResolverFindsAskCursorThroughFfnxVoiceWrapper();
 AssertFieldOpcodeAddressResolverResolvesArbitraryHandlers();
 AssertFieldOpcodeHookTargetTrackerInstallsEachNativeHandlerOnce();
 AssertFieldOpcodeParameterReaderReadsMessageParameters();
@@ -683,6 +693,7 @@ AssertFieldNavigationRouteProgressStaysOnCommittedPortalWhenNeighborTriangleIsUn
 AssertFieldNavigationRouteTrackerKeepsStableWaypointWithinTriangle();
 AssertFieldNavigationRouteTrackerRetainsClearParallelLane();
 AssertFieldNavigationRouteTrackerKeepsObstacleRecoveryUntilClear();
+AssertFieldNavigationRouteTrackerDoesNotDiscardShortRecoveryBeforeMovement();
 AssertFieldNavigationRouteTrackerRetainsBlockedEvidenceAcrossDirectionChanges();
 AssertFieldNavigationRouteTrackerTreatsQuantizedWalkingAsProgress();
 AssertFieldNavigationRouteTrackerAbandonsRecoveryWhenRouteProgressResumes();
@@ -5166,6 +5177,74 @@ static void AssertFieldOpcodeAddressResolverKeepsMessageHooksWhenFfnxAskLayoutMo
         "moved FFNx ASK cursor helper is optional for MESSAGE accessibility");
 }
 
+static void AssertFieldOpcodeAddressResolverFindsAskCursorThroughFfnxVoiceWrapper()
+{
+    var memory = new Dictionary<int, int>();
+    var bytes = new Dictionary<int, byte>();
+    const int executeOpcode = 0x00618000;
+    const int opcodeTable = 0x00990000;
+    const int messageOpcode = 0x11234040;
+    const int ffnxAskWrapper = 0x11234048;
+    const int ffnxAskWrapperTail = ffnxAskWrapper + 0x2E0;
+    const int originalAskPointerSlot = 0x121152EC;
+    const int originalAskOpcode = 0x00631000;
+    const int ffnxAskOptionParser = 0x11235500;
+
+    WriteRelativeCall(
+        bytes,
+        memory,
+        FieldOpcodeAddressResolver.AddressFieldInitEvent + FieldOpcodeAddressResolver.ExecuteOpcodeCallOffset,
+        executeOpcode);
+    memory[executeOpcode + FieldOpcodeAddressResolver.ExecuteOpcodeTableOffset] = opcodeTable;
+    memory[opcodeTable + FieldOpcodeAddressResolver.OpcodeMessageIndex * sizeof(int)] = messageOpcode;
+    memory[opcodeTable + FieldOpcodeAddressResolver.OpcodeAskIndex * sizeof(int)] = ffnxAskWrapper;
+
+    // FFNx 1.24.3's opcode_voice_ask tail pushes the original argument and
+    // calls opcode_old_ask through a global function-pointer slot.
+    bytes[ffnxAskWrapperTail] = 0xFF;
+    bytes[ffnxAskWrapperTail + 1] = 0x75;
+    bytes[ffnxAskWrapperTail + 2] = 0x08;
+    bytes[ffnxAskWrapperTail + 3] = 0x88;
+    bytes[ffnxAskWrapperTail + 4] = 0x58;
+    bytes[ffnxAskWrapperTail + 5] = 0x08;
+    bytes[ffnxAskWrapperTail + 6] = 0xA1;
+    memory[ffnxAskWrapperTail + 7] = originalAskPointerSlot;
+    bytes[ffnxAskWrapperTail + 11] = 0xFF;
+    bytes[ffnxAskWrapperTail + 12] = 0xD0;
+    bytes[ffnxAskWrapperTail + 13] = 0x83;
+    bytes[ffnxAskWrapperTail + 14] = 0xC4;
+    bytes[ffnxAskWrapperTail + 15] = 0x04;
+    bytes[ffnxAskWrapperTail + 16] = 0x5F;
+    bytes[ffnxAskWrapperTail + 17] = 0x5E;
+    bytes[ffnxAskWrapperTail + 18] = 0x5B;
+    bytes[ffnxAskWrapperTail + 19] = 0x8B;
+    bytes[ffnxAskWrapperTail + 20] = 0xE5;
+    bytes[ffnxAskWrapperTail + 21] = 0x5D;
+    bytes[ffnxAskWrapperTail + 22] = 0xC3;
+    memory[originalAskPointerSlot] = originalAskOpcode;
+    WriteRelativeCall(
+        bytes,
+        memory,
+        originalAskOpcode + FieldOpcodeAddressResolver.AskUpdateLoopCallOffset,
+        ffnxAskOptionParser);
+
+    var resolver = new FieldOpcodeAddressResolver(
+        address => memory.TryGetValue(address, out var value) ? value : 0,
+        address => bytes.TryGetValue(address, out var value) ? value : (byte)0);
+
+    AssertEqual(
+        true,
+        resolver.TryResolveMessageHooks(out var resolution),
+        "FFNx-wrapped ASK handler should remain hookable");
+    AssertEqual(messageOpcode, resolution.MessageOpcodeAddress, "FFNx MESSAGE handler address");
+    AssertEqual(ffnxAskWrapper, resolution.AskOpcodeAddress, "FFNx ASK wrapper address");
+    AssertEqual(
+        ffnxAskOptionParser,
+        resolution.AskUpdateLoopAddress,
+        "FFNx option parser must supply the live highlighted choice");
+    AssertEqual(true, resolution.HasAskUpdateLoop, "FFNx ASK cursor helper should resolve through opcode_old_ask");
+}
+
 static void AssertFieldOpcodeAddressResolverResolvesArbitraryHandlers()
 {
     var memory = new Dictionary<int, int>();
@@ -8857,18 +8936,19 @@ static void AssertFloor63CouponRouteUsesNativeDoorAndCouponState()
 
     var thirdDoor = definitions.Single(definition =>
         definition.Label == "Coupon route door 3 of 3, between B and C Coupon rooms");
-    AssertEqual(10, thirdDoor.StaticX, "third coupon door approach x");
-    AssertEqual(-42, thirdDoor.StaticY, "third coupon door approach y");
+    AssertEqual(-148, thirdDoor.StaticX, "third coupon door approach x");
+    AssertEqual(-356, thirdDoor.StaticY, "third coupon door approach y");
     AssertEqual(177, thirdDoor.RequiredAddress, "third coupon door requires B Coupon");
     AssertEqual((byte)0x08, thirdDoor.RequiredMask, "third coupon door B Coupon mask");
     AssertEqual((byte)0x08, thirdDoor.RequiredValue, "third coupon door B Coupon value");
     AssertEqual(175, thirdDoor.CollectedAddress, "third coupon door open address");
-    AssertEqual((byte)0x08, thirdDoor.CollectedMask, "native D12 open bit");
+    AssertEqual((byte)0x80, thirdDoor.CollectedMask, "native D16 open bit");
+    AssertEqual("D16", thirdDoor.SourceEntityName, "third coupon door native entity");
 
     var cCoupon = definitions.Single(definition => definition.Label == "C Coupon");
-    AssertEqual(175, cCoupon.RequiredAddress, "C Coupon requires D12 to be open");
-    AssertEqual((byte)0x08, cCoupon.RequiredMask, "C Coupon D12 mask");
-    AssertEqual((byte)0x08, cCoupon.RequiredValue, "C Coupon D12 value");
+    AssertEqual(175, cCoupon.RequiredAddress, "C Coupon requires D16 to be open");
+    AssertEqual((byte)0x80, cCoupon.RequiredMask, "C Coupon D16 mask");
+    AssertEqual((byte)0x80, cCoupon.RequiredValue, "C Coupon D16 value");
 
     var bDuct = definitions.Single(definition => definition.Label == "B Coupon room duct entrance");
     AssertEqual(177, bDuct.RequiredAddress, "return duct requires all coupons");
@@ -8930,13 +9010,13 @@ static void AssertFloor63CouponRouteUsesNativeDoorAndCouponState()
     AssertEqual(
         "Coupon route door 3 of 3, between B and C Coupon rooms",
         string.Join("|", objectReader.ReadTargets(position).Select(target => target.Label)),
-        "B Coupon should expose D12 as the final route door");
+        "B Coupon should expose D16 as the final route door");
 
-    memory[FieldNavigationObjectReader.AddressFieldBankBase + 0x100 + 175] = 0x08;
+    memory[FieldNavigationObjectReader.AddressFieldBankBase + 0x100 + 175] = 0x80;
     AssertEqual(
         string.Empty,
         string.Join("|", objectReader.ReadTargets(position).Select(target => target.Label)),
-        "opening D12 should complete the three-door route");
+        "opening D16 should complete the three-door route");
 
     int[] allDoorBoundaryTriangles =
     [
@@ -9005,6 +9085,63 @@ static void AssertFloor63CouponRouteUsesNativeDoorAndCouponState()
             out _,
             out _),
         "after D2 and D4 open, A Coupon must be reachable with every other door still locked");
+
+    AssertEqual(
+        true,
+        FieldWalkmeshPathfinder.TryBuildRoute(
+            walkmesh,
+            164,
+            302,
+            -31,
+            -10,
+            -148,
+            -356,
+            0,
+            d2AndD4Open.Contains,
+            out _,
+            out _,
+            out _),
+        "after B Coupon, native D16's B-room approach must be reachable while every unrelated door remains locked");
+    AssertEqual(
+        false,
+        FieldWalkmeshPathfinder.TryBuildRoute(
+            walkmesh,
+            154,
+            -148,
+            -356,
+            0,
+            -274,
+            83,
+            0,
+            d2AndD4Open.Contains,
+            out _,
+            out _,
+            out _),
+        "Coupon C must remain unreachable while native D16 triangles 310 and 311 are locked");
+
+    var d2D4AndD16Open = d2AndD4Open
+        .Where(triangle => triangle is not 310 and not 311)
+        .ToHashSet();
+    AssertEqual(
+        true,
+        FieldWalkmeshPathfinder.TryBuildRoute(
+            walkmesh,
+            154,
+            -148,
+            -356,
+            0,
+            -274,
+            83,
+            0,
+            d2D4AndD16Open.Contains,
+            out var cCouponRoute,
+            out _,
+            out _),
+        "opening native D16 must make Coupon C reachable while every unrelated door remains locked");
+    AssertEqual(
+        true,
+        cCouponRoute.Contains(310) && cCouponRoute.Contains(311),
+        "the verified Coupon C route must cross D16's native boundary triangles");
 }
 
 static void AssertFieldNavigationObjectCatalogUsesExplicitSavePointKind()
@@ -17776,6 +17913,94 @@ static void AssertFieldNavigationRouteTrackerKeepsObstacleRecoveryUntilClear()
         resumed.Waypoint.X,
         "resumed guidance should continue the original heading instead of extending the side-step");
     AssertEqual(true, resumed.Waypoint.Y > cleared.Y, "resumed route should continue north");
+}
+
+static void AssertFieldNavigationRouteTrackerDoesNotDiscardShortRecoveryBeforeMovement()
+{
+    var planner = new ShortRecoveryRoutePlanner();
+    var tracker = new FieldNavigationRouteTracker(planner);
+    var target = new FieldNavigationTarget(
+        900,
+        FieldNavigationCategory.Exits,
+        "North exit",
+        0,
+        200,
+        0,
+        "exit:short-recovery");
+    var position = new FieldPositionSnapshot(1, 900, 0, 0, 0, 0, 0, 0);
+    var blocked = new FieldNavigationMovementObservation(
+        true,
+        false,
+        FieldNavigationInput.Up,
+        0,
+        0,
+        0,
+        "directional input was blocked or stationary");
+    var observedAt = new DateTime(2026, 8, 12, 14, 0, 0, DateTimeKind.Utc);
+
+    AssertEqual(true, tracker.TryStart(position, target, out _), "short-recovery route should start");
+    FieldNavigationRouteGuidance recovery = default;
+    for (var sample = 1; sample <= 8; sample++)
+    {
+        AssertEqual(
+            true,
+            tracker.TryUpdate(
+                position,
+                target,
+                blocked,
+                observedAt.AddMilliseconds(sample * 200),
+                out recovery),
+            $"short blocked sample {sample} should retain guidance");
+    }
+
+    AssertContains(recovery.Diagnostic, "lookahead=obstacle-recovery");
+    AssertEqual(
+        true,
+        Math.Sqrt(
+            Math.Pow(recovery.Waypoint.X - position.X, 2) +
+            Math.Pow(recovery.Waypoint.Y - position.Y, 2)) < 36d,
+        "the regression fixture must reproduce the live sub-36-unit recovery point");
+
+    AssertEqual(
+        true,
+        tracker.TryUpdate(
+            position,
+            target,
+            blocked,
+            observedAt.AddMilliseconds(1800),
+            out var retained),
+        "a stationary sample must retain the short recovery waypoint");
+    AssertEqual(
+        recovery.Waypoint,
+        retained.Waypoint,
+        "a short recovery point must not be treated as reached before Cloud actually moves");
+    AssertContains(retained.Diagnostic, "lookahead=obstacle-recovery");
+
+    var cleared = position with
+    {
+        X = recovery.Waypoint.X - 2,
+        Y = recovery.Waypoint.Y - 2
+    };
+    var clearingMovement = new FieldNavigationMovementObservation(
+        true,
+        true,
+        FieldNavigationInput.UpRight,
+        cleared.X - position.X,
+        cleared.Y - position.Y,
+        Math.Sqrt(Math.Pow(cleared.X - position.X, 2) + Math.Pow(cleared.Y - position.Y, 2)),
+        "moved through short recovery point");
+    AssertEqual(
+        true,
+        tracker.TryUpdate(
+            cleared,
+            target,
+            clearingMovement,
+            observedAt.AddMilliseconds(1900),
+            out var rebuilt),
+        "clearing the short recovery point should retain navigation");
+    AssertEqual(false, rebuilt.Replanned, "clearing an obstacle should retain the shared route identity");
+    AssertContains(rebuilt.Diagnostic, "lookahead=heading-held");
+    AssertEqual(1, planner.BuildCount, "manual and automatic guidance should keep the same recovered route");
 }
 
 static void AssertFieldNavigationRouteTrackerRetainsBlockedEvidenceAcrossDirectionChanges()
@@ -26818,6 +27043,84 @@ static string FindRepositoryRoot()
 
     throw new DirectoryNotFoundException(
         "Could not locate the Blind Soldier repository root.");
+}
+
+sealed class ShortRecoveryRoutePlanner :
+    IFieldNavigationRoutePlanner,
+    IFieldNavigationCorridorLookaheadPlanner
+{
+    private static readonly FieldNavigationRouteWaypoint Destination = new(0, 200, 0);
+    private static readonly FieldNavigationRouteWaypoint Recovery = new(24, 16, 0);
+
+    public int BuildCount { get; private set; }
+
+    public string LastDiagnostic { get; private set; } = string.Empty;
+
+    public bool TryResolvePlayerTriangle(FieldPositionSnapshot position, out int triangle)
+    {
+        triangle = 0;
+        return position.FieldId == 900;
+    }
+
+    public bool TryBuildRoute(
+        FieldPositionSnapshot position,
+        FieldNavigationTarget target,
+        out FieldNavigationRoutePlan plan)
+    {
+        BuildCount++;
+        plan = new FieldNavigationRoutePlan(
+            900,
+            "900:exit:short-recovery",
+            [0],
+            Array.Empty<FieldNavigationRoutePortal>(),
+            Destination,
+            0,
+            StableWaypointsOverride:
+            [
+                new FieldNavigationRouteStep(Destination, 0)
+            ]);
+        LastDiagnostic = "short recovery fixture";
+        return position.FieldId == 900 && target.FieldId == 900;
+    }
+
+    public bool TryGetNextWaypoint(
+        FieldPositionSnapshot position,
+        FieldNavigationTarget target,
+        out FieldNavigationRouteWaypoint waypoint)
+    {
+        waypoint = Destination;
+        return position.FieldId == 900 && target.FieldId == 900;
+    }
+
+    public bool TryObserveCorridor(
+        FieldPositionSnapshot position,
+        FieldNavigationRoutePlan plan,
+        IReadOnlyList<FieldNavigationRouteStep> stableWaypoints,
+        int waypointIndex,
+        FieldNavigationRouteAction? nextAction,
+        FieldNavigationRouteHeading heading,
+        out FieldNavigationCorridorObservation observation)
+    {
+        var recovering = heading.IsBlocked || heading.RecoveryWaypoint is not null;
+        observation = recovering
+            ? new FieldNavigationCorridorObservation(
+                0,
+                heading.RecoveryWaypoint ?? Recovery,
+                0,
+                FieldNavigationLookaheadMode.ObstacleRecovery,
+                false,
+                heading.RecoveryWaypoint is null
+                    ? "lookahead=obstacle-recovery, short fixture"
+                    : "lookahead=obstacle-recovery, active, short fixture")
+            : new FieldNavigationCorridorObservation(
+                0,
+                Destination,
+                0,
+                FieldNavigationLookaheadMode.HeadingHeld,
+                true,
+                "lookahead=heading-held, short fixture");
+        return true;
+    }
 }
 
 sealed class FixedPortalRoutePlanner : IFieldNavigationRoutePlanner
