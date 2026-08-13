@@ -12,6 +12,7 @@ internal static class Steam2026InGameMenuSpeechBridgeTests
     internal static void Run()
     {
         ReadsGenericRenderedSelection();
+        ReadsNativeOrderRowsAndPendingSwap();
         ReadsScriptedReformPartySelection();
         ReformValidationDoesNotAlternateWithTranslatedInstruction();
         ReadsNativeMagicAndPartySelections();
@@ -59,6 +60,63 @@ internal static class Steam2026InGameMenuSpeechBridgeTests
             bridge.Poll(now),
             "generic menu selection uses correlated native text and help");
         Equal(null, bridge.Poll(now), "stable generic menu selection does not repeat");
+    }
+
+    private static void ReadsNativeOrderRowsAndPendingSwap()
+    {
+        var memory = new Memory();
+        var partyBase = SavemapPartyReader.AddressSavemap + SavemapPartyReader.PartyMembersOffset;
+        var cloudBase = SavemapPartyReader.AddressSavemap + SavemapPartyReader.CharactersOffset;
+        var barretBase = cloudBase + SavemapPartyReader.CharacterSize;
+        memory.WriteByte((uint)partyBase, 0);
+        memory.WriteByte((uint)(partyBase + 1), 1);
+        memory.Write(
+            (uint)(cloudBase + SavemapPartyReader.CharacterNameOffset),
+            [0x21, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]);
+        memory.Write(
+            (uint)(barretBase + SavemapPartyReader.CharacterNameOffset),
+            [0x22, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]);
+        memory.WriteByte((uint)(cloudBase + SavemapPartyReader.RowFlagsOffset), 1);
+        memory.WriteByte((uint)(barretBase + SavemapPartyReader.RowFlagsOffset), 0);
+        memory.WriteInt32(OrderMenuSelectionReader.AddressSelectionLatch, 0);
+        memory.WriteByte((uint)OrderMenuSelectionReader.AddressSelectedPartySlot, 0);
+
+        var bridge = new Steam2026InGameMenuSpeechBridge(CreateMenuReader(memory));
+        var now = UtcNow();
+        var sequence = 0L;
+
+        ObserveWidget(
+            bridge,
+            ref sequence,
+            now,
+            "Order party",
+            MenuWidgetKind.CharacterList,
+            first: 0,
+            cursor: 0,
+            columns: 1,
+            rows: 3,
+            widgetIdentity: OrderMenuSelectionReader.OrderPartyWidget);
+        Equal(
+            "A, front row",
+            bridge.Poll(now),
+            "normal x64 Order exposes the highlighted member's native battle row");
+
+        memory.WriteInt32(OrderMenuSelectionReader.AddressSelectionLatch, 1);
+        ObserveWidget(
+            bridge,
+            ref sequence,
+            now.AddMilliseconds(16),
+            "Order party",
+            MenuWidgetKind.CharacterList,
+            first: 0,
+            cursor: 1,
+            columns: 1,
+            rows: 3,
+            widgetIdentity: OrderMenuSelectionReader.OrderPartyWidget);
+        Equal(
+            "B, back row. A selected. Select B to swap",
+            bridge.Poll(now.AddMilliseconds(16)),
+            "normal x64 Order retains the pending member while the cursor moves");
     }
 
     private static void ReadsScriptedReformPartySelection()

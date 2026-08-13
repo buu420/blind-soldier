@@ -21,6 +21,7 @@ public sealed class Steam2026MenuObservationReader
     private readonly ConfigMenuValueReader configReader;
     private readonly MagicMenuSelectionReader magicReader;
     private readonly SavemapPartyReader partyReader;
+    private readonly OrderMenuSelectionReader orderReader;
     private readonly EquipmentMenuSelectionReader equipmentReader;
     private readonly InventoryItemReader inventoryReader;
     private readonly SaveMenuStateReader saveMenuReader;
@@ -93,6 +94,7 @@ public sealed class Steam2026MenuObservationReader
             resolveAccessoryName,
             savemapAddress,
             inventoryObjectDescriptionResolver);
+        orderReader = new OrderMenuSelectionReader(addressSpace, partyReader);
         equipmentReader = new EquipmentMenuSelectionReader(
             addressSpace,
             resolveWeaponName,
@@ -212,6 +214,12 @@ public sealed class Steam2026MenuObservationReader
         snapshot = candidate;
         return true;
     }
+
+    public bool TryReadOrder(
+        uint widgetGuestAddress,
+        int partySlot,
+        out NativeMenuSelection selection) =>
+        orderReader.TryRead(widgetGuestAddress, partySlot, out selection);
 
     public bool TryReadInventoryItem(int slot, out InventoryItemSnapshot snapshot) =>
         inventoryReader.TryRead(slot, out snapshot);

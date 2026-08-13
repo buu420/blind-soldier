@@ -9,7 +9,7 @@ on:
       version:
         description: Version used for a verification-only package build
         required: true
-        default: "0.2.8"
+        default: "0.2.9"
 
 permissions:
   contents: write

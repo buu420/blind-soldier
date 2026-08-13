@@ -853,6 +853,11 @@ Add-Definition -FieldId 234 -FieldName 'blin1' -Kind 'Location' -Label 'Meet the
 Add-Definition -FieldId 170 -FieldName 'mds5_5' -Kind 'Location' -Label 'Meet the party and choose the group for the journey' -EntityId 8 -X 563 -Y -2830 -Z 0 -TargetGameMoment 341 -MinimumGameMoment 335 -MaximumGameMoment 340 -Priority 0 -EntityName 'ln0' -ScriptType 'Move' -TriggerLine ([ordered]@{ startX = 22; startY = -2723; startZ = 0; endX = 1104; endY = -2938; endZ = 0 })
 Add-Definition -FieldId 170 -FieldName 'mds5_5' -Kind 'Location' -Label 'Leave Midgar for the world map' -X 472 -Y -2877 -Z 0 -MinimumGameMoment 341 -MaximumGameMoment 341 -Priority 0 -ScriptType 'Gateway' -TriggerLine ([ordered]@{ startX = 47; startY = -2777; startZ = 0; endX = 897; endY = -2977; endZ = 0 })
 
+# Preserve the reviewed late-game transition objective that predates the
+# generated manual additions below. Its progression write is indirect, so the
+# current Kujata milestone scan does not emit it on its own.
+Add-Definition -FieldId 115 -FieldName 'whitebg3' -Kind 'Model' -Label 'Talk to That was the first time to continue' -EntityId 4 -TargetGameMoment 1180 -Priority 100 -EntityName 'tcl' -ScriptType 'Talk'
+
 # Kalm remains at GameMoment 341 while the party enters town and gathers in
 # the inn. The town arrival LINE records Bank 3, byte 128, bit 1; the inn's
 # two upstairs LINE regions advance temporary byte 6 before the flashback
@@ -904,10 +909,23 @@ Add-Definition -FieldId 323 -FieldName 'nvmkin21' -Kind 'Location' -Label 'Close
 Add-Definition -FieldId 323 -FieldName 'nvmkin21' -Kind 'Model' -Label 'Return to Sephiroth after closing the valve' -EntityId 8 -MinimumGameMoment 368 -MaximumGameMoment 368 -Priority 0 -EntityName 'cef' -ScriptType 'Talk'
 Add-Definition -FieldId 323 -FieldName 'nvmkin21' -Kind 'Model' -Label 'Talk to Sephiroth and inspect the pod' -EntityId 8 -MinimumGameMoment 369 -MaximumGameMoment 369 -Priority 0 -EntityName 'cef' -ScriptType 'Talk'
 
-# The first mansion visit is mostly automatic. Control returns beside
+# After the reactor pod scene, moment 370 returns control in Nibelheim. Cloud
+# must enter Shinra Mansion, take the upper-right wing, descend the spiral
+# stairs, and cross the basement corridor to Sephiroth's library. The left
+# rooms are optional dead ends, so give either one an exact route back to the
+# entrance hall instead of leaving Story empty. Control returns beside
 # Sephiroth at moment 371; crossing the native library line advances the story
 # to the overnight interlude. At moment 373 Cloud must traverse the mansion a
 # second time, after which entering the far library room starts the long scene.
+Add-Definition -FieldId 282 -FieldName 'nivl' -Kind 'Location' -Label 'Enter Shinra Mansion and find Sephiroth' -X -601 -Y 1358 -Z 202 -TargetGameMoment 371 -MinimumGameMoment 370 -MaximumGameMoment 370 -Priority 0 -ScriptType 'Gateway'
+Add-Definition -FieldId 297 -FieldName 'sinin1_1' -Kind 'Location' -Label 'Cross the upper hall to the right wing' -X 448 -Y 855 -Z 311 -TargetGameMoment 371 -MinimumGameMoment 370 -MaximumGameMoment 370 -Priority 0 -ScriptType 'Gateway'
+Add-Definition -FieldId 298 -FieldName 'sinin1_2' -Kind 'Location' -Label 'Return to the mansion entrance hall' -X -335 -Y 205 -Z 0 -TargetGameMoment 371 -MinimumGameMoment 370 -MaximumGameMoment 370 -Priority 0 -ScriptType 'Gateway recovery'
+Add-Definition -FieldId 299 -FieldName 'sinin2_1' -Kind 'Location' -Label 'Leave the upstairs room and return to the entrance hall' -X -304 -Y 753 -Z 277 -TargetGameMoment 371 -MinimumGameMoment 370 -MaximumGameMoment 370 -Priority 0 -ScriptType 'Gateway recovery'
+Add-Definition -FieldId 300 -FieldName 'sinin2_2' -Kind 'Location' -Label 'Descend through the right wing' -X 948 -Y 666 -Z 339 -TargetGameMoment 371 -MinimumGameMoment 370 -MaximumGameMoment 370 -Priority 0 -ScriptType 'Gateway'
+Add-Definition -FieldId 301 -FieldName 'sinin3' -Kind 'Location' -Label 'Continue down the spiral stairs' -X 4 -Y -125 -Z -610 -TargetGameMoment 371 -MinimumGameMoment 370 -MaximumGameMoment 370 -Priority 0 -ScriptType 'Gateway'
+Add-Definition -FieldId 302 -FieldName 'sininb1' -Kind 'Location' -Label 'Continue down to the mansion basement' -X -14 -Y -520 -Z 2 -TargetGameMoment 371 -MinimumGameMoment 370 -MaximumGameMoment 370 -Priority 0 -ScriptType 'Gateway'
+Add-Definition -FieldId 303 -FieldName 'sininb2' -Kind 'Location' -Label 'Enter the basement library corridor' -X -232 -Y -1104 -Z 0 -TargetGameMoment 371 -MinimumGameMoment 370 -MaximumGameMoment 370 -Priority 0 -ScriptType 'Gateway'
+Add-Definition -FieldId 304 -FieldName 'sininb31' -Kind 'Location' -Label 'Find Sephiroth in the mansion library' -X 17 -Y 88 -Z 0 -TargetGameMoment 371 -MinimumGameMoment 370 -MaximumGameMoment 370 -Priority 0 -ScriptType 'Gateway'
 Add-Definition -FieldId 304 -FieldName 'sininb31' -Kind 'Location' -Label 'Leave Sephiroth to his research' -EntityId 3 -X -435 -Y -98 -Z 0 -MinimumGameMoment 371 -MaximumGameMoment 371 -Priority 0 -EntityName 'ln0' -ScriptType 'Go 1x' -TriggerLine ([ordered]@{ startX = -463; startY = -135; startZ = 0; endX = -408; endY = -61; endZ = 0 })
 Add-Definition -FieldId 299 -FieldName 'sinin2_1' -Kind 'Location' -Label 'Leave the upstairs room and return to the basement' -X -304 -Y 753 -Z 277 -MinimumGameMoment 373 -MaximumGameMoment 373 -Priority 0 -ScriptType 'Gateway'
 Add-Definition -FieldId 297 -FieldName 'sinin1_1' -Kind 'Location' -Label 'Cross the upper hall to the right wing' -X 448 -Y 855 -Z 311 -MinimumGameMoment 373 -MaximumGameMoment 373 -Priority 0 -ScriptType 'Gateway'

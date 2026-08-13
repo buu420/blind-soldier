@@ -294,6 +294,38 @@ internal static class KalmRanchNavigationTests
             expectedY: -401,
             expectedZ: 186);
 
+        var firstMansionVisit = new[]
+        {
+            (282, "Enter Shinra Mansion and find Sephiroth", -601, 1358, 202),
+            (297, "Cross the upper hall to the right wing", 448, 855, 311),
+            (300, "Descend through the right wing", 948, 666, 339),
+            (301, "Continue down the spiral stairs", 4, -125, -610),
+            (302, "Continue down to the mansion basement", -14, -520, 2),
+            (303, "Enter the basement library corridor", -232, -1104, 0),
+            (304, "Find Sephiroth in the mansion library", 17, 88, 0)
+        };
+        foreach (var (fieldId, label, x, y, z) in firstMansionVisit)
+        {
+            AssertStoryTarget(memory, fieldId, 370, label, x, y, z);
+        }
+
+        AssertStoryTarget(
+            memory,
+            fieldId: 298,
+            gameMoment: 370,
+            "Return to the mansion entrance hall",
+            expectedX: -335,
+            expectedY: 205,
+            expectedZ: 0);
+        AssertStoryTarget(
+            memory,
+            fieldId: 299,
+            gameMoment: 370,
+            "Leave the upstairs room and return to the entrance hall",
+            expectedX: -304,
+            expectedY: 753,
+            expectedZ: 277);
+
         AssertStoryTarget(
             memory,
             fieldId: 304,

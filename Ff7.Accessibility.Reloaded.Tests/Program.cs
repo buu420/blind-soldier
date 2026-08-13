@@ -5309,6 +5309,10 @@ static void AssertFieldOpcodeAddressResolverFindsAskCursorThroughFfnxVoiceWrappe
         ffnxAskOptionParser,
         resolution.AskUpdateLoopAddress,
         "FFNx option parser must supply the live highlighted choice");
+    AssertEqual(
+        originalAskOpcode,
+        resolution.OriginalAskOpcodeAddress,
+        "FFNx wrapper resolution must retain the original ASK handler for direct-call capture");
     AssertEqual(true, resolution.HasAskUpdateLoop, "FFNx ASK cursor helper should resolve through opcode_old_ask");
 }
 
@@ -5874,6 +5878,38 @@ static void AssertFieldCutsceneDescriptionCatalogCoversKalmThroughLowerJunon()
     AssertContains(cues.Single(cue => cue.FieldId == 429).Text, "Priscilla");
     AssertContains(cues.Single(cue => cue.FieldId == 434).Text, "motionless");
     AssertContains(cues.Single(cue => cue.FieldId == 359).Text, "Mako cannon");
+
+    var vanillaFingerprints = new Dictionary<int, string>
+    {
+        [277] = "5673822A534BAD0C59D64C502CCC6F6BA05F2826B3C22F55F4332EF0B7513D52",
+        [279] = "A053040586FFC13E1C1B49114FCDE72E974ADCB3428F7D05EA604F40CC34B0CA",
+        [282] = "B9E824BA054FBD501A74C1291ADBDA45E56B0FE6FEA5DE7788190851D581EE16",
+        [290] = "EA07D4F7332F9F90B9300E81CD31C68572277CF6C028C3018B8662D989907C80",
+        [292] = "1F0E45A4EE083461DE27EBAA07013502316D8D24D030FB2DFAD55077EE0AFBDB",
+        [304] = "60A5BF4250C142066165ADE8B135BD1A594651D2A41A6D98B01AEB168C529CC5",
+        [311] = "4335F1B3198861B78487B9709C2A29208A47E51131FB0069C19C346B7A4BAA21",
+        [312] = "FCACBF1192632C0C880E04624927B8858A15B5ACAB706D5BDB1D85A3647047E5",
+        [313] = "6E85EC5D88F80C2AD4853AFE608685F94276251906E222F2DA07A6722DCF2BE9",
+        [318] = "A91F757619428A81118B1DA6968AC983A9FA0C420200847679F9BE8D4513D6E2",
+        [323] = "A16952255BBE691E9D330E265A90725740FE33D83482A209957F96BD2BCDE8F0",
+        [327] = "DDD0DC0C14CFFDA8C76570525FF8DBCB2253571A1FC0EA066DD1D106740A3348",
+        [332] = "86561DE419FFE6616D8A45F3B2D10867B769BFEF4A5C2911FC24B5599906BC6E",
+        [343] = "B2DE248A712AFCFE3ACD6154EE7A897E7B0BBBC1BBB2902FE52CD39550DC88F4",
+        [348] = "B28A92D932367518180C51661B1763497134FCFBBCB9E1FAE766914154F395A2",
+        [349] = "18203DB0CB0A6635478B30239FDCE32AFDD4095AE94D292E8A2C76CCB2A7506F",
+        [359] = "7CD53F8BC526847567AB27B1183FAB0CE9B6109237CC81F59F1F1790A1E62949",
+        [428] = "07CA20C2F306E883717B93B6974F29968B0113E2ABB9E16CB09110472BA610A4",
+        [429] = "1E875524307D30E3FF112CA90A9040084F3726022E3C3ADF32EF72F055716EB9",
+        [434] = "051BE040F87F770DFA0D0702F75604808AFB13ABC36E78B254E68DEC5910F0C2"
+    };
+    foreach (var fieldId in cues.Select(cue => cue.FieldId).Distinct())
+    {
+        var identity = new LoadedFieldScriptIdentity(fieldId, 0x02000000, vanillaFingerprints[fieldId]);
+        AssertEqual(
+            SupportedFieldScriptVariant.Vanilla,
+            EchoSCompatibilityManifest.ResolveVariant(identity),
+            $"Kalm/Junon field {fieldId} exact installed vanilla script must authorize its descriptions");
+    }
 
     var allEarlyCues = FieldCutsceneDescriptionCatalog.CreateEarlyGameDescriptions();
     AssertEqual(

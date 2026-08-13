@@ -109,6 +109,7 @@ public sealed class Mod : IModV1, IModV2
     private IHook<FieldOpcodeMessageDelegate>? fieldOpcodeMessageHook;
     private IHook<FieldOpcodeTimerDelegate>? fieldOpcodeTimerHook;
     private IHook<FieldOpcodeAskDelegate>? fieldOpcodeAskHook;
+    private IHook<FieldOpcodeAskDelegate>? fieldOpcodeOriginalAskHook;
     private IHook<FieldOpcodeAskUpdateDelegate>? fieldOpcodeAskUpdateHook;
     private IHook<FfnxPlayVoiceDelegate>? ffnxPlayVoiceHook;
     private IHook<BattleMenuRenderDelegate>? battleMenuRenderHook;
@@ -127,6 +128,7 @@ public sealed class Mod : IModV1, IModV2
     private FieldOpcodeMessageDelegate? fieldOpcodeMessageDetour;
     private FieldOpcodeTimerDelegate? fieldOpcodeTimerDetour;
     private FieldOpcodeAskDelegate? fieldOpcodeAskDetour;
+    private FieldOpcodeAskDelegate? fieldOpcodeOriginalAskDetour;
     private FieldOpcodeAskUpdateDelegate? fieldOpcodeAskUpdateDetour;
     private FfnxPlayVoiceDelegate? ffnxPlayVoiceDetour;
     private BattleMenuRenderDelegate? battleMenuRenderDetour;
@@ -5849,6 +5851,26 @@ public sealed class Mod : IModV1, IModV2
             return;
         }
 
+        if (resolution.HasDistinctOriginalAskHandler)
+        {
+            try
+            {
+                fieldOpcodeOriginalAskDetour = FieldOpcodeOriginalAskDetour;
+                fieldOpcodeOriginalAskHook = hooks.CreateHook<FieldOpcodeAskDelegate>(
+                    fieldOpcodeOriginalAskDetour,
+                    resolution.OriginalAskOpcodeAddress,
+                    -1);
+                fieldOpcodeOriginalAskHook.Activate();
+                Log(
+                    $"Installed direct-call field opcode ASK hook at " +
+                    $"0x{resolution.OriginalAskOpcodeAddress:X8} behind the FFNx wrapper.");
+            }
+            catch (Exception ex)
+            {
+                Log($"Could not install direct-call field opcode ASK hook: {ex.Message}");
+            }
+        }
+
         if (!resolution.HasAskUpdateLoop)
         {
             Log(
@@ -7036,7 +7058,24 @@ public sealed class Mod : IModV1, IModV2
         return result;
     }
 
-    private int FieldOpcodeAskDetour(int arg)
+    private int FieldOpcodeAskDetour(int arg) =>
+        CaptureFieldOpcodeAsk(arg, fieldOpcodeAskHook);
+
+    private int FieldOpcodeOriginalAskDetour(int arg)
+    {
+        // The FFNx wrapper normally forwards to this original handler. The
+        // outer wrapper detour already owns that lifecycle, so do not publish
+        // it twice. Direct calls that bypass the live opcode-table wrapper are
+        // captured here, which is required by several flashback ASK scripts.
+        if (fieldOpcodeAskDetourDepth > 0)
+        {
+            return fieldOpcodeOriginalAskHook?.OriginalFunction(arg) ?? 0;
+        }
+
+        return CaptureFieldOpcodeAsk(arg, fieldOpcodeOriginalAskHook);
+    }
+
+    private int CaptureFieldOpcodeAsk(int arg, IHook<FieldOpcodeAskDelegate>? sourceHook)
     {
         var preCallIdentity = Volatile.Read(ref activeFieldAskIdentity);
         var observation = TryReadFieldOpcodeMessageObservation(FieldOpcodeKind.Ask);
@@ -7066,7 +7105,7 @@ public sealed class Mod : IModV1, IModV2
         fieldOpcodeAskDetourDepth++;
         try
         {
-            result = fieldOpcodeAskHook?.OriginalFunction(arg) ?? 0;
+            result = sourceHook?.OriginalFunction(arg) ?? 0;
         }
         finally
         {

@@ -132,6 +132,7 @@ public sealed class FieldOpcodeAddressResolver
         var hasAskUpdateLoop = TryResolveAskUpdateLoop(
             askOpcodeAddress,
             out var askUpdateLoopAddress,
+            out var originalAskOpcodeAddress,
             out var askUpdateDiagnostic);
         if (!hasAskUpdateLoop)
         {
@@ -141,6 +142,7 @@ public sealed class FieldOpcodeAddressResolver
         result = new FieldOpcodeMessageHookResolution(
             messageOpcodeAddress,
             askOpcodeAddress,
+            originalAskOpcodeAddress,
             askUpdateLoopAddress,
             $"{diagnostic}, {askUpdateDiagnostic}");
         return true;
@@ -149,19 +151,21 @@ public sealed class FieldOpcodeAddressResolver
     private bool TryResolveAskUpdateLoop(
         int askOpcodeAddress,
         out int askUpdateLoopAddress,
+        out int originalAskOpcodeAddress,
         out string diagnostic)
     {
         if (TryResolveRelativeCall(
                 askOpcodeAddress + AskUpdateLoopCallOffset,
                 out askUpdateLoopAddress))
         {
+            originalAskOpcodeAddress = 0;
             diagnostic = $"askUpdate=0x{askUpdateLoopAddress:X8} from live ASK handler";
             return true;
         }
 
         if (TryResolveFfnxVoiceAskWrapper(
                 askOpcodeAddress,
-                out var originalAskOpcodeAddress,
+                out originalAskOpcodeAddress,
                 out var originalAskPointerSlot) &&
             TryResolveRelativeCall(
                 originalAskOpcodeAddress + AskUpdateLoopCallOffset,
@@ -174,6 +178,7 @@ public sealed class FieldOpcodeAddressResolver
         }
 
         askUpdateLoopAddress = 0;
+        originalAskOpcodeAddress = 0;
         diagnostic =
             $"ASK cursor helper unavailable at live handler offset 0x{askOpcodeAddress + AskUpdateLoopCallOffset:X8}";
         return false;
@@ -352,15 +357,19 @@ public readonly record struct FieldOpcodeAddressResolution(
 public readonly record struct FieldOpcodeMessageHookResolution(
     int MessageOpcodeAddress,
     int AskOpcodeAddress,
+    int OriginalAskOpcodeAddress,
     int AskUpdateLoopAddress,
     string Diagnostic)
 {
     public bool HasAskUpdateLoop => AskUpdateLoopAddress != 0;
+    public bool HasDistinctOriginalAskHandler =>
+        OriginalAskOpcodeAddress != 0 && OriginalAskOpcodeAddress != AskOpcodeAddress;
 
     public static FieldOpcodeMessageHookResolution Invalid(string diagnostic) =>
         new(
             MessageOpcodeAddress: 0,
             AskOpcodeAddress: 0,
+            OriginalAskOpcodeAddress: 0,
             AskUpdateLoopAddress: 0,
             Diagnostic: diagnostic);
 }

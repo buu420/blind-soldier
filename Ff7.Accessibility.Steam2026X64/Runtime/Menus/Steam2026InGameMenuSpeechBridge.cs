@@ -18,6 +18,7 @@ internal sealed class Steam2026InGameMenuSpeechBridge
     private readonly Func<string, NativeMenuSelection?> readConfigValue;
     private readonly Func<int, NativeMenuSelection?> readSoundVolume;
     private readonly Func<int, PartyMemberSnapshot?> readPartyMember;
+    private Func<uint, int, NativeMenuSelection?> readOrder = (_, _) => null;
     private readonly Func<int, StatusMenuSnapshot?> readPartyStatus;
     private readonly Func<uint, MagicMenuObservationSnapshot?> readMagic;
     private readonly Func<StatusMenuSnapshot?> readCurrentStatus;
@@ -61,6 +62,10 @@ internal sealed class Steam2026InGameMenuSpeechBridge
             settleTime ?? DefaultSettleTime)
     {
         ArgumentNullException.ThrowIfNull(menuReader);
+        readOrder = (widgetAddress, partySlot) =>
+            menuReader.TryReadOrder(widgetAddress, partySlot, out var selection)
+                ? selection
+                : null;
         readPartyStatus = partySlot =>
             menuReader.TryReadStatusSummary(partySlot, out var status)
                 ? status
@@ -487,13 +492,17 @@ internal sealed class Steam2026InGameMenuSpeechBridge
             }
             else if (widget.Kind == MenuWidgetKind.CharacterList)
             {
-                var member = readPartyMember(widget.Cursor);
-                if (member is { Name.Length: > 0 } partyMember)
+                nativeSelection = readOrder(descriptor.Address, widget.Cursor);
+                if (nativeSelection is null)
                 {
-                    nativeSelection = new NativeMenuSelection(
-                        partyMember.Name,
-                        null,
-                        $"party:{descriptor.Address:X8}:{widget.Cursor}:{partyMember.CharacterId}:{partyMember.Name}");
+                    var member = readPartyMember(widget.Cursor);
+                    if (member is { Name.Length: > 0 } partyMember)
+                    {
+                        nativeSelection = new NativeMenuSelection(
+                            partyMember.Name,
+                            null,
+                            $"party:{descriptor.Address:X8}:{widget.Cursor}:{partyMember.CharacterId}:{partyMember.Name}");
+                    }
                 }
             }
             else if (widget.Kind is MenuWidgetKind.ItemTarget or MenuWidgetKind.MagicTarget)
