@@ -4,7 +4,7 @@ Set-StrictMode -Version Latest
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $builderPath = Join-Path $scriptRoot 'Build-BlindSoldier2013PortablePackage.ps1'
 $verifierPath = Join-Path $scriptRoot 'Verify-BlindSoldier2013PortablePackage.ps1'
-$testVersion = '0.2.7'
+$testVersion = '0.2.8'
 
 function Write-TestFile {
     param([string] $Root, [string] $Relative, [string] $Content = 'fixture')

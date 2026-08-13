@@ -22,25 +22,36 @@ if (-not $OutputPath) {
 }
 
 $fieldJsonRoot = Join-Path $KujataDataRoot 'data\field\flevel.lgp'
+$mapListJsonPath = Join-Path $fieldJsonRoot 'maplist.json'
 if (-not $MapListPath) {
     $MapListPath = Join-Path $GameRoot 'data\field\flevel\maplist'
 }
 if (-not (Test-Path -LiteralPath $fieldJsonRoot)) {
     throw "Missing Kujata field data: $fieldJsonRoot"
 }
-if (-not (Test-Path -LiteralPath $MapListPath)) {
-    throw "Missing FFVII map list: $MapListPath"
-}
-
-$mapBytes = [IO.File]::ReadAllBytes($MapListPath)
-$fieldCount = [BitConverter]::ToUInt16($mapBytes, 0)
 $fieldIds = @{}
-for ($fieldId = 0; $fieldId -lt $fieldCount; $fieldId++) {
-    $offset = 2 + $fieldId * 32
-    $fieldName = [Text.Encoding]::ASCII.GetString($mapBytes, $offset, 32).Split([char]0)[0].Trim()
-    if ($fieldName) {
-        $fieldIds[$fieldName] = $fieldId
+if (Test-Path -LiteralPath $MapListPath) {
+    $mapBytes = [IO.File]::ReadAllBytes($MapListPath)
+    $fieldCount = [BitConverter]::ToUInt16($mapBytes, 0)
+    for ($fieldId = 0; $fieldId -lt $fieldCount; $fieldId++) {
+        $offset = 2 + $fieldId * 32
+        $fieldName = [Text.Encoding]::ASCII.GetString($mapBytes, $offset, 32).Split([char]0)[0].Trim()
+        if ($fieldName) {
+            $fieldIds[$fieldName] = $fieldId
+        }
     }
+}
+elseif (Test-Path -LiteralPath $mapListJsonPath) {
+    $mapNames = Get-Content -Raw -LiteralPath $mapListJsonPath | ConvertFrom-Json
+    for ($fieldId = 0; $fieldId -lt $mapNames.Count; $fieldId++) {
+        $fieldName = [string]$mapNames[$fieldId]
+        if ($fieldName) {
+            $fieldIds[$fieldName] = $fieldId
+        }
+    }
+}
+else {
+    throw "Missing FFVII map lists: $MapListPath and $mapListJsonPath"
 }
 
 $definitions = [Collections.Generic.List[object]]::new()
@@ -583,6 +594,11 @@ Add-Definition -FieldId 247 -FieldName 'blin64' -EntityId 37 -EntityName 'RLINCH
 Add-Definition -FieldId 247 -FieldName 'blin64' -EntityId 38 -EntityName 'LINEW' -ModelResource '' -Kind 'Named' -Label 'Out-of-order facility' -TargetKind 'Line' -StaticX -961 -StaticY 638 -StaticZ 0
 Add-Definition -FieldId 247 -FieldName 'blin64' -EntityId 39 -EntityName 'VLINE' -ModelResource '' -Kind 'Named' -Label 'Shinra Gym vending machine' -TargetKind 'Line' -StaticX -438 -StaticY -184 -StaticZ 0 -MaximumGameMoment 1007
 Add-Definition -FieldId 247 -FieldName 'blin64' -EntityId 40 -EntityName 'MACHINE' -ModelResource '' -Kind 'Named' -Label 'Exercise machine' -TargetKind 'Line' -StaticX -380 -StaticY -687 -StaticZ 0
+
+# During Cloud's Nibelheim flashback the piano is an optional but meaningful
+# interaction: playing it now is required for a later reward. It is a native
+# LINE rather than a field model, so expose the line midpoint as a location.
+Add-Definition -FieldId 287 -FieldName 'niv_ti2' -EntityId 17 -EntityName 'piano' -ModelResource '' -Kind 'Named' -Label "Tifa's piano" -TargetKind 'Location' -StaticX -237 -StaticY -249 -StaticZ 0 -MinimumGameMoment 344 -MaximumGameMoment 384
 
 # Bone Village reuses one chest entity for the current excavation reward.
 # Bank 1 address 234 contains reward slots 1 through 9 and returns to zero when inactive.

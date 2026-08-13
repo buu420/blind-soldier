@@ -2,7 +2,7 @@
     "schemaVersion":  2,
     "source":  "dangarfeld/kujata-data field script extraction",
     "sourceCommit":  "f2316fa54f27ebd1ce4e19242fc3c789337c1eba",
-    "definitionCount":  420,
+    "definitionCount":  421,
     "definitions":  [
                         {
                             "fieldId":  436,
@@ -10503,6 +10503,31 @@
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
                             "maximumGameMoment":  -1
+                        },
+                        {
+                            "fieldId":  287,
+                            "entityId":  17,
+                            "kind":  "Named",
+                            "nativeId":  -1,
+                            "label":  "Tifa\u0027s piano",
+                            "quantity":  1,
+                            "collectedBank":  -1,
+                            "collectedAddress":  -1,
+                            "collectedMask":  0,
+                            "requiredBank":  -1,
+                            "requiredAddress":  -1,
+                            "requiredMask":  0,
+                            "requiredValue":  0,
+                            "sourceFieldName":  "niv_ti2",
+                            "sourceEntityName":  "piano",
+                            "sourceModelResource":  "",
+                            "targetKind":  "Location",
+                            "staticX":  -237,
+                            "staticY":  -249,
+                            "staticZ":  0,
+                            "cueKindOverride":  null,
+                            "minimumGameMoment":  344,
+                            "maximumGameMoment":  384
                         }
                     ]
 }

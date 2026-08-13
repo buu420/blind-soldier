@@ -99,6 +99,97 @@ public sealed class SavemapPartyReader
         return true;
     }
 
+    internal bool TryReadBattlePartySlot(
+        int partySlot,
+        byte expectedActorInstanceId,
+        out PartyMemberSnapshot snapshot) =>
+        TryReadBattlePartySlot(
+            partySlot,
+            expectedActorInstanceId,
+            requireActorIdentity: true,
+            out snapshot,
+            out _);
+
+    internal bool TryReadBattlePartySlot(
+        int partySlot,
+        out PartyMemberSnapshot snapshot,
+        out int characterRecordIndex) =>
+        TryReadBattlePartySlot(
+            partySlot,
+            expectedActorInstanceId: 0,
+            requireActorIdentity: false,
+            out snapshot,
+            out characterRecordIndex);
+
+    private bool TryReadBattlePartySlot(
+        int partySlot,
+        byte expectedActorInstanceId,
+        bool requireActorIdentity,
+        out PartyMemberSnapshot snapshot,
+        out int characterRecordIndex)
+    {
+        snapshot = default;
+        characterRecordIndex = -1;
+        if (partySlot is < 0 or >= 3)
+        {
+            return false;
+        }
+
+        var partySlotAddress = savemapAddress + PartyMembersOffset + partySlot;
+        if (!TryReadByte(partySlotAddress, out var characterId) ||
+            characterId == byte.MaxValue ||
+            (requireActorIdentity && characterId != expectedActorInstanceId))
+        {
+            return false;
+        }
+
+        // FUN_005cf650 does not use the party id as an array index. It scans
+        // all nine native 0x84-byte character records and compares byte zero
+        // with the party id. That distinction is required for scripted guest
+        // parties such as the Nibelheim flashback's Cloud and Sephiroth.
+        if (characterId < 9 && TryReadCharacter(characterId, out var standardMember))
+        {
+            if (!TryReadByte(partySlotAddress, out var partyBookend) ||
+                partyBookend != characterId)
+            {
+                return false;
+            }
+
+            snapshot = standardMember;
+            characterRecordIndex = characterId;
+            return true;
+        }
+
+        for (var recordIndex = 0; recordIndex < 9; recordIndex++)
+        {
+            var recordAddress = GetCharacterBase(recordIndex);
+            if (!TryReadByte(recordAddress, out var recordCharacterId))
+            {
+                return false;
+            }
+
+            if (recordCharacterId != characterId)
+            {
+                continue;
+            }
+
+            if (!TryReadCharacterName(recordAddress, out var name) ||
+                !TryReadByte(recordAddress, out var recordBookend) ||
+                recordBookend != characterId ||
+                !TryReadByte(partySlotAddress, out var partyBookend) ||
+                partyBookend != characterId)
+            {
+                return false;
+            }
+
+            snapshot = new PartyMemberSnapshot(characterId, name);
+            characterRecordIndex = recordIndex;
+            return true;
+        }
+
+        return false;
+    }
+
     public bool TryReadPartySlotWithRow(int partySlot, out PartyMemberRowSnapshot snapshot)
     {
         snapshot = default;
@@ -386,8 +477,21 @@ public sealed class SavemapPartyReader
             return false;
         }
 
+        if (!TryReadCharacterName(GetCharacterBase(characterId), out var text))
+        {
+            return false;
+        }
+
+        snapshot = new PartyMemberSnapshot(characterId, text);
+        return true;
+    }
+
+    private bool TryReadCharacterName(int characterBase, out string name)
+    {
+        name = string.Empty;
+
         var nameBytes = new byte[12];
-        var nameAddress = GetCharacterBase(characterId) + CharacterNameOffset;
+        var nameAddress = characterBase + CharacterNameOffset;
         if (addressSpace is not null)
         {
             if (nameAddress <= 0 || !addressSpace.TryRead((uint)nameAddress, nameBytes))
@@ -412,7 +516,7 @@ public sealed class SavemapPartyReader
             return false;
         }
 
-        snapshot = new PartyMemberSnapshot(characterId, text);
+        name = text;
         return true;
     }
 

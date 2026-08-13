@@ -23,6 +23,7 @@ public sealed class PartyFormationSpeechTracker
     private int screenGeneration;
     private bool introPending;
     private string promptState = string.Empty;
+    private string passivePromptState = string.Empty;
     private string promptInstruction = string.Empty;
     private string screenTitle = string.Empty;
     private PendingSelection? pendingSelection;
@@ -208,7 +209,28 @@ public sealed class PartyFormationSpeechTracker
 
     private void ObservePrompt(PromptObservation prompt, DateTime now)
     {
-        promptInstruction = prompt.Instruction;
+        // Ghidra FUN_00700c90 shows that the normal selection instruction and
+        // temporary party-validation text share the same draw coordinates.
+        // The renderer returns to that normal instruction after a validation
+        // message. It is not a second status transition and must not re-arm
+        // the validation message on every draw cycle.
+        if (prompt.IsPassiveInstruction || passivePromptState.Length == 0)
+        {
+            promptInstruction = prompt.Instruction;
+            if (passivePromptState.Length == 0)
+            {
+                passivePromptState = prompt.State;
+                promptState = prompt.State;
+            }
+
+            return;
+        }
+
+        if (string.Equals(prompt.State, passivePromptState, StringComparison.Ordinal))
+        {
+            return;
+        }
+
         if (string.Equals(promptState, prompt.State, StringComparison.Ordinal))
         {
             return;
@@ -340,7 +362,19 @@ public sealed class PartyFormationSpeechTracker
             prompt = new PromptObservation(
                 "complete",
                 "Press Start when finished.",
-                "Party complete. Press Start when finished.");
+                "Party complete. Press Start when finished.",
+                true);
+            return true;
+        }
+
+        if (string.Equals(text, "Select with Menu button.", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(text, "Select with [MENU] button.", StringComparison.OrdinalIgnoreCase))
+        {
+            prompt = new PromptObservation(
+                "select-instruction",
+                text,
+                text,
+                true);
             return true;
         }
 
@@ -349,7 +383,8 @@ public sealed class PartyFormationSpeechTracker
             prompt = new PromptObservation(
                 "incomplete",
                 "Please make a party of three.",
-                "Please make a party of three.");
+                "Please make a party of three.",
+                false);
             return true;
         }
 
@@ -358,7 +393,7 @@ public sealed class PartyFormationSpeechTracker
             return false;
         }
 
-        prompt = new PromptObservation($"native:{text}", text, text);
+        prompt = new PromptObservation($"native:{text}", text, text, false);
         return true;
     }
 
@@ -430,6 +465,7 @@ public sealed class PartyFormationSpeechTracker
         screenGeneration++;
         introPending = true;
         promptState = string.Empty;
+        passivePromptState = string.Empty;
         promptInstruction = string.Empty;
         screenTitle = title;
         pendingSelection = null;
@@ -446,6 +482,7 @@ public sealed class PartyFormationSpeechTracker
         lastTitleSeenUtc = DateTime.MinValue;
         introPending = false;
         promptState = string.Empty;
+        passivePromptState = string.Empty;
         promptInstruction = string.Empty;
         screenTitle = string.Empty;
         pendingSelection = null;
@@ -476,5 +513,6 @@ public sealed class PartyFormationSpeechTracker
     private readonly record struct PromptObservation(
         string State,
         string Instruction,
-        string TransitionSpeech);
+        string TransitionSpeech,
+        bool IsPassiveInstruction);
 }

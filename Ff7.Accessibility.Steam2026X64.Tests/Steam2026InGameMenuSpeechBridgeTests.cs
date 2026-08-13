@@ -13,6 +13,7 @@ internal static class Steam2026InGameMenuSpeechBridgeTests
     {
         ReadsGenericRenderedSelection();
         ReadsScriptedReformPartySelection();
+        ReformValidationDoesNotAlternateWithTranslatedInstruction();
         ReadsNativeMagicAndPartySelections();
         ReadsNativeItemAndMagicPartyTargets();
         ReadsCheckedInventoryAndExactEquipmentSelections();
@@ -114,6 +115,84 @@ internal static class Steam2026InGameMenuSpeechBridgeTests
             "Empty.",
             bridge.Poll(now.AddMilliseconds(280)),
             "translated Reform empty reserve cell");
+    }
+
+    private static void ReformValidationDoesNotAlternateWithTranslatedInstruction()
+    {
+        var bridge = CreateBridge(settleTime: TimeSpan.FromMilliseconds(30));
+        var now = UtcNow();
+        var sequence = 0L;
+
+        ObserveText(bridge, ref sequence, now, "Reform", 508, 14, 7, 0);
+        ObserveText(
+            bridge,
+            ref sequence,
+            now,
+            "Select with Menu button.",
+            26,
+            13,
+            7,
+            ConfigContext);
+        ObserveText(bridge, ref sequence, now, "Cloud", 134, 77, 7, ConfigContext);
+        ObserveText(bridge, ref sequence, now, "Barret", 134, 214, 7, ConfigContext);
+        ObserveText(bridge, ref sequence, now, "Red XIII", 134, 351, 7, ConfigContext);
+        ObserveCursor(bridge, ref sequence, now.AddMilliseconds(1), 0, 120, 0x3DCF0D84);
+        Equal(
+            "Reform. Party slot 1, Cloud. Select with Menu button.",
+            bridge.Poll(now.AddMilliseconds(80)),
+            "translated x64 Reform introduction");
+
+        ObserveText(bridge, ref sequence, now.AddMilliseconds(90), "Reform", 508, 14, 7, 0);
+        ObserveText(
+            bridge,
+            ref sequence,
+            now.AddMilliseconds(100),
+            "Please make a party of three.",
+            26,
+            13,
+            7,
+            ConfigContext);
+        Equal(
+            "Please make a party of three.",
+            bridge.Poll(now.AddMilliseconds(140)),
+            "translated x64 Reform validation");
+
+        ObserveText(bridge, ref sequence, now.AddMilliseconds(150), "Reform", 508, 14, 7, 0);
+        ObserveText(
+            bridge,
+            ref sequence,
+            now.AddMilliseconds(150),
+            "Select with Menu button.",
+            26,
+            13,
+            7,
+            ConfigContext);
+        Equal(
+            null,
+            bridge.Poll(now.AddMilliseconds(190)),
+            "translated selection instruction does not become repeating status speech");
+
+        ObserveText(bridge, ref sequence, now.AddMilliseconds(200), "Reform", 508, 14, 7, 0);
+        ObserveText(
+            bridge,
+            ref sequence,
+            now.AddMilliseconds(200),
+            "Please make a party of three.",
+            26,
+            13,
+            7,
+            ConfigContext);
+        Equal(
+            null,
+            bridge.Poll(now.AddMilliseconds(240)),
+            "same translated validation remains deduplicated across instruction draws");
+
+        ObserveText(bridge, ref sequence, now.AddMilliseconds(245), "Reform", 508, 14, 7, 0);
+        ObserveCursor(bridge, ref sequence, now.AddMilliseconds(250), 0, 257, 0x3DCF0D84);
+        Equal(
+            "Party slot 2, Barret.",
+            bridge.Poll(now.AddMilliseconds(330)),
+            "translated member speech is not starved by the prompt cycle");
     }
 
     private static void ReadsNativeItemAndMagicPartyTargets()

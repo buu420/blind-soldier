@@ -866,6 +866,77 @@ Add-Definition -FieldId 332 -FieldName 'elminn_2' -Kind 'Location' -Label "Stand
 Add-Definition -FieldId 332 -FieldName 'elminn_2' -Kind 'Location' -Label "Go downstairs after Cloud's story" -X -44 -Y 131 -Z -180 -MinimumGameMoment 385 -MaximumGameMoment 385 -Priority 0 -CompletedCondition (New-Condition 3 131 0x01 0x01) -ScriptType 'Gateway' -TriggerLine ([ordered]@{ startX = -58; startY = 190; startZ = -196; endX = -29; endY = 71; endZ = -163 })
 Add-Definition -FieldId 331 -FieldName 'elminn_1' -Kind 'Location' -Label 'Meet the party downstairs and receive the PHS' -X 74 -Y -228 -Z -1 -MinimumGameMoment 385 -MaximumGameMoment 385 -Priority 0 -CompletedCondition (New-Condition 3 131 0x01 0x01) -EntityName 'line3' -ScriptType '[OK]' -TriggerLine ([ordered]@{ startX = 178; startY = -178; startZ = -1; endX = -30; endY = -278; endZ = -1 })
 
+# The Nibelheim flashback holds GameMoment steady across several mandatory
+# interactions. Native Bank 3 byte 18 records town arrival, sleep, and morning
+# departure; byte 19 records the first inn conversation. These conditions keep
+# the inn objectives in their real order even when Cloud visits the optional
+# houses first.
+Add-Definition -FieldId 282 -FieldName 'nivl' -Kind 'Location' -Label 'Enter the inn and meet Sephiroth' -X -170 -Y -334 -Z 0 -MinimumGameMoment 353 -MaximumGameMoment 356 -Priority 0 -RequiredCondition (New-Condition 3 18 0x01 0x01) -CompletedCondition (New-Condition 3 18 0x02 0x02) -ScriptType 'Gateway' -TriggerLine ([ordered]@{ startX = -211; startY = -342; startZ = 0; endX = -129; endY = -326; endZ = 0 })
+Add-Definition -FieldId 273 -FieldName 'nivinn_1' -Kind 'Location' -Label 'Go upstairs to Sephiroth' -X 168 -Y -142 -Z 168 -MinimumGameMoment 353 -MaximumGameMoment 356 -Priority 0 -CompletedCondition (New-Condition 3 18 0x02 0x02) -ScriptType 'Gateway'
+Add-Definition -FieldId 274 -FieldName 'nivinn_2' -Kind 'Model' -Label 'Talk to Sephiroth about the reactor mission' -EntityId 8 -MinimumGameMoment 353 -MaximumGameMoment 356 -Priority 0 -RequiredCondition (New-Condition 3 19 0x02 0) -CompletedCondition (New-Condition 3 19 0x02 0x02) -EntityName 'cef' -ScriptType 'Talk'
+Add-Definition -FieldId 274 -FieldName 'nivinn_2' -Kind 'Model' -Label 'Talk to Sephiroth again and choose sleep' -EntityId 8 -MinimumGameMoment 353 -MaximumGameMoment 356 -Priority 0 -RequiredCondition (New-Condition 3 19 0x02 0x02) -CompletedCondition (New-Condition 3 18 0x02 0x02) -EntityName 'cef' -ScriptType 'Talk'
+Add-Definition -FieldId 282 -FieldName 'nivl' -Kind 'Model' -Label 'Talk to Sephiroth to begin the Mt. Nibel expedition' -EntityId 8 -MinimumGameMoment 353 -MaximumGameMoment 356 -Priority 0 -RequiredCondition (New-Condition 3 18 0x02 0x02) -CompletedCondition (New-Condition 3 18 0x08 0x08) -EntityName 'cef' -ScriptType 'Talk'
+
+# Tifa's talk advances moment 357 to 359. The following bridge, cave, and
+# mountain definitions are the mandatory native gateways; intermediate fall
+# and Mako-fountain scenes map-jump automatically and do not need fake targets.
+$nibelReactorUpperTriangles = [int[]](28..51)
+$nibelReactorLowerTriangles = [int[]](@(0..27) + @(52, 53))
+Add-Definition -FieldId 312 -FieldName 'mtnvl3' -Kind 'Model' -Label 'Talk to Tifa before crossing the bridge' -EntityId 6 -TargetGameMoment 359 -MinimumGameMoment 357 -MaximumGameMoment 358 -Priority 0 -EntityName 'yti' -ScriptType 'Talk'
+Add-Definition -FieldId 312 -FieldName 'mtnvl3' -Kind 'Location' -Label 'Cross the bridge toward Mt. Nibel' -EntityId 10 -X 2560 -Y -1008 -Z 985 -TargetGameMoment 361 -MinimumGameMoment 359 -MaximumGameMoment 360 -Priority 0 -EntityName 'lin0' -ScriptType 'Move' -TriggerLine ([ordered]@{ startX = 2543; startY = -1042; startZ = 986; endX = 2576; endY = -973; endZ = 984 })
+Add-Definition -FieldId 313 -FieldName 'mtnvl4' -Kind 'Location' -Label 'Continue into the Mt. Nibel caves' -X 912 -Y 740 -Z -210 -MinimumGameMoment 361 -MaximumGameMoment 361 -Priority 0 -ScriptType 'Gateway'
+Add-Definition -FieldId 318 -FieldName 'nvdun2' -Kind 'Location' -Label 'Continue through the cave passage' -X -142 -Y 1788 -Z -416 -MinimumGameMoment 361 -MaximumGameMoment 362 -Priority 0 -ScriptType 'Gateway'
+Add-Definition -FieldId 315 -FieldName 'mtnvl6' -Kind 'Location' -Label 'Continue toward the Nibel Reactor' -X -574 -Y -592 -Z 32 -MinimumGameMoment 364 -MaximumGameMoment 364 -Priority 0 -ScriptType 'Gateway'
+
+# nvmkin1 has two disconnected walkmesh components. The native ladu Move line
+# starts party script 3, whose LADER opcode carries Cloud from the upper
+# platform to lower triangle 24. Never expose a lower-level objective while
+# the player is still on the upper component.
+Add-Definition -FieldId 322 -FieldName 'nvmkin1' -Kind 'Location' -Label 'Climb down the ladder into the Nibel Reactor' -EntityId 12 -X -124 -Y 520 -Z 1068 -MinimumGameMoment 366 -MaximumGameMoment 366 -Priority 0 -RequiredPlayerTriangles $nibelReactorUpperTriangles -EntityName 'ladu' -ScriptType 'Move' -TriggerLine ([ordered]@{ startX = -82; startY = 476; startZ = 1068; endX = -166; endY = 564; endZ = 1068 }) -KeepActiveOnArrival
+Add-Definition -FieldId 322 -FieldName 'nvmkin1' -Kind 'Location' -Label 'Enter the Nibel Reactor core' -X -6 -Y -912 -Z 191 -MinimumGameMoment 366 -MaximumGameMoment 366 -Priority 0 -RequiredPlayerTriangles $nibelReactorLowerTriangles -ScriptType 'Gateway'
+
+# Inside the reactor, Sephiroth's Talk script advances 366 -> 367 and
+# 368 -> 369. At 367 the native director accepts OK only on valve triangles
+# 4 or 5. Keep the valve route active on arrival until that native action
+# changes the moment to 368.
+Add-Definition -FieldId 323 -FieldName 'nvmkin21' -Kind 'Model' -Label 'Talk to Sephiroth inside the reactor' -EntityId 8 -MinimumGameMoment 366 -MaximumGameMoment 366 -Priority 0 -EntityName 'cef' -ScriptType 'Talk'
+Add-Definition -FieldId 323 -FieldName 'nvmkin21' -Kind 'Location' -Label 'Close the reactor valve' -X 128 -Y -235 -Z 186 -MinimumGameMoment 367 -MaximumGameMoment 367 -Priority 0 -EntityName 'cl' -ScriptType 'Native triangles 4 and 5' -KeepActiveOnArrival
+Add-Definition -FieldId 323 -FieldName 'nvmkin21' -Kind 'Model' -Label 'Return to Sephiroth after closing the valve' -EntityId 8 -MinimumGameMoment 368 -MaximumGameMoment 368 -Priority 0 -EntityName 'cef' -ScriptType 'Talk'
+Add-Definition -FieldId 323 -FieldName 'nvmkin21' -Kind 'Model' -Label 'Talk to Sephiroth and inspect the pod' -EntityId 8 -MinimumGameMoment 369 -MaximumGameMoment 369 -Priority 0 -EntityName 'cef' -ScriptType 'Talk'
+
+# The first mansion visit is mostly automatic. Control returns beside
+# Sephiroth at moment 371; crossing the native library line advances the story
+# to the overnight interlude. At moment 373 Cloud must traverse the mansion a
+# second time, after which entering the far library room starts the long scene.
+Add-Definition -FieldId 304 -FieldName 'sininb31' -Kind 'Location' -Label 'Leave Sephiroth to his research' -EntityId 3 -X -435 -Y -98 -Z 0 -MinimumGameMoment 371 -MaximumGameMoment 371 -Priority 0 -EntityName 'ln0' -ScriptType 'Go 1x' -TriggerLine ([ordered]@{ startX = -463; startY = -135; startZ = 0; endX = -408; endY = -61; endZ = 0 })
+Add-Definition -FieldId 299 -FieldName 'sinin2_1' -Kind 'Location' -Label 'Leave the upstairs room and return to the basement' -X -304 -Y 753 -Z 277 -MinimumGameMoment 373 -MaximumGameMoment 373 -Priority 0 -ScriptType 'Gateway'
+Add-Definition -FieldId 297 -FieldName 'sinin1_1' -Kind 'Location' -Label 'Cross the upper hall to the right wing' -X 448 -Y 855 -Z 311 -MinimumGameMoment 373 -MaximumGameMoment 373 -Priority 0 -ScriptType 'Gateway'
+Add-Definition -FieldId 300 -FieldName 'sinin2_2' -Kind 'Location' -Label 'Descend through the right wing' -X 948 -Y 666 -Z 339 -MinimumGameMoment 373 -MaximumGameMoment 373 -Priority 0 -ScriptType 'Gateway'
+Add-Definition -FieldId 301 -FieldName 'sinin3' -Kind 'Location' -Label 'Continue down the spiral stairs' -X 4 -Y -125 -Z -610 -MinimumGameMoment 373 -MaximumGameMoment 373 -Priority 0 -ScriptType 'Gateway'
+Add-Definition -FieldId 302 -FieldName 'sininb1' -Kind 'Location' -Label 'Continue down to the mansion basement' -X -14 -Y -520 -Z 2 -MinimumGameMoment 373 -MaximumGameMoment 373 -Priority 0 -ScriptType 'Gateway'
+Add-Definition -FieldId 303 -FieldName 'sininb2' -Kind 'Location' -Label 'Enter the basement library corridor' -X -232 -Y -1104 -Z 0 -MinimumGameMoment 373 -MaximumGameMoment 373 -Priority 0 -ScriptType 'Gateway'
+Add-Definition -FieldId 304 -FieldName 'sininb31' -Kind 'Location' -Label 'Enter the mansion library' -X 17 -Y 88 -Z 0 -MinimumGameMoment 374 -MaximumGameMoment 374 -Priority 0 -ScriptType 'Gateway'
+Add-Definition -FieldId 307 -FieldName 'sininb41' -Kind 'Location' -Label 'Confront Sephiroth in the far library room' -X 224 -Y 3255 -Z 0 -MinimumGameMoment 374 -MaximumGameMoment 374 -Priority 0 -ScriptType 'Gateway'
+
+# Sephiroth restores control at moment 376 after walking out of the library.
+# These gateways form the complete reverse route to the mansion entrance. The
+# entrance's native Move script redirects this flashback state into the burning
+# Nibelheim sequence, which remains automatic until Cloud reaches the reactor.
+Add-Definition -FieldId 307 -FieldName 'sininb41' -Kind 'Location' -Label 'Follow Sephiroth out of the library' -X 399 -Y 10 -Z 0 -MinimumGameMoment 376 -MaximumGameMoment 376 -Priority 0 -ScriptType 'Gateway'
+Add-Definition -FieldId 304 -FieldName 'sininb31' -Kind 'Location' -Label 'Continue out of the basement library' -X -454 -Y -88 -Z 0 -MinimumGameMoment 376 -MaximumGameMoment 376 -Priority 0 -ScriptType 'Gateway'
+Add-Definition -FieldId 303 -FieldName 'sininb2' -Kind 'Location' -Label 'Climb out of the mansion basement' -X 0 -Y -290 -Z 0 -MinimumGameMoment 376 -MaximumGameMoment 376 -Priority 0 -ScriptType 'Gateway'
+Add-Definition -FieldId 302 -FieldName 'sininb1' -Kind 'Location' -Label 'Climb the spiral stairs to the mansion' -X 12 -Y 877 -Z 226 -MinimumGameMoment 376 -MaximumGameMoment 376 -Priority 0 -ScriptType 'Gateway'
+Add-Definition -FieldId 301 -FieldName 'sinin3' -Kind 'Location' -Label 'Continue up through the right wing' -X 215 -Y -136 -Z 718 -MinimumGameMoment 376 -MaximumGameMoment 376 -Priority 0 -ScriptType 'Gateway'
+Add-Definition -FieldId 300 -FieldName 'sinin2_2' -Kind 'Location' -Label 'Return to the mansion entrance hall' -X 316 -Y 746 -Z 277 -MinimumGameMoment 376 -MaximumGameMoment 376 -Priority 0 -ScriptType 'Gateway'
+Add-Definition -FieldId 297 -FieldName 'sinin1_1' -Kind 'Location' -Label 'Leave the mansion and follow Sephiroth' -X 0 -Y -18 -Z 0 -MinimumGameMoment 376 -MaximumGameMoment 376 -Priority 0 -ScriptType 'Move'
+
+# The burning-town scene returns control only for the final reactor approach.
+# EV0 advances 380 -> 381; the reactor director then stages the confrontation
+# and exposes Tifa's native Talk model at moment 382.
+Add-Definition -FieldId 322 -FieldName 'nvmkin1' -Kind 'Location' -Label 'Climb down the ladder and follow Tifa' -EntityId 12 -X -124 -Y 520 -Z 1068 -MinimumGameMoment 380 -MaximumGameMoment 380 -Priority 0 -RequiredPlayerTriangles $nibelReactorUpperTriangles -EntityName 'ladu' -ScriptType 'Move' -TriggerLine ([ordered]@{ startX = -82; startY = 476; startZ = 1068; endX = -166; endY = 564; endZ = 1068 }) -KeepActiveOnArrival
+Add-Definition -FieldId 322 -FieldName 'nvmkin1' -Kind 'Location' -Label 'Enter the reactor chamber after Tifa' -EntityId 14 -X 0 -Y -257 -Z 191 -MinimumGameMoment 380 -MaximumGameMoment 380 -Priority 0 -RequiredPlayerTriangles $nibelReactorLowerTriangles -EntityName 'ev0' -ScriptType 'Move' -TriggerLine ([ordered]@{ startX = 38; startY = -257; startZ = 191; endX = -38; endY = -257; endZ = 191 })
+Add-Definition -FieldId 323 -FieldName 'nvmkin21' -Kind 'Model' -Label 'Talk to Tifa beside the reactor pods' -EntityId 7 -MinimumGameMoment 382 -MaximumGameMoment 382 -Priority 0 -EntityName 'ti2' -ScriptType 'Talk'
+
 # Choco/Mog is an optional visual reward and must not block Story. The
 # mandatory early-Ranch objective is buying the Chocobo Lure from Choco Billy;
 # his purchase script sets Bank 3, byte 64, bit 6. The same fields are reused

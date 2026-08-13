@@ -9,8 +9,16 @@ internal static class KalmRanchNavigationTests
     public static void Run()
     {
         AssertKalmStoryProgression();
+        AssertNibelheimFlashbackStoryProgression();
+        AssertNibelheimFlashbackObjects();
         AssertChocoboRanchStoryProgression();
         AssertReviewedNpcLabels();
+    }
+
+    public static void RunNibelheimFlashbackOnly()
+    {
+        AssertNibelheimFlashbackStoryProgression();
+        AssertNibelheimFlashbackObjects();
     }
 
     private static void AssertKalmStoryProgression()
@@ -138,6 +146,271 @@ internal static class KalmRanchNavigationTests
             "the early-game Ranch objective must not appear during later Chocobo breeding visits");
     }
 
+    private static void AssertNibelheimFlashbackStoryProgression()
+    {
+        var memory = new NativeMemory();
+        var flashbackTownAddress =
+            FieldNavigationObjectReader.AddressFieldBankBase + 0x100 + 18;
+        var innConversationAddress =
+            FieldNavigationObjectReader.AddressFieldBankBase + 0x100 + 19;
+
+        memory.WriteByte(flashbackTownAddress, 0x01);
+        AssertStoryTarget(
+            memory,
+            fieldId: 282,
+            gameMoment: 353,
+            "Enter the inn and meet Sephiroth",
+            expectedX: -170,
+            expectedY: -334,
+            expectedZ: 0);
+        AssertStoryTarget(
+            memory,
+            fieldId: 273,
+            gameMoment: 353,
+            "Go upstairs to Sephiroth",
+            expectedX: 168,
+            expectedY: -142,
+            expectedZ: 168);
+
+        memory.ConfigureVisibleModel(entityId: 8, modelId: 1, x: 90, y: -80, z: 0);
+        AssertStoryTarget(
+            memory,
+            fieldId: 274,
+            gameMoment: 353,
+            "Talk to Sephiroth about the reactor mission",
+            expectedX: 90,
+            expectedY: -80,
+            expectedZ: 0);
+
+        memory.WriteByte(innConversationAddress, 0x02);
+        AssertStoryTarget(
+            memory,
+            fieldId: 274,
+            gameMoment: 353,
+            "Talk to Sephiroth again and choose sleep",
+            expectedX: 90,
+            expectedY: -80,
+            expectedZ: 0);
+
+        memory.WriteByte(flashbackTownAddress, 0x03);
+        memory.ConfigureVisibleModel(entityId: 8, modelId: 1, x: 112, y: 3021, z: 205);
+        AssertStoryTarget(
+            memory,
+            fieldId: 282,
+            gameMoment: 353,
+            "Talk to Sephiroth to begin the Mt. Nibel expedition",
+            expectedX: 112,
+            expectedY: 3021,
+            expectedZ: 205);
+
+        memory.WriteByte(flashbackTownAddress, 0x0B);
+        AssertNoStoryTarget(
+            memory,
+            fieldId: 282,
+            gameMoment: 353,
+            "the town objective must retire when the expedition begins");
+
+        memory.ConfigureVisibleModel(entityId: 6, modelId: 1, x: 2468, y: -988, z: 984);
+        AssertStoryTarget(
+            memory,
+            fieldId: 312,
+            gameMoment: 357,
+            "Talk to Tifa before crossing the bridge",
+            expectedX: 2468,
+            expectedY: -988,
+            expectedZ: 984);
+
+        var mountainRoutes = new[]
+        {
+            (312, 359, "Cross the bridge toward Mt. Nibel", 2560, -1008, 985),
+            (313, 361, "Continue into the Mt. Nibel caves", 912, 740, -210),
+            (318, 361, "Continue through the cave passage", -142, 1788, -416),
+            (318, 362, "Continue through the cave passage", -142, 1788, -416),
+            (315, 364, "Continue toward the Nibel Reactor", -574, -592, 32)
+        };
+        foreach (var (fieldId, moment, label, x, y, z) in mountainRoutes)
+        {
+            AssertStoryTarget(memory, fieldId, moment, label, x, y, z);
+        }
+
+        AssertStoryTargetAtTriangle(
+            memory,
+            fieldId: 322,
+            gameMoment: 366,
+            playerTriangle: 48,
+            "Climb down the ladder into the Nibel Reactor",
+            expectedX: -124,
+            expectedY: 520,
+            expectedZ: 1068,
+            expectedTriggerLine: new FieldNavigationTriggerLine(
+                -82,
+                476,
+                1068,
+                -166,
+                564,
+                1068),
+            expectedCompletesOnArrival: false);
+        AssertStoryTargetAtTriangle(
+            memory,
+            fieldId: 322,
+            gameMoment: 366,
+            playerTriangle: 24,
+            "Enter the Nibel Reactor core",
+            expectedX: -6,
+            expectedY: -912,
+            expectedZ: 191);
+
+        memory.ConfigureVisibleModel(entityId: 8, modelId: 1, x: 124, y: -401, z: 186);
+        AssertStoryTarget(
+            memory,
+            fieldId: 323,
+            gameMoment: 366,
+            "Talk to Sephiroth inside the reactor",
+            expectedX: 124,
+            expectedY: -401,
+            expectedZ: 186);
+        AssertStoryTarget(
+            memory,
+            fieldId: 323,
+            gameMoment: 367,
+            "Close the reactor valve",
+            expectedX: 128,
+            expectedY: -235,
+            expectedZ: 186);
+        AssertStoryTarget(
+            memory,
+            fieldId: 323,
+            gameMoment: 368,
+            "Return to Sephiroth after closing the valve",
+            expectedX: 124,
+            expectedY: -401,
+            expectedZ: 186);
+        AssertStoryTarget(
+            memory,
+            fieldId: 323,
+            gameMoment: 369,
+            "Talk to Sephiroth and inspect the pod",
+            expectedX: 124,
+            expectedY: -401,
+            expectedZ: 186);
+
+        AssertStoryTarget(
+            memory,
+            fieldId: 304,
+            gameMoment: 371,
+            "Leave Sephiroth to his research",
+            expectedX: -435,
+            expectedY: -98,
+            expectedZ: 0);
+
+        var secondMansionVisit = new[]
+        {
+            (299, "Leave the upstairs room and return to the basement", -304, 753, 277),
+            (297, "Cross the upper hall to the right wing", 448, 855, 311),
+            (300, "Descend through the right wing", 948, 666, 339),
+            (301, "Continue down the spiral stairs", 4, -125, -610),
+            (302, "Continue down to the mansion basement", -14, -520, 2),
+            (303, "Enter the basement library corridor", -232, -1104, 0)
+        };
+        foreach (var (fieldId, label, x, y, z) in secondMansionVisit)
+        {
+            AssertStoryTarget(memory, fieldId, 373, label, x, y, z);
+        }
+
+        AssertStoryTarget(
+            memory,
+            fieldId: 304,
+            gameMoment: 374,
+            "Enter the mansion library",
+            expectedX: 17,
+            expectedY: 88,
+            expectedZ: 0);
+        AssertStoryTarget(
+            memory,
+            fieldId: 307,
+            gameMoment: 374,
+            "Confront Sephiroth in the far library room",
+            expectedX: 224,
+            expectedY: 3255,
+            expectedZ: 0);
+
+        var leaveMansion = new[]
+        {
+            (307, "Follow Sephiroth out of the library", 399, 10, 0),
+            (304, "Continue out of the basement library", -454, -88, 0),
+            (303, "Climb out of the mansion basement", 0, -290, 0),
+            (302, "Climb the spiral stairs to the mansion", 12, 877, 226),
+            (301, "Continue up through the right wing", 215, -136, 718),
+            (300, "Return to the mansion entrance hall", 316, 746, 277),
+            (297, "Leave the mansion and follow Sephiroth", 0, -18, 0)
+        };
+        foreach (var (fieldId, label, x, y, z) in leaveMansion)
+        {
+            AssertStoryTarget(memory, fieldId, 376, label, x, y, z);
+        }
+
+        AssertStoryTargetAtTriangle(
+            memory,
+            fieldId: 322,
+            gameMoment: 380,
+            playerTriangle: 43,
+            "Climb down the ladder and follow Tifa",
+            expectedX: -124,
+            expectedY: 520,
+            expectedZ: 1068,
+            expectedTriggerLine: new FieldNavigationTriggerLine(
+                -82,
+                476,
+                1068,
+                -166,
+                564,
+                1068),
+            expectedCompletesOnArrival: false);
+        AssertStoryTargetAtTriangle(
+            memory,
+            fieldId: 322,
+            gameMoment: 380,
+            playerTriangle: 24,
+            "Enter the reactor chamber after Tifa",
+            expectedX: 0,
+            expectedY: -257,
+            expectedZ: 191,
+            expectedTriggerLine: new FieldNavigationTriggerLine(
+                38,
+                -257,
+                191,
+                -38,
+                -257,
+                191));
+        memory.ConfigureVisibleModel(entityId: 7, modelId: 1, x: 141, y: -429, z: 186);
+        AssertStoryTarget(
+            memory,
+            fieldId: 323,
+            gameMoment: 382,
+            "Talk to Tifa beside the reactor pods",
+            expectedX: 141,
+            expectedY: -429,
+            expectedZ: 186);
+    }
+
+    private static void AssertNibelheimFlashbackObjects()
+    {
+        var piano = FieldNavigationObjectCatalog.CreateAllFields().SingleOrDefault(definition =>
+            definition.FieldId == 287 &&
+            definition.Label == "Tifa's piano");
+
+        AssertEqual(287, piano.FieldId, "Tifa piano field");
+        AssertEqual(
+            FieldNavigationObjectTargetKind.Location,
+            piano.TargetKind,
+            "Tifa piano target kind");
+        AssertEqual(-237, piano.StaticX, "Tifa piano x");
+        AssertEqual(-249, piano.StaticY, "Tifa piano y");
+        AssertEqual(0, piano.StaticZ, "Tifa piano z");
+        AssertEqual(344, piano.MinimumGameMoment, "Tifa piano minimum moment");
+        AssertEqual(384, piano.MaximumGameMoment, "Tifa piano maximum moment");
+    }
+
     private static void AssertReviewedNpcLabels()
     {
         var cases = new[]
@@ -229,6 +502,44 @@ internal static class KalmRanchNavigationTests
         AssertEqual(expectedX, target.X, $"{expectedLabel} x");
         AssertEqual(expectedY, target.Y, $"{expectedLabel} y");
         AssertEqual(expectedZ, target.Z, $"{expectedLabel} z");
+    }
+
+    private static void AssertStoryTargetAtTriangle(
+        NativeMemory memory,
+        int fieldId,
+        int gameMoment,
+        ushort playerTriangle,
+        string expectedLabel,
+        int expectedX,
+        int expectedY,
+        int expectedZ,
+        FieldNavigationTriggerLine? expectedTriggerLine = null,
+        bool expectedCompletesOnArrival = true)
+    {
+        memory.SetGameMoment(gameMoment);
+        var reader = new FieldStoryTargetReader(
+            memory.ReadInt32,
+            memory.ReadInt16,
+            memory.ReadByte,
+            FieldStoryEventCatalog.CreateAllFields());
+        var targets = reader.ReadTargets(
+            new FieldPositionSnapshot(
+                1,
+                fieldId,
+                0,
+                0,
+                0,
+                0,
+                playerTriangle,
+                0));
+        var target = targets.Single();
+
+        AssertEqual(expectedLabel, target.Label, $"story target in field {fieldId} at moment {gameMoment} on triangle {playerTriangle}");
+        AssertEqual(expectedX, target.X, $"{expectedLabel} x");
+        AssertEqual(expectedY, target.Y, $"{expectedLabel} y");
+        AssertEqual(expectedZ, target.Z, $"{expectedLabel} z");
+        AssertEqual(expectedTriggerLine, target.TriggerLine, $"{expectedLabel} native trigger line");
+        AssertEqual(expectedCompletesOnArrival, target.CompletesOnArrival, $"{expectedLabel} arrival behavior");
     }
 
     private static void AssertNoStoryTarget(

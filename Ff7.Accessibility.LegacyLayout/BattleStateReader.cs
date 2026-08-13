@@ -540,25 +540,30 @@ public sealed class BattleStateReader
         var result = new List<BattlePartyProgressSnapshot>(PartyActorCount);
         for (var partySlot = 0; partySlot < PartyActorCount; partySlot++)
         {
-            if (addressSpace is not null)
+            if (!TryComputeAddress(
+                    SavemapPartyReader.AddressSavemap + SavemapPartyReader.PartyMembersOffset,
+                    partySlot,
+                    1,
+                    out var partySlotAddress) ||
+                !TryReadByte(partySlotAddress, out var partyCharacterId))
             {
-                var partySlotAddress = checked(
-                    SavemapPartyReader.AddressSavemap +
-                    SavemapPartyReader.PartyMembersOffset +
-                    partySlot);
-                var characterId = ReadAddressSpaceByte(partySlotAddress);
-                if (characterId == byte.MaxValue)
+                if (addressSpace is not null)
                 {
-                    continue;
+                    throw new LegacyReadFailureException();
                 }
 
-                if (characterId >= 9)
-                {
-                    throw new InvalidBattleSnapshotException();
-                }
+                continue;
             }
 
-            if (!partyReader.TryReadPartySlot(partySlot, out var member))
+            if (partyCharacterId == byte.MaxValue)
+            {
+                continue;
+            }
+
+            if (!partyReader.TryReadBattlePartySlot(
+                    partySlot,
+                    out var member,
+                    out var characterRecordIndex))
             {
                 if (addressSpace is not null)
                 {
@@ -570,7 +575,7 @@ public sealed class BattleStateReader
 
             if (!TryComputeAddress(
                     SavemapPartyReader.AddressSavemap + SavemapPartyReader.CharactersOffset,
-                    member.CharacterId,
+                    characterRecordIndex,
                     SavemapPartyReader.CharacterSize,
                     out var characterBase))
             {
@@ -915,7 +920,8 @@ public sealed class BattleStateReader
         // The scene-index records are formation setup data and can retain entries
         // for slots the current encounter did not instantiate. The battle actor
         // identity byte is the native live-slot sentinel used by the engine.
-        if (readByte(actorBase + ActorInstanceIdOffset) == byte.MaxValue)
+        var actorInstanceId = readByte(actorBase + ActorInstanceIdOffset);
+        if (actorInstanceId == byte.MaxValue)
         {
             return ActorSlotReadState.Inactive;
         }
@@ -966,7 +972,7 @@ public sealed class BattleStateReader
                 return ActorSlotReadState.Inactive;
             }
 
-            if (characterId >= 9)
+            if (characterId != actorInstanceId)
             {
                 return ActorSlotReadState.Invalid;
             }
@@ -985,8 +991,13 @@ public sealed class BattleStateReader
     private bool TryReadActorCore(int actorIndex, bool isEnemy, out RawBattleActorSnapshot actor)
     {
         actor = default;
-        if (!TryComputeAddress(AddressBattleActors, actorIndex, BattleActorSize, out var actorBase) ||
-            readByte(actorBase + ActorInstanceIdOffset) == byte.MaxValue)
+        if (!TryComputeAddress(AddressBattleActors, actorIndex, BattleActorSize, out var actorBase))
+        {
+            return false;
+        }
+
+        var actorInstanceId = readByte(actorBase + ActorInstanceIdOffset);
+        if (actorInstanceId == byte.MaxValue)
         {
             return false;
         }
@@ -1023,25 +1034,12 @@ public sealed class BattleStateReader
         }
         else
         {
-            if (addressSpace is not null)
-            {
-                var partySlotAddress = checked(
-                    SavemapPartyReader.AddressSavemap +
-                    SavemapPartyReader.PartyMembersOffset +
-                    actorIndex);
-                var characterId = ReadAddressSpaceByte(partySlotAddress);
-                if (characterId == byte.MaxValue)
-                {
-                    return false;
-                }
-
-                if (characterId >= 9)
-                {
-                    throw new InvalidBattleSnapshotException();
-                }
-            }
-
-            name = partyReader.TryReadPartySlot(actorIndex, out var member) ? member.Name : null;
+            name = partyReader.TryReadBattlePartySlot(
+                actorIndex,
+                actorInstanceId,
+                out var member)
+                ? member.Name
+                : null;
             if (addressSpace is not null && string.IsNullOrWhiteSpace(name))
             {
                 throw new LegacyReadFailureException();

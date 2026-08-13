@@ -62,6 +62,7 @@ internal static class Steam2026BattleObservationTests
         supportedFingerprint = supported;
         unsupportedFingerprint = unsupported;
         ReadsEquivalentPointerFreeBattleSnapshots();
+        ReadsScriptedGuestPartyBattleSnapshots();
         NormalizesBattleFramesWithStrictEnemyPrivacy();
         ReadsCoherentNativeVictorySignal();
         ReadsEquivalentActionResultsAndDamageDomains();
@@ -121,6 +122,57 @@ internal static class Steam2026BattleObservationTests
                 Equal(false, property.CanWrite, $"{outputType.Name}.{property.Name} is immutable");
             }
         }
+    }
+
+    internal static void ReadsScriptedGuestPartyBattleSnapshots(
+        bool includeTranslatedAddressSpace = true)
+    {
+        var fixture = BattleObservationFixture.CreatePopulated();
+        fixture.ConfigureGuestPartyActor(
+            partySlot: 0,
+            characterId: 10,
+            characterRecordIndex: 4,
+            name: "Sephiroth",
+            level: 50);
+        var directReader = new Steam2026BattleObservationReader(fixture.Direct, Resolvers);
+
+        Equal(
+            true,
+            directReader.TryReadResearchSnapshot(1, out var direct),
+            "direct scripted guest battle snapshot");
+        Equal(
+            "Sephiroth",
+            direct.Actors.Single(actor => !actor.IsEnemy).Name,
+            "scripted guest menu owner");
+        Equal("Attack", direct.Menu.Selection.Name, "scripted guest command");
+
+        var trackerReader = directReader;
+        if (includeTranslatedAddressSpace)
+        {
+            supportedFingerprint ??= new Steam2026FingerprintResult(
+                new RuntimeIdentity(
+                    Steam2026Fingerprint.SupportedRuntimeId,
+                    @"C:\fixture\FFVII.exe",
+                    Steam2026Fingerprint.SupportedSha256,
+                    true,
+                    string.Empty),
+                true,
+                "Exact supported fingerprint fixture.");
+            var translatedReader = fixture.CreateTranslatedReader();
+            Equal(
+                true,
+                translatedReader.TryReadResearchSnapshot(1, out var translated),
+                "translated scripted guest battle snapshot");
+            Equal(direct, translated, "scripted guest battle snapshots match");
+            trackerReader = translatedReader;
+        }
+
+        Equal(
+            true,
+            trackerReader.TryReadBattleTrackerSnapshot(out var tracker),
+            "scripted guest battle tracker snapshot");
+        Equal("Sephiroth", tracker.PartyProgress.Single().Name, "scripted guest progress name");
+        Equal(50, tracker.PartyProgress.Single().Level, "scripted guest progress level");
     }
 
     private static void NormalizesBattleFramesWithStrictEnemyPrivacy()
@@ -603,6 +655,54 @@ internal sealed class BattleObservationFixture
                 sceneEnemyIndex * BattleStateReader.EnemyDataSize),
             string.Empty,
             BattleStateReader.EnemyNameLength);
+
+    public void ConfigureGuestPartyActor(
+        int partySlot,
+        byte characterId,
+        int characterRecordIndex,
+        string name,
+        byte level)
+    {
+        if (partySlot is < 0 or >= 3)
+        {
+            throw new ArgumentOutOfRangeException(nameof(partySlot));
+        }
+
+        if (characterId < 9 || characterId == byte.MaxValue ||
+            characterRecordIndex is < 0 or >= 9)
+        {
+            throw new ArgumentOutOfRangeException(nameof(characterId));
+        }
+
+        for (var recordIndex = 0; recordIndex < 9; recordIndex++)
+        {
+            WriteByte(
+                SavemapPartyReader.AddressSavemap +
+                    SavemapPartyReader.CharactersOffset +
+                    recordIndex * SavemapPartyReader.CharacterSize,
+                checked((byte)recordIndex));
+        }
+
+        var recordAddress = SavemapPartyReader.AddressSavemap +
+            SavemapPartyReader.CharactersOffset +
+            characterRecordIndex * SavemapPartyReader.CharacterSize;
+        WriteByte(recordAddress, characterId);
+        WriteFf7Text(
+            (uint)(recordAddress + SavemapPartyReader.CharacterNameOffset),
+            name,
+            12);
+        WriteByte(recordAddress + SavemapPartyReader.LevelOffset, level);
+        WriteByte(
+            SavemapPartyReader.AddressSavemap +
+                SavemapPartyReader.PartyMembersOffset +
+                partySlot,
+            characterId);
+        WriteByte(
+            BattleStateReader.AddressBattleActors +
+                partySlot * BattleStateReader.BattleActorSize +
+                BattleStateReader.ActorInstanceIdOffset,
+            characterId);
+    }
 
     public void WriteByte(int address, byte value) => Write((uint)address, [value]);
 

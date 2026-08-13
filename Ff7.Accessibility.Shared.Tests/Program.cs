@@ -20,6 +20,7 @@ AssertMagicMenuSelectionReaderChecksEveryFieldAndBookend();
 AssertSavemapPartyReaderChecksEveryFieldAndBookend();
 AssertBattleLayoutReadersLiveInSharedAssembly();
 AssertBattleStateReaderChecksCompleteCoherentSnapshots();
+AssertBattleStateReaderSupportsNativeGuestPartyRecords();
 AssertBattleStateReaderBoundsIndicesAndMarksEnemyDetailsPrivate();
 AssertBattleActorSnapshotEnforcesPrivacyInvariant();
 AssertBattlePrivateCorrelationContractIsNarrowAndNonPublic();
@@ -145,6 +146,69 @@ static void AssertBattleStateReaderChecksCompleteCoherentSnapshots()
         false,
         CreateCheckedBattleStateReader(remappedActor).ReadMenuState(1).IsValid,
         "remapped battle actor record invalidates the snapshot");
+}
+
+static void AssertBattleStateReaderSupportsNativeGuestPartyRecords()
+{
+    const byte guestCharacterId = 10;
+    const int guestRecordIndex = 4;
+    var memory = CreateValidBattleEncounterMemory();
+    var partySlotAddress = (uint)SavemapPartyReader.AddressSavemap +
+        SavemapPartyReader.PartyMembersOffset;
+    var actorBase = (uint)BattleStateReader.AddressBattleActors;
+    memory.Write(partySlotAddress, [guestCharacterId]);
+    memory.Write(actorBase + BattleStateReader.ActorInstanceIdOffset, [guestCharacterId]);
+
+    for (var recordIndex = 0; recordIndex < 9; recordIndex++)
+    {
+        memory.Write(
+            (uint)SavemapPartyReader.AddressSavemap +
+                SavemapPartyReader.CharactersOffset +
+                (uint)recordIndex * SavemapPartyReader.CharacterSize,
+            [checked((byte)recordIndex)]);
+    }
+
+    var guestRecordAddress = (uint)SavemapPartyReader.AddressSavemap +
+        SavemapPartyReader.CharactersOffset +
+        (uint)guestRecordIndex * SavemapPartyReader.CharacterSize;
+    memory.Write(guestRecordAddress, [guestCharacterId]);
+    WriteFf7Text(
+        memory,
+        guestRecordAddress + SavemapPartyReader.CharacterNameOffset,
+        "Sephiroth",
+        12);
+    memory.Write(
+        guestRecordAddress + SavemapPartyReader.LevelOffset,
+        [50]);
+    memory.Write((uint)BattleStateReader.AddressRootCommandColumnCount, [1]);
+    WriteInt32(memory, (uint)BattleStateReader.AddressRootCommandColumn, 0);
+    WriteInt32(memory, (uint)BattleStateReader.AddressRootCommandRow, 0);
+    memory.Write((uint)BattleStateReader.AddressRootCommandRecords, [1]);
+
+    var reader = new BattleStateReader(
+        memory,
+        new SavemapPartyReader(memory),
+        resolveCommandName: commandId => commandId == 1 ? "Attack" : null);
+    var menu = reader.ReadMenuState(1);
+
+    AssertEqual(true, menu.IsValid, "native guest battle menu snapshot");
+    AssertEqual("Sephiroth", menu.Actor.Name, "native guest battle actor name");
+    AssertEqual("Attack", menu.Selection?.Name, "native guest root command");
+    AssertEqual(
+        true,
+        reader.TryReadBattleActors(out var actors),
+        "native guest battle actor collection");
+    AssertEqual(
+        true,
+        actors.Any(actor => !actor.IsEnemy && actor.Name == "Sephiroth"),
+        "native guest actor remains correlated with the live party slot");
+    AssertEqual(
+        true,
+        reader.TryReadPartyProgress(out var progress),
+        "native guest party progress");
+    AssertEqual("Sephiroth", progress.Single().Name, "native guest progress name");
+    AssertEqual(50, progress.Single().Level, "native guest progress level");
+    AssertEqual(true, reader.ReadEncounter().IsValid, "native guest battle encounter");
 }
 
 static void AssertBattleStateReaderBoundsIndicesAndMarksEnemyDetailsPrivate()

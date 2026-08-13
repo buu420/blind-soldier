@@ -11,9 +11,18 @@ if (args.Contains("--module-tests-only", StringComparer.OrdinalIgnoreCase))
 {
     Steam2026BattleStatusHotkeyTests.Run();
     Steam2026BattleObservationTests.ReadsNativeEnemySkillCategoryMapping();
+    Steam2026BattleObservationTests.ReadsScriptedGuestPartyBattleSnapshots(
+        includeTranslatedAddressSpace: false);
     Steam2026FieldNavigationRuntimeTests.Run();
     NavigationAutoWalkControllerTests.Run();
     Console.WriteLine("Steam 2026 x64 module tests passed.");
+    return;
+}
+
+if (args.Contains("--guest-battle-translated-only", StringComparer.OrdinalIgnoreCase))
+{
+    Steam2026BattleObservationTests.ReadsScriptedGuestPartyBattleSnapshots();
+    Console.WriteLine("Steam 2026 x64 translated guest-party battle tests passed.");
     return;
 }
 

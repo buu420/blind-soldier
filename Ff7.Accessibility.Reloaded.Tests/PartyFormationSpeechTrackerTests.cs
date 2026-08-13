@@ -13,6 +13,7 @@ internal static class PartyFormationSpeechTrackerTests
         ReadsHighResolutionReformSelections();
         ReadsLowResolutionReformSelections();
         AnnouncesNativePartyValidationTransitionsOnce();
+        PassiveInstructionDoesNotAlternateWithValidationOrStarveSelections();
         RequiresExactReformOwnershipAndResetsOnExit();
     }
 
@@ -130,9 +131,65 @@ internal static class PartyFormationSpeechTrackerTests
             MenuModule,
             now.AddMilliseconds(200));
         Equal(
-            "Party complete. Press Start when finished.",
+            null,
             tracker.Poll(now.AddMilliseconds(240)),
-            "native valid-party transition");
+            "returning to the continuously rendered instruction is not a status transition");
+    }
+
+    private static void PassiveInstructionDoesNotAlternateWithValidationOrStarveSelections()
+    {
+        var tracker = new PartyFormationSpeechTracker(TimeSpan.FromMilliseconds(30));
+        var now = UtcNow();
+        tracker.ObserveDraw(new MenuTextRenderEntry("Reform", 508, 14, 7, 0), MenuModule, now);
+        tracker.ObserveDraw(
+            new MenuTextRenderEntry("Select with Menu button.", 26, 13, 7, TextContext),
+            MenuModule,
+            now);
+        tracker.ObserveDraw(new MenuTextRenderEntry("Cloud", 134, 77, 7, TextContext), MenuModule, now);
+        tracker.ObserveDraw(new MenuTextRenderEntry("Barret", 134, 214, 7, TextContext), MenuModule, now);
+        tracker.ObserveDraw(new MenuTextRenderEntry("Red XIII", 134, 351, 7, TextContext), MenuModule, now);
+        tracker.ObserveCursor(
+            new MenuCursorDrawObservation("B", MenuModule, 0, 120, PartyCursorContext),
+            now.AddMilliseconds(1));
+        Equal(
+            "Reform. Party slot 1, Cloud. Select with Menu button.",
+            tracker.Poll(now.AddMilliseconds(80)),
+            "translated x64 instruction is included in the Reform introduction");
+
+        tracker.ObserveDraw(
+            new MenuTextRenderEntry("Please make a party of three.", 26, 13, 7, TextContext),
+            MenuModule,
+            now.AddMilliseconds(100));
+        Equal(
+            "Please make a party of three.",
+            tracker.Poll(now.AddMilliseconds(140)),
+            "native validation is announced once");
+
+        tracker.ObserveDraw(
+            new MenuTextRenderEntry("Select with Menu button.", 26, 13, 7, TextContext),
+            MenuModule,
+            now.AddMilliseconds(150));
+        Equal(
+            null,
+            tracker.Poll(now.AddMilliseconds(190)),
+            "the continuously rendered selection instruction does not interrupt speech");
+
+        tracker.ObserveDraw(
+            new MenuTextRenderEntry("Please make a party of three.", 26, 13, 7, TextContext),
+            MenuModule,
+            now.AddMilliseconds(200));
+        Equal(
+            null,
+            tracker.Poll(now.AddMilliseconds(240)),
+            "the same validation does not re-arm through the passive instruction");
+
+        tracker.ObserveCursor(
+            new MenuCursorDrawObservation("B", MenuModule, 0, 257, PartyCursorContext),
+            now.AddMilliseconds(250));
+        Equal(
+            "Party slot 2, Barret.",
+            tracker.Poll(now.AddMilliseconds(330)),
+            "member and slot speech remains available after the validation prompt");
     }
 
     private static void RequiresExactReformOwnershipAndResetsOnExit()

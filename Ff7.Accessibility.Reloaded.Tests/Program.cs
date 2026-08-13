@@ -109,6 +109,13 @@ if (args.Contains("--kalm-junon-descriptions-only", StringComparer.OrdinalIgnore
     return;
 }
 
+if (args.Contains("--nibelheim-flashback-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.KalmRanchNavigationTests.RunNibelheimFlashbackOnly();
+    Console.WriteLine("FFVII Nibelheim flashback navigation tests passed.");
+    return;
+}
+
 if (args.Contains("--menu-repeat-only", StringComparer.OrdinalIgnoreCase))
 {
     AssertOrderMenuSelectionReadsNativeRowsAndPendingMember();
@@ -170,6 +177,13 @@ if (args.Contains("--reported-navigation-regressions-only", StringComparer.Ordin
     AssertFloor63CouponRouteUsesNativeDoorAndCouponState();
     Ff7.Accessibility.Reloaded.Tests.ReportedNavigationRegressionTests.Run();
     Console.WriteLine("FFVII reported navigation and encounter regression tests passed.");
+    return;
+}
+
+if (args.Contains("--guest-battle-only", StringComparer.OrdinalIgnoreCase))
+{
+    AssertBattleStateReaderReadsGuestPartyCommands();
+    Console.WriteLine("FFVII scripted guest-party battle tests passed.");
     return;
 }
 
@@ -366,6 +380,7 @@ AssertKernel2TextDatabaseReadsMateriaNames();
 AssertKernel2TextDatabaseReadsInventoryObjectNames();
 AssertBattleStateReaderRejectsOtherModulesAndInvalidActors();
 AssertBattleStateReaderReadsReadyActorAndLiveStats();
+AssertBattleStateReaderReadsGuestPartyCommands();
 AssertBattleStateReaderReadsMaskedAllyAndEnemyTargets();
 AssertBattleStateReaderRequiresNativeTargetUiGates();
 AssertBattleStateReaderDoesNotGuessTargetCommandRanges();
@@ -2744,6 +2759,58 @@ static void AssertBattleStateReaderReadsReadyActorAndLiveStats()
     AssertEqual(350, snapshot.Actor.MaxHp, "native battle actor max HP");
     AssertEqual(42, snapshot.Actor.CurrentMp, "native battle actor current MP");
     AssertEqual(54, snapshot.Actor.MaxMp, "native battle actor max MP");
+}
+
+static void AssertBattleStateReaderReadsGuestPartyCommands()
+{
+    const byte guestCharacterId = 10;
+    const int guestRecordIndex = 4;
+    var memory = CreateBattleMemoryWithCloud();
+    memory[SavemapPartyReader.AddressSavemap + SavemapPartyReader.PartyMembersOffset] =
+        guestCharacterId;
+    memory[BattleStateReader.AddressBattleActors + BattleStateReader.ActorInstanceIdOffset] =
+        guestCharacterId;
+    var guestRecordAddress = SavemapPartyReader.AddressSavemap +
+        SavemapPartyReader.CharactersOffset +
+        guestRecordIndex * SavemapPartyReader.CharacterSize;
+    memory[guestRecordAddress] = guestCharacterId;
+    WriteFf7Text(
+        memory,
+        guestRecordAddress + SavemapPartyReader.CharacterNameOffset,
+        "Sephiroth",
+        12);
+    WriteUInt32(memory, BattleStateReader.AddressBattleActors + BattleStateReader.ActorCurrentHpOffset, 4200);
+    WriteUInt32(memory, BattleStateReader.AddressBattleActors + BattleStateReader.ActorMaxHpOffset, 4200);
+    WriteUInt16(memory, BattleStateReader.AddressBattleActors + BattleStateReader.ActorCurrentMpOffset, 100);
+    WriteUInt16(memory, BattleStateReader.AddressBattleActors + BattleStateReader.ActorMaxMpOffset, 100);
+    WriteUInt32(memory, BattleStateReader.AddressRootCommandColumn, 0);
+    WriteUInt32(memory, BattleStateReader.AddressRootCommandRow, 0);
+    memory[BattleStateReader.AddressRootCommandColumnCount] = 1;
+    memory[BattleStateReader.AddressRootCommandRecords] = 1;
+
+    var snapshot = CreateBattleStateReader(
+        memory,
+        commandName: commandId => commandId == 1 ? "Attack" : null).ReadMenuState(1);
+
+    AssertEqual(true, snapshot.IsValid, "guest battle command frame validity");
+    AssertEqual("Sephiroth", snapshot.Actor.Name, "guest battle actor name");
+    AssertEqual("Attack", snapshot.Selection?.Name, "guest battle command name");
+
+    var coordinator = new BattleMenuFrameSpeechCoordinator();
+    coordinator.BeginFrame(1);
+    coordinator.ObserveDraw(new MenuTextRenderEntry("Attack", 156, 350, 7, 0x3F004189));
+    coordinator.ObserveCursor(
+        new MenuCursorDrawObservation(
+            "battle",
+            BattleStateReader.BattleModule,
+            100,
+            350,
+            0x3F004189));
+    coordinator.CompleteFrame(snapshot);
+    AssertEqual(
+        "Sephiroth. Attack",
+        coordinator.Poll(),
+        "guest battle command speech");
 }
 
 static void AssertBattleStateReaderReadsMaskedAllyAndEnemyTargets()
