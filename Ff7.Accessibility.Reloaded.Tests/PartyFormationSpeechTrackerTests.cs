@@ -11,10 +11,34 @@ internal static class PartyFormationSpeechTrackerTests
     internal static void Run()
     {
         ReadsHighResolutionReformSelections();
+        ReadsNormalPhsSelectionsInNativeModule();
         ReadsLowResolutionReformSelections();
         AnnouncesNativePartyValidationTransitionsOnce();
         PassiveInstructionDoesNotAlternateWithValidationOrStarveSelections();
         RequiresExactReformOwnershipAndResetsOnExit();
+    }
+
+    private static void ReadsNormalPhsSelectionsInNativeModule()
+    {
+        const int phsModule = 19;
+        var tracker = new PartyFormationSpeechTracker(TimeSpan.FromMilliseconds(30));
+        var now = UtcNow();
+        tracker.ObserveDraw(new MenuTextRenderEntry("PHS", 508, 14, 7, 0), phsModule, now);
+        tracker.ObserveDraw(
+            new MenuTextRenderEntry("Select with START button.", 26, 13, 7, TextContext),
+            phsModule,
+            now);
+        tracker.ObserveDraw(new MenuTextRenderEntry("Cloud", 134, 77, 7, TextContext), phsModule, now);
+        tracker.ObserveDraw(new MenuTextRenderEntry("Barret", 134, 214, 7, TextContext), phsModule, now);
+        tracker.ObserveDraw(new MenuTextRenderEntry("Tifa", 134, 351, 7, TextContext), phsModule, now);
+        tracker.ObserveCursor(
+            new MenuCursorDrawObservation("B", phsModule, 0, 257, PartyCursorContext),
+            now.AddMilliseconds(1));
+
+        Equal(
+            "PHS. Party slot 2, Barret. Press Start when finished.",
+            tracker.Poll(now.AddMilliseconds(80)),
+            "normal PHS module reads the checked active party slot");
     }
 
     private static void ReadsHighResolutionReformSelections()
@@ -213,9 +237,9 @@ internal static class PartyFormationSpeechTrackerTests
             "same selection speaks after exact ownership acquisition");
 
         tracker.ObserveCursor(
-            new MenuCursorDrawObservation("B", 19, 0, 120, PartyCursorContext),
+            new MenuCursorDrawObservation("B", 20, 0, 120, PartyCursorContext),
             now.AddMilliseconds(200));
-        Equal(false, tracker.IsActive(now.AddMilliseconds(200)), "leaving module 5 releases Reform ownership");
+        Equal(false, tracker.IsActive(now.AddMilliseconds(200)), "leaving both party modules releases Reform ownership");
         Equal(null, tracker.Poll(now.AddMilliseconds(280)), "exited Reform screen has no pending speech");
     }
 

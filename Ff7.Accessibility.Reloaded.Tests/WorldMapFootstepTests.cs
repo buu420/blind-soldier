@@ -8,7 +8,7 @@ internal static class WorldMapFootstepTests
     {
         SelectsTheCosmoModelAndTerrainTrackBeforeTheTerrainFallback();
         UsesActualWrappedMovementAndStaysSilentWhenBlocked();
-        UsesTheLongerNativeChocoboCadence();
+        UsesTheLongerNativeChocoboCadenceForBothRiddenModels();
         RejectsVehicleMovementAndTeleports();
     }
 
@@ -36,13 +36,19 @@ internal static class WorldMapFootstepTests
         Equal(true, tracker.Observe(State(x: 8), now.AddMilliseconds(400)), "wrapped post-collision movement");
     }
 
-    private static void UsesTheLongerNativeChocoboCadence()
+    private static void UsesTheLongerNativeChocoboCadenceForBothRiddenModels()
     {
-        var tracker = new WorldMapFootstepTracker(0x48000, 0x38000);
         var now = DateTime.UtcNow;
-        Equal(false, tracker.Observe(State(x: 0, model: 19), now), "prime chocobo");
-        Equal(false, tracker.Observe(State(x: 20, model: 19), now.AddMilliseconds(350)), "chocobo cadence not yet elapsed");
-        Equal(true, tracker.Observe(State(x: 40, model: 19), now.AddMilliseconds(510)), "chocobo stride elapsed");
+
+        var caught = new WorldMapFootstepTracker(0x48000, 0x38000);
+        Equal(false, caught.Observe(State(x: 0, model: 4), now), "prime caught Chocobo");
+        Equal(false, caught.Observe(State(x: 20, model: 4), now.AddMilliseconds(350)), "caught Chocobo cadence not yet elapsed");
+        Equal(true, caught.Observe(State(x: 40, model: 4), now.AddMilliseconds(510)), "caught Chocobo stride elapsed");
+
+        var alternate = new WorldMapFootstepTracker(0x48000, 0x38000);
+        Equal(false, alternate.Observe(State(x: 0, model: 19), now), "prime alternate ridden Chocobo");
+        Equal(false, alternate.Observe(State(x: 20, model: 19), now.AddMilliseconds(350)), "alternate Chocobo cadence not yet elapsed");
+        Equal(true, alternate.Observe(State(x: 40, model: 19), now.AddMilliseconds(510)), "alternate Chocobo stride elapsed");
     }
 
     private static void RejectsVehicleMovementAndTeleports()

@@ -786,7 +786,7 @@ public sealed class FieldNavigationController
                         position,
                         target.Value,
                         resumeDistance,
-                        currentGuidance))
+                        guidance: null))
                 {
                     return null;
                 }

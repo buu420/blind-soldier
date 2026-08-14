@@ -5,6 +5,7 @@ public enum MenuWidgetKind
     Generic,
     RootMainMenu,
     ItemCommand,
+    ItemArrange,
     ItemList,
     ItemTarget,
     MagicCategory,
@@ -24,7 +25,8 @@ public enum MenuWidgetKind
     TitleSaveFile,
     LimitCommand,
     LimitLevel,
-    LimitMoveList
+    LimitMoveList,
+    LimitConfirmation
 }
 
 public readonly record struct MenuWidgetDescriptor(uint Address, string Name, MenuWidgetKind Kind);
@@ -42,6 +44,8 @@ public static class MenuWidgetCatalog
         new(0x00DD1A18, "Item submenu command", MenuWidgetKind.ItemCommand),
         new(0x00DD1A50, "Item list", MenuWidgetKind.ItemList),
         new(0x00DD1A88, "Item target", MenuWidgetKind.ItemTarget),
+        new(0x00DD1AF8, "Item arrange", MenuWidgetKind.ItemArrange),
+        new(0x00DD1B30, "Item arrange list", MenuWidgetKind.ItemList),
         new(0x00DD1698, "Magic category", MenuWidgetKind.MagicCategory),
         new(0x00DD16D0, "Magic target", MenuWidgetKind.MagicTarget),
         new(0x00DD1708, "Magic list", MenuWidgetKind.MagicList),
@@ -59,7 +63,7 @@ public static class MenuWidgetCatalog
         new(0x00DCA1D0, "Limit command", MenuWidgetKind.LimitCommand),
         new(0x00DCA208, "Limit check level", MenuWidgetKind.LimitLevel),
         new(0x00DCA240, "Limit move list", MenuWidgetKind.LimitMoveList),
-        new(0x00DCA118, "PHS party", MenuWidgetKind.CharacterList),
+        new(0x00DCA278, "Limit level confirmation", MenuWidgetKind.LimitConfirmation),
         new(0x00DC6AE0, "Save file or Quit choice", MenuWidgetKind.Generic),
         new(0x00DC6B18, "Save game slot", MenuWidgetKind.Generic),
         new(0x00DC6C68, "Save confirmation", MenuWidgetKind.Generic)

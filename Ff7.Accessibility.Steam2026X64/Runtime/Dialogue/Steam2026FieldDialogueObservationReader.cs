@@ -27,6 +27,7 @@ public sealed class Steam2026FieldDialogueObservationReader
     private long lastAskCursorSequence;
     private AskWindowSnapshot? lastExactAskWindow;
     private AskWindowSnapshot? retiredAskWindow;
+    private readonly Dictionary<MessageIngressIdentity, ActiveMessageIngress> activeMessageIngresses = [];
     private FieldOpcodeMessageObservation? activeMessageIngress;
     private long lastMessageIngressSequence;
     private long lastDialogueIngressSequence;
@@ -110,6 +111,16 @@ public sealed class Steam2026FieldDialogueObservationReader
             }
 
             lastMessageIngressSequence = snapshot.Sequence;
+            var identity = MessageIngressIdentity.From(observation);
+            if (snapshot.Result != 0 && activeMessageIngresses.ContainsKey(identity))
+            {
+                // A blocked MESSAGE opcode is called again on every field
+                // script pass. Re-entry for an already-active identity is a
+                // lifecycle poll, not a newly opened page, and must not steal
+                // focus from a newer overlapping window.
+                return;
+            }
+
             if (snapshot.Sequence <= lastDialogueIngressSequence)
             {
                 return;
@@ -118,16 +129,29 @@ public sealed class Steam2026FieldDialogueObservationReader
             lastDialogueIngressSequence = snapshot.Sequence;
             if (snapshot.Result != 0)
             {
+                activeMessageIngresses[identity] = new ActiveMessageIngress(
+                    observation,
+                    snapshot.Sequence);
                 activeMessageIngress = observation;
                 selectedWindowId = observation.WindowId;
                 retiredAskWindow = lastExactAskWindow;
                 lastExactAskWindow = null;
                 latestAskCursor = null;
             }
-            else if (activeMessageIngress is { } active
-                     && SameMessageIdentity(active, observation))
+            else
             {
-                activeMessageIngress = null;
+                activeMessageIngresses.Remove(identity);
+                if (activeMessageIngress is { } active
+                    && SameMessageIdentity(active, observation))
+                {
+                    activeMessageIngress = latestAskCursor is null
+                        ? SelectLatestActiveMessage()
+                        : null;
+                    if (activeMessageIngress is { } restored)
+                    {
+                        selectedWindowId = restored.WindowId;
+                    }
+                }
             }
         }
     }
@@ -147,6 +171,7 @@ public sealed class Steam2026FieldDialogueObservationReader
     {
         lock (sync)
         {
+            activeMessageIngresses.Clear();
             activeMessageIngress = null;
             lastMessageIngressSequence = 0;
         }
@@ -505,6 +530,7 @@ public sealed class Steam2026FieldDialogueObservationReader
             if (activeMessageIngress is { } active
                 && active.FieldId != candidate.Ownership.FieldId)
             {
+                activeMessageIngresses.Clear();
                 activeMessageIngress = null;
             }
         }
@@ -883,7 +909,22 @@ public sealed class Steam2026FieldDialogueObservationReader
         latestAskCursor = null;
         lastExactAskWindow = null;
         retiredAskWindow = null;
+        activeMessageIngresses.Clear();
         activeMessageIngress = null;
+    }
+
+    private FieldOpcodeMessageObservation? SelectLatestActiveMessage()
+    {
+        ActiveMessageIngress? latest = null;
+        foreach (var candidate in activeMessageIngresses.Values)
+        {
+            if (latest is null || candidate.ActivationSequence > latest.Value.ActivationSequence)
+            {
+                latest = candidate;
+            }
+        }
+
+        return latest?.Observation;
     }
 
     private static bool SameMessageIdentity(
@@ -893,6 +934,19 @@ public sealed class Steam2026FieldDialogueObservationReader
         && left.FieldId == right.FieldId
         && left.WindowId == right.WindowId
         && left.DialogId == right.DialogId;
+
+    private readonly record struct MessageIngressIdentity(
+        int FieldId,
+        int WindowId,
+        int DialogId)
+    {
+        internal static MessageIngressIdentity From(FieldOpcodeMessageObservation observation) =>
+            new(observation.FieldId, observation.WindowId, observation.DialogId);
+    }
+
+    private readonly record struct ActiveMessageIngress(
+        FieldOpcodeMessageObservation Observation,
+        long ActivationSequence);
 
     private readonly record struct DialoguePageIdentity(
         ushort FieldId,

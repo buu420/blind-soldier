@@ -939,7 +939,9 @@ Add-Definition -FieldId 307 -FieldName 'sininb41' -Kind 'Location' -Label 'Confr
 # Sephiroth restores control at moment 376 after walking out of the library.
 # These gateways form the complete reverse route to the mansion entrance. The
 # entrance's native Move script redirects this flashback state into the burning
-# Nibelheim sequence, which remains automatic until Cloud reaches the reactor.
+# Nibelheim sequence. In the square, line1 starts Zangan's scene; Bank 3 byte
+# 19 bit 7 then exposes Sephiroth at the only unblocked house. After the fire
+# movie, the mtnvl6b gateway is the final controllable reactor approach.
 Add-Definition -FieldId 307 -FieldName 'sininb41' -Kind 'Location' -Label 'Follow Sephiroth out of the library' -X 399 -Y 10 -Z 0 -MinimumGameMoment 376 -MaximumGameMoment 376 -Priority 0 -ScriptType 'Gateway'
 Add-Definition -FieldId 304 -FieldName 'sininb31' -Kind 'Location' -Label 'Continue out of the basement library' -X -454 -Y -88 -Z 0 -MinimumGameMoment 376 -MaximumGameMoment 376 -Priority 0 -ScriptType 'Gateway'
 Add-Definition -FieldId 303 -FieldName 'sininb2' -Kind 'Location' -Label 'Climb out of the mansion basement' -X 0 -Y -290 -Z 0 -MinimumGameMoment 376 -MaximumGameMoment 376 -Priority 0 -ScriptType 'Gateway'
@@ -947,13 +949,19 @@ Add-Definition -FieldId 302 -FieldName 'sininb1' -Kind 'Location' -Label 'Climb 
 Add-Definition -FieldId 301 -FieldName 'sinin3' -Kind 'Location' -Label 'Continue up through the right wing' -X 215 -Y -136 -Z 718 -MinimumGameMoment 376 -MaximumGameMoment 376 -Priority 0 -ScriptType 'Gateway'
 Add-Definition -FieldId 300 -FieldName 'sinin2_2' -Kind 'Location' -Label 'Return to the mansion entrance hall' -X 316 -Y 746 -Z 277 -MinimumGameMoment 376 -MaximumGameMoment 376 -Priority 0 -ScriptType 'Gateway'
 Add-Definition -FieldId 297 -FieldName 'sinin1_1' -Kind 'Location' -Label 'Leave the mansion and follow Sephiroth' -X 0 -Y -18 -Z 0 -MinimumGameMoment 376 -MaximumGameMoment 376 -Priority 0 -ScriptType 'Move'
+Add-Definition -FieldId 290 -FieldName 'nivl_b1' -Kind 'Location' -Label 'Approach Zangan in the burning square' -EntityId 3 -X 196 -Y 746 -Z 51 -MinimumGameMoment 376 -MaximumGameMoment 376 -Priority 0 -CompletedCondition (New-Condition 3 19 0x80 0x80) -EntityName 'line1' -ScriptType 'Move' -TriggerLine ([ordered]@{ startX = 116; startY = 733; startZ = 51; endX = 275; endY = 759; endZ = 51 })
+Add-Definition -FieldId 290 -FieldName 'nivl_b1' -Kind 'Model' -Label 'Enter the only unblocked house and follow Sephiroth' -EntityId 7 -MinimumGameMoment 376 -MaximumGameMoment 376 -Priority 0 -RequiredCondition (New-Condition 3 19 0x80 0x80) -EntityName 'cefirth' -ScriptType 'Talk'
+Add-Definition -FieldId 316 -FieldName 'mtnvl6b' -Kind 'Location' -Label 'Enter the Nibel Reactor' -X -118 -Y 163 -Z 325 -MinimumGameMoment 376 -MaximumGameMoment 376 -Priority 0 -ScriptType 'Gateway' -TriggerLine ([ordered]@{ startX = -166; startY = 165; startZ = 325; endX = -70; endY = 160; endZ = 325 })
 
-# The burning-town scene returns control only for the final reactor approach.
-# EV0 advances 380 -> 381; the reactor director then stages the confrontation
-# and exposes Tifa's native Talk model at moment 382.
+# EV0 advances 380 -> 381. The lower forward gateway then reaches nvmkin21,
+# where the reactor director stages the confrontation and exposes Tifa's native
+# Talk model at moment 382. Talking to her advances to moment 383; the only
+# forward gateway then follows Sephiroth into Jenova's chamber.
 Add-Definition -FieldId 322 -FieldName 'nvmkin1' -Kind 'Location' -Label 'Climb down the ladder and follow Tifa' -EntityId 12 -X -124 -Y 520 -Z 1068 -MinimumGameMoment 380 -MaximumGameMoment 380 -Priority 0 -RequiredPlayerTriangles $nibelReactorUpperTriangles -EntityName 'ladu' -ScriptType 'Move' -TriggerLine ([ordered]@{ startX = -82; startY = 476; startZ = 1068; endX = -166; endY = 564; endZ = 1068 }) -KeepActiveOnArrival
 Add-Definition -FieldId 322 -FieldName 'nvmkin1' -Kind 'Location' -Label 'Enter the reactor chamber after Tifa' -EntityId 14 -X 0 -Y -257 -Z 191 -MinimumGameMoment 380 -MaximumGameMoment 380 -Priority 0 -RequiredPlayerTriangles $nibelReactorLowerTriangles -EntityName 'ev0' -ScriptType 'Move' -TriggerLine ([ordered]@{ startX = 38; startY = -257; startZ = 191; endX = -38; endY = -257; endZ = 191 })
+Add-Definition -FieldId 322 -FieldName 'nvmkin1' -Kind 'Location' -Label 'Follow Tifa deeper into the reactor' -X -6 -Y -912 -Z 191 -MinimumGameMoment 381 -MaximumGameMoment 381 -Priority 0 -RequiredPlayerTriangles $nibelReactorLowerTriangles -ScriptType 'Gateway' -TriggerLine ([ordered]@{ startX = 62; startY = -937; startZ = 191; endX = -74; endY = -887; endZ = 191 })
 Add-Definition -FieldId 323 -FieldName 'nvmkin21' -Kind 'Model' -Label 'Talk to Tifa beside the reactor pods' -EntityId 7 -MinimumGameMoment 382 -MaximumGameMoment 382 -Priority 0 -EntityName 'ti2' -ScriptType 'Talk'
+Add-Definition -FieldId 323 -FieldName 'nvmkin21' -Kind 'Location' -Label 'Follow Sephiroth into Jenova''s chamber' -X -4 -Y -1141 -Z 709 -MinimumGameMoment 383 -MaximumGameMoment 383 -Priority 0 -ScriptType 'Gateway' -TriggerLine ([ordered]@{ startX = 56; startY = -1141; startZ = 709; endX = -64; endY = -1141; endZ = 709 })
 
 # Choco/Mog is an optional visual reward and must not block Story. The
 # mandatory early-Ranch objective is buying the Chocobo Lure from Choco Billy;
@@ -999,15 +1007,50 @@ Add-Definition -FieldId 262 -FieldName 'blin68_1' -Kind 'Model' -Label 'Talk to 
 Add-Definition -FieldId 233 -FieldName 'eleout' -Kind 'Location' -Label 'Enter the 66th-floor elevator and press OK' -X -2 -Y 36 -Z -1 -TargetGameMoment 290 -MinimumGameMoment 284 -MaximumGameMoment 284 -Priority 0 -EntityName 'lin0' -ScriptType '[OK]'
 Add-Definition -FieldId 258 -FieldName 'blin67_2' -Kind 'Location' -Label 'Use the cell door and consider each party member until sleep is offered' -X 884 -Y 512 -Z 0 -TargetGameMoment 296 -MinimumGameMoment 293 -MaximumGameMoment 293 -Priority 0 -EntityName 'ln0' -ScriptType '[OK]'
 
+function Get-DefinitionKey($definition) {
+    return "$($definition.fieldId):$($definition.kind):$($definition.entityId):$($definition.x):$($definition.y):$($definition.z):$($definition.targetGameMoment):$($definition.label):$($definition.priority)"
+}
+
 $deduplicated = @($definitions |
     Where-Object {
         -not ($_.fieldId -eq 144 -and
               $_.targetGameMoment -eq 212 -and
               $_.label -eq 'Continue Sewers and Train Graveyard')
     } |
-    Group-Object { "$($_.fieldId):$($_.kind):$($_.entityId):$($_.x):$($_.y):$($_.z):$($_.targetGameMoment):$($_.label):$($_.priority)" } |
-    ForEach-Object { $_.Group[0] } |
-    Sort-Object fieldId, priority, targetGameMoment, entityId, label)
+    Group-Object { Get-DefinitionKey $_ } |
+    ForEach-Object { $_.Group[0] })
+
+# Keep established J/L cycling order stable when the catalog is regenerated.
+# Existing definitions retain their prior positions; newly reviewed objectives
+# are appended in generator order. This prevents a focused addition from
+# silently reordering every unrelated field's targets.
+$rankByKey = @{}
+$nextRank = 0
+if (Test-Path -LiteralPath $OutputPath) {
+    try {
+        $existingDocument = Get-Content -LiteralPath $OutputPath -Raw | ConvertFrom-Json
+        foreach ($definition in $existingDocument.definitions) {
+            $key = Get-DefinitionKey $definition
+            if (-not $rankByKey.ContainsKey($key)) {
+                $rankByKey[$key] = $nextRank
+                $nextRank++
+            }
+        }
+    }
+    catch {
+        Write-Warning "Could not preserve existing Story target order: $($_.Exception.Message)"
+    }
+}
+foreach ($definition in $deduplicated) {
+    $key = Get-DefinitionKey $definition
+    if (-not $rankByKey.ContainsKey($key)) {
+        $rankByKey[$key] = $nextRank
+        $nextRank++
+    }
+}
+$deduplicated = @($deduplicated | Sort-Object {
+    $rankByKey[(Get-DefinitionKey $_)]
+})
 
 $sourceCommit = (git -C $KujataDataRoot rev-parse HEAD).Trim()
 $document = [ordered]@{

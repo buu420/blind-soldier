@@ -13,6 +13,7 @@ if (args.Contains("--module-tests-only", StringComparer.OrdinalIgnoreCase))
     Steam2026BattleObservationTests.ReadsNativeEnemySkillCategoryMapping();
     Steam2026BattleObservationTests.ReadsScriptedGuestPartyBattleSnapshots(
         includeTranslatedAddressSpace: false);
+    Steam2026BattleObservationTests.ReadsBattleInventoryObjectRowsAndAvailability();
     Steam2026FieldNavigationRuntimeTests.Run();
     NavigationAutoWalkControllerTests.Run();
     Console.WriteLine("Steam 2026 x64 module tests passed.");
@@ -50,7 +51,7 @@ if (args.Contains("--multilingual-menu-only", StringComparer.OrdinalIgnoreCase))
 if (args.Contains("--kalm-junon-descriptions-only", StringComparer.OrdinalIgnoreCase))
 {
     var cues = FieldCutsceneDescriptionCatalog.CreateKalmThroughLowerJunonDescriptions();
-    AssertEqual(25, cues.Count, "shared Kalm through Lower Junon cue count in x64 build");
+    AssertEqual(30, cues.Count, "shared Kalm through Lower Junon cue count in x64 build");
     AssertEqual(
         cues.Count,
         cues.Select(cue => cue.Key).Distinct().Count(),
@@ -63,7 +64,9 @@ if (args.Contains("--kalm-junon-descriptions-only", StringComparer.OrdinalIgnore
         FieldOpcodeAddressResolver.OpcodeSplitIndex,
         FieldOpcodeAddressResolver.OpcodeWaitIndex,
         FieldOpcodeAddressResolver.OpcodeSoundIndex,
-        FieldOpcodeAddressResolver.OpcodeMovieIndex
+        FieldOpcodeAddressResolver.OpcodeMovieIndex,
+        FieldOpcodeAddressResolver.OpcodeAnimHoldIndex,
+        FieldOpcodeAddressResolver.OpcodeCanm2Index
     };
     AssertEqual(
         true,
@@ -71,7 +74,8 @@ if (args.Contains("--kalm-junon-descriptions-only", StringComparer.OrdinalIgnore
         "every new cue must use an x64 native-ingress opcode");
     AssertEqual(
         "332:238,277:0,279:4,282:48,282:32,311:207,312:106,313:50,318:26,323:48,323:236," +
-        "332:3,304:66,290:4,292:22,292:10,327:290,332:85,343:24,348:13,349:99,428:142,429:117,434:9,359:79",
+        "332:3,304:66,290:4,292:22,292:10,101:15,322:100,323:13,323:0,323:27," +
+        "327:290,332:85,343:24,348:13,349:99,428:142,429:117,434:9,359:79",
         string.Join(',', cues.Select(cue => $"{cue.FieldId}:{cue.ByteIndex}")),
         "shared Kalm through Lower Junon x64 cue ordering");
     Console.WriteLine("Steam 2026 x64 Kalm through Lower Junon description tests passed.");
@@ -79,9 +83,9 @@ if (args.Contains("--kalm-junon-descriptions-only", StringComparer.OrdinalIgnore
 }
 
 const string nativePath =
-    @"X:\SteamLibrary\steamapps\common\FINAL FANTASY VII Steam Edition\FFVII.exe";
+    @"C:\Program Files (x86)\Steam\steamapps\common\FINAL FANTASY VII Steam Edition\FFVII.exe";
 const string legacyPath =
-    @"X:\SteamLibrary\steamapps\common\FINAL FANTASY VII Steam Edition\ff7\workingdir\ff7_en.exe";
+    @"C:\Games\Final Fantasy VII\workingdir\ff7_en.exe";
 
 var native = Steam2026Fingerprint.Inspect(nativePath);
 AssertEqual(true, native.IsSupported, "known native Steam 2026 executable fingerprint");

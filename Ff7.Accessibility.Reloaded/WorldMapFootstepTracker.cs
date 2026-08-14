@@ -10,7 +10,8 @@ public sealed class WorldMapFootstepTracker
     public static readonly TimeSpan DefaultWalkingInterval = TimeSpan.FromMilliseconds(300);
     public static readonly TimeSpan DefaultChocoboInterval = TimeSpan.FromMilliseconds(500);
 
-    private const int RiddenChocoboModelId = 19;
+    private const int CaughtChocoboModelId = 4;
+    private const int AlternateRiddenChocoboModelId = 19;
     private const double MaximumContinuousDelta = WorldMapDataLoader.MeshSize / 2d;
 
     private readonly int wrapWidth;
@@ -81,7 +82,7 @@ public sealed class WorldMapFootstepTracker
             return false;
         }
 
-        var interval = state.PlayerModelId == RiddenChocoboModelId ? chocoboInterval : walkingInterval;
+        var interval = IsRiddenChocoboModel(state.PlayerModelId) ? chocoboInterval : walkingInterval;
         if (lastFootstepAt != DateTime.MinValue && now - lastFootstepAt < interval)
         {
             LastDiagnostic = $"moving; cadence wait {(interval - (now - lastFootstepAt)).TotalMilliseconds:0} ms";
@@ -93,7 +94,11 @@ public sealed class WorldMapFootstepTracker
         return true;
     }
 
-    private static bool IsFootstepModel(int modelId) => modelId is 0 or 1 or 2 or RiddenChocoboModelId;
+    private static bool IsFootstepModel(int modelId) =>
+        modelId is 0 or 1 or 2 || IsRiddenChocoboModel(modelId);
+
+    private static bool IsRiddenChocoboModel(int modelId) =>
+        modelId is CaughtChocoboModelId or AlternateRiddenChocoboModelId;
 
     private static TimeSpan Normalize(TimeSpan value) => value < TimeSpan.Zero ? TimeSpan.Zero : value;
 }

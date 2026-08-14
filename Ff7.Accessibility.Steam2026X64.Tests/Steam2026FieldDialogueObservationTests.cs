@@ -31,6 +31,8 @@ internal static class Steam2026FieldDialogueObservationTests
         ReadsExactMessageWhenItsWindowStillContainsTheRetiredAskMirror();
         ReadsExactMessageBeforeItsTargetWindowSlotIsAssigned();
         NativeMessageIngressOutranksStaleCurrentOpcodeGlobals();
+        RepeatedOlderMessageCallbackDoesNotStealNewerOverlappingDialogue();
+        CompletingNewestOverlappingMessageRestoresOlderActiveDialogue();
         TransfersAskOwnershipFromNativeMessageIngressWhenPollingMissesSuccessor();
         RejectsOlderQueuedAskAfterNativeMessageIngress();
         PreservesNativeAskOwnershipAcrossTransientReadsAndPointerChurn();
@@ -442,6 +444,110 @@ internal static class Steam2026FieldDialogueObservationTests
             "Flower girl Oh, thank you!",
             response.VisibleText,
             "stale current-opcode globals cannot replace newer callback ingress");
+    }
+
+    private static void RepeatedOlderMessageCallbackDoesNotStealNewerOverlappingDialogue()
+    {
+        var fixture = DialogueObservationFixture.CreateOpen("Barret Wait up, Cloud!");
+        fixture.OpenWindow(1, "Cloud I said wait here.");
+        fixture.WriteMessageTableTexts(
+            "Barret Wait up, Cloud!",
+            "Cloud I said wait here.");
+
+        var reader = new Steam2026FieldDialogueObservationReader(fixture.Direct);
+        var now = new DateTime(2026, 8, 14, 2, 56, 0, DateTimeKind.Utc);
+        reader.ObserveMessageLifecycle(new Steam2026FieldMessageIngressSnapshot(
+            1,
+            now,
+            new FieldOpcodeMessageObservation(
+                FieldOpcodeKind.Message,
+                FieldId: 116,
+                WindowId: 0,
+                DialogId: 0),
+            Result: 1));
+        reader.ObserveMessageLifecycle(new Steam2026FieldMessageIngressSnapshot(
+            2,
+            now.AddMilliseconds(1),
+            new FieldOpcodeMessageObservation(
+                FieldOpcodeKind.Message,
+                FieldId: 116,
+                WindowId: 1,
+                DialogId: 1),
+            Result: 1));
+
+        // Each blocked field entity re-enters MESSAGE on later frames. The
+        // older entity's repeated callback is lifecycle polling, not a newly
+        // opened dialogue page, so it must not take focus back from Cloud.
+        reader.ObserveMessageLifecycle(new Steam2026FieldMessageIngressSnapshot(
+            3,
+            now.AddMilliseconds(2),
+            new FieldOpcodeMessageObservation(
+                FieldOpcodeKind.Message,
+                FieldId: 116,
+                WindowId: 0,
+                DialogId: 0),
+            Result: 1));
+
+        Equal(
+            true,
+            reader.TryRead(out var visible),
+            "overlapping native MESSAGE callbacks remain readable");
+        Equal(1, visible.WindowId, "the newest genuinely opened MESSAGE keeps focus");
+        Equal(
+            "Cloud I said wait here.",
+            visible.VisibleText,
+            "an older blocked MESSAGE callback cannot repeat stale dialogue over its successor");
+    }
+
+    private static void CompletingNewestOverlappingMessageRestoresOlderActiveDialogue()
+    {
+        var fixture = DialogueObservationFixture.CreateOpen("Barret Wait up, Cloud!");
+        fixture.OpenWindow(1, "Cloud I said wait here.");
+        fixture.WriteMessageTableTexts(
+            "Barret Wait up, Cloud!",
+            "Cloud I said wait here.");
+
+        var reader = new Steam2026FieldDialogueObservationReader(fixture.Direct);
+        var now = new DateTime(2026, 8, 14, 2, 56, 0, DateTimeKind.Utc);
+        var barret = new FieldOpcodeMessageObservation(
+            FieldOpcodeKind.Message,
+            FieldId: 116,
+            WindowId: 0,
+            DialogId: 0);
+        var cloud = new FieldOpcodeMessageObservation(
+            FieldOpcodeKind.Message,
+            FieldId: 116,
+            WindowId: 1,
+            DialogId: 1);
+
+        reader.ObserveMessageLifecycle(new Steam2026FieldMessageIngressSnapshot(
+            1,
+            now,
+            barret,
+            Result: 1));
+        reader.ObserveMessageLifecycle(new Steam2026FieldMessageIngressSnapshot(
+            2,
+            now.AddMilliseconds(1),
+            cloud,
+            Result: 1));
+        Equal(true, reader.TryRead(out var newest), "newest overlapping MESSAGE is readable");
+        Equal(1, newest.WindowId, "Cloud initially owns the overlapping dialogue");
+
+        reader.ObserveMessageLifecycle(new Steam2026FieldMessageIngressSnapshot(
+            3,
+            now.AddMilliseconds(2),
+            cloud,
+            Result: 0));
+
+        Equal(
+            true,
+            reader.TryRead(out var restored),
+            "remaining blocked MESSAGE is readable after its successor closes");
+        Equal(0, restored.WindowId, "the remaining active Barret window regains focus");
+        Equal(
+            "Barret Wait up, Cloud!",
+            restored.VisibleText,
+            "completion restores the actual remaining visible dialogue");
     }
 
     private static void TransfersAskOwnershipFromNativeMessageIngressWhenPollingMissesSuccessor()

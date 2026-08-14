@@ -120,7 +120,19 @@ if (args.Contains("--menu-repeat-only", StringComparer.OrdinalIgnoreCase))
 {
     AssertOrderMenuSelectionReadsNativeRowsAndPendingMember();
     AssertRepeatLastSpeechHotkeyRepeatsOnlyDeliveredSpeech();
+    AssertMenuWidgetCatalogMapsItemArrangeSelectors();
+    AssertMenuWidgetCatalogMapsLimitConfirmationSelector();
+    AssertMenuWidgetCatalogRejectsPhsStateFlagAsWidget();
+    AssertActiveMenuFrameReadsNativeItemCommandsWithoutCursorDraw();
+    AssertActiveMenuFrameRetainsItemCommandsAcrossRenderAndFocusCallbacks();
+    AssertActiveMenuFrameReadsItemArrangeWithoutCursorDraw();
+    AssertActiveMenuFrameReadsCustomItemArrangeList();
+    AssertMenuInventoryReaderUsesFullObjectNamespace();
+    AssertActiveMenuFrameReadsLimitConfirmation();
     AssertActiveMenuFrameReadsNativeLimitCommandWithoutCursorDraw();
+    AssertActiveMenuFrameReadsNativeMagicCategoryWithoutCursor();
+    AssertBattleStateReaderReadsUnavailableInventoryObjectSelection();
+    AssertBattleMenuSpeaksUnavailableInventoryObjectSelection();
     AssertActiveMenuFrameIgnoresParentCommandInsideLimitLevel();
     AssertActiveMenuFrameIgnoresParentCommandInsideLimitMoveList();
     AssertStaticMenuCursorSpeechReadsNativeConfigRowWithoutCursorDraw();
@@ -142,6 +154,7 @@ if (args.Contains("--multilingual-menu-only", StringComparer.OrdinalIgnoreCase))
     AssertStaticMenuCursorSpeechClearsStaleCursorWhenQuitReopensDrawOnly();
     AssertStatusMenuSpeechReadsOneNativeSummaryPerOpen();
     AssertTitleLoadMenuSpeaksNativeSaveFileGrid();
+    AssertTitleLoadMenuDoesNotMistakeOuterPromptForGameSelection();
     AssertTitleLoadMenuKeepsSaveFileSpeechAcrossTransientNativeState();
     AssertTitleLoadMenuSpeaksSaveFileWhenAvailabilityIsTemporarilyUnreadable();
     AssertTitleLoadMenuSpeaksSelectedGamePreview();
@@ -160,6 +173,7 @@ if (args.Contains("--world-map-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.WorldMapTargetCatalogTests.Run();
     Ff7.Accessibility.Reloaded.Tests.WorldMapRoutePlannerTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.WorldMapFootstepTests.Run();
     Ff7.Accessibility.Reloaded.Tests.WorldMapNavigationControllerTests.Run();
     Console.WriteLine("FFVII shared world-map accessibility tests passed.");
     return;
@@ -388,6 +402,7 @@ AssertBattleStateReaderKeepsUnsensedEnemyDetailsPrivate();
 AssertBattleStateReaderReadsNativeAbilitySubmenuSelections();
 AssertBattleMagicSelectionRejectsUnreadableAndTornState();
 AssertBattleStateReaderReadsNativeItemSelection();
+AssertBattleStateReaderReadsUnavailableInventoryObjectSelection();
 AssertBattleStateReaderReadsEncounterActionAndStatusState();
 AssertBattleStateReaderUsesSceneSlotInsteadOfKernelSpellFallback();
 AssertBattleStateReaderRejectsInactiveEnemyActions();
@@ -414,6 +429,7 @@ AssertBattleMenuReadsHorizontalAndVerticalCommandGrids();
 AssertBattleMenuMatchesNativeCursorAcrossRendererContexts();
 AssertBattleMenuReadsMagicSummonEnemySkillAndLimitRows();
 AssertBattleMenuAddsNativeMpCostQuantityAndDescription();
+AssertBattleMenuSpeaksUnavailableInventoryObjectSelection();
 AssertBattleMenuIgnoresMismatchedNativeSelection();
 AssertBattleMenuSkipsBlankDisabledAndTransitionalFrames();
 AssertBattleMenuRepeatsASelectionAfterLeavingAndReturning();
@@ -877,18 +893,23 @@ AssertFieldCutsceneDescriptionConfigDefaultsEnabled();
 AssertMenuWidgetCatalogMapsKnownNativeSelectors();
 AssertMenuWidgetCatalogClassifiesMateriaWidgets();
 AssertMenuWidgetCatalogMapsConfigSoundSelector();
+AssertMenuWidgetCatalogMapsItemArrangeSelectors();
 AssertMenuWidgetCatalogMapsLimitMoveSelector();
+AssertMenuWidgetCatalogMapsLimitConfirmationSelector();
 AssertActiveMenuWidgetReaderReadsCompleteNativeSelector();
 AssertMenuWidgetCatalogDoesNotGuessUnknownSelectors();
 AssertActiveMenuWidgetBridgeCapturesFrameBeforeNativeUpdate();
 AssertActiveMenuFrameReadsNativeMagicCategory();
+AssertActiveMenuFrameReadsNativeMagicCategoryWithoutCursor();
 AssertActiveMenuFrameKeepsLockedMagicCategoriesSilent();
 AssertActiveMenuFrameCombinesMagicTextWithinOneFrame();
 AssertActiveMenuFrameReplacesRapidFramesWithoutMixingText();
 AssertActiveMenuFrameReadsHorizontalMagicColumn();
 AssertActiveMenuFrameKeepsBlankAndScrollingFramesSilent();
 AssertActiveMenuFrameReadsGenericCommandRows();
+AssertActiveMenuFrameReadsItemArrangeWithoutCursorDraw();
 AssertActiveMenuFrameUsesNativeInventoryData();
+AssertMenuInventoryReaderUsesFullObjectNamespace();
 AssertActiveMenuFrameKeepsEmptyInventorySlotsSilent();
 AssertActiveMenuFrameUsesNativePartyAndEquipmentSelections();
 AssertActiveMenuFrameUsesNativeItemAndMagicTargets();
@@ -901,6 +922,7 @@ AssertActiveMenuFrameKeepsLimitHistoryAcrossRootFrames();
 AssertActiveMenuFrameReadsNativeLimitCommandWithoutCursorDraw();
 AssertActiveMenuFrameIgnoresParentCommandInsideLimitLevel();
 AssertActiveMenuFrameIgnoresParentCommandInsideLimitMoveList();
+AssertActiveMenuFrameReadsLimitConfirmation();
 AssertMateriaTutorialSpeechReadsNativeInstructionsOnce();
 AssertMateriaTutorialSpeechQueuesEveryNewInstructionLine();
 AssertConfigMenuValueReaderReadsNativeSettings();
@@ -1829,10 +1851,16 @@ static void AssertLegacyX86FingerprintAcceptsOnlyKnownExecutable()
                 "altered x86 game-code signature rejected");
             AssertEqual(false, altered.Identity.Is64Bit,
                 "altered legacy executable architecture");
+            var alteredDiagnosticNeedle = string.Equals(
+                LegacyX86Fingerprint.Inspect(convertedPath).Identity.Sha256,
+                LegacyX86Fingerprint.SupportedSha256,
+                StringComparison.Ordinal)
+                    ? "Compatible x86"
+                    : "signature";
             AssertEqual(true,
                 altered.Diagnostic.Contains(
-                    "signature", StringComparison.OrdinalIgnoreCase),
-                "altered signature diagnostic");
+                    alteredDiagnosticNeedle, StringComparison.OrdinalIgnoreCase),
+                "altered executable diagnostic");
 
             File.Copy(convertedPath, renamedPath);
             var renamed = LegacyX86Fingerprint.Inspect(renamedPath);
@@ -3129,6 +3157,48 @@ static void AssertBattleStateReaderReadsNativeItemSelection()
     AssertEqual("Restores life", selection.Description, "native battle item description");
 }
 
+static void AssertBattleStateReaderReadsUnavailableInventoryObjectSelection()
+{
+    var memory = CreateBattleMemoryWithCloud();
+    memory[BattleStateReader.AddressMenuWindowStates + 5] = BattleStateReader.ActiveWindowState;
+    var actorBase = BattleStateReader.AddressBattleActors;
+    WriteUInt32(memory, actorBase + BattleStateReader.ActorCurrentHpOffset, 314);
+    WriteUInt32(memory, actorBase + BattleStateReader.ActorMaxHpOffset, 350);
+    WriteUInt16(memory, actorBase + BattleStateReader.ActorCurrentMpOffset, 42);
+    WriteUInt16(memory, actorBase + BattleStateReader.ActorMaxMpOffset, 54);
+    WriteUInt32(memory, BattleStateReader.AddressItemCursorRow, 0);
+    WriteUInt32(memory, BattleStateReader.AddressItemScrollRow, 0);
+    memory[BattleStateReader.AddressBattleItemUseContext] = 0;
+    WriteUInt16(memory, BattleStateReader.AddressBattleItems, 128);
+    memory[BattleStateReader.AddressBattleItems + BattleStateReader.ItemQuantityOffset] = 1;
+    memory[BattleStateReader.AddressBattleItems + BattleStateReader.ItemRestrictionFlagsOffset] = 8;
+
+    var reader = CreateBattleStateReader(
+        memory,
+        itemName: objectId => objectId == 128 ? "Mythril Saber" : null,
+        itemDescription: objectId => objectId == 128 ? "A double-handed sword" : null);
+    var selection = reader.ReadMenuState(5).Selection
+        ?? throw new InvalidOperationException("Expected unavailable native inventory row.");
+
+    AssertEqual(128, selection.EntryId, "unavailable battle inventory object id");
+    AssertEqual("Mythril Saber", selection.Name, "unavailable battle inventory object name");
+    AssertEqual((int?)1, selection.Quantity, "unavailable battle inventory object quantity");
+    AssertEqual(false, selection.IsAvailable, "gray native battle inventory row is unavailable");
+
+    memory[BattleStateReader.AddressBattleItemUseContext] = 3;
+    memory[BattleStateReader.AddressBattleItems + BattleStateReader.ItemRestrictionFlagsOffset] = 2;
+    AssertEqual(
+        false,
+        reader.ReadMenuState(5).Selection?.IsAvailable,
+        "native special item context uses restriction bit two");
+
+    memory[BattleStateReader.AddressBattleItems + BattleStateReader.ItemRestrictionFlagsOffset] = 8;
+    AssertEqual(
+        true,
+        reader.ReadMenuState(5).Selection?.IsAvailable,
+        "native special item context does not reuse the ordinary battle restriction bit");
+}
+
 static void AssertBattleStateReaderReadsEncounterActionAndStatusState()
 {
     var memory = CreateBattleMemoryWithCloud();
@@ -3953,6 +4023,28 @@ static void AssertBattleMenuAddsNativeMpCostQuantityAndDescription()
         "Cloud",
         new BattleMenuSelectionSnapshot(0, "Potion", "Restores HP by 100", 3, null)));
     AssertEqual("Potion x3. Restores HP by 100", coordinator.Poll(), "battle item quantity and description");
+}
+
+static void AssertBattleMenuSpeaksUnavailableInventoryObjectSelection()
+{
+    var coordinator = new BattleMenuFrameSpeechCoordinator();
+    coordinator.BeginFrame(5);
+    coordinator.CompleteFrame(CreateBattleMenuSnapshot(
+        5,
+        0,
+        "Cloud",
+        new BattleMenuSelectionSnapshot(
+            128,
+            "Mythril Saber",
+            "A double-handed sword",
+            1,
+            null,
+            IsAvailable: false)));
+
+    AssertEqual(
+        "Cloud. Mythril Saber x1. Unavailable in battle. A double-handed sword",
+        coordinator.Poll(),
+        "gray battle inventory row remains readable with its unavailable state");
 }
 
 static void AssertBattleMenuIgnoresMismatchedNativeSelection()
@@ -5844,9 +5936,9 @@ static void AssertFieldCutsceneDescriptionCatalogCoversWallMarketThroughMotorcyc
 static void AssertFieldCutsceneDescriptionCatalogCoversKalmThroughLowerJunon()
 {
     var cues = FieldCutsceneDescriptionCatalog.CreateKalmThroughLowerJunonDescriptions();
-    AssertEqual(25, cues.Count, "Kalm through Lower Junon cue count including native entry variants");
+    AssertEqual(30, cues.Count, "Kalm through Lower Junon cue count including native entry variants");
     AssertEqual(
-        "277,279,282,290,292,304,311,312,313,318,323,327,332,343,348,349,359,428,429,434",
+        "101,277,279,282,290,292,304,311,312,313,318,322,323,327,332,343,348,349,359,428,429,434",
         string.Join(',', cues.Select(cue => cue.FieldId).Distinct().Order()),
         "Kalm through Lower Junon fields covered");
     AssertEqual(cues.Count, cues.Select(cue => cue.Key).Distinct().Count(), "Kalm through Lower Junon cue keys must be unique");
@@ -5856,7 +5948,8 @@ static void AssertFieldCutsceneDescriptionCatalogCoversKalmThroughLowerJunon()
         "332:5:3:238:24;277:4:1:0:F1;279:2:1:4:03;282:8:1:48:03;282:11:13:32:F1;" +
         "311:0:0:207:F9;312:10:3:106:F9;313:0:0:50:24;318:8:3:26:09;323:8:1:48:01;" +
         "323:9:7:236:F9;332:5:4:3:03;304:0:0:66:24;290:1:1:4:F1;292:1:1:22:F9;" +
-        "292:2:1:10:F9;327:0:0:290:F9;332:4:0:85:03;343:9:1:24:01;348:0:0:13:09;" +
+        "292:2:1:10:F9;101:0:0:15:F9;322:6:0:100:BC;323:7:3:13:01;323:7:4:0:BA;" +
+        "323:5:15:27:BA;327:0:0:290:F9;332:4:0:85:03;343:9:1:24:01;348:0:0:13:09;" +
         "349:0:0:99:01;428:5:0:142:03;429:2:0:117:03;434:1:0:9:02;359:0:0:79:F9",
         string.Join(';', cues.Select(cue =>
             $"{cue.FieldId}:{cue.EntityId}:{cue.ScriptId}:{cue.ByteIndex}:{cue.Opcode:X2}")),
@@ -5870,6 +5963,11 @@ static void AssertFieldCutsceneDescriptionCatalogCoversKalmThroughLowerJunon()
     AssertContains(cues.Single(cue => cue.FieldId == 323 && cue.EntityId == 9).Text, "pod");
     AssertContains(cues.Single(cue => cue.FieldId == 304).Text, "library desk");
     AssertEqual(2, cues.Count(cue => cue.FieldId == 292), "both Nibelheim fire movie entry variants must be covered");
+    AssertContains(cues.Single(cue => cue.FieldId == 101).Text, "Mt. Nibel");
+    AssertContains(cues.Single(cue => cue.FieldId == 322).Text, "injured father");
+    AssertContains(cues.Single(cue => cue.FieldId == 323 && cue.EntityId == 7 && cue.ScriptId == 3).Text, "charges");
+    AssertContains(cues.Single(cue => cue.FieldId == 323 && cue.EntityId == 7 && cue.ScriptId == 4).Text, "slashes");
+    AssertContains(cues.Single(cue => cue.FieldId == 323 && cue.EntityId == 5).Text, "kneels");
     AssertContains(cues.Single(cue => cue.FieldId == 327).Text, "Jenova");
     AssertContains(cues.Single(cue => cue.FieldId == 343).Text, "chocobos");
     AssertContains(cues.Single(cue => cue.FieldId == 348).Text, "impaled");
@@ -5881,6 +5979,7 @@ static void AssertFieldCutsceneDescriptionCatalogCoversKalmThroughLowerJunon()
 
     var vanillaFingerprints = new Dictionary<int, string>
     {
+        [101] = "CA155982C5A4F9E8EA845AE0FE5CE7A488BA78EBC618E781839CE4F66DEA3C6B",
         [277] = "5673822A534BAD0C59D64C502CCC6F6BA05F2826B3C22F55F4332EF0B7513D52",
         [279] = "A053040586FFC13E1C1B49114FCDE72E974ADCB3428F7D05EA604F40CC34B0CA",
         [282] = "B9E824BA054FBD501A74C1291ADBDA45E56B0FE6FEA5DE7788190851D581EE16",
@@ -5891,6 +5990,7 @@ static void AssertFieldCutsceneDescriptionCatalogCoversKalmThroughLowerJunon()
         [312] = "FCACBF1192632C0C880E04624927B8858A15B5ACAB706D5BDB1D85A3647047E5",
         [313] = "6E85EC5D88F80C2AD4853AFE608685F94276251906E222F2DA07A6722DCF2BE9",
         [318] = "A91F757619428A81118B1DA6968AC983A9FA0C420200847679F9BE8D4513D6E2",
+        [322] = "123382BC42495C861A00FEB03975515A946DDA1C3AB1A6EEA5D913BD8C61785F",
         [323] = "A16952255BBE691E9D330E265A90725740FE33D83482A209957F96BD2BCDE8F0",
         [327] = "DDD0DC0C14CFFDA8C76570525FF8DBCB2253571A1FC0EA066DD1D106740A3348",
         [332] = "86561DE419FFE6616D8A45F3B2D10867B769BFEF4A5C2911FC24B5599906BC6E",
@@ -12034,7 +12134,7 @@ static void AssertFieldStoryCatalogCoversSector6ThroughWorldMapGuideActions()
     var expectedGuideActions = new[]
     {
         (FieldId: 191, Label: "Return through Sector 6 toward Aeris's house"),
-        (FieldId: 188, Label: "Go upstairs to continue with Barret"),
+        (FieldId: 188, Label: "Go upstairs to Barret and Marlene"),
         (FieldId: 196, Label: "Buy three batteries for the wall climb"),
         (FieldId: 222, Label: "Use the rope to begin climbing the wall"),
         (FieldId: 223, Label: "Place a battery in the first wall-climb socket"),
@@ -23399,6 +23499,49 @@ static void AssertTitleLoadMenuSpeaksNativeSaveFileGrid()
         "load menu should announce again after returning from the title menu");
 }
 
+static void AssertTitleLoadMenuDoesNotMistakeOuterPromptForGameSelection()
+{
+    var now = new DateTime(2026, 8, 13, 19, 0, 21, DateTimeKind.Utc);
+    var tracker = new TitleLoadMenuSpeechTracker(
+        TimeSpan.FromMilliseconds(40),
+        saveFile => saveFile == 1,
+        (_, _) => null);
+    var fileWidget = new ActiveMenuWidgetSnapshot(
+        TitleLoadMenuSpeechTracker.SaveFileWidgetAddress,
+        "Title load save file",
+        MenuWidgetKind.TitleSaveFile,
+        0,
+        0,
+        5,
+        2,
+        0,
+        0,
+        0);
+
+    tracker.ObserveWidget(fileWidget, TitleMenuCursorReader.TitleModule, now);
+    tracker.ObserveDraw(
+        new MenuTextRenderEntry("Select a save data file.", 10, 13, 7, 0),
+        TitleMenuCursorReader.TitleModule,
+        now.AddMilliseconds(1));
+    AssertEqual(
+        "Select a save data file. Save 1.",
+        tracker.Poll(now.AddMilliseconds(40)),
+        "the visible outer Continue prompt must not cancel Save 1 speech");
+
+    tracker.ObserveWidget(
+        fileWidget with { First = 1 },
+        TitleMenuCursorReader.TitleModule,
+        now.AddMilliseconds(100));
+    tracker.ObserveDraw(
+        new MenuTextRenderEntry("Select a save data file.", 10, 13, 7, 0),
+        TitleMenuCursorReader.TitleModule,
+        now.AddMilliseconds(101));
+    AssertEqual(
+        "Save 2, empty.",
+        tracker.Poll(now.AddMilliseconds(140)),
+        "the outer Continue prompt must not cancel horizontal Save-file movement");
+}
+
 static void AssertTitleLoadMenuKeepsSaveFileSpeechAcrossTransientNativeState()
 {
     var now = new DateTime(2026, 8, 10, 12, 13, 25, DateTimeKind.Utc);
@@ -24433,11 +24576,59 @@ static void AssertMenuWidgetCatalogMapsConfigSoundSelector()
     AssertEqual(MenuWidgetKind.ConfigSoundVolume, sound.Kind, "Config Sound selector must not be treated as a party list");
 }
 
+static void AssertMenuWidgetCatalogMapsItemArrangeSelectors()
+{
+    AssertEqual(
+        true,
+        Enum.TryParse<MenuWidgetKind>("ItemArrange", out var arrangeKind),
+        "Item Arrange should have a dedicated widget kind");
+    AssertEqual(
+        true,
+        MenuWidgetCatalog.TryResolve(0x00DD1AF8, out var arrange),
+        "Item Arrange command selector should be cataloged");
+    AssertEqual("Item arrange", arrange.Name, "Item Arrange selector should have its native role");
+    AssertEqual(arrangeKind, arrange.Kind, "Item Arrange selector should use its dedicated kind");
+
+    AssertEqual(
+        true,
+        MenuWidgetCatalog.TryResolve(0x00DD1B30, out var customList),
+        "custom Item Arrange inventory selector should be cataloged");
+    AssertEqual("Item arrange list", customList.Name, "custom Item Arrange list should have its native role");
+    AssertEqual(
+        MenuWidgetKind.ItemList,
+        customList.Kind,
+        "custom Item Arrange list should reuse checked inventory speech");
+}
+
+static void AssertMenuWidgetCatalogRejectsPhsStateFlagAsWidget()
+{
+    AssertEqual(
+        false,
+        MenuWidgetCatalog.TryResolve(0x00DCA118, out _),
+        "the native PHS selection-state flag must not be sampled as an active widget");
+}
+
 static void AssertMenuWidgetCatalogMapsLimitMoveSelector()
 {
     AssertEqual(true, MenuWidgetCatalog.TryResolve(0x00DCA240, out var limitMoves), "learned Limit move selector should be cataloged");
     AssertEqual("Limit move list", limitMoves.Name, "learned Limit move selector should have its native role");
     AssertEqual("LimitMoveList", limitMoves.Kind.ToString(), "learned Limit move selector should have a dedicated widget kind");
+}
+
+static void AssertMenuWidgetCatalogMapsLimitConfirmationSelector()
+{
+    AssertEqual(
+        true,
+        MenuWidgetCatalog.TryResolve(0x00DCA278, out var confirmation),
+        "Limit level confirmation selector should be cataloged");
+    AssertEqual(
+        "Limit level confirmation",
+        confirmation.Name,
+        "Limit confirmation selector should have its native role");
+    AssertEqual(
+        "LimitConfirmation",
+        confirmation.Kind.ToString(),
+        "Limit confirmation selector should have a dedicated widget kind");
 }
 
 static void AssertActiveMenuWidgetReaderReadsCompleteNativeSelector()
@@ -24507,6 +24698,39 @@ static void AssertActiveMenuFrameReadsNativeMagicCategory()
         0, 0, 1, 3, 0, 0, 0), DateTime.UtcNow);
 
     AssertEqual("Magic", coordinator.Poll(), "active frame should speak the native Magic category row");
+}
+
+static void AssertActiveMenuFrameReadsNativeMagicCategoryWithoutCursor()
+{
+    var coordinator = new ActiveMenuFrameSpeechCoordinator();
+    coordinator.ObserveDraw(new MenuTextRenderEntry("Magia", 508, 56, 7, 0x3DCED917));
+    coordinator.ObserveDraw(new MenuTextRenderEntry("Przywołanie", 508, 90, 7, 0x3DCED917));
+    coordinator.ObserveDraw(new MenuTextRenderEntry("Umiejętność wroga", 508, 124, 7, 0x3DCED917));
+    var widget = new ActiveMenuWidgetSnapshot(
+        0x00DD1698, "Magic category", MenuWidgetKind.MagicCategory,
+        0, 1, 1, 3, 0, 0, 0);
+
+    coordinator.CompleteFrame(widget, DateTime.UtcNow);
+    AssertEqual(
+        "Przywołanie",
+        coordinator.Poll(),
+        "Magic category uses its localized native row when no cursor is rendered");
+
+    coordinator.ObserveDraw(new MenuTextRenderEntry("Magia", 508, 56, 7, 0x3DCED917));
+    coordinator.ObserveDraw(new MenuTextRenderEntry("Przywołanie", 508, 90, 7, 0x3DCED917));
+    coordinator.ObserveDraw(new MenuTextRenderEntry("Umiejętność wroga", 508, 124, 7, 0x3DCED917));
+    coordinator.CompleteFrame(widget, DateTime.UtcNow.AddMilliseconds(16));
+    AssertNull(coordinator.Poll(), "stable cursorless Magic category does not repeat");
+
+    var lowResolution = new ActiveMenuFrameSpeechCoordinator();
+    lowResolution.ObserveDraw(new MenuTextRenderEntry("Magia", 254, 28, 7, 0x3DCED917));
+    lowResolution.ObserveDraw(new MenuTextRenderEntry("Przywołanie", 254, 45, 7, 0x3DCED917));
+    lowResolution.ObserveDraw(new MenuTextRenderEntry("Umiejętność wroga", 254, 62, 7, 0x3DCED917));
+    lowResolution.CompleteFrame(widget with { Cursor = 2 }, DateTime.UtcNow);
+    AssertEqual(
+        "Umiejętność wroga",
+        lowResolution.Poll(),
+        "cursorless Magic category preserves the native low-resolution layout");
 }
 
 static void AssertActiveMenuFrameKeepsLockedMagicCategoriesSilent()
@@ -24616,6 +24840,223 @@ static void AssertActiveMenuFrameReadsGenericCommandRows()
         1, 0, 3, 1, 0, 0, 0), DateTime.UtcNow);
 
     AssertEqual("Arrange", coordinator.Poll(), "generic active-widget speech should read the row nearest the native cursor");
+}
+
+static void AssertActiveMenuFrameReadsNativeItemCommandsWithoutCursorDraw()
+{
+    var coordinator = new ActiveMenuFrameSpeechCoordinator();
+    var now = DateTime.UtcNow;
+    var labels = new[] { "Uzyj", "Uloz", "Kluczowe przedmioty" };
+    var positions = new[] { 57u, 150u, 243u };
+    for (var index = 0; index < labels.Length; index++)
+    {
+        coordinator.ObserveDraw(new MenuTextRenderEntry(
+            labels[index],
+            positions[index],
+            17,
+            7,
+            0x3DCED917));
+    }
+
+    coordinator.CompleteFrame(new ActiveMenuWidgetSnapshot(
+        0x00DD1A18,
+        "Item submenu command",
+        MenuWidgetKind.ItemCommand,
+        1,
+        0,
+        3,
+        1,
+        0,
+        0,
+        0), now);
+    AssertEqual(
+        "Uloz",
+        coordinator.Poll(),
+        "the checked native Item command speaks its localized rendered label without a cursor callback");
+
+    for (var index = 0; index < labels.Length; index++)
+    {
+        coordinator.ObserveDraw(new MenuTextRenderEntry(
+            labels[index],
+            positions[index],
+            17,
+            7,
+            0x3DCED917));
+    }
+
+    coordinator.CompleteFrame(new ActiveMenuWidgetSnapshot(
+        0x00DD1A18,
+        "Item submenu command",
+        MenuWidgetKind.ItemCommand,
+        2,
+        0,
+        3,
+        1,
+        0,
+        0,
+        0), now.AddMilliseconds(16));
+    AssertEqual(
+        "Kluczowe przedmioty",
+        coordinator.Poll(),
+        "the Item command follows the native horizontal selection field");
+}
+
+static void AssertActiveMenuFrameRetainsItemCommandsAcrossRenderAndFocusCallbacks()
+{
+    var coordinator = new ActiveMenuFrameSpeechCoordinator();
+    var now = new DateTime(2026, 8, 13, 19, 0, 51, DateTimeKind.Utc);
+    coordinator.ObserveDraw(new MenuTextRenderEntry("Use", 57, 17, 7, 0x3DCED917));
+    coordinator.ObserveDraw(new MenuTextRenderEntry("Arrange", 150, 17, 7, 0x3DCED917));
+    coordinator.ObserveDraw(new MenuTextRenderEntry("Key Items", 243, 17, 7, 0x3DCED917));
+
+    // FFVII renders this persistent command row while the inventory list still
+    // owns the update callback. Focus can move to the row before it is drawn
+    // again, so the next checked selector callback must retain those labels.
+    coordinator.CompleteFrame(new ActiveMenuWidgetSnapshot(
+        0x00DD1A50,
+        "Item list",
+        MenuWidgetKind.ItemList,
+        0,
+        0,
+        1,
+        10,
+        0,
+        0,
+        0,
+        new InventoryItemSnapshot(0, 129, 1, 0x0281, "Mythril Saber", null)),
+        now);
+    AssertEqual("Mythril Saber x1", coordinator.Poll(), "inventory frame remains independently readable");
+
+    coordinator.CompleteFrame(new ActiveMenuWidgetSnapshot(
+        0x00DD1A18,
+        "Item submenu command",
+        MenuWidgetKind.ItemCommand,
+        1,
+        0,
+        3,
+        1,
+        0,
+        0,
+        0), now.AddMilliseconds(16));
+    AssertEqual(
+        "Arrange",
+        coordinator.Poll(),
+        "Item command labels survive the separate render and focus callbacks used by the game");
+}
+
+static void AssertActiveMenuFrameReadsItemArrangeWithoutCursorDraw()
+{
+    AssertEqual(
+        true,
+        Enum.TryParse<MenuWidgetKind>("ItemArrange", out var arrangeKind),
+        "Item Arrange should have a dedicated widget kind");
+
+    var coordinator = new ActiveMenuFrameSpeechCoordinator();
+    var now = DateTime.UtcNow;
+    var labels = new[]
+    {
+        "Customize",
+        "Field",
+        "Battle",
+        "Throw",
+        "Type",
+        "Name",
+        "Most",
+        "Least"
+    };
+    for (var index = 0; index < labels.Length; index++)
+    {
+        coordinator.ObserveDraw(new MenuTextRenderEntry(
+            labels[index],
+            233,
+            (uint)(39 + (26 * index)),
+            7,
+            0x3C23D70A));
+    }
+
+    coordinator.CompleteFrame(new ActiveMenuWidgetSnapshot(
+        0x00DD1AF8,
+        "Item arrange",
+        arrangeKind,
+        0,
+        0,
+        1,
+        8,
+        0,
+        0,
+        0), now);
+    AssertEqual(
+        "Customize",
+        coordinator.Poll(),
+        "entering Item Arrange should read its native first row without a cursor draw");
+
+    for (var index = 0; index < labels.Length; index++)
+    {
+        coordinator.ObserveDraw(new MenuTextRenderEntry(
+            labels[index],
+            233,
+            (uint)(39 + (26 * index)),
+            7,
+            0x3C23D70A));
+    }
+
+    coordinator.CompleteFrame(new ActiveMenuWidgetSnapshot(
+        0x00DD1AF8,
+        "Item arrange",
+        arrangeKind,
+        0,
+        6,
+        1,
+        8,
+        0,
+        0,
+        0), now.AddMilliseconds(16));
+    AssertEqual(
+        "Most",
+        coordinator.Poll(),
+        "moving in Item Arrange should follow the checked native row without a cursor draw");
+}
+
+static void AssertActiveMenuFrameReadsCustomItemArrangeList()
+{
+    var coordinator = new ActiveMenuFrameSpeechCoordinator();
+    coordinator.CompleteFrame(new ActiveMenuWidgetSnapshot(
+        0x00DD1B30,
+        "Item arrange list",
+        MenuWidgetKind.ItemList,
+        0,
+        1,
+        1,
+        10,
+        0,
+        0,
+        0,
+        new InventoryItemSnapshot(1, 0, 2, 0x0401, "Potion", "Restores HP by 100")),
+        DateTime.UtcNow);
+
+    AssertEqual(
+        "Potion x2. Restores HP by 100",
+        coordinator.Poll(),
+        "Customize/manual sort reads the checked native inventory item");
+}
+
+static void AssertMenuInventoryReaderUsesFullObjectNamespace()
+{
+    var database = Kernel2TextDatabase.TryCreate(FindGameRoot())
+        ?? throw new InvalidOperationException("Expected installed kernel2 text database.");
+    var memory = new Dictionary<int, byte>();
+    const int itemId = 129;
+    const int quantity = 1;
+    WriteUInt16(
+        memory,
+        InventoryItemReader.AddressSavemap + InventoryItemReader.ItemsOffset,
+        (ushort)((quantity << 9) | itemId));
+
+    var reader = Mod.CreateMenuInventoryItemReader(
+        new DictionaryLegacyAddressSpace(memory),
+        database);
+    AssertEqual(true, reader.TryRead(0, out var item), "menu inventory should read an equipped-object ID");
+    AssertEqual("Mythril Saber", item.Name, "menu inventory should resolve weapon IDs from the full object namespace");
 }
 
 static void AssertActiveMenuFrameUsesNativeInventoryData()
@@ -24941,6 +25382,115 @@ static void AssertActiveMenuFrameIgnoresParentCommandInsideLimitMoveList()
     coordinator.ObserveCursor(new MenuCursorDrawObservation("B", 5, 28, 225, 0));
     coordinator.CompleteFrame(widget, now.AddMilliseconds(48));
     AssertNull(coordinator.Poll(), "a stable learned Limit move should not repeat");
+}
+
+static void AssertActiveMenuFrameReadsLimitConfirmation()
+{
+    AssertEqual(
+        true,
+        Enum.TryParse<MenuWidgetKind>("LimitConfirmation", out var confirmationKind),
+        "Limit confirmation kind should exist");
+
+    var coordinator = new ActiveMenuFrameSpeechCoordinator();
+    var now = DateTime.UtcNow;
+    var noWidget = new ActiveMenuWidgetSnapshot(
+        0x00DCA278,
+        "Limit level confirmation",
+        confirmationKind,
+        0,
+        1,
+        1,
+        2,
+        0,
+        0,
+        0);
+
+    AddLimitConfirmationFrame(
+        coordinator,
+        "To change BREAK LEVEL,",
+        "it will begin from Limit Point 0.",
+        "Change BREAK LEVEL?",
+        "Yes",
+        "No");
+    coordinator.CompleteFrame(noWidget, now);
+    AssertEqual(
+        "To change BREAK LEVEL, it will begin from Limit Point 0. Change BREAK LEVEL? No",
+        coordinator.Poll(),
+        "opening Limit confirmation should read its warning, question, and native No selection");
+
+    AddLimitConfirmationFrame(
+        coordinator,
+        "To change BREAK LEVEL,",
+        "it will begin from Limit Point 0.",
+        "Change BREAK LEVEL?",
+        "Yes",
+        "No");
+    coordinator.CompleteFrame(noWidget with { Cursor = 0 }, now.AddMilliseconds(16));
+    AssertEqual(
+        "Yes",
+        coordinator.Poll(),
+        "moving through the Limit confirmation should read only the newly selected choice");
+
+    AddLimitConfirmationFrame(
+        coordinator,
+        "Aby zmienić POZIOM LIMITU,",
+        "punkty limitu zostaną wyzerowane.",
+        "Zmienić POZIOM LIMITU?",
+        "Tak",
+        "Nie");
+    coordinator.CompleteFrame(noWidget with { Cursor = 1 }, now.AddMilliseconds(32));
+    AssertEqual(
+        "Nie",
+        coordinator.Poll(),
+        "Limit confirmation choices should come from the rendered game language");
+
+    AddLimitConfirmationFrame(
+        coordinator,
+        "Aby zmienić POZIOM LIMITU,",
+        "punkty limitu zostaną wyzerowane.",
+        "Zmienić POZIOM LIMITU?",
+        "Tak",
+        "Nie");
+    coordinator.CompleteFrame(noWidget with { Cursor = 1 }, now.AddMilliseconds(48));
+    AssertNull(coordinator.Poll(), "stable Limit confirmation selection should not repeat");
+
+    coordinator.CompleteFrame(
+        noWidget with
+        {
+            Address = 0x00DCA240,
+            Name = "Limit move list",
+            Kind = MenuWidgetKind.LimitMoveList
+        },
+        now.AddMilliseconds(64));
+    AssertNull(coordinator.Poll(), "closing the Limit confirmation does not leave stale speech");
+
+    AddLimitConfirmationFrame(
+        coordinator,
+        "Aby zmienić POZIOM LIMITU,",
+        "punkty limitu zostaną wyzerowane.",
+        "Zmienić POZIOM LIMITU?",
+        "Tak",
+        "Nie");
+    coordinator.CompleteFrame(noWidget with { Cursor = 1 }, now.AddMilliseconds(80));
+    AssertEqual(
+        "Aby zmienić POZIOM LIMITU, punkty limitu zostaną wyzerowane. Zmienić POZIOM LIMITU? Nie",
+        coordinator.Poll(),
+        "reopening the Limit confirmation should read the full prompt again");
+}
+
+static void AddLimitConfirmationFrame(
+    ActiveMenuFrameSpeechCoordinator coordinator,
+    string warning,
+    string consequence,
+    string question,
+    string yes,
+    string no)
+{
+    coordinator.ObserveDraw(new MenuTextRenderEntry(warning, 177, 75, 7, 0));
+    coordinator.ObserveDraw(new MenuTextRenderEntry(consequence, 177, 109, 7, 0));
+    coordinator.ObserveDraw(new MenuTextRenderEntry(question, 177, 143, 7, 0));
+    coordinator.ObserveDraw(new MenuTextRenderEntry(yes, 297, 178, 7, 0));
+    coordinator.ObserveDraw(new MenuTextRenderEntry(no, 297, 203, 7, 0));
 }
 
 static void AssertMateriaTutorialSpeechReadsNativeInstructionsOnce()
@@ -25337,13 +25887,13 @@ static void AssertStaticMenuCursorSpeechReadsDrawOnlyQuitChoices()
     AssertEqual(
         "Yes",
         tracker.Poll(now.AddMilliseconds(40)),
-        "x64 Quit should read its initial selected text without a cursor draw");
+        "draw-only Quit should read the color-7 selected text without a cursor draw");
 
     AddDrawOnlyQuitFrame(tracker, now.AddMilliseconds(100), "No");
     AssertEqual(
         "No",
         tracker.Poll(now.AddMilliseconds(140)),
-        "x64 Quit should follow the native selected text color");
+        "draw-only Quit should follow the native color-7 selection");
 
     AddDrawOnlyQuitFrame(tracker, now.AddMilliseconds(180), "No");
     AssertNull(tracker.Poll(now.AddMilliseconds(220)), "a stable draw-only Quit choice must not repeat");
@@ -25380,10 +25930,10 @@ static void AddDrawOnlyQuitFrame(
 {
     tracker.ObserveDraw(new MenuTextRenderEntry("Do you want to quit", 220, 158, 7, 0x3C23D70A), now);
     tracker.ObserveDraw(
-        new MenuTextRenderEntry("Yes", 212, 296, selected == "Yes" ? 0 : 7, 0x3C23D70A),
+        new MenuTextRenderEntry("Yes", 212, 296, selected == "Yes" ? 7 : 0, 0x3C23D70A),
         now.AddMilliseconds(4));
     tracker.ObserveDraw(
-        new MenuTextRenderEntry("No", 414, 296, selected == "No" ? 0 : 7, 0x3C23D70A),
+        new MenuTextRenderEntry("No", 414, 296, selected == "No" ? 7 : 0, 0x3C23D70A),
         now.AddMilliseconds(4));
 }
 

@@ -90,9 +90,11 @@ public sealed class BattleStateReader
     public const int AddressEnemySkillScrollRow = 0x00DC2194;
     public const int AddressItemCursorRow = 0x00DC20DC;
     public const int AddressItemScrollRow = 0x00DC20EC;
+    public const int AddressBattleItemUseContext = 0x00DC3C74;
     public const int AddressBattleItems = 0x009AC354;
     public const int ItemRecordSize = 6;
     public const int ItemQuantityOffset = 2;
+    public const int ItemRestrictionFlagsOffset = 4;
     public const int AddressLimitRecords = 0x00DBA544;
     public const int AddressLimitCount = 0x00DBA54A;
     public const int AddressLimitCursorRow = 0x00DC21BC;
@@ -1935,12 +1937,23 @@ public sealed class BattleStateReader
             return false;
         }
 
+        // FUN_005d1520 builds each six-byte battle inventory row from the
+        // complete 0..319 inventory namespace. FUN_006df007 and FUN_006debfe
+        // render that row gray when the applicable restriction bit is set.
+        // Mirror the native color decision so inaccessible rows remain
+        // readable without implying that the player can select them.
+        var itemUseContext = readByte(AddressBattleItemUseContext);
+        var restrictionFlags = readByte(recordAddress + ItemRestrictionFlagsOffset);
+        var unavailableMask = itemUseContext is 3 or 10 ? 0x02 : 0x08;
+        var isAvailable = (restrictionFlags & unavailableMask) == 0;
+
         selection = new BattleMenuSelectionSnapshot(
             itemId,
             name,
             resolveItemDescription?.Invoke(itemId),
             quantity,
-            null);
+            null,
+            isAvailable);
         return true;
     }
 
@@ -2131,7 +2144,8 @@ public readonly record struct BattleMenuSelectionSnapshot(
     string Name,
     string? Description,
     int? Quantity,
-    int? MpCost);
+    int? MpCost,
+    bool IsAvailable = true);
 
 public readonly record struct BattleTargetSnapshot(
     bool IsValid,

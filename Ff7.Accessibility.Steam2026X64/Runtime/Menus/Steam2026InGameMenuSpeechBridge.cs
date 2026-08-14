@@ -1,14 +1,17 @@
+using Ff7.Accessibility.LegacyLayout;
 using Ff7.Accessibility.Reloaded;
 
 namespace Ff7.Accessibility.Steam2026X64.Runtime.Menus;
 
 /// <summary>
 /// Adapts validated translated-menu callbacks to the shared native in-game
-/// menu coordinators. Only foreground module 5 outside name entry is owned.
+/// menu coordinators. Only foreground module 5 outside name entry, plus the
+/// exact native PHS module, is owned.
 /// </summary>
 internal sealed class Steam2026InGameMenuSpeechBridge
 {
     internal const int MenuModule = 5;
+    internal const int PhsModule = PartyFormationSpeechTracker.PhsModule;
 
     private const int RootMainMenuContext = 0x3A83126F;
     private const int QuitPromptContext = 0x3C23D70A;
@@ -36,6 +39,7 @@ internal sealed class Steam2026InGameMenuSpeechBridge
     private PartyFormationSpeechTracker partyFormation = null!;
     private SaveMenuSpeechTracker saveMenu = null!;
     private bool ownsMenu;
+    private int? ownedModuleId;
     private long lastSequence;
     private DateTime exactQuitEvidenceExpiresUtc = DateTime.MinValue;
     private SaveMenuPendingSpeech? pendingSaveSpeech;
@@ -254,7 +258,10 @@ internal sealed class Steam2026InGameMenuSpeechBridge
         var hasExactQuitEvidence = IsExactQuitEvidenceCurrent(snapshot.TimestampUtc);
         var ownsExactQuitPayload = isExactQuitPrompt ||
             (hasExactQuitEvidence && IsExactQuitRelatedPayload(snapshot));
-        if ((moduleId != MenuModule || isNameEntryActive) && !ownsExactQuitPayload)
+        var ownsWorldMapSavePayload = moduleId == WorldMapStateReader.WorldModule
+            && (saveMenu.IsActive || IsExactSaveFileWidgetIngress(snapshot));
+        var isOwnedNativeModule = IsOwnedNativeModule(moduleId) || ownsWorldMapSavePayload;
+        if ((!isOwnedNativeModule || isNameEntryActive) && !ownsExactQuitPayload)
         {
             // The translated renderer can append unrelated module/name-entry
             // draws after the complete Quit dialog in the same callback batch.
@@ -269,10 +276,12 @@ internal sealed class Steam2026InGameMenuSpeechBridge
             return;
         }
 
-        if (!ownsMenu)
+        var routedModuleId = moduleId == PhsModule ? PhsModule : MenuModule;
+        if (!ownsMenu || (!ownsExactQuitPayload && ownedModuleId != routedModuleId))
         {
             ResetTrackers();
             ownsMenu = true;
+            ownedModuleId = routedModuleId;
         }
 
         if (isExactQuitPrompt)
@@ -289,7 +298,7 @@ internal sealed class Steam2026InGameMenuSpeechBridge
         lastSequence = snapshot.Sequence;
         try
         {
-            if (!TryObserveValidatedPayload(snapshot))
+            if (!TryObserveValidatedPayload(snapshot, routedModuleId))
             {
                 RevokeOwnership();
             }
@@ -357,7 +366,23 @@ internal sealed class Steam2026InGameMenuSpeechBridge
     internal bool HasExactQuitOwnership(DateTime now) =>
         ownsMenu && now.Kind == DateTimeKind.Utc && IsExactQuitEvidenceCurrent(now);
 
-    private bool TryObserveValidatedPayload(TranslatedMenuIngressSnapshot snapshot)
+    internal static bool IsOwnedNativeModule(int? moduleId) =>
+        moduleId is MenuModule or PhsModule;
+
+    private static bool IsExactSaveFileWidgetIngress(TranslatedMenuIngressSnapshot snapshot) =>
+        snapshot.CallbackKind == Steam2026MenuCallbackKind.ActiveWidgetUpdate
+        && snapshot.ActiveWidget is
+        {
+            WidgetIdentity: SaveMenuStateReader.AddressSaveFileWidget,
+            Columns: 5,
+            Rows: 2,
+            First: >= 0 and < 5,
+            Cursor: >= 0 and < 2
+        };
+
+    private bool TryObserveValidatedPayload(
+        TranslatedMenuIngressSnapshot snapshot,
+        int routedModuleId)
     {
         switch (snapshot.CallbackKind)
         {
@@ -376,11 +401,16 @@ internal sealed class Steam2026InGameMenuSpeechBridge
 
                 var cursorEntry = new MenuCursorDrawObservation(
                     cursor.Source == Steam2026MenuCallbackKind.CursorA ? "A" : "B",
-                    MenuModule,
+                    routedModuleId,
                     cursor.X,
                     cursor.Y,
                     cursor.Context);
                 partyFormation.ObserveCursor(cursorEntry, snapshot.TimestampUtc);
+                if (routedModuleId == PhsModule)
+                {
+                    return true;
+                }
+
                 activeMenu.ObserveCursor(cursorEntry);
                 staticMenu.ObserveCursor(cursorEntry, snapshot.TimestampUtc);
                 return true;
@@ -405,7 +435,12 @@ internal sealed class Steam2026InGameMenuSpeechBridge
                     unchecked((uint)text.Y),
                     text.Color,
                     text.Context);
-                partyFormation.ObserveDraw(drawEntry, MenuModule, snapshot.TimestampUtc);
+                partyFormation.ObserveDraw(drawEntry, routedModuleId, snapshot.TimestampUtc);
+                if (routedModuleId == PhsModule)
+                {
+                    return true;
+                }
+
                 materiaTutorial.Observe(drawEntry, MenuModule, snapshot.TimestampUtc);
                 activeMenu.ObserveDraw(drawEntry);
                 staticMenu.ObserveDraw(drawEntry, snapshot.TimestampUtc);
@@ -417,6 +452,14 @@ internal sealed class Steam2026InGameMenuSpeechBridge
                     snapshot.Text is not null)
                 {
                     return false;
+                }
+
+                // Normal PHS is driven by its title, character-name draws, and
+                // two verified cursor contexts. DAT_00DCA118 is only a PHS
+                // selection-state flag, not an ActiveMenuWidget structure.
+                if (routedModuleId == PhsModule)
+                {
+                    return true;
                 }
 
                 if (!TryResolveUniqueWidget(widget, out var descriptor))
@@ -698,6 +741,7 @@ internal sealed class Steam2026InGameMenuSpeechBridge
         }
 
         ownsMenu = false;
+        ownedModuleId = null;
     }
 
     private void ResetTrackers()

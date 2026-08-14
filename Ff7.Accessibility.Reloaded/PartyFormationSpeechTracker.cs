@@ -7,6 +7,7 @@ namespace Ff7.Accessibility.Reloaded;
 public sealed class PartyFormationSpeechTracker
 {
     public const int MenuModule = 5;
+    public const int PhsModule = 19;
 
     private const int RootMainMenuContext = 0x3A83126F;
     private const int PartyTextContext = 0x3DCCCCCD;
@@ -42,7 +43,7 @@ public sealed class PartyFormationSpeechTracker
     {
         lock (sync)
         {
-            if (currentModule != MenuModule || now.Kind != DateTimeKind.Utc)
+            if (!IsPartyModule(currentModule) || now.Kind != DateTimeKind.Utc)
             {
                 ResetCore();
                 return;
@@ -114,7 +115,7 @@ public sealed class PartyFormationSpeechTracker
     {
         lock (sync)
         {
-            if (cursor.CurrentModule != MenuModule || now.Kind != DateTimeKind.Utc)
+            if (!IsPartyModule(cursor.CurrentModule) || now.Kind != DateTimeKind.Utc)
             {
                 ResetCore();
                 return;
@@ -343,6 +344,9 @@ public sealed class PartyFormationSpeechTracker
         text.Any(char.IsLetterOrDigit) &&
         ((IsNear(entry.X, 508, 16) && IsNear(entry.Y, 14, 10)) ||
          (IsNear(entry.X, 262, 10) && IsNear(entry.Y, 7, 6)));
+
+    private static bool IsPartyModule(int module) =>
+        module is MenuModule or PhsModule;
 
     private static bool TryClassifyPrompt(
         MenuTextRenderEntry entry,

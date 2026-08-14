@@ -11,6 +11,7 @@ internal static class KalmRanchNavigationTests
         AssertKalmStoryProgression();
         AssertNibelheimFlashbackStoryProgression();
         AssertNibelheimFlashbackObjects();
+        AssertNibelheimFlashbackNpcLabels();
         AssertChocoboRanchStoryProgression();
         AssertReviewedNpcLabels();
     }
@@ -19,6 +20,7 @@ internal static class KalmRanchNavigationTests
     {
         AssertNibelheimFlashbackStoryProgression();
         AssertNibelheimFlashbackObjects();
+        AssertNibelheimFlashbackNpcLabels();
     }
 
     private static void AssertKalmStoryProgression()
@@ -383,6 +385,57 @@ internal static class KalmRanchNavigationTests
 
         AssertStoryTargetAtTriangle(
             memory,
+            fieldId: 290,
+            gameMoment: 376,
+            playerTriangle: 0,
+            "Approach Zangan in the burning square",
+            expectedX: 196,
+            expectedY: 746,
+            expectedZ: 51,
+            expectedTriggerLine: new FieldNavigationTriggerLine(
+                116,
+                733,
+                51,
+                275,
+                759,
+                51));
+
+        memory.WriteByte(innConversationAddress, 0x82);
+        memory.ConfigureVisibleModel(entityId: 7, modelId: 1, x: 616, y: 475, z: 0);
+        AssertStoryTargetAbsent(
+            memory,
+            fieldId: 290,
+            gameMoment: 376,
+            "Approach Zangan in the burning square",
+            "the Zangan approach must retire after the native completion bit is set");
+        AssertStoryTarget(
+            memory,
+            fieldId: 290,
+            gameMoment: 376,
+            "Enter the only unblocked house and follow Sephiroth",
+            expectedX: 616,
+            expectedY: 475,
+            expectedZ: 0);
+
+        AssertStoryTargetAtTriangle(
+            memory,
+            fieldId: 316,
+            gameMoment: 376,
+            playerTriangle: 0,
+            "Enter the Nibel Reactor",
+            expectedX: -118,
+            expectedY: 163,
+            expectedZ: 325,
+            expectedTriggerLine: new FieldNavigationTriggerLine(
+                -166,
+                165,
+                325,
+                -70,
+                160,
+                325));
+
+        AssertStoryTargetAtTriangle(
+            memory,
             fieldId: 322,
             gameMoment: 380,
             playerTriangle: 43,
@@ -414,6 +467,22 @@ internal static class KalmRanchNavigationTests
                 -38,
                 -257,
                 191));
+        AssertStoryTargetAtTriangle(
+            memory,
+            fieldId: 322,
+            gameMoment: 381,
+            playerTriangle: 24,
+            "Follow Tifa deeper into the reactor",
+            expectedX: -6,
+            expectedY: -912,
+            expectedZ: 191,
+            expectedTriggerLine: new FieldNavigationTriggerLine(
+                62,
+                -937,
+                191,
+                -74,
+                -887,
+                191));
         memory.ConfigureVisibleModel(entityId: 7, modelId: 1, x: 141, y: -429, z: 186);
         AssertStoryTarget(
             memory,
@@ -423,6 +492,22 @@ internal static class KalmRanchNavigationTests
             expectedX: 141,
             expectedY: -429,
             expectedZ: 186);
+        AssertStoryTargetAtTriangle(
+            memory,
+            fieldId: 323,
+            gameMoment: 383,
+            playerTriangle: 0,
+            "Follow Sephiroth into Jenova's chamber",
+            expectedX: -4,
+            expectedY: -1141,
+            expectedZ: 709,
+            expectedTriggerLine: new FieldNavigationTriggerLine(
+                56,
+                -1141,
+                709,
+                -64,
+                -1141,
+                709));
     }
 
     private static void AssertNibelheimFlashbackObjects()
@@ -441,6 +526,116 @@ internal static class KalmRanchNavigationTests
         AssertEqual(0, piano.StaticZ, "Tifa piano z");
         AssertEqual(344, piano.MinimumGameMoment, "Tifa piano minimum moment");
         AssertEqual(384, piano.MaximumGameMoment, "Tifa piano maximum moment");
+    }
+
+    private static void AssertNibelheimFlashbackNpcLabels()
+    {
+        var cases = new[]
+        {
+            (273, 17, "Old man"),
+            (273, 18, "Zangan"),
+            (273, 19, "Innkeeper"),
+            (273, 20, "Man in black cape"),
+            (274, 8, "Sephiroth"),
+            (274, 9, "Shinra infantryman"),
+            (276, 11, "Cloud's mother"),
+            (279, 7, "Tifa"),
+            (279, 8, "Barret"),
+            (279, 9, "Red XIII"),
+            (279, 10, "Yuffie"),
+            (279, 11, "Cait Sith"),
+            (279, 12, "Vincent"),
+            (279, 13, "Cid"),
+            (279, 14, "Sephiroth"),
+            (279, 15, "Shinra infantryman"),
+            (279, 16, "Shinra infantryman"),
+            (282, 8, "Sephiroth"),
+            (282, 9, "Shinra infantryman"),
+            (282, 10, "Shinra infantryman"),
+            (282, 11, "Photographer"),
+            (282, 12, "Tifa's father"),
+            (282, 13, "Zangan"),
+            (284, 16, "Man in black cape"),
+            (284, 17, "Man in black cape"),
+            (286, 17, "Man in black cape"),
+            (286, 18, "Man in black cape"),
+            (287, 21, "Man in black cape"),
+            (290, 7, "Sephiroth"),
+            (290, 8, "Shinra infantryman"),
+            (290, 9, "Zangan"),
+            (290, 10, "Photographer"),
+            (291, 7, "Sephiroth"),
+            (291, 8, "Shinra infantryman"),
+            (291, 9, "Zangan"),
+            (291, 10, "Photographer"),
+            (293, 3, "Tifa"),
+            (293, 4, "Barret"),
+            (293, 5, "Red XIII"),
+            (293, 6, "Yuffie"),
+            (293, 7, "Cait Sith"),
+            (293, 8, "Vincent"),
+            (293, 9, "Cid"),
+            (293, 10, "Sephiroth"),
+            (300, 5, "Shinra infantryman"),
+            (307, 3, "Sephiroth"),
+            (312, 6, "Tifa"),
+            (312, 8, "Shinra infantryman"),
+            (312, 9, "Shinra infantryman"),
+            (323, 6, "Tifa"),
+            (323, 7, "Tifa"),
+            (323, 8, "Sephiroth"),
+            (324, 8, "Tifa")
+        };
+
+        foreach (var (fieldId, entityId, expectedLabel) in cases)
+        {
+            var memory = new NativeMemory();
+            memory.ConfigureVisibleModel(entityId, modelId: 1, x: 100, y: 200, z: 3);
+            var reader = new FieldNavigationNpcReader(
+                memory.ReadInt32,
+                memory.ReadInt16,
+                memory.ReadByte,
+                (_, _) => ["Cloud", "Delegated dialogue must not override the visible model."],
+                _ => []);
+            var targets = reader.ReadTargets(
+                new FieldPositionSnapshot(1, fieldId, 0, 0, 0, 0, 0, 0));
+
+            AssertEqual(
+                1,
+                targets.Count,
+                $"Nibelheim flashback NPC count for field {fieldId}, entity {entityId}");
+            AssertEqual(
+                expectedLabel,
+                targets.Single().Label,
+                $"Nibelheim flashback NPC label for field {fieldId}, entity {entityId}");
+        }
+
+        var proxyCases = new[]
+        {
+            (276, 2, "bed proxy"),
+            (297, 6, "entrance-line proxy"),
+            (299, 10, "dresser proxy"),
+            (317, 19, "camera-control proxy"),
+            (322, 6, "reactor event-line proxy")
+        };
+        foreach (var (fieldId, entityId, role) in proxyCases)
+        {
+            var memory = new NativeMemory();
+            memory.ConfigureVisibleModel(entityId, modelId: 1, x: 100, y: 200, z: 3);
+            var reader = new FieldNavigationNpcReader(
+                memory.ReadInt32,
+                memory.ReadInt16,
+                memory.ReadByte,
+                (_, _) => ["Cloud", "This event proxy is not a visible NPC."],
+                requestedFieldId => requestedFieldId == fieldId
+                    ? [new FieldScriptNpcDefinition(fieldId, entityId, role, [1])]
+                    : []);
+
+            AssertEqual(
+                0,
+                reader.ReadTargets(new FieldPositionSnapshot(1, fieldId, 0, 0, 0, 0, 0, 0)).Count,
+                $"reviewed Nibelheim {role} must not be mislabeled as an NPC");
+        }
     }
 
     private static void AssertReviewedNpcLabels()
@@ -589,6 +784,26 @@ internal static class KalmRanchNavigationTests
         AssertEqual(
             0,
             reader.ReadTargets(new FieldPositionSnapshot(1, fieldId, 0, 0, 0, 0, 0, 0)).Count,
+            message);
+    }
+
+    private static void AssertStoryTargetAbsent(
+        NativeMemory memory,
+        int fieldId,
+        int gameMoment,
+        string absentLabel,
+        string message)
+    {
+        memory.SetGameMoment(gameMoment);
+        var reader = new FieldStoryTargetReader(
+            memory.ReadInt32,
+            memory.ReadInt16,
+            memory.ReadByte,
+            FieldStoryEventCatalog.CreateAllFields());
+        AssertEqual(
+            false,
+            reader.ReadTargets(new FieldPositionSnapshot(1, fieldId, 0, 0, 0, 0, 0, 0))
+                .Any(target => target.Label == absentLabel),
             message);
     }
 

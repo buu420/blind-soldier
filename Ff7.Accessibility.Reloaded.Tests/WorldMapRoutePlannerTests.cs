@@ -53,6 +53,10 @@ internal static class WorldMapRoutePlannerTests
         Equal(true, route.TrianglePath.Count > 1, "route traverses native terrain");
         Equal(true, route.Waypoints.Count >= 1, "route has stable guidance waypoints");
         Equal(true, route.TotalDistance > 0, "route has measurable progress");
+
+        var mountedSuccess = planner.TryBuildRoute(StateAt(map, kalm, playerModelId: 4), farm, out var mountedRoute);
+        Equal(true, mountedSuccess, $"Kalm to Chocobo Farm caught-Chocobo route: {planner.LastDiagnostic}");
+        Equal(farm.TriangleId, mountedRoute.TargetTriangleId, "caught-Chocobo route target triangle");
     }
 
     private static void SelectsTheNearestMemberOfAChocoboTrackArea()
@@ -101,6 +105,8 @@ internal static class WorldMapRoutePlannerTests
         Equal(false, WorldMapTerrainPassability.CanTraverse(0, 0, 3), "Cloud deep sea");
         Equal(true, WorldMapTerrainPassability.CanTraverse(0, 0, 7), "Cloud swamp");
         Equal(false, WorldMapTerrainPassability.CanTraverse(0, 0, 12), "Cloud cliff face");
+        Equal(true, WorldMapTerrainPassability.CanTraverse(4, 0, 0), "caught Chocobo grass");
+        Equal(false, WorldMapTerrainPassability.CanTraverse(4, 0, 2), "caught Chocobo mountain");
         Equal(true, WorldMapTerrainPassability.CanTraverse(6, 0, 4), "buggy river crossing");
         Equal(true, WorldMapTerrainPassability.CanTraverse(5, 0, 6), "Tiny Bronco shallow water");
         Equal(true, WorldMapTerrainPassability.CanTraverse(3, 0, 2), "Highwind flies over mountains");

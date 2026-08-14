@@ -8,13 +8,19 @@ internal static class Steam2026InGameMenuSpeechBridgeTests
     private const int MenuModule = 5;
     private const int RootContext = 0x3A83126F;
     private const int ConfigContext = 0x3DCCCCCD;
+    private const int ItemArrangeContext = 0x3C23D70A;
 
     internal static void Run()
     {
         ReadsGenericRenderedSelection();
+        ReadsItemCommandWithoutRenderedCursor();
+        ReadsItemArrangeWithoutRenderedCursor();
+        ReadsLimitLevelConfirmationFromNativeRow();
         ReadsNativeOrderRowsAndPendingSwap();
         ReadsScriptedReformPartySelection();
+        ReadsNormalPhsPartySelection();
         ReformValidationDoesNotAlternateWithTranslatedInstruction();
+        ReadsMagicCategoryWithoutRenderedCursor();
         ReadsNativeMagicAndPartySelections();
         ReadsNativeItemAndMagicPartyTargets();
         ReadsCheckedInventoryAndExactEquipmentSelections();
@@ -27,11 +33,38 @@ internal static class Steam2026InGameMenuSpeechBridgeTests
         ReadsMateriaTutorialInstructions();
         SharedMateriaReaderUsesSelectedCharacterRecord();
         ReadsLiveModeZeroSaveOnlyAfterExactWidgetIngress();
+        ReadsExactSaveFlowFromWorldMapWithoutOwningGenericWorldCallbacks();
         ReadsNativeSaveFlowAndRetainsTransactionalOwnership();
         ReannouncesOuterSaveAfterFailedInnerRead();
         KeepsOtherOwnersAndAmbiguousWidgetsSilent();
         CurrentStatusReaderUsesCheckedSelectorBookends();
         SharedShopReaderOwnsNativeModuleFive();
+    }
+
+    private static void ReadsItemCommandWithoutRenderedCursor()
+    {
+        var bridge = CreateBridge();
+        var now = UtcNow();
+        var sequence = 0L;
+        ObserveText(bridge, ref sequence, now, "Uzyj", 57, 17, 7, 0x3DCED917);
+        ObserveText(bridge, ref sequence, now, "Uloz", 150, 17, 7, 0x3DCED917);
+        ObserveText(bridge, ref sequence, now, "Kluczowe przedmioty", 243, 17, 7, 0x3DCED917);
+        ObserveWidget(
+            bridge,
+            ref sequence,
+            now,
+            "Item submenu command",
+            MenuWidgetKind.ItemCommand,
+            first: 1,
+            cursor: 0,
+            columns: 3,
+            rows: 1,
+            widgetIdentity: 0x00DD1A18);
+
+        Equal(
+            "Uloz",
+            bridge.Poll(now),
+            "translated Item command follows the checked native column without a cursor callback");
     }
 
     private static void ReadsGenericRenderedSelection()
@@ -60,6 +93,162 @@ internal static class Steam2026InGameMenuSpeechBridgeTests
             bridge.Poll(now),
             "generic menu selection uses correlated native text and help");
         Equal(null, bridge.Poll(now), "stable generic menu selection does not repeat");
+    }
+
+    private static void ReadsItemArrangeWithoutRenderedCursor()
+    {
+        Equal(
+            true,
+            Enum.TryParse<MenuWidgetKind>("ItemArrange", out var arrangeKind),
+            "translated Item Arrange kind exists");
+
+        var bridge = CreateBridge();
+        var now = UtcNow();
+        var sequence = 0L;
+        var labels = new[]
+        {
+            "Customize",
+            "Field",
+            "Battle",
+            "Throw",
+            "Type",
+            "Name",
+            "Most",
+            "Least"
+        };
+        for (var index = 0; index < labels.Length; index++)
+        {
+            ObserveText(
+                bridge,
+                ref sequence,
+                now,
+                labels[index],
+                233,
+                39 + (26 * index),
+                7,
+                ItemArrangeContext);
+        }
+
+        ObserveWidget(
+            bridge,
+            ref sequence,
+            now,
+            "Item arrange",
+            arrangeKind,
+            first: 0,
+            cursor: 0,
+            columns: 1,
+            rows: 8,
+            widgetIdentity: 0x00DD1AF8);
+        Equal(
+            "Customize",
+            bridge.Poll(now),
+            "translated Item Arrange reads its first native row without a cursor callback");
+
+        for (var index = 0; index < labels.Length; index++)
+        {
+            ObserveText(
+                bridge,
+                ref sequence,
+                now.AddMilliseconds(16),
+                labels[index],
+                233,
+                39 + (26 * index),
+                7,
+                ItemArrangeContext);
+        }
+
+        ObserveWidget(
+            bridge,
+            ref sequence,
+            now.AddMilliseconds(16),
+            "Item arrange",
+            arrangeKind,
+            first: 0,
+            cursor: 6,
+            columns: 1,
+            rows: 8,
+            widgetIdentity: 0x00DD1AF8);
+        Equal(
+            "Most",
+            bridge.Poll(now.AddMilliseconds(16)),
+            "translated Item Arrange follows the checked native row without a cursor callback");
+    }
+
+    private static void ReadsLimitLevelConfirmationFromNativeRow()
+    {
+        Equal(
+            true,
+            Enum.TryParse<MenuWidgetKind>("LimitConfirmation", out var confirmationKind),
+            "translated Limit confirmation kind exists");
+
+        var bridge = CreateBridge();
+        var now = UtcNow();
+        var sequence = 0L;
+
+        AddLimitConfirmationText(
+            bridge,
+            ref sequence,
+            now,
+            "To change BREAK LEVEL,",
+            "it will begin from Limit Point 0.",
+            "Change BREAK LEVEL?",
+            "Yes",
+            "No");
+        ObserveWidget(
+            bridge,
+            ref sequence,
+            now,
+            "Limit level confirmation",
+            confirmationKind,
+            first: 0,
+            cursor: 1,
+            columns: 1,
+            rows: 2,
+            widgetIdentity: 0x00DCA278);
+        Equal(
+            "To change BREAK LEVEL, it will begin from Limit Point 0. Change BREAK LEVEL? No",
+            bridge.Poll(now),
+            "translated Limit confirmation reads the prompt and native default row");
+
+        AddLimitConfirmationText(
+            bridge,
+            ref sequence,
+            now.AddMilliseconds(16),
+            "To change BREAK LEVEL,",
+            "it will begin from Limit Point 0.",
+            "Change BREAK LEVEL?",
+            "Yes",
+            "No");
+        ObserveWidget(
+            bridge,
+            ref sequence,
+            now.AddMilliseconds(16),
+            "Limit level confirmation",
+            confirmationKind,
+            first: 0,
+            cursor: 0,
+            columns: 1,
+            rows: 2,
+            widgetIdentity: 0x00DCA278);
+        Equal("Yes", bridge.Poll(now.AddMilliseconds(16)), "translated Limit confirmation reads Yes");
+    }
+
+    private static void AddLimitConfirmationText(
+        Steam2026InGameMenuSpeechBridge bridge,
+        ref long sequence,
+        DateTime now,
+        string warning,
+        string consequence,
+        string question,
+        string yes,
+        string no)
+    {
+        ObserveText(bridge, ref sequence, now, warning, 177, 75, 7, 0);
+        ObserveText(bridge, ref sequence, now, consequence, 177, 109, 7, 0);
+        ObserveText(bridge, ref sequence, now, question, 177, 143, 7, 0);
+        ObserveText(bridge, ref sequence, now, yes, 297, 178, 7, 0);
+        ObserveText(bridge, ref sequence, now, no, 297, 203, 7, 0);
     }
 
     private static void ReadsNativeOrderRowsAndPendingSwap()
@@ -173,6 +362,42 @@ internal static class Steam2026InGameMenuSpeechBridgeTests
             "Empty.",
             bridge.Poll(now.AddMilliseconds(280)),
             "translated Reform empty reserve cell");
+    }
+
+    private static void ReadsNormalPhsPartySelection()
+    {
+        const int phsModule = 19;
+        var bridge = CreateBridge(settleTime: TimeSpan.FromMilliseconds(30));
+        var now = UtcNow();
+        var sequence = 0L;
+
+        ObserveText(bridge, ref sequence, now, "PHS", 508, 14, 7, 0, moduleId: phsModule);
+        ObserveText(
+            bridge,
+            ref sequence,
+            now,
+            "Select with START button.",
+            26,
+            13,
+            7,
+            ConfigContext,
+            moduleId: phsModule);
+        ObserveText(bridge, ref sequence, now, "Cloud", 134, 77, 7, ConfigContext, moduleId: phsModule);
+        ObserveText(bridge, ref sequence, now, "Barret", 134, 214, 7, ConfigContext, moduleId: phsModule);
+        ObserveText(bridge, ref sequence, now, "Tifa", 134, 351, 7, ConfigContext, moduleId: phsModule);
+        ObserveCursor(
+            bridge,
+            ref sequence,
+            now.AddMilliseconds(1),
+            0,
+            257,
+            0x3DCF0D84,
+            moduleId: phsModule);
+
+        Equal(
+            "PHS. Party slot 2, Barret. Press Start when finished.",
+            bridge.Poll(now.AddMilliseconds(80)),
+            "translated normal PHS module reads the checked party slot");
     }
 
     private static void ReformValidationDoesNotAlternateWithTranslatedInstruction()
@@ -474,6 +699,57 @@ internal static class Steam2026InGameMenuSpeechBridgeTests
         Equal(null, bridge.Poll(now.AddMilliseconds(50)), "torn native save page does not leak generic speech");
     }
 
+    private static void ReadsExactSaveFlowFromWorldMapWithoutOwningGenericWorldCallbacks()
+    {
+        var now = UtcNow();
+        SaveMenuStateSnapshot? state = new(
+            SaveMenuPage.SaveFiles,
+            1,
+            0,
+            null,
+            0);
+        var bridge = CreateSaveBridge(() => state);
+        var sequence = 0L;
+
+        ObserveText(
+            bridge,
+            ref sequence,
+            now,
+            "unrelated world overlay",
+            40,
+            40,
+            7,
+            ConfigContext,
+            moduleId: WorldMapStateReader.WorldModule);
+        Equal(
+            null,
+            bridge.Poll(now),
+            "generic world-map rendering cannot acquire ordinary menu speech");
+
+        ObserveWidget(
+            bridge,
+            ref sequence,
+            now.AddMilliseconds(1),
+            "Save file or Quit choice",
+            MenuWidgetKind.Generic,
+            first: 0,
+            cursor: 0,
+            columns: 5,
+            rows: 2,
+            moduleId: WorldMapStateReader.WorldModule,
+            widgetIdentity: SaveMenuStateReader.AddressSaveFileWidget);
+
+        Equal(
+            true,
+            bridge.HasSaveMenuOwnership,
+            "the exact 5-by-2 Save widget acquires x64 ownership on the world map");
+        bridge.ObserveSaveMenuState(mayOwnMenu: true, now.AddMilliseconds(2));
+        Equal(
+            "Save 1.",
+            bridge.Poll(now.AddMilliseconds(2)),
+            "the world-map Save flow reads its checked native slot");
+    }
+
     private static void ReannouncesOuterSaveAfterFailedInnerRead()
     {
         var now = UtcNow();
@@ -645,6 +921,33 @@ internal static class Steam2026InGameMenuSpeechBridgeTests
         Equal("Cloud", bridge.Poll(now.AddMilliseconds(50)), "party list uses checked native party member");
     }
 
+    private static void ReadsMagicCategoryWithoutRenderedCursor()
+    {
+        var bridge = CreateBridge();
+        var now = UtcNow();
+        var sequence = 0L;
+
+        ObserveText(bridge, ref sequence, now, "Magia", 508, 56, 7, 0x3DCED917);
+        ObserveText(bridge, ref sequence, now, "Przywołanie", 508, 90, 7, 0x3DCED917);
+        ObserveText(bridge, ref sequence, now, "Umiejętność wroga", 508, 124, 7, 0x3DCED917);
+        ObserveWidget(
+            bridge,
+            ref sequence,
+            now,
+            "Magic category",
+            MenuWidgetKind.MagicCategory,
+            first: 0,
+            cursor: 2,
+            columns: 1,
+            rows: 3,
+            widgetIdentity: 0x00DD1698);
+
+        Equal(
+            "Umiejętność wroga",
+            bridge.Poll(now),
+            "translated Magic category uses its localized native row without a cursor callback");
+    }
+
     private static void ReadsCheckedInventoryAndExactEquipmentSelections()
     {
         var memory = CreateInventoryAndEquipmentMemory();
@@ -672,6 +975,24 @@ internal static class Steam2026InGameMenuSpeechBridgeTests
             "Ether x2. Restores MP by 100",
             bridge.Poll(now),
             "Item list uses the checked native savemap item and kernel text");
+
+        now = now.AddMilliseconds(25);
+        ObserveWidget(
+            bridge,
+            ref sequence,
+            now,
+            "Item arrange list",
+            MenuWidgetKind.ItemList,
+            first: 0,
+            cursor: 0,
+            columns: 1,
+            rows: 10,
+            scrollOffset: 1,
+            widgetIdentity: 0x00DD1B30);
+        Equal(
+            "Ether x2. Restores MP by 100",
+            bridge.Poll(now),
+            "Customize/manual sort resolves its checked inventory slot");
 
         now = now.AddMilliseconds(25);
         ObserveWidget(

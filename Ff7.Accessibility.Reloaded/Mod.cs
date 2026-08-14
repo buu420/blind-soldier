@@ -760,9 +760,6 @@ public sealed class Mod : IModV1, IModV2
             legacyAddressSpace,
             () => fieldMessageReader.HasReadableActiveWindow());
         fieldRunStateReader = new FieldRunStateReader(ReadInt32, ReadByte);
-        Func<int, string?>? resolveItemName = kernel2TextDatabase is null
-            ? null
-            : kernel2TextDatabase.ResolveItemName;
         Func<int, string?>? resolveInventoryObjectName = kernel2TextDatabase is null
             ? null
             : kernel2TextDatabase.ResolveInventoryObjectName;
@@ -781,10 +778,9 @@ public sealed class Mod : IModV1, IModV2
         Func<int, string?>? resolveLimitDescription = kernel2TextDatabase is null
             ? null
             : kernel2TextDatabase.ResolveBattleActionDescription;
-        inventoryItemReader = new InventoryItemReader(
+        inventoryItemReader = CreateMenuInventoryItemReader(
             legacyAddressSpace,
-            resolveItemName,
-            resolveItemDescription);
+            kernel2TextDatabase);
         magicMenuSelectionReader = kernel2TextDatabase is null
             ? null
             : new MagicMenuSelectionReader(
@@ -841,7 +837,7 @@ public sealed class Mod : IModV1, IModV2
             savemapPartyReader,
             resolveAbilityName,
             resolveAbilityDescription,
-            resolveItemName,
+            resolveInventoryObjectName,
             resolveItemDescription,
             resolveCommandName,
             resolveLimitName,
@@ -1973,6 +1969,20 @@ public sealed class Mod : IModV1, IModV2
         {
             ResetBattleInteractionSpeech();
         }
+    }
+
+    internal static InventoryItemReader CreateMenuInventoryItemReader(
+        ILegacyAddressSpace addressSpace,
+        Kernel2TextDatabase? textDatabase)
+    {
+        ArgumentNullException.ThrowIfNull(addressSpace);
+        Func<int, string?>? resolveName = textDatabase is null
+            ? null
+            : textDatabase.ResolveInventoryObjectName;
+        Func<int, string?>? resolveDescription = textDatabase is null
+            ? null
+            : textDatabase.ResolveInventoryObjectDescription;
+        return new InventoryItemReader(addressSpace, resolveName, resolveDescription);
     }
 
     internal static bool ShouldOwnBattleStatusHotkeys(

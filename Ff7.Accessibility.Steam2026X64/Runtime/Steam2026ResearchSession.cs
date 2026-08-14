@@ -618,7 +618,8 @@ internal sealed class Steam2026ResearchSession : IDisposable
                             id => kernel2TextDatabase?.ResolveInventoryObjectName(id),
                             id => kernel2TextDatabase?.ResolveBattleText(id),
                             id => kernel2TextDatabase?.ResolveBattleActionName(id),
-                            id => kernel2TextDatabase?.ResolveBattleActionDescription(id));
+                            id => kernel2TextDatabase?.ResolveBattleActionDescription(id),
+                            id => kernel2TextDatabase?.ResolveInventoryObjectDescription(id));
                         battleAccessibilityCoordinator = new Steam2026BattleAccessibilityCoordinator(
                             fingerprint,
                             moduleBase,
@@ -1555,12 +1556,27 @@ internal sealed class Steam2026ResearchSession : IDisposable
                     && hasCurrentNameEntry
                     && currentNameEntry?.IsActive == false
                     && !hasExactShopMenuOwnership;
+                var ownsPhsInGameMenuNow = lifecycle is
+                {
+                    IsShuttingDown: false,
+                    ModuleId: var phsModule
+                }
+                    && Steam2026InGameMenuSpeechBridge.IsOwnedNativeModule(phsModule)
+                    && phsModule != Steam2026InGameMenuSpeechBridge.MenuModule
+                    && !hasExactShopMenuOwnership;
+                var retainedWorldMapSaveBeforeIngress = lifecycle is
+                {
+                    IsShuttingDown: false,
+                    ModuleId: WorldMapStateReader.WorldModule
+                }
+                    && inGameMenuBridge?.HasSaveMenuOwnership == true;
                 inGameMenuBridge?.ObserveSaveMenuState(
-                    isHostForeground && ownsRegularInGameMenuNow,
+                    isHostForeground
+                    && (ownsRegularInGameMenuNow || retainedWorldMapSaveBeforeIngress),
                     now);
                 if (config.EnableMenuWidgetDiagnostics
                     && isHostForeground
-                    && ownsRegularInGameMenuNow
+                    && (ownsRegularInGameMenuNow || retainedWorldMapSaveBeforeIngress)
                     && menuReader is not null
                     && !string.Equals(
                         menuReader.LastSaveMenuDiagnostic,
@@ -1656,11 +1672,19 @@ internal sealed class Steam2026ResearchSession : IDisposable
                         config.EnableSpeech &&
                         config.EnableRuntimeMenuSpeech &&
                         menuReader?.TryReadQuitConfirmation(out _) == true;
+                    var ownsWorldMapSaveNow = lifecycle is
+                    {
+                        IsShuttingDown: false,
+                        ModuleId: WorldMapStateReader.WorldModule
+                    }
+                        && inGameMenuBridge?.HasSaveMenuOwnership == true;
                     var ownsInGameMenuNow = isHostForeground
                         && lifecycle?.IsShuttingDown != true
                         && !hasExactShopMenuOwnership
                         && !nativeQuitHandledByRuntimeFrame
                         && (ownsRegularInGameMenuNow ||
+                            ownsPhsInGameMenuNow ||
+                            ownsWorldMapSaveNow ||
                             inGameMenuBridge?.HasExactQuitOwnership(now) == true);
                     if (!ownsInGameMenuNow)
                     {

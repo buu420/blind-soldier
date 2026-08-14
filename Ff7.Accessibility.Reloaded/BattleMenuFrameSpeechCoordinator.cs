@@ -57,7 +57,7 @@ public sealed class BattleMenuFrameSpeechCoordinator
                 return;
             }
 
-            var selectionKey = $"{snapshot.PartySlot}\u001f{frameState}\u001f{selection.EntryId}\u001f{selection.Name}";
+            var selectionKey = $"{snapshot.PartySlot}\u001f{frameState}\u001f{selection.EntryId}\u001f{selection.Name}\u001f{selection.IsAvailable}";
             if (lastSelectionKeys.TryGetValue(frameState, out var lastSelectionKey) &&
                 string.Equals(selectionKey, lastSelectionKey, StringComparison.Ordinal))
             {
@@ -65,6 +65,11 @@ public sealed class BattleMenuFrameSpeechCoordinator
             }
 
             var body = FormatSelection(selection.Name.Trim(), selection);
+            if (!selection.IsAvailable)
+            {
+                body = $"{body}. Unavailable in battle";
+            }
+
             var description = selection.Description;
             if (!string.IsNullOrWhiteSpace(description) &&
                 !string.Equals(description, selection.Name, StringComparison.Ordinal))

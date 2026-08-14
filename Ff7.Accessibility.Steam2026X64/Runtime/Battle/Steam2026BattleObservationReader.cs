@@ -46,8 +46,8 @@ public sealed class Steam2026BattleObservationReader
             new SavemapPartyReader(addressSpace),
             textResolvers.ResolveAbilityName,
             textResolvers.ResolveAbilityDescription,
-            textResolvers.ResolveItemName,
-            textResolvers.ResolveItemDescription,
+            textResolvers.ResolveInventoryObjectName,
+            textResolvers.ResolveInventoryObjectDescription,
             textResolvers.ResolveCommandName,
             textResolvers.ResolveLimitName,
             textResolvers.ResolveLimitDescription);
@@ -1225,7 +1225,8 @@ public sealed class Steam2026BattleObservationReader
                 selection.Name,
                 selection.Description,
                 selection.Quantity,
-                selection.MpCost));
+                selection.MpCost,
+                selection.IsAvailable));
 
         Steam2026BattleTargetResearchSnapshot? target = null;
         if (source.Target is { } rawTarget)
@@ -1493,7 +1494,8 @@ public sealed class Steam2026BattleTextResolvers
         Func<int, string?> resolveInventoryObjectName,
         Func<int, string?>? resolveBattleText = null,
         Func<int, string?>? resolveLimitName = null,
-        Func<int, string?>? resolveLimitDescription = null)
+        Func<int, string?>? resolveLimitDescription = null,
+        Func<int, string?>? resolveInventoryObjectDescription = null)
     {
         ResolveAbilityName = resolveAbilityName ?? throw new ArgumentNullException(nameof(resolveAbilityName));
         ResolveAbilityDescription = resolveAbilityDescription ?? throw new ArgumentNullException(nameof(resolveAbilityDescription));
@@ -1501,6 +1503,7 @@ public sealed class Steam2026BattleTextResolvers
         ResolveItemDescription = resolveItemDescription ?? throw new ArgumentNullException(nameof(resolveItemDescription));
         ResolveCommandName = resolveCommandName ?? throw new ArgumentNullException(nameof(resolveCommandName));
         ResolveInventoryObjectName = resolveInventoryObjectName ?? throw new ArgumentNullException(nameof(resolveInventoryObjectName));
+        ResolveInventoryObjectDescription = resolveInventoryObjectDescription ?? ResolveItemDescription;
         ResolveBattleText = resolveBattleText ?? (_ => null);
         ResolveLimitName = resolveLimitName ?? (_ => null);
         ResolveLimitDescription = resolveLimitDescription ?? (_ => null);
@@ -1517,6 +1520,8 @@ public sealed class Steam2026BattleTextResolvers
     public Func<int, string?> ResolveCommandName { get; }
 
     public Func<int, string?> ResolveInventoryObjectName { get; }
+
+    public Func<int, string?> ResolveInventoryObjectDescription { get; }
 
     public Func<int, string?> ResolveBattleText { get; }
 
@@ -1700,13 +1705,15 @@ public sealed class Steam2026BattleSelectionResearchSnapshot : IEquatable<Steam2
         string name,
         string? description,
         int? quantity,
-        int? mpCost)
+        int? mpCost,
+        bool isAvailable)
     {
         EntryId = entryId;
         Name = name;
         Description = description;
         Quantity = quantity;
         MpCost = mpCost;
+        IsAvailable = isAvailable;
     }
 
     public int EntryId { get; }
@@ -1719,18 +1726,22 @@ public sealed class Steam2026BattleSelectionResearchSnapshot : IEquatable<Steam2
 
     public int? MpCost { get; }
 
+    public bool IsAvailable { get; }
+
     public bool Equals(Steam2026BattleSelectionResearchSnapshot? other) =>
         other is not null &&
         EntryId == other.EntryId &&
         string.Equals(Name, other.Name, StringComparison.Ordinal) &&
         string.Equals(Description, other.Description, StringComparison.Ordinal) &&
         Quantity == other.Quantity &&
-        MpCost == other.MpCost;
+        MpCost == other.MpCost &&
+        IsAvailable == other.IsAvailable;
 
     public override bool Equals(object? obj) =>
         obj is Steam2026BattleSelectionResearchSnapshot other && Equals(other);
 
-    public override int GetHashCode() => HashCode.Combine(EntryId, Name, Description, Quantity, MpCost);
+    public override int GetHashCode() =>
+        HashCode.Combine(EntryId, Name, Description, Quantity, MpCost, IsAvailable);
 }
 
 public sealed class Steam2026BattleTargetResearchSnapshot : IEquatable<Steam2026BattleTargetResearchSnapshot>

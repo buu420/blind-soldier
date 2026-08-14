@@ -232,6 +232,64 @@ public sealed class FieldNavigationNpcReader
 
             [(218, 24)] = "Honey Bee Inn hostess",
 
+            // Cloud's Nibelheim flashback. These identities come from the
+            // native model-loader resources. Event directors, line proxies,
+            // furniture, items, and other non-people remain intentionally
+            // unlisted even when their delegated dialog begins with a name.
+            [(273, 17)] = "Old man",
+            [(273, 18)] = "Zangan",
+            [(273, 19)] = "Innkeeper",
+            [(273, 20)] = "Man in black cape",
+            [(274, 8)] = "Sephiroth",
+            [(274, 9)] = "Shinra infantryman",
+            [(276, 11)] = "Cloud's mother",
+            [(279, 7)] = "Tifa",
+            [(279, 8)] = "Barret",
+            [(279, 9)] = "Red XIII",
+            [(279, 10)] = "Yuffie",
+            [(279, 11)] = "Cait Sith",
+            [(279, 12)] = "Vincent",
+            [(279, 13)] = "Cid",
+            [(279, 14)] = "Sephiroth",
+            [(279, 15)] = "Shinra infantryman",
+            [(279, 16)] = "Shinra infantryman",
+            [(282, 8)] = "Sephiroth",
+            [(282, 9)] = "Shinra infantryman",
+            [(282, 10)] = "Shinra infantryman",
+            [(282, 11)] = "Photographer",
+            [(282, 12)] = "Tifa's father",
+            [(282, 13)] = "Zangan",
+            [(284, 16)] = "Man in black cape",
+            [(284, 17)] = "Man in black cape",
+            [(286, 17)] = "Man in black cape",
+            [(286, 18)] = "Man in black cape",
+            [(287, 21)] = "Man in black cape",
+            [(290, 7)] = "Sephiroth",
+            [(290, 8)] = "Shinra infantryman",
+            [(290, 9)] = "Zangan",
+            [(290, 10)] = "Photographer",
+            [(291, 7)] = "Sephiroth",
+            [(291, 8)] = "Shinra infantryman",
+            [(291, 9)] = "Zangan",
+            [(291, 10)] = "Photographer",
+            [(293, 3)] = "Tifa",
+            [(293, 4)] = "Barret",
+            [(293, 5)] = "Red XIII",
+            [(293, 6)] = "Yuffie",
+            [(293, 7)] = "Cait Sith",
+            [(293, 8)] = "Vincent",
+            [(293, 9)] = "Cid",
+            [(293, 10)] = "Sephiroth",
+            [(300, 5)] = "Shinra infantryman",
+            [(307, 3)] = "Sephiroth",
+            [(312, 6)] = "Tifa",
+            [(312, 8)] = "Shinra infantryman",
+            [(312, 9)] = "Shinra infantryman",
+            [(323, 6)] = "Tifa",
+            [(323, 7)] = "Tifa",
+            [(323, 8)] = "Sephiroth",
+            [(324, 8)] = "Tifa",
+
             // Kalm and Chocobo Ranch. These labels were checked against each
             // native Talk entity and its visible field model. Models with an
             // empty/noninteractive Talk script are deliberately omitted.
@@ -332,6 +390,7 @@ public sealed class FieldNavigationNpcReader
                 .Concat([188, 189, 190])
                 .Concat(Enumerable.Range(195, 17))
                 .Concat([214, 216, 218])
+                .Concat(Enumerable.Range(273, 55))
                 .Concat(Enumerable.Range(328, 18)));
 
     private readonly Func<int, int> readInt32;

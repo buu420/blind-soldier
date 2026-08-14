@@ -40,9 +40,11 @@ public static class WorldMapTerrainPassability
             6 => WalkingTerrain.Contains(terrainId) || terrainId == 4,
             // Submarine and red submarine own the underwater world.
             13 or 28 => worldMapType == 2 && terrainId is 3 or 18 or 26,
-            // A ridden chocobo's color is stored separately. Until that native
-            // capability is present, expose only ordinary walking terrain.
-            19 => WalkingTerrain.Contains(terrainId),
+            // Model 4 is the live caught Chocobo used immediately after a
+            // Chocobo battle; model 19 is the alternate ridden form. A
+            // Chocobo's color/capability is stored separately, so both retain
+            // ordinary walking terrain until that native capability is read.
+            4 or 19 => WalkingTerrain.Contains(terrainId),
             // Cloud, Tifa, and Cid are the controllable walking models.
             0 or 1 or 2 => WalkingTerrain.Contains(terrainId),
             _ => false

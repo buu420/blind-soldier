@@ -62,6 +62,7 @@ internal static class Steam2026BattleObservationTests
         supportedFingerprint = supported;
         unsupportedFingerprint = unsupported;
         ReadsEquivalentPointerFreeBattleSnapshots();
+        ReadsBattleInventoryObjectRowsAndAvailability();
         ReadsScriptedGuestPartyBattleSnapshots();
         NormalizesBattleFramesWithStrictEnemyPrivacy();
         ReadsCoherentNativeVictorySignal();
@@ -122,6 +123,47 @@ internal static class Steam2026BattleObservationTests
                 Equal(false, property.CanWrite, $"{outputType.Name}.{property.Name} is immutable");
             }
         }
+    }
+
+    internal static void ReadsBattleInventoryObjectRowsAndAvailability()
+    {
+        var fixture = BattleObservationFixture.CreatePopulated();
+        fixture.WriteByte(BattleStateReader.AddressMenuWindowStates + 1, 0);
+        fixture.WriteByte(
+            BattleStateReader.AddressMenuWindowStates + 5,
+            BattleStateReader.ActiveWindowState);
+        fixture.WriteInt32(BattleStateReader.AddressItemCursorRow, 0);
+        fixture.WriteInt32(BattleStateReader.AddressItemScrollRow, 0);
+        fixture.WriteByte(BattleStateReader.AddressBattleItemUseContext, 0);
+        fixture.WriteUInt16(BattleStateReader.AddressBattleItems, 128);
+        fixture.WriteByte(
+            BattleStateReader.AddressBattleItems + BattleStateReader.ItemQuantityOffset,
+            1);
+        fixture.WriteByte(
+            BattleStateReader.AddressBattleItems + BattleStateReader.ItemRestrictionFlagsOffset,
+            8);
+        var resolvers = new Steam2026BattleTextResolvers(
+            _ => null,
+            _ => null,
+            _ => null,
+            _ => null,
+            _ => null,
+            objectId => objectId == 128 ? "Mythril Saber" : null,
+            resolveInventoryObjectDescription:
+                objectId => objectId == 128 ? "A double-handed sword" : null);
+        var reader = new Steam2026BattleObservationReader(fixture.Direct, resolvers);
+
+        Equal(
+            true,
+            reader.TryReadResearchSnapshot(5, out var snapshot),
+            "x64 battle Item reads a gray inventory-object row");
+        Equal(128, snapshot.Menu.Selection.EntryId, "x64 battle inventory object id");
+        Equal("Mythril Saber", snapshot.Menu.Selection.Name, "x64 battle inventory object name");
+        Equal(
+            "A double-handed sword",
+            snapshot.Menu.Selection.Description,
+            "x64 battle inventory object description");
+        Equal(false, snapshot.Menu.Selection.IsAvailable, "x64 gray battle inventory row is unavailable");
     }
 
     internal static void ReadsScriptedGuestPartyBattleSnapshots(

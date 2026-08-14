@@ -67,7 +67,11 @@ public sealed class StaticMenuCursorSpeechTracker
             }
 
             if (IsQuitChoice(entry) &&
-                entry.Color == 0 &&
+                // The native Quit renderer uses color 7 for the selected
+                // choice and color 0 for the other choice. This is the
+                // opposite of the assumption made by the old cursorless
+                // fallback; Ghidra FUN_006c05e2 and live render traces agree.
+                entry.Color == 7 &&
                 IsRecent(lastQuitPromptAt, now) &&
                 !IsRecent(lastQuitCursorAt, now))
             {
