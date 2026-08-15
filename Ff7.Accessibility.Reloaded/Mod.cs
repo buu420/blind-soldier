@@ -891,6 +891,15 @@ public sealed class Mod : IModV1, IModV2
         var fieldExitLabelResolver = new FieldExitLabelResolver(
             fieldId => fieldMapNameCatalog?.Read(fieldId) ?? FieldMapNameResolution.Unknown,
             fieldMapNameReader.Read);
+        var fieldExitPresentationPolicy = new FieldExitPresentationPolicy(() =>
+        {
+            var address = (uint)(FieldNavigationObjectReader.AddressFieldBankBase + 0x100 + 131);
+            return legacyAddressSpace.TryReadByte(address, out var before) &&
+                   legacyAddressSpace.TryReadByte(address, out var after) &&
+                   before == after
+                ? (before & 0x01) == 0x01
+                : null;
+        });
         fieldNavigationNpcReader = new FieldNavigationNpcReader(
             ReadInt32,
             ReadInt16,
@@ -959,7 +968,8 @@ public sealed class Mod : IModV1, IModV2
                     gameMoment,
                     enabledExits);
             },
-            labelResolver: fieldExitLabelResolver);
+            labelResolver: fieldExitLabelResolver,
+            presentationPolicy: fieldExitPresentationPolicy);
         reachableFieldExitTargetProvider = new ReachableFieldExitTargetProvider(
             position => nativeFieldExitTargetProvider.ReadTargets(position),
             fieldExitReachabilityPlanner);

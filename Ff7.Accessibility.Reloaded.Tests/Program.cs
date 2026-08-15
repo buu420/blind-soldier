@@ -109,6 +109,13 @@ if (args.Contains("--kalm-junon-descriptions-only", StringComparer.OrdinalIgnore
     return;
 }
 
+if (args.Contains("--kalm-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.KalmExitPresentationTests.Run();
+    Console.WriteLine("FFVII Kalm navigation presentation tests passed.");
+    return;
+}
+
 if (args.Contains("--nibelheim-flashback-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.KalmRanchNavigationTests.RunNibelheimFlashbackOnly();

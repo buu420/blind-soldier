@@ -51,6 +51,17 @@ public sealed class FieldExitLabelResolver
             "gateway:242:3:244" => "Enter Space Development Research Library",
             "gateway:242:4:243" => "Enter Urban Development Research Library",
             "gateway:242:5:243" => "Enter Scientific Research Library",
+            "gateway:335:0:329" => "Enter Item Store",
+            "gateway:335:1:330" => "Enter Bar",
+            "gateway:335:2:328" => "Enter Materia Store",
+            "gateway:335:3:328" => "Enter Weapon Store",
+            "gateway:335:4:341" => "Enter Kalm Traveler's house",
+            "gateway:335:5:338" => "Enter house with rear tower",
+            "gateway:335:6:336" => "Enter west house",
+            "gateway:335:7:333" => "Enter house beside the inn",
+            "gateway:335:8:331" => "Enter Kalm Inn",
+            "gateway:328:0:335" => "Leave Materia Store for Kalm",
+            "gateway:328:1:335" => "Leave Weapon Store for Kalm",
             _ => null
         };
         if (exactLabel is not null)

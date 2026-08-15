@@ -11,6 +11,7 @@ public sealed class NativeFieldExitTargetProvider
     private readonly TimeSpan snapshotSettleWindow;
     private readonly Func<DateTime> clock;
     private readonly FieldExitLabelResolver? labelResolver;
+    private readonly FieldExitPresentationPolicy? presentationPolicy;
 
     private int fieldId = -1;
     private DateTime fieldSeenAt;
@@ -24,7 +25,8 @@ public sealed class NativeFieldExitTargetProvider
         TimeSpan? fieldSettleWindow = null,
         TimeSpan? snapshotSettleWindow = null,
         Func<DateTime>? clock = null,
-        FieldExitLabelResolver? labelResolver = null)
+        FieldExitLabelResolver? labelResolver = null,
+        FieldExitPresentationPolicy? presentationPolicy = null)
     {
         this.gatewayReader = gatewayReader;
         this.scriptExitProvider = scriptExitProvider;
@@ -32,6 +34,7 @@ public sealed class NativeFieldExitTargetProvider
         this.snapshotSettleWindow = Clamp(snapshotSettleWindow ?? TimeSpan.FromMilliseconds(100));
         this.clock = clock ?? (() => DateTime.UtcNow);
         this.labelResolver = labelResolver;
+        this.presentationPolicy = presentationPolicy;
     }
 
     public string LastDiagnostic { get; private set; } = "not read";
@@ -82,7 +85,8 @@ public sealed class NativeFieldExitTargetProvider
             return EmptyTargets;
         }
 
-        var visible = labelResolver?.Resolve(candidateTargets) ?? candidateTargets;
+        var labeled = labelResolver?.Resolve(candidateTargets) ?? candidateTargets;
+        var visible = presentationPolicy?.Apply(labeled) ?? labeled;
         LastDiagnostic = BuildDiagnostic(scriptTargets.Count, "stable", visible.Count);
         return visible.Count == 0 ? EmptyTargets : visible;
     }

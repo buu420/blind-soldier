@@ -48,6 +48,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
     private readonly Steam2026FailClosedFieldRoutePlanner routePlanner;
     private readonly ReachableFieldExitTargetProvider reachableExitProvider;
     private readonly FieldExitLabelResolver exitLabelResolver;
+    private readonly FieldExitPresentationPolicy exitPresentationPolicy;
     private readonly Steam2026FieldExitSpatialCoordinator exitSpatial;
     private readonly Steam2026FieldLadderSpatialCoordinator ladderSpatial;
     private readonly SwingingBarTimingCueTracker swingingBarTimingCueTracker = new();
@@ -158,6 +159,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         exitLabelResolver = new FieldExitLabelResolver(
             fieldId => mapNames.Read(fieldId),
             mapNameReader.Read);
+        exitPresentationPolicy = new FieldExitPresentationPolicy(ReadKalmTownComplete);
         storyReader = new FieldStoryTargetReader(
             ReadInt32,
             ReadInt16,
@@ -1532,7 +1534,17 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                 enabledScriptExits));
         }
 
-        return exitLabelResolver.Resolve(targets);
+        return exitPresentationPolicy.Apply(exitLabelResolver.Resolve(targets));
+    }
+
+    private bool? ReadKalmTownComplete()
+    {
+        var address = (uint)(FieldNavigationObjectReader.AddressFieldBankBase + 0x100 + 131);
+        return addressSpace.TryReadByte(address, out var before) &&
+               addressSpace.TryReadByte(address, out var after) &&
+               before == after
+            ? (before & 0x01) == 0x01
+            : null;
     }
 
     internal static string CreateGatewayStableId(
