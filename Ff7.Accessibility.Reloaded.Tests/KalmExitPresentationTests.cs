@@ -17,14 +17,21 @@ internal static class KalmExitPresentationTests
         ("gateway:335:8:331", "Enter Kalm Inn")
     ];
 
-    private static readonly (int FieldId, int NativeId, string Label, FieldNavigationObjectTargetKind TargetKind)[] KalmTreasures =
+    private static readonly (
+        int FieldId,
+        int NativeId,
+        string Label,
+        FieldNavigationObjectTargetKind TargetKind,
+        int CollectedBank,
+        int CollectedAddress,
+        byte CollectedMask)[] KalmTreasures =
     [
-        (332, 6, "Megalixir", FieldNavigationObjectTargetKind.Line),
-        (337, 3, "Ether", FieldNavigationObjectTargetKind.Line),
-        (339, 72, "Guard Source", FieldNavigationObjectTargetKind.Line),
-        (341, 3, "Ether", FieldNavigationObjectTargetKind.Line),
-        (333, 3, "Ether", FieldNavigationObjectTargetKind.Model),
-        (340, 247, "Peacemaker", FieldNavigationObjectTargetKind.Model)
+        (332, 6, "Megalixir", FieldNavigationObjectTargetKind.Line, 15, 85, 0x80),
+        (337, 3, "Ether", FieldNavigationObjectTargetKind.Line, 15, 81, 0x01),
+        (339, 72, "Guard Source", FieldNavigationObjectTargetKind.Line, 15, 85, 0x08),
+        (341, 3, "Ether", FieldNavigationObjectTargetKind.Line, 15, 85, 0x10),
+        (333, 3, "Ether", FieldNavigationObjectTargetKind.Model, 15, 85, 0x02),
+        (340, 247, "Peacemaker", FieldNavigationObjectTargetKind.Model, 15, 84, 0x80)
     ];
 
     internal static void Run()
@@ -83,11 +90,9 @@ internal static class KalmExitPresentationTests
             Equal(1, records.Length, $"Kalm {treasure.Label} catalog count");
             var definition = records.Single();
             Equal(treasure.TargetKind, definition.TargetKind, $"Kalm {treasure.Label} target kind");
-            Require(
-                definition.CollectedBank >= 0 &&
-                definition.CollectedAddress >= 0 &&
-                definition.CollectedMask != 0,
-                $"Kalm {treasure.Label} needs a native collection gate");
+            Equal(treasure.CollectedBank, definition.CollectedBank, $"Kalm {treasure.Label} collection bank");
+            Equal(treasure.CollectedAddress, definition.CollectedAddress, $"Kalm {treasure.Label} collection address");
+            Equal(treasure.CollectedMask, definition.CollectedMask, $"Kalm {treasure.Label} collection mask");
 
             var memory = new Dictionary<int, byte>();
             if (definition.TargetKind == FieldNavigationObjectTargetKind.Model)
@@ -105,6 +110,13 @@ internal static class KalmExitPresentationTests
             var published = reader.ReadTargets(Position(definition.FieldId));
             Equal(1, published.Count, $"collectible Kalm {treasure.Label} publication count");
             Equal(treasure.Label, published.Single().Label, $"collectible Kalm {treasure.Label} label");
+
+            memory[ResolveBankAddress(definition.CollectedBank, definition.CollectedAddress)] =
+                definition.CollectedMask;
+            Equal(
+                0,
+                reader.ReadTargets(Position(definition.FieldId)).Count,
+                $"collected Kalm {treasure.Label} must not publish");
         }
 
     }
@@ -198,6 +210,17 @@ internal static class KalmExitPresentationTests
         memory.GetValueOrDefault(address + 1) << 8 |
         memory.GetValueOrDefault(address + 2) << 16 |
         memory.GetValueOrDefault(address + 3) << 24;
+
+    private static int ResolveBankAddress(int bank, int address) => bank switch
+    {
+        1 => FieldNavigationObjectReader.AddressFieldBankBase + address,
+        3 => FieldNavigationObjectReader.AddressFieldBankBase + 0x100 + address,
+        5 => FieldNavigationObjectReader.AddressTemporaryFieldBankBase + address,
+        11 => FieldNavigationObjectReader.AddressFieldBankBase + 0x200 + address,
+        13 => FieldNavigationObjectReader.AddressFieldBankBase + 0x300 + address,
+        15 => FieldNavigationObjectReader.AddressFieldBankBase + 0x400 + address,
+        _ => throw new ArgumentOutOfRangeException(nameof(bank))
+    };
 
     private static void WriteInt32(IDictionary<int, byte> memory, int address, int value)
     {
