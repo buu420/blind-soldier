@@ -34,6 +34,7 @@ internal static class Steam2026InGameMenuSpeechBridgeTests
         SharedMateriaReaderUsesSelectedCharacterRecord();
         ReadsLiveModeZeroSaveOnlyAfterExactWidgetIngress();
         ReadsExactSaveFlowFromWorldMapWithoutOwningGenericWorldCallbacks();
+        ReadsVerifiedSubmenuFromWorldMapWithoutOwningGenericWorldCallbacks();
         ReadsNativeSaveFlowAndRetainsTransactionalOwnership();
         ReannouncesOuterSaveAfterFailedInnerRead();
         KeepsOtherOwnersAndAmbiguousWidgetsSilent();
@@ -748,6 +749,99 @@ internal static class Steam2026InGameMenuSpeechBridgeTests
             "Save 1.",
             bridge.Poll(now.AddMilliseconds(2)),
             "the world-map Save flow reads its checked native slot");
+    }
+
+    private static void ReadsVerifiedSubmenuFromWorldMapWithoutOwningGenericWorldCallbacks()
+    {
+        var bridge = CreateBridge();
+        var now = UtcNow();
+        var sequence = 0L;
+
+        ObserveText(
+            bridge,
+            ref sequence,
+            now,
+            "unrelated world overlay",
+            40,
+            40,
+            7,
+            ConfigContext,
+            moduleId: WorldMapStateReader.WorldModule);
+        Equal(
+            null,
+            bridge.Poll(now),
+            "generic world-map rendering cannot acquire ordinary menu speech");
+
+        ObserveText(
+            bridge,
+            ref sequence,
+            now.AddMilliseconds(1),
+            "Uzyj",
+            57,
+            17,
+            7,
+            0x3DCED917,
+            moduleId: WorldMapStateReader.WorldModule);
+        ObserveText(
+            bridge,
+            ref sequence,
+            now.AddMilliseconds(1),
+            "Uloz",
+            150,
+            17,
+            7,
+            0x3DCED917,
+            moduleId: WorldMapStateReader.WorldModule);
+        ObserveText(
+            bridge,
+            ref sequence,
+            now.AddMilliseconds(1),
+            "Kluczowe przedmioty",
+            243,
+            17,
+            7,
+            0x3DCED917,
+            moduleId: WorldMapStateReader.WorldModule);
+        ObserveWidget(
+            bridge,
+            ref sequence,
+            now.AddMilliseconds(1),
+            "Item submenu command",
+            MenuWidgetKind.ItemCommand,
+            first: 1,
+            cursor: 0,
+            columns: 3,
+            rows: 1,
+            moduleId: WorldMapStateReader.WorldModule,
+            widgetIdentity: 0x00DD1A18);
+
+        Equal(
+            "Uloz",
+            bridge.Poll(now.AddMilliseconds(1)),
+            "an exact cataloged Item widget acquires submenu speech on the world map");
+        Equal(
+            true,
+            bridge.HasWorldMapMenuOwnership(now.AddMilliseconds(1)),
+            "the runtime session retains the exact world-map submenu owner");
+
+        ObserveText(
+            bridge,
+            ref sequence,
+            now.AddMilliseconds(400),
+            "unrelated world overlay",
+            40,
+            40,
+            7,
+            ConfigContext,
+            moduleId: WorldMapStateReader.WorldModule);
+        Equal(
+            null,
+            bridge.Poll(now.AddMilliseconds(400)),
+            "expired exact widget evidence cannot leak unrelated world-map text");
+        Equal(
+            false,
+            bridge.HasWorldMapMenuOwnership(now.AddMilliseconds(400)),
+            "expired exact widget evidence releases world-map submenu ownership");
     }
 
     private static void ReannouncesOuterSaveAfterFailedInnerRead()

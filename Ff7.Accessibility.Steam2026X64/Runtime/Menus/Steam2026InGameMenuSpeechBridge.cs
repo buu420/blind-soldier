@@ -5,8 +5,9 @@ namespace Ff7.Accessibility.Steam2026X64.Runtime.Menus;
 
 /// <summary>
 /// Adapts validated translated-menu callbacks to the shared native in-game
-/// menu coordinators. Only foreground module 5 outside name entry, plus the
-/// exact native PHS module, is owned.
+/// menu coordinators. Foreground module 5 outside name entry and the exact
+/// native PHS module are owned directly. World-map module 3 is provisional
+/// until an exact cataloged native menu widget proves that a menu is open.
 /// </summary>
 internal sealed class Steam2026InGameMenuSpeechBridge
 {
@@ -18,6 +19,7 @@ internal sealed class Steam2026InGameMenuSpeechBridge
     private const uint SecondaryEquipmentSlotWidgetIdentity = 0x00DCA5C0;
     private static readonly TimeSpan DefaultSettleTime = TimeSpan.FromMilliseconds(30);
     private static readonly TimeSpan ExactQuitEvidenceWindow = TimeSpan.FromMilliseconds(300);
+    private static readonly TimeSpan ExactWorldMapMenuEvidenceWindow = TimeSpan.FromMilliseconds(300);
     private readonly Func<string, NativeMenuSelection?> readConfigValue;
     private readonly Func<int, NativeMenuSelection?> readSoundVolume;
     private readonly Func<int, PartyMemberSnapshot?> readPartyMember;
@@ -39,9 +41,11 @@ internal sealed class Steam2026InGameMenuSpeechBridge
     private PartyFormationSpeechTracker partyFormation = null!;
     private SaveMenuSpeechTracker saveMenu = null!;
     private bool ownsMenu;
+    private bool ownsWorldMapIngress;
     private int? ownedModuleId;
     private long lastSequence;
     private DateTime exactQuitEvidenceExpiresUtc = DateTime.MinValue;
+    private DateTime exactWorldMapMenuEvidenceExpiresUtc = DateTime.MinValue;
     private SaveMenuPendingSpeech? pendingSaveSpeech;
 
     internal Steam2026InGameMenuSpeechBridge(
@@ -258,9 +262,14 @@ internal sealed class Steam2026InGameMenuSpeechBridge
         var hasExactQuitEvidence = IsExactQuitEvidenceCurrent(snapshot.TimestampUtc);
         var ownsExactQuitPayload = isExactQuitPrompt ||
             (hasExactQuitEvidence && IsExactQuitRelatedPayload(snapshot));
-        var ownsWorldMapSavePayload = moduleId == WorldMapStateReader.WorldModule
-            && (saveMenu.IsActive || IsExactSaveFileWidgetIngress(snapshot));
-        var isOwnedNativeModule = IsOwnedNativeModule(moduleId) || ownsWorldMapSavePayload;
+        var isWorldMapModule = moduleId == WorldMapStateReader.WorldModule;
+        var isExactWorldMapMenuWidget = isWorldMapModule &&
+            IsExactWorldMapMenuWidgetIngress(snapshot);
+        // Module 3 remains active both while traversing the world and while an
+        // ordinary FFVII menu is open. Accept its callbacks provisionally so
+        // same-frame localized text can precede the widget callback, but Poll
+        // stays silent until the exact widget identity below proves ownership.
+        var isOwnedNativeModule = IsOwnedNativeModule(moduleId) || isWorldMapModule;
         if ((!isOwnedNativeModule || isNameEntryActive) && !ownsExactQuitPayload)
         {
             // The translated renderer can append unrelated module/name-entry
@@ -277,16 +286,24 @@ internal sealed class Steam2026InGameMenuSpeechBridge
         }
 
         var routedModuleId = moduleId == PhsModule ? PhsModule : MenuModule;
-        if (!ownsMenu || (!ownsExactQuitPayload && ownedModuleId != routedModuleId))
+        if (!ownsMenu || (!ownsExactQuitPayload &&
+            (ownedModuleId != routedModuleId || ownsWorldMapIngress != isWorldMapModule)))
         {
             ResetTrackers();
             ownsMenu = true;
+            ownsWorldMapIngress = isWorldMapModule;
             ownedModuleId = routedModuleId;
         }
 
         if (isExactQuitPrompt)
         {
             exactQuitEvidenceExpiresUtc = snapshot.TimestampUtc + ExactQuitEvidenceWindow;
+        }
+
+        if (isExactWorldMapMenuWidget)
+        {
+            exactWorldMapMenuEvidenceExpiresUtc =
+                snapshot.TimestampUtc + ExactWorldMapMenuEvidenceWindow;
         }
 
         if (snapshot.Sequence <= lastSequence)
@@ -313,6 +330,14 @@ internal sealed class Steam2026InGameMenuSpeechBridge
     {
         if (!ownsMenu || now.Kind != DateTimeKind.Utc)
         {
+            return null;
+        }
+
+        if (ownsWorldMapIngress && !saveMenu.IsActive &&
+            !IsExactQuitEvidenceCurrent(now) &&
+            !IsExactWorldMapMenuEvidenceCurrent(now))
+        {
+            RevokeOwnership();
             return null;
         }
 
@@ -363,6 +388,10 @@ internal sealed class Steam2026InGameMenuSpeechBridge
 
     internal bool HasSaveMenuOwnership => ownsMenu && saveMenu.IsActive;
 
+    internal bool HasWorldMapMenuOwnership(DateTime now) =>
+        ownsMenu && ownsWorldMapIngress && now.Kind == DateTimeKind.Utc &&
+        (saveMenu.IsActive || IsExactWorldMapMenuEvidenceCurrent(now));
+
     internal bool HasExactQuitOwnership(DateTime now) =>
         ownsMenu && now.Kind == DateTimeKind.Utc && IsExactQuitEvidenceCurrent(now);
 
@@ -379,6 +408,28 @@ internal sealed class Steam2026InGameMenuSpeechBridge
             First: >= 0 and < 5,
             Cursor: >= 0 and < 2
         };
+
+    private static bool IsExactWorldMapMenuWidgetIngress(
+        TranslatedMenuIngressSnapshot snapshot)
+    {
+        if (snapshot.CallbackKind != Steam2026MenuCallbackKind.ActiveWidgetUpdate ||
+            snapshot.Cursor is not null || snapshot.Text is not null ||
+            snapshot.ActiveWidget is not { WidgetIdentity: not 0 } widget ||
+            !TryResolveUniqueWidget(widget, out var descriptor))
+        {
+            return false;
+        }
+
+        // Title widgets cannot legitimately own an in-game world-map menu.
+        if (descriptor.Kind == MenuWidgetKind.TitleSaveFile ||
+            descriptor.Address == 0x00DD6F20)
+        {
+            return false;
+        }
+
+        return descriptor.Address != SaveMenuStateReader.AddressSaveFileWidget ||
+            IsExactSaveFileWidgetIngress(snapshot);
+    }
 
     private bool TryObserveValidatedPayload(
         TranslatedMenuIngressSnapshot snapshot,
@@ -708,6 +759,10 @@ internal sealed class Steam2026InGameMenuSpeechBridge
         exactQuitEvidenceExpiresUtc != DateTime.MinValue &&
         now <= exactQuitEvidenceExpiresUtc;
 
+    private bool IsExactWorldMapMenuEvidenceCurrent(DateTime now) =>
+        exactWorldMapMenuEvidenceExpiresUtc != DateTime.MinValue &&
+        now <= exactWorldMapMenuEvidenceExpiresUtc;
+
     private static Steam2026MenuWidgetObservationSnapshot ToPublicWidget(
         TranslatedMenuWidgetIngressObservation widget) =>
         new(
@@ -741,6 +796,7 @@ internal sealed class Steam2026InGameMenuSpeechBridge
         }
 
         ownsMenu = false;
+        ownsWorldMapIngress = false;
         ownedModuleId = null;
     }
 
@@ -760,5 +816,6 @@ internal sealed class Steam2026InGameMenuSpeechBridge
         materiaTutorial = new MateriaTutorialSpeechTracker();
         partyFormation = new PartyFormationSpeechTracker(settleTime);
         exactQuitEvidenceExpiresUtc = DateTime.MinValue;
+        exactWorldMapMenuEvidenceExpiresUtc = DateTime.MinValue;
     }
 }

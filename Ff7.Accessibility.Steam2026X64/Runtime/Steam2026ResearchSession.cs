@@ -1678,6 +1678,12 @@ internal sealed class Steam2026ResearchSession : IDisposable
                         ModuleId: WorldMapStateReader.WorldModule
                     }
                         && inGameMenuBridge?.HasSaveMenuOwnership == true;
+                    var ownsWorldMapMenuNow = lifecycle is
+                    {
+                        IsShuttingDown: false,
+                        ModuleId: WorldMapStateReader.WorldModule
+                    }
+                        && inGameMenuBridge?.HasWorldMapMenuOwnership(now) == true;
                     var ownsInGameMenuNow = isHostForeground
                         && lifecycle?.IsShuttingDown != true
                         && !hasExactShopMenuOwnership
@@ -1685,6 +1691,7 @@ internal sealed class Steam2026ResearchSession : IDisposable
                         && (ownsRegularInGameMenuNow ||
                             ownsPhsInGameMenuNow ||
                             ownsWorldMapSaveNow ||
+                            ownsWorldMapMenuNow ||
                             inGameMenuBridge?.HasExactQuitOwnership(now) == true);
                     if (!ownsInGameMenuNow)
                     {
