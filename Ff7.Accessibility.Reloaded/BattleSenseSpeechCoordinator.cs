@@ -45,7 +45,7 @@ public sealed class BattleSenseSpeechCoordinator
             {
                 if (suppressionStage != SuppressionStage.None)
                 {
-                    ContinueFailClosedSuppression();
+                    AdvanceFailClosedPastUnresolvedFragment();
                 }
 
                 messageTracker.ObserveActiveBuffer(bufferIndex, null);
@@ -191,12 +191,13 @@ public sealed class BattleSenseSpeechCoordinator
 
         if (suppressionStage == SuppressionStage.FailClosedHp)
         {
-            if (!controls.All(control => control.Kind == BattleRuntimeTextControlKind.Number))
+            if (controls.Count is not (2 or 4) ||
+                !controls.All(control => control.Kind == BattleRuntimeTextControlKind.Number))
             {
                 return false;
             }
 
-            suppressionStage = controls.Count >= 4
+            suppressionStage = controls.Count == 4
                 ? SuppressionStage.FailClosedWeakness
                 : SuppressionStage.FailClosedMp;
             return true;
@@ -204,7 +205,8 @@ public sealed class BattleSenseSpeechCoordinator
 
         if (suppressionStage == SuppressionStage.FailClosedMp)
         {
-            if (!controls.All(control => control.Kind == BattleRuntimeTextControlKind.Number))
+            if (controls.Count != 2 ||
+                !controls.All(control => control.Kind == BattleRuntimeTextControlKind.Number))
             {
                 return false;
             }
@@ -215,13 +217,7 @@ public sealed class BattleSenseSpeechCoordinator
 
         if (suppressionStage == SuppressionStage.FailClosedWeakness)
         {
-            if (!controls.All(control => control.Kind == BattleRuntimeTextControlKind.Element))
-            {
-                return false;
-            }
-
-            CancelSuppression();
-            return true;
+            return controls.All(control => control.Kind == BattleRuntimeTextControlKind.Element);
         }
 
         if (activeSense is not { } snapshot)
@@ -329,13 +325,15 @@ public sealed class BattleSenseSpeechCoordinator
         weaknessIndex = 0;
     }
 
-    private void ContinueFailClosedSuppression()
+    private void AdvanceFailClosedPastUnresolvedFragment()
     {
         activeSense = null;
         suppressionStage = suppressionStage switch
         {
-            SuppressionStage.Hp => SuppressionStage.FailClosedHp,
-            SuppressionStage.Mp => SuppressionStage.FailClosedMp,
+            SuppressionStage.Hp or SuppressionStage.FailClosedHp =>
+                SuppressionStage.FailClosedMp,
+            SuppressionStage.Mp or SuppressionStage.FailClosedMp =>
+                SuppressionStage.FailClosedWeakness,
             SuppressionStage.Weakness => SuppressionStage.FailClosedWeakness,
             _ => suppressionStage
         };

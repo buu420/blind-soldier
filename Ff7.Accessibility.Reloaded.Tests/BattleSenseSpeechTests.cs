@@ -16,6 +16,10 @@ internal static class BattleSenseSpeechTests
         FailsClosedForAnIncoherentSenseRead();
         FailsClosedWhenANativeWeaknessNameCannotResolve();
         KeepsFailClosedSuppressionAfterAnUnresolvedNativeFragment();
+        KeepsFailClosedProtectionAcrossSplitWeaknessFragments();
+        AdvancesFailClosedProtectionPastAnUnresolvedHpFragment();
+        ReleasesAnUnrelatedOneNumberMessageAtTheHpStage();
+        ReleasesAnUnrelatedOneNumberMessageAtTheMpStage();
         SpeaksOneCompleteSenseResultAndOnlyItsNativeFragmentsAreSuppressed();
     }
 
@@ -226,6 +230,9 @@ internal static class BattleSenseSpeechTests
             [0x103] = Resolution(
                 "Weak against Feu.",
                 new BattleRuntimeTextControl(BattleRuntimeTextControlKind.Element, 0)),
+            [0x104] = Resolution(
+                "Weak against Glace.",
+                new BattleRuntimeTextControl(BattleRuntimeTextControlKind.Element, 1)),
             [7] = Resolution("Couldn't sense."),
             [9] = Resolution(
                 "Damage 99.",
@@ -235,6 +242,52 @@ internal static class BattleSenseSpeechTests
             id => messages.GetValueOrDefault(id),
             _ => observation,
             element => element == 0 ? "Feu" : null);
+    }
+
+    private static void KeepsFailClosedProtectionAcrossSplitWeaknessFragments()
+    {
+        var coordinator = CreateFailClosedCoordinator(null);
+
+        foreach (var fragment in new short[] { 0x100, 0x101, 0x102, 0x103, 0x104 })
+        {
+            coordinator.ObserveActiveBuffer(fragment);
+            Equal(null, coordinator.Poll(), $"split fail-closed fragment {fragment:X} stays private");
+        }
+    }
+
+    private static void AdvancesFailClosedProtectionPastAnUnresolvedHpFragment()
+    {
+        var coordinator = CreateFailClosedCoordinator(null);
+
+        foreach (var fragment in new short[] { 0x100, 0x105, 0x102, 0x103, 0x104 })
+        {
+            coordinator.ObserveActiveBuffer(fragment);
+            Equal(null, coordinator.Poll(), $"unresolved-HP sequence fragment {fragment:X} stays private");
+        }
+    }
+
+    private static void ReleasesAnUnrelatedOneNumberMessageAtTheHpStage()
+    {
+        var coordinator = CreateFailClosedCoordinator(null);
+
+        coordinator.ObserveActiveBuffer(0x100);
+        Equal(null, coordinator.Poll(), "fail-closed header stays private before unrelated numeric text");
+        coordinator.ObserveActiveBuffer(9);
+        Equal("Damage 99.", coordinator.Poll(), "one-number text is not a native HP fragment");
+    }
+
+    private static void ReleasesAnUnrelatedOneNumberMessageAtTheMpStage()
+    {
+        var coordinator = CreateFailClosedCoordinator(null);
+
+        foreach (var fragment in new short[] { 0x100, 0x101 })
+        {
+            coordinator.ObserveActiveBuffer(fragment);
+            Equal(null, coordinator.Poll(), $"private pre-MP fragment {fragment:X} stays silent");
+        }
+
+        coordinator.ObserveActiveBuffer(9);
+        Equal("Damage 99.", coordinator.Poll(), "one-number text is not a native MP fragment");
     }
 
     private static void AssertPrivateSenseSequenceIsSilent(
