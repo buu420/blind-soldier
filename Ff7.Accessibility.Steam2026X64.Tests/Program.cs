@@ -14,6 +14,13 @@ if (args.Contains("--battle-sense-only", StringComparer.OrdinalIgnoreCase))
     return;
 }
 
+if (args.Contains("--main-menu-ownership-only", StringComparer.OrdinalIgnoreCase))
+{
+    Steam2026ResearchObservationPumpTests.Run();
+    Console.WriteLine("Steam 2026 x64 main-menu ownership tests passed.");
+    return;
+}
+
 if (args.Contains("--module-tests-only", StringComparer.OrdinalIgnoreCase))
 {
     Steam2026BattleStatusHotkeyTests.Run();

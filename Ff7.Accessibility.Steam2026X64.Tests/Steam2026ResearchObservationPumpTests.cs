@@ -8,6 +8,7 @@ internal static class Steam2026ResearchObservationPumpTests
     {
         PublishesOnlyCoherentFieldUpdates();
         PublishesNativeQuitConfirmationSelection();
+        MainMenuOwnershipFailsClosedAndReacquires();
     }
 
     private static void PublishesNativeQuitConfirmationSelection()
@@ -57,6 +58,51 @@ internal static class Steam2026ResearchObservationPumpTests
             readSucceeded: true,
             observation);
         Equal(RuntimeDomainUpdateKind.Closed, closed.Kind, "non-field module update kind");
+    }
+
+    private static void MainMenuOwnershipFailsClosedAndReacquires()
+    {
+        var raw = RuntimeDomainUpdate<MenuFrameObservation>.Present(
+            new MenuFrameObservation(
+                "Main Menu",
+                isOpen: true,
+                revision: 4,
+                [new MenuRowObservation(1, "Magic", true, true)]));
+
+        AssertClosedAndCleared(moduleId: 17, shopOwnershipRead: true, ownsShop: false, raw,
+            "battle-results module must close stale main-menu state");
+        AssertClosedAndCleared(moduleId: 5, shopOwnershipRead: true, ownsShop: true, raw,
+            "exact shop ownership must close stale main-menu state");
+        AssertClosedAndCleared(moduleId: 5, shopOwnershipRead: false, ownsShop: false, raw,
+            "incoherent shop ownership must close stale main-menu state");
+
+        string? stateKey = null;
+        var reacquired = Steam2026ResearchObservationPump.NormalizeMainMenuOwnershipUpdate(
+            moduleId: 5,
+            shopOwnershipRead: true,
+            ownsShop: false,
+            raw,
+            ref stateKey);
+        Equal(RuntimeDomainUpdateKind.Present, reacquired.Kind, "root menu reacquires a present update");
+        Equal("Main Menu", reacquired.Value?.Screen, "root menu reacquisition preserves native frame");
+    }
+
+    private static void AssertClosedAndCleared(
+        int moduleId,
+        bool shopOwnershipRead,
+        bool ownsShop,
+        RuntimeDomainUpdate<MenuFrameObservation> raw,
+        string label)
+    {
+        string? stateKey = "stale-main-menu";
+        var update = Steam2026ResearchObservationPump.NormalizeMainMenuOwnershipUpdate(
+            moduleId,
+            shopOwnershipRead,
+            ownsShop,
+            raw,
+            ref stateKey);
+        Equal(RuntimeDomainUpdateKind.Closed, update.Kind, label);
+        Equal<string?>(null, stateKey, $"{label} clears main-menu dedupe state");
     }
 
     private static void Equal<T>(T expected, T actual, string label)

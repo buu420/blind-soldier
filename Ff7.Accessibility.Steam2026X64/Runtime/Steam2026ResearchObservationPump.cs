@@ -108,7 +108,7 @@ internal sealed class Steam2026ResearchObservationPump
         }
 
         ReadCountdownUpdate(lifecycle.ModuleId);
-        var menu = ReadMainMenuUpdate();
+        var menu = ReadMainMenuUpdate(lifecycle.ModuleId);
         var dialogue = ReadDialogueUpdate(lifecycle.ModuleId);
         var field = ReadFieldUpdate(lifecycle.ModuleId);
         frame = new RuntimeFrameObservation(
@@ -170,8 +170,26 @@ internal sealed class Steam2026ResearchObservationPump
             : RuntimeDomainUpdate<FieldFrameObservation>.Unchanged;
     }
 
-    private RuntimeDomainUpdate<MenuFrameObservation> ReadMainMenuUpdate()
+    private RuntimeDomainUpdate<MenuFrameObservation> ReadMainMenuUpdate(int moduleId)
     {
+        var shopOwnershipRead = false;
+        var ownsShop = false;
+        if (moduleId == ShopMenuStateReader.ShopModule)
+        {
+            shopOwnershipRead = menuReader.TryReadShopMenuOwnership(out ownsShop);
+        }
+
+        var ownershipUpdate = NormalizeMainMenuOwnershipUpdate(
+            moduleId,
+            shopOwnershipRead,
+            ownsShop,
+            RuntimeDomainUpdate<MenuFrameObservation>.Unchanged,
+            ref lastMainMenuStateKey);
+        if (ownershipUpdate.Kind == RuntimeDomainUpdateKind.Closed)
+        {
+            return ownershipUpdate;
+        }
+
         if (menuReader.TryReadQuitConfirmation(out var quitConfirmation))
         {
             var quitStateKey = $"quit\u001f{quitConfirmation.Selection}";
@@ -239,6 +257,30 @@ internal sealed class Steam2026ResearchObservationPump
                 mainMenuRevision,
                 rows));
     }
+
+    internal static RuntimeDomainUpdate<MenuFrameObservation> NormalizeMainMenuOwnershipUpdate(
+        int moduleId,
+        bool shopOwnershipRead,
+        bool ownsShop,
+        RuntimeDomainUpdate<MenuFrameObservation> update,
+        ref string? lastStateKey)
+    {
+        if (HasMainMenuOwnership(moduleId, shopOwnershipRead, ownsShop))
+        {
+            return update;
+        }
+
+        lastStateKey = null;
+        return RuntimeDomainUpdate<MenuFrameObservation>.Closed;
+    }
+
+    private static bool HasMainMenuOwnership(
+        int moduleId,
+        bool shopOwnershipRead,
+        bool ownsShop) =>
+        moduleId == ShopMenuStateReader.ShopModule &&
+        shopOwnershipRead &&
+        !ownsShop;
 
     internal static MenuFrameObservation CreateQuitConfirmationMenuFrame(
         QuitConfirmationSnapshot snapshot,

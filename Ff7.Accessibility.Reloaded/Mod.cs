@@ -4832,9 +4832,21 @@ public sealed class Mod : IModV1, IModV2
         }
 
         var now = DateTime.UtcNow;
-        if (saveMenuSpeechTracker.IsActive)
+        var currentModule = ReadByte(FieldPositionReader.AddressCurrentModule);
+        var shopOwnershipRead = false;
+        var ownsShop = false;
+        if (currentModule == ShopMenuStateReader.ShopModule && shopMenuStateReader is not null)
         {
-            mainMenuSpeechScheduler.Observe(string.Empty, now);
+            shopOwnershipRead = shopMenuStateReader.TryReadOwnership(out ownsShop);
+        }
+
+        if (!MainMenuSpeechOwnership.CanRead(
+                currentModule,
+                shopOwnershipRead,
+                ownsShop,
+                saveMenuSpeechTracker.IsActive))
+        {
+            ResetMainMenuSpeechOwnership(now);
             return;
         }
 
@@ -4848,25 +4860,13 @@ public sealed class Mod : IModV1, IModV2
         {
             if (mainMenuStateReader?.TryReadSnapshot(out var snapshot) != true)
             {
-                if (lastMainMenuSelectionText.Length != 0)
-                {
-                    Log("Main menu selection cleared: native snapshot unavailable.");
-                    lastMainMenuSelectionText = string.Empty;
-                }
-
-                mainMenuSpeechScheduler.Observe(string.Empty, now);
+                ResetMainMenuSpeechOwnership(now, "native snapshot unavailable");
                 return;
             }
 
             if (!MainMenuStateReader.TryCreateSelection(snapshot, out var selection))
             {
-                if (lastMainMenuSelectionText.Length != 0)
-                {
-                    Log("Main menu selection cleared.");
-                    lastMainMenuSelectionText = string.Empty;
-                }
-
-                mainMenuSpeechScheduler.Observe(string.Empty, now);
+                ResetMainMenuSpeechOwnership(now);
                 return;
             }
 
@@ -4897,6 +4897,18 @@ public sealed class Mod : IModV1, IModV2
                 Log($"Main menu reader error: {ex.Message}");
             }
         }
+    }
+
+    private void ResetMainMenuSpeechOwnership(DateTime now, string? reason = null)
+    {
+        if (lastMainMenuSelectionText.Length != 0)
+        {
+            var suffix = reason is null ? string.Empty : $": {reason}";
+            Log($"Main menu selection cleared{suffix}.");
+            lastMainMenuSelectionText = string.Empty;
+        }
+
+        mainMenuSpeechScheduler.Observe(string.Empty, now);
     }
 
     private unsafe void TickMenuWidgetDiagnostics()
@@ -9738,6 +9750,19 @@ public delegate void BattleTextActiveDelegate(short bufferIndex);
 [global::Reloaded.Hooks.Definitions.X86.Function(global::Reloaded.Hooks.Definitions.X86.CallingConventions.Cdecl)]
 [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
 public delegate void BattleResultsUpdateDelegate();
+
+internal static class MainMenuSpeechOwnership
+{
+    internal static bool CanRead(
+        byte currentModule,
+        bool shopOwnershipRead,
+        bool ownsShop,
+        bool saveMenuOwnsSpeech) =>
+        currentModule == ShopMenuStateReader.ShopModule &&
+        shopOwnershipRead &&
+        !ownsShop &&
+        !saveMenuOwnsSpeech;
+}
 
 [global::Reloaded.Hooks.Definitions.X86.Function(global::Reloaded.Hooks.Definitions.X86.CallingConventions.Cdecl)]
 [UnmanagedFunctionPointer(CallingConvention.Cdecl)]

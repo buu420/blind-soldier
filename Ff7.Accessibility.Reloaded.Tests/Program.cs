@@ -14,6 +14,13 @@ if (args.Contains("--battle-sense-only", StringComparer.OrdinalIgnoreCase))
     return;
 }
 
+if (args.Contains("--main-menu-ownership-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.MainMenuOwnershipTests.Run();
+    Console.WriteLine("FFVII x86 main-menu ownership tests passed.");
+    return;
+}
+
 if (args.Contains("--runtime-lease-only", StringComparer.OrdinalIgnoreCase))
 {
     BlindSoldierRuntimeLeaseTests.Run();
