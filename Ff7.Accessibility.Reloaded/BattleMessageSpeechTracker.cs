@@ -14,6 +14,13 @@ public sealed class BattleMessageSpeechTracker
 
     public void ObserveActiveBuffer(short bufferIndex)
     {
+        ObserveActiveBuffer(
+            bufferIndex,
+            bufferIndex < 0 ? null : resolveBattleText(bufferIndex));
+    }
+
+    public void ObserveActiveBuffer(short bufferIndex, string? resolvedText)
+    {
         lock (sync)
         {
             pending = null;
@@ -29,10 +36,9 @@ public sealed class BattleMessageSpeechTracker
             }
 
             activeBuffer = bufferIndex;
-            var text = resolveBattleText(bufferIndex);
-            if (!string.IsNullOrWhiteSpace(text))
+            if (!string.IsNullOrWhiteSpace(resolvedText))
             {
-                pending = text.Trim();
+                pending = resolvedText.Trim();
             }
         }
     }

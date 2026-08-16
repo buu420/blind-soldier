@@ -7,6 +7,13 @@ using Ff7.Accessibility.Reloaded.Runtime;
 using Ff7.Accessibility.Runtime.Abstractions;
 using AccessibilityConfig = Ff7.Accessibility.Core.AccessibilityConfig;
 
+if (args.Contains("--battle-sense-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.BattleSenseSpeechTests.Run();
+    Console.WriteLine("FFVII x86 battle Sense tests passed.");
+    return;
+}
+
 if (args.Contains("--runtime-lease-only", StringComparer.OrdinalIgnoreCase))
 {
     BlindSoldierRuntimeLeaseTests.Run();

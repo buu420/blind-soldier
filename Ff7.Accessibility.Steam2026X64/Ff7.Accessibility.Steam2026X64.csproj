@@ -34,6 +34,7 @@
     <Compile Include="..\Ff7.Accessibility.Reloaded\BattleEncounterSpeechTracker.cs" Link="Shared\BattleEncounterSpeechTracker.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\BattleTargetSpeechTracker.cs" Link="Shared\BattleTargetSpeechTracker.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\BattleMessageSpeechTracker.cs" Link="Shared\BattleMessageSpeechTracker.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\BattleSenseSpeechCoordinator.cs" Link="Shared\BattleSenseSpeechCoordinator.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\BattleEnemyActionSpeechTracker.cs" Link="Shared\BattleEnemyActionSpeechTracker.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\BattleDamageSpeechTracker.cs" Link="Shared\BattleDamageSpeechTracker.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\BattleStatusSpeechTracker.cs" Link="Shared\BattleStatusSpeechTracker.cs" />

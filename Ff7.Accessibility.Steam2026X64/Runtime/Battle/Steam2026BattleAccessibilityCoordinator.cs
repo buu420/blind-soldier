@@ -50,7 +50,7 @@ internal sealed class Steam2026BattleAccessibilityCoordinator
     private readonly BattleEncounterSpeechTracker encounterTracker = new();
     private readonly BattleEnemyActionSpeechTracker enemyActionTracker = new();
     private readonly BattleTargetSpeechTracker targetTracker = new();
-    private readonly BattleMessageSpeechTracker messageTracker;
+    private readonly BattleSenseSpeechCoordinator senseSpeechCoordinator;
     private readonly BattleDamageSpeechTracker damageTracker = new();
     private readonly BattleStatusSpeechTracker statusTracker = new();
     private readonly BattleResultsSpeechTracker resultsTracker = new();
@@ -85,7 +85,12 @@ internal sealed class Steam2026BattleAccessibilityCoordinator
             memory,
             textResolvers);
         menuCoordinator = new Steam2026BattleMenuCoordinator(reader);
-        messageTracker = new BattleMessageSpeechTracker(reader.ResolveBattleText);
+        senseSpeechCoordinator = new BattleSenseSpeechCoordinator(
+            reader.ResolveBattleTextDetailed,
+            actorIndex => reader.TryReadSenseResult(actorIndex, out var result)
+                ? result
+                : null,
+            reader.ResolveElementName);
         this.options = options;
     }
 
@@ -211,10 +216,10 @@ internal sealed class Steam2026BattleAccessibilityCoordinator
         {
             case Steam2026BattleRendererCallbackKind.TextActivation
                 when module == BattleStateReader.BattleModule && options.Message:
-                messageTracker.ObserveActiveBuffer(ingress.TextBufferIndex);
+                senseSpeechCoordinator.ObserveActiveBuffer(ingress.TextBufferIndex);
                 QueueSingle(
                     Steam2026BattleSpeechDomain.Message,
-                    messageTracker.Poll(),
+                    senseSpeechCoordinator.Poll(),
                     preferredInterrupt: true);
                 break;
             case Steam2026BattleRendererCallbackKind.DamageDisplay
@@ -645,7 +650,7 @@ internal sealed class Steam2026BattleAccessibilityCoordinator
         lastRawEnemyAction = default;
         hasLastRawEnemyAction = false;
         targetTracker.Reset();
-        messageTracker.Reset();
+        senseSpeechCoordinator.Reset();
         damageTracker.Reset();
         statusTracker.Reset();
         tifaSlotTracker.Reset();

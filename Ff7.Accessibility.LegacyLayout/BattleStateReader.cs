@@ -42,6 +42,14 @@ public sealed class BattleStateReader
     public const int AddressEnemyData = 0x009A8E9C;
     public const int EnemyDataSize = 0xB8;
     public const int EnemyNameLength = 24;
+    public const int EnemyLevelOffset = 0x20;
+    public const int EnemyElementIdsOffset = 0x28;
+    public const int EnemyElementRatesOffset = 0x30;
+    public const int EnemyElementSlotCount = 8;
+    public const byte WeaknessElementRate = 0x02;
+    public const int AddressPersistentActorRecords = 0x009A8B39;
+    public const int PersistentActorRecordSize = 0x44;
+    public const byte SensedInformationFlag = 0x40;
 
     public const int AddressBattleContext = 0x009AB0A0;
     public const int AddressBattleLayoutType = 0x009A8762;
@@ -854,6 +862,94 @@ public sealed class BattleStateReader
         return true;
     }
 
+    public bool TryReadSenseResult(
+        int actorIndex,
+        out BattleSenseResultSnapshot snapshot)
+    {
+        snapshot = BattleSenseResultSnapshot.Invalid;
+        if (actorIndex is < FirstEnemyActorIndex or > LastEnemyActorIndex)
+        {
+            return false;
+        }
+
+        RawBattleSenseCandidate candidate;
+        if (addressSpace is null)
+        {
+            candidate = ReadSenseCandidate(actorIndex);
+        }
+        else if (!TryReadCoherent(
+                     () => ReadSenseCandidate(actorIndex),
+                     RawBattleSenseEquals,
+                     out candidate))
+        {
+            return false;
+        }
+
+        if (!candidate.IsValid)
+        {
+            return false;
+        }
+
+        snapshot = candidate.ToPublicSnapshot();
+        return true;
+    }
+
+    private RawBattleSenseCandidate ReadSenseCandidate(int actorIndex)
+    {
+        if (readByte(AddressCurrentModule) != BattleModule ||
+            !TryReadActorCore(actorIndex, true, out var actor))
+        {
+            return RawBattleSenseCandidate.Invalid;
+        }
+
+        var enemySlot = actorIndex - FirstEnemyActorIndex;
+        if (!TryComputeAddress(
+                AddressEnemySceneIndexRecords,
+                enemySlot,
+                EnemySceneIndexRecordSize,
+                out var sceneIndexAddress))
+        {
+            return RawBattleSenseCandidate.Invalid;
+        }
+
+        var sceneIndex = readByte(sceneIndexAddress);
+        if (sceneIndex >= 6 ||
+            !TryComputeAddress(AddressEnemyData, sceneIndex, EnemyDataSize, out var enemyRecord))
+        {
+            return RawBattleSenseCandidate.Invalid;
+        }
+
+        var level = readByte(enemyRecord + EnemyLevelOffset);
+        if (level == 0)
+        {
+            return RawBattleSenseCandidate.Invalid;
+        }
+
+        var weaknessElementIds = new List<int>(EnemyElementSlotCount);
+        for (var index = 0; index < EnemyElementSlotCount; index++)
+        {
+            var elementId = readByte(enemyRecord + EnemyElementIdsOffset + index);
+            var rate = readByte(enemyRecord + EnemyElementRatesOffset + index);
+            if (rate != WeaknessElementRate)
+            {
+                continue;
+            }
+
+            if (elementId == byte.MaxValue || weaknessElementIds.Contains(elementId))
+            {
+                return RawBattleSenseCandidate.Invalid;
+            }
+
+            weaknessElementIds.Add(elementId);
+        }
+
+        return new RawBattleSenseCandidate(
+            true,
+            actor,
+            level,
+            weaknessElementIds.ToArray());
+    }
+
     internal bool TryReadVisibleActorCorrelation(
         int actorIndex,
         out BattleActorVisibleCorrelation correlation)
@@ -1104,6 +1200,24 @@ public sealed class BattleStateReader
             return false;
         }
 
+        var informationVisible = !isEnemy;
+        if (isEnemy)
+        {
+            if (!TryComputeAddress(
+                    AddressPersistentActorRecords,
+                    actorIndex,
+                    PersistentActorRecordSize,
+                    out var persistentActorAddress))
+            {
+                return false;
+            }
+
+            informationVisible = addressSpace is null
+                ? (readByte(persistentActorAddress) & SensedInformationFlag) != 0
+                : addressSpace.TryReadByte((uint)persistentActorAddress, out var informationFlags) &&
+                    (informationFlags & SensedInformationFlag) != 0;
+        }
+
         actor = new RawBattleActorSnapshot(
             actorIndex,
             name,
@@ -1112,7 +1226,7 @@ public sealed class BattleStateReader
             maxHp,
             currentMp,
             maxMp,
-            !isEnemy,
+            informationVisible,
             statusMask);
         return true;
     }
@@ -1698,6 +1812,14 @@ public sealed class BattleStateReader
         left.IsValid == right.IsValid &&
         left.Actors.SequenceEqual(right.Actors);
 
+    private static bool RawBattleSenseEquals(
+        RawBattleSenseCandidate left,
+        RawBattleSenseCandidate right) =>
+        left.IsValid == right.IsValid &&
+        left.Actor == right.Actor &&
+        left.Level == right.Level &&
+        left.WeaknessElementIds.SequenceEqual(right.WeaknessElementIds);
+
     private static bool TryComputeAddress(
         int baseAddress,
         int index,
@@ -1821,6 +1943,30 @@ public sealed class BattleStateReader
             MaxMp,
             InformationVisible,
             StatusMask);
+    }
+
+    private readonly record struct RawBattleSenseCandidate(
+        bool IsValid,
+        RawBattleActorSnapshot Actor,
+        int Level,
+        int[] WeaknessElementIds)
+    {
+        public static RawBattleSenseCandidate Invalid { get; } =
+            new(false, default, 0, []);
+
+        public BattleSenseResultSnapshot ToPublicSnapshot() =>
+            new(
+                true,
+                Actor.ActorIndex,
+                Actor.Name,
+                Actor.IsEnemy,
+                Actor.InformationVisible,
+                Level,
+                Actor.CurrentHp,
+                Actor.MaxHp,
+                Actor.CurrentMp,
+                Actor.MaxMp,
+                WeaknessElementIds);
     }
 
     private readonly record struct RawBattleActorCollectionCandidate(
@@ -2097,6 +2243,69 @@ public record struct BattleActorSnapshot
         maxMp = 0;
         statusMask = 0;
     }
+}
+
+public sealed record BattleSenseResultSnapshot
+{
+    public BattleSenseResultSnapshot(
+        bool isValid,
+        int actorIndex,
+        string name,
+        bool isEnemy,
+        bool isSensed,
+        int level,
+        int currentHp,
+        int maximumHp,
+        int currentMp,
+        int maximumMp,
+        IEnumerable<int> weaknessElementIds)
+    {
+        IsValid = isValid;
+        ActorIndex = actorIndex;
+        Name = name ?? string.Empty;
+        IsEnemy = isEnemy;
+        IsSensed = isSensed;
+        if (isValid && (!isEnemy || isSensed))
+        {
+            Level = level;
+            CurrentHp = currentHp;
+            MaximumHp = maximumHp;
+            CurrentMp = currentMp;
+            MaximumMp = maximumMp;
+            WeaknessElementIds = Array.AsReadOnly(
+                (weaknessElementIds ?? throw new ArgumentNullException(nameof(weaknessElementIds)))
+                .ToArray());
+        }
+        else
+        {
+            WeaknessElementIds = Array.Empty<int>();
+        }
+    }
+
+    public static BattleSenseResultSnapshot Invalid { get; } =
+        new(false, -1, string.Empty, true, false, 0, 0, 0, 0, 0, []);
+
+    public bool IsValid { get; }
+
+    public int ActorIndex { get; }
+
+    public string Name { get; }
+
+    public bool IsEnemy { get; }
+
+    public bool IsSensed { get; }
+
+    public int? Level { get; }
+
+    public int? CurrentHp { get; }
+
+    public int? MaximumHp { get; }
+
+    public int? CurrentMp { get; }
+
+    public int? MaximumMp { get; }
+
+    public IReadOnlyList<int> WeaknessElementIds { get; }
 }
 
 internal readonly record struct BattleActorVisibleCorrelation(

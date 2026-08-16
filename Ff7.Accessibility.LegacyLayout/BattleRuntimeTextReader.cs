@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Text;
 using Ff7.Accessibility.LegacyLayout;
 
@@ -13,28 +14,31 @@ public sealed class BattleRuntimeTextReader
     public const int AddressRuntimeTextBuffer = 0x009AD1E0;
     public const int AddressRuntimeTextOffsets = 0x009AD9E0;
     public const byte ItemNameControl = 0xEB;
+    public const byte NumberControl = 0xEC;
+    public const byte TargetNameControl = 0xED;
+    public const byte AttackNameControl = 0xEE;
+    public const byte TargetIdControl = 0xEF;
+    public const byte ElementControl = 0xF0;
 
     private const int RuntimeBufferBase = 0x100;
     private const int RuntimeSlotCount = 64;
     private const int RuntimeTextCapacity = 0x800;
     private const int MaxEncodedTextLength = 256;
-    private const byte NumberControl = 0xEC;
-    private const byte TargetNameControl = 0xED;
-    private const byte AttackNameControl = 0xEE;
-    private const byte SpecialNumberControl = 0xEF;
-    private const byte TargetLetterControl = 0xF0;
     private readonly ILegacyAddressSpace addressSpace;
     private readonly Func<int, string?> resolveStaticText;
     private readonly Func<int, string?> resolveInventoryObjectName;
     private readonly Func<int, string?> resolveTargetName;
     private readonly Func<int, string?> resolveAttackName;
+    private readonly Func<int, string?> resolveElementName;
 
     public BattleRuntimeTextReader(
         ILegacyAddressSpace addressSpace,
         Func<int, string?> resolveStaticText,
         Func<int, string?> resolveInventoryObjectName,
         Func<int, string?>? resolveTargetName = null,
-        Func<int, string?>? resolveAttackName = null)
+        Func<int, string?>? resolveAttackName = null,
+        Func<int, string?>? resolveElementName = null,
+        Ff7GameLanguageDescriptor? language = null)
     {
         this.addressSpace = addressSpace ?? throw new ArgumentNullException(nameof(addressSpace));
         this.resolveStaticText = resolveStaticText ?? throw new ArgumentNullException(nameof(resolveStaticText));
@@ -42,16 +46,25 @@ public sealed class BattleRuntimeTextReader
             ?? throw new ArgumentNullException(nameof(resolveInventoryObjectName));
         this.resolveTargetName = resolveTargetName ?? (_ => null);
         this.resolveAttackName = resolveAttackName ?? (_ => null);
+        this.resolveElementName = resolveElementName ??
+            (language is null
+                ? _ => null
+                : new BattleElementNameReader(addressSpace, language).Resolve);
     }
 
-    public string? Resolve(int bufferIndex)
+    public string? Resolve(int bufferIndex) => ResolveDetailed(bufferIndex)?.Text;
+
+    public string? ResolveElementName(int elementId) => Normalize(resolveElementName(elementId));
+
+    public BattleRuntimeTextResolution? ResolveDetailed(int bufferIndex)
     {
         if (bufferIndex < RuntimeBufferBase)
         {
             // Record 47 is a template ("Stole" plus an item-name control),
             // never a complete public result. The engine activates its
             // substituted runtime-ring record instead.
-            return bufferIndex == 47 ? null : Normalize(resolveStaticText(bufferIndex));
+            var text = bufferIndex == 47 ? null : Normalize(resolveStaticText(bufferIndex));
+            return text is null ? null : new BattleRuntimeTextResolution(text, []);
         }
 
         var slot = bufferIndex - RuntimeBufferBase;
@@ -114,9 +127,10 @@ public sealed class BattleRuntimeTextReader
         return false;
     }
 
-    private string? Decode(ReadOnlySpan<byte> encoded)
+    private BattleRuntimeTextResolution? Decode(ReadOnlySpan<byte> encoded)
     {
         var text = new StringBuilder(encoded.Length);
+        var controls = new List<BattleRuntimeTextControl>();
         for (var index = 0; index < encoded.Length;)
         {
             var value = encoded[index];
@@ -132,16 +146,20 @@ public sealed class BattleRuntimeTextReader
                 continue;
             }
 
-            if (value is >= ItemNameControl and <= TargetLetterControl)
+            if (value is >= ItemNameControl and <= ElementControl)
             {
-                if (index + 3 >= encoded.Length)
+                if (index + 2 >= encoded.Length)
                 {
                     return null;
                 }
 
                 var argument = (encoded[index + 1] << 8) | encoded[index + 2];
-                AppendRuntimeValue(text, value, argument);
-                index += 4;
+                if (!AppendRuntimeValue(text, controls, value, argument))
+                {
+                    return null;
+                }
+
+                index += 3;
                 continue;
             }
 
@@ -172,29 +190,50 @@ public sealed class BattleRuntimeTextReader
             index++;
         }
 
-        return Normalize(Ff7EncodedTextDecoder.NormalizeWhitespace(text.ToString()));
+        var normalized = Normalize(Ff7EncodedTextDecoder.NormalizeWhitespace(text.ToString()));
+        return normalized is null ? null : new BattleRuntimeTextResolution(normalized, controls);
     }
 
-    private void AppendRuntimeValue(StringBuilder text, byte control, int argument)
+    private bool AppendRuntimeValue(
+        StringBuilder text,
+        ICollection<BattleRuntimeTextControl> controls,
+        byte control,
+        int argument)
     {
         switch (control)
         {
             case ItemNameControl:
+                controls.Add(new(BattleRuntimeTextControlKind.ItemName, argument));
                 text.Append(resolveInventoryObjectName(argument) ?? "an item");
-                break;
+                return true;
             case NumberControl:
-            case SpecialNumberControl:
+                controls.Add(new(BattleRuntimeTextControlKind.Number, argument));
                 text.Append(argument);
-                break;
+                return true;
             case TargetNameControl:
+                controls.Add(new(BattleRuntimeTextControlKind.TargetName, argument));
                 text.Append(resolveTargetName(argument) ?? "target");
-                break;
+                return true;
             case AttackNameControl:
+                controls.Add(new(BattleRuntimeTextControlKind.AttackName, argument));
                 text.Append(resolveAttackName(argument) ?? "attack");
-                break;
-            case TargetLetterControl:
+                return true;
+            case TargetIdControl:
+                controls.Add(new(BattleRuntimeTextControlKind.TargetId, argument));
                 text.Append(argument is >= 0 and < 26 ? (char)('A' + argument) : '?');
-                break;
+                return true;
+            case ElementControl:
+                var elementName = ResolveElementName(argument);
+                if (elementName is null)
+                {
+                    return false;
+                }
+
+                controls.Add(new(BattleRuntimeTextControlKind.Element, argument));
+                text.Append(elementName);
+                return true;
+            default:
+                return false;
         }
     }
 
@@ -203,4 +242,35 @@ public sealed class BattleRuntimeTextReader
         var normalized = string.IsNullOrWhiteSpace(text) ? string.Empty : text.Trim();
         return normalized.Length == 0 ? null : normalized;
     }
+}
+
+public enum BattleRuntimeTextControlKind
+{
+    ItemName,
+    Number,
+    TargetName,
+    AttackName,
+    TargetId,
+    Element
+}
+
+public readonly record struct BattleRuntimeTextControl(
+    BattleRuntimeTextControlKind Kind,
+    int Argument);
+
+public sealed record BattleRuntimeTextResolution
+{
+    public BattleRuntimeTextResolution(
+        string text,
+        IEnumerable<BattleRuntimeTextControl> controls)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(text);
+        Text = text.Trim();
+        Controls = controls?.ToImmutableArray()
+            ?? throw new ArgumentNullException(nameof(controls));
+    }
+
+    public string Text { get; }
+
+    public ImmutableArray<BattleRuntimeTextControl> Controls { get; }
 }

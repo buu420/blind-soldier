@@ -7,6 +7,13 @@ using Ff7.Accessibility.Steam2026X64.Runtime.Field;
 using Ff7.Accessibility.LegacyLayout;
 using System.Text.Json;
 
+if (args.Contains("--battle-sense-only", StringComparer.OrdinalIgnoreCase))
+{
+    Steam2026BattleSenseTests.Run();
+    Console.WriteLine("Steam 2026 x64 battle Sense tests passed.");
+    return;
+}
+
 if (args.Contains("--module-tests-only", StringComparer.OrdinalIgnoreCase))
 {
     Steam2026BattleStatusHotkeyTests.Run();

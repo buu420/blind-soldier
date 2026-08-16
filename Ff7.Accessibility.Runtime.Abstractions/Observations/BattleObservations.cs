@@ -172,3 +172,59 @@ public sealed record BattleActorObservation
         statusMask = 0;
     }
 }
+
+public sealed record BattleSenseObservation
+{
+    public BattleSenseObservation(
+        int actorId,
+        string name,
+        bool isEnemy,
+        bool isSensed,
+        int level,
+        int currentHp,
+        int maximumHp,
+        int currentMp,
+        int maximumMp,
+        IEnumerable<int> weaknessElementIds)
+    {
+        ActorId = actorId;
+        Name = name ?? string.Empty;
+        IsEnemy = isEnemy;
+        IsSensed = isSensed;
+        if (!isEnemy || isSensed)
+        {
+            Level = level;
+            CurrentHp = currentHp;
+            MaximumHp = maximumHp;
+            CurrentMp = currentMp;
+            MaximumMp = maximumMp;
+            WeaknessElementIds = RuntimeObservationCollections.Copy(
+                weaknessElementIds,
+                nameof(weaknessElementIds));
+        }
+        else
+        {
+            WeaknessElementIds = [];
+        }
+    }
+
+    public int ActorId { get; }
+
+    public string Name { get; }
+
+    public bool IsEnemy { get; }
+
+    public bool IsSensed { get; }
+
+    public int? Level { get; }
+
+    public int? CurrentHp { get; }
+
+    public int? MaximumHp { get; }
+
+    public int? CurrentMp { get; }
+
+    public int? MaximumMp { get; }
+
+    public ImmutableArray<int> WeaknessElementIds { get; }
+}

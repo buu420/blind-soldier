@@ -6,6 +6,7 @@ using System.Text.Json;
 using Ff7.Accessibility.Core;
 using Ff7.Accessibility.LegacyLayout;
 using Ff7.Accessibility.Reloaded.Runtime;
+using Ff7.Accessibility.Runtime.Abstractions;
 using Reloaded.Hooks.Definitions;
 using Reloaded.Mod.Interfaces.Internal;
 
@@ -254,7 +255,8 @@ public sealed class Mod : IModV1, IModV2
     private TifaSlotResultReader? tifaSlotResultReader;
     private BattleMenuFrameSpeechCoordinator battleMenuFrameSpeechCoordinator = new();
     private readonly BattleTargetSpeechTracker battleTargetSpeechTracker = new();
-    private BattleMessageSpeechTracker battleMessageSpeechTracker = new(_ => null);
+    private BattleSenseSpeechCoordinator battleSenseSpeechCoordinator =
+        new(_ => null, _ => null, _ => null);
     private readonly BattleResultsSpeechTracker battleResultsSpeechTracker = new();
     private readonly BattleDamageSpeechTracker battleDamageSpeechTracker = new();
     private readonly BattleEncounterSpeechTracker battleEncounterSpeechTracker = new();
@@ -858,9 +860,31 @@ public sealed class Mod : IModV1, IModV2
             actorIndex => battleStateReader.TryReadBattleActor(actorIndex, out var actor)
                 ? actor.Name
                 : null,
-            resolveLimitName);
-        battleMessageSpeechTracker = new BattleMessageSpeechTracker(
-            battleRuntimeTextReader.Resolve);
+            resolveLimitName,
+            language: gameLanguage.Descriptor);
+        battleSenseSpeechCoordinator = new BattleSenseSpeechCoordinator(
+            battleRuntimeTextReader.ResolveDetailed,
+            actorIndex =>
+            {
+                if (!battleStateReader.TryReadSenseResult(actorIndex, out var result) ||
+                    !result.IsValid)
+                {
+                    return null;
+                }
+
+                return new BattleSenseObservation(
+                    result.ActorIndex,
+                    result.Name,
+                    result.IsEnemy,
+                    result.IsSensed,
+                    result.Level ?? 0,
+                    result.CurrentHp ?? 0,
+                    result.MaximumHp ?? 0,
+                    result.CurrentMp ?? 0,
+                    result.MaximumMp ?? 0,
+                    result.WeaknessElementIds);
+            },
+            battleRuntimeTextReader.ResolveElementName);
         activeMenuWidgetReader = new ActiveMenuWidgetReader(legacyAddressSpace);
         activeMenuWidgetFrameBridge = new ActiveMenuWidgetFrameBridge(
             activeMenuWidgetReader,
@@ -6623,8 +6647,8 @@ public sealed class Mod : IModV1, IModV2
             {
                 if (!battleVictoryActive)
                 {
-                    battleMessageSpeechTracker.ObserveActiveBuffer(bufferIndex);
-                    var speech = battleMessageSpeechTracker.Poll();
+                    battleSenseSpeechCoordinator.ObserveActiveBuffer(bufferIndex);
+                    var speech = battleSenseSpeechCoordinator.Poll();
                     if (!string.IsNullOrWhiteSpace(speech))
                     {
                         if (config.EnableBattleDiagnostics)
@@ -6807,7 +6831,7 @@ public sealed class Mod : IModV1, IModV2
     {
         battleMenuFrameSpeechCoordinator.Reset();
         battleTargetSpeechTracker.Reset();
-        battleMessageSpeechTracker.Reset();
+        battleSenseSpeechCoordinator.Reset();
         battleDamageSpeechTracker.Reset();
         battleEncounterSpeechTracker.Reset();
         battleEnemyActionSpeechTracker.Reset();

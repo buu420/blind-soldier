@@ -619,7 +619,8 @@ internal sealed class Steam2026ResearchSession : IDisposable
                             id => kernel2TextDatabase?.ResolveBattleText(id),
                             id => kernel2TextDatabase?.ResolveBattleActionName(id),
                             id => kernel2TextDatabase?.ResolveBattleActionDescription(id),
-                            id => kernel2TextDatabase?.ResolveInventoryObjectDescription(id));
+                            id => kernel2TextDatabase?.ResolveInventoryObjectDescription(id),
+                            language: gameLanguage.Descriptor);
                         battleAccessibilityCoordinator = new Steam2026BattleAccessibilityCoordinator(
                             fingerprint,
                             moduleBase,

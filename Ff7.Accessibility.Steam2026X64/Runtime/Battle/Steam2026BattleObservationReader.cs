@@ -60,11 +60,44 @@ public sealed class Steam2026BattleObservationReader
             actorIndex => battleReader.TryReadBattleActor(actorIndex, out var actor)
                 ? actor.Name
                 : null,
-            textResolvers.ResolveAbilityName);
+            textResolvers.ResolveAbilityName,
+            textResolvers.ResolveElementName,
+            textResolvers.Language);
     }
 
     internal string? ResolveBattleText(int bufferIndex) =>
         runtimeTextReader.Resolve(bufferIndex);
+
+    internal BattleRuntimeTextResolution? ResolveBattleTextDetailed(int bufferIndex) =>
+        runtimeTextReader.ResolveDetailed(bufferIndex);
+
+    internal string? ResolveElementName(int elementId) =>
+        runtimeTextReader.ResolveElementName(elementId);
+
+    internal bool TryReadSenseResult(
+        int actorIndex,
+        out BattleSenseObservation observation)
+    {
+        observation = null!;
+        if (!battleReader.TryReadSenseResult(actorIndex, out var snapshot) ||
+            !snapshot.IsValid)
+        {
+            return false;
+        }
+
+        observation = new BattleSenseObservation(
+            snapshot.ActorIndex,
+            snapshot.Name,
+            snapshot.IsEnemy,
+            snapshot.IsSensed,
+            snapshot.Level ?? 0,
+            snapshot.CurrentHp ?? 0,
+            snapshot.MaximumHp ?? 0,
+            snapshot.CurrentMp ?? 0,
+            snapshot.MaximumMp ?? 0,
+            snapshot.WeaknessElementIds);
+        return true;
+    }
 
     public bool TryReadResearchSnapshot(
         short rendererState,
@@ -1495,7 +1528,9 @@ public sealed class Steam2026BattleTextResolvers
         Func<int, string?>? resolveBattleText = null,
         Func<int, string?>? resolveLimitName = null,
         Func<int, string?>? resolveLimitDescription = null,
-        Func<int, string?>? resolveInventoryObjectDescription = null)
+        Func<int, string?>? resolveInventoryObjectDescription = null,
+        Func<int, string?>? resolveElementName = null,
+        Ff7GameLanguageDescriptor? language = null)
     {
         ResolveAbilityName = resolveAbilityName ?? throw new ArgumentNullException(nameof(resolveAbilityName));
         ResolveAbilityDescription = resolveAbilityDescription ?? throw new ArgumentNullException(nameof(resolveAbilityDescription));
@@ -1507,6 +1542,8 @@ public sealed class Steam2026BattleTextResolvers
         ResolveBattleText = resolveBattleText ?? (_ => null);
         ResolveLimitName = resolveLimitName ?? (_ => null);
         ResolveLimitDescription = resolveLimitDescription ?? (_ => null);
+        ResolveElementName = resolveElementName;
+        Language = language;
     }
 
     public Func<int, string?> ResolveAbilityName { get; }
@@ -1528,6 +1565,10 @@ public sealed class Steam2026BattleTextResolvers
     public Func<int, string?> ResolveLimitName { get; }
 
     public Func<int, string?> ResolveLimitDescription { get; }
+
+    public Func<int, string?>? ResolveElementName { get; }
+
+    public Ff7GameLanguageDescriptor? Language { get; }
 }
 
 public sealed class Steam2026BattleResearchSnapshot : IEquatable<Steam2026BattleResearchSnapshot>
