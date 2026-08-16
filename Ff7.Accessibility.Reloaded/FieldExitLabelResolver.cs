@@ -62,6 +62,9 @@ public sealed class FieldExitLabelResolver
             "gateway:335:8:331" => "Enter Kalm Inn",
             "gateway:328:0:335" => "Leave Materia Store for Kalm",
             "gateway:328:1:335" => "Leave Weapon Store for Kalm",
+            "gateway:338:2:340" => "Enter rear tower",
+            "gateway:340:0:338" => "Return to house",
+            "script-exit:340:4:335" => "Exit rear tower to Kalm",
             _ => null
         };
         if (exactLabel is not null)

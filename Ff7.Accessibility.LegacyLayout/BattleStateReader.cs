@@ -41,6 +41,7 @@ public sealed class BattleStateReader
     public const int AddressActiveEnemyMask = 0x009AB0BA;
     public const int AddressEnemyData = 0x009A8E9C;
     public const int EnemyDataSize = 0xB8;
+    public const int EnemySceneRecordCount = 3;
     public const int EnemyNameLength = 24;
     public const int EnemyLevelOffset = 0x20;
     public const int EnemyElementIdsOffset = 0x28;
@@ -912,8 +913,7 @@ public sealed class BattleStateReader
             return RawBattleSenseCandidate.Invalid;
         }
 
-        var sceneIndex = readByte(sceneIndexAddress);
-        if (sceneIndex >= 6 ||
+        if (!TryReadSceneEnemyIndex(sceneIndexAddress, out var sceneIndex) ||
             !TryComputeAddress(AddressEnemyData, sceneIndex, EnemyDataSize, out var enemyRecord))
         {
             return RawBattleSenseCandidate.Invalid;
@@ -1043,13 +1043,7 @@ public sealed class BattleStateReader
                 return ActorSlotReadState.Invalid;
             }
 
-            var sceneEnemyIndex = readByte(sceneIndexAddress);
-            if (sceneEnemyIndex == byte.MaxValue)
-            {
-                return ActorSlotReadState.Inactive;
-            }
-
-            if (sceneEnemyIndex >= 6)
+            if (!TryReadSceneEnemyIndex(sceneIndexAddress, out _))
             {
                 return ActorSlotReadState.Invalid;
             }
@@ -1114,8 +1108,7 @@ public sealed class BattleStateReader
                 return false;
             }
 
-            var sceneEnemyIndex = readByte(sceneIndexAddress);
-            if (sceneEnemyIndex >= 6)
+            if (!TryReadSceneEnemyIndex(sceneIndexAddress, out var sceneEnemyIndex))
             {
                 return false;
             }
@@ -1625,6 +1618,18 @@ public sealed class BattleStateReader
 
         value = readUInt16(address);
         return true;
+    }
+
+    private bool TryReadSceneEnemyIndex(int address, out int sceneEnemyIndex)
+    {
+        sceneEnemyIndex = default;
+        if (!TryReadUInt16(address, out var rawSceneEnemyIndex))
+        {
+            return false;
+        }
+
+        sceneEnemyIndex = unchecked((short)rawSceneEnemyIndex);
+        return sceneEnemyIndex is >= 0 and < EnemySceneRecordCount;
     }
 
     private bool TryReadInt32(int address, out int value)

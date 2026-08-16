@@ -219,7 +219,7 @@ static void AssertBattleStateReaderBoundsIndicesAndMarksEnemyDetailsPrivate()
     memory.Write((uint)BattleStateReader.AddressTargetFlags, [0]);
     WriteUInt16(memory, (uint)BattleStateReader.AddressTargetMask, 1 << 4);
     memory.Write((uint)BattleStateReader.AddressSelectedTarget, [4]);
-    memory.Write((uint)BattleStateReader.AddressEnemySceneIndexRecords, [0]);
+    WriteUInt16(memory, (uint)BattleStateReader.AddressEnemySceneIndexRecords, 0);
     WriteFf7Text(memory, (uint)BattleStateReader.AddressEnemyData, "Grunt", BattleStateReader.EnemyNameLength);
     var enemyBase = (uint)BattleStateReader.AddressBattleActors + 4u * BattleStateReader.BattleActorSize;
     memory.Write(enemyBase + BattleStateReader.ActorInstanceIdOffset, [0]);
@@ -698,13 +698,14 @@ static ContiguousLegacyAddressSpace CreateValidBattleEncounterMemory()
     memory.Write((uint)BattleStateReader.AddressBattleLayoutType, [2]);
     for (var enemySlot = 0; enemySlot <= 5; enemySlot++)
     {
-        memory.Write(
+        WriteUInt16(
+            memory,
             (uint)BattleStateReader.AddressEnemySceneIndexRecords +
                 (uint)enemySlot * BattleStateReader.EnemySceneIndexRecordSize,
-            [byte.MaxValue]);
+            ushort.MaxValue);
     }
 
-    memory.Write((uint)BattleStateReader.AddressEnemySceneIndexRecords, [0]);
+    WriteUInt16(memory, (uint)BattleStateReader.AddressEnemySceneIndexRecords, 0);
     WriteUInt16(memory, (uint)BattleStateReader.AddressActiveEnemyMask, 1 << 4);
     WriteFf7Text(
         memory,
@@ -729,10 +730,11 @@ static void AddBattleEnemy(
 {
     const int firstEnemyActorIndex = 4;
     var enemySlot = actorIndex - firstEnemyActorIndex;
-    memory.Write(
+    WriteUInt16(
+        memory,
         (uint)BattleStateReader.AddressEnemySceneIndexRecords +
             (uint)enemySlot * BattleStateReader.EnemySceneIndexRecordSize,
-        [checked((byte)sceneEnemyIndex)]);
+        checked((ushort)sceneEnemyIndex));
     WriteFf7Text(
         memory,
         (uint)BattleStateReader.AddressEnemyData +

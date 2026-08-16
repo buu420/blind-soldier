@@ -660,16 +660,16 @@ internal sealed class BattleObservationFixture
             throw new ArgumentOutOfRangeException(nameof(actorIndex));
         }
 
-        if (sceneEnemyIndex is < 0 or >= 6)
+        if (sceneEnemyIndex is < 0 or >= BattleStateReader.EnemySceneRecordCount)
         {
             throw new ArgumentOutOfRangeException(nameof(sceneEnemyIndex));
         }
 
         var enemySlot = actorIndex - firstEnemyActorIndex;
-        WriteByte(
+        WriteUInt16(
             BattleStateReader.AddressEnemySceneIndexRecords +
                 enemySlot * BattleStateReader.EnemySceneIndexRecordSize,
-            checked((byte)sceneEnemyIndex));
+            sceneEnemyIndex);
         WriteFf7Text(
             (uint)(BattleStateReader.AddressEnemyData +
                 sceneEnemyIndex * BattleStateReader.EnemyDataSize),
@@ -838,10 +838,10 @@ internal sealed class BattleObservationFixture
 
         for (var enemySlot = 0; enemySlot < 6; enemySlot++)
         {
-            WriteByte(
+            WriteUInt16(
                 BattleStateReader.AddressEnemySceneIndexRecords +
                 enemySlot * BattleStateReader.EnemySceneIndexRecordSize,
-                enemySlot == 0 ? (byte)0 : byte.MaxValue);
+                enemySlot == 0 ? 0 : ushort.MaxValue);
         }
 
         WriteFf7Text((uint)BattleStateReader.AddressEnemyData, "Grunt", BattleStateReader.EnemyNameLength);

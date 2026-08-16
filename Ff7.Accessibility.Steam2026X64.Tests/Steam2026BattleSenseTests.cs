@@ -8,6 +8,8 @@ internal static class Steam2026BattleSenseTests
 {
     internal static void Run()
     {
+        RejectsInvalidTranslatedSceneEnemyIndices();
+
         var fixture = BattleObservationFixture.CreatePopulated();
         fixture.WriteByte(BattleStateReader.AddressEnemyData + BattleStateReader.EnemyLevelOffset, 3);
         for (var index = 0; index < BattleStateReader.EnemyElementSlotCount; index++)
@@ -110,6 +112,45 @@ internal static class Steam2026BattleSenseTests
             speech.Text,
             "translated complete Sense utterance");
         Equal(false, coordinator.TrySpeakPending(_ => true, out _), "translated single Sense utterance");
+    }
+
+    private static void RejectsInvalidTranslatedSceneEnemyIndices()
+    {
+        (ushort Value, string Label)[] invalidIndices =
+        [
+            (0x0100, "high-byte scene enemy index"),
+            (0xFFFF, "negative scene enemy index"),
+            (3, "scene enemy index 3"),
+            (4, "scene enemy index 4"),
+            (5, "scene enemy index 5")
+        ];
+
+        foreach (var invalid in invalidIndices)
+        {
+            var fixture = BattleObservationFixture.CreatePopulated();
+            fixture.WriteByte(
+                BattleStateReader.AddressEnemyData + BattleStateReader.EnemyLevelOffset,
+                3);
+            fixture.WriteUInt16(BattleStateReader.AddressEnemySceneIndexRecords, 0);
+            for (var index = 0; index < BattleStateReader.EnemyElementSlotCount; index++)
+            {
+                fixture.WriteByte(
+                    BattleStateReader.AddressEnemyData + BattleStateReader.EnemyElementIdsOffset + index,
+                    checked((byte)index));
+                fixture.WriteByte(
+                    BattleStateReader.AddressEnemyData + BattleStateReader.EnemyElementRatesOffset + index,
+                    0);
+            }
+            Equal(
+                true,
+                CreateTranslatedReader(fixture, CreateResolvers()).TryReadSenseResult(4, out _),
+                $"translated x64 {invalid.Label} starts from a valid Sense snapshot");
+            fixture.WriteUInt16(BattleStateReader.AddressEnemySceneIndexRecords, invalid.Value);
+            Equal(
+                false,
+                CreateTranslatedReader(fixture, CreateResolvers()).TryReadSenseResult(4, out _),
+                $"translated x64 {invalid.Label} fails closed");
+        }
     }
 
     private static Steam2026BattleTextResolvers CreateResolvers() =>

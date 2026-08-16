@@ -2886,7 +2886,7 @@ static void AssertBattleStateReaderReadsMaskedAllyAndEnemyTargets()
     const int sceneEnemyIndex = 1;
     WriteUInt16(memory, BattleStateReader.AddressTargetMask, 1 << enemyActorIndex);
     WriteUInt32(memory, BattleStateReader.AddressSelectedTarget, enemyActorIndex);
-    memory[BattleStateReader.AddressEnemySceneIndexRecords] = sceneEnemyIndex;
+    WriteUInt16(memory, BattleStateReader.AddressEnemySceneIndexRecords, sceneEnemyIndex);
     WriteFf7Text(
         memory,
         BattleStateReader.AddressEnemyData + sceneEnemyIndex * BattleStateReader.EnemyDataSize,
@@ -2959,7 +2959,7 @@ static void AssertBattleStateReaderKeepsUnsensedEnemyDetailsPrivate()
     memory[BattleStateReader.AddressTargetMode] = 6;
     WriteUInt16(memory, BattleStateReader.AddressTargetMask, 1 << enemyActorIndex);
     WriteUInt32(memory, BattleStateReader.AddressSelectedTarget, enemyActorIndex);
-    memory[BattleStateReader.AddressEnemySceneIndexRecords] = 0;
+    WriteUInt16(memory, BattleStateReader.AddressEnemySceneIndexRecords, 0);
     WriteFf7Text(memory, BattleStateReader.AddressEnemyData, "Grunt", BattleStateReader.EnemyNameLength);
     var enemyBase = BattleStateReader.AddressBattleActors + enemyActorIndex * BattleStateReader.BattleActorSize;
     memory[enemyBase + BattleStateReader.ActorInstanceIdOffset] = 0;
@@ -3229,7 +3229,7 @@ static void AssertBattleStateReaderReadsEncounterActionAndStatusState()
     WriteUInt16(memory, partyBase + BattleStateReader.ActorCurrentMpOffset, 42);
     WriteUInt16(memory, partyBase + BattleStateReader.ActorMaxMpOffset, 54);
     const int enemyActorIndex = 4;
-    memory[BattleStateReader.AddressEnemySceneIndexRecords] = 0;
+    WriteUInt16(memory, BattleStateReader.AddressEnemySceneIndexRecords, 0);
     WriteFf7Text(memory, BattleStateReader.AddressEnemyData, "Guard Scorpion", BattleStateReader.EnemyNameLength);
     var enemyBase = BattleStateReader.AddressBattleActors + enemyActorIndex * BattleStateReader.BattleActorSize;
     memory[enemyBase + BattleStateReader.ActorInstanceIdOffset] = 0;
@@ -3283,7 +3283,7 @@ static void AssertBattleStateReaderUsesSceneSlotInsteadOfKernelSpellFallback()
 {
     var memory = CreateBattleMemoryWithCloud();
     const int enemyActorIndex = 4;
-    memory[BattleStateReader.AddressEnemySceneIndexRecords] = 0;
+    WriteUInt16(memory, BattleStateReader.AddressEnemySceneIndexRecords, 0);
     WriteFf7Text(memory, BattleStateReader.AddressEnemyData, "Sweeper", BattleStateReader.EnemyNameLength);
     var enemyBase = BattleStateReader.AddressBattleActors + enemyActorIndex * BattleStateReader.BattleActorSize;
     memory[enemyBase + BattleStateReader.ActorInstanceIdOffset] = 0;
@@ -3316,7 +3316,7 @@ static void AssertBattleStateReaderRejectsInactiveEnemyActions()
 {
     var memory = CreateBattleMemoryWithCloud();
     const int enemyActorIndex = 4;
-    memory[BattleStateReader.AddressEnemySceneIndexRecords] = 0;
+    WriteUInt16(memory, BattleStateReader.AddressEnemySceneIndexRecords, 0);
     WriteFf7Text(memory, BattleStateReader.AddressEnemyData, "Guard Hound", BattleStateReader.EnemyNameLength);
     var enemyBase = BattleStateReader.AddressBattleActors + enemyActorIndex * BattleStateReader.BattleActorSize;
     memory[enemyBase + BattleStateReader.ActorInstanceIdOffset] = 0;
@@ -3351,7 +3351,7 @@ static void AssertBattleStateReaderDescribesGuardScorpionTailActions()
 {
     var memory = CreateBattleMemoryWithCloud();
     const int enemyActorIndex = 4;
-    memory[BattleStateReader.AddressEnemySceneIndexRecords] = 0;
+    WriteUInt16(memory, BattleStateReader.AddressEnemySceneIndexRecords, 0);
     WriteFf7Text(memory, BattleStateReader.AddressEnemyData, "Guard Scorpion", BattleStateReader.EnemyNameLength);
     var enemyBase = BattleStateReader.AddressBattleActors + enemyActorIndex * BattleStateReader.BattleActorSize;
     memory[enemyBase + BattleStateReader.ActorInstanceIdOffset] = 0;
@@ -3427,7 +3427,7 @@ static void AssertBattleStateReaderIgnoresStaleEnemySceneRecords()
     memory[BattleStateReader.AddressBattleLayoutType] = 0;
 
     const int firstEnemy = 4;
-    memory[BattleStateReader.AddressEnemySceneIndexRecords] = 0;
+    WriteUInt16(memory, BattleStateReader.AddressEnemySceneIndexRecords, 0);
     WriteFf7Text(memory, BattleStateReader.AddressEnemyData, "Custom Sweeper", BattleStateReader.EnemyNameLength);
     var firstEnemyBase = BattleStateReader.AddressBattleActors + firstEnemy * BattleStateReader.BattleActorSize;
     WriteUInt32(memory, firstEnemyBase + BattleStateReader.ActorCurrentHpOffset, 140);
@@ -3445,7 +3445,10 @@ static void AssertBattleStateReaderIgnoresStaleEnemySceneRecords()
     AssertEqual(1, oneEnemy.Enemies.Count, "one active actor identity means one announced enemy");
 
     const int staleSecondEnemy = 5;
-    memory[BattleStateReader.AddressEnemySceneIndexRecords + BattleStateReader.EnemySceneIndexRecordSize] = 0;
+    WriteUInt16(
+        memory,
+        BattleStateReader.AddressEnemySceneIndexRecords + BattleStateReader.EnemySceneIndexRecordSize,
+        0);
     var secondEnemyBase = BattleStateReader.AddressBattleActors + staleSecondEnemy * BattleStateReader.BattleActorSize;
     WriteUInt32(memory, secondEnemyBase + BattleStateReader.ActorCurrentHpOffset, 140);
     WriteUInt32(memory, secondEnemyBase + BattleStateReader.ActorMaxHpOffset, 140);

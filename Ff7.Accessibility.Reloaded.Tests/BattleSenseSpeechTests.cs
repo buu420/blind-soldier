@@ -11,6 +11,7 @@ internal static class BattleSenseSpeechTests
         DecodesNativeSenseControlsWithoutEatingSeparators();
         ReadsLocalizedElementNamesFromTheNativeTable();
         RedactsNativeSenseStateUntilThePersistentFlagIsSet();
+        RejectsInvalidSceneEnemyIndices();
         RejectsStableMalformedSenseState();
         FailsClosedForAnUnsensedSenseHeader();
         FailsClosedForAnIncoherentSenseRead();
@@ -161,6 +162,28 @@ internal static class BattleSenseSpeechTests
             false,
             CreateStateReader(malformedWeakness).TryReadSenseResult(4, out _),
             "stable unsupported weakness ID fails closed");
+    }
+
+    private static void RejectsInvalidSceneEnemyIndices()
+    {
+        (ushort Value, string Label)[] invalidIndices =
+        [
+            (0x0100, "high-byte scene enemy index"),
+            (0xFFFF, "negative scene enemy index"),
+            (3, "scene enemy index 3"),
+            (4, "scene enemy index 4"),
+            (5, "scene enemy index 5")
+        ];
+
+        foreach (var invalid in invalidIndices)
+        {
+            var memory = CreateSenseMemory();
+            memory.WriteUInt16(BattleStateReader.AddressEnemySceneIndexRecords, invalid.Value);
+            Equal(
+                false,
+                CreateStateReader(memory).TryReadSenseResult(4, out _),
+                $"direct x86 {invalid.Label} fails closed");
+        }
     }
 
     private static void FailsClosedForAnUnsensedSenseHeader()
@@ -433,7 +456,7 @@ internal static class BattleSenseSpeechTests
     {
         var memory = new SenseMemory();
         memory.WriteByte(BattleStateReader.AddressCurrentModule, BattleStateReader.BattleModule);
-        memory.WriteByte(
+        memory.WriteUInt16(
             BattleStateReader.AddressEnemySceneIndexRecords,
             0);
         memory.WriteFf7Text(BattleStateReader.AddressEnemyData, "Guard Hound", BattleStateReader.EnemyNameLength);

@@ -450,7 +450,10 @@ internal static class ReportedNavigationRegressionTests
         string name)
     {
         var enemySlot = actorIndex - 4;
-        memory[BattleStateReader.AddressEnemySceneIndexRecords + enemySlot * BattleStateReader.EnemySceneIndexRecordSize] = sceneIndex;
+        WriteUInt16(
+            memory,
+            BattleStateReader.AddressEnemySceneIndexRecords + enemySlot * BattleStateReader.EnemySceneIndexRecordSize,
+            sceneIndex);
         WriteFf7Text(
             memory,
             BattleStateReader.AddressEnemyData + sceneIndex * BattleStateReader.EnemyDataSize,

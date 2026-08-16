@@ -17,6 +17,13 @@ internal static class KalmExitPresentationTests
         ("gateway:335:8:331", "Enter Kalm Inn")
     ];
 
+    private static readonly (string StableId, string Label)[] KalmRearTowerExits =
+    [
+        ("gateway:338:2:340", "Enter rear tower"),
+        ("gateway:340:0:338", "Return to house"),
+        ("script-exit:340:4:335", "Exit rear tower to Kalm")
+    ];
+
     private static readonly (
         int FieldId,
         int NativeId,
@@ -53,6 +60,12 @@ internal static class KalmExitPresentationTests
                 Exit(328, "Exit", 0, "gateway:328:0:335"),
                 Exit(328, "Exit", 1, "gateway:328:1:335")
             ])
+            .Concat(KalmRearTowerExits.Select((exit, index) =>
+                Exit(
+                    int.Parse(exit.StableId.Split(':')[1]),
+                    "Exit",
+                    index,
+                    exit.StableId)))
             .ToArray();
         var resolved = new FieldExitLabelResolver(
             fieldId => fieldId == 335
@@ -76,6 +89,13 @@ internal static class KalmExitPresentationTests
             "Leave Weapon Store for Kalm",
             resolved.Single(target => target.StableId == "gateway:328:1:335").Label,
             "Weapon Store return is distinct");
+        foreach (var exit in KalmRearTowerExits)
+        {
+            Equal(
+                exit.Label,
+                resolved.Single(target => target.StableId == exit.StableId).Label,
+                $"{exit.StableId} stable Kalm rear-tower label");
+        }
     }
 
     private static void KalmTreasureCatalogPublishesEveryCollectibleRecord()
