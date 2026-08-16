@@ -18,6 +18,7 @@ internal static class BattleSenseSpeechTests
         KeepsFailClosedSuppressionAfterAnUnresolvedNativeFragment();
         KeepsFailClosedProtectionAcrossSplitWeaknessFragments();
         AdvancesFailClosedProtectionPastAnUnresolvedHpFragment();
+        ProtectsWeaknessesAfterAnUnresolvedCombinedHpMpFragment();
         ReleasesAnUnrelatedOneNumberMessageAtTheHpStage();
         ReleasesAnUnrelatedOneNumberMessageAtTheMpStage();
         SpeaksOneCompleteSenseResultAndOnlyItsNativeFragmentsAreSuppressed();
@@ -263,6 +264,17 @@ internal static class BattleSenseSpeechTests
         {
             coordinator.ObserveActiveBuffer(fragment);
             Equal(null, coordinator.Poll(), $"unresolved-HP sequence fragment {fragment:X} stays private");
+        }
+    }
+
+    private static void ProtectsWeaknessesAfterAnUnresolvedCombinedHpMpFragment()
+    {
+        var coordinator = CreateFailClosedCoordinator(null);
+
+        foreach (var fragment in new short[] { 0x100, 0x105, 0x103, 0x104 })
+        {
+            coordinator.ObserveActiveBuffer(fragment);
+            Equal(null, coordinator.Poll(), $"unresolved-combined sequence fragment {fragment:X} stays private");
         }
     }
 

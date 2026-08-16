@@ -215,6 +215,24 @@ public sealed class BattleSenseSpeechCoordinator
             return true;
         }
 
+        if (suppressionStage == SuppressionStage.FailClosedMpOrWeakness)
+        {
+            if (controls.Count == 2 &&
+                controls.All(control => control.Kind == BattleRuntimeTextControlKind.Number))
+            {
+                suppressionStage = SuppressionStage.FailClosedWeakness;
+                return true;
+            }
+
+            if (controls.All(control => control.Kind == BattleRuntimeTextControlKind.Element))
+            {
+                suppressionStage = SuppressionStage.FailClosedWeakness;
+                return true;
+            }
+
+            return false;
+        }
+
         if (suppressionStage == SuppressionStage.FailClosedWeakness)
         {
             return controls.All(control => control.Kind == BattleRuntimeTextControlKind.Element);
@@ -331,8 +349,9 @@ public sealed class BattleSenseSpeechCoordinator
         suppressionStage = suppressionStage switch
         {
             SuppressionStage.Hp or SuppressionStage.FailClosedHp =>
-                SuppressionStage.FailClosedMp,
-            SuppressionStage.Mp or SuppressionStage.FailClosedMp =>
+                SuppressionStage.FailClosedMpOrWeakness,
+            SuppressionStage.Mp or SuppressionStage.FailClosedMp or
+                SuppressionStage.FailClosedMpOrWeakness =>
                 SuppressionStage.FailClosedWeakness,
             SuppressionStage.Weakness => SuppressionStage.FailClosedWeakness,
             _ => suppressionStage
@@ -352,6 +371,7 @@ public sealed class BattleSenseSpeechCoordinator
         None,
         FailClosedHp,
         FailClosedMp,
+        FailClosedMpOrWeakness,
         FailClosedWeakness,
         Hp,
         Mp,
