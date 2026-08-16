@@ -50,6 +50,21 @@ internal static class Steam2026BattleSenseTests
         Equal(3, visible.Level, "translated enemy level");
         Equal("0,1", string.Join(',', visible.WeaknessElementIds), "translated weaknesses");
 
+        var actorAddress = BattleStateReader.AddressBattleActors + 4 * BattleStateReader.BattleActorSize;
+        fixture.WriteUInt16(actorAddress + BattleStateReader.ActorCurrentMpOffset, 19);
+        reader = CreateTranslatedReader(fixture, resolvers);
+        Equal(false, reader.TryReadSenseResult(4, out _), "translated malformed MP fails closed");
+        fixture.WriteUInt16(actorAddress + BattleStateReader.ActorCurrentMpOffset, 12);
+
+        fixture.WriteByte(
+            BattleStateReader.AddressEnemyData + BattleStateReader.EnemyElementIdsOffset,
+            BattleElementNameReader.ElementCount);
+        reader = CreateTranslatedReader(fixture, resolvers);
+        Equal(false, reader.TryReadSenseResult(4, out _), "translated malformed weakness fails closed");
+        fixture.WriteByte(
+            BattleStateReader.AddressEnemyData + BattleStateReader.EnemyElementIdsOffset,
+            0);
+
         WriteRuntimeText(fixture, 0, 0x120,
         [
             BattleRuntimeTextReader.TargetNameControl, 0, 4,
@@ -91,7 +106,7 @@ internal static class Steam2026BattleSenseTests
         ]);
         Equal(true, coordinator.TrySpeakPending(_ => true, out var speech), "translated atomic Sense speech");
         Equal(
-            "Grunt. Level 3. HP 42 of 50. MP 12 of 18. Weak against Feu and Glace.",
+            "Grunt B. Level 3. HP 42 of 50. MP 12 of 18. Weak against Feu and Glace.",
             speech.Text,
             "translated complete Sense utterance");
         Equal(false, coordinator.TrySpeakPending(_ => true, out _), "translated single Sense utterance");

@@ -935,7 +935,8 @@ public sealed class BattleStateReader
                 continue;
             }
 
-            if (elementId == byte.MaxValue || weaknessElementIds.Contains(elementId))
+            if (elementId >= BattleElementNameReader.ElementCount ||
+                weaknessElementIds.Contains(elementId))
             {
                 return RawBattleSenseCandidate.Invalid;
             }
@@ -1195,7 +1196,7 @@ public sealed class BattleStateReader
             maxMp = readUInt16(actorBase + ActorMaxMpOffset);
             statusMask = unchecked((uint)readInt32(actorBase + ActorStatusMaskOffset));
         }
-        if (currentHp < 0 || maxHp <= 0 || currentHp > maxHp)
+        if (currentHp < 0 || maxHp <= 0 || currentHp > maxHp || currentMp > maxMp)
         {
             return false;
         }

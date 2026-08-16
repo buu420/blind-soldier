@@ -43,14 +43,31 @@ public sealed class BattleSenseSpeechCoordinator
             var resolution = resolveBattleText(bufferIndex);
             if (resolution is null)
             {
-                CancelSuppression();
+                if (suppressionStage != SuppressionStage.None)
+                {
+                    ContinueFailClosedSuppression();
+                }
+
                 messageTracker.ObserveActiveBuffer(bufferIndex, null);
                 return;
             }
 
-            if (TryCreateAtomicSenseSpeech(resolution, out var speech))
+            if (TryRecognizeSenseHeader(
+                    resolution.Controls,
+                    out var actorId,
+                    out var targetId,
+                    out var level))
             {
-                messageTracker.ObserveActiveBuffer(bufferIndex, speech);
+                if (TryCreateAtomicSenseSpeech(actorId, targetId, level, out var speech))
+                {
+                    messageTracker.ObserveActiveBuffer(bufferIndex, speech);
+                }
+                else
+                {
+                    BeginFailClosedSuppression();
+                    messageTracker.ObserveActiveBuffer(bufferIndex, null);
+                }
+
                 return;
             }
 
@@ -82,19 +99,17 @@ public sealed class BattleSenseSpeechCoordinator
     }
 
     private bool TryCreateAtomicSenseSpeech(
-        BattleRuntimeTextResolution resolution,
+        int actorId,
+        int targetId,
+        int level,
         out string speech)
     {
         speech = string.Empty;
-        if (resolution.Controls.Length != 3 ||
-            resolution.Controls[0].Kind != BattleRuntimeTextControlKind.TargetName ||
-            resolution.Controls[1].Kind != BattleRuntimeTextControlKind.TargetId ||
-            resolution.Controls[2].Kind != BattleRuntimeTextControlKind.Number)
+        if (targetId is < 0 or >= 26)
         {
             return false;
         }
 
-        var actorId = resolution.Controls[0].Argument;
         BattleSenseObservation? snapshot;
         try
         {
@@ -107,12 +122,12 @@ public sealed class BattleSenseSpeechCoordinator
 
         if (snapshot is not { IsEnemy: true, IsSensed: true } ||
             snapshot.ActorId != actorId ||
-            snapshot.Level is not int level ||
+            snapshot.Level is not int snapshotLevel ||
+            snapshotLevel != level ||
             snapshot.CurrentHp is not int currentHp ||
             snapshot.MaximumHp is not int maximumHp ||
             snapshot.CurrentMp is not int currentMp ||
             snapshot.MaximumMp is not int maximumMp ||
-            resolution.Controls[2].Argument != level ||
             string.IsNullOrWhiteSpace(snapshot.Name))
         {
             return false;
@@ -130,7 +145,7 @@ public sealed class BattleSenseSpeechCoordinator
             weaknessNames.Add(elementName);
         }
 
-        speech = $"{snapshot.Name.Trim()}. Level {level}. " +
+        speech = $"{snapshot.Name.Trim()} {(char)('A' + targetId)}. Level {level}. " +
             $"HP {currentHp} of {maximumHp}. MP {currentMp} of {maximumMp}.";
         if (weaknessNames.Count > 0)
         {
@@ -143,10 +158,73 @@ public sealed class BattleSenseSpeechCoordinator
         return true;
     }
 
+    private static bool TryRecognizeSenseHeader(
+        IReadOnlyList<BattleRuntimeTextControl> controls,
+        out int actorId,
+        out int targetId,
+        out int level)
+    {
+        actorId = -1;
+        targetId = -1;
+        level = -1;
+        if (controls.Count != 3 ||
+            controls[0].Kind != BattleRuntimeTextControlKind.TargetName ||
+            controls[1].Kind != BattleRuntimeTextControlKind.TargetId ||
+            controls[2].Kind != BattleRuntimeTextControlKind.Number)
+        {
+            return false;
+        }
+
+        actorId = controls[0].Argument;
+        targetId = controls[1].Argument;
+        level = controls[2].Argument;
+        return true;
+    }
+
     private bool TrySuppressSenseFragment(
         IReadOnlyList<BattleRuntimeTextControl> controls)
     {
-        if (activeSense is not { } snapshot || controls.Count == 0)
+        if (controls.Count == 0)
+        {
+            return false;
+        }
+
+        if (suppressionStage == SuppressionStage.FailClosedHp)
+        {
+            if (!controls.All(control => control.Kind == BattleRuntimeTextControlKind.Number))
+            {
+                return false;
+            }
+
+            suppressionStage = controls.Count >= 4
+                ? SuppressionStage.FailClosedWeakness
+                : SuppressionStage.FailClosedMp;
+            return true;
+        }
+
+        if (suppressionStage == SuppressionStage.FailClosedMp)
+        {
+            if (!controls.All(control => control.Kind == BattleRuntimeTextControlKind.Number))
+            {
+                return false;
+            }
+
+            suppressionStage = SuppressionStage.FailClosedWeakness;
+            return true;
+        }
+
+        if (suppressionStage == SuppressionStage.FailClosedWeakness)
+        {
+            if (!controls.All(control => control.Kind == BattleRuntimeTextControlKind.Element))
+            {
+                return false;
+            }
+
+            CancelSuppression();
+            return true;
+        }
+
+        if (activeSense is not { } snapshot)
         {
             return false;
         }
@@ -244,6 +322,26 @@ public sealed class BattleSenseSpeechCoordinator
         weaknessIndex = 0;
     }
 
+    private void BeginFailClosedSuppression()
+    {
+        activeSense = null;
+        suppressionStage = SuppressionStage.FailClosedHp;
+        weaknessIndex = 0;
+    }
+
+    private void ContinueFailClosedSuppression()
+    {
+        activeSense = null;
+        suppressionStage = suppressionStage switch
+        {
+            SuppressionStage.Hp => SuppressionStage.FailClosedHp,
+            SuppressionStage.Mp => SuppressionStage.FailClosedMp,
+            SuppressionStage.Weakness => SuppressionStage.FailClosedWeakness,
+            _ => suppressionStage
+        };
+        weaknessIndex = 0;
+    }
+
     private void ResetCore()
     {
         activeBuffer = -1;
@@ -254,6 +352,9 @@ public sealed class BattleSenseSpeechCoordinator
     private enum SuppressionStage
     {
         None,
+        FailClosedHp,
+        FailClosedMp,
+        FailClosedWeakness,
         Hp,
         Mp,
         Weakness

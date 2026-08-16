@@ -11,6 +11,11 @@ internal static class BattleSenseSpeechTests
         DecodesNativeSenseControlsWithoutEatingSeparators();
         ReadsLocalizedElementNamesFromTheNativeTable();
         RedactsNativeSenseStateUntilThePersistentFlagIsSet();
+        RejectsStableMalformedSenseState();
+        FailsClosedForAnUnsensedSenseHeader();
+        FailsClosedForAnIncoherentSenseRead();
+        FailsClosedWhenANativeWeaknessNameCannotResolve();
+        KeepsFailClosedSuppressionAfterAnUnresolvedNativeFragment();
         SpeaksOneCompleteSenseResultAndOnlyItsNativeFragmentsAreSuppressed();
     }
 
@@ -95,6 +100,19 @@ internal static class BattleSenseSpeechTests
         Equal("0,1", string.Join(',', visible.WeaknessElementIds), "native double-damage elements");
         Equal(true, reader.TryReadBattleActor(4, out var ordinaryTarget), "post-Sense target help snapshot");
         Equal(42, ordinaryTarget.CurrentHp, "post-Sense target help keeps earned HP");
+        var targetTracker = new BattleTargetSpeechTracker();
+        targetTracker.Observe(new BattleTargetSnapshot(
+            true,
+            true,
+            1 << 4,
+            4,
+            0,
+            0,
+            ordinaryTarget));
+        Equal(
+            "Guard Hound. HP 42 of 50",
+            targetTracker.Poll(),
+            "post-Sense ordinary target speech stays name and HP only");
 
         var tornMemory = CreateSenseMemory();
         tornMemory.WriteByte(
@@ -109,6 +127,179 @@ internal static class BattleSenseSpeechTests
             false,
             CreateStateReader(tornMemory).TryReadSenseResult(4, out _),
             "torn actor/scene Sense state fails closed");
+    }
+
+    private static void RejectsStableMalformedSenseState()
+    {
+        var malformedMp = CreateSenseMemory();
+        malformedMp.WriteByte(
+            BattleStateReader.AddressPersistentActorRecords +
+                4 * BattleStateReader.PersistentActorRecordSize,
+            BattleStateReader.SensedInformationFlag);
+        var actor = BattleStateReader.AddressBattleActors + 4 * BattleStateReader.BattleActorSize;
+        malformedMp.WriteUInt16(actor + BattleStateReader.ActorCurrentMpOffset, 10);
+        malformedMp.WriteUInt16(actor + BattleStateReader.ActorMaxMpOffset, 9);
+        Equal(
+            false,
+            CreateStateReader(malformedMp).TryReadSenseResult(4, out _),
+            "stable current MP above maximum fails closed");
+
+        var malformedWeakness = CreateSenseMemory();
+        malformedWeakness.WriteByte(
+            BattleStateReader.AddressPersistentActorRecords +
+                4 * BattleStateReader.PersistentActorRecordSize,
+            BattleStateReader.SensedInformationFlag);
+        malformedWeakness.WriteByte(
+            BattleStateReader.AddressEnemyData + BattleStateReader.EnemyElementIdsOffset,
+            BattleElementNameReader.ElementCount);
+        Equal(
+            false,
+            CreateStateReader(malformedWeakness).TryReadSenseResult(4, out _),
+            "stable unsupported weakness ID fails closed");
+    }
+
+    private static void FailsClosedForAnUnsensedSenseHeader()
+    {
+        var coordinator = CreateFailClosedCoordinator(
+            new BattleSenseObservation(
+                4,
+                "Guard Hound",
+                true,
+                false,
+                3,
+                42,
+                50,
+                7,
+                9,
+                [0]));
+
+        AssertPrivateSenseSequenceIsSilent(coordinator, "unsensed");
+        coordinator.ObserveActiveBuffer(9);
+        Equal("Damage 99.", coordinator.Poll(), "numeric message after fail-closed Sense remains audible");
+    }
+
+    private static void FailsClosedForAnIncoherentSenseRead()
+    {
+        var coordinator = CreateFailClosedCoordinator(null);
+
+        AssertPrivateSenseSequenceIsSilent(coordinator, "incoherent");
+        coordinator.ObserveActiveBuffer(7);
+        Equal("Couldn't sense.", coordinator.Poll(), "native failure remains audible after fail-closed suppression");
+    }
+
+    private static void FailsClosedWhenANativeWeaknessNameCannotResolve()
+    {
+        var coordinator = CreateFailClosedCoordinator(
+            new BattleSenseObservation(
+                4,
+                "Guard Hound",
+                true,
+                true,
+                3,
+                42,
+                50,
+                7,
+                9,
+                [1]));
+
+        AssertPrivateSenseSequenceIsSilent(coordinator, "unresolved weakness name");
+    }
+
+    private static BattleSenseSpeechCoordinator CreateFailClosedCoordinator(
+        BattleSenseObservation? observation)
+    {
+        var messages = new Dictionary<int, BattleRuntimeTextResolution>
+        {
+            [0x100] = Resolution(
+                "Guard Hound B Level 3",
+                new(BattleRuntimeTextControlKind.TargetName, 4),
+                new(BattleRuntimeTextControlKind.TargetId, 1),
+                new(BattleRuntimeTextControlKind.Number, 3)),
+            [0x101] = Resolution(
+                "HP 42/50",
+                new(BattleRuntimeTextControlKind.Number, 42),
+                new(BattleRuntimeTextControlKind.Number, 50)),
+            [0x102] = Resolution(
+                "MP 7/9",
+                new(BattleRuntimeTextControlKind.Number, 7),
+                new(BattleRuntimeTextControlKind.Number, 9)),
+            [0x103] = Resolution(
+                "Weak against Feu.",
+                new BattleRuntimeTextControl(BattleRuntimeTextControlKind.Element, 0)),
+            [7] = Resolution("Couldn't sense."),
+            [9] = Resolution(
+                "Damage 99.",
+                new BattleRuntimeTextControl(BattleRuntimeTextControlKind.Number, 99))
+        };
+        return new BattleSenseSpeechCoordinator(
+            id => messages.GetValueOrDefault(id),
+            _ => observation,
+            element => element == 0 ? "Feu" : null);
+    }
+
+    private static void AssertPrivateSenseSequenceIsSilent(
+        BattleSenseSpeechCoordinator coordinator,
+        string label)
+    {
+        foreach (var fragment in new short[] { 0x100, 0x101, 0x102, 0x103 })
+        {
+            coordinator.ObserveActiveBuffer(fragment);
+            Equal(null, coordinator.Poll(), $"{label} Sense fragment {fragment:X} fails closed");
+        }
+    }
+
+    private static void KeepsFailClosedSuppressionAfterAnUnresolvedNativeFragment()
+    {
+        var messages = new Dictionary<int, BattleRuntimeTextResolution>
+        {
+            [0x100] = Resolution(
+                "Guard Hound B Level 3",
+                new(BattleRuntimeTextControlKind.TargetName, 4),
+                new(BattleRuntimeTextControlKind.TargetId, 1),
+                new(BattleRuntimeTextControlKind.Number, 3)),
+            [0x101] = Resolution(
+                "HP 42/50",
+                new(BattleRuntimeTextControlKind.Number, 42),
+                new(BattleRuntimeTextControlKind.Number, 50)),
+            [0x102] = Resolution(
+                "MP 7/9",
+                new(BattleRuntimeTextControlKind.Number, 7),
+                new(BattleRuntimeTextControlKind.Number, 9)),
+            [0x104] = Resolution(
+                "Glace.",
+                new BattleRuntimeTextControl(BattleRuntimeTextControlKind.Element, 1))
+        };
+        var sensed = new BattleSenseObservation(
+            4,
+            "Guard Hound",
+            true,
+            true,
+            3,
+            42,
+            50,
+            7,
+            9,
+            [0, 1]);
+        var coordinator = new BattleSenseSpeechCoordinator(
+            id => messages.GetValueOrDefault(id),
+            _ => sensed,
+            element => element switch { 0 => "Feu", 1 => "Glace", _ => null });
+
+        coordinator.ObserveActiveBuffer(0x100);
+        Equal(
+            "Guard Hound B. Level 3. HP 42 of 50. MP 7 of 9. Weak against Feu and Glace.",
+            coordinator.Poll(),
+            "atomic speech before unresolved fragment");
+        foreach (var fragment in new short[] { 0x101, 0x102 })
+        {
+            coordinator.ObserveActiveBuffer(fragment);
+            Equal(null, coordinator.Poll(), $"resolved private fragment {fragment:X} is suppressed");
+        }
+
+        coordinator.ObserveActiveBuffer(0x103);
+        Equal(null, coordinator.Poll(), "unresolved native fragment remains silent");
+        coordinator.ObserveActiveBuffer(0x104);
+        Equal(null, coordinator.Poll(), "later weakness remains private after unresolved fragment");
     }
 
     private static void SpeaksOneCompleteSenseResultAndOnlyItsNativeFragmentsAreSuppressed()
@@ -153,7 +344,7 @@ internal static class BattleSenseSpeechTests
 
         coordinator.ObserveActiveBuffer(0x100);
         Equal(
-            "Guard Hound. Level 3. HP 42 of 50. MP 7 of 9. Weak against Feu and Glace.",
+            "Guard Hound B. Level 3. HP 42 of 50. MP 7 of 9. Weak against Feu and Glace.",
             coordinator.Poll(),
             "complete native Sense result");
         foreach (var fragment in new short[] { 0x101, 0x102, 0x103 })

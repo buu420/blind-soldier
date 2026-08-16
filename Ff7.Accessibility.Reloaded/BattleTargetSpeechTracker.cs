@@ -59,6 +59,11 @@ public sealed class BattleTargetSpeechTracker
             return actor.Name;
         }
 
+        if (actor.IsEnemy)
+        {
+            return $"{actor.Name}. HP {actor.CurrentHp} of {actor.MaxHp}";
+        }
+
         return $"{actor.Name}. HP {actor.CurrentHp} of {actor.MaxHp}. MP {actor.CurrentMp} of {actor.MaxMp}";
     }
 }
