@@ -165,6 +165,11 @@ public sealed class FieldNavigationController
     private const int LadderEndpointMatchDistance = 224;
     private const int CompletedLadderEndpointMatchDistance = 96;
     private const int DefaultSelectionArrivalDistance = 80;
+
+    // An exit that fires by crossing a native trigger line is only reached by standing on
+    // the line. Its route already ends on the line, so completion must wait until the player
+    // is effectively there; anything wider stops auto-walk short and the line never fires.
+    private const int TriggerLineExitArrivalDistance = 16;
     private static readonly TimeSpan LadderMountPromptInterval =
         TimeSpan.FromMilliseconds(700);
 
@@ -2093,9 +2098,23 @@ public sealed class FieldNavigationController
     }
 
     private static int ResolveArrivalDistance(FieldNavigationTarget target, int configuredDistance) =>
-        target.InteractionRadius > 0
-            ? target.InteractionRadius
-            : Math.Max(0, configuredDistance);
+        // An exit that activates by crossing a native trigger line is not reached by
+        // standing near it. Some of those exits carry an inflated interaction radius so a
+        // fallback route can be planned when the line itself is unroutable; reusing that
+        // radius as the arrival threshold ended navigation up to a radius short of the
+        // line, so the player stopped, never crossed, and the transition never fired.
+        // Interaction radii still govern NPCs and objects, which really are reached by
+        // proximity.
+        target is
+        {
+            Category: FieldNavigationCategory.Exits,
+            TriggerLine: not null,
+            InteractionRadius: > 0
+        }
+            ? TriggerLineExitArrivalDistance
+            : target.InteractionRadius > 0
+                ? target.InteractionRadius
+                : Math.Max(0, configuredDistance);
 
     private static string CreateSelectionKey(int fieldId, FieldNavigationCategory category) =>
         $"{fieldId}:{category}";

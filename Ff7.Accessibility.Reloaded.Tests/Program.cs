@@ -14,6 +14,14 @@ if (args.Contains("--battle-sense-only", StringComparer.OrdinalIgnoreCase))
     return;
 }
 
+if (args.Contains("--line-trigger-arrival-only", StringComparer.OrdinalIgnoreCase))
+{
+    AssertLineTriggerExitDoesNotCompleteShortOfItsLine();
+    AssertInteractionRadiusStillGovernsArrivalWithoutATriggerLine();
+    Console.WriteLine("FFVII line-trigger exit arrival tests passed.");
+    return;
+}
+
 if (args.Contains("--main-menu-ownership-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.MainMenuOwnershipTests.Run();
@@ -98,6 +106,17 @@ if (args.Contains("--save-enemy-skill-only", StringComparer.OrdinalIgnoreCase))
     AssertSaveMenuSpeechSupportsWorldMapHostModule();
     AssertBattleStateReaderReadsNativeAbilitySubmenuSelections();
     Console.WriteLine("FFVII Save and Enemy Skill regression tests passed.");
+    return;
+}
+
+if (args.Contains("--empty-slot-only", StringComparer.OrdinalIgnoreCase))
+{
+    AssertInventoryItemReaderDistinguishesStableEmptySlots();
+    AssertMagicMenuSelectionReaderReadsStableEmptySlots();
+    AssertActiveMenuFrameAnnouncesEmptyInventorySlots();
+    AssertBattleStateReaderReadsStableEmptyMenuSlots();
+    AssertBattleMenuRepeatsSelectionsAcrossEmptySlots();
+    Console.WriteLine("FFVII native empty-slot speech tests passed.");
     return;
 }
 
@@ -192,9 +211,12 @@ if (args.Contains("--multilingual-menu-only", StringComparer.OrdinalIgnoreCase))
 
 if (args.Contains("--world-map-only", StringComparer.OrdinalIgnoreCase))
 {
+    Ff7.Accessibility.Reloaded.Tests.WorldMapStateReaderTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.MidgarZolomStateReaderTests.Run();
     Ff7.Accessibility.Reloaded.Tests.WorldMapTargetCatalogTests.Run();
     Ff7.Accessibility.Reloaded.Tests.WorldMapRoutePlannerTests.Run();
     Ff7.Accessibility.Reloaded.Tests.WorldMapFootstepTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.MidgarZolomCrossingTrackerTests.Run();
     Ff7.Accessibility.Reloaded.Tests.WorldMapNavigationControllerTests.Run();
     Console.WriteLine("FFVII shared world-map accessibility tests passed.");
     return;
@@ -202,6 +224,7 @@ if (args.Contains("--world-map-only", StringComparer.OrdinalIgnoreCase))
 
 if (args.Contains("--kalm-ranch-navigation-only", StringComparer.OrdinalIgnoreCase))
 {
+    Ff7.Accessibility.Reloaded.Tests.KalmExitPresentationTests.Run();
     Ff7.Accessibility.Reloaded.Tests.KalmRanchNavigationTests.Run();
     Console.WriteLine("FFVII Kalm and Chocobo Ranch navigation tests passed.");
     return;
@@ -406,6 +429,7 @@ AssertFf7EncodedAskTextPreservesNativeChoiceLines();
 AssertFf7EncodedAskTextPreservesNativePages();
 AssertInventoryItemReaderReadsNativeSlotWord();
 AssertInventoryItemReaderRejectsEmptyAndInvalidSlots();
+AssertInventoryItemReaderDistinguishesStableEmptySlots();
 AssertKernel2ItemNameResolverReadsNativeItemNames();
 AssertKernel2TextDatabaseReadsNativeDescriptionsAndEquipmentNames();
 AssertKernel2TextDatabaseReadsBattleTextSection();
@@ -421,6 +445,7 @@ AssertBattleStateReaderRequiresNativeTargetUiGates();
 AssertBattleStateReaderDoesNotGuessTargetCommandRanges();
 AssertBattleStateReaderKeepsUnsensedEnemyDetailsPrivate();
 AssertBattleStateReaderReadsNativeAbilitySubmenuSelections();
+AssertBattleStateReaderReadsStableEmptyMenuSlots();
 AssertBattleMagicSelectionRejectsUnreadableAndTornState();
 AssertBattleStateReaderReadsNativeItemSelection();
 AssertBattleStateReaderReadsUnavailableInventoryObjectSelection();
@@ -453,6 +478,7 @@ AssertBattleMenuAddsNativeMpCostQuantityAndDescription();
 AssertBattleMenuSpeaksUnavailableInventoryObjectSelection();
 AssertBattleMenuIgnoresMismatchedNativeSelection();
 AssertBattleMenuSkipsBlankDisabledAndTransitionalFrames();
+AssertBattleMenuRepeatsSelectionsAcrossEmptySlots();
 AssertBattleMenuRepeatsASelectionAfterLeavingAndReturning();
 AssertBattleMenuRepeatsSideCommandAfterNativeDeactivation();
 AssertBattleMenuDoesNotRepeatAlternatingRendererStates();
@@ -561,11 +587,13 @@ AssertFieldPositionReaderIgnoresNonFieldModules();
 AssertFieldPositionReaderRejectsInvalidLiveModelState();
 AssertFieldPositionReaderReadsLiveModelCoordinates();
 Ff7.Accessibility.Reloaded.Tests.WorldMapStateReaderTests.Run();
+Ff7.Accessibility.Reloaded.Tests.MidgarZolomStateReaderTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WorldMapEntityReaderTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WorldMapDataLoaderTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WorldMapTargetCatalogTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WorldMapRoutePlannerTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WorldMapFootstepTests.Run();
+Ff7.Accessibility.Reloaded.Tests.MidgarZolomCrossingTrackerTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WorldMapNavigationControllerTests.Run();
 AssertFieldLadderStateReaderReadsNativeMountedState();
 AssertFieldLadderStateReaderCorrectsWallClimbPenultimateLadderToLeft();
@@ -789,6 +817,8 @@ AssertFieldNavigationSpokenCueUsesOnlyMeaningfulDiagonalDirections();
 AssertFieldNavigationSpokenGuidanceSuppressesFunnelCornerDiagonals();
 AssertFieldNavigationSpokenGuidanceKeepsCommittedWideStairRun();
 AssertFieldNavigationStoryGatewayCompletesAtMatchingFieldTransition();
+AssertLineTriggerExitDoesNotCompleteShortOfItsLine();
+AssertInteractionRadiusStillGovernsArrivalWithoutATriggerLine();
 AssertFieldNavigationExitGatewayCompletesAtEndpointBeforeTransition();
 AssertFieldNavigationSpokenGuidanceConnectsSameDirectionCorners();
 AssertFieldNavigationRouteProgressUsesOrderedThreeDimensionalDistance();
@@ -931,7 +961,7 @@ AssertActiveMenuFrameReadsGenericCommandRows();
 AssertActiveMenuFrameReadsItemArrangeWithoutCursorDraw();
 AssertActiveMenuFrameUsesNativeInventoryData();
 AssertMenuInventoryReaderUsesFullObjectNamespace();
-AssertActiveMenuFrameKeepsEmptyInventorySlotsSilent();
+AssertActiveMenuFrameAnnouncesEmptyInventorySlots();
 AssertActiveMenuFrameUsesNativePartyAndEquipmentSelections();
 AssertActiveMenuFrameUsesNativeItemAndMagicTargets();
 Ff7.Accessibility.Reloaded.Tests.Sector7MenuRegressionTests.Run();
@@ -951,6 +981,7 @@ AssertConfigMenuValueReaderRejectsInvalidSettings();
 AssertConfigMenuValueReaderReadsSoundModalValues();
 AssertActiveMenuFrameReadsChangingSoundVolume();
 AssertMagicMenuSelectionReaderReadsLiveSpellRecord();
+AssertMagicMenuSelectionReaderReadsStableEmptySlots();
 AssertActiveMenuFrameIncludesLiveMagicMpCost();
 AssertStaticMenuCursorSpeechReadsConfigRows();
 AssertStaticMenuCursorSpeechReadsNativeConfigRowWithoutCursorDraw();
@@ -2674,6 +2705,39 @@ static void AssertInventoryItemReaderRejectsEmptyAndInvalidSlots()
     }
 }
 
+static void AssertInventoryItemReaderDistinguishesStableEmptySlots()
+{
+    const int slot = 17;
+    var slotAddress = InventoryItemReader.AddressSavemap +
+        InventoryItemReader.ItemsOffset +
+        (slot * sizeof(ushort));
+    var memory = new Dictionary<int, byte>
+    {
+        [slotAddress] = 0xFF,
+        [slotAddress + 1] = 0xFF
+    };
+    var reader = new InventoryItemReader(new DictionaryLegacyAddressSpace(memory));
+
+    AssertEqual(
+        true,
+        reader.TryReadSlot(slot, out var empty),
+        "a stable native 0xFFFF inventory record is a readable slot");
+    AssertEqual(true, empty.IsEmpty, "native 0xFFFF inventory record is empty");
+    AssertEqual(slot, empty.Slot, "empty inventory slot preserves its native index");
+    AssertEqual(false, reader.TryRead(slot, out _), "legacy item-only API still rejects empty slots");
+
+    AssertEqual(
+        false,
+        new InventoryItemReader(new DictionaryLegacyAddressSpace(new Dictionary<int, byte>()))
+            .TryReadSlot(slot, out _),
+        "unreadable inventory memory must not be called empty");
+    AssertEqual(
+        false,
+        new InventoryItemReader(new TearingLegacyAddressSpace(memory, (uint)slotAddress))
+            .TryReadSlot(slot, out _),
+        "a torn 0xFFFF inventory record must remain silent");
+}
+
 static void AssertKernel2ItemNameResolverReadsNativeItemNames()
 {
     var resolver = Kernel2ItemNameResolver.TryCreate(FindGameRoot())
@@ -3048,6 +3112,57 @@ static void AssertBattleStateReaderReadsNativeAbilitySubmenuSelections()
     }
 }
 
+static void AssertBattleStateReaderReadsStableEmptyMenuSlots()
+{
+    const short enemySkillState = 4;
+    const int enemySkillSlot = 21;
+    var memory = CreateBattleMemoryWithCloud();
+    memory[BattleStateReader.AddressMenuWindowStates + enemySkillState] =
+        BattleStateReader.ActiveWindowState;
+    var actorBase = BattleStateReader.AddressBattleActors;
+    WriteUInt32(memory, actorBase + BattleStateReader.ActorCurrentHpOffset, 314);
+    WriteUInt32(memory, actorBase + BattleStateReader.ActorMaxHpOffset, 350);
+    WriteUInt16(memory, actorBase + BattleStateReader.ActorCurrentMpOffset, 42);
+    WriteUInt16(memory, actorBase + BattleStateReader.ActorMaxMpOffset, 54);
+    WriteUInt32(memory, BattleStateReader.AddressEnemySkillCursorColumn, 1);
+    WriteUInt32(memory, BattleStateReader.AddressEnemySkillCursorRow, 10);
+    WriteUInt32(memory, BattleStateReader.AddressEnemySkillScrollRow, 0);
+    var enemySkillRecord = BattleStateReader.AddressEnemySkillRecords +
+        (enemySkillSlot * BattleStateReader.AbilityRecordSize);
+    memory[enemySkillRecord] = 0xFF;
+    memory[enemySkillRecord + BattleStateReader.AbilityMpCostOffset] = 0;
+
+    var enemySkill = CreateBattleStateReader(memory).ReadMenuState(enemySkillState).Selection
+        ?? throw new InvalidOperationException("Expected the stable empty Enemy Skill cell.");
+    AssertEqual("Empty slot", enemySkill.Name, "battle Enemy Skill empty cell speech");
+    AssertEqual(-1, enemySkill.EntryId, "battle Enemy Skill empty cell has no action id");
+    AssertEqual(enemySkillSlot, enemySkill.SlotIndex, "battle Enemy Skill preserves its grid index");
+
+    const short itemState = 5;
+    const int itemSlot = 9;
+    memory[BattleStateReader.AddressMenuWindowStates + enemySkillState] = 0;
+    memory[BattleStateReader.AddressMenuWindowStates + itemState] =
+        BattleStateReader.ActiveWindowState;
+    WriteUInt32(memory, BattleStateReader.AddressItemCursorRow, itemSlot);
+    WriteUInt32(memory, BattleStateReader.AddressItemScrollRow, 0);
+    var itemRecord = BattleStateReader.AddressBattleItems +
+        (itemSlot * BattleStateReader.ItemRecordSize);
+    WriteUInt16(memory, itemRecord, 0xFFFF);
+    memory[itemRecord + BattleStateReader.ItemQuantityOffset] = 0;
+
+    var item = CreateBattleStateReader(memory).ReadMenuState(itemState).Selection
+        ?? throw new InvalidOperationException("Expected the stable empty battle Item cell.");
+    AssertEqual("Empty slot", item.Name, "battle Item empty cell speech");
+    AssertEqual(itemSlot, item.SlotIndex, "battle Item empty cell preserves its list index");
+
+    var torn = CreateBattleStateReader(
+        memory,
+        byteTransform: (address, count, value) =>
+            address == itemRecord && count > 1 ? (byte)(value - 1) : value)
+        .ReadMenuState(itemState);
+    AssertEqual(null, torn.Selection, "a torn battle Item record must remain silent");
+}
+
 static void AssertBattleMagicSelectionRejectsUnreadableAndTornState()
 {
     const short rendererState = 6;
@@ -3164,6 +3279,8 @@ static void AssertBattleStateReaderReadsNativeItemSelection()
     var recordAddress = BattleStateReader.AddressBattleItems + 3 * BattleStateReader.ItemRecordSize;
     WriteUInt16(memory, recordAddress, 7);
     memory[recordAddress + BattleStateReader.ItemQuantityOffset] = 2;
+    memory[BattleStateReader.AddressBattleItemUseContext] = 0;
+    memory[recordAddress + BattleStateReader.ItemRestrictionFlagsOffset] = 0;
 
     var reader = CreateBattleStateReader(
         memory,
@@ -4111,6 +4228,33 @@ static void AssertBattleMenuSkipsBlankDisabledAndTransitionalFrames()
     coordinator.ObserveCursor(new MenuCursorDrawObservation("battle", BattleStateReader.BattleModule, 100, 350, 0x3F004189));
     coordinator.CompleteFrame(CreateBattleMenuSnapshot(1, 0, "Cloud"));
     AssertNull(coordinator.Poll(), "unmatched disabled battle text must be silent");
+}
+
+static void AssertBattleMenuRepeatsSelectionsAcrossEmptySlots()
+{
+    var coordinator = new BattleMenuFrameSpeechCoordinator();
+    var actor = new BattleActorSnapshot(0, "Cloud", false, 300, 350, 40, 54, true);
+
+    void Observe(BattleMenuSelectionSnapshot selection)
+    {
+        coordinator.BeginFrame(4);
+        coordinator.CompleteFrame(new BattleMenuStateSnapshot(true, 4, 0, actor, selection));
+    }
+
+    Observe(new BattleMenuSelectionSnapshot(0x52, "Matra Magic", null, null, 8, SlotIndex: 0));
+    AssertEqual("Cloud. Matra Magic. 8 MP", coordinator.Poll(), "learned Enemy Skill speaks first");
+
+    Observe(new BattleMenuSelectionSnapshot(-1, "Empty slot", null, null, null, SlotIndex: 1));
+    AssertEqual("Empty slot", coordinator.Poll(), "first empty battle ability cell speaks");
+
+    Observe(new BattleMenuSelectionSnapshot(-1, "Empty slot", null, null, null, SlotIndex: 2));
+    AssertEqual("Empty slot", coordinator.Poll(), "adjacent empty battle ability cell also speaks");
+
+    Observe(new BattleMenuSelectionSnapshot(0x52, "Matra Magic", null, null, 8, SlotIndex: 0));
+    AssertEqual(
+        "Matra Magic. 8 MP",
+        coordinator.Poll(),
+        "returning across an empty cell repeats the learned Enemy Skill");
 }
 
 static void AssertBattleMenuRepeatsASelectionAfterLeavingAndReturning()
@@ -22101,6 +22245,112 @@ static void AssertFieldNavigationStoryGatewayCompletesAtMatchingFieldTransition(
         "entering a different field must not falsely complete the selected gateway");
 }
 
+static void AssertLineTriggerExitDoesNotCompleteShortOfItsLine()
+{
+    // Regression: the Honey Bee Inn lobby rooms. FieldExitNavigationProfileCatalog raises
+    // these four exits to a 128 interaction radius so a fallback route can still be planned
+    // when the trigger line itself is unroutable. That radius was also being used as the
+    // arrival threshold, so navigation announced "reached" up to 122 units short of the
+    // line the player has to cross - the player stopped, the line never fired, and the room
+    // never opened. Geometry below is the native border2 line from onna_4 (field 218), and
+    // the short position is the one captured in the runtime log.
+    var roomLine = new FieldNavigationTriggerLine(-375, 148, 26, -312, 238, 26);
+    var room = new FieldNavigationTarget(
+        218,
+        FieldNavigationCategory.Exits,
+        "Enter the &$#% Room",
+        -343,
+        193,
+        26,
+        "script-exit:218:14:220",
+        CompletesOnArrival: true,
+        InteractionRadius: 128,
+        DestinationFieldIds: [220],
+        TriggerLine: roomLine);
+    var controller = new FieldNavigationController(
+        new FieldNavigationTargetSource([], exitTargetProvider: _ => [room]),
+        new SingleTriangleRoutePlanner());
+    var start = new FieldPositionSnapshot(1, 218, 0, 1, 279, 16, 0, 0);
+    var noInput = new FieldNavigationInputSnapshot(0, FieldNavigationInput.None);
+    var noRotation = new FieldNavigationControlTransform(-128);
+
+    controller.HandleAction(FieldNavigationAction.ToggleBeacon, start, noRotation);
+    var shortOfLine = controller.UpdateLiveTracking(
+        start with { X = -237, Y = 132, Z = 16 },
+        noInput,
+        noRotation,
+        isSuppressed: false,
+        arrivalDistanceUnits: 80);
+
+    AssertEqual(
+        false,
+        (shortOfLine?.Speech ?? string.Empty).Contains("reached", StringComparison.Ordinal),
+        "a line-trigger exit must not report arrival while the player is short of its line");
+    AssertEqual(
+        true,
+        controller.BeaconEnabled,
+        "navigation must stay on until the player actually reaches the trigger line");
+
+    var stillShort = controller.UpdateLiveTracking(
+        start with { X = -291, Y = 163, Z = 26 },
+        noInput,
+        noRotation,
+        isSuppressed: false,
+        arrivalDistanceUnits: 80);
+
+    AssertEqual(
+        false,
+        (stillShort?.Speech ?? string.Empty).Contains("reached", StringComparison.Ordinal),
+        "a line-trigger exit must not report arrival at the ordinary 80 unit arrival distance");
+
+    var atLine = controller.UpdateLiveTracking(
+        start with { X = -343, Y = 193, Z = 26 },
+        noInput,
+        noRotation,
+        isSuppressed: false,
+        arrivalDistanceUnits: 80);
+
+    AssertEqual(
+        "Enter the &$#% Room reached. Navigation off.",
+        atLine?.Speech,
+        "a line-trigger exit should report arrival once its line is reached");
+}
+
+static void AssertInteractionRadiusStillGovernsArrivalWithoutATriggerLine()
+{
+    // The carve-out above is scoped to exits that activate by crossing a line. An exit that
+    // is genuinely reached by proximity must keep using its interaction radius.
+    var proximityExit = new FieldNavigationTarget(
+        218,
+        FieldNavigationCategory.Exits,
+        "Exit to Honey Bee Inn, dressing room",
+        -343,
+        193,
+        26,
+        "gateway:218:0:216",
+        CompletesOnArrival: true,
+        InteractionRadius: 128,
+        DestinationFieldIds: [216]);
+    var controller = new FieldNavigationController(
+        new FieldNavigationTargetSource([], exitTargetProvider: _ => [proximityExit]),
+        new SingleTriangleRoutePlanner());
+    var start = new FieldPositionSnapshot(1, 218, 0, 1, 279, 16, 0, 0);
+    var noInput = new FieldNavigationInputSnapshot(0, FieldNavigationInput.None);
+    var noRotation = new FieldNavigationControlTransform(-128);
+
+    controller.HandleAction(FieldNavigationAction.ToggleBeacon, start, noRotation);
+    var withinRadius = controller.UpdateLiveTracking(
+        start with { X = -237, Y = 132, Z = 16 },
+        noInput,
+        noRotation,
+        isSuppressed: false,
+        arrivalDistanceUnits: 80);
+
+    AssertEqual(
+        "Exit to Honey Bee Inn, dressing room reached. Navigation off.",
+        withinRadius?.Speech,
+        "an interaction radius must still complete arrival when there is no trigger line");
+}
 static void AssertFieldNavigationExitGatewayCompletesAtEndpointBeforeTransition()
 {
     var gatewayLine = new FieldNavigationTriggerLine(-251, 2500, 0, -19, 2492, 0);
@@ -25096,17 +25346,44 @@ static void AssertActiveMenuFrameUsesNativeInventoryData()
     AssertEqual("Ether x2. Restores MP by 100", coordinator.Poll(), "active Item frames should retain native quantity and Kernel description data");
 }
 
-static void AssertActiveMenuFrameKeepsEmptyInventorySlotsSilent()
+static void AssertActiveMenuFrameAnnouncesEmptyInventorySlots()
 {
     var coordinator = new ActiveMenuFrameSpeechCoordinator();
-    coordinator.ObserveDraw(new MenuTextRenderEntry("Use", 57, 17, 7, 0x3DCED917));
-    coordinator.ObserveCursor(new MenuCursorDrawObservation("B", 5, 13, 26, 0x3DCCCCCD));
-    coordinator.ObserveCursor(new MenuCursorDrawObservation("B", 5, 298, 220, 0x3DCCCCCD));
+    var item = new InventoryItemSnapshot(1, 3, 2, 0x0403, "Ether", "Restores MP by 100");
     coordinator.CompleteFrame(new ActiveMenuWidgetSnapshot(
         0x00DD1A50, "Item list", MenuWidgetKind.ItemList,
-        0, 3, 1, 10, 0, 0, 0), DateTime.UtcNow);
+        0, 1, 1, 10, 0, 0, 0,
+        InventoryItem: item), DateTime.UtcNow);
+    AssertEqual(
+        "Ether x2. Restores MP by 100",
+        coordinator.Poll(),
+        "native inventory item speaks before entering an empty slot");
 
-    AssertNull(coordinator.Poll(), "an empty native inventory slot must not borrow the separate Use command cursor");
+    coordinator.ObserveDraw(new MenuTextRenderEntry("Use", 57, 17, 7, 0x3DCED917));
+    coordinator.ObserveCursor(new MenuCursorDrawObservation("B", 5, 13, 26, 0x3DCCCCCD));
+    coordinator.CompleteFrame(new ActiveMenuWidgetSnapshot(
+        0x00DD1A50, "Item list", MenuWidgetKind.ItemList,
+        0, 3, 1, 10, 0, 0, 0,
+        EmptySlot: new NativeEmptyMenuSlotSnapshot(3)), DateTime.UtcNow.AddMilliseconds(16));
+    AssertEqual(
+        "Empty slot",
+        coordinator.Poll(),
+        "a confirmed empty inventory cell speaks instead of borrowing the Use command");
+
+    coordinator.CompleteFrame(new ActiveMenuWidgetSnapshot(
+        0x00DD1A50, "Item list", MenuWidgetKind.ItemList,
+        0, 4, 1, 10, 0, 0, 0,
+        EmptySlot: new NativeEmptyMenuSlotSnapshot(4)), DateTime.UtcNow.AddMilliseconds(32));
+    AssertEqual("Empty slot", coordinator.Poll(), "each newly selected empty cell speaks");
+
+    coordinator.CompleteFrame(new ActiveMenuWidgetSnapshot(
+        0x00DD1A50, "Item list", MenuWidgetKind.ItemList,
+        0, 1, 1, 10, 0, 0, 0,
+        InventoryItem: item), DateTime.UtcNow.AddMilliseconds(48));
+    AssertEqual(
+        "Ether x2. Restores MP by 100",
+        coordinator.Poll(),
+        "returning from an empty slot repeats the item selection");
 }
 
 static void AssertActiveMenuFrameUsesNativePartyAndEquipmentSelections()
@@ -25754,6 +26031,64 @@ static void AssertMagicMenuSelectionReaderReadsLiveSpellRecord()
         CreateReader((address, count, value) => address == widgetAddress + 0x04 && count > 1 ? (byte)2 : value)
             .TryRead(widget, out _),
         "a torn native Magic cursor should remain silent");
+}
+
+static void AssertMagicMenuSelectionReaderReadsStableEmptySlots()
+{
+    const int widgetAddress = 0x00DD1778;
+    const int selectedIndex = 21;
+    var memory = new Dictionary<int, byte>();
+    memory[MagicMenuSelectionReader.AddressSelectedPartySlot] = 0;
+    WriteUInt16(memory, MagicMenuSelectionReader.AddressCurrentMp, 40);
+    WriteUInt32(memory, widgetAddress + 0x00, 1);
+    WriteUInt32(memory, widgetAddress + 0x04, 10);
+    WriteUInt32(memory, widgetAddress + 0x08, 2);
+    WriteUInt32(memory, widgetAddress + 0x0C, 12);
+    WriteUInt32(memory, widgetAddress + 0x14, 0);
+    WriteUInt32(memory, widgetAddress + 0x24, 0);
+    WriteUInt32(memory, widgetAddress + 0x30, 0);
+    var recordAddress = MagicMenuSelectionReader.AddressEnemySkillRecords +
+        (selectedIndex * MagicMenuSelectionReader.RecordSize);
+    memory[recordAddress] = 0xFF;
+    memory[recordAddress + MagicMenuSelectionReader.MpCostOffset] = 0;
+    var widget = new ActiveMenuWidgetSnapshot(
+        widgetAddress,
+        "Enemy Skill list",
+        MenuWidgetKind.EnemySkillList,
+        1,
+        10,
+        2,
+        12,
+        0,
+        0,
+        0);
+    var reader = new MagicMenuSelectionReader(
+        new DictionaryLegacyAddressSpace(memory),
+        id => id == 0x52 ? "Matra Magic" : null,
+        id => id == 0x52 ? "Damages all enemies" : null);
+
+    AssertEqual(
+        true,
+        reader.TryReadSlot(widget, out var empty),
+        "a stable late Enemy Skill cell is readable even when empty");
+    AssertEqual(true, empty.IsEmpty, "native 0xFF Enemy Skill record is empty");
+    AssertEqual(selectedIndex, empty.Slot, "Enemy Skill empty slot keeps its two-column grid index");
+
+    memory[recordAddress] = 10;
+    memory[recordAddress + MagicMenuSelectionReader.MpCostOffset] = 8;
+    AssertEqual(true, reader.TryReadSlot(widget, out var learned), "learned Enemy Skill cell is readable");
+    AssertEqual(false, learned.IsEmpty, "learned Enemy Skill cell is not empty");
+    AssertEqual("Matra Magic", learned.Spell.Name, "Enemy Skill local id uses the native 0x48 action base");
+
+    memory[recordAddress] = 0xFF;
+    var tearing = new MagicMenuSelectionReader(
+        new TearingLegacyAddressSpace(memory, (uint)recordAddress),
+        _ => null,
+        _ => null);
+    AssertEqual(
+        false,
+        tearing.TryReadSlot(widget, out _),
+        "a torn Enemy Skill record must not be announced as empty");
 }
 
 static void AssertActiveMenuFrameIncludesLiveMagicMpCost()

@@ -65,6 +65,10 @@ public sealed class FieldExitLabelResolver
             "gateway:338:2:340" => "Enter rear tower",
             "gateway:340:0:338" => "Return to house",
             "script-exit:340:4:335" => "Exit rear tower to Kalm",
+            "gateway:343:0:344" => "Enter Choco Bill's house",
+            "gateway:343:1:345" => "Enter Chocobo stables",
+            "gateway:344:0:343" => "Leave Choco Bill's house for Chocobo Farm",
+            "gateway:345:0:343" => "Leave Chocobo stables for Chocobo Farm",
             _ => null
         };
         if (exactLabel is not null)
