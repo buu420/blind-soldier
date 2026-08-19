@@ -14,10 +14,22 @@ if (args.Contains("--battle-sense-only", StringComparer.OrdinalIgnoreCase))
     return;
 }
 
+if (args.Contains("--mythril-mine-only", StringComparer.OrdinalIgnoreCase))
+{
+    AssertFieldExitLabelResolverDisambiguatesMythrilMineTunnels();
+    AssertNativeGatewayExitDoesNotCompleteShortOfItsGateway();
+    AssertFieldNavigationExitGatewayCompletesAtEndpointBeforeTransition();
+    AssertInteractionRadiusStillGovernsNpcArrival();
+    Console.WriteLine("FFVII Mythril Mine tests passed.");
+    return;
+}
+
 if (args.Contains("--line-trigger-arrival-only", StringComparer.OrdinalIgnoreCase))
 {
     AssertLineTriggerExitDoesNotCompleteShortOfItsLine();
-    AssertInteractionRadiusStillGovernsArrivalWithoutATriggerLine();
+    AssertInteractionRadiusStillGovernsNpcArrival();
+    AssertNativeGatewayExitDoesNotCompleteShortOfItsGateway();
+    AssertFieldNavigationExitGatewayCompletesAtEndpointBeforeTransition();
     Console.WriteLine("FFVII line-trigger exit arrival tests passed.");
     return;
 }
@@ -660,6 +672,7 @@ AssertFieldExitLabelResolverNamesAllFourFloor62Libraries();
 AssertFieldExitLabelResolverDisambiguatesWindingTunnelPassages();
 AssertFieldExitLabelResolverLabelsSector4Backtrack();
 AssertFieldExitLabelResolverLabelsHoneyBeeInnRooms();
+AssertFieldExitLabelResolverDisambiguatesMythrilMineTunnels();
 AssertFieldExitNavigationProfilesCoverWallMarketAndHoneyBeeInn();
 AssertFieldScriptNavigationCatalogReadsNativeNpcs();
 AssertFieldScriptNavigationCatalogDecodesInstalledFieldSet();
@@ -818,7 +831,8 @@ AssertFieldNavigationSpokenGuidanceSuppressesFunnelCornerDiagonals();
 AssertFieldNavigationSpokenGuidanceKeepsCommittedWideStairRun();
 AssertFieldNavigationStoryGatewayCompletesAtMatchingFieldTransition();
 AssertLineTriggerExitDoesNotCompleteShortOfItsLine();
-AssertInteractionRadiusStillGovernsArrivalWithoutATriggerLine();
+AssertInteractionRadiusStillGovernsNpcArrival();
+AssertNativeGatewayExitDoesNotCompleteShortOfItsGateway();
 AssertFieldNavigationExitGatewayCompletesAtEndpointBeforeTransition();
 AssertFieldNavigationSpokenGuidanceConnectsSameDirectionCorners();
 AssertFieldNavigationRouteProgressUsesOrderedThreeDimensionalDistance();
@@ -13346,6 +13360,120 @@ static void AssertFieldExitLabelResolverLabelsSector4Backtrack()
         "field 167's nearby native exit must be identifiable as a backtrack");
 }
 
+static void AssertFieldExitLabelResolverDisambiguatesMythrilMineTunnels()
+{
+    // Every gateway inside the mine leads to another Mythril Mine screen, so the generated
+    // labels were three copies of "Exit to Mythril Mine" plus a bare "Exit" for the world
+    // map mouth. The runtime log caught a player cycling the entrance cavern hearing the
+    // same string over and over and walking into the dead-end chamber.
+    var resolver = new FieldExitLabelResolver(
+        fieldId => fieldId is 349 or 350 or 351 or 352
+            ? FieldMapNameResolution.Known(["Mythril Mine"])
+            : FieldMapNameResolution.Unknown,
+        () => "Mythril Mine");
+    var entranceCavern = resolver.Resolve(
+    [
+        new FieldNavigationTarget(
+            350,
+            FieldNavigationCategory.Exits,
+            "Exit",
+            -840,
+            105,
+            0,
+            "gateway:350:0:349",
+            DestinationFieldIds: [349]),
+        new FieldNavigationTarget(
+            350,
+            FieldNavigationCategory.Exits,
+            "Exit",
+            1302,
+            910,
+            -64,
+            "gateway:350:1:351",
+            DestinationFieldIds: [351]),
+        new FieldNavigationTarget(
+            350,
+            FieldNavigationCategory.Exits,
+            "Exit",
+            623,
+            888,
+            -64,
+            "gateway:350:2:4",
+            DestinationFieldIds: [4])
+    ]);
+
+    AssertEqual("Tunnel deeper into the mine", entranceCavern[0].Label, "entrance cavern, way onward");
+    AssertEqual("Tunnel to the side chamber", entranceCavern[1].Label, "entrance cavern, side chamber");
+    AssertEqual("Leave the mine for the world map, Midgar side", entranceCavern[2].Label, "entrance cavern, world map mouth");
+    AssertEqual(
+        3,
+        entranceCavern.Select(target => target.Label).Distinct(StringComparer.Ordinal).Count(),
+        "the entrance cavern must not offer two exits under the same name");
+
+    var junonCavern = resolver.Resolve(
+    [
+        new FieldNavigationTarget(
+            349,
+            FieldNavigationCategory.Exits,
+            "Exit",
+            527,
+            315,
+            -244,
+            "gateway:349:0:352",
+            DestinationFieldIds: [352]),
+        new FieldNavigationTarget(
+            349,
+            FieldNavigationCategory.Exits,
+            "Exit",
+            982,
+            28,
+            -365,
+            "gateway:349:1:350",
+            DestinationFieldIds: [350]),
+        new FieldNavigationTarget(
+            349,
+            FieldNavigationCategory.Exits,
+            "Exit",
+            81,
+            82,
+            -72,
+            "gateway:349:2:5",
+            DestinationFieldIds: [5])
+    ]);
+
+    AssertEqual("Tunnel to the side chamber", junonCavern[0].Label, "Junon-side cavern, side chamber");
+    AssertEqual("Tunnel back toward the mine entrance", junonCavern[1].Label, "Junon-side cavern, way back");
+    AssertEqual("Leave the mine for the world map, Junon side", junonCavern[2].Label, "Junon-side cavern, world map mouth");
+    AssertEqual(
+        3,
+        junonCavern.Select(target => target.Label).Distinct(StringComparer.Ordinal).Count(),
+        "the cavern holding the Junon-side mouth must not offer two exits under the same name");
+
+    var deadEnds = resolver.Resolve(
+    [
+        new FieldNavigationTarget(
+            351,
+            FieldNavigationCategory.Exits,
+            "Exit",
+            -446,
+            -437,
+            0,
+            "gateway:351:0:350",
+            DestinationFieldIds: [350]),
+        new FieldNavigationTarget(
+            352,
+            FieldNavigationCategory.Exits,
+            "Exit",
+            42,
+            -552,
+            -96,
+            "gateway:352:0:349",
+            DestinationFieldIds: [349])
+    ]);
+
+    AssertEqual("Tunnel back to the mine entrance", deadEnds[0].Label, "field 351 dead end");
+    AssertEqual("Tunnel back to the main cavern", deadEnds[1].Label, "field 352 dead end");
+}
 static void AssertFieldExitLabelResolverLabelsHoneyBeeInnRooms()
 {
     var resolver = new FieldExitLabelResolver(
@@ -22316,28 +22444,85 @@ static void AssertLineTriggerExitDoesNotCompleteShortOfItsLine()
         "a line-trigger exit should report arrival once its line is reached");
 }
 
-static void AssertInteractionRadiusStillGovernsArrivalWithoutATriggerLine()
+
+static void AssertNativeGatewayExitDoesNotCompleteShortOfItsGateway()
 {
-    // The carve-out above is scoped to exits that activate by crossing a line. An exit that
-    // is genuinely reached by proximity must keep using its interaction radius.
-    var proximityExit = new FieldNavigationTarget(
-        218,
+    // Regression: the Mythril Mine. A native gateway only fires when the party crosses its
+    // exit line, but arrival was resolved against the ordinary 80 unit radius, so navigation
+    // announced "reached" and released auto walk while the player was still short of the
+    // line. The runtime log caught it twice inside psdun_1: the player stood at (538,245)
+    // and at (960,75), 72 and 52 units out, was told the exit was reached, and nothing
+    // happened. Geometry below is the real gateway pair from field 349.
+    var sideChamber = new FieldNavigationTarget(
+        349,
         FieldNavigationCategory.Exits,
-        "Exit to Honey Bee Inn, dressing room",
-        -343,
-        193,
-        26,
-        "gateway:218:0:216",
+        "Tunnel to the side chamber",
+        527,
+        315,
+        -244,
+        "gateway:349:0:352",
         CompletesOnArrival: true,
-        InteractionRadius: 128,
-        DestinationFieldIds: [216]);
+        DestinationFieldIds: [352]);
     var controller = new FieldNavigationController(
-        new FieldNavigationTargetSource([], exitTargetProvider: _ => [proximityExit]),
+        new FieldNavigationTargetSource([], exitTargetProvider: _ => [sideChamber]),
         new SingleTriangleRoutePlanner());
-    var start = new FieldPositionSnapshot(1, 218, 0, 1, 279, 16, 0, 0);
+    var start = new FieldPositionSnapshot(1, 349, 0, 538, 100, -256, 0, 0);
     var noInput = new FieldNavigationInputSnapshot(0, FieldNavigationInput.None);
     var noRotation = new FieldNavigationControlTransform(-128);
 
+    controller.HandleAction(FieldNavigationAction.ToggleBeacon, start, noRotation);
+    var shortOfGateway = controller.UpdateLiveTracking(
+        start with { X = 538, Y = 245, Z = -256 },
+        noInput,
+        noRotation,
+        isSuppressed: false,
+        arrivalDistanceUnits: 80);
+
+    AssertEqual(
+        false,
+        (shortOfGateway?.Speech ?? string.Empty).Contains("reached", StringComparison.Ordinal),
+        "a native gateway exit must not report arrival 72 units short of its gateway");
+    AssertEqual(
+        true,
+        controller.BeaconEnabled,
+        "navigation must stay on so auto walk carries the player across the gateway line");
+
+    var atGateway = controller.UpdateLiveTracking(
+        start with { X = 527, Y = 315, Z = -244 },
+        noInput,
+        noRotation,
+        isSuppressed: false,
+        arrivalDistanceUnits: 80);
+
+    AssertEqual(
+        "Tunnel to the side chamber reached. Navigation off.",
+        atGateway?.Speech,
+        "a native gateway exit should still report arrival once the player is on the gateway");
+}
+
+static void AssertInteractionRadiusStillGovernsNpcArrival()
+{
+    // The exit carve-out above must not touch targets that really are reached by standing
+    // near them. An NPC keeps completing at its interaction radius.
+    var npc = new FieldNavigationTarget(
+        349,
+        FieldNavigationCategory.Npcs,
+        "Tseng",
+        -343,
+        193,
+        26,
+        "npc:349:9",
+        CompletesOnArrival: true,
+        InteractionRadius: 128);
+    var controller = new FieldNavigationController(
+        new FieldNavigationTargetSource([], npcTargetProvider: _ => [npc]),
+        new SingleTriangleRoutePlanner());
+    var start = new FieldPositionSnapshot(1, 349, 0, 1, 279, 16, 0, 0);
+    var noInput = new FieldNavigationInputSnapshot(0, FieldNavigationInput.None);
+    var noRotation = new FieldNavigationControlTransform(-128);
+
+    controller.HandleAction(FieldNavigationAction.NextCategory, start, noRotation);
+    controller.HandleAction(FieldNavigationAction.NextCategory, start, noRotation);
     controller.HandleAction(FieldNavigationAction.ToggleBeacon, start, noRotation);
     var withinRadius = controller.UpdateLiveTracking(
         start with { X = -237, Y = 132, Z = 16 },
@@ -22346,10 +22531,7 @@ static void AssertInteractionRadiusStillGovernsArrivalWithoutATriggerLine()
         isSuppressed: false,
         arrivalDistanceUnits: 80);
 
-    AssertEqual(
-        "Exit to Honey Bee Inn, dressing room reached. Navigation off.",
-        withinRadius?.Speech,
-        "an interaction radius must still complete arrival when there is no trigger line");
+    AssertContains(withinRadius?.Speech ?? string.Empty, "Tseng reached");
 }
 static void AssertFieldNavigationExitGatewayCompletesAtEndpointBeforeTransition()
 {

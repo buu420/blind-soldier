@@ -166,9 +166,13 @@ public sealed class FieldNavigationController
     private const int CompletedLadderEndpointMatchDistance = 96;
     private const int DefaultSelectionArrivalDistance = 80;
 
-    // An exit that fires by crossing a native trigger line is only reached by standing on
-    // the line. Its route already ends on the line, so completion must wait until the player
-    // is effectively there; anything wider stops auto-walk short and the line never fires.
+    // An exit fires only when the party crosses its gateway or trigger line, so the route
+    // ends on the crossing itself and completion must wait until the player is there;
+    // anything wider stops auto-walk short and the transition never fires.
+    private const int ExitCrossingArrivalDistance = 0;
+
+    // The Honey Bee Inn lobby rooms carry an inflated interaction radius purely so a
+    // fallback route stays plannable; it must never widen proximity to a room-sized blob.
     private const int TriggerLineExitArrivalDistance = 16;
     private static readonly TimeSpan LadderMountPromptInterval =
         TimeSpan.FromMilliseconds(700);
@@ -771,10 +775,17 @@ public sealed class FieldNavigationController
                 target.Value,
                 arrivalDistanceUnits,
                 currentGuidance);
+        var isAtCompletionPoint = pendingLadderAction is null &&
+            IsWithinArrivalDistance(
+                position,
+                target.Value,
+                arrivalDistanceUnits,
+                currentGuidance,
+                forCompletion: true);
         var canCompleteOnArrival = CanCompleteOnArrival(target.Value);
         if (pendingLadderAction is null &&
             canCompleteOnArrival &&
-            isWithinArrivalDistance)
+            isAtCompletionPoint)
         {
             return CompleteNavigation(
                 $"{beaconTargetLabel} reached. Navigation off.",
@@ -2074,9 +2085,10 @@ public sealed class FieldNavigationController
         FieldPositionSnapshot position,
         FieldNavigationTarget target,
         int arrivalDistanceUnits,
-        FieldNavigationRouteGuidance? guidance = null)
+        FieldNavigationRouteGuidance? guidance = null,
+        bool forCompletion = false)
     {
-        var threshold = ResolveArrivalDistance(target, arrivalDistanceUnits);
+        var threshold = ResolveArrivalDistance(target, arrivalDistanceUnits, forCompletion);
         if (guidance is not null)
         {
             return guidance.Value.RemainingDistance <= threshold;
@@ -2097,15 +2109,34 @@ public sealed class FieldNavigationController
                dz * (double)dz <= threshold * (double)threshold;
     }
 
-    private static int ResolveArrivalDistance(FieldNavigationTarget target, int configuredDistance) =>
-        // An exit that activates by crossing a native trigger line is not reached by
-        // standing near it. Some of those exits carry an inflated interaction radius so a
-        // fallback route can be planned when the line itself is unroutable; reusing that
-        // radius as the arrival threshold ended navigation up to a radius short of the
-        // line, so the player stopped, never crossed, and the transition never fired.
-        // Interaction radii still govern NPCs and objects, which really are reached by
-        // proximity.
-        target is
+    // Completing a route means something different for an exit than for anything else. A
+    // native gateway or a script trigger line only fires when the party crosses it, so an
+    // exit route deliberately ends on the crossing and is finished only once the player is
+    // actually there. Measuring completion against a radius ended the route short of the
+    // crossing and released auto walk, leaving the player beside a doorway that never
+    // opened: 122 units short at the Honey Bee Inn lobby rooms, and 72 units short of the
+    // gateways inside the Mythril Mine. Falling short of a crossing is never a completion,
+    // so there is no radius to fall back on. Proximity still governs everything else the
+    // radius is used for - beacon cues, interaction pauses, NPCs and objects - which really
+    // are reached by standing near them.
+    private static bool CompletesByCrossing(FieldNavigationTarget target) =>
+        target.Category == FieldNavigationCategory.Exits &&
+        (target.TriggerLine is not null || target.DestinationFieldIds is { Count: > 0 });
+
+    private static int ResolveArrivalDistance(
+        FieldNavigationTarget target,
+        int configuredDistance,
+        bool forCompletion = false)
+    {
+        if (forCompletion && CompletesByCrossing(target))
+        {
+            return ExitCrossingArrivalDistance;
+        }
+
+        // An exit that activates by crossing a native trigger line can still carry an
+        // inflated interaction radius so a fallback route stays plannable when the line
+        // itself is unroutable. That radius is a routing aid, not a proximity range.
+        return target is
         {
             Category: FieldNavigationCategory.Exits,
             TriggerLine: not null,
@@ -2115,6 +2146,7 @@ public sealed class FieldNavigationController
             : target.InteractionRadius > 0
                 ? target.InteractionRadius
                 : Math.Max(0, configuredDistance);
+    }
 
     private static string CreateSelectionKey(int fieldId, FieldNavigationCategory category) =>
         $"{fieldId}:{category}";

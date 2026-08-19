@@ -69,6 +69,21 @@ public sealed class FieldExitLabelResolver
             "gateway:343:1:345" => "Enter Chocobo stables",
             "gateway:344:0:343" => "Leave Choco Bill's house for Chocobo Farm",
             "gateway:345:0:343" => "Leave Chocobo stables for Chocobo Farm",
+            // Mythril Mine (psdun_1..4, fields 349-352). Every gateway here leads to another
+            // Mythril Mine screen, so the generated label was "Exit to Mythril Mine" for all
+            // of them and the two world-map mouths fell back to a bare "Exit". Three
+            // identical strings in one cavern left no way to tell the way onward from the
+            // side chamber or from the way back out. Topology from the native gateways:
+            // 350 is the entrance cavern (world map, 349, 351), 349 holds the Junon-side
+            // mouth (world map, 350, 352), and 351 and 352 are dead-end chambers.
+            "gateway:349:0:352" => "Tunnel to the side chamber",
+            "gateway:349:1:350" => "Tunnel back toward the mine entrance",
+            "gateway:349:2:5" => "Leave the mine for the world map, Junon side",
+            "gateway:350:0:349" => "Tunnel deeper into the mine",
+            "gateway:350:1:351" => "Tunnel to the side chamber",
+            "gateway:350:2:4" => "Leave the mine for the world map, Midgar side",
+            "gateway:351:0:350" => "Tunnel back to the mine entrance",
+            "gateway:352:0:349" => "Tunnel back to the main cavern",
             _ => null
         };
         if (exactLabel is not null)
