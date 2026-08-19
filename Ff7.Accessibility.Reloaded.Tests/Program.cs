@@ -17,6 +17,8 @@ if (args.Contains("--battle-sense-only", StringComparer.OrdinalIgnoreCase))
 if (args.Contains("--mythril-mine-only", StringComparer.OrdinalIgnoreCase))
 {
     AssertFieldExitLabelResolverDisambiguatesMythrilMineTunnels();
+    AssertFieldExitLabelResolverDisambiguatesSlumsAndJunonDoors();
+    AssertContiguousGatewaySegmentsAnnounceOneExit();
     AssertNativeGatewayExitDoesNotCompleteShortOfItsGateway();
     AssertFieldNavigationExitGatewayCompletesAtEndpointBeforeTransition();
     AssertInteractionRadiusStillGovernsNpcArrival();
@@ -673,6 +675,8 @@ AssertFieldExitLabelResolverDisambiguatesWindingTunnelPassages();
 AssertFieldExitLabelResolverLabelsSector4Backtrack();
 AssertFieldExitLabelResolverLabelsHoneyBeeInnRooms();
 AssertFieldExitLabelResolverDisambiguatesMythrilMineTunnels();
+AssertFieldExitLabelResolverDisambiguatesSlumsAndJunonDoors();
+AssertContiguousGatewaySegmentsAnnounceOneExit();
 AssertFieldExitNavigationProfilesCoverWallMarketAndHoneyBeeInn();
 AssertFieldScriptNavigationCatalogReadsNativeNpcs();
 AssertFieldScriptNavigationCatalogDecodesInstalledFieldSet();
@@ -13473,6 +13477,122 @@ static void AssertFieldExitLabelResolverDisambiguatesMythrilMineTunnels()
 
     AssertEqual("Tunnel back to the mine entrance", deadEnds[0].Label, "field 351 dead end");
     AssertEqual("Tunnel back to the main cavern", deadEnds[1].Label, "field 352 dead end");
+}
+static void AssertContiguousGatewaySegmentsAnnounceOneExit()
+{
+    // The Junon airport walkway stores one boundary as three gateway records, chained
+    // end to end: idx0 and idx2 share no endpoint at all, only idx1 joins them. All three
+    // were announced, so the player heard "Exit to Airport" three times.
+    var policy = new FieldExitPresentationPolicy(() => null);
+    FieldNavigationTarget Segment(int index, int x1, int y1, int x2, int y2) =>
+        new(385,
+            FieldNavigationCategory.Exits,
+            "Exit to Airport",
+            (x1 + x2) / 2,
+            (y1 + y2) / 2,
+            3711,
+            $"gateway:385:{index}:384",
+            CompletesOnArrival: true,
+            DestinationFieldIds: [384],
+            TriggerLine: new FieldNavigationTriggerLine(x1, y1, 3711, x2, y2, 3711));
+
+    var walkway = policy.Apply(
+    [
+        Segment(0, -2550, -1573, -3475, -864),
+        Segment(1, -4087, -888, -3475, -864),
+        Segment(2, -4087, -888, -4549, -1596)
+    ]);
+
+    AssertEqual(1, walkway.Count, "a boundary chained across three gateway records is one exit");
+    AssertEqual("gateway:385:0:384", walkway[0].StableId, "the first segment of the chain is the one announced");
+
+    // Two genuinely separate doors to one destination must survive. These are the Kalm
+    // Materia and Weapon store fronts, 285 units apart, already hand-labelled separately.
+    var kalmShopFronts = policy.Apply(
+    [
+        new FieldNavigationTarget(
+            335,
+            FieldNavigationCategory.Exits,
+            "Enter Materia Store",
+            43,
+            966,
+            309,
+            "gateway:335:2:328",
+            CompletesOnArrival: true,
+            DestinationFieldIds: [328],
+            TriggerLine: new FieldNavigationTriggerLine(-1, 966, 309, 88, 966, 309)),
+        new FieldNavigationTarget(
+            335,
+            FieldNavigationCategory.Exits,
+            "Enter Weapon Store",
+            410,
+            954,
+            309,
+            "gateway:335:3:328",
+            CompletesOnArrival: true,
+            DestinationFieldIds: [328],
+            TriggerLine: new FieldNavigationTriggerLine(373, 966, 309, 448, 943, 309))
+    ]);
+
+    AssertEqual(2, kalmShopFronts.Count, "separate shop doors sharing a destination must stay separate");
+
+    // Script trigger lines are authored one at a time and are never chained away.
+    var honeyBeeRooms = policy.Apply(
+    [
+        new FieldNavigationTarget(
+            218,
+            FieldNavigationCategory.Exits,
+            "Enter the Group Room",
+            -356,
+            -213,
+            26,
+            "script-exit:218:13:220",
+            CompletesOnArrival: true,
+            DestinationFieldIds: [220],
+            TriggerLine: new FieldNavigationTriggerLine(-375, -213, 26, -337, -213, 26)),
+        new FieldNavigationTarget(
+            218,
+            FieldNavigationCategory.Exits,
+            "Enter the &$#% Room",
+            -343,
+            193,
+            26,
+            "script-exit:218:14:220",
+            CompletesOnArrival: true,
+            DestinationFieldIds: [220],
+            TriggerLine: new FieldNavigationTriggerLine(-375, -213, 26, -312, 238, 26))
+    ]);
+
+    AssertEqual(2, honeyBeeRooms.Count, "script exits must never be chained away, even sharing an endpoint");
+}
+
+static void AssertFieldExitLabelResolverDisambiguatesSlumsAndJunonDoors()
+{
+    var resolver = new FieldExitLabelResolver(
+        _ => FieldMapNameResolution.Unknown,
+        () => "");
+    (string StableId, string Expected)[] cases =
+    [
+        ("gateway:145:1:146", "Exit to Sector 7 Station, upper walkway"),
+        ("gateway:145:2:146", "Exit to Sector 7 Station, ground level"),
+        ("gateway:151:3:148", "Enter Sector 7 Weapon Shop, ground floor"),
+        ("gateway:151:4:148", "Enter Sector 7 Weapon Shop, upstairs"),
+        ("gateway:172:2:173", "Exit to Sector 5 Slum, church road"),
+        ("gateway:192:1:194", "Exit to Sector 6, road to Wall Market"),
+        ("gateway:205:4:195", "Exit to the Wall Market shopping street"),
+        ("gateway:207:0:210", "Exit to Corneo Hall 2nd floor, main landing"),
+        ("gateway:368:1:369", "Exit to the Barracks, inner room"),
+        ("gateway:393:0:392", "Exit to Junon Path, upper level"),
+        ("gateway:218:1:214", "Exit to Honey Bee Inn, entrance")
+    ];
+    foreach (var (stableId, expected) in cases)
+    {
+        var resolved = resolver.Resolve(
+        [
+            new FieldNavigationTarget(0, FieldNavigationCategory.Exits, "Exit", 0, 0, 0, stableId)
+        ]);
+        AssertEqual(expected, resolved[0].Label, stableId);
+    }
 }
 static void AssertFieldExitLabelResolverLabelsHoneyBeeInnRooms()
 {

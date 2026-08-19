@@ -84,6 +84,38 @@ public sealed class FieldExitLabelResolver
             "gateway:350:2:4" => "Leave the mine for the world map, Midgar side",
             "gateway:351:0:350" => "Tunnel back to the mine entrance",
             "gateway:352:0:349" => "Tunnel back to the main cavern",
+            // Midgar slums. Contiguous gateway chains are collapsed by
+            // FieldExitPresentationPolicy; what is left here are real pairs of doors that
+            // share a destination map name. Height is the discriminator wherever the game
+            // stacks them: the two Sector 7 Weapon Shop doors below sit at z=0 and z=276,
+            // matching the already-verified "ground floor"/"upstairs" pair on field 148.
+            "gateway:145:1:146" => "Exit to Sector 7 Station, upper walkway",
+            "gateway:145:2:146" => "Exit to Sector 7 Station, ground level",
+            "gateway:146:1:145" => "Exit to Train Graveyard, upper walkway",
+            "gateway:146:2:145" => "Exit to Train Graveyard, ground level",
+            "gateway:151:0:156" => "Exit to the Sector 7 Slums crossroads",
+            "gateway:151:3:148" => "Enter Sector 7 Weapon Shop, ground floor",
+            "gateway:151:4:148" => "Enter Sector 7 Weapon Shop, upstairs",
+            "gateway:151:6:150" => "Exit to Sector 7 Slums, upper walkway",
+            "gateway:172:1:177" => "Exit to the Sector 5 Slums square",
+            "gateway:172:2:173" => "Exit to Sector 5 Slum, church road",
+            "gateway:188:0:187" => "Exit to the garden and the slums",
+            "gateway:188:1:190" => "Stairs to the upper floor",
+            "gateway:192:0:191" => "Exit to Sector 6, road to the Sector 5 Slums",
+            "gateway:192:1:194" => "Exit to Sector 6, road to Wall Market",
+            "gateway:193:0:191" => "Exit to Sector 6, road to the Sector 5 Slums",
+            "gateway:193:1:194" => "Exit to Sector 6, road to Wall Market",
+            "gateway:205:1:222" => "Exit to the Wall Market side street",
+            "gateway:205:4:195" => "Exit to the Wall Market shopping street",
+            "gateway:207:0:210" => "Exit to Corneo Hall 2nd floor, main landing",
+            "gateway:207:2:208" => "Exit to Corneo Hall 2nd floor, side room",
+            "gateway:218:0:216" => "Exit to Honey Bee Inn, dressing room",
+            "gateway:218:1:214" => "Exit to Honey Bee Inn, entrance",
+            // Junon. Both remaining pairs lead to different screens that share one map name.
+            "gateway:368:0:367" => "Exit to the Barracks, toward the street",
+            "gateway:368:1:369" => "Exit to the Barracks, inner room",
+            "gateway:393:0:392" => "Exit to Junon Path, upper level",
+            "gateway:393:1:394" => "Exit to Junon Path, lower level",
             _ => null
         };
         if (exactLabel is not null)
