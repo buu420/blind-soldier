@@ -255,30 +255,47 @@ public sealed class FieldScriptNavigationCatalog
                 }
 
                 var actions = new List<NavigationAction>();
-                foreach (var script in group.Scripts.Where(pair =>
-                             pair.Key > 1 ||
-                             IsVerifiedActionActivatedExitScript(fieldId, group.Index, pair.Key)))
+                // A LINE entity's script 1 is its native [OK] handler. Treating those as
+                // exits would invent doorways that need a button press, which is why they
+                // sit behind IsVerifiedActionActivatedExitScript. A climb is not a doorway
+                // though, and the Mythril Mine vines live in exactly this slot: excluding
+                // it wholesale kept the upper ledge off the walkmesh graph, so the
+                // Junon-side mine mouth and the Long Range Materia above it were reported
+                // unreachable. Collect these separately so they can reach the transition
+                // list without reaching the exit list.
+                var okHandlerActions = new List<NavigationAction>();
+                foreach (var script in group.Scripts)
                 {
+                    var isEntryScript =
+                        script.Key > 1 ||
+                        IsVerifiedActionActivatedExitScript(fieldId, group.Index, script.Key);
+                    if (!isEntryScript && script.Key != 1)
+                    {
+                        continue;
+                    }
+
                     var scriptPaths = CollectNavigationActionPaths(
                         groups,
                         group.Index,
                         script.Key,
                         new Dictionary<BankByteAddress, byte>(),
                         new HashSet<(int Group, int Script)>());
-                    // Script 1 is a LINE entity's native [OK] handler. It is
-                    // action-activated even when the handler goes straight to
+                    // Script 1 is action-activated even when the handler goes straight to
                     // MAPJUMP without an explicit field-button opcode.
                     var requiresAction =
                         script.Key == 1 ||
                         RequiresActionActivation(script.Value);
+                    var sink = isEntryScript ? actions : okHandlerActions;
                     foreach (var path in scriptPaths)
                     {
-                        actions.AddRange(CollapseNavigationRoutine(path.Actions).Select(action =>
+                        sink.AddRange(CollapseNavigationRoutine(path.Actions).Select(action =>
                             action with { RequiresActionActivation = requiresAction }));
                     }
                 }
 
-                foreach (var action in actions.Where(action => action.Kind is ActionKind.Ladder or ActionKind.Jump))
+                foreach (var action in actions
+                             .Concat(okHandlerActions)
+                             .Where(action => action.Kind is ActionKind.Ladder or ActionKind.Jump))
                 {
                     var kind = action.Kind == ActionKind.Ladder
                         ? FieldNavigationTransitionKind.Ladder
@@ -655,6 +672,71 @@ public sealed class FieldScriptNavigationCatalog
         return groups;
     }
 
+
+    /// <summary>
+    /// Resolves a party-slot call by looking at every entity that carries a routine at this
+    /// script index and doing something navigable with it. The copies must agree: agreement
+    /// is what makes the slot a shared character routine rather than a coincidence, and it
+    /// is what lets the call be resolved without knowing the live party. The comparison
+    /// ignores which entity a copy came from, since that is the only thing that legitimately
+    /// differs between them. Disagreement is skipped rather than guessed - an unresolved
+    /// call is exactly what happens today, so skipping costs nothing.
+    /// </summary>
+    private static IReadOnlyList<NavigationExecutionPath> CollectPartyMemberActionPaths(
+        IReadOnlyList<ScriptGroup> groups,
+        int scriptIndex,
+        IReadOnlyDictionary<BankByteAddress, byte> initialConstants,
+        ISet<(int Group, int Script)> callStack)
+    {
+        IReadOnlyList<NavigationExecutionPath>? agreed = null;
+        string? agreedKey = null;
+        for (var groupIndex = 0; groupIndex < groups.Count; groupIndex++)
+        {
+            if (!groups[groupIndex].Scripts.ContainsKey(scriptIndex))
+            {
+                continue;
+            }
+
+            var navigable = CollectNavigationActionPaths(
+                    groups,
+                    groupIndex,
+                    scriptIndex,
+                    initialConstants,
+                    callStack)
+                .Where(path => path.Actions.Count > 0)
+                .ToArray();
+            if (navigable.Length == 0)
+            {
+                continue;
+            }
+
+            var key = DescribePartyMemberActions(navigable);
+            if (agreed is null)
+            {
+                agreed = navigable;
+                agreedKey = key;
+                continue;
+            }
+
+            if (!string.Equals(agreedKey, key, StringComparison.Ordinal))
+            {
+                return Array.Empty<NavigationExecutionPath>();
+            }
+        }
+
+        return agreed ?? (IReadOnlyList<NavigationExecutionPath>)Array.Empty<NavigationExecutionPath>();
+    }
+
+    private static string DescribePartyMemberActions(
+        IReadOnlyList<NavigationExecutionPath> paths) =>
+        string.Join(
+            "|",
+            paths.Select(path => string.Join(
+                ";",
+                path.Actions.Select(action =>
+                    $"{action.Kind}:{action.SourceScript}:{action.X}:{action.Y}:{action.Z}:" +
+                    $"{action.Triangle}:{action.DestinationField}:{action.RequiredInput}:" +
+                    $"{action.RequiresActionActivation}"))));
     private static IReadOnlyList<NavigationExecutionPath> CollectNavigationActionPaths(
         IReadOnlyList<ScriptGroup> groups,
         int groupIndex,
@@ -716,6 +798,38 @@ public sealed class FieldScriptNavigationCatalog
                     cursor.Constants,
                     nestedCallStack);
                 foreach (var calledPath in calledPaths.Take(64 - results.Count))
+                {
+                    var combinedActions = new List<NavigationAction>(
+                        cursor.Actions.Count + calledPath.Actions.Count);
+                    combinedActions.AddRange(cursor.Actions);
+                    combinedActions.AddRange(calledPath.Actions);
+                    pending.Push(cursor.Continue(
+                        nextOffset,
+                        new Dictionary<BankByteAddress, byte>(calledPath.Constants),
+                        combinedActions));
+                }
+
+                continue;
+            }
+
+            if (opcode.Id is >= 0x04 and <= 0x06 && opcode.Bytes.Length >= 3)
+            {
+                // PREQ/PRQSW/PRQEW address a party slot, not an entity, so the group byte
+                // cannot be resolved statically - which is why only the entity-addressed
+                // calls above are followed. But a climbable vine is encoded exactly this
+                // way: the LINE trigger freezes the player and asks whoever is leading to
+                // run its ladder routine, and the field gives every playable character an
+                // identical copy of it. Both Mythril Mine climbs are built like that, and
+                // with the call unresolved the upper ledge stayed off the walkmesh graph -
+                // the Junon-side mine mouth and the Long Range Materia above it were
+                // reported unreachable and hidden from the exit list.
+                var partyScript = opcode.Bytes[2] & 0x1F;
+                var partyPaths = CollectPartyMemberActionPaths(
+                    groups,
+                    partyScript,
+                    cursor.Constants,
+                    nestedCallStack);
+                foreach (var calledPath in partyPaths.Take(64 - results.Count))
                 {
                     var combinedActions = new List<NavigationAction>(
                         cursor.Actions.Count + calledPath.Actions.Count);

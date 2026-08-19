@@ -14,6 +14,13 @@ if (args.Contains("--battle-sense-only", StringComparer.OrdinalIgnoreCase))
     return;
 }
 
+if (args.Contains("--mine-vines-only", StringComparer.OrdinalIgnoreCase))
+{
+    AssertMythrilMineVineClimbsResolveThroughPartySlotCalls();
+    Console.WriteLine("FFVII Mythril Mine vine climb tests passed.");
+    return;
+}
+
 if (args.Contains("--mythril-mine-only", StringComparer.OrdinalIgnoreCase))
 {
     AssertFieldExitLabelResolverDisambiguatesMythrilMineTunnels();
@@ -13364,6 +13371,55 @@ static void AssertFieldExitLabelResolverLabelsSector4Backtrack()
         "field 167's nearby native exit must be identifiable as a backtrack");
 }
 
+static void AssertMythrilMineVineClimbsResolveThroughPartySlotCalls()
+{
+    // Both Mythril Mine climbs are LINE triggers that hand off to the party leader:
+    // psdun_1 line2 runs "06 00 c8" (PRQEW, party slot 0, script 8) and the climb itself
+    // lives in every playable character's script 8. The party slot cannot be resolved to an
+    // entity statically, so the call was skipped, the upper ledge never joined the walkmesh
+    // graph, and everything on it was reported unreachable: the Junon-side mine mouth in
+    // field 349 and the Long Range Materia in field 351.
+    var catalog = new FieldScriptNavigationCatalog(FindGameRoot());
+
+    var junonLedge = catalog.ReadField(349);
+    AssertEqual(true, junonLedge.IsUsable, "field 349 should parse");
+    var climbToJunonLedge = junonLedge.Transitions
+        .Where(transition => transition.Kind == FieldNavigationTransitionKind.Ladder)
+        .Where(transition => transition.TargetTriangle == 59)
+        .ToArray();
+    AssertEqual(
+        true,
+        climbToJunonLedge.Length > 0,
+        "the psdun_1 vine up to the ledge holding the Junon-side mine mouth must be found");
+    AssertEqual(
+        FieldNavigationInput.Up,
+        climbToJunonLedge[0].RequiredInput,
+        "that climb is traversed by holding Up");
+    AssertEqual(-57, climbToJunonLedge[0].TargetZ, "it lands on the upper ledge, not the cavern floor");
+
+    var materiaLedge = catalog.ReadField(351);
+    AssertEqual(true, materiaLedge.IsUsable, "field 351 should parse");
+    var climbToMateria = materiaLedge.Transitions
+        .Where(transition => transition.Kind == FieldNavigationTransitionKind.Ladder)
+        .Where(transition => transition.TargetTriangle == 336)
+        .ToArray();
+    AssertEqual(
+        true,
+        climbToMateria.Length > 0,
+        "the psdun_3 vine up to the Long Range Materia must be found");
+    AssertEqual(436, climbToMateria[0].TargetZ, "it lands on the cliff the materia sits on");
+
+    // Both climbs are two-way. Without the descent the ledge becomes a trap.
+    var descents = junonLedge.Transitions
+        .Where(transition => transition.Kind == FieldNavigationTransitionKind.Ladder)
+        .Where(transition => transition.TargetTriangle == 27)
+        .ToArray();
+    AssertEqual(true, descents.Length > 0, "the psdun_1 climb back down must be found too");
+    AssertEqual(
+        FieldNavigationInput.Down,
+        descents[0].RequiredInput,
+        "the descent is traversed by holding Down");
+}
 static void AssertFieldExitLabelResolverDisambiguatesMythrilMineTunnels()
 {
     // Every gateway inside the mine leads to another Mythril Mine screen, so the generated
