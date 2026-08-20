@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -16,4 +16,4 @@ using System.Runtime.Versioning;
 [assembly: InternalsVisibleTo("FFVII_LAUNCHER.Accessibility.Tests")]
 [assembly: AssemblyFileVersion("2.0.0.0")]
 [assembly: AssemblyVersion("2.0.0.0")]
-[assembly: AssemblyInformationalVersion("2.0.0.0+blind-soldier.0.3.1")]
+[assembly: AssemblyInformationalVersion("2.0.0.0+blind-soldier.0.4.0")]
