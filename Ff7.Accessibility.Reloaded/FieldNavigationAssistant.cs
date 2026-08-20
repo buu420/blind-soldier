@@ -1118,21 +1118,16 @@ public sealed class FieldNavigationController
     {
         ResetLadderMountPrompt();
         FieldNavigationRouteGuidance? liveRouteGuidance = null;
+        // A mounted climb is not player-steered walking, so the route must be held
+        // rather than re-evaluated. See FieldNavigationRouteTracker.TryHold.
         if (!routeStartsAfterMountedLadder &&
-            routeTracker?.TryUpdate(
+            routeTracker?.TryHold(
                 position,
                 target,
-                observation,
-                observedAt,
                 out var updatedGuidance) == true)
         {
             liveRouteGuidance = updatedGuidance;
             currentGuidance = updatedGuidance;
-            if (updatedGuidance.Replanned)
-            {
-                RestartProgressSegment(ResolveProgressRemainingDistance(updatedGuidance));
-            }
-
             ObserveProgress(ResolveProgressRemainingDistance(updatedGuidance));
         }
         else if (routeTracker?.TryMeasureRemainingDistance(position, out var remainingDistance) == true)
@@ -1175,12 +1170,21 @@ public sealed class FieldNavigationController
         }
         else if (!routeStartsAfterMountedLadder &&
                  pendingLadderAction is null &&
+                 !IsDirectionalInput(ladderState.RequiredInput) &&
                  liveRouteGuidance is { } routeGuidance)
         {
             // Some field walkmeshes, notably Floor 63's crawlspace, report the
             // same native movement mode as a ladder even though the route bends
             // across several horizontal and vertical segments. Keep advancing
             // the actual route and let its live waypoint own each turn.
+            //
+            // Only when the native climb has no direction of its own. The native
+            // input is the button the player must physically hold and outranks
+            // any direction inferred from route geometry. A reroute at the moment
+            // of mounting clears pendingLadderAction, and the route's next
+            // waypoint is then still the mount approach behind the player;
+            // deriving a direction from that told players to "climb left" onto
+            // Fort Condor's entrance ladder, which the native state reports as Up.
             var waypoint = ResolveGuidanceWaypoint(routeGuidance);
             var routeInput = movementObserver.ResolveStickDirection(
                 waypoint.X - position.X,

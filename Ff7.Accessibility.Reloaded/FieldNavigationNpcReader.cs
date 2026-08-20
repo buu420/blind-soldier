@@ -327,7 +327,24 @@ public sealed class FieldNavigationNpcReader
             [(345, 9)] = "Chocobo",
             [(345, 10)] = "Chocobo",
             [(345, 11)] = "Chocobo",
-            [(345, 12)] = "Chocobo"
+            [(345, 12)] = "Chocobo",
+
+            // Fort Condor. Roles come from the walkthrough's Fort Condor section
+            // and agree with both the field models and the native entity names:
+            // convil_1's shop pair is literally scripted as "materia" and
+            // "itemya", the elder as "jijii", and the watch-room operator as
+            // "mihari", the lookout. A sighted player sees a staffed counter or
+            // a man on the lookout, so naming the role reveals nothing extra.
+            // convil_2's event2/event3/itemget entities load no model at all, so
+            // there is nothing on screen and they stay unlabeled. The save point
+            // in convil_1 and the Phoenix Materia in convil_4 are navigation
+            // objects and remain in the field object catalog.
+            [(353, 10)] = "Villager blocking the path",
+            [(355, 27)] = "Materia shopkeeper",
+            [(355, 28)] = "Item shopkeeper",
+            [(355, 29)] = "Fort Condor elder",
+            [(356, 22)] = "Lookout",
+            [(358, 15)] = "Condor"
         };
 
     private static readonly IReadOnlyDictionary<
@@ -391,7 +408,12 @@ public sealed class FieldNavigationNpcReader
                 .Concat(Enumerable.Range(195, 17))
                 .Concat([214, 216, 218])
                 .Concat(Enumerable.Range(273, 55))
-                .Concat(Enumerable.Range(328, 18)));
+                .Concat(Enumerable.Range(328, 18))
+
+                // Fort Condor: condor1, condor2, convil_1..convil_4. Every
+                // visible Talk model there is labeled above; anything else on
+                // these screens loads no model and must not be guessed at.
+                .Concat(Enumerable.Range(353, 6)));
 
     private readonly Func<int, int> readInt32;
     private readonly Func<int, short> readInt16;

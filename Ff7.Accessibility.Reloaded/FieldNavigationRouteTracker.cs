@@ -155,6 +155,62 @@ public sealed class FieldNavigationRouteTracker
         return TryBuild(position, target, replanned: false, "activation", out guidance);
     }
 
+    /// <summary>
+    /// Keeps the committed route exactly where it is while the player is moving
+    /// under something other than their own walking input.
+    /// </summary>
+    /// <remarks>
+    /// A climb travels almost entirely in Z while the planner reasons in X and Y,
+    /// and the native triangle id stays on the triangle the player left until the
+    /// rungs run out. Running the normal update through that leaves every
+    /// deviation detector looking at a player who has stopped making horizontal
+    /// progress on a triangle that is no longer on the route, so it replans - and
+    /// the only triangle it can resolve is the one at the foot of the ladder.
+    /// Fort Condor's save room showed exactly that twice inside four seconds: the
+    /// route was rebuilt mid-climb with its next waypoint back at the mount point,
+    /// so auto-walk started steering the player back down the ladder they were
+    /// halfway up. Holding costs nothing, because the ladder is a portal on the
+    /// route already: the next ordinary update after the dismount resolves the
+    /// landing triangle and advances the portal index by itself.
+    /// </remarks>
+    public bool TryHold(
+        FieldPositionSnapshot position,
+        FieldNavigationTarget target,
+        out FieldNavigationRouteGuidance guidance)
+    {
+        guidance = default;
+        if (plan is null ||
+            plan.FieldId != position.FieldId ||
+            !string.Equals(plan.TargetId, GetTargetId(target), StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        lastPosition = position;
+
+        // The position the hold ends on is a long way from the one it started on,
+        // which is a deviation to every counter that survives the hold. Clear them
+        // so the first update after the dismount judges the player on new evidence.
+        ResetOffRouteEvidence();
+        ResetHeadingHeldOffRouteEvidence();
+        ResetBlockedMovementEvidence();
+
+        guidance = CreateGuidance(
+            position,
+            plan,
+            stableWaypoints,
+            portalIndex,
+            waypointIndex,
+            currentResolvedTriangle,
+            replanned: false,
+            "route held through scripted movement",
+            routeOrigin,
+            routeOriginPortalIndex,
+            FindRouteIndex(plan.TrianglePath, currentResolvedTriangle, portalIndex));
+        currentGuidance = guidance;
+        return true;
+    }
+
     public bool TryUpdate(
         FieldPositionSnapshot position,
         FieldNavigationTarget target,

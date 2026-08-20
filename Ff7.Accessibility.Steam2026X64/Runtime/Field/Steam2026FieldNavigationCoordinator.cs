@@ -479,7 +479,11 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             var nativeExitsCoherent = TryRefreshExitTargets(position, nowUtc, out var exitDiagnostic);
             routePlanner.BeginObservation();
             currentReachableExits = nativeExitsCoherent
-                ? reachableExitProvider.ReadTargets(position)
+                ? reachableExitProvider.ReadTargets(
+                    position,
+                    positionIsScripted:
+                        ladder.IsMounted ||
+                        (cue.Module == FieldPositionReader.FieldModule && cue.UserControl != 0))
                 : NoTargets;
             var routeCoherent = nativeExitsCoherent && !routePlanner.HadReadFailure;
             var exitsCoherent = nativeExitsCoherent && routeCoherent;

@@ -277,6 +277,13 @@ public sealed class FieldWalkmeshRoutePlanner :
     IFieldNavigationRouteReadStatus
 {
     private const int LadderPairMaximumEndpointDistance = 192;
+
+    /// <summary>
+    /// How far a scripted trigger's authored elevation may sit from the triangle
+    /// the planner anchors it to. Matches the separation the corridor lookahead
+    /// already treats as "a different storey".
+    /// </summary>
+    private const double OffMeshLinkMaximumAnchorElevationError = 192d;
     private const int NativeInteractionVerticalRange = 256;
     private const double InteractionApproachInset = 8d;
     private const double InteractionRangeEpsilon = 0.5d;
@@ -1694,12 +1701,15 @@ public sealed class FieldWalkmeshRoutePlanner :
                 continue;
             }
 
-            var sourceTriangle = FieldWalkmeshPathfinder.ResolveTriangle(
+            // A trigger's authored elevation is exact, so it must anchor to a
+            // triangle on its own storey or to none at all. See
+            // FieldWalkmeshPathfinder.ResolveTriangleAtElevation.
+            var sourceTriangle = FieldWalkmeshPathfinder.ResolveTriangleAtElevation(
                 walkmesh,
                 transition.SourceX,
                 transition.SourceY,
                 transition.SourceZ,
-                preferredTriangleIndex: -1);
+                OffMeshLinkMaximumAnchorElevationError);
             if (sourceTriangle < 0)
             {
                 continue;
@@ -1770,12 +1780,16 @@ public sealed class FieldWalkmeshRoutePlanner :
                 continue;
             }
 
-            var candidateSourceTriangle = FieldWalkmeshPathfinder.ResolveTriangle(
+            // The other end of a ladder is anchored under the same rule as this
+            // end: a trigger belongs to its own storey or to nothing. Pairing
+            // through the permissive resolver would re-admit the wrong floor by
+            // the back door.
+            var candidateSourceTriangle = FieldWalkmeshPathfinder.ResolveTriangleAtElevation(
                 walkmesh,
                 candidate.SourceX,
                 candidate.SourceY,
                 candidate.SourceZ,
-                preferredTriangleIndex: -1);
+                OffMeshLinkMaximumAnchorElevationError);
             if (candidateSourceTriangle < 0)
             {
                 continue;
@@ -1959,6 +1973,13 @@ public static class FieldWalkmeshPathfinder
     private const double PortalClearanceFraction = 1d / 6d;
     private const double SteepApproachMinimumElevationChange = 96d;
     private const double SteepApproachMinimumGrade = 0.5d;
+
+    /// <summary>
+    /// How far, in plan view, a trigger may sit from the nearest triangle on its
+    /// own storey and still anchor to it. Audited across every field carrying
+    /// transitions: the furthest legitimate fallback is 148 units.
+    /// </summary>
+    private const double MaximumAnchorPlanarFallbackDistanceSquared = 384d * 384d;
 
     public static bool TryFindNextWaypoint(
         FieldWalkmesh walkmesh,
@@ -2425,6 +2446,97 @@ public static class FieldWalkmeshPathfinder
         int z,
         int preferredTriangleIndex) =>
         FindBestTriangle(walkmesh.Triangles, x, y, z, preferredTriangleIndex);
+
+    /// <summary>
+    /// Resolves a triangle for a point whose elevation is known to be reliable,
+    /// refusing to answer with one from a different storey.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="FindBestTriangle"/> weights the elevation error heavily but
+    /// never rejects on it, so it always returns the best planar match no matter
+    /// how far away vertically that match is. In a field built as a tower that
+    /// silently staples a trigger to the floor underneath it. Fort Condor is the
+    /// case in point: convil_1's ladder trigger <c>ladder:355:12</c> is authored
+    /// at (1080, 270, 671), no triangle at that height covers those coordinates,
+    /// and the save room's triangle 11 does - 653 units below. The planner then
+    /// believed a ladder led up out of the save room floor, steered the player to
+    /// exactly the point beneath it, and left them oscillating there with 663
+    /// units of the route still to travel and no horizontal move that could make
+    /// progress. Two of that field's fifteen transitions land that way.
+    /// </remarks>
+    public static int ResolveTriangleAtElevation(
+        FieldWalkmesh walkmesh,
+        int x,
+        int y,
+        int z,
+        double maximumElevationError)
+    {
+        var triangles = walkmesh.Triangles;
+        var bestIndex = -1;
+        var bestScore = double.MaxValue;
+        for (var index = 0; index < triangles.Count; index++)
+        {
+            var triangle = triangles[index];
+            if (!ContainsPoint(triangle, x, y))
+            {
+                continue;
+            }
+
+            var zDifference = z - InterpolateZ(triangle, x, y);
+            if (Math.Abs(zDifference) > maximumElevationError)
+            {
+                continue;
+            }
+
+            var centroid = triangle.GetCentroid();
+            var dx = x - centroid.X;
+            var dy = y - centroid.Y;
+            var score = zDifference * zDifference * 64d + (dx * dx + dy * dy) * 0.001d;
+            if (score < bestScore)
+            {
+                bestScore = score;
+                bestIndex = index;
+            }
+        }
+
+        if (bestIndex >= 0)
+        {
+            return bestIndex;
+        }
+
+        // Nothing at the right height covers the point. A trigger at the top of a
+        // ladder can sit just off the edge of the platform it belongs to, so fall
+        // back to the nearest triangle that is at least on the correct storey -
+        // never to one on a different one, and never to one clear across the
+        // field. Every fallback the all-field audit exercises lands within 148
+        // units, so the ceiling below leaves well over double that in margin
+        // while still ruling out a malformed trigger reaching a distant platform.
+        bestScore = double.MaxValue;
+        for (var index = 0; index < triangles.Count; index++)
+        {
+            var triangle = triangles[index];
+            var zDifference = z - triangle.GetCentroid().Z;
+            if (Math.Abs(zDifference) > maximumElevationError)
+            {
+                continue;
+            }
+
+            var planarDistanceSquared = DistanceSquaredToTriangle2D(triangle, x, y);
+            if (planarDistanceSquared > MaximumAnchorPlanarFallbackDistanceSquared)
+            {
+                continue;
+            }
+
+            var score = planarDistanceSquared + zDifference * zDifference * 64d;
+            if (score < bestScore)
+            {
+                bestScore = score;
+                bestIndex = index;
+            }
+        }
+
+        return bestIndex;
+    }
 
     public static FieldWalkmeshSegmentTrace TraceWalkableSegment(
         FieldWalkmesh walkmesh,

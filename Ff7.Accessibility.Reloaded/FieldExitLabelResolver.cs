@@ -116,6 +116,26 @@ public sealed class FieldExitLabelResolver
             "gateway:368:1:369" => "Exit to the Barracks, inner room",
             "gateway:393:0:392" => "Exit to Junon Path, upper level",
             "gateway:393:1:394" => "Exit to Junon Path, lower level",
+
+            // Fort Condor. The generated labels doubled the preposition on the
+            // two screens whose map names already start with a place word
+            // ("Exit to Entrance to Fort Condor"), and the hill mouth is a
+            // world-map return point with no map name, so it read as a bare
+            // "Exit". Directions follow the native map names: the base sits
+            // below the entrance, which sits below the fort itself.
+            "gateway:353:0:354" => "Way up to the fort entrance",
+            "gateway:353:1:6" => "Leave Fort Condor for the world map",
+            "gateway:354:0:353" => "Way back down to the base of the fort",
+            "gateway:355:0:356" => "Way up to the Watch Room",
+            "gateway:356:0:355" => "Way back down into Fort Condor",
+
+            // Verified as climbs in flevel: convil_1 entities 3 and 4 are two
+            // approaches onto one ladder down, and condor2 entity 4 is the climb
+            // up into the fort.
+            "script-exit:354:4:355" => "Ladder up into Fort Condor",
+            "script-exit:355:3:354" => "Ladder down to the fort entrance",
+            "script-exit:355:4:354" => "Ladder down to the fort entrance",
+            "script-exit:356:5:358" => "Way up to the top of the mountain",
             _ => null
         };
         if (exactLabel is not null)
