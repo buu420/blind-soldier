@@ -1598,6 +1598,7 @@ internal sealed class Steam2026ResearchSession : IDisposable
 
                     while (hookSet.TryDequeue(out var snapshot))
                     {
+                        pump?.ObserveMenuIngress(snapshot);
                         nameEntryPromptSpeechCoordinator.Observe(snapshot);
 
                         if (lifecycle is null

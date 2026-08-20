@@ -5,12 +5,19 @@ public sealed class MagicMenuSelectionReader
     public const int AddressSelectedPartySlot = 0x00DD17E8;
     public const int AddressCurrentMp = 0x00DBA4AC;
     public const int AddressMagicRecords = 0x00DBA5A0;
+    public const int AddressSummonRecords = 0x00DBA760;
+    public const int AddressEnemySkillRecords = 0x00DBA7E0;
     public const int CharacterBlockSize = 0x440;
     public const int RecordSize = 8;
     public const int MpCostOffset = 1;
 
     private const int PartySlotCount = 3;
     private const int MagicEntryCount = 54;
+    private const int SummonEntryCount = 16;
+    private const int EnemySkillEntryCount = 24;
+    private const int MagicActionIdBase = 0x00;
+    private const int SummonActionIdBase = 0x38;
+    private const int EnemySkillActionIdBase = 0x48;
     private const int WidgetFirstOffset = 0x00;
     private const int WidgetCursorOffset = 0x04;
     private const int WidgetColumnsOffset = 0x08;
@@ -57,31 +64,67 @@ public sealed class MagicMenuSelectionReader
     {
         snapshot = default;
         if (widget.Kind != MenuWidgetKind.MagicList ||
-            !MenuWidgetCatalog.TryResolve(widget.Address, out var descriptor) ||
-            descriptor.Kind != MenuWidgetKind.MagicList ||
-            !TryReadState(widget, out var state) ||
-            state.SpellId == 0xFF)
+            !TryReadSlot(widget, out var slot) ||
+            slot.IsEmpty)
         {
             return false;
         }
 
-        var name = resolveName(state.SpellId);
+        snapshot = slot.Spell;
+        return true;
+    }
+
+    public bool TryReadSlot(ActiveMenuWidgetSnapshot widget, out MagicMenuSlotSnapshot snapshot)
+    {
+        snapshot = default;
+        if (!TryResolveLayout(widget.Kind, out var layout) ||
+            !MenuWidgetCatalog.TryResolve(widget.Address, out var descriptor) ||
+            descriptor.Kind != widget.Kind ||
+            !TryReadState(widget, layout, out var state))
+        {
+            return false;
+        }
+
+        if (state.AbilityId == 0xFF)
+        {
+            if (!TryReadState(widget, layout, out var emptyBookend) || emptyBookend != state)
+            {
+                return false;
+            }
+
+            snapshot = new MagicMenuSlotSnapshot(state.SelectedIndex, true, default);
+            return true;
+        }
+
+        var actionId = state.AbilityId + layout.ActionIdBase;
+        if (actionId >= 0xE0)
+        {
+            return false;
+        }
+
+        var name = resolveName(actionId);
         if (string.IsNullOrWhiteSpace(name) ||
-            !TryReadState(widget, out var bookend) ||
+            !TryReadState(widget, layout, out var bookend) ||
             bookend != state)
         {
             return false;
         }
 
-        snapshot = new MagicMenuSpellSnapshot(
-            state.SpellId,
+        snapshot = new MagicMenuSlotSnapshot(
+            state.SelectedIndex,
+            false,
+            new MagicMenuSpellSnapshot(
+            actionId,
             state.RequiredMp,
             name,
-            resolveDescription(state.SpellId));
+            resolveDescription(actionId)));
         return true;
     }
 
-    private bool TryReadState(ActiveMenuWidgetSnapshot expectedWidget, out MagicSelectionReadState state)
+    private bool TryReadState(
+        ActiveMenuWidgetSnapshot expectedWidget,
+        AbilityMenuLayout layout,
+        out MagicSelectionReadState state)
     {
         state = default;
         if (!TryReadWidget(expectedWidget.Address, out var widget) ||
@@ -100,7 +143,7 @@ public sealed class MagicMenuSelectionReader
         var selectedIndex = (long)widget.First +
             ((long)widget.Cursor * widget.Columns) +
             ((long)widget.ScrollOffset * widget.Columns);
-        if (selectedIndex is < 0 or >= MagicEntryCount ||
+        if (selectedIndex is < 0 || selectedIndex >= layout.EntryCount ||
             !TryComputeAddress(
                 (uint)AddressCurrentMp,
                 partySlot,
@@ -109,7 +152,7 @@ public sealed class MagicMenuSelectionReader
                 0,
                 out var currentMpAddress) ||
             !TryComputeAddress(
-                (uint)AddressMagicRecords,
+                layout.RecordsAddress,
                 partySlot,
                 CharacterBlockSize,
                 selectedIndex,
@@ -122,8 +165,29 @@ public sealed class MagicMenuSelectionReader
         }
 
         // Current MP is a coherence token for the selected party member, not an affordability filter.
-        state = new MagicSelectionReadState(widget, partySlot, currentMp, spellId, requiredMp);
+        state = new MagicSelectionReadState(
+            widget,
+            partySlot,
+            currentMp,
+            (int)selectedIndex,
+            spellId,
+            requiredMp);
         return true;
+    }
+
+    private static bool TryResolveLayout(MenuWidgetKind kind, out AbilityMenuLayout layout)
+    {
+        layout = kind switch
+        {
+            MenuWidgetKind.MagicList =>
+                new AbilityMenuLayout(AddressMagicRecords, MagicEntryCount, MagicActionIdBase),
+            MenuWidgetKind.SummonList =>
+                new AbilityMenuLayout(AddressSummonRecords, SummonEntryCount, SummonActionIdBase),
+            MenuWidgetKind.EnemySkillList =>
+                new AbilityMenuLayout(AddressEnemySkillRecords, EnemySkillEntryCount, EnemySkillActionIdBase),
+            _ => default
+        };
+        return layout.RecordsAddress != 0;
     }
 
     private bool TryReadWidget(uint address, out MagicWidgetReadState widget)
@@ -293,8 +357,14 @@ public sealed class MagicMenuSelectionReader
         MagicWidgetReadState Widget,
         byte PartySlot,
         ushort CurrentMp,
-        byte SpellId,
+        int SelectedIndex,
+        byte AbilityId,
         byte RequiredMp);
+
+    private readonly record struct AbilityMenuLayout(
+        uint RecordsAddress,
+        int EntryCount,
+        int ActionIdBase);
 
     private readonly record struct MagicWidgetReadState(
         int First,
@@ -322,3 +392,8 @@ public readonly record struct MagicMenuSpellSnapshot(
     int MpCost,
     string Name,
     string? Description);
+
+public readonly record struct MagicMenuSlotSnapshot(
+    int Slot,
+    bool IsEmpty,
+    MagicMenuSpellSnapshot Spell);

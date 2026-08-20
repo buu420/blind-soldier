@@ -57,7 +57,7 @@ public sealed class BattleMenuFrameSpeechCoordinator
                 return;
             }
 
-            var selectionKey = $"{snapshot.PartySlot}\u001f{frameState}\u001f{selection.EntryId}\u001f{selection.Name}\u001f{selection.IsAvailable}";
+            var selectionKey = $"{snapshot.PartySlot}\u001f{frameState}\u001f{selection.SlotIndex}\u001f{selection.EntryId}\u001f{selection.Name}\u001f{selection.IsAvailable}";
             if (lastSelectionKeys.TryGetValue(frameState, out var lastSelectionKey) &&
                 string.Equals(selectionKey, lastSelectionKey, StringComparison.Ordinal))
             {

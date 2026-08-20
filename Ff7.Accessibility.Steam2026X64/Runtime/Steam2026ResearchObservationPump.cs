@@ -22,6 +22,8 @@ internal sealed class Steam2026ResearchObservationPump
     private readonly Steam2026FieldObservationReader fieldReader;
     private readonly FieldCountdownReader countdownReader;
     private readonly FieldCountdownSpeechCoordinator countdownSpeechCoordinator = new();
+    private readonly RootMainMenuRenderEvidenceTracker rootMainMenuRenderEvidenceTracker =
+        new(TimeSpan.FromMilliseconds(300));
     private string? lastMainMenuStateKey;
     private int mainMenuRevision;
 
@@ -63,6 +65,7 @@ internal sealed class Steam2026ResearchObservationPump
     {
         CurrentFieldResearchSnapshot = null;
         countdownSpeechCoordinator.Reset();
+        rootMainMenuRenderEvidenceTracker.Reset();
         lifecycleReader.BeginShutdown();
     }
 
@@ -97,6 +100,26 @@ internal sealed class Steam2026ResearchObservationPump
 
     internal void ResetCountdownSpeech() =>
         countdownSpeechCoordinator.Reset();
+
+    internal void ObserveMenuIngress(TranslatedMenuIngressSnapshot snapshot)
+    {
+        if (snapshot.Text is not { } text ||
+            snapshot.Cursor is not null ||
+            snapshot.ActiveWidget is not null ||
+            text.Source != snapshot.CallbackKind)
+        {
+            return;
+        }
+
+        rootMainMenuRenderEvidenceTracker.Observe(
+            new MenuTextRenderEntry(
+                text.Text,
+                unchecked((uint)text.X),
+                unchecked((uint)text.Y),
+                text.Color,
+                text.Context),
+            snapshot.TimestampUtc);
+    }
 
     internal bool TryReadFrame(out RuntimeFrameObservation frame)
     {
@@ -183,6 +206,7 @@ internal sealed class Steam2026ResearchObservationPump
             moduleId,
             shopOwnershipRead,
             ownsShop,
+            rootMainMenuRenderEvidenceTracker.IsActive(DateTime.UtcNow),
             RuntimeDomainUpdate<MenuFrameObservation>.Unchanged,
             ref lastMainMenuStateKey);
         if (ownershipUpdate.Kind == RuntimeDomainUpdateKind.Closed)
@@ -262,10 +286,15 @@ internal sealed class Steam2026ResearchObservationPump
         int moduleId,
         bool shopOwnershipRead,
         bool ownsShop,
+        bool rootMenuRecentlyRendered,
         RuntimeDomainUpdate<MenuFrameObservation> update,
         ref string? lastStateKey)
     {
-        if (HasMainMenuOwnership(moduleId, shopOwnershipRead, ownsShop))
+        if (HasMainMenuOwnership(
+                moduleId,
+                shopOwnershipRead,
+                ownsShop,
+                rootMenuRecentlyRendered))
         {
             return update;
         }
@@ -277,10 +306,17 @@ internal sealed class Steam2026ResearchObservationPump
     private static bool HasMainMenuOwnership(
         int moduleId,
         bool shopOwnershipRead,
-        bool ownsShop) =>
-        moduleId == ShopMenuStateReader.ShopModule &&
-        shopOwnershipRead &&
-        !ownsShop;
+        bool ownsShop,
+        bool rootMenuRecentlyRendered)
+    {
+        if (moduleId == ShopMenuStateReader.ShopModule)
+        {
+            return shopOwnershipRead && !ownsShop && rootMenuRecentlyRendered;
+        }
+
+        return rootMenuRecentlyRendered &&
+            moduleId is FieldPositionReader.FieldModule or WorldMapStateReader.WorldModule;
+    }
 
     internal static MenuFrameObservation CreateQuitConfirmationMenuFrame(
         QuitConfirmationSnapshot snapshot,

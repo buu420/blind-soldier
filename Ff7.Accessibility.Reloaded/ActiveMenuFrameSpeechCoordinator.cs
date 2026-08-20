@@ -25,6 +25,7 @@ public sealed class ActiveMenuFrameSpeechCoordinator
     private string[]? cachedItemArrangeLabels;
     private SpeechCandidate? pending;
     private uint? lastCompletedWidgetAddress;
+    private MenuWidgetKind lastCompletedWidgetKind = MenuWidgetKind.Generic;
     private bool limitConfirmationPromptPending;
 
     public void ObserveDraw(MenuTextRenderEntry entry)
@@ -68,6 +69,7 @@ public sealed class ActiveMenuFrameSpeechCoordinator
 
             var widgetBecameActive = lastCompletedWidgetAddress != widget.Address;
             lastCompletedWidgetAddress = widget.Address;
+            lastCompletedWidgetKind = widget.Kind;
             if (widgetBecameActive)
             {
                 limitConfirmationPromptPending = widget.Kind == MenuWidgetKind.LimitConfirmation;
@@ -153,23 +155,44 @@ public sealed class ActiveMenuFrameSpeechCoordinator
             }
             else if (widget.Kind == MenuWidgetKind.ItemList)
             {
-                if (widget.InventoryItem is not { Name.Length: > 0 } item)
+                if (widget.InventoryItem is { Name.Length: > 0 } item)
+                {
+                    speech = FormatInventoryItem(item);
+                }
+                else if (widget.EmptySlot is { } emptySlot)
+                {
+                    speech = "Empty slot";
+                    nativeSelectionIdentity = $"empty:{emptySlot.Slot}";
+                }
+                else
                 {
                     ClearPendingSelection(widget.Address);
                     return;
                 }
-
-                speech = FormatInventoryItem(item);
             }
-            else if (widget.Kind == MenuWidgetKind.MagicList)
+            else if (widget.Kind is MenuWidgetKind.MagicList or
+                MenuWidgetKind.SummonList or
+                MenuWidgetKind.EnemySkillList)
             {
-                if (widget.MagicSpell is not { Name.Length: > 0 } spell)
+                if (widget.MagicSpell is { Name.Length: > 0 } spell)
+                {
+                    speech = FormatMagicSpell(spell);
+                }
+                else if (widget.EmptySlot is { } emptySlot)
+                {
+                    speech = "Empty slot";
+                    nativeSelectionIdentity = $"empty:{emptySlot.Slot}";
+                }
+                else if (widget.Kind is MenuWidgetKind.SummonList or MenuWidgetKind.EnemySkillList &&
+                    TryFindCursorSelection(text, cursors, out var renderedAbility))
+                {
+                    speech = AppendFrameDescription(widget.Kind, renderedAbility.Text, text);
+                }
+                else
                 {
                     ClearPendingSelection(widget.Address);
                     return;
                 }
-
-                speech = FormatMagicSpell(spell);
             }
             else if (widget.Kind == MenuWidgetKind.MateriaSlot)
             {
@@ -240,6 +263,26 @@ public sealed class ActiveMenuFrameSpeechCoordinator
         }
     }
 
+    /// <summary>
+    /// True when the widget completed most recently belongs to the Magic screen
+    /// (category, spell/summon/enemy-skill list, or spell target). The Reform/PHS
+    /// ownership gate uses this to avoid claiming a screen that is not its own.
+    /// </summary>
+    public bool LastCompletedWidgetIsMagicScreen
+    {
+        get
+        {
+            lock (sync)
+            {
+                return lastCompletedWidgetKind is MenuWidgetKind.MagicCategory or
+                    MenuWidgetKind.MagicList or
+                    MenuWidgetKind.MagicTarget or
+                    MenuWidgetKind.SummonList or
+                    MenuWidgetKind.EnemySkillList;
+            }
+        }
+    }
+
     public string? Poll()
     {
         lock (sync)
@@ -271,6 +314,7 @@ public sealed class ActiveMenuFrameSpeechCoordinator
             cachedItemCommandLabels = null;
             cachedItemArrangeLabels = null;
             lastCompletedWidgetAddress = null;
+            lastCompletedWidgetKind = MenuWidgetKind.Generic;
             limitConfirmationPromptPending = false;
         }
     }

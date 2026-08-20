@@ -219,4 +219,7 @@ public readonly record struct ActiveMenuWidgetSnapshot(
     int ScrollState,
     InventoryItemSnapshot? InventoryItem = null,
     NativeMenuSelection? NativeSelection = null,
-    MagicMenuSpellSnapshot? MagicSpell = null);
+    MagicMenuSpellSnapshot? MagicSpell = null,
+    NativeEmptyMenuSlotSnapshot? EmptySlot = null);
+
+public readonly record struct NativeEmptyMenuSlotSnapshot(int Slot);

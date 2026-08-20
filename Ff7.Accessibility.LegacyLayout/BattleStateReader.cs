@@ -1257,7 +1257,7 @@ public sealed class BattleStateReader
                 AddressEnemySkillScrollRow,
                 2,
                 AddressEnemySkillRecords,
-                12,
+                24,
                 EnemySkillActionIdBase,
                 currentMp,
                 out selection),
@@ -1443,11 +1443,6 @@ public sealed class BattleStateReader
         out BattleMenuSelectionSnapshot selection)
     {
         selection = default;
-        if (resolveAbilityName is null)
-        {
-            return false;
-        }
-
         // Current MP ties the ability record to the actor snapshot; it must not hide visible native rows.
         if (!TryReadAbilitySelectionState(
                 partySlot,
@@ -1458,8 +1453,38 @@ public sealed class BattleStateReader
                 recordsAddress,
                 recordCount,
                 out var stateBefore) ||
-            stateBefore.CurrentMp != expectedCurrentMp ||
-            stateBefore.AbilityId == 0xFF)
+            stateBefore.CurrentMp != expectedCurrentMp)
+        {
+            return false;
+        }
+
+        if (stateBefore.AbilityId == 0xFF)
+        {
+            if (!TryReadAbilitySelectionState(
+                    partySlot,
+                    columnAddress,
+                    rowAddress,
+                    scrollAddress,
+                    columns,
+                    recordsAddress,
+                    recordCount,
+                    out var emptyBookend) ||
+                emptyBookend != stateBefore)
+            {
+                return false;
+            }
+
+            selection = new BattleMenuSelectionSnapshot(
+                -1,
+                "Empty slot",
+                null,
+                null,
+                null,
+                SlotIndex: stateBefore.SelectedIndex);
+            return true;
+        }
+
+        if (resolveAbilityName is null)
         {
             return false;
         }
@@ -1500,7 +1525,8 @@ public sealed class BattleStateReader
             name,
             description,
             null,
-            stateBefore.RequiredMp);
+            stateBefore.RequiredMp,
+            SlotIndex: stateBefore.SelectedIndex);
         return true;
     }
 
@@ -1552,6 +1578,7 @@ public sealed class BattleStateReader
             column,
             row,
             scrollRow,
+            (int)selectedIndex,
             currentMp,
             abilityId,
             requiredMp);
@@ -1903,9 +1930,19 @@ public sealed class BattleStateReader
         int Column,
         int Row,
         int ScrollRow,
+        int SelectedIndex,
         ushort CurrentMp,
         byte AbilityId,
         byte RequiredMp);
+
+    private readonly record struct ItemSelectionState(
+        int CursorRow,
+        int ScrollRow,
+        int SelectedIndex,
+        ushort ItemId,
+        byte Quantity,
+        byte ItemUseContext,
+        byte RestrictionFlags);
 
     private readonly record struct ActorCandidate(bool Success, RawBattleActorSnapshot Actor);
 
@@ -2040,50 +2077,35 @@ public sealed class BattleStateReader
     private bool TryReadItemSelection(int partySlot, out BattleMenuSelectionSnapshot selection)
     {
         selection = default;
-        if (resolveItemName is null)
+        if (!TryReadItemSelectionState(partySlot, out var stateBefore))
         {
             return false;
         }
 
-        if (!TryComputeAddress(
-                AddressItemCursorRow,
-                partySlot,
-                CharacterMenuBlockSize,
-                out var cursorAddress) ||
-            !TryComputeAddress(
-                AddressItemScrollRow,
-                partySlot,
-                CharacterMenuBlockSize,
-                out var scrollAddress))
+        if (stateBefore.ItemId == 0xFFFF)
+        {
+            if (!TryReadItemSelectionState(partySlot, out var emptyBookend) ||
+                emptyBookend != stateBefore)
+            {
+                return false;
+            }
+
+            selection = new BattleMenuSelectionSnapshot(
+                -1,
+                "Empty slot",
+                null,
+                null,
+                null,
+                SlotIndex: stateBefore.SelectedIndex);
+            return true;
+        }
+
+        if (stateBefore.Quantity == 0 || resolveItemName is null)
         {
             return false;
         }
 
-        var cursorRow = readInt32(cursorAddress);
-        var scrollRow = readInt32(scrollAddress);
-        var selectedIndex = (long)cursorRow + scrollRow;
-        if (cursorRow < 0 || scrollRow < 0 || selectedIndex is < 0 or >= 320)
-        {
-            return false;
-        }
-
-        if (!TryComputeAddress(
-                AddressBattleItems,
-                (int)selectedIndex,
-                ItemRecordSize,
-                out var recordAddress))
-        {
-            return false;
-        }
-
-        var itemId = readUInt16(recordAddress);
-        var quantity = readByte(recordAddress + ItemQuantityOffset);
-        if (itemId == 0xFFFF || quantity == 0)
-        {
-            return false;
-        }
-
-        var name = resolveItemName(itemId);
+        var name = resolveItemName(stateBefore.ItemId);
         if (string.IsNullOrWhiteSpace(name))
         {
             return false;
@@ -2094,18 +2116,86 @@ public sealed class BattleStateReader
         // render that row gray when the applicable restriction bit is set.
         // Mirror the native color decision so inaccessible rows remain
         // readable without implying that the player can select them.
-        var itemUseContext = readByte(AddressBattleItemUseContext);
-        var restrictionFlags = readByte(recordAddress + ItemRestrictionFlagsOffset);
-        var unavailableMask = itemUseContext is 3 or 10 ? 0x02 : 0x08;
-        var isAvailable = (restrictionFlags & unavailableMask) == 0;
+        var unavailableMask = stateBefore.ItemUseContext is 3 or 10 ? 0x02 : 0x08;
+        var isAvailable = (stateBefore.RestrictionFlags & unavailableMask) == 0;
+        var description = resolveItemDescription?.Invoke(stateBefore.ItemId);
+        if (!TryReadItemSelectionState(partySlot, out var stateAfter) || stateAfter != stateBefore)
+        {
+            return false;
+        }
 
         selection = new BattleMenuSelectionSnapshot(
-            itemId,
+            stateBefore.ItemId,
             name,
-            resolveItemDescription?.Invoke(itemId),
-            quantity,
+            description,
+            stateBefore.Quantity,
             null,
-            isAvailable);
+            isAvailable,
+            stateBefore.SelectedIndex);
+        return true;
+    }
+
+    private bool TryReadItemSelectionState(int partySlot, out ItemSelectionState state)
+    {
+        state = default;
+        if (partySlot is < 0 or >= PartyActorCount ||
+            !TryComputeAddress(
+                AddressItemCursorRow,
+                partySlot,
+                CharacterMenuBlockSize,
+                out var cursorAddress) ||
+            !TryComputeAddress(
+                AddressItemScrollRow,
+                partySlot,
+                CharacterMenuBlockSize,
+                out var scrollAddress) ||
+            !TryReadInt32(cursorAddress, out var cursorRow) ||
+            !TryReadInt32(scrollAddress, out var scrollRow))
+        {
+            return false;
+        }
+
+        var selectedIndex = (long)cursorRow + scrollRow;
+        if (cursorRow < 0 || scrollRow < 0 || selectedIndex is < 0 or >= 320 ||
+            !TryComputeAddress(
+                AddressBattleItems,
+                (int)selectedIndex,
+                ItemRecordSize,
+                out var recordAddress) ||
+            !TryReadUInt16(recordAddress, out var itemId) ||
+            !TryReadByte(recordAddress + ItemQuantityOffset, out var quantity))
+        {
+            return false;
+        }
+
+        if (itemId == 0xFFFF)
+        {
+            state = new ItemSelectionState(
+                cursorRow,
+                scrollRow,
+                (int)selectedIndex,
+                itemId,
+                quantity,
+                0,
+                0);
+            return true;
+        }
+
+        if (quantity == 0 ||
+            !TryReadByte(AddressBattleItemUseContext, out var itemUseContext) ||
+            !TryReadByte(recordAddress + ItemRestrictionFlagsOffset, out var restrictionFlags))
+        {
+            return false;
+        }
+
+        state = new ItemSelectionState(
+            cursorRow,
+            scrollRow,
+            (int)selectedIndex,
+            itemId,
+            quantity,
+            itemUseContext,
+            restrictionFlags);
         return true;
     }
 
@@ -2360,7 +2450,8 @@ public readonly record struct BattleMenuSelectionSnapshot(
     string? Description,
     int? Quantity,
     int? MpCost,
-    bool IsAvailable = true);
+    bool IsAvailable = true,
+    int SlotIndex = -1);
 
 public readonly record struct BattleTargetSnapshot(
     bool IsValid,

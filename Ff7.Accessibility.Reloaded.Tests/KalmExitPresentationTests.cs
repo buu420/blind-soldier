@@ -47,6 +47,7 @@ internal static class KalmExitPresentationTests
         KalmWorldMapSegmentsUseOneNativeGatedExit();
         NativeExitProviderAppliesKalmPresentationAfterDiscovery();
         KalmTreasureCatalogPublishesEveryCollectibleRecord();
+        ChocoboRanchUsesVerifiedLabelsAndOneWorldMapExit();
     }
 
     private static void StableKalmGatewayIdsUseVerifiedLabels()
@@ -200,6 +201,35 @@ internal static class KalmExitPresentationTests
             2,
             published.Count(target => target.FieldId == 328),
             "same-destination Kalm storefront returns remain independent");
+    }
+
+    private static void ChocoboRanchUsesVerifiedLabelsAndOneWorldMapExit()
+    {
+        var targets = new List<FieldNavigationTarget>
+        {
+            Exit(343, "Exit", 0, "gateway:343:0:344"),
+            Exit(343, "Exit", 1, "gateway:343:1:345"),
+            Exit(344, "Exit", 0, "gateway:344:0:343"),
+            Exit(345, "Exit", 0, "gateway:345:0:343")
+        };
+        for (var index = 2; index <= 8; index++)
+        {
+            targets.Add(Exit(343, "Exit", index, $"gateway:343:{index}:3"));
+        }
+
+        var resolved = new FieldExitLabelResolver(
+            _ => FieldMapNameResolution.Unknown,
+            () => "Chocobo Farm").Resolve(targets);
+        var published = new FieldExitPresentationPolicy(() => true).Apply(resolved);
+
+        Equal(5, published.Count, "ranch publishes house, stables, both return doors, and one world-map exit");
+        Equal("Enter Choco Bill's house", published.Single(target => target.StableId == "gateway:343:0:344").Label, "ranch house label");
+        Equal("Enter Chocobo stables", published.Single(target => target.StableId == "gateway:343:1:345").Label, "ranch stable label");
+        Equal("Leave Choco Bill's house for Chocobo Farm", published.Single(target => target.StableId == "gateway:344:0:343").Label, "ranch house return label");
+        Equal("Leave Chocobo stables for Chocobo Farm", published.Single(target => target.StableId == "gateway:345:0:343").Label, "ranch stable return label");
+        var worldMapExit = published.Single(target => target.Label == "Leave Chocobo Farm for World Map");
+        Equal("gateway:343:6:3", worldMapExit.StableId, "ranch world-map boundary keeps the verified central segment");
+        Equal(0, published.Count(target => target.Label == "Exit"), "ranch exposes no anonymous exits");
     }
 
     private static FieldNavigationTarget Exit(int fieldId, string label, int index, string stableId) =>

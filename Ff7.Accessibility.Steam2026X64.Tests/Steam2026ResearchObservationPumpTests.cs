@@ -8,7 +8,38 @@ internal static class Steam2026ResearchObservationPumpTests
     {
         PublishesOnlyCoherentFieldUpdates();
         PublishesNativeQuitConfirmationSelection();
+        ExactRenderedRootMenuOwnsWorldMapOverlay();
         MainMenuOwnershipFailsClosedAndReacquires();
+    }
+
+    private static void ExactRenderedRootMenuOwnsWorldMapOverlay()
+    {
+        var raw = RuntimeDomainUpdate<MenuFrameObservation>.Present(
+            new MenuFrameObservation(
+                "Main Menu",
+                isOpen: true,
+                revision: 4,
+                [new MenuRowObservation(1, "Magic", true, true)]));
+        string? stateKey = "world-map-root";
+
+        var visible = Steam2026ResearchObservationPump.NormalizeMainMenuOwnershipUpdate(
+            moduleId: 3,
+            shopOwnershipRead: false,
+            ownsShop: false,
+            rootMenuRecentlyRendered: true,
+            raw,
+            ref stateKey);
+        Equal(RuntimeDomainUpdateKind.Present, visible.Kind, "rendered world-map root menu owns speech");
+
+        var stale = Steam2026ResearchObservationPump.NormalizeMainMenuOwnershipUpdate(
+            moduleId: 3,
+            shopOwnershipRead: false,
+            ownsShop: false,
+            rootMenuRecentlyRendered: false,
+            raw,
+            ref stateKey);
+        Equal(RuntimeDomainUpdateKind.Closed, stale.Kind, "stale world-map root menu is closed");
+        Equal<string?>(null, stateKey, "stale world-map root menu clears dedupe state");
     }
 
     private static void PublishesNativeQuitConfirmationSelection()
@@ -76,11 +107,23 @@ internal static class Steam2026ResearchObservationPumpTests
         AssertClosedAndCleared(moduleId: 5, shopOwnershipRead: false, ownsShop: false, raw,
             "incoherent shop ownership must close stale main-menu state");
 
+        string? transitionStateKey = "stale-shop-transition";
+        var transition = Steam2026ResearchObservationPump.NormalizeMainMenuOwnershipUpdate(
+            moduleId: 5,
+            shopOwnershipRead: true,
+            ownsShop: false,
+            rootMenuRecentlyRendered: false,
+            raw,
+            ref transitionStateKey);
+        Equal(RuntimeDomainUpdateKind.Closed, transition.Kind, "shop transition without root-menu rendering closes stale state");
+        Equal<string?>(null, transitionStateKey, "shop transition clears stale main-menu state");
+
         string? stateKey = null;
         var reacquired = Steam2026ResearchObservationPump.NormalizeMainMenuOwnershipUpdate(
             moduleId: 5,
             shopOwnershipRead: true,
             ownsShop: false,
+            rootMenuRecentlyRendered: true,
             raw,
             ref stateKey);
         Equal(RuntimeDomainUpdateKind.Present, reacquired.Kind, "root menu reacquires a present update");
@@ -99,6 +142,7 @@ internal static class Steam2026ResearchObservationPumpTests
             moduleId,
             shopOwnershipRead,
             ownsShop,
+            rootMenuRecentlyRendered: true,
             raw,
             ref stateKey);
         Equal(RuntimeDomainUpdateKind.Closed, update.Kind, label);

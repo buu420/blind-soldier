@@ -48,6 +48,18 @@ public sealed class InventoryItemReader
     public bool TryRead(int slot, out InventoryItemSnapshot snapshot)
     {
         snapshot = default;
+        if (!TryReadSlot(slot, out var slotSnapshot) || slotSnapshot.IsEmpty)
+        {
+            return false;
+        }
+
+        snapshot = slotSnapshot.Item;
+        return true;
+    }
+
+    public bool TryReadSlot(int slot, out InventoryMenuSlotSnapshot snapshot)
+    {
+        snapshot = default;
         if (slot is < 0 or >= SlotCount)
         {
             return false;
@@ -55,14 +67,20 @@ public sealed class InventoryItemReader
 
         if (addressSpace is not null)
         {
-            return TryReadChecked(slot, out snapshot);
+            return TryReadSlotChecked(slot, out snapshot);
         }
 
         var address = savemapAddress + itemsOffset + (slot * sizeof(ushort));
         var raw = readUInt16!(address);
         if (raw == 0xFFFF)
         {
-            return false;
+            if (readUInt16(address) != raw)
+            {
+                return false;
+            }
+
+            snapshot = new InventoryMenuSlotSnapshot(slot, true, default);
+            return true;
         }
 
         var itemId = raw & 0x1FF;
@@ -72,17 +90,23 @@ public sealed class InventoryItemReader
             return false;
         }
 
-        snapshot = new InventoryItemSnapshot(
+        var item = new InventoryItemSnapshot(
             slot,
             itemId,
             quantity,
             raw,
             resolveItemName?.Invoke(itemId),
             resolveItemDescription?.Invoke(itemId));
+        if (readUInt16(address) != raw)
+        {
+            return false;
+        }
+
+        snapshot = new InventoryMenuSlotSnapshot(slot, false, item);
         return true;
     }
 
-    private bool TryReadChecked(int slot, out InventoryItemSnapshot snapshot)
+    private bool TryReadSlotChecked(int slot, out InventoryMenuSlotSnapshot snapshot)
     {
         snapshot = default;
         var candidateAddress =
@@ -94,9 +118,21 @@ public sealed class InventoryItemReader
 
         var address = (uint)candidateAddress;
         var checkedAddressSpace = addressSpace!;
-        if (!checkedAddressSpace.TryReadUInt16(address, out var raw) || raw == 0xFFFF)
+        if (!checkedAddressSpace.TryReadUInt16(address, out var raw))
         {
             return false;
+        }
+
+        if (raw == 0xFFFF)
+        {
+            if (!checkedAddressSpace.TryReadUInt16(address, out var emptyBookend) ||
+                emptyBookend != raw)
+            {
+                return false;
+            }
+
+            snapshot = new InventoryMenuSlotSnapshot(slot, true, default);
+            return true;
         }
 
         var itemId = raw & 0x1FF;
@@ -113,16 +149,22 @@ public sealed class InventoryItemReader
             return false;
         }
 
-        snapshot = new InventoryItemSnapshot(
+        var item = new InventoryItemSnapshot(
             slot,
             itemId,
             quantity,
             raw,
             name,
             description);
+        snapshot = new InventoryMenuSlotSnapshot(slot, false, item);
         return true;
     }
 }
+
+public readonly record struct InventoryMenuSlotSnapshot(
+    int Slot,
+    bool IsEmpty,
+    InventoryItemSnapshot Item);
 
 public readonly record struct InventoryItemSnapshot(
     int Slot,
