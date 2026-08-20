@@ -137,6 +137,14 @@ public sealed class AccessibilityConfig
     public bool EnableMenuTextRenderDiagnostics { get; set; } = true;
     public bool EnableInGameMenuTextDrawDiagnostics { get; set; } = true;
     public bool EnableInGameMenuTextDrawSpeech { get; set; } = false;
+
+    /// <summary>
+    /// Samples the data segment while the Fort Condor battle is running so its
+    /// cursor and menu state can be located. The battle draws no text through
+    /// any hookable routine, so nothing there can be read without this.
+    /// </summary>
+    public bool EnableCondorMinigameProbe { get; set; } = true;
+    public int CondorMinigameProbeIntervalMs { get; set; } = 120;
     public bool EnableTitleMenuNativeCursorSpeech { get; set; } = true;
     public bool EnableTitleMenuNativeCursorDiagnostics { get; set; } = true;
     public int TitleMenuNativeCursorSettleMs { get; set; } = 0;
