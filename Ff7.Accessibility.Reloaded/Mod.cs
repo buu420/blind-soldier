@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -171,6 +171,8 @@ public sealed class Mod : IModV1, IModV2
     private readonly NativeFieldMessageOwnershipTracker nativeFieldMessageOwnershipTracker =
         new(TimeSpan.FromSeconds(5));
     private MainMenuSpeechScheduler mainMenuSpeechScheduler = new(TimeSpan.FromMilliseconds(90));
+    private readonly RootMainMenuRenderEvidenceTracker rootMainMenuRenderEvidenceTracker =
+        new(TimeSpan.FromMilliseconds(300));
     private RenderedMenuTextSpeechTracker renderedMenuTextSpeechTracker = new(TimeSpan.FromMilliseconds(90));
     private TitleLoadMenuSpeechTracker? titleLoadMenuSpeechTracker;
     private TitleLoadMenuDataReader? titleLoadMenuDataReader;
@@ -180,6 +182,7 @@ public sealed class Mod : IModV1, IModV2
     private readonly StaticMenuCursorSpeechTracker staticMenuCursorSpeechTracker = new(TimeSpan.FromMilliseconds(30));
     private readonly StatusMenuSpeechTracker statusMenuSpeechTracker = new(TimeSpan.FromMilliseconds(30));
     private PartyFormationSpeechTracker partyFormationSpeechTracker = new(TimeSpan.Zero);
+    private PhsRosterNameResolver? phsRosterNameResolver;
     private readonly NativeTextDrawEventQueue nativeTextDrawEventQueue = new(capacity: 2048, maxTextBytes: 128);
     private readonly NativeFieldHookEventQueue nativeFieldHookEventQueue = new(capacity: 2048);
     private readonly FfnxVoicePlaybackEventQueue ffnxVoicePlaybackEventQueue =
@@ -236,6 +239,8 @@ public sealed class Mod : IModV1, IModV2
     private FieldLadderStateReader? fieldLadderStateReader;
     private FieldNavigationControlReader? fieldNavigationControlReader;
     private FieldNavigationInputReader? fieldNavigationInputReader;
+    private CondorMinigameProbe? condorMinigameProbe;
+    private DateTime lastCondorMinigameProbeAt = DateTime.MinValue;
     private FieldAudibleCueOwnershipStateReader? fieldAudibleCueStateReader;
     private FieldRunStateReader? fieldRunStateReader;
     private InventoryItemReader? inventoryItemReader;
@@ -286,6 +291,9 @@ public sealed class Mod : IModV1, IModV2
     private IntervalFieldNavigationProgressSink? fieldNavigationProgressSink;
     private WorldMapStateReader? worldMapStateReader;
     private WorldMapEntityReader? worldMapEntityReader;
+    private MidgarZolomStateReader? midgarZolomStateReader;
+    private readonly MidgarZolomCrossingTracker midgarZolomCrossingTracker = new();
+    private readonly MidgarZolomAreaTracker midgarZolomAreaTracker = new();
     private readonly Dictionary<(int MapType, int ProgressStage), WorldMapRuntimeContext> worldMapRuntimes = [];
     private NavigationAutoWalkController? navigationAutoWalkController;
     private NavigationAutoWalkDomain pendingNavigationAutoWalkToggle;
@@ -344,6 +352,14 @@ public sealed class Mod : IModV1, IModV2
     private uint lastFieldPositionModelBase;
     private string lastFieldRunStateDiagnostic = string.Empty;
     private string lastFieldLadderStateDiagnostic = string.Empty;
+
+    /// <summary>
+    /// True while the player is somewhere their own walking input did not put
+    /// them - mounted on a ladder, or moved by a script that holds their
+    /// controls. Nothing routes from those positions, so the exit list holds
+    /// rather than emptying.
+    /// </summary>
+    private bool fieldPositionIsScripted;
     private int fieldFootstepErrorCount;
     private string lastSuppressedFootstepKey = string.Empty;
     private int fieldNavigationErrorCount;
@@ -449,6 +465,7 @@ public sealed class Mod : IModV1, IModV2
             fieldCountdownSpeechCoordinator.Reset();
             ffnxVoicePlaybackTracker.Reset();
             saveMenuSpeechTracker.Reset();
+            rootMainMenuRenderEvidenceTracker.Reset();
             squatMinigameCueCoordinator?.Reset();
             cancellation?.Cancel();
             if (monitorThread is { IsAlive: true } && Thread.CurrentThread != monitorThread)
@@ -645,13 +662,16 @@ public sealed class Mod : IModV1, IModV2
         pendingNavigationAutoWalkToggle = NavigationAutoWalkDomain.None;
         lastNavigationAutoWalkFailure = string.Empty;
         floor60GuardTimingStateReader = new Floor60GuardTimingStateReader(legacyAddressSpace);
+        condorMinigameProbe = new CondorMinigameProbe(legacyAddressSpace, Log);
         TryInitializeFfnxPopupReader(force: true);
         mainMenuSpeechScheduler = new MainMenuSpeechScheduler(TimeSpan.FromMilliseconds(Math.Max(0, config.MainMenuSpeechSettleMs)));
         renderedMenuTextSpeechTracker = new RenderedMenuTextSpeechTracker(TimeSpan.FromMilliseconds(Math.Max(0, config.RenderedMenuTextSpeechSettleMs)));
         saveMenuSpeechTracker = new SaveMenuSpeechTracker(
             TimeSpan.FromMilliseconds(Math.Max(0, config.InGameMenuSpeechSettleMs)));
+        phsRosterNameResolver = new PhsRosterNameResolver(legacyAddressSpace);
         partyFormationSpeechTracker = new PartyFormationSpeechTracker(
-            TimeSpan.FromMilliseconds(Math.Max(0, config.InGameMenuSpeechSettleMs)));
+            TimeSpan.FromMilliseconds(Math.Max(0, config.InGameMenuSpeechSettleMs)),
+            phsRosterNameResolver.TryResolve);
         titleLoadMenuDataReader = new TitleLoadMenuDataReader(legacyAddressSpace);
         titleLoadMenuSpeechTracker = new TitleLoadMenuSpeechTracker(
             TimeSpan.FromMilliseconds(Math.Max(0, config.TitleLoadMenuSpeechSettleMs)),
@@ -1042,7 +1062,9 @@ public sealed class Mod : IModV1, IModV2
             FieldNavigationTargetSource.CreateOpeningReactorRoute(
                 objectTargetProvider: position => fieldNavigationObjectReader.ReadTargets(position),
                 storyTargetProvider: ReadFieldStoryTargets,
-                exitTargetProvider: position => reachableFieldExitTargetProvider.ReadTargets(position),
+                exitTargetProvider: position => reachableFieldExitTargetProvider.ReadTargets(
+                    position,
+                    fieldPositionIsScripted),
                 npcTargetProvider: position => fieldNavigationNpcReader.ReadTargets(position)),
             fieldNavigationRoutePlanner,
             fieldId => FieldNavigationDistanceCalibration.ResolveForNavigation(
@@ -1203,6 +1225,7 @@ public sealed class Mod : IModV1, IModV2
                 TickFieldZoneTransitionCue();
                 TickFieldSwingingBarTimingCue();
                 TickSquatMinigameCue();
+                TickCondorMinigameProbe();
                 TickFloor60SoldierTurnCue();
                 TickTitleMenuReader();
                 TickOpeningMovieDescription();
@@ -1315,7 +1338,9 @@ public sealed class Mod : IModV1, IModV2
             sleep = Math.Min(sleep, Math.Max(30, config.FieldNavigationScanIntervalMs));
         }
 
-        if (config.EnableWorldMapFootstepFeedback || config.EnableWorldMapNavigationAssistant)
+        if (config.EnableSpeech ||
+            config.EnableWorldMapFootstepFeedback ||
+            config.EnableWorldMapNavigationAssistant)
         {
             sleep = Math.Min(sleep, Math.Max(30, config.WorldMapScanIntervalMs));
         }
@@ -1801,6 +1826,30 @@ public sealed class Mod : IModV1, IModV2
         swingingBarTimingCuePlayer?.Play(reason);
         Speak("Jump now.", interrupt: true);
         Log($"Swinging-bar native success window announced: {reason}.");
+    }
+
+    /// <summary>
+    /// The Fort Condor battle is silent because it draws no text the mod can
+    /// see. See CondorMinigameProbe for what this samples and why.
+    /// </summary>
+    private void TickCondorMinigameProbe()
+    {
+        if (!config.EnableCondorMinigameProbe || condorMinigameProbe is null)
+        {
+            return;
+        }
+
+        var now = DateTime.UtcNow;
+        var interval = TimeSpan.FromMilliseconds(Math.Max(40, config.CondorMinigameProbeIntervalMs));
+        if (now - lastCondorMinigameProbeAt < interval)
+        {
+            return;
+        }
+
+        lastCondorMinigameProbeAt = now;
+        condorMinigameProbe.Tick(
+            ReadByte(FieldPositionReader.AddressCurrentModule),
+            fieldNavigationInputReader?.Read().RawStatus ?? 0u);
     }
 
     private void TickSquatMinigameCue()
@@ -3346,6 +3395,9 @@ public sealed class Mod : IModV1, IModV2
         worldMapRuntimes.Clear();
         worldMapStateReader = new WorldMapStateReader(legacyAddressSpace);
         worldMapEntityReader = new WorldMapEntityReader(legacyAddressSpace);
+        midgarZolomStateReader = new MidgarZolomStateReader(legacyAddressSpace);
+        midgarZolomCrossingTracker.Reset();
+            midgarZolomAreaTracker.Reset();
         worldMapNavigationProgressSink?.Dispose();
         worldMapNavigationProgressSink = null;
         worldMapNavigationProgressBar?.Dispose();
@@ -3434,7 +3486,9 @@ public sealed class Mod : IModV1, IModV2
 
     private void TickWorldMapAccessibility()
     {
-        if (!config.EnableWorldMapFootstepFeedback && !config.EnableWorldMapNavigationAssistant)
+        if (!config.EnableSpeech &&
+            !config.EnableWorldMapFootstepFeedback &&
+            !config.EnableWorldMapNavigationAssistant)
         {
             battleStatusLimitKeyFrameRouter.DiscardNavigationPress(
                 WorldMapStateReader.WorldModule);
@@ -3458,6 +3512,8 @@ public sealed class Mod : IModV1, IModV2
             var module = ReadByte(WorldMapStateReader.AddressCurrentModule);
             if (module != WorldMapStateReader.WorldModule)
             {
+                midgarZolomCrossingTracker.Reset();
+            midgarZolomAreaTracker.Reset();
                 battleStatusLimitKeyFrameRouter.DiscardNavigationPress(
                     WorldMapStateReader.WorldModule);
                 DiscardNavigationAutoWalkToggle(NavigationAutoWalkDomain.WorldMap);
@@ -3519,6 +3575,9 @@ public sealed class Mod : IModV1, IModV2
                     context.Footsteps.Reset();
                 }
 
+                midgarZolomCrossingTracker.Reset();
+            midgarZolomAreaTracker.Reset();
+
                 worldMapNavigationBeaconPlayer?.StopAll();
                 SuspendNavigationAutoWalk(NavigationAutoWalkDomain.WorldMap);
                 return;
@@ -3552,10 +3611,14 @@ public sealed class Mod : IModV1, IModV2
                     WorldMapStateReader.WorldModule);
                 DiscardNavigationAutoWalkToggle(NavigationAutoWalkDomain.WorldMap);
                 runtime.Footsteps.Reset();
+                midgarZolomCrossingTracker.Reset();
+            midgarZolomAreaTracker.Reset();
                 worldMapNavigationBeaconPlayer?.StopAll();
                 SuspendNavigationAutoWalk(NavigationAutoWalkDomain.WorldMap);
                 return;
             }
+
+            ObserveMidgarZolomCrossing(runtime, state);
 
             if (config.EnableWorldMapFootstepFeedback && runtime.Footsteps.Observe(state, now))
             {
@@ -3613,6 +3676,8 @@ public sealed class Mod : IModV1, IModV2
                 WorldMapStateReader.WorldModule);
             DiscardNavigationAutoWalkToggle(NavigationAutoWalkDomain.WorldMap);
             worldMapAccessibilityErrorCount++;
+            midgarZolomCrossingTracker.Reset();
+            midgarZolomAreaTracker.Reset();
             worldMapNavigationBeaconPlayer?.StopAll();
             SuspendNavigationAutoWalk(NavigationAutoWalkDomain.WorldMap);
             if (worldMapAccessibilityErrorCount <= 10)
@@ -3620,6 +3685,48 @@ public sealed class Mod : IModV1, IModV2
                 Log($"World-map accessibility error: {ex.Message}");
             }
         }
+    }
+
+    private void ObserveMidgarZolomCrossing(
+        WorldMapRuntimeContext runtime,
+        WorldMapStateSnapshot state)
+    {
+        if (!config.EnableSpeech)
+        {
+            midgarZolomCrossingTracker.Reset();
+            midgarZolomAreaTracker.Reset();
+            return;
+        }
+
+        var zolom = midgarZolomStateReader?.Read()
+            ?? MidgarZolomStateReadResult.Invalid(
+                default,
+                "Midgar Zolom reader is not initialized");
+        var isAtMarshShore =
+            state.IsOverworld &&
+            runtime.IsAtTerrainBoundary(state, terrainId: 7);
+        var crossingCueSpoken = midgarZolomCrossingTracker.Observe(state, zolom, isAtMarshShore);
+        if (crossingCueSpoken)
+        {
+            Log(
+                $"Midgar Zolom crossing window: player={state.X},{state.Z}, " +
+                $"zolom={zolom.State.X},{zolom.State.Z}, shoreline={isAtMarshShore}.");
+            Speak(MidgarZolomCrossingTracker.CueText);
+        }
+
+        var isOnMarsh =
+            state.IsOverworld &&
+            runtime.IsOnTerrain(state, MidgarZolomAreaTracker.MarshTerrainId);
+        var areaCue = midgarZolomAreaTracker.Observe(state, zolom, isOnMarsh, crossingCueSpoken);
+        if (areaCue is null)
+        {
+            return;
+        }
+
+        Log(
+            $"Midgar Zolom area: player={state.X},{state.Z}, model={state.PlayerModelId}, " +
+            $"onMarsh={isOnMarsh}, zolom={zolom.State.IsActive}: {areaCue}");
+        Speak(areaCue);
     }
 
     private void ProcessWorldMapNavigationOutput(
@@ -3659,6 +3766,8 @@ public sealed class Mod : IModV1, IModV2
 
         worldMapNavigationBeaconPlayer?.StopAll();
         worldMapNavigationProgressSink?.Deactivate();
+        midgarZolomCrossingTracker.Reset();
+            midgarZolomAreaTracker.Reset();
         worldMapWasActive = false;
         lastWorldMapFootstepDiagnostic = string.Empty;
         lastWorldMapNavigationDiagnostic = string.Empty;
@@ -3729,7 +3838,13 @@ public sealed class Mod : IModV1, IModV2
             var ladderResult = fieldLadderStateReader?.Read(result.Position)
                 ?? FieldLadderStateReadResult.Invalid("ladder state reader is not initialized");
             var ladderState = ladderResult.IsUsable ? ladderResult.State : default;
-            var exits = reachableFieldExitTargetProvider?.ReadTargets(result.Position) ?? [];
+            fieldPositionIsScripted =
+                ladderState.IsMounted ||
+                (fieldAudibleCueState.Module == FieldPositionReader.FieldModule &&
+                 fieldAudibleCueState.UserControl != 0);
+            var exits = reachableFieldExitTargetProvider?.ReadTargets(
+                result.Position,
+                fieldPositionIsScripted) ?? [];
             var navigationSuppressed = FieldNavigationSuppressionPolicy.IsNavigationSuppressed(
                 fieldAudibleCueState,
                 ladderState,
@@ -4242,7 +4357,9 @@ public sealed class Mod : IModV1, IModV2
                 return;
             }
 
-            var targets = reachableFieldExitTargetProvider?.ReadTargets(result.Position) ?? [];
+            var targets = reachableFieldExitTargetProvider?.ReadTargets(
+                result.Position,
+                fieldPositionIsScripted) ?? [];
             var proximityCues = fieldExitProximityCueTracker.Update(result.Position, targets, now);
             if (!fieldExitProximityCueTracker.HasAudibleTargets)
             {
@@ -4844,7 +4961,8 @@ public sealed class Mod : IModV1, IModV2
                 currentModule,
                 shopOwnershipRead,
                 ownsShop,
-                saveMenuSpeechTracker.IsActive))
+                saveMenuSpeechTracker.IsActive,
+                rootMainMenuRenderEvidenceTracker.IsActive(now)))
         {
             ResetMainMenuSpeechOwnership(now);
             return;
@@ -5039,15 +5157,24 @@ public sealed class Mod : IModV1, IModV2
                 var slot = snapshot.First +
                     snapshot.Cursor * snapshot.Columns +
                     snapshot.ScrollOffset * snapshot.Columns;
-                return inventoryItemReader.TryRead(slot, out var item)
-                    ? snapshot with { InventoryItem = item }
-                    : snapshot;
+                if (!inventoryItemReader.TryReadSlot(slot, out var inventorySlot))
+                {
+                    return snapshot;
+                }
+
+                return inventorySlot.IsEmpty
+                    ? snapshot with { EmptySlot = new NativeEmptyMenuSlotSnapshot(inventorySlot.Slot) }
+                    : snapshot with { InventoryItem = inventorySlot.Item };
             }
 
-            if (snapshot.Kind == MenuWidgetKind.MagicList &&
-                magicMenuSelectionReader?.TryRead(snapshot, out var spell) == true)
+            if (snapshot.Kind is MenuWidgetKind.MagicList or
+                    MenuWidgetKind.SummonList or
+                    MenuWidgetKind.EnemySkillList &&
+                magicMenuSelectionReader?.TryReadSlot(snapshot, out var abilitySlot) == true)
             {
-                return snapshot with { MagicSpell = spell };
+                return abilitySlot.IsEmpty
+                    ? snapshot with { EmptySlot = new NativeEmptyMenuSlotSnapshot(abilitySlot.Slot) }
+                    : snapshot with { MagicSpell = abilitySlot.Spell };
             }
 
             if (snapshot.Kind == MenuWidgetKind.ConfigSoundVolume &&
@@ -5173,6 +5300,18 @@ public sealed class Mod : IModV1, IModV2
         staticMenuCursorSpeechTracker.ObserveConfigRow(
             ReadInt32(ConfigMenuValueReader.AddressCurrentRow),
             now);
+        // PartyFormationSpeechTracker claims module 5 from a title drawn at x=508, y=13 with
+        // context 0. The Magic screen draws its own "Magic" title at exactly that spot, so the
+        // Reform/PHS gate below was claiming the Magic screen and discarding every spell and
+        // spell-target read - the whole screen went silent while the root menu kept speaking.
+        // The real Reform screen never drives a Magic widget, so an active Magic widget is
+        // proof the claim is not ours. Clearing here keeps stale Reform speech from leaking out.
+        if (partyFormationSpeechTracker.IsActive(now) &&
+            activeMenuFrameSpeechCoordinator.LastCompletedWidgetIsMagicScreen)
+        {
+            partyFormationSpeechTracker.Reset();
+        }
+
         if (partyFormationSpeechTracker.IsActive(now))
         {
             activeMenuFrameSpeechCoordinator.DiscardPending();
@@ -7825,6 +7964,7 @@ public sealed class Mod : IModV1, IModV2
         DateTime now)
     {
         var drawEntry = new MenuTextRenderEntry(decodedText, unchecked((uint)x), unchecked((uint)y), color, context);
+        rootMainMenuRenderEvidenceTracker.Observe(drawEntry, now);
         var saveMenuOwnsSpeech = saveMenuSpeechTracker.IsActive;
         if (!battleVictoryActive &&
             config.EnableBattleMenuSpeech &&
@@ -9757,11 +9897,22 @@ internal static class MainMenuSpeechOwnership
         byte currentModule,
         bool shopOwnershipRead,
         bool ownsShop,
-        bool saveMenuOwnsSpeech) =>
-        currentModule == ShopMenuStateReader.ShopModule &&
-        shopOwnershipRead &&
-        !ownsShop &&
-        !saveMenuOwnsSpeech;
+        bool saveMenuOwnsSpeech,
+        bool rootMenuRecentlyRendered)
+    {
+        if (saveMenuOwnsSpeech)
+        {
+            return false;
+        }
+
+        if (currentModule == ShopMenuStateReader.ShopModule)
+        {
+            return shopOwnershipRead && !ownsShop && rootMenuRecentlyRendered;
+        }
+
+        return rootMenuRecentlyRendered &&
+            currentModule is FieldPositionReader.FieldModule or WorldMapStateReader.WorldModule;
+    }
 }
 
 [global::Reloaded.Hooks.Definitions.X86.Function(global::Reloaded.Hooks.Definitions.X86.CallingConventions.Cdecl)]

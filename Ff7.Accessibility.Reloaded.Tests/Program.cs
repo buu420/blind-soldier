@@ -7,6 +7,40 @@ using Ff7.Accessibility.Reloaded.Runtime;
 using Ff7.Accessibility.Runtime.Abstractions;
 using AccessibilityConfig = Ff7.Accessibility.Core.AccessibilityConfig;
 
+if (args.Contains("--zolom-marsh-extent", StringComparer.OrdinalIgnoreCase))
+{
+    ZolomMarshExtentProbe.Run();
+    return;
+}
+
+if (args.Contains("--field-transition-anchor-audit", StringComparer.OrdinalIgnoreCase))
+{
+    FieldTransitionAnchorAudit.Run(
+        CreateInstalledFieldWalkmeshReader,
+        new FieldScriptNavigationCatalog(FindGameRoot()));
+    return;
+}
+
+if (args.Contains("--fort-condor-only", StringComparer.OrdinalIgnoreCase))
+{
+    FortCondorTests.Run();
+    FortCondorLadderReachabilityTests.Run();
+    FortCondorSaveRoomClimbTests.Run();
+    TowerFieldTransitionAnchoringTests.Run();
+    FortCondorSaveRoomRouteTests.Run(
+        CreateInstalledFieldWalkmeshReader,
+        new FieldScriptNavigationCatalog(FindGameRoot()));
+    Console.WriteLine("FFVII Fort Condor tests passed.");
+    return;
+}
+
+if (args.Contains("--phs-only", StringComparer.OrdinalIgnoreCase))
+{
+    PartyFormationSpeechTrackerTests.Run();
+    Console.WriteLine("FFVII PHS / Form screen tests passed.");
+    return;
+}
+
 if (args.Contains("--battle-sense-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.BattleSenseSpeechTests.Run();
@@ -238,6 +272,7 @@ if (args.Contains("--world-map-only", StringComparer.OrdinalIgnoreCase))
     Ff7.Accessibility.Reloaded.Tests.WorldMapRoutePlannerTests.Run();
     Ff7.Accessibility.Reloaded.Tests.WorldMapFootstepTests.Run();
     Ff7.Accessibility.Reloaded.Tests.MidgarZolomCrossingTrackerTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.MidgarZolomAreaTrackerTests.Run();
     Ff7.Accessibility.Reloaded.Tests.WorldMapNavigationControllerTests.Run();
     Console.WriteLine("FFVII shared world-map accessibility tests passed.");
     return;
@@ -427,6 +462,10 @@ AssertPrismBackendOutputIsSerialized();
 AssertMenuTextRenderDiagnosticsFiltersAndDedupes();
 AssertRenderedMenuTextSpeechTrackerPrefersHighlightedText();
 PartyFormationSpeechTrackerTests.Run();
+FortCondorTests.Run();
+FortCondorLadderReachabilityTests.Run();
+FortCondorSaveRoomClimbTests.Run();
+TowerFieldTransitionAnchoringTests.Run();
 HighwayAccessibilityTrackerTests.Run();
 HighwaySteeringTrackerTests.Run();
 HighwayEngagementSteeringTrackerTests.Run();
@@ -615,6 +654,7 @@ Ff7.Accessibility.Reloaded.Tests.WorldMapTargetCatalogTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WorldMapRoutePlannerTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WorldMapFootstepTests.Run();
 Ff7.Accessibility.Reloaded.Tests.MidgarZolomCrossingTrackerTests.Run();
+Ff7.Accessibility.Reloaded.Tests.MidgarZolomAreaTrackerTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WorldMapNavigationControllerTests.Run();
 AssertFieldLadderStateReaderReadsNativeMountedState();
 AssertFieldLadderStateReaderCorrectsWallClimbPenultimateLadderToLeft();
@@ -28016,6 +28056,12 @@ static Dictionary<int, byte> CreateBattleMemoryWithCloud()
     memory[BattleStateReader.AddressMenuWindowStates + 1] = BattleStateReader.ActiveWindowState;
     memory[SavemapPartyReader.AddressSavemap + SavemapPartyReader.PartyMembersOffset] = 0;
     memory[BattleStateReader.AddressBattleActors + BattleStateReader.ActorInstanceIdOffset] = 0;
+    for (var actorIndex = 4; actorIndex <= 9; actorIndex++)
+    {
+        memory[
+            BattleStateReader.AddressPersistentActorRecords +
+            actorIndex * BattleStateReader.PersistentActorRecordSize] = 0;
+    }
     var characterBase = SavemapPartyReader.AddressSavemap + SavemapPartyReader.CharactersOffset;
     WriteFf7Text(memory, characterBase + SavemapPartyReader.CharacterNameOffset, "Cloud", 12);
     return memory;

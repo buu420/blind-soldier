@@ -47,6 +47,12 @@ public sealed class WorldMapRuntimeContext
 
     public WorldMapNavigationController Navigation { get; }
 
+    public bool IsAtTerrainBoundary(WorldMapStateSnapshot state, int terrainId) =>
+        WorldMapTerrainProximity.IsAtBoundary(Map, Planner, state, terrainId);
+
+    public bool IsOnTerrain(WorldMapStateSnapshot state, int terrainId) =>
+        WorldMapTerrainProximity.IsOnTerrain(Map, Planner, state, terrainId);
+
     public IReadOnlyList<WorldMapEntitySnapshot> Entities => Volatile.Read(ref entities);
 
     public void UpdateEntities(IReadOnlyList<WorldMapEntitySnapshot>? value) =>

@@ -30,6 +30,7 @@ if (args.Contains("--module-tests-only", StringComparer.OrdinalIgnoreCase))
     Steam2026BattleObservationTests.ReadsBattleInventoryObjectRowsAndAvailability();
     Steam2026FieldNavigationRuntimeTests.Run();
     NavigationAutoWalkControllerTests.Run();
+    Steam2026TitleLoadMenuSpeechBridgeTests.Run();
     Console.WriteLine("Steam 2026 x64 module tests passed.");
     return;
 }
@@ -1924,10 +1925,26 @@ static string FindAccessibilityPrototypeRoot()
     var directory = new DirectoryInfo(AppContext.BaseDirectory);
     while (directory is not null)
     {
-        if (Directory.Exists(Path.Combine(directory.FullName, "analysis", "dual_runtime"))
-            && Directory.Exists(Path.Combine(directory.FullName, "reloaded")))
+        foreach (var candidate in new[]
         {
-            return directory.FullName;
+            directory.FullName,
+            Path.Combine(directory.FullName, "accessibility_prototype")
+        })
+        {
+            if (File.Exists(Path.Combine(
+                    candidate,
+                    "analysis",
+                    "dual_runtime",
+                    "evidence-atlas.json")) &&
+                File.Exists(Path.Combine(
+                    candidate,
+                    "analysis",
+                    "dual_runtime",
+                    "evidence-atlas.schema.json")) &&
+                Directory.Exists(Path.Combine(candidate, "reloaded")))
+            {
+                return candidate;
+            }
         }
 
         directory = directory.Parent;

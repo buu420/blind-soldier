@@ -84,8 +84,8 @@ internal static class Steam2026TitleLoadMenuSpeechBridgeTests
         Equal(true, bridge.HasOwnership, "Continue file grid owns title-load speech");
 
         bridge.Observe(Text(++sequence, now, "Select a save game."));
-        bridge.Observe(Text(++sequence, now.AddMilliseconds(1), "GAME"));
-        bridge.Observe(Text(++sequence, now.AddMilliseconds(2), "01"));
+        bridge.Observe(Text(++sequence, now.AddMilliseconds(1), "GAME", 343, 13));
+        bridge.Observe(Text(++sequence, now.AddMilliseconds(2), "01", 402, 13));
         Equal(
             "Select a save game. Game 1. Cloud, level 8. No.1 Reactor. HP 296 of 334. MP 18 of 64. Time 26 minutes, 12 seconds. 539 gil.",
             bridge.Poll(now.AddMilliseconds(2)),
@@ -169,7 +169,12 @@ internal static class Steam2026TitleLoadMenuSpeechBridgeTests
             null);
     }
 
-    private static TranslatedMenuIngressSnapshot Text(long sequence, DateTime now, string value) =>
+    private static TranslatedMenuIngressSnapshot Text(
+        long sequence,
+        DateTime now,
+        string value,
+        int x = 10,
+        int y = 13) =>
         new(
             Steam2026MenuCallbackKind.EncodedTextB,
             sequence,
@@ -179,8 +184,8 @@ internal static class Steam2026TitleLoadMenuSpeechBridgeTests
             new TranslatedMenuTextObservation(
                 Steam2026MenuCallbackKind.EncodedTextB,
                 value,
-                10,
-                13,
+                x,
+                y,
                 7,
                 0));
 

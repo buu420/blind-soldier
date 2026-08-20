@@ -27,6 +27,7 @@
 
   <ItemGroup>
     <Compile Include="..\Ff7.Accessibility.Reloaded\BlindSoldierRuntimeLease.cs" Link="Shared\BlindSoldierRuntimeLease.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\RootMainMenuRenderEvidenceTracker.cs" Link="Shared\RootMainMenuRenderEvidenceTracker.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\ActiveMenuFrameSpeechCoordinator.cs" Link="Shared\ActiveMenuFrameSpeechCoordinator.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\PartyTargetMenuSelectionFormatter.cs" Link="Shared\PartyTargetMenuSelectionFormatter.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\PartyFormationSpeechTracker.cs" Link="Shared\PartyFormationSpeechTracker.cs" />
@@ -49,6 +50,8 @@
     <Compile Include="..\Ff7.Accessibility.Reloaded\WorldMapFunnel.cs" Link="Shared\WorldMapFunnel.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\WorldMapConnectedRunFormatter.cs" Link="Shared\WorldMapConnectedRunFormatter.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\WorldMapFootstepTracker.cs" Link="Shared\WorldMapFootstepTracker.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\WorldMapTerrainProximity.cs" Link="Shared\WorldMapTerrainProximity.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\MidgarZolomCrossingTracker.cs" Link="Shared\MidgarZolomCrossingTracker.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\WorldMapNavigationController.cs" Link="Shared\WorldMapNavigationController.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\WorldMapRuntimeContext.cs" Link="Shared\WorldMapRuntimeContext.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\DeferredZoneSpeechTracker.cs" Link="Shared\DeferredZoneSpeechTracker.cs" />

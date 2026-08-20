@@ -600,8 +600,7 @@ internal static class Steam2026FieldObservationTests
         Equal(false, typeof(IRuntimeEventSink).IsAssignableFrom(readerType), "field research reader is not an event sink");
         Equal(false, readerType.GetMethods().Any(method => method.Name.Contains("Hook", StringComparison.OrdinalIgnoreCase)), "field research reader exposes no hooks");
         Equal(false, readerType.GetMethods().Any(method => method.Name.Contains("Speak", StringComparison.OrdinalIgnoreCase)), "field research reader exposes no speech");
-        using var backend = new Steam2026X64RuntimeBackend(Steam2026Fingerprint.Inspect(
-            @"X:\SteamLibrary\steamapps\common\FINAL FANTASY VII Steam Edition\FFVII.exe"));
+        using var backend = new Steam2026X64RuntimeBackend(supportedFingerprint);
         Equal(
             RuntimeCapability.None,
             backend.ValidateCapabilities().Available,
