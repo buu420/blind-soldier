@@ -19,6 +19,8 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
     private readonly Steam2026ForegroundInputAdapter foregroundInput;
     private readonly WorldMapStateReader stateReader;
     private readonly WorldMapEntityReader entityReader;
+    private readonly MidgarZolomStateReader midgarZolomStateReader;
+    private readonly MidgarZolomCrossingTracker midgarZolomCrossingTracker = new();
     private readonly Dictionary<(int MapType, int ProgressStage), WorldMapRuntimeContext> runtimes = [];
     private readonly NativeFieldNavigationProgressBar? progressBar;
     private readonly IntervalFieldNavigationProgressSink? progressSink;
@@ -60,6 +62,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
 
         stateReader = new WorldMapStateReader(addressSpace);
         entityReader = new WorldMapEntityReader(addressSpace);
+        midgarZolomStateReader = new MidgarZolomStateReader(addressSpace);
         progressBar = config.EnableWorldMapNavigationAssistant
             ? new NativeFieldNavigationProgressBar(log)
             : null;
@@ -166,6 +169,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         ArgumentNullException.ThrowIfNull(frame);
         if (frame.Lifecycle.ModuleId != WorldMapStateReader.WorldModule)
         {
+            midgarZolomCrossingTracker.Reset();
             if (WorldMapNavigationLifecycle.IsCombatInterruptionModule(frame.Lifecycle.ModuleId))
             {
                 foreach (var context in runtimes.Values)
@@ -264,10 +268,13 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         if (!isForeground)
         {
             runtime.Footsteps.Reset();
+            midgarZolomCrossingTracker.Reset();
             beaconPlayer?.StopAll();
             autoWalk.Suspend();
             return;
         }
+
+        ObserveMidgarZolomCrossing(runtime, state);
 
         if (config.EnableWorldMapFootstepFeedback && runtime.Footsteps.Observe(state, nowUtc))
         {
@@ -318,6 +325,8 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
             runtime.Footsteps.Reset();
         }
 
+        midgarZolomCrossingTracker.Reset();
+
         beaconPlayer?.StopAll();
         autoWalk.Suspend();
         log($"Native Steam 2026 world-map accessibility suspended: {diagnostic}.");
@@ -334,10 +343,37 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
 
         beaconPlayer?.StopAll();
         progressSink?.Deactivate();
+        midgarZolomCrossingTracker.Reset();
         autoWalk.Reset();
         nextScanUtc = DateTime.MinValue;
         wasActive = false;
         log($"Native Steam 2026 world-map accessibility reset: {diagnostic}.");
+    }
+
+    private void ObserveMidgarZolomCrossing(
+        WorldMapRuntimeContext runtime,
+        WorldMapStateSnapshot state)
+    {
+        if (!config.EnableSpeech)
+        {
+            midgarZolomCrossingTracker.Reset();
+            return;
+        }
+
+        var zolom = midgarZolomStateReader.Read();
+        var isAtMarshShore =
+            state.IsOverworld &&
+            runtime.IsAtTerrainBoundary(state, terrainId: 7);
+        if (!midgarZolomCrossingTracker.Observe(state, zolom, isAtMarshShore))
+        {
+            return;
+        }
+
+        log(
+            $"Native Steam 2026 Midgar Zolom crossing window: " +
+            $"player={state.X},{state.Z}, zolom={zolom.State.X},{zolom.State.Z}, " +
+            $"shoreline={isAtMarshShore}.");
+        speak(MidgarZolomCrossingTracker.CueText, true);
     }
 
     public void Dispose()
@@ -418,6 +454,8 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         {
             runtime.Footsteps.Reset();
         }
+
+        midgarZolomCrossingTracker.Reset();
 
         beaconPlayer?.StopAll();
         autoWalk.Suspend();

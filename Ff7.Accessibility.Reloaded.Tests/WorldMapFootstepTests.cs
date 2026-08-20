@@ -7,9 +7,41 @@ internal static class WorldMapFootstepTests
     internal static void Run()
     {
         SelectsTheCosmoModelAndTerrainTrackBeforeTheTerrainFallback();
+        ShippedCosmoConfigKeepsMarshFootstepsAudible();
         UsesActualWrappedMovementAndStaysSilentWhenBlocked();
         UsesTheLongerNativeChocoboCadenceForBothRiddenModels();
         RejectsVehicleMovementAndTeleports();
+    }
+
+    private static void ShippedCosmoConfigKeepsMarshFootstepsAudible()
+    {
+        var sourceRoot = Environment.GetEnvironmentVariable("FF7_ACCESSIBILITY_SOURCE_ROOT") ??
+            throw new InvalidOperationException("FF7_ACCESSIBILITY_SOURCE_ROOT is required.");
+        var configPath = Path.Combine(
+            sourceRoot,
+            "Ff7.Accessibility.Reloaded",
+            "Assets",
+            "footsteps",
+            "cosmo",
+            "config.toml");
+
+        foreach (var model in new[] { 0, 1, 2, 4, 19 })
+        {
+            var sequencer = new CosmoFootstepSequencer(
+                CosmoFootstepConfig.Load(configPath),
+                new Dictionary<int, string>(),
+                Path.GetDirectoryName(configPath)!);
+
+            Equal(
+                true,
+                sequencer.TrySelectNext(State(x: 10, terrain: 7, model: model), out var selection),
+                $"marsh mapping exists for world model {model}");
+            Equal(5130, selection.SoundId, $"marsh surface sound for world model {model}");
+            Equal(
+                $"wm_footsteps_{model}_7_159",
+                selection.TrackName,
+                $"exact marsh track for world model {model}");
+        }
     }
 
     private static void SelectsTheCosmoModelAndTerrainTrackBeforeTheTerrainFallback()
