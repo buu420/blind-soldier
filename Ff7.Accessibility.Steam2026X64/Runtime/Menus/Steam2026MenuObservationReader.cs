@@ -21,6 +21,7 @@ public sealed class Steam2026MenuObservationReader
     private readonly ConfigMenuValueReader configReader;
     private readonly MagicMenuSelectionReader magicReader;
     private readonly SavemapPartyReader partyReader;
+    private readonly PhsRosterNameResolver phsRosterReader;
     private readonly OrderMenuSelectionReader orderReader;
     private readonly EquipmentMenuSelectionReader equipmentReader;
     private readonly InventoryItemReader inventoryReader;
@@ -94,6 +95,8 @@ public sealed class Steam2026MenuObservationReader
             resolveAccessoryName,
             savemapAddress,
             inventoryObjectDescriptionResolver);
+        phsRosterReader = new PhsRosterNameResolver(
+            addressSpace, partyReader, PhsRosterNameResolver.AddressPhsRoster);
         orderReader = new OrderMenuSelectionReader(addressSpace, partyReader);
         equipmentReader = new EquipmentMenuSelectionReader(
             addressSpace,
@@ -188,8 +191,24 @@ public sealed class Steam2026MenuObservationReader
         out MagicMenuObservationSnapshot snapshot)
     {
         snapshot = default;
+        if (!TryReadAbilitySlot(widgetGuestAddress, out var ability) ||
+            ability.Widget.Kind != MenuWidgetKind.MagicList ||
+            ability.Slot.IsEmpty)
+        {
+            return false;
+        }
+
+        snapshot = new MagicMenuObservationSnapshot(ability.Widget, ability.Slot.Spell);
+        return true;
+    }
+
+    public bool TryReadAbilitySlot(
+        uint widgetGuestAddress,
+        out AbilityMenuSlotObservationSnapshot snapshot)
+    {
+        snapshot = default;
         if (!widgetReader.TryRead(widgetGuestAddress, out var rawWidget) ||
-            !magicReader.TryRead(rawWidget, out var spell) ||
+            !magicReader.TryReadSlot(rawWidget, out var slot) ||
             !widgetReader.TryRead(widgetGuestAddress, out var widgetBookend) ||
             widgetBookend != rawWidget ||
             !TryNormalizeWidget(rawWidget, out var widget))
@@ -197,7 +216,7 @@ public sealed class Steam2026MenuObservationReader
             return false;
         }
 
-        snapshot = new MagicMenuObservationSnapshot(widget, spell);
+        snapshot = new AbilityMenuSlotObservationSnapshot(widget, slot);
         return true;
     }
 
@@ -215,6 +234,25 @@ public sealed class Steam2026MenuObservationReader
         return true;
     }
 
+    /// <summary>
+    /// Names a PHS reserve-grid cell. That grid is drawn as portraits, so this
+    /// read is the only thing standing between the player and silence there.
+    /// </summary>
+    public string? TryReadPhsRosterName(int gridIndex)
+    {
+        var candidate = phsRosterReader.TryResolve(gridIndex);
+        if (candidate is null)
+        {
+            return null;
+        }
+
+        // Bookend the read the way the other native menu reads here do.
+        return string.Equals(
+            candidate, phsRosterReader.TryResolve(gridIndex), StringComparison.Ordinal)
+            ? candidate
+            : null;
+    }
+
     public bool TryReadOrder(
         uint widgetGuestAddress,
         int partySlot,
@@ -223,6 +261,9 @@ public sealed class Steam2026MenuObservationReader
 
     public bool TryReadInventoryItem(int slot, out InventoryItemSnapshot snapshot) =>
         inventoryReader.TryRead(slot, out snapshot);
+
+    public bool TryReadInventorySlot(int slot, out InventoryMenuSlotSnapshot snapshot) =>
+        inventoryReader.TryReadSlot(slot, out snapshot);
 
     /// <summary>
     /// Reads the translated in-game Save state machine after the exact Save
@@ -390,3 +431,7 @@ public readonly record struct Steam2026MenuWidgetObservationSnapshot(
 public readonly record struct MagicMenuObservationSnapshot(
     Steam2026MenuWidgetObservationSnapshot Widget,
     MagicMenuSpellSnapshot Spell);
+
+public readonly record struct AbilityMenuSlotObservationSnapshot(
+    Steam2026MenuWidgetObservationSnapshot Widget,
+    MagicMenuSlotSnapshot Slot);

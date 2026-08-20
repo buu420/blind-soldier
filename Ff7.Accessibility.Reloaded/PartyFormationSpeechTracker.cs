@@ -6,7 +6,14 @@ namespace Ff7.Accessibility.Reloaded;
 /// </summary>
 public sealed class PartyFormationSpeechTracker
 {
+    public const int FieldModule = 1;
+    public const int WorldMapModule = 3;
     public const int MenuModule = 5;
+
+    /// <summary>
+    /// Not the PHS module. Module 19 is the quit/game-over state; PHS cannot be
+    /// open there. Retained only because the x64 bridge still references it.
+    /// </summary>
     public const int PhsModule = 19;
 
     private const int RootMainMenuContext = 0x3A83126F;
@@ -19,8 +26,18 @@ public sealed class PartyFormationSpeechTracker
 
     private readonly object sync = new();
     private readonly TimeSpan settleTime;
+
+    // The reserve grid is drawn as character portraits, never as text, so the
+    // only way to name the cell under the cursor is to read the native roster.
+    private readonly Func<int, string?>? resolveReserveName;
     private readonly Dictionary<int, ObservedName> activeNames = [];
     private DateTime lastTitleSeenUtc = DateTime.MinValue;
+    private DateTime lastPartyNameDrawUtc = DateTime.MinValue;
+
+    // The prompt draws before the cursor that opens the screen, so it has to be
+    // held aside and adopted on open or the first announcement loses it.
+    private string candidatePromptInstruction = string.Empty;
+    private DateTime candidatePromptUtc = DateTime.MinValue;
     private int screenGeneration;
     private bool introPending;
     private string promptState = string.Empty;
@@ -35,8 +52,16 @@ public sealed class PartyFormationSpeechTracker
     private string lastSpokenKey = string.Empty;
 
     public PartyFormationSpeechTracker(TimeSpan settleTime)
+        : this(settleTime, null)
+    {
+    }
+
+    public PartyFormationSpeechTracker(
+        TimeSpan settleTime,
+        Func<int, string?>? resolveReserveName)
     {
         this.settleTime = settleTime < TimeSpan.Zero ? TimeSpan.Zero : settleTime;
+        this.resolveReserveName = resolveReserveName;
     }
 
     public void ObserveDraw(MenuTextRenderEntry entry, int currentModule, DateTime now)
@@ -50,11 +75,38 @@ public sealed class PartyFormationSpeechTracker
             }
 
             var text = entry.Text.Trim();
+
+            // The three active-party names are the only part of the PHS layout that
+            // reaches the text hook every frame. Record them even before the screen
+            // is known to be open: they are what corroborates the active-party
+            // cursor, whose context FUN_006c7b54 and FUN_006c885e also use.
+            if (TryMapActiveNameSlot(entry, out var activeSlot) && text.Length > 0)
+            {
+                var changed = !activeNames.TryGetValue(activeSlot, out var previous) ||
+                    !string.Equals(previous.Text, text, StringComparison.Ordinal);
+                activeNames[activeSlot] = new ObservedName(text, now);
+                lastPartyNameDrawUtc = now;
+                if (IsActiveCore(now))
+                {
+                    lastTitleSeenUtc = now;
+                    if (changed &&
+                        pendingSelection is null &&
+                        TryParseCurrentCursor(out var current) &&
+                        current.Kind == SelectionKind.ActiveParty &&
+                        current.Index == activeSlot)
+                    {
+                        pendingSelection = current with { SeenAtUtc = now };
+                    }
+                }
+
+                return;
+            }
+
             if (IsReformTitle(entry, text))
             {
                 if (!IsActiveCore(now))
                 {
-                    BeginScreen(text);
+                    BeginScreen(text, now);
                 }
                 else
                 {
@@ -67,36 +119,28 @@ public sealed class PartyFormationSpeechTracker
 
             if (!IsActiveCore(now))
             {
-                return;
-            }
-
-            // An exact root-menu draw means module 5 has already left Reform.
-            if (entry.Context == RootMainMenuContext)
-            {
-                ResetCore();
-                return;
-            }
-
-            if (TryClassifyPrompt(entry, text, out var prompt))
-            {
-                ObservePrompt(prompt, now);
-                return;
-            }
-
-            if (TryMapActiveNameSlot(entry, out var activeSlot) && text.Length > 0)
-            {
-                var changed = !activeNames.TryGetValue(activeSlot, out var previous) ||
-                    !string.Equals(previous.Text, text, StringComparison.Ordinal);
-                activeNames[activeSlot] = new ObservedName(text, now);
-                if (changed &&
-                    pendingSelection is null &&
-                    TryParseCurrentCursor(out var current) &&
-                    current.Kind == SelectionKind.ActiveParty &&
-                    current.Index == activeSlot)
+                // Hold the prompt aside without acting on it. If this turns out
+                // not to be PHS the screen never opens and it is never used.
+                if (TryClassifyPrompt(entry, text, out var candidate))
                 {
-                    pendingSelection = current with { SeenAtUtc = now };
+                    candidatePromptInstruction = candidate.Instruction;
+                    candidatePromptUtc = now;
                 }
 
+                return;
+            }
+
+            // A root-menu draw does NOT mean the screen closed. Runtime logs show
+            // the selected main-menu label still rendering at 508,13 on every PHS
+            // frame, so treating it as an exit reset the screen once per frame and
+            // guaranteed silence. Ownership is released by the evidence window
+            // instead: once PHS stops drawing, nothing refreshes it.
+            if (TryClassifyPrompt(entry, text, out var prompt))
+            {
+                // The PHS prompt redraws every frame, so it is what keeps the
+                // screen alive while the player sits still on one selection.
+                lastTitleSeenUtc = now;
+                ObservePrompt(prompt, now);
                 return;
             }
 
@@ -121,10 +165,26 @@ public sealed class PartyFormationSpeechTracker
                 return;
             }
 
-            if (!IsActiveCore(now) || !TryClassifyCursor(cursor, out var kind, out var index))
+            if (!TryClassifyCursor(cursor, out var kind, out var index))
             {
                 return;
             }
+
+            if (!IsActiveCore(now))
+            {
+                // 0x3DCD0679 is passed to the cursor renderer by FUN_00700c90 and
+                // by nothing else in the binary, so the reserve grid can open the
+                // screen on its own. The active-party context is shared with two
+                // other menus, so it additionally needs the PHS name layout.
+                if (kind != SelectionKind.Reserve && !IsRecent(lastPartyNameDrawUtc, now))
+                {
+                    return;
+                }
+
+                BeginScreen(screenTitle, now);
+            }
+
+            lastTitleSeenUtc = now;
 
             var cursorKey = $"{screenGeneration}:{kind}:{index}";
             if (string.Equals(cursorKey, lastCursorKey, StringComparison.Ordinal))
@@ -173,9 +233,7 @@ public sealed class PartyFormationSpeechTracker
             var selectionText = selection.Kind switch
             {
                 SelectionKind.ActiveParty => FormatActivePartySelection(selection.Index),
-                SelectionKind.Reserve when reserveName is { Length: > 0 } &&
-                    reserveNameSeenUtc >= selection.SeenAtUtc => $"Available member, {reserveName}.",
-                SelectionKind.Reserve => "Empty.",
+                SelectionKind.Reserve => FormatReserveSelection(selection.Index, selection.SeenAtUtc),
                 _ => null
             };
             if (selectionText is null)
@@ -190,7 +248,7 @@ public sealed class PartyFormationSpeechTracker
                 var instruction = promptInstruction.Length > 0
                     ? promptInstruction
                     : "Press Start when finished.";
-                var title = screenTitle.Length > 0 ? screenTitle : "Reform";
+                var title = screenTitle.Length > 0 ? screenTitle : "PHS";
                 speech = $"{title}. {selectionText} {instruction}";
                 key = $"{key}:intro:{promptState}";
                 introPending = false;
@@ -260,6 +318,32 @@ public sealed class PartyFormationSpeechTracker
 
         return $"Party slot {slot + 1}, empty.";
     }
+
+    /// <summary>
+    /// The reserve grid renders each member as a portrait, so a sighted player
+    /// reads a face where the text hook sees nothing. The native roster array is
+    /// the only source for that name.
+    /// </summary>
+    private string FormatReserveSelection(int index, DateTime seenAtUtc)
+    {
+        var resolved = resolveReserveName?.Invoke(index);
+        if (resolved is { Length: > 0 })
+        {
+            return $"Available member, {resolved}.";
+        }
+
+        if (reserveName is { Length: > 0 } && reserveNameSeenUtc >= seenAtUtc)
+        {
+            return $"Available member, {reserveName}.";
+        }
+
+        return "Empty.";
+    }
+
+    private static bool IsRecent(DateTime stamp, DateTime now) =>
+        stamp != DateTime.MinValue &&
+        now >= stamp &&
+        now - stamp <= ScreenEvidenceWindow;
 
     private string? Emit(string text, string key)
     {
@@ -345,8 +429,15 @@ public sealed class PartyFormationSpeechTracker
         ((IsNear(entry.X, 508, 16) && IsNear(entry.Y, 14, 10)) ||
          (IsNear(entry.X, 262, 10) && IsNear(entry.Y, 7, 6)));
 
+    /// <summary>
+    /// PHS has no module of its own: it runs inside whatever module raised it.
+    /// Opening it from the world map keeps module 3, from a field keeps module 1,
+    /// and module 5 is the dedicated menu module. Runtime logs show real PHS
+    /// sessions under module 3, which the old 5-or-19 gate rejected outright.
+    /// <see cref="PhsModule"/> is quit/game-over and is deliberately absent.
+    /// </summary>
     private static bool IsPartyModule(int module) =>
-        module is MenuModule or PhsModule;
+        module is FieldModule or WorldMapModule or MenuModule;
 
     private static bool TryClassifyPrompt(
         MenuTextRenderEntry entry,
@@ -464,19 +555,24 @@ public sealed class PartyFormationSpeechTracker
         now >= lastTitleSeenUtc &&
         now - lastTitleSeenUtc <= ScreenEvidenceWindow;
 
-    private void BeginScreen(string title)
+    private void BeginScreen(string title, DateTime now)
     {
         screenGeneration++;
         introPending = true;
         promptState = string.Empty;
         passivePromptState = string.Empty;
-        promptInstruction = string.Empty;
+
+        // Adopt the prompt seen just before the screen opened; without it the
+        // very first announcement loses the instruction the player can see.
+        promptInstruction = IsRecent(candidatePromptUtc, now) ? candidatePromptInstruction : string.Empty;
         screenTitle = title;
         pendingSelection = null;
         pendingStatus = null;
         reserveName = null;
         reserveNameSeenUtc = DateTime.MinValue;
-        activeNames.Clear();
+
+        // activeNames is deliberately kept: the name draws that corroborated this
+        // screen arrive before it opens, and every entry is timestamp-guarded.
         lastCursorKey = string.Empty;
         lastSpokenKey = string.Empty;
     }
@@ -484,6 +580,7 @@ public sealed class PartyFormationSpeechTracker
     private void ResetCore()
     {
         lastTitleSeenUtc = DateTime.MinValue;
+        lastPartyNameDrawUtc = DateTime.MinValue;
         introPending = false;
         promptState = string.Empty;
         passivePromptState = string.Empty;

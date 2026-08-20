@@ -469,7 +469,10 @@ public sealed class SavemapPartyReader
         return true;
     }
 
-    private bool TryReadCharacter(int characterId, out PartyMemberSnapshot snapshot)
+    /// <summary>
+    /// Resolves a character id to its player-facing name, honouring renames.
+    /// </summary>
+    public bool TryReadCharacter(int characterId, out PartyMemberSnapshot snapshot)
     {
         snapshot = default;
         if (characterId is < 0 or >= 9)

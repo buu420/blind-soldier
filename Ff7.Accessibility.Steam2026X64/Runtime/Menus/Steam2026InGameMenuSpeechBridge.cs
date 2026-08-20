@@ -28,11 +28,17 @@ internal sealed class Steam2026InGameMenuSpeechBridge
     private readonly Func<uint, MagicMenuObservationSnapshot?> readMagic;
     private readonly Func<StatusMenuSnapshot?> readCurrentStatus;
     private readonly Func<int, InventoryItemSnapshot?> readInventoryItem;
+    private Func<int, InventoryMenuSlotSnapshot?> readInventorySlot = _ => null;
+    private Func<uint, AbilityMenuSlotObservationSnapshot?> readAbilitySlot = _ => null;
     private readonly Func<int, int, NativeMenuSelection?> readEquipment;
     private readonly Func<int, NativeMenuSelection?> readSecondaryEquipment;
     private readonly Func<SaveMenuStateSnapshot?> readSaveMenu;
     private Func<NativeMenuSelection?> readEquipmentList = () => null;
     private Func<MenuWidgetKind, NativeMenuSelection?> readMateria = _ => null;
+
+    // Assigned after the constructor chain has already built the first trackers,
+    // so PartyFormationSpeechTracker reads it through a deferred lambda.
+    private Func<int, string?> readPhsRosterName = _ => null;
     private readonly TimeSpan settleTime;
     private ActiveMenuFrameSpeechCoordinator activeMenu = null!;
     private StaticMenuCursorSpeechTracker staticMenu = null!;
@@ -70,6 +76,14 @@ internal sealed class Steam2026InGameMenuSpeechBridge
             settleTime ?? DefaultSettleTime)
     {
         ArgumentNullException.ThrowIfNull(menuReader);
+        readInventorySlot = slot =>
+            menuReader.TryReadInventorySlot(slot, out var inventorySlot)
+                ? inventorySlot
+                : null;
+        readAbilitySlot = address =>
+            menuReader.TryReadAbilitySlot(address, out var abilitySlot)
+                ? abilitySlot
+                : null;
         readOrder = (widgetAddress, partySlot) =>
             menuReader.TryReadOrder(widgetAddress, partySlot, out var selection)
                 ? selection
@@ -86,6 +100,7 @@ internal sealed class Steam2026InGameMenuSpeechBridge
             menuReader.TryReadMateria(kind, out var selection)
                 ? selection
                 : null;
+        readPhsRosterName = menuReader.TryReadPhsRosterName;
     }
 
     internal Steam2026InGameMenuSpeechBridge(
@@ -193,6 +208,22 @@ internal sealed class Steam2026InGameMenuSpeechBridge
         this.readMagic = readMagic ?? throw new ArgumentNullException(nameof(readMagic));
         this.readCurrentStatus = readCurrentStatus ?? throw new ArgumentNullException(nameof(readCurrentStatus));
         this.readInventoryItem = readInventoryItem ?? throw new ArgumentNullException(nameof(readInventoryItem));
+        readInventorySlot = slot =>
+        {
+            var item = this.readInventoryItem(slot);
+            return item is { } candidate
+                ? new InventoryMenuSlotSnapshot(slot, false, candidate)
+                : null;
+        };
+        readAbilitySlot = address =>
+        {
+            var magic = this.readMagic(address);
+            return magic is { } candidate
+                ? new AbilityMenuSlotObservationSnapshot(
+                    candidate.Widget,
+                    new MagicMenuSlotSnapshot(-1, false, candidate.Spell))
+                : null;
+        };
         this.readEquipment = readEquipment ?? throw new ArgumentNullException(nameof(readEquipment));
         this.readSecondaryEquipment = readSecondaryEquipment ?? throw new ArgumentNullException(nameof(readSecondaryEquipment));
         this.readSaveMenu = readSaveMenu ?? throw new ArgumentNullException(nameof(readSaveMenu));
@@ -347,6 +378,16 @@ internal sealed class Steam2026InGameMenuSpeechBridge
             {
                 pendingSaveSpeech = saveMenu.Peek(now);
                 return pendingSaveSpeech?.Text;
+            }
+
+            // Mirrors the legacy x86 host. PartyFormationSpeechTracker claims the menu module
+            // from a title drawn at x=508, y=13 with context 0, and the Magic screen draws its
+            // own "Magic" title in exactly that spot, so the Reform/PHS gate below swallowed
+            // every spell and spell-target read. The real Reform screen never drives a Magic
+            // widget, so an active Magic widget is proof the claim is not ours.
+            if (partyFormation.IsActive(now) && activeMenu.LastCompletedWidgetIsMagicScreen)
+            {
+                partyFormation.Reset();
             }
 
             if (partyFormation.IsActive(now))
@@ -573,12 +614,21 @@ internal sealed class Steam2026InGameMenuSpeechBridge
         InventoryItemSnapshot? inventoryItem = null;
         NativeMenuSelection? nativeSelection = null;
         MagicMenuSpellSnapshot? spell = null;
+        NativeEmptyMenuSlotSnapshot? emptySlot = null;
         try
         {
             if (widget.Kind == MenuWidgetKind.ItemList &&
                 TryGetInventorySlot(widget, out var inventorySlot))
             {
-                inventoryItem = readInventoryItem(inventorySlot);
+                var slot = readInventorySlot(inventorySlot);
+                if (slot is { IsEmpty: true } emptyInventorySlot)
+                {
+                    emptySlot = new NativeEmptyMenuSlotSnapshot(emptyInventorySlot.Slot);
+                }
+                else if (slot is { } populatedInventorySlot)
+                {
+                    inventoryItem = populatedInventorySlot.Item;
+                }
             }
             else if (widget.Kind == MenuWidgetKind.ConfigSoundVolume)
             {
@@ -624,12 +674,21 @@ internal sealed class Steam2026InGameMenuSpeechBridge
             {
                 nativeSelection = readMateria(widget.Kind);
             }
-            else if (widget.Kind == MenuWidgetKind.MagicList)
+            else if (widget.Kind is MenuWidgetKind.MagicList or
+                MenuWidgetKind.SummonList or
+                MenuWidgetKind.EnemySkillList)
             {
-                var observation = readMagic(descriptor.Address);
-                if (observation is { } magic && magic.Widget == ToPublicWidget(widget))
+                var observation = readAbilitySlot(descriptor.Address);
+                if (observation is { } ability && ability.Widget == ToPublicWidget(widget))
                 {
-                    spell = magic.Spell;
+                    if (ability.Slot.IsEmpty)
+                    {
+                        emptySlot = new NativeEmptyMenuSlotSnapshot(ability.Slot.Slot);
+                    }
+                    else
+                    {
+                        spell = ability.Slot.Spell;
+                    }
                 }
             }
         }
@@ -651,7 +710,8 @@ internal sealed class Steam2026InGameMenuSpeechBridge
             widget.ScrollState,
             inventoryItem,
             nativeSelection,
-            spell);
+            spell,
+            emptySlot);
     }
 
     private static bool TryResolveUniqueWidget(
@@ -814,7 +874,9 @@ internal sealed class Steam2026InGameMenuSpeechBridge
         staticMenu = new StaticMenuCursorSpeechTracker(settleTime);
         statusMenu = new StatusMenuSpeechTracker(settleTime);
         materiaTutorial = new MateriaTutorialSpeechTracker();
-        partyFormation = new PartyFormationSpeechTracker(settleTime);
+        partyFormation = new PartyFormationSpeechTracker(
+            settleTime,
+            index => readPhsRosterName(index));
         exactQuitEvidenceExpiresUtc = DateTime.MinValue;
         exactWorldMapMenuEvidenceExpiresUtc = DateTime.MinValue;
     }

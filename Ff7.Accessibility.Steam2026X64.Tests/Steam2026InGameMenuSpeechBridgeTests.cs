@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using Ff7.Accessibility.LegacyLayout;
 using Ff7.Accessibility.Reloaded;
 using Ff7.Accessibility.Steam2026X64.Runtime.Menus;
@@ -24,6 +24,7 @@ internal static class Steam2026InGameMenuSpeechBridgeTests
         ReadsNativeMagicAndPartySelections();
         ReadsNativeItemAndMagicPartyTargets();
         ReadsCheckedInventoryAndExactEquipmentSelections();
+        ReadsNativeEmptyInventoryAndEnemySkillSlots();
         SecondaryEquipmentReaderUsesCheckedSelectorBookends();
         ReadsConfigValueHelpAndStatusSummary();
         ReadsExactQuitChoiceAcrossNameEntryOwnershipCollision();
@@ -365,9 +366,15 @@ internal static class Steam2026InGameMenuSpeechBridgeTests
             "translated Reform empty reserve cell");
     }
 
+    /// <summary>
+    /// PHS has no module of its own: it runs inside whatever module raised it,
+    /// so the bridge sees the ordinary menu module. Driving this at module 19
+    /// only ever passed because the tracker used to accept that id, and 19 is
+    /// the quit/game-over module, not PHS.
+    /// </summary>
     private static void ReadsNormalPhsPartySelection()
     {
-        const int phsModule = 19;
+        const int phsModule = 5;
         var bridge = CreateBridge(settleTime: TimeSpan.FromMilliseconds(30));
         var now = UtcNow();
         var sequence = 0L;
@@ -398,7 +405,7 @@ internal static class Steam2026InGameMenuSpeechBridgeTests
         Equal(
             "PHS. Party slot 2, Barret. Press Start when finished.",
             bridge.Poll(now.AddMilliseconds(80)),
-            "translated normal PHS module reads the checked party slot");
+            "PHS inside the menu module reads the checked party slot");
     }
 
     private static void ReformValidationDoesNotAlternateWithTranslatedInstruction()
@@ -1160,6 +1167,88 @@ internal static class Steam2026InGameMenuSpeechBridgeTests
             "secondary Equip identity uses its own checked native party selector");
     }
 
+    private static void ReadsNativeEmptyInventoryAndEnemySkillSlots()
+    {
+        var memory = CreateInventoryAndEquipmentMemory();
+        var reader = CreateMenuReaderWithItems(memory);
+        var bridge = new Steam2026InGameMenuSpeechBridge(reader, TimeSpan.Zero);
+        var now = UtcNow();
+        var sequence = 0L;
+
+        ObserveWidget(
+            bridge,
+            ref sequence,
+            now,
+            "Item list",
+            MenuWidgetKind.ItemList,
+            first: 0,
+            cursor: 3,
+            columns: 1,
+            rows: 10,
+            widgetIdentity: 0x00DD1A50);
+        Equal("Empty slot", bridge.Poll(now), "translated x64 Item list speaks a stable 0xFFFF cell");
+
+        ObserveWidget(
+            bridge,
+            ref sequence,
+            now.AddMilliseconds(16),
+            "Item list",
+            MenuWidgetKind.ItemList,
+            first: 0,
+            cursor: 2,
+            columns: 1,
+            rows: 10,
+            widgetIdentity: 0x00DD1A50);
+        Equal("Buster Sword x1", bridge.Poll(now.AddMilliseconds(16)), "item after an empty cell speaks");
+
+        ObserveWidget(
+            bridge,
+            ref sequence,
+            now.AddMilliseconds(32),
+            "Item list",
+            MenuWidgetKind.ItemList,
+            first: 0,
+            cursor: 3,
+            columns: 1,
+            rows: 10,
+            widgetIdentity: 0x00DD1A50);
+        Equal("Empty slot", bridge.Poll(now.AddMilliseconds(32)), "returning to the x64 empty cell speaks again");
+
+        const uint enemySkillWidget = 0x00DD1778;
+        const int selectedIndex = 21;
+        var enemyMemory = new Memory();
+        enemyMemory.WriteByte(MagicMenuSelectionReader.AddressSelectedPartySlot, 0);
+        enemyMemory.WriteUInt16(MagicMenuSelectionReader.AddressCurrentMp, 40);
+        enemyMemory.WriteInt32(enemySkillWidget + 0x00, 1);
+        enemyMemory.WriteInt32(enemySkillWidget + 0x04, 10);
+        enemyMemory.WriteInt32(enemySkillWidget + 0x08, 2);
+        enemyMemory.WriteInt32(enemySkillWidget + 0x0C, 12);
+        enemyMemory.WriteInt32(enemySkillWidget + 0x14, 0);
+        enemyMemory.WriteInt32(enemySkillWidget + 0x24, 0);
+        enemyMemory.WriteInt32(enemySkillWidget + 0x30, 0);
+        var record = (uint)(MagicMenuSelectionReader.AddressEnemySkillRecords +
+            (selectedIndex * MagicMenuSelectionReader.RecordSize));
+        enemyMemory.WriteByte(record, 0xFF);
+        enemyMemory.WriteByte(record + MagicMenuSelectionReader.MpCostOffset, 0);
+        bridge = new Steam2026InGameMenuSpeechBridge(CreateMenuReader(enemyMemory), TimeSpan.Zero);
+        sequence = 0;
+        ObserveWidget(
+            bridge,
+            ref sequence,
+            now.AddMilliseconds(48),
+            "Enemy Skill list",
+            MenuWidgetKind.EnemySkillList,
+            first: 1,
+            cursor: 10,
+            columns: 2,
+            rows: 12,
+            widgetIdentity: enemySkillWidget);
+        Equal(
+            "Empty slot",
+            bridge.Poll(now.AddMilliseconds(48)),
+            "translated x64 Enemy Skill grid speaks a stable late empty cell");
+    }
+
     private static void ReadsConfigValueHelpAndStatusSummary()
     {
         var status = CreateStatus();
@@ -1864,6 +1953,9 @@ internal static class Steam2026InGameMenuSpeechBridgeTests
         memory.WriteUInt16(
             (uint)(InventoryItemReader.AddressSavemap + InventoryItemReader.ItemsOffset + (2 * sizeof(ushort))),
             (ushort)((1 << 9) | 128));
+        memory.WriteUInt16(
+            (uint)(InventoryItemReader.AddressSavemap + InventoryItemReader.ItemsOffset + (3 * sizeof(ushort))),
+            0xFFFF);
 
         memory.WriteByte(
             (uint)(SavemapPartyReader.AddressSavemap + SavemapPartyReader.PartyMembersOffset),
