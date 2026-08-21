@@ -663,7 +663,8 @@ public sealed class Mod : IModV1, IModV2
         pendingNavigationAutoWalkToggle = NavigationAutoWalkDomain.None;
         lastNavigationAutoWalkFailure = string.Empty;
         floor60GuardTimingStateReader = new Floor60GuardTimingStateReader(legacyAddressSpace);
-        condorMinigameProbe = new CondorMinigameProbe(legacyAddressSpace, Log);
+        condorMinigameProbe = new CondorMinigameProbe(
+            legacyAddressSpace, Log, text => Speak(text, interrupt: false));
         TryInitializeFfnxPopupReader(force: true);
         mainMenuSpeechScheduler = new MainMenuSpeechScheduler(TimeSpan.FromMilliseconds(Math.Max(0, config.MainMenuSpeechSettleMs)));
         renderedMenuTextSpeechTracker = new RenderedMenuTextSpeechTracker(TimeSpan.FromMilliseconds(Math.Max(0, config.RenderedMenuTextSpeechSettleMs)));
@@ -1840,6 +1841,18 @@ public sealed class Mod : IModV1, IModV2
             return;
         }
 
+        // F9 is sampled every pass, before the throttle below. The probe reads two
+        // megabytes per sample and runs a few times a second, so a key tap sampled
+        // on the probe's own cadence lands between ticks and is never seen - which
+        // is exactly what happened to the 2026-08-20 capture, where only the first
+        // press registered. It is read from the keyboard rather than from the game
+        // because this module's input word is not the one the mod knows about.
+        if (WasNavigationKeyPressed(
+                VirtualKeyF9, foregroundProcessGate.IsCurrentProcessForeground()))
+        {
+            condorMinigameProbe.MarkRequested();
+        }
+
         var now = DateTime.UtcNow;
         var interval = TimeSpan.FromMilliseconds(Math.Max(40, config.CondorMinigameProbeIntervalMs));
         if (now - lastCondorMinigameProbeAt < interval)
@@ -1848,17 +1861,7 @@ public sealed class Mod : IModV1, IModV2
         }
 
         lastCondorMinigameProbeAt = now;
-
-        // F9 marks a deliberate action during a Fort Condor capture. It is read
-        // straight from the keyboard rather than from the game, because the field
-        // input word the probe used to be given belongs to another module and
-        // reads zero throughout the fort battle.
-        var markerDown = foregroundProcessGate.IsCurrentProcessForeground() &&
-            (GetAsyncKeyState(VirtualKeyF9) & unchecked((short)0x8000)) != 0;
-
-        condorMinigameProbe.Tick(
-            ReadByte(FieldPositionReader.AddressCurrentModule),
-            markerDown);
+        condorMinigameProbe.Tick(ReadByte(FieldPositionReader.AddressCurrentModule));
     }
 
     private void TickSquatMinigameCue()

@@ -76,25 +76,41 @@ public sealed class CondorMinigameProbe
 
     private readonly ILegacyAddressSpace memory;
     private readonly Action<string> log;
+
+    /// <summary>
+    /// Says what each mark found. A capture is run by someone who cannot see the
+    /// screen and, until this state is decoded, cannot hear it either, so a probe
+    /// that only wrote to a log would leave them pressing a key with no way to
+    /// tell whether it registered or whether the action before it did anything.
+    /// </summary>
+    private readonly Action<string> speak;
     private byte[]? pendingFirstRead;
     private SettledSnapshot? settledPrevious;
     private int settleCountdown;
     private int markerNumber;
-    private bool markerWasDown;
+    private bool markerRequested;
     private bool active;
     private bool searchedForUnitTable;
 
-    public CondorMinigameProbe(ILegacyAddressSpace memory, Action<string> log)
+    public CondorMinigameProbe(
+        ILegacyAddressSpace memory, Action<string> log, Action<string>? speak = null)
     {
         this.memory = memory ?? throw new ArgumentNullException(nameof(memory));
         this.log = log ?? throw new ArgumentNullException(nameof(log));
+        this.speak = speak ?? (_ => { });
     }
 
-    /// <param name="markerDown">
-    /// Whether the marker key is held this tick. The probe acts on the press, not
-    /// the hold, so leaning on the key does not produce a snapshot per tick.
-    /// </param>
-    public void Tick(byte currentModule, bool markerDown)
+    /// <summary>
+    /// Asks for a snapshot at the next opportunity. Called from the caller's fast
+    /// path rather than passed into <see cref="Tick"/>, because this probe reads
+    /// two megabytes per sample and runs only a few times a second: a key tap
+    /// lasts a fraction of that and would fall between two ticks unobserved. The
+    /// request is held until a capture actually starts, so a press that lands
+    /// while the previous snapshot is still settling is honoured rather than lost.
+    /// </summary>
+    public void MarkRequested() => markerRequested = true;
+
+    public void Tick(byte currentModule)
     {
         if (currentModule != CondorModule)
         {
@@ -104,7 +120,7 @@ public sealed class CondorMinigameProbe
                 Reset();
             }
 
-            markerWasDown = markerDown;
+            markerRequested = false;
             return;
         }
 
@@ -115,6 +131,7 @@ public sealed class CondorMinigameProbe
                 $"Fort Condor probe: module {CondorModule} entered. " +
                 "Press the marker key once before and once after each deliberate action; " +
                 "each press reports what settled memory changed since the previous press.");
+            speak("Fort Condor probe armed. Press F9 to mark.");
         }
 
         if (!searchedForUnitTable)
@@ -123,11 +140,9 @@ public sealed class CondorMinigameProbe
             SearchForUnitTable();
         }
 
-        var pressed = markerDown && !markerWasDown;
-        markerWasDown = markerDown;
-
-        if (pressed && pendingFirstRead is null)
+        if (markerRequested && pendingFirstRead is null)
         {
+            markerRequested = false;
             pendingFirstRead = ReadRegion();
             settleCountdown = SettleTicks;
             return;
@@ -188,9 +203,15 @@ public sealed class CondorMinigameProbe
         var moving = settled.Stable.Count(value => !value);
         if (settledPrevious is null)
         {
+            // Count what is actually mapped. A window that reads back as zeros
+            // would also report almost nothing moving, and the two look identical
+            // in the log unless the difference is stated.
+            var populated = settled.Bytes.Count(value => value != 0);
             log(
                 $"Fort Condor probe: marker {markerNumber} is the baseline. " +
-                $"{moving:N0} bytes were still moving and are excluded.");
+                $"{moving:N0} bytes were still moving and are excluded. " +
+                $"{populated:N0} of {settled.Bytes.Length:N0} bytes in the window are non-zero.");
+            speak("Mark 1. Baseline.");
             return;
         }
 
@@ -214,6 +235,11 @@ public sealed class CondorMinigameProbe
             log(
                 $"Fort Condor probe: marker {markerNumber} — nothing settled changed since " +
                 $"marker {markerNumber - 1}. ({moving:N0} bytes still moving.)");
+
+            // Worth saying out loud rather than only writing down. It usually
+            // means the action did not take, and the run can be repeated on the
+            // spot instead of being discovered as a hole afterwards.
+            speak($"Mark {markerNumber}. No change.");
             return;
         }
 
@@ -231,6 +257,7 @@ public sealed class CondorMinigameProbe
         builder.Append(". ");
         builder.Append(string.Join("; ", reported.Select(run => DescribeRun(run, previous, settled))));
         log(builder.ToString());
+        speak($"Mark {markerNumber}. {runs.Count} {(runs.Count == 1 ? "field" : "fields")}.");
     }
 
     private static List<(int Start, int Length)> CoalesceRuns(List<int> offsets)
@@ -336,6 +363,7 @@ public sealed class CondorMinigameProbe
         settledPrevious = null;
         settleCountdown = 0;
         markerNumber = 0;
+        markerRequested = false;
         searchedForUnitTable = false;
     }
 
