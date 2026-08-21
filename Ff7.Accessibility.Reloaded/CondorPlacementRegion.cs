@@ -110,7 +110,13 @@ public static class CondorPlacementRegion
         var runStart = -1;
         var runEnd = -1;
 
-        for (var y = 0; y <= MaximumCursorY; y += CursorStep)
+        // Anchored to the row the cursor is actually on. During setup the cursor
+        // sits on multiples of the step, but in combat it does not - it was
+        // observed at 525, 761 and 937 - and scanning from zero would then skip
+        // the player's own row and report distances off by up to three.
+        var first = ((snapshot.CursorY % CursorStep) + CursorStep) % CursorStep;
+
+        for (var y = first; y <= MaximumCursorY; y += CursorStep)
         {
             if (IsLegalAt(snapshot, snapshot.CursorX, y))
             {

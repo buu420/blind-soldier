@@ -1861,14 +1861,19 @@ public sealed class Mod : IModV1, IModV2
             if (inCondorBattle)
             {
                 inCondorBattle = false;
+
+                // Counted before the reset clears it. Read afterwards, this
+                // reported zero disagreements for every battle ever fought,
+                // including one that had thirty-five.
+                Log(
+                    $"Fort Condor battle reader: left module 9 after " +
+                    $"{condorBattleSpeechTracker.PlacementDisagreements} placement flag disagreement(s).");
+
                 condorBattleSpeechTracker.Reset();
 
                 // The terrain is cached for the life of a battle, and the next one
                 // is fought on a different hill.
                 condorBattleStateReader.Reset();
-                Log(
-                    $"Fort Condor battle reader: left module 9 after " +
-                    $"{condorBattleSpeechTracker.PlacementDisagreements} placement flag disagreement(s).");
             }
 
             return;

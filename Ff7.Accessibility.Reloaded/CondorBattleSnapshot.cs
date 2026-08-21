@@ -113,6 +113,15 @@ public sealed record CondorBattleSnapshot(
     public IReadOnlyList<CondorPlacementInterval> PlacementIntervals =>
         CondorPlacementRegion.LegalIntervals(this);
 
+    /// <summary>
+    /// The units still fighting on each side, counted from the live array
+    /// itself rather than from the separate counters, so a casualty and the
+    /// number left standing after it can never come from two different readings.
+    /// </summary>
+    public int LivingAllies => Units.Count(unit => unit is { IsEnemy: false, IsDying: false });
+
+    public int LivingEnemies => Units.Count(unit => unit is { IsEnemy: true, IsDying: false });
+
     public CondorBattleUnit? UnitUnderCursor =>
         UnitUnderCursorSlot < 0
             ? null

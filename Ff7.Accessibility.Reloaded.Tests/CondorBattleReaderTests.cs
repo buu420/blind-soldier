@@ -11,7 +11,11 @@ internal static class CondorBattleReaderTests
         TreatsAUnitOutOfHpAsDyingRatherThanGone();
         ResolvesTheHighlightedHireRowThroughTheListRotation();
         AnnouncesTheBannerMessagesTheGameDrawsAsPictures();
-        AnnouncesTheResultEvenIfTheBannerDoesNot();
+        SaysWhatTheEndingBannersMean();
+        DoesNotGuessTheResultFromAnUnprovenGlobal();
+        SpeaksUnitsGoingDownDuringTheFight();
+        DoesNotReportAPhaseChangeAsCasualties();
+        AnchorsThePlacementScanToTheCursorRow();
         SpeaksTheHireListWithAffordability();
         SpeaksTheUnitUnderTheCursorAndWhenItClears();
         DoesNotNarrateMovementAcrossOpenGround();
@@ -137,21 +141,107 @@ internal static class CondorBattleReaderTests
         Equal("Enemy destroyed.", Single(tracker.Observe(Battle(messageId: 10))), "later banner message");
     }
 
-    private static void AnnouncesTheResultEvenIfTheBannerDoesNot()
+    private static void SaysWhatTheEndingBannersMean()
     {
-        var withBanner = new CondorBattleSpeechTracker();
-        withBanner.Observe(Battle());
+        // The banner is a caption, not a result. A player fought a whole battle
+        // on 2026-08-21, heard "Enemy invasion.", and still had to ask whether
+        // they had won - so the game's own words are kept and what they mean is
+        // said with them.
+        var won = new CondorBattleSpeechTracker();
+        won.Observe(Battle());
         Equal(
-            "Halted enemy attack!",
-            Single(withBanner.Observe(Battle(messageId: 2, outcome: 1))),
-            "victory announced once when the banner agrees");
+            "Halted enemy attack! Battle won.",
+            Single(won.Observe(Battle(messageId: 2))),
+            "victory said with what it means");
 
-        var withoutBanner = new CondorBattleSpeechTracker();
-        withoutBanner.Observe(Battle());
+        var lost = new CondorBattleSpeechTracker();
+        lost.Observe(Battle());
         Equal(
-            "Enemy invasion.",
-            Single(withoutBanner.Observe(Battle(outcome: 2))),
-            "defeat announced from the outcome alone");
+            "Enemy invasion. They reached the fort. Battle lost.",
+            Single(lost.Observe(Battle(messageId: 7))),
+            "defeat said with what it means");
+
+        // A banner returning to the same identifier is the same picture back on
+        // screen, not a second defeat.
+        lost.Observe(Battle(messageId: 0));
+        Equal(0, lost.Observe(Battle(messageId: 7)).Count, "the result is announced once");
+    }
+
+    private static void DoesNotGuessTheResultFromAnUnprovenGlobal()
+    {
+        var logged = new List<string>();
+        var tracker = new CondorBattleSpeechTracker(logged.Add);
+        tracker.Observe(Battle());
+
+        // 0x00CBEDC0 has never been followed through the end of a battle, so it
+        // is written down and never spoken. Telling a blind player they won when
+        // they lost is worse than telling them nothing.
+        Equal(0, tracker.Observe(Battle(outcome: 2)).Count, "the outcome global is not spoken");
+        Equal(
+            1,
+            logged.Count(line => line.Contains("outcome global changed to 2")),
+            "the outcome global is written down");
+    }
+
+    private static void SpeaksUnitsGoingDownDuringTheFight()
+    {
+        // Nothing in module 9 tells a blind player the fight is going badly. The
+        // line thinning is what a sighted player is actually watching, and it is
+        // the only warning there is before the enemy reaches the fort.
+        var tracker = new CondorBattleSpeechTracker();
+        var line = new[]
+        {
+            Unit(slot: 0, x: 200, y: 500),
+            Unit(slot: 1, x: 240, y: 500),
+            Unit(slot: 20, x: 200, y: 700, typeId: 17)
+        };
+        tracker.Observe(Battle(units: line, phase: 2));
+
+        var afterLoss = tracker.Observe(Battle(units: [line[0], line[2]], phase: 2));
+        Equal("Lost Attacker. 1 unit left.", Single(afterLoss), "an allied unit going down");
+
+        // The enemy's name is not guessed at, but the count the banner never
+        // gives is still worth having.
+        var afterKill = tracker.Observe(Battle(units: [line[0]], phase: 2));
+        Equal("Enemy unit destroyed. 0 enemies left.", Single(afterKill), "an enemy going down");
+
+        Equal(0, tracker.Observe(Battle(units: [line[0]], phase: 2)).Count, "a steady field");
+    }
+
+    private static void DoesNotReportAPhaseChangeAsCasualties()
+    {
+        var tracker = new CondorBattleSpeechTracker();
+        var line = new[] { Unit(slot: 0, x: 200, y: 500), Unit(slot: 1, x: 240, y: 500) };
+        tracker.Observe(Battle(units: line, phase: 1));
+
+        // The live array is rebuilt when the battle changes phase. Reporting
+        // that as two deaths would be a lie told loudly.
+        Equal(
+            0,
+            tracker.Observe(Battle(units: [], phase: 2)).Count,
+            "units cleared across a phase change");
+    }
+
+    private static void AnchorsThePlacementScanToTheCursorRow()
+    {
+        // In combat the cursor is not locked to the four-unit grid - it was
+        // observed at 525, 761 and 937 in a real battle. A scan starting at zero
+        // never lands on those rows, and every distance it reports is then off
+        // by up to three, which is how "nearest placeable 7 down" reached a
+        // player who can only move in fours.
+        var terrain = LoadShippedCollisionTriangles();
+        var odd = Battle(cursorX: 256, cursorY: 701, phase: 0, frontierY: 2000, terrain: terrain);
+        var bands = odd.PlacementIntervals;
+
+        Equal(true, bands.Count > 0, "the odd row is on terrain at all");
+        Equal(true, bands.Any(band => band.Contains(701)), "the cursor's own row is scanned");
+        foreach (var band in bands)
+        {
+            Equal(
+                701 % CondorPlacementRegion.CursorStep,
+                band.FromY % CondorPlacementRegion.CursorStep,
+                "band start shares the cursor's row parity");
+        }
     }
 
     private static void SpeaksTheHireListWithAffordability()

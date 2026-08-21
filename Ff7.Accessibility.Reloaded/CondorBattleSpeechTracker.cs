@@ -33,11 +33,27 @@ public sealed class CondorBattleSpeechTracker
         };
 
     private const int OutcomeOngoing = 0;
-    private const int OutcomeVictory = 1;
-    private const int OutcomeInvasion = 2;
 
     private const int VictoryMessageId = 2;
     private const int InvasionMessageId = 7;
+
+    /// <summary>
+    /// The two banners that end a battle, said with what they mean rather than
+    /// as the caption alone.
+    /// </summary>
+    /// <remarks>
+    /// A sighted player does not read "Enemy invasion." and deduce a result;
+    /// they watch the enemy reach the fort and the battle stop. On 2026-08-21 a
+    /// player fought a whole battle, heard the caption, and still had to ask
+    /// whether they had won. The game's own words are kept and what they mean is
+    /// added to them.
+    /// </remarks>
+    private static readonly IReadOnlyDictionary<int, string> Results =
+        new Dictionary<int, string>
+        {
+            [VictoryMessageId] = "Halted enemy attack! Battle won.",
+            [InvasionMessageId] = "Enemy invasion. They reached the fort. Battle lost."
+        };
 
     private readonly Action<string> log;
     private readonly HashSet<int> reportedUnknownTypes = [];
@@ -57,7 +73,15 @@ public sealed class CondorBattleSpeechTracker
     /// </summary>
     private const int MaximumLoggedPlacementDisagreements = 40;
 
+    /// <summary>
+    /// The units standing at the last reading, keyed by slot, so the ones that
+    /// have gone down since can be named.
+    /// </summary>
+    private readonly Dictionary<int, CondorBattleUnit> standing = [];
+
     private bool started;
+    private int lastPhase;
+    private bool resultSpoken;
     private int lastMessageId;
     private int lastOutcome;
     private bool lastSettingMenuOpen;
@@ -74,6 +98,8 @@ public sealed class CondorBattleSpeechTracker
     public void Reset()
     {
         started = false;
+        resultSpoken = false;
+        standing.Clear();
         reportedUnknownTypes.Clear();
         spokenPlacementLegal = null;
         placementDisagreements = 0;
@@ -105,6 +131,7 @@ public sealed class CondorBattleSpeechTracker
             // says what is under the cursor.
             spokenPlacementLegal = CondorPlacementRegion.IsLegalAt(
                 snapshot, snapshot.CursorX, snapshot.CursorY);
+            RememberStanding(snapshot);
             Remember(snapshot);
             return [DescribeStatus(snapshot)];
         }
@@ -113,30 +140,34 @@ public sealed class CondorBattleSpeechTracker
 
         // The banner is the loudest thing on screen and it names events the
         // player cannot otherwise detect, so it goes first.
-        if (snapshot.MessageId != lastMessageId &&
-            Messages.TryGetValue(snapshot.MessageId, out var message))
+        var bannerChanged = snapshot.MessageId != lastMessageId;
+        if (bannerChanged && Results.TryGetValue(snapshot.MessageId, out var result))
+        {
+            if (!resultSpoken)
+            {
+                resultSpoken = true;
+                lines.Add(result);
+            }
+        }
+        else if (bannerChanged && Messages.TryGetValue(snapshot.MessageId, out var message))
         {
             lines.Add(message);
         }
 
-        // The outcome is written by the code that ends the battle. Normally the
-        // banner says it too, and saying it twice would be worse than saying it
-        // once; this is here so the result is never missed if it does not.
+        // The outcome global is read and written down, but never spoken. The
+        // pass that named 0x00CBEDC0 could not follow it through the end of a
+        // battle, and telling a blind player they won when they lost is worse
+        // than telling them nothing. The banner above is proven; this line is
+        // what will tie the global to a known result.
         if (snapshot.Outcome != lastOutcome && snapshot.Outcome != OutcomeOngoing)
         {
-            var expectedMessageId = snapshot.Outcome == OutcomeVictory
-                ? VictoryMessageId
-                : InvasionMessageId;
-            if (snapshot.MessageId != expectedMessageId)
-            {
-                lines.Add(snapshot.Outcome switch
-                {
-                    OutcomeVictory => Messages[VictoryMessageId],
-                    OutcomeInvasion => Messages[InvasionMessageId],
-                    _ => $"Battle state {snapshot.Outcome}."
-                });
-            }
+            log(
+                $"Fort Condor: outcome global changed to {snapshot.Outcome} with banner " +
+                $"{snapshot.MessageId}, {snapshot.LivingAllies} allied and " +
+                $"{snapshot.LivingEnemies} enemy units still standing.");
         }
+
+        lines.AddRange(ObserveCasualties(snapshot, bannerChanged));
 
         if (snapshot.SettingMenuOpen && !lastSettingMenuOpen)
         {
@@ -169,6 +200,78 @@ public sealed class CondorBattleSpeechTracker
         Remember(snapshot);
         return lines;
     }
+
+    /// <summary>
+    /// The units that have gone down since the last reading.
+    /// </summary>
+    /// <remarks>
+    /// This is the drumbeat of the battle and what a sighted player is actually
+    /// watching: whose line is thinning. Without it module 9 tells a blind
+    /// player nothing between placing a unit and losing, which is exactly what
+    /// happened on 2026-08-21 - two and a half minutes of fighting passed in
+    /// silence and the player had to ask who had won.
+    ///
+    /// <para>Only read across a steady phase. The live array is rebuilt when the
+    /// battle changes phase, and reporting that as twenty deaths would be a lie
+    /// told loudly.</para>
+    /// </remarks>
+    private IEnumerable<string> ObserveCasualties(CondorBattleSnapshot snapshot, bool bannerChanged)
+    {
+        var lines = new List<string>();
+        var alive = snapshot.Units
+            .Where(unit => !unit.IsDying)
+            .ToDictionary(unit => unit.Slot);
+
+        if (snapshot.Phase == lastPhase)
+        {
+            var lost = standing.Values
+                .Where(unit => !alive.ContainsKey(unit.Slot))
+                .ToList();
+
+            var allies = lost.Where(unit => !unit.IsEnemy).ToList();
+            if (allies.Count > 0)
+            {
+                var what = allies.Count == 1
+                    ? $"Lost {allies[0].Name}."
+                    : $"Lost {allies.Count} units.";
+                var left = Pluralize(snapshot.LivingAllies, "unit", "units");
+                lines.Add($"{what} {left} left.");
+            }
+
+            // The game's own banner already announces an enemy going down, so
+            // repeating it would double every kill. What gets added is the count
+            // the banner does not give.
+            var enemies = lost.Where(unit => unit.IsEnemy).ToList();
+            if (enemies.Count > 0 && !bannerChanged)
+            {
+                var what = enemies.Count == 1
+                    ? $"{Capitalize(enemies[0].Name)} destroyed."
+                    : $"{enemies.Count} enemies destroyed.";
+                var left = Pluralize(snapshot.LivingEnemies, "enemy", "enemies");
+                lines.Add($"{what} {left} left.");
+            }
+        }
+
+        standing.Clear();
+        foreach (var unit in alive.Values)
+        {
+            standing[unit.Slot] = unit;
+        }
+
+        return lines;
+    }
+
+    private void RememberStanding(CondorBattleSnapshot snapshot)
+    {
+        standing.Clear();
+        foreach (var unit in snapshot.Units.Where(unit => !unit.IsDying))
+        {
+            standing[unit.Slot] = unit;
+        }
+    }
+
+    private static string Capitalize(string text) =>
+        text.Length == 0 ? text : char.ToUpperInvariant(text[0]) + text[1..];
 
     /// <summary>
     /// The picture a sighted player takes in at a glance: what is left, what it
@@ -326,6 +429,7 @@ public sealed class CondorBattleSpeechTracker
     private void Remember(CondorBattleSnapshot snapshot)
     {
         lastMessageId = snapshot.MessageId;
+        lastPhase = snapshot.Phase;
         lastOutcome = snapshot.Outcome;
         lastSettingMenuOpen = snapshot.SettingMenuOpen;
         lastHighlightedTypeId = snapshot.HighlightedTypeId;

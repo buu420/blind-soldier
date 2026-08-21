@@ -21,6 +21,13 @@ if (args.Contains("--field-transition-anchor-audit", StringComparer.OrdinalIgnor
     return;
 }
 
+if (args.Contains("--condor-battle-only", StringComparer.OrdinalIgnoreCase))
+{
+    CondorBattleReaderTests.Run();
+    Console.WriteLine("FFVII Fort Condor battle reader tests passed.");
+    return;
+}
+
 if (args.Contains("--fort-condor-only", StringComparer.OrdinalIgnoreCase))
 {
     FortCondorTests.Run();
