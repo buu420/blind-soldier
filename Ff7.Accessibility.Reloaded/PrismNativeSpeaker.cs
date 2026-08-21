@@ -21,6 +21,23 @@ internal sealed class PrismNativeSpeaker : IDisposable
     /// </summary>
     private Action<nint>? freeBackend;
 
+    /// <summary>
+    /// Held for as long as the Prism context lives. Prism keeps a raw function pointer to this
+    /// delegate, which does not count as a reference, so dropping it would leave the poll thread
+    /// calling into collected memory.
+    /// </summary>
+    private PrismAvailabilityCallback? availabilityCallback;
+
+    /// <summary>
+    /// Set from Prism's poll thread when a screen reader starts or stops, and cleared on the next
+    /// line spoken. The player is the one who knows they switched readers; the mod only has to
+    /// stop insisting on the reader that was running at launch.
+    /// </summary>
+    private volatile bool screenReadersChanged;
+
+    /// <summary>What changed, for the log line written when the selection is revisited.</summary>
+    private volatile string? lastAvailabilityChange;
+
     public PrismNativeSpeaker(Action<string> log)
     {
         this.log = log;
@@ -71,6 +88,8 @@ internal sealed class PrismNativeSpeaker : IDisposable
     {
         lock (backendSync)
         {
+            ReselectIfScreenReadersChanged();
+
             if (!available || backend == 0)
             {
                 return false;
@@ -129,10 +148,13 @@ internal sealed class PrismNativeSpeaker : IDisposable
 
             if (context != 0)
             {
+                // Shutting the context down joins the poll thread, so no further callback can be
+                // in flight once this returns. Only then is it safe to drop the delegate.
                 shutdown(context);
                 context = 0;
             }
 
+            availabilityCallback = null;
             backend = 0;
         }
     }
@@ -142,9 +164,25 @@ internal sealed class PrismNativeSpeaker : IDisposable
         try
         {
             var config = Prism.prism_config_init();
+
+            // Ask Prism to watch which screen readers are running. Without this the mod picks a
+            // backend at launch and keeps it forever, so a player who starts the game before
+            // their reader, or switches readers mid-session, gets silence until they restart.
+            // Zero means Prism's own default for each of these: a one second base interval and
+            // two agreeing samples before a change is believed. The backoff lets a long quiet
+            // stretch stop waking the machine, and collapses back to the base interval the
+            // moment anything moves.
+            availabilityCallback = OnAvailabilityChanged;
+            config.AvailabilityCallback = Marshal.GetFunctionPointerForDelegate(availabilityCallback);
+            config.AvailabilityPollIntervalMs = 0;
+            config.AvailabilityDebounceSamples = 0;
+            config.AvailabilityBackoffMaxMs = 8000;
+            config.AvailabilityAutoPowerManage = true;
+
             context = Prism.prism_init(ref config);
             if (context == 0)
             {
+                availabilityCallback = null;
                 log("Prism initialization returned null.");
                 return;
             }
@@ -163,12 +201,110 @@ internal sealed class PrismNativeSpeaker : IDisposable
             var namePtr = Prism.prism_backend_name(backend);
             var name = Marshal.PtrToStringUTF8(namePtr) ?? "<unknown>";
             available = true;
-            log($"Prism initialized. Backend: {name}");
+
+            // Which Prism, and which architecture. The last time a player reported silence it
+            // took a disassembler to establish which build they were running, because the DLL
+            // carries no version resource and the two runtimes ship different copies.
+            log($"Prism {DescribeLibrary()} initialized. Backend: {name}");
         }
         catch (Exception ex)
         {
             log($"Prism initialization failed: {ex}");
         }
+    }
+
+    /// <summary>
+    /// Prism's version and this process's architecture, for the startup log line.
+    /// </summary>
+    private static string DescribeLibrary()
+    {
+        var architecture = nint.Size == 4 ? "x86" : "x64";
+        try
+        {
+            var version = Marshal.PtrToStringUTF8(Prism.prism_version_string());
+            return string.IsNullOrWhiteSpace(version) ? architecture : $"{version} ({architecture})";
+        }
+        catch (EntryPointNotFoundException)
+        {
+            // Builds before 0.18 do not export a version. Saying so is itself useful.
+            return $"pre-0.18 ({architecture})";
+        }
+    }
+
+    /// <summary>
+    /// Runs on Prism's poll thread. It records what happened and returns: the thread cannot scan
+    /// again until this returns, and it is not allowed to shut the context down, so the actual
+    /// reselection happens on the next line the mod speaks.
+    /// </summary>
+    private void OnAvailabilityChanged(nint userdata, ulong backendId, nint namePtr, bool isAvailable)
+    {
+        try
+        {
+            var name = Marshal.PtrToStringUTF8(namePtr) ?? "a backend";
+            lastAvailabilityChange = isAvailable ? $"{name} started" : $"{name} stopped";
+            screenReadersChanged = true;
+        }
+        catch
+        {
+            // A callback that throws would cross a native frame, which is undefined. Losing one
+            // notification only delays reselection to the next transition.
+            screenReadersChanged = true;
+        }
+    }
+
+    /// <summary>
+    /// Re-runs the selection when a screen reader has started or stopped since the last line.
+    /// Called with <see cref="backendSync"/> held.
+    /// </summary>
+    private void ReselectIfScreenReadersChanged()
+    {
+        if (!screenReadersChanged || context == 0 || freeBackend is null)
+        {
+            return;
+        }
+
+        screenReadersChanged = false;
+        var change = lastAvailabilityChange ?? "a screen reader changed";
+
+        nint replacement;
+        try
+        {
+            replacement = Prism.prism_registry_create_best(context);
+        }
+        catch (Exception ex)
+        {
+            log($"Prism reselection failed after {change}: {ex.Message}");
+            return;
+        }
+
+        if (replacement == 0)
+        {
+            // Nothing usable right now. Keep whatever is already held rather than going silent on
+            // the strength of one scan; the next transition will bring us back here.
+            log($"Prism found no usable backend after {change}. Keeping the current one.");
+            return;
+        }
+
+        var replacementName = Marshal.PtrToStringUTF8(Prism.prism_backend_name(replacement)) ?? "<unknown>";
+        var currentName = backend == 0
+            ? null
+            : Marshal.PtrToStringUTF8(Prism.prism_backend_name(backend));
+
+        if (backend != 0 && string.Equals(replacementName, currentName, StringComparison.Ordinal))
+        {
+            // Still the same reader. create_best always builds a fresh instance, so discard it.
+            freeBackend(replacement);
+            return;
+        }
+
+        if (backend != 0)
+        {
+            freeBackend(backend);
+        }
+
+        backend = replacement;
+        available = true;
+        log($"Prism switched to {replacementName} after {change}.");
     }
 
     /// <summary>
@@ -218,6 +354,17 @@ internal sealed class PrismNativeSpeaker : IDisposable
 internal delegate PrismError PrismBackendIsSpeaking(
     nint backend,
     [MarshalAs(UnmanagedType.I1)] out bool speaking);
+
+/// <summary>
+/// Prism calls this from its own poll thread when a backend's runtime availability changes.
+/// Cdecl to match the library; the default managed convention would corrupt the stack on x86.
+/// </summary>
+[UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+internal delegate void PrismAvailabilityCallback(
+    nint userdata,
+    ulong backend,
+    nint name,
+    [MarshalAs(UnmanagedType.I1)] bool available);
 
 internal enum PrismError
 {
@@ -292,6 +439,9 @@ internal static partial class Prism
 
     [DllImport("prism.dll", CallingConvention = CallingConvention.Cdecl)]
     public static extern void prism_backend_free(nint backend);
+
+    [DllImport("prism.dll", CallingConvention = CallingConvention.Cdecl)]
+    public static extern nint prism_version_string();
 
     [DllImport("prism.dll", CallingConvention = CallingConvention.Cdecl)]
     public static extern nint prism_error_string(PrismError error);
