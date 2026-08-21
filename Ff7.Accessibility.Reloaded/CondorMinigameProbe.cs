@@ -83,6 +83,36 @@ public sealed class CondorMinigameProbe
     private const uint AddressSelectedUnit = 0x00C6097C;
 
     /// <summary>
+    /// The second coordinate pair, and the flag that chooses between it and the
+    /// battlefield cursor.
+    ///
+    /// <para>The module 9 input router reads, in decompiled form: take
+    /// <c>0x00C75268</c> when <c>0x00C72DEC</c> is non-zero, but take
+    /// <c>0x00CBCCC0</c> whenever the mode is not 3 and the modal state is 0.
+    /// The 2026-08-21 capture sat in exactly that second case for its whole
+    /// length — mode 1, modal 0 — and the battlefield cursor was what moved, so
+    /// the router and the capture agree. Watching the other pair is how a pass
+    /// that does open a menu shows which one the game switched to.</para>
+    /// </summary>
+    private const uint AddressAlternateCursorX = 0x00C75268;
+    private const uint AddressAlternateCursorY = 0x00C7526A;
+    private const uint AddressCursorRouteFlag = 0x00C72DEC;
+
+    /// <summary>
+    /// Where the module keeps its pointer to the loaded <c>data.bin</c>. The
+    /// file's own first 16-bit word is the offset of the unit table inside it.
+    /// </summary>
+    private const uint AddressCondorDataPointer = 0x00C606F0;
+
+    /// <summary>
+    /// The list the Setting Menu is believed to draw its rows from. Unverified:
+    /// the probe reads a row as an index into it and speaks the unit that lands
+    /// on, which is either obviously right or obviously wrong to anyone hearing
+    /// it beside the screen.
+    /// </summary>
+    private const uint AddressAvailableUnitIds = 0x00C75278;
+
+    /// <summary>
     /// Ticks between the two reads that make up one snapshot. Anything that
     /// differs across them is still moving and is not part of a settled state.
     /// </summary>
@@ -173,7 +203,7 @@ public sealed class CondorMinigameProbe
         if (!searchedForUnitTable)
         {
             searchedForUnitTable = true;
-            SearchForUnitTable();
+            LocateUnitTable();
         }
 
         WatchCandidateFields();
@@ -222,6 +252,9 @@ public sealed class CondorMinigameProbe
         var settingRow = ReadByte(AddressSettingMenuRow);
         var allyRow = ReadByte(AddressAllyUnitRow);
         var unit = ReadByte(AddressSelectedUnit);
+        var altX = ReadUInt16(AddressAlternateCursorX);
+        var altY = ReadUInt16(AddressAlternateCursorY);
+        var route = ReadByte(AddressCursorRouteFlag);
 
         if (mode != lastMode || modal != lastModal)
         {
@@ -238,7 +271,9 @@ public sealed class CondorMinigameProbe
                     3 => "placement",
                     _ => $"mode {mode}"
                 };
-            log($"Fort Condor watch: mode={mode}, modal={modal} -> {name}.");
+            log(
+                $"Fort Condor watch: mode={mode}, modal={modal}, route={route}, " +
+                $"cursor={x},{y}, alternate={altX},{altY} -> {name}.");
             speak(name);
             return;
         }
@@ -246,8 +281,9 @@ public sealed class CondorMinigameProbe
         if (settingRow != lastSettingRow)
         {
             lastSettingRow = settingRow;
-            log($"Fort Condor watch: setting menu row={settingRow}.");
-            speak($"Row {settingRow}.");
+            var candidate = DescribeSettingMenuRowCandidate(settingRow);
+            log($"Fort Condor watch: setting menu row={settingRow}{candidate.Log}.");
+            speak($"Row {settingRow}.{candidate.Speech}");
             return;
         }
 
@@ -283,9 +319,44 @@ public sealed class CondorMinigameProbe
         {
             lastCursorX = x;
             lastCursorY = y;
-            log($"Fort Condor watch: cursor={x},{y}.");
+            log($"Fort Condor watch: cursor={x},{y}, alternate={altX},{altY}, route={route}.");
             speak($"{x}, {y}");
         }
+    }
+
+    /// <summary>
+    /// Names the unit a Setting Menu row is believed to offer.
+    ///
+    /// <para>The row itself is a number the game never shows; what a sighted
+    /// player reads on that row is a unit name and a price, and those come from
+    /// textures and from condor.lgp respectively, so the reader has to supply
+    /// both. The id is spoken alongside the name because the row-to-id mapping
+    /// is the part still under test — a name that does not match what is on
+    /// screen is then traceable to the id it came from.</para>
+    /// </summary>
+    private (string Log, string Speech) DescribeSettingMenuRowCandidate(int row)
+    {
+        if (row is < 0 or > 15)
+        {
+            return (string.Empty, string.Empty);
+        }
+
+        var id = ReadByte(AddressAvailableUnitIds + (uint)row);
+        var unit = CondorUnitCatalog.ResolveByRecordIndex(id);
+        if (unit is null)
+        {
+            return ($", available id={id} (no hireable unit)", $" Id {id}.");
+        }
+
+        return (
+            $", available id={id} -> {unit.Name}, {unit.Price} gil",
+            $" Id {id}. {CondorUnitCatalog.DescribeForHire(unit)}");
+    }
+
+    private uint ReadUInt32(uint address)
+    {
+        Span<byte> buffer = stackalloc byte[4];
+        return memory.TryRead(address, buffer) ? BitConverter.ToUInt32(buffer) : 0u;
     }
 
     private ushort ReadUInt16(uint address)
@@ -450,6 +521,71 @@ public sealed class CondorMinigameProbe
     /// One pass over a much wider range than the sampling window, because the
     /// loaded minigame data need not live beside the module globals.
     /// </summary>
+    private void LocateUnitTable()
+    {
+        // data.bin is loaded onto the heap and the module keeps a pointer to it.
+        // The file's own first 16-bit word is the offset of the unit table
+        // inside it, so the table can be reached directly. The 2026-08-20 and
+        // 2026-08-21 scans both failed, which is what a heap allocation above
+        // the searched range looks like.
+        var basePointer = ReadUInt32(AddressCondorDataPointer);
+        if (basePointer != 0)
+        {
+            var tableOffset = ReadUInt16(basePointer);
+            if (tableOffset == CondorUnitCatalog.RecordTableOffset &&
+                VerifyUnitTable(basePointer + tableOffset, $"pointer at 0x{AddressCondorDataPointer:X8}"))
+            {
+                return;
+            }
+
+            log(
+                $"Fort Condor probe: data pointer 0x{AddressCondorDataPointer:X8} reads 0x{basePointer:X8} " +
+                $"with table offset 0x{tableOffset:X4}, which did not verify. Falling back to a scan.");
+        }
+
+        SearchForUnitTable();
+    }
+
+    /// <summary>
+    /// Checks a candidate table against the records decoded offline from the
+    /// shipped condor.lgp.
+    ///
+    /// <para>Every hireable unit's price, HP, attack and speed is already known
+    /// exactly, so a table that is really there will agree on all forty values
+    /// and one that is not will agree on none. That makes this a decision rather
+    /// than an impression, which matters because the alternative is asking
+    /// someone who cannot see the screen whether a number sounded right.</para>
+    /// </summary>
+    private bool VerifyUnitTable(uint tableStart, string how)
+    {
+        var record = new byte[CondorUnitCatalog.RecordLength];
+        foreach (var unit in CondorUnitCatalog.HireableUnits)
+        {
+            var address = tableStart + (uint)(unit.RecordIndex * CondorUnitCatalog.RecordLength);
+            if (!memory.TryRead(address, record))
+            {
+                log($"Fort Condor probe: candidate table at 0x{tableStart:X8} is not readable at record {unit.RecordIndex}.");
+                return false;
+            }
+
+            if (CondorUnitCatalog.DecodeRecordStats(record) is not { } stats ||
+                stats.Price != unit.Price || stats.Hp != unit.Hp ||
+                stats.Attack != unit.Attack || stats.Speed != unit.Speed)
+            {
+                log(
+                    $"Fort Condor probe: candidate table at 0x{tableStart:X8} disagrees at record " +
+                    $"{unit.RecordIndex} ({unit.Name}): expected {unit.Price} gil, {unit.Hp} HP, " +
+                    $"{unit.Attack} attack, {unit.Speed} speed.");
+                return false;
+            }
+        }
+
+        log(
+            $"Fort Condor probe: unit table confirmed at 0x{tableStart:X8} via {how}; all " +
+            $"{CondorUnitCatalog.HireableUnits.Count} hireable records match condor.lgp.");
+        return true;
+    }
+
     private void SearchForUnitTable()
     {
         var signature = UnitTableSignature;

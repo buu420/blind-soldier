@@ -485,6 +485,7 @@ AssertFieldOpcodeSoundDelegateHasReloadedFunctionAttribute();
 AssertFieldOpcodeCutsceneDelegateHasReloadedFunctionAttribute();
 AssertFf7EncodedFieldTextDecodesForSpeech();
 AssertFf7EncodedFieldTextDecodesAccentedWesternLetters();
+AssertCondorUnitCatalogMatchesShippedMinigameData();
 AssertFf7EncodedTextRequiresTerminatorForBufferReads();
 AssertFf7EncodedAskTextPreservesNativeChoiceLines();
 AssertFf7EncodedAskTextPreservesNativePages();
@@ -2675,6 +2676,61 @@ static void AssertFf7EncodedFieldTextDecodesAccentedWesternLetters()
     var german = Ff7GameLanguages.Get(Ff7GameLanguage.German);
     var germanLine = new byte[] { 0x33, 0x54, 0x52, 0x41, 0x87, 0x45, 0xff };
     AssertEqual("Straße", Ff7EncodedTextDecoder.DecodeField(germanLine, german), "decoded German field text");
+}
+
+static void AssertCondorUnitCatalogMatchesShippedMinigameData()
+{
+    // The ten hireable Fort Condor units, verbatim from the record table at data.bin + 0x26
+    // inside condor.lgp, keyed by their index in that table. Only the first 0x11 bytes of each
+    // 0x20-byte record carry per-unit data; the tail is an identical 01..0F run in every record.
+    var records = new Dictionary<int, byte[]>
+    {
+        [1] = new byte[] { 0x90, 0x01, 0xc8, 0x01, 0x01, 0x1e, 0x01, 0x01, 0x01, 0x01, 0x03, 0x00, 0x1f, 0x16, 0x1e, 0x00, 0x00 },
+        [2] = new byte[] { 0xa4, 0x01, 0xb4, 0x01, 0x01, 0x19, 0x01, 0x01, 0x01, 0x01, 0x03, 0x00, 0x15, 0x16, 0x1e, 0x00, 0x00 },
+        [3] = new byte[] { 0xb8, 0x01, 0xdc, 0x01, 0x01, 0x23, 0x01, 0x01, 0x01, 0x01, 0x03, 0x00, 0x2f, 0x1a, 0x24, 0x00, 0x00 },
+        [4] = new byte[] { 0x08, 0x02, 0xa0, 0x01, 0x01, 0x14, 0x02, 0x03, 0x01, 0x01, 0x03, 0x00, 0x2b, 0x14, 0x1d, 0x0f, 0x03 },
+        [5] = new byte[] { 0xe0, 0x01, 0x64, 0x01, 0x01, 0x14, 0x03, 0x04, 0x01, 0x04, 0x04, 0x00, 0x43, 0x16, 0x1a, 0x0a, 0x02 },
+        [6] = new byte[] { 0xe8, 0x03, 0x96, 0x01, 0x03, 0x1e, 0x03, 0x05, 0x03, 0x04, 0x05, 0x00, 0x4d, 0x2c, 0x1a, 0x0c, 0x02 },
+        [7] = new byte[] { 0xe0, 0x01, 0x64, 0x01, 0x01, 0x12, 0x04, 0x05, 0x01, 0x01, 0x05, 0x00, 0x37, 0x16, 0x1a, 0x0a, 0x02 },
+        [8] = new byte[] { 0x58, 0x02, 0x78, 0x01, 0x01, 0x19, 0x04, 0x06, 0x03, 0x03, 0x06, 0x00, 0x41, 0x16, 0x1a, 0x0b, 0x03 },
+        [12] = new byte[] { 0xe0, 0x01, 0xa0, 0x01, 0x01, 0x0a, 0x05, 0x01, 0x01, 0x01, 0x04, 0x00, 0x2b, 0x16, 0x1c, 0x08, 0x3c },
+        [13] = new byte[] { 0x90, 0x01, 0xa0, 0x01, 0x01, 0x0f, 0x06, 0x01, 0x01, 0x01, 0x05, 0x00, 0x19, 0x16, 0x1a, 0x00, 0x00 }
+    };
+
+    AssertEqual(records.Count, CondorUnitCatalog.HireableUnits.Count, "hireable Fort Condor unit count");
+
+    foreach (var unit in CondorUnitCatalog.HireableUnits)
+    {
+        AssertNotNull(
+            records.TryGetValue(unit.RecordIndex, out var record) ? record : null,
+            $"data.bin record for {unit.Name}");
+
+        var stats = CondorUnitCatalog.DecodeRecordStats(records[unit.RecordIndex]);
+        AssertNotNull(stats, $"decoded stats for {unit.Name}");
+
+        AssertEqual(unit.Price, stats!.Value.Price, $"{unit.Name} price");
+        AssertEqual(unit.Hp, stats.Value.Hp, $"{unit.Name} HP");
+        AssertEqual(unit.Attack, stats.Value.Attack, $"{unit.Name} attack");
+        AssertEqual(unit.Speed, stats.Value.Speed, $"{unit.Name} speed");
+    }
+
+    // The battle shows no text of its own, so the reader has to name the unit, price it, and
+    // state the matchup the game states. A hire line that dropped any of those would read as a
+    // bare number to a player who cannot see the panel it came from.
+    var defender = CondorUnitCatalog.ResolveByRecordIndex(3);
+    AssertNotNull(defender, "Defender catalog entry");
+    AssertEqual(
+        "Defender. 440 gil. HP 220. Attack 35. Speed 208. Has the highest HP. Beats Barbarian. Loses to Wyvern.",
+        CondorUnitCatalog.DescribeForHire(defender!),
+        "Fort Condor hire line");
+
+    // Affordability is the one thing the sighted panel shows that no stat carries: the price is
+    // drawn against the funds counter, so a player short of gil can see they cannot buy it.
+    AssertContains(CondorUnitCatalog.DescribeForHire(defender!, availableGil: 200), "not affordable");
+    AssertEqual(
+        false,
+        CondorUnitCatalog.DescribeForHire(defender!, availableGil: 440).Contains("not affordable"),
+        "affordable unit is not flagged");
 }
 
 static void AssertFf7EncodedTextRequiresTerminatorForBufferReads()
