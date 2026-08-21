@@ -15,6 +15,7 @@ internal static class CondorBattleReaderTests
         SpeaksTheHireListWithAffordability();
         SpeaksTheUnitUnderTheCursorAndWhenItClears();
         DoesNotNarrateMovementAcrossOpenGround();
+        SaysNothingWhileThePlacementFlagContradictsItself();
         StatusAnswersWhatASightedPlayerSeesAtAGlance();
         NamesOnlyUnitTypesThatHaveBeenProved();
     }
@@ -200,18 +201,54 @@ internal static class CondorBattleReaderTests
     private static void DoesNotNarrateMovementAcrossOpenGround()
     {
         var tracker = new CondorBattleSpeechTracker();
-        tracker.Observe(Battle(cursorX: 100, cursorY: 100, placementLegal: true));
+        Settle(tracker, cursorX: 100, cursorY: 100, placementLegal: true);
 
         // A sighted player crossing open ground is shown nothing new. A running
         // commentary of coordinates would bury the events that do matter.
         Equal(0, tracker.Observe(Battle(cursorX: 140, cursorY: 100, placementLegal: true)).Count, "cursor moved over legal ground");
         Equal(0, tracker.Observe(Battle(cursorX: 180, cursorY: 160, placementLegal: true)).Count, "cursor moved again");
 
-        // Legality is drawn into the cursor itself, and it decides whether confirm
-        // opens the hire list at all, so a change in it is worth saying.
-        Equal("Blocked.", Single(tracker.Observe(Battle(cursorX: 180, cursorY: 200, placementLegal: false))), "cursor reaching ground that cannot take a unit");
-        Equal(0, tracker.Observe(Battle(cursorX: 180, cursorY: 240, placementLegal: false)).Count, "cursor still on blocked ground");
-        Equal("Clear.", Single(tracker.Observe(Battle(cursorX: 180, cursorY: 280, placementLegal: true))), "cursor returning to open ground");
+        // Whether the ground can take a unit decides whether confirm opens the
+        // hire list at all, so a settled change in it is worth saying.
+        Equal(
+            "Blocked.",
+            Single(Settle(tracker, cursorX: 180, cursorY: 200, placementLegal: false)),
+            "cursor resting on ground that cannot take a unit");
+        Equal(0, tracker.Observe(Battle(cursorX: 180, cursorY: 200, placementLegal: false)).Count, "cursor still on blocked ground");
+        Equal(
+            "Clear.",
+            Single(Settle(tracker, cursorX: 180, cursorY: 280, placementLegal: true)),
+            "cursor resting on open ground again");
+    }
+
+    private static void SaysNothingWhileThePlacementFlagContradictsItself()
+    {
+        // The flag is not stable to sample. In a real battle on 2026-08-21 six of
+        // the twenty positions the cursor rested on reported both answers, one of
+        // them five times without the cursor moving. Announcing each read turned
+        // that into "Clear, Blocked, Clear" - which sounds exactly like fine
+        // terrain detail to somebody who cannot see the hill, and is nothing of
+        // the kind. Until what drives it is known, an unsettled reading is worth
+        // less than silence.
+        var logged = new List<string>();
+        var tracker = new CondorBattleSpeechTracker(logged.Add);
+        tracker.Observe(Battle(cursorX: 260, cursorY: 440, placementLegal: true));
+
+        var spoken = 0;
+        for (var sample = 0; sample < 12; sample++)
+        {
+            spoken += tracker
+                .Observe(Battle(cursorX: 260, cursorY: 440, placementLegal: sample % 2 == 0))
+                .Count;
+        }
+
+        Equal(0, spoken, "lines spoken while the flag alternates");
+        Equal(true, tracker.PlacementDisagreements > 0, "disagreements counted");
+        Equal(true, logged.Any(line => line.Contains("disagreed at a stationary cursor")), "disagreement logged");
+        AssertContains(logged[0], "(260,440)");
+
+        // Once it holds still it is trustworthy again, and is said.
+        Equal("Clear.", Single(Settle(tracker, cursorX: 260, cursorY: 440, placementLegal: true)), "settled reading after the flapping stops");
     }
 
     private static void StatusAnswersWhatASightedPlayerSeesAtAGlance()
@@ -227,12 +264,24 @@ internal static class CondorBattleReaderTests
         memory.WriteUInt16(CondorMemory.CursorPlacementLegal, 1);
         memory.WriteInt16(CondorMemory.UnitUnderCursor, -1);
 
-        var snapshot = new CondorBattleStateReader(memory).TryRead();
+        var reader = new CondorBattleStateReader(memory);
+        var snapshot = reader.TryRead();
         AssertNotNull(snapshot, "snapshot for the status line");
+
+        // Before the placement reading has held still, the status line leaves it
+        // out rather than reporting whichever value the flag happened to be on.
+        var tracker = new CondorBattleSpeechTracker();
+        var unsettled = tracker.DescribeStatus(snapshot!);
+        Equal(
+            "9436 gil. 1 unit. 4 enemies. nearest enemy unit, 120 of 200, 120 down.",
+            unsettled,
+            "status line before the placement reading settles");
+
+        for (var sample = 0; sample < 6; sample++) { tracker.Observe(reader.TryRead()!); }
         Equal(
             "9436 gil. 1 unit. 4 enemies. can place here. nearest enemy unit, 120 of 200, 120 down.",
-            new CondorBattleSpeechTracker().DescribeStatus(snapshot!),
-            "status line");
+            tracker.DescribeStatus(reader.TryRead()!),
+            "status line once the placement reading settles");
     }
 
     private static void NamesOnlyUnitTypesThatHaveBeenProved()
@@ -286,6 +335,23 @@ internal static class CondorBattleReaderTests
             EnemyCount: 0,
             Outcome: outcome,
             MessageId: messageId);
+
+    /// <summary>
+    /// Moves the cursor and holds it there long enough for the placement reading
+    /// to settle, returning whatever the settling sample said.
+    /// </summary>
+    private static IReadOnlyList<string> Settle(
+        CondorBattleSpeechTracker tracker, int cursorX, int cursorY, bool placementLegal)
+    {
+        IReadOnlyList<string> lines = [];
+        for (var sample = 0; sample < 8; sample++)
+        {
+            var spoken = tracker.Observe(Battle(cursorX: cursorX, cursorY: cursorY, placementLegal: placementLegal));
+            if (spoken.Count > 0) { lines = spoken; }
+        }
+
+        return lines;
+    }
 
     private static string Single(IReadOnlyList<string> lines)
     {
