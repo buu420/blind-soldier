@@ -1862,7 +1862,13 @@ public sealed class Mod : IModV1, IModV2
             {
                 inCondorBattle = false;
                 condorBattleSpeechTracker.Reset();
-                Log("Fort Condor battle reader: left module 9.");
+
+                // The terrain is cached for the life of a battle, and the next one
+                // is fought on a different hill.
+                condorBattleStateReader.Reset();
+                Log(
+                    $"Fort Condor battle reader: left module 9 after " +
+                    $"{condorBattleSpeechTracker.PlacementDisagreements} placement flag disagreement(s).");
             }
 
             return;

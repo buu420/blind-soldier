@@ -43,21 +43,18 @@ public sealed class CondorBattleSpeechTracker
     private readonly HashSet<int> reportedUnknownTypes = [];
 
     /// <summary>
-    /// Reads of the placement flag that must agree, at a cursor that has not
-    /// moved, before the answer is said out loud.
+    /// How many disagreements between the calculated answer and the game's own
+    /// flag are worth writing down before the point is made.
     ///
-    /// <para>The flag is not stable to sample. In a real battle on 2026-08-21,
-    /// six of the twenty positions the cursor rested on reported both answers,
-    /// and one of them - (260, 440) - reported both five times while the cursor
-    /// sat still. Announcing each read turned that into a stream of "Clear",
-    /// "Blocked", "Clear" that sounded like fine terrain detail and was nothing
-    /// of the kind. A player who cannot see the hill has no way to tell an
-    /// unreliable readout from a real one, so the only safe thing is to say
-    /// nothing until the reading holds.</para>
+    /// <para>The flag at 0x00CBCC9C is a frame-local render decision, cleared and
+    /// recomputed several times per frame, so an outside reader polling it lands
+    /// in the clear-to-recompute window and sees a false "blocked". In a real
+    /// battle on 2026-08-21 six of the twenty positions the cursor rested on
+    /// reported both answers, one of them five times without the cursor moving.
+    /// Legality is therefore calculated here from the same inputs the validator
+    /// uses, which is exact and does not flicker; the flag is still read, but
+    /// only to record where the two disagree.</para>
     /// </summary>
-    private const int PlacementSettleSamples = 5;
-
-    /// <summary>Enough disagreements to characterise the fault without filling the log.</summary>
     private const int MaximumLoggedPlacementDisagreements = 40;
 
     private bool started;
@@ -67,11 +64,6 @@ public sealed class CondorBattleSpeechTracker
     private int? lastHighlightedTypeId;
     private int lastUnitUnderCursorSlot;
     private int lastAlliedCount;
-    private int lastCursorX;
-    private int lastCursorY;
-    private bool pendingPlacementLegal;
-    private int placementAgreeingSamples;
-    private bool? settledPlacementLegal;
     private bool? spokenPlacementLegal;
     private int placementDisagreements;
 
@@ -83,16 +75,14 @@ public sealed class CondorBattleSpeechTracker
     {
         started = false;
         reportedUnknownTypes.Clear();
-        settledPlacementLegal = null;
         spokenPlacementLegal = null;
-        placementAgreeingSamples = 0;
         placementDisagreements = 0;
     }
 
     /// <summary>
-    /// How many times the placement flag contradicted itself at a cursor that
-    /// had not moved. Reported when the battle ends, because a count of zero is
-    /// what proves the reading can be trusted again.
+    /// How many times the calculated placement answer differed from the game's
+    /// own flag. Expected to be small and to happen only while the flag is
+    /// mid-recomputation; a large count would mean the calculation is wrong.
     /// </summary>
     public int PlacementDisagreements => placementDisagreements;
 
@@ -104,11 +94,17 @@ public sealed class CondorBattleSpeechTracker
         ArgumentNullException.ThrowIfNull(snapshot);
 
         ReportUnknownUnitTypes(snapshot);
-        UpdatePlacementReading(snapshot);
+        RecordPlacementFlagDisagreement(snapshot);
 
         if (!started)
         {
             started = true;
+
+            // Entering the battle is not a change in the ground, so take the
+            // first reading as the baseline. The opening status line already
+            // says what is under the cursor.
+            spokenPlacementLegal = CondorPlacementRegion.IsLegalAt(
+                snapshot, snapshot.CursorX, snapshot.CursorY);
             Remember(snapshot);
             return [DescribeStatus(snapshot)];
         }
@@ -193,9 +189,9 @@ public sealed class CondorBattleSpeechTracker
         {
             parts.Add($"cursor on {under.Describe()}");
         }
-        else if (settledPlacementLegal is { } legal)
+        else
         {
-            parts.Add(legal ? "can place here" : "cannot place here");
+            parts.Add(CondorPlacementRegion.Describe(snapshot.PlacementIntervals, snapshot.CursorY));
         }
 
         if (snapshot.NearestEnemy is { } nearest)
@@ -217,85 +213,76 @@ public sealed class CondorBattleSpeechTracker
             if (snapshot.UnitUnderCursor is { } unit)
             {
                 yield return unit.Describe() + ".";
+                yield break;
             }
-            else if (lastUnitUnderCursorSlot >= 0)
+
+            if (lastUnitUnderCursorSlot >= 0)
             {
-                // Leaving a unit for open ground. The stat panel clears, so say
-                // that it cleared rather than leaving the last unit standing as
-                // the player's mental picture of where the cursor is.
-                yield return "Clear.";
+                // The stat panel clears when the cursor leaves a unit, so say what
+                // the ground under it is rather than leaving the last unit
+                // standing as the player's picture of where they are.
+                spokenPlacementLegal = CondorPlacementRegion.IsLegalAt(
+                    snapshot, snapshot.CursorX, snapshot.CursorY);
+                yield return DescribePlacement(snapshot) + ".";
+                yield break;
             }
 
             yield break;
         }
 
-        // Whether the ground under the cursor can take a unit is the difference
-        // between a confirm that opens the hire list and one that does nothing,
-        // so it is worth saying - but only once the reading holds still. See
-        // PlacementSettleSamples for why an unsettled reading is said as nothing
-        // rather than as its latest value.
-        if (snapshot.UnitUnderCursorSlot < 0 &&
-            settledPlacementLegal is { } legal &&
-            legal != spokenPlacementLegal)
+        if (snapshot.UnitUnderCursorSlot >= 0)
+        {
+            yield break;
+        }
+
+        // Whether the ground can take a unit decides whether confirm opens the
+        // hire list at all. This is calculated rather than sampled, so it changes
+        // only when the ground under the cursor really does.
+        var legal = CondorPlacementRegion.IsLegalAt(snapshot, snapshot.CursorX, snapshot.CursorY);
+        if (legal != spokenPlacementLegal)
         {
             spokenPlacementLegal = legal;
-            yield return legal ? "Clear." : "Blocked.";
+            yield return DescribePlacement(snapshot) + ".";
         }
     }
 
     /// <summary>
-    /// Accumulates agreeing reads of the placement flag at a stationary cursor,
-    /// and records the disagreements.
+    /// The ground under the cursor, and how far the band it belongs to extends.
+    ///
+    /// <para>A sighted player sees the whole hill at once and knows how far they
+    /// can build without trying. Saying only "clear" would answer for one row and
+    /// leave the extent to be found by sweeping the column by ear.</para>
     /// </summary>
-    private void UpdatePlacementReading(CondorBattleSnapshot snapshot)
+    private static string DescribePlacement(CondorBattleSnapshot snapshot) =>
+        CondorPlacementRegion.Describe(snapshot.PlacementIntervals, snapshot.CursorY);
+
+    /// <summary>
+    /// Notes where the calculated answer and the game's own flag disagree.
+    /// </summary>
+    private void RecordPlacementFlagDisagreement(CondorBattleSnapshot snapshot)
     {
-        var moved = snapshot.CursorX != lastCursorX || snapshot.CursorY != lastCursorY;
-        lastCursorX = snapshot.CursorX;
-        lastCursorY = snapshot.CursorY;
-
-        if (moved)
+        if (snapshot.ModalState != 0 ||
+            snapshot.InteractionMode != CondorBattleSnapshot.CursorInteractionMode)
         {
-            pendingPlacementLegal = snapshot.CursorPlacementLegal;
-            placementAgreeingSamples = 1;
-            settledPlacementLegal = null;
             return;
         }
 
-        if (snapshot.CursorPlacementLegal == pendingPlacementLegal)
+        var calculated = CondorPlacementRegion.IsLegalAt(snapshot, snapshot.CursorX, snapshot.CursorY);
+        if (calculated == snapshot.CursorPlacementLegal)
         {
-            if (placementAgreeingSamples < PlacementSettleSamples)
-            {
-                placementAgreeingSamples++;
-            }
-
-            if (placementAgreeingSamples >= PlacementSettleSamples)
-            {
-                settledPlacementLegal = pendingPlacementLegal;
-            }
-
             return;
         }
 
-        // The flag contradicted itself at a cursor that had not moved, so this
-        // is the flag changing under the reader rather than a change in the
-        // ground. Logged with the position and phase, because what decides it is
-        // still unknown and this is the evidence that will settle it.
         placementDisagreements++;
         if (placementDisagreements <= MaximumLoggedPlacementDisagreements)
         {
             log(
-                $"Fort Condor placement flag disagreed at a stationary cursor " +
-                $"({snapshot.CursorX},{snapshot.CursorY}): was {pendingPlacementLegal} after " +
-                $"{placementAgreeingSamples} sample(s), now {snapshot.CursorPlacementLegal}. " +
-                $"mode={snapshot.InteractionMode}, modal={snapshot.ModalState}, " +
-                $"message={snapshot.MessageId}, outcome={snapshot.Outcome}, " +
-                $"units={snapshot.Units.Count}, allied={snapshot.AlliedCount}, " +
-                $"enemies={snapshot.EnemyCount}.");
+                $"Fort Condor placement: calculated {calculated} but the native flag read " +
+                $"{snapshot.CursorPlacementLegal} at ({snapshot.CursorX},{snapshot.CursorY}). " +
+                $"phase={snapshot.Phase}, frontier={snapshot.DeploymentFrontierY}, " +
+                $"limit={CondorPlacementRegion.VerticalLimit(snapshot)}, " +
+                $"allied={snapshot.AlliedCount}, triangles={snapshot.CollisionTriangles.Count}.");
         }
-
-        pendingPlacementLegal = snapshot.CursorPlacementLegal;
-        placementAgreeingSamples = 1;
-        settledPlacementLegal = null;
     }
 
     private string? DescribeHighlightedUnit(CondorBattleSnapshot snapshot)

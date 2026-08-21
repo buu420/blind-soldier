@@ -36,6 +36,19 @@ public sealed class CondorBattleStateReader
     private const uint AddressEnemyCount = 0x00CBC7A4;
     private const uint AddressOutcome = 0x00CBEDC0;
     private const uint AddressMessageId = 0x00901B70;
+    private const uint AddressPhase = 0x00C625D4;
+    private const uint AddressReportState = 0x00C72DEC;
+    private const uint AddressDeploymentFrontierY = 0x00C60AE8;
+    private const uint AddressCollisionCount = 0x00C60AA4;
+    private const uint AddressCollisionRecords = 0x00C625E8;
+
+    private const int CollisionRecordStride = 0x4C;
+
+    /// <summary>
+    /// The shipped archive has 333 collision triangles. A count outside this
+    /// bound means the array is not loaded and the snapshot is not coherent.
+    /// </summary>
+    private const int MaximumCollisionRecords = 4096;
 
     private const int UnitSlots = 40;
     private const int FirstEnemySlot = 20;
@@ -47,6 +60,8 @@ public sealed class CondorBattleStateReader
     private const int UnitCurrentHp = 0x10;
     private const int UnitMaximumHp = 0x11;
     private const int UnitAttack = 0x12;
+    private const int UnitWidth = 0x22;
+    private const int UnitHeightAbove = 0x23;
     private const int UnitX = 0x48;
     private const int UnitY = 0x4A;
 
@@ -59,8 +74,23 @@ public sealed class CondorBattleStateReader
 
     private readonly ILegacyAddressSpace memory;
 
+    /// <summary>
+    /// The collision triangles, which are copied from vert.bin once when the
+    /// battle loads and never change while it runs. Reading twenty-five kilobytes
+    /// several times a second to re-learn the same hill would be waste.
+    /// </summary>
+    private IReadOnlyList<CondorCollisionTriangle>? collisionTriangles;
+    private int collisionTriangleCount = -1;
+
     public CondorBattleStateReader(ILegacyAddressSpace memory) =>
         this.memory = memory ?? throw new ArgumentNullException(nameof(memory));
+
+    /// <summary>Forgets the cached terrain, so a new battle loads its own.</summary>
+    public void Reset()
+    {
+        collisionTriangles = null;
+        collisionTriangleCount = -1;
+    }
 
     public CondorBattleSnapshot? TryRead()
     {
@@ -77,7 +107,11 @@ public sealed class CondorBattleStateReader
             !TryReadInt32(AddressAlliedCount, out var alliedCount) ||
             !TryReadInt32(AddressEnemyCount, out var enemyCount) ||
             !TryReadInt16(AddressOutcome, out var outcome) ||
-            !TryReadInt32(AddressMessageId, out var messageId))
+            !TryReadInt32(AddressMessageId, out var messageId) ||
+            !TryReadInt32(AddressPhase, out var phase) ||
+            !TryReadInt16(AddressReportState, out var reportState) ||
+            !TryReadInt32(AddressDeploymentFrontierY, out var frontierY) ||
+            !TryReadInt32(AddressCollisionCount, out var collisionCount))
         {
             return null;
         }
@@ -90,6 +124,12 @@ public sealed class CondorBattleStateReader
 
         var units = ReadUnits();
         if (units is null)
+        {
+            return null;
+        }
+
+        var terrain = ReadCollisionTriangles(collisionCount);
+        if (terrain is null)
         {
             return null;
         }
@@ -109,7 +149,62 @@ public sealed class CondorBattleStateReader
             alliedCount,
             enemyCount,
             outcome,
-            messageId);
+            messageId,
+            phase,
+            reportState,
+            frontierY,
+            terrain);
+    }
+
+    /// <summary>
+    /// The battlefield's collision triangles, cached for the life of the battle.
+    /// </summary>
+    private IReadOnlyList<CondorCollisionTriangle>? ReadCollisionTriangles(int count)
+    {
+        if (count is <= 0 or > MaximumCollisionRecords)
+        {
+            // Before the battle's geometry is loaded there is no terrain to speak
+            // of. An empty list says exactly that; the placement calculator then
+            // reports nowhere rather than inventing ground.
+            return Array.Empty<CondorCollisionTriangle>();
+        }
+
+        if (collisionTriangles is not null && collisionTriangleCount == count)
+        {
+            return collisionTriangles;
+        }
+
+        var triangles = new CondorCollisionTriangle[count];
+        Span<byte> record = stackalloc byte[CollisionRecordStride];
+        for (var index = 0; index < count; index++)
+        {
+            if (!memory.TryRead(AddressCollisionRecords + (uint)(index * CollisionRecordStride), record))
+            {
+                return null;
+            }
+
+            var ax = BitConverter.ToInt16(record[0x28..]);
+            var ay = BitConverter.ToInt16(record[0x2A..]);
+            var bx = BitConverter.ToInt16(record[0x30..]);
+            var by = BitConverter.ToInt16(record[0x32..]);
+            var cx = BitConverter.ToInt16(record[0x38..]);
+            var cy = BitConverter.ToInt16(record[0x3A..]);
+
+            // The record carries its own inclusive bounds, biased by 0x4000. The
+            // game applies them before the triangle test and every record in the
+            // shipped file satisfies bound = 0x4000 + the matching extreme, so
+            // they are used as stored rather than recomputed.
+            triangles[index] = new CondorCollisionTriangle(
+                ax, ay, bx, by, cx, cy,
+                BitConverter.ToInt16(record[0x40..]) - 0x4000,
+                BitConverter.ToInt16(record[0x42..]) - 0x4000,
+                BitConverter.ToInt16(record[0x44..]) - 0x4000,
+                BitConverter.ToInt16(record[0x46..]) - 0x4000);
+        }
+
+        collisionTriangles = triangles;
+        collisionTriangleCount = count;
+        return triangles;
     }
 
     private IReadOnlyList<int>? ReadAvailableTypeIds(int count)
@@ -169,7 +264,9 @@ public sealed class CondorBattleStateReader
                 record[UnitAttack],
                 BitConverter.ToInt16(record[UnitX..]),
                 BitConverter.ToInt16(record[UnitY..]),
-                currentHp == 0 || removalState != 0));
+                currentHp == 0 || removalState != 0,
+                record[UnitWidth],
+                record[UnitHeightAbove]));
         }
 
         return units;

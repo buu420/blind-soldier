@@ -6,6 +6,8 @@ namespace Ff7.Accessibility.Reloaded;
 /// <param name="X">World X, in the same coordinate space as the cursor.</param>
 /// <param name="Y">World Y, in the same coordinate space as the cursor.</param>
 /// <param name="IsDying">Allocated but out of HP or already in its removal animation.</param>
+/// <param name="Width">Drawn width, which sets how much ground the unit denies to a new one.</param>
+/// <param name="HeightAbove">How far above its own position the unit's footprint reaches.</param>
 public sealed record CondorBattleUnit(
     int Slot,
     bool IsEnemy,
@@ -15,7 +17,9 @@ public sealed record CondorBattleUnit(
     int Attack,
     int X,
     int Y,
-    bool IsDying)
+    bool IsDying,
+    int Width,
+    int HeightAbove)
 {
     /// <summary>
     /// What to call this unit out loud. Hireable types are named from the
@@ -64,7 +68,11 @@ public sealed record CondorBattleSnapshot(
     int AlliedCount,
     int EnemyCount,
     int Outcome,
-    int MessageId)
+    int MessageId,
+    int Phase,
+    int ReportState,
+    int DeploymentFrontierY,
+    IReadOnlyList<CondorCollisionTriangle> CollisionTriangles)
 {
     public const int SettingMenuModalState = 7;
 
@@ -96,6 +104,14 @@ public sealed record CondorBattleSnapshot(
             return AvailableTypeIds[index];
         }
     }
+
+    /// <summary>
+    /// Every row of the cursor's current column that would accept a unit. The
+    /// game only ever answers this for the exact spot the cursor is on, so the
+    /// whole predicate is reproduced to answer it for the rest of the column.
+    /// </summary>
+    public IReadOnlyList<CondorPlacementInterval> PlacementIntervals =>
+        CondorPlacementRegion.LegalIntervals(this);
 
     public CondorBattleUnit? UnitUnderCursor =>
         UnitUnderCursorSlot < 0

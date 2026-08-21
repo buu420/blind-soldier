@@ -15,7 +15,10 @@ internal static class CondorBattleReaderTests
         SpeaksTheHireListWithAffordability();
         SpeaksTheUnitUnderTheCursorAndWhenItClears();
         DoesNotNarrateMovementAcrossOpenGround();
-        SaysNothingWhileThePlacementFlagContradictsItself();
+        ReproducesTheNativePlacementRegionFromTheShippedTerrain();
+        AppliesTheSetupBoundaryAndTheCombatFrontier();
+        ExistingUnitsCutHolesInAPlacementBand();
+        SpeaksThePlacementBandRatherThanOneRow();
         StatusAnswersWhatASightedPlayerSeesAtAGlance();
         NamesOnlyUnitTypesThatHaveBeenProved();
     }
@@ -191,65 +194,192 @@ internal static class CondorBattleReaderTests
             Single(tracker.Observe(reader.TryRead()!)),
             "unit under the cursor");
 
-        // The native stat panel clears when the cursor leaves the unit. Saying so
-        // stops the last unit from standing as the player's picture of where they
-        // are.
+        // The native stat panel clears when the cursor leaves the unit, so the
+        // ground under it is described instead. Leaving the last unit standing as
+        // the player's picture of where they are would be worse than saying
+        // nothing. The Defender at (200, 400) still denies the rows around
+        // itself, so the band the cursor lands in stops short of it.
         memory.WriteInt16(CondorMemory.UnitUnderCursor, -1);
-        Equal("Clear.", Single(tracker.Observe(reader.TryRead()!)), "cursor leaving a unit");
+        AssertContains(Single(tracker.Observe(reader.TryRead()!)), "placeable");
     }
 
     private static void DoesNotNarrateMovementAcrossOpenGround()
     {
+        // A sighted player crossing unbroken ground is shown nothing new. The
+        // band under the cursor is the same band, so there is nothing to say and
+        // a running commentary would bury the events that matter.
+        var memory = new CondorMemory();
+        var reader = new CondorBattleStateReader(memory);
         var tracker = new CondorBattleSpeechTracker();
-        Settle(tracker, cursorX: 100, cursorY: 100, placementLegal: true);
+        tracker.Observe(reader.TryRead()!);
 
-        // A sighted player crossing open ground is shown nothing new. A running
-        // commentary of coordinates would bury the events that do matter.
-        Equal(0, tracker.Observe(Battle(cursorX: 140, cursorY: 100, placementLegal: true)).Count, "cursor moved over legal ground");
-        Equal(0, tracker.Observe(Battle(cursorX: 180, cursorY: 160, placementLegal: true)).Count, "cursor moved again");
-
-        // Whether the ground can take a unit decides whether confirm opens the
-        // hire list at all, so a settled change in it is worth saying.
-        Equal(
-            "Blocked.",
-            Single(Settle(tracker, cursorX: 180, cursorY: 200, placementLegal: false)),
-            "cursor resting on ground that cannot take a unit");
-        Equal(0, tracker.Observe(Battle(cursorX: 180, cursorY: 200, placementLegal: false)).Count, "cursor still on blocked ground");
-        Equal(
-            "Clear.",
-            Single(Settle(tracker, cursorX: 180, cursorY: 280, placementLegal: true)),
-            "cursor resting on open ground again");
-    }
-
-    private static void SaysNothingWhileThePlacementFlagContradictsItself()
-    {
-        // The flag is not stable to sample. In a real battle on 2026-08-21 six of
-        // the twenty positions the cursor rested on reported both answers, one of
-        // them five times without the cursor moving. Announcing each read turned
-        // that into "Clear, Blocked, Clear" - which sounds exactly like fine
-        // terrain detail to somebody who cannot see the hill, and is nothing of
-        // the kind. Until what drives it is known, an unsettled reading is worth
-        // less than silence.
-        var logged = new List<string>();
-        var tracker = new CondorBattleSpeechTracker(logged.Add);
-        tracker.Observe(Battle(cursorX: 260, cursorY: 440, placementLegal: true));
-
-        var spoken = 0;
-        for (var sample = 0; sample < 12; sample++)
+        foreach (var y in new[] { 100, 160, 240, 320 })
         {
-            spoken += tracker
-                .Observe(Battle(cursorX: 260, cursorY: 440, placementLegal: sample % 2 == 0))
-                .Count;
+            memory.WriteInt16(CondorMemory.CursorY, (short)y);
+            Equal(0, tracker.Observe(reader.TryRead()!).Count, $"cursor moved to row {y}");
         }
 
-        Equal(0, spoken, "lines spoken while the flag alternates");
-        Equal(true, tracker.PlacementDisagreements > 0, "disagreements counted");
-        Equal(true, logged.Any(line => line.Contains("disagreed at a stationary cursor")), "disagreement logged");
-        AssertContains(logged[0], "(260,440)");
+        // Ground the frontier will not allow is a real change, and is said.
+        memory.WriteInt32(CondorMemory.DeploymentFrontierY, 300);
+        memory.WriteInt16(CondorMemory.CursorY, 400);
+        AssertContains(Single(tracker.Observe(reader.TryRead()!)), "blocked");
 
-        // Once it holds still it is trustworthy again, and is said.
-        Equal("Clear.", Single(Settle(tracker, cursorX: 260, cursorY: 440, placementLegal: true)), "settled reading after the flapping stops");
+        // And coming back inside it is said too.
+        memory.WriteInt16(CondorMemory.CursorY, 200);
+        AssertContains(Single(tracker.Observe(reader.TryRead()!)), "placeable");
     }
+
+    private static void ReproducesTheNativePlacementRegionFromTheShippedTerrain()
+    {
+        // The real collision mesh, read out of the installed condor.lgp, checked
+        // against the legal-row intervals the disassembly published for four
+        // cursor columns.
+        //
+        // The game decides membership with fixed-point wedge angles and an
+        // eight-unit tolerance out of a 4096-unit turn; this reproduces it with
+        // an exact integer cross-product instead. These four columns prove the
+        // substitution is sound on this mesh, edges included - and they prove the
+        // region has holes, so a single minimum and maximum would be false.
+        var terrain = LoadShippedCollisionTriangles();
+        Equal(333, terrain.Count, "collision triangle count");
+
+        var expected = new Dictionary<int, (int From, int To)[]>
+        {
+            [128] = [(484, 544), (652, 732), (792, 904)],
+            [256] = [(420, 1008)],
+            [260] = [(420, 476), (552, 1008)],
+            [320] = [(424, 460), (568, 716), (888, 1008)]
+        };
+
+        foreach (var (cursorX, bands) in expected)
+        {
+            // Combat phase with the frontier past the bottom of the map, so the
+            // terrain is the only thing constraining the answer.
+            var snapshot = Battle(cursorX: cursorX, phase: 0, frontierY: 2000, terrain: terrain);
+            var actual = snapshot.PlacementIntervals;
+
+            Equal(bands.Length, actual.Count, $"placement band count at X {cursorX}");
+            for (var index = 0; index < bands.Length; index++)
+            {
+                Equal(bands[index].From, actual[index].FromY, $"band {index} start at X {cursorX}");
+                Equal(bands[index].To, actual[index].ToY, $"band {index} end at X {cursorX}");
+            }
+        }
+    }
+
+    private static void AppliesTheSetupBoundaryAndTheCombatFrontier()
+    {
+        var terrain = LoadShippedCollisionTriangles();
+
+        // During setup the executable refuses anything below a fixed line. The
+        // cursor moves in four-unit steps, so the lowest row a player can
+        // actually reach under it is 668.
+        var setup = Battle(cursorX: 260, phase: CondorPlacementRegion.SetupPhase, terrain: terrain);
+        var setupBands = setup.PlacementIntervals;
+        Equal(2, setupBands.Count, "setup band count at X 260");
+        Equal(420, setupBands[0].FromY, "setup first band start");
+        Equal(476, setupBands[0].ToY, "setup first band end");
+        Equal(552, setupBands[1].FromY, "setup second band start");
+        Equal(668, setupBands[1].ToY, "setup second band end");
+
+        // Once the battle is running the limit becomes a frontier that starts at
+        // 480 and moves down as the allied units advance, so the ground a player
+        // may build on genuinely grows during a battle.
+        var earlyCombat = Battle(cursorX: 256, phase: 0, frontierY: 480, terrain: terrain);
+        Equal(476, earlyCombat.PlacementIntervals[^1].ToY, "combat limit at the opening frontier");
+
+        var advanced = Battle(cursorX: 256, phase: 0, frontierY: 928, terrain: terrain);
+        Equal(924, advanced.PlacementIntervals[^1].ToY, "combat limit at the furthest frontier");
+    }
+
+    private static void ExistingUnitsCutHolesInAPlacementBand()
+    {
+        // A unit denies more ground than the square it stands on, and the game
+        // keeps that ground denied until the slot is released. Reporting a band
+        // without its holes would send a player to spend gil somewhere the
+        // confirm does nothing at all.
+        var terrain = LoadShippedCollisionTriangles();
+        var clear = Battle(cursorX: 256, phase: 0, frontierY: 2000, terrain: terrain);
+        Equal(1, clear.PlacementIntervals.Count, "band count with an empty field");
+
+        var occupied = Battle(
+            cursorX: 256, phase: 0, frontierY: 2000, terrain: terrain,
+            units: [Unit(slot: 0, x: 256, y: 700)]);
+        Equal(true, occupied.PlacementIntervals.Count > 1, "a unit splits the band");
+        Equal(
+            false,
+            occupied.PlacementIntervals.Any(interval => interval.Contains(700)),
+            "the row the unit stands on is not offered");
+    }
+
+    private static void SpeaksThePlacementBandRatherThanOneRow()
+    {
+        var terrain = LoadShippedCollisionTriangles();
+        var inBand = Battle(
+            cursorX: 260, cursorY: 440,
+            phase: CondorPlacementRegion.SetupPhase, terrain: terrain);
+
+        // The cursor sits inside the first band, 420 to 476. A sighted player can
+        // see how far that band runs; saying only "clear" would answer for the
+        // single row under the cursor and leave the rest to be swept for by ear.
+        Equal(
+            "placeable 20 up and 36 down, 1 more band",
+            CondorPlacementRegion.Describe(inBand.PlacementIntervals, inBand.CursorY),
+            "placement description inside a band");
+
+        // Y 500 is in the real gap between the two bands.
+        var inGap = Battle(
+            cursorX: 260, cursorY: 500,
+            phase: CondorPlacementRegion.SetupPhase, terrain: terrain);
+        Equal(
+            "blocked, nearest placeable 24 up",
+            CondorPlacementRegion.Describe(inGap.PlacementIntervals, inGap.CursorY),
+            "placement description inside a gap");
+    }
+
+    private static IReadOnlyList<CondorCollisionTriangle> LoadShippedCollisionTriangles()
+    {
+        var archive = new LgpArchiveReader(
+            Path.Combine(FindRuntimeRoot(), "data", "minigame", "condor.lgp"));
+        if (!archive.TryReadFile("vert.bin", out var vertices))
+        {
+            throw new InvalidOperationException("condor.lgp does not contain vert.bin.");
+        }
+
+        const int stride = 0x4C;
+        var triangles = new List<CondorCollisionTriangle>();
+        for (var offset = 0; offset + stride <= vertices.Length; offset += stride)
+        {
+            var span = vertices.AsSpan(offset, stride);
+            triangles.Add(new CondorCollisionTriangle(
+                BitConverter.ToInt16(span[0x28..]), BitConverter.ToInt16(span[0x2A..]),
+                BitConverter.ToInt16(span[0x30..]), BitConverter.ToInt16(span[0x32..]),
+                BitConverter.ToInt16(span[0x38..]), BitConverter.ToInt16(span[0x3A..]),
+                BitConverter.ToInt16(span[0x40..]) - 0x4000,
+                BitConverter.ToInt16(span[0x42..]) - 0x4000,
+                BitConverter.ToInt16(span[0x44..]) - 0x4000,
+                BitConverter.ToInt16(span[0x46..]) - 0x4000));
+        }
+
+        return triangles;
+    }
+
+    private static string FindRuntimeRoot()
+    {
+        var configured = Environment.GetEnvironmentVariable("FF7_ACCESSIBILITY_RUNTIME");
+        if (!string.IsNullOrWhiteSpace(configured) &&
+            Directory.Exists(Path.Combine(configured, "data", "minigame")))
+        {
+            return configured;
+        }
+
+        throw new InvalidOperationException(
+            "FF7_ACCESSIBILITY_RUNTIME must name an FFVII runtime containing data/minigame.");
+    }
+
+    private static CondorBattleUnit Unit(
+        int slot, int x, int y, int width = 22, int heightAbove = 26, int typeId = 2) =>
+        new(slot, slot >= 20, typeId, 100, 100, 20, x, y, false, width, heightAbove);
 
     private static void StatusAnswersWhatASightedPlayerSeesAtAGlance()
     {
@@ -272,16 +402,15 @@ internal static class CondorBattleReaderTests
         // out rather than reporting whichever value the flag happened to be on.
         var tracker = new CondorBattleSpeechTracker();
         var unsettled = tracker.DescribeStatus(snapshot!);
+        // The allied unit stands exactly where the cursor is, so the ground under
+        // it is denied and the status says where the nearest usable row is
+        // instead. That is the whole point of calculating the region rather than
+        // answering only for the row the cursor is on.
         Equal(
-            "9436 gil. 1 unit. 4 enemies. nearest enemy unit, 120 of 200, 120 down.",
+            "9436 gil. 1 unit. 4 enemies. blocked, nearest placeable 24 down. " +
+            "nearest enemy unit, 120 of 200, 120 down.",
             unsettled,
-            "status line before the placement reading settles");
-
-        for (var sample = 0; sample < 6; sample++) { tracker.Observe(reader.TryRead()!); }
-        Equal(
-            "9436 gil. 1 unit. 4 enemies. can place here. nearest enemy unit, 120 of 200, 120 down.",
-            tracker.DescribeStatus(reader.TryRead()!),
-            "status line once the placement reading settles");
+            "status line with the cursor on an occupied row");
     }
 
     private static void NamesOnlyUnitTypesThatHaveBeenProved()
@@ -296,9 +425,12 @@ internal static class CondorBattleReaderTests
         Equal("enemy unit", snapshot!.Units[0].Name, "unnamed enemy type");
 
         var logged = new List<string>();
-        new CondorBattleSpeechTracker(logged.Add).Observe(snapshot);
-        Equal(1, logged.Count, "unnamed type reported once");
-        AssertContains(logged[0], "unnamed unit type 10");
+        var tracker = new CondorBattleSpeechTracker(logged.Add);
+        tracker.Observe(snapshot);
+        tracker.Observe(snapshot);
+        var unnamed = logged.Where(line => line.Contains("unnamed unit type")).ToList();
+        Equal(1, unnamed.Count, "unnamed type reported once, not once per snapshot");
+        AssertContains(unnamed[0], "unnamed unit type 10");
 
         // Named ones keep their side too, because the same type can stand on both.
         memory.WriteUnit(slot: 21, typeId: 2, currentHp: 180, maximumHp: 180, attack: 25, x: 120, y: 100);
@@ -318,7 +450,11 @@ internal static class CondorBattleReaderTests
         int outcome = 0,
         int cursorX = 0,
         int cursorY = 0,
-        bool placementLegal = true) =>
+        bool placementLegal = true,
+        int phase = 0,
+        int frontierY = 2000,
+        IReadOnlyList<CondorCollisionTriangle>? terrain = null,
+        IReadOnlyList<CondorBattleUnit>? units = null) =>
         new(
             InteractionMode: CondorBattleSnapshot.CursorInteractionMode,
             ModalState: modalState,
@@ -330,11 +466,15 @@ internal static class CondorBattleReaderTests
             CursorY: cursorY,
             CursorPlacementLegal: placementLegal,
             UnitUnderCursorSlot: -1,
-            Units: [],
+            Units: units ?? [],
             AlliedCount: 0,
             EnemyCount: 0,
             Outcome: outcome,
-            MessageId: messageId);
+            MessageId: messageId,
+            Phase: phase,
+            ReportState: 0,
+            DeploymentFrontierY: frontierY,
+            CollisionTriangles: terrain ?? []);
 
     /// <summary>
     /// Moves the cursor and holds it there long enough for the placement reading
@@ -378,6 +518,11 @@ internal static class CondorBattleReaderTests
         internal const uint CursorPlacementLegal = 0x00CBCC9C;
         internal const uint UnitUnderCursor = 0x00C6097C;
         internal const uint LiveUnits = 0x00CBCCD8;
+        internal const uint Phase = 0x00C625D4;
+        internal const uint DeploymentFrontierY = 0x00C60AE8;
+        internal const uint CollisionCount = 0x00C60AA4;
+        internal const uint CollisionRecords = 0x00C625E8;
+        internal const int CollisionStride = 0x4C;
         internal const uint AlliedCount = 0x00C60AD0;
         internal const uint EnemyCount = 0x00CBC7A4;
         internal const int UnitStride = 0x78;
@@ -396,6 +541,12 @@ internal static class CondorBattleReaderTests
             // Zero is not a mode the game uses, so leaving it unset would make
             // every cursor test pass by never reaching the cursor at all.
             WriteInt32(InteractionMode, CondorBattleSnapshot.CursorInteractionMode);
+
+            // Open ground over the whole map, and a deployment frontier past the
+            // bottom of it. Without terrain nothing is placeable anywhere, and a
+            // test about what the cursor says would pass by never getting there.
+            WriteOpenGround();
+            WriteInt32(DeploymentFrontierY, 2000);
         }
 
         internal void WriteUnit(
@@ -415,8 +566,41 @@ internal static class CondorBattleReaderTests
             bytes[unit + 0x10] = (byte)currentHp;
             bytes[unit + 0x11] = (byte)maximumHp;
             bytes[unit + 0x12] = (byte)attack;
+            bytes[unit + 0x22] = 22;
+            bytes[unit + 0x23] = 26;
             WriteInt16(unit + 0x48, (short)x);
             WriteInt16(unit + 0x4A, (short)y);
+        }
+
+        /// <summary>
+        /// Two triangles covering the whole battlefield, so every row of every
+        /// column is on terrain unless a test puts something in the way.
+        /// </summary>
+        internal void WriteOpenGround()
+        {
+            var corners = new[] { (-600, -700), (600, -700), (600, 700), (-600, 700) };
+            WriteCollisionTriangle(0, corners[0], corners[1], corners[2]);
+            WriteCollisionTriangle(1, corners[0], corners[2], corners[3]);
+            WriteInt32(CollisionCount, 2);
+        }
+
+        internal void WriteCollisionTriangle(
+            int index, (int X, int Y) a, (int X, int Y) b, (int X, int Y) c)
+        {
+            var record = CollisionRecords + (uint)(index * CollisionStride);
+            WriteInt16(record + 0x28, (short)a.X);
+            WriteInt16(record + 0x2A, (short)a.Y);
+            WriteInt16(record + 0x30, (short)b.X);
+            WriteInt16(record + 0x32, (short)b.Y);
+            WriteInt16(record + 0x38, (short)c.X);
+            WriteInt16(record + 0x3A, (short)c.Y);
+
+            // The record carries its own inclusive bounds, biased by 0x4000, and
+            // the game applies them before the triangle test.
+            WriteInt16(record + 0x40, (short)(0x4000 + Math.Min(a.X, Math.Min(b.X, c.X))));
+            WriteInt16(record + 0x42, (short)(0x4000 + Math.Max(a.X, Math.Max(b.X, c.X))));
+            WriteInt16(record + 0x44, (short)(0x4000 + Math.Min(a.Y, Math.Min(b.Y, c.Y))));
+            WriteInt16(record + 0x46, (short)(0x4000 + Math.Max(a.Y, Math.Max(b.Y, c.Y))));
         }
 
         internal void WriteInt32(uint address, int value)
