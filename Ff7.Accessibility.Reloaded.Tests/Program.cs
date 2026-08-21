@@ -484,6 +484,7 @@ AssertFieldOpcodeWaitDelegateHasReloadedFunctionAttribute();
 AssertFieldOpcodeSoundDelegateHasReloadedFunctionAttribute();
 AssertFieldOpcodeCutsceneDelegateHasReloadedFunctionAttribute();
 AssertFf7EncodedFieldTextDecodesForSpeech();
+AssertFf7EncodedFieldTextDecodesAccentedWesternLetters();
 AssertFf7EncodedTextRequiresTerminatorForBufferReads();
 AssertFf7EncodedAskTextPreservesNativeChoiceLines();
 AssertFf7EncodedAskTextPreservesNativePages();
@@ -2645,6 +2646,35 @@ static void AssertFf7EncodedFieldTextDecodesForSpeech()
         "[OK] [MENU] [SWITCH] [CANCEL]",
         Ff7EncodedTextDecoder.Decode(controllerButtons),
         "decoded controller glyphs");
+}
+
+// A Spanish or French player hears every line of the game through this table, so a wrong entry
+// is not a cosmetic fault: it is the difference between "Aeris está aquí" and a string of
+// unrelated symbols read out letter by letter. The other decoder tests are all ASCII, which
+// leaves the half of the table that only non-English installs reach completely uncovered.
+static void AssertFf7EncodedFieldTextDecodesAccentedWesternLetters()
+{
+    var spanish = Ff7GameLanguages.Get(Ff7GameLanguage.Spanish);
+
+    // "Ñoño: ¿Aeris está aquí? ¡Sí!" - inverted punctuation, tilde and acute accents in both cases.
+    var spanishLine = new byte[]
+    {
+        0x64, 0x4f, 0x76, 0x4f, 0x1a, 0x00, 0xa0, 0x21, 0x45, 0x52, 0x49, 0x53, 0x00, 0x45,
+        0x53, 0x54, 0x67, 0x00, 0x41, 0x51, 0x55, 0x72, 0x1f, 0x00, 0xa1, 0x33, 0x72, 0x01, 0xff
+    };
+    AssertEqual(
+        "Ñoño: ¿Aeris está aquí? ¡Sí!",
+        Ff7EncodedTextDecoder.DecodeField(spanishLine, spanish),
+        "decoded Spanish field text");
+
+    // The same table serves French and German, so a shifted entry would surface there too.
+    var french = Ff7GameLanguages.Get(Ff7GameLanguage.French);
+    var frenchLine = new byte[] { 0x34, 0x52, 0x6f, 0x53, 0x00, 0x6d, 0x41, 0x00, 0x56, 0x41, 0xff };
+    AssertEqual("Très ça va", Ff7EncodedTextDecoder.DecodeField(frenchLine, french), "decoded French field text");
+
+    var german = Ff7GameLanguages.Get(Ff7GameLanguage.German);
+    var germanLine = new byte[] { 0x33, 0x54, 0x52, 0x41, 0x87, 0x45, 0xff };
+    AssertEqual("Straße", Ff7EncodedTextDecoder.DecodeField(germanLine, german), "decoded German field text");
 }
 
 static void AssertFf7EncodedTextRequiresTerminatorForBufferReads()
