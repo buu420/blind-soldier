@@ -50,8 +50,14 @@ public sealed class CondorMinigameProbe
     public const uint SearchEnd = 0x02000000;
 
     /// <summary>
-    /// Records 0 and 1 of condor.lgp's unit table, spanning their boundary:
-    /// Fighter's cost/HP/attack tail followed by Attacker's header.
+    /// The first twenty bytes of record 1 of condor.lgp's unit table.
+    ///
+    /// <para>An earlier version of this file described this as spanning the
+    /// boundary of records 0 and 1, and subtracted 0x16 to reach the table. That
+    /// was wrong. data.bin holds the table offset in a 16-bit word at its own
+    /// start, which reads 0x26, and this signature sits at 0x46 — exactly one
+    /// 0x20 record later. The table is therefore at the offset the header gives,
+    /// and the signature begins one whole record into it.</para>
     /// </summary>
     public static ReadOnlySpan<byte> UnitTableSignature =>
     [
@@ -60,10 +66,30 @@ public sealed class CondorMinigameProbe
     ];
 
     /// <summary>
+    /// The globals Ghidra reached from FFNx's Fort Condor texture-loader anchor.
+    /// These are candidates under test, not a decoded interface: the probe reads
+    /// them back so a player moving the cursor can hear whether they follow, which
+    /// is the only way to confirm them without a debugger attached to a live
+    /// battle. Cursor X and Y are already corroborated — they were the two values
+    /// in the 2026-08-21 capture that moved in both directions in step with the
+    /// player — and the rest are unverified.
+    /// </summary>
+    private const uint AddressCursorX = 0x00CBCCC0;
+    private const uint AddressCursorY = 0x00CBCCC2;
+    private const uint AddressInteractionMode = 0x00C74C50;
+    private const uint AddressModalState = 0x00C625E0;
+    private const uint AddressSettingMenuRow = 0x00CBCCA0;
+    private const uint AddressAllyUnitRow = 0x00CBC930;
+    private const uint AddressSelectedUnit = 0x00C6097C;
+
+    /// <summary>
     /// Ticks between the two reads that make up one snapshot. Anything that
     /// differs across them is still moving and is not part of a settled state.
     /// </summary>
     private const int SettleTicks = 2;
+
+    /// <summary>Probe ticks the cursor must hold still before it is spoken.</summary>
+    private const int CursorSettleTicks = 3;
 
     /// <summary>
     /// Changed bytes are reported as contiguous runs. Two runs closer together
@@ -90,6 +116,16 @@ public sealed class CondorMinigameProbe
     private int markerNumber;
     private bool markerRequested;
     private bool active;
+    private int lastCursorX = -1;
+    private int lastCursorY = -1;
+    private int lastMode = -1;
+    private int lastModal = -1;
+    private int lastSettingRow = -1;
+    private int lastAllyRow = -1;
+    private int lastSelectedUnit = -1;
+    private int pendingCursorX = -1;
+    private int pendingCursorY = -1;
+    private int cursorSettleTicks;
     private bool searchedForUnitTable;
 
     public CondorMinigameProbe(
@@ -140,6 +176,8 @@ public sealed class CondorMinigameProbe
             SearchForUnitTable();
         }
 
+        WatchCandidateFields();
+
         if (markerRequested && pendingFirstRead is null)
         {
             markerRequested = false;
@@ -164,6 +202,102 @@ public sealed class CondorMinigameProbe
         markerNumber++;
         ReportAgainstPrevious(settled);
         settledPrevious = settled;
+    }
+
+    /// <summary>
+    /// Reads the candidate globals every tick and says the ones that changed.
+    /// This is a probe speaking raw numbers, not the finished reader: it says
+    /// "cursor 152, 148" rather than naming what is under the cursor, because
+    /// nothing here has earned the right to claim it knows that yet. What it does
+    /// buy is a player who can hear whether these addresses follow the cursor,
+    /// and who can navigate by ear well enough to reach the menus the next pass
+    /// needs.
+    /// </summary>
+    private void WatchCandidateFields()
+    {
+        var x = ReadUInt16(AddressCursorX);
+        var y = ReadUInt16(AddressCursorY);
+        var mode = ReadByte(AddressInteractionMode);
+        var modal = ReadByte(AddressModalState);
+        var settingRow = ReadByte(AddressSettingMenuRow);
+        var allyRow = ReadByte(AddressAllyUnitRow);
+        var unit = ReadByte(AddressSelectedUnit);
+
+        if (mode != lastMode || modal != lastModal)
+        {
+            // The mode is what decides which of the four control schemes the
+            // player is under, so it is worth interrupting for.
+            lastMode = mode;
+            lastModal = modal;
+            var name = modal == 7
+                ? "setting menu"
+                : mode switch
+                {
+                    1 => "cursor",
+                    2 => "ally unit",
+                    3 => "placement",
+                    _ => $"mode {mode}"
+                };
+            log($"Fort Condor watch: mode={mode}, modal={modal} -> {name}.");
+            speak(name);
+            return;
+        }
+
+        if (settingRow != lastSettingRow)
+        {
+            lastSettingRow = settingRow;
+            log($"Fort Condor watch: setting menu row={settingRow}.");
+            speak($"Row {settingRow}.");
+            return;
+        }
+
+        if (allyRow != lastAllyRow)
+        {
+            lastAllyRow = allyRow;
+            log($"Fort Condor watch: ally unit row={allyRow}.");
+            speak($"Ally row {allyRow}.");
+            return;
+        }
+
+        if (unit != lastSelectedUnit)
+        {
+            lastSelectedUnit = unit;
+            log($"Fort Condor watch: selected unit={unit}.");
+            speak($"Unit {unit}.");
+            return;
+        }
+
+        // The cursor is a pixel coordinate, so a single press may slide it over
+        // several frames. Speaking every intermediate value would bury the player
+        // in numbers, so wait until it stops moving and say where it came to rest.
+        if (x != pendingCursorX || y != pendingCursorY)
+        {
+            pendingCursorX = x;
+            pendingCursorY = y;
+            cursorSettleTicks = CursorSettleTicks;
+            return;
+        }
+
+        if (cursorSettleTicks > 0 && --cursorSettleTicks == 0 &&
+            (x != lastCursorX || y != lastCursorY))
+        {
+            lastCursorX = x;
+            lastCursorY = y;
+            log($"Fort Condor watch: cursor={x},{y}.");
+            speak($"{x}, {y}");
+        }
+    }
+
+    private ushort ReadUInt16(uint address)
+    {
+        Span<byte> buffer = stackalloc byte[2];
+        return memory.TryRead(address, buffer) ? BitConverter.ToUInt16(buffer) : (ushort)0;
+    }
+
+    private byte ReadByte(uint address)
+    {
+        Span<byte> buffer = stackalloc byte[1];
+        return memory.TryRead(address, buffer) ? buffer[0] : (byte)0;
     }
 
     private byte[] ReadRegion()
@@ -342,12 +476,11 @@ public sealed class CondorMinigameProbe
                 continue;
             }
 
-            // The signature spans records 0 and 1, so the table starts 0x16
-            // bytes earlier and the data block 0x30 before that.
-            var tableStart = page + (uint)index - 0x16u;
-            log(
-                $"Fort Condor probe: unit table found at 0x{tableStart:X8} " +
-                $"(condor data base 0x{tableStart - 0x30u:X8}).");
+            // The signature is record 1, so the table itself starts one 0x20
+            // record earlier. data.bin's own header word agrees: it reads 0x26
+            // and the signature sits at 0x46.
+            var tableStart = page + (uint)index - 0x20u;
+            log($"Fort Condor probe: unit table found at 0x{tableStart:X8}.");
             return;
         }
 
@@ -365,6 +498,16 @@ public sealed class CondorMinigameProbe
         markerNumber = 0;
         markerRequested = false;
         searchedForUnitTable = false;
+        lastCursorX = -1;
+        lastCursorY = -1;
+        lastMode = -1;
+        lastModal = -1;
+        lastSettingRow = -1;
+        lastAllyRow = -1;
+        lastSelectedUnit = -1;
+        pendingCursorX = -1;
+        pendingCursorY = -1;
+        cursorSettleTicks = 0;
     }
 
     private sealed record SettledSnapshot(byte[] Bytes, bool[] Stable);
