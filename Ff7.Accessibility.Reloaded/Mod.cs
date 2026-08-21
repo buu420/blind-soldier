@@ -52,6 +52,7 @@ public sealed class Mod : IModV1, IModV2
     private const int VirtualKeyO = 0x4F;
     private const int VirtualKeyU = 0x55;
     private const int VirtualKeyF8 = 0x77;
+    private const int VirtualKeyF9 = 0x78;
     private const int VirtualKeyControl = 0x11;
     private const int VirtualKeyQ = 0x51;
     private const uint MemoryStateCommit = 0x1000;
@@ -1847,9 +1848,17 @@ public sealed class Mod : IModV1, IModV2
         }
 
         lastCondorMinigameProbeAt = now;
+
+        // F9 marks a deliberate action during a Fort Condor capture. It is read
+        // straight from the keyboard rather than from the game, because the field
+        // input word the probe used to be given belongs to another module and
+        // reads zero throughout the fort battle.
+        var markerDown = foregroundProcessGate.IsCurrentProcessForeground() &&
+            (GetAsyncKeyState(VirtualKeyF9) & unchecked((short)0x8000)) != 0;
+
         condorMinigameProbe.Tick(
             ReadByte(FieldPositionReader.AddressCurrentModule),
-            fieldNavigationInputReader?.Read().RawStatus ?? 0u);
+            markerDown);
     }
 
     private void TickSquatMinigameCue()
