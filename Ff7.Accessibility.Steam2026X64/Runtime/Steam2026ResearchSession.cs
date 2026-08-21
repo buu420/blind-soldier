@@ -452,7 +452,8 @@ internal sealed class Steam2026ResearchSession : IDisposable
                             moduleBase,
                             memory,
                             TimeSpan.FromMilliseconds(
-                                Math.Max(100, config.FieldMessageStableMs)));
+                                Math.Max(100, config.FieldMessageStableMs)),
+                            log);
                         var candidateMenuReader = new Steam2026MenuObservationReader(
                             fingerprint,
                             moduleBase,
@@ -956,6 +957,44 @@ internal sealed class Steam2026ResearchSession : IDisposable
                         highwayAccessibilityCoordinator?.Reset("native x64 highway processing fault");
                         LogRuntimeFault(
                             $"Native highway accessibility reset after a fault: {ex.Message}",
+                            now,
+                            ref lastRuntimeFault,
+                            ref lastRuntimeFaultLogUtc);
+                    }
+
+                    try
+                    {
+                        // Fort Condor. The same shared reader the x86 runtime
+                        // uses, so module 9 sounds identical on both.
+                        var condorIsForeground =
+                            isHostForeground &&
+                            frame.Lifecycle.IsForeground &&
+                            !frame.Lifecycle.IsShuttingDown;
+                        var condorIsActive =
+                            frame.Lifecycle.ModuleId == CondorBattleStateReader.CondorModule;
+
+                        // Short-circuited on the module so the highway reader
+                        // above never loses its own press to a fort battle.
+                        var condorStatusRequested =
+                            condorIsActive &&
+                            condorIsForeground &&
+                            foregroundInput.ObserveRisingEdge(0x4B);
+
+                        foreach (var condorLine in pump.ObserveCondorBattle(
+                            frame.Lifecycle.ModuleId,
+                            condorStatusRequested,
+                            now))
+                        {
+                            if (config.EnableSpeech && condorIsForeground)
+                            {
+                                output.Speak(condorLine.Text, condorLine.Interrupt);
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        LogRuntimeFault(
+                            $"Native Fort Condor battle reader will retry: {ex.Message}",
                             now,
                             ref lastRuntimeFault,
                             ref lastRuntimeFaultLogUtc);

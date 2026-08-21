@@ -20,6 +20,20 @@ namespace Ff7.Accessibility.Reloaded;
 /// </remarks>
 public sealed class CondorBattleStateReader
 {
+    /// <summary>The module the fort battle runs in.</summary>
+    public const byte CondorModule = 9;
+
+    /// <summary>
+    /// How often the battle state is worth re-reading. The cursor moves four
+    /// world units per input step and repeats, so the reader has to sample
+    /// faster than a player can cross a unit's hit box.
+    /// </summary>
+    /// <remarks>
+    /// Shared so both runtimes read at the same cadence. This is a dual-runtime
+    /// mod and module 9 has to sound the same on either executable.
+    /// </remarks>
+    public static readonly TimeSpan ReadInterval = TimeSpan.FromMilliseconds(100);
+
     private const uint AddressInteractionMode = 0x00C74C50;
     private const uint AddressModalState = 0x00C625E0;
     private const uint AddressSettingMenuRow = 0x00CBCCA0;
@@ -39,6 +53,7 @@ public sealed class CondorBattleStateReader
     private const uint AddressPhase = 0x00C625D4;
     private const uint AddressReportState = 0x00C72DEC;
     private const uint AddressDeploymentFrontierY = 0x00C60AE8;
+    private const uint AddressEnemyAdvance = 0x00CBCCAC;
     private const uint AddressCollisionCount = 0x00C60AA4;
     private const uint AddressCollisionRecords = 0x00C625E8;
 
@@ -111,6 +126,7 @@ public sealed class CondorBattleStateReader
             !TryReadInt32(AddressPhase, out var phase) ||
             !TryReadInt16(AddressReportState, out var reportState) ||
             !TryReadInt32(AddressDeploymentFrontierY, out var frontierY) ||
+            !TryReadInt16(AddressEnemyAdvance, out var enemyAdvance) ||
             !TryReadInt32(AddressCollisionCount, out var collisionCount))
         {
             return null;
@@ -153,6 +169,7 @@ public sealed class CondorBattleStateReader
             phase,
             reportState,
             frontierY,
+            enemyAdvance,
             terrain);
     }
 
@@ -266,7 +283,8 @@ public sealed class CondorBattleStateReader
                 BitConverter.ToInt16(record[UnitY..]),
                 currentHp == 0 || removalState != 0,
                 record[UnitWidth],
-                record[UnitHeightAbove]));
+                record[UnitHeightAbove],
+                removalState != 0));
         }
 
         return units;

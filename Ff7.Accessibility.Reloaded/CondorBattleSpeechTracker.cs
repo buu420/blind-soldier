@@ -33,9 +33,22 @@ public sealed class CondorBattleSpeechTracker
         };
 
     private const int OutcomeOngoing = 0;
+    private const int OutcomeVictory = 1;
+    private const int OutcomeInvasion = 2;
 
     private const int VictoryMessageId = 2;
     private const int InvasionMessageId = 7;
+
+    /// <summary>
+    /// The result latch at 0x00CBEDC0, mapped to the banner the game publishes
+    /// from it, so the wording has one home.
+    /// </summary>
+    private static int? ResultBannerFor(int outcome) => outcome switch
+    {
+        OutcomeVictory => VictoryMessageId,
+        OutcomeInvasion => InvasionMessageId,
+        _ => null
+    };
 
     /// <summary>
     /// The two banners that end a battle, said with what they mean rather than
@@ -80,6 +93,7 @@ public sealed class CondorBattleSpeechTracker
     private readonly Dictionary<int, CondorBattleUnit> standing = [];
 
     private bool started;
+    private int lastAdvanceBand = -1;
     private int lastPhase;
     private bool resultSpoken;
     private int lastMessageId;
@@ -98,6 +112,7 @@ public sealed class CondorBattleSpeechTracker
     public void Reset()
     {
         started = false;
+        lastAdvanceBand = -1;
         resultSpoken = false;
         standing.Clear();
         reportedUnknownTypes.Clear();
@@ -132,17 +147,33 @@ public sealed class CondorBattleSpeechTracker
             spokenPlacementLegal = CondorPlacementRegion.IsLegalAt(
                 snapshot, snapshot.CursorX, snapshot.CursorY);
             RememberStanding(snapshot);
+            lastAdvanceBand = AdvanceBand(snapshot.EnemyAdvance);
             Remember(snapshot);
             return [DescribeStatus(snapshot)];
         }
 
         var lines = new List<string>();
 
+        // The result latch is the game's own decision and it is set before the
+        // banner is published from it, so it is the authority on who won. It
+        // was followed through the end of a battle in
+        // analysis/ghidra/fort-condor-combat-result-20260821.md: zero is no
+        // result, one is the enemy stopped, two is the enemy reaching the fort,
+        // and nothing else is ever written.
+        if (snapshot.Outcome != lastOutcome && !resultSpoken &&
+            ResultBannerFor(snapshot.Outcome) is { } latchedBanner)
+        {
+            resultSpoken = true;
+            lines.Add(Results[latchedBanner]);
+        }
+
         // The banner is the loudest thing on screen and it names events the
         // player cannot otherwise detect, so it goes first.
         var bannerChanged = snapshot.MessageId != lastMessageId;
         if (bannerChanged && Results.TryGetValue(snapshot.MessageId, out var result))
         {
+            // Published from the latch above, so this only ever speaks if the
+            // latch changed and went back to normal between two reads.
             if (!resultSpoken)
             {
                 resultSpoken = true;
@@ -154,20 +185,16 @@ public sealed class CondorBattleSpeechTracker
             lines.Add(message);
         }
 
-        // The outcome global is read and written down, but never spoken. The
-        // pass that named 0x00CBEDC0 could not follow it through the end of a
-        // battle, and telling a blind player they won when they lost is worse
-        // than telling them nothing. The banner above is proven; this line is
-        // what will tie the global to a known result.
         if (snapshot.Outcome != lastOutcome && snapshot.Outcome != OutcomeOngoing)
         {
             log(
-                $"Fort Condor: outcome global changed to {snapshot.Outcome} with banner " +
+                $"Fort Condor: result latch set to {snapshot.Outcome} with banner " +
                 $"{snapshot.MessageId}, {snapshot.LivingAllies} allied and " +
                 $"{snapshot.LivingEnemies} enemy units still standing.");
         }
 
         lines.AddRange(ObserveCasualties(snapshot, bannerChanged));
+        lines.AddRange(ObserveEnemyAdvance(snapshot));
 
         if (snapshot.SettingMenuOpen && !lastSettingMenuOpen)
         {
@@ -261,6 +288,52 @@ public sealed class CondorBattleSpeechTracker
         return lines;
     }
 
+    /// <summary>
+    /// How far the enemy has come, when that changes by enough to matter.
+    /// </summary>
+    /// <remarks>
+    /// The game keeps this as a value from zero to ninety-six, derived from the
+    /// leading enemy's position, and draws it as a row of segments that sits on
+    /// screen for the whole battle. It is the one thing a sighted player can
+    /// check at a glance to know whether they are losing, so it is reported at
+    /// quarters rather than left to be inferred from casualties.
+    ///
+    /// <para>Reported in both directions: the gauge falls back when the line is
+    /// pushed away from the fort, and a player who has just spent their last gil
+    /// deserves to hear that it worked.</para>
+    /// </remarks>
+    private IEnumerable<string> ObserveEnemyAdvance(CondorBattleSnapshot snapshot)
+    {
+        var band = AdvanceBand(snapshot.EnemyAdvance);
+        if (band == lastAdvanceBand)
+        {
+            yield break;
+        }
+
+        var closing = band > lastAdvanceBand;
+        lastAdvanceBand = band;
+        yield return DescribeAdvance(band, closing);
+    }
+
+    /// <summary>The gauge in quarters, which is how a row of segments reads.</summary>
+    private static int AdvanceBand(int advance) => advance switch
+    {
+        >= CondorBattleSnapshot.EnemyAdvanceFull => 4,
+        >= 72 => 3,
+        >= 48 => 2,
+        >= 24 => 1,
+        _ => 0
+    };
+
+    private static string DescribeAdvance(int band, bool closing) => band switch
+    {
+        >= 4 => "Enemies at the fort.",
+        3 => "Enemy advance three quarters.",
+        2 => "Enemy advance halfway.",
+        1 => "Enemy advance a quarter.",
+        _ => closing ? "Enemy advance a quarter." : "Enemies pushed back."
+    };
+
     private void RememberStanding(CondorBattleSnapshot snapshot)
     {
         standing.Clear();
@@ -305,6 +378,12 @@ public sealed class CondorBattleSpeechTracker
                 ? $"nearest {nearest.Describe()} at the cursor"
                 : $"nearest {nearest.Describe()}, {distance} {direction}");
         }
+
+        // The advance gauge is drawn for the whole battle, so it belongs in the
+        // glance rather than only in the moment it changes.
+        parts.Add(snapshot.EnemyAdvance <= 0
+            ? "no enemy advance"
+            : $"enemy advance {snapshot.EnemyAdvance * 100 / CondorBattleSnapshot.EnemyAdvanceFull} percent");
 
         return string.Join(". ", parts) + ".";
     }

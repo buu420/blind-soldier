@@ -12,10 +12,13 @@ internal static class CondorBattleReaderTests
         ResolvesTheHighlightedHireRowThroughTheListRotation();
         AnnouncesTheBannerMessagesTheGameDrawsAsPictures();
         SaysWhatTheEndingBannersMean();
-        DoesNotGuessTheResultFromAnUnprovenGlobal();
+        SpeaksTheResultFromTheGamesOwnLatch();
         SpeaksUnitsGoingDownDuringTheFight();
         DoesNotReportAPhaseChangeAsCasualties();
         AnchorsThePlacementScanToTheCursorRow();
+        NamesTheEnemyTypesTheGameDraws();
+        ReportsTheAdvanceGaugeTheGameDraws();
+        SkipsARemovingUnitWhenDecidingWhatTheCursorIsOn();
         SpeaksTheHireListWithAffordability();
         SpeaksTheUnitUnderTheCursorAndWhenItClears();
         DoesNotNarrateMovementAcrossOpenGround();
@@ -167,20 +170,36 @@ internal static class CondorBattleReaderTests
         Equal(0, lost.Observe(Battle(messageId: 7)).Count, "the result is announced once");
     }
 
-    private static void DoesNotGuessTheResultFromAnUnprovenGlobal()
+    private static void SpeaksTheResultFromTheGamesOwnLatch()
     {
+        // 0x00CBEDC0 is the module's result latch and the game sets it before it
+        // publishes the banner, so it is the earliest honest answer to "did I
+        // win". One is the enemy stopped, two is the enemy reaching the fort.
         var logged = new List<string>();
-        var tracker = new CondorBattleSpeechTracker(logged.Add);
-        tracker.Observe(Battle());
+        var lost = new CondorBattleSpeechTracker(logged.Add);
+        lost.Observe(Battle());
+        Equal(
+            "Enemy invasion. They reached the fort. Battle lost.",
+            Single(lost.Observe(Battle(outcome: 2))),
+            "defeat taken from the latch");
 
-        // 0x00CBEDC0 has never been followed through the end of a battle, so it
-        // is written down and never spoken. Telling a blind player they won when
-        // they lost is worse than telling them nothing.
-        Equal(0, tracker.Observe(Battle(outcome: 2)).Count, "the outcome global is not spoken");
+        // The banner is published from that same latch, so hearing it twice
+        // would be the game saying it once and the mod saying it again.
+        Equal(
+            0,
+            lost.Observe(Battle(outcome: 2, messageId: 7)).Count,
+            "the banner does not repeat the result");
         Equal(
             1,
-            logged.Count(line => line.Contains("outcome global changed to 2")),
-            "the outcome global is written down");
+            logged.Count(line => line.Contains("result latch set to 2")),
+            "the latch is written down as well as spoken");
+
+        var won = new CondorBattleSpeechTracker();
+        won.Observe(Battle());
+        Equal(
+            "Halted enemy attack! Battle won.",
+            Single(won.Observe(Battle(outcome: 1))),
+            "victory taken from the latch");
     }
 
     private static void SpeaksUnitsGoingDownDuringTheFight()
@@ -200,10 +219,10 @@ internal static class CondorBattleReaderTests
         var afterLoss = tracker.Observe(Battle(units: [line[0], line[2]], phase: 2));
         Equal("Lost Attacker. 1 unit left.", Single(afterLoss), "an allied unit going down");
 
-        // The enemy's name is not guessed at, but the count the banner never
-        // gives is still worth having.
+        // Named from the label the game draws for type 17, with the count the
+        // banner never gives.
         var afterKill = tracker.Observe(Battle(units: [line[0]], phase: 2));
-        Equal("Enemy unit destroyed. 0 enemies left.", Single(afterKill), "an enemy going down");
+        Equal("Enemy Wyvern destroyed. 0 enemies left.", Single(afterKill), "an enemy going down");
 
         Equal(0, tracker.Observe(Battle(units: [line[0]], phase: 2)).Count, "a steady field");
     }
@@ -468,8 +487,97 @@ internal static class CondorBattleReaderTests
     }
 
     private static CondorBattleUnit Unit(
-        int slot, int x, int y, int width = 22, int heightAbove = 26, int typeId = 2) =>
-        new(slot, slot >= 20, typeId, 100, 100, 20, x, y, false, width, heightAbove);
+        int slot, int x, int y, int width = 22, int heightAbove = 26, int typeId = 2,
+        bool removing = false) =>
+        new(slot, slot >= 20, typeId, 100, 100, 20, x, y, false, width, heightAbove, removing);
+
+    private static void NamesTheEnemyTypesTheGameDraws()
+    {
+        // Taken from the labels the executable itself draws - it picks name
+        // region 0x5F + typeId out of emes01 - and not from guides, which put
+        // Beast at 212 HP and Wyvern at 140. No record in the shipped archive
+        // has either value, and the archive is what the game runs.
+        var expected = new (int TypeId, string Name)[]
+        {
+            (16, "enemy Commander"),
+            (17, "enemy Wyvern"),
+            (18, "enemy Beast"),
+            (19, "enemy Barbarian")
+        };
+
+        foreach (var (typeId, name) in expected)
+        {
+            Equal(name, Unit(slot: 20, x: 0, y: 0, typeId: typeId).Name, $"name of enemy type {typeId}");
+        }
+
+        // A type nobody has proved is still described by side alone.
+        Equal("enemy unit", Unit(slot: 20, x: 0, y: 0, typeId: 21).Name, "an unproved enemy type");
+    }
+
+    private static void ReportsTheAdvanceGaugeTheGameDraws()
+    {
+        // The game derives this from the leading enemy's position and draws it
+        // as a row of segments that is on screen all battle. It is the one thing
+        // a sighted player can glance at to know they are losing.
+        var tracker = new CondorBattleSpeechTracker();
+        tracker.Observe(Battle(enemyAdvance: 0));
+
+        Equal(0, tracker.Observe(Battle(enemyAdvance: 20)).Count, "still inside the first quarter");
+        Equal(
+            "Enemy advance a quarter.",
+            Single(tracker.Observe(Battle(enemyAdvance: 24))),
+            "the first quarter");
+        Equal(
+            "Enemy advance halfway.",
+            Single(tracker.Observe(Battle(enemyAdvance: 50))),
+            "halfway");
+        Equal(
+            "Enemies at the fort.",
+            Single(tracker.Observe(Battle(enemyAdvance: 96))),
+            "the gauge full");
+
+        // Driving them back is worth hearing as much as losing ground is.
+        Equal(
+            "Enemy advance halfway.",
+            Single(tracker.Observe(Battle(enemyAdvance: 48))),
+            "pushed back down the gauge");
+    }
+
+    private static void SkipsARemovingUnitWhenDecidingWhatTheCursorIsOn()
+    {
+        // The game runs two scans over the live units and they disagree on
+        // purpose. The footprint scan stops at slot 38 and counts units that are
+        // playing their removal animation; the hit-box scan covers all forty and
+        // skips them. Slot 39 is therefore the only place the difference shows,
+        // and getting it wrong reports ground as blocked that the game accepts.
+        var terrain = LoadShippedCollisionTriangles();
+
+        var standing = Battle(
+            cursorX: 256, cursorY: 700, phase: 0, frontierY: 2000, terrain: terrain,
+            units: [Unit(slot: 39, x: 256, y: 700)]);
+        Equal(
+            false,
+            CondorPlacementRegion.IsLegalAt(standing, 256, 700),
+            "a live unit in slot 39 blocks the cursor");
+
+        var removing = Battle(
+            cursorX: 256, cursorY: 700, phase: 0, frontierY: 2000, terrain: terrain,
+            units: [Unit(slot: 39, x: 256, y: 700, removing: true)]);
+        Equal(
+            true,
+            CondorPlacementRegion.IsLegalAt(removing, 256, 700),
+            "a unit in its removal animation in slot 39 does not");
+
+        // Below slot 39 the footprint scan still counts it, exactly as the game
+        // does, so the removal state changes nothing there.
+        var lowSlot = Battle(
+            cursorX: 256, cursorY: 700, phase: 0, frontierY: 2000, terrain: terrain,
+            units: [Unit(slot: 5, x: 256, y: 700, removing: true)]);
+        Equal(
+            false,
+            CondorPlacementRegion.IsLegalAt(lowSlot, 256, 700),
+            "a removing unit below slot 39 still blocks");
+    }
 
     private static void StatusAnswersWhatASightedPlayerSeesAtAGlance()
     {
@@ -496,9 +604,11 @@ internal static class CondorBattleReaderTests
         // it is denied and the status says where the nearest usable row is
         // instead. That is the whole point of calculating the region rather than
         // answering only for the row the cursor is on.
+        // The advance gauge closes the line because the game draws it for the
+        // whole battle; a glance takes it in whether or not it just moved.
         Equal(
             "9436 gil. 1 unit. 4 enemies. blocked, nearest placeable 24 down. " +
-            "nearest enemy unit, 120 of 200, 120 down.",
+            "nearest enemy unit, 120 of 200, 120 down. no enemy advance.",
             unsettled,
             "status line with the cursor on an occupied row");
     }
@@ -543,6 +653,7 @@ internal static class CondorBattleReaderTests
         bool placementLegal = true,
         int phase = 0,
         int frontierY = 2000,
+        int enemyAdvance = 0,
         IReadOnlyList<CondorCollisionTriangle>? terrain = null,
         IReadOnlyList<CondorBattleUnit>? units = null) =>
         new(
@@ -564,6 +675,7 @@ internal static class CondorBattleReaderTests
             Phase: phase,
             ReportState: 0,
             DeploymentFrontierY: frontierY,
+            EnemyAdvance: enemyAdvance,
             CollisionTriangles: terrain ?? []);
 
     /// <summary>

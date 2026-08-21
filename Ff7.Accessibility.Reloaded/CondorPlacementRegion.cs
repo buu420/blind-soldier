@@ -216,7 +216,17 @@ public static class CondorPlacementRegion
     /// The hit box that decides which unit the cursor is treated as pointing at.
     /// Asymmetric in Y, and the game's own bounds are exclusive.
     /// </summary>
+    /// <remarks>
+    /// A unit playing its removal animation is skipped, because the game's own
+    /// scan skips it. Including it made this reader stricter than the game and
+    /// reported ground as blocked that the game would have accepted - thirty-five
+    /// times in a single battle on 2026-08-21, every one of them hiding somewhere
+    /// the player could have built. The footprint test below deliberately does
+    /// the opposite and still counts these units, which is also what the game
+    /// does.
+    /// </remarks>
     private static bool IsDirectlyUnder(CondorBattleUnit unit, int x, int y) =>
+        !unit.IsRemoving &&
         unit.X > x - 13 && unit.X < x + 13 &&
         unit.Y > y - 10 && unit.Y < y + 14;
 

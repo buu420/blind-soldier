@@ -117,6 +117,11 @@
     <Compile Include="..\Ff7.Accessibility.Reloaded\SteamAudioNative.cs" Link="Shared\SteamAudioNative.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\StaticMenuCursorSpeechTracker.cs" Link="Shared\StaticMenuCursorSpeechTracker.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\StatusMenuSpeechTracker.cs" Link="Shared\StatusMenuSpeechTracker.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\CondorUnitCatalog.cs" Link="Shared\CondorUnitCatalog.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\CondorPlacementRegion.cs" Link="Shared\CondorPlacementRegion.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\CondorBattleSnapshot.cs" Link="Shared\CondorBattleSnapshot.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\CondorBattleStateReader.cs" Link="Shared\CondorBattleStateReader.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\CondorBattleSpeechTracker.cs" Link="Shared\CondorBattleSpeechTracker.cs" />
     <EmbeddedResource Include="..\Ff7.Accessibility.Reloaded\Assets\navigation\field_objects.json"
                       Link="Assets\navigation\field_objects.json"
                       LogicalName="Ff7.Accessibility.Reloaded.Assets.navigation.field_objects.json" />

@@ -21,6 +21,11 @@ internal sealed class Steam2026ResearchObservationPump
     private readonly Steam2026FieldDialogueSpeechStabilityGate dialogueSpeechStabilityGate;
     private readonly Steam2026FieldObservationReader fieldReader;
     private readonly FieldCountdownReader countdownReader;
+    private readonly CondorBattleStateReader condorBattleReader;
+    private readonly CondorBattleSpeechTracker condorBattleSpeechTracker;
+    private readonly Action<string> log;
+    private bool inCondorBattle;
+    private DateTime lastCondorBattleReadUtc = DateTime.MinValue;
     private readonly FieldCountdownSpeechCoordinator countdownSpeechCoordinator = new();
     private readonly RootMainMenuRenderEvidenceTracker rootMainMenuRenderEvidenceTracker =
         new(TimeSpan.FromMilliseconds(300));
@@ -35,8 +40,10 @@ internal sealed class Steam2026ResearchObservationPump
         Steam2026FingerprintResult fingerprint,
         ulong moduleBase,
         INativeMemoryReader memory,
-        TimeSpan fieldMessageStableWindow)
+        TimeSpan fieldMessageStableWindow,
+        Action<string>? log = null)
     {
+        this.log = log ?? (_ => { });
         lifecycleReader = new Steam2026LifecycleObservationReader(
             fingerprint,
             moduleBase,
@@ -59,11 +66,96 @@ internal sealed class Steam2026ResearchObservationPump
             fingerprint,
             moduleBase,
             memory);
+
+        // Module 9 has no text to intercept on either executable, so the same
+        // reader and the same wording are used here as on x86.
+        condorBattleReader = new CondorBattleStateReader(translatedAddressSpace);
+        condorBattleSpeechTracker = new CondorBattleSpeechTracker(this.log);
+    }
+
+    /// <summary>
+    /// Fort Condor's battle, read straight from the module 9 globals through the
+    /// translated address space.
+    /// </summary>
+    /// <remarks>
+    /// The battle draws every word of its interface as a texture, so there is
+    /// nothing to hook on either runtime and the whole thing is rebuilt from
+    /// state. Sharing the reader and the tracker with x86 is the point: this is
+    /// a dual-runtime mod, and a player who learns what the fort sounds like on
+    /// one executable must not have to learn it again on the other.
+    /// </remarks>
+    internal IReadOnlyList<(string Text, bool Interrupt)> ObserveCondorBattle(
+        int moduleId,
+        bool statusRequested,
+        DateTime now)
+    {
+        if (moduleId != CondorBattleStateReader.CondorModule)
+        {
+            if (inCondorBattle)
+            {
+                inCondorBattle = false;
+
+                // Counted before the reset clears it.
+                log(
+                    $"Fort Condor battle reader: left module 9 after " +
+                    $"{condorBattleSpeechTracker.PlacementDisagreements} placement flag disagreement(s).");
+                condorBattleSpeechTracker.Reset();
+
+                // The terrain is cached for the life of a battle, and the next
+                // one is fought on a different hill.
+                condorBattleReader.Reset();
+            }
+
+            return [];
+        }
+
+        if (!statusRequested && now - lastCondorBattleReadUtc < CondorBattleStateReader.ReadInterval)
+        {
+            return [];
+        }
+
+        lastCondorBattleReadUtc = now;
+
+        var snapshot = condorBattleReader.TryRead();
+        if (snapshot is null)
+        {
+            // A partial read is not a battle state. Saying nothing is right: a
+            // fabricated snapshot would announce healthy units as dead.
+            log("Fort Condor battle reader: module 9 state could not be read coherently.");
+            return [];
+        }
+
+        if (!inCondorBattle)
+        {
+            inCondorBattle = true;
+            log(
+                $"Fort Condor battle reader: entered module 9 with {snapshot.AlliedCount} allied and " +
+                $"{snapshot.EnemyCount} enemy units, {snapshot.Gil} gil, {snapshot.Units.Count} live slots.");
+        }
+
+        var lines = new List<(string Text, bool Interrupt)>();
+        if (statusRequested)
+        {
+            var status = condorBattleSpeechTracker.DescribeStatus(snapshot);
+            log($"Fort Condor status: {status}");
+            lines.Add((status, true));
+        }
+
+        foreach (var line in condorBattleSpeechTracker.Observe(snapshot))
+        {
+            log($"Fort Condor speech: {line}");
+            lines.Add((line, false));
+        }
+
+        return lines;
     }
 
     internal void BeginShutdown()
     {
         CurrentFieldResearchSnapshot = null;
+        inCondorBattle = false;
+        condorBattleSpeechTracker.Reset();
+        condorBattleReader.Reset();
         countdownSpeechCoordinator.Reset();
         rootMainMenuRenderEvidenceTracker.Reset();
         lifecycleReader.BeginShutdown();

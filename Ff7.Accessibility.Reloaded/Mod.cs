@@ -1926,10 +1926,9 @@ public sealed class Mod : IModV1, IModV2
     }
 
     /// <summary>
-    /// The cursor moves four world units per input step and repeats, so the
-    /// reader has to sample faster than a player can cross a unit's hit box.
+    /// Shared with the x64 runtime so both read module 9 at the same cadence.
     /// </summary>
-    private static readonly TimeSpan CondorBattleReadInterval = TimeSpan.FromMilliseconds(100);
+    private static readonly TimeSpan CondorBattleReadInterval = CondorBattleStateReader.ReadInterval;
 
     /// <summary>
     /// The Fort Condor battle is silent because it draws no text the mod can

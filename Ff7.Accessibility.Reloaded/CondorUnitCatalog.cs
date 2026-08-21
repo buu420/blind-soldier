@@ -56,6 +56,30 @@ public static class CondorUnitCatalog
 
     public static IReadOnlyList<CondorUnit> HireableUnits => Units;
 
+    /// <summary>
+    /// The enemy types, named from the labels the game draws for them.
+    /// </summary>
+    /// <remarks>
+    /// These are not hireable, so they are kept out of the catalog proper. The
+    /// executable picks a name region as <c>0x5F + typeId</c> and draws it from
+    /// <c>emes01</c>; reading the cells that rule selects gives these four.
+    /// Published guides list Beast at 212 HP and Wyvern at 140, which match no
+    /// record in the shipped archive - the archive is what the game runs.
+    /// </remarks>
+    private static readonly IReadOnlyDictionary<int, string> EnemyNames =
+        new Dictionary<int, string>
+        {
+            [16] = "Commander",
+            [17] = "Wyvern",
+            [18] = "Beast",
+            [19] = "Barbarian"
+        };
+
+    /// <summary>The drawn label for a unit type, or null if it has not been proved.</summary>
+    public static string? ResolveName(int recordIndex) =>
+        ResolveByRecordIndex(recordIndex)?.Name ??
+        (EnemyNames.TryGetValue(recordIndex, out var name) ? name : null);
+
     public static CondorUnit? ResolveByRecordIndex(int recordIndex) =>
         Units.FirstOrDefault(unit => unit.RecordIndex == recordIndex);
 

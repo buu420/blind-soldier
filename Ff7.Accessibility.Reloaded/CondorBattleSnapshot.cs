@@ -8,6 +8,12 @@ namespace Ff7.Accessibility.Reloaded;
 /// <param name="IsDying">Allocated but out of HP or already in its removal animation.</param>
 /// <param name="Width">Drawn width, which sets how much ground the unit denies to a new one.</param>
 /// <param name="HeightAbove">How far above its own position the unit's footprint reaches.</param>
+/// <param name="IsRemoving">
+/// The removal byte at +0x05 is set. Kept apart from <paramref name="IsDying"/>
+/// because the game's two scans disagree about these units on purpose: the
+/// footprint scan still counts them, while the hit-box scan that decides which
+/// unit the cursor is pointing at skips them.
+/// </param>
 public sealed record CondorBattleUnit(
     int Slot,
     bool IsEnemy,
@@ -19,7 +25,8 @@ public sealed record CondorBattleUnit(
     int Y,
     bool IsDying,
     int Width,
-    int HeightAbove)
+    int HeightAbove,
+    bool IsRemoving = false)
 {
     /// <summary>
     /// What to call this unit out loud. Hireable types are named from the
@@ -31,7 +38,7 @@ public sealed record CondorBattleUnit(
     {
         get
         {
-            var known = CondorUnitCatalog.ResolveByRecordIndex(TypeId)?.Name;
+            var known = CondorUnitCatalog.ResolveName(TypeId);
             if (known is null)
             {
                 return IsEnemy ? "enemy unit" : "unit";
@@ -72,8 +79,16 @@ public sealed record CondorBattleSnapshot(
     int Phase,
     int ReportState,
     int DeploymentFrontierY,
+    int EnemyAdvance,
     IReadOnlyList<CondorCollisionTriangle> CollisionTriangles)
 {
+    /// <summary>
+    /// The value of <see cref="EnemyAdvance"/> when the enemy has reached the
+    /// fort. The game derives the gauge from the leading enemy's position and
+    /// draws it as a row of segments, so it is on screen throughout a battle.
+    /// </summary>
+    public const int EnemyAdvanceFull = 96;
+
     public const int SettingMenuModalState = 7;
 
     /// <summary>Cursor mode: the player is moving the cursor over the battlefield.</summary>

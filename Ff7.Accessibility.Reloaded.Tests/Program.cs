@@ -24,7 +24,15 @@ if (args.Contains("--field-transition-anchor-audit", StringComparer.OrdinalIgnor
 if (args.Contains("--condor-battle-only", StringComparer.OrdinalIgnoreCase))
 {
     CondorBattleReaderTests.Run();
+    DualRuntimeSharedSourceTests.Run();
     Console.WriteLine("FFVII Fort Condor battle reader tests passed.");
+    return;
+}
+
+if (args.Contains("--dual-runtime-sources-only", StringComparer.OrdinalIgnoreCase))
+{
+    DualRuntimeSharedSourceTests.Run();
+    Console.WriteLine("FFVII dual-runtime shared source tests passed.");
     return;
 }
 
@@ -461,6 +469,7 @@ AssertOpeningMovieAudioTrackVolumeMatchesFfnxGain();
 AssertFfnxRuntimeDetectorRecognizesDriverModules();
 Ff7.Accessibility.Reloaded.Tests.NavigationProgressControlTests.Run();
 FfnxPopupSpeechTests.Run();
+DualRuntimeSharedSourceTests.Run();
 Ff7.Accessibility.Reloaded.Tests.EchoSCompatibilityTests.Run();
 Ff7.Accessibility.Reloaded.Tests.LegacyStartupDiagnosticsTests.Run();
 AssertOpeningMoviePathResolverUsesFfnxOverrideOnlyWhenLoaded();
