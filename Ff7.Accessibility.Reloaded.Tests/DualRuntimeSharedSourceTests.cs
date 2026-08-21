@@ -37,6 +37,31 @@ internal static class DualRuntimeSharedSourceTests
     {
         EverySharedReaderAndTrackerIsCompiledIntoBothRuntimes();
         TheFortCondorBattleReaderIsCompiledIntoBothRuntimes();
+        TheX64RuntimeResetIncludesFortCondorState();
+    }
+
+    private static void TheX64RuntimeResetIncludesFortCondorState()
+    {
+        var root = FindSourceRoot();
+        var session = File.ReadAllText(Path.Combine(
+            root,
+            "Ff7.Accessibility.Steam2026X64",
+            "Runtime",
+            "Steam2026ResearchSession.cs"));
+        var pump = File.ReadAllText(Path.Combine(
+            root,
+            "Ff7.Accessibility.Steam2026X64",
+            "Runtime",
+            "Steam2026ResearchObservationPump.cs"));
+
+        if (!session.Contains("pump?.ResetCondorBattle();", StringComparison.Ordinal)
+            || !pump.Contains("internal void ResetCondorBattle()", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                "The x64 suspend/resume reset must clear the Fort Condor reader, tracker, " +
+                "battle epoch, and read throttle. Otherwise a resumed session can replay " +
+                "changes observed before suspension.");
+        }
     }
 
     private static void EverySharedReaderAndTrackerIsCompiledIntoBothRuntimes()

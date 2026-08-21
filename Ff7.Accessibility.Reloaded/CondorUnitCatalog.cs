@@ -56,29 +56,27 @@ public static class CondorUnitCatalog
 
     public static IReadOnlyList<CondorUnit> HireableUnits => Units;
 
-    /// <summary>
-    /// The enemy types, named from the labels the game draws for them.
-    /// </summary>
+    /// <summary>Every unit-name cell the game can select from <c>emes01.tex</c>.</summary>
     /// <remarks>
-    /// These are not hireable, so they are kept out of the catalog proper. The
-    /// executable picks a name region as <c>0x5F + typeId</c> and draws it from
-    /// <c>emes01</c>; reading the cells that rule selects gives these four.
-    /// Published guides list Beast at 212 HP and Wyvern at 140, which match no
-    /// record in the shipped archive - the archive is what the game runs.
+    /// The executable picks region <c>0x5F + typeId</c>. Region construction in
+    /// <c>FUN_005F933F</c> lays the 24 names out as four columns of six rows, so
+    /// this array is in native type-id order rather than visual reading order.
+    /// Unused cells literally contain <c>ダミー</c> ("dummy") in the English
+    /// texture; "Dummy" communicates that same visible label to the reader.
     /// </remarks>
-    private static readonly IReadOnlyDictionary<int, string> EnemyNames =
-        new Dictionary<int, string>
-        {
-            [16] = "Commander",
-            [17] = "Wyvern",
-            [18] = "Beast",
-            [19] = "Barbarian"
-        };
+    private static readonly string[] DrawnNames =
+    [
+        "Dummy", "Fighter", "Attacker", "Defender", "Shooter", "Stoner",
+        "Tristoner", "Catapult", "Fire Catapult", "Dummy", "Dummy", "Dummy",
+        "Repairer", "Worker", "Dummy", "Dummy", "Commander", "Wyvern",
+        "Beast", "Barbarian", "Dummy", "Dummy", "Dummy", "Dummy"
+    ];
 
     /// <summary>The drawn label for a unit type, or null if it has not been proved.</summary>
     public static string? ResolveName(int recordIndex) =>
-        ResolveByRecordIndex(recordIndex)?.Name ??
-        (EnemyNames.TryGetValue(recordIndex, out var name) ? name : null);
+        recordIndex >= 0 && recordIndex < DrawnNames.Length
+            ? DrawnNames[recordIndex]
+            : null;
 
     public static CondorUnit? ResolveByRecordIndex(int recordIndex) =>
         Units.FirstOrDefault(unit => unit.RecordIndex == recordIndex);

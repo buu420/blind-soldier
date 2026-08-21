@@ -60,6 +60,13 @@ archive.
    every interactive update. An external 100 ms poll can land in the clear-to-
    recompute window.
 
+The later audit in
+`analysis/ghidra/fort-condor-placement-disagreements-20260821.md` classifies
+all 35 live disagreement lines. Thirty-three occurred while report state was
+nonzero, when the executable does not recompute this flag at all; the other two
+were the snapshots in which a hire completed. None is evidence of a terrain or
+footprint mismatch.
+
 ## 1. Exact world-cursor placement predicate
 
 `FUN_005FE63C` is the complete ordinary-cursor placement validator. In

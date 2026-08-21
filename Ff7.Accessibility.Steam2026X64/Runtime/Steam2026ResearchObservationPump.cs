@@ -93,17 +93,11 @@ internal sealed class Steam2026ResearchObservationPump
         {
             if (inCondorBattle)
             {
-                inCondorBattle = false;
-
                 // Counted before the reset clears it.
                 log(
                     $"Fort Condor battle reader: left module 9 after " +
                     $"{condorBattleSpeechTracker.PlacementDisagreements} placement flag disagreement(s).");
-                condorBattleSpeechTracker.Reset();
-
-                // The terrain is cached for the life of a battle, and the next
-                // one is fought on a different hill.
-                condorBattleReader.Reset();
+                ResetCondorBattle();
             }
 
             return [];
@@ -150,12 +144,26 @@ internal sealed class Steam2026ResearchObservationPump
         return lines;
     }
 
+    /// <summary>
+    /// Starts a fresh Fort Condor observation epoch after a module exit,
+    /// runtime suspend/resume, or shutdown.
+    /// </summary>
+    internal void ResetCondorBattle()
+    {
+        inCondorBattle = false;
+        lastCondorBattleReadUtc = DateTime.MinValue;
+        condorBattleSpeechTracker.Reset();
+
+        // Terrain is cached for one battle. A reset can span a translated
+        // guest-runtime reinitialization even when no non-module-9 frame was
+        // observed, so the cache belongs to the epoch too.
+        condorBattleReader.Reset();
+    }
+
     internal void BeginShutdown()
     {
         CurrentFieldResearchSnapshot = null;
-        inCondorBattle = false;
-        condorBattleSpeechTracker.Reset();
-        condorBattleReader.Reset();
+        ResetCondorBattle();
         countdownSpeechCoordinator.Reset();
         rootMainMenuRenderEvidenceTracker.Reset();
         lifecycleReader.BeginShutdown();

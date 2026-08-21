@@ -28,9 +28,9 @@ public readonly record struct CondorCollisionTriangle(
     /// <para>The game decides this with fixed-point wedge angles and an
     /// eight-unit tolerance out of a 4096-unit turn. This is the ordinary
     /// integer cross-product test instead, which is exact and has no tolerance
-    /// of its own - and on this archive's 333 triangles it reproduces the native
-    /// answer exactly. The four cursor columns published from the disassembly
-    /// come out identical, edges and all, which is what the test suite pins.</para>
+    /// of its own. The four cursor columns published from the disassembly come
+    /// out identical, edges and all, which is the regression anchor pinned by
+    /// the test suite; it is not an exhaustive proof over the whole mesh.</para>
     /// </summary>
     public bool Contains(int x, int y)
     {
@@ -218,12 +218,10 @@ public static class CondorPlacementRegion
     /// </summary>
     /// <remarks>
     /// A unit playing its removal animation is skipped, because the game's own
-    /// scan skips it. Including it made this reader stricter than the game and
-    /// reported ground as blocked that the game would have accepted - thirty-five
-    /// times in a single battle on 2026-08-21, every one of them hiding somewhere
-    /// the player could have built. The footprint test below deliberately does
-    /// the opposite and still counts these units, which is also what the game
-    /// does.
+    /// scan skips it. The footprint test below deliberately does the opposite
+    /// and still counts these units, which is also what the game does. Because
+    /// that wider footprint covers slots 0 through 38, the removal distinction
+    /// changes the final placement answer only for slot 39.
     /// </remarks>
     private static bool IsDirectlyUnder(CondorBattleUnit unit, int x, int y) =>
         !unit.IsRemoving &&

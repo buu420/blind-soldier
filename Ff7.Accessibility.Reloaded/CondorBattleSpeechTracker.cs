@@ -122,8 +122,10 @@ public sealed class CondorBattleSpeechTracker
 
     /// <summary>
     /// How many times the calculated placement answer differed from the game's
-    /// own flag. Expected to be small and to happen only while the flag is
-    /// mid-recomputation; a large count would mean the calculation is wrong.
+    /// own flag while both answers describe the same ordinary-cursor state.
+    /// Report overlays and the snapshot in which a hire completes are excluded:
+    /// the game does not validate the flag then, or the async read can straddle
+    /// the allocation event, so those comparisons have no geometric meaning.
     /// </summary>
     public int PlacementDisagreements => placementDisagreements;
 
@@ -219,7 +221,9 @@ public sealed class CondorBattleSpeechTracker
             lines.Add($"Placed. {snapshot.Gil} gil.");
         }
 
-        if (!snapshot.SettingMenuOpen && snapshot.InteractionMode == CondorBattleSnapshot.CursorInteractionMode)
+        if (!snapshot.SettingMenuOpen &&
+            snapshot.ReportState == 0 &&
+            snapshot.InteractionMode == CondorBattleSnapshot.CursorInteractionMode)
         {
             lines.AddRange(ObserveCursor(snapshot));
         }
@@ -443,7 +447,11 @@ public sealed class CondorBattleSpeechTracker
     /// </summary>
     private void RecordPlacementFlagDisagreement(CondorBattleSnapshot snapshot)
     {
-        if (snapshot.ModalState != 0 ||
+        if (!started ||
+            snapshot.ModalState != 0 ||
+            snapshot.ReportState != 0 ||
+            lastSettingMenuOpen ||
+            snapshot.AlliedCount != lastAlliedCount ||
             snapshot.InteractionMode != CondorBattleSnapshot.CursorInteractionMode)
         {
             return;
@@ -481,18 +489,17 @@ public sealed class CondorBattleSpeechTracker
     }
 
     /// <summary>
-    /// Records any unit type the catalog cannot name.
+    /// Records an out-of-range unit type the atlas cannot name.
     ///
-    /// <para>Only the ten hireable types have been tied to the names in
-    /// <c>emes01.tex</c>. The enemy roster has not, so an enemy is announced by
-    /// side alone. Logging the identifiers that actually turn up is what will
-    /// close that gap, and it costs one line per unseen type per battle.</para>
+    /// <para>All 24 cells in <c>emes01.tex</c> are mapped. Logging anything
+    /// outside that table keeps corrupted or version-specific state honest, and
+    /// costs one line per unseen type per battle.</para>
     /// </summary>
     private void ReportUnknownUnitTypes(CondorBattleSnapshot snapshot)
     {
         foreach (var unit in snapshot.Units)
         {
-            if (CondorUnitCatalog.ResolveByRecordIndex(unit.TypeId) is not null ||
+            if (CondorUnitCatalog.ResolveName(unit.TypeId) is not null ||
                 !reportedUnknownTypes.Add(unit.TypeId))
             {
                 continue;

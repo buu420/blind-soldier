@@ -367,6 +367,7 @@ internal sealed class Steam2026ResearchSession : IDisposable
                     cutsceneNarrationSpeechTracker.Reset();
                     fieldZoneSpeechCoordinator?.Reset();
                     openingMovieActive = false;
+                    pump?.ResetCondorBattle();
                     fieldObjectSpatialCoordinator?.Reset("native x64 research reset");
                     fieldNavigationCoordinator?.Reset();
                     worldMapAccessibilityCoordinator?.Reset("native x64 research reset");

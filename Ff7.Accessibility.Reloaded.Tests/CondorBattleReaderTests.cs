@@ -26,6 +26,7 @@ internal static class CondorBattleReaderTests
         AppliesTheSetupBoundaryAndTheCombatFrontier();
         ExistingUnitsCutHolesInAPlacementBand();
         SpeaksThePlacementBandRatherThanOneRow();
+        TreatsTheNativePlacementFlagAsUndefinedOutsideItsValidationWindow();
         StatusAnswersWhatASightedPlayerSeesAtAGlance();
         NamesOnlyUnitTypesThatHaveBeenProved();
     }
@@ -346,9 +347,10 @@ internal static class CondorBattleReaderTests
         //
         // The game decides membership with fixed-point wedge angles and an
         // eight-unit tolerance out of a 4096-unit turn; this reproduces it with
-        // an exact integer cross-product instead. These four columns prove the
-        // substitution is sound on this mesh, edges included - and they prove the
-        // region has holes, so a single minimum and maximum would be false.
+        // an exact integer cross-product instead. These four audited columns
+        // match at their edges and prove the region has holes, so a single
+        // minimum and maximum would be false. They are not an exhaustive mesh
+        // equivalence proof.
         var terrain = LoadShippedCollisionTriangles();
         Equal(333, terrain.Count, "collision triangle count");
 
@@ -446,6 +448,40 @@ internal static class CondorBattleReaderTests
             "placement description inside a gap");
     }
 
+    private static void TreatsTheNativePlacementFlagAsUndefinedOutsideItsValidationWindow()
+    {
+        var terrain = LoadShippedCollisionTriangles();
+        var tracker = new CondorBattleSpeechTracker();
+        var ordinary = Battle(
+            cursorX: 256, cursorY: 500, phase: 0, frontierY: 2000,
+            placementLegal: true, terrain: terrain);
+        tracker.Observe(ordinary);
+
+        // FUN_005FD958 does not clear or recompute 0x00CBCC9C while the report
+        // overlay owns input. It retains the last answer, so comparing it with
+        // the report-gated managed predicate would manufacture a disagreement
+        // and make an unchanged piece of ground sound blocked.
+        var report = Battle(
+            cursorX: 256, cursorY: 500, phase: 0, frontierY: 2000,
+            placementLegal: true, reportState: 1, terrain: terrain);
+        Equal(0, tracker.Observe(report).Count, "report overlay does not narrate stale placement");
+        Equal(0, tracker.PlacementDisagreements, "report overlay is not a geometry disagreement");
+
+        // The async reader fetches the flag before the unit array. A hire can
+        // therefore finish between those reads: old clear-ground flag, new unit
+        // occupying that ground. This is a mixed event snapshot, not a failed
+        // reproduction of the native predicate.
+        tracker.Observe(Battle(
+            modalState: CondorBattleSnapshot.SettingMenuModalState,
+            cursorX: 256, cursorY: 500, phase: 0, frontierY: 2000,
+            placementLegal: true, terrain: terrain));
+        tracker.Observe(Battle(
+            cursorX: 256, cursorY: 500, phase: 0, frontierY: 2000,
+            placementLegal: true, alliedCount: 1, terrain: terrain,
+            units: [Unit(slot: 0, x: 256, y: 500)]));
+        Equal(0, tracker.PlacementDisagreements, "completed hire is not a geometry disagreement");
+    }
+
     private static IReadOnlyList<CondorCollisionTriangle> LoadShippedCollisionTriangles()
     {
         var archive = new LgpArchiveReader(
@@ -493,25 +529,25 @@ internal static class CondorBattleReaderTests
 
     private static void NamesTheEnemyTypesTheGameDraws()
     {
-        // Taken from the labels the executable itself draws - it picks name
-        // region 0x5F + typeId out of emes01 - and not from guides, which put
-        // Beast at 212 HP and Wyvern at 140. No record in the shipped archive
-        // has either value, and the archive is what the game runs.
-        var expected = new (int TypeId, string Name)[]
+        // The executable picks region 0x5F + typeId from emes01.tex. The atlas
+        // is four columns of six cells, so this pins every cell in native id
+        // order, including the Japanese "dummy" placeholders the English game
+        // itself draws for unused ids.
+        var expected = new[]
         {
-            (16, "enemy Commander"),
-            (17, "enemy Wyvern"),
-            (18, "enemy Beast"),
-            (19, "enemy Barbarian")
+            "Dummy", "Fighter", "Attacker", "Defender", "Shooter", "Stoner",
+            "Tristoner", "Catapult", "Fire Catapult", "Dummy", "Dummy", "Dummy",
+            "Repairer", "Worker", "Dummy", "Dummy", "Commander", "Wyvern",
+            "Beast", "Barbarian", "Dummy", "Dummy", "Dummy", "Dummy"
         };
 
-        foreach (var (typeId, name) in expected)
+        for (var typeId = 0; typeId < expected.Length; typeId++)
         {
-            Equal(name, Unit(slot: 20, x: 0, y: 0, typeId: typeId).Name, $"name of enemy type {typeId}");
+            Equal(expected[typeId], CondorUnitCatalog.ResolveName(typeId), $"drawn label for type {typeId}");
         }
 
-        // A type nobody has proved is still described by side alone.
-        Equal("enemy unit", Unit(slot: 20, x: 0, y: 0, typeId: 21).Name, "an unproved enemy type");
+        Equal("enemy Dummy", Unit(slot: 20, x: 0, y: 0, typeId: 11).Name, "dummy enemy label keeps its side");
+        Equal("enemy unit", Unit(slot: 20, x: 0, y: 0, typeId: 24).Name, "out-of-atlas type remains unnamed");
     }
 
     private static void ReportsTheAdvanceGaugeTheGameDraws()
@@ -608,18 +644,17 @@ internal static class CondorBattleReaderTests
         // whole battle; a glance takes it in whether or not it just moved.
         Equal(
             "9436 gil. 1 unit. 4 enemies. blocked, nearest placeable 24 down. " +
-            "nearest enemy unit, 120 of 200, 120 down. no enemy advance.",
+            "nearest enemy Dummy, 120 of 200, 120 down. no enemy advance.",
             unsettled,
             "status line with the cursor on an occupied row");
     }
 
     private static void NamesOnlyUnitTypesThatHaveBeenProved()
     {
-        // The ten hireable types are tied to their names through condor.lgp's
-        // record table. The enemy roster is not, so it is described by side and
-        // never given a guessed name.
+        // All 24 atlas cells are tied to their names. A value outside that
+        // table is still described by side and logged once rather than guessed.
         var memory = new CondorMemory();
-        memory.WriteUnit(slot: 20, typeId: 10, currentHp: 200, maximumHp: 200, attack: 30, x: 100, y: 100);
+        memory.WriteUnit(slot: 20, typeId: 24, currentHp: 200, maximumHp: 200, attack: 30, x: 100, y: 100);
         var snapshot = new CondorBattleStateReader(memory).TryRead();
         AssertNotNull(snapshot, "snapshot with an unnamed type");
         Equal("enemy unit", snapshot!.Units[0].Name, "unnamed enemy type");
@@ -630,7 +665,19 @@ internal static class CondorBattleReaderTests
         tracker.Observe(snapshot);
         var unnamed = logged.Where(line => line.Contains("unnamed unit type")).ToList();
         Equal(1, unnamed.Count, "unnamed type reported once, not once per snapshot");
-        AssertContains(unnamed[0], "unnamed unit type 10");
+        AssertContains(unnamed[0], "unnamed unit type 24");
+
+        var namedMemory = new CondorMemory();
+        namedMemory.WriteUnit(
+            slot: 20, typeId: 16, currentHp: 200, maximumHp: 200,
+            attack: 30, x: 100, y: 100);
+        var namedLog = new List<string>();
+        new CondorBattleSpeechTracker(namedLog.Add).Observe(
+            new CondorBattleStateReader(namedMemory).TryRead()!);
+        Equal(
+            0,
+            namedLog.Count(line => line.Contains("unnamed unit type")),
+            "an atlas-named non-hireable type is not logged as unnamed");
 
         // Named ones keep their side too, because the same type can stand on both.
         memory.WriteUnit(slot: 21, typeId: 2, currentHp: 180, maximumHp: 180, attack: 25, x: 120, y: 100);
@@ -653,6 +700,8 @@ internal static class CondorBattleReaderTests
         bool placementLegal = true,
         int phase = 0,
         int frontierY = 2000,
+        int reportState = 0,
+        int alliedCount = 0,
         int enemyAdvance = 0,
         IReadOnlyList<CondorCollisionTriangle>? terrain = null,
         IReadOnlyList<CondorBattleUnit>? units = null) =>
@@ -668,12 +717,12 @@ internal static class CondorBattleReaderTests
             CursorPlacementLegal: placementLegal,
             UnitUnderCursorSlot: -1,
             Units: units ?? [],
-            AlliedCount: 0,
+            AlliedCount: alliedCount,
             EnemyCount: 0,
             Outcome: outcome,
             MessageId: messageId,
             Phase: phase,
-            ReportState: 0,
+            ReportState: reportState,
             DeploymentFrontierY: frontierY,
             EnemyAdvance: enemyAdvance,
             CollisionTriangles: terrain ?? []);

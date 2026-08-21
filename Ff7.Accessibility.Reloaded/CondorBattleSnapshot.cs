@@ -29,10 +29,9 @@ public sealed record CondorBattleUnit(
     bool IsRemoving = false)
 {
     /// <summary>
-    /// What to call this unit out loud. Hireable types are named from the
-    /// catalog; anything else is described by side alone rather than guessed at,
-    /// because the enemy roster's type identifiers have not been tied to the
-    /// names in <c>emes01.tex</c> yet.
+    /// What to call this unit out loud. All 24 type identifiers the executable
+    /// can draw are mapped to their exact <c>emes01.tex</c> cell; an out-of-range
+    /// value is described by side alone rather than guessed at.
     /// </summary>
     public string Name
     {
