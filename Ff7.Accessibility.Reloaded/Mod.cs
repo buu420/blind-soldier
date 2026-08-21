@@ -242,6 +242,10 @@ public sealed class Mod : IModV1, IModV2
     private FieldNavigationInputReader? fieldNavigationInputReader;
     private CondorMinigameProbe? condorMinigameProbe;
     private DateTime lastCondorMinigameProbeAt = DateTime.MinValue;
+    private CondorBattleStateReader? condorBattleStateReader;
+    private CondorBattleSpeechTracker? condorBattleSpeechTracker;
+    private DateTime lastCondorBattleReadAt = DateTime.MinValue;
+    private bool inCondorBattle;
     private FieldAudibleCueOwnershipStateReader? fieldAudibleCueStateReader;
     private FieldRunStateReader? fieldRunStateReader;
     private InventoryItemReader? inventoryItemReader;
@@ -665,6 +669,9 @@ public sealed class Mod : IModV1, IModV2
         floor60GuardTimingStateReader = new Floor60GuardTimingStateReader(legacyAddressSpace);
         condorMinigameProbe = new CondorMinigameProbe(
             legacyAddressSpace, Log, text => Speak(text, interrupt: false));
+        condorBattleStateReader = new CondorBattleStateReader(legacyAddressSpace);
+        condorBattleSpeechTracker = new CondorBattleSpeechTracker(Log);
+        inCondorBattle = false;
         TryInitializeFfnxPopupReader(force: true);
         mainMenuSpeechScheduler = new MainMenuSpeechScheduler(TimeSpan.FromMilliseconds(Math.Max(0, config.MainMenuSpeechSettleMs)));
         renderedMenuTextSpeechTracker = new RenderedMenuTextSpeechTracker(TimeSpan.FromMilliseconds(Math.Max(0, config.RenderedMenuTextSpeechSettleMs)));
@@ -1227,6 +1234,7 @@ public sealed class Mod : IModV1, IModV2
                 TickFieldZoneTransitionCue();
                 TickFieldSwingingBarTimingCue();
                 TickSquatMinigameCue();
+                TickCondorBattleReader();
                 TickCondorMinigameProbe();
                 TickFloor60SoldierTurnCue();
                 TickTitleMenuReader();
@@ -1829,6 +1837,88 @@ public sealed class Mod : IModV1, IModV2
         Speak("Jump now.", interrupt: true);
         Log($"Swinging-bar native success window announced: {reason}.");
     }
+
+    /// <summary>
+    /// Speaks the Fort Condor battle.
+    /// </summary>
+    /// <remarks>
+    /// Module 9 draws every word of its interface from a texture, so there is
+    /// nothing to intercept and the whole interface is rebuilt from the globals
+    /// the executable writes for itself. K reports the picture a sighted player
+    /// takes in at a glance; everything else is announced as it changes.
+    /// </remarks>
+    private void TickCondorBattleReader()
+    {
+        if (condorBattleStateReader is null || condorBattleSpeechTracker is null)
+        {
+            return;
+        }
+
+        var isCondorBattle = ReadByte(FieldPositionReader.AddressCurrentModule) ==
+            CondorMinigameProbe.CondorModule;
+        if (!isCondorBattle)
+        {
+            if (inCondorBattle)
+            {
+                inCondorBattle = false;
+                condorBattleSpeechTracker.Reset();
+                Log("Fort Condor battle reader: left module 9.");
+            }
+
+            return;
+        }
+
+        var isForeground = foregroundProcessGate.IsCurrentProcessForeground();
+
+        // Sampled every pass and before the throttle, so a tap between reads is
+        // still seen. Short-circuited on the module so no other owner of K loses
+        // its press to a battle that is not running.
+        var statusRequested = WasNavigationKeyPressed(VirtualKeyK, isForeground);
+
+        var now = DateTime.UtcNow;
+        if (!statusRequested && now - lastCondorBattleReadAt < CondorBattleReadInterval)
+        {
+            return;
+        }
+
+        lastCondorBattleReadAt = now;
+
+        var snapshot = condorBattleStateReader.TryRead();
+        if (snapshot is null)
+        {
+            // A partial read is not a battle state. Saying nothing is right here:
+            // a fabricated snapshot would announce healthy units as dead.
+            Log("Fort Condor battle reader: module 9 state could not be read coherently.");
+            return;
+        }
+
+        if (!inCondorBattle)
+        {
+            inCondorBattle = true;
+            Log(
+                $"Fort Condor battle reader: entered module 9 with {snapshot.AlliedCount} allied and " +
+                $"{snapshot.EnemyCount} enemy units, {snapshot.Gil} gil, {snapshot.Units.Count} live slots.");
+        }
+
+        if (statusRequested)
+        {
+            var status = condorBattleSpeechTracker.DescribeStatus(snapshot);
+            Log($"Fort Condor status: {status}");
+            Speak(status, interrupt: true);
+        }
+
+        foreach (var line in condorBattleSpeechTracker.Observe(snapshot))
+        {
+            Log($"Fort Condor speech: {line}");
+            Speak(line, interrupt: false);
+        }
+    }
+
+    /// <summary>
+    /// The cursor moves four world units per input step and repeats, so the
+    /// reader has to sample faster than a player can cross a unit's hit box.
+    /// </summary>
+    private static readonly TimeSpan CondorBattleReadInterval = TimeSpan.FromMilliseconds(100);
 
     /// <summary>
     /// The Fort Condor battle is silent because it draws no text the mod can

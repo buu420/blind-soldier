@@ -486,6 +486,7 @@ AssertFieldOpcodeCutsceneDelegateHasReloadedFunctionAttribute();
 AssertFf7EncodedFieldTextDecodesForSpeech();
 AssertFf7EncodedFieldTextDecodesAccentedWesternLetters();
 AssertCondorUnitCatalogMatchesShippedMinigameData();
+CondorBattleReaderTests.Run();
 AssertFf7EncodedTextRequiresTerminatorForBufferReads();
 AssertFf7EncodedAskTextPreservesNativeChoiceLines();
 AssertFf7EncodedAskTextPreservesNativePages();
