@@ -210,6 +210,7 @@ internal sealed class Steam2026ResearchSession : IDisposable
         Steam2026FieldCutsceneDescriptionCoordinator? cutsceneDescriptions = null;
         Steam2026FieldDialogueObservationReader? cutsceneDialogueProbe = null;
         Steam2026FieldZoneSpeechCoordinator? fieldZoneSpeechCoordinator = null;
+        Steam2026FieldZoneTransitionCueCoordinator? fieldZoneTransitionCueCoordinator = null;
         Steam2026FieldObjectObservationReader? fieldObjectReader = null;
         Steam2026FieldNavigationCoordinator? fieldNavigationCoordinator = null;
         Steam2026WorldMapAccessibilityCoordinator? worldMapAccessibilityCoordinator = null;
@@ -457,6 +458,10 @@ internal sealed class Steam2026ResearchSession : IDisposable
                     lastCutsceneNarrationFieldId = -1;
                     cutsceneNarrationSpeechTracker.Reset();
                     fieldZoneSpeechCoordinator?.Reset();
+
+                    // Without this a resumed session fires a cue for a map change
+                    // that happened while it was suspended.
+                    fieldZoneTransitionCueCoordinator?.Reset();
                     openingMovieActive = false;
 
                     // A suspend or a runtime reset during the movie must not leave
@@ -655,6 +660,27 @@ internal sealed class Steam2026ResearchSession : IDisposable
                         cutsceneDescriptions = candidateCutsceneDescriptions;
                         cutsceneDialogueProbe = candidateCutsceneDialogueProbe;
                         fieldZoneSpeechCoordinator = candidateFieldZoneSpeechCoordinator;
+
+                        // Rebuilt with the rest of the field stack so it picks up a
+                        // fresh address space, and the old one disposed first so its
+                        // audio device does not leak across a session restart.
+                        try
+                        {
+                            var candidateZoneTransitionCue =
+                                new Steam2026FieldZoneTransitionCueCoordinator(
+                                    config,
+                                    sharedFieldAddressSpace,
+                                    modDirectory,
+                                    log);
+                            fieldZoneTransitionCueCoordinator?.Dispose();
+                            fieldZoneTransitionCueCoordinator = candidateZoneTransitionCue;
+                        }
+                        catch (Exception ex)
+                        {
+                            log(
+                                "Native Steam 2026 field zone transition cue remains " +
+                                $"disabled: {ex.Message}");
+                        }
                         battleStatusHotkeyReader = candidateBattleStatusHotkeyReader;
                         fieldObjectReader = candidateFieldObjectReader;
                         fieldNavigationCoordinator?.Dispose();
@@ -1288,6 +1314,28 @@ internal sealed class Steam2026ResearchSession : IDisposable
                                     ref lastRuntimeFaultLogUtc);
                             }
                         }
+                    }
+
+                    // Outside the field-message gate on purpose: the tracker has to
+                    // see the title module to clear itself when the player quits to
+                    // title, and gating this on a reader the cue does not use would
+                    // tie one feature's life to another's configuration.
+                    try
+                    {
+                        fieldZoneTransitionCueCoordinator?.Observe(
+                            isHostForeground &&
+                            frame.Lifecycle.IsForeground &&
+                            !frame.Lifecycle.IsShuttingDown,
+                            now);
+                    }
+                    catch (Exception ex)
+                    {
+                        fieldZoneTransitionCueCoordinator?.Reset();
+                        LogRuntimeFault(
+                            $"Native field zone transition cue reset after a fault: {ex.Message}",
+                            now,
+                            ref lastRuntimeFault,
+                            ref lastRuntimeFaultLogUtc);
                     }
 
                     var probeWorkerCycle = ++fieldProbeWorkerCycle;
@@ -2080,6 +2128,8 @@ internal sealed class Steam2026ResearchSession : IDisposable
             cutsceneDescriptions?.Reset();
             cutsceneNarrationSpeechTracker.Reset();
             fieldZoneSpeechCoordinator?.Reset();
+            fieldZoneTransitionCueCoordinator?.Reset();
+            fieldZoneTransitionCueCoordinator?.Dispose();
             openingMovieDescription.Stop();
             battleRendererHookSet?.Dispose();
             battleAccessibilityCoordinator?.Reset();

@@ -52,7 +52,13 @@ internal static class DualRuntimeFeatureWiringTests
             "OpeningMovieDescription.cs",
             "OpeningMovieDescription",
             @"Ff7.Accessibility.Reloaded\Mod.cs",
-            @"Ff7.Accessibility.Steam2026X64\Runtime\Steam2026ResearchSession.cs")
+            @"Ff7.Accessibility.Steam2026X64\Runtime\Steam2026ResearchSession.cs"),
+
+        new("field.zone-transition-cue",
+            "FieldZoneTransitionCueTracker.cs",
+            "FieldZoneTransitionCueTracker",
+            @"Ff7.Accessibility.Reloaded\Mod.cs",
+            @"Ff7.Accessibility.Steam2026X64\Runtime\Field\Steam2026FieldZoneTransitionCueCoordinator.cs")
     ];
 
     /// <summary>

@@ -51,6 +51,7 @@
     <Compile Include="..\Ff7.Accessibility.Reloaded\WorldMapConnectedRunFormatter.cs" Link="Shared\WorldMapConnectedRunFormatter.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\WorldMapFootstepTracker.cs" Link="Shared\WorldMapFootstepTracker.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\WorldMapTerrainProximity.cs" Link="Shared\WorldMapTerrainProximity.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldZoneTransitionCueTracker.cs" Link="Shared\FieldZoneTransitionCueTracker.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\MidgarZolomAreaTracker.cs" Link="Shared\MidgarZolomAreaTracker.cs" />
     <!--
       The cue schedule only. Deliberately NOT OpeningMoviePathResolver /

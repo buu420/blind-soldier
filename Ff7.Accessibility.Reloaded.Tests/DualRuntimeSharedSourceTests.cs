@@ -28,6 +28,9 @@ internal static class DualRuntimeSharedSourceTests
             ["FfnxPopupSpeechTracker.cs"] = "FFNx is a legacy-executable driver.",
             ["FfnxPopupStateReader.cs"] = "FFNx is a legacy-executable driver.",
             ["FieldMessageSpeechTracker.cs"] = "x64 reads field messages through its own hook set.",
+            ["FieldZoneTransitionCuePlayer.cs"] =
+                "x64 plays this cue through the shared ImmediateWaveCuePlayer, which is the " +
+                "same WaveFileReader/WaveOutEvent path with a shorter buffer.",
             ["FieldRunStateReader.cs"] = "x64 reads run state through Steam2026FieldObservationReader.",
             ["NameEntryMenuSpeechTracker.cs"] = "x64 has Steam2026NameEntrySpeechCoordinator.",
             ["RenderedMenuTextSpeechTracker.cs"] = "x64 has Steam2026RenderedMenuSpeechTracker."
@@ -74,9 +77,16 @@ internal static class DualRuntimeSharedSourceTests
         var csproj = File.ReadAllText(project);
 
         var legacyDirectory = Path.Combine(root, "Ff7.Accessibility.Reloaded");
+        // Cue trackers and cue players are here because a whole feature hid in that
+        // blind spot: the field zone-transition cue existed on x86 only while its
+        // WAV shipped inside the x64 package, so from the outside it looked present.
+        // Of the nine such files in the legacy project, seven were already shared -
+        // these globs cost two decisions and would have caught it.
         var candidates = Directory
             .EnumerateFiles(legacyDirectory, "*SpeechTracker.cs")
             .Concat(Directory.EnumerateFiles(legacyDirectory, "*StateReader.cs"))
+            .Concat(Directory.EnumerateFiles(legacyDirectory, "*CueTracker.cs"))
+            .Concat(Directory.EnumerateFiles(legacyDirectory, "*CuePlayer.cs"))
             .Select(Path.GetFileName)
             .Where(name => name is not null)
             .Select(name => name!)
