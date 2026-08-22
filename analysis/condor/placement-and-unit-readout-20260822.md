@@ -180,3 +180,43 @@ K is now a tracker-owned pending request shared by both runtimes. Each host bank
 - `git diff --check`: exit 0; only the repository's existing CRLF conversion warnings were printed.
 
 All changes remain uncommitted for review. Nothing under the game directory was read or modified.
+
+## Follow-up — suppressing the duplicate opening cursor
+
+The initialization gate made the first accepted cursor trustworthy, but the speech tracker still
+preserved the older pre-gate behavior of leaving `lastCursorKey` empty. The opening status already
+said the coordinates and either the unit under the cursor or the placement answer; the next
+unchanged sample consequently treated the same cursor as new and repeated it as a standalone line.
+
+The opening status loses no cursor information when it serves as the baseline. `DescribeStatus`
+always adds `cursor at X, Y` before branching to either `on <unit, current HP of max>` or
+`Can place` / `Cannot place`. A cursor over a unit therefore retains both its coordinates and the
+same unit/HP detail that the standalone readout would have supplied.
+
+Priming is safe for every snapshot that can reach `CondorBattleSpeechTracker.Observe`. A phase-1
+snapshot was stable across two samples at least one read interval apart. A non-phase-1 snapshot is
+the already-initialized path: the native initializer has advanced beyond setup, and the reader still
+requires loaded geometry and a valid interaction mode. There is no separate unconfirmed snapshot
+path into the tracker.
+
+The tracker now derives the opening baseline and every later comparison through the same
+`CursorKey` helper: X, Y, native unit-under-cursor slot and reconstructed placement legality. The
+regression was written first and failed on the old code with:
+
+> unchanged opening cursor is not repeated: expected 0, got 1.
+
+The shared regression also proves that moving from `(248,96)` to `(248,112)` still emits
+`248, 112. Cannot place.`, and that entering over a Fighter says both `cursor at 248, 96` and
+`Fighter, 200 of 200` before suppressing only the unchanged follow-up.
+
+Verification after the fix:
+
+- focused x86/shared Fort Condor initialization suite (`--condor-probe-silence-only`): passed;
+- Steam 2026 x64 module suite, which links the same regression (`--module-tests-only`): passed;
+- dual-runtime shared-source contract (`--dual-runtime-sources-only`): passed;
+- x86 Reloaded production build: succeeded with zero errors;
+- Steam 2026 x64 production build: succeeded with zero errors.
+
+NuGet emitted `NU1900` warnings because its vulnerability service index was unavailable; no
+package restore or game data was required for these focused checks. Nothing under the game
+directory was read or modified, and the change remains uncommitted for review.

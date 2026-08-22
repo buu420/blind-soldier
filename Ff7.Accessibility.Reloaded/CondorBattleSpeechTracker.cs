@@ -257,12 +257,12 @@ public sealed class CondorBattleSpeechTracker
                 }
             }
 
-            // No cursor baseline is taken here, deliberately. The opening status
-            // line is built from the entry snapshot, whose cursor can still read
-            // 0, 0 before the battle has placed it - it did exactly that on
-            // 2026-08-22. Leaving the readout unprimed means the first real
-            // reading corrects that out loud instead of swallowing it as "no
-            // change".
+            // The reader now admits only initialized snapshots: setup has held
+            // steady across two samples, or a later phase has already passed
+            // the initializer. DescribeStatus includes these coordinates and
+            // either the unit here or the placement answer, so this accepted
+            // cursor is the baseline. A later real move still changes the key.
+            lastCursorKey = CursorKey(snapshot);
             RememberStanding(snapshot);
             lastAdvanceBand = AdvanceBand(snapshot.EnemyAdvance);
             Remember(snapshot);
@@ -542,13 +542,7 @@ public sealed class CondorBattleSpeechTracker
     /// </remarks>
     private IEnumerable<string> ObserveCursor(CondorBattleSnapshot snapshot)
     {
-        var legal = CondorPlacementRegion.IsLegalAt(
-            snapshot, snapshot.CursorX, snapshot.CursorY);
-        var key = (
-            snapshot.CursorX,
-            snapshot.CursorY,
-            snapshot.UnitUnderCursorSlot,
-            legal);
+        var key = CursorKey(snapshot);
 
         if (key == lastCursorKey)
         {
@@ -557,8 +551,16 @@ public sealed class CondorBattleSpeechTracker
 
         lastCursorKey = key;
         yield return
-            $"{snapshot.CursorX}, {snapshot.CursorY}. {DescribeUnderCursor(snapshot, legal)}.";
+            $"{snapshot.CursorX}, {snapshot.CursorY}. {DescribeUnderCursor(snapshot, key.Legal)}.";
     }
+
+    private static (int X, int Y, int UnitSlot, bool Legal) CursorKey(
+        CondorBattleSnapshot snapshot) =>
+        (
+            snapshot.CursorX,
+            snapshot.CursorY,
+            snapshot.UnitUnderCursorSlot,
+            CondorPlacementRegion.IsLegalAt(snapshot, snapshot.CursorX, snapshot.CursorY));
 
     /// <summary>
     /// What occupies the spot under the cursor: the unit standing there, or

@@ -14,6 +14,8 @@ internal static class CondorBattleInitializationTests
         NeverRegatesAConfirmedBattle();
         ResetRequiresASetupBattleToConfirmAgain();
         PreservesVisibleStateOnTheFirstAcceptedSnapshot();
+        PrimesTheOpeningCursorUntilItsPositionChanges();
+        KeepsCoordinatesAndUnitDetailsWhenPrimingAnOccupiedCursor();
         BanksAStatusRequestUntilAConfirmedSnapshotExists();
     }
 
@@ -193,6 +195,69 @@ internal static class CondorBattleInitializationTests
             resultTracker.Observe(resultSnapshot)
                 .Count(line => line.Contains("Battle lost", StringComparison.Ordinal)),
             "opening result remains a one-time announcement");
+    }
+
+    /// <summary>
+    /// The opening status already describes the accepted cursor position and
+    /// its placement answer. An unchanged next sample must not repeat that
+    /// readout, while a real move must still be announced immediately.
+    /// </summary>
+    private static void PrimesTheOpeningCursorUntilItsPositionChanges()
+    {
+        var tracker = new CondorBattleSpeechTracker();
+        var entry = Snapshot(messageId: 12, gil: 9436) with
+        {
+            CursorX = 248,
+            CursorY = 96
+        };
+
+        var opening = tracker.Observe(entry);
+        Equal(
+            "9436 gil. 0 units. 0 enemies. cursor at 248, 96. Cannot place. no enemy advance.",
+            opening[0],
+            "opening status carries the cursor position and placement answer");
+        Equal("Set units.", opening[1], "opening setup banner");
+        Equal(0, tracker.Observe(entry).Count, "unchanged opening cursor is not repeated");
+
+        var moved = tracker.Observe(entry with { CursorY = 112 });
+        Equal(1, moved.Count, "first real cursor move line count");
+        Equal("248, 112. Cannot place.", moved[0], "first real cursor move is not swallowed");
+    }
+
+    /// <summary>
+    /// Priming must not trade the duplicate for missing information. The
+    /// opening status names both where the cursor is and the unit under it.
+    /// </summary>
+    private static void KeepsCoordinatesAndUnitDetailsWhenPrimingAnOccupiedCursor()
+    {
+        var unit = new CondorBattleUnit(
+            Slot: 0,
+            IsEnemy: false,
+            TypeId: 1,
+            CurrentHp: 200,
+            MaximumHp: 200,
+            Attack: 30,
+            X: 248,
+            Y: 96,
+            IsDying: false,
+            Width: 28,
+            HeightAbove: 10);
+        var entry = Snapshot(gil: 9436) with
+        {
+            CursorX = 248,
+            CursorY = 96,
+            UnitUnderCursorSlot = unit.Slot,
+            Units = [unit],
+            AlliedCount = 1
+        };
+        var tracker = new CondorBattleSpeechTracker();
+
+        var opening = tracker.Observe(entry);
+        Equal(
+            "9436 gil. 1 unit. 0 enemies. cursor at 248, 96. on Fighter, 200 of 200. no enemy advance.",
+            opening[0],
+            "occupied opening status carries coordinates and unit details");
+        Equal(0, tracker.Observe(entry).Count, "unchanged occupied cursor is not repeated");
     }
 
     private static void BanksAStatusRequestUntilAConfirmedSnapshotExists()
