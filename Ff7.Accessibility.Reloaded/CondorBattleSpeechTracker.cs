@@ -406,22 +406,23 @@ public sealed class CondorBattleSpeechTracker
             Pluralize(snapshot.EnemyCount, "enemy", "enemies")
         };
 
+        parts.Add($"cursor at {snapshot.CursorX}, {snapshot.CursorY}");
+
         if (snapshot.UnitUnderCursor is { } under)
         {
-            parts.Add($"cursor on {under.Describe()}");
+            parts.Add($"on {under.Describe()}");
         }
         else
         {
-            parts.Add(CondorPlacementRegion.Describe(snapshot.PlacementIntervals, snapshot.CursorY));
+            parts.Add(DescribePlacement(snapshot));
         }
 
         if (snapshot.NearestEnemy is { } nearest)
         {
-            var direction = snapshot.DirectionFromCursor(nearest);
-            var distance = snapshot.DistanceFromCursor(nearest);
-            parts.Add(direction == "here"
-                ? $"nearest {nearest.Describe()} at the cursor"
-                : $"nearest {nearest.Describe()}, {distance} {direction}");
+            // Coordinates, like everything else: a bearing from the cursor stops
+            // being true as soon as the cursor moves, and this line is most useful
+            // when the player is about to move it.
+            parts.Add($"nearest {nearest.Describe()}, at {nearest.X}, {nearest.Y}");
         }
 
         // The advance gauge is drawn for the whole battle, so it belongs in the
@@ -500,7 +501,8 @@ public sealed class CondorBattleSpeechTracker
     /// leave the extent to be found by sweeping the column by ear.</para>
     /// </summary>
     private static string DescribePlacement(CondorBattleSnapshot snapshot) =>
-        CondorPlacementRegion.Describe(snapshot.PlacementIntervals, snapshot.CursorY);
+        CondorPlacementRegion.Describe(
+            snapshot.PlacementIntervals, snapshot.CursorX, snapshot.CursorY);
 
     /// <summary>
     /// Notes where the calculated answer and the game's own flag disagree.

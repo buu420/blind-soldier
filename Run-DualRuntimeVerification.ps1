@@ -234,7 +234,11 @@ else {
     $portableModes = @(
         '--runtime-lease-only','--host-validation-only',
         '--7h-compatibility-only','--prism-abi-probe-only',
-        '--condor-probe-silence-only')
+        '--condor-probe-silence-only',
+        # Reads only source files and needs no game data, yet it had never once run
+        # on a release build - which is how a shared reader reached players on one
+        # runtime only in the first place.
+        '--dual-runtime-sources-only')
     $portableCommand = "`$ErrorActionPreference = 'Stop'; " +
         "try { `$dotnetCommand = @(Get-Command -Name 'dotnet' " +
         "-CommandType Application -ErrorAction Stop)[0] } " +

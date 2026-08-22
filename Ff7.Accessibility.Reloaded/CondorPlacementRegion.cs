@@ -251,8 +251,18 @@ public static class CondorPlacementRegion
     /// to where the cursor is now, because an absolute row number means nothing
     /// to someone who cannot see the hill.
     /// </summary>
+    /// <summary>
+    /// Says where a unit can be put in the cursor's column, in coordinates.
+    /// </summary>
+    /// <remarks>
+    /// Coordinates rather than a direction and a distance, throughout. A relative
+    /// answer is only true until the cursor moves, so it cannot be carried; the
+    /// band 420 to 476 is a fact about the hill that stays true all battle and can
+    /// be remembered, returned to, and jumped into. The player asked for this
+    /// explicitly and it is the same rule the battlefield navigator follows.
+    /// </remarks>
     public static string Describe(
-        IReadOnlyList<CondorPlacementInterval> intervals, int cursorY)
+        IReadOnlyList<CondorPlacementInterval> intervals, int cursorX, int cursorY)
     {
         ArgumentNullException.ThrowIfNull(intervals);
 
@@ -266,15 +276,9 @@ public static class CondorPlacementRegion
             .FirstOrDefault(interval => interval!.Value.Contains(cursorY));
         if (containing is { } here)
         {
-            var above = cursorY - here.FromY;
-            var below = here.ToY - cursorY;
-            var band = (above, below) switch
-            {
-                (0, 0) => "one row only",
-                (0, _) => $"{below} down",
-                (_, 0) => $"{above} up",
-                _ => $"{above} up and {below} down"
-            };
+            var band = here.FromY == here.ToY
+                ? $"one row only at {here.FromY}"
+                : $"{here.FromY} to {here.ToY}";
 
             return intervals.Count == 1
                 ? $"placeable {band}"
@@ -287,11 +291,9 @@ public static class CondorPlacementRegion
                 : Math.Min(Math.Abs(interval.FromY - cursorY), Math.Abs(interval.ToY - cursorY)))
             .First();
 
-        var direction = nearest.ToY < cursorY ? "up" : "down";
-        var distance = nearest.ToY < cursorY
-            ? cursorY - nearest.ToY
-            : nearest.FromY - cursorY;
-
-        return $"blocked, nearest placeable {distance} {direction}";
+        // The edge of that band the cursor would reach first, given as a place
+        // rather than as a number of rows to travel.
+        var edgeY = nearest.ToY < cursorY ? nearest.ToY : nearest.FromY;
+        return $"blocked, nearest placeable at {cursorX}, {edgeY}";
     }
 }

@@ -299,8 +299,10 @@ internal static class CondorBattleReaderTests
         tracker.Observe(reader.TryRead()!);
 
         memory.WriteInt16(CondorMemory.UnitUnderCursor, 0);
+        // The unit's own position, not the cursor's: they are the same row here,
+        // but it is the unit the player is being told about.
         Equal(
-            "Defender, 140 of 220.",
+            "Defender, 140 of 220, at 200, 400.",
             Single(tracker.Observe(reader.TryRead()!)),
             "unit under the cursor");
 
@@ -434,8 +436,9 @@ internal static class CondorBattleReaderTests
         // see how far that band runs; saying only "clear" would answer for the
         // single row under the cursor and leave the rest to be swept for by ear.
         Equal(
-            "placeable 20 up and 36 down, 1 more band",
-            CondorPlacementRegion.Describe(inBand.PlacementIntervals, inBand.CursorY),
+            "placeable 420 to 476, 1 more band",
+            CondorPlacementRegion.Describe(
+                inBand.PlacementIntervals, inBand.CursorX, inBand.CursorY),
             "placement description inside a band");
 
         // Y 500 is in the real gap between the two bands.
@@ -443,8 +446,9 @@ internal static class CondorBattleReaderTests
             cursorX: 260, cursorY: 500,
             phase: CondorPlacementRegion.SetupPhase, terrain: terrain);
         Equal(
-            "blocked, nearest placeable 24 up",
-            CondorPlacementRegion.Describe(inGap.PlacementIntervals, inGap.CursorY),
+            "blocked, nearest placeable at 260, 476",
+            CondorPlacementRegion.Describe(
+                inGap.PlacementIntervals, inGap.CursorX, inGap.CursorY),
             "placement description inside a gap");
     }
 
@@ -642,9 +646,13 @@ internal static class CondorBattleReaderTests
         // answering only for the row the cursor is on.
         // The advance gauge closes the line because the game draws it for the
         // whole battle; a glance takes it in whether or not it just moved.
+        // Every position is a coordinate, not a bearing. A bearing is only true
+        // until the cursor moves, and this line is most useful precisely when the
+        // player is about to move it.
         Equal(
-            "9436 gil. 1 unit. 4 enemies. blocked, nearest placeable 24 down. " +
-            "nearest enemy Dummy, 120 of 200, 120 down. no enemy advance.",
+            "9436 gil. 1 unit. 4 enemies. cursor at 240, 500. " +
+            "blocked, nearest placeable at 240, 524. " +
+            "nearest enemy Dummy, 120 of 200, at 240, 620. no enemy advance.",
             unsettled,
             "status line with the cursor on an occupied row");
     }

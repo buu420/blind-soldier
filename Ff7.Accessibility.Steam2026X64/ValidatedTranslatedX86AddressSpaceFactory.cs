@@ -2,10 +2,16 @@ namespace Ff7.Accessibility.Steam2026X64;
 
 internal static class ValidatedTranslatedX86AddressSpaceFactory
 {
+    /// <param name="writer">
+    /// Optional. Supplied only where a write is actually intended - today, the Fort
+    /// Condor cursor jump. Omitting it yields a read-only address space, which is
+    /// what every other caller wants.
+    /// </param>
     public static TranslatedX86AddressSpace Create(
         Steam2026FingerprintResult fingerprint,
         ulong moduleBase,
-        INativeMemoryReader memory)
+        INativeMemoryReader memory,
+        INativeMemoryWriter? writer = null)
     {
         ArgumentNullException.ThrowIfNull(fingerprint);
         if (!fingerprint.IsSupported ||
@@ -24,15 +30,16 @@ internal static class ValidatedTranslatedX86AddressSpaceFactory
                 nameof(fingerprint));
         }
 
-        return Create(moduleBase, memory);
+        return Create(moduleBase, memory, writer);
     }
 
     public static TranslatedX86AddressSpace Create(
         ulong moduleBase,
-        INativeMemoryReader memory)
+        INativeMemoryReader memory,
+        INativeMemoryWriter? writer = null)
     {
         ArgumentNullException.ThrowIfNull(memory);
-        var addressSpace = new TranslatedX86AddressSpace(moduleBase, memory);
+        var addressSpace = new TranslatedX86AddressSpace(moduleBase, memory, writer);
         if (!addressSpace.HasExpectedResolverSignature())
         {
             throw new InvalidOperationException(

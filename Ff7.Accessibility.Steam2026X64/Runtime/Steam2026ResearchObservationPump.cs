@@ -23,6 +23,13 @@ internal sealed class Steam2026ResearchObservationPump
     private readonly FieldCountdownReader countdownReader;
     private readonly CondorBattleStateReader condorBattleReader;
     private readonly CondorBattleSpeechTracker condorBattleSpeechTracker;
+    private readonly CondorCursorMover condorCursorMover;
+
+    /// <summary>
+    /// Navigation presses seen between two state readings, held until there is a
+    /// coherent snapshot to act on.
+    /// </summary>
+    private readonly List<CondorNavigationAction> pendingNavigation = new();
     private readonly Action<string> log;
     private bool inCondorBattle;
     private DateTime lastCondorBattleReadUtc = DateTime.MinValue;
@@ -54,10 +61,14 @@ internal sealed class Steam2026ResearchObservationPump
             memory,
             _ => null,
             _ => null);
+        // The writer is handed over only when the host actually supports one, and
+        // it exists for a single purpose: the Fort Condor cursor jump. Everything
+        // else on this address space is a read.
         var translatedAddressSpace = ValidatedTranslatedX86AddressSpaceFactory.Create(
             fingerprint,
             moduleBase,
-            memory);
+            memory,
+            memory as INativeMemoryWriter);
         dialogueReader = new Steam2026FieldDialogueObservationReader(translatedAddressSpace);
         countdownReader = new FieldCountdownReader(translatedAddressSpace);
         dialogueSpeechStabilityGate = new Steam2026FieldDialogueSpeechStabilityGate(
@@ -71,6 +82,11 @@ internal sealed class Steam2026ResearchObservationPump
         // reader and the same wording are used here as on x86.
         condorBattleReader = new CondorBattleStateReader(translatedAddressSpace);
         condorBattleSpeechTracker = new CondorBattleSpeechTracker(this.log);
+
+        // The same shared mover the x86 runtime uses. The jump used to exist on one
+        // executable only; routing both through one implementation is what stops
+        // that happening again.
+        condorCursorMover = new CondorCursorMover(translatedAddressSpace, this.log);
     }
 
     /// <summary>
@@ -90,8 +106,6 @@ internal sealed class Steam2026ResearchObservationPump
         DateTime now,
         IReadOnlyList<CondorNavigationAction>? navigationActions = null)
     {
-        navigationActions ??= Array.Empty<CondorNavigationAction>();
-
         if (moduleId != CondorBattleStateReader.CondorModule)
         {
             if (inCondorBattle)
@@ -106,7 +120,17 @@ internal sealed class Steam2026ResearchObservationPump
             return [];
         }
 
-        if (!statusRequested && now - lastCondorBattleReadUtc < CondorBattleStateReader.ReadInterval)
+        // Banked before the throttle, for the same reason the status key is: the
+        // state is read ten times a second and an ordinary tap lands between two
+        // reads. Dropped here, the key simply appears not to work.
+        if (navigationActions is { Count: > 0 })
+        {
+            pendingNavigation.AddRange(navigationActions);
+        }
+
+        if (!statusRequested &&
+            pendingNavigation.Count == 0 &&
+            now - lastCondorBattleReadUtc < CondorBattleStateReader.ReadInterval)
         {
             return [];
         }
@@ -117,7 +141,9 @@ internal sealed class Steam2026ResearchObservationPump
         if (snapshot is null)
         {
             // A partial read is not a battle state. Saying nothing is right: a
-            // fabricated snapshot would announce healthy units as dead.
+            // fabricated snapshot would announce healthy units as dead. The banked
+            // presses are kept rather than thrown away, so the player's key acts on
+            // the next coherent reading instead of vanishing into a torn one.
             log("Fort Condor battle reader: module 9 state could not be read coherently.");
             return [];
         }
@@ -146,12 +172,11 @@ internal sealed class Steam2026ResearchObservationPump
 
         // After Observe, so a unit that fell on this reading is already in the
         // losses list if the player asks for it in the same pass.
-        foreach (var action in navigationActions)
+        var banked = pendingNavigation.ToArray();
+        pendingNavigation.Clear();
+        foreach (var action in banked)
         {
-            // No cursor writer is passed: this runtime reads the guest's memory
-            // through a translated page table and has no write path, so a jump
-            // says out loud that it could not move rather than pretending.
-            var spoken = condorBattleSpeechTracker.Navigate(action);
+            var spoken = condorBattleSpeechTracker.Navigate(action, condorCursorMover.TryMoveTo);
             if (string.IsNullOrEmpty(spoken))
             {
                 continue;
@@ -172,6 +197,9 @@ internal sealed class Steam2026ResearchObservationPump
     {
         inCondorBattle = false;
         lastCondorBattleReadUtc = DateTime.MinValue;
+
+        // Presses banked for a battle that has ended have nothing left to act on.
+        pendingNavigation.Clear();
         condorBattleSpeechTracker.Reset();
 
         // Terrain is cached for one battle. A reset can span a translated

@@ -3,12 +3,23 @@ using System.Runtime.InteropServices;
 
 namespace Ff7.Accessibility.Steam2026X64;
 
-public sealed unsafe class CurrentProcessNativeMemoryReader : INativeMemoryReader
+public sealed unsafe class CurrentProcessNativeMemoryReader : INativeMemoryReader, INativeMemoryWriter
 {
     private const uint MemoryStateCommit = 0x1000;
     private const uint PageNoAccess = 0x01;
     private const uint PageReadableMask = 0x02 | 0x04 | 0x08 | 0x20 | 0x40 | 0x80;
     private const uint PageExecuteMask = 0x10 | 0x20 | 0x40 | 0x80;
+
+    /// <summary>PAGE_READWRITE and PAGE_EXECUTE_READWRITE. Nothing else takes a write.</summary>
+    private const uint PageWritableMask = 0x04 | 0x40;
+
+    /// <summary>
+    /// PAGE_WRITECOPY and PAGE_EXECUTE_WRITECOPY. A write to one of these succeeds
+    /// and then goes nowhere the game will look: it forks a private copy of the
+    /// page for us alone. Refused rather than trusted.
+    /// </summary>
+    private const uint PageCopyOnWriteMask = 0x08 | 0x80;
+
     private const uint PageGuard = 0x100;
     private const uint MemoryTypeImage = 0x1000000;
 
@@ -84,6 +95,9 @@ public sealed unsafe class CurrentProcessNativeMemoryReader : INativeMemoryReade
                        && (protection & (PageGuard | PageNoAccess)) == 0;
         var executable = (protection & PageExecuteMask) != 0
                          && (protection & (PageGuard | PageNoAccess)) == 0;
+        var writable = (protection & PageWritableMask) != 0
+                       && (protection & (PageGuard | PageNoAccess)) == 0;
+        var copyOnWrite = (protection & PageCopyOnWriteMask) != 0;
         region = new NativeMemoryRegion(
             (ulong)(nuint)nativeRegion.BaseAddress,
             (ulong)nativeRegion.RegionSize,
@@ -91,8 +105,48 @@ public sealed unsafe class CurrentProcessNativeMemoryReader : INativeMemoryReade
             nativeRegion.State == MemoryStateCommit,
             executable,
             nativeRegion.Type == MemoryTypeImage,
-            readable);
+            readable,
+            writable,
+            copyOnWrite);
         return true;
+    }
+
+    public bool TryExchangeInt32(ulong hostAddress, int value)
+    {
+        // Four-byte aligned, or the exchange is not indivisible and the game can
+        // observe half a cursor.
+        if (hostAddress == 0 || (hostAddress & 3) != 0)
+        {
+            return false;
+        }
+
+        if (!TryQueryRegion(hostAddress, out var region) ||
+            !region.IsCommitted ||
+            !region.IsWritable ||
+            region.IsCopyOnWrite)
+        {
+            return false;
+        }
+
+        // All four bytes inside the one region that was just vetted.
+        var end = hostAddress + sizeof(int);
+        if (end > region.BaseAddress + region.Size)
+        {
+            return false;
+        }
+
+        // The game shares this process, so its memory is directly addressable and
+        // an interlocked exchange is available. That is the whole reason for
+        // writing this way rather than through WriteProcessMemory.
+        try
+        {
+            Interlocked.Exchange(ref *(int*)hostAddress, value);
+            return true;
+        }
+        catch (AccessViolationException)
+        {
+            return false;
+        }
     }
 
     [DllImport("kernel32.dll", SetLastError = true)]

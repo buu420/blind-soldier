@@ -27,6 +27,72 @@ internal static class CondorFieldNavigatorTests
         JumpReportsTheTargetItMovedTo();
         JumpSaysSoWhenItCannotMoveTheCursor();
         ForgetsLossesWhenANewBattleStarts();
+        SelectionSurvivesUnitsChangingPlaces();
+        SelectionSurvivesANewLossBeingRecorded();
+        SaysSoWhenTheSelectedUnitLeavesTheField();
+    }
+
+    /// <summary>
+    /// The list is rebuilt and re-sorted on every reading, so a selection held as
+    /// a bare index quietly becomes a different unit the moment two of them cross.
+    /// A player who selected their Fighter and pressed jump would be moved to
+    /// something else entirely and told nothing.
+    /// </summary>
+    private static void SelectionSurvivesUnitsChangingPlaces()
+    {
+        var navigator = new CondorFieldNavigator();
+        navigator.Update(new[] { Ally(0, 1, 100, 600), Ally(1, 2, 200, 800) }, 400, 700);
+
+        var selected = navigator.Handle(CondorNavigationAction.NextTarget);
+        AssertContains(selected, "Fighter");   // slot 0, the lower Y
+
+        // The two units swap places on the field. Sorted by Y, they swap in the
+        // list too - but the player's selection must not follow the ordering.
+        navigator.Update(new[] { Ally(0, 1, 100, 900), Ally(1, 2, 200, 500) }, 400, 700);
+
+        var jumped = new List<(int X, int Y)>();
+        navigator.Handle(CondorNavigationAction.JumpToTarget,
+            (x, y) => { jumped.Add((x, y)); return true; });
+
+        AssertEqual(1, jumped.Count, "jump happened");
+        AssertEqual((100, 900), jumped[0], "jump went to the still-selected Fighter, at its new position");
+    }
+
+    private static void SelectionSurvivesANewLossBeingRecorded()
+    {
+        var navigator = new CondorFieldNavigator();
+        var first = Ally(0, 1, 100, 600);
+        var second = Ally(1, 2, 200, 700);
+        navigator.Update(new[] { first, second }, 400, 700);
+        navigator.RecordLoss(first);
+        navigator.Update(new[] { second }, 400, 700);
+
+        navigator.Handle(CondorNavigationAction.PreviousCategory); // -> Losses, selects the Fighter
+        AssertContains(navigator.Current?.Description, "Fighter");
+
+        // Newest-first insertion shifts every existing index by one.
+        navigator.RecordLoss(second);
+        navigator.Update(Array.Empty<CondorBattleUnit>(), 400, 700);
+
+        AssertContains(navigator.Current?.Description, "Fighter");
+        AssertEqual(100, navigator.Current!.Value.X, "the selected loss is still the Fighter's");
+    }
+
+    /// <summary>
+    /// Silence here would be the worst outcome: the player keeps pressing jump and
+    /// lands on a unit they did not choose, with nothing to tell them why.
+    /// </summary>
+    private static void SaysSoWhenTheSelectedUnitLeavesTheField()
+    {
+        var navigator = new CondorFieldNavigator();
+        navigator.Update(new[] { Ally(0, 1, 100, 600), Ally(1, 2, 200, 800) }, 400, 700);
+        navigator.Handle(CondorNavigationAction.NextTarget); // Fighter, slot 0
+
+        navigator.Update(new[] { Ally(1, 2, 200, 800) }, 400, 700); // the Fighter is gone
+
+        var spoken = navigator.Handle(CondorNavigationAction.NextTarget);
+        AssertContains(spoken, "Attacker");
+        AssertContains(spoken, "gone");
     }
 
     private static CondorBattleUnit Ally(int slot, int typeId, int x, int y, int hp = 200) =>
@@ -153,20 +219,33 @@ internal static class CondorFieldNavigatorTests
             CondorNavigationAction.JumpToTarget,
             (x, y) => { moved.Add((x, y)); return true; });
 
-        AssertEqual(1, moved.Count, "jump wrote the cursor once");
-        AssertEqual((428, 706), moved[0], "jump wrote the target's coordinates");
+        AssertEqual(1, moved.Count, "the mover was asked once");
+        AssertEqual((428, 706), moved[0], "the mover was given the target's coordinates");
         AssertContains(spoken, "428, 706");
     }
 
+    /// <summary>
+    /// The host cannot move the cursor by storing a coordinate - the battle's
+    /// cursor is camera-relative - so the mover refuses and this must still leave
+    /// the player able to find the thing. Both positions, and no claim of a move.
+    /// </summary>
     private static void JumpSaysSoWhenItCannotMoveTheCursor()
     {
-        // A jump that silently does nothing would leave the player believing the
-        // cursor had moved and reading the wrong ground.
-        var navigator = NavigatorWith(new[] { Ally(0, 1, 428, 706) });
+        var navigator = NavigatorWith(
+            new[] { Ally(0, 1, 428, 706) }, cursorX: 100, cursorY: 200);
         navigator.Handle(CondorNavigationAction.NextTarget);
         var spoken = navigator.Handle(
             CondorNavigationAction.JumpToTarget, (_, _) => false);
-        AssertContains(spoken, "could not");
+
+        AssertContains(spoken, "428, 706");   // where the thing is
+        AssertContains(spoken, "100, 200");   // where the cursor still is
+
+        if (spoken is not null && spoken.Contains("Cursor at 428", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"Navigator said '{spoken}', claiming the cursor reached the target when the " +
+                "move was refused. A false position is worse than no position.");
+        }
     }
 
     private static void ForgetsLossesWhenANewBattleStarts()

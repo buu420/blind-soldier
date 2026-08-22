@@ -244,8 +244,15 @@ public sealed class Mod : IModV1, IModV2
     private DateTime lastCondorMinigameProbeAt = DateTime.MinValue;
     private CondorBattleStateReader? condorBattleStateReader;
     private CondorBattleSpeechTracker? condorBattleSpeechTracker;
+    private CondorCursorMover? condorCursorMover;
     private DateTime lastCondorBattleReadAt = DateTime.MinValue;
     private bool inCondorBattle;
+
+    /// <summary>
+    /// Fort Condor navigation presses seen between two state readings, held until
+    /// there is a coherent snapshot to act on.
+    /// </summary>
+    private readonly List<CondorNavigationAction> pendingCondorNavigation = new();
     private FieldAudibleCueOwnershipStateReader? fieldAudibleCueStateReader;
     private FieldRunStateReader? fieldRunStateReader;
     private InventoryItemReader? inventoryItemReader;
@@ -671,6 +678,9 @@ public sealed class Mod : IModV1, IModV2
             legacyAddressSpace, Log, text => Speak(text, interrupt: false));
         condorBattleStateReader = new CondorBattleStateReader(legacyAddressSpace);
         condorBattleSpeechTracker = new CondorBattleSpeechTracker(Log);
+
+        // The same shared mover the Steam 2026 runtime uses.
+        condorCursorMover = new CondorCursorMover(currentProcessLegacyAddressSpace, Log);
         inCondorBattle = false;
         TryInitializeFfnxPopupReader(force: true);
         mainMenuSpeechScheduler = new MainMenuSpeechScheduler(TimeSpan.FromMilliseconds(Math.Max(0, config.MainMenuSpeechSettleMs)));
@@ -1869,6 +1879,8 @@ public sealed class Mod : IModV1, IModV2
                     $"Fort Condor battle reader: left module 9 after " +
                     $"{condorBattleSpeechTracker.PlacementDisagreements} placement flag disagreement(s).");
 
+                // Presses banked for a battle that has ended have nothing to act on.
+                pendingCondorNavigation.Clear();
                 condorBattleSpeechTracker.Reset();
 
                 // The terrain is cached for the life of a battle, and the next one
@@ -1886,8 +1898,19 @@ public sealed class Mod : IModV1, IModV2
         // its press to a battle that is not running.
         var statusRequested = WasNavigationKeyPressed(VirtualKeyK, isForeground);
 
+        // Banked before the throttle, for the same reason K is sampled before it:
+        // the state is read ten times a second and an ordinary tap lands between
+        // two reads. Sampled after the throttle, as this was, the key simply
+        // appears not to work.
+        foreach (var action in ReadCondorNavigationActions(isForeground))
+        {
+            pendingCondorNavigation.Add(action);
+        }
+
         var now = DateTime.UtcNow;
-        if (!statusRequested && now - lastCondorBattleReadAt < CondorBattleReadInterval)
+        if (!statusRequested &&
+            pendingCondorNavigation.Count == 0 &&
+            now - lastCondorBattleReadAt < CondorBattleReadInterval)
         {
             return;
         }
@@ -1926,7 +1949,9 @@ public sealed class Mod : IModV1, IModV2
 
         // After Observe, so a unit that fell on this reading is already in the
         // losses list if the player asks for it in the same pass.
-        foreach (var action in ReadCondorNavigationActions(isForeground))
+        var bankedNavigation = pendingCondorNavigation.ToArray();
+        pendingCondorNavigation.Clear();
+        foreach (var action in bankedNavigation)
         {
             var spoken = condorBattleSpeechTracker.Navigate(action, TryMoveCondorCursor);
             if (string.IsNullOrEmpty(spoken))
@@ -1983,34 +2008,13 @@ public sealed class Mod : IModV1, IModV2
     /// Puts the game's own cursor on a point, reporting whether it took.
     /// </summary>
     /// <remarks>
-    /// The mod reads rather than writes almost everywhere, and this is a
-    /// deliberate exception. A sighted player sees the whole field and drives the
-    /// cursor straight at what they want; sweeping for it by ear is not the same
-    /// task, and the jump is what makes the two equivalent rather than giving an
-    /// advantage.
-    ///
-    /// <para>X and Y are adjacent 16-bit values, so one 32-bit write moves both
-    /// and the battle never sees a cursor that has moved in one axis only. The
-    /// caller says out loud when this returns false; a jump that quietly did
-    /// nothing would leave the player reading ground they are not standing on.</para>
+    /// Delegates to the shared <see cref="CondorCursorMover"/> rather than packing
+    /// and writing here, so this runtime and the Steam 2026 one cannot drift. The
+    /// first version of the jump was written inline on x86 and the x64 runtime went
+    /// without, which is exactly the split this mod exists to refuse.
     /// </remarks>
-    private bool TryMoveCondorCursor(int x, int y)
-    {
-        if (currentProcessLegacyAddressSpace is null)
-        {
-            return false;
-        }
-
-        var packed = ((y & 0xFFFF) << 16) | (x & 0xFFFF);
-        var applied = currentProcessLegacyAddressSpace.TryWriteInt32(
-            CondorBattleStateReader.AddressCursor, packed);
-        if (!applied)
-        {
-            Log($"Fort Condor navigation: could not write the cursor to {x}, {y}.");
-        }
-
-        return applied;
-    }
+    private bool TryMoveCondorCursor(int x, int y) =>
+        condorCursorMover?.TryMoveTo(x, y) == true;
 
     /// <summary>
     /// Shared with the x64 runtime so both read module 9 at the same cadence.

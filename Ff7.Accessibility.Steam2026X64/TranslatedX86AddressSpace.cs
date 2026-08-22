@@ -4,7 +4,7 @@ using Ff7.Accessibility.LegacyLayout;
 
 namespace Ff7.Accessibility.Steam2026X64;
 
-internal sealed class TranslatedX86AddressSpace : ILegacyAddressSpace
+internal sealed class TranslatedX86AddressSpace : ILegacyAddressSpace, ILegacyMemoryWriter
 {
     public const ulong ResolverRva = 0x000000000003F0A0;
     public const ulong PageTableRva = 0x0000000001739010;
@@ -23,7 +23,16 @@ internal sealed class TranslatedX86AddressSpace : ILegacyAddressSpace
     private readonly ulong unmappedSentinelAddress;
     private readonly INativeMemoryReader memory;
 
-    public TranslatedX86AddressSpace(ulong moduleBase, INativeMemoryReader memory)
+    /// <summary>
+    /// Optional, and null everywhere except where a write is actually intended.
+    /// Reading is the default capability; writing has to be handed over on purpose.
+    /// </summary>
+    private readonly INativeMemoryWriter? writer;
+
+    public TranslatedX86AddressSpace(
+        ulong moduleBase,
+        INativeMemoryReader memory,
+        INativeMemoryWriter? writer = null)
     {
         if (moduleBase == 0
             || moduleBase > ulong.MaxValue - PageTableRva - PageTableByteLength)
@@ -33,9 +42,74 @@ internal sealed class TranslatedX86AddressSpace : ILegacyAddressSpace
 
         this.moduleBase = moduleBase;
         this.memory = memory ?? throw new ArgumentNullException(nameof(memory));
+        this.writer = writer;
         pageTableAddress = checked(moduleBase + PageTableRva);
         pageTableEndExclusive = checked(pageTableAddress + PageTableByteLength);
         unmappedSentinelAddress = checked(moduleBase + UnmappedSentinelRva);
+    }
+
+    /// <summary>
+    /// Writes four bytes into the guest's own backing page.
+    /// </summary>
+    /// <remarks>
+    /// The page table resolves a guest address to the game's actual storage rather
+    /// than to a mirror, so a write here is visible to translated guest code. It
+    /// mirrors <see cref="TryRead"/>'s resolution exactly, including the trusted
+    /// page-table region check and the unmapped sentinel, and adds what a write
+    /// needs on top:
+    ///
+    /// <list type="bullet">
+    /// <item>the whole value inside one guest page, because a split write would
+    /// lose the atomicity that keeps the game from seeing half a cursor;</item>
+    /// <item>the page-table entry re-read afterwards and required to be unchanged,
+    /// so a write that raced a re-map is not reported as success;</item>
+    /// <item>the value read back through the ordinary read path, so the caller is
+    /// told the truth about whether it took.</item>
+    /// </list>
+    ///
+    /// <para>Nothing is cached between calls. The translator re-resolves on every
+    /// operation and a retained host pointer would outlive the mapping.</para>
+    /// </remarks>
+    public bool TryWriteInt32(uint virtualAddress, int value)
+    {
+        if (writer is null || virtualAddress == 0 || (virtualAddress & 3) != 0)
+        {
+            return false;
+        }
+
+        var pageOffset = (int)(virtualAddress & (PageSize - 1));
+        if (pageOffset + sizeof(int) > PageSize)
+        {
+            // Straddles two guest pages, whose host pages need not be adjacent.
+            return false;
+        }
+
+        var pageEntryAddress = pageTableAddress + (((ulong)virtualAddress >> 12) * sizeof(ulong));
+        if (!HasTrustedPageTableEntryRegion(pageEntryAddress)
+            || !memory.TryReadUInt64(pageEntryAddress, out var hostPage)
+            || hostPage == 0
+            || hostPage == unmappedSentinelAddress)
+        {
+            return false;
+        }
+
+        if (!writer.TryExchangeInt32(hostPage + (ulong)pageOffset, value))
+        {
+            return false;
+        }
+
+        // The mapping must not have moved under the write, and the guest must now
+        // read back what was asked for. Either failing means the write did not
+        // land where the game will look for it.
+        if (!memory.TryReadUInt64(pageEntryAddress, out var hostPageAfter)
+            || hostPageAfter != hostPage)
+        {
+            return false;
+        }
+
+        Span<byte> verification = stackalloc byte[sizeof(int)];
+        return TryRead(virtualAddress, verification)
+            && BitConverter.ToInt32(verification) == value;
     }
 
     public bool HasExpectedResolverSignature()

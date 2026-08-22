@@ -32,7 +32,12 @@ public enum CondorNavigationCategory
 }
 
 /// <summary>One thing on the battlefield the player can select and jump to.</summary>
-public readonly record struct CondorNavigationTarget(string Description, int X, int Y);
+/// <param name="Key">
+/// A stable identity, so a selection survives the list being rebuilt and re-sorted
+/// under it. Live units use their slot, which is already unique across both sides;
+/// losses use a negative counter so the two can never collide.
+/// </param>
+public readonly record struct CondorNavigationTarget(string Description, int X, int Y, int Key);
 
 /// <summary>
 /// Lets the player walk the fort battlefield as three lists - their own units,
@@ -64,20 +69,52 @@ public sealed class CondorFieldNavigator
     private readonly List<CondorNavigationTarget> losses = new();
     private IReadOnlyList<CondorBattleUnit> units = Array.Empty<CondorBattleUnit>();
     private int categoryIndex;
-    private int targetIndex = -1;
+    private int nextLossKey = -1;
+
+    /// <summary>Where the cursor was at the last reading, for the locate readout.</summary>
+    private int cursorX;
+    private int cursorY;
+
+    /// <summary>
+    /// The selected thing's identity, not its position in the list.
+    /// </summary>
+    /// <remarks>
+    /// The lists are rebuilt and re-sorted on every reading. Held as an index, a
+    /// selection silently became a different unit whenever two of them crossed on
+    /// the field, or whenever a new loss was pushed onto the front - so a player
+    /// who had chosen their Fighter and pressed jump was moved somewhere else and
+    /// told nothing.
+    /// </remarks>
+    private int? selectedKey;
+
+    /// <summary>
+    /// What the selection was called, so its disappearance can be announced rather
+    /// than the player being moved silently onto whatever took its place.
+    /// </summary>
+    private string? selectedName;
 
     /// <summary>The category the player is currently walking.</summary>
     public CondorNavigationCategory Category => Categories[categoryIndex];
 
-    /// <summary>The selected thing, if the current list has one.</summary>
+    /// <summary>The selected thing, if it is still on the current list.</summary>
     public CondorNavigationTarget? Current
     {
         get
         {
-            var list = Build(Category);
-            return list.Count == 0 || targetIndex < 0 || targetIndex >= list.Count
-                ? null
-                : list[targetIndex];
+            if (selectedKey is not { } key)
+            {
+                return null;
+            }
+
+            foreach (var target in Build(Category))
+            {
+                if (target.Key == key)
+                {
+                    return target;
+                }
+            }
+
+            return null;
         }
     }
 
@@ -86,8 +123,8 @@ public sealed class CondorFieldNavigator
     {
         ArgumentNullException.ThrowIfNull(liveUnits);
         units = liveUnits;
-        _ = cursorX;
-        _ = cursorY;
+        this.cursorX = cursorX;
+        this.cursorY = cursorY;
     }
 
     /// <summary>
@@ -103,9 +140,10 @@ public sealed class CondorFieldNavigator
         ArgumentNullException.ThrowIfNull(unit);
 
         // Most recent first: the break-through that just happened is the one the
-        // player needs, and a stable order matters less than reaching it quickly.
+        // player needs. The key is what keeps an already-selected loss selected
+        // while every index in front of it shifts.
         losses.Insert(0, new CondorNavigationTarget(
-            $"{unit.Name}, lost", unit.X, unit.Y));
+            $"{unit.Name}, lost", unit.X, unit.Y, nextLossKey--));
     }
 
     /// <summary>Clears everything a new battle should not inherit.</summary>
@@ -114,7 +152,9 @@ public sealed class CondorFieldNavigator
         losses.Clear();
         units = Array.Empty<CondorBattleUnit>();
         categoryIndex = 0;
-        targetIndex = -1;
+        nextLossKey = -1;
+        selectedKey = null;
+        selectedName = null;
     }
 
     /// <summary>
@@ -140,7 +180,7 @@ public sealed class CondorFieldNavigator
             case CondorNavigationAction.PreviousTarget:
                 return ChangeTarget(-1);
             case CondorNavigationAction.JumpToTarget:
-                return Jump(moveCursor);
+                return Locate(moveCursor);
             default:
                 return null;
         }
@@ -149,7 +189,8 @@ public sealed class CondorFieldNavigator
     private string ChangeCategory(int step)
     {
         categoryIndex = Wrap(categoryIndex + step, Categories.Length);
-        targetIndex = -1;
+        selectedKey = null;
+        selectedName = null;
 
         var list = Build(Category);
         var name = Name(Category);
@@ -160,7 +201,7 @@ public sealed class CondorFieldNavigator
 
         // Land on the first entry rather than announcing a bare count: the player
         // asked to look at this list, so show them into it.
-        targetIndex = 0;
+        Select(list[0]);
         return $"{name}. {list.Count}. {Describe(list[0])}";
     }
 
@@ -169,30 +210,86 @@ public sealed class CondorFieldNavigator
         var list = Build(Category);
         if (list.Count == 0)
         {
+            selectedKey = null;
+            selectedName = null;
             return $"{Name(Category)}. None.";
         }
 
-        targetIndex = targetIndex < 0
-            ? (step > 0 ? 0 : list.Count - 1)
-            : Wrap(targetIndex + step, list.Count);
-        return Describe(list[targetIndex]);
+        var current = IndexOfSelection(list);
+        if (current < 0)
+        {
+            // Either nothing was selected yet, or what was selected has left the
+            // field. Those are different events and only the second is worth a
+            // word, but neither may move the player somewhere new in silence.
+            var gone = selectedName;
+            var landing = list[step > 0 ? 0 : list.Count - 1];
+            Select(landing);
+            return gone is null
+                ? Describe(landing)
+                : $"{Capitalize(gone)} gone. {Describe(landing)}";
+        }
+
+        var next = list[Wrap(current + step, list.Count)];
+        Select(next);
+        return Describe(next);
     }
 
-    private string Jump(Func<int, int, bool>? moveCursor)
+    private int IndexOfSelection(IReadOnlyList<CondorNavigationTarget> list)
+    {
+        if (selectedKey is not { } key)
+        {
+            return -1;
+        }
+
+        for (var index = 0; index < list.Count; index++)
+        {
+            if (list[index].Key == key)
+            {
+                return index;
+            }
+        }
+
+        return -1;
+    }
+
+    private void Select(CondorNavigationTarget target)
+    {
+        selectedKey = target.Key;
+        selectedName = target.Description;
+    }
+
+    private static string Capitalize(string text) =>
+        text.Length == 0 ? text : char.ToUpperInvariant(text[0]) + text[1..];
+
+    /// <summary>
+    /// Says where the selected thing is and where the cursor is, and moves the
+    /// cursor only if the host can do it correctly.
+    /// </summary>
+    /// <remarks>
+    /// Moving the cursor is not a matter of storing a coordinate: the battle's
+    /// cursor is camera-relative and the view has to travel with it, so a direct
+    /// write leaves the player looking at ground they are not on - see
+    /// <see cref="CondorCursorMover"/>. Until steering through the game's own
+    /// direction keys lands, this answers with both positions, which is what a
+    /// sighted player reads off the screen anyway, and never claims a move that did
+    /// not happen.
+    /// </remarks>
+    private string Locate(Func<int, int, bool>? moveCursor)
     {
         if (Current is not { } target)
         {
             return $"{Name(Category)}. None.";
         }
 
-        // Saying nothing, or saying it moved when it did not, would leave the
-        // player reading the wrong ground and trusting it.
-        if (moveCursor is null || !moveCursor(target.X, target.Y))
+        if (moveCursor is not null && moveCursor(target.X, target.Y))
         {
-            return $"Could not move the cursor to {target.X}, {target.Y}.";
+            return $"Cursor at {target.X}, {target.Y}. {target.Description}.";
         }
 
-        return $"Cursor at {target.X}, {target.Y}. {target.Description}.";
+        // Both coordinates, so the player can steer to it themselves and knows
+        // exactly how far the cursor still has to travel.
+        return $"{target.Description}, at {target.X}, {target.Y}. " +
+            $"Cursor at {cursorX}, {cursorY}.";
     }
 
     private static string Describe(CondorNavigationTarget target) =>
@@ -216,12 +313,19 @@ public sealed class CondorFieldNavigator
 
         var wantEnemies = category == CondorNavigationCategory.Enemies;
         return units
-            .Where(unit => unit.IsEnemy == wantEnemies && !unit.IsRemoving && unit.CurrentHp > 0)
-            // Ascending Y is nearest-the-fort first, which for the enemy is most
-            // advanced first and for the player's own units is the front line.
+            // The same predicate the casualty diff uses. It was written out as
+            // !IsRemoving && CurrentHp > 0, which is algebraically identical for
+            // reader-produced snapshots, but two spellings of "alive" invite the
+            // two to drift apart later.
+            .Where(unit => unit.IsEnemy == wantEnemies && !unit.IsDying)
+            // Ascending Y is nearest-the-fort first. The fort sits at low Y and the
+            // enemy advances toward it, so for the enemy this is most-advanced
+            // first. For the player's own units it is rearguard first, not the
+            // front line - one rule for both lists, so there is only one thing to
+            // learn, rather than an ordering that flips meaning between them.
             .OrderBy(unit => unit.Y)
             .ThenBy(unit => unit.X)
-            .Select(unit => new CondorNavigationTarget(unit.Describe(), unit.X, unit.Y))
+            .Select(unit => new CondorNavigationTarget(unit.Describe(), unit.X, unit.Y, unit.Slot))
             .ToList();
     }
 }

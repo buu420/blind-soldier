@@ -119,34 +119,64 @@ internal static class DualRuntimeSharedSourceTests
         }
     }
 
+    /// <summary>
+    /// Every Fort Condor source file in the legacy project must be compiled into
+    /// the x64 runtime too.
+    /// </summary>
+    /// <remarks>
+    /// This used to be a hand-written list of five filenames, and a hand-written
+    /// list is always one commit behind. It did not know about
+    /// <c>CondorFieldNavigator.cs</c> when that arrived, so the battlefield
+    /// navigator was x86-only until someone noticed by eye - which is the whole
+    /// failure this guard exists to prevent.
+    ///
+    /// <para>Discovering the files instead of naming them makes the rule true by
+    /// construction: the fort is a shared feature, so anything named for it belongs
+    /// on both executables. A genuinely legacy-only Condor file would need an
+    /// explicit exclusion here, with a reason - which is the right amount of
+    /// friction for that claim.</para>
+    /// </remarks>
     private static void TheFortCondorBattleReaderIsCompiledIntoBothRuntimes()
     {
-        // Named outright because these are the files that were missed, and
-        // because the placement region and the unit catalog match neither
-        // pattern the sweep above uses.
         var root = FindSourceRoot();
         var csproj = File.ReadAllText(Path.Combine(
             root,
             "Ff7.Accessibility.Steam2026X64",
             "Ff7.Accessibility.Steam2026X64.csproj"));
 
-        string[] required =
-        [
-            "CondorUnitCatalog.cs",
-            "CondorPlacementRegion.cs",
-            "CondorBattleSnapshot.cs",
-            "CondorBattleStateReader.cs",
-            "CondorBattleSpeechTracker.cs"
-        ];
+        // The research probe is deliberately x86-only: it samples two megabytes of
+        // the legacy data segment directly and has no meaning through the 2026
+        // runtime's translated page table.
+        string[] legacyOnly = ["CondorMinigameProbe.cs"];
 
-        var missing = required
+        var discovered = Directory
+            .EnumerateFiles(
+                Path.Combine(root, "Ff7.Accessibility.Reloaded"),
+                "Condor*.cs",
+                SearchOption.TopDirectoryOnly)
+            .Select(Path.GetFileName)
+            .Where(name => name is not null)
+            .Select(name => name!)
+            .Where(name => !legacyOnly.Contains(name, StringComparer.OrdinalIgnoreCase))
+            .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        if (discovered.Length == 0)
+        {
+            throw new InvalidOperationException(
+                "No Fort Condor sources were discovered, so this guard is checking nothing.");
+        }
+
+        var missing = discovered
             .Where(name => !csproj.Contains(name, StringComparison.OrdinalIgnoreCase))
             .ToArray();
         if (missing.Length > 0)
         {
             throw new InvalidOperationException(
-                $"The Fort Condor battle reader is missing from the x64 runtime: " +
-                $"{string.Join(", ", missing)}.");
+                "Fort Condor sources are compiled into the legacy runtime but not the x64 one: " +
+                $"{string.Join(", ", missing)}. This is a dual-runtime mod; add a " +
+                "<Compile Include> link to Ff7.Accessibility.Steam2026X64.csproj, or, if the " +
+                "file really is legacy-only, add it to legacyOnly here with the reason.");
         }
     }
 

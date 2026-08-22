@@ -103,7 +103,8 @@ Describe 'Blind Soldier aggregate portable release gate' {
             # release time.
             foreach ($mode in @('--runtime-lease-only',
                     '--host-validation-only','--7h-compatibility-only',
-                    '--prism-abi-probe-only','--condor-probe-silence-only')) {
+                    '--prism-abi-probe-only','--condor-probe-silence-only',
+                    '--dual-runtime-sources-only')) {
                 $reloadedCommand | Should Match ([regex]::Escape($mode))
             }
             $build = @($invocations | Where-Object Name -CEQ `
