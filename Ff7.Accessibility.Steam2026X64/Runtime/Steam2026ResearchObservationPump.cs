@@ -171,10 +171,15 @@ internal sealed class Steam2026ResearchObservationPump
             lines.Add((status, true));
         }
 
-        foreach (var line in condorBattleSpeechTracker.Observe(snapshot))
+        // A cursor-only batch interrupts: the player wants where the cursor is
+        // now, not the rows it passed through on the way. Anything carrying an
+        // event queues instead, so a banner or a casualty is never cut short.
+        var observation = condorBattleSpeechTracker.Observe(snapshot);
+        var supersedes = condorBattleSpeechTracker.LastObservationSupersedesSpeech;
+        foreach (var line in observation)
         {
             log($"Fort Condor speech: {line}");
-            lines.Add((line, false));
+            lines.Add((line, supersedes));
         }
 
         // After Observe, so a unit that fell on this reading is already in the

@@ -1947,10 +1947,15 @@ public sealed class Mod : IModV1, IModV2
             Speak(status, interrupt: true);
         }
 
-        foreach (var line in condorBattleSpeechTracker.Observe(snapshot))
+        // A cursor-only batch interrupts: the player wants where the cursor is
+        // now, not the rows it passed through on the way. Anything carrying an
+        // event queues instead, so a banner or a casualty is never cut short.
+        var condorObservation = condorBattleSpeechTracker.Observe(snapshot);
+        var condorSupersedes = condorBattleSpeechTracker.LastObservationSupersedesSpeech;
+        foreach (var line in condorObservation)
         {
             Log($"Fort Condor speech: {line}");
-            Speak(line, interrupt: false);
+            Speak(line, interrupt: condorSupersedes);
         }
 
         // After Observe, so a unit that fell on this reading is already in the

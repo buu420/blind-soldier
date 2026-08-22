@@ -25,7 +25,8 @@ internal static class CondorBattleReaderTests
         SkipsARemovingUnitWhenDecidingWhatTheCursorIsOn();
         SpeaksTheHireListWithAffordability();
         SpeaksTheUnitUnderTheCursorAndWhenItClears();
-        NarratesEveryCursorMove();
+        SpeaksWhereTheCursorStopsNotEveryRowItCrosses();
+        EventsAreNeverCutShortByACursorMove();
         ReproducesTheNativePlacementRegionFromTheShippedTerrain();
         AppliesTheSetupBoundaryAndTheCombatFrontier();
         ExistingUnitsCutHolesInAPlacementBand();
@@ -371,7 +372,33 @@ internal static class CondorBattleReaderTests
         AssertNull(reader.TryRead(), "snapshot after leaving the battle");
     }
 
-    private static void NarratesEveryCursorMove()
+    private static void EventsAreNeverCutShortByACursorMove()
+    {
+        // The cursor readout is allowed to replace what the reader is still
+        // saying, because only the latest position is worth anything. An event is
+        // not: a banner, a casualty or a result is said once, and interrupting it
+        // loses it outright rather than merely delaying it. Without this, letting
+        // every batch supersede passes the rest of the suite untouched.
+        var tracker = new CondorBattleSpeechTracker();
+        tracker.Observe(Battle(messageId: 12));
+        tracker.Observe(Battle(messageId: 12));
+
+        var banner = tracker.Observe(Battle(messageId: 0));
+        Equal("Encountered enemy.", Single(banner), "banner line");
+        Equal(
+            false,
+            tracker.LastObservationSupersedesSpeech,
+            "a batch carrying an event never replaces speech");
+
+        var result = tracker.Observe(Battle(messageId: 0, outcome: 2));
+        AssertContains(Single(result), "Battle lost");
+        Equal(
+            false,
+            tracker.LastObservationSupersedesSpeech,
+            "a batch carrying the result never replaces speech");
+    }
+
+    private static void SpeaksWhereTheCursorStopsNotEveryRowItCrosses()
     {
         // Brice's 2026-08-22 placement phase: the readout used to speak only when
         // the ground under the cursor changed character, so sweeping inside one
@@ -392,29 +419,47 @@ internal static class CondorBattleReaderTests
         tracker.Observe(reader.TryRead()!);
         tracker.Observe(reader.TryRead()!);
 
+        // Brice's 2026-08-22 evening session: the game's own held-key repeat
+        // carries the cursor about twenty units per reading, so speaking every
+        // reading queued sixteen announcements for two seconds of movement and
+        // the speech ran on long after he let go. Rows crossed in transit are not
+        // announced; where the cursor stops is.
         foreach (var y in new[] { 100, 160, 240, 320 })
         {
             memory.WriteInt16(CondorMemory.CursorY, (short)y);
-            var moved = reader.TryRead()!;
             Equal(
-                $"{moved.CursorX}, {y}. {CondorBattleSpeechTracker.CanPlaceText}.",
-                Single(tracker.Observe(moved)),
-                $"cursor moved to row {y}");
+                0,
+                tracker.Observe(reader.TryRead()!).Count,
+                $"cursor still travelling through row {y}");
         }
 
-        // A cursor that has not moved is not a move. Repeating the sentence tells
-        // the player nothing and costs them the time it takes to say.
+        // It comes to rest on the last of those rows, and that is what is said.
+        var settled = reader.TryRead()!;
+        Equal(
+            $"{settled.CursorX}, 320. {CondorBattleSpeechTracker.CanPlaceText}.",
+            Single(tracker.Observe(settled)),
+            "cursor came to rest");
+        Equal(
+            true,
+            tracker.LastObservationSupersedesSpeech,
+            "a cursor-only batch replaces what is still being said");
+
+        // Saying it again once it is already at rest tells the player nothing and
+        // costs them the time it takes to say.
         Equal(0, tracker.Observe(reader.TryRead()!).Count, "cursor held still");
 
-        // Ground the frontier will not allow reads as such.
+        // Ground the frontier will not allow reads as such, once the cursor has
+        // stopped on it.
         memory.WriteInt32(CondorMemory.DeploymentFrontierY, 300);
         memory.WriteInt16(CondorMemory.CursorY, 400);
+        tracker.Observe(reader.TryRead()!);
         AssertContains(
             Single(tracker.Observe(reader.TryRead()!)),
             CondorBattleSpeechTracker.CannotPlaceText);
 
         // And coming back inside it reads as such.
         memory.WriteInt16(CondorMemory.CursorY, 200);
+        tracker.Observe(reader.TryRead()!);
         AssertContains(
             Single(tracker.Observe(reader.TryRead()!)),
             CondorBattleSpeechTracker.CanPlaceText);

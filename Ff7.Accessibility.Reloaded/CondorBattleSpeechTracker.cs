@@ -106,6 +106,22 @@ public sealed class CondorBattleSpeechTracker
     /// </summary>
     private (int X, int Y, int UnitSlot, bool Legal)? lastCursorKey;
 
+    /// <summary>
+    /// Where the cursor was at the previous reading, spoken or not, so that one
+    /// still travelling can be told apart from one that has come to rest. The
+    /// game's own held-key repeat moves it about twenty units per reading.
+    /// </summary>
+    /// <remarks>
+    /// Position only, deliberately - not the whole readout key. What is standing
+    /// on the spot and whether it can take a unit change without the cursor
+    /// moving at all: an enemy walking under a resting cursor, or the frontier
+    /// advancing past it. Those are not travel and must not be held back as
+    /// though they were.
+    /// </remarks>
+    private (int X, int Y)? lastSampledCursorPosition;
+
+    private bool cursorReadoutSupersedesSpeech;
+
     private bool started;
     private int lastAdvanceBand = -1;
     private int lastPhase;
@@ -133,6 +149,9 @@ public sealed class CondorBattleSpeechTracker
         placementDisagreements = 0;
         navigator.Reset();
         lastCursorKey = null;
+        lastSampledCursorPosition = null;
+        cursorReadoutSupersedesSpeech = false;
+        LastObservationSupersedesSpeech = false;
         pendingStatusRequest = false;
     }
 
@@ -151,6 +170,20 @@ public sealed class CondorBattleSpeechTracker
 
     /// <summary>Banks a K press until a coherent battle snapshot can answer it.</summary>
     public void RequestStatus() => pendingStatusRequest = true;
+
+    /// <summary>
+    /// Whether the batch <see cref="Observe"/> just returned is nothing but the
+    /// cursor readout, and may therefore replace what the reader is still saying
+    /// rather than queueing behind it.
+    /// </summary>
+    /// <remarks>
+    /// Decided here rather than in each host so the two runtimes cannot disagree
+    /// about which lines a player is allowed to lose. Position is state: only the
+    /// latest one is worth anything, and hearing a row the cursor has already
+    /// left is worse than hearing nothing. A banner, a casualty or a result is an
+    /// event, said once, and must never be cut short by a cursor move.
+    /// </remarks>
+    public bool LastObservationSupersedesSpeech { get; private set; }
 
     /// <summary>
     /// Answers and consumes the banked K press. On the first accepted snapshot,
@@ -263,6 +296,11 @@ public sealed class CondorBattleSpeechTracker
             // either the unit here or the placement answer, so this accepted
             // cursor is the baseline. A later real move still changes the key.
             lastCursorKey = CursorKey(snapshot);
+
+            // Both, so the position the opening just announced counts as already
+            // at rest. Priming only the spoken key would make the next reading
+            // look like the end of a move and say it a second time.
+            lastSampledCursorPosition = (snapshot.CursorX, snapshot.CursorY);
             RememberStanding(snapshot);
             lastAdvanceBand = AdvanceBand(snapshot.EnemyAdvance);
             Remember(snapshot);
@@ -270,6 +308,8 @@ public sealed class CondorBattleSpeechTracker
         }
 
         var lines = new List<string>();
+        cursorReadoutSupersedesSpeech = false;
+        LastObservationSupersedesSpeech = false;
 
         // The result latch is the game's own decision and it is set before the
         // banner is published from it, so it is the authority on who won. It
@@ -346,6 +386,12 @@ public sealed class CondorBattleSpeechTracker
         {
             lines.AddRange(ObserveCursor(snapshot));
         }
+
+        // A batch that is nothing but the cursor readout may replace whatever the
+        // reader is still saying. A batch carrying anything else must not: a
+        // banner, a casualty or a result is said once and losing it to a cursor
+        // move would be losing it outright.
+        LastObservationSupersedesSpeech = lines.Count == 1 && cursorReadoutSupersedesSpeech;
 
         Remember(snapshot);
         return lines;
@@ -528,13 +574,22 @@ public sealed class CondorBattleSpeechTracker
     /// Where the cursor is, and what is on that spot.
     /// </summary>
     /// <remarks>
-    /// <para>Spoken whenever the cursor moves, not only when the ground under it
-    /// changes character. The earlier version announced the placement <em>band</em>
-    /// and stayed silent while the cursor swept inside one, which in Brice's
-    /// 2026-08-22 placement phase meant most moves said nothing at all and the
-    /// only lines he heard were the ones fired by crossing a boundary. Position is
-    /// what is being asked for; whether a unit fits there is the qualifier on it,
-    /// not the subject.</para>
+    /// <para>Spoken wherever the cursor comes to rest, not only when the ground
+    /// under it changes character. The version before 2026-08-22 announced the
+    /// placement <em>band</em> and stayed silent while the cursor swept inside
+    /// one, so most of Brice's moves said nothing at all. Position is what is
+    /// being asked for; whether a unit fits there is the qualifier on it, not the
+    /// subject.</para>
+    ///
+    /// <para><b>Where it comes to rest, not every place it passes through.</b> The
+    /// first version of this spoke every sample the cursor had moved in, and the
+    /// game's own held-key repeat carries it about twenty units per sample - so
+    /// two seconds of holding a direction queued sixteen announcements, each of
+    /// which takes longer than a sample to say. The speech fell further and
+    /// further behind the cursor and carried on talking after the key was
+    /// released, which Brice reported as the key appearing to stick. A sighted
+    /// player watching the cursor slide does not read out the rows it crosses;
+    /// they see where it is now. So does this.</para>
     ///
     /// <para>Keyed on the state rather than on the finished sentence so that a
     /// unit's HP ticking down under a resting cursor does not re-announce it ten
@@ -543,6 +598,16 @@ public sealed class CondorBattleSpeechTracker
     private IEnumerable<string> ObserveCursor(CondorBattleSnapshot snapshot)
     {
         var key = CursorKey(snapshot);
+        var position = (snapshot.CursorX, snapshot.CursorY);
+        var settled = position == lastSampledCursorPosition;
+        lastSampledCursorPosition = position;
+
+        // Still travelling. Saying this row would cost more time than the cursor
+        // will spend on it.
+        if (!settled)
+        {
+            yield break;
+        }
 
         if (key == lastCursorKey)
         {
@@ -550,6 +615,7 @@ public sealed class CondorBattleSpeechTracker
         }
 
         lastCursorKey = key;
+        cursorReadoutSupersedesSpeech = true;
         yield return
             $"{snapshot.CursorX}, {snapshot.CursorY}. {DescribeUnderCursor(snapshot, key.Legal)}.";
     }

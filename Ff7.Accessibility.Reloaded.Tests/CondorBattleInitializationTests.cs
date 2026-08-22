@@ -200,8 +200,16 @@ internal static class CondorBattleInitializationTests
     /// <summary>
     /// The opening status already describes the accepted cursor position and
     /// its placement answer. An unchanged next sample must not repeat that
-    /// readout, while a real move must still be announced immediately.
+    /// readout, while a real move must still be announced once it lands.
     /// </summary>
+    /// <remarks>
+    /// This asserted immediate announcement until 2026-08-22, when speaking every
+    /// sample the cursor had moved in turned out to queue faster than a screen
+    /// reader can talk: the game's held-key repeat carries the cursor about twenty
+    /// units per reading, and the backlog ran on after the key was released. What
+    /// must survive is that a real move is never swallowed - only that it is
+    /// announced where the cursor stops rather than for every row it crosses.
+    /// </remarks>
     private static void PrimesTheOpeningCursorUntilItsPositionChanges()
     {
         var tracker = new CondorBattleSpeechTracker();
@@ -219,9 +227,18 @@ internal static class CondorBattleInitializationTests
         Equal("Set units.", opening[1], "opening setup banner");
         Equal(0, tracker.Observe(entry).Count, "unchanged opening cursor is not repeated");
 
-        var moved = tracker.Observe(entry with { CursorY = 112 });
+        // Travelling: the cursor has left 96 but has not arrived anywhere yet.
+        var travelling = entry with { CursorY = 112 };
+        Equal(0, tracker.Observe(travelling).Count, "a row crossed in transit is not announced");
+
+        // Arrived, and said - the move is delayed by one reading, never lost.
+        var moved = tracker.Observe(travelling);
         Equal(1, moved.Count, "first real cursor move line count");
         Equal("248, 112. Cannot place.", moved[0], "first real cursor move is not swallowed");
+        Equal(
+            true,
+            tracker.LastObservationSupersedesSpeech,
+            "the cursor readout replaces speech rather than queueing behind it");
     }
 
     /// <summary>
