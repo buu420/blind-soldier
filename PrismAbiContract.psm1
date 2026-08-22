@@ -16,57 +16,65 @@ Nothing caught it. The bundle builder verified both PE machine types and the
 managed assembly identity; neither has anything to say about struct layout.
 
 Prism cannot catch it either, and it is worth being precise about why. Prism does
-version its config: prism_init compares the version byte and rejects a config
-newer than the library, while older ones are accepted with the missing fields
-treated as absent. That mechanism protects prism_init, which merely *reads* a
-caller-owned struct. It can do nothing for prism_config_init, which *returns* the
-struct by value: the library writes its own sizeof into whatever slot the caller
-provided, having no way to know the caller declared something smaller. By the
-time prism_init could have rejected anything, the stack is already gone. So a
-correct managed declaration is the only defence, which is what this module exists
-to enforce.
+version its config, but leniently: prism_init rejects a version of zero, or one
+newer than the library, while *older* versions are accepted with the fields the
+caller lacks treated as absent. So even a strict version check would not have
+rejected the one-byte struct. And in any case that check lives in prism_init,
+which merely reads a caller-owned struct. It can do nothing for
+prism_config_init, which returns one by value: the library writes its own sizeof
+into whatever slot the caller provided, having no way to know the caller declared
+something smaller. By the time prism_init could reject anything, the stack is
+already gone. A correct managed declaration is the only defence.
 
-This module recomputes the marshalled x86 layout of both declarations and refuses
-to let them differ. The size is computed rather than measured because
-Marshal.SizeOf reports the *host* process's layout: under x64 PowerShell the
-three pointers measure eight bytes each and the struct comes out at 48, not the
-32 the x86 launcher actually gets.
+The layout is computed rather than measured because Marshal.SizeOf reports the
+*host* process's layout: under x64 PowerShell the three pointers measure eight
+bytes each and the struct comes out at 48, not the 32 the x86 launcher gets.
+Both architectures are checked, because the same file is compiled into the x64
+runtime as well - see the Compile Include in Ff7.Accessibility.Steam2026X64.csproj.
 #>
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
-# The marshalled x86 size of PRISM_CONFIG_VERSION 3, which is what Prism 0.18
-# defines and what the shipped FFVII_LAUNCHER.prism.x86.dll returns. Measured from
-# a .NET Framework x86 probe against that DLL: 32 bytes, version byte 3.
+# The marshalled sizes of PRISM_CONFIG_VERSION 3, which is what Prism 0.18 defines
+# and what the shipped FFVII_LAUNCHER.prism.x86.dll returns. The x86 figure was
+# measured against that DLL from a .NET Framework x86 probe: 32 bytes, version 3.
 #
-# Pinning this is not belt-and-braces. Comparing the launcher against the mod only
-# proves the two managed copies agree; if a future Prism changes the struct and
-# both copies are brought to the same wrong shape, they still agree and the
-# launcher still dies. prism_init rejects a config whose version byte does not
-# match PRISM_CONFIG_VERSION - the constant moved from 2 to 3 between 0.16 and
-# 0.18 - so the layout is a versioned contract and changing it should be a
-# deliberate act. Whoever moves the DLL forward updates these two numbers.
+# Pinning these is not belt-and-braces. Comparing the launcher against the mod only
+# proves the two managed copies agree; if a future Prism changes the struct and both
+# copies are brought to the same wrong shape, they still agree and the launcher
+# still dies. Prism's documentation undertakes to increment this constant whenever a
+# field is added or removed - it went 1, then 2 when the struct was cut back to the
+# version byte alone, then 3 when the registry and availability fields arrived - so
+# changing the layout should be a deliberate act. Whoever moves the DLL forward
+# updates these three numbers, and re-measures rather than assuming.
 $script:PrismConfigVersion = 3
 $script:PrismConfigX86Size = 32
+$script:PrismConfigX64Size = 48
 
-# Marshalled size and alignment on x86. Pointers are four bytes here, which is the
-# whole point - this must describe the launcher's target, not PowerShell's.
-$script:X86Types = @{
-    'byte'    = @{ Size = 1; Align = 1 }
-    'sbyte'   = @{ Size = 1; Align = 1 }
-    'short'   = @{ Size = 2; Align = 2 }
-    'ushort'  = @{ Size = 2; Align = 2 }
-    'int'     = @{ Size = 4; Align = 4 }
-    'uint'    = @{ Size = 4; Align = 4 }
-    'long'    = @{ Size = 8; Align = 8 }
-    'ulong'   = @{ Size = 8; Align = 8 }
-    'float'   = @{ Size = 4; Align = 4 }
-    'double'  = @{ Size = 8; Align = 8 }
-    'nint'    = @{ Size = 4; Align = 4 }
-    'nuint'   = @{ Size = 4; Align = 4 }
-    'IntPtr'  = @{ Size = 4; Align = 4 }
-    'UIntPtr' = @{ Size = 4; Align = 4 }
+# Marshalled size and alignment by native type. Pointer-sized entries are resolved
+# per architecture, which is the whole point - this must describe the targets the
+# struct is compiled for, not PowerShell's.
+$script:FixedTypes = @{
+    'byte'   = @{ Size = 1; Align = 1; Native = 'byte' }
+    'sbyte'  = @{ Size = 1; Align = 1; Native = 'sbyte' }
+    'short'  = @{ Size = 2; Align = 2; Native = 'short' }
+    'ushort' = @{ Size = 2; Align = 2; Native = 'ushort' }
+    'int'    = @{ Size = 4; Align = 4; Native = 'int' }
+    'uint'   = @{ Size = 4; Align = 4; Native = 'uint' }
+    'long'   = @{ Size = 8; Align = 8; Native = 'long' }
+    'ulong'  = @{ Size = 8; Align = 8; Native = 'ulong' }
+    'float'  = @{ Size = 4; Align = 4; Native = 'float' }
+    'double' = @{ Size = 8; Align = 8; Native = 'double' }
+}
+
+# nint and IntPtr are the same underlying native-sized type; so are nuint and
+# UIntPtr. The launcher spells them IntPtr and the mod spells them nint.
+$script:PointerTypes = @{
+    'nint'    = 'pointer'
+    'IntPtr'  = 'pointer'
+    'nuint'   = 'upointer'
+    'UIntPtr' = 'upointer'
 }
 
 function Remove-CSharpComment {
@@ -76,7 +84,7 @@ function Remove-CSharpComment {
     return [regex]::Replace($withoutBlocks, '//[^\r\n]*', ' ')
 }
 
-function Get-PrismConfigBody {
+function Get-PrismConfigDeclaration {
     param([Parameter(Mandatory = $true)] [string] $Path)
 
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
@@ -87,6 +95,31 @@ function Get-PrismConfigBody {
     $match = [regex]::Match($text, 'struct\s+PrismConfig\b')
     if (-not $match.Success) {
         throw "No PrismConfig declaration found in $Path."
+    }
+
+    # Everything between the previous closing brace/semicolon and the struct keyword
+    # is the attribute list. The size computation below assumes sequential layout
+    # and natural alignment, so anything that changes either has to be refused.
+    $searchFrom = [Math]::Max(0, $match.Index - 400)
+    $preamble = $text.Substring($searchFrom, $match.Index - $searchFrom)
+    $lastBreak = [Math]::Max($preamble.LastIndexOf('}'), $preamble.LastIndexOf(';'))
+    if ($lastBreak -ge 0) {
+        $preamble = $preamble.Substring($lastBreak + 1)
+    }
+
+    if ($preamble -notmatch 'LayoutKind\s*\.\s*Sequential') {
+        throw ("PrismConfig in $Path is not declared [StructLayout(LayoutKind.Sequential)]. " +
+            'This module computes offsets assuming sequential layout and natural ' +
+            'alignment; any other layout makes every offset it reports meaningless.')
+    }
+    if ($preamble -match '\bPack\s*=') {
+        throw ("PrismConfig in $Path sets StructLayout Pack, which overrides the natural " +
+            'alignment this module assumes. Remove it, or teach PrismAbiContract.psm1 ' +
+            'about the packing before shipping a launcher that uses it.')
+    }
+    if ($preamble -match '\bSize\s*=') {
+        throw ("PrismConfig in $Path sets an explicit StructLayout Size, which this " +
+            'module does not model.')
     }
 
     $open = $text.IndexOf('{', $match.Index)
@@ -113,32 +146,49 @@ function Get-PrismConfigBody {
 function Get-PrismConfigLayout {
     <#
     .SYNOPSIS
-    Parses a PrismConfig declaration and returns its marshalled x86 layout.
+    Parses a PrismConfig declaration and returns its marshalled layout.
+
+    .PARAMETER PointerSize
+    Bytes per native pointer: 4 for x86, 8 for x64. Both matter - the launcher is
+    x86, and the same declaration is compiled into the x64 mod runtime.
     #>
     [CmdletBinding()]
-    param([Parameter(Mandatory = $true)] [string] $Path)
+    param(
+        [Parameter(Mandatory = $true)] [string] $Path,
+        [ValidateSet(4, 8)] [int] $PointerSize = 4
+    )
 
-    $body = Get-PrismConfigBody -Path $Path
+    $body = Get-PrismConfigDeclaration -Path $Path
 
     $fields = @()
     $offset = 0
     $maxAlign = 1
 
     foreach ($statement in ($body -split ';')) {
-        if ([string]::IsNullOrWhiteSpace($statement)) { continue }
-
         # The launcher must declare the trailing flag as a plain byte, but the mod
         # declares it as a bool carrying [MarshalAs(UnmanagedType.I1)]: .NET
         # Framework throws MarshalDirectiveException on a struct-return delegate
-        # whose struct carries that attribute, and .NET 8 does not. Both marshal to
-        # one byte, so the two spellings are the same contract.
+        # whose struct carries that attribute, and .NET 8 does not. I1 is the
+        # one-byte C Boolean, so the two spellings are the same contract. This
+        # normalization is deliberately limited to that pair - a bool without the
+        # attribute is refused below.
         $isI1 = $statement -match 'UnmanagedType\s*\.\s*I1'
         $declaration = [regex]::Replace($statement, '\[[^\]]*\]', ' ')
+
+        if ([string]::IsNullOrWhiteSpace($declaration)) { continue }
 
         $field = [regex]::Match(
             $declaration,
             '(?<!\w)public\s+(?<type>[A-Za-z_][A-Za-z0-9_]*)\s+(?<name>[A-Za-z_][A-Za-z0-9_]*)\s*$')
-        if (-not $field.Success) { continue }
+        if (-not $field.Success) {
+            # Fail closed. A private instance field, or anything else this parser
+            # does not recognise, still occupies space and would move every field
+            # after it. Guessing here would reintroduce exactly the silent
+            # corruption this module exists to prevent.
+            throw ("PrismConfig in $Path contains a declaration PrismAbiContract.psm1 " +
+                "cannot account for: '" + ($declaration.Trim() -replace '\s+', ' ') +
+                "'. Every member affects the layout, so the parser refuses to guess.")
+        }
 
         $typeName = $field.Groups['type'].Value
         $fieldName = $field.Groups['name'].Value
@@ -152,15 +202,22 @@ function Get-PrismConfigLayout {
                     '[MarshalAs(UnmanagedType.I1)], which marshals as four bytes. ' +
                     'Declare it as a byte, or attribute it.')
             }
-            $shape = @{ Size = 1; Align = 1 }
+            $shape = @{ Size = 1; Align = 1; Native = 'byte' }
         }
-        elseif ($script:X86Types.ContainsKey($typeName)) {
-            $shape = $script:X86Types[$typeName]
+        elseif ($script:PointerTypes.ContainsKey($typeName)) {
+            $shape = @{
+                Size = $PointerSize
+                Align = $PointerSize
+                Native = $script:PointerTypes[$typeName]
+            }
+        }
+        elseif ($script:FixedTypes.ContainsKey($typeName)) {
+            $shape = $script:FixedTypes[$typeName]
         }
         else {
             throw ("PrismConfig field '$fieldName' in $Path has type '$typeName', " +
-                'whose marshalled x86 size is unknown to PrismAbiContract.psm1. ' +
-                'Add it to $script:X86Types before shipping a launcher that uses it.')
+                'whose marshalled size is unknown to PrismAbiContract.psm1. Add it ' +
+                'to $script:FixedTypes before shipping a launcher that uses it.')
         }
 
         $align = [int]$shape.Align
@@ -173,6 +230,7 @@ function Get-PrismConfigLayout {
         $fields += [pscustomobject]@{
             Name   = $fieldName
             Type   = $typeName
+            Native = [string]$shape.Native
             Offset = $offset
             Size   = $size
             Align  = $align
@@ -187,9 +245,10 @@ function Get-PrismConfigLayout {
     $tailPadding = ($maxAlign - ($offset % $maxAlign)) % $maxAlign
 
     return [pscustomobject]@{
-        Path   = $Path
-        Fields = $fields
-        Size   = $offset + $tailPadding
+        Path        = $Path
+        PointerSize = $PointerSize
+        Fields      = $fields
+        Size        = $offset + $tailPadding
     }
 }
 
@@ -197,7 +256,7 @@ function Format-PrismConfigLayout {
     param([Parameter(Mandatory = $true)] $Layout)
 
     $rendered = $Layout.Fields | ForEach-Object {
-        '{0}@{1}:{2}' -f $_.Name, $_.Offset, $_.Size
+        '{0}:{1}@{2}:{3}' -f $_.Name, $_.Native, $_.Offset, $_.Size
     }
     return ('{0} bytes over {1} field(s) [{2}]' -f
         $Layout.Size, $Layout.Fields.Count, ($rendered -join ' '))
@@ -207,64 +266,82 @@ function Assert-PrismConfigContract {
     <#
     .SYNOPSIS
     Throws unless the launcher's PrismConfig marshals identically to the reference
-    declaration.
+    declaration, on both x86 and x64, at the pinned Prism sizes.
     #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)] [string] $LauncherSourcePath,
         [Parameter(Mandatory = $true)] [string] $ReferenceSourcePath,
-        [int] $ExpectedSize = $script:PrismConfigX86Size
+        [int] $ExpectedX86Size = $script:PrismConfigX86Size,
+        [int] $ExpectedX64Size = $script:PrismConfigX64Size
     )
 
-    $launcher = Get-PrismConfigLayout -Path $LauncherSourcePath
-    $reference = Get-PrismConfigLayout -Path $ReferenceSourcePath
+    $results = @()
 
-    $complain = {
-        param([string] $Detail)
-        throw ("Launcher PrismConfig does not match the Prism ABI contract. $Detail`n" +
-            "  launcher  : $LauncherSourcePath`n" +
-            '              ' + (Format-PrismConfigLayout -Layout $launcher) + "`n" +
-            "  reference : $ReferenceSourcePath`n" +
-            '              ' + (Format-PrismConfigLayout -Layout $reference) + "`n" +
-            'prism_config_init returns this struct by value, so a mismatch corrupts ' +
-            'the stack and the launcher dies on startup for every user. Bringing the ' +
-            'Prism DLL forward without this declaration is what broke 0.4.1.')
-    }
+    foreach ($arch in @(
+        @{ PointerSize = 4; Label = 'x86'; Expected = $ExpectedX86Size },
+        @{ PointerSize = 8; Label = 'x64'; Expected = $ExpectedX64Size })) {
 
-    if ($launcher.Fields.Count -ne $reference.Fields.Count) {
-        & $complain ("Field count is $($launcher.Fields.Count), expected $($reference.Fields.Count).")
-    }
+        $launcher = Get-PrismConfigLayout -Path $LauncherSourcePath -PointerSize $arch.PointerSize
+        $reference = Get-PrismConfigLayout -Path $ReferenceSourcePath -PointerSize $arch.PointerSize
 
-    for ($i = 0; $i -lt $reference.Fields.Count; $i++) {
-        $actual = $launcher.Fields[$i]
-        $expected = $reference.Fields[$i]
-
-        if ($actual.Name -ne $expected.Name) {
-            & $complain ("Field $i is '$($actual.Name)', expected '$($expected.Name)'.")
+        $complain = {
+            param([string] $Detail)
+            throw ("Launcher PrismConfig does not match the Prism ABI contract on " +
+                "$($arch.Label). $Detail`n" +
+                "  launcher  : $LauncherSourcePath`n" +
+                '              ' + (Format-PrismConfigLayout -Layout $launcher) + "`n" +
+                "  reference : $ReferenceSourcePath`n" +
+                '              ' + (Format-PrismConfigLayout -Layout $reference) + "`n" +
+                'prism_config_init returns this struct by value, so a mismatch corrupts ' +
+                'the stack and the launcher dies on startup for every user. Bringing the ' +
+                'Prism DLL forward without this declaration is what broke 0.4.1.')
         }
-        if ($actual.Offset -ne $expected.Offset -or $actual.Size -ne $expected.Size) {
-            & $complain ("Field '$($actual.Name)' marshals at offset $($actual.Offset) " +
-                "size $($actual.Size), expected offset $($expected.Offset) size $($expected.Size).")
+
+        if ($launcher.Fields.Count -ne $reference.Fields.Count) {
+            & $complain ("Field count is $($launcher.Fields.Count), expected $($reference.Fields.Count).")
         }
+
+        for ($i = 0; $i -lt $reference.Fields.Count; $i++) {
+            $actual = $launcher.Fields[$i]
+            $expected = $reference.Fields[$i]
+
+            if ($actual.Name -ne $expected.Name) {
+                & $complain ("Field $i is '$($actual.Name)', expected '$($expected.Name)'.")
+            }
+            # Native type, not just size: uint becoming int keeps the size and changes
+            # the meaning, and a pointer becoming uint keeps the size on x86 while
+            # shifting every later field on x64.
+            if ($actual.Native -ne $expected.Native) {
+                & $complain ("Field '$($actual.Name)' is $($actual.Native), expected $($expected.Native).")
+            }
+            if ($actual.Offset -ne $expected.Offset -or $actual.Size -ne $expected.Size) {
+                & $complain ("Field '$($actual.Name)' marshals at offset $($actual.Offset) " +
+                    "size $($actual.Size), expected offset $($expected.Offset) size $($expected.Size).")
+            }
+        }
+
+        # No launcher-versus-reference size comparison here on purpose: two
+        # declarations whose fields all match by name, native type, offset and size
+        # necessarily marshal to the same total, so such a check can never fire.
+        # Mutation testing confirmed it - deleting it left every test green. An
+        # unreachable line in a guard implies coverage that does not exist.
+        #
+        # Both copies agreeing is not the same as either being right. This is the
+        # check that catches them drifting together.
+        if ($launcher.Size -ne $arch.Expected) {
+            & $complain ("Both declarations marshal to $($launcher.Size) bytes, but Prism " +
+                "config version $script:PrismConfigVersion is $($arch.Expected) bytes on " +
+                "$($arch.Label). If the bundled Prism DLL changed, update " +
+                '$script:PrismConfigVersion, $script:PrismConfigX86Size and ' +
+                '$script:PrismConfigX64Size in PrismAbiContract.psm1 to match the new ' +
+                'header, and re-measure against the DLL rather than assuming.')
+        }
+
+        $results += $launcher
     }
 
-    # No launcher-versus-reference size comparison here on purpose: two declarations
-    # whose fields all match by name, offset and size necessarily marshal to the same
-    # total, so such a check can never fire. Mutation testing confirmed it - deleting
-    # it left every test green. An unreachable line in a guard implies coverage that
-    # does not exist.
-    #
-    # Both copies agreeing is not the same as either being right. This is the check
-    # that catches them drifting together.
-    if ($launcher.Size -ne $ExpectedSize) {
-        & $complain ("Both declarations marshal to $($launcher.Size) bytes, but Prism " +
-            "config version $script:PrismConfigVersion is $ExpectedSize bytes on x86. " +
-            'If the bundled Prism DLL changed, update $script:PrismConfigVersion and ' +
-            '$script:PrismConfigX86Size in PrismAbiContract.psm1 to match the new ' +
-            'header, and re-measure against the DLL rather than assuming.')
-    }
-
-    return $launcher
+    return $results[0]
 }
 
 Export-ModuleMember -Function Get-PrismConfigLayout, Assert-PrismConfigContract

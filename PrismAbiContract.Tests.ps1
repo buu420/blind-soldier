@@ -180,6 +180,111 @@ internal struct PrismConfig
         }
     }
 
+    It 'marshals the same declaration to 48 bytes on x64' {
+        # Not hypothetical: Ff7.Accessibility.Steam2026X64.csproj compiles this exact
+        # file (Compile Include="..\Ff7.Accessibility.Reloaded\PrismNativeSpeaker.cs")
+        # at PlatformTarget x64. Checking only x86 would leave the x64 runtime
+        # unguarded, and this is a dual-runtime mod.
+        $reference = New-SourceFixture -Body $script:referenceBody
+        try {
+            $layout = Get-PrismConfigLayout -Path $reference -PointerSize 8
+            $layout.Size | Should Be 48
+            ($layout.Fields | ForEach-Object { $_.Offset }) -join ',' |
+                Should Be '0,8,16,24,32,36,40,44'
+        }
+        finally {
+            Remove-Item -LiteralPath $reference -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    It 'rejects a pointer degraded to uint, which only shows up on x64' {
+        # nint -> uint is four bytes on x86, so an x86-only check waves it through
+        # while the x64 layout silently shifts by four bytes per pointer.
+        $degraded = $script:referenceBody -replace 'public nint Registry;', 'public uint Registry;'
+        $launcher = New-SourceFixture -Body $degraded
+        $reference = New-SourceFixture -Body $script:referenceBody
+        try {
+            (Get-PrismConfigLayout -Path $launcher -PointerSize 4).Size | Should Be 32
+            { Assert-PrismConfigContract `
+                -LauncherSourcePath $launcher `
+                -ReferenceSourcePath $reference } |
+                Should Throw 'does not match the Prism ABI contract'
+        }
+        finally {
+            Remove-Item -LiteralPath $launcher, $reference -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    It 'rejects drift that is invisible on x86 and only shows on x64' {
+        # Both copies changed identically, so they agree with each other; and a
+        # pointer is four bytes on x86, so the x86 total is still exactly the pinned
+        # 32. Only the x64 pass sees it: the field grows to eight bytes there and
+        # pushes the struct to 56. Without a genuine x64 check this walks straight
+        # through, and the x64 mod runtime compiles this same file.
+        $widened = $script:referenceBody -replace `
+            'public uint AvailabilityPollIntervalMs;', 'public nint AvailabilityPollIntervalMs;'
+        $launcher = New-SourceFixture -Body $widened
+        $reference = New-SourceFixture -Body $widened
+        try {
+            (Get-PrismConfigLayout -Path $launcher -PointerSize 4).Size | Should Be 32
+            (Get-PrismConfigLayout -Path $launcher -PointerSize 8).Size | Should Be 56
+            { Assert-PrismConfigContract `
+                -LauncherSourcePath $launcher `
+                -ReferenceSourcePath $reference } |
+                Should Throw 'does not match the Prism ABI contract on x64'
+        }
+        finally {
+            Remove-Item -LiteralPath $launcher, $reference -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    It 'rejects a field whose type changed without changing size' {
+        $signed = $script:referenceBody -replace `
+            'public uint AvailabilityPollIntervalMs;', 'public int AvailabilityPollIntervalMs;'
+        $launcher = New-SourceFixture -Body $signed
+        $reference = New-SourceFixture -Body $script:referenceBody
+        try {
+            { Assert-PrismConfigContract `
+                -LauncherSourcePath $launcher `
+                -ReferenceSourcePath $reference } |
+                Should Throw 'does not match the Prism ABI contract'
+        }
+        finally {
+            Remove-Item -LiteralPath $launcher, $reference -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    It 'fails closed on a declaration inside the struct it cannot account for' {
+        # A private instance field still occupies space. Skipping what the parser
+        # does not recognise would let it move every following field unseen - the
+        # parser has to refuse rather than guess.
+        $hidden = New-SourceFixture -Body ($script:referenceBody -replace `
+            '(?m)^    public byte Version;', "    public byte Version;`r`n    private int hidden;")
+        try {
+            { Get-PrismConfigLayout -Path $hidden } | Should Throw 'cannot account for'
+        }
+        finally {
+            Remove-Item -LiteralPath $hidden -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    It 'requires sequential layout with natural packing' {
+        # The whole size computation assumes LayoutKind.Sequential and natural
+        # alignment. Pack = 1 would silently invalidate every offset it produces.
+        $packed = New-SourceFixture -Body ($script:referenceBody -replace `
+            '\[StructLayout\(LayoutKind\.Sequential\)\]',
+            '[StructLayout(LayoutKind.Sequential, Pack = 1)]')
+        $explicit = New-SourceFixture -Body ($script:referenceBody -replace `
+            'LayoutKind\.Sequential', 'LayoutKind.Explicit')
+        try {
+            { Get-PrismConfigLayout -Path $packed } | Should Throw 'Pack'
+            { Get-PrismConfigLayout -Path $explicit } | Should Throw 'LayoutKind.Sequential'
+        }
+        finally {
+            Remove-Item -LiteralPath $packed, $explicit -Force -ErrorAction SilentlyContinue
+        }
+    }
+
     It 'accepts the launcher and mod declarations that ship today' {
         Test-Path -LiteralPath $launcherSource | Should Be $true
         Test-Path -LiteralPath $referenceSource | Should Be $true
