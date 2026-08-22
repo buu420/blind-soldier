@@ -14,13 +14,25 @@ internal static class Program
 {
     private static int failures;
 
+    // The probe runs in a child copy of this process so that an ABI mismatch, which
+    // corrupts the stack inside native code, kills the child and is reported as a
+    // failure here rather than taking the whole test run down with it.
+    private const string PrismAbiProbeSwitch = "--prism-abi-probe";
+    private const int PrismAbiProbeTimeoutMilliseconds = 10000;
+
     [STAThread]
-    private static int Main()
+    private static int Main(string[] args)
     {
+        if (args.Length == 2 && args[0] == PrismAbiProbeSwitch)
+        {
+            return RunPrismAbiProbe(args[1]);
+        }
+
         Run("main choice names are localized", MainChoiceNamesAreLocalized);
         Run("failed Prism delivery is retried and accepted delivery is deduplicated", FailedDeliveryIsRetried);
         Run("Prism receives serialized null-terminated UTF-8", PrismReceivesSerializedUtf8);
         Run("Prism dependency path must be absolute", PrismDependencyPathMustBeAbsolute);
+        Run("Prism ABI round-trips through the launcher binding against the shipped library", PrismAbiRoundTripsAgainstTheShippedLibrary);
         Run("settings controls expose visible labels and values", SettingsControlsExposeVisibleLabelsAndValues);
         Run("Play launches only the x64 Blind Soldier broker", PlayLaunchesOnlyTheX64Broker);
         Run("missing launch files fail closed with an accessible error", MissingLaunchFilesFailClosed);
@@ -118,6 +130,107 @@ internal static class Program
     {
         AssertFalse(PrismNativeSpeaker.IsAbsoluteLibraryPath("prism.dll"));
         AssertTrue(PrismNativeSpeaker.IsAbsoluteLibraryPath(@"C:\launcher_accessibility\native\x86\FFVII_LAUNCHER.prism.x86.dll"));
+    }
+
+    private static void PrismAbiRoundTripsAgainstTheShippedLibrary()
+    {
+        // The static guard (PrismAbiContract.psm1) proves the launcher's PrismConfig
+        // agrees with the mod's and with the pinned size. Only this proves either of
+        // them agrees with the DLL actually shipped: the launcher's own delegates,
+        // in the launcher's own runtime (.NET Framework, x86), against the binary the
+        // bundle copies. 0.4.1 would have died here instead of on every user's desk.
+        //
+        // Deliberately stops at prism_init. Backend selection is where Prism loads
+        // screen readers and audio, and a headless runner has neither; a gate that
+        // fails for environmental reasons teaches people to bypass it.
+        var library = Path.Combine(AppDomain.CurrentDomain.BaseDirectory,
+            "launcher_accessibility", "native", "x86", "FFVII_LAUNCHER.prism.x86.dll");
+        AssertTrue(File.Exists(library));
+        AssertEqual(32, Marshal.SizeOf(typeof(PrismConfig)));
+
+        var startInfo = new ProcessStartInfo(
+            typeof(Program).Assembly.Location,
+            PrismAbiProbeSwitch + " \"" + library + "\"")
+        {
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
+        };
+        // PRISM_LOG makes prism_init start a logging thread; keep the probe to the
+        // one thing it is measuring.
+        startInfo.EnvironmentVariables.Remove("PRISM_LOG");
+
+        string stdout;
+        string stderr;
+        int exitCode;
+        using (var child = Process.Start(startInfo))
+        {
+            var stdoutTask = child.StandardOutput.ReadToEndAsync();
+            var stderrTask = child.StandardError.ReadToEndAsync();
+            if (!child.WaitForExit(PrismAbiProbeTimeoutMilliseconds))
+            {
+                try { child.Kill(); } catch { }
+                throw new InvalidOperationException(
+                    "The Prism ABI probe did not finish within " +
+                    PrismAbiProbeTimeoutMilliseconds + " ms.");
+            }
+            stdout = stdoutTask.Result;
+            stderr = stderrTask.Result;
+            exitCode = child.ExitCode;
+        }
+
+        if (exitCode != 0)
+        {
+            // 0xC0000005 here is the 0.4.1 crash, reproduced on purpose.
+            throw new InvalidOperationException(
+                "The Prism ABI probe exited with 0x" + exitCode.ToString("X8") +
+                ".\n--- stdout ---\n" + stdout + "\n--- stderr ---\n" + stderr);
+        }
+
+        var evidence = new Dictionary<string, string>();
+        foreach (var line in stdout.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+        {
+            var separator = line.IndexOf('=');
+            if (separator > 0)
+            {
+                evidence[line.Substring(0, separator)] = line.Substring(separator + 1);
+            }
+        }
+
+        AssertEqual("32", Evidence(evidence, "PRISM_CONFIG_SIZE"));
+        AssertEqual(PrismNativeSpeaker.SupportedPrismConfigVersion.ToString(),
+            Evidence(evidence, "PRISM_CONFIG_VERSION"));
+        AssertEqual("True", Evidence(evidence, "PRISM_CONTEXT_CREATED"));
+        AssertEqual("True", Evidence(evidence, "PRISM_SHUTDOWN_COMPLETED"));
+    }
+
+    private static string Evidence(Dictionary<string, string> evidence, string key)
+    {
+        string value;
+        if (!evidence.TryGetValue(key, out value))
+        {
+            throw new InvalidOperationException("The Prism ABI probe reported no " + key + ".");
+        }
+        return value;
+    }
+
+    private static int RunPrismAbiProbe(string library)
+    {
+        try
+        {
+            var result = PrismNativeSpeaker.ProbeAbi(library, Console.Error.WriteLine);
+            Console.WriteLine("PRISM_CONFIG_SIZE=" + result.ConfigSize);
+            Console.WriteLine("PRISM_CONFIG_VERSION=" + result.ConfigVersion);
+            Console.WriteLine("PRISM_CONTEXT_CREATED=" + result.ContextCreated);
+            Console.WriteLine("PRISM_SHUTDOWN_COMPLETED=" + result.ShutdownCompleted);
+            return result.ContextCreated && result.ShutdownCompleted ? 0 : 1;
+        }
+        catch (Exception exception)
+        {
+            Console.WriteLine("PRISM_PROBE_FAILURE=" + exception.Message);
+            return 1;
+        }
     }
 
     private static void SettingsControlsExposeVisibleLabelsAndValues()

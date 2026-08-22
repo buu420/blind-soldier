@@ -238,6 +238,19 @@ Describe 'Blind Soldier aggregate portable release gate' {
         }
     }
 
+    It 'keeps a merge-time CI job so a bad merge is caught before a bad release' {
+        # The release workflow fires only on a v* tag. Without this job nothing runs
+        # on a push or a pull request, and a stale branch carrying the one-byte
+        # PrismConfig can merge unchecked and stay invisible until someone tags.
+        $ciPath = Join-Path $PSScriptRoot '.github\workflows\ci.yml'
+        Test-Path -LiteralPath $ciPath | Should Be $true
+        $ci = [IO.File]::ReadAllText($ciPath)
+        $ci | Should Match '(?m)^\s*pull_request:'
+        $ci | Should Match '(?m)^\s*push:\s*\r?\n\s*branches:'
+        $ci | Should Match ([regex]::Escape('./PrismAbiContract.Tests.ps1'))
+        $ci | Should Match ([regex]::Escape('--dual-runtime-sources-only'))
+    }
+
     It 'provisions both dotnet architectures for the tagged release gate' {
         $workflowPath = Join-Path $PSScriptRoot `
             '.github\workflows\release.yml'

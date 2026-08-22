@@ -86,6 +86,86 @@ internal sealed class PrismNativeSpeaker : ISpeechOutput, IDisposable
         return !string.IsNullOrWhiteSpace(path) && Path.IsPathRooted(path);
     }
 
+    /// <summary>
+    /// The PRISM_CONFIG_VERSION that <see cref="PrismConfig"/> below is declared for.
+    /// </summary>
+    /// <remarks>
+    /// Prism's header undertakes to increment this whenever a field is added to or
+    /// removed from the struct, and it has: 1, then 2 when the struct was cut back to the
+    /// version byte alone, then 3 when the registry and availability fields arrived.
+    /// Whoever brings the DLL forward moves this and the struct together.
+    /// </remarks>
+    internal const byte SupportedPrismConfigVersion = 3;
+
+    /// <summary>
+    /// Round-trips <see cref="PrismConfig"/> through the shipped library using the very
+    /// delegates the launcher speaks through, and stops before backend selection.
+    /// </summary>
+    /// <remarks>
+    /// This is the only check that proves the managed declaration against the binary
+    /// rather than against another managed declaration. It is a test seam: nothing in
+    /// the launcher's startup path calls it. It deliberately never reaches
+    /// <c>prism_registry_create_best</c>, which is where Prism loads screen readers and
+    /// audio and which a headless build machine cannot satisfy; <c>prism_init</c> only
+    /// initialises COM, snapshots the backend registry and allocates a context, and
+    /// leaves the availability poller off while the callback is null.
+    /// </remarks>
+    internal static PrismAbiProbeResult ProbeAbi(string absoluteLibraryPath, Action<string> log)
+    {
+        if (!IsAbsoluteLibraryPath(absoluteLibraryPath))
+        {
+            throw new ArgumentException("The Prism library path must be absolute.", "absoluteLibraryPath");
+        }
+        if (Environment.Is64BitProcess)
+        {
+            throw new InvalidOperationException("The Prism ABI probe must run in an x86 process, as the launcher does.");
+        }
+        if (!File.Exists(absoluteLibraryPath))
+        {
+            throw new FileNotFoundException("Prism library is missing.", absoluteLibraryPath);
+        }
+
+        var speaker = new PrismNativeSpeaker(log);
+        speaker.library = LoadLibraryEx(
+            absoluteLibraryPath,
+            IntPtr.Zero,
+            LoadLibrarySearchDllLoadDir | LoadLibrarySearchDefaultDirs);
+        if (speaker.library == IntPtr.Zero)
+        {
+            throw new Win32Exception(Marshal.GetLastWin32Error(), "LoadLibraryEx failed for " + absoluteLibraryPath);
+        }
+
+        try
+        {
+            // Binds every export the launcher uses, so a DLL that dropped one fails here
+            // rather than on a user's desk.
+            speaker.BindExports();
+
+            var result = new PrismAbiProbeResult
+            {
+                ConfigSize = Marshal.SizeOf(typeof(PrismConfig))
+            };
+
+            var config = speaker.configInitNative();
+            result.ConfigVersion = config.Version;
+
+            var context = speaker.initNative(ref config);
+            result.ContextCreated = context != IntPtr.Zero;
+            if (context != IntPtr.Zero)
+            {
+                speaker.shutdownNative(context);
+                result.ShutdownCompleted = true;
+            }
+
+            return result;
+        }
+        finally
+        {
+            FreeLibrary(speaker.library);
+            speaker.library = IntPtr.Zero;
+        }
+    }
+
     public bool Speak(string text, bool interrupt = true)
     {
         if (string.IsNullOrWhiteSpace(text))
@@ -385,6 +465,17 @@ internal sealed class PrismNativeSpeaker : ISpeechOutput, IDisposable
 internal enum PrismError
 {
     Ok = 0
+}
+
+/// <summary>
+/// What <see cref="PrismNativeSpeaker.ProbeAbi"/> observed from the shipped library.
+/// </summary>
+internal sealed class PrismAbiProbeResult
+{
+    public int ConfigSize;
+    public byte ConfigVersion;
+    public bool ContextCreated;
+    public bool ShutdownCompleted;
 }
 
 /// <summary>

@@ -1,0 +1,99 @@
+name: Check Blind Soldier changes
+
+# Runs on every push and pull request. The release workflow only fires on a v*
+# tag, so until this existed nothing checked a merge: a stale branch carrying the
+# one-byte PrismConfig that crashed every 0.4.1 launcher could land unopposed and
+# stay invisible until the next tag. This job runs the cheap guards that catch
+# that class of mistake - the ABI contract, the native round-trip through the
+# shipped Prism DLL, and the dual-runtime source guard - and leaves packaging,
+# Ghidra evidence and publishing to the release gate.
+
+on:
+  pull_request:
+  push:
+    branches:
+      - "**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: windows-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Install .NET 8 and 9 SDKs (x64)
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+          architecture: x64
+
+      - name: Install .NET 8 and 9 SDKs (x86)
+        uses: actions/setup-dotnet@v5
+        env:
+          DOTNET_INSTALL_DIR: ${{ runner.temp }}\dotnet-x86
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+          architecture: x86
+
+      - name: Install pinned Pester 4 test runtime
+        shell: powershell
+        run: |
+          [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+          Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Scope CurrentUser -Force -Confirm:$false | Out-Null
+          Install-Module -Name Pester -RequiredVersion 4.10.1 -Scope CurrentUser -Force -SkipPublisherCheck -AllowClobber
+          Import-Module Pester -RequiredVersion 4.10.1 -Force
+          if ((Get-Module Pester).Version -ne [version]'4.10.1') {
+            throw 'Pester 4.10.1 was not activated for merge-time checks.'
+          }
+
+      - name: Run the static guards and workflow contracts
+        shell: powershell
+        run: |
+          $env:PATH = "C:\Program Files\dotnet;$env:PATH"
+          $env:DOTNET_ROOT = 'C:\Program Files\dotnet'
+          Import-Module Pester -RequiredVersion 4.10.1 -Force
+          foreach ($suite in @(
+            './PrismAbiContract.Tests.ps1',
+            './Run-DualRuntimeVerification.Tests.ps1',
+            './Build-AccessibleLauncherBundle.Tests.ps1',
+            './.github/workflows/release.Tests.ps1',
+            './.github/workflows/ci.Tests.ps1')) {
+            Write-Host "=== $suite ==="
+            $result = Invoke-Pester -Script $suite -PassThru
+            if ($result.FailedCount -ne 0) {
+              throw "$suite failed: $($result.FailedCount) test(s)."
+            }
+          }
+
+      - name: Run the native Prism probe and the dual-runtime source guard
+        shell: pwsh
+        run: |
+          $x86DotNetRoot = $env:DOTNET_ROOT
+          if (-not (Test-Path -LiteralPath "$x86DotNetRoot\dotnet.exe" -PathType Leaf)) {
+            throw "The x86 .NET host is unavailable: $x86DotNetRoot"
+          }
+          $env:PATH = "C:\Program Files\dotnet;$env:PATH"
+          $env:DOTNET_ROOT = 'C:\Program Files\dotnet'
+          $env:DOTNET_ROOT_X64 = 'C:\Program Files\dotnet'
+          $env:DOTNET_ROOT_X86 = $x86DotNetRoot
+
+          # The launcher tests run on .NET Framework x86 - the launcher's own host -
+          # and round-trip PrismConfig through the shipped DLL in a child process.
+          dotnet run --project launcher/Ff7.Launcher.Accessible.Tests/FFVII_LAUNCHER.Accessibility.Tests.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { throw "Launcher accessibility tests failed with exit code $LASTEXITCODE." }
+
+          # Fails when a reader or speech tracker is compiled into one runtime and
+          # not the other. This is a dual-runtime mod.
+          dotnet run --project Ff7.Accessibility.Reloaded.Tests/Ff7.Accessibility.Reloaded.Tests.csproj -c Release -- --dual-runtime-sources-only
+          if ($LASTEXITCODE -ne 0) { throw "Dual-runtime source guard failed with exit code $LASTEXITCODE." }
