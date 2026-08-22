@@ -49,8 +49,59 @@ internal static class DualRuntimeFeatureWiringTests
             @"Ff7.Accessibility.Steam2026X64\Runtime\World\Steam2026WorldMapAccessibilityCoordinator.cs")
     ];
 
+    /// <summary>
+    /// Both runtimes must say out loud that they have been suspended and resumed.
+    /// </summary>
+    /// <remarks>
+    /// x64 wrote both transitions to the log and spoke neither, so the mod went
+    /// completely silent with no explanation and came back with no confirmation.
+    /// A player cannot tell that apart from a crash or a hang, and unexplained
+    /// silence is the failure this project treats as worse than a crash.
+    ///
+    /// <para>Checked as source text because the alternative is standing up a whole
+    /// session with a speech backend. It is a weak proof of a strong requirement -
+    /// it would not notice the call moving into an unreachable branch - but it does
+    /// catch the thing that actually happened, which was the call not existing.</para>
+    /// </remarks>
+    private static void BothRuntimesAnnounceSuspendAndResume()
+    {
+        var root = FindSourceRoot();
+        var sites = new[]
+        {
+            ("x86", Path.Combine(root, "Ff7.Accessibility.Reloaded", "Mod.cs")),
+            ("x64", Path.Combine(root, "Ff7.Accessibility.Steam2026X64", "Runtime", "Steam2026ResearchSession.cs"))
+        };
+
+        var failures = new List<string>();
+        foreach (var (runtime, path) in sites)
+        {
+            var text = File.ReadAllText(path);
+            foreach (var transition in new[] { "suspended.", "resumed." })
+            {
+                // The wording is shared, so the announcement is the literal the
+                // player hears rather than a mention of the word in a log line.
+                if (!text.Contains(
+                        $"Final Fantasy Seven accessibility mod {transition}",
+                        StringComparison.Ordinal))
+                {
+                    failures.Add(
+                        $"{runtime} never announces \"{transition.TrimEnd('.')}\": " +
+                        $"{Path.GetFileName(path)} does not speak it.");
+                }
+            }
+        }
+
+        if (failures.Count > 0)
+        {
+            throw new InvalidOperationException(
+                "A runtime goes quiet without saying why:" +
+                Environment.NewLine + string.Join(Environment.NewLine, failures));
+        }
+    }
+
     public static void Run()
     {
+        BothRuntimesAnnounceSuspendAndResume();
         var root = FindSourceRoot();
         var x64Csproj = File.ReadAllText(Path.Combine(
             root, "Ff7.Accessibility.Steam2026X64", "Ff7.Accessibility.Steam2026X64.csproj"));

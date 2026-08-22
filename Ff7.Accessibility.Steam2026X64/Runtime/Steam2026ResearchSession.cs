@@ -111,6 +111,11 @@ internal sealed class Steam2026ResearchSession : IDisposable
         Interlocked.Exchange(ref resetRequested, 1);
         resumeGate.Reset();
         log("Native Steam 2026 research session suspended.");
+
+        // Said out loud, as the legacy runtime has always said it. Without this the
+        // mod simply stops talking, and a player cannot tell suspended from crashed
+        // from hung - the one failure this project treats as worse than a crash.
+        AnnounceLifecycle("Final Fantasy Seven accessibility mod suspended.");
     }
 
     internal void Resume()
@@ -118,7 +123,50 @@ internal sealed class Steam2026ResearchSession : IDisposable
         Interlocked.Exchange(ref resetRequested, 1);
         resumeGate.Set();
         log("Native Steam 2026 research session resumed.");
+        AnnounceLifecycle("Final Fantasy Seven accessibility mod resumed.");
     }
+
+    /// <summary>
+    /// Speaks a suspend or resume transition, and never lets that speech take the
+    /// session down with it.
+    /// </summary>
+    /// <remarks>
+    /// This runtime's speech output throws when Prism refuses a line, unlike the
+    /// legacy host's, which returns false. An unguarded call here would turn a
+    /// refused courtesy line into a dead session - silence in place of a warning
+    /// about silence.
+    /// </remarks>
+    private void AnnounceLifecycle(string text)
+    {
+        if (!config.EnableSpeech)
+        {
+            return;
+        }
+
+        var sink = Volatile.Read(ref lifecycleOutput);
+        if (sink is null)
+        {
+            // The worker has not started, or has already torn down. Nothing to say
+            // it through, and saying nothing is honest here.
+            log($"Lifecycle announcement had no speech output: {text}");
+            return;
+        }
+
+        try
+        {
+            sink.Speak(text, true);
+        }
+        catch (Exception ex)
+        {
+            log($"Lifecycle announcement was not delivered: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// The worker's speech output, published so the loader's suspend and resume
+    /// calls can reach it from another thread.
+    /// </summary>
+    private Steam2026ResearchAccessibilityOutput? lifecycleOutput;
 
     public void Dispose()
     {
@@ -239,6 +287,12 @@ internal sealed class Steam2026ResearchSession : IDisposable
             config.OpeningMovieAudioTrackVolumePercent,
             localizer,
             log);
+
+        // Published for Suspend and Resume, which are called from the loader's
+        // thread rather than this worker and would otherwise have nothing to speak
+        // through. Cleared in the finally below, before the output is disposed, so a
+        // late lifecycle call cannot reach a disposed speaker.
+        Volatile.Write(ref lifecycleOutput, output);
         var nameEntrySpeechCoordinator = new Steam2026NameEntrySpeechCoordinator(
             config.EnableNameEntryMenuSpeech,
             TimeSpan.FromMilliseconds(750),
@@ -1975,6 +2029,8 @@ internal sealed class Steam2026ResearchSession : IDisposable
             worldMapAccessibilityCoordinator?.Dispose();
             highwayAccessibilityCoordinator?.Dispose();
             fieldFootstepNavigationProbe?.Dispose();
+            // Before the output is disposed at the end of this scope.
+            Volatile.Write(ref lifecycleOutput, null);
             dispatcher.Cleanup("during native x64 research shutdown");
             log("Native Steam 2026 research worker stopped.");
         }
