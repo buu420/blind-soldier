@@ -7,6 +7,19 @@ using Ff7.Accessibility.Steam2026X64.Runtime.Field;
 using Ff7.Accessibility.LegacyLayout;
 using System.Text.Json;
 
+// The Prism ABI probe re-enters this host as a child process and must do nothing else.
+if (args.Length == 1 && string.Equals(args[0], PrismAbiProbeTests.ProbeSwitch, StringComparison.Ordinal))
+{
+    Environment.Exit(PrismAbiProbeTests.RunProbeChild());
+}
+
+if (args.Contains("--prism-abi-probe-only", StringComparer.OrdinalIgnoreCase))
+{
+    PrismAbiProbeTests.Run();
+    Console.WriteLine("Steam 2026 x64 Prism ABI probe passed.");
+    return;
+}
+
 if (args.Contains("--battle-sense-only", StringComparer.OrdinalIgnoreCase))
 {
     Steam2026BattleSenseTests.Run();
@@ -31,6 +44,7 @@ if (args.Contains("--module-tests-only", StringComparer.OrdinalIgnoreCase))
     Steam2026FieldNavigationRuntimeTests.Run();
     NavigationAutoWalkControllerTests.Run();
     Steam2026TitleLoadMenuSpeechBridgeTests.Run();
+    PrismAbiProbeTests.Run();
     Console.WriteLine("Steam 2026 x64 module tests passed.");
     return;
 }

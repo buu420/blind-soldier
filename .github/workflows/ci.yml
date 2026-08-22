@@ -97,3 +97,12 @@ jobs:
           # not the other. This is a dual-runtime mod.
           dotnet run --project Ff7.Accessibility.Reloaded.Tests/Ff7.Accessibility.Reloaded.Tests.csproj -c Release -- --dual-runtime-sources-only
           if ($LASTEXITCODE -ne 0) { throw "Dual-runtime source guard failed with exit code $LASTEXITCODE." }
+
+          # Each mod runtime round-trips PrismConfig through the prism.dll it ships: the
+          # x86 host through the x86 DLL, the x64 host through the x64 one. The two are
+          # different builds, and the x64 layout had only ever been computed until a
+          # probe measured it.
+          dotnet run --project Ff7.Accessibility.Reloaded.Tests/Ff7.Accessibility.Reloaded.Tests.csproj -c Release -- --prism-abi-probe-only
+          if ($LASTEXITCODE -ne 0) { throw "x86 Prism ABI probe failed with exit code $LASTEXITCODE." }
+          dotnet run --project Ff7.Accessibility.Steam2026X64.Tests/Ff7.Accessibility.Steam2026X64.Tests.csproj -c Release -- --prism-abi-probe-only
+          if ($LASTEXITCODE -ne 0) { throw "x64 Prism ABI probe failed with exit code $LASTEXITCODE." }

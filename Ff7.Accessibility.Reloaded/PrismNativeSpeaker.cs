@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
 
@@ -82,6 +83,66 @@ internal sealed class PrismNativeSpeaker : IDisposable
         this.isSpeaking = isSpeaking;
         this.shutdown = shutdown;
         available = backend != 0;
+    }
+
+    /// <summary>
+    /// The PRISM_CONFIG_VERSION that <see cref="PrismConfig"/> is declared for.
+    /// </summary>
+    /// <remarks>
+    /// Prism's header undertakes to increment this whenever a field is added to or removed from
+    /// the struct, and it has: 1, then 2 when the struct was cut back to the version byte alone,
+    /// then 3 when the registry and availability fields arrived. Whoever brings the DLL forward
+    /// moves this and the struct together. The launcher carries the same constant beside its own
+    /// copy of the struct, and PrismAbiContract.psm1 holds both copies to one layout.
+    /// </remarks>
+    internal const byte SupportedPrismConfigVersion = 3;
+
+    /// <summary>
+    /// Round-trips <see cref="PrismConfig"/> through prism.dll using the same DllImport
+    /// declarations <see cref="TryInitialize"/> speaks through, and stops before backend
+    /// selection.
+    /// </summary>
+    /// <remarks>
+    /// A test seam; nothing in the mod's startup path calls it. Unlike <see cref="TryInitialize"/>
+    /// it leaves the availability callback null, so prism_init starts no poll thread, and it never
+    /// reaches prism_registry_create_best, where Prism loads screen readers and audio. That keeps
+    /// it honest on a build machine with neither. What it proves is the one thing the static
+    /// layout guard cannot: that this declaration matches the binary this runtime actually ships.
+    /// </remarks>
+    internal static PrismAbiProbeResult ProbeAbi()
+    {
+        var result = new PrismAbiProbeResult
+        {
+            PointerSize = nint.Size,
+            ConfigSize = Marshal.SizeOf<PrismConfig>()
+        };
+
+        var config = Prism.prism_config_init();
+        result.ConfigVersion = config.Version;
+
+        var context = Prism.prism_init(ref config);
+        result.ContextCreated = context != 0;
+        if (context != 0)
+        {
+            Prism.prism_shutdown(context);
+            result.ShutdownCompleted = true;
+        }
+
+        result.Library = DescribeLibrary();
+
+        // Which file answered. The declaration has to be proved against the DLL this runtime
+        // ships, not whichever prism.dll was first on the search path.
+        using var current = Process.GetCurrentProcess();
+        foreach (ProcessModule module in current.Modules)
+        {
+            if (string.Equals(module.ModuleName, "prism.dll", StringComparison.OrdinalIgnoreCase))
+            {
+                result.ModulePath = module.FileName;
+                break;
+            }
+        }
+
+        return result;
     }
 
     public bool Speak(string text, bool interrupt = true)
@@ -369,6 +430,18 @@ internal delegate void PrismAvailabilityCallback(
 internal enum PrismError
 {
     Ok = 0
+}
+
+/// <summary>What <see cref="PrismNativeSpeaker.ProbeAbi"/> observed from the shipped library.</summary>
+internal sealed class PrismAbiProbeResult
+{
+    public int PointerSize;
+    public int ConfigSize;
+    public byte ConfigVersion;
+    public bool ContextCreated;
+    public bool ShutdownCompleted;
+    public string Library = "";
+    public string ModulePath = "";
 }
 
 /// <summary>

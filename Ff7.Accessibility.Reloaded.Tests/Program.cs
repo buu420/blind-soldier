@@ -7,6 +7,19 @@ using Ff7.Accessibility.Reloaded.Runtime;
 using Ff7.Accessibility.Runtime.Abstractions;
 using AccessibilityConfig = Ff7.Accessibility.Core.AccessibilityConfig;
 
+// The Prism ABI probe re-enters this host as a child process and must do nothing else.
+if (args.Length == 1 && string.Equals(args[0], PrismAbiProbeTests.ProbeSwitch, StringComparison.Ordinal))
+{
+    Environment.Exit(PrismAbiProbeTests.RunProbeChild());
+}
+
+if (args.Contains("--prism-abi-probe-only", StringComparer.OrdinalIgnoreCase))
+{
+    PrismAbiProbeTests.Run();
+    Console.WriteLine("FFVII x86 Prism ABI probe passed.");
+    return;
+}
+
 if (args.Contains("--zolom-marsh-extent", StringComparer.OrdinalIgnoreCase))
 {
     ZolomMarshExtentProbe.Run();
@@ -470,6 +483,7 @@ AssertFfnxRuntimeDetectorRecognizesDriverModules();
 Ff7.Accessibility.Reloaded.Tests.NavigationProgressControlTests.Run();
 FfnxPopupSpeechTests.Run();
 DualRuntimeSharedSourceTests.Run();
+PrismAbiProbeTests.Run();
 Ff7.Accessibility.Reloaded.Tests.EchoSCompatibilityTests.Run();
 Ff7.Accessibility.Reloaded.Tests.LegacyStartupDiagnosticsTests.Run();
 AssertOpeningMoviePathResolverUsesFfnxOverrideOnlyWhenLoaded();

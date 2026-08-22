@@ -21,6 +21,8 @@
              Link="SharedTests\HighwayEngagementSteeringTrackerTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\NavigationAutoWalkControllerTests.cs"
              Link="SharedTests\NavigationAutoWalkControllerTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\PrismAbiProbeTests.cs"
+             Link="SharedTests\PrismAbiProbeTests.cs" />
   </ItemGroup>
 
 </Project>

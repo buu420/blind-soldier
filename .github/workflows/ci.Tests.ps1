@@ -53,6 +53,19 @@ Describe 'Blind Soldier merge-time CI contract' {
         $workflow | Should Match ([regex]::Escape('--dual-runtime-sources-only'))
     }
 
+    It 'probes the Prism ABI on both mod runtimes, not only the launcher' {
+        $workflow = [IO.File]::ReadAllText($workflowPath)
+        # This is a dual-runtime mod. The x86 and x64 runtimes ship different
+        # prism.dll builds, and the x64 layout had only ever been computed until a
+        # probe measured it. Each runtime's test host has to round-trip the struct
+        # through its own DLL.
+        foreach ($project in @(
+            'Ff7.Accessibility.Reloaded.Tests/Ff7.Accessibility.Reloaded.Tests.csproj',
+            'Ff7.Accessibility.Steam2026X64.Tests/Ff7.Accessibility.Steam2026X64.Tests.csproj')) {
+            $workflow | Should Match ([regex]::Escape($project) + '[^\r\n]*--prism-abi-probe-only')
+        }
+    }
+
     It 'fails the job when any Pester suite fails' {
         $workflow = [IO.File]::ReadAllText($workflowPath)
         $workflow | Should Match 'FailedCount'
