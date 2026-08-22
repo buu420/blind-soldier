@@ -187,10 +187,21 @@ public sealed class CondorBattleStateReader
     {
         if (count is <= 0 or > MaximumCollisionRecords)
         {
-            // Before the battle's geometry is loaded there is no terrain to speak
-            // of. An empty list says exactly that; the placement calculator then
-            // reports nowhere rather than inventing ground.
-            return Array.Empty<CondorCollisionTriangle>();
+            // Module 9 becomes observable before its battlefield initialization
+            // finishes. The working gil and unit state are not coherent until the
+            // collision records have been loaded, so this is not a valid empty
+            // battlefield snapshot and must not be spoken - it is what announced
+            // "0 gil. 0 units. 0 enemies. cursor at 0, 0." on 2026-08-22.
+            //
+            // Returning the cache rather than a bare null, deliberately. Before
+            // this battle's geometry has ever loaded the cache is null and the
+            // snapshot is correctly refused. Once it has loaded, a count that
+            // later reads zero must NOT silence the reader: the battle result is
+            // announced from a module 9 snapshot, and losing "Battle won" is a
+            // far worse outcome than carrying a triangle list that cannot go
+            // stale inside one battle anyway - the terrain is deliberately cached
+            // for the life of the battle, and Reset drops it on the way out.
+            return collisionTriangles;
         }
 
         if (collisionTriangles is not null && collisionTriangleCount == count)

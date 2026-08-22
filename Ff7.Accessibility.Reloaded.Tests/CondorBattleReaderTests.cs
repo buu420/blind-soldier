@@ -6,6 +6,10 @@ internal static class CondorBattleReaderTests
 {
     internal static void Run()
     {
+        // First, because it is about entering a battle at all: everything below
+        // assumes the reader hands out snapshots, and this is the test that says
+        // when it may and when it must not.
+        KeepsSpeakingAfterTheGeometryCountStopsReading();
         ReadsBothSidesOfTheLiveUnitArray();
         FailsClosedWhenAnyPartOfTheStateIsUnreadable();
         TreatsAUnitOutOfHpAsDyingRatherThanGone();
@@ -330,6 +334,42 @@ internal static class CondorBattleReaderTests
         AssertContains(
             Single(tracker.Observe(reader.TryRead()!)),
             CondorBattleSpeechTracker.CanPlaceText);
+    }
+
+    private static void KeepsSpeakingAfterTheGeometryCountStopsReading()
+    {
+        // The pre-load refusal must not become a gag once the battle is running.
+        // The result banner - the single thing a player most needs out of Fort
+        // Condor - is announced from a module 9 snapshot, so a collision count
+        // that reads zero late in the battle has to leave the reader working. The
+        // terrain is cached for the life of the battle and cannot go stale inside
+        // one, and Reset drops it on the way out, so the cache is the safe answer.
+        var memory = new CondorMemory();
+        memory.WriteOpenGround();
+        var reader = new CondorBattleStateReader(memory);
+
+        AssertNotNull(reader.TryRead(), "snapshot once the battlefield has loaded");
+
+        memory.WriteInt32(CondorMemory.CollisionCount, 0);
+        var afterCountCleared = reader.TryRead();
+        AssertNotNull(afterCountCleared, "snapshot after the geometry count stops reading");
+        Equal(
+            2,
+            afterCountCleared!.CollisionTriangles.Count,
+            "the battle's own terrain is kept rather than dropped");
+
+        // A battle that never loaded geometry is still refused: that is the
+        // pre-initialization state, and it is not a battle yet.
+        var preLoadMemory = new CondorMemory();
+        preLoadMemory.WriteInt32(CondorMemory.CollisionCount, 0);
+        var neverLoaded = new CondorBattleStateReader(preLoadMemory);
+        AssertNull(neverLoaded.TryRead(), "snapshot before any geometry has loaded");
+
+        // And leaving the battle drops the cache, so the next module 9 cannot
+        // inherit the last hill.
+        reader.Reset();
+        memory.WriteInt32(CondorMemory.CollisionCount, 0);
+        AssertNull(reader.TryRead(), "snapshot after leaving the battle");
     }
 
     private static void NarratesEveryCursorMove()

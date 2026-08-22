@@ -36,6 +36,7 @@ if (args.Contains("--field-transition-anchor-audit", StringComparer.OrdinalIgnor
 
 if (args.Contains("--condor-battle-only", StringComparer.OrdinalIgnoreCase))
 {
+    CondorBattleInitializationTests.Run();
     CondorBattleReaderTests.Run();
     CondorResearchProbeSilenceTests.Run();
     DualRuntimeSharedSourceTests.Run();
@@ -46,6 +47,7 @@ if (args.Contains("--condor-battle-only", StringComparer.OrdinalIgnoreCase))
 // Needs no game data, so it can run on the release gate's portable path.
 if (args.Contains("--condor-probe-silence-only", StringComparer.OrdinalIgnoreCase))
 {
+    CondorBattleInitializationTests.Run();
     CondorResearchProbeSilenceTests.Run();
     CondorFieldNavigatorTests.Run();
     CondorNavigationIntegrationTests.Run();
@@ -529,6 +531,7 @@ AssertFieldOpcodeCutsceneDelegateHasReloadedFunctionAttribute();
 AssertFf7EncodedFieldTextDecodesForSpeech();
 AssertFf7EncodedFieldTextDecodesAccentedWesternLetters();
 AssertCondorUnitCatalogMatchesShippedMinigameData();
+CondorBattleInitializationTests.Run();
 CondorBattleReaderTests.Run();
 AssertFf7EncodedTextRequiresTerminatorForBufferReads();
 AssertFf7EncodedAskTextPreservesNativeChoiceLines();
