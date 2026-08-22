@@ -21,6 +21,31 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
     private readonly WorldMapEntityReader entityReader;
     private readonly MidgarZolomStateReader midgarZolomStateReader;
     private readonly MidgarZolomCrossingTracker midgarZolomCrossingTracker = new();
+
+    /// <summary>
+    /// The other half of the Zolom feature. The crossing tracker says when to dash;
+    /// this says the player is standing on the marsh, whether the serpent is on it
+    /// with them, and when they are clear. It shipped to the legacy runtime only,
+    /// so until now an x64 player was told when to run without ever being told
+    /// where they were.
+    /// </summary>
+    private readonly MidgarZolomAreaTracker midgarZolomAreaTracker = new();
+
+    /// <summary>
+    /// Clears both halves of the Zolom feature together.
+    /// </summary>
+    /// <remarks>
+    /// One method rather than six pairs of calls, because the two trackers were
+    /// already reset in six places and only one of them existed here. Left as
+    /// separate call sites, the next reset added would reset one and not the other,
+    /// and stale marsh state announces "Clear of the Zolom marsh" to a player who
+    /// never entered it.
+    /// </remarks>
+    private void ResetMidgarZolomTrackers()
+    {
+        midgarZolomCrossingTracker.Reset();
+        midgarZolomAreaTracker.Reset();
+    }
     private readonly Dictionary<(int MapType, int ProgressStage), WorldMapRuntimeContext> runtimes = [];
     private readonly NativeFieldNavigationProgressBar? progressBar;
     private readonly IntervalFieldNavigationProgressSink? progressSink;
@@ -169,7 +194,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         ArgumentNullException.ThrowIfNull(frame);
         if (frame.Lifecycle.ModuleId != WorldMapStateReader.WorldModule)
         {
-            midgarZolomCrossingTracker.Reset();
+            ResetMidgarZolomTrackers();
             if (WorldMapNavigationLifecycle.IsCombatInterruptionModule(frame.Lifecycle.ModuleId))
             {
                 foreach (var context in runtimes.Values)
@@ -268,7 +293,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         if (!isForeground)
         {
             runtime.Footsteps.Reset();
-            midgarZolomCrossingTracker.Reset();
+            ResetMidgarZolomTrackers();
             beaconPlayer?.StopAll();
             autoWalk.Suspend();
             return;
@@ -325,7 +350,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
             runtime.Footsteps.Reset();
         }
 
-        midgarZolomCrossingTracker.Reset();
+        ResetMidgarZolomTrackers();
 
         beaconPlayer?.StopAll();
         autoWalk.Suspend();
@@ -343,7 +368,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
 
         beaconPlayer?.StopAll();
         progressSink?.Deactivate();
-        midgarZolomCrossingTracker.Reset();
+        ResetMidgarZolomTrackers();
         autoWalk.Reset();
         nextScanUtc = DateTime.MinValue;
         wasActive = false;
@@ -356,7 +381,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
     {
         if (!config.EnableSpeech)
         {
-            midgarZolomCrossingTracker.Reset();
+            ResetMidgarZolomTrackers();
             return;
         }
 
@@ -364,16 +389,34 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         var isAtMarshShore =
             state.IsOverworld &&
             runtime.IsAtTerrainBoundary(state, terrainId: 7);
-        if (!midgarZolomCrossingTracker.Observe(state, zolom, isAtMarshShore))
+
+        // Captured rather than returned on, because the area cue has to be
+        // considered on every pass and needs to know whether the crossing cue
+        // just spoke - two cues in one breath would bury each other.
+        var crossingCueSpoken = midgarZolomCrossingTracker.Observe(state, zolom, isAtMarshShore);
+        if (crossingCueSpoken)
+        {
+            log(
+                $"Native Steam 2026 Midgar Zolom crossing window: " +
+                $"player={state.X},{state.Z}, zolom={zolom.State.X},{zolom.State.Z}, " +
+                $"shoreline={isAtMarshShore}.");
+            speak(MidgarZolomCrossingTracker.CueText, true);
+        }
+
+        var isOnMarsh =
+            state.IsOverworld &&
+            runtime.IsOnTerrain(state, MidgarZolomAreaTracker.MarshTerrainId);
+        var areaCue = midgarZolomAreaTracker.Observe(state, zolom, isOnMarsh, crossingCueSpoken);
+        if (areaCue is null)
         {
             return;
         }
 
         log(
-            $"Native Steam 2026 Midgar Zolom crossing window: " +
-            $"player={state.X},{state.Z}, zolom={zolom.State.X},{zolom.State.Z}, " +
-            $"shoreline={isAtMarshShore}.");
-        speak(MidgarZolomCrossingTracker.CueText, true);
+            $"Native Steam 2026 Midgar Zolom area: player={state.X},{state.Z}, " +
+            $"model={state.PlayerModelId}, onMarsh={isOnMarsh}, " +
+            $"zolom={zolom.State.IsActive}: {areaCue}");
+        speak(areaCue, true);
     }
 
     public void Dispose()
@@ -455,7 +498,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
             runtime.Footsteps.Reset();
         }
 
-        midgarZolomCrossingTracker.Reset();
+        ResetMidgarZolomTrackers();
 
         beaconPlayer?.StopAll();
         autoWalk.Suspend();

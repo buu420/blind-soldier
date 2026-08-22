@@ -56,6 +56,7 @@ if (args.Contains("--condor-probe-silence-only", StringComparer.OrdinalIgnoreCas
 if (args.Contains("--dual-runtime-sources-only", StringComparer.OrdinalIgnoreCase))
 {
     DualRuntimeSharedSourceTests.Run();
+    DualRuntimeFeatureWiringTests.Run();
     Console.WriteLine("FFVII dual-runtime shared source tests passed.");
     return;
 }
