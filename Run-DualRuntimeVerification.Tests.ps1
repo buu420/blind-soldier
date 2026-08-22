@@ -134,7 +134,8 @@ Describe 'Blind Soldier aggregate portable release gate' {
             @($invocations.Name) | Should Be @(
                 'Shared.Tests','Reloaded.Tests','Steam2026X64.Tests',
                 'Parity.Tests','AccessibleLauncher.Tests',
-                'VerificationGate.Tests','AccessibleLauncherBundle.Tests',
+                'VerificationGate.Tests','PrismAbiContract.Tests',
+                'AccessibleLauncherBundle.Tests',
                 'NativeHost.Tests','Bootstrap.Tests x86/x64',
                 'NativeProxy.Tests','PortableDotNetRuntime.Tests',
                 'PortablePackage.Tests','PortablePackage.Build',
@@ -143,7 +144,7 @@ Describe 'Blind Soldier aggregate portable release gate' {
                 'LegacyPortablePackage.Verify')
             $result.VerificationSucceeded | Should Be $true
             $result.Mode | Should Be 'Research'
-            $result.Steps.Count | Should Be 18
+            $result.Steps.Count | Should Be 19
             $result.PackageStagingCleaned | Should Be $true
             $result.PortableArchiveSha256 | Should Be $null
             $result.LegacyPortableArchiveSha256 | Should Be $null
@@ -226,7 +227,8 @@ Describe 'Blind Soldier aggregate portable release gate' {
             $content | Should Not Match $forbidden
         }
         foreach ($required in @(
-            'AccessibleLauncher.Tests','AccessibleLauncherBundle.Tests',
+            'AccessibleLauncher.Tests','PrismAbiContract.Tests',
+            'AccessibleLauncherBundle.Tests',
             'NativeHost.Tests','Bootstrap.Tests x86/x64','NativeProxy.Tests',
             'PortableDotNetRuntime.Tests','PortablePackage.Tests',
             'PortablePackage.Verify','Ghidra.NativeEvidence',

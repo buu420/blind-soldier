@@ -262,6 +262,8 @@ foreach ($managed in @(
 }
 $commands.Add((New-PesterCommand -Name 'VerificationGate.Tests' `
     -Path (Join-Path $scriptRoot 'Run-DualRuntimeVerification.Tests.ps1')))
+$commands.Add((New-PesterCommand -Name 'PrismAbiContract.Tests' `
+    -Path (Join-Path $scriptRoot 'PrismAbiContract.Tests.ps1')))
 $commands.Add((New-PesterCommand -Name 'AccessibleLauncherBundle.Tests' `
     -Path (Join-Path $scriptRoot 'Build-AccessibleLauncherBundle.Tests.ps1')))
 $commands.Add((New-PesterCommand -Name 'NativeHost.Tests' `

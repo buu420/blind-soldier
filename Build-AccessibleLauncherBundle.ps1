@@ -13,6 +13,10 @@ Set-StrictMode -Version Latest
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $project = Join-Path $scriptRoot 'launcher\Ff7.Launcher.Accessible\FFVII_LAUNCHER.csproj'
 $templatePath = Join-Path $scriptRoot 'launcher\launcher-bundle.template.json'
+$abiContractModule = Join-Path $scriptRoot 'PrismAbiContract.psm1'
+$launcherPrismSource = Join-Path $scriptRoot `
+    'launcher\Ff7.Launcher.Accessible\FF7_Launcher\PrismNativeSpeaker.cs'
+$modPrismSource = Join-Path $scriptRoot 'Ff7.Accessibility.Reloaded\PrismNativeSpeaker.cs'
 
 function Get-PeMachine {
     param([Parameter(Mandatory = $true)][string] $Path)
@@ -94,6 +98,21 @@ if ($template.schemaVersion -ne 2 -or
     $template.assemblyVersion -ne '2.0.0.0') {
     throw "Launcher bundle template has an unsupported identity: $templatePath"
 }
+
+# Before anything is built or copied: the launcher's PrismConfig has to marshal
+# exactly like the mod's, because prism_config_init returns it by value. 0.4.1
+# shipped a launcher whose copy was still one byte after Prism 0.18 grew the
+# struct to thirty-two, and it access-violated on startup for every user. The PE
+# and assembly-identity checks below both passed that build.
+if (-not (Test-Path -LiteralPath $abiContractModule -PathType Leaf)) {
+    throw "Prism ABI contract module is missing: $abiContractModule"
+}
+Import-Module $abiContractModule -Force
+$prismLayout = Assert-PrismConfigContract `
+    -LauncherSourcePath $launcherPrismSource `
+    -ReferenceSourcePath $modPrismSource
+Write-Verbose ("Launcher PrismConfig marshals to {0} bytes over {1} fields." -f
+    $prismLayout.Size, $prismLayout.Fields.Count)
 
 & dotnet build $project -c $Configuration --nologo
 if ($LASTEXITCODE -ne 0) {
