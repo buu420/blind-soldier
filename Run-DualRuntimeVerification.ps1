@@ -227,9 +227,13 @@ if ($hasGameDataRuntime) {
 }
 else {
     $escapedProject = $reloadedProject.Replace("'", "''")
+    # This is the x86 path a build machine takes, since it has no licensed game
+    # data. The default suite also carries the Prism ABI probe, but that suite
+    # only runs where a game runtime exists, so the probe has to be named here
+    # or the x86 mod's PrismConfig is never proved against its DLL at release.
     $portableModes = @(
         '--runtime-lease-only','--host-validation-only',
-        '--7h-compatibility-only')
+        '--7h-compatibility-only','--prism-abi-probe-only')
     $portableCommand = "`$ErrorActionPreference = 'Stop'; " +
         "try { `$dotnetCommand = @(Get-Command -Name 'dotnet' " +
         "-CommandType Application -ErrorAction Stop)[0] } " +

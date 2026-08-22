@@ -95,8 +95,15 @@ Describe 'Blind Soldier aggregate portable release gate' {
             $reloadedPortable = @($invocations | Where-Object Name -CEQ `
                 'Reloaded.Tests')[0]
             $reloadedCommand = [string]$reloadedPortable.Arguments[-1]
+            # --prism-abi-probe-only is here because this portable path is the
+            # one the release gate takes on a build machine with no licensed
+            # game data. The x86 default suite carries the probe too, but that
+            # suite only runs where a game runtime exists, so without this the
+            # x86 mod's PrismConfig would never be proved against its DLL at
+            # release time.
             foreach ($mode in @('--runtime-lease-only',
-                    '--host-validation-only','--7h-compatibility-only')) {
+                    '--host-validation-only','--7h-compatibility-only',
+                    '--prism-abi-probe-only')) {
                 $reloadedCommand | Should Match ([regex]::Escape($mode))
             }
             $build = @($invocations | Where-Object Name -CEQ `
