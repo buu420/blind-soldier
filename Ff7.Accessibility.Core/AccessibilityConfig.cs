@@ -139,11 +139,26 @@ public sealed class AccessibilityConfig
     public bool EnableInGameMenuTextDrawSpeech { get; set; } = false;
 
     /// <summary>
-    /// Samples the data segment while the Fort Condor battle is running so its
-    /// cursor and menu state can be located. The battle draws no text through
-    /// any hookable routine, so nothing there can be read without this.
+    /// Samples the data segment while the Fort Condor battle is running so new
+    /// state can be located. A research instrument, off unless someone is
+    /// deliberately using it.
     /// </summary>
-    public bool EnableCondorMinigameProbe { get; set; } = true;
+    /// <remarks>
+    /// It found the cursor, the Setting Menu and the unit table, and
+    /// <see cref="Ff7.Accessibility.Reloaded"/>'s battle reader was built on what
+    /// it found - but it was left on, still wired to real speech. During a battle
+    /// it queues raw diagnostics ("428, 706", "Unit 255.", "cursor") plus a
+    /// duplicate of every hire line, sixteen utterances in the worst second,
+    /// against the reader's own. Because they queue rather than interrupt, the
+    /// backlog never drains and the menu option under the cursor arrives long
+    /// after the player has moved past it. Reported 2026-08-22 as the Setting
+    /// Menu reading its title and then none of its options.
+    ///
+    /// <para>It stays in the tree because the enemy unit names - Beast,
+    /// Barbarian, Wyvern, Commander - are still unmapped and this is the
+    /// instrument that would close that gap. Turn it on for that, not for play.</para>
+    /// </remarks>
+    public bool EnableCondorMinigameProbe { get; set; } = false;
     public int CondorMinigameProbeIntervalMs { get; set; } = 120;
     public bool EnableTitleMenuNativeCursorSpeech { get; set; } = true;
     public bool EnableTitleMenuNativeCursorDiagnostics { get; set; } = true;

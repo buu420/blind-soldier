@@ -233,7 +233,8 @@ else {
     # or the x86 mod's PrismConfig is never proved against its DLL at release.
     $portableModes = @(
         '--runtime-lease-only','--host-validation-only',
-        '--7h-compatibility-only','--prism-abi-probe-only')
+        '--7h-compatibility-only','--prism-abi-probe-only',
+        '--condor-probe-silence-only')
     $portableCommand = "`$ErrorActionPreference = 'Stop'; " +
         "try { `$dotnetCommand = @(Get-Command -Name 'dotnet' " +
         "-CommandType Application -ErrorAction Stop)[0] } " +

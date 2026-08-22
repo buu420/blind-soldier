@@ -37,8 +37,17 @@ if (args.Contains("--field-transition-anchor-audit", StringComparer.OrdinalIgnor
 if (args.Contains("--condor-battle-only", StringComparer.OrdinalIgnoreCase))
 {
     CondorBattleReaderTests.Run();
+    CondorResearchProbeSilenceTests.Run();
     DualRuntimeSharedSourceTests.Run();
     Console.WriteLine("FFVII Fort Condor battle reader tests passed.");
+    return;
+}
+
+// Needs no game data, so it can run on the release gate's portable path.
+if (args.Contains("--condor-probe-silence-only", StringComparer.OrdinalIgnoreCase))
+{
+    CondorResearchProbeSilenceTests.Run();
+    Console.WriteLine("FFVII Fort Condor research probe silence tests passed.");
     return;
 }
 
@@ -483,6 +492,7 @@ AssertFfnxRuntimeDetectorRecognizesDriverModules();
 Ff7.Accessibility.Reloaded.Tests.NavigationProgressControlTests.Run();
 FfnxPopupSpeechTests.Run();
 DualRuntimeSharedSourceTests.Run();
+CondorResearchProbeSilenceTests.Run();
 PrismAbiProbeTests.Run();
 Ff7.Accessibility.Reloaded.Tests.EchoSCompatibilityTests.Run();
 Ff7.Accessibility.Reloaded.Tests.LegacyStartupDiagnosticsTests.Run();
