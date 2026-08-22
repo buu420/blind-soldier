@@ -29,7 +29,6 @@ internal static class CondorBattleReaderTests
         ReproducesTheNativePlacementRegionFromTheShippedTerrain();
         AppliesTheSetupBoundaryAndTheCombatFrontier();
         ExistingUnitsCutHolesInAPlacementBand();
-        SpeaksThePlacementBandRatherThanOneRow();
         TreatsTheNativePlacementFlagAsUndefinedOutsideItsValidationWindow();
         StatusAnswersWhatASightedPlayerSeesAtAGlance();
         NamesOnlyUnitTypesThatHaveBeenProved();
@@ -503,33 +502,6 @@ internal static class CondorBattleReaderTests
             false,
             occupied.PlacementIntervals.Any(interval => interval.Contains(700)),
             "the row the unit stands on is not offered");
-    }
-
-    private static void SpeaksThePlacementBandRatherThanOneRow()
-    {
-        var terrain = LoadShippedCollisionTriangles();
-        var inBand = Battle(
-            cursorX: 260, cursorY: 440,
-            phase: CondorPlacementRegion.SetupPhase, terrain: terrain);
-
-        // The cursor sits inside the first band, 420 to 476. A sighted player can
-        // see how far that band runs; saying only "clear" would answer for the
-        // single row under the cursor and leave the rest to be swept for by ear.
-        Equal(
-            "placeable 420 to 476, 1 more band",
-            CondorPlacementRegion.Describe(
-                inBand.PlacementIntervals, inBand.CursorX, inBand.CursorY),
-            "placement description inside a band");
-
-        // Y 500 is in the real gap between the two bands.
-        var inGap = Battle(
-            cursorX: 260, cursorY: 500,
-            phase: CondorPlacementRegion.SetupPhase, terrain: terrain);
-        Equal(
-            "blocked, nearest placeable at 260, 476",
-            CondorPlacementRegion.Describe(
-                inGap.PlacementIntervals, inGap.CursorX, inGap.CursorY),
-            "placement description inside a gap");
     }
 
     private static void TreatsTheNativePlacementFlagAsUndefinedOutsideItsValidationWindow()

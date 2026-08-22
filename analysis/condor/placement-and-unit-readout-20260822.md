@@ -108,7 +108,7 @@ This is a lifecycle correction, not a substitute-address correction. It should b
 
 ## Implemented shared readiness correction
 
-`CondorBattleStateReader.ReadCollisionTriangles` now returns `null` when the native collision-record count is zero or invalid. `TryRead` already propagates that as "no coherent snapshot," so neither runtime can hand the speech tracker the pre-load `0 gil / 0 units / cursor 0,0 / nowhere` state. The address map remains unchanged.
+`CondorBattleStateReader.ReadCollisionTriangles` now returns the battle's cached collision triangles when the native collision-record count is zero or invalid. Before this battle has loaded geometry the cache is `null`, so neither runtime can hand the speech tracker the pre-load `0 gil / 0 units / cursor 0,0 / nowhere` state. After geometry has loaded, retaining the cache prevents a later zero/torn count from suppressing the battle-result snapshot. `Reset()` drops the cache on module exit, so terrain cannot cross battle epochs. The address map remains unchanged.
 
 The regression was written first with a readable, zero-initialized module-9 address space. Before the production change it failed with:
 
@@ -132,3 +132,51 @@ This deliberately fixes the demonstrated entry-snapshot defect without treating 
 - `git diff --check`: passed; the only output was Git's existing CRLF-to-LF working-copy warning.
 
 The data-backed full Condor suite was not run because it requires the external game-data/runtime root, and this task explicitly forbids reading anything under `C:\Games\Final Fantasy VII`. The focused regression is self-contained and both production assemblies were built without accessing that directory.
+
+## Follow-up — confirming setup initialization across two samples
+
+The geometry gate closes the observed entry failure but not the shorter interval between the collision load and `FUN_005F7979` finishing its unit/cursor initialization. The approved follow-up treats this as snapshot coherence in `CondorBattleStateReader`, so automatic speech, the K status path, navigation, and module-entry logging all share one gate on both runtimes.
+
+The native code does **not** prove that every observable battle must begin in phase 1. `FUN_005F7979` contains a conditional path that writes phase 2 when `0x00CBC80C == 3`; that is enough to reject phase 1 as a permanent prerequisite even though the normal new-battle path uses phase 1. The gate therefore works as follows:
+
+- native collision count must be positive and interaction mode must be one of the game's active modes 1, 2, or 3;
+- a phase-1 setup snapshot is withheld until the same initialization signature is observed at least 100 ms later;
+- any non-phase-1 snapshot meeting the geometry/mode conditions is treated as already initialized and accepted immediately;
+- a failed read or changed setup signature restarts the candidate;
+- after confirmation the battle is never re-gated, including when collision count later reads zero and cached terrain carries the result snapshot;
+- `Reset()` clears both terrain and confirmation state.
+
+### K status key audit
+
+The early K press is not presently preserved. On x86, `TickCondorBattleReader` samples the rising edge into a local `statusRequested`, then returns when `TryRead()` yields `null`. On x64, the session passes the one-frame rising edge into `ObserveCondorBattle`, which likewise returns on `null`. Navigation actions survive because both hosts bank them; K has no equivalent state. Since failed reads or a changed candidate can extend confirmation beyond one interval, relying on the later automatic status is not a bounded answer to the key the player pressed. Both hosts must bank K until the first accepted snapshot, then clear it only after delivering the requested status.
+
+### Information preserved during the 100 ms hold
+
+Phase 1 does not autonomously spawn enemies or advance combat, and it cannot finish without player input. The second snapshot carries the current cursor, funds, units, and placement state. The speech tracker's first accepted snapshot must additionally expose any current result latch, banner, or already-open Setting Menu instead of making those values an unseen baseline. This protects `Set units.` and also fails safely if the first accepted observation is unexpectedly later in the battle.
+
+### Implemented readiness contract (uncommitted)
+
+`CondorBattleStateReader` now owns the confirmation epoch and accepts an injected `TimeProvider`. A phase-1 signature is `(phase, interaction mode, native collision count)`; the first sample is held, a matching sample before 100 ms remains held, and a matching sample at or after 100 ms confirms the battle. An unreadable sample or a changed signature clears the candidate. Modes 1 through 3 are accepted as the native handler's live modes. A non-phase-1 snapshot with a positive native collision count and a valid mode is accepted immediately. After confirmation no late transient value re-enables the gate, while `Reset()` clears both the confirmation and candidate for the next battle.
+
+The cached-terrain amendment remains correct. Returning `collisionTriangles` for an invalid late native count preserves the result snapshot after geometry has loaded; before the first successful geometry load the same expression is `null`, and `Reset()` prevents terrain crossing battle epochs. The initialization gate separately requires the **native** count to be positive until confirmation, so the cache cannot accidentally confirm a pre-load battle.
+
+`CondorBattleSpeechTracker` now preserves the first accepted snapshot's status, result latch/banner and already-open Setting Menu, and initializes the battlefield navigator from that snapshot before banked navigation is applied. The result and menu are remembered after being emitted, so the next sample does not repeat them.
+
+K is now a tracker-owned pending request shared by both runtimes. Each host banks the edge before throttling or calling `TryRead()`. Null snapshots retain it. The first accepted call consumes it only because `Observe()` emits the opening status in that same call; later requests emit an interrupting status directly. `Reset()` drops a request belonging to a battle that ended. A dual-runtime wiring regression checks that both host methods request before reading and retain/consume the pending state.
+
+`CondorPlacementRegion.Describe` and the test for its rejected band wording were removed. `LegalIntervals`, `PlacementIntervals` and their geometry regressions remain because they still model and verify the native placement region even though production speech now answers only for the live cursor coordinate.
+
+### Verification for the uncommitted follow-up
+
+- TDD red: the first phase-1 sample was accepted immediately before the gate; the focused test failed on that exact assertion.
+- TDD red: the first accepted snapshot returned only one line before preservation; the regression expected status, `Set units.`, Setting Menu and highlighted hire row and failed with `expected 4, got 1`.
+- TDD red: the tracker had no K request API before banking; the regression failed to compile on the absent `RequestStatus`, `HasPendingStatusRequest` and `ConsumeRequestedStatus` members.
+- `dotnet build Ff7.Accessibility.Reloaded\Ff7.Accessibility.Reloaded.csproj --no-restore`: succeeded, 0 warnings, 0 errors.
+- `dotnet build Ff7.Accessibility.Steam2026X64\Ff7.Accessibility.Steam2026X64.csproj --no-restore`: succeeded, 0 warnings, 0 errors.
+- x86 portable Fort Condor initialization/probe suite (`--condor-probe-silence-only`): passed.
+- dual-runtime compile/wiring contract (`--dual-runtime-sources-only`): passed.
+- Steam 2026 x64 module suite (`--module-tests-only`, now including the shared initialization/K tests): passed.
+- The older Condor reader tests ran through every state/speech test before their first external `condor.lgp` fixture and found no regression; the data-backed remainder was intentionally not run because this task forbids accessing `C:\Games\Final Fantasy VII`.
+- `git diff --check`: exit 0; only the repository's existing CRLF conversion warnings were printed.
+
+All changes remain uncommitted for review. Nothing under the game directory was read or modified.

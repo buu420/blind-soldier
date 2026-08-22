@@ -117,6 +117,7 @@ public sealed class CondorBattleSpeechTracker
     private int lastUnitUnderCursorSlot;
     private int lastAlliedCount;
     private int placementDisagreements;
+    private bool pendingStatusRequest;
 
     public CondorBattleSpeechTracker(Action<string>? log = null) =>
         this.log = log ?? (_ => { });
@@ -132,6 +133,7 @@ public sealed class CondorBattleSpeechTracker
         placementDisagreements = 0;
         navigator.Reset();
         lastCursorKey = null;
+        pendingStatusRequest = false;
     }
 
     /// <summary>
@@ -139,6 +141,35 @@ public sealed class CondorBattleSpeechTracker
     /// who has gone down between two readings.
     /// </summary>
     public CondorFieldNavigator Navigator => navigator;
+
+    /// <summary>
+    /// Whether K was pressed before the reader produced a coherent snapshot.
+    /// Kept here rather than separately in both hosts so x86 and x64 cannot
+    /// disagree about whether a player's request may disappear.
+    /// </summary>
+    public bool HasPendingStatusRequest => pendingStatusRequest;
+
+    /// <summary>Banks a K press until a coherent battle snapshot can answer it.</summary>
+    public void RequestStatus() => pendingStatusRequest = true;
+
+    /// <summary>
+    /// Answers and consumes the banked K press. On the first accepted snapshot,
+    /// <see cref="Observe"/> starts with the identical status line, so the
+    /// request is consumed without adding a duplicate interrupting copy.
+    /// </summary>
+    public string? ConsumeRequestedStatus(
+        CondorBattleSnapshot snapshot,
+        bool openingStatusWillBeSpoken)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        if (!pendingStatusRequest)
+        {
+            return null;
+        }
+
+        pendingStatusRequest = false;
+        return openingStatusWillBeSpoken ? null : DescribeStatus(snapshot);
+    }
 
     /// <summary>
     /// Applies one navigation action and returns what to say.
@@ -175,6 +206,57 @@ public sealed class CondorBattleSpeechTracker
         {
             started = true;
 
+            var opening = new List<string> { DescribeStatus(snapshot) };
+
+            // Confirmation deliberately holds the first setup reading back.
+            // The accepted reading is therefore not merely a baseline: its
+            // banner, result and Setting Menu are already visible and must be
+            // included now or they can disappear before the next poll.
+            var resultBanner = ResultBannerFor(snapshot.Outcome);
+            if (resultBanner is { } outcomeBanner)
+            {
+                resultSpoken = true;
+                opening.Add(Results[outcomeBanner]);
+            }
+
+            if (snapshot.MessageId != resultBanner)
+            {
+                if (Results.TryGetValue(snapshot.MessageId, out var openingResult))
+                {
+                    if (!resultSpoken)
+                    {
+                        resultSpoken = true;
+                        opening.Add(openingResult);
+                    }
+                }
+                else if (Messages.TryGetValue(snapshot.MessageId, out var message))
+                {
+                    opening.Add(message);
+                }
+            }
+
+            if (snapshot.Outcome != OutcomeOngoing)
+            {
+                log(
+                    $"Fort Condor: result latch set to {snapshot.Outcome} with banner " +
+                    $"{snapshot.MessageId}, {snapshot.LivingAllies} allied and " +
+                    $"{snapshot.LivingEnemies} enemy units still standing.");
+            }
+
+            // Populate the navigator before the host applies keys banked during
+            // confirmation. Otherwise the first accepted state can be spoken
+            // correctly while J/L still answer "None."
+            navigator.Update(snapshot.Units, snapshot.CursorX, snapshot.CursorY);
+
+            if (snapshot.SettingMenuOpen)
+            {
+                opening.Add($"Setting menu. {snapshot.Gil} gil.");
+                if (DescribeHighlightedUnit(snapshot) is { } highlighted)
+                {
+                    opening.Add(highlighted);
+                }
+            }
+
             // No cursor baseline is taken here, deliberately. The opening status
             // line is built from the entry snapshot, whose cursor can still read
             // 0, 0 before the battle has placed it - it did exactly that on
@@ -184,7 +266,7 @@ public sealed class CondorBattleSpeechTracker
             RememberStanding(snapshot);
             lastAdvanceBand = AdvanceBand(snapshot.EnemyAdvance);
             Remember(snapshot);
-            return [DescribeStatus(snapshot)];
+            return opening;
         }
 
         var lines = new List<string>();

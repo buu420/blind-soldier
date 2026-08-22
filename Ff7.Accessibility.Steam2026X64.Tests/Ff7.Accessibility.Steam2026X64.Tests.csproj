@@ -15,6 +15,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\CondorBattleInitializationTests.cs"
+             Link="SharedTests\CondorBattleInitializationTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\HighwayAutoSteeringControllerTests.cs"
              Link="SharedTests\HighwayAutoSteeringControllerTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\HighwayEngagementSteeringTrackerTests.cs"

@@ -123,12 +123,17 @@ internal sealed class Steam2026ResearchObservationPump
         // Banked before the throttle, for the same reason the status key is: the
         // state is read ten times a second and an ordinary tap lands between two
         // reads. Dropped here, the key simply appears not to work.
+        if (statusRequested)
+        {
+            condorBattleSpeechTracker.RequestStatus();
+        }
+
         if (navigationActions is { Count: > 0 })
         {
             pendingNavigation.AddRange(navigationActions);
         }
 
-        if (!statusRequested &&
+        if (!condorBattleSpeechTracker.HasPendingStatusRequest &&
             pendingNavigation.Count == 0 &&
             now - lastCondorBattleReadUtc < CondorBattleStateReader.ReadInterval)
         {
@@ -144,11 +149,12 @@ internal sealed class Steam2026ResearchObservationPump
             // fabricated snapshot would announce healthy units as dead. The banked
             // presses are kept rather than thrown away, so the player's key acts on
             // the next coherent reading instead of vanishing into a torn one.
-            log("Fort Condor battle reader: module 9 state could not be read coherently.");
+            log("Fort Condor battle reader: module 9 state is not ready or could not be read coherently.");
             return [];
         }
 
-        if (!inCondorBattle)
+        var enteringBattle = !inCondorBattle;
+        if (enteringBattle)
         {
             inCondorBattle = true;
             log(
@@ -157,9 +163,10 @@ internal sealed class Steam2026ResearchObservationPump
         }
 
         var lines = new List<(string Text, bool Interrupt)>();
-        if (statusRequested)
+        if (condorBattleSpeechTracker.ConsumeRequestedStatus(
+                snapshot,
+                openingStatusWillBeSpoken: enteringBattle) is { } status)
         {
-            var status = condorBattleSpeechTracker.DescribeStatus(snapshot);
             log($"Fort Condor status: {status}");
             lines.Add((status, true));
         }

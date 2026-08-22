@@ -1897,6 +1897,10 @@ public sealed class Mod : IModV1, IModV2
         // still seen. Short-circuited on the module so no other owner of K loses
         // its press to a battle that is not running.
         var statusRequested = WasNavigationKeyPressed(VirtualKeyK, isForeground);
+        if (statusRequested)
+        {
+            condorBattleSpeechTracker.RequestStatus();
+        }
 
         // Banked before the throttle, for the same reason K is sampled before it:
         // the state is read ten times a second and an ordinary tap lands between
@@ -1908,7 +1912,7 @@ public sealed class Mod : IModV1, IModV2
         }
 
         var now = DateTime.UtcNow;
-        if (!statusRequested &&
+        if (!condorBattleSpeechTracker.HasPendingStatusRequest &&
             pendingCondorNavigation.Count == 0 &&
             now - lastCondorBattleReadAt < CondorBattleReadInterval)
         {
@@ -1922,11 +1926,12 @@ public sealed class Mod : IModV1, IModV2
         {
             // A partial read is not a battle state. Saying nothing is right here:
             // a fabricated snapshot would announce healthy units as dead.
-            Log("Fort Condor battle reader: module 9 state could not be read coherently.");
+            Log("Fort Condor battle reader: module 9 state is not ready or could not be read coherently.");
             return;
         }
 
-        if (!inCondorBattle)
+        var enteringBattle = !inCondorBattle;
+        if (enteringBattle)
         {
             inCondorBattle = true;
             Log(
@@ -1934,9 +1939,10 @@ public sealed class Mod : IModV1, IModV2
                 $"{snapshot.EnemyCount} enemy units, {snapshot.Gil} gil, {snapshot.Units.Count} live slots.");
         }
 
-        if (statusRequested)
+        if (condorBattleSpeechTracker.ConsumeRequestedStatus(
+                snapshot,
+                openingStatusWillBeSpoken: enteringBattle) is { } status)
         {
-            var status = condorBattleSpeechTracker.DescribeStatus(snapshot);
             Log($"Fort Condor status: {status}");
             Speak(status, interrupt: true);
         }

@@ -94,7 +94,16 @@ public sealed class CondorBattleStateReader
     /// </summary>
     private const int MaximumAvailableTypes = 10;
 
+    /// <summary>
+    /// FUN_005FD958 dispatches these three interaction modes. Zero is the
+    /// pre-initialization value and anything outside the range is not a coherent
+    /// live battle state.
+    /// </summary>
+    private const int FirstValidInteractionMode = 1;
+    private const int LastValidInteractionMode = 3;
+
     private readonly ILegacyAddressSpace memory;
+    private readonly TimeProvider timeProvider;
 
     /// <summary>
     /// The collision triangles, which are copied from vert.bin once when the
@@ -103,19 +112,41 @@ public sealed class CondorBattleStateReader
     /// </summary>
     private IReadOnlyList<CondorCollisionTriangle>? collisionTriangles;
     private int collisionTriangleCount = -1;
+    private bool initializationConfirmed;
+    private InitializationCandidate? initializationCandidate;
 
-    public CondorBattleStateReader(ILegacyAddressSpace memory) =>
+    public CondorBattleStateReader(
+        ILegacyAddressSpace memory,
+        TimeProvider? timeProvider = null)
+    {
         this.memory = memory ?? throw new ArgumentNullException(nameof(memory));
+        this.timeProvider = timeProvider ?? TimeProvider.System;
+    }
 
-    /// <summary>Forgets the cached terrain, so a new battle loads its own.</summary>
+    /// <summary>Forgets cached terrain and readiness, so a new battle proves its own.</summary>
     public void Reset()
     {
         collisionTriangles = null;
         collisionTriangleCount = -1;
+        initializationConfirmed = false;
+        initializationCandidate = null;
     }
 
     public CondorBattleSnapshot? TryRead()
     {
+        var snapshot = TryReadRaw(out var nativeCollisionCount);
+        if (snapshot is null)
+        {
+            RejectUnconfirmedCandidate();
+            return null;
+        }
+
+        return ConfirmInitialization(snapshot, nativeCollisionCount);
+    }
+
+    private CondorBattleSnapshot? TryReadRaw(out int collisionCount)
+    {
+        collisionCount = 0;
         if (!TryReadInt32(AddressInteractionMode, out var interactionMode) ||
             !TryReadInt32(AddressModalState, out var modalState) ||
             !TryReadInt16(AddressSettingMenuRow, out var settingMenuRow) ||
@@ -134,7 +165,7 @@ public sealed class CondorBattleStateReader
             !TryReadInt16(AddressReportState, out var reportState) ||
             !TryReadInt32(AddressDeploymentFrontierY, out var frontierY) ||
             !TryReadInt16(AddressEnemyAdvance, out var enemyAdvance) ||
-            !TryReadInt32(AddressCollisionCount, out var collisionCount))
+            !TryReadInt32(AddressCollisionCount, out collisionCount))
         {
             return null;
         }
@@ -178,6 +209,66 @@ public sealed class CondorBattleStateReader
             frontierY,
             enemyAdvance,
             terrain);
+    }
+
+    /// <summary>
+    /// Refuses the short phase-one window in which geometry exists but the
+    /// module's unit/cursor initializer has not necessarily finished. A later
+    /// phase is already initialized and is accepted immediately: observing
+    /// setup is never a prerequisite for speaking a battle that was joined
+    /// after setup had ended.
+    /// </summary>
+    private CondorBattleSnapshot? ConfirmInitialization(
+        CondorBattleSnapshot snapshot,
+        int nativeCollisionCount)
+    {
+        if (initializationConfirmed)
+        {
+            return snapshot;
+        }
+
+        if (nativeCollisionCount is <= 0 or > MaximumCollisionRecords ||
+            snapshot.InteractionMode is < FirstValidInteractionMode or > LastValidInteractionMode)
+        {
+            initializationCandidate = null;
+            return null;
+        }
+
+        if (snapshot.Phase != CondorPlacementRegion.SetupPhase)
+        {
+            initializationConfirmed = true;
+            initializationCandidate = null;
+            return snapshot;
+        }
+
+        var signature = new InitializationSignature(
+            snapshot.Phase,
+            snapshot.InteractionMode,
+            nativeCollisionCount);
+        var now = timeProvider.GetTimestamp();
+        if (initializationCandidate is not { } candidate ||
+            candidate.Signature != signature)
+        {
+            initializationCandidate = new InitializationCandidate(signature, now);
+            return null;
+        }
+
+        if (timeProvider.GetElapsedTime(candidate.ObservedAt, now) < ReadInterval)
+        {
+            return null;
+        }
+
+        initializationConfirmed = true;
+        initializationCandidate = null;
+        return snapshot;
+    }
+
+    private void RejectUnconfirmedCandidate()
+    {
+        if (!initializationConfirmed)
+        {
+            initializationCandidate = null;
+        }
     }
 
     /// <summary>
@@ -346,4 +437,13 @@ public sealed class CondorBattleStateReader
         value = BitConverter.ToUInt16(buffer);
         return true;
     }
+
+    private readonly record struct InitializationSignature(
+        int Phase,
+        int InteractionMode,
+        int CollisionCount);
+
+    private readonly record struct InitializationCandidate(
+        InitializationSignature Signature,
+        long ObservedAt);
 }

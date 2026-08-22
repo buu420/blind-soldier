@@ -36,6 +36,7 @@ if (args.Contains("--main-menu-ownership-only", StringComparer.OrdinalIgnoreCase
 
 if (args.Contains("--module-tests-only", StringComparer.OrdinalIgnoreCase))
 {
+    CondorBattleInitializationTests.Run();
     Steam2026BattleStatusHotkeyTests.Run();
     Steam2026BattleObservationTests.ReadsNativeEnemySkillCategoryMapping();
     Steam2026BattleObservationTests.ReadsScriptedGuestPartyBattleSnapshots(
@@ -47,6 +48,13 @@ if (args.Contains("--module-tests-only", StringComparer.OrdinalIgnoreCase))
     Steam2026FieldExitNavigationProfileTests.Run();
     PrismAbiProbeTests.Run();
     Console.WriteLine("Steam 2026 x64 module tests passed.");
+    return;
+}
+
+if (args.Contains("--condor-battle-only", StringComparer.OrdinalIgnoreCase))
+{
+    CondorBattleInitializationTests.Run();
+    Console.WriteLine("Steam 2026 x64 Fort Condor initialization tests passed.");
     return;
 }
 
@@ -210,6 +218,7 @@ catch (InvalidOperationException)
 
 AssertEqual(true, startThrew, "incomplete x64 backend refuses startup");
 Steam2026ForegroundInputTests.Run(native, legacy);
+CondorBattleInitializationTests.Run();
 HighwayAutoSteeringControllerTests.Run();
 NavigationAutoWalkControllerTests.Run();
 HighwayEngagementSteeringTrackerTests.Run();

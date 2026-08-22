@@ -120,6 +120,7 @@ internal static class DualRuntimeFeatureWiringTests
     public static void Run()
     {
         BothRuntimesAnnounceSuspendAndResume();
+        BothCondorHostsBankStatusBeforeReading();
         var root = FindSourceRoot();
         var x64Csproj = File.ReadAllText(Path.Combine(
             root, "Ff7.Accessibility.Steam2026X64", "Ff7.Accessibility.Steam2026X64.csproj"));
@@ -160,6 +161,69 @@ internal static class DualRuntimeFeatureWiringTests
         {
             throw new InvalidOperationException(
                 "Shared features are not wired into both runtimes:" +
+                Environment.NewLine + string.Join(Environment.NewLine, failures));
+        }
+    }
+
+    /// <summary>
+    /// K is a one-frame edge while the battle reader can deliberately withhold
+    /// phase-one snapshots for 100 ms or longer. Both hosts must bank the edge
+    /// before calling TryRead and consume it only after a snapshot exists.
+    /// </summary>
+    private static void BothCondorHostsBankStatusBeforeReading()
+    {
+        var root = FindSourceRoot();
+        var sites = new[]
+        {
+            (
+                "x86",
+                Path.Combine(root, "Ff7.Accessibility.Reloaded", "Mod.cs"),
+                "private void TickCondorBattleReader()",
+                "private IEnumerable<CondorNavigationAction> ReadCondorNavigationActions"),
+            (
+                "x64",
+                Path.Combine(
+                    root,
+                    "Ff7.Accessibility.Steam2026X64",
+                    "Runtime",
+                    "Steam2026ResearchObservationPump.cs"),
+                "internal IReadOnlyList<(string Text, bool Interrupt)> ObserveCondorBattle(",
+                "internal void ResetCondorBattle()")
+        };
+
+        var failures = new List<string>();
+        foreach (var (runtime, path, startMarker, endMarker) in sites)
+        {
+            var source = File.ReadAllText(path);
+            var start = source.IndexOf(startMarker, StringComparison.Ordinal);
+            var end = start < 0
+                ? -1
+                : source.IndexOf(endMarker, start + startMarker.Length, StringComparison.Ordinal);
+            if (start < 0 || end <= start)
+            {
+                failures.Add($"{runtime}: could not isolate the Fort Condor host method in {path}.");
+                continue;
+            }
+
+            var method = source[start..end];
+            var request = method.IndexOf(".RequestStatus();", StringComparison.Ordinal);
+            var read = method.IndexOf(".TryRead();", StringComparison.Ordinal);
+            if (request < 0 || read < 0 || request >= read)
+            {
+                failures.Add($"{runtime}: K is not banked before the battle snapshot read.");
+            }
+
+            if (!method.Contains(".HasPendingStatusRequest", StringComparison.Ordinal) ||
+                !method.Contains(".ConsumeRequestedStatus(", StringComparison.Ordinal))
+            {
+                failures.Add($"{runtime}: the banked K request is not retained and consumed.");
+            }
+        }
+
+        if (failures.Count > 0)
+        {
+            throw new InvalidOperationException(
+                "Fort Condor status requests can disappear during initialization:" +
                 Environment.NewLine + string.Join(Environment.NewLine, failures));
         }
     }
