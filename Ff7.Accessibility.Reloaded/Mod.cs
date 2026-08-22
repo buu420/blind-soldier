@@ -2037,7 +2037,16 @@ public sealed class Mod : IModV1, IModV2
         // on the probe's own cadence lands between ticks and is never seen - which
         // is exactly what happened to the 2026-08-20 capture, where only the first
         // press registered. It is read from the keyboard rather than from the game
-        // because this module's input word is not the one the mod knows about.
+        // because reading the module's own input word would mean sampling on the
+        // probe's cadence too.
+        //
+        // That word is no longer a mystery, whatever older comments here implied:
+        // analysis/ghidra/fort-condor-module-state-findings-20260821.md names the
+        // whole chain - 0x00C72E80 held, 0x00C74C4C previous, 0x00C74C54 edges, and
+        // Up/Right/Down/Left as 0x1000/0x2000/0x4000/0x8000. It must never be
+        // written to, because FUN_005FD958 rebuilds it every frame from 0x009A85D4;
+        // it is only worth reading, as the acknowledgement that an injected
+        // direction key actually landed.
         if (WasNavigationKeyPressed(
                 VirtualKeyF9, foregroundProcessGate.IsCurrentProcessForeground()))
         {
