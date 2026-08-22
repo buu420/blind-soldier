@@ -1538,7 +1538,8 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                 enabledScriptExits));
         }
 
-        return exitPresentationPolicy.Apply(exitLabelResolver.Resolve(targets));
+        return exitPresentationPolicy.Apply(
+            exitLabelResolver.Resolve(ApplyExitNavigationProfiles(targets)));
     }
 
     private bool? ReadKalmTownComplete()
@@ -1556,6 +1557,26 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         int gatewayIndex,
         int destinationFieldId) =>
         $"gateway:{fieldId}:{gatewayIndex}:{destinationFieldId}";
+
+    /// <summary>
+    /// Applies the per-field exit corrections the legacy runtime has always applied.
+    /// </summary>
+    /// <remarks>
+    /// <para>This was not a missing nicety. The four Honey Bee Inn lobby doors carry
+    /// an interaction radius of zero, and <c>FieldWalkmeshNavigation.TryBuildRoute</c>
+    /// only attempts its third strategy when that radius is above zero - so the route
+    /// build failed and <c>ReachableFieldExitTargetProvider</c> dropped the doors
+    /// altogether. They never reached the exits list at all. A player on this runtime
+    /// was not told about four doorways that a player on the other one was.</para>
+    ///
+    /// <para>Purely additive: the catalog widens a radius and adds a detour, and
+    /// returns every other target untouched. Applied to the combined gateway and
+    /// script list, before labelling and presentation, which is the order the legacy
+    /// runtime uses - parity is the reason, and parity is reason enough.</para>
+    /// </remarks>
+    internal static IReadOnlyList<FieldNavigationTarget> ApplyExitNavigationProfiles(
+        IReadOnlyList<FieldNavigationTarget> targets) =>
+        targets.Select(FieldExitNavigationProfileCatalog.Apply).ToArray();
 
     private IReadOnlyList<FieldScriptNavigationTransition> ReadLiveTransitions(int fieldId) =>
         TryReadLiveTransitions(fieldId, out _);

@@ -44,6 +44,7 @@ if (args.Contains("--module-tests-only", StringComparer.OrdinalIgnoreCase))
     Steam2026FieldNavigationRuntimeTests.Run();
     NavigationAutoWalkControllerTests.Run();
     Steam2026TitleLoadMenuSpeechBridgeTests.Run();
+    Steam2026FieldExitNavigationProfileTests.Run();
     PrismAbiProbeTests.Run();
     Console.WriteLine("Steam 2026 x64 module tests passed.");
     return;

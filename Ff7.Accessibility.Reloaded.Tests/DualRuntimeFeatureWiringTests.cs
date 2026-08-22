@@ -58,7 +58,13 @@ internal static class DualRuntimeFeatureWiringTests
             "FieldZoneTransitionCueTracker.cs",
             "FieldZoneTransitionCueTracker",
             @"Ff7.Accessibility.Reloaded\Mod.cs",
-            @"Ff7.Accessibility.Steam2026X64\Runtime\Field\Steam2026FieldZoneTransitionCueCoordinator.cs")
+            @"Ff7.Accessibility.Steam2026X64\Runtime\Field\Steam2026FieldZoneTransitionCueCoordinator.cs"),
+
+        new("field.exit-navigation-profiles",
+            "FieldExitNavigationProfileCatalog.cs",
+            "FieldExitNavigationProfileCatalog",
+            @"Ff7.Accessibility.Reloaded\NativeFieldExitTargetProvider.cs",
+            @"Ff7.Accessibility.Steam2026X64\Runtime\Field\Steam2026FieldNavigationCoordinator.cs")
     ];
 
     /// <summary>
