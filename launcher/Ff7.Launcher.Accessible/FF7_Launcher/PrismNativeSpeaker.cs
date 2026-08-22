@@ -28,7 +28,7 @@ internal sealed class PrismNativeSpeaker : ISpeechOutput, IDisposable
     private PrismConfigInitDelegate configInitNative;
     private PrismInitDelegate initNative;
     private PrismShutdownDelegate shutdownNative;
-    private PrismAcquireBestDelegate acquireBestNative;
+    private PrismCreateBestDelegate createBestNative;
     private PrismBackendNameDelegate backendNameNative;
     private PrismBackendOutputDelegate outputNative;
     private PrismBackendStopDelegate stopNative;
@@ -223,7 +223,7 @@ internal sealed class PrismNativeSpeaker : ISpeechOutput, IDisposable
                 return;
             }
 
-            backend = acquireBestNative(context);
+            backend = createBestNative(context);
             if (backend == IntPtr.Zero)
             {
                 log("Prism did not find an available speech backend.");
@@ -253,7 +253,11 @@ internal sealed class PrismNativeSpeaker : ISpeechOutput, IDisposable
         configInitNative = GetExport<PrismConfigInitDelegate>("prism_config_init");
         initNative = GetExport<PrismInitDelegate>("prism_init");
         shutdownNative = GetExport<PrismShutdownDelegate>("prism_shutdown");
-        acquireBestNative = GetExport<PrismAcquireBestDelegate>("prism_registry_acquire_best");
+        // create_best, not acquire_best: this speaker frees its backend with
+        // prism_backend_free, which is create's ownership contract. acquire_best can hand
+        // back a cached instance belonging to someone else, and freeing that is a
+        // double-free waiting to happen. The mod made this same correction.
+        createBestNative = GetExport<PrismCreateBestDelegate>("prism_registry_create_best");
         backendNameNative = GetExport<PrismBackendNameDelegate>("prism_backend_name");
         outputNative = GetExport<PrismBackendOutputDelegate>("prism_backend_output");
         stopNative = GetExport<PrismBackendStopDelegate>("prism_backend_stop");
@@ -357,7 +361,7 @@ internal sealed class PrismNativeSpeaker : ISpeechOutput, IDisposable
     private delegate void PrismShutdownDelegate(IntPtr context);
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    private delegate IntPtr PrismAcquireBestDelegate(IntPtr context);
+    private delegate IntPtr PrismCreateBestDelegate(IntPtr context);
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     private delegate IntPtr PrismBackendNameDelegate(IntPtr backend);
@@ -383,8 +387,37 @@ internal enum PrismError
     Ok = 0
 }
 
+/// <summary>
+/// Prism's configuration block, which is an ABI contract and has to move with the
+/// DLL it is passed to.
+/// </summary>
+/// <remarks>
+/// <c>prism_config_init</c> returns this <em>by value</em> and <c>prism_init</c> reads
+/// it back. Prism 0.18 grew it from a single byte to these eight fields, and 0.4.1
+/// shipped that DLL to the launcher while leaving the one-byte declaration here. On x86
+/// a struct this size is returned through a hidden pointer, so the native side wrote
+/// thirty-two bytes into a one-byte stack slot and the launcher access-violated on
+/// startup before it could select a backend — for every user, with any screen reader or
+/// none. Verified against the shipped DLL from a .NET Framework x86 probe: version 3,
+/// size 32.
+///
+/// <para>The final field is a plain byte rather than a managed bool carrying
+/// <c>[MarshalAs(UnmanagedType.I1)]</c>, which is how the mod declares it. .NET Framework
+/// refuses a struct-return delegate whose struct carries that attribute and throws
+/// MarshalDirectiveException; the mod runs on .NET 8 and does not hit that rule. Do not
+/// "tidy" this to match the mod.</para>
+///
+/// <para>Natural alignment is required — no <c>Pack</c> — giving 32 bytes on x86.</para>
+/// </remarks>
 [StructLayout(LayoutKind.Sequential)]
 internal struct PrismConfig
 {
     public byte Version;
+    public IntPtr Registry;
+    public IntPtr AvailabilityCallback;
+    public IntPtr AvailabilityUserdata;
+    public uint AvailabilityPollIntervalMs;
+    public uint AvailabilityDebounceSamples;
+    public uint AvailabilityBackoffMaxMs;
+    public byte AvailabilityAutoPowerManage;
 }
