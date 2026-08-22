@@ -21,6 +21,21 @@ namespace Ff7.Accessibility.Steam2026X64.Runtime;
 /// </summary>
 internal sealed class Steam2026ResearchSession : IDisposable
 {
+    /// <summary>
+    /// The Fort Condor battlefield navigator's keys, which are the field
+    /// navigator's keys: U and O for categories, J and L for targets, I to jump.
+    /// Kept identical to the x86 runtime's binding so the fort plays the same on
+    /// both executables.
+    /// </summary>
+    private static readonly (int VirtualKey, CondorNavigationAction Action)[] CondorNavigationKeys =
+    {
+        (0x55, CondorNavigationAction.PreviousCategory), // U
+        (0x4F, CondorNavigationAction.NextCategory),     // O
+        (0x4A, CondorNavigationAction.PreviousTarget),   // J
+        (0x4C, CondorNavigationAction.NextTarget),       // L
+        (0x49, CondorNavigationAction.JumpToTarget)      // I
+    };
+
     private static readonly TimeSpan SetupRetryInterval = TimeSpan.FromMilliseconds(500);
     private static readonly TimeSpan RepeatedLogInterval = TimeSpan.FromSeconds(5);
 
@@ -981,10 +996,27 @@ internal sealed class Steam2026ResearchSession : IDisposable
                             condorIsForeground &&
                             foregroundInput.ObserveRisingEdge(0x4B);
 
+                        // The battlefield navigator, on the same keys the field
+                        // navigator uses: U and O for categories, J and L for
+                        // targets, I to jump. Gated on the module so no other
+                        // owner of these keys loses a press to a fort battle.
+                        var condorNavigation = new List<CondorNavigationAction>();
+                        if (condorIsActive && condorIsForeground)
+                        {
+                            foreach (var (virtualKey, action) in CondorNavigationKeys)
+                            {
+                                if (foregroundInput.ObserveRisingEdge(virtualKey))
+                                {
+                                    condorNavigation.Add(action);
+                                }
+                            }
+                        }
+
                         foreach (var condorLine in pump.ObserveCondorBattle(
                             frame.Lifecycle.ModuleId,
                             condorStatusRequested,
-                            now))
+                            now,
+                            condorNavigation))
                         {
                             if (config.EnableSpeech && condorIsForeground)
                             {

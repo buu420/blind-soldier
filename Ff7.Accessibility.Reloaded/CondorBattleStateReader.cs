@@ -41,8 +41,15 @@ public sealed class CondorBattleStateReader
     private const uint AddressSettingMenuCount = 0x00C75264;
     private const uint AddressAvailableTypeIds = 0x00C75278;
     private const uint AddressGil = 0x00CBC7E0;
-    private const uint AddressCursorX = 0x00CBCCC0;
-    private const uint AddressCursorY = 0x00CBCCC2;
+    /// <summary>
+    /// The cursor pair. X and Y are adjacent 16-bit values, so a host that can
+    /// write a 32-bit word moves both at once and the game never observes half a
+    /// move.
+    /// </summary>
+    public const uint AddressCursor = 0x00CBCCC0;
+
+    private const uint AddressCursorX = AddressCursor;
+    private const uint AddressCursorY = AddressCursor + 2;
     private const uint AddressCursorPlacementLegal = 0x00CBCC9C;
     private const uint AddressUnitUnderCursor = 0x00C6097C;
     private const uint AddressLiveUnits = 0x00CBCCD8;

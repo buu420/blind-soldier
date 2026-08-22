@@ -47,6 +47,8 @@ if (args.Contains("--condor-battle-only", StringComparer.OrdinalIgnoreCase))
 if (args.Contains("--condor-probe-silence-only", StringComparer.OrdinalIgnoreCase))
 {
     CondorResearchProbeSilenceTests.Run();
+    CondorFieldNavigatorTests.Run();
+    CondorNavigationIntegrationTests.Run();
     Console.WriteLine("FFVII Fort Condor research probe silence tests passed.");
     return;
 }

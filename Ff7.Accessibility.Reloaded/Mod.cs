@@ -1923,6 +1923,93 @@ public sealed class Mod : IModV1, IModV2
             Log($"Fort Condor speech: {line}");
             Speak(line, interrupt: false);
         }
+
+        // After Observe, so a unit that fell on this reading is already in the
+        // losses list if the player asks for it in the same pass.
+        foreach (var action in ReadCondorNavigationActions(isForeground))
+        {
+            var spoken = condorBattleSpeechTracker.Navigate(action, TryMoveCondorCursor);
+            if (string.IsNullOrEmpty(spoken))
+            {
+                continue;
+            }
+
+            Log($"Fort Condor navigation: {action} -> {spoken}");
+
+            // Interrupts: the player pressed a key and wants the answer to that
+            // press, not to wait behind the running commentary.
+            Speak(spoken, interrupt: true);
+        }
+    }
+
+    /// <summary>
+    /// The battlefield navigator's keys, which are the field navigator's keys.
+    /// </summary>
+    /// <remarks>
+    /// U and O for categories, J and L for targets, I to act. A player who has
+    /// learned them walking a field should not have to learn a second scheme for
+    /// the fort. They are free here: <see cref="ReadFieldNavigationActions"/> is
+    /// only ever asked for the field and world modules, never module 9.
+    /// </remarks>
+    private IEnumerable<CondorNavigationAction> ReadCondorNavigationActions(bool isForeground)
+    {
+        if (WasNavigationKeyPressed(VirtualKeyU, isForeground))
+        {
+            yield return CondorNavigationAction.PreviousCategory;
+        }
+
+        if (WasNavigationKeyPressed(VirtualKeyO, isForeground))
+        {
+            yield return CondorNavigationAction.NextCategory;
+        }
+
+        if (WasNavigationKeyPressed(VirtualKeyJ, isForeground))
+        {
+            yield return CondorNavigationAction.PreviousTarget;
+        }
+
+        if (WasNavigationKeyPressed(VirtualKeyL, isForeground))
+        {
+            yield return CondorNavigationAction.NextTarget;
+        }
+
+        if (WasNavigationKeyPressed(VirtualKeyI, isForeground))
+        {
+            yield return CondorNavigationAction.JumpToTarget;
+        }
+    }
+
+    /// <summary>
+    /// Puts the game's own cursor on a point, reporting whether it took.
+    /// </summary>
+    /// <remarks>
+    /// The mod reads rather than writes almost everywhere, and this is a
+    /// deliberate exception. A sighted player sees the whole field and drives the
+    /// cursor straight at what they want; sweeping for it by ear is not the same
+    /// task, and the jump is what makes the two equivalent rather than giving an
+    /// advantage.
+    ///
+    /// <para>X and Y are adjacent 16-bit values, so one 32-bit write moves both
+    /// and the battle never sees a cursor that has moved in one axis only. The
+    /// caller says out loud when this returns false; a jump that quietly did
+    /// nothing would leave the player reading ground they are not standing on.</para>
+    /// </remarks>
+    private bool TryMoveCondorCursor(int x, int y)
+    {
+        if (currentProcessLegacyAddressSpace is null)
+        {
+            return false;
+        }
+
+        var packed = ((y & 0xFFFF) << 16) | (x & 0xFFFF);
+        var applied = currentProcessLegacyAddressSpace.TryWriteInt32(
+            CondorBattleStateReader.AddressCursor, packed);
+        if (!applied)
+        {
+            Log($"Fort Condor navigation: could not write the cursor to {x}, {y}.");
+        }
+
+        return applied;
     }
 
     /// <summary>

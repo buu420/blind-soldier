@@ -87,8 +87,11 @@ internal sealed class Steam2026ResearchObservationPump
     internal IReadOnlyList<(string Text, bool Interrupt)> ObserveCondorBattle(
         int moduleId,
         bool statusRequested,
-        DateTime now)
+        DateTime now,
+        IReadOnlyList<CondorNavigationAction>? navigationActions = null)
     {
+        navigationActions ??= Array.Empty<CondorNavigationAction>();
+
         if (moduleId != CondorBattleStateReader.CondorModule)
         {
             if (inCondorBattle)
@@ -139,6 +142,23 @@ internal sealed class Steam2026ResearchObservationPump
         {
             log($"Fort Condor speech: {line}");
             lines.Add((line, false));
+        }
+
+        // After Observe, so a unit that fell on this reading is already in the
+        // losses list if the player asks for it in the same pass.
+        foreach (var action in navigationActions)
+        {
+            // No cursor writer is passed: this runtime reads the guest's memory
+            // through a translated page table and has no write path, so a jump
+            // says out loud that it could not move rather than pretending.
+            var spoken = condorBattleSpeechTracker.Navigate(action);
+            if (string.IsNullOrEmpty(spoken))
+            {
+                continue;
+            }
+
+            log($"Fort Condor navigation: {action} -> {spoken}");
+            lines.Add((spoken, true));
         }
 
         return lines;

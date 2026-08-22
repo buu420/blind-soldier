@@ -91,6 +91,14 @@ public sealed class CondorBattleSpeechTracker
     /// have gone down since can be named.
     /// </summary>
     private readonly Dictionary<int, CondorBattleUnit> standing = [];
+    private readonly CondorFieldNavigator navigator = new();
+
+    /// <summary>
+    /// The last thing the cursor readout said, so that sweeping across ground that
+    /// reads the same does not say it again. The 2026-08-21 session produced the
+    /// identical sentence three times inside one second.
+    /// </summary>
+    private string? lastCursorLine;
 
     private bool started;
     private int lastAdvanceBand = -1;
@@ -118,7 +126,27 @@ public sealed class CondorBattleSpeechTracker
         reportedUnknownTypes.Clear();
         spokenPlacementLegal = null;
         placementDisagreements = 0;
+        navigator.Reset();
+        lastCursorLine = null;
     }
+
+    /// <summary>
+    /// The battlefield navigator, fed by this tracker because it already works out
+    /// who has gone down between two readings.
+    /// </summary>
+    public CondorFieldNavigator Navigator => navigator;
+
+    /// <summary>
+    /// Applies one navigation action and returns what to say.
+    /// </summary>
+    /// <param name="moveCursor">
+    /// Moves the game's own cursor, returning whether the write took. Only the
+    /// jump uses it; passing null means a jump reports that it could not move.
+    /// </param>
+    public string? Navigate(
+        CondorNavigationAction action,
+        Func<int, int, bool>? moveCursor = null) =>
+        navigator.Handle(action, moveCursor);
 
     /// <summary>
     /// How many times the calculated placement answer differed from the game's
@@ -198,6 +226,10 @@ public sealed class CondorBattleSpeechTracker
         lines.AddRange(ObserveCasualties(snapshot, bannerChanged));
         lines.AddRange(ObserveEnemyAdvance(snapshot));
 
+        // After the casualty diff, so a unit that has just fallen is already in
+        // the losses list rather than still counted among the living.
+        navigator.Update(snapshot.Units, snapshot.CursorX, snapshot.CursorY);
+
         if (snapshot.SettingMenuOpen && !lastSettingMenuOpen)
         {
             lines.Add($"Setting menu. {snapshot.Gil} gil.");
@@ -260,6 +292,15 @@ public sealed class CondorBattleSpeechTracker
                 .ToList();
 
             var allies = lost.Where(unit => !unit.IsEnemy).ToList();
+
+            // Where they fell outlives them. The game drops a dead unit from its
+            // arrays, and the ground it died on is usually the ground that matters
+            // most - it is where the line gave way.
+            foreach (var fallen in allies)
+            {
+                navigator.RecordLoss(fallen);
+            }
+
             if (allies.Count > 0)
             {
                 var what = allies.Count == 1
@@ -394,11 +435,30 @@ public sealed class CondorBattleSpeechTracker
 
     private IEnumerable<string> ObserveCursor(CondorBattleSnapshot snapshot)
     {
+        foreach (var line in DescribeCursorChange(snapshot))
+        {
+            // Sweeping crosses a lot of ground that reads the same. Saying it
+            // again tells the player nothing and costs them the time it takes to
+            // say, which during a battle is the scarce thing.
+            if (line == lastCursorLine)
+            {
+                continue;
+            }
+
+            lastCursorLine = line;
+            yield return line;
+        }
+    }
+
+    private IEnumerable<string> DescribeCursorChange(CondorBattleSnapshot snapshot)
+    {
+        var at = $"{snapshot.CursorX}, {snapshot.CursorY}";
+
         if (snapshot.UnitUnderCursorSlot != lastUnitUnderCursorSlot)
         {
             if (snapshot.UnitUnderCursor is { } unit)
             {
-                yield return unit.Describe() + ".";
+                yield return $"{unit.Describe()}, at {unit.X}, {unit.Y}.";
                 yield break;
             }
 
@@ -409,7 +469,7 @@ public sealed class CondorBattleSpeechTracker
                 // standing as the player's picture of where they are.
                 spokenPlacementLegal = CondorPlacementRegion.IsLegalAt(
                     snapshot, snapshot.CursorX, snapshot.CursorY);
-                yield return DescribePlacement(snapshot) + ".";
+                yield return $"{at}. {DescribePlacement(snapshot)}.";
                 yield break;
             }
 
@@ -428,7 +488,7 @@ public sealed class CondorBattleSpeechTracker
         if (legal != spokenPlacementLegal)
         {
             spokenPlacementLegal = legal;
-            yield return DescribePlacement(snapshot) + ".";
+            yield return $"{at}. {DescribePlacement(snapshot)}.";
         }
     }
 
