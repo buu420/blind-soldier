@@ -293,6 +293,28 @@ internal sealed class Steam2026ResearchSession : IDisposable
         // through. Cleared in the finally below, before the output is disposed, so a
         // late lifecycle call cannot reach a disposed speaker.
         Volatile.Write(ref lifecycleOutput, output);
+
+        // The same seventeen-cue schedule the legacy runtime speaks over the opening
+        // movie. Both guards are load-bearing rather than tidiness: this runtime's
+        // Speak throws when Prism refuses a line, where the legacy host's returns
+        // false, so an unguarded cue would take the whole session down and replace a
+        // description with silence.
+        var openingMovieDescription = new OpeningMovieDescription((text, interrupt) =>
+        {
+            if (!config.EnableSpeech)
+            {
+                return;
+            }
+
+            try
+            {
+                output.Speak(text, interrupt);
+            }
+            catch (Exception ex)
+            {
+                log($"Opening movie description cue was not delivered: {ex.Message}");
+            }
+        });
         var nameEntrySpeechCoordinator = new Steam2026NameEntrySpeechCoordinator(
             config.EnableNameEntryMenuSpeech,
             TimeSpan.FromMilliseconds(750),
@@ -436,6 +458,11 @@ internal sealed class Steam2026ResearchSession : IDisposable
                     cutsceneNarrationSpeechTracker.Reset();
                     fieldZoneSpeechCoordinator?.Reset();
                     openingMovieActive = false;
+
+                    // A suspend or a runtime reset during the movie must not leave
+                    // the schedule running against a clock the player is no longer
+                    // watching; it would resume mid-description with no movie.
+                    openingMovieDescription.Stop();
                     pump?.ResetCondorBattle();
                     fieldObjectSpatialCoordinator?.Reset("native x64 research reset");
                     fieldNavigationCoordinator?.Reset();
@@ -1230,6 +1257,7 @@ internal sealed class Steam2026ResearchSession : IDisposable
                                 !frame.Lifecycle.IsShuttingDown,
                                 openingMovieDetected,
                                 openingMovieActive,
+                                openingMovieDescription.IsRunning,
                                 narrationPending,
                                 narrationProtected,
                                 now,
@@ -1444,6 +1472,27 @@ internal sealed class Steam2026ResearchSession : IDisposable
                             {
                                 openingMovieDetected = true;
                                 openingMovieActive = movieEvent.Kind == MovieLifecycleKind.Started;
+
+                                if (openingMovieActive)
+                                {
+                                    if (config.EnableOpeningMovieDescription)
+                                    {
+                                        openingMovieDescription.Start();
+                                    }
+                                }
+                                else if (openingMovieDescription.IsRunning)
+                                {
+                                    if (openingMovieDescription.ElapsedSeconds
+                                        < OpeningMovieDescription.MovieEndSeconds)
+                                    {
+                                        log(
+                                            "Opening movie ended early at " +
+                                            $"{openingMovieDescription.ElapsedSeconds:0.0}s; " +
+                                            "stopping screenreader description.");
+                                    }
+
+                                    openingMovieDescription.Stop();
+                                }
                             }
                             log(
                                 $"Native opening movie lifecycle: {movieEvent.Kind} "
@@ -1481,6 +1530,17 @@ internal sealed class Steam2026ResearchSession : IDisposable
                         movieHooksPermanentlyDisabled = true;
                         dispatcher.Cleanup("after native movie ingress degradation");
                     }
+                }
+
+                // Outside the frame-readable branch on purpose. The legacy runtime
+                // ticks this from a hooked per-frame callback; this runtime has no
+                // game tick, so it rides the worker's own ~35 ms iteration. Placed
+                // inside the frame branch, a momentarily unreadable guest frame
+                // would stall the description mid-sentence and drop the cues that
+                // fell during it - the movie does not pause for our read failures.
+                if (config.EnableOpeningMovieDescription)
+                {
+                    openingMovieDescription.Tick();
                 }
 
                 if (nativeSystemMenuHookSet is not null
@@ -2020,6 +2080,7 @@ internal sealed class Steam2026ResearchSession : IDisposable
             cutsceneDescriptions?.Reset();
             cutsceneNarrationSpeechTracker.Reset();
             fieldZoneSpeechCoordinator?.Reset();
+            openingMovieDescription.Stop();
             battleRendererHookSet?.Dispose();
             battleAccessibilityCoordinator?.Reset();
             hookSet?.Dispose();

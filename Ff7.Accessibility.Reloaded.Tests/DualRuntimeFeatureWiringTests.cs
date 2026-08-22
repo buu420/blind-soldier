@@ -46,7 +46,13 @@ internal static class DualRuntimeFeatureWiringTests
             "MidgarZolomAreaTracker.cs",
             "MidgarZolomAreaTracker",
             @"Ff7.Accessibility.Reloaded\Mod.cs",
-            @"Ff7.Accessibility.Steam2026X64\Runtime\World\Steam2026WorldMapAccessibilityCoordinator.cs")
+            @"Ff7.Accessibility.Steam2026X64\Runtime\World\Steam2026WorldMapAccessibilityCoordinator.cs"),
+
+        new("movie.opening-description",
+            "OpeningMovieDescription.cs",
+            "OpeningMovieDescription",
+            @"Ff7.Accessibility.Reloaded\Mod.cs",
+            @"Ff7.Accessibility.Steam2026X64\Runtime\Steam2026ResearchSession.cs")
     ];
 
     /// <summary>

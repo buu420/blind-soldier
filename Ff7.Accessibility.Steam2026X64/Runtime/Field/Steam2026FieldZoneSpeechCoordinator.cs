@@ -34,10 +34,16 @@ internal sealed class Steam2026FieldZoneSpeechCoordinator
         tracker = new DeferredZoneSpeechTracker(fieldSettleWindow);
     }
 
+    /// <param name="openingDescriptionRunning">
+    /// Whether the spoken opening-movie description is still running. Its schedule
+    /// reaches 115 seconds and can outlast the movie itself, so without this the
+    /// first field's zone name talks over the tail of the narration.
+    /// </param>
     internal bool TryObserve(
         bool isHostForeground,
         bool openingMovieDetected,
         bool openingMovieActive,
+        bool openingDescriptionRunning,
         bool narrationPending,
         bool narrationProtected,
         DateTime nowUtc,
@@ -60,7 +66,7 @@ internal sealed class Steam2026FieldZoneSpeechCoordinator
             state.FieldId,
             openingMovieDetected,
             openingMovieActive || state.Cue.MovieActive != 0,
-            descriptionRunning: false);
+            openingDescriptionRunning);
         var blocked = !isHostForeground ||
             DeferredZoneSpeechTracker.ShouldBlockForFieldEntry(
                 state.FieldId,

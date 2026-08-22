@@ -52,6 +52,26 @@
     <Compile Include="..\Ff7.Accessibility.Reloaded\WorldMapFootstepTracker.cs" Link="Shared\WorldMapFootstepTracker.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\WorldMapTerrainProximity.cs" Link="Shared\WorldMapTerrainProximity.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\MidgarZolomAreaTracker.cs" Link="Shared\MidgarZolomAreaTracker.cs" />
+    <!--
+      The cue schedule only. Deliberately NOT OpeningMoviePathResolver /
+      OpeningMovieActivityPolicy / OpeningMovieProbeLifetime: those are the legacy
+      runtime's file-handle polling stack, which exists because the 2013 game gives
+      no signal that the movie started. This runtime is told directly by a native
+      hook, which is a better anchor; porting the poller would add a second, worse
+      detector racing the good one.
+    -->
+    <Compile Include="..\Ff7.Accessibility.Reloaded\OpeningMovieDescription.cs" Link="Shared\OpeningMovieDescription.cs" />
+    <!--
+      This runtime loads the opening audio-description track (Mod.cs resolves
+      OpeningMovieAudioTrackPath against it) but declared it nowhere, so it reached
+      installs only because the package script bulk-copies the asset tree. It was
+      the one asset present in the legacy project and absent here. Working by
+      coincidence is not working: any narrowing of that copy would have removed the
+      narration from every Steam 2026 install with a completely green build.
+    -->
+    <None Include="..\Ff7.Accessibility.Reloaded\Assets\movies\opening_audio_description.ogg"
+          Link="Assets\movies\opening_audio_description.ogg"
+          CopyToOutputDirectory="PreserveNewest" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\MidgarZolomCrossingTracker.cs" Link="Shared\MidgarZolomCrossingTracker.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\WorldMapNavigationController.cs" Link="Shared\WorldMapNavigationController.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\WorldMapRuntimeContext.cs" Link="Shared\WorldMapRuntimeContext.cs" />
