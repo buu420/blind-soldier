@@ -21,7 +21,7 @@ internal static class CondorBattleReaderTests
         SkipsARemovingUnitWhenDecidingWhatTheCursorIsOn();
         SpeaksTheHireListWithAffordability();
         SpeaksTheUnitUnderTheCursorAndWhenItClears();
-        DoesNotNarrateMovementAcrossOpenGround();
+        NarratesEveryCursorMove();
         ReproducesTheNativePlacementRegionFromTheShippedTerrain();
         AppliesTheSetupBoundaryAndTheCombatFrontier();
         ExistingUnitsCutHolesInAPlacementBand();
@@ -135,6 +135,11 @@ internal static class CondorBattleReaderTests
         var tracker = new CondorBattleSpeechTracker();
         tracker.Observe(Battle(messageId: 12));
 
+        // The entry reading returns the status line only, so the first reading
+        // after it carries the cursor readout. Consumed here so the assertions
+        // below are about banners and nothing else.
+        tracker.Observe(Battle(messageId: 12));
+
         Equal(
             "Encountered enemy.",
             Single(tracker.Observe(Battle(messageId: 0))),
@@ -153,12 +158,14 @@ internal static class CondorBattleReaderTests
         // said with them.
         var won = new CondorBattleSpeechTracker();
         won.Observe(Battle());
+        won.Observe(Battle());
         Equal(
             "Halted enemy attack! Battle won.",
             Single(won.Observe(Battle(messageId: 2))),
             "victory said with what it means");
 
         var lost = new CondorBattleSpeechTracker();
+        lost.Observe(Battle());
         lost.Observe(Battle());
         Equal(
             "Enemy invasion. They reached the fort. Battle lost.",
@@ -179,6 +186,7 @@ internal static class CondorBattleReaderTests
         var logged = new List<string>();
         var lost = new CondorBattleSpeechTracker(logged.Add);
         lost.Observe(Battle());
+        lost.Observe(Battle());
         Equal(
             "Enemy invasion. They reached the fort. Battle lost.",
             Single(lost.Observe(Battle(outcome: 2))),
@@ -196,6 +204,7 @@ internal static class CondorBattleReaderTests
             "the latch is written down as well as spoken");
 
         var won = new CondorBattleSpeechTracker();
+        won.Observe(Battle());
         won.Observe(Battle());
         Equal(
             "Halted enemy attack! Battle won.",
@@ -216,6 +225,7 @@ internal static class CondorBattleReaderTests
             Unit(slot: 20, x: 200, y: 700, typeId: 17)
         };
         tracker.Observe(Battle(units: line, phase: 2));
+        tracker.Observe(Battle(units: line, phase: 2));
 
         var afterLoss = tracker.Observe(Battle(units: [line[0], line[2]], phase: 2));
         Equal("Lost Attacker. 1 unit left.", Single(afterLoss), "an allied unit going down");
@@ -232,6 +242,7 @@ internal static class CondorBattleReaderTests
     {
         var tracker = new CondorBattleSpeechTracker();
         var line = new[] { Unit(slot: 0, x: 200, y: 500), Unit(slot: 1, x: 240, y: 500) };
+        tracker.Observe(Battle(units: line, phase: 1));
         tracker.Observe(Battle(units: line, phase: 1));
 
         // The live array is rebuilt when the battle changes phase. Reporting
@@ -269,6 +280,7 @@ internal static class CondorBattleReaderTests
         var tracker = new CondorBattleSpeechTracker();
         var ids = new[] { 1, 2, 3, 4, 12, 13, 5, 7 };
         tracker.Observe(Battle(ids, row: 0, modalState: 0, gil: 500));
+        tracker.Observe(Battle(ids, row: 0, modalState: 0, gil: 500));
 
         var opened = tracker.Observe(Battle(ids, row: 0, modalState: 7, gil: 500));
         Equal(2, opened.Count, "lines when the hire list opens");
@@ -297,48 +309,76 @@ internal static class CondorBattleReaderTests
         memory.WriteUInt16(CondorMemory.CursorPlacementLegal, 1);
         memory.WriteInt16(CondorMemory.UnitUnderCursor, -1);
         tracker.Observe(reader.TryRead()!);
+        tracker.Observe(reader.TryRead()!);
 
         memory.WriteInt16(CondorMemory.UnitUnderCursor, 0);
-        // The unit's own position, not the cursor's: they are the same row here,
-        // but it is the unit the player is being told about.
+
+        // The cursor's own position, not the unit's. Every line this readout
+        // speaks opens with where the cursor is, so that the player never has to
+        // work out whether the coordinates they just heard were their own or
+        // something else's.
+        var onUnit = reader.TryRead()!;
         Equal(
-            "Defender, 140 of 220, at 200, 400.",
-            Single(tracker.Observe(reader.TryRead()!)),
+            $"{onUnit.CursorX}, {onUnit.CursorY}. Defender, 140 of 220.",
+            Single(tracker.Observe(onUnit)),
             "unit under the cursor");
 
-        // The native stat panel clears when the cursor leaves the unit, so the
-        // ground under it is described instead. Leaving the last unit standing as
-        // the player's picture of where they are would be worse than saying
-        // nothing. The Defender at (200, 400) still denies the rows around
-        // itself, so the band the cursor lands in stops short of it.
+        // The native stat panel clears when the cursor leaves the unit, so what
+        // the spot can take is said instead. Leaving the last unit standing as the
+        // player's picture of where they are would be worse than saying nothing.
         memory.WriteInt16(CondorMemory.UnitUnderCursor, -1);
-        AssertContains(Single(tracker.Observe(reader.TryRead()!)), "placeable");
+        AssertContains(
+            Single(tracker.Observe(reader.TryRead()!)),
+            CondorBattleSpeechTracker.CanPlaceText);
     }
 
-    private static void DoesNotNarrateMovementAcrossOpenGround()
+    private static void NarratesEveryCursorMove()
     {
-        // A sighted player crossing unbroken ground is shown nothing new. The
-        // band under the cursor is the same band, so there is nothing to say and
-        // a running commentary would bury the events that matter.
+        // Brice's 2026-08-22 placement phase: the readout used to speak only when
+        // the ground under the cursor changed character, so sweeping inside one
+        // placement band said nothing at all and he had no idea where the cursor
+        // was for most of the phase. Position is what the readout exists to
+        // deliver; whether a unit fits there is the qualifier on it.
+
+        // The two phrases themselves, pinned. Every other assertion here refers to
+        // the constants, so without this the words could be changed to anything at
+        // all and the suite would still pass - and these are the words Brice asked
+        // for by name.
+        Equal("Can place", CondorBattleSpeechTracker.CanPlaceText, "the placeable wording");
+        Equal("Cannot place", CondorBattleSpeechTracker.CannotPlaceText, "the denied wording");
+
         var memory = new CondorMemory();
         var reader = new CondorBattleStateReader(memory);
         var tracker = new CondorBattleSpeechTracker();
+        tracker.Observe(reader.TryRead()!);
         tracker.Observe(reader.TryRead()!);
 
         foreach (var y in new[] { 100, 160, 240, 320 })
         {
             memory.WriteInt16(CondorMemory.CursorY, (short)y);
-            Equal(0, tracker.Observe(reader.TryRead()!).Count, $"cursor moved to row {y}");
+            var moved = reader.TryRead()!;
+            Equal(
+                $"{moved.CursorX}, {y}. {CondorBattleSpeechTracker.CanPlaceText}.",
+                Single(tracker.Observe(moved)),
+                $"cursor moved to row {y}");
         }
 
-        // Ground the frontier will not allow is a real change, and is said.
+        // A cursor that has not moved is not a move. Repeating the sentence tells
+        // the player nothing and costs them the time it takes to say.
+        Equal(0, tracker.Observe(reader.TryRead()!).Count, "cursor held still");
+
+        // Ground the frontier will not allow reads as such.
         memory.WriteInt32(CondorMemory.DeploymentFrontierY, 300);
         memory.WriteInt16(CondorMemory.CursorY, 400);
-        AssertContains(Single(tracker.Observe(reader.TryRead()!)), "blocked");
+        AssertContains(
+            Single(tracker.Observe(reader.TryRead()!)),
+            CondorBattleSpeechTracker.CannotPlaceText);
 
-        // And coming back inside it is said too.
+        // And coming back inside it reads as such.
         memory.WriteInt16(CondorMemory.CursorY, 200);
-        AssertContains(Single(tracker.Observe(reader.TryRead()!)), "placeable");
+        AssertContains(
+            Single(tracker.Observe(reader.TryRead()!)),
+            CondorBattleSpeechTracker.CanPlaceText);
     }
 
     private static void ReproducesTheNativePlacementRegionFromTheShippedTerrain()
@@ -460,6 +500,7 @@ internal static class CondorBattleReaderTests
             cursorX: 256, cursorY: 500, phase: 0, frontierY: 2000,
             placementLegal: true, terrain: terrain);
         tracker.Observe(ordinary);
+        tracker.Observe(ordinary);
 
         // FUN_005FD958 does not clear or recompute 0x00CBCC9C while the report
         // overlay owns input. It retains the last answer, so comparing it with
@@ -561,6 +602,7 @@ internal static class CondorBattleReaderTests
         // a sighted player can glance at to know they are losing.
         var tracker = new CondorBattleSpeechTracker();
         tracker.Observe(Battle(enemyAdvance: 0));
+        tracker.Observe(Battle(enemyAdvance: 0));
 
         Equal(0, tracker.Observe(Battle(enemyAdvance: 20)).Count, "still inside the first quarter");
         Equal(
@@ -640,10 +682,11 @@ internal static class CondorBattleReaderTests
         // out rather than reporting whichever value the flag happened to be on.
         var tracker = new CondorBattleSpeechTracker();
         var unsettled = tracker.DescribeStatus(snapshot!);
-        // The allied unit stands exactly where the cursor is, so the ground under
-        // it is denied and the status says where the nearest usable row is
-        // instead. That is the whole point of calculating the region rather than
-        // answering only for the row the cursor is on.
+        // The allied unit stands exactly where the cursor is, so the spot is
+        // denied and the status says so in the same two words the cursor readout
+        // uses. The nearest usable row, the extent of the band and the count of
+        // remaining bands were dropped on 2026-08-22 at Brice's direction: they
+        // buried the coordinates the line exists to deliver.
         // The advance gauge closes the line because the game draws it for the
         // whole battle; a glance takes it in whether or not it just moved.
         // Every position is a coordinate, not a bearing. A bearing is only true
@@ -651,7 +694,7 @@ internal static class CondorBattleReaderTests
         // player is about to move it.
         Equal(
             "9436 gil. 1 unit. 4 enemies. cursor at 240, 500. " +
-            "blocked, nearest placeable at 240, 524. " +
+            $"{CondorBattleSpeechTracker.CannotPlaceText}. " +
             "nearest enemy Dummy, 120 of 200, at 240, 620. no enemy advance.",
             unsettled,
             "status line with the cursor on an occupied row");
@@ -669,6 +712,7 @@ internal static class CondorBattleReaderTests
 
         var logged = new List<string>();
         var tracker = new CondorBattleSpeechTracker(logged.Add);
+        tracker.Observe(snapshot);
         tracker.Observe(snapshot);
         tracker.Observe(snapshot);
         var unnamed = logged.Where(line => line.Contains("unnamed unit type")).ToList();

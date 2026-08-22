@@ -58,6 +58,7 @@ internal static class CondorNavigationIntegrationTests
         var tracker = new CondorBattleSpeechTracker();
         var attacker = Ally(0, 2, 428, 706);
         tracker.Observe(Snapshot(new[] { attacker }));
+        tracker.Observe(Snapshot(new[] { attacker }));
         tracker.Observe(Snapshot(Array.Empty<CondorBattleUnit>()));
 
         // Allies -> Losses
@@ -74,6 +75,7 @@ internal static class CondorNavigationIntegrationTests
         var tracker = new CondorBattleSpeechTracker();
         var beast = Enemy(20, 18, 300, 500);
         tracker.Observe(Snapshot(new[] { beast }));
+        tracker.Observe(Snapshot(new[] { beast }));
         tracker.Observe(Snapshot(Array.Empty<CondorBattleUnit>()));
 
         tracker.Navigate(CondorNavigationAction.PreviousCategory);
@@ -84,6 +86,7 @@ internal static class CondorNavigationIntegrationTests
     {
         var tracker = new CondorBattleSpeechTracker();
         var attacker = Ally(0, 2, 428, 706);
+        tracker.Observe(Snapshot(new[] { attacker }));
         tracker.Observe(Snapshot(new[] { attacker }));
         tracker.Observe(Snapshot(Array.Empty<CondorBattleUnit>()));
         tracker.Reset();
@@ -96,6 +99,7 @@ internal static class CondorNavigationIntegrationTests
     {
         var tracker = new CondorBattleSpeechTracker();
         var units = new[] { Ally(0, 1, 428, 706) };
+        tracker.Observe(Snapshot(units, cursorX: 100, cursorY: 100));
         tracker.Observe(Snapshot(units, cursorX: 100, cursorY: 100));
 
         // Moving onto the unit should say where it is, not which way it lies.
@@ -110,6 +114,7 @@ internal static class CondorNavigationIntegrationTests
         // Sweeping produced the identical sentence three times in one second.
         var tracker = new CondorBattleSpeechTracker();
         var units = new[] { Ally(0, 1, 900, 900) };
+        tracker.Observe(Snapshot(units, cursorX: 400, cursorY: 700));
         tracker.Observe(Snapshot(units, cursorX: 400, cursorY: 700));
 
         var first = string.Join(" ", tracker.Observe(Snapshot(units, cursorX: 400, cursorY: 704)));

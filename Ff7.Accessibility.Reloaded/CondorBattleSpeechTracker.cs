@@ -93,12 +93,18 @@ public sealed class CondorBattleSpeechTracker
     private readonly Dictionary<int, CondorBattleUnit> standing = [];
     private readonly CondorFieldNavigator navigator = new();
 
+    /// <summary>Said when a unit can be put on the spot under the cursor.</summary>
+    public const string CanPlaceText = "Can place";
+
+    /// <summary>Said when one cannot.</summary>
+    public const string CannotPlaceText = "Cannot place";
+
     /// <summary>
-    /// The last thing the cursor readout said, so that sweeping across ground that
-    /// reads the same does not say it again. The 2026-08-21 session produced the
-    /// identical sentence three times inside one second.
+    /// The cursor state the readout last spoke for, so that a cursor which has not
+    /// moved onto anything new does not say it again. The 2026-08-21 session
+    /// produced the identical sentence three times inside one second.
     /// </summary>
-    private string? lastCursorLine;
+    private (int X, int Y, int UnitSlot, bool Legal)? lastCursorKey;
 
     private bool started;
     private int lastAdvanceBand = -1;
@@ -110,7 +116,6 @@ public sealed class CondorBattleSpeechTracker
     private int? lastHighlightedTypeId;
     private int lastUnitUnderCursorSlot;
     private int lastAlliedCount;
-    private bool? spokenPlacementLegal;
     private int placementDisagreements;
 
     public CondorBattleSpeechTracker(Action<string>? log = null) =>
@@ -124,10 +129,9 @@ public sealed class CondorBattleSpeechTracker
         resultSpoken = false;
         standing.Clear();
         reportedUnknownTypes.Clear();
-        spokenPlacementLegal = null;
         placementDisagreements = 0;
         navigator.Reset();
-        lastCursorLine = null;
+        lastCursorKey = null;
     }
 
     /// <summary>
@@ -171,11 +175,12 @@ public sealed class CondorBattleSpeechTracker
         {
             started = true;
 
-            // Entering the battle is not a change in the ground, so take the
-            // first reading as the baseline. The opening status line already
-            // says what is under the cursor.
-            spokenPlacementLegal = CondorPlacementRegion.IsLegalAt(
-                snapshot, snapshot.CursorX, snapshot.CursorY);
+            // No cursor baseline is taken here, deliberately. The opening status
+            // line is built from the entry snapshot, whose cursor can still read
+            // 0, 0 before the battle has placed it - it did exactly that on
+            // 2026-08-22. Leaving the readout unprimed means the first real
+            // reading corrects that out loud instead of swallowing it as "no
+            // change".
             RememberStanding(snapshot);
             lastAdvanceBand = AdvanceBand(snapshot.EnemyAdvance);
             Remember(snapshot);
@@ -414,7 +419,10 @@ public sealed class CondorBattleSpeechTracker
         }
         else
         {
-            parts.Add(DescribePlacement(snapshot));
+            parts.Add(
+                CondorPlacementRegion.IsLegalAt(snapshot, snapshot.CursorX, snapshot.CursorY)
+                    ? CanPlaceText
+                    : CannotPlaceText);
         }
 
         if (snapshot.NearestEnemy is { } nearest)
@@ -434,75 +442,56 @@ public sealed class CondorBattleSpeechTracker
         return string.Join(". ", parts) + ".";
     }
 
+    /// <summary>
+    /// Where the cursor is, and what is on that spot.
+    /// </summary>
+    /// <remarks>
+    /// <para>Spoken whenever the cursor moves, not only when the ground under it
+    /// changes character. The earlier version announced the placement <em>band</em>
+    /// and stayed silent while the cursor swept inside one, which in Brice's
+    /// 2026-08-22 placement phase meant most moves said nothing at all and the
+    /// only lines he heard were the ones fired by crossing a boundary. Position is
+    /// what is being asked for; whether a unit fits there is the qualifier on it,
+    /// not the subject.</para>
+    ///
+    /// <para>Keyed on the state rather than on the finished sentence so that a
+    /// unit's HP ticking down under a resting cursor does not re-announce it ten
+    /// times a second, while a cursor that genuinely moved always does.</para>
+    /// </remarks>
     private IEnumerable<string> ObserveCursor(CondorBattleSnapshot snapshot)
     {
-        foreach (var line in DescribeCursorChange(snapshot))
-        {
-            // Sweeping crosses a lot of ground that reads the same. Saying it
-            // again tells the player nothing and costs them the time it takes to
-            // say, which during a battle is the scarce thing.
-            if (line == lastCursorLine)
-            {
-                continue;
-            }
+        var legal = CondorPlacementRegion.IsLegalAt(
+            snapshot, snapshot.CursorX, snapshot.CursorY);
+        var key = (
+            snapshot.CursorX,
+            snapshot.CursorY,
+            snapshot.UnitUnderCursorSlot,
+            legal);
 
-            lastCursorLine = line;
-            yield return line;
-        }
-    }
-
-    private IEnumerable<string> DescribeCursorChange(CondorBattleSnapshot snapshot)
-    {
-        var at = $"{snapshot.CursorX}, {snapshot.CursorY}";
-
-        if (snapshot.UnitUnderCursorSlot != lastUnitUnderCursorSlot)
-        {
-            if (snapshot.UnitUnderCursor is { } unit)
-            {
-                yield return $"{unit.Describe()}, at {unit.X}, {unit.Y}.";
-                yield break;
-            }
-
-            if (lastUnitUnderCursorSlot >= 0)
-            {
-                // The stat panel clears when the cursor leaves a unit, so say what
-                // the ground under it is rather than leaving the last unit
-                // standing as the player's picture of where they are.
-                spokenPlacementLegal = CondorPlacementRegion.IsLegalAt(
-                    snapshot, snapshot.CursorX, snapshot.CursorY);
-                yield return $"{at}. {DescribePlacement(snapshot)}.";
-                yield break;
-            }
-
-            yield break;
-        }
-
-        if (snapshot.UnitUnderCursorSlot >= 0)
+        if (key == lastCursorKey)
         {
             yield break;
         }
 
-        // Whether the ground can take a unit decides whether confirm opens the
-        // hire list at all. This is calculated rather than sampled, so it changes
-        // only when the ground under the cursor really does.
-        var legal = CondorPlacementRegion.IsLegalAt(snapshot, snapshot.CursorX, snapshot.CursorY);
-        if (legal != spokenPlacementLegal)
-        {
-            spokenPlacementLegal = legal;
-            yield return $"{at}. {DescribePlacement(snapshot)}.";
-        }
+        lastCursorKey = key;
+        yield return
+            $"{snapshot.CursorX}, {snapshot.CursorY}. {DescribeUnderCursor(snapshot, legal)}.";
     }
 
     /// <summary>
-    /// The ground under the cursor, and how far the band it belongs to extends.
-    ///
-    /// <para>A sighted player sees the whole hill at once and knows how far they
-    /// can build without trying. Saying only "clear" would answer for one row and
-    /// leave the extent to be found by sweeping the column by ear.</para>
+    /// What occupies the spot under the cursor: the unit standing there, or
+    /// whether one can be put there.
     /// </summary>
-    private static string DescribePlacement(CondorBattleSnapshot snapshot) =>
-        CondorPlacementRegion.Describe(
-            snapshot.PlacementIntervals, snapshot.CursorX, snapshot.CursorY);
+    /// <remarks>
+    /// Deliberately just the two answers. The extent of the placement band, the
+    /// nearest legal row and the count of remaining bands were all removed on
+    /// 2026-08-22 at Brice's direction: they buried the coordinates the readout
+    /// exists to deliver.
+    /// </remarks>
+    private static string DescribeUnderCursor(CondorBattleSnapshot snapshot, bool legal) =>
+        snapshot.UnitUnderCursor is { } unit
+            ? unit.Describe()
+            : legal ? CanPlaceText : CannotPlaceText;
 
     /// <summary>
     /// Notes where the calculated answer and the game's own flag disagree.
