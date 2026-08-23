@@ -36,11 +36,23 @@ public sealed class CondorBattleStateReader
 
     private const uint AddressInteractionMode = 0x00C74C50;
     private const uint AddressModalState = 0x00C625E0;
+    private const uint AddressAllyUnitCommandRow = 0x00CBC930;
+    private const uint AddressAllyUnitCommandCount = 0x00C752D4;
+    private const uint AddressAllyUnitCommand0 = 0x00C74CA8;
+    private const uint AddressAllyUnitCommandStride = 8;
     private const uint AddressSettingMenuRow = 0x00CBCCA0;
     private const uint AddressSettingMenuRotation = 0x00C75254;
     private const uint AddressSettingMenuCount = 0x00C75264;
     private const uint AddressAvailableTypeIds = 0x00C75278;
+    private const uint AddressStartGameSelection = 0x00CBC7D8;
+    private const uint AddressDirectionSelection = 0x00C625D0;
+    private const uint AddressCrowdedUnitPointers = 0x00C60980;
+    private const uint AddressCrowdedUnitCount = 0x00C61BF4;
+    private const uint AddressCrowdedUnitRow = 0x00C74C68;
     private const uint AddressGil = 0x00CBC7E0;
+    private const uint AddressDestinationX = 0x00C75268;
+    private const uint AddressDestinationY = 0x00C7526A;
+    private const uint AddressGameSpeed = 0x00C752B4;
     /// <summary>
     /// The cursor pair. X and Y are adjacent 16-bit values, so a host that can
     /// write a 32-bit word moves both at once and the game never observes half a
@@ -59,6 +71,8 @@ public sealed class CondorBattleStateReader
     private const uint AddressMessageId = 0x00901B70;
     private const uint AddressPhase = 0x00C625D4;
     private const uint AddressReportState = 0x00C72DEC;
+    private const uint AddressReportMessageCell = 0x00C60AC4;
+    private const uint AddressReportUnitSlot = 0x00C72E3C;
     private const uint AddressDeploymentFrontierY = 0x00C60AE8;
     private const uint AddressEnemyAdvance = 0x00CBCCAC;
     private const uint AddressCollisionCount = 0x00C60AA4;
@@ -75,6 +89,7 @@ public sealed class CondorBattleStateReader
     private const int UnitSlots = 40;
     private const int FirstEnemySlot = 20;
     private const int UnitStride = 0x78;
+    private const int MaximumAllyUnitCommands = 3;
 
     private const int UnitAllocated = 0x00;
     private const int UnitRemovalState = 0x05;
@@ -163,6 +178,11 @@ public sealed class CondorBattleStateReader
             !TryReadInt32(AddressMessageId, out var messageId) ||
             !TryReadInt32(AddressPhase, out var phase) ||
             !TryReadInt16(AddressReportState, out var reportState) ||
+            !TryReadInt16(AddressReportMessageCell, out var reportMessageCell) ||
+            !TryReadInt16(AddressReportUnitSlot, out var reportUnitSlot) ||
+            !TryReadInt16(AddressStartGameSelection, out var startGameSelection) ||
+            !TryReadInt16(AddressDirectionSelection, out var directionSelection) ||
+            !TryReadInt16(AddressGameSpeed, out var gameSpeed) ||
             !TryReadInt32(AddressDeploymentFrontierY, out var frontierY) ||
             !TryReadInt16(AddressEnemyAdvance, out var enemyAdvance) ||
             !TryReadInt32(AddressCollisionCount, out collisionCount))
@@ -176,6 +196,26 @@ public sealed class CondorBattleStateReader
             return null;
         }
 
+        if (gameSpeed is < 1 or > 4)
+        {
+            return null;
+        }
+
+        var destinationX = cursorX;
+        var destinationY = cursorY;
+        if (interactionMode == CondorBattleSnapshot.DestinationInteractionMode &&
+            modalState == 0 && reportState == 0)
+        {
+            if (!TryReadInt16(AddressDestinationX, out var activeDestinationX) ||
+                !TryReadInt16(AddressDestinationY, out var activeDestinationY))
+            {
+                return null;
+            }
+
+            destinationX = activeDestinationX;
+            destinationY = activeDestinationY;
+        }
+
         var units = ReadUnits();
         if (units is null)
         {
@@ -184,6 +224,21 @@ public sealed class CondorBattleStateReader
 
         var terrain = ReadCollisionTriangles(collisionCount);
         if (terrain is null)
+        {
+            return null;
+        }
+
+        if (!TryReadAllyUnitMenu(interactionMode, modalState, reportState, out var allyUnitMenu) ||
+            !TryReadCrowdedUnitMenu(modalState, units, out var crowdedUnitMenu) ||
+            !TryValidateActiveChoice(modalState, startGameSelection, directionSelection) ||
+            !TryValidateReport(reportState, reportMessageCell, reportUnitSlot, units) ||
+            !TryConfirmDestinationCursor(
+                interactionMode,
+                modalState,
+                reportState,
+                destinationX,
+                destinationY) ||
+            !TryConfirmInterfaceAnchors(interactionMode, modalState, reportState))
         {
             return null;
         }
@@ -208,7 +263,209 @@ public sealed class CondorBattleStateReader
             reportState,
             frontierY,
             enemyAdvance,
-            terrain);
+            terrain,
+            allyUnitMenu,
+            startGameSelection,
+            crowdedUnitMenu,
+            directionSelection,
+            reportMessageCell,
+            reportUnitSlot)
+        {
+            DestinationX = destinationX,
+            DestinationY = destinationY,
+            GameSpeed = gameSpeed
+        };
+    }
+
+    private bool TryReadAllyUnitMenu(
+        int interactionMode,
+        int modalState,
+        int reportState,
+        out CondorAllyUnitMenu? menu)
+    {
+        menu = null;
+        if (interactionMode != CondorBattleSnapshot.AllyUnitInteractionMode ||
+            modalState != 0 || reportState != 0)
+        {
+            return true;
+        }
+
+        if (!TryReadByte(AddressAllyUnitCommandCount, out var count) ||
+            !TryReadInt16(AddressAllyUnitCommandRow, out var row) ||
+            count > MaximumAllyUnitCommands ||
+            (count == 0 ? row != 0 : row < 0 || row >= count))
+        {
+            return false;
+        }
+
+        var commandIds = new int[count];
+        for (var index = 0; index < count; index++)
+        {
+            if (!TryReadByte(
+                    AddressAllyUnitCommand0 + (uint)(index * AddressAllyUnitCommandStride),
+                    out var commandId) ||
+                commandId is not (0 or 2 or 3 or 5))
+            {
+                return false;
+            }
+
+            commandIds[index] = commandId;
+        }
+
+        // These globals are rebuilt independently. If the player moved the row
+        // or closed the list while the translated-memory read was in flight,
+        // retry rather than name a command that is no longer highlighted.
+        if (!TryReadByte(AddressAllyUnitCommandCount, out var confirmedCount) ||
+            !TryReadInt16(AddressAllyUnitCommandRow, out var confirmedRow) ||
+            confirmedCount != count || confirmedRow != row)
+        {
+            return false;
+        }
+
+        menu = new CondorAllyUnitMenu(row, commandIds);
+        return true;
+    }
+
+    private bool TryReadCrowdedUnitMenu(
+        int modalState,
+        IReadOnlyList<CondorBattleUnit> units,
+        out CondorCrowdedUnitMenu? menu)
+    {
+        menu = null;
+        if (modalState != CondorBattleSnapshot.CrowdedUnitModalState)
+        {
+            return true;
+        }
+
+        if (!TryReadInt16(AddressCrowdedUnitCount, out var count) ||
+            !TryReadInt16(AddressCrowdedUnitRow, out var row) ||
+            count is < 2 or > UnitSlots || row < 0 || row >= count)
+        {
+            return false;
+        }
+
+        var slots = new int[count];
+        for (var index = 0; index < count; index++)
+        {
+            if (!TryReadUInt32(AddressCrowdedUnitPointers + (uint)(index * 8), out var pointer) ||
+                pointer < AddressLiveUnits)
+            {
+                return false;
+            }
+
+            var offset = pointer - AddressLiveUnits;
+            if (offset % UnitStride != 0)
+            {
+                return false;
+            }
+
+            var slot = (int)(offset / UnitStride);
+            if (slot is < 0 or >= UnitSlots || units.All(unit => unit.Slot != slot))
+            {
+                return false;
+            }
+
+            slots[index] = slot;
+        }
+
+        if (!TryReadInt16(AddressCrowdedUnitCount, out var confirmedCount) ||
+            !TryReadInt16(AddressCrowdedUnitRow, out var confirmedRow) ||
+            confirmedCount != count || confirmedRow != row)
+        {
+            return false;
+        }
+
+        menu = new CondorCrowdedUnitMenu(row, slots);
+        return true;
+    }
+
+    private bool TryValidateActiveChoice(
+        int modalState,
+        int startGameSelection,
+        int directionSelection)
+    {
+        if (modalState == CondorBattleSnapshot.StartGameModalState &&
+            (startGameSelection is not (0 or 0x10) ||
+             !TryReadInt16(AddressStartGameSelection, out var confirmedStart) ||
+             confirmedStart != startGameSelection))
+        {
+            return false;
+        }
+
+        if (modalState is not (
+                CondorBattleSnapshot.NewUnitDirectionModalState or
+                CondorBattleSnapshot.CommandDirectionModalState))
+        {
+            return true;
+        }
+
+        return directionSelection is >= 0 and <= 0x400 &&
+               directionSelection % 0x20 == 0 &&
+               TryReadInt16(AddressDirectionSelection, out var confirmedDirection) &&
+               confirmedDirection == directionSelection;
+    }
+
+    private bool TryValidateReport(
+        int reportState,
+        int reportMessageCell,
+        int reportUnitSlot,
+        IReadOnlyList<CondorBattleUnit> units)
+    {
+        if (reportState == 0)
+        {
+            return true;
+        }
+
+        // FUN_006027C2 publishes state = textureCell + 1 and associates one
+        // live slot with the report. A mismatch is a read through the middle of
+        // that native writer, not a meaningful overlay.
+        if (reportMessageCell is not (0 or 3 or 10) ||
+            reportState != reportMessageCell + 1 ||
+            reportUnitSlot is < 0 or >= UnitSlots ||
+            units.All(unit => unit.Slot != reportUnitSlot))
+        {
+            return false;
+        }
+
+        return TryReadInt16(AddressReportState, out var confirmedState) &&
+               TryReadInt16(AddressReportMessageCell, out var confirmedCell) &&
+               TryReadInt16(AddressReportUnitSlot, out var confirmedSlot) &&
+               confirmedState == reportState &&
+               confirmedCell == reportMessageCell &&
+               confirmedSlot == reportUnitSlot;
+    }
+
+    private bool TryConfirmInterfaceAnchors(
+        int interactionMode,
+        int modalState,
+        int reportState) =>
+        TryReadInt32(AddressInteractionMode, out var confirmedMode) &&
+        TryReadInt32(AddressModalState, out var confirmedModal) &&
+        TryReadInt16(AddressReportState, out var confirmedReport) &&
+        confirmedMode == interactionMode &&
+        confirmedModal == modalState &&
+        confirmedReport == reportState;
+
+    private bool TryConfirmDestinationCursor(
+        int interactionMode,
+        int modalState,
+        int reportState,
+        int destinationX,
+        int destinationY)
+    {
+        if (interactionMode != CondorBattleSnapshot.DestinationInteractionMode ||
+            modalState != 0 || reportState != 0)
+        {
+            return true;
+        }
+
+        // The x64 runtime resolves each guest read through a translated page
+        // table. Re-read the adjacent pair so a game-frame update between the
+        // two reads cannot turn into a destination the game never displayed.
+        return TryReadInt16(AddressDestinationX, out var confirmedX) &&
+               TryReadInt16(AddressDestinationY, out var confirmedY) &&
+               confirmedX == destinationX &&
+               confirmedY == destinationY;
     }
 
     /// <summary>
@@ -435,6 +692,32 @@ public sealed class CondorBattleStateReader
         }
 
         value = BitConverter.ToUInt16(buffer);
+        return true;
+    }
+
+    private bool TryReadUInt32(uint address, out uint value)
+    {
+        Span<byte> buffer = stackalloc byte[4];
+        if (!memory.TryRead(address, buffer))
+        {
+            value = 0;
+            return false;
+        }
+
+        value = BitConverter.ToUInt32(buffer);
+        return true;
+    }
+
+    private bool TryReadByte(uint address, out byte value)
+    {
+        Span<byte> buffer = stackalloc byte[1];
+        if (!memory.TryRead(address, buffer))
+        {
+            value = 0;
+            return false;
+        }
+
+        value = buffer[0];
         return true;
     }
 

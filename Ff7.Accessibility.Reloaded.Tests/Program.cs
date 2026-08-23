@@ -37,6 +37,7 @@ if (args.Contains("--field-transition-anchor-audit", StringComparer.OrdinalIgnor
 if (args.Contains("--condor-battle-only", StringComparer.OrdinalIgnoreCase))
 {
     CondorBattleInitializationTests.Run();
+    CondorPlacementLineReadoutTests.Run();
     CondorBattleReaderTests.Run();
     CondorResearchProbeSilenceTests.Run();
     DualRuntimeSharedSourceTests.Run();
@@ -48,6 +49,7 @@ if (args.Contains("--condor-battle-only", StringComparer.OrdinalIgnoreCase))
 if (args.Contains("--condor-probe-silence-only", StringComparer.OrdinalIgnoreCase))
 {
     CondorBattleInitializationTests.Run();
+    CondorPlacementLineReadoutTests.Run();
     CondorResearchProbeSilenceTests.Run();
     CondorFieldNavigatorTests.Run();
     CondorNavigationIntegrationTests.Run();
@@ -532,6 +534,7 @@ AssertFf7EncodedFieldTextDecodesForSpeech();
 AssertFf7EncodedFieldTextDecodesAccentedWesternLetters();
 AssertCondorUnitCatalogMatchesShippedMinigameData();
 CondorBattleInitializationTests.Run();
+CondorPlacementLineReadoutTests.Run();
 CondorBattleReaderTests.Run();
 AssertFf7EncodedTextRequiresTerminatorForBufferReads();
 AssertFf7EncodedAskTextPreservesNativeChoiceLines();

@@ -221,7 +221,8 @@ internal static class CondorBattleInitializationTests
 
         var opening = tracker.Observe(entry);
         Equal(
-            "9436 gil. 0 units. 0 enemies. cursor at 248, 96. Cannot place. no enemy advance.",
+            "9436 gil. 0 units. 0 enemies. cursor at 248, 96. Cannot place. " +
+            "game speed 2 of 4. no enemy advance.",
             opening[0],
             "opening status carries the cursor position and placement answer");
         Equal("Set units.", opening[1], "opening setup banner");
@@ -271,7 +272,8 @@ internal static class CondorBattleInitializationTests
 
         var opening = tracker.Observe(entry);
         Equal(
-            "9436 gil. 1 unit. 0 enemies. cursor at 248, 96. on Fighter, 200 of 200. no enemy advance.",
+            "9436 gil. 1 unit. 0 enemies. cursor at 248, 96. on Fighter, 200 of 200. " +
+            "game speed 2 of 4. no enemy advance.",
             opening[0],
             "occupied opening status carries coordinates and unit details");
         Equal(0, tracker.Observe(entry).Count, "unchanged occupied cursor is not repeated");
@@ -379,6 +381,7 @@ internal static class CondorBattleInitializationTests
         internal const uint Phase = 0x00C625D4;
         private const uint CollisionCount = 0x00C60AA4;
         private const uint UnitUnderCursor = 0x00C6097C;
+        private const uint GameSpeed = 0x00C752B4;
         internal const uint Gil = 0x00CBC7E0;
         private readonly Dictionary<uint, byte> bytes = [];
 
@@ -390,6 +393,7 @@ internal static class CondorBattleInitializationTests
             WriteInt32(Phase, CondorPlacementRegion.SetupPhase);
             WriteInt32(CollisionCount, 1);
             WriteInt16(UnitUnderCursor, -1);
+            WriteInt16(GameSpeed, 2);
         }
 
         public bool TryRead(uint address, Span<byte> destination)

@@ -1103,6 +1103,14 @@ internal sealed class Steam2026ResearchSession : IDisposable
                             condorIsForeground &&
                             foregroundInput.ObserveRisingEdge(0x4B);
 
+                        // P: where the battle line is. Gated on the module for the
+                        // same reason, so nothing else that owns P loses a press
+                        // to a fort battle.
+                        var condorPlacementLineRequested =
+                            condorIsActive &&
+                            condorIsForeground &&
+                            foregroundInput.ObserveRisingEdge(0x50);
+
                         // The battlefield navigator, on the same keys the field
                         // navigator uses: U and O for categories, J and L for
                         // targets, I to jump. Gated on the module so no other
@@ -1123,7 +1131,8 @@ internal sealed class Steam2026ResearchSession : IDisposable
                             frame.Lifecycle.ModuleId,
                             condorStatusRequested,
                             now,
-                            condorNavigation))
+                            condorNavigation,
+                            condorPlacementLineRequested))
                         {
                             if (config.EnableSpeech && condorIsForeground)
                             {

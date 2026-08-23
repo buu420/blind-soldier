@@ -142,6 +142,7 @@
     <Compile Include="..\Ff7.Accessibility.Reloaded\StatusMenuSpeechTracker.cs" Link="Shared\StatusMenuSpeechTracker.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\CondorUnitCatalog.cs" Link="Shared\CondorUnitCatalog.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\CondorPlacementRegion.cs" Link="Shared\CondorPlacementRegion.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\CondorPlacementLineReadout.cs" Link="Shared\CondorPlacementLineReadout.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\CondorBattleSnapshot.cs" Link="Shared\CondorBattleSnapshot.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\CondorBattleStateReader.cs" Link="Shared\CondorBattleStateReader.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\CondorFieldNavigator.cs" Link="Shared\CondorFieldNavigator.cs" />

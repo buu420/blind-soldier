@@ -32,6 +32,36 @@ public sealed class CondorBattleSpeechTracker
             [13] = "Start the game? Yes. No."
         };
 
+    /// <summary>
+    /// Selectable command cells in <c>eunit01.tex</c>, indexed by the native
+    /// source-row id. The renderer samples the right-hand column at X=0xC0;
+    /// the similarly named yellow words on the left are unit-status labels,
+    /// not these choices.
+    /// </summary>
+    private static readonly IReadOnlyDictionary<int, string> AllyUnitCommands =
+        new Dictionary<int, string>
+        {
+            [0] = "Bomb",
+            [2] = "Remove",
+            [3] = "Action",
+            [5] = "Direction"
+        };
+
+    /// <summary>Report cells in <c>emes00.tex</c>, indexed before state adds one.</summary>
+    private static readonly IReadOnlyDictionary<int, string> ReportMessages =
+        new Dictionary<int, string>
+        {
+            [0] = "Encountered enemy.",
+            [3] = "Arrived at the directed position.",
+            [10] = "Set units."
+        };
+
+    private const string HelpText =
+        "Fort Condor help. Cursor: OK opens Setting Menu. " +
+        "Setting Menu: OK hires and sets a unit; Cancel closes; Assist returns to the game; Start pauses. " +
+        "Report: OK sends a command to the reporting unit; Cancel lets it move freely. " +
+        "Ally Unit: OK sends a command; Page Up raises and Page Down lowers game speed.";
+
     private const int OutcomeOngoing = 0;
     private const int OutcomeVictory = 1;
     private const int OutcomeInvasion = 2;
@@ -132,8 +162,15 @@ public sealed class CondorBattleSpeechTracker
     private int? lastHighlightedTypeId;
     private int lastUnitUnderCursorSlot;
     private int lastAlliedCount;
+    private int lastGameSpeed;
     private int placementDisagreements;
     private bool pendingStatusRequest;
+    private bool pendingPlacementLineRequest;
+    private CondorInterfaceView lastInterfaceView;
+    private int lastInterfaceSelection = int.MinValue;
+    private int lastInterfaceAuxiliary = int.MinValue;
+    private (int X, int Y)? lastDestinationSample;
+    private bool statefulReadoutSupersedesSpeech;
 
     public CondorBattleSpeechTracker(Action<string>? log = null) =>
         this.log = log ?? (_ => { });
@@ -153,6 +190,13 @@ public sealed class CondorBattleSpeechTracker
         cursorReadoutSupersedesSpeech = false;
         LastObservationSupersedesSpeech = false;
         pendingStatusRequest = false;
+        pendingPlacementLineRequest = false;
+        lastInterfaceView = CondorInterfaceView.None;
+        lastInterfaceSelection = int.MinValue;
+        lastInterfaceAuxiliary = int.MinValue;
+        lastDestinationSample = null;
+        lastGameSpeed = 0;
+        statefulReadoutSupersedesSpeech = false;
     }
 
     /// <summary>
@@ -172,16 +216,45 @@ public sealed class CondorBattleSpeechTracker
     public void RequestStatus() => pendingStatusRequest = true;
 
     /// <summary>
-    /// Whether the batch <see cref="Observe"/> just returned is nothing but the
-    /// cursor readout, and may therefore replace what the reader is still saying
-    /// rather than queueing behind it.
+    /// Whether P was pressed before the reader produced a coherent snapshot.
+    /// </summary>
+    public bool HasPendingPlacementLineRequest => pendingPlacementLineRequest;
+
+    /// <summary>Banks a P press until a coherent battle snapshot can answer it.</summary>
+    public void RequestPlacementLine() => pendingPlacementLineRequest = true;
+
+    /// <summary>
+    /// Answers and consumes the banked P press: where the battle line is now.
+    /// </summary>
+    /// <remarks>
+    /// Unlike the status key this has no opening-line special case to avoid
+    /// duplicating, because nothing else ever says where the line is - which was
+    /// the entire problem. See <see cref="CondorPlacementLineReadout"/>.
+    /// </remarks>
+    public string? ConsumeRequestedPlacementLine(CondorBattleSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        if (!pendingPlacementLineRequest)
+        {
+            return null;
+        }
+
+        pendingPlacementLineRequest = false;
+        return CondorPlacementLineReadout.Describe(snapshot);
+    }
+
+    /// <summary>
+    /// Whether the batch <see cref="Observe"/> just returned is current
+    /// interface state and may therefore replace what the reader is still
+    /// saying rather than queueing behind it.
     /// </summary>
     /// <remarks>
     /// Decided here rather than in each host so the two runtimes cannot disagree
-    /// about which lines a player is allowed to lose. Position is state: only the
-    /// latest one is worth anything, and hearing a row the cursor has already
-    /// left is worse than hearing nothing. A banner, a casualty or a result is an
-    /// event, said once, and must never be cut short by a cursor move.
+    /// about which lines a player is allowed to lose. Position, the highlighted
+    /// choice and game speed are state: only the latest one is worth anything,
+    /// and hearing a row the cursor has already left is worse than hearing
+    /// nothing. A banner, casualty or result is an event, so when it coincides
+    /// with a blocking prompt both are combined before the batch may supersede.
     /// </remarks>
     public bool LastObservationSupersedesSpeech { get; private set; }
 
@@ -234,6 +307,9 @@ public sealed class CondorBattleSpeechTracker
 
         ReportUnknownUnitTypes(snapshot);
         RecordPlacementFlagDisagreement(snapshot);
+        cursorReadoutSupersedesSpeech = false;
+        statefulReadoutSupersedesSpeech = false;
+        LastObservationSupersedesSpeech = false;
 
         if (!started)
         {
@@ -252,7 +328,7 @@ public sealed class CondorBattleSpeechTracker
                 opening.Add(Results[outcomeBanner]);
             }
 
-            if (snapshot.MessageId != resultBanner)
+            if (snapshot.MessageId != resultBanner && !InterfaceOwnsMessage(snapshot))
             {
                 if (Results.TryGetValue(snapshot.MessageId, out var openingResult))
                 {
@@ -283,12 +359,15 @@ public sealed class CondorBattleSpeechTracker
 
             if (snapshot.SettingMenuOpen)
             {
+                statefulReadoutSupersedesSpeech = true;
                 opening.Add($"Setting menu. {snapshot.Gil} gil.");
                 if (DescribeHighlightedUnit(snapshot) is { } highlighted)
                 {
                     opening.Add(highlighted);
                 }
             }
+
+            opening.AddRange(ObserveInterface(snapshot));
 
             // The reader now admits only initialized snapshots: setup has held
             // steady across two samples, or a later phase has already passed
@@ -304,12 +383,15 @@ public sealed class CondorBattleSpeechTracker
             RememberStanding(snapshot);
             lastAdvanceBand = AdvanceBand(snapshot.EnemyAdvance);
             Remember(snapshot);
+
+            // Entry is a finite ordered description, not a stream of stale
+            // highlights. Preserve its established multi-line delivery; later
+            // selection changes may supersede one another once play begins.
+            statefulReadoutSupersedesSpeech = false;
             return opening;
         }
 
         var lines = new List<string>();
-        cursorReadoutSupersedesSpeech = false;
-        LastObservationSupersedesSpeech = false;
 
         // The result latch is the game's own decision and it is set before the
         // banner is published from it, so it is the authority on who won. It
@@ -337,7 +419,9 @@ public sealed class CondorBattleSpeechTracker
                 lines.Add(result);
             }
         }
-        else if (bannerChanged && Messages.TryGetValue(snapshot.MessageId, out var message))
+        else if (bannerChanged &&
+                 !InterfaceOwnsMessage(snapshot) &&
+                 Messages.TryGetValue(snapshot.MessageId, out var message))
         {
             lines.Add(message);
         }
@@ -352,6 +436,12 @@ public sealed class CondorBattleSpeechTracker
 
         lines.AddRange(ObserveCasualties(snapshot, bannerChanged));
         lines.AddRange(ObserveEnemyAdvance(snapshot));
+
+        if (snapshot.GameSpeed != lastGameSpeed)
+        {
+            statefulReadoutSupersedesSpeech = true;
+            lines.Add($"Game speed {snapshot.GameSpeed} of 4.");
+        }
 
         // After the casualty diff, so a unit that has just fallen is already in
         // the losses list rather than still counted among the living.
@@ -369,32 +459,251 @@ public sealed class CondorBattleSpeechTracker
                  snapshot.HighlightedTypeId != lastHighlightedTypeId &&
                  DescribeHighlightedUnit(snapshot) is { } moved)
         {
+            statefulReadoutSupersedesSpeech = true;
             lines.Add(moved);
         }
 
         // A unit appearing on the player's side after the menu closes is a hire
         // that went through. The game shows the new unit and the funds dropping;
-        // this is the same fact.
+        // this is the same fact. Say completion before a direction prompt: the
+        // prompt is the choice that owns the controls now and must be the last
+        // thing left in the player's ear.
         if (snapshot.AlliedCount > lastAlliedCount && lastSettingMenuOpen && !snapshot.SettingMenuOpen)
         {
             lines.Add($"Placed. {snapshot.Gil} gil.");
         }
 
-        if (!snapshot.SettingMenuOpen &&
+        lines.AddRange(ObserveInterface(snapshot));
+
+        if (snapshot.ModalState == 0 &&
+            !snapshot.SettingMenuOpen &&
             snapshot.ReportState == 0 &&
             snapshot.InteractionMode == CondorBattleSnapshot.CursorInteractionMode)
         {
             lines.AddRange(ObserveCursor(snapshot));
         }
 
-        // A batch that is nothing but the cursor readout may replace whatever the
-        // reader is still saying. A batch carrying anything else must not: a
-        // banner, a casualty or a result is said once and losing it to a cursor
-        // move would be losing it outright.
-        LastObservationSupersedesSpeech = lines.Count == 1 && cursorReadoutSupersedesSpeech;
-
         Remember(snapshot);
+        return FinalizeObservation(lines);
+    }
+
+    private IReadOnlyList<string> FinalizeObservation(List<string> lines)
+    {
+        // Menu rows and other current interface state are allowed to replace an
+        // older row that is still queued. If a one-shot event happened in the
+        // same sample, keep it by joining the complete ordered batch into the
+        // same utterance; otherwise interrupting the prompt would erase the
+        // event, while queueing it would leave the player on a stale choice.
+        if (statefulReadoutSupersedesSpeech && lines.Count > 1)
+        {
+            var combined = string.Join(" ", lines);
+            lines.Clear();
+            lines.Add(combined);
+        }
+
+        LastObservationSupersedesSpeech =
+            lines.Count == 1 &&
+            (cursorReadoutSupersedesSpeech || statefulReadoutSupersedesSpeech);
         return lines;
+    }
+
+    /// <summary>
+    /// Speaks the texture-backed interfaces that do not use the Setting Menu's
+    /// modal or row globals. Modal state is only one axis: reports and the Ally
+    /// Unit list remain open at modal zero, which is why a modal-only reader
+    /// left the original battle choices silent.
+    /// </summary>
+    private IReadOnlyList<string> ObserveInterface(CondorBattleSnapshot snapshot)
+    {
+        var view = CurrentInterfaceView(snapshot);
+        var (selection, auxiliary) = InterfaceSelection(snapshot, view);
+        var opened = view != lastInterfaceView;
+
+        if (view == CondorInterfaceView.None)
+        {
+            var resumed = lastInterfaceView == CondorInterfaceView.Pause;
+            RememberInterface(view, selection, auxiliary);
+            lastDestinationSample = null;
+            statefulReadoutSupersedesSpeech |= resumed;
+            return resumed ? ["Battle resumed."] : [];
+        }
+
+        if (view == CondorInterfaceView.Destination)
+        {
+            var current = (snapshot.DestinationX, snapshot.DestinationY);
+            if (!opened)
+            {
+                var settled = lastDestinationSample == current;
+                lastDestinationSample = current;
+                if (!settled ||
+                    (selection == lastInterfaceSelection && auxiliary == lastInterfaceAuxiliary))
+                {
+                    return [];
+                }
+            }
+            else
+            {
+                lastDestinationSample = current;
+            }
+        }
+        else if (!opened &&
+                 selection == lastInterfaceSelection &&
+                 auxiliary == lastInterfaceAuxiliary)
+        {
+            return [];
+        }
+
+        var line = view switch
+        {
+            CondorInterfaceView.AllyUnit => DescribeAllyUnitMenu(snapshot, opened),
+            CondorInterfaceView.Destination =>
+                opened
+                    ? $"Choose destination. Cursor at {snapshot.DestinationX}, {snapshot.DestinationY}."
+                    : $"Destination {snapshot.DestinationX}, {snapshot.DestinationY}.",
+            CondorInterfaceView.StartGame => DescribeStartGame(snapshot, opened),
+            CondorInterfaceView.Direction => DescribeDirection(snapshot),
+            CondorInterfaceView.CrowdedUnit => DescribeCrowdedUnit(snapshot, opened),
+            CondorInterfaceView.Report => DescribeReport(snapshot),
+            CondorInterfaceView.Pause => "Paused.",
+            CondorInterfaceView.Help => HelpText,
+            _ => null
+        };
+
+        RememberInterface(view, selection, auxiliary);
+        statefulReadoutSupersedesSpeech |= line is not null;
+        return line is null ? [] : [line];
+    }
+
+    private static CondorInterfaceView CurrentInterfaceView(CondorBattleSnapshot snapshot)
+    {
+        // A report owns OK and Cancel even after modal 17 has finished sliding
+        // it in, so it outranks the underlying interaction mode.
+        if (snapshot.ReportState != 0)
+        {
+            return CondorInterfaceView.Report;
+        }
+
+        return snapshot.ModalState switch
+        {
+            CondorBattleSnapshot.NewUnitDirectionModalState or
+                CondorBattleSnapshot.CommandDirectionModalState => CondorInterfaceView.Direction,
+            CondorBattleSnapshot.PauseModalState => CondorInterfaceView.Pause,
+            CondorBattleSnapshot.StartGameModalState => CondorInterfaceView.StartGame,
+            CondorBattleSnapshot.HelpModalState => CondorInterfaceView.Help,
+            CondorBattleSnapshot.CrowdedUnitModalState => CondorInterfaceView.CrowdedUnit,
+            0 when snapshot.InteractionMode == CondorBattleSnapshot.AllyUnitInteractionMode =>
+                CondorInterfaceView.AllyUnit,
+            0 when snapshot.InteractionMode == CondorBattleSnapshot.DestinationInteractionMode =>
+                CondorInterfaceView.Destination,
+            _ => CondorInterfaceView.None
+        };
+    }
+
+    private static bool InterfaceOwnsMessage(CondorBattleSnapshot snapshot)
+    {
+        if (snapshot.ModalState == CondorBattleSnapshot.StartGameModalState &&
+            snapshot.MessageId == 13)
+        {
+            return true;
+        }
+
+        return snapshot.ReportState != 0 &&
+               ReportMessages.TryGetValue(snapshot.ReportMessageCell, out var report) &&
+               Messages.TryGetValue(snapshot.MessageId, out var banner) &&
+               string.Equals(report, banner, StringComparison.Ordinal);
+    }
+
+    private static (int Selection, int Auxiliary) InterfaceSelection(
+        CondorBattleSnapshot snapshot,
+        CondorInterfaceView view) => view switch
+    {
+        CondorInterfaceView.AllyUnit => (snapshot.AllyUnitMenu?.HighlightedRow ?? -1, 0),
+        CondorInterfaceView.Destination => (snapshot.DestinationX, snapshot.DestinationY),
+        CondorInterfaceView.StartGame => (snapshot.StartGameSelection, 0),
+        CondorInterfaceView.Direction => (snapshot.DirectionSelection, snapshot.ModalState),
+        CondorInterfaceView.CrowdedUnit => (snapshot.CrowdedUnitMenu?.HighlightedRow ?? -1, 0),
+        CondorInterfaceView.Report => (snapshot.ReportMessageCell, snapshot.ReportUnitSlot),
+        _ => (0, 0)
+    };
+
+    private static string DescribeAllyUnitMenu(CondorBattleSnapshot snapshot, bool opened)
+    {
+        if (snapshot.AllyUnitMenu is not { } menu ||
+            menu.HighlightedCommandId is not { } commandId)
+        {
+            return opened ? "Ally unit. No commands." : "No commands.";
+        }
+
+        var command = AllyUnitCommands.GetValueOrDefault(commandId, "Unknown command");
+        var row = $"{command}. {menu.HighlightedRow + 1} of {menu.CommandIds.Count}.";
+        return opened ? $"Ally unit. {row}" : row;
+    }
+
+    private static string DescribeStartGame(CondorBattleSnapshot snapshot, bool opened)
+    {
+        var yes = snapshot.StartGameSelection == 0;
+        var row = yes ? "Yes. 1 of 2." : "No. 2 of 2.";
+        return opened ? $"Start the game? {row}" : row;
+    }
+
+    private static string DescribeDirection(CondorBattleSnapshot snapshot)
+    {
+        // FUN_006047AC stores selection - 0x200 as the selected unit's angle.
+        // FUN_00605D59 then converts that 0x1000-per-turn angle into the arrow's
+        // screen-space vector. Selection 0 is 45 degrees down-right, 0x200 is
+        // straight down, and 0x400 is 45 degrees down-left. The ordinal alone
+        // would tell a blind player which keypress they made, but not the visual
+        // direction the selector exists to show.
+        var signedAngle = snapshot.DirectionSelection - 0x200;
+        var degrees = (int)Math.Round(
+            Math.Abs(signedAngle) * 360d / 0x1000,
+            MidpointRounding.AwayFromZero);
+        var orientation = signedAngle switch
+        {
+            < 0 => $"{degrees} degrees right of down",
+            > 0 => $"{degrees} degrees left of down",
+            _ => "Straight down"
+        };
+
+        return $"Direction. {orientation}. {snapshot.DirectionOrdinal} of 33.";
+    }
+
+    private static string DescribeCrowdedUnit(CondorBattleSnapshot snapshot, bool opened)
+    {
+        if (snapshot.CrowdedUnitMenu is not { } menu ||
+            menu.HighlightedUnitSlot is not { } slot)
+        {
+            return opened ? "Choose a unit. Selection unavailable." : "Selection unavailable.";
+        }
+
+        var unit = snapshot.HighlightedCrowdedUnit;
+        var description = unit is null
+            ? $"Unit slot {slot}"
+            : $"{unit.Describe()}, at {unit.X}, {unit.Y}";
+        var row = $"{description}. {menu.HighlightedRow + 1} of {menu.UnitSlots.Count}.";
+        return opened ? $"Choose a unit. {row}" : row;
+    }
+
+    private static string DescribeReport(CondorBattleSnapshot snapshot)
+    {
+        var message = ReportMessages.GetValueOrDefault(
+            snapshot.ReportMessageCell,
+            "Message unavailable.");
+        var unit = snapshot.ReportingUnit is { } reporting
+            ? $" {reporting.Describe()}."
+            : string.Empty;
+        return $"Report. {message}{unit} " +
+               "OK sends a command to this unit. Cancel lets it move freely.";
+    }
+
+    private void RememberInterface(
+        CondorInterfaceView view,
+        int selection,
+        int auxiliary)
+    {
+        lastInterfaceView = view;
+        lastInterfaceSelection = selection;
+        lastInterfaceAuxiliary = auxiliary;
     }
 
     /// <summary>
@@ -561,6 +870,10 @@ public sealed class CondorBattleSpeechTracker
             parts.Add($"nearest {nearest.Describe()}, at {nearest.X}, {nearest.Y}");
         }
 
+        // Three illuminated markers plus the unlit minimum form four visible
+        // levels. The native value is initialized to two and clamped to 1..4.
+        parts.Add($"game speed {snapshot.GameSpeed} of 4");
+
         // The advance gauge is drawn for the whole battle, so it belongs in the
         // glance rather than only in the moment it changes.
         parts.Add(snapshot.EnemyAdvance <= 0
@@ -722,8 +1035,22 @@ public sealed class CondorBattleSpeechTracker
         lastHighlightedTypeId = snapshot.HighlightedTypeId;
         lastUnitUnderCursorSlot = snapshot.UnitUnderCursorSlot;
         lastAlliedCount = snapshot.AlliedCount;
+        lastGameSpeed = snapshot.GameSpeed;
     }
 
     private static string Pluralize(int count, string singular, string plural) =>
         $"{count} {(count == 1 ? singular : plural)}";
+
+    private enum CondorInterfaceView
+    {
+        None,
+        AllyUnit,
+        Destination,
+        StartGame,
+        Direction,
+        CrowdedUnit,
+        Report,
+        Pause,
+        Help
+    }
 }

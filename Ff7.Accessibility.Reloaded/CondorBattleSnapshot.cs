@@ -50,6 +50,28 @@ public sealed record CondorBattleUnit(
     public string Describe() => $"{Name}, {CurrentHp} of {MaximumHp}";
 }
 
+/// <summary>The Ally Unit command rows drawn from <c>eunit01.tex</c>.</summary>
+public sealed record CondorAllyUnitMenu(
+    int HighlightedRow,
+    IReadOnlyList<int> CommandIds)
+{
+    public int? HighlightedCommandId =>
+        HighlightedRow >= 0 && HighlightedRow < CommandIds.Count
+            ? CommandIds[HighlightedRow]
+            : null;
+}
+
+/// <summary>The live units offered by the selector when their hit boxes overlap.</summary>
+public sealed record CondorCrowdedUnitMenu(
+    int HighlightedRow,
+    IReadOnlyList<int> UnitSlots)
+{
+    public int? HighlightedUnitSlot =>
+        HighlightedRow >= 0 && HighlightedRow < UnitSlots.Count
+            ? UnitSlots[HighlightedRow]
+            : null;
+}
+
 /// <summary>
 /// Everything the Fort Condor battle shows a sighted player, read from memory.
 /// </summary>
@@ -79,8 +101,29 @@ public sealed record CondorBattleSnapshot(
     int ReportState,
     int DeploymentFrontierY,
     int EnemyAdvance,
-    IReadOnlyList<CondorCollisionTriangle> CollisionTriangles)
+    IReadOnlyList<CondorCollisionTriangle> CollisionTriangles,
+    CondorAllyUnitMenu? AllyUnitMenu = null,
+    int StartGameSelection = 0,
+    CondorCrowdedUnitMenu? CrowdedUnitMenu = null,
+    int DirectionSelection = 0,
+    int ReportMessageCell = -1,
+    int ReportUnitSlot = -1)
 {
+    /// <summary>
+    /// The command destination cursor used by interaction mode 3. Module 9
+    /// keeps it separately from the ordinary battlefield cursor.
+    /// </summary>
+    public int DestinationX { get; init; }
+
+    /// <inheritdoc cref="DestinationX"/>
+    public int DestinationY { get; init; }
+
+    /// <summary>
+    /// The four-level battle-speed gauge drawn on the battlefield. Page Up and
+    /// Page Down change this value directly.
+    /// </summary>
+    public int GameSpeed { get; init; } = 2;
+
     /// <summary>
     /// The value of <see cref="EnemyAdvance"/> when the enemy has reached the
     /// fort. The game derives the gauge from the leading enemy's position and
@@ -89,9 +132,17 @@ public sealed record CondorBattleSnapshot(
     public const int EnemyAdvanceFull = 96;
 
     public const int SettingMenuModalState = 7;
+    public const int NewUnitDirectionModalState = 8;
+    public const int PauseModalState = 9;
+    public const int StartGameModalState = 10;
+    public const int HelpModalState = 14;
+    public const int CrowdedUnitModalState = 15;
+    public const int CommandDirectionModalState = 16;
 
     /// <summary>Cursor mode: the player is moving the cursor over the battlefield.</summary>
     public const int CursorInteractionMode = 1;
+    public const int AllyUnitInteractionMode = 2;
+    public const int DestinationInteractionMode = 3;
 
     public bool SettingMenuOpen => ModalState == SettingMenuModalState;
 
@@ -140,6 +191,22 @@ public sealed record CondorBattleSnapshot(
         UnitUnderCursorSlot < 0
             ? null
             : Units.FirstOrDefault(unit => unit.Slot == UnitUnderCursorSlot);
+
+    public CondorBattleUnit? HighlightedCrowdedUnit =>
+        CrowdedUnitMenu?.HighlightedUnitSlot is { } slot
+            ? Units.FirstOrDefault(unit => unit.Slot == slot)
+            : null;
+
+    public CondorBattleUnit? ReportingUnit =>
+        ReportUnitSlot < 0
+            ? null
+            : Units.FirstOrDefault(unit => unit.Slot == ReportUnitSlot);
+
+    /// <summary>
+    /// One-based position in the 33-step direction selector shared by modals 8
+    /// and 16. The native control ranges from zero through 0x400 in 0x20 steps.
+    /// </summary>
+    public int DirectionOrdinal => (DirectionSelection / 0x20) + 1;
 
     /// <summary>
     /// The nearest living enemy to the cursor, which is the thing a sighted

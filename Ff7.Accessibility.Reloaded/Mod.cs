@@ -50,6 +50,7 @@ public sealed class Mod : IModV1, IModV2
     private const int VirtualKeyK = 0x4B;
     private const int VirtualKeyL = 0x4C;
     private const int VirtualKeyO = 0x4F;
+    private const int VirtualKeyP = 0x50;
     private const int VirtualKeyU = 0x55;
     private const int VirtualKeyF8 = 0x77;
     private const int VirtualKeyF9 = 0x78;
@@ -1902,6 +1903,14 @@ public sealed class Mod : IModV1, IModV2
             condorBattleSpeechTracker.RequestStatus();
         }
 
+        // P answers "how far down may I build right now". Sampled and banked
+        // exactly like K, because the battle line moves during the battle and a
+        // press that lands between two reads would otherwise vanish.
+        if (WasNavigationKeyPressed(VirtualKeyP, isForeground))
+        {
+            condorBattleSpeechTracker.RequestPlacementLine();
+        }
+
         // Banked before the throttle, for the same reason K is sampled before it:
         // the state is read ten times a second and an ordinary tap lands between
         // two reads. Sampled after the throttle, as this was, the key simply
@@ -1913,6 +1922,7 @@ public sealed class Mod : IModV1, IModV2
 
         var now = DateTime.UtcNow;
         if (!condorBattleSpeechTracker.HasPendingStatusRequest &&
+            !condorBattleSpeechTracker.HasPendingPlacementLineRequest &&
             pendingCondorNavigation.Count == 0 &&
             now - lastCondorBattleReadAt < CondorBattleReadInterval)
         {
@@ -1945,6 +1955,12 @@ public sealed class Mod : IModV1, IModV2
         {
             Log($"Fort Condor status: {status}");
             Speak(status, interrupt: true);
+        }
+
+        if (condorBattleSpeechTracker.ConsumeRequestedPlacementLine(snapshot) is { } placementLine)
+        {
+            Log($"Fort Condor placement line: {placementLine}");
+            Speak(placementLine, interrupt: true);
         }
 
         // A cursor-only batch interrupts: the player wants where the cursor is

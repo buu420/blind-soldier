@@ -104,7 +104,8 @@ internal sealed class Steam2026ResearchObservationPump
         int moduleId,
         bool statusRequested,
         DateTime now,
-        IReadOnlyList<CondorNavigationAction>? navigationActions = null)
+        IReadOnlyList<CondorNavigationAction>? navigationActions = null,
+        bool placementLineRequested = false)
     {
         if (moduleId != CondorBattleStateReader.CondorModule)
         {
@@ -128,12 +129,20 @@ internal sealed class Steam2026ResearchObservationPump
             condorBattleSpeechTracker.RequestStatus();
         }
 
+        // P, banked for the same reason: the battle line moves during the battle
+        // and a press landing between two reads would otherwise vanish.
+        if (placementLineRequested)
+        {
+            condorBattleSpeechTracker.RequestPlacementLine();
+        }
+
         if (navigationActions is { Count: > 0 })
         {
             pendingNavigation.AddRange(navigationActions);
         }
 
         if (!condorBattleSpeechTracker.HasPendingStatusRequest &&
+            !condorBattleSpeechTracker.HasPendingPlacementLineRequest &&
             pendingNavigation.Count == 0 &&
             now - lastCondorBattleReadUtc < CondorBattleStateReader.ReadInterval)
         {
@@ -169,6 +178,12 @@ internal sealed class Steam2026ResearchObservationPump
         {
             log($"Fort Condor status: {status}");
             lines.Add((status, true));
+        }
+
+        if (condorBattleSpeechTracker.ConsumeRequestedPlacementLine(snapshot) is { } placementLine)
+        {
+            log($"Fort Condor placement line: {placementLine}");
+            lines.Add((placementLine, true));
         }
 
         // A cursor-only batch interrupts: the player wants where the cursor is

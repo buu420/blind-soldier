@@ -14,6 +14,18 @@ internal static class CondorBattleReaderTests
         FailsClosedWhenAnyPartOfTheStateIsUnreadable();
         TreatsAUnitOutOfHpAsDyingRatherThanGone();
         ResolvesTheHighlightedHireRowThroughTheListRotation();
+        ReadsEveryBlockingChoiceFromNativeState();
+        ReadsStartAndDirectionChoicesAtTheirNativeWidths();
+        RefusesUnsupportedChoiceIdentifiers();
+        RefusesAChoiceThatChangesWhileItIsBeingRead();
+        RefusesADestinationCursorThatChangesWhileItIsBeingRead();
+        RefusesAReportWhoseTextureCellDoesNotMatchItsState();
+        SpeaksTheAllyUnitCommandAndDestinationChoices();
+        SpeaksTheStartDirectionAndCrowdedUnitChoices();
+        SpeaksPlacementBeforeTheDirectionItNowRequires();
+        SpeaksReportsPauseAndHelpOverlays();
+        SpeaksTheVisibleGameSpeedWhenItChanges();
+        SupersedesSpeechThatDescribesASelectionThePlayerAlreadyLeft();
         AnnouncesTheBannerMessagesTheGameDrawsAsPictures();
         SaysWhatTheEndingBannersMean();
         SpeaksTheResultFromTheGamesOwnLatch();
@@ -132,6 +144,451 @@ internal static class CondorBattleReaderTests
 
         memory.WriteInt16(CondorMemory.SettingMenuCount, 99);
         Equal(0, reader.TryRead()!.AvailableTypeIds.Count, "available list with an impossible count");
+    }
+
+    private static void ReadsEveryBlockingChoiceFromNativeState()
+    {
+        var memory = new CondorMemory();
+        memory.WriteUnit(slot: 0, typeId: 2, currentHp: 180, maximumHp: 180, attack: 25, x: 240, y: 500);
+        memory.WriteUnit(slot: 3, typeId: 3, currentHp: 220, maximumHp: 220, attack: 35, x: 240, y: 500);
+
+        memory.WriteInt32(CondorMemory.InteractionMode, CondorBattleSnapshot.AllyUnitInteractionMode);
+        memory.WriteByte(CondorMemory.AllyUnitCommandCount, 2);
+        memory.WriteInt16(CondorMemory.AllyUnitCommandRow, 1);
+        memory.WriteByte(CondorMemory.AllyUnitCommand0, 3);
+        memory.WriteByte(CondorMemory.AllyUnitCommand1, 0);
+
+        var reader = new CondorBattleStateReader(memory);
+        var commands = reader.TryRead();
+        AssertNotNull(commands, "snapshot with the Ally Unit menu open");
+        AssertNotNull(commands!.AllyUnitMenu, "Ally Unit menu state");
+        Equal(2, commands.AllyUnitMenu!.CommandIds.Count, "Ally Unit row count");
+        Equal(0, commands.AllyUnitMenu.HighlightedCommandId, "highlighted Ally Unit command");
+
+        memory.WriteInt32(CondorMemory.InteractionMode, CondorBattleSnapshot.CursorInteractionMode);
+        memory.WriteInt32(CondorMemory.ModalState, CondorBattleSnapshot.CrowdedUnitModalState);
+        memory.WriteInt16(CondorMemory.CrowdedUnitCount, 2);
+        memory.WriteInt16(CondorMemory.CrowdedUnitRow, 1);
+        memory.WriteUInt32(CondorMemory.CrowdedUnitPointers, CondorMemory.LiveUnits);
+        memory.WriteUInt32(
+            CondorMemory.CrowdedUnitPointers + 8,
+            CondorMemory.LiveUnits + (3u * CondorMemory.UnitStride));
+
+        var crowded = reader.TryRead();
+        AssertNotNull(crowded, "snapshot with the crowded-unit selector open");
+        AssertNotNull(crowded!.CrowdedUnitMenu, "crowded-unit menu state");
+        Equal(3, crowded.CrowdedUnitMenu!.HighlightedUnitSlot, "highlighted crowded-unit slot");
+
+        // An active native menu with an impossible selection is not converted
+        // into a plausible but wrong command. The next 100 ms sample may work;
+        // the player cannot undo a command sent to the wrong unit.
+        memory.WriteInt16(CondorMemory.CrowdedUnitRow, 2);
+        AssertNull(reader.TryRead(), "crowded-unit row outside its candidate list");
+
+        memory.WriteInt32(CondorMemory.ModalState, 0);
+        memory.WriteInt32(CondorMemory.InteractionMode, CondorBattleSnapshot.DestinationInteractionMode);
+        memory.WriteInt16(CondorMemory.DestinationX, 444);
+        memory.WriteInt16(CondorMemory.DestinationY, 666);
+
+        var destination = reader.TryRead();
+        AssertNotNull(destination, "snapshot with the destination cursor active");
+        Equal(444, destination!.DestinationX, "destination cursor X");
+        Equal(666, destination.DestinationY, "destination cursor Y");
+        Equal(2, destination.GameSpeed, "initial game speed drawn by module 9");
+
+        memory.WriteInt16(CondorMemory.GameSpeed, 5);
+        AssertNull(reader.TryRead(), "game speed outside the four levels the native input permits");
+    }
+
+    private static void ReadsStartAndDirectionChoicesAtTheirNativeWidths()
+    {
+        var memory = new CondorMemory();
+        var reader = new CondorBattleStateReader(memory);
+
+        memory.WriteInt32(CondorMemory.ModalState, CondorBattleSnapshot.StartGameModalState);
+        memory.WriteInt16(CondorMemory.StartGameSelection, 0x10);
+        Equal(0x10, reader.TryRead()!.StartGameSelection, "native Start Game No selection");
+
+        memory.WriteInt16(CondorMemory.StartGameSelection, 1);
+        AssertNull(reader.TryRead(), "Start Game selection outside the two native texture cells");
+
+        memory.WriteInt32(CondorMemory.ModalState, CondorBattleSnapshot.NewUnitDirectionModalState);
+        memory.WriteInt16(CondorMemory.DirectionSelection, 0x200);
+
+        // 0x00C625D0 is a signed 16-bit selector. The two bytes before phase at
+        // 0x00C625D4 are not part of it and may not be consumed as padding.
+        memory.WriteByte(CondorMemory.DirectionSelection + 2, 0x7F);
+        memory.WriteByte(CondorMemory.DirectionSelection + 3, 0x55);
+        var newUnitDirection = reader.TryRead();
+        AssertNotNull(newUnitDirection, "snapshot with native 16-bit direction selector");
+        Equal(0x200, newUnitDirection!.DirectionSelection, "native 16-bit direction selector");
+
+        memory.WriteInt32(CondorMemory.ModalState, CondorBattleSnapshot.CommandDirectionModalState);
+        memory.WriteInt16(CondorMemory.DirectionSelection, 0x400);
+        var existingUnitDirection = reader.TryRead();
+        AssertNotNull(existingUnitDirection, "snapshot with existing-unit direction selector");
+        Equal(0x400, existingUnitDirection!.DirectionSelection, "existing-unit direction endpoint");
+
+        memory.WriteInt16(CondorMemory.DirectionSelection, 0x201);
+        AssertNull(reader.TryRead(), "direction selector between its 0x20 steps");
+
+        memory.WriteInt16(CondorMemory.DirectionSelection, 0x200);
+        var changed = false;
+        memory.AfterRead = address =>
+        {
+            if (!changed && address == CondorMemory.DirectionSelection)
+            {
+                changed = true;
+                memory.WriteInt16(CondorMemory.DirectionSelection, 0x220);
+            }
+        };
+        AssertNull(reader.TryRead(), "direction changing between its first and confirmation reads");
+
+        var unreadableDirection = new CondorMemory();
+        unreadableDirection.WriteInt32(
+            CondorMemory.ModalState,
+            CondorBattleSnapshot.CommandDirectionModalState);
+        unreadableDirection.Unreadable.Add(CondorMemory.DirectionSelection);
+        AssertNull(
+            new CondorBattleStateReader(unreadableDirection).TryRead(),
+            "unreadable active direction selector");
+
+        var tornStart = new CondorMemory();
+        tornStart.WriteInt32(CondorMemory.ModalState, CondorBattleSnapshot.StartGameModalState);
+        tornStart.WriteInt16(CondorMemory.StartGameSelection, 0);
+        var startChanged = false;
+        tornStart.AfterRead = address =>
+        {
+            if (!startChanged && address == CondorMemory.StartGameSelection)
+            {
+                startChanged = true;
+                tornStart.WriteInt16(CondorMemory.StartGameSelection, 0x10);
+            }
+        };
+        AssertNull(
+            new CondorBattleStateReader(tornStart).TryRead(),
+            "Start Game row changing between its first and confirmation reads");
+
+        var unreadableStart = new CondorMemory();
+        unreadableStart.WriteInt32(CondorMemory.ModalState, CondorBattleSnapshot.StartGameModalState);
+        unreadableStart.Unreadable.Add(CondorMemory.StartGameSelection);
+        AssertNull(
+            new CondorBattleStateReader(unreadableStart).TryRead(),
+            "unreadable active Start Game selection");
+    }
+
+    private static void RefusesUnsupportedChoiceIdentifiers()
+    {
+        var commandMemory = new CondorMemory();
+        commandMemory.WriteInt32(
+            CondorMemory.InteractionMode,
+            CondorBattleSnapshot.AllyUnitInteractionMode);
+        commandMemory.WriteByte(CondorMemory.AllyUnitCommandCount, 1);
+        commandMemory.WriteByte(CondorMemory.AllyUnitCommand0, 4);
+        AssertNull(
+            new CondorBattleStateReader(commandMemory).TryRead(),
+            "command id that the native row constructor never emits");
+
+        var reportMemory = new CondorMemory();
+        reportMemory.WriteUnit(
+            slot: 0,
+            typeId: 2,
+            currentHp: 180,
+            maximumHp: 180,
+            attack: 25,
+            x: 240,
+            y: 500);
+        reportMemory.WriteInt16(CondorMemory.ReportState, 6);
+        reportMemory.WriteInt16(CondorMemory.ReportMessageCell, 5);
+        reportMemory.WriteInt16(CondorMemory.ReportUnitSlot, 0);
+        AssertNull(
+            new CondorBattleStateReader(reportMemory).TryRead(),
+            "report texture cell with no native call site");
+    }
+
+    private static void SpeaksTheAllyUnitCommandAndDestinationChoices()
+    {
+        var tracker = new CondorBattleSpeechTracker();
+        tracker.Observe(Battle());
+
+        Equal(
+            "Ally unit. Action. 1 of 2.",
+            Single(tracker.Observe(Battle(
+                interactionMode: CondorBattleSnapshot.AllyUnitInteractionMode,
+                allyUnitMenu: new CondorAllyUnitMenu(0, [3, 0])))),
+            "Ally Unit menu opening");
+        Equal(
+            "Bomb. 2 of 2.",
+            Single(tracker.Observe(Battle(
+                interactionMode: CondorBattleSnapshot.AllyUnitInteractionMode,
+                allyUnitMenu: new CondorAllyUnitMenu(1, [3, 0])))),
+            "Ally Unit menu row change");
+
+        var directional = new CondorBattleSpeechTracker();
+        directional.Observe(Battle());
+        Equal(
+            "Ally unit. Direction. 1 of 2.",
+            Single(directional.Observe(Battle(
+                interactionMode: CondorBattleSnapshot.AllyUnitInteractionMode,
+                allyUnitMenu: new CondorAllyUnitMenu(0, [5, 2])))),
+            "stationary-unit Direction command");
+
+        Equal(
+            "Choose destination. Cursor at 240, 500.",
+            Single(tracker.Observe(Battle(
+                interactionMode: CondorBattleSnapshot.DestinationInteractionMode,
+                cursorX: 12,
+                cursorY: 34,
+                destinationX: 240,
+                destinationY: 500))),
+            "MOVE destination choice");
+
+        // If module 9 is first observed with this menu already open, it belongs
+        // in the accepted opening rather than becoming a silent baseline.
+        var openedLate = new CondorBattleSpeechTracker().Observe(Battle(
+            interactionMode: CondorBattleSnapshot.AllyUnitInteractionMode,
+            allyUnitMenu: new CondorAllyUnitMenu(0, [2])));
+        Equal(true, openedLate.Contains("Ally unit. Remove. 1 of 1."), "menu on the opening snapshot");
+    }
+
+    private static void RefusesAChoiceThatChangesWhileItIsBeingRead()
+    {
+        var memory = new CondorMemory();
+        memory.WriteInt32(CondorMemory.InteractionMode, CondorBattleSnapshot.AllyUnitInteractionMode);
+        memory.WriteByte(CondorMemory.AllyUnitCommandCount, 2);
+        memory.WriteInt16(CondorMemory.AllyUnitCommandRow, 0);
+        memory.WriteByte(CondorMemory.AllyUnitCommand0, 3);
+        memory.WriteByte(CondorMemory.AllyUnitCommand1, 0);
+
+        var changed = false;
+        memory.AfterRead = address =>
+        {
+            if (!changed && address == CondorMemory.AllyUnitCommand1)
+            {
+                changed = true;
+                memory.WriteInt16(CondorMemory.AllyUnitCommandRow, 1);
+            }
+        };
+
+        AssertNull(
+            new CondorBattleStateReader(memory).TryRead(),
+            "Ally Unit row changing during the translated-memory read");
+    }
+
+    private static void RefusesADestinationCursorThatChangesWhileItIsBeingRead()
+    {
+        var memory = new CondorMemory();
+        memory.WriteInt32(CondorMemory.InteractionMode, CondorBattleSnapshot.DestinationInteractionMode);
+        memory.WriteInt16(CondorMemory.DestinationX, 240);
+        memory.WriteInt16(CondorMemory.DestinationY, 500);
+
+        var changed = false;
+        memory.AfterRead = address =>
+        {
+            if (!changed && address == CondorMemory.DestinationY)
+            {
+                changed = true;
+                memory.WriteInt16(CondorMemory.DestinationY, 504);
+            }
+        };
+
+        AssertNull(
+            new CondorBattleStateReader(memory).TryRead(),
+            "destination cursor changing during the translated-memory read");
+    }
+
+    private static void RefusesAReportWhoseTextureCellDoesNotMatchItsState()
+    {
+        var memory = new CondorMemory();
+        memory.WriteUnit(slot: 0, typeId: 2, currentHp: 180, maximumHp: 180, attack: 25, x: 240, y: 500);
+        memory.WriteInt16(CondorMemory.ReportState, 1);
+        memory.WriteInt16(CondorMemory.ReportMessageCell, 3);
+        memory.WriteInt16(CondorMemory.ReportUnitSlot, 0);
+
+        // FUN_006027C2 stores reportState = messageCell + 1. A disagreement is
+        // an asynchronous read through the middle of that native update, not a
+        // fourth report the game can show.
+        AssertNull(
+            new CondorBattleStateReader(memory).TryRead(),
+            "report state paired with another texture cell");
+    }
+
+    private static void SpeaksTheStartDirectionAndCrowdedUnitChoices()
+    {
+        var start = new CondorBattleSpeechTracker();
+        start.Observe(Battle());
+        Equal(
+            "Start the game? No. 2 of 2.",
+            Single(start.Observe(Battle(
+                modalState: CondorBattleSnapshot.StartGameModalState,
+                messageId: 13,
+                startGameSelection: 0x10))),
+            "Start Game prompt opening");
+        Equal(
+            "Yes. 1 of 2.",
+            Single(start.Observe(Battle(
+                modalState: CondorBattleSnapshot.StartGameModalState,
+                startGameSelection: 0))),
+            "Start Game prompt row change");
+
+        var direction = new CondorBattleSpeechTracker();
+        direction.Observe(Battle());
+        Equal(
+            "Direction. Straight down. 17 of 33.",
+            Single(direction.Observe(Battle(
+                modalState: CondorBattleSnapshot.NewUnitDirectionModalState,
+                directionSelection: 0x200))),
+            "new-unit direction opening");
+        Equal(
+            "Direction. 3 degrees left of down. 18 of 33.",
+            Single(direction.Observe(Battle(
+                modalState: CondorBattleSnapshot.NewUnitDirectionModalState,
+                directionSelection: 0x220))),
+            "direction selection change");
+        Equal(
+            "Direction. 45 degrees right of down. 1 of 33.",
+            Single(direction.Observe(Battle(
+                modalState: CondorBattleSnapshot.NewUnitDirectionModalState,
+                directionSelection: 0))),
+            "right endpoint of the drawn direction arc");
+        Equal(
+            "Direction. 45 degrees left of down. 33 of 33.",
+            Single(direction.Observe(Battle(
+                modalState: CondorBattleSnapshot.NewUnitDirectionModalState,
+                directionSelection: 0x400))),
+            "left endpoint of the drawn direction arc");
+
+        var units = new[]
+        {
+            Unit(slot: 0, x: 240, y: 500, typeId: 2),
+            Unit(slot: 3, x: 240, y: 500, typeId: 3)
+        };
+        var crowded = new CondorBattleSpeechTracker();
+        crowded.Observe(Battle(units: units));
+        Equal(
+            "Choose a unit. Attacker, 100 of 100, at 240, 500. 1 of 2.",
+            Single(crowded.Observe(Battle(
+                modalState: CondorBattleSnapshot.CrowdedUnitModalState,
+                units: units,
+                crowdedUnitMenu: new CondorCrowdedUnitMenu(0, [0, 3])))),
+            "crowded-unit selector opening");
+        Equal(
+            "Defender, 100 of 100, at 240, 500. 2 of 2.",
+            Single(crowded.Observe(Battle(
+                modalState: CondorBattleSnapshot.CrowdedUnitModalState,
+                units: units,
+                crowdedUnitMenu: new CondorCrowdedUnitMenu(1, [0, 3])))),
+            "crowded-unit selector row change");
+    }
+
+    private static void SpeaksPlacementBeforeTheDirectionItNowRequires()
+    {
+        var tracker = new CondorBattleSpeechTracker();
+        tracker.Observe(Battle(
+            modalState: CondorBattleSnapshot.SettingMenuModalState,
+            alliedCount: 0));
+
+        var lines = tracker.Observe(Battle(
+            modalState: CondorBattleSnapshot.NewUnitDirectionModalState,
+            alliedCount: 1,
+            gil: 580,
+            units: [Unit(slot: 0, x: 240, y: 500)],
+            directionSelection: 0x200));
+
+        Equal(1, lines.Count, "placement and its blocking direction prompt stay together");
+        Equal(
+            "Placed. 580 gil. Direction. Straight down. 17 of 33.",
+            lines[0],
+            "completed hire is spoken before the current blocking choice");
+        Equal(
+            true,
+            tracker.LastObservationSupersedesSpeech,
+            "non-lossy combined prompt replaces stale menu speech");
+    }
+
+    private static void SpeaksReportsPauseAndHelpOverlays()
+    {
+        var reportingUnit = Unit(slot: 0, x: 240, y: 500, typeId: 2);
+        var report = new CondorBattleSpeechTracker();
+        report.Observe(Battle(units: [reportingUnit]));
+        Equal(
+            "Report. Encountered enemy. Attacker, 100 of 100. " +
+            "OK sends a command to this unit. Cancel lets it move freely.",
+            Single(report.Observe(Battle(
+                units: [reportingUnit],
+                reportState: 1,
+                messageId: 0,
+                reportMessageCell: 0,
+                reportUnitSlot: 0))),
+            "actionable report");
+        AssertContains(
+            Single(report.Observe(Battle(
+                units: [reportingUnit],
+                reportState: 4,
+                reportMessageCell: 3,
+                reportUnitSlot: 0))),
+            "Arrived at the directed position.");
+        AssertContains(
+            Single(report.Observe(Battle(
+                units: [reportingUnit],
+                reportState: 11,
+                reportMessageCell: 10,
+                reportUnitSlot: 0))),
+            "Set units.");
+
+        var pause = new CondorBattleSpeechTracker();
+        pause.Observe(Battle());
+        Equal("Paused.", Single(pause.Observe(Battle(modalState: 9))), "pause opening");
+        Equal("Battle resumed.", Single(pause.Observe(Battle())), "pause closing");
+
+        var help = new CondorBattleSpeechTracker();
+        help.Observe(Battle());
+        var helpLine = Single(help.Observe(Battle(modalState: 14)));
+        AssertContains(helpLine, "Fort Condor help");
+        AssertContains(helpLine, "OK opens Setting Menu");
+        AssertContains(helpLine, "Page Up raises and Page Down lowers game speed");
+    }
+
+    private static void SpeaksTheVisibleGameSpeedWhenItChanges()
+    {
+        var tracker = new CondorBattleSpeechTracker();
+        var opening = tracker.Observe(Battle(gameSpeed: 2));
+        AssertContains(opening[0], "game speed 2 of 4");
+
+        Equal(
+            "Game speed 3 of 4.",
+            Single(tracker.Observe(Battle(gameSpeed: 3))),
+            "Page Up speed change");
+        Equal(0, tracker.Observe(Battle(gameSpeed: 3)).Count, "unchanged game speed");
+    }
+
+    private static void SupersedesSpeechThatDescribesASelectionThePlayerAlreadyLeft()
+    {
+        var tracker = new CondorBattleSpeechTracker();
+        tracker.Observe(Battle());
+
+        tracker.Observe(Battle(
+            interactionMode: CondorBattleSnapshot.AllyUnitInteractionMode,
+            allyUnitMenu: new CondorAllyUnitMenu(0, [3, 0])));
+        Equal(true, tracker.LastObservationSupersedesSpeech, "opening blocking menu replaces stale speech");
+
+        var moved = tracker.Observe(Battle(
+            interactionMode: CondorBattleSnapshot.AllyUnitInteractionMode,
+            allyUnitMenu: new CondorAllyUnitMenu(1, [3, 0])));
+        Equal("Bomb. 2 of 2.", Single(moved), "current Ally Unit row");
+        Equal(true, tracker.LastObservationSupersedesSpeech, "new menu row replaces the old row");
+
+        var eventAndChoice = tracker.Observe(Battle(
+            modalState: CondorBattleSnapshot.StartGameModalState,
+            messageId: 1,
+            startGameSelection: 0));
+        Equal(1, eventAndChoice.Count, "event and blocking choice form one non-lossy utterance");
+        AssertContains(eventAndChoice[0], "Start combat.");
+        AssertContains(eventAndChoice[0], "Start the game? Yes. 1 of 2.");
+        Equal(true, tracker.LastObservationSupersedesSpeech, "combined event and choice is current speech");
+
+        tracker.Observe(Battle(gameSpeed: 3));
+        Equal(true, tracker.LastObservationSupersedesSpeech, "visible game-speed change replaces stale state");
     }
 
     private static void AnnouncesTheBannerMessagesTheGameDrawsAsPictures()
@@ -565,8 +1022,13 @@ internal static class CondorBattleReaderTests
         // and make an unchanged piece of ground sound blocked.
         var report = Battle(
             cursorX: 256, cursorY: 500, phase: 0, frontierY: 2000,
-            placementLegal: true, reportState: 1, terrain: terrain);
-        Equal(0, tracker.Observe(report).Count, "report overlay does not narrate stale placement");
+            placementLegal: true, reportState: 1, reportMessageCell: 0, terrain: terrain);
+        var reportLines = tracker.Observe(report);
+        Equal(1, reportLines.Count, "report overlay speaks its own actionable information");
+        Equal(
+            false,
+            reportLines[0].Contains("place", StringComparison.OrdinalIgnoreCase),
+            "report overlay does not narrate stale placement");
         Equal(0, tracker.PlacementDisagreements, "report overlay is not a geometry disagreement");
 
         // The async reader fetches the flag before the unit array. A hire can
@@ -752,7 +1214,7 @@ internal static class CondorBattleReaderTests
         Equal(
             "9436 gil. 1 unit. 4 enemies. cursor at 240, 500. " +
             $"{CondorBattleSpeechTracker.CannotPlaceText}. " +
-            "nearest enemy Dummy, 120 of 200, at 240, 620. no enemy advance.",
+            "nearest enemy Dummy, 120 of 200, at 240, 620. game speed 2 of 4. no enemy advance.",
             unsettled,
             "status line with the cursor on an occupied row");
     }
@@ -801,6 +1263,7 @@ internal static class CondorBattleReaderTests
         int row = 0,
         int rotation = 0,
         int modalState = 0,
+        int interactionMode = CondorBattleSnapshot.CursorInteractionMode,
         int gil = 1000,
         int messageId = -1,
         int outcome = 0,
@@ -813,9 +1276,18 @@ internal static class CondorBattleReaderTests
         int alliedCount = 0,
         int enemyAdvance = 0,
         IReadOnlyList<CondorCollisionTriangle>? terrain = null,
-        IReadOnlyList<CondorBattleUnit>? units = null) =>
-        new(
-            InteractionMode: CondorBattleSnapshot.CursorInteractionMode,
+        IReadOnlyList<CondorBattleUnit>? units = null,
+        CondorAllyUnitMenu? allyUnitMenu = null,
+        int startGameSelection = 0,
+        CondorCrowdedUnitMenu? crowdedUnitMenu = null,
+        int directionSelection = 0,
+        int reportMessageCell = -1,
+        int reportUnitSlot = -1,
+        int? destinationX = null,
+        int? destinationY = null,
+        int gameSpeed = 2) =>
+        new CondorBattleSnapshot(
+            InteractionMode: interactionMode,
             ModalState: modalState,
             SettingMenuRow: row,
             SettingMenuRotation: rotation,
@@ -834,7 +1306,18 @@ internal static class CondorBattleReaderTests
             ReportState: reportState,
             DeploymentFrontierY: frontierY,
             EnemyAdvance: enemyAdvance,
-            CollisionTriangles: terrain ?? []);
+            CollisionTriangles: terrain ?? [],
+            AllyUnitMenu: allyUnitMenu,
+            StartGameSelection: startGameSelection,
+            CrowdedUnitMenu: crowdedUnitMenu,
+            DirectionSelection: directionSelection,
+            ReportMessageCell: reportMessageCell,
+            ReportUnitSlot: reportUnitSlot)
+        {
+            DestinationX = destinationX ?? cursorX,
+            DestinationY = destinationY ?? cursorY,
+            GameSpeed = gameSpeed
+        };
 
     /// <summary>
     /// Moves the cursor and holds it there long enough for the placement reading
@@ -868,6 +1351,19 @@ internal static class CondorBattleReaderTests
     {
         internal const uint InteractionMode = 0x00C74C50;
         internal const uint ModalState = 0x00C625E0;
+        internal const uint AllyUnitCommandRow = 0x00CBC930;
+        internal const uint AllyUnitCommandCount = 0x00C752D4;
+        internal const uint AllyUnitCommand0 = 0x00C74CA8;
+        internal const uint AllyUnitCommand1 = 0x00C74CB0;
+        internal const uint AllyUnitCommand2 = 0x00C74CB8;
+        internal const uint CrowdedUnitPointers = 0x00C60980;
+        internal const uint CrowdedUnitCount = 0x00C61BF4;
+        internal const uint CrowdedUnitRow = 0x00C74C68;
+        internal const uint StartGameSelection = 0x00CBC7D8;
+        internal const uint DirectionSelection = 0x00C625D0;
+        internal const uint ReportState = 0x00C72DEC;
+        internal const uint ReportMessageCell = 0x00C60AC4;
+        internal const uint ReportUnitSlot = 0x00C72E3C;
         internal const uint SettingMenuRow = 0x00CBCCA0;
         internal const uint SettingMenuRotation = 0x00C75254;
         internal const uint SettingMenuCount = 0x00C75264;
@@ -875,6 +1371,9 @@ internal static class CondorBattleReaderTests
         internal const uint Gil = 0x00CBC7E0;
         internal const uint CursorX = 0x00CBCCC0;
         internal const uint CursorY = 0x00CBCCC2;
+        internal const uint DestinationX = 0x00C75268;
+        internal const uint DestinationY = 0x00C7526A;
+        internal const uint GameSpeed = 0x00C752B4;
         internal const uint CursorPlacementLegal = 0x00CBCC9C;
         internal const uint UnitUnderCursor = 0x00C6097C;
         internal const uint LiveUnits = 0x00CBCCD8;
@@ -890,6 +1389,7 @@ internal static class CondorBattleReaderTests
         private readonly Dictionary<uint, byte> bytes = [];
 
         internal HashSet<uint> Unreadable { get; } = [];
+        internal Action<uint>? AfterRead { get; set; }
 
         internal CondorMemory()
         {
@@ -901,6 +1401,7 @@ internal static class CondorBattleReaderTests
             // Zero is not a mode the game uses, so leaving it unset would make
             // every cursor test pass by never reaching the cursor at all.
             WriteInt32(InteractionMode, CondorBattleSnapshot.CursorInteractionMode);
+            WriteInt16(GameSpeed, 2);
 
             // Open ground over the whole map, and a deployment frontier past the
             // bottom of it. Without terrain nothing is placeable anywhere, and a
@@ -970,6 +1471,15 @@ internal static class CondorBattleReaderTests
             Store(address, buffer);
         }
 
+        internal void WriteUInt32(uint address, uint value)
+        {
+            Span<byte> buffer = stackalloc byte[4];
+            BinaryPrimitives.WriteUInt32LittleEndian(buffer, value);
+            Store(address, buffer);
+        }
+
+        internal void WriteByte(uint address, byte value) => bytes[address] = value;
+
         internal void WriteInt16(uint address, short value)
         {
             Span<byte> buffer = stackalloc byte[2];
@@ -1005,6 +1515,7 @@ internal static class CondorBattleReaderTests
                 destination[(int)offset] = bytes.GetValueOrDefault(virtualAddress + offset);
             }
 
+            AfterRead?.Invoke(virtualAddress);
             return true;
         }
 
