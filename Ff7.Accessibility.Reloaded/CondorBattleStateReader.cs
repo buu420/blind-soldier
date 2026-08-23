@@ -101,6 +101,8 @@ public sealed class CondorBattleStateReader
     private const int MaximumAllyUnitCommands = 3;
 
     private const int UnitAllocated = 0x00;
+    private const int UnitPrimaryActionState = 0x02;
+    private const int UnitCommandId = 0x03;
     private const int UnitRemovalState = 0x05;
     private const int UnitTypeId = 0x06;
     private const int UnitCurrentHp = 0x10;
@@ -661,7 +663,9 @@ public sealed class CondorBattleStateReader
                 currentHp == 0 || removalState != 0,
                 record[UnitWidth],
                 record[UnitHeightAbove],
-                removalState != 0));
+                removalState != 0,
+                record[UnitPrimaryActionState],
+                record[UnitCommandId]));
         }
 
         return units;

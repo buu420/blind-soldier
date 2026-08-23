@@ -27,7 +27,7 @@ internal static class CondorCursorSteeringTests
         LetsGoWhenCursorControlIsTakenAway();
         LetsGoWhenTheCursorCannotBeRead();
         LetsGoWhenTheGameRefusesTheKeystrokes();
-        SaysNothingOnArrivalSoTheReadoutIsNotDuplicated();
+        SaysMovingStoppedOnArrival();
         LetsGoWhenTheGameNeverReportsHoldingTheKey();
         LetsGoOfTheKeysWhenTheNextStrideWouldOvershootTheTarget();
         StopsInsteadOfCrossingATargetItCannotLandOn();
@@ -62,6 +62,10 @@ internal static class CondorCursorSteeringTests
         }
 
         Equal(CondorSteeringOutcome.Abandoned, step.Outcome, "gave up when the battle never saw the key");
+        Equal(
+            "The game is not taking the direction keys.",
+            step.Speech,
+            "a missing native acknowledgement keeps its specific failure");
         AssertSpoken(step, "a key the game never sees tells the player so");
         Equal(0, sink.HeldScanCodes().Length, "every key released when the press is not acknowledged");
 
@@ -208,6 +212,7 @@ internal static class CondorCursorSteeringTests
             CondorSteeringOutcome.Abandoned,
             step.Outcome,
             $"stops crossing {label} over a target it cannot land on");
+        Equal("Could not get closer.", step.Speech, $"crossing {label} keeps its specific failure");
         Equal(0, sink.HeldScanCodes().Length, $"every key released when it gives up crossing {label}");
 
         // Said out loud, because the cursor readout that follows will name a
@@ -423,6 +428,7 @@ internal static class CondorCursorSteeringTests
         // passed - the mutation survived until this was tightened.
         var step = steering.Step(cursorReadable: false, underCursorControl: true, 200, 500, AllDirections);
         Equal(CondorSteeringOutcome.Abandoned, step.Outcome, "gave up on an unreadable cursor");
+        Equal("Lost track of the cursor.", step.Speech, "an unreadable cursor keeps its specific failure");
         AssertSpoken(step, "an unreadable cursor tells the player the jump failed");
         Equal(0, sink.HeldScanCodes().Length, "every key released on an unreadable cursor");
     }
@@ -435,21 +441,22 @@ internal static class CondorCursorSteeringTests
 
         var step = steering.Step(cursorReadable: true, underCursorControl: true, 200, 500, AllDirections);
         Equal(CondorSteeringOutcome.Abandoned, step.Outcome, "gave up when SendInput was refused");
+        Equal("Could not get there.", step.Speech, "refused input keeps its specific failure");
         AssertSpoken(step, "refused keystrokes tell the player the jump failed");
     }
 
-    private static void SaysNothingOnArrivalSoTheReadoutIsNotDuplicated()
+    private static void SaysMovingStoppedOnArrival()
     {
-        // The cursor readout announces where the cursor came to rest and what is
-        // standing there the moment the keys are released. Announcing it here as
-        // well is the same duplicate the battle opening had to be fixed for.
+        // The readout still owns the final coordinate and what is there. The
+        // steering owns only the state change, so arrival is one short line and
+        // never another coordinate that could disagree with the next snapshot.
         var sink = new RecordingSink();
         var steering = new CondorCursorSteering(new HighwayAutoSteeringController(sink));
         steering.Begin(targetX: 300, targetY: 700, cursorX: 300, cursorY: 700);
 
         var step = steering.Step(cursorReadable: true, underCursorControl: true, 300, 700, AllDirections);
         Equal(CondorSteeringOutcome.Arrived, step.Outcome, "already there is arrival");
-        AssertNotSpoken(step, "arrival is left to the cursor readout");
+        Equal("Moving stopped.", step.Speech, "arrival announces that movement ended once");
     }
 
     private sealed class RecordingSink : IHighwayKeyboardInputSink

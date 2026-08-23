@@ -262,8 +262,7 @@ public sealed class CondorFieldNavigator
         text.Length == 0 ? text : char.ToUpperInvariant(text[0]) + text[1..];
 
     /// <summary>
-    /// Says where the selected thing is, and sets the cursor going towards it
-    /// if the host can steer.
+    /// Sets the cursor going towards the selected thing if the host can steer.
     /// </summary>
     /// <remarks>
     /// <para>Moving the cursor is not a matter of storing a coordinate: the
@@ -273,11 +272,13 @@ public sealed class CondorFieldNavigator
     /// holding the game's own direction keys, which moves camera, accumulators
     /// and cursor together because the game does it.</para>
     ///
-    /// <para>Steering takes time, so this promises a journey rather than
-    /// reporting an arrival. Where the cursor actually comes to rest is
-    /// announced by the cursor readout the moment the keys are released, which
-    /// is the truth whether or not the jump reached what it was aimed at. A
-    /// host that cannot steer says both positions instead and claims nothing.</para>
+    /// <para>Steering takes time, so this announces only that movement began.
+    /// The selected target was already named when J or L selected it, and
+    /// repeating its coordinates here only lengthens a state announcement the
+    /// player needs immediately. Where the cursor actually comes to rest is
+    /// announced by the cursor readout after the keys are released, which is
+    /// the truth whether or not the jump reached what it was aimed at. A host
+    /// that cannot steer still says both positions and claims nothing.</para>
     /// </remarks>
     private string Locate(Func<int, int, bool>? moveCursor)
     {
@@ -288,7 +289,7 @@ public sealed class CondorFieldNavigator
 
         if (moveCursor is not null && moveCursor(target.X, target.Y))
         {
-            return $"Going to {target.Description}, at {target.X}, {target.Y}.";
+            return "Moving.";
         }
 
         // Both coordinates, so the player can steer to it themselves and knows

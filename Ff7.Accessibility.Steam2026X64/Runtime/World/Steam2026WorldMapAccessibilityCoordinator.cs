@@ -49,7 +49,6 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
     private readonly Dictionary<(int MapType, int ProgressStage), WorldMapRuntimeContext> runtimes = [];
     private readonly NativeFieldNavigationProgressBar? progressBar;
     private readonly IntervalFieldNavigationProgressSink? progressSink;
-    private readonly NavigationBeaconPlayer? beaconPlayer;
     private readonly FootstepSoundPlayer footstepPlayer;
     private readonly CosmoFootstepSequencer? cosmoFootsteps;
     private readonly NavigationAutoWalkController autoWalk;
@@ -98,15 +97,6 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
                 progressController ?? new NavigationProgressController(
                     config.EnableNavigationProgressIndicators,
                     config.NavigationProgressIntervalPercent));
-        beaconPlayer = config.EnableWorldMapNavigationAssistant
-            ? new NavigationBeaconPlayer(
-                ResolveModPath(
-                    modDirectory,
-                    config.WorldMapNavigationBeaconSoundPath,
-                    @"Assets\navigation\navigation_beacon_214_remix.wav"),
-                config.WorldMapNavigationBeaconVolumePercent,
-                log)
-            : null;
         footstepPlayer = new FootstepSoundPlayer(
             ResolveModPath(
                 modDirectory,
@@ -162,7 +152,6 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
                             progressSink,
                             Math.Max(1, config.WorldMapNavigationSpeechDistanceUnitsPerCount),
                             TimeSpan.FromMilliseconds(Math.Max(0, config.WorldMapNavigationSpeechIntervalMs)),
-                            TimeSpan.FromMilliseconds(Math.Max(0, config.WorldMapNavigationBeaconIntervalMs)),
                             TimeSpan.FromMilliseconds(Math.Max(80, config.WorldMapFootstepWalkIntervalMs)),
                             TimeSpan.FromMilliseconds(Math.Max(80, config.WorldMapFootstepChocoboIntervalMs))));
                     log(
@@ -204,7 +193,6 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
                         $"native combat module {frame.Lifecycle.ModuleId}");
                 }
 
-                beaconPlayer?.StopAll();
                 autoWalk.Suspend();
                 return;
             }
@@ -294,7 +282,6 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         {
             runtime.Footsteps.Reset();
             ResetMidgarZolomTrackers();
-            beaconPlayer?.StopAll();
             autoWalk.Suspend();
             return;
         }
@@ -310,14 +297,13 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         if (!config.EnableWorldMapNavigationAssistant)
         {
             runtime.Navigation.Suspend("world navigation disabled");
-            beaconPlayer?.StopAll();
             autoWalk.Reset();
             return;
         }
 
         foreach (var action in actions)
         {
-            ProcessOutput(runtime, runtime.Navigation.HandleAction(action, state, nowUtc));
+            ProcessOutput(runtime.Navigation.HandleAction(action, state, nowUtc));
         }
 
         if (autoWalkToggleRequested)
@@ -325,7 +311,6 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
             if (!runtime.Navigation.BeaconEnabled)
             {
                 ProcessOutput(
-                    runtime,
                     runtime.Navigation.HandleAction(FieldNavigationAction.ToggleBeacon, state, nowUtc));
             }
 
@@ -338,7 +323,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
             }
         }
 
-        ProcessOutput(runtime, runtime.Navigation.Observe(state, nowUtc));
+        ProcessOutput(runtime.Navigation.Observe(state, nowUtc));
         UpdateAutoWalk(runtime, state);
         LogDiagnostic("navigation", runtime.Navigation.LastDiagnostic, ref lastNavigationDiagnostic);
     }
@@ -352,7 +337,6 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
 
         ResetMidgarZolomTrackers();
 
-        beaconPlayer?.StopAll();
         autoWalk.Suspend();
         log($"Native Steam 2026 world-map accessibility suspended: {diagnostic}.");
     }
@@ -366,7 +350,6 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
             runtime.Navigation.Suspend(diagnostic);
         }
 
-        beaconPlayer?.StopAll();
         progressSink?.Deactivate();
         ResetMidgarZolomTrackers();
         autoWalk.Reset();
@@ -431,7 +414,6 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
             runtime.Navigation.Reset();
         }
 
-        beaconPlayer?.Dispose();
         progressSink?.Dispose();
         progressBar?.Dispose();
         footstepPlayer.Dispose();
@@ -439,9 +421,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         runtimes.Clear();
     }
 
-    private void ProcessOutput(
-        WorldMapRuntimeContext runtime,
-        WorldMapNavigationOutput? output)
+    private void ProcessOutput(WorldMapNavigationOutput? output)
     {
         if (output is not { } value)
         {
@@ -452,16 +432,6 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         {
             log($"Native Steam 2026 world-map speech: {value.Speech}");
             speak(value.Speech, true);
-        }
-
-        if (value.Beacon is { } beacon)
-        {
-            beaconPlayer?.Play(beacon);
-        }
-
-        if (!runtime.Navigation.BeaconEnabled)
-        {
-            beaconPlayer?.StopAll();
         }
     }
 
@@ -500,7 +470,6 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
 
         ResetMidgarZolomTrackers();
 
-        beaconPlayer?.StopAll();
         autoWalk.Suspend();
     }
 

@@ -399,6 +399,12 @@ function Assert-DualRuntimePackage {
         -Description 'world-map location name metadata'
     Assert-PackageFile -Path (Join-Path $PackageRoot 'Assets\footsteps\cosmo\config.toml') `
         -Description 'Cosmo Memory footstep mapping'
+    foreach ($sourceOnlyAsset in $script:AssetSourceOnlyDirectories) {
+        $unexpectedSourceAsset = Join-Path $PackageRoot $sourceOnlyAsset
+        if (Test-Path -LiteralPath $unexpectedSourceAsset) {
+            throw "Package validation failed: $sourceOnlyAsset is sound-sourcing material and must not ship."
+        }
+    }
     Assert-PackageFile -Path (Join-Path $PackageRoot 'LICENSES\FF7Tools-text-table-notice.md') `
         -Description 'FF7Tools text-table license notice'
     foreach ($fieldCueAsset in @(
@@ -438,6 +444,8 @@ if ([string]::IsNullOrWhiteSpace($ExpectedModVersion)) {
 }
 $configurationSource = Join-Path $legacyProjectRoot 'Configuration'
 $assetsSource = Join-Path $legacyProjectRoot 'Assets'
+# Sound-sourcing material that lives in the repo but must never ship to players.
+$script:AssetSourceOnlyDirectories = @('Assets\footsteps\real_samples')
 $worldCoordinateSource = Join-Path $scriptRoot 'external\kujata\field-id-to-world-map-coords.json'
 $worldMenuNameSource = Join-Path $scriptRoot 'external\kujata\wm-field-menu-names.txt'
 $ff7ToolsNoticeSource = Join-Path $scriptRoot 'docs\third-party\ff7tools-notice.md'
@@ -511,6 +519,12 @@ try {
     Copy-Item -LiteralPath $modConfigSource -Destination (Join-Path $stagingRoot 'ModConfig.json') -Force
     Copy-Item -LiteralPath $configurationSource -Destination $stagingRoot -Recurse -Force
     Copy-Item -LiteralPath $assetsSource -Destination $stagingRoot -Recurse -Force
+    foreach ($sourceOnlyAsset in $script:AssetSourceOnlyDirectories) {
+        $stagedSourceOnly = Join-Path $stagingRoot $sourceOnlyAsset
+        if (Test-Path -LiteralPath $stagedSourceOnly) {
+            Remove-Item -LiteralPath $stagedSourceOnly -Recurse -Force
+        }
+    }
     $worldAssetDirectory = Join-Path $stagingRoot 'Assets\world'
     New-Item -ItemType Directory -Path $worldAssetDirectory -Force | Out-Null
     Copy-Item -LiteralPath $worldCoordinateSource -Destination $worldAssetDirectory -Force

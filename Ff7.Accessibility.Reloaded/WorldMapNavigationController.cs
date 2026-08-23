@@ -4,9 +4,7 @@ public delegate IReadOnlyList<WorldMapNavigationTarget> WorldMapTargetProvider(
     WorldMapStateSnapshot state,
     WorldMapNavigationCategory category);
 
-public readonly record struct WorldMapNavigationOutput(
-    string? Speech,
-    NavigationBeaconCue? Beacon);
+public readonly record struct WorldMapNavigationOutput(string? Speech);
 
 public readonly record struct WorldMapNavigationProbeSnapshot(
     bool BeaconEnabled,
@@ -74,8 +72,7 @@ public sealed class WorldMapNavigationController
         WorldMapTargetProvider targetProvider,
         IFieldNavigationProgressSink? progressSink = null,
         int distanceUnitsPerCount = DefaultDistanceUnitsPerCount,
-        TimeSpan? guidanceInterval = null,
-        TimeSpan? beaconInterval = null)
+        TimeSpan? guidanceInterval = null)
     {
         this.map = map ?? throw new ArgumentNullException(nameof(map));
         this.planner = planner ?? throw new ArgumentNullException(nameof(planner));
@@ -139,13 +136,12 @@ public sealed class WorldMapNavigationController
                 lastGuidanceSignature = CreateGuidanceSignature(state);
                 lastGuidanceAt = now;
                 return new WorldMapNavigationOutput(
-                    CreateGuidanceSpeech(state, includeTarget: true, includeProgress: true),
-                    null);
+                    CreateGuidanceSpeech(state, includeTarget: true, includeProgress: true));
             case FieldNavigationAction.ToggleBeacon:
                 if (beaconEnabled)
                 {
                     ResetRoute();
-                    return new WorldMapNavigationOutput("Navigation off.", null);
+                    return new WorldMapNavigationOutput("Navigation off.");
                 }
 
                 var selected = GetSelectedTarget(state);
@@ -180,7 +176,7 @@ public sealed class WorldMapNavigationController
             var label = activeTarget?.Label ?? "World route";
             ResetRoute();
             lastDiagnostic = "world navigation owner changed";
-            return new WorldMapNavigationOutput($"{label} no longer available. Navigation off.", null);
+            return new WorldMapNavigationOutput($"{label} no longer available. Navigation off.");
         }
 
         var resumedAfterCombat = combatPaused;
@@ -243,7 +239,7 @@ public sealed class WorldMapNavigationController
             var label = target.Label;
             ResetRoute(deactivateProgress: false);
             lastDiagnostic = $"arrived on native triangle {playerTriangle}";
-            return new WorldMapNavigationOutput($"Arrived at {label}. Navigation off.", null);
+            return new WorldMapNavigationOutput($"Arrived at {label}. Navigation off.");
         }
 
         var routeMeasurement = MeasurePolylineProgress(
@@ -307,7 +303,7 @@ public sealed class WorldMapNavigationController
 
         return speech is null
             ? null
-            : new WorldMapNavigationOutput(speech, null);
+            : new WorldMapNavigationOutput(speech);
     }
 
     public bool TryResolveAutomaticInput(
@@ -415,7 +411,7 @@ public sealed class WorldMapNavigationController
         {
             ResetRoute();
             lastDiagnostic = planner.LastDiagnostic;
-            return new WorldMapNavigationOutput($"Route unavailable to {target.Label}. Navigation off.", null);
+            return new WorldMapNavigationOutput($"Route unavailable to {target.Label}. Navigation off.");
         }
 
         if (target.HasArrived(playerTriangle))
@@ -423,14 +419,14 @@ public sealed class WorldMapNavigationController
             progressSink?.Complete();
             ResetRoute(deactivateProgress: false);
             lastDiagnostic = $"already at target triangle {playerTriangle}";
-            return new WorldMapNavigationOutput($"Arrived at {target.Label}. Navigation off.", null);
+            return new WorldMapNavigationOutput($"Arrived at {target.Label}. Navigation off.");
         }
 
         if (!planner.TryBuildRoute(state, target, out var route))
         {
             ResetRoute();
             lastDiagnostic = planner.LastDiagnostic;
-            return new WorldMapNavigationOutput($"Route unavailable to {target.Label}. Navigation off.", null);
+            return new WorldMapNavigationOutput($"Route unavailable to {target.Label}. Navigation off.");
         }
 
         beaconEnabled = true;
@@ -456,8 +452,7 @@ public sealed class WorldMapNavigationController
         var guidance = CreateGuidanceSpeech(state, includeTarget: true, includeProgress: false);
         lastGuidanceSignature = CreateGuidanceSignature(state);
         return new WorldMapNavigationOutput(
-            announceOn ? $"Navigation on. {guidance}" : guidance,
-            null);
+            announceOn ? $"Navigation on. {guidance}" : guidance);
     }
 
     private WorldMapNavigationOutput DescribeSelection(WorldMapStateSnapshot state)
@@ -465,7 +460,7 @@ public sealed class WorldMapNavigationController
         var targets = GetTargets(state);
         if (targets.Count == 0)
         {
-            return new WorldMapNavigationOutput($"{DisplayName(CurrentCategory)}: none available.", null);
+            return new WorldMapNavigationOutput($"{DisplayName(CurrentCategory)}: none available.");
         }
 
         var target = GetSelectedTarget(state)!;
@@ -487,13 +482,11 @@ public sealed class WorldMapNavigationController
                 map.WrapHeight,
                 distanceUnitsPerCount).Speech;
             return new WorldMapNavigationOutput(
-                $"{DisplayName(CurrentCategory)}, {target.Label}. {direction}.",
-                null);
+                $"{DisplayName(CurrentCategory)}, {target.Label}. {direction}.");
         }
 
         return new WorldMapNavigationOutput(
-            $"{DisplayName(CurrentCategory)}, {target.Label}. Route unavailable.",
-            null);
+            $"{DisplayName(CurrentCategory)}, {target.Label}. Route unavailable.");
     }
 
     private string CreateGuidanceSpeech(

@@ -14,6 +14,13 @@ namespace Ff7.Accessibility.Reloaded;
 /// footprint scan still counts them, while the hit-box scan that decides which
 /// unit the cursor is pointing at skips them.
 /// </param>
+/// <param name="PrimaryActionState">
+/// Native byte at +0x02. State 1 is the directed walking/advance state;
+/// nonzero states keep an assigned command active through combat and recovery.
+/// </param>
+/// <param name="CommandId">
+/// Native byte at +0x03. Command 3 is the Ally Unit menu's Action order.
+/// </param>
 public sealed record CondorBattleUnit(
     int Slot,
     bool IsEnemy,
@@ -26,8 +33,24 @@ public sealed record CondorBattleUnit(
     bool IsDying,
     int Width,
     int HeightAbove,
-    bool IsRemoving = false)
+    bool IsRemoving = false,
+    int PrimaryActionState = 0,
+    int CommandId = 0)
 {
+    /// <summary>
+    /// The unit is in module 9's directed walking/advance state. This is the
+    /// state a sighted player sees as the unit travelling across the hill.
+    /// </summary>
+    public bool IsMoving =>
+        PrimaryActionState == 1 && !IsDying && !IsRemoving;
+
+    /// <summary>
+    /// The player's Action command is still active, including pauses for
+    /// combat or route recovery where the primary state is no longer 1.
+    /// </summary>
+    public bool HasActiveActionOrder =>
+        CommandId == 3 && PrimaryActionState != 0 && !IsDying && !IsRemoving;
+
     /// <summary>
     /// What to call this unit out loud. All 24 type identifiers the executable
     /// can draw are mapped to their exact <c>emes01.tex</c> cell; an out-of-range

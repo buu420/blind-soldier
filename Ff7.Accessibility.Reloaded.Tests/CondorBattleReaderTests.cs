@@ -11,6 +11,7 @@ internal static class CondorBattleReaderTests
         // when it may and when it must not.
         KeepsSpeakingAfterTheGeometryCountStopsReading();
         ReadsBothSidesOfTheLiveUnitArray();
+        ReadsTheNativeMovementAndCommandBytes();
         FailsClosedWhenAnyPartOfTheStateIsUnreadable();
         TreatsAUnitOutOfHpAsDyingRatherThanGone();
         ResolvesTheHighlightedHireRowThroughTheListRotation();
@@ -70,6 +71,26 @@ internal static class CondorBattleReaderTests
         Equal(true, enemy.IsEnemy, "slot 20 side");
         Equal(20, enemy.Slot, "slot 20 index");
         Equal(60, enemy.CurrentHp, "slot 20 current HP");
+    }
+
+    private static void ReadsTheNativeMovementAndCommandBytes()
+    {
+        var memory = new CondorMemory();
+        memory.WriteUnit(
+            slot: 0,
+            typeId: 2,
+            currentHp: 180,
+            maximumHp: 180,
+            attack: 25,
+            x: 256,
+            y: 872,
+            primaryActionState: 1,
+            commandId: 3);
+
+        var snapshot = new CondorBattleStateReader(memory).TryRead();
+        AssertNotNull(snapshot, "snapshot with a directed unit");
+        Equal(1, snapshot!.Units[0].PrimaryActionState, "unit +0x02 primary action state");
+        Equal(3, snapshot.Units[0].CommandId, "unit +0x03 command id");
     }
 
     private static void FailsClosedWhenAnyPartOfTheStateIsUnreadable()
@@ -1418,10 +1439,14 @@ internal static class CondorBattleReaderTests
             int attack,
             int x,
             int y,
-            sbyte removalState = 0)
+            sbyte removalState = 0,
+            byte primaryActionState = 0,
+            byte commandId = 0)
         {
             var unit = LiveUnits + (uint)(slot * UnitStride);
             WriteUInt16(unit + 0x00, 1);
+            bytes[unit + 0x02] = primaryActionState;
+            bytes[unit + 0x03] = commandId;
             bytes[unit + 0x05] = (byte)removalState;
             WriteUInt16(unit + 0x06, (ushort)typeId);
             bytes[unit + 0x10] = (byte)currentHp;

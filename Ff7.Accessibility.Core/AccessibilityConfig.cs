@@ -31,7 +31,6 @@ public sealed class AccessibilityConfig
     public bool EnableFieldCutsceneDescriptions { get; set; } = true;
     public bool EnableFieldCutsceneDescriptionDiagnostics { get; set; } = true;
     public int FieldMessageOpenSpeechSettleMs { get; set; } = 0;
-    public int NativeFieldMessageDuplicateSuppressMs { get; set; } = 1800;
     public bool EnableFieldDialogueDrawSpeech { get; set; } = true;
     public int FieldDialogueDrawStableMs { get; set; } = 250;
     public bool EnableNameEntryMenuSpeech { get; set; } = true;
@@ -40,11 +39,9 @@ public sealed class AccessibilityConfig
     public bool EnableFieldFootstepFeedback { get; set; } = true;
     public bool EnableFieldPositionDiagnostics { get; set; } = true;
     public int FieldFootstepScanIntervalMs { get; set; } = 80;
-    public int FieldFootstepIntervalMs { get; set; } = 320;
     public int FieldFootstepWalkIntervalMs { get; set; } = 500;
     public int FieldFootstepRunIntervalMs { get; set; } = 300;
     public int FieldFootstepMeasuredRunSpeedUnitsPerSecond { get; set; } = 300;
-    public bool FieldFootstepAssumeRunning { get; set; } = false;
     public int FieldFootstepVolumePercent { get; set; } = 200;
     public string FieldFootstepSoundPath { get; set; } = @"Assets\footsteps\selected_subway_step.ogg";
     public bool UseCosmoFootstepSounds { get; set; } = true;
@@ -104,9 +101,6 @@ public sealed class AccessibilityConfig
     public int FieldNavigationSpeechIntervalMs { get; set; } = 1000;
     public int FieldNavigationRunningSpeechIntervalMs { get; set; } = 350;
     public int FieldNavigationSpeechDistanceUnitsPerCount { get; set; } = 60;
-    public int FieldNavigationBeaconIntervalMs { get; set; } = 250;
-    public int FieldNavigationBeaconVolumePercent { get; set; } = 400;
-    public string FieldNavigationBeaconSoundPath { get; set; } = @"Assets\navigation\navigation_beacon_214_remix.wav";
     public int FieldNavigationArrivalDistanceUnits { get; set; } = 80;
     public bool EnableNavigationProgressIndicators { get; set; } = true;
     public int NavigationProgressIntervalPercent { get; set; } = 5;
@@ -117,10 +111,7 @@ public sealed class AccessibilityConfig
     public int WorldMapFootstepWalkIntervalMs { get; set; } = 300;
     public int WorldMapFootstepChocoboIntervalMs { get; set; } = 500;
     public int WorldMapNavigationSpeechIntervalMs { get; set; } = 1000;
-    public int WorldMapNavigationBeaconIntervalMs { get; set; } = 250;
     public int WorldMapNavigationSpeechDistanceUnitsPerCount { get; set; } = 512;
-    public int WorldMapNavigationBeaconVolumePercent { get; set; } = 400;
-    public string WorldMapNavigationBeaconSoundPath { get; set; } = @"Assets\navigation\navigation_beacon_214_remix.wav";
     public bool EnableFieldObjectProximityCues { get; set; } = true;
     public int FieldObjectCueInnerRangeUnits { get; set; } = 80;
     public int FieldObjectCueOuterRangeUnits { get; set; } = 400;

@@ -39,6 +39,7 @@ if (args.Contains("--condor-battle-only", StringComparer.OrdinalIgnoreCase))
     CondorBattleInitializationTests.Run();
     CondorPlacementLineReadoutTests.Run();
     CondorCursorSteeringTests.Run();
+    CondorUnitMovementSpeechTests.Run();
     CondorBattleReaderTests.Run();
     CondorResearchProbeSilenceTests.Run();
     DualRuntimeSharedSourceTests.Run();
@@ -52,6 +53,7 @@ if (args.Contains("--condor-probe-silence-only", StringComparer.OrdinalIgnoreCas
     CondorBattleInitializationTests.Run();
     CondorPlacementLineReadoutTests.Run();
     CondorCursorSteeringTests.Run();
+    CondorUnitMovementSpeechTests.Run();
     CondorResearchProbeSilenceTests.Run();
     CondorFieldNavigatorTests.Run();
     CondorNavigationIntegrationTests.Run();
@@ -159,7 +161,7 @@ if (args.Contains("--reactor-ladder-only", StringComparer.OrdinalIgnoreCase))
     AssertFieldNavigationControllerCompletesLadderFromLiveLandingWhenNativeStateIsUnreadable();
     AssertFieldNavigationControllerDoesNotRecaptureCompletedLadderAfterRouteRecovery();
     AssertFieldNavigationControllerUsesRouteDirectionWhileMounted();
-    AssertFieldNavigationBeaconTracksStableLiveTargetAndStopsWhenItDisappears();
+    AssertFieldNavigationTracksStableLiveTargetAndStopsWhenItDisappears();
     AssertFieldNavigationCorrectsRouteAgainstMountedLadder();
     AssertFieldLadderProximityCueTrackerPrioritizesActiveRouteLadder();
     AssertFieldLadderMountCueTrackerRequiresTheActiveEntrance();
@@ -167,6 +169,21 @@ if (args.Contains("--reactor-ladder-only", StringComparer.OrdinalIgnoreCase))
     AssertLadderCueConfigDefaultsEnabled();
     AssertLadderCueAssetLoads();
     Console.WriteLine("FFVII Reactor 1 ladder navigation tests passed.");
+    return;
+}
+
+if (args.Contains("--field-navigation-output-only", StringComparer.OrdinalIgnoreCase))
+{
+    AssertFieldNavigationControllerAnnouncesNativeLadderAtEntry();
+    AssertFieldNavigationControllerUsesRouteDistanceForTriggerLineArrival();
+    AssertFieldNavigationControllerRejectsMissingRoutePlanner();
+    AssertFieldNavigationControllerUsesWalkmeshRouteWaypoint();
+    AssertFieldNavigationControllerHasNoSyntheticControlOverloads();
+    AssertFieldNavigationControllerIgnoresSuppressedMovement();
+    AssertFieldNavigationTracksStableLiveTargetAndStopsWhenItDisappears();
+    AssertFieldNavigationInteractionArrivalPausesAndResumesGuidance();
+    AssertFieldNavigationIgnoresNonFieldModules();
+    Console.WriteLine("FFVII field spoken-navigation output tests passed.");
     return;
 }
 
@@ -538,6 +555,7 @@ AssertCondorUnitCatalogMatchesShippedMinigameData();
 CondorBattleInitializationTests.Run();
 CondorPlacementLineReadoutTests.Run();
 CondorCursorSteeringTests.Run();
+CondorUnitMovementSpeechTests.Run();
 CondorBattleReaderTests.Run();
 AssertFf7EncodedTextRequiresTerminatorForBufferReads();
 AssertFf7EncodedAskTextPreservesNativeChoiceLines();
@@ -976,18 +994,14 @@ AssertFieldNavigationNpcStopsAtNativeTalkRadius();
 AssertFieldAudibleCueTickSequenceUpdatesSuppressionFirst();
 AssertFieldNavigationReplaysMissedReactorExitWithoutBacktracking();
 AssertFieldNavigationControllerSpeaksRequiredPressDirection();
-AssertFieldNavigationBeaconTracksStableLiveTargetAndStopsWhenItDisappears();
+AssertFieldNavigationTracksStableLiveTargetAndStopsWhenItDisappears();
 AssertFieldNavigationExitStopsWhenItBecomesUnreachable();
 AssertFieldNavigationObjectWaitsForNativeRemoval();
 AssertFieldNavigationInteractionArrivalPausesAndResumesGuidance();
 AssertFieldNavigationTargetSupportsPersistentObjectArrival();
 AssertFieldNavigationSavePointCompletesAtArrival();
-AssertFieldNavigationBeaconUsesFieldPlaneDirection();
-AssertFieldNavigationBeaconUsesSteamAudioDirectionVector();
-AssertFieldNavigationBeaconUpdatesDirectionFromLivePlayerPosition();
 AssertNavigationBeaconUsesOneRemixedSoundForEveryMovementState();
 AssertNavigationBeaconRemixStartsWithoutPause();
-AssertNavigationBeaconDefaultsToMaximumBoost();
 AssertNavigationBeaconPlayerInitializesSteamAudioHrtf();
 AssertNavigationBeaconPlayerRendersAudibleSteamAudioSamples();
 AssertNavigationBeaconPlayerRendersDirectionalChannelSeparation();
@@ -17852,9 +17866,6 @@ static void AssertFieldNavigationControllerAnnouncesNativeLadderAtEntry()
             arrivalDistanceUnits: 5,
             ladderState: mounted)?.Speech,
         "the native ladder movement mode should announce the correct climb input");
-    AssertNull(
-        controller.CreateBeaconCue(ladderEntry, transform, arrivalDistanceUnits: 5),
-        "GPS beacon must pause while the player is mounted on a ladder");
     AssertEqual(
         "climb down",
         controller.CreateSpokenGuidance(ladderEntry, transform, arrivalDistanceUnits: 5)?.Speech,
@@ -20458,8 +20469,11 @@ static void AssertFieldNavigationControllerUsesRouteDistanceForTriggerLineArriva
 
     AssertEqual(true, controller.BeaconEnabled, "repeating trigger-line target should remain active at its crossing");
     AssertNull(
-        controller.CreateBeaconCue(start with { X = 712, Y = 1915 }, transform, arrivalDistanceUnits: 5),
-        "trigger-line arrival should use the chosen route crossing instead of its distant midpoint");
+        controller.CreateSpokenGuidance(
+            start with { X = 712, Y = 1915 },
+            transform,
+            arrivalDistanceUnits: 5),
+        "trigger-line arrival should stop spoken guidance at the chosen crossing instead of its distant midpoint");
 }
 
 static void AssertFieldWalkmeshPathfinderRejectsDisconnectedTarget()
@@ -20511,8 +20525,8 @@ static void AssertFieldNavigationControllerRejectsMissingRoutePlanner()
     AssertEqual(false, controller.BeaconEnabled, "beacon must stay off without a native walkmesh planner");
     AssertContains(activation?.Speech ?? string.Empty, "Route unavailable");
     AssertNull(
-        controller.CreateBeaconCue(position, new FieldNavigationControlTransform(-128), 5),
-        "missing walkmesh planner must never fall back to a direct beacon");
+        controller.CreateSpokenGuidance(position, new FieldNavigationControlTransform(-128), 5),
+        "missing walkmesh planner must never fall back to direct spoken guidance");
 }
 
 static void AssertFieldNavigationControllerUsesWalkmeshRouteWaypoint()
@@ -20531,10 +20545,13 @@ static void AssertFieldNavigationControllerUsesWalkmeshRouteWaypoint()
     var noRotation = new FieldNavigationControlTransform(-128);
 
     controller.HandleAction(FieldNavigationAction.ToggleBeacon, position, noRotation);
-    var cue = controller.CreateBeaconCue(position, noRotation, arrivalDistanceUnits: 5);
+    var speech = controller.CreateSpokenGuidance(position, noRotation, arrivalDistanceUnits: 5)?.Speech;
 
-    AssertEqual("right", cue?.Direction, "GPS beacon should hold a straight course through visible walkmesh portals");
-    AssertEqual(true, cue?.DistanceUnits > 100d, "GPS cue should look ahead instead of snapping to the nearest triangle edge");
+    AssertContains(speech ?? string.Empty, "right");
+    AssertEqual(
+        true,
+        controller.CurrentRouteGuidance?.RemainingDistance > 100d,
+        "spoken guidance should look ahead instead of snapping to the nearest triangle edge");
 }
 
 static void AssertFieldNavigationControllerHandlesHotkeys()
@@ -21416,14 +21433,14 @@ static void AssertFieldNavigationControllerHasNoSyntheticControlOverloads()
         method.GetParameters().Length == 2 &&
         method.GetParameters()[0].ParameterType == typeof(FieldPositionSnapshot) &&
         method.GetParameters()[1].ParameterType == typeof(int));
-    var syntheticCue = methods.Any(method =>
-        method.Name == nameof(FieldNavigationController.CreateBeaconCue) &&
+    var syntheticGuidance = methods.Any(method =>
+        method.Name == nameof(FieldNavigationController.CreateSpokenGuidance) &&
         method.GetParameters().Length == 2 &&
         method.GetParameters()[0].ParameterType == typeof(FieldPositionSnapshot) &&
         method.GetParameters()[1].ParameterType == typeof(int));
 
     AssertEqual(false, syntheticUpdate, "live tracking must require an explicit native control transform");
-    AssertEqual(false, syntheticCue, "beacon creation must require an explicit native control transform");
+    AssertEqual(false, syntheticGuidance, "spoken guidance must require an explicit native control transform");
 }
 
 static void AssertFieldNavigationInputReaderDecodesNativeDirections()
@@ -21938,7 +21955,6 @@ static void AssertFieldNavigationControllerDoesNotReplanForDistanceIncrease()
     var start = new FieldPositionSnapshot(1, 900, 0, 10, 10, 0, 0, 0);
 
     controller.HandleAction(FieldNavigationAction.ToggleBeacon, start, transform);
-    controller.CreateBeaconCue(start, transform, arrivalDistanceUnits: 5);
     controller.UpdateLiveTracking(start, right, transform, isSuppressed: false, arrivalDistanceUnits: 5);
     controller.UpdateLiveTracking(start with { X = 0 }, right, transform, isSuppressed: false, arrivalDistanceUnits: 5);
     controller.UpdateLiveTracking(start with { X = -10 }, right, transform, isSuppressed: false, arrivalDistanceUnits: 5);
@@ -22140,7 +22156,9 @@ static void AssertFieldNavigationControllerIgnoresSuppressedMovement()
     var start = new FieldPositionSnapshot(1, 900, 0, 30, 49, 0, 0, 0);
 
     controller.HandleAction(FieldNavigationAction.ToggleBeacon, start, transform);
-    AssertEqual("right", controller.CreateBeaconCue(start, transform, 5)?.Direction, "initial instruction");
+    AssertContains(
+        controller.CreateSpokenGuidance(start, transform, 5)?.Speech ?? string.Empty,
+        "right");
     var initialRemaining = controller.CurrentRouteGuidance?.RemainingDistance;
 
     controller.UpdateLiveTracking(start with { X = 20 }, right, transform, isSuppressed: true, arrivalDistanceUnits: 5);
@@ -22148,10 +22166,9 @@ static void AssertFieldNavigationControllerIgnoresSuppressedMovement()
     controller.UpdateLiveTracking(start with { X = 0 }, right, transform, isSuppressed: true, arrivalDistanceUnits: 5);
 
     AssertEqual(initialRemaining, controller.CurrentRouteGuidance?.RemainingDistance, "suppressed movement must not advance route state");
-    AssertEqual(
-        "right",
-        controller.CreateBeaconCue(start with { X = 0 }, transform, 5)?.Direction,
-        "suppressed scripted movement must not retrain the active instruction");
+    AssertContains(
+        controller.CreateSpokenGuidance(start with { X = 0 }, transform, 5)?.Speech ?? string.Empty,
+        "right");
 }
 
 static void AssertFieldNavigationControllerRefreshesRouteAfterSuppression()
@@ -22512,7 +22529,6 @@ static void AssertFieldNavigationReplaysMissedReactorExitWithoutBacktracking()
     };
 
     controller.HandleAction(FieldNavigationAction.ToggleBeacon, positions[0], transform);
-    controller.CreateBeaconCue(positions[0], transform, arrivalDistanceUnits: 80);
     var portalIndices = new List<int>();
     foreach (var position in positions)
     {
@@ -22571,7 +22587,7 @@ static void AssertFieldNavigationControllerSpeaksRequiredPressDirection()
     AssertEqual(false, (speech?.Speech ?? string.Empty).Contains("down", StringComparison.Ordinal), "speech must name the direction to press");
 }
 
-static void AssertFieldNavigationBeaconTracksStableLiveTargetAndStopsWhenItDisappears()
+static void AssertFieldNavigationTracksStableLiveTargetAndStopsWhenItDisappears()
 {
     var storyTarget = new FieldNavigationTarget(
         900,
@@ -22611,8 +22627,10 @@ static void AssertFieldNavigationBeaconTracksStableLiveTargetAndStopsWhenItDisap
             isSuppressed: false,
             arrivalDistanceUnits: 10);
     }
-    var movedCue = controller.CreateBeaconCue(position, noRotation, arrivalDistanceUnits: 10);
-    AssertEqual("up", movedCue?.Direction, "beacon should follow live coordinates for the locked target");
+    var movedSpeech = controller.CreateSpokenGuidance(position, noRotation, arrivalDistanceUnits: 10)?.Speech;
+    AssertContains(
+        movedSpeech ?? string.Empty,
+        "up");
 
     liveTargets = [];
     var update = controller.UpdateLiveTracking(
@@ -23018,9 +23036,6 @@ static void AssertFieldNavigationInteractionArrivalPausesAndResumesGuidance()
     AssertContains(arrival?.Speech ?? string.Empty, "Interact here");
     AssertEqual(true, controller.BeaconEnabled, "interaction arrival must retain the native target lock");
     AssertNull(
-        controller.CreateBeaconCue(reachedPosition, noRotation, arrivalDistanceUnits: 80),
-        "the beacon must stop at an uncompleted interaction");
-    AssertNull(
         controller.CreateSpokenGuidance(reachedPosition, noRotation, arrivalDistanceUnits: 80),
         "spoken directions must stop at an uncompleted interaction");
     AssertNull(
@@ -23041,10 +23056,9 @@ static void AssertFieldNavigationInteractionArrivalPausesAndResumesGuidance()
         arrivalDistanceUnits: 80);
 
     AssertContains(resumed?.Speech ?? string.Empty, "Navigation resumed");
-    AssertEqual(
-        true,
-        controller.CreateBeaconCue(movedAway, noRotation, arrivalDistanceUnits: 80) is not null,
-        "the beacon must resume after the player walks away from an uncompleted interaction");
+    AssertNotNull(
+        controller.CreateSpokenGuidance(movedAway, noRotation, arrivalDistanceUnits: 80),
+        "spoken guidance must resume after the player walks away from an uncompleted interaction");
 }
 
 static void AssertFieldNavigationTargetSupportsPersistentObjectArrival()
@@ -23094,65 +23108,6 @@ static void AssertFieldNavigationSavePointCompletesAtArrival()
     AssertContains(arrival?.Speech ?? string.Empty, "Navigation off");
 }
 
-static void AssertFieldNavigationBeaconUsesFieldPlaneDirection()
-{
-    var target = new FieldNavigationTarget(
-        900,
-        FieldNavigationCategory.Exits,
-        "Lower-left door",
-        X: 0,
-        Y: 200,
-        Z: 50);
-    var position = new FieldPositionSnapshot(1, 900, 0, 100, 100, 999, 1, 0);
-
-    var cue = FieldNavigationBeacon.CreateCue(position, target, arrivalDistanceUnits: 10);
-
-    AssertEqual("down-left", cue?.Direction, "beacon should use x/y field plane direction");
-    AssertApprox(-0.71f, cue?.Pan ?? 0, 0.01f, "compatibility pan should follow normalized left direction");
-}
-
-static void AssertFieldNavigationBeaconUsesSteamAudioDirectionVector()
-{
-    var target = new FieldNavigationTarget(
-        900,
-        FieldNavigationCategory.Exits,
-        "Lower-left door",
-        X: 0,
-        Y: 200,
-        Z: 50);
-    var position = new FieldPositionSnapshot(1, 900, 0, 100, 100, 999, 1, 0);
-
-    var cue = FieldNavigationBeacon.CreateCue(position, target, arrivalDistanceUnits: 10);
-
-    AssertApprox(-0.71f, cue?.StickX ?? 0, 0.01f, "beacon should tell the stick to move left");
-    AssertApprox(0.71f, cue?.StickY ?? 0, 0.01f, "beacon should tell the stick to move down");
-    AssertApprox(-0.71f, cue?.SteamAudioX ?? 0, 0.01f, "Steam Audio x should place the source left");
-    AssertApprox(0f, cue?.SteamAudioY ?? 0, 0.01f, "Steam Audio y should stay level");
-    AssertApprox(0.71f, cue?.SteamAudioZ ?? 0, 0.01f, "Steam Audio z should place down as behind");
-}
-
-static void AssertFieldNavigationBeaconUpdatesDirectionFromLivePlayerPosition()
-{
-    var target = new FieldNavigationTarget(
-        900,
-        FieldNavigationCategory.Exits,
-        "Upper door",
-        X: 100,
-        Y: 100,
-        Z: 50);
-    var downRightOfTarget = new FieldPositionSnapshot(1, 900, 0, 200, 200, 999, 1, 0);
-    var downLeftOfTarget = downRightOfTarget with { X = 0 };
-    var noRotation = new FieldNavigationControlTransform(-128);
-
-    var firstCue = FieldNavigationBeacon.CreateCue(downRightOfTarget, target, noRotation, arrivalDistanceUnits: 10);
-    var secondCue = FieldNavigationBeacon.CreateCue(downLeftOfTarget, target, noRotation, arrivalDistanceUnits: 10);
-
-    AssertEqual("down-left", firstCue?.Direction, "a player down-right of the target should hear the required up-left world correction through the native control transform");
-    AssertEqual("down-right", secondCue?.Direction, "the next cue should update after the player moves to the other side of the target");
-    AssertEqual(true, firstCue?.SteamAudioX < 0f, "first live cue should be spatialized left");
-    AssertEqual(true, secondCue?.SteamAudioX > 0f, "updated live cue should be spatialized right");
-}
-
 static void AssertNavigationBeaconUsesOneRemixedSoundForEveryMovementState()
 {
     var sound = LoadNavigationBeaconMonoSamples();
@@ -23179,15 +23134,9 @@ static void AssertNavigationBeaconRemixStartsWithoutPause()
     AssertEqual(true, peak > 0.5f, $"remixed beacon should have a strong audible transient, peak={peak:0.000000}");
 }
 
-static void AssertNavigationBeaconDefaultsToMaximumBoost()
-{
-    var config = new AccessibilityConfig();
-    AssertEqual(FootstepVolumePolicy.MaxVolumePercent, config.FieldNavigationBeaconVolumePercent, "navigation beacon should default to the maximum boost");
-}
-
 static void AssertNavigationBeaconPlayerInitializesSteamAudioHrtf()
 {
-    var type = typeof(FieldNavigationBeacon).Assembly.GetType("Ff7.Accessibility.Reloaded.NavigationBeaconPlayer")
+    var type = typeof(FieldNavigationController).Assembly.GetType("Ff7.Accessibility.Reloaded.NavigationBeaconPlayer")
         ?? throw new InvalidOperationException("NavigationBeaconPlayer type was not found.");
     var outputDirectory = Path.GetDirectoryName(type.Assembly.Location)
         ?? throw new InvalidOperationException("Could not resolve navigation beacon player assembly path.");
@@ -23275,7 +23224,7 @@ static void AssertObjectCueConfigDefaultsEnabled()
 
 static void AssertObjectCueAssetsLoad()
 {
-    var outputDirectory = Path.GetDirectoryName(typeof(FieldNavigationBeacon).Assembly.Location)
+    var outputDirectory = Path.GetDirectoryName(typeof(FieldNavigationController).Assembly.Location)
         ?? throw new InvalidOperationException("Could not resolve object cue output directory.");
     foreach (var name in new[]
              {
@@ -23306,7 +23255,7 @@ static void AssertExitCueConfigDefaultsEnabled()
 
 static void AssertExitCueAssetLoads()
 {
-    var outputDirectory = Path.GetDirectoryName(typeof(FieldNavigationBeacon).Assembly.Location)
+    var outputDirectory = Path.GetDirectoryName(typeof(FieldNavigationController).Assembly.Location)
         ?? throw new InvalidOperationException("Could not resolve exit cue output directory.");
     var path = Path.Combine(outputDirectory, "Assets", "navigation", "field_zone_transition.wav");
     var samples = NavigationBeaconSound.LoadMonoSamples(path, expectedSampleRate: 44100);
@@ -23376,7 +23325,7 @@ static void AssertAccessibilityConfigMigratesLegacyLadderCueDefaults()
 
 static void AssertLadderCueAssetLoads()
 {
-    var outputDirectory = Path.GetDirectoryName(typeof(FieldNavigationBeacon).Assembly.Location)
+    var outputDirectory = Path.GetDirectoryName(typeof(FieldNavigationController).Assembly.Location)
         ?? throw new InvalidOperationException("Could not resolve ladder cue output directory.");
     var traversalPath = Path.Combine(outputDirectory, "Assets", "navigation", "ladder_061.wav");
     var traversalSamples = NavigationBeaconSound.LoadMonoSamples(traversalPath, expectedSampleRate: 44100);
@@ -23397,8 +23346,11 @@ static void AssertFieldNavigationIgnoresNonFieldModules()
 
     AssertNull(controller.HandleAction(FieldNavigationAction.RepeatTarget, position), "navigation hotkeys should stay silent outside field module");
     AssertNull(
-        controller.CreateBeaconCue(position, new FieldNavigationControlTransform(-128), arrivalDistanceUnits: 80),
-        "navigation beacon should stay silent outside field module");
+        controller.CreateSpokenGuidance(
+            position,
+            new FieldNavigationControlTransform(-128),
+            arrivalDistanceUnits: 80),
+        "spoken navigation should stay silent outside field module");
 }
 
 static void AssertNavigationHotkeysRequireFf7ForegroundWindow()
@@ -23708,7 +23660,7 @@ static NavigationBeaconCue CreateNavigationBeaconCue(
 
 static string GetNavigationBeaconSoundPath()
 {
-    var outputDirectory = Path.GetDirectoryName(typeof(FieldNavigationBeacon).Assembly.Location)
+    var outputDirectory = Path.GetDirectoryName(typeof(FieldNavigationController).Assembly.Location)
         ?? throw new InvalidOperationException("Could not resolve navigation beacon output directory.");
     return Path.Combine(outputDirectory, "Assets", "navigation", "navigation_beacon_214_remix.wav");
 }
@@ -23718,7 +23670,7 @@ static float[] LoadNavigationBeaconMonoSamples() =>
 
 static float[] RenderNavigationBeaconSamples(NavigationBeaconCue cue, float[] monoSamples)
 {
-    var type = typeof(FieldNavigationBeacon).Assembly.GetType("Ff7.Accessibility.Reloaded.NavigationBeaconPlayer+SteamAudioNavigationBeaconRenderer")
+    var type = typeof(FieldNavigationController).Assembly.GetType("Ff7.Accessibility.Reloaded.NavigationBeaconPlayer+SteamAudioNavigationBeaconRenderer")
         ?? throw new InvalidOperationException("Steam Audio navigation beacon renderer type was not found.");
     var tryCreate = type.GetMethod(
         "TryCreate",

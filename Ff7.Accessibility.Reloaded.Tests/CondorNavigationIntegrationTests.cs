@@ -17,6 +17,8 @@ internal static class CondorNavigationIntegrationTests
         ResetForgetsTheBattlefield();
         TheCursorReadoutSpeaksCoordinates();
         TheCursorReadoutDoesNotRepeatItself();
+        SyntheticJumpSuppressesIntermediateDestinationPositions();
+        ManualDestinationMovementStillReadsItsSettledPosition();
     }
 
     private static CondorBattleUnit Ally(int slot, int typeId, int x, int y, int hp = 200) =>
@@ -30,9 +32,12 @@ internal static class CondorNavigationIntegrationTests
         int cursorX = 400,
         int cursorY = 700,
         int phase = 1,
-        int unitUnderCursorSlot = -1)
+        int unitUnderCursorSlot = -1,
+        int interactionMode = CondorBattleSnapshot.CursorInteractionMode,
+        int? destinationX = null,
+        int? destinationY = null)
         => new(
-            InteractionMode: CondorBattleSnapshot.CursorInteractionMode,
+            InteractionMode: interactionMode,
             ModalState: 0,
             SettingMenuRow: 0,
             SettingMenuRotation: 0,
@@ -51,7 +56,11 @@ internal static class CondorNavigationIntegrationTests
             ReportState: 0,
             DeploymentFrontierY: 1008,
             EnemyAdvance: 0,
-            CollisionTriangles: Array.Empty<CondorCollisionTriangle>());
+            CollisionTriangles: Array.Empty<CondorCollisionTriangle>())
+        {
+            DestinationX = destinationX ?? cursorX,
+            DestinationY = destinationY ?? cursorY
+        };
 
     private static void ALostAllyIsRecordedWhereItFell()
     {
@@ -162,6 +171,90 @@ internal static class CondorNavigationIntegrationTests
         }
 
         AssertContains(spoken[0], "400, 704");
+    }
+
+    /// <summary>
+    /// Steering deliberately lets go for a pass to reset FFVII's repeat ramp.
+    /// Two identical samples during that pause are not a destination the player
+    /// chose to stop on, so they must not escape as a settled readout.
+    /// </summary>
+    private static void SyntheticJumpSuppressesIntermediateDestinationPositions()
+    {
+        var tracker = new CondorBattleSpeechTracker();
+        var units = Array.Empty<CondorBattleUnit>();
+        tracker.Observe(Snapshot(units));
+
+        Equal(
+            "Choose destination. Cursor at 256, 795.",
+            Single(tracker.Observe(Snapshot(
+                units,
+                interactionMode: CondorBattleSnapshot.DestinationInteractionMode,
+                destinationX: 256,
+                destinationY: 795))),
+            "destination mode opens normally");
+
+        var pausedMidJump = Snapshot(
+            units,
+            interactionMode: CondorBattleSnapshot.DestinationInteractionMode,
+            destinationX: 256,
+            destinationY: 980);
+        Equal(0, tracker.Observe(pausedMidJump, cursorJumpInProgress: true).Count, "first synthetic sample");
+        Equal(0, tracker.Observe(pausedMidJump, cursorJumpInProgress: true).Count, "repeat-ramp pause stays silent");
+
+        var finished = Snapshot(
+            units,
+            interactionMode: CondorBattleSnapshot.DestinationInteractionMode,
+            destinationX: 256,
+            destinationY: 1008);
+
+        // Both hosts step steering before Observe. On the terminal pass the
+        // post-step state is false, so ordinary settling resumes immediately.
+        Equal(0, tracker.Observe(finished, cursorJumpInProgress: false).Count, "first final sample");
+        Equal(
+            "Destination 256, 1008.",
+            Single(tracker.Observe(finished, cursorJumpInProgress: false)),
+            "settled final position remains available after the stop line");
+    }
+
+    private static void ManualDestinationMovementStillReadsItsSettledPosition()
+    {
+        var tracker = new CondorBattleSpeechTracker();
+        var units = Array.Empty<CondorBattleUnit>();
+        tracker.Observe(Snapshot(
+            units,
+            interactionMode: CondorBattleSnapshot.DestinationInteractionMode,
+            destinationX: 240,
+            destinationY: 500));
+
+        var manuallyMoved = Snapshot(
+            units,
+            interactionMode: CondorBattleSnapshot.DestinationInteractionMode,
+            destinationX: 240,
+            destinationY: 640);
+        Equal(0, tracker.Observe(manuallyMoved).Count, "manual cursor is still moving");
+        Equal(
+            "Destination 240, 640.",
+            Single(tracker.Observe(manuallyMoved)),
+            "manual settled destination readout is unchanged");
+    }
+
+    private static string Single(IReadOnlyList<string> lines)
+    {
+        if (lines.Count != 1)
+        {
+            throw new InvalidOperationException(
+                $"Expected exactly one spoken line, got {lines.Count}: [{string.Join(" | ", lines)}].");
+        }
+
+        return lines[0];
+    }
+
+    private static void Equal<T>(T expected, T actual, string label)
+    {
+        if (!EqualityComparer<T>.Default.Equals(expected, actual))
+        {
+            throw new InvalidOperationException($"{label}: expected {expected}, got {actual}.");
+        }
     }
 
     private static void AssertContains(string? actual, string expected)

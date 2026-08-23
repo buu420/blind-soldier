@@ -202,7 +202,6 @@ public sealed class FieldNavigationController
     private readonly FieldNavigationRouteProgressTracker routeProgressTracker = new();
     private readonly IFieldNavigationProgressSink? routeProgressSink;
     private readonly Dictionary<string, string> selectedTargetIds = new(StringComparer.Ordinal);
-    private FieldPositionSnapshot? lastBeaconPosition;
     private FieldNavigationTarget? beaconLockedTarget;
     private FieldNavigationRouteGuidance? currentGuidance;
     private FieldNavigationRouteAction? pendingLadderAction;
@@ -394,7 +393,6 @@ public sealed class FieldNavigationController
     private void ResetCore(bool deactivateProgress)
     {
         BeaconEnabled = false;
-        lastBeaconPosition = null;
         beaconLockedTarget = null;
         currentGuidance = null;
         pendingLadderAction = null;
@@ -743,7 +741,6 @@ public sealed class FieldNavigationController
                 currentGuidance = postActionGuidance;
                 RestartProgressSegment(ResolveProgressRemainingDistance(postActionGuidance));
                 CapturePendingLadderAction(postActionGuidance);
-                lastBeaconPosition = null;
                 LastNavigationDiagnostic = postActionGuidance.Diagnostic;
             }
             else
@@ -809,7 +806,6 @@ public sealed class FieldNavigationController
 
                 interactionArrivalPaused = false;
                 interactionArrivalDistance = 0;
-                lastBeaconPosition = null;
                 var resumedGuidance = CreateSpokenGuidance(
                     position,
                     controlTransform,
@@ -828,7 +824,6 @@ public sealed class FieldNavigationController
                 interactionArrivalDistance = ResolveArrivalDistance(
                     target.Value,
                     arrivalDistanceUnits);
-                lastBeaconPosition = null;
                 LastNavigationDiagnostic =
                     $"{LastNavigationDiagnostic}, interaction arrival paused at " +
                     $"{interactionArrivalDistance} units";
@@ -927,80 +922,6 @@ public sealed class FieldNavigationController
                 : direction is null
                     ? "Climb the ladder."
                     : $"Climb {direction}.");
-    }
-
-    public NavigationBeaconCue? CreateBeaconCue(
-        FieldPositionSnapshot position,
-        FieldNavigationControlTransform controlTransform,
-        int arrivalDistanceUnits)
-    {
-        if (!BeaconEnabled ||
-            interactionArrivalPaused ||
-            !FieldPositionReader.IsUsable(position) ||
-            activeLadderState.IsMounted)
-        {
-            return null;
-        }
-
-        if (position.FieldId != beaconFieldId)
-        {
-            return null;
-        }
-
-        var target = GetBeaconTarget(position);
-        if (target is null)
-        {
-            return null;
-        }
-
-        if (routeTracker is null)
-        {
-            return null;
-        }
-
-        if (currentGuidance is null)
-        {
-            return null;
-        }
-
-        var guidance = currentGuidance.Value;
-        if (IsWithinArrivalDistance(position, target.Value, arrivalDistanceUnits, guidance))
-        {
-            return null;
-        }
-
-        var waypoint = ResolveGuidanceWaypoint(guidance);
-        var desiredX = waypoint.X - position.X;
-        var desiredY = waypoint.Y - position.Y;
-        var recommendation = movementObserver.ResolveStickDirection(desiredX, desiredY, controlTransform);
-        var recommendedInput = recommendation.Input;
-
-        if (!IsDirectionalInput(recommendedInput))
-        {
-            return null;
-        }
-
-        var stick = FieldNavigationMovementObserver.ToStickDirection(recommendedInput);
-        var cueTarget = target.Value with
-        {
-            X = waypoint.X,
-            Y = waypoint.Y,
-            Z = waypoint.Z
-        };
-        var cue = FieldNavigationBeacon.CreateCue(
-            position,
-            cueTarget,
-            stick,
-            arrivalDistanceUnits: 0,
-            previousPosition: lastBeaconPosition);
-        if (cue is null)
-        {
-            return null;
-        }
-
-        lastBeaconPosition = position;
-        LastNavigationDiagnostic = $"{guidance.Diagnostic}, {recommendation.Diagnostic}, cue={recommendedInput}";
-        return cue.Value with { DistanceUnits = guidance.RemainingDistance };
     }
 
     public FieldNavigationActionResult? CreateSpokenGuidance(
@@ -1478,7 +1399,6 @@ public sealed class FieldNavigationController
         routeRefreshPending = false;
         interactionArrivalPaused = false;
         interactionArrivalDistance = 0;
-        lastBeaconPosition = null;
         lastAcceptedPosition = null;
         ResetLadderMountPrompt();
         movementObserver.Reset();
@@ -1976,7 +1896,6 @@ public sealed class FieldNavigationController
         {
             CapturePendingLadderAction(guidance);
         }
-        lastBeaconPosition = null;
         lastAcceptedPosition = position;
         var initialRemainingDistance = ResolveProgressRemainingDistance(guidance);
         if (routeStartsAfterMountedLadder)
@@ -2172,200 +2091,4 @@ public sealed class FieldNavigationController
             FieldNavigationCategory.Objects => "Objects",
             _ => category.ToString()
         };
-}
-
-public static class FieldNavigationBeacon
-{
-    public static NavigationBeaconCue? CreateCue(
-        FieldPositionSnapshot position,
-        FieldNavigationTarget target,
-        int arrivalDistanceUnits,
-        int durationMs = 220,
-        FieldPositionSnapshot? previousPosition = null)
-    {
-        if (!FieldPositionReader.IsUsable(position) || position.FieldId != target.FieldId)
-        {
-            return null;
-        }
-
-        var dx = target.X - position.X;
-        var dy = target.Y - position.Y;
-        var distance = Math.Sqrt(dx * (double)dx + dy * (double)dy);
-        if (distance <= Math.Max(0, arrivalDistanceUnits))
-        {
-            return null;
-        }
-
-        var direction = DescribeDirection(dx, dy);
-        var stickX = CalculateDirectionComponent(dx, distance);
-        var stickY = CalculateDirectionComponent(dy, distance);
-        return new NavigationBeaconCue(
-            target.Label,
-            direction,
-            stickX,
-            stickY,
-            stickX,
-            0f,
-            stickY,
-            ClassifyMovement(position, previousPosition, dx, dy, distance),
-            Math.Max(40, durationMs),
-            distance);
-    }
-
-    public static NavigationBeaconCue? CreateCue(
-        FieldPositionSnapshot position,
-        FieldNavigationTarget target,
-        FieldNavigationControlTransform controlTransform,
-        int arrivalDistanceUnits,
-        int durationMs = 220,
-        FieldPositionSnapshot? previousPosition = null)
-    {
-        if (!FieldPositionReader.IsUsable(position) || position.FieldId != target.FieldId)
-        {
-            return null;
-        }
-
-        var dx = target.X - position.X;
-        var dy = target.Y - position.Y;
-        var distance = Math.Sqrt(dx * (double)dx + dy * (double)dy);
-        if (distance <= Math.Max(0, arrivalDistanceUnits))
-        {
-            return null;
-        }
-
-        var stick = controlTransform.TransformWorldVector(dx, dy);
-        return new NavigationBeaconCue(
-            target.Label,
-            DescribeStickDirection(stick.X, stick.Y),
-            stick.X,
-            stick.Y,
-            stick.X,
-            0f,
-            stick.Y,
-            ClassifyMovement(position, previousPosition, dx, dy, distance),
-            Math.Max(40, durationMs),
-            distance);
-    }
-
-    public static NavigationBeaconCue? CreateCue(
-        FieldPositionSnapshot position,
-        FieldNavigationTarget target,
-        FieldNavigationStickDirection stick,
-        int arrivalDistanceUnits,
-        int durationMs = 220,
-        FieldPositionSnapshot? previousPosition = null)
-    {
-        if (!FieldPositionReader.IsUsable(position) || position.FieldId != target.FieldId)
-        {
-            return null;
-        }
-
-        var dx = target.X - position.X;
-        var dy = target.Y - position.Y;
-        var distance = Math.Sqrt(dx * (double)dx + dy * (double)dy);
-        if (distance <= Math.Max(0, arrivalDistanceUnits))
-        {
-            return null;
-        }
-
-        return new NavigationBeaconCue(
-            target.Label,
-            DescribeStickDirection(stick.X, stick.Y),
-            stick.X,
-            stick.Y,
-            stick.X,
-            0f,
-            stick.Y,
-            ClassifyMovement(position, previousPosition, dx, dy, distance),
-            Math.Max(40, durationMs),
-            distance);
-    }
-
-    private static string DescribeDirection(int dx, int dy)
-    {
-        var max = Math.Max(Math.Abs(dx), Math.Abs(dy));
-        if (max == 0)
-        {
-            return "here";
-        }
-
-        var threshold = max * 0.35;
-        var vertical = Math.Abs(dy) <= threshold ? string.Empty : dy > 0 ? "down" : "up";
-        var horizontal = Math.Abs(dx) <= threshold ? string.Empty : dx > 0 ? "right" : "left";
-        if (vertical.Length != 0 && horizontal.Length != 0)
-        {
-            return $"{vertical}-{horizontal}";
-        }
-
-        return vertical.Length != 0 ? vertical : horizontal;
-    }
-
-    private static string DescribeStickDirection(float x, float y)
-    {
-        var max = Math.Max(Math.Abs(x), Math.Abs(y));
-        if (max <= 0.001f)
-        {
-            return "here";
-        }
-
-        var threshold = max * 0.35f;
-        var vertical = Math.Abs(y) <= threshold ? string.Empty : y < 0 ? "up" : "down";
-        var horizontal = Math.Abs(x) <= threshold ? string.Empty : x < 0 ? "left" : "right";
-        if (vertical.Length != 0 && horizontal.Length != 0)
-        {
-            return $"{vertical}-{horizontal}";
-        }
-
-        return vertical.Length != 0 ? vertical : horizontal;
-    }
-
-    private static float CalculatePan(int dx, int dy)
-    {
-        var max = Math.Max(Math.Abs(dx), Math.Abs(dy));
-        if (max == 0)
-        {
-            return 0f;
-        }
-
-        var pan = dx / (double)max;
-        return (float)Math.Round(Math.Clamp(pan, -1d, 1d), 2);
-    }
-
-    private static float CalculateDirectionComponent(int value, double length)
-    {
-        if (length <= 0)
-        {
-            return 0f;
-        }
-
-        return (float)(value / length);
-    }
-
-    private static NavigationBeaconMovementState ClassifyMovement(
-        FieldPositionSnapshot position,
-        FieldPositionSnapshot? previousPosition,
-        int targetDx,
-        int targetDy,
-        double targetDistance)
-    {
-        if (previousPosition is null || previousPosition.Value.FieldId != position.FieldId || targetDistance <= 0)
-        {
-            return NavigationBeaconMovementState.Correcting;
-        }
-
-        var moveDx = position.X - previousPosition.Value.X;
-        var moveDy = position.Y - previousPosition.Value.Y;
-        var moveDistance = Math.Sqrt(moveDx * (double)moveDx + moveDy * (double)moveDy);
-        if (moveDistance < 1d)
-        {
-            return NavigationBeaconMovementState.Correcting;
-        }
-
-        var alignment =
-            (moveDx / moveDistance * (targetDx / targetDistance)) +
-            (moveDy / moveDistance * (targetDy / targetDistance));
-        return alignment >= 0.55d
-            ? NavigationBeaconMovementState.OnCourse
-            : NavigationBeaconMovementState.Correcting;
-    }
 }

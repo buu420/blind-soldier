@@ -24,7 +24,7 @@ internal static class CondorFieldNavigatorTests
         RemembersWhereAUnitDiedAfterItLeavesTheField();
         OrdersEnemiesByHowFarTheyHaveAdvanced();
         SaysSoWhenACategoryIsEmpty();
-        JumpSaysWhereItIsTakingTheCursor();
+        JumpSaysMovingOnceWhenItStarts();
         JumpSaysSoWhenItCannotMoveTheCursor();
         ForgetsLossesWhenANewBattleStarts();
         SelectionSurvivesUnitsChangingPlaces();
@@ -220,7 +220,7 @@ internal static class CondorFieldNavigatorTests
     /// comes to rest is announced by the cursor readout when the keys are
     /// released, which is the truth either way.
     /// </remarks>
-    private static void JumpSaysWhereItIsTakingTheCursor()
+    private static void JumpSaysMovingOnceWhenItStarts()
     {
         var navigator = NavigatorWith(new[] { Ally(0, 1, 428, 706) });
         navigator.Handle(CondorNavigationAction.NextTarget);
@@ -232,8 +232,7 @@ internal static class CondorFieldNavigatorTests
 
         AssertEqual(1, moved.Count, "the steering was asked once");
         AssertEqual((428, 706), moved[0], "the steering was given the target's coordinates");
-        AssertContains(spoken, "428, 706");
-        AssertContains(spoken, "Going to");
+        AssertEqual("Moving.", spoken, "an accepted jump announces movement once");
 
         if (spoken is not null && spoken.Contains("Cursor at", StringComparison.Ordinal))
         {

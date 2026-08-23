@@ -39,6 +39,9 @@ if (args.Contains("--module-tests-only", StringComparer.OrdinalIgnoreCase))
     CondorBattleInitializationTests.Run();
     CondorPlacementLineReadoutTests.Run();
     CondorCursorSteeringTests.Run();
+    CondorUnitMovementSpeechTests.Run();
+    CondorFieldNavigatorTests.Run();
+    CondorNavigationIntegrationTests.Run();
     Steam2026BattleStatusHotkeyTests.Run();
     Steam2026BattleObservationTests.ReadsNativeEnemySkillCategoryMapping();
     Steam2026BattleObservationTests.ReadsScriptedGuestPartyBattleSnapshots(
@@ -53,11 +56,22 @@ if (args.Contains("--module-tests-only", StringComparer.OrdinalIgnoreCase))
     return;
 }
 
+if (args.Contains("--world-map-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.WorldMapNavigationControllerTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.NavigationProgressControlTests.Run();
+    Console.WriteLine("Steam 2026 x64 world-map navigation tests passed.");
+    return;
+}
+
 if (args.Contains("--condor-battle-only", StringComparer.OrdinalIgnoreCase))
 {
     CondorBattleInitializationTests.Run();
     CondorPlacementLineReadoutTests.Run();
     CondorCursorSteeringTests.Run();
+    CondorUnitMovementSpeechTests.Run();
+    CondorFieldNavigatorTests.Run();
+    CondorNavigationIntegrationTests.Run();
     Console.WriteLine("Steam 2026 x64 Fort Condor initialization tests passed.");
     return;
 }
@@ -225,8 +239,13 @@ Steam2026ForegroundInputTests.Run(native, legacy);
 CondorBattleInitializationTests.Run();
 CondorPlacementLineReadoutTests.Run();
 CondorCursorSteeringTests.Run();
+CondorUnitMovementSpeechTests.Run();
+CondorFieldNavigatorTests.Run();
+CondorNavigationIntegrationTests.Run();
 HighwayAutoSteeringControllerTests.Run();
 NavigationAutoWalkControllerTests.Run();
+Ff7.Accessibility.Reloaded.Tests.WorldMapNavigationControllerTests.Run();
+Ff7.Accessibility.Reloaded.Tests.NavigationProgressControlTests.Run();
 HighwayEngagementSteeringTrackerTests.Run();
 Steam2026ResearchSpeechPolicyTests.Run();
 Steam2026ResearchAccessibilityOutputTests.Run();

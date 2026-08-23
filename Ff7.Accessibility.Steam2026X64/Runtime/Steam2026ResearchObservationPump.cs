@@ -213,7 +213,9 @@ internal sealed class Steam2026ResearchObservationPump
         // A cursor-only batch interrupts: the player wants where the cursor is
         // now, not the rows it passed through on the way. Anything carrying an
         // event queues instead, so a banner or a casualty is never cut short.
-        var observation = condorBattleSpeechTracker.Observe(snapshot);
+        var observation = condorBattleSpeechTracker.Observe(
+            snapshot,
+            cursorJumpInProgress: condorCursorSteering.IsSteering);
         var supersedes = condorBattleSpeechTracker.LastObservationSupersedesSpeech;
         foreach (var line in observation)
         {

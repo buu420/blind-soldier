@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -313,7 +313,6 @@ public sealed class Mod : IModV1, IModV2
     private string lastNavigationAutoWalkFailure = string.Empty;
     private NativeFieldNavigationProgressBar? worldMapNavigationProgressBar;
     private IntervalFieldNavigationProgressSink? worldMapNavigationProgressSink;
-    private NavigationBeaconPlayer? worldMapNavigationBeaconPlayer;
     private FieldNavigationController fieldNavigationController = new(FieldNavigationTargetSource.CreateOpeningReactorRoute());
     private readonly FieldNavigationGuidanceRepeatGate fieldNavigationGuidanceRepeatGate = new();
     private DateTime lastFieldMessageScanAt = DateTime.MinValue;
@@ -510,7 +509,6 @@ public sealed class Mod : IModV1, IModV2
             fieldNavigationProgressSink?.Dispose();
             fieldNavigationProgressBar?.Dispose();
             ResetWorldMapAccessibility("mod unloaded");
-            worldMapNavigationBeaconPlayer?.Dispose();
             worldMapNavigationProgressSink?.Dispose();
             worldMapNavigationProgressBar?.Dispose();
             worldMapRuntimes.Clear();
@@ -1995,7 +1993,9 @@ public sealed class Mod : IModV1, IModV2
         // A cursor-only batch interrupts: the player wants where the cursor is
         // now, not the rows it passed through on the way. Anything carrying an
         // event queues instead, so a banner or a casualty is never cut short.
-        var condorObservation = condorBattleSpeechTracker.Observe(snapshot);
+        var condorObservation = condorBattleSpeechTracker.Observe(
+            snapshot,
+            cursorJumpInProgress: condorCursorSteering is { IsSteering: true });
         var condorSupersedes = condorBattleSpeechTracker.LastObservationSupersedesSpeech;
         foreach (var line in condorObservation)
         {
@@ -3733,13 +3733,6 @@ public sealed class Mod : IModV1, IModV2
             : new IntervalFieldNavigationProgressSink(
                 worldMapNavigationProgressBar,
                 navigationProgressController);
-        worldMapNavigationBeaconPlayer?.Dispose();
-        worldMapNavigationBeaconPlayer = config.EnableWorldMapNavigationAssistant
-            ? new NavigationBeaconPlayer(
-                ResolveWorldMapNavigationBeaconSoundPath(),
-                config.WorldMapNavigationBeaconVolumePercent,
-                Log)
-            : null;
 
         var coordinatePath = Path.Combine(
             modDirectory,
@@ -3786,7 +3779,6 @@ public sealed class Mod : IModV1, IModV2
                         worldMapNavigationProgressSink,
                         Math.Max(1, config.WorldMapNavigationSpeechDistanceUnitsPerCount),
                         TimeSpan.FromMilliseconds(Math.Max(0, config.WorldMapNavigationSpeechIntervalMs)),
-                        TimeSpan.FromMilliseconds(Math.Max(0, config.WorldMapNavigationBeaconIntervalMs)),
                         TimeSpan.FromMilliseconds(Math.Max(80, config.WorldMapFootstepWalkIntervalMs)),
                         TimeSpan.FromMilliseconds(Math.Max(80, config.WorldMapFootstepChocoboIntervalMs)));
                     worldMapRuntimes.Add((mapType, progressStage), runtime);
@@ -3849,7 +3841,6 @@ public sealed class Mod : IModV1, IModV2
                         context.Navigation.PauseForCombat($"native combat module {module}");
                     }
 
-                    worldMapNavigationBeaconPlayer?.StopAll();
                     SuspendNavigationAutoWalk(NavigationAutoWalkDomain.WorldMap);
                     return;
                 }
@@ -3902,7 +3893,6 @@ public sealed class Mod : IModV1, IModV2
                 midgarZolomCrossingTracker.Reset();
             midgarZolomAreaTracker.Reset();
 
-                worldMapNavigationBeaconPlayer?.StopAll();
                 SuspendNavigationAutoWalk(NavigationAutoWalkDomain.WorldMap);
                 return;
             }
@@ -3937,7 +3927,6 @@ public sealed class Mod : IModV1, IModV2
                 runtime.Footsteps.Reset();
                 midgarZolomCrossingTracker.Reset();
             midgarZolomAreaTracker.Reset();
-                worldMapNavigationBeaconPlayer?.StopAll();
                 SuspendNavigationAutoWalk(NavigationAutoWalkDomain.WorldMap);
                 return;
             }
@@ -3962,7 +3951,6 @@ public sealed class Mod : IModV1, IModV2
                     WorldMapStateReader.WorldModule);
                 DiscardNavigationAutoWalkToggle(NavigationAutoWalkDomain.WorldMap);
                 runtime.Navigation.Suspend("world navigation disabled");
-                worldMapNavigationBeaconPlayer?.StopAll();
                 StopNavigationAutoWalk(NavigationAutoWalkDomain.WorldMap, announce: false);
                 return;
             }
@@ -3975,7 +3963,7 @@ public sealed class Mod : IModV1, IModV2
 
             foreach (var action in actions)
             {
-                ProcessWorldMapNavigationOutput(runtime, runtime.Navigation.HandleAction(action, state, now));
+                ProcessWorldMapNavigationOutput(runtime.Navigation.HandleAction(action, state, now));
             }
 
             if (TakeNavigationAutoWalkToggle(NavigationAutoWalkDomain.WorldMap))
@@ -3983,7 +3971,7 @@ public sealed class Mod : IModV1, IModV2
                 ToggleWorldMapAutoWalk(runtime, state, now);
             }
 
-            ProcessWorldMapNavigationOutput(runtime, runtime.Navigation.Observe(state, now));
+            ProcessWorldMapNavigationOutput(runtime.Navigation.Observe(state, now));
             UpdateWorldMapAutoWalk(runtime, state);
             if (config.EnableWorldMapNavigationDiagnostics &&
                 !string.Equals(runtime.Navigation.LastDiagnostic, lastWorldMapNavigationDiagnostic, StringComparison.Ordinal))
@@ -4002,7 +3990,6 @@ public sealed class Mod : IModV1, IModV2
             worldMapAccessibilityErrorCount++;
             midgarZolomCrossingTracker.Reset();
             midgarZolomAreaTracker.Reset();
-            worldMapNavigationBeaconPlayer?.StopAll();
             SuspendNavigationAutoWalk(NavigationAutoWalkDomain.WorldMap);
             if (worldMapAccessibilityErrorCount <= 10)
             {
@@ -4053,9 +4040,7 @@ public sealed class Mod : IModV1, IModV2
         Speak(areaCue);
     }
 
-    private void ProcessWorldMapNavigationOutput(
-        WorldMapRuntimeContext runtime,
-        WorldMapNavigationOutput? output)
+    private void ProcessWorldMapNavigationOutput(WorldMapNavigationOutput? output)
     {
         if (output is not { } value)
         {
@@ -4066,16 +4051,6 @@ public sealed class Mod : IModV1, IModV2
         {
             Log($"World-map navigation speech: {value.Speech}");
             Speak(value.Speech);
-        }
-
-        if (value.Beacon is { } beacon)
-        {
-            worldMapNavigationBeaconPlayer?.Play(beacon);
-        }
-
-        if (!runtime.Navigation.BeaconEnabled)
-        {
-            worldMapNavigationBeaconPlayer?.StopAll();
         }
     }
 
@@ -4088,7 +4063,6 @@ public sealed class Mod : IModV1, IModV2
             runtime.Navigation.Suspend(diagnostic);
         }
 
-        worldMapNavigationBeaconPlayer?.StopAll();
         worldMapNavigationProgressSink?.Deactivate();
         midgarZolomCrossingTracker.Reset();
             midgarZolomAreaTracker.Reset();
@@ -4887,7 +4861,6 @@ public sealed class Mod : IModV1, IModV2
         if (!runtime.Navigation.BeaconEnabled)
         {
             ProcessWorldMapNavigationOutput(
-                runtime,
                 runtime.Navigation.HandleAction(FieldNavigationAction.ToggleBeacon, state, now));
         }
 
@@ -8777,16 +8750,6 @@ public sealed class Mod : IModV1, IModV2
         var configuredPath = string.IsNullOrWhiteSpace(config.FieldLadderMountCueSoundPath)
             ? @"Assets\navigation\ladder_approach_214.wav"
             : config.FieldLadderMountCueSoundPath;
-        return Path.IsPathRooted(configuredPath)
-            ? configuredPath
-            : Path.Combine(modDirectory, configuredPath);
-    }
-
-    private string ResolveWorldMapNavigationBeaconSoundPath()
-    {
-        var configuredPath = string.IsNullOrWhiteSpace(config.WorldMapNavigationBeaconSoundPath)
-            ? @"Assets\navigation\navigation_beacon_214_remix.wav"
-            : config.WorldMapNavigationBeaconSoundPath;
         return Path.IsPathRooted(configuredPath)
             ? configuredPath
             : Path.Combine(modDirectory, configuredPath);

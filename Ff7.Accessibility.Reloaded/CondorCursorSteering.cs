@@ -281,10 +281,9 @@ internal sealed class CondorCursorSteering : IDisposable
 
         if (!drivingX && !drivingY)
         {
-            // Arriving is deliberately silent: the cursor readout announces
-            // where the cursor came to rest and what is standing there the
-            // moment the keys are released, and saying it here as well would be
-            // the same duplicate the opening line had to be fixed for.
+            // Arrival owns the one short state change Brice asked for. The
+            // cursor readout still owns the final coordinate and what is there,
+            // so this says that movement ended without duplicating position.
             //
             // Stopping short is not silent. The readout that follows will name
             // a position the player did not ask for, and they are owed the
@@ -294,7 +293,7 @@ internal sealed class CondorCursorSteering : IDisposable
 
             return Stop(
                 stoppedShort ? CondorSteeringOutcome.Abandoned : CondorSteeringOutcome.Arrived,
-                stoppedShort ? "Could not get closer." : null,
+                stoppedShort ? "Could not get closer." : "Moving stopped.",
                 $"stopped at {cursorX}, {cursorY} after {samples} readings");
         }
 

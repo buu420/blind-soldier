@@ -15,7 +15,6 @@ public sealed class WorldMapRuntimeContext
         IFieldNavigationProgressSink? progressSink,
         int distanceUnitsPerCount,
         TimeSpan guidanceInterval,
-        TimeSpan beaconInterval,
         TimeSpan walkingFootstepInterval,
         TimeSpan chocoboFootstepInterval)
     {
@@ -33,8 +32,7 @@ public sealed class WorldMapRuntimeContext
             (state, category) => Catalog.ReadTargets(category, state, Entities),
             progressSink,
             distanceUnitsPerCount,
-            guidanceInterval,
-            beaconInterval);
+            guidanceInterval);
     }
 
     public WorldMapData Map { get; }

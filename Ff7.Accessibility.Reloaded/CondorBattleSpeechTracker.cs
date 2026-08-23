@@ -121,6 +121,28 @@ public sealed class CondorBattleSpeechTracker
     /// have gone down since can be named.
     /// </summary>
     private readonly Dictionary<int, CondorBattleUnit> standing = [];
+
+    /// <summary>
+    /// The preceding coherent unit records. Kept apart from <see cref="standing"/>
+    /// because casualty detection updates that dictionary before the cursor
+    /// readout runs, while motion needs the actual preceding sample.
+    /// </summary>
+    private readonly Dictionary<int, CondorBattleUnit> previousMotionUnits = [];
+
+    /// <summary>
+    /// Player-issued Action orders that have not yet reached their native
+    /// arrival report or a confirmed non-arrival ending.
+    /// </summary>
+    private readonly Dictionary<int, OrderedMoveState> orderedMoves = [];
+
+    /// <summary>
+    /// A native walking state must remain absent for two coherent readings
+    /// before it is described as stopped. Module 9 advances in small steps with
+    /// rests between them, so coordinate stability is not a stop signal.
+    /// </summary>
+    private readonly Dictionary<int, int> pendingUnitStops = [];
+    private readonly HashSet<int> stoppedReadoutsPending = [];
+    private readonly HashSet<int> stopCoveredThisObservation = [];
     private readonly CondorFieldNavigator navigator = new();
 
     /// <summary>Said when a unit can be put on the spot under the cursor.</summary>
@@ -134,7 +156,7 @@ public sealed class CondorBattleSpeechTracker
     /// moved onto anything new does not say it again. The 2026-08-21 session
     /// produced the identical sentence three times inside one second.
     /// </summary>
-    private (int X, int Y, int UnitSlot, bool Legal)? lastCursorKey;
+    private (int X, int Y, int UnitSlot, bool Legal, bool Moving)? lastCursorKey;
 
     /// <summary>
     /// Where the cursor was at the previous reading, spoken or not, so that one
@@ -151,6 +173,7 @@ public sealed class CondorBattleSpeechTracker
     private (int X, int Y)? lastSampledCursorPosition;
 
     private bool cursorReadoutSupersedesSpeech;
+    private bool manualCursorReadoutPending;
 
     private bool started;
     private int lastAdvanceBand = -1;
@@ -182,12 +205,18 @@ public sealed class CondorBattleSpeechTracker
         lastAdvanceBand = -1;
         resultSpoken = false;
         standing.Clear();
+        previousMotionUnits.Clear();
+        orderedMoves.Clear();
+        pendingUnitStops.Clear();
+        stoppedReadoutsPending.Clear();
+        stopCoveredThisObservation.Clear();
         reportedUnknownTypes.Clear();
         placementDisagreements = 0;
         navigator.Reset();
         lastCursorKey = null;
         lastSampledCursorPosition = null;
         cursorReadoutSupersedesSpeech = false;
+        manualCursorReadoutPending = false;
         LastObservationSupersedesSpeech = false;
         pendingStatusRequest = false;
         pendingPlacementLineRequest = false;
@@ -301,7 +330,9 @@ public sealed class CondorBattleSpeechTracker
     /// <summary>
     /// The lines to speak for this snapshot, in the order they should be heard.
     /// </summary>
-    public IReadOnlyList<string> Observe(CondorBattleSnapshot snapshot)
+    public IReadOnlyList<string> Observe(
+        CondorBattleSnapshot snapshot,
+        bool cursorJumpInProgress = false)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
 
@@ -310,6 +341,15 @@ public sealed class CondorBattleSpeechTracker
         cursorReadoutSupersedesSpeech = false;
         statefulReadoutSupersedesSpeech = false;
         LastObservationSupersedesSpeech = false;
+        stopCoveredThisObservation.Clear();
+
+        if (snapshot.CursorUnderPlayerControl && snapshot.HeldDirectionMask != 0)
+        {
+            // Keep this until the cursor settles and the existing readout has
+            // answered the player's movement. A tap may be over before the next
+            // 100 ms reading, so the current mask cannot be the whole test.
+            manualCursorReadoutPending = true;
+        }
 
         if (!started)
         {
@@ -367,7 +407,7 @@ public sealed class CondorBattleSpeechTracker
                 }
             }
 
-            opening.AddRange(ObserveInterface(snapshot));
+            opening.AddRange(ObserveInterface(snapshot, cursorJumpInProgress));
 
             // The reader now admits only initialized snapshots: setup has held
             // steady across two samples, or a later phase has already passed
@@ -381,6 +421,7 @@ public sealed class CondorBattleSpeechTracker
             // look like the end of a move and say it a second time.
             lastSampledCursorPosition = (snapshot.CursorX, snapshot.CursorY);
             RememberStanding(snapshot);
+            SeedOrderedMoves(snapshot);
             lastAdvanceBand = AdvanceBand(snapshot.EnemyAdvance);
             Remember(snapshot);
 
@@ -446,6 +487,7 @@ public sealed class CondorBattleSpeechTracker
         // After the casualty diff, so a unit that has just fallen is already in
         // the losses list rather than still counted among the living.
         navigator.Update(snapshot.Units, snapshot.CursorX, snapshot.CursorY);
+        lines.AddRange(ObserveUnitMovement(snapshot));
 
         if (snapshot.SettingMenuOpen && !lastSettingMenuOpen)
         {
@@ -473,14 +515,14 @@ public sealed class CondorBattleSpeechTracker
             lines.Add($"Placed. {snapshot.Gil} gil.");
         }
 
-        lines.AddRange(ObserveInterface(snapshot));
+        lines.AddRange(ObserveInterface(snapshot, cursorJumpInProgress));
 
         if (snapshot.ModalState == 0 &&
             !snapshot.SettingMenuOpen &&
             snapshot.ReportState == 0 &&
             snapshot.InteractionMode == CondorBattleSnapshot.CursorInteractionMode)
         {
-            lines.AddRange(ObserveCursor(snapshot));
+            lines.AddRange(ObserveCursor(snapshot, cursorJumpInProgress));
         }
 
         Remember(snapshot);
@@ -513,7 +555,9 @@ public sealed class CondorBattleSpeechTracker
     /// Unit list remain open at modal zero, which is why a modal-only reader
     /// left the original battle choices silent.
     /// </summary>
-    private IReadOnlyList<string> ObserveInterface(CondorBattleSnapshot snapshot)
+    private IReadOnlyList<string> ObserveInterface(
+        CondorBattleSnapshot snapshot,
+        bool cursorJumpInProgress)
     {
         var view = CurrentInterfaceView(snapshot);
         var (selection, auxiliary) = InterfaceSelection(snapshot, view);
@@ -531,6 +575,19 @@ public sealed class CondorBattleSpeechTracker
         if (view == CondorInterfaceView.Destination)
         {
             var current = (snapshot.DestinationX, snapshot.DestinationY);
+
+            // Steering releases every key for deliberate deceleration passes so
+            // FFVII resets its native repeat ramp. That makes the destination
+            // coordinate repeat even though the jump has not stopped. Keep the
+            // sample current, but do not publish it as a manual settled position.
+            // Do not remember it as spoken: once steering ends, the ordinary
+            // settled readout must still name where the cursor actually stopped.
+            if (cursorJumpInProgress)
+            {
+                lastDestinationSample = current;
+                return [];
+            }
+
             if (!opened)
             {
                 var settled = lastDestinationSample == current;
@@ -834,6 +891,206 @@ public sealed class CondorBattleSpeechTracker
         text.Length == 0 ? text : char.ToUpperInvariant(text[0]) + text[1..];
 
     /// <summary>
+    /// Follows player-issued Action orders and native walking-state transitions.
+    /// The former owns the one standalone "Moving" line; the latter decorates
+    /// the ordinary cursor readout for any unit the player surveys.
+    /// </summary>
+    private IEnumerable<string> ObserveUnitMovement(CondorBattleSnapshot snapshot)
+    {
+        var lines = new List<string>();
+        var current = snapshot.Units.ToDictionary(unit => unit.Slot);
+        var arrivalSlot = ArrivalUnitSlot(snapshot);
+
+        if (arrivalSlot is { } arrived)
+        {
+            orderedMoves.Remove(arrived);
+            pendingUnitStops.Remove(arrived);
+            stoppedReadoutsPending.Remove(arrived);
+            stopCoveredThisObservation.Add(arrived);
+            PrimeCursorReadout(snapshot, arrived);
+        }
+
+        foreach (var (slot, state) in orderedMoves.ToArray())
+        {
+            if (arrivalSlot == slot)
+            {
+                continue;
+            }
+
+            if (current.TryGetValue(slot, out var unit) && unit.HasActiveActionOrder)
+            {
+                state.LastUnit = unit;
+                state.InactiveSamples = 0;
+                AcknowledgeOrderedMoveIfFollowing(snapshot, state, lines);
+                continue;
+            }
+
+            state.InactiveSamples++;
+            if (state.InactiveSamples < 2)
+            {
+                continue;
+            }
+
+            var lastKnown = current.GetValueOrDefault(slot) ?? state.LastUnit;
+            lines.Add(
+                current.TryGetValue(slot, out var stopped) && !stopped.IsDying && !stopped.IsRemoving
+                    ? $"Movement stopped at {stopped.X}, {stopped.Y}."
+                    : $"{Capitalize(lastKnown.Name)} is no longer on the field.");
+
+            orderedMoves.Remove(slot);
+            pendingUnitStops.Remove(slot);
+            stoppedReadoutsPending.Remove(slot);
+            stopCoveredThisObservation.Add(slot);
+            PrimeCursorReadout(snapshot, slot);
+        }
+
+        foreach (var unit in current.Values.Where(unit => !unit.IsEnemy && unit.HasActiveActionOrder))
+        {
+            if (orderedMoves.ContainsKey(unit.Slot) || arrivalSlot == unit.Slot)
+            {
+                continue;
+            }
+
+            var wasActive =
+                previousMotionUnits.TryGetValue(unit.Slot, out var previous) &&
+                previous.HasActiveActionOrder;
+            var state = new OrderedMoveState(unit);
+            orderedMoves[unit.Slot] = state;
+
+            // Existing orders are seeded silently when observation begins. A
+            // transition while the player still has this unit selected is the
+            // Action they just confirmed and owns one short acknowledgement.
+            if (!wasActive)
+            {
+                AcknowledgeOrderedMoveIfFollowing(snapshot, state, lines);
+            }
+        }
+
+        UpdateUnitStopReadouts(snapshot, current);
+        return lines;
+    }
+
+    private void AcknowledgeOrderedMoveIfFollowing(
+        CondorBattleSnapshot snapshot,
+        OrderedMoveState state,
+        ICollection<string> lines)
+    {
+        if (state.StartAnnounced || snapshot.UnitUnderCursorSlot != state.LastUnit.Slot)
+        {
+            return;
+        }
+
+        state.StartAnnounced = true;
+        statefulReadoutSupersedesSpeech = true;
+        lines.Add("Moving.");
+        PrimeCursorReadout(snapshot, state.LastUnit.Slot);
+    }
+
+    private void SeedOrderedMoves(CondorBattleSnapshot snapshot)
+    {
+        orderedMoves.Clear();
+        foreach (var unit in snapshot.Units.Where(unit => !unit.IsEnemy && unit.HasActiveActionOrder))
+        {
+            orderedMoves[unit.Slot] = new OrderedMoveState(unit) { StartAnnounced = true };
+        }
+    }
+
+    /// <summary>
+    /// Confirms a visible walking-to-still transition without mistaking the
+    /// two-unit pauses between native advance ticks for repeated stops.
+    /// </summary>
+    private void UpdateUnitStopReadouts(
+        CondorBattleSnapshot snapshot,
+        IReadOnlyDictionary<int, CondorBattleUnit> current)
+    {
+        foreach (var slot in stoppedReadoutsPending.ToArray())
+        {
+            if (!current.TryGetValue(slot, out var unit) ||
+                unit.IsMoving ||
+                snapshot.UnitUnderCursorSlot != slot ||
+                stopCoveredThisObservation.Contains(slot))
+            {
+                stoppedReadoutsPending.Remove(slot);
+            }
+        }
+
+        foreach (var slot in pendingUnitStops.Keys.ToArray())
+        {
+            if (!current.TryGetValue(slot, out var unit) ||
+                unit.IsMoving ||
+                snapshot.UnitUnderCursorSlot != slot ||
+                stopCoveredThisObservation.Contains(slot))
+            {
+                pendingUnitStops.Remove(slot);
+            }
+        }
+
+        foreach (var unit in current.Values)
+        {
+            if (stopCoveredThisObservation.Contains(unit.Slot))
+            {
+                continue;
+            }
+
+            if (unit.IsMoving)
+            {
+                pendingUnitStops.Remove(unit.Slot);
+                stoppedReadoutsPending.Remove(unit.Slot);
+                continue;
+            }
+
+            var wasMoving =
+                previousMotionUnits.TryGetValue(unit.Slot, out var previous) &&
+                previous.IsMoving;
+            if (wasMoving)
+            {
+                if (lastUnitUnderCursorSlot == unit.Slot && snapshot.UnitUnderCursorSlot == unit.Slot)
+                {
+                    pendingUnitStops[unit.Slot] = 1;
+                }
+
+                continue;
+            }
+
+            if (!pendingUnitStops.TryGetValue(unit.Slot, out var samples))
+            {
+                continue;
+            }
+
+            samples++;
+            if (samples < 2)
+            {
+                pendingUnitStops[unit.Slot] = samples;
+                continue;
+            }
+
+            pendingUnitStops.Remove(unit.Slot);
+            stoppedReadoutsPending.Add(unit.Slot);
+        }
+    }
+
+    private static int? ArrivalUnitSlot(CondorBattleSnapshot snapshot)
+    {
+        var arrivalVisible =
+            snapshot.MessageId == 3 ||
+            (snapshot.ReportState != 0 && snapshot.ReportMessageCell == 3);
+        return arrivalVisible && snapshot.ReportUnitSlot >= 0
+            ? snapshot.ReportUnitSlot
+            : null;
+    }
+
+    private void PrimeCursorReadout(CondorBattleSnapshot snapshot, int unitSlot)
+    {
+        if (snapshot.UnitUnderCursorSlot != unitSlot)
+        {
+            return;
+        }
+
+        lastCursorKey = CursorKey(snapshot);
+        lastSampledCursorPosition = (snapshot.CursorX, snapshot.CursorY);
+    }
+
+    /// <summary>
     /// The picture a sighted player takes in at a glance: what is left, what it
     /// costs, where the cursor is, and what is nearest to it.
     /// </summary>
@@ -908,12 +1165,39 @@ public sealed class CondorBattleSpeechTracker
     /// unit's HP ticking down under a resting cursor does not re-announce it ten
     /// times a second, while a cursor that genuinely moved always does.</para>
     /// </remarks>
-    private IEnumerable<string> ObserveCursor(CondorBattleSnapshot snapshot)
+    private IEnumerable<string> ObserveCursor(
+        CondorBattleSnapshot snapshot,
+        bool cursorJumpInProgress)
     {
         var key = CursorKey(snapshot);
         var position = (snapshot.CursorX, snapshot.CursorY);
+        var previousPosition = lastSampledCursorPosition;
         var settled = position == lastSampledCursorPosition;
         lastSampledCursorPosition = position;
+
+        var unitSlot = snapshot.UnitUnderCursorSlot;
+        var stopPending = unitSlot >= 0 && pendingUnitStops.ContainsKey(unitSlot);
+        var stopped = unitSlot >= 0 && stoppedReadoutsPending.Contains(unitSlot);
+
+        // The game pins the cursor to the selected unit while it executes the
+        // order. Advance the baseline silently when cursor and unit moved in
+        // lockstep; otherwise every native two-unit step becomes a coordinate
+        // utterance. A held/manual move is never swallowed.
+        if (!stopped &&
+            !stopPending &&
+            IsGameCarriedCursor(snapshot, key, previousPosition, cursorJumpInProgress))
+        {
+            lastCursorKey = key;
+            yield break;
+        }
+
+        // Hold the old "moving" presentation through the first coherent still
+        // sample. The second sample either confirms a real stop or movement
+        // resumes and cancels it.
+        if (stopPending && !stopped)
+        {
+            yield break;
+        }
 
         // Still travelling. Saying this row would cost more time than the cursor
         // will spend on it.
@@ -922,24 +1206,60 @@ public sealed class CondorBattleSpeechTracker
             yield break;
         }
 
-        if (key == lastCursorKey)
+        if (key == lastCursorKey && !stopped)
         {
             yield break;
         }
 
         lastCursorKey = key;
         cursorReadoutSupersedesSpeech = true;
+        manualCursorReadoutPending = false;
+        if (stopped)
+        {
+            stoppedReadoutsPending.Remove(unitSlot);
+        }
+
         yield return
-            $"{snapshot.CursorX}, {snapshot.CursorY}. {DescribeUnderCursor(snapshot, key.Legal)}.";
+            $"{snapshot.CursorX}, {snapshot.CursorY}. " +
+            $"{DescribeUnderCursor(snapshot, key.Legal, stopped)}.";
     }
 
-    private static (int X, int Y, int UnitSlot, bool Legal) CursorKey(
+    private bool IsGameCarriedCursor(
+        CondorBattleSnapshot snapshot,
+        (int X, int Y, int UnitSlot, bool Legal, bool Moving) key,
+        (int X, int Y)? previousCursor,
+        bool cursorJumpInProgress)
+    {
+        if (cursorJumpInProgress ||
+            snapshot.HeldDirectionMask != 0 ||
+            manualCursorReadoutPending ||
+            snapshot.UnitUnderCursor is not { } unit ||
+            snapshot.CursorX != unit.X ||
+            snapshot.CursorY != unit.Y ||
+            (!unit.IsMoving && !unit.HasActiveActionOrder) ||
+            !previousMotionUnits.TryGetValue(unit.Slot, out var previousUnit) ||
+            previousCursor != (previousUnit.X, previousUnit.Y) ||
+            lastCursorKey is not { } previousKey)
+        {
+            return false;
+        }
+
+        // Only coordinates may differ. A unit beginning or ending movement is
+        // visual state and must reach the readout even though its cursor is also
+        // being carried.
+        return previousKey.UnitSlot == key.UnitSlot &&
+               previousKey.Legal == key.Legal &&
+               previousKey.Moving == key.Moving;
+    }
+
+    private static (int X, int Y, int UnitSlot, bool Legal, bool Moving) CursorKey(
         CondorBattleSnapshot snapshot) =>
         (
             snapshot.CursorX,
             snapshot.CursorY,
             snapshot.UnitUnderCursorSlot,
-            CondorPlacementRegion.IsLegalAt(snapshot, snapshot.CursorX, snapshot.CursorY));
+            CondorPlacementRegion.IsLegalAt(snapshot, snapshot.CursorX, snapshot.CursorY),
+            snapshot.UnitUnderCursor?.IsMoving == true);
 
     /// <summary>
     /// What occupies the spot under the cursor: the unit standing there, or
@@ -951,9 +1271,12 @@ public sealed class CondorBattleSpeechTracker
     /// 2026-08-22 at Brice's direction: they buried the coordinates the readout
     /// exists to deliver.
     /// </remarks>
-    private static string DescribeUnderCursor(CondorBattleSnapshot snapshot, bool legal) =>
+    private static string DescribeUnderCursor(
+        CondorBattleSnapshot snapshot,
+        bool legal,
+        bool stopped = false) =>
         snapshot.UnitUnderCursor is { } unit
-            ? unit.Describe()
+            ? unit.Describe() + (unit.IsMoving ? ". Moving" : stopped ? ". Stopped" : string.Empty)
             : legal ? CanPlaceText : CannotPlaceText;
 
     /// <summary>
@@ -1036,6 +1359,12 @@ public sealed class CondorBattleSpeechTracker
         lastUnitUnderCursorSlot = snapshot.UnitUnderCursorSlot;
         lastAlliedCount = snapshot.AlliedCount;
         lastGameSpeed = snapshot.GameSpeed;
+
+        previousMotionUnits.Clear();
+        foreach (var unit in snapshot.Units)
+        {
+            previousMotionUnits[unit.Slot] = unit;
+        }
     }
 
     private static string Pluralize(int count, string singular, string plural) =>
@@ -1052,5 +1381,14 @@ public sealed class CondorBattleSpeechTracker
         Report,
         Pause,
         Help
+    }
+
+    private sealed class OrderedMoveState(CondorBattleUnit unit)
+    {
+        internal CondorBattleUnit LastUnit { get; set; } = unit;
+
+        internal int InactiveSamples { get; set; }
+
+        internal bool StartAnnounced { get; set; }
     }
 }

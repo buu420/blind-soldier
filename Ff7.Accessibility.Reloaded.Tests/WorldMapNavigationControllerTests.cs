@@ -10,7 +10,6 @@ internal static class WorldMapNavigationControllerTests
         ListsOnlyDestinationsReachableOnTheCurrentWorldSurface();
         StartsTheKalmRouteFromMidgarInsteadOfClaimingArrival();
         ExposesTheCurrentWorldRouteAsAutomaticDirectionalInput();
-        NeverEmitsWorldMapAudioBeaconCues();
         DoesNotRepeatAnUnchangedWorldMapLegOnTheTimer();
         DoesNotRepeatOneDirectionAcrossConnectedWorldWaypoints();
         KeepsTheRouteAcrossNearbyWalkableTriangleDrift();
@@ -68,26 +67,6 @@ internal static class WorldMapNavigationControllerTests
         Contains("Kalm", started.Value.Speech, "route names Kalm");
         DoesNotContain("at destination", started.Value.Speech,
             "route start describes the first meaningful route segment");
-    }
-
-    private static void NeverEmitsWorldMapAudioBeaconCues()
-    {
-        var (map, catalog, planner) = Load();
-        var kalm = catalog.Locations.Single(target => target.Label == "Kalm");
-        var farm = catalog.Locations.Single(target => target.Label == "Chocobo Farm");
-        var controller = new WorldMapNavigationController(
-            map,
-            planner,
-            (_, _) => [farm],
-            guidanceInterval: TimeSpan.Zero,
-            beaconInterval: TimeSpan.Zero);
-        var now = DateTime.UtcNow;
-
-        var started = controller.HandleAction(FieldNavigationAction.ToggleBeacon, StateAt(map, kalm), now);
-        Equal<NavigationBeaconCue?>(null, started!.Value.Beacon, "route start has no audio beacon");
-
-        var observed = controller.Observe(StateAt(map, kalm), now.AddSeconds(1));
-        Equal<NavigationBeaconCue?>(null, observed?.Beacon, "active route has no audio beacon");
     }
 
     private static void ExposesTheCurrentWorldRouteAsAutomaticDirectionalInput()
@@ -378,8 +357,7 @@ internal static class WorldMapNavigationControllerTests
             planner,
             (_, _) => [farm],
             progress,
-            guidanceInterval: TimeSpan.Zero,
-            beaconInterval: TimeSpan.Zero);
+            guidanceInterval: TimeSpan.Zero);
         var now = DateTime.UtcNow;
 
         var enabled = controller.HandleAction(FieldNavigationAction.ToggleBeacon, StateAt(map, kalm), now);
