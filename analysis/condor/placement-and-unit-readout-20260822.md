@@ -220,3 +220,149 @@ Verification after the fix:
 NuGet emitted `NU1900` warnings because its vulnerability service index was unavailable; no
 package restore or game data was required for these focused checks. Nothing under the game
 directory was read or modified, and the change remains uncommitted for review.
+
+## Follow-up — cursor repeat and the reported extra movement
+
+### Finding 6 — the 21-to-24-unit motion per 100 ms is native
+
+**Proved from native code.** The held-key acceleration is controlled by the 16-bit counter at
+`0x00CBC7BC`, not by the cursor-motion magnitudes at `0x00CBF2BC/0x00CBF2C0` as the earlier
+Finding 5 loosely implied. `FUN_005FD958` tests the held-direction mask at `0x00C72E80 &
+0xF000`, calls `FUN_005FE771` while a direction remains held, and clears `0x00CBC7BC` when no
+direction is held (`0x005FE30D` through `0x005FE341`).
+
+`FUN_005FE771` increments the counter, clamps it at 16, and calls the movement dispatcher this
+many times on successive native updates:
+
+| Consecutive held-direction update | Movement-dispatch calls | Cumulative coordinate movement |
+| ---: | ---: | ---: |
+| 1 | 1 | 1 |
+| 2 | 1 | 2 |
+| 3 | 2 | 4 |
+| 4 | 4 | 8 |
+| 5 and later | 4 per update | +4 per update |
+
+The exact branches are the comparisons against 3 and 4 at `0x005FE7AC` and `0x005FE7CD`; the
+fourth dispatch is at `0x005FE7EC`. `FUN_005FE8CF` sends each call to `FUN_005FE91B`, and the
+ordinary keyboard path in `FUN_005FE91B` changes the cursor/camera by one coordinate unit per
+call. Thus full native repeat begins on the **fourth consecutive module update**, after an
+initial `1, 1, 2` ramp. A player who can see the screen and holds the same direction gets the
+same movement.
+
+If native input bit `0x80` is held at the same time, `FUN_005FD958` deliberately calls
+`FUN_005FE771` a second time in that update. That is a separate native button combination, not
+ordinary arrow repeat; Blind Soldier does not synthesize it, and the supplied 21-to-24-unit
+cadence matches the ordinary one-call path rather than a doubled path.
+
+The supplied 21-to-24-unit deltas per 100 ms are the expected sum of several native updates
+sampled asynchronously at 10 Hz. They are not evidence that Blind Soldier holds a direction.
+The apparently discrete `348,433 -> 348,456` movement is also consistent with the native
+sequence: the first read caught the first one-unit update at 433, while the next read caught
+the remaining 23 units of a 24-unit run ending at 456. A human tap is not a one-update game
+event; if the physical key remains down across several native updates it enters the same repeat
+path as a hold.
+
+### Finding 7 — a minimal tap is one unit; there is no fixed wall-clock tap distance
+
+**Proved from native code.** If a direction is present for exactly one module update and absent
+on the next, the cursor moves exactly one coordinate unit and the counter is reset. Two updates
+move two units total; three move four; four move eight. The threshold is therefore four native
+updates, not a Windows keyboard-repeat delay and not a fixed number of milliseconds. The live
+capture's 10 Hz sampling cannot tell exactly when within an interval the key went down or up, so
+it cannot assign one fixed distance to every ordinary human tap.
+
+`0x00CBF2BC/0x00CBF2C0` belong to the game's separate cursor-motion-accumulator path.
+`FUN_005FB20A` initializes each to one and derives them from half the absolute pointer delta;
+`FUN_005FADD4` enters that path when `0x00CBF2A8` is active. They are not the held-arrow repeat
+threshold that explains this report.
+
+### Finding 8 — Blind Soldier's key polling cannot hold a Condor direction
+
+**Proved from mod source and the native input chain.** The Condor hotkeys poll K, U, O, J, L
+and I through `GetAsyncKeyState`, retain only the high-order current-down bit, and pass that
+boolean to an edge tracker (`Ff7.Accessibility.Reloaded/Mod.cs:1894-1912,1990-2015,4957-4960`;
+`Ff7.Accessibility.Steam2026X64/Runtime/Input/Steam2026ForegroundInputAdapter.cs:62-77`). These
+calls read state; they do not synthesize a key-down or alter the physical current-down bit.
+
+There is one precision worth recording. Calling `GetAsyncKeyState` can make its unreliable
+low-order “pressed since the last query” bit unavailable to another caller for the **same**
+virtual key. Merely masking that bit does not undo the query. That cannot affect this movement:
+
+- the Condor path uses only the high-order bit;
+- it asks about letter/function virtual keys, not `VK_LEFT`/`VK_UP`/`VK_RIGHT`/`VK_DOWN`;
+- the numeric value `0x4B` is K in the virtual-key namespace even though `0x4B` is also the
+  DirectInput scan code used by the mod's synthetic left arrow; `VK_LEFT` is `0x25`; and
+- native module 9 rebuilds its held-direction mask `0x00C72E80` from the game's input source
+  every update (`FUN_005FD958`), independently of Blind Soldier's hotkey edge trackers.
+
+The only x86 polling path that consults a low-order bit is the Ctrl+Q transition diagnostic
+(`Ff7.Accessibility.Reloaded/Mod.cs:1470-1524`). Those keys are unrelated to the four Condor
+directions. No production source uses `SetKeyboardState`, `keybd_event`, a keyboard hook, or a
+window-message key-down path.
+
+### Finding 9 — neither synthetic-arrow owner can drive module 9
+
+**Proved from mod source.** The one production input injector is
+`Win32HighwayKeyboardInputSink`, shared by highway auto-steering and field/world auto-walk. It
+uses `SendInput` scan-code transitions
+(`Ff7.Accessibility.Reloaded/HighwayAutoSteeringController.cs:297-412`). Both owners relinquish
+their keys before any steady module-9 processing can drive them:
+
+- Highway accessibility is active only when the current module equals the highway module.
+  Every other module calls `Reset`, which calls `ReleaseAutomaticDirection` and then
+  `ReleaseAll` (`Ff7.Accessibility.Reloaded/Mod.cs:4900-4920`;
+  `Ff7.Accessibility.Reloaded/HighwayAccessibilityCoordinator.cs:113-139,288-339`). The x64
+  session uses the identical coordinator and exact module test
+  (`Ff7.Accessibility.Steam2026X64/Runtime/Steam2026ResearchSession.cs:1052-1076`).
+- x86 auto-walk resolves ownership only for field module 1 or world module 3. Module 9 resolves
+  to `None` and calls `Suspend`, which releases every owned direction
+  (`Ff7.Accessibility.Reloaded/Mod.cs:4671-4699`;
+  `Ff7.Accessibility.Reloaded/NavigationAutoWalkController.cs:162-174`).
+- x64 field navigation resolves module 9 to `Suspended` and calls the same release path
+  (`Steam2026FieldNavigationCoordinator.cs:272-323,827-851,898-918`). Its world coordinator
+  resets or suspends auto-walk as soon as the module is no longer the world map
+  (`Steam2026WorldMapAccessibilityCoordinator.cs:191-217,346-375`).
+
+On a module transition, a previously owned synthetic key is released on the next host pass. A
+failed `SendInput` key-up is the only exceptional way an owned key could remain down; the
+controller retries cleanup, retains the failed ownership state, and logs/faults instead of
+pretending it succeeded (`HighwayAutoSteeringController.cs:71-108,112-142,159-240`). There is
+no such failure in the supplied evidence, and a residual key would not explain the exact native
+`1,1,2,4` ramp seen here.
+
+### Finding 10 — the mod does not write the Condor cursor or camera state
+
+**Proved by production-source reference audit.** `CondorCursorMover.TryMoveTo` always logs a
+refusal and returns false; it never calls its writer
+(`Ff7.Accessibility.Reloaded/CondorCursorMover.cs:52-90`). The only production references to
+`0x00CBCCC0` are the battle reader and the disabled-by-default research probe. The camera origins
+`0x00C60B00/04` and scroll accumulators `0x00C74C38/3C` appear only in comments and analysis,
+not in a production write path.
+
+The sole x86 production call to `TryWriteInt32` is the Echo-S reactor timer override at
+`Mod.cs:8095-8098`; it is gated to field 125 and is unrelated to module 9. The x64 translated
+writer exists as a capability but has no Condor-cursor caller. The research probe is also
+read-only and defaults off (`AccessibilityConfig.cs:161`;
+`Mod.cs:2039-2075`). The x64 native system-menu direction hook is observational: it calls the
+game's original callback first and only then records the direction code
+(`Steam2026NativeSystemMenuHookSet.cs:187-213`).
+
+### Conclusion for the reported symptom
+
+The movement should be left unchanged. It is the game's own cursor repeat, and slowing or
+replacing it would make the blind player's controls differ from a sighted player's. The actual
+regression was the speech queue describing every intermediate 10 Hz sample after it was already
+obsolete. Cursor speech should therefore coalesce/interrupt aggressively while event lines such
+as banners and casualties remain queued; movement itself needs no correction.
+
+### Evidence and verification for this follow-up
+
+- `analysis/ghidra/DumpCondorCursorRepeatEvidence.java` records the native globals, callers,
+  instructions and decompilation used above; `RunCondorCursorRepeatEvidence.cmd` replays it
+  against the existing read-only Ghidra project.
+- The headless Ghidra replay completed with exit code 0 after the final script change.
+- The production-source audit found no second `SendInput` implementation and no Condor cursor,
+  camera-origin or scroll-accumulator writer.
+- `git diff --check` passed for this report; Git emitted only the repository's existing CRLF
+  conversion warning.
+- No production speech/input code and nothing under `C:\Games\Final Fantasy VII` was modified.
