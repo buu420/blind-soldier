@@ -83,7 +83,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(modDirectory);
         this.speak = speak ?? throw new ArgumentNullException(nameof(speak));
         this.log = log ?? throw new ArgumentNullException(nameof(log));
-        this.autoWalk = autoWalk ?? NavigationAutoWalkController.CreateCurrentProcess();
+        this.autoWalk = autoWalk ?? NavigationAutoWalkController.CreateCurrentProcess(addressSpace);
 
         stateReader = new WorldMapStateReader(addressSpace);
         entityReader = new WorldMapEntityReader(addressSpace);

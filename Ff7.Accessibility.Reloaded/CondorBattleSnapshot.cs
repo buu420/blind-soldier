@@ -125,6 +125,32 @@ public sealed record CondorBattleSnapshot(
     public int GameSpeed { get; init; } = 2;
 
     /// <summary>
+    /// The direction bits module 9 currently believes are held, straight out of
+    /// its own input mask.
+    /// </summary>
+    /// <remarks>
+    /// The battle does not read the keyboard the way the rest of the mod does:
+    /// it polls DirectInput's immediate state, applies the player's own
+    /// ff7input.cfg mapping, and only then sets these bits. They are therefore
+    /// the only trustworthy evidence that a synthesized keystroke arrived - a
+    /// key Windows accepted can still mean nothing to the battle.
+    /// </remarks>
+    public uint HeldDirectionMask { get; init; }
+
+    /// <summary>
+    /// Whether the direction keys are moving the battlefield cursor right now.
+    /// </summary>
+    /// <remarks>
+    /// Cursor mode is not the only thing that has to be true. A modal overlay
+    /// or a report gives the same keys to something else, and steering through
+    /// one would be operating a menu the player did not ask to open.
+    /// </remarks>
+    public bool CursorUnderPlayerControl =>
+        InteractionMode == CursorInteractionMode &&
+        ModalState == 0 &&
+        ReportState == 0;
+
+    /// <summary>
     /// The value of <see cref="EnemyAdvance"/> when the enemy has reached the
     /// fort. The game derives the gauge from the leading enemy's position and
     /// draws it as a row of segments, so it is on screen throughout a battle.

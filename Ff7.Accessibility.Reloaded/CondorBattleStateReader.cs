@@ -53,6 +53,15 @@ public sealed class CondorBattleStateReader
     private const uint AddressDestinationX = 0x00C75268;
     private const uint AddressDestinationY = 0x00C7526A;
     private const uint AddressGameSpeed = 0x00C752B4;
+
+    /// <summary>
+    /// Module 9's own held-input mask. FUN_005FD958 tests it as
+    /// <c>mask &amp; 0xF000</c> and repeats the cursor from those bits.
+    /// </summary>
+    private const uint AddressHeldInput = 0x00C72E80;
+
+    /// <summary>The direction bits within <see cref="AddressHeldInput"/>.</summary>
+    private const uint HeldDirectionBits = 0xF000;
     /// <summary>
     /// The cursor pair. X and Y are adjacent 16-bit values, so a host that can
     /// write a 32-bit word moves both at once and the game never observes half a
@@ -183,6 +192,7 @@ public sealed class CondorBattleStateReader
             !TryReadInt16(AddressStartGameSelection, out var startGameSelection) ||
             !TryReadInt16(AddressDirectionSelection, out var directionSelection) ||
             !TryReadInt16(AddressGameSpeed, out var gameSpeed) ||
+            !TryReadUInt32(AddressHeldInput, out var heldInput) ||
             !TryReadInt32(AddressDeploymentFrontierY, out var frontierY) ||
             !TryReadInt16(AddressEnemyAdvance, out var enemyAdvance) ||
             !TryReadInt32(AddressCollisionCount, out collisionCount))
@@ -273,7 +283,8 @@ public sealed class CondorBattleStateReader
         {
             DestinationX = destinationX,
             DestinationY = destinationY,
-            GameSpeed = gameSpeed
+            GameSpeed = gameSpeed,
+            HeldDirectionMask = heldInput & HeldDirectionBits
         };
     }
 

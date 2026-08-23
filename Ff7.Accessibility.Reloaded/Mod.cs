@@ -245,7 +245,7 @@ public sealed class Mod : IModV1, IModV2
     private DateTime lastCondorMinigameProbeAt = DateTime.MinValue;
     private CondorBattleStateReader? condorBattleStateReader;
     private CondorBattleSpeechTracker? condorBattleSpeechTracker;
-    private CondorCursorMover? condorCursorMover;
+    private CondorCursorSteering? condorCursorSteering;
     private DateTime lastCondorBattleReadAt = DateTime.MinValue;
     private bool inCondorBattle;
 
@@ -494,6 +494,11 @@ public sealed class Mod : IModV1, IModV2
             floor60ActionCuePlayer?.Dispose();
             floor60StatueBeaconPlayer?.Dispose();
             highwayAccessibilityCoordinator?.Dispose();
+
+            // Releases every direction key it owns. A jump still running when
+            // the mod unloads would leave them held down in the player's game.
+            condorCursorSteering?.Dispose();
+            condorCursorSteering = null;
             navigationAutoWalkController?.Dispose();
             navigationAutoWalkController = null;
             pendingNavigationAutoWalkToggle = NavigationAutoWalkDomain.None;
@@ -680,8 +685,14 @@ public sealed class Mod : IModV1, IModV2
         condorBattleStateReader = new CondorBattleStateReader(legacyAddressSpace);
         condorBattleSpeechTracker = new CondorBattleSpeechTracker(Log);
 
-        // The same shared mover the Steam 2026 runtime uses.
-        condorCursorMover = new CondorCursorMover(currentProcessLegacyAddressSpace, Log);
+        // The jump presses the game's own direction keys rather than writing the
+        // cursor, so it needs the live control table to know which physical keys
+        // those are. FFVII's untouched default is the numeric keypad, not the
+        // arrows, and the player may have changed it since.
+        condorCursorSteering?.Dispose();
+        condorCursorSteering = new CondorCursorSteering(
+            HighwayAutoSteeringController.CreateCurrentProcess(legacyAddressSpace),
+            Log);
         inCondorBattle = false;
         TryInitializeFfnxPopupReader(force: true);
         mainMenuSpeechScheduler = new MainMenuSpeechScheduler(TimeSpan.FromMilliseconds(Math.Max(0, config.MainMenuSpeechSettleMs)));
@@ -1882,6 +1893,11 @@ public sealed class Mod : IModV1, IModV2
 
                 // Presses banked for a battle that has ended have nothing to act on.
                 pendingCondorNavigation.Clear();
+
+                // Before anything else. A jump still running when the battle
+                // ends would be left holding direction keys down in whatever
+                // the player is taken to next.
+                condorCursorSteering?.Cancel("left module 9");
                 condorBattleSpeechTracker.Reset();
 
                 // The terrain is cached for the life of a battle, and the next one
@@ -1921,9 +1937,15 @@ public sealed class Mod : IModV1, IModV2
         }
 
         var now = DateTime.UtcNow;
+        var steering = condorCursorSteering is { IsSteering: true };
         if (!condorBattleSpeechTracker.HasPendingStatusRequest &&
             !condorBattleSpeechTracker.HasPendingPlacementLineRequest &&
             pendingCondorNavigation.Count == 0 &&
+            // A running jump is holding keys down, so it is read as often as
+            // this loop runs rather than at the ordinary ten times a second.
+            // Every reading it does not get is distance the cursor travels
+            // before anything notices it has arrived.
+            !steering &&
             now - lastCondorBattleReadAt < CondorBattleReadInterval)
         {
             return;
@@ -1934,11 +1956,18 @@ public sealed class Mod : IModV1, IModV2
         var snapshot = condorBattleStateReader.TryRead();
         if (snapshot is null)
         {
+            // A jump steered on a stale position is a jump steered blind, and
+            // it is holding keys down right now. Told before returning, so it
+            // lets go rather than driving on what it last saw.
+            StepCondorCursorSteering(snapshot: null);
+
             // A partial read is not a battle state. Saying nothing is right here:
             // a fabricated snapshot would announce healthy units as dead.
             Log("Fort Condor battle reader: module 9 state is not ready or could not be read coherently.");
             return;
         }
+
+        StepCondorCursorSteering(snapshot);
 
         var enteringBattle = !inCondorBattle;
         if (enteringBattle)
@@ -1980,7 +2009,9 @@ public sealed class Mod : IModV1, IModV2
         pendingCondorNavigation.Clear();
         foreach (var action in bankedNavigation)
         {
-            var spoken = condorBattleSpeechTracker.Navigate(action, TryMoveCondorCursor);
+            var spoken = condorBattleSpeechTracker.Navigate(
+                action,
+                (x, y) => BeginCondorCursorJump(snapshot, x, y));
             if (string.IsNullOrEmpty(spoken))
             {
                 continue;
@@ -2040,8 +2071,62 @@ public sealed class Mod : IModV1, IModV2
     /// first version of the jump was written inline on x86 and the x64 runtime went
     /// without, which is exactly the split this mod exists to refuse.
     /// </remarks>
-    private bool TryMoveCondorCursor(int x, int y) =>
-        condorCursorMover?.TryMoveTo(x, y) == true;
+    /// <summary>
+    /// Sets the battlefield cursor going towards a point, and answers whether
+    /// the jump was accepted - not whether it arrived.
+    /// </summary>
+    /// <remarks>
+    /// The cursor cannot be written to: it is camera-relative, and it is also
+    /// the hire position, so a teleport followed by a purchase spends real gil
+    /// placing a unit off the field. See <see cref="CondorCursorMover"/>, which
+    /// refuses that write and always will. This holds the game's own direction
+    /// keys instead and lets go when the cursor gets there.
+    /// </remarks>
+    private bool BeginCondorCursorJump(CondorBattleSnapshot snapshot, int x, int y)
+    {
+        if (condorCursorSteering is null)
+        {
+            return false;
+        }
+
+        if (!snapshot.CursorUnderPlayerControl)
+        {
+            // A menu has the direction keys. Steering now would operate that
+            // menu instead, so the navigator falls back to saying both
+            // positions rather than claiming a move it cannot make.
+            Log("Fort Condor steering: refused, the direction keys are not moving the cursor.");
+            return false;
+        }
+
+        condorCursorSteering.Begin(x, y, snapshot.CursorX, snapshot.CursorY);
+        return true;
+    }
+
+    /// <summary>
+    /// One closed-loop steering pass. A null snapshot means this reading could
+    /// not see the battle at all, which ends any running jump rather than
+    /// steering it on a stale position.
+    /// </summary>
+    private void StepCondorCursorSteering(CondorBattleSnapshot? snapshot)
+    {
+        if (condorCursorSteering is not { IsSteering: true })
+        {
+            return;
+        }
+
+        var step = condorCursorSteering.Step(
+            cursorReadable: snapshot is not null,
+            underCursorControl: snapshot?.CursorUnderPlayerControl ?? true,
+            snapshot?.CursorX ?? 0,
+            snapshot?.CursorY ?? 0,
+            snapshot?.HeldDirectionMask ?? 0);
+
+        if (step.Speech is { } speech)
+        {
+            Log($"Fort Condor steering: {speech}");
+            Speak(speech, interrupt: true);
+        }
+    }
 
     /// <summary>
     /// Shared with the x64 runtime so both read module 9 at the same cadence.

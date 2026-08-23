@@ -104,7 +104,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         this.speak = speak ?? throw new ArgumentNullException(nameof(speak));
         this.log = log ?? throw new ArgumentNullException(nameof(log));
         this.probe = probe;
-        this.autoWalk = autoWalk ?? NavigationAutoWalkController.CreateCurrentProcess();
+        this.autoWalk = autoWalk ?? NavigationAutoWalkController.CreateCurrentProcess(addressSpace);
 
         int ReadInt32(int address) => ReadCheckedInt32(addressSpace, address);
         short ReadInt16(int address) => ReadCheckedInt16(addressSpace, address);

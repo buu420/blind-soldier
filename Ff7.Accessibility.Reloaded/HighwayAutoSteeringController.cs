@@ -1,11 +1,13 @@
 using System.Runtime.InteropServices;
 using Ff7.Accessibility.Core;
+using Ff7.Accessibility.LegacyLayout;
 
 namespace Ff7.Accessibility.Reloaded;
 
 internal readonly record struct HighwayKeyboardTransition(
     ushort ScanCode,
-    bool IsKeyDown);
+    bool IsKeyDown,
+    bool IsExtended = false);
 
 internal readonly record struct HighwayKeyboardSendResult(
     int InsertedCount,
@@ -24,38 +26,49 @@ internal interface IHighwayKeyboardInputSink
 }
 
 /// <summary>
-/// Converts owned direction changes into scan-code keyboard transitions. This
-/// class has no FFVII state knowledge and never synthesizes an attack button.
+/// Converts logical direction changes into the physical keys assigned in
+/// FFVII's live control table. It owns and releases only those keys and never
+/// synthesizes an attack button.
 /// </summary>
 internal sealed class HighwayAutoSteeringController : IDisposable
 {
+    // FFVII's stock keypad mapping. These constants remain as deterministic
+    // test vocabulary only; production input is always resolved from memory.
     internal const ushort ScanCodeUp = 0x48;
     internal const ushort ScanCodeDown = 0x50;
     internal const ushort ScanCodeLeft = 0x4B;
     internal const ushort ScanCodeRight = 0x4D;
 
-    private static readonly ushort[] StableKeyOrder =
-    [
-        ScanCodeUp,
-        ScanCodeDown,
-        ScanCodeLeft,
-        ScanCodeRight
-    ];
-
     private readonly object sync = new();
     private readonly IHighwayKeyboardInputSink sink;
-    private readonly HashSet<ushort> ownedScanCodes = [];
+    private readonly IHighwayDirectionInputMappingResolver mappingResolver;
+    private readonly List<HighwayKeyboardKey> ownedKeys = [];
     private bool disposed;
     private bool faulted;
     private string faultDiagnostic = string.Empty;
 
     internal HighwayAutoSteeringController(IHighwayKeyboardInputSink sink)
+        : this(sink, HighwayDirectionInputMappingResolver.CreateDefaultTestResolver())
+    {
+    }
+
+    internal HighwayAutoSteeringController(
+        IHighwayKeyboardInputSink sink,
+        IHighwayDirectionInputMappingResolver mappingResolver)
     {
         this.sink = sink ?? throw new ArgumentNullException(nameof(sink));
+        this.mappingResolver = mappingResolver ??
+            throw new ArgumentNullException(nameof(mappingResolver));
     }
 
     internal static HighwayAutoSteeringController CreateCurrentProcess() =>
-        new(new Win32HighwayKeyboardInputSink());
+        CreateCurrentProcess(new CurrentProcessLegacyAddressSpace());
+
+    internal static HighwayAutoSteeringController CreateCurrentProcess(
+        ILegacyAddressSpace addressSpace) =>
+        new(
+            new Win32HighwayKeyboardInputSink(),
+            new HighwayDirectionInputMappingResolver(addressSpace));
 
     internal string LastDiagnostic { get; private set; } = string.Empty;
 
@@ -71,7 +84,7 @@ internal sealed class HighwayAutoSteeringController : IDisposable
             if (faulted)
             {
                 var cleanup = ReleaseAllCore(maxAttempts: 2);
-                if (!cleanup.Success || ownedScanCodes.Count > 0)
+                if (!cleanup.Success || ownedKeys.Count > 0)
                 {
                     var diagnostic = BuildResidualDiagnostic(faultDiagnostic, cleanup);
                     LastDiagnostic = diagnostic;
@@ -86,21 +99,26 @@ internal sealed class HighwayAutoSteeringController : IDisposable
                 faultDiagnostic = string.Empty;
             }
 
-            var desired = ResolveDesiredScanCodes(direction);
-            var transitions = new List<HighwayKeyboardTransition>(4);
-            foreach (var scanCode in StableKeyOrder)
+            if (!mappingResolver.TryResolve(direction, out var desiredKeys, out var mappingDiagnostic))
             {
-                if (ownedScanCodes.Contains(scanCode) && !desired.Contains(scanCode))
+                return FailAndCleanup(Failure(0, 0, 0, mappingDiagnostic));
+            }
+
+            var desired = desiredKeys.ToHashSet();
+            var transitions = new List<HighwayKeyboardTransition>(4);
+            foreach (var key in ownedKeys.ToArray())
+            {
+                if (!desired.Contains(key))
                 {
-                    transitions.Add(new HighwayKeyboardTransition(scanCode, IsKeyDown: false));
+                    transitions.Add(ToTransition(key, isKeyDown: false));
                 }
             }
 
-            foreach (var scanCode in StableKeyOrder)
+            foreach (var key in desiredKeys)
             {
-                if (desired.Contains(scanCode) && !ownedScanCodes.Contains(scanCode))
+                if (!ownedKeys.Contains(key))
                 {
-                    transitions.Add(new HighwayKeyboardTransition(scanCode, IsKeyDown: true));
+                    transitions.Add(ToTransition(key, isKeyDown: true));
                 }
             }
 
@@ -119,7 +137,7 @@ internal sealed class HighwayAutoSteeringController : IDisposable
             }
 
             var result = ReleaseAllCore(maxAttempts: 2);
-            if (result.Success && ownedScanCodes.Count == 0)
+            if (result.Success && ownedKeys.Count == 0)
             {
                 faulted = false;
                 faultDiagnostic = string.Empty;
@@ -159,11 +177,10 @@ internal sealed class HighwayAutoSteeringController : IDisposable
     private HighwayAutoSteeringInputResult ReleaseAllCore(int maxAttempts)
     {
         HighwayAutoSteeringInputResult result = Success(0, 0);
-        for (var attempt = 0; attempt < maxAttempts && ownedScanCodes.Count > 0; attempt++)
+        for (var attempt = 0; attempt < maxAttempts && ownedKeys.Count > 0; attempt++)
         {
-            var releases = StableKeyOrder
-                .Where(ownedScanCodes.Contains)
-                .Select(scanCode => new HighwayKeyboardTransition(scanCode, IsKeyDown: false))
+            var releases = ownedKeys
+                .Select(key => ToTransition(key, isKeyDown: false))
                 .ToArray();
             result = SendTransitions(releases);
         }
@@ -221,7 +238,7 @@ internal sealed class HighwayAutoSteeringController : IDisposable
         faulted = true;
         faultDiagnostic = primaryFailure.Diagnostic;
         var cleanup = ReleaseAllCore(maxAttempts: 2);
-        if (cleanup.Success && ownedScanCodes.Count == 0)
+        if (cleanup.Success && ownedKeys.Count == 0)
         {
             faulted = false;
             faultDiagnostic = string.Empty;
@@ -244,11 +261,9 @@ internal sealed class HighwayAutoSteeringController : IDisposable
         string primaryDiagnostic,
         HighwayAutoSteeringInputResult cleanup)
     {
-        var residual = ownedScanCodes.Count == 0
+        var residual = ownedKeys.Count == 0
             ? "none"
-            : string.Join(", ", StableKeyOrder
-                .Where(ownedScanCodes.Contains)
-                .Select(scanCode => $"0x{scanCode:X2}"));
+            : string.Join(", ", ownedKeys.Select(DescribeKey));
         var cleanupDiagnostic = cleanup.Success
             ? "cleanup did not release every owned key"
             : cleanup.Diagnostic;
@@ -259,29 +274,29 @@ internal sealed class HighwayAutoSteeringController : IDisposable
 
     private void ApplyOwnership(HighwayKeyboardTransition transition)
     {
+        var key = new HighwayKeyboardKey(transition.ScanCode, transition.IsExtended);
         if (transition.IsKeyDown)
         {
-            ownedScanCodes.Add(transition.ScanCode);
+            if (!ownedKeys.Contains(key))
+            {
+                ownedKeys.Add(key);
+            }
         }
         else
         {
-            ownedScanCodes.Remove(transition.ScanCode);
+            ownedKeys.Remove(key);
         }
     }
 
-    private static HashSet<ushort> ResolveDesiredScanCodes(HighwaySteeringDirection direction) =>
-        direction switch
-        {
-            HighwaySteeringDirection.Left => [ScanCodeLeft],
-            HighwaySteeringDirection.Right => [ScanCodeRight],
-            HighwaySteeringDirection.Up => [ScanCodeUp],
-            HighwaySteeringDirection.Down => [ScanCodeDown],
-            HighwaySteeringDirection.UpLeft => [ScanCodeUp, ScanCodeLeft],
-            HighwaySteeringDirection.UpRight => [ScanCodeUp, ScanCodeRight],
-            HighwaySteeringDirection.DownLeft => [ScanCodeDown, ScanCodeLeft],
-            HighwaySteeringDirection.DownRight => [ScanCodeDown, ScanCodeRight],
-            _ => []
-        };
+    private static HighwayKeyboardTransition ToTransition(
+        HighwayKeyboardKey key,
+        bool isKeyDown) =>
+        new(key.ScanCode, isKeyDown, key.IsExtended);
+
+    private static string DescribeKey(HighwayKeyboardKey key) =>
+        key.IsExtended
+            ? $"extended 0x{key.ScanCode:X2}"
+            : $"0x{key.ScanCode:X2}";
 
     private static HighwayAutoSteeringInputResult Success(int requested, int inserted) =>
         new(true, requested, inserted, 0, string.Empty);
@@ -296,7 +311,8 @@ internal sealed class HighwayAutoSteeringController : IDisposable
 
 /// <summary>
 /// Architecture-correct Win32 SendInput boundary shared by the x86 and x64
-/// builds. Extended scan codes match FFVII's stored DirectInput mappings.
+/// builds. The live mapping resolver, not this boundary, decides whether a
+/// physical scan code carries the extended-key flag.
 /// </summary>
 internal sealed class Win32HighwayKeyboardInputSink : IHighwayKeyboardInputSink
 {
@@ -346,7 +362,7 @@ internal sealed class Win32HighwayKeyboardInputSink : IHighwayKeyboardInputSink
                         VirtualKey = 0,
                         ScanCode = transition.ScanCode,
                         Flags = KeyEventScanCode |
-                            KeyEventExtendedKey |
+                            (transition.IsExtended ? KeyEventExtendedKey : 0u) |
                             (transition.IsKeyDown ? 0u : KeyEventKeyUp),
                         Time = 0,
                         ExtraInfo = (nuint)InputMarker

@@ -24,7 +24,7 @@ internal static class CondorFieldNavigatorTests
         RemembersWhereAUnitDiedAfterItLeavesTheField();
         OrdersEnemiesByHowFarTheyHaveAdvanced();
         SaysSoWhenACategoryIsEmpty();
-        JumpReportsTheTargetItMovedTo();
+        JumpSaysWhereItIsTakingTheCursor();
         JumpSaysSoWhenItCannotMoveTheCursor();
         ForgetsLossesWhenANewBattleStarts();
         SelectionSurvivesUnitsChangingPlaces();
@@ -209,7 +209,18 @@ internal static class CondorFieldNavigatorTests
         AssertContains(navigator.Handle(CondorNavigationAction.NextTarget), "none");
     }
 
-    private static void JumpReportsTheTargetItMovedTo()
+    /// <summary>
+    /// An accepted jump promises a journey rather than reporting an arrival.
+    /// </summary>
+    /// <remarks>
+    /// The cursor is steered by holding the game's own direction keys, which
+    /// takes time and can fail part way. Saying the cursor is already there
+    /// would hand the player a position they could act on - buying a unit puts
+    /// it where the cursor is - before it was true. Where the cursor actually
+    /// comes to rest is announced by the cursor readout when the keys are
+    /// released, which is the truth either way.
+    /// </remarks>
+    private static void JumpSaysWhereItIsTakingTheCursor()
     {
         var navigator = NavigatorWith(new[] { Ally(0, 1, 428, 706) });
         navigator.Handle(CondorNavigationAction.NextTarget);
@@ -219,9 +230,17 @@ internal static class CondorFieldNavigatorTests
             CondorNavigationAction.JumpToTarget,
             (x, y) => { moved.Add((x, y)); return true; });
 
-        AssertEqual(1, moved.Count, "the mover was asked once");
-        AssertEqual((428, 706), moved[0], "the mover was given the target's coordinates");
+        AssertEqual(1, moved.Count, "the steering was asked once");
+        AssertEqual((428, 706), moved[0], "the steering was given the target's coordinates");
         AssertContains(spoken, "428, 706");
+        AssertContains(spoken, "Going to");
+
+        if (spoken is not null && spoken.Contains("Cursor at", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"Navigator said '{spoken}', reporting the cursor's position as though the jump " +
+                "had already finished. It has only just started.");
+        }
     }
 
     /// <summary>

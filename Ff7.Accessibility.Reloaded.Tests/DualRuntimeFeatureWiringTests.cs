@@ -64,7 +64,31 @@ internal static class DualRuntimeFeatureWiringTests
             "FieldExitNavigationProfileCatalog.cs",
             "FieldExitNavigationProfileCatalog",
             @"Ff7.Accessibility.Reloaded\NativeFieldExitTargetProvider.cs",
-            @"Ff7.Accessibility.Steam2026X64\Runtime\Field\Steam2026FieldNavigationCoordinator.cs")
+            @"Ff7.Accessibility.Steam2026X64\Runtime\Field\Steam2026FieldNavigationCoordinator.cs"),
+
+        // The Fort Condor cursor jump. Its predecessor is exactly why this table
+        // exists: the direct-write mover shipped on x86 only, and the x64
+        // runtime was left announcing that it could not move the cursor.
+        new("condor.cursor-steering",
+            "CondorCursorSteering.cs",
+            "CondorCursorSteering",
+            @"Ff7.Accessibility.Reloaded\Mod.cs",
+            @"Ff7.Accessibility.Steam2026X64\Runtime\Steam2026ResearchObservationPump.cs"),
+
+        // The physical keys every synthesized direction press uses. FFVII's
+        // untouched default binds movement to the numeric keypad, so a runtime
+        // that resolved this itself - or skipped it and sent arrows - would
+        // press keys the game does not read and do nothing at all, in silence.
+        //
+        // Both runtimes name the same driver because there is deliberately only
+        // one: two senders that could disagree about what Up means is the split
+        // this table exists to catch. The x64 half of the guard is the csproj
+        // check above, which is what proves the resolver is linked in at all.
+        new("input.direction-mapping",
+            "HighwayDirectionInputMappingResolver.cs",
+            "HighwayDirectionInputMappingResolver",
+            @"Ff7.Accessibility.Reloaded\HighwayAutoSteeringController.cs",
+            @"Ff7.Accessibility.Reloaded\HighwayAutoSteeringController.cs")
     ];
 
     /// <summary>

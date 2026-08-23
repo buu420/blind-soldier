@@ -43,7 +43,7 @@ internal sealed class HighwayAccessibilityCoordinator : IDisposable
         this.speak = speak ?? throw new ArgumentNullException(nameof(speak));
         this.log = log ?? throw new ArgumentNullException(nameof(log));
         autoSteeringMode = new HighwayAutoSteeringModeTracker(config.EnableHighwayAutoSteering);
-        autoSteeringController = HighwayAutoSteeringController.CreateCurrentProcess();
+        autoSteeringController = HighwayAutoSteeringController.CreateCurrentProcess(addressSpace);
         composer = new HighwayAccessibilityComposer(
             new HighwayAccessibilityTracker(
                 TimeSpan.FromMilliseconds(Math.Max(0, config.HighwayEnemyCueIntervalMs)),

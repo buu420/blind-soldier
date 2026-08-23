@@ -1,4 +1,5 @@
 using Ff7.Accessibility.Core;
+using Ff7.Accessibility.LegacyLayout;
 
 namespace Ff7.Accessibility.Reloaded;
 
@@ -21,8 +22,9 @@ internal static class NavigationAutoWalkKeyRouter
 }
 
 /// <summary>
-/// Owns only the directional arrow keys used by automatic navigation. Route
-/// selection, safety, arrival, and speech remain with the field/world adapters.
+/// Owns only the player's configured directional keyboard keys during automatic
+/// navigation. Route selection, safety, arrival, and speech remain with the
+/// field/world adapters.
 /// </summary>
 internal sealed class NavigationAutoWalkController : IDisposable
 {
@@ -46,6 +48,10 @@ internal sealed class NavigationAutoWalkController : IDisposable
 
     internal static NavigationAutoWalkController CreateCurrentProcess() =>
         new(HighwayAutoSteeringController.CreateCurrentProcess());
+
+    internal static NavigationAutoWalkController CreateCurrentProcess(
+        ILegacyAddressSpace addressSpace) =>
+        new(HighwayAutoSteeringController.CreateCurrentProcess(addressSpace));
 
     internal bool Enabled => !disposed && domain != NavigationAutoWalkDomain.None;
 

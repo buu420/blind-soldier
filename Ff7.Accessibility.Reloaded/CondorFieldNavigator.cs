@@ -262,17 +262,22 @@ public sealed class CondorFieldNavigator
         text.Length == 0 ? text : char.ToUpperInvariant(text[0]) + text[1..];
 
     /// <summary>
-    /// Says where the selected thing is and where the cursor is, and moves the
-    /// cursor only if the host can do it correctly.
+    /// Says where the selected thing is, and sets the cursor going towards it
+    /// if the host can steer.
     /// </summary>
     /// <remarks>
-    /// Moving the cursor is not a matter of storing a coordinate: the battle's
-    /// cursor is camera-relative and the view has to travel with it, so a direct
-    /// write leaves the player looking at ground they are not on - see
-    /// <see cref="CondorCursorMover"/>. Until steering through the game's own
-    /// direction keys lands, this answers with both positions, which is what a
-    /// sighted player reads off the screen anyway, and never claims a move that did
-    /// not happen.
+    /// <para>Moving the cursor is not a matter of storing a coordinate: the
+    /// battle's cursor is camera-relative and the view has to travel with it,
+    /// so a direct write leaves the player looking at ground they are not on -
+    /// see <see cref="CondorCursorMover"/>. The cursor is steered instead by
+    /// holding the game's own direction keys, which moves camera, accumulators
+    /// and cursor together because the game does it.</para>
+    ///
+    /// <para>Steering takes time, so this promises a journey rather than
+    /// reporting an arrival. Where the cursor actually comes to rest is
+    /// announced by the cursor readout the moment the keys are released, which
+    /// is the truth whether or not the jump reached what it was aimed at. A
+    /// host that cannot steer says both positions instead and claims nothing.</para>
     /// </remarks>
     private string Locate(Func<int, int, bool>? moveCursor)
     {
@@ -283,7 +288,7 @@ public sealed class CondorFieldNavigator
 
         if (moveCursor is not null && moveCursor(target.X, target.Y))
         {
-            return $"Cursor at {target.X}, {target.Y}. {target.Description}.";
+            return $"Going to {target.Description}, at {target.X}, {target.Y}.";
         }
 
         // Both coordinates, so the player can steer to it themselves and knows

@@ -23,7 +23,7 @@ internal sealed class Steam2026ResearchObservationPump
     private readonly FieldCountdownReader countdownReader;
     private readonly CondorBattleStateReader condorBattleReader;
     private readonly CondorBattleSpeechTracker condorBattleSpeechTracker;
-    private readonly CondorCursorMover condorCursorMover;
+    private readonly CondorCursorSteering condorCursorSteering;
 
     /// <summary>
     /// Navigation presses seen between two state readings, held until there is a
@@ -83,10 +83,15 @@ internal sealed class Steam2026ResearchObservationPump
         condorBattleReader = new CondorBattleStateReader(translatedAddressSpace);
         condorBattleSpeechTracker = new CondorBattleSpeechTracker(this.log);
 
-        // The same shared mover the x86 runtime uses. The jump used to exist on one
-        // executable only; routing both through one implementation is what stops
-        // that happening again.
-        condorCursorMover = new CondorCursorMover(translatedAddressSpace, this.log);
+        // The same shared steering the x86 runtime uses. The jump used to exist
+        // on one executable only; routing both through one implementation is
+        // what stops that happening again. It presses the game's own direction
+        // keys rather than writing the cursor, so it is handed the translated
+        // address space to read the live control table through - the keys are
+        // whatever the player has actually bound, not the arrows.
+        condorCursorSteering = new CondorCursorSteering(
+            HighwayAutoSteeringController.CreateCurrentProcess(translatedAddressSpace),
+            this.log);
     }
 
     /// <summary>
@@ -144,6 +149,11 @@ internal sealed class Steam2026ResearchObservationPump
         if (!condorBattleSpeechTracker.HasPendingStatusRequest &&
             !condorBattleSpeechTracker.HasPendingPlacementLineRequest &&
             pendingNavigation.Count == 0 &&
+            // A running jump is holding keys down, so it is read as often as
+            // this pump runs rather than at the ordinary ten times a second.
+            // Every reading it does not get is distance the cursor travels
+            // before anything notices it has arrived.
+            !condorCursorSteering.IsSteering &&
             now - lastCondorBattleReadUtc < CondorBattleStateReader.ReadInterval)
         {
             return [];
@@ -154,12 +164,17 @@ internal sealed class Steam2026ResearchObservationPump
         var snapshot = condorBattleReader.TryRead();
         if (snapshot is null)
         {
+            // A jump steered on a stale position is a jump steered blind, and it
+            // is holding keys down right now. Told before returning, so it lets
+            // go rather than driving on what it last saw.
+            var blind = StepCondorCursorSteering(snapshot: null);
+
             // A partial read is not a battle state. Saying nothing is right: a
             // fabricated snapshot would announce healthy units as dead. The banked
             // presses are kept rather than thrown away, so the player's key acts on
             // the next coherent reading instead of vanishing into a torn one.
             log("Fort Condor battle reader: module 9 state is not ready or could not be read coherently.");
-            return [];
+            return blind is null ? [] : [(blind, true)];
         }
 
         var enteringBattle = !inCondorBattle;
@@ -172,6 +187,15 @@ internal sealed class Steam2026ResearchObservationPump
         }
 
         var lines = new List<(string Text, bool Interrupt)>();
+
+        // Stepped before anything is said, so a jump that has just arrived has
+        // already released its keys by the time the cursor readout below
+        // announces where the cursor came to rest.
+        if (StepCondorCursorSteering(snapshot) is { } steeringSpeech)
+        {
+            lines.Add((steeringSpeech, true));
+        }
+
         if (condorBattleSpeechTracker.ConsumeRequestedStatus(
                 snapshot,
                 openingStatusWillBeSpoken: enteringBattle) is { } status)
@@ -203,7 +227,9 @@ internal sealed class Steam2026ResearchObservationPump
         pendingNavigation.Clear();
         foreach (var action in banked)
         {
-            var spoken = condorBattleSpeechTracker.Navigate(action, condorCursorMover.TryMoveTo);
+            var spoken = condorBattleSpeechTracker.Navigate(
+                action,
+                (x, y) => BeginCondorCursorJump(snapshot, x, y));
             if (string.IsNullOrEmpty(spoken))
             {
                 continue;
@@ -217,6 +243,59 @@ internal sealed class Steam2026ResearchObservationPump
     }
 
     /// <summary>
+    /// Sets the battlefield cursor going towards a point, and answers whether
+    /// the jump was accepted - not whether it arrived.
+    /// </summary>
+    /// <remarks>
+    /// The cursor cannot be written to: it is camera-relative, and it is also
+    /// the hire position, so a teleport followed by a purchase spends real gil
+    /// placing a unit off the field. See <see cref="CondorCursorMover"/>, which
+    /// refuses that write and always will. This holds the game's own direction
+    /// keys instead and lets go when the cursor gets there.
+    /// </remarks>
+    private bool BeginCondorCursorJump(CondorBattleSnapshot snapshot, int x, int y)
+    {
+        if (!snapshot.CursorUnderPlayerControl)
+        {
+            // A menu has the direction keys. Steering now would operate that
+            // menu instead, so the navigator falls back to saying both
+            // positions rather than claiming a move it cannot make.
+            log("Fort Condor steering: refused, the direction keys are not moving the cursor.");
+            return false;
+        }
+
+        condorCursorSteering.Begin(x, y, snapshot.CursorX, snapshot.CursorY);
+        return true;
+    }
+
+    /// <summary>
+    /// One closed-loop steering pass, returning anything the jump needs said. A
+    /// null snapshot means this reading could not see the battle at all, which
+    /// ends any running jump rather than steering it on a stale position.
+    /// </summary>
+    private string? StepCondorCursorSteering(CondorBattleSnapshot? snapshot)
+    {
+        if (!condorCursorSteering.IsSteering)
+        {
+            return null;
+        }
+
+        var step = condorCursorSteering.Step(
+            cursorReadable: snapshot is not null,
+            underCursorControl: snapshot?.CursorUnderPlayerControl ?? true,
+            snapshot?.CursorX ?? 0,
+            snapshot?.CursorY ?? 0,
+            snapshot?.HeldDirectionMask ?? 0);
+
+        if (step.Speech is { } speech)
+        {
+            log($"Fort Condor steering: {speech}");
+        }
+
+        return step.Speech;
+    }
+
+    /// <summary>
     /// Starts a fresh Fort Condor observation epoch after a module exit,
     /// runtime suspend/resume, or shutdown.
     /// </summary>
@@ -227,6 +306,10 @@ internal sealed class Steam2026ResearchObservationPump
 
         // Presses banked for a battle that has ended have nothing left to act on.
         pendingNavigation.Clear();
+
+        // Before anything else. A jump still running when the battle ends would
+        // be left holding direction keys down in whatever comes next.
+        condorCursorSteering.Cancel("the Fort Condor observation epoch ended");
         condorBattleSpeechTracker.Reset();
 
         // Terrain is cached for one battle. A reset can span a translated
