@@ -358,17 +358,16 @@ internal sealed class CondorCursorSteering : IDisposable
         // Whatever we just asked to be held is what the battle must report back.
         // Only start waiting on a fresh request: re-arming every step would reset
         // the count each pass and the check would never fire.
+        // Whatever is being asked for now is what the battle must report back,
+        // and that includes asking for nothing. Slowing down holds no key, so
+        // there is nothing for the battle to confirm; leaving the previous
+        // request armed would count readings against a key that is already up
+        // and abandon a jump that is working perfectly.
+        //
+        // Only a change re-arms. Re-arming every reading would reset the count
+        // each pass and the acknowledgement check would never fire at all.
         var requested = MaskFor(direction);
-        if (requested == 0)
-        {
-            // Nothing is being asked for while it slows down, so there is
-            // nothing for the battle to confirm. Leaving the old request armed
-            // would count readings against a key deliberately no longer held
-            // and abandon a jump that is working.
-            awaitingMask = 0;
-            unacknowledged = 0;
-        }
-        else if (requested != awaitingMask)
+        if (requested != awaitingMask)
         {
             awaitingMask = requested;
             unacknowledged = 0;

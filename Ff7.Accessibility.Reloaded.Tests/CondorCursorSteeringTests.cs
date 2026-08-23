@@ -31,6 +31,8 @@ internal static class CondorCursorSteeringTests
         LetsGoWhenTheGameNeverReportsHoldingTheKey();
         LetsGoOfTheKeysWhenTheNextStrideWouldOvershootTheTarget();
         StopsInsteadOfCrossingATargetItCannotLandOn();
+        SlowingDownIsNotMistakenForAKeyTheGameIgnored();
+        SittingOnTheTargetIsNotCrossingIt();
     }
 
     /// <summary>
@@ -152,15 +154,49 @@ internal static class CondorCursorSteeringTests
     /// </remarks>
     private static void StopsInsteadOfCrossingATargetItCannotLandOn()
     {
+        // Both axes, because the latch is per axis and a jump that gives up
+        // vertically but oscillates horizontally forever is the same failure
+        // wearing the other hat.
+        CrossesUntilItGivesUp(
+            targetX: 300,
+            targetY: 700,
+            startX: 300,
+            startY: 690,
+            horizontal: false,
+            label: "vertically");
+
+        CrossesUntilItGivesUp(
+            targetX: 700,
+            targetY: 300,
+            startX: 690,
+            startY: 300,
+            horizontal: true,
+            label: "horizontally");
+    }
+
+    private static void CrossesUntilItGivesUp(
+        int targetX,
+        int targetY,
+        int startX,
+        int startY,
+        bool horizontal,
+        string label)
+    {
         var sink = new RecordingSink();
         var steering = new CondorCursorSteering(new HighwayAutoSteeringController(sink));
-        steering.Begin(targetX: 300, targetY: 700, cursorX: 300, cursorY: 690);
+        steering.Begin(targetX, targetY, startX, startY);
 
         CondorSteeringStep step = default;
         var readings = 0;
-        foreach (var y in new[] { 690, 710, 690, 710, 690, 710, 690, 710, 690, 710, 690, 710 })
+        foreach (var moving in new[] { 690, 710, 690, 710, 690, 710, 690, 710, 690, 710, 690, 710 })
         {
-            step = steering.Step(cursorReadable: true, underCursorControl: true, 300, y, AllDirections);
+            step = steering.Step(
+                cursorReadable: true,
+                underCursorControl: true,
+                horizontal ? moving : startX,
+                horizontal ? startY : moving,
+                AllDirections);
+
             readings++;
             if (step.Outcome != CondorSteeringOutcome.Steering)
             {
@@ -168,12 +204,15 @@ internal static class CondorCursorSteeringTests
             }
         }
 
-        Equal(CondorSteeringOutcome.Abandoned, step.Outcome, "stops crossing a target it cannot land on");
-        Equal(0, sink.HeldScanCodes().Length, "every key released when it gives up crossing");
+        Equal(
+            CondorSteeringOutcome.Abandoned,
+            step.Outcome,
+            $"stops crossing {label} over a target it cannot land on");
+        Equal(0, sink.HeldScanCodes().Length, $"every key released when it gives up crossing {label}");
 
         // Said out loud, because the cursor readout that follows will name a
         // position the player did not ask for and they are owed the reason.
-        AssertSpoken(step, "a jump that could not land says so rather than leaving the player guessing");
+        AssertSpoken(step, $"a jump that could not land {label} says so rather than leaving the player guessing");
 
         // And it must give up promptly. Bounded by the crossing limit rather
         // than by the sample ceiling, which at this reading rate would be about
@@ -181,8 +220,84 @@ internal static class CondorCursorSteeringTests
         if (readings > CondorCursorSteering.CrossingLimit + 2)
         {
             throw new InvalidOperationException(
-                $"expected to give up within {CondorCursorSteering.CrossingLimit + 2} readings, took {readings}.");
+                $"expected to give up {label} within {CondorCursorSteering.CrossingLimit + 2} " +
+                $"readings, took {readings}.");
         }
+    }
+
+    /// <summary>
+    /// Letting go is not a press, so there is nothing for the battle to
+    /// confirm. Leaving the last request armed while the loop is deliberately
+    /// holding nothing counts readings against a key that is already up, and
+    /// abandons a jump that is behaving exactly as designed.
+    /// </summary>
+    private static void SlowingDownIsNotMistakenForAKeyTheGameIgnored()
+    {
+        var sink = new RecordingSink();
+        var steering = new CondorCursorSteering(new HighwayAutoSteeringController(sink));
+        steering.Begin(targetX: 300, targetY: 700, cursorX: 300, cursorY: 690);
+
+        // The battle reports holding nothing at all. The only press this jump
+        // makes is the first one; every reading after it slows down instead,
+        // because the cursor is being carried further than the distance left.
+        CondorSteeringStep step = default;
+        foreach (var y in new[] { 690, 710, 690, 710, 690, 710, 690 })
+        {
+            step = steering.Step(
+                cursorReadable: true,
+                underCursorControl: true,
+                300,
+                y,
+                heldDirectionMask: 0);
+
+            if (step.Outcome != CondorSteeringOutcome.Steering)
+            {
+                break;
+            }
+        }
+
+        Equal(CondorSteeringOutcome.Abandoned, step.Outcome, "the jump still ends");
+
+        // It ends because it cannot land on the target, which is true. Blaming
+        // the game for ignoring keys the loop chose not to press would send the
+        // player off checking their controls over a fault that is not there.
+        if (step.Speech?.Contains("not taking", StringComparison.Ordinal) == true)
+        {
+            throw new InvalidOperationException(
+                "a jump deliberately holding nothing must not be blamed on the game " +
+                $"ignoring keys: \"{step.Speech}\".");
+        }
+
+        Equal(0, sink.HeldScanCodes().Length, "every key released either way");
+    }
+
+    /// <summary>
+    /// An axis that lands exactly on the target has not crossed it. Treating
+    /// zero as a side of the target counts a crossing every time the cursor
+    /// touches it and drifts off again, and an axis that has "crossed" too
+    /// often stops being steered at all.
+    /// </summary>
+    private static void SittingOnTheTargetIsNotCrossingIt()
+    {
+        var sink = new RecordingSink();
+        var steering = new CondorCursorSteering(new HighwayAutoSteeringController(sink));
+        steering.Begin(targetX: 300, targetY: 900, cursorX: 290, cursorY: 500);
+
+        // X touches the target exactly and slips off it again, over and over,
+        // while Y is still a long way out.
+        var y = 500;
+        CondorSteeringStep step = default;
+        foreach (var x in new[] { 290, 300, 290, 300, 290, 300, 290, 300, 290 })
+        {
+            y += 20;
+            step = steering.Step(cursorReadable: true, underCursorControl: true, x, y, AllDirections);
+        }
+
+        Equal(CondorSteeringOutcome.Steering, step.Outcome, "still travelling");
+        Equal(
+            new[] { HighwayAutoSteeringController.ScanCodeDown, HighwayAutoSteeringController.ScanCodeRight },
+            sink.HeldScanCodes(),
+            "an axis that only ever touched the target is still steered towards it");
     }
 
     private static void DrivesTowardsTheTargetAndStopsOnArrival()
