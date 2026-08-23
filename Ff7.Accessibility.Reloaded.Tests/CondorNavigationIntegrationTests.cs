@@ -95,6 +95,16 @@ internal static class CondorNavigationIntegrationTests
         AssertContains(tracker.Navigate(CondorNavigationAction.NextTarget), "none");
     }
 
+    /// <summary>
+    /// Where the cursor came to rest, and what is standing there.
+    /// </summary>
+    /// <remarks>
+    /// The readout waits for the cursor to settle. Holding a direction moves it
+    /// about 24 coordinate units between two readings, so a sentence per
+    /// reading buried the player under a backlog of speech that arrived long
+    /// after they had let go - which is what "the cursor jumps extra amounts"
+    /// turned out to be.
+    /// </remarks>
     private static void TheCursorReadoutSpeaksCoordinates()
     {
         var tracker = new CondorBattleSpeechTracker();
@@ -102,10 +112,20 @@ internal static class CondorNavigationIntegrationTests
         tracker.Observe(Snapshot(units, cursorX: 100, cursorY: 100));
         tracker.Observe(Snapshot(units, cursorX: 100, cursorY: 100));
 
-        // Moving onto the unit should say where it is, not which way it lies.
-        var lines = tracker.Observe(
+        // Caught mid-sweep: the cursor is somewhere it is not staying, so
+        // nothing is said about it.
+        var travelling = tracker.Observe(
             Snapshot(units, cursorX: 428, cursorY: 706, unitUnderCursorSlot: 0));
-        var spoken = string.Join(" ", lines);
+        if (travelling.Count != 0)
+        {
+            throw new InvalidOperationException(
+                $"expected silence while the cursor was still moving, got '{string.Join(" ", travelling)}'.");
+        }
+
+        // Come to rest on the unit: the coordinates first, then who is there.
+        var spoken = string.Join(
+            " ",
+            tracker.Observe(Snapshot(units, cursorX: 428, cursorY: 706, unitUnderCursorSlot: 0)));
         AssertContains(spoken, "428, 706");
     }
 
@@ -117,22 +137,31 @@ internal static class CondorNavigationIntegrationTests
         tracker.Observe(Snapshot(units, cursorX: 400, cursorY: 700));
         tracker.Observe(Snapshot(units, cursorX: 400, cursorY: 700));
 
-        var first = string.Join(" ", tracker.Observe(Snapshot(units, cursorX: 400, cursorY: 704)));
-        var repeats = new List<string>();
-        for (var step = 0; step < 4; step++)
-        {
-            repeats.Add(string.Join(" ", tracker.Observe(
-                Snapshot(units, cursorX: 400, cursorY: 704))));
-        }
+        // Moved, then held still. The first reading at rest is the one that
+        // speaks; every reading after it has nothing new to report.
+        tracker.Observe(Snapshot(units, cursorX: 400, cursorY: 704));
 
-        foreach (var repeat in repeats)
+        var spoken = new List<string>();
+        for (var step = 0; step < 5; step++)
         {
-            if (!string.IsNullOrEmpty(repeat) && repeat == first)
+            var line = string.Join(" ", tracker.Observe(Snapshot(units, cursorX: 400, cursorY: 704)));
+            if (!string.IsNullOrEmpty(line))
             {
-                throw new InvalidOperationException(
-                    $"The cursor readout repeated '{repeat}' with nothing having changed.");
+                spoken.Add(line);
             }
         }
+
+        // Exactly one. Asserting only that consecutive lines differ passed even
+        // when the readout had gone silent altogether, which is the worse of
+        // the two failures.
+        if (spoken.Count != 1)
+        {
+            throw new InvalidOperationException(
+                $"expected the resting cursor to be announced once, got {spoken.Count}: " +
+                $"[{string.Join(" | ", spoken)}].");
+        }
+
+        AssertContains(spoken[0], "400, 704");
     }
 
     private static void AssertContains(string? actual, string expected)

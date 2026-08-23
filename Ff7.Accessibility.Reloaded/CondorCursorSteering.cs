@@ -111,11 +111,36 @@ internal sealed class CondorCursorSteering : IDisposable
     /// </remarks>
     internal const int AcknowledgementLimit = 3;
 
+    /// <summary>
+    /// How many times the cursor may cross the target on one axis before that
+    /// axis is taken to be as close as the game will bring it.
+    /// </summary>
+    /// <remarks>
+    /// <para>Letting go clears the battle's repeat counter at
+    /// <c>0x00CBC7BC</c>, so the ordinary approach converges: each release
+    /// starts the ramp again at one unit an update. But the counter belongs to
+    /// the held mask, not to us - a player leaning on their own direction key
+    /// holds it at full repeat, four units every update, and the stride never
+    /// shrinks. The cursor then crosses the target on every reading and lands
+    /// on it never.</para>
+    ///
+    /// <para>Nothing else here would end that jump: it is moving, so not
+    /// stalled; it stays beside the target, so it has not diverged; and it is
+    /// never inside the tolerance, so it never arrives. This is what stops
+    /// it.</para>
+    /// </remarks>
+    internal const int CrossingLimit = 3;
+
     private readonly HighwayAutoSteeringController keys;
     private readonly Action<string> log;
 
     private (int X, int Y)? target;
     private (int X, int Y)? lastCursor;
+    private (int X, int Y)? lastDelta;
+    private int crossingsX;
+    private int crossingsY;
+    private bool settledX;
+    private bool settledY;
     private int startingDistance;
     private int stalled;
     private int samples;
@@ -142,6 +167,11 @@ internal sealed class CondorCursorSteering : IDisposable
     {
         target = (targetX, targetY);
         lastCursor = null;
+        lastDelta = null;
+        crossingsX = 0;
+        crossingsY = 0;
+        settledX = false;
+        settledY = false;
         stalled = 0;
         samples = 0;
         awaitingMask = 0;
@@ -227,16 +257,45 @@ internal sealed class CondorCursorSteering : IDisposable
         var dx = destination.X - cursorX;
         var dy = destination.Y - cursorY;
 
-        if (Math.Abs(dx) <= ArrivalTolerance && Math.Abs(dy) <= ArrivalTolerance)
+        // Has the cursor crossed the target since the last reading? Full native
+        // repeat is four coordinate units per module update and the battle runs
+        // far faster than this is read, so one reading can find the cursor on
+        // the far side of a target it never landed on. An axis that has crossed
+        // too often is as close as the game's own movement granularity will
+        // bring it, and driving it again would only cross it again.
+        if (lastDelta is { } previousDelta)
         {
-            // Deliberately silent. The cursor readout announces where the cursor
-            // came to rest and what is standing there, the moment the keys are
-            // released - saying it here as well would be the same duplicate that
-            // the opening line had to be fixed for.
+            if (Crossed(dx, previousDelta.X) && ++crossingsX > CrossingLimit)
+            {
+                settledX = true;
+            }
+
+            if (Crossed(dy, previousDelta.Y) && ++crossingsY > CrossingLimit)
+            {
+                settledY = true;
+            }
+        }
+
+        var drivingX = !settledX && Math.Abs(dx) > ArrivalTolerance;
+        var drivingY = !settledY && Math.Abs(dy) > ArrivalTolerance;
+
+        if (!drivingX && !drivingY)
+        {
+            // Arriving is deliberately silent: the cursor readout announces
+            // where the cursor came to rest and what is standing there the
+            // moment the keys are released, and saying it here as well would be
+            // the same duplicate the opening line had to be fixed for.
+            //
+            // Stopping short is not silent. The readout that follows will name
+            // a position the player did not ask for, and they are owed the
+            // reason rather than left to wonder whether the key worked.
+            var stoppedShort =
+                Math.Abs(dx) > ArrivalTolerance || Math.Abs(dy) > ArrivalTolerance;
+
             return Stop(
-                CondorSteeringOutcome.Arrived,
-                null,
-                $"arrived at {cursorX}, {cursorY} after {samples} readings");
+                stoppedShort ? CondorSteeringOutcome.Abandoned : CondorSteeringOutcome.Arrived,
+                stoppedShort ? "Could not get closer." : null,
+                $"stopped at {cursorX}, {cursorY} after {samples} readings");
         }
 
         if (Distance(dx, dy) > startingDistance + DivergenceSlack)
@@ -262,9 +321,31 @@ internal sealed class CondorCursorSteering : IDisposable
             stalled = 0;
         }
 
-        lastCursor = (cursorX, cursorY);
+        // How far the battle actually carried the cursor since the last
+        // reading. Measured rather than assumed: it depends on the repeat ramp,
+        // on how many module updates fell between two readings, and on whether
+        // the player is holding a direction of their own.
+        var stride = lastCursor is { } previousCursor
+            ? (X: Math.Abs(cursorX - previousCursor.X), Y: Math.Abs(cursorY - previousCursor.Y))
+            : (X: 0, Y: 0);
 
-        var direction = ResolveDirection(dx, dy);
+        lastCursor = (cursorX, cursorY);
+        lastDelta = (dx, dy);
+
+        // If there is less distance left than the last stride covered, pressing
+        // on would sail past the target. Letting go clears the battle's repeat
+        // counter at 0x00CBC7BC, so the next press begins again at one unit an
+        // update and the approach converges instead of crossing back and forth.
+        // That counter belongs to the whole held mask rather than to one axis,
+        // so slowing down means every key goes up.
+        var slowingDown =
+            (drivingX && stride.X > 0 && Math.Abs(dx) < stride.X) ||
+            (drivingY && stride.Y > 0 && Math.Abs(dy) < stride.Y);
+
+        var direction = slowingDown
+            ? HighwaySteeringDirection.None
+            : ResolveDirection(drivingX ? Math.Sign(dx) : 0, drivingY ? Math.Sign(dy) : 0);
+
         var result = keys.Apply(direction);
         if (!result.Success)
         {
@@ -278,7 +359,16 @@ internal sealed class CondorCursorSteering : IDisposable
         // Only start waiting on a fresh request: re-arming every step would reset
         // the count each pass and the check would never fire.
         var requested = MaskFor(direction);
-        if (requested != awaitingMask && requested != 0)
+        if (requested == 0)
+        {
+            // Nothing is being asked for while it slows down, so there is
+            // nothing for the battle to confirm. Leaving the old request armed
+            // would count readings against a key deliberately no longer held
+            // and abandon a jump that is working.
+            awaitingMask = 0;
+            unacknowledged = 0;
+        }
+        else if (requested != awaitingMask)
         {
             awaitingMask = requested;
             unacknowledged = 0;
@@ -314,15 +404,21 @@ internal sealed class CondorCursorSteering : IDisposable
     }
 
     /// <summary>
-    /// Higher Y is further down the mountain, towards the enemy, so a larger
-    /// target Y means Down. An axis already inside the tolerance is left alone
-    /// rather than nudged, so the finish on one axis does not disturb the other.
+    /// Whether the distance left on an axis changed sides between two readings,
+    /// which is the cursor having crossed the target rather than landed on it.
+    /// Zero is not a side: an axis sitting exactly on the target has not
+    /// crossed it.
     /// </summary>
-    private static HighwaySteeringDirection ResolveDirection(int dx, int dy)
-    {
-        var horizontal = Math.Abs(dx) > ArrivalTolerance ? Math.Sign(dx) : 0;
-        var vertical = Math.Abs(dy) > ArrivalTolerance ? Math.Sign(dy) : 0;
+    private static bool Crossed(int current, int previous) =>
+        current != 0 && previous != 0 && Math.Sign(current) != Math.Sign(previous);
 
+    /// <summary>
+    /// Higher Y is further down the mountain, towards the enemy, so a larger
+    /// target Y means Down. An axis that is finished is passed as zero rather
+    /// than nudged, so the finish on one axis does not disturb the other.
+    /// </summary>
+    private static HighwaySteeringDirection ResolveDirection(int horizontal, int vertical)
+    {
         return (horizontal, vertical) switch
         {
             (0, < 0) => HighwaySteeringDirection.Up,
@@ -360,6 +456,11 @@ internal sealed class CondorCursorSteering : IDisposable
     {
         target = null;
         lastCursor = null;
+        lastDelta = null;
+        crossingsX = 0;
+        crossingsY = 0;
+        settledX = false;
+        settledY = false;
         stalled = 0;
         samples = 0;
         awaitingMask = 0;

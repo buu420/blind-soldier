@@ -29,6 +29,8 @@ internal static class CondorCursorSteeringTests
         LetsGoWhenTheGameRefusesTheKeystrokes();
         SaysNothingOnArrivalSoTheReadoutIsNotDuplicated();
         LetsGoWhenTheGameNeverReportsHoldingTheKey();
+        LetsGoOfTheKeysWhenTheNextStrideWouldOvershootTheTarget();
+        StopsInsteadOfCrossingATargetItCannotLandOn();
     }
 
     /// <summary>
@@ -93,6 +95,94 @@ internal static class CondorCursorSteeringTests
             otherStep.Outcome,
             "a different direction being held does not acknowledge ours");
         Equal(0, otherSink.HeldScanCodes().Length, "every key released when only another direction is held");
+    }
+
+    /// <summary>
+    /// Full native repeat is four coordinate units per module update, and the
+    /// battle runs far faster than the mod reads it, so a single reading can
+    /// carry the cursor further than the whole arrival tolerance is wide.
+    /// Pressing on regardless would sail past the target every time.
+    /// </summary>
+    private static void LetsGoOfTheKeysWhenTheNextStrideWouldOvershootTheTarget()
+    {
+        var sink = new RecordingSink();
+        var steering = new CondorCursorSteering(new HighwayAutoSteeringController(sink));
+        steering.Begin(targetX: 300, targetY: 700, cursorX: 300, cursorY: 500);
+
+        steering.Step(cursorReadable: true, underCursorControl: true, 300, 500, AllDirections);
+        Equal(
+            new[] { HighwayAutoSteeringController.ScanCodeDown },
+            sink.HeldScanCodes(),
+            "holds down while there is room to travel");
+
+        // The battle carried the cursor 188 units between two readings and only
+        // twelve are left. Pressing on would overshoot.
+        var slowing = steering.Step(cursorReadable: true, underCursorControl: true, 300, 688, AllDirections);
+        Equal(CondorSteeringOutcome.Steering, slowing.Outcome, "still travelling while it slows down");
+        Equal(
+            0,
+            sink.HeldScanCodes().Length,
+            "lets go, which clears the battle's repeat counter back to one unit an update");
+
+        // Ramp reset: four units this reading rather than 188, and eight left to
+        // travel, so there is room to press again.
+        var resumed = steering.Step(cursorReadable: true, underCursorControl: true, 300, 692, AllDirections);
+        Equal(CondorSteeringOutcome.Steering, resumed.Outcome, "still travelling");
+        Equal(
+            new[] { HighwayAutoSteeringController.ScanCodeDown },
+            sink.HeldScanCodes(),
+            "presses on once the stride fits the distance left");
+
+        var arrived = steering.Step(cursorReadable: true, underCursorControl: true, 300, 699, AllDirections);
+        Equal(CondorSteeringOutcome.Arrived, arrived.Outcome, "arrives on the fine approach");
+        Equal(0, sink.HeldScanCodes().Length, "every key released on arrival");
+    }
+
+    /// <summary>
+    /// Letting go resets the battle's repeat counter only while nothing else is
+    /// holding a direction. A player leaning on their own direction key keeps
+    /// the counter at full repeat, so the stride never shrinks and the cursor
+    /// crosses the target on every reading without ever landing on it.
+    /// </summary>
+    /// <remarks>
+    /// Nothing else in this class would end that jump. The cursor is moving, so
+    /// it is not stalled; it stays beside the target, so it has not diverged;
+    /// and it is never inside the tolerance, so it never arrives. It would
+    /// twitch back and forth across the target for the whole sample ceiling.
+    /// </remarks>
+    private static void StopsInsteadOfCrossingATargetItCannotLandOn()
+    {
+        var sink = new RecordingSink();
+        var steering = new CondorCursorSteering(new HighwayAutoSteeringController(sink));
+        steering.Begin(targetX: 300, targetY: 700, cursorX: 300, cursorY: 690);
+
+        CondorSteeringStep step = default;
+        var readings = 0;
+        foreach (var y in new[] { 690, 710, 690, 710, 690, 710, 690, 710, 690, 710, 690, 710 })
+        {
+            step = steering.Step(cursorReadable: true, underCursorControl: true, 300, y, AllDirections);
+            readings++;
+            if (step.Outcome != CondorSteeringOutcome.Steering)
+            {
+                break;
+            }
+        }
+
+        Equal(CondorSteeringOutcome.Abandoned, step.Outcome, "stops crossing a target it cannot land on");
+        Equal(0, sink.HeldScanCodes().Length, "every key released when it gives up crossing");
+
+        // Said out loud, because the cursor readout that follows will name a
+        // position the player did not ask for and they are owed the reason.
+        AssertSpoken(step, "a jump that could not land says so rather than leaving the player guessing");
+
+        // And it must give up promptly. Bounded by the crossing limit rather
+        // than by the sample ceiling, which at this reading rate would be about
+        // a quarter of a minute of the cursor twitching.
+        if (readings > CondorCursorSteering.CrossingLimit + 2)
+        {
+            throw new InvalidOperationException(
+                $"expected to give up within {CondorCursorSteering.CrossingLimit + 2} readings, took {readings}.");
+        }
     }
 
     private static void DrivesTowardsTheTargetAndStopsOnArrival()
