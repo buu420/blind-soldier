@@ -83,6 +83,34 @@ internal sealed class CondorCursorSteering : IDisposable
     /// </summary>
     internal const int DivergenceSlack = 48;
 
+    /// <summary>
+    /// The direction bits the battle reads out of its own held mask at
+    /// 0x00C72E80, which <c>FUN_005FE771</c> repeats from.
+    /// </summary>
+    internal const uint MaskUp = 0x1000;
+    internal const uint MaskRight = 0x2000;
+    internal const uint MaskDown = 0x4000;
+    internal const uint MaskLeft = 0x8000;
+
+    /// <summary>
+    /// How many readings a synthesized key gets to show up in the game's own
+    /// held mask before the jump is abandoned.
+    /// </summary>
+    /// <remarks>
+    /// <para>The single most important check here. Module 9 does not read the
+    /// keyboard the way the rest of the mod does: it polls DirectInput's
+    /// immediate state, applies the player's own <c>ff7input.cfg</c> mapping, and
+    /// only then sets the bits this mask exposes. A keystroke can therefore be
+    /// accepted by Windows and still mean nothing to the battle - because the
+    /// injection was filtered, or because the player has that direction bound to
+    /// a key we did not press.</para>
+    ///
+    /// <para>Without this the loop would be open: press, hope, and drive a cursor
+    /// that is not moving until the stall check happens to notice. With it the
+    /// jump fails in a fraction of a second and says so.</para>
+    /// </remarks>
+    internal const int AcknowledgementLimit = 3;
+
     private readonly HighwayAutoSteeringController keys;
     private readonly Action<string> log;
 
@@ -91,6 +119,8 @@ internal sealed class CondorCursorSteering : IDisposable
     private int startingDistance;
     private int stalled;
     private int samples;
+    private uint awaitingMask;
+    private int unacknowledged;
     private bool disposed;
 
     internal CondorCursorSteering(
@@ -114,6 +144,8 @@ internal sealed class CondorCursorSteering : IDisposable
         lastCursor = null;
         stalled = 0;
         samples = 0;
+        awaitingMask = 0;
+        unacknowledged = 0;
         startingDistance = Distance(targetX - cursorX, targetY - cursorY);
         log($"Fort Condor steering: going to {targetX}, {targetY} from {cursorX}, {cursorY}.");
     }
@@ -130,11 +162,17 @@ internal sealed class CondorCursorSteering : IDisposable
     /// cursor - module 9, foreground, ordinary cursor mode, no modal overlay and
     /// no report. If a menu opened, the same keys now move something else.
     /// </param>
+    /// <param name="heldDirectionMask">
+    /// The battle's own held mask at 0x00C72E80, masked to its direction bits.
+    /// This is the game telling us which directions it currently believes are
+    /// down - the only trustworthy evidence that a synthesized key arrived.
+    /// </param>
     internal CondorSteeringStep Step(
         bool cursorReadable,
         bool underCursorControl,
         int cursorX,
-        int cursorY)
+        int cursorY,
+        uint heldDirectionMask)
     {
         if (target is not { } destination)
         {
@@ -162,6 +200,28 @@ internal sealed class CondorCursorSteering : IDisposable
                 CondorSteeringOutcome.Abandoned,
                 "Could not get there.",
                 $"gave up after {SampleLimit} readings");
+        }
+
+        // Before anything else: did the keys we pressed last time actually reach
+        // the battle? Checked first so a jump that is pressing keys into the void
+        // fails in a fraction of a second rather than waiting for the stall
+        // count, and so nothing downstream reasons about a cursor that was never
+        // going to move.
+        if (awaitingMask != 0)
+        {
+            if ((heldDirectionMask & awaitingMask) == awaitingMask)
+            {
+                awaitingMask = 0;
+                unacknowledged = 0;
+            }
+            else if (++unacknowledged > AcknowledgementLimit)
+            {
+                return Stop(
+                    CondorSteeringOutcome.Abandoned,
+                    "The game is not taking the direction keys.",
+                    $"the battle never reported holding 0x{awaitingMask:X4}; " +
+                    $"its mask was 0x{heldDirectionMask:X4}");
+            }
         }
 
         var dx = destination.X - cursorX;
@@ -204,13 +264,24 @@ internal sealed class CondorCursorSteering : IDisposable
 
         lastCursor = (cursorX, cursorY);
 
-        var result = keys.Apply(ResolveDirection(dx, dy));
+        var direction = ResolveDirection(dx, dy);
+        var result = keys.Apply(direction);
         if (!result.Success)
         {
             return Stop(
                 CondorSteeringOutcome.Abandoned,
                 "Could not get there.",
                 $"the keystrokes were refused: {result.Diagnostic}");
+        }
+
+        // Whatever we just asked to be held is what the battle must report back.
+        // Only start waiting on a fresh request: re-arming every step would reset
+        // the count each pass and the check would never fire.
+        var requested = MaskFor(direction);
+        if (requested != awaitingMask && requested != 0)
+        {
+            awaitingMask = requested;
+            unacknowledged = 0;
         }
 
         return new CondorSteeringStep(CondorSteeringOutcome.Steering, null);
@@ -268,6 +339,20 @@ internal sealed class CondorCursorSteering : IDisposable
 
     private static int Distance(int dx, int dy) => Math.Abs(dx) + Math.Abs(dy);
 
+    /// <summary>The bits the battle should report while this direction is held.</summary>
+    private static uint MaskFor(HighwaySteeringDirection direction) => direction switch
+    {
+        HighwaySteeringDirection.Up => MaskUp,
+        HighwaySteeringDirection.Down => MaskDown,
+        HighwaySteeringDirection.Left => MaskLeft,
+        HighwaySteeringDirection.Right => MaskRight,
+        HighwaySteeringDirection.UpLeft => MaskUp | MaskLeft,
+        HighwaySteeringDirection.UpRight => MaskUp | MaskRight,
+        HighwaySteeringDirection.DownLeft => MaskDown | MaskLeft,
+        HighwaySteeringDirection.DownRight => MaskDown | MaskRight,
+        _ => 0
+    };
+
     private CondorSteeringStep Stop(
         CondorSteeringOutcome outcome,
         string? speech,
@@ -277,6 +362,8 @@ internal sealed class CondorCursorSteering : IDisposable
         lastCursor = null;
         stalled = 0;
         samples = 0;
+        awaitingMask = 0;
+        unacknowledged = 0;
 
         // Released before anything else can go wrong. Every exit from a jump
         // comes through here for exactly this reason.

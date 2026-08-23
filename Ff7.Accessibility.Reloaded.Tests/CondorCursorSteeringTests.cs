@@ -13,6 +13,12 @@ using Ff7.Accessibility.Reloaded;
 /// </remarks>
 internal static class CondorCursorSteeringTests
 {
+    /// <summary>The battle reporting every direction held, so tests that are not
+    /// about acknowledgement are not silently about it.</summary>
+    private const uint AllDirections =
+        CondorCursorSteering.MaskUp | CondorCursorSteering.MaskDown |
+        CondorCursorSteering.MaskLeft | CondorCursorSteering.MaskRight;
+
     internal static void Run()
     {
         DrivesTowardsTheTargetAndStopsOnArrival();
@@ -22,6 +28,71 @@ internal static class CondorCursorSteeringTests
         LetsGoWhenTheCursorCannotBeRead();
         LetsGoWhenTheGameRefusesTheKeystrokes();
         SaysNothingOnArrivalSoTheReadoutIsNotDuplicated();
+        LetsGoWhenTheGameNeverReportsHoldingTheKey();
+    }
+
+    /// <summary>
+    /// The check that matters most. Module 9 polls DirectInput, applies the
+    /// player's own ff7input.cfg mapping, and only then sets the bits in its held
+    /// mask. A keystroke Windows accepts can still mean nothing to the battle -
+    /// the injection may be filtered, or the player may have that direction bound
+    /// to a key we did not press. FFVII's untouched default is the numeric keypad,
+    /// not the arrows, so this is the ordinary case and not an exotic one.
+    /// </summary>
+    private static void LetsGoWhenTheGameNeverReportsHoldingTheKey()
+    {
+        var sink = new RecordingSink();
+        var steering = new CondorCursorSteering(new HighwayAutoSteeringController(sink));
+        steering.Begin(targetX: 300, targetY: 700, cursorX: 300, cursorY: 500);
+
+        // The battle reports holding nothing at all, however hard we press.
+        CondorSteeringStep step = default;
+        for (var attempt = 0; attempt <= CondorCursorSteering.AcknowledgementLimit + 1; attempt++)
+        {
+            step = steering.Step(
+                cursorReadable: true,
+                underCursorControl: true,
+                300,
+                500,
+                heldDirectionMask: 0);
+        }
+
+        Equal(CondorSteeringOutcome.Abandoned, step.Outcome, "gave up when the battle never saw the key");
+        AssertSpoken(step, "a key the game never sees tells the player so");
+        Equal(0, sink.HeldScanCodes().Length, "every key released when the press is not acknowledged");
+
+        // And it must fail faster than the stall check would have caught it,
+        // otherwise the acknowledgement is decoration.
+        if (CondorCursorSteering.AcknowledgementLimit >= CondorCursorSteering.StallLimit)
+        {
+            throw new InvalidOperationException(
+                "the acknowledgement must fail sooner than the stall check, or it adds nothing.");
+        }
+
+        // Some other direction being held is not acknowledgement of ours. The
+        // player may well be leaning on a direction key themselves while the jump
+        // runs, and taking their keypress as proof that ours landed would leave
+        // the loop open in exactly the case it exists to catch.
+        var otherSink = new RecordingSink();
+        var other = new CondorCursorSteering(new HighwayAutoSteeringController(otherSink));
+        other.Begin(targetX: 300, targetY: 700, cursorX: 300, cursorY: 500);
+
+        CondorSteeringStep otherStep = default;
+        for (var attempt = 0; attempt <= CondorCursorSteering.AcknowledgementLimit + 1; attempt++)
+        {
+            otherStep = other.Step(
+                cursorReadable: true,
+                underCursorControl: true,
+                300,
+                500,
+                heldDirectionMask: CondorCursorSteering.MaskLeft);
+        }
+
+        Equal(
+            CondorSteeringOutcome.Abandoned,
+            otherStep.Outcome,
+            "a different direction being held does not acknowledge ours");
+        Equal(0, otherSink.HeldScanCodes().Length, "every key released when only another direction is held");
     }
 
     private static void DrivesTowardsTheTargetAndStopsOnArrival()
@@ -33,7 +104,7 @@ internal static class CondorCursorSteeringTests
         steering.Begin(targetX: 300, targetY: 700, cursorX: 200, cursorY: 500);
         Equal(true, steering.IsSteering, "a jump is running");
 
-        var first = steering.Step(cursorReadable: true, underCursorControl: true, 200, 500);
+        var first = steering.Step(cursorReadable: true, underCursorControl: true, 200, 500, AllDirections);
         Equal(CondorSteeringOutcome.Steering, first.Outcome, "still travelling");
         Equal(
             new[] { HighwayAutoSteeringController.ScanCodeDown, HighwayAutoSteeringController.ScanCodeRight },
@@ -42,13 +113,13 @@ internal static class CondorCursorSteeringTests
 
         // One axis finishing must not disturb the other: X is inside tolerance
         // here, so only Down is still held.
-        steering.Step(cursorReadable: true, underCursorControl: true, 299, 600);
+        steering.Step(cursorReadable: true, underCursorControl: true, 299, 600, AllDirections);
         Equal(
             new[] { HighwayAutoSteeringController.ScanCodeDown },
             sink.HeldScanCodes(),
             "only the unfinished axis is still held");
 
-        var arrived = steering.Step(cursorReadable: true, underCursorControl: true, 301, 699);
+        var arrived = steering.Step(cursorReadable: true, underCursorControl: true, 301, 699, AllDirections);
         Equal(CondorSteeringOutcome.Arrived, arrived.Outcome, "arrival inside the tolerance");
         Equal(false, steering.IsSteering, "the jump is over");
         Equal(0, sink.HeldScanCodes().Length, "every key released on arrival");
@@ -73,7 +144,7 @@ internal static class CondorCursorSteeringTests
         var sink = new RecordingSink();
         var steering = new CondorCursorSteering(new HighwayAutoSteeringController(sink));
         steering.Begin(targetX, targetY, cursorX, cursorY);
-        steering.Step(cursorReadable: true, underCursorControl: true, cursorX, cursorY);
+        steering.Step(cursorReadable: true, underCursorControl: true, cursorX, cursorY, AllDirections);
         Equal(new[] { expectedScanCode }, sink.HeldScanCodes(), label);
     }
 
@@ -88,7 +159,7 @@ internal static class CondorCursorSteeringTests
         CondorSteeringStep step = default;
         for (var attempt = 0; attempt <= CondorCursorSteering.StallLimit + 1; attempt++)
         {
-            step = steering.Step(cursorReadable: true, underCursorControl: true, 200, 200);
+            step = steering.Step(cursorReadable: true, underCursorControl: true, 200, 200, AllDirections);
         }
 
         Equal(CondorSteeringOutcome.Abandoned, step.Outcome, "gave up on a stuck cursor");
@@ -109,7 +180,8 @@ internal static class CondorCursorSteeringTests
             cursorReadable: true,
             underCursorControl: true,
             300,
-            600 - CondorCursorSteering.DivergenceSlack - 10);
+            600 - CondorCursorSteering.DivergenceSlack - 10,
+            AllDirections);
 
         Equal(CondorSteeringOutcome.Abandoned, step.Outcome, "gave up on a diverging cursor");
         AssertSpoken(step, "a diverging jump tells the player it failed");
@@ -124,9 +196,9 @@ internal static class CondorCursorSteeringTests
         var sink = new RecordingSink();
         var steering = new CondorCursorSteering(new HighwayAutoSteeringController(sink));
         steering.Begin(targetX: 300, targetY: 700, cursorX: 200, cursorY: 500);
-        steering.Step(cursorReadable: true, underCursorControl: true, 200, 500);
+        steering.Step(cursorReadable: true, underCursorControl: true, 200, 500, AllDirections);
 
-        var step = steering.Step(cursorReadable: true, underCursorControl: false, 210, 520);
+        var step = steering.Step(cursorReadable: true, underCursorControl: false, 210, 520, AllDirections);
         Equal(CondorSteeringOutcome.Abandoned, step.Outcome, "gave up when a menu took the keys");
         AssertNotSpoken(step, "losing cursor control to the player's own menu is not announced");
         Equal(0, sink.HeldScanCodes().Length, "every key released when control is lost");
@@ -138,13 +210,13 @@ internal static class CondorCursorSteeringTests
         var sink = new RecordingSink();
         var steering = new CondorCursorSteering(new HighwayAutoSteeringController(sink));
         steering.Begin(targetX: 300, targetY: 700, cursorX: 200, cursorY: 500);
-        steering.Step(cursorReadable: true, underCursorControl: true, 200, 500);
+        steering.Step(cursorReadable: true, underCursorControl: true, 200, 500, AllDirections);
 
         // Deliberately the last known-good position rather than an obviously
         // wrong one. Passing 0,0 here let the divergence guard abandon the jump
         // for a different reason, so removing the unreadable check entirely still
         // passed - the mutation survived until this was tightened.
-        var step = steering.Step(cursorReadable: false, underCursorControl: true, 200, 500);
+        var step = steering.Step(cursorReadable: false, underCursorControl: true, 200, 500, AllDirections);
         Equal(CondorSteeringOutcome.Abandoned, step.Outcome, "gave up on an unreadable cursor");
         AssertSpoken(step, "an unreadable cursor tells the player the jump failed");
         Equal(0, sink.HeldScanCodes().Length, "every key released on an unreadable cursor");
@@ -156,7 +228,7 @@ internal static class CondorCursorSteeringTests
         var steering = new CondorCursorSteering(new HighwayAutoSteeringController(sink));
         steering.Begin(targetX: 300, targetY: 700, cursorX: 200, cursorY: 500);
 
-        var step = steering.Step(cursorReadable: true, underCursorControl: true, 200, 500);
+        var step = steering.Step(cursorReadable: true, underCursorControl: true, 200, 500, AllDirections);
         Equal(CondorSteeringOutcome.Abandoned, step.Outcome, "gave up when SendInput was refused");
         AssertSpoken(step, "refused keystrokes tell the player the jump failed");
     }
@@ -170,7 +242,7 @@ internal static class CondorCursorSteeringTests
         var steering = new CondorCursorSteering(new HighwayAutoSteeringController(sink));
         steering.Begin(targetX: 300, targetY: 700, cursorX: 300, cursorY: 700);
 
-        var step = steering.Step(cursorReadable: true, underCursorControl: true, 300, 700);
+        var step = steering.Step(cursorReadable: true, underCursorControl: true, 300, 700, AllDirections);
         Equal(CondorSteeringOutcome.Arrived, step.Outcome, "already there is arrival");
         AssertNotSpoken(step, "arrival is left to the cursor readout");
     }
