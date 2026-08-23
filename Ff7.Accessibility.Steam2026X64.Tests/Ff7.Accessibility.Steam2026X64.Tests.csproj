@@ -19,6 +19,8 @@
              Link="SharedTests\CondorBattleInitializationTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\CondorPlacementLineReadoutTests.cs"
              Link="SharedTests\CondorPlacementLineReadoutTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\CondorCursorSteeringTests.cs"
+             Link="SharedTests\CondorCursorSteeringTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\HighwayAutoSteeringControllerTests.cs"
              Link="SharedTests\HighwayAutoSteeringControllerTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\HighwayEngagementSteeringTrackerTests.cs"
