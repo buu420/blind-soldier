@@ -4,9 +4,27 @@ namespace Ff7.Accessibility.Reloaded.Tests;
 
 internal static class WorldMapTargetCatalogTests
 {
+    /// <summary>
+    /// The part of the catalog contract that does not need WM0.MAP on the
+    /// machine. It is one case, because everything else in here is a claim about
+    /// the installed world map and cannot honestly be made without it - but it is
+    /// the case that fixes the category order the whole navigation UI is built
+    /// on, so it is worth running everywhere.
+    /// </summary>
     internal static void Run()
     {
         ExposesTheApprovedCategoriesIncludingRegions();
+    }
+
+    /// <summary>
+    /// The full catalog contract, read out of the installed world map. Separate
+    /// entry point rather than a skip: a machine with the game must make every
+    /// one of these assertions, and <see cref="LoadMap"/> throws by name when the
+    /// data root is missing instead of guessing at a path.
+    /// </summary>
+    internal static void RunWithInstalledGameData()
+    {
+        Run();
         JoinsWorldLocationNamesByNativeFieldId();
         ResolvesInstalledLocationsToNativeTerrain();
         PlacesEveryWorldEntranceOnItsResolvedNativeTriangle();
@@ -391,7 +409,9 @@ internal static class WorldMapTargetCatalogTests
         WorldMapDataLoader.Load(
             Path.Combine(
                 Environment.GetEnvironmentVariable("FF7_ACCESSIBILITY_DATA_ROOT") ??
-                    @"X:\SteamLibrary\steamapps\common\FINAL FANTASY VII Steam Edition\ff7\workingdir",
+                    throw new InvalidOperationException(
+                        "The world map catalog regressions need FF7_ACCESSIBILITY_DATA_ROOT. " +
+                        "Call Run() for the cases that do not read the installed map."),
                 "data",
                 "wm",
                 "WM0.MAP"),
@@ -442,7 +462,8 @@ internal static class WorldMapTargetCatalogTests
     private static WorldMapTargetCatalog LoadCatalog(WorldMapData map)
     {
         var sourceRoot = Environment.GetEnvironmentVariable("FF7_ACCESSIBILITY_SOURCE_ROOT") ??
-            @"C:\FF7A11Y\accessibility_prototype";
+            throw new InvalidOperationException(
+                "The world map catalog regressions need FF7_ACCESSIBILITY_SOURCE_ROOT.");
         return WorldMapTargetCatalog.Load(
             map,
             Path.Combine(sourceRoot, "external", "kujata", "field-id-to-world-map-coords.json"),

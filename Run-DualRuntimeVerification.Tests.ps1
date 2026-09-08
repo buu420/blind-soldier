@@ -78,6 +78,129 @@ Describe 'Blind Soldier aggregate portable release gate' {
         finally { Remove-Item -LiteralPath $fixture.Root -Recurse -Force }
     }
 
+    It 'binds its own source root for the Reloaded suite on both branches' {
+        # The v0.5.3 tag build died here. CondorBattleAnnouncementTests reads the
+        # shipped Configuration\config.json out of FF7_ACCESSIBILITY_SOURCE_ROOT,
+        # and the aggregate runner never supplied it - so
+        # --condor-probe-silence-only threw 'FF7_ACCESSIBILITY_SOURCE_ROOT is
+        # required.' on a build machine while every local run passed, because a
+        # local run exports the variable by hand. The runner knows its own source
+        # root; it has to hand it to the child suite on the game-data branch and
+        # the portable branch alike. That assertion must never be skipped: it is
+        # what proves the two Fort Condor announcements ship enabled.
+        $fixture = New-GateFixture
+        try {
+            $runtime = Join-Path $fixture.Root 'runtime'
+            New-Item -ItemType Directory -Path (Join-Path $runtime 'data') `
+                -Force | Out-Null
+            [IO.File]::WriteAllBytes((Join-Path $runtime 'ff7_en.exe'),
+                [byte[]](0x4D,0x5A))
+
+            foreach ($branch in @(
+                @{ Name = 'portable'; Runtime = $null },
+                @{ Name = 'game data'; Runtime = $runtime })) {
+                $observed = New-Object 'System.Collections.Generic.List[object]'
+                $invoker = {
+                    param($Command)
+                    # Read the live process value, not the declared hashtable, so
+                    # this proves the child actually runs with the variable set.
+                    $observed.Add([pscustomobject]@{
+                        Name = $Command.Name
+                        Declared = $Command.Environment
+                        Live = [Environment]::GetEnvironmentVariable(
+                            'FF7_ACCESSIBILITY_SOURCE_ROOT',
+                            [EnvironmentVariableTarget]::Process)
+                    })
+                    [pscustomobject]@{ ExitCode=0; Output=@('ok') }
+                }.GetNewClosure()
+
+                if ($null -eq $branch.Runtime) {
+                    & $verificationPath -CommandInvoker $invoker `
+                        -TempParent $fixture.Temp -LogDirectory $fixture.Logs |
+                        Out-Null
+                }
+                else {
+                    & $verificationPath -GameRuntimePath $branch.Runtime `
+                        -CommandInvoker $invoker -TempParent $fixture.Temp `
+                        -LogDirectory $fixture.Logs | Out-Null
+                }
+
+                $reloaded = @($observed | Where-Object Name -CEQ 'Reloaded.Tests')
+                $reloaded.Count | Should Be 1
+                $reloaded[0].Declared.FF7_ACCESSIBILITY_SOURCE_ROOT |
+                    Should Be $scriptRoot
+                $reloaded[0].Live | Should Be $scriptRoot
+
+                # The value has to name a tree that really carries the shipped
+                # configuration, or the child suite fails on the next line down.
+                Test-Path -LiteralPath (Join-Path $reloaded[0].Live `
+                    'Ff7.Accessibility.Reloaded\Configuration\config.json') `
+                    -PathType Leaf | Should Be $true
+
+                if ($null -ne $branch.Runtime) {
+                    $reloaded[0].Declared.FF7_ACCESSIBILITY_RUNTIME |
+                        Should Be ([IO.Path]::GetFullPath($branch.Runtime))
+                    $reloaded[0].Declared.FF7_ACCESSIBILITY_DATA_ROOT |
+                        Should Be ([IO.Path]::GetFullPath($branch.Runtime))
+                }
+            }
+        }
+        finally { Remove-Item -LiteralPath $fixture.Root -Recurse -Force }
+    }
+
+    It 'restores the caller source root after the Reloaded suite, including when it fails' {
+        # Per-command environment is exactly that. A caller who pointed the
+        # variable at another checkout must get it back, and must get it back on
+        # the failure path too - that is the path a red gate takes, and the one
+        # nobody watches.
+        $fixture = New-GateFixture
+        $variable = 'FF7_ACCESSIBILITY_SOURCE_ROOT'
+        $priorCallerValue = [Environment]::GetEnvironmentVariable($variable,
+            [EnvironmentVariableTarget]::Process)
+        try {
+            $sentinel = Join-Path $fixture.Root 'caller-source-root'
+            New-Item -ItemType Directory -Path $sentinel | Out-Null
+            [Environment]::SetEnvironmentVariable($variable, $sentinel,
+                [EnvironmentVariableTarget]::Process)
+
+            $passing = {
+                param($Command)
+                [pscustomobject]@{ ExitCode=0; Output=@('ok') }
+            }
+            & $verificationPath -CommandInvoker $passing `
+                -TempParent $fixture.Temp -LogDirectory $fixture.Logs | Out-Null
+            [Environment]::GetEnvironmentVariable($variable,
+                [EnvironmentVariableTarget]::Process) | Should Be $sentinel
+
+            $failing = {
+                param($Command)
+                if ($Command.Name -ceq 'Reloaded.Tests') {
+                    throw 'controlled invoker failure'
+                }
+                [pscustomobject]@{ ExitCode=0; Output=@('ok') }
+            }
+            { & $verificationPath -CommandInvoker $failing `
+                -TempParent $fixture.Temp -LogDirectory $fixture.Logs } |
+                Should Throw 'controlled invoker failure'
+            [Environment]::GetEnvironmentVariable($variable,
+                [EnvironmentVariableTarget]::Process) | Should Be $sentinel
+
+            # And a caller who had no value keeps having no value.
+            [Environment]::SetEnvironmentVariable($variable, $null,
+                [EnvironmentVariableTarget]::Process)
+            & $verificationPath -CommandInvoker $passing `
+                -TempParent $fixture.Temp -LogDirectory $fixture.Logs | Out-Null
+            [string]::IsNullOrEmpty([Environment]::GetEnvironmentVariable(
+                $variable, [EnvironmentVariableTarget]::Process)) |
+                Should Be $true
+        }
+        finally {
+            [Environment]::SetEnvironmentVariable($variable, $priorCallerValue,
+                [EnvironmentVariableTarget]::Process)
+            Remove-Item -LiteralPath $fixture.Root -Recurse -Force
+        }
+    }
+
     It 'runs every accessibility-critical gate in exact order and records logs' {
         $fixture = New-GateFixture
         try {
@@ -301,6 +424,62 @@ Describe 'Blind Soldier aggregate portable release gate' {
         $portableBuilder | Should Match '-ExpectedModVersion\s+\$Version'
         $dualRuntimeBuilder | Should Match '\[string\]\s+\$ExpectedModVersion'
         $dualRuntimeBuilder | Should Not Match "ModVersion\s+-cne\s+'0\.2\.0'"
+    }
+
+    It 'keeps the x64 module-only gate free of licensed game fixtures' {
+        # The release gate runs --module-tests-only on a build machine that has no
+        # copy of Final Fantasy VII. Dispatch 34281653749 died inside it because
+        # JunonParadeAlignmentAssistTests walks the real junonr4 walkmesh, and two
+        # more suites in the same list read WM0.MAP. Suites with native fixtures
+        # now expose a second entry point, and this keeps the two apart: nothing
+        # in the module-only list may reach for installed game data, and the full
+        # suites must still call the native entry points rather than the cheap
+        # ones.
+        $x64Program = [IO.File]::ReadAllText((Join-Path $PSScriptRoot `
+            'Ff7.Accessibility.Steam2026X64.Tests\Program.cs'))
+        $x86Program = [IO.File]::ReadAllText((Join-Path $PSScriptRoot `
+            'Ff7.Accessibility.Reloaded.Tests\Program.cs'))
+
+        $start = $x64Program.IndexOf('--module-tests-only',
+            [StringComparison]::Ordinal)
+        $start | Should Not Be -1
+        $end = $x64Program.IndexOf('Steam 2026 x64 module tests passed.',
+            $start, [StringComparison]::Ordinal)
+        $end | Should Not Be -1
+        # Comment lines are dropped: this block explains the split in prose, and
+        # the prose naturally names the very calls the assertions forbid.
+        $moduleOnly = (($x64Program.Substring($start, $end - $start) -split "`r?`n") |
+            Where-Object { $_.TrimStart() -notlike '//*' }) -join "`n"
+
+        # A suite that needs the game announces it in its own name, so a data
+        # fixture cannot re-enter this mode without saying so out loud.
+        $moduleOnly | Should Not Match 'RunWithInstalledGameData'
+        # Every case in this one builds a world coordinator around the installed
+        # data root, so it has no honest data-free subset.
+        $moduleOnly | Should Not Match `
+            ([regex]::Escape('Steam2026WorldMapTerrainPriorityTests.Run()'))
+
+        foreach ($program in @($x64Program, $x86Program)) {
+            foreach ($required in @(
+                'JunonParadeAlignmentAssistTests.RunWithInstalledGameData()',
+                'WorldMapTargetCatalogTests.RunWithInstalledGameData()')) {
+                $program | Should Match ([regex]::Escape($required))
+            }
+        }
+
+        # And the split has to be real on both sides: a data-free entry point that
+        # still runs the native case would be a silent skip wearing a new name.
+        $parade = [IO.File]::ReadAllText((Join-Path $PSScriptRoot `
+            'Ff7.Accessibility.Reloaded.Tests\JunonParadeAlignmentAssistTests.cs'))
+        $parade | Should Match ([regex]::Escape(
+            'public static void RunWithInstalledGameData()'))
+        $paradeDataFree = $parade.Substring(
+            $parade.IndexOf('public static void Run()', [StringComparison]::Ordinal),
+            $parade.IndexOf('public static void RunWithInstalledGameData()',
+                [StringComparison]::Ordinal) -
+            $parade.IndexOf('public static void Run()', [StringComparison]::Ordinal))
+        $paradeDataFree | Should Not Match 'TraversesTheNativeWalkmeshWhileTheRanksMove'
+        $parade | Should Match 'FF7_ACCESSIBILITY_DATA_ROOT'
     }
 
     It 'keeps supported-host validation independent of developer-local game files' {
