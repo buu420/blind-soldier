@@ -88,8 +88,10 @@ public static class WorldMapDataLoader
                 triangle.Vertex1,
                 triangle.Vertex2,
                 triangle.TerrainId,
+                triangle.TerrainScriptId,
                 triangle.TextureId,
                 triangle.RegionId,
+                triangle.HasChocoboTracks,
                 neighbors[index]);
         }
 
@@ -104,8 +106,11 @@ public static class WorldMapDataLoader
             sourcePath);
     }
 
-    public static bool IsChocoboTrackTexture(int textureId) =>
-        textureId is 233 or 254 or 281;
+    internal static WorldMapTriangleMetadata DecodeTriangleMetadata(ushort packed) =>
+        new(
+            packed & 0x1FF,
+            (packed >> 9) & 0x1F,
+            (packed & 0x8000) != 0);
 
     public static int ResolveProgressStage(int worldMapType, int worldProgress) =>
         worldMapType == 0
@@ -235,6 +240,7 @@ public static class WorldMapDataLoader
             }
 
             var textureAndRegion = BinaryPrimitives.ReadUInt16LittleEndian(mesh[(offset + 10)..]);
+            var metadata = DecodeTriangleMetadata(textureAndRegion);
             output.Add(new TriangleBuilder(
                 sourceBlockIndex,
                 meshX,
@@ -245,8 +251,10 @@ public static class WorldMapDataLoader
                 vertices[second],
                 vertices[third],
                 mesh[offset + 3] & 0x1F,
-                textureAndRegion & 0x1FF,
-                (textureAndRegion >> 9) & 0x7F));
+                (mesh[offset + 3] >> 5) & 0x07,
+                metadata.TextureId,
+                metadata.RegionId,
+                metadata.HasChocoboTracks));
         }
     }
 
@@ -345,8 +353,15 @@ public static class WorldMapDataLoader
         WorldMapVertex Vertex1,
         WorldMapVertex Vertex2,
         int TerrainId,
+        int TerrainScriptId,
         int TextureId,
-        int RegionId);
+        int RegionId,
+        bool HasChocoboTracks);
+
+    internal readonly record struct WorldMapTriangleMetadata(
+        int TextureId,
+        int RegionId,
+        bool HasChocoboTracks);
 
     private readonly record struct VertexKey(int X, int Y, int Z) : IComparable<VertexKey>
     {

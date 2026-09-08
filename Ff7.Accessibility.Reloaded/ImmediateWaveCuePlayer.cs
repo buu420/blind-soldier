@@ -57,10 +57,18 @@ internal sealed class ImmediateWaveCuePlayer : IDisposable
             return false;
         }
 
+        // The reader and the device are built one after the other, and either the
+        // constructor, Init or Play can throw on a device that is busy or gone. The
+        // partially built pair is disposed here rather than left to the finalizer,
+        // because these cues are played repeatedly during a minigame and a leaked
+        // WaveOutEvent per attempt would eventually take the device out entirely.
+        WaveFileReader? reader = null;
+        WaveOutEvent? output = null;
+        var handedOff = false;
         try
         {
-            var reader = new WaveFileReader(path);
-            var output = new WaveOutEvent
+            reader = new WaveFileReader(path);
+            output = new WaveOutEvent
             {
                 DesiredLatency = 40,
                 NumberOfBuffers = 2
@@ -85,14 +93,44 @@ internal sealed class ImmediateWaveCuePlayer : IDisposable
                 activePlaybacks.Add(playback);
             }
 
-            output.Play();
+            handedOff = true;
+            try
+            {
+                output.Play();
+            }
+            catch
+            {
+                // Ownership has already moved to the tracked playback, so remove and
+                // dispose it there instead of double-disposing below.
+                RemovePlayback(playback);
+                throw;
+            }
+
             log($"{cueName} started ({reason}).");
             return true;
         }
         catch (Exception ex)
         {
+            if (!handedOff)
+            {
+                TryDispose(output);
+                TryDispose(reader);
+            }
+
             log($"{cueName} failed ({reason}): {ex.Message}");
             return false;
+        }
+    }
+
+    private void TryDispose(IDisposable? disposable)
+    {
+        try
+        {
+            disposable?.Dispose();
+        }
+        catch (Exception ex)
+        {
+            log($"{cueName} could not release a partially opened device: {ex.Message}");
         }
     }
 

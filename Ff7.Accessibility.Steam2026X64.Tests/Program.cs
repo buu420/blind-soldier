@@ -20,6 +20,13 @@ if (args.Contains("--prism-abi-probe-only", StringComparer.OrdinalIgnoreCase))
     return;
 }
 
+if (args.Contains("--field-planner-capabilities-only", StringComparer.OrdinalIgnoreCase))
+{
+    Steam2026FieldNavigationRuntimeTests.RunPlannerCapabilities();
+    Console.WriteLine("Steam 2026 x64 field planner capability tests passed.");
+    return;
+}
+
 if (args.Contains("--battle-sense-only", StringComparer.OrdinalIgnoreCase))
 {
     Steam2026BattleSenseTests.Run();
@@ -48,7 +55,14 @@ if (args.Contains("--module-tests-only", StringComparer.OrdinalIgnoreCase))
         includeTranslatedAddressSpace: false);
     Steam2026BattleObservationTests.ReadsBattleInventoryObjectRowsAndAvailability();
     Steam2026FieldNavigationRuntimeTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.JunonFieldNavigationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.JunonMinigameSpeechTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.JunonParadeAlignmentAssistTests.Run();
+    Steam2026JunonMinigameRuntimeTests.Run();
     NavigationAutoWalkControllerTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.WorldMapTerrainAnnouncementTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.WorldMapTargetCatalogTests.Run();
+    Steam2026WorldMapTerrainPriorityTests.Run();
     Steam2026TitleLoadMenuSpeechBridgeTests.Run();
     Steam2026FieldExitNavigationProfileTests.Run();
     PrismAbiProbeTests.Run();
@@ -59,7 +73,10 @@ if (args.Contains("--module-tests-only", StringComparer.OrdinalIgnoreCase))
 if (args.Contains("--world-map-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.WorldMapNavigationControllerTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.WorldMapTargetCatalogTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.WorldMapTerrainAnnouncementTests.Run();
     Ff7.Accessibility.Reloaded.Tests.NavigationProgressControlTests.Run();
+    Steam2026WorldMapTerrainPriorityTests.Run();
     Console.WriteLine("Steam 2026 x64 world-map navigation tests passed.");
     return;
 }
@@ -73,6 +90,142 @@ if (args.Contains("--condor-battle-only", StringComparer.OrdinalIgnoreCase))
     CondorFieldNavigatorTests.Run();
     CondorNavigationIntegrationTests.Run();
     Console.WriteLine("Steam 2026 x64 Fort Condor initialization tests passed.");
+    return;
+}
+
+if (args.Contains("--junon-navigation-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.JunonFieldNavigationTests.Run(
+        CreateInstalledFieldWalkmeshReader);
+    Console.WriteLine("Steam 2026 x64 Junon field navigation tests passed.");
+    return;
+}
+
+if (args.Contains("--junon-journey-descriptions-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.JunonJourneyDescriptionTests.Run();
+    Console.WriteLine("Steam 2026 x64 Junon through Costa del Sol scene description tests passed.");
+    return;
+}
+
+if (args.Contains("--field-button-glyphs-only", StringComparer.OrdinalIgnoreCase))
+{
+    FieldButtonGlyphTests.Run();
+    Console.WriteLine("Field button glyph tests passed.");
+    return;
+}
+
+if (args.Contains("--field-navigation-precision-only", StringComparer.OrdinalIgnoreCase))
+{
+    FieldNavigationPrecisionTests.Run();
+    Console.WriteLine("Field navigation precision tests passed.");
+    return;
+}
+
+if (args.Contains("--native-field-movement-only", StringComparer.OrdinalIgnoreCase))
+{
+    FieldNavigationPrecisionTests.Run();
+    FieldNavigationNativeProbeMovementTests.Run(CreateInstalledFieldWalkmeshReader);
+    Console.WriteLine("Native field movement probe tests passed.");
+    return;
+}
+
+if (args.Contains("--north-corel-readout-only", StringComparer.OrdinalIgnoreCase))
+{
+    NorthCorelNavigationReadoutTests.Run(CreateInstalledFieldWalkmeshReader);
+    Console.WriteLine("North Corel navigation readout tests passed.");
+    return;
+}
+
+if (args.Contains("--north-corel-ether-only", StringComparer.OrdinalIgnoreCase))
+{
+    NorthCorelEtherInteractionTests.Run(CreateInstalledFieldWalkmeshReader);
+    Console.WriteLine("North Corel Ether interaction tests passed.");
+    return;
+}
+
+if (args.Contains("--gold-saucer-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.GoldSaucerFirstVisitTests.Run(CreateInstalledFieldWalkmeshReader);
+    Ff7.Accessibility.Reloaded.Tests.GoldSaucerMovieNarrationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.GoldSaucerDescriptionTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.GoldSaucerMinigameTests.Run();
+    Console.WriteLine("Gold Saucer first-visit tests passed.");
+    return;
+}
+
+if (args.Contains("--north-corel-repair-only", StringComparer.OrdinalIgnoreCase))
+{
+    FieldNavigationPrecisionTests.Run();
+    FieldNavigationNativeProbeMovementTests.Run(CreateInstalledFieldWalkmeshReader);
+    NorthCorelRecoveryHeightTests.Run(CreateInstalledFieldWalkmeshReader);
+    NorthCorelAlternateCorridorTests.Run(CreateInstalledFieldWalkmeshReader);
+    NorthCorelNavigationReadoutTests.Run(CreateInstalledFieldWalkmeshReader);
+    NorthCorelEtherInteractionTests.Run(CreateInstalledFieldWalkmeshReader);
+    Ff7.Accessibility.Reloaded.Tests.WorldMapMountCorelNavigationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.NorthCorelNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
+    Console.WriteLine("North Corel route repair tests passed.");
+    return;
+}
+
+if (args.Contains("--world-mount-corel-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.WorldMapMountCorelNavigationTests.Run();
+    Console.WriteLine("World map Mount Corel navigation tests passed.");
+    return;
+}
+
+if (args.Contains("--mount-corel-repair-only", StringComparer.OrdinalIgnoreCase))
+{
+    MountCorelRouteRepairTests.Run(CreateInstalledFieldWalkmeshReader);
+    FieldButtonGlyphTests.Run();
+    FieldManualObjectGuidanceTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.FieldGatewayCompletionTests.Run();
+    Console.WriteLine("Mount Corel repair tests passed.");
+    return;
+}
+
+if (args.Contains("--manual-field-objects-only", StringComparer.OrdinalIgnoreCase))
+{
+    FieldManualObjectGuidanceTests.Run();
+    Console.WriteLine("Manual field object guidance tests passed.");
+    return;
+}
+
+if (args.Contains("--field-gateway-completion-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.FieldGatewayCompletionTests.Run();
+    Console.WriteLine("Field gateway completion tests passed.");
+    return;
+}
+
+if (args.Contains("--corel-descriptions-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.CorelJourneyDescriptionTests.Run();
+    Console.WriteLine("Steam 2026 x64 Corel journey descriptions passed.");
+    return;
+}
+
+if (args.Contains("--costa-gold-navigation-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.CostaDelSolNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
+    MountCorelNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
+    Ff7.Accessibility.Reloaded.Tests.NorthCorelNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
+    Ff7.Accessibility.Reloaded.Tests.NativeLineStoryArrivalTests.Run();
+    Console.WriteLine("Steam 2026 x64 Costa through Gold Saucer navigation tests passed.");
+    return;
+}
+
+if (args.Contains("--mount-corel-navigation-only", StringComparer.OrdinalIgnoreCase))
+{
+    MountCorelNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
+    return;
+}
+
+if (args.Contains("--cargo-navigation-only", StringComparer.OrdinalIgnoreCase))
+{
+    CargoShipNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
+    Console.WriteLine("Steam 2026 x64 cargo ship native navigation tests passed.");
     return;
 }
 
@@ -97,6 +250,15 @@ if (args.Contains("--wall-market-squat-only", StringComparer.OrdinalIgnoreCase))
     return;
 }
 
+if (args.Contains("--junon-minigames-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.JunonMinigameSpeechTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.JunonParadeAlignmentAssistTests.Run();
+    Steam2026JunonMinigameRuntimeTests.Run();
+    Console.WriteLine("Steam 2026 x64 Junon minigame speech tests passed.");
+    return;
+}
+
 if (args.Contains("--multilingual-menu-only", StringComparer.OrdinalIgnoreCase))
 {
     Steam2026InGameMenuSpeechBridgeTests.Run();
@@ -107,7 +269,10 @@ if (args.Contains("--multilingual-menu-only", StringComparer.OrdinalIgnoreCase))
 if (args.Contains("--kalm-junon-descriptions-only", StringComparer.OrdinalIgnoreCase))
 {
     var cues = FieldCutsceneDescriptionCatalog.CreateKalmThroughLowerJunonDescriptions();
+    var upperJunon = FieldCutsceneDescriptionCatalog.CreateUpperJunonThroughCargoShipDescriptions();
+    var journey = FieldCutsceneDescriptionCatalog.CreateJunonJourneyVisualDescriptions();
     AssertEqual(30, cues.Count, "shared Kalm through Lower Junon cue count in x64 build");
+    AssertEqual(9, upperJunon.Count, "shared Upper Junon through cargo ship cue count in x64 build");
     AssertEqual(
         cues.Count,
         cues.Select(cue => cue.Key).Distinct().Count(),
@@ -119,14 +284,18 @@ if (args.Contains("--kalm-junon-descriptions-only", StringComparer.OrdinalIgnore
         FieldOpcodeAddressResolver.OpcodeRequestEwIndex,
         FieldOpcodeAddressResolver.OpcodeSplitIndex,
         FieldOpcodeAddressResolver.OpcodeWaitIndex,
+        FieldOpcodeAddressResolver.OpcodeFadeIndex,
         FieldOpcodeAddressResolver.OpcodeSoundIndex,
         FieldOpcodeAddressResolver.OpcodeMovieIndex,
+        FieldOpcodeAddressResolver.OpcodeAnime1Index,
+        FieldOpcodeAddressResolver.OpcodeVisibilityIndex,
+        FieldOpcodeAddressResolver.OpcodeDfanmIndex,
         FieldOpcodeAddressResolver.OpcodeAnimHoldIndex,
         FieldOpcodeAddressResolver.OpcodeCanm2Index
     };
     AssertEqual(
         true,
-        cues.All(cue => supportedOpcodes.Contains(cue.Opcode)),
+        cues.Concat(upperJunon).Concat(journey).All(cue => supportedOpcodes.Contains(cue.Opcode)),
         "every new cue must use an x64 native-ingress opcode");
     AssertEqual(
         "332:238,277:0,279:4,282:48,282:32,311:207,312:106,313:50,318:26,323:48,323:236," +
@@ -134,7 +303,30 @@ if (args.Contains("--kalm-junon-descriptions-only", StringComparer.OrdinalIgnore
         "327:290,332:85,343:24,348:13,349:99,428:142,429:117,434:9,359:79",
         string.Join(',', cues.Select(cue => $"{cue.FieldId}:{cue.ByteIndex}")),
         "shared Kalm through Lower Junon x64 cue ordering");
-    Console.WriteLine("Steam 2026 x64 Kalm through Lower Junon description tests passed.");
+    AssertEqual(
+        "384:0:3:73:F9;384:0:3:201:F9;385:0:0:136:F9;391:2:1:5:F9;391:2:2:19:F9;395:3:2:8:F9;395:3:1:19:F9;440:15:5:93:03;440:15:5:155:6B",
+        string.Join(';', upperJunon.Select(cue =>
+            $"{cue.FieldId}:{cue.EntityId}:{cue.ScriptId}:{cue.ByteIndex}:{cue.Opcode:X2}")),
+        "shared Upper Junon through cargo ship x64 native anchors");
+    AssertEqual(
+        true,
+        upperJunon.Single(cue => cue.FieldId == 384 && cue.ByteIndex == 73).Text.Contains("rises", StringComparison.Ordinal),
+        "shared x64 movie 13 description must say the lift rises");
+    AssertEqual(
+        true,
+        upperJunon.Single(cue => cue.FieldId == 384 && cue.ByteIndex == 201).Text.Contains("descends", StringComparison.Ordinal),
+        "shared x64 movie 14 description must say the lift descends");
+    AssertEqual(
+        true,
+        upperJunon.Single(cue => cue.FieldId == 385).Text.Contains("Highwind", StringComparison.Ordinal),
+        "shared x64 first-visit movie 38 description must name the Highwind");
+    AssertEqual(
+        true,
+        cues.Single(cue => cue.FieldId == 359).Text.Contains(
+            "story continues automatically when the panorama ends",
+            StringComparison.Ordinal),
+        "shared x64 Upper Junon panorama must explain its automatic handoff");
+    Console.WriteLine("Steam 2026 x64 Kalm through cargo ship description tests passed.");
     return;
 }
 
@@ -154,6 +346,14 @@ AssertEqual(
 var legacy = Steam2026Fingerprint.Inspect(legacyPath);
 AssertEqual(false, legacy.IsSupported, "legacy x86 executable rejected by native backend");
 AssertEqual(false, legacy.Identity.Is64Bit, "legacy executable architecture");
+
+if (args.Contains("--cutscene-ingress-only", StringComparer.OrdinalIgnoreCase))
+{
+    Steam2026FieldCutsceneWaitTests.Run(native);
+    Steam2026FieldMovieNarrationAdapterTests.Run();
+    Console.WriteLine("Steam 2026 x64 cutscene ingress tests passed.");
+    return;
+}
 
 if (args.Contains("--field-countdown-only", StringComparer.OrdinalIgnoreCase))
 {
@@ -245,7 +445,10 @@ CondorNavigationIntegrationTests.Run();
 HighwayAutoSteeringControllerTests.Run();
 NavigationAutoWalkControllerTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WorldMapNavigationControllerTests.Run();
+Ff7.Accessibility.Reloaded.Tests.WorldMapTargetCatalogTests.Run();
+Ff7.Accessibility.Reloaded.Tests.WorldMapTerrainAnnouncementTests.Run();
 Ff7.Accessibility.Reloaded.Tests.NavigationProgressControlTests.Run();
+Steam2026WorldMapTerrainPriorityTests.Run();
 HighwayEngagementSteeringTrackerTests.Run();
 Steam2026ResearchSpeechPolicyTests.Run();
 Steam2026ResearchAccessibilityOutputTests.Run();
@@ -322,7 +525,35 @@ Steam2026FieldObservationTests.Run(native, legacy);
 Steam2026FieldNavigationObservationTests.Run(native, legacy);
 Steam2026FieldNavigationRuntimeTests.Run();
 Steam2026FieldObjectObservationTests.Run();
+Ff7.Accessibility.Reloaded.Tests.JunonFieldNavigationTests.Run(
+    CreateInstalledFieldWalkmeshReader);
+Ff7.Accessibility.Reloaded.Tests.JunonJourneyDescriptionTests.Run();
+CargoShipNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
+Ff7.Accessibility.Reloaded.Tests.CostaDelSolNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
+Ff7.Accessibility.Reloaded.Tests.CorelJourneyDescriptionTests.Run();
+MountCorelNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
+Ff7.Accessibility.Reloaded.Tests.NorthCorelNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
+NorthCorelEtherInteractionTests.Run(CreateInstalledFieldWalkmeshReader);
+Ff7.Accessibility.Reloaded.Tests.GoldSaucerFirstVisitTests.Run(CreateInstalledFieldWalkmeshReader);
+Ff7.Accessibility.Reloaded.Tests.GoldSaucerMovieNarrationTests.Run();
+Ff7.Accessibility.Reloaded.Tests.GoldSaucerDescriptionTests.Run();
+Ff7.Accessibility.Reloaded.Tests.GoldSaucerMinigameTests.Run();
+Ff7.Accessibility.Reloaded.Tests.WorldMapMountCorelNavigationTests.Run();
+FieldNavigationPrecisionTests.Run();
+FieldNavigationNativeProbeMovementTests.Run(CreateInstalledFieldWalkmeshReader);
+NorthCorelRecoveryHeightTests.Run(CreateInstalledFieldWalkmeshReader);
+Ff7.Accessibility.Reloaded.Tests.NativeLineStoryArrivalTests.Run();
+NorthCorelAlternateCorridorTests.Run(CreateInstalledFieldWalkmeshReader);
+NorthCorelNavigationReadoutTests.Run(CreateInstalledFieldWalkmeshReader);
+Ff7.Accessibility.Reloaded.Tests.FieldGatewayCompletionTests.Run();
+FieldManualObjectGuidanceTests.Run();
+MountCorelRouteRepairTests.Run(CreateInstalledFieldWalkmeshReader);
+FieldButtonGlyphTests.Run();
+Ff7.Accessibility.Reloaded.Tests.JunonMinigameSpeechTests.Run();
+Ff7.Accessibility.Reloaded.Tests.JunonParadeAlignmentAssistTests.Run();
+Steam2026JunonMinigameRuntimeTests.Run();
 Steam2026FieldCutsceneWaitTests.Run(native);
+Steam2026FieldMovieNarrationAdapterTests.Run();
 Steam2026FieldDialogueObservationTests.Run(native, legacy);
 Steam2026FieldDialogueSpeechStabilityTests.Run();
 Steam2026BattleObservationTests.Run(native, legacy);
@@ -2000,6 +2231,50 @@ static string FindAccessibilityPrototypeRoot()
     }
 
     throw new DirectoryNotFoundException("Could not locate the accessibility_prototype root.");
+}
+
+static FieldWalkmeshReader CreateInstalledFieldWalkmeshReader(int fieldId)
+{
+    const int fieldDataBase = 0x02000000;
+    var gameRoot = Environment.GetEnvironmentVariable("FF7_ACCESSIBILITY_DATA_ROOT");
+    if (string.IsNullOrWhiteSpace(gameRoot) ||
+        !Directory.Exists(Path.Combine(gameRoot, "data")))
+    {
+        throw new DirectoryNotFoundException(
+            "FF7_ACCESSIBILITY_DATA_ROOT must identify the installed FFVII data root for the Junon route regression.");
+    }
+
+    var dataSource = new FlevelDataSource(Path.GetFullPath(gameRoot));
+    if (!dataSource.TryReadField(fieldId, out var encodedFieldBytes))
+    {
+        throw new InvalidOperationException(
+            $"Installed field {fieldId} is unavailable from {dataSource.Diagnostic}.");
+    }
+
+    var fieldBytes = Ff7LzsDecoder.DecodeFieldFile(encodedFieldBytes);
+
+    int ReadInt32Value(int address)
+    {
+        if (address == FieldWalkmeshReader.AddressFieldDataPtr)
+        {
+            return fieldDataBase;
+        }
+
+        var offset = address - fieldDataBase;
+        return offset >= 0 && offset + sizeof(int) <= fieldBytes.Length
+            ? BitConverter.ToInt32(fieldBytes, offset)
+            : 0;
+    }
+
+    short ReadInt16Value(int address)
+    {
+        var offset = address - fieldDataBase;
+        return offset >= 0 && offset + sizeof(short) <= fieldBytes.Length
+            ? BitConverter.ToInt16(fieldBytes, offset)
+            : (short)0;
+    }
+
+    return new FieldWalkmeshReader(ReadInt32Value, ReadInt16Value);
 }
 
 static void AssertTranslatedX86AddressSpaceReadsMappedPages()

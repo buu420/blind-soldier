@@ -16,6 +16,9 @@ public sealed class FieldPositionReader
     public const int ModelYOffset = 0x08;
     public const int ModelZOffset = 0x0C;
     public const int ModelDirectionOffset = 0x1C;
+    public const int ObjectXOffset = 0x0C;
+    public const int ObjectYOffset = 0x10;
+    public const int ObjectZOffset = 0x14;
     public const int ObjectTriangleOffset = 0x78;
 
     public const int FieldModule = 1;
@@ -43,31 +46,41 @@ public sealed class FieldPositionReader
         this.addressSpace = addressSpace ?? throw new ArgumentNullException(nameof(addressSpace));
     }
 
-    public FieldPositionReadResult Read() => addressSpace is null ? ReadLegacy() : ReadChecked();
+    public FieldPositionReadResult Read() => ReadCore(nativeCoordinates: false);
 
-    private FieldPositionReadResult ReadLegacy()
+    // FUN_006392BB adds OFST, renderer offsets and a -10 drawing-origin
+    // adjustment to the model table. Native walkmesh/LINE/model interaction
+    // coordinates do not include those. Never route through rendered space:
+    // junair's lift otherwise leaves 624 units of unreachable vertical error.
+    // Keep Read() unchanged for consumers interested in visible motion.
+    public FieldPositionReadResult ReadNavigation() => ReadCore(nativeCoordinates: true);
+
+    private FieldPositionReadResult ReadCore(bool nativeCoordinates) =>
+        addressSpace is null ? ReadLegacy(nativeCoordinates) : ReadChecked(nativeCoordinates);
+
+    private FieldPositionReadResult ReadLegacy(bool nativeCoordinates)
     {
-        if (!TryReadLegacyFrame(out var candidate, out var diagnostic))
+        if (!TryReadLegacyFrame(nativeCoordinates, out var candidate, out var diagnostic))
         {
             return FieldPositionReadResult.Invalid(0, candidate.Position, diagnostic);
         }
 
-        if (!TryReadLegacyFrame(out var confirmation, out _) || confirmation != candidate)
+        if (!TryReadLegacyFrame(nativeCoordinates, out var confirmation, out _) || confirmation != candidate)
         {
             return FieldPositionReadResult.Invalid(0, candidate.Position, "field position changed during read");
         }
 
-        return CreateValidResult(candidate);
+        return CreateValidResult(candidate, nativeCoordinates);
     }
 
-    private FieldPositionReadResult ReadChecked()
+    private FieldPositionReadResult ReadChecked(bool nativeCoordinates)
     {
-        if (!TryReadCheckedFrame(out var candidate, out var diagnostic))
+        if (!TryReadCheckedFrame(nativeCoordinates, out var candidate, out var diagnostic))
         {
             return FieldPositionReadResult.Invalid(0, candidate.Position, diagnostic);
         }
 
-        if (!TryReadCheckedFrame(out var confirmation, out var confirmationDiagnostic))
+        if (!TryReadCheckedFrame(nativeCoordinates, out var confirmation, out var confirmationDiagnostic))
         {
             return FieldPositionReadResult.Invalid(0, candidate.Position, confirmationDiagnostic);
         }
@@ -77,22 +90,23 @@ public sealed class FieldPositionReader
             return FieldPositionReadResult.Invalid(0, candidate.Position, "field position changed during read");
         }
 
-        return CreateValidResult(candidate);
+        return CreateValidResult(candidate, nativeCoordinates);
     }
 
-    private bool TryReadLegacyFrame(out FieldPositionFrame frame, out string diagnostic)
+    private bool TryReadLegacyFrame(bool nativeCoordinates, out FieldPositionFrame frame, out string diagnostic)
     {
         var module = readByte!(AddressCurrentModule);
         var fieldId = readUInt16!(AddressFieldId);
         var modelIndex = readUInt16!(AddressFieldCurrentModelId);
         var modelCount = readByte!(AddressFieldNumModels);
         var modelTable = unchecked((uint)readInt32!(AddressFieldModelsPtr));
-        frame = new FieldPositionFrame(module, fieldId, modelIndex, modelCount, modelTable, 0, 0, 0, 0, 0, 0);
+        frame = new FieldPositionFrame(module, fieldId, modelIndex, modelCount, modelTable, 0, 0, 0, 0, 0, 0, nativeCoordinates);
 
         if (!TryValidateHeader(frame, out diagnostic) ||
             !TryCalculateAddresses(
                 modelTable,
                 modelIndex,
+                nativeCoordinates,
                 out var modelBase,
                 out var xAddress,
                 out var yAddress,
@@ -121,7 +135,7 @@ public sealed class FieldPositionReader
         return true;
     }
 
-    private bool TryReadCheckedFrame(out FieldPositionFrame frame, out string diagnostic)
+    private bool TryReadCheckedFrame(bool nativeCoordinates, out FieldPositionFrame frame, out string diagnostic)
     {
         frame = default;
         diagnostic = "field position primitive read failed";
@@ -134,7 +148,7 @@ public sealed class FieldPositionReader
             return false;
         }
 
-        frame = new FieldPositionFrame(module, fieldId, modelIndex, modelCount, modelTable, 0, 0, 0, 0, 0, 0);
+        frame = new FieldPositionFrame(module, fieldId, modelIndex, modelCount, modelTable, 0, 0, 0, 0, 0, 0, nativeCoordinates);
         if (!TryValidateHeader(frame, out diagnostic))
         {
             return false;
@@ -143,6 +157,7 @@ public sealed class FieldPositionReader
         if (!TryCalculateAddresses(
                 modelTable,
                 modelIndex,
+                nativeCoordinates,
                 out var modelBase,
                 out var xAddress,
                 out var yAddress,
@@ -208,6 +223,7 @@ public sealed class FieldPositionReader
     private static bool TryCalculateAddresses(
         uint modelTable,
         ushort modelIndex,
+        bool nativeCoordinates,
         out uint modelBase,
         out uint xAddress,
         out uint yAddress,
@@ -218,21 +234,35 @@ public sealed class FieldPositionReader
         modelBase = xAddress = yAddress = zAddress = triangleAddress = directionAddress = 0;
         return TryAddScaled(modelTable, modelIndex, FieldModelStride, out modelBase) &&
             TryAddScaled((uint)AddressFieldModelsObjs, modelIndex, FieldObjectStride, out var objectBase) &&
-            TryAdd(modelBase, ModelXOffset, out xAddress) &&
-            TryAdd(modelBase, ModelYOffset, out yAddress) &&
-            TryAdd(modelBase, ModelZOffset, out zAddress) &&
+            TryAdd(nativeCoordinates ? objectBase : modelBase,
+                nativeCoordinates ? ObjectXOffset : ModelXOffset, out xAddress) &&
+            TryAdd(nativeCoordinates ? objectBase : modelBase,
+                nativeCoordinates ? ObjectYOffset : ModelYOffset, out yAddress) &&
+            TryAdd(nativeCoordinates ? objectBase : modelBase,
+                nativeCoordinates ? ObjectZOffset : ModelZOffset, out zAddress) &&
             TryAdd(modelBase, ModelDirectionOffset, out directionAddress) &&
             TryAdd(objectBase, ObjectTriangleOffset, out triangleAddress);
     }
 
-    private static FieldPositionReadResult CreateValidResult(FieldPositionFrame frame)
+    private static int DecodeCoordinate(int coordinate, bool nativeCoordinates) =>
+        nativeCoordinates ? coordinate >> 12 : coordinate;
+
+    private static FieldPositionReadResult CreateValidResult(FieldPositionFrame frame, bool nativeCoordinates)
     {
         var position = frame.Position;
+        if (nativeCoordinates)
+        {
+            position = position with
+            {
+                NativeFixedPosition = new FieldNavigationFixedPosition(frame.X, frame.Y, frame.Z)
+            };
+        }
         return FieldPositionReadResult.Valid(
             frame.ModelBase,
             position,
             $"module={position.CurrentModule}, field={position.FieldId}, model={position.ModelIndex}/{frame.ModelCount}, " +
-                $"base=0x{frame.ModelBase:X8}, x={position.X}, y={position.Y}, z={position.Z}, triangle={position.TriangleId}, direction={position.Direction}");
+                $"base=0x{frame.ModelBase:X8}, x={position.X}, y={position.Y}, z={position.Z}, triangle={position.TriangleId}, direction={position.Direction}, " +
+                $"coordinates={(nativeCoordinates ? "walkmesh" : "rendered")}");
     }
 
     private bool TryReadByte(int address, out byte value) =>
@@ -293,10 +323,14 @@ public sealed class FieldPositionReader
         int Y,
         int Z,
         ushort TriangleId,
-        byte Direction)
+        byte Direction,
+        bool NativeCoordinates)
     {
         public FieldPositionSnapshot Position =>
-            new(Module, FieldId, ModelIndex, X, Y, Z, TriangleId, Direction);
+            new(Module, FieldId, ModelIndex,
+                DecodeCoordinate(X, NativeCoordinates),
+                DecodeCoordinate(Y, NativeCoordinates),
+                DecodeCoordinate(Z, NativeCoordinates), TriangleId, Direction);
     }
 
     public static bool IsUsable(FieldPositionSnapshot position) => position.CurrentModule == FieldModule;
@@ -323,4 +357,11 @@ public readonly record struct FieldPositionSnapshot(
     int Y,
     int Z,
     ushort TriangleId,
-    byte Direction);
+    byte Direction)
+{
+    // Present only after a coherent native-coordinate read. Integer navigation
+    // and rendered-motion consumers retain their existing coordinate contract.
+    public FieldNavigationFixedPosition? NativeFixedPosition { get; init; }
+}
+
+public readonly record struct FieldNavigationFixedPosition(int X, int Y, int Z);

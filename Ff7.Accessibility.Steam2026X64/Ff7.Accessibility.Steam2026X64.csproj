@@ -51,6 +51,7 @@
     <Compile Include="..\Ff7.Accessibility.Reloaded\WorldMapConnectedRunFormatter.cs" Link="Shared\WorldMapConnectedRunFormatter.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\WorldMapFootstepTracker.cs" Link="Shared\WorldMapFootstepTracker.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\WorldMapTerrainProximity.cs" Link="Shared\WorldMapTerrainProximity.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\WorldMapTerrainAnnouncementTracker.cs" Link="Shared\WorldMapTerrainAnnouncementTracker.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldExitNavigationProfileCatalog.cs" Link="Shared\FieldExitNavigationProfileCatalog.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldZoneTransitionCueTracker.cs" Link="Shared\FieldZoneTransitionCueTracker.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\MidgarZolomAreaTracker.cs" Link="Shared\MidgarZolomAreaTracker.cs" />
@@ -71,11 +72,93 @@
       coincidence is not working: any narrowing of that copy would have removed the
       narration from every Steam 2026 install with a completely green build.
     -->
+    <None Include="..\Ff7.Accessibility.Reloaded\Assets\arcade\basketball_rise_tick.wav"
+          Link="Assets\arcade\basketball_rise_tick.wav"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Ff7.Accessibility.Reloaded\Assets\arcade\basketball_pose_top.wav"
+          Link="Assets\arcade\basketball_pose_top.wav"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Ff7.Accessibility.Reloaded\Assets\arcade\basketball_cues.credits.txt"
+          Link="Assets\arcade\basketball_cues.credits.txt"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Ff7.Accessibility.Reloaded\Assets\arcade\arm_wrestling_level.wav"
+          Link="Assets\arcade\arm_wrestling_level.wav"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Ff7.Accessibility.Reloaded\Assets\arcade\arm_wrestling_push_ahead.wav"
+          Link="Assets\arcade\arm_wrestling_push_ahead.wav"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Ff7.Accessibility.Reloaded\Assets\arcade\arm_wrestling_pushed_back.wav"
+          Link="Assets\arcade\arm_wrestling_pushed_back.wav"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Ff7.Accessibility.Reloaded\Assets\arcade\arm_wrestling_cues.credits.txt"
+          Link="Assets\arcade\arm_wrestling_cues.credits.txt"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Ff7.Accessibility.Reloaded\Assets\arcade\field_activity_button_ready.wav"
+          Link="Assets\arcade\field_activity_button_ready.wav"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Ff7.Accessibility.Reloaded\Assets\arcade\field_activity_cues.credits.txt"
+          Link="Assets\arcade\field_activity_cues.credits.txt"
+          CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Ff7.Accessibility.Reloaded\Assets\movies\opening_audio_description.ogg"
           Link="Assets\movies\opening_audio_description.ogg"
           CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Ff7.Accessibility.Reloaded\Assets\movies\gold1_audio_description.ogg"
+          Link="Assets\movies\gold1_audio_description.ogg"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Ff7.Accessibility.Reloaded\Assets\movies\gold1_audio_description.json"
+          Link="Assets\movies\gold1_audio_description.json"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Ff7.Accessibility.Reloaded\Assets\movies\gold1_audio_description.credits.txt"
+          Link="Assets\movies\gold1_audio_description.credits.txt"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Ff7.Accessibility.Reloaded\Assets\movies\gold2_audio_description.ogg"
+          Link="Assets\movies\gold2_audio_description.ogg"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Ff7.Accessibility.Reloaded\Assets\movies\gold2_audio_description.json"
+          Link="Assets\movies\gold2_audio_description.json"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Ff7.Accessibility.Reloaded\Assets\movies\gold2_audio_description.credits.txt"
+          Link="Assets\movies\gold2_audio_description.credits.txt"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Ff7.Accessibility.Reloaded\Assets\movies\gold3_audio_description.ogg"
+          Link="Assets\movies\gold3_audio_description.ogg"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Ff7.Accessibility.Reloaded\Assets\movies\gold3_audio_description.json"
+          Link="Assets\movies\gold3_audio_description.json"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Ff7.Accessibility.Reloaded\Assets\movies\gold3_audio_description.credits.txt"
+          Link="Assets\movies\gold3_audio_description.credits.txt"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Ff7.Accessibility.Reloaded\Assets\movies\gold4_audio_description.ogg"
+          Link="Assets\movies\gold4_audio_description.ogg"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Ff7.Accessibility.Reloaded\Assets\movies\gold4_audio_description.json"
+          Link="Assets\movies\gold4_audio_description.json"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Ff7.Accessibility.Reloaded\Assets\movies\gold4_audio_description.credits.txt"
+          Link="Assets\movies\gold4_audio_description.credits.txt"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Ff7.Accessibility.Reloaded\Assets\movies\gold5_audio_description.ogg"
+          Link="Assets\movies\gold5_audio_description.ogg"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Ff7.Accessibility.Reloaded\Assets\movies\gold5_audio_description.json"
+          Link="Assets\movies\gold5_audio_description.json"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Ff7.Accessibility.Reloaded\Assets\movies\gold5_audio_description.credits.txt"
+          Link="Assets\movies\gold5_audio_description.credits.txt"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Ff7.Accessibility.Reloaded\Assets\movies\gold6_audio_description.ogg"
+          Link="Assets\movies\gold6_audio_description.ogg"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Ff7.Accessibility.Reloaded\Assets\movies\gold6_audio_description.json"
+          Link="Assets\movies\gold6_audio_description.json"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Ff7.Accessibility.Reloaded\Assets\movies\gold6_audio_description.credits.txt"
+          Link="Assets\movies\gold6_audio_description.credits.txt"
+          CopyToOutputDirectory="PreserveNewest" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\MidgarZolomCrossingTracker.cs" Link="Shared\MidgarZolomCrossingTracker.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\WorldMapNavigationController.cs" Link="Shared\WorldMapNavigationController.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\WorldMapEntranceProximityCueTracker.cs" Link="Shared\WorldMapEntranceProximityCueTracker.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\WorldMapRuntimeContext.cs" Link="Shared\WorldMapRuntimeContext.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\DeferredZoneSpeechTracker.cs" Link="Shared\DeferredZoneSpeechTracker.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldCountdownSpeechCoordinator.cs" Link="Shared\FieldCountdownSpeechCoordinator.cs" />
@@ -90,6 +173,7 @@
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldCutsceneSpeechPriority.cs" Link="Shared\FieldCutsceneSpeechPriority.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldOpcodeParameterReader.cs" Link="Shared\FieldOpcodeAddressResolver.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldNavigationDistanceCalibration.cs" Link="Shared\FieldNavigationDistanceCalibration.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldAutoWalkConvergenceTracker.cs" Link="Shared\FieldAutoWalkConvergenceTracker.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldNavigationAssistant.cs" Link="Shared\FieldNavigationAssistant.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldNavigationCorridorLookahead.cs" Link="Shared\FieldNavigationCorridorLookahead.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldNavigationMovementObserver.cs" Link="Shared\FieldNavigationMovementObserver.cs" />
@@ -101,6 +185,7 @@
     <Compile Include="..\Ff7.Accessibility.Reloaded\NavigationProgressControls.cs" Link="Shared\NavigationProgressControls.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldNavigationSpokenCue.cs" Link="Shared\FieldNavigationSpokenCue.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldWalkmeshNavigation.cs" Link="Shared\FieldWalkmeshNavigation.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldNavigationNativeProbeMovement.cs" Link="Shared\FieldNavigationNativeProbeMovement.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldLadderStateReader.cs" Link="Shared\FieldLadderStateReader.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldLadderProximityCueTracker.cs" Link="Shared\FieldLadderProximityCueTracker.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldLadderMountCueTracker.cs" Link="Shared\FieldLadderMountCueTracker.cs" />
@@ -114,6 +199,8 @@
     <Compile Include="..\Ff7.Accessibility.Reloaded\ReachableFieldExitTargetProvider.cs" Link="Shared\ReachableFieldExitTargetProvider.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldExitLabelResolver.cs" Link="Shared\FieldExitLabelResolver.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldExitPresentationPolicy.cs" Link="Shared\FieldExitPresentationPolicy.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldAreaDescriptionColdStartTracker.cs" Link="Shared\FieldAreaDescriptionColdStartTracker.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldAreaDescriptionStatus.cs" Link="Shared\FieldAreaDescriptionStatus.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldMapNameCatalog.cs" Link="Shared\FieldMapNameCatalog.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldRoomDescriptorCatalog.cs" Link="Shared\FieldRoomDescriptorCatalog.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldExitProximityCueTracker.cs" Link="Shared\FieldExitProximityCueTracker.cs" />
@@ -133,6 +220,25 @@
     <Compile Include="..\Ff7.Accessibility.Reloaded\NavigationAutoWalkController.cs" Link="Shared\NavigationAutoWalkController.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\HighwayAccessibilityCoordinator.cs" Link="Shared\HighwayAccessibilityCoordinator.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\OpeningMovieAudioTrackPlayer.cs" Link="Shared\OpeningMovieAudioTrackPlayer.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldCutsceneDescriptionDeliveryQueue.cs" Link="Shared\FieldCutsceneDescriptionDeliveryQueue.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldMovieNarrationPolicy.cs" Link="Shared\FieldMovieNarrationPolicy.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldMovieNarrationSampleReader.cs" Link="Shared\FieldMovieNarrationSampleReader.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldMovieNarrationTracker.cs" Link="Shared\FieldMovieNarrationTracker.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\SpeedSquareCoasterStateReader.cs" Link="Shared\SpeedSquareCoasterStateReader.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\SubmarineMissionStateReader.cs" Link="Shared\SubmarineMissionStateReader.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\SubmarineMissionReadout.cs" Link="Shared\SubmarineMissionReadout.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\Reactor5ButtonStateReader.cs" Link="Shared\Reactor5ButtonStateReader.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\Reactor5ButtonCueTracker.cs" Link="Shared\Reactor5ButtonCueTracker.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\SpeedSquareCoasterReadout.cs" Link="Shared\SpeedSquareCoasterReadout.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\SpeedSquareCoasterTargetReader.cs" Link="Shared\SpeedSquareCoasterTargetReader.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\SpeedSquareCoasterAimReadout.cs" Link="Shared\SpeedSquareCoasterAimReadout.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\ChocoboSquareStateReader.cs" Link="Shared\ChocoboSquareStateReader.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\ChocoboSquareReadout.cs" Link="Shared\ChocoboSquareReadout.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\ChocoboRaceControlReadout.cs" Link="Shared\ChocoboRaceControlReadout.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\WonderSquareBasketballStateReader.cs" Link="Shared\WonderSquareBasketballStateReader.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\WonderSquareBasketballReadout.cs" Link="Shared\WonderSquareBasketballReadout.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\WonderSquareArmWrestlingReadout.cs" Link="Shared\WonderSquareArmWrestlingReadout.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\WonderSquare3DBattlerReadout.cs" Link="Shared\WonderSquare3DBattlerReadout.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\OpeningMovieAudioTrackVolumePolicy.cs" Link="Shared\OpeningMovieAudioTrackVolumePolicy.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\PrismNativeSpeaker.cs" Link="Shared\PrismNativeSpeaker.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\RepeatLastSpeechController.cs" Link="Shared\RepeatLastSpeechController.cs" />
@@ -151,6 +257,10 @@
     <Compile Include="..\Ff7.Accessibility.Reloaded\CondorFieldNavigator.cs" Link="Shared\CondorFieldNavigator.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\CondorCursorMover.cs" Link="Shared\CondorCursorMover.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\CondorBattleSpeechTracker.cs" Link="Shared\CondorBattleSpeechTracker.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\JunonMinigameStateReader.cs" Link="Shared\JunonMinigameStateReader.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\JunonTimingCueTracker.cs" Link="Shared\JunonTimingCueTracker.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\JunonTimingCuePlayer.cs" Link="Shared\JunonTimingCuePlayer.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\JunonParadeAlignmentAssist.cs" Link="Shared\JunonParadeAlignmentAssist.cs" />
     <EmbeddedResource Include="..\Ff7.Accessibility.Reloaded\Assets\navigation\field_objects.json"
                       Link="Assets\navigation\field_objects.json"
                       LogicalName="Ff7.Accessibility.Reloaded.Assets.navigation.field_objects.json" />
@@ -174,8 +284,10 @@
     <None Include="..\Ff7.Accessibility.Reloaded\Assets\footsteps\cosmo\*.ogg" Link="Assets\footsteps\cosmo\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\external\kujata\field-id-to-world-map-coords.json" Link="Assets\world\field-id-to-world-map-coords.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\external\kujata\wm-field-menu-names.txt" Link="Assets\world\wm-field-menu-names.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Ff7.Accessibility.Reloaded\Assets\world\world-map-location-triggers.json" Link="Assets\world\world-map-location-triggers.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Native\win-x64\prism.dll" CopyToOutputDirectory="PreserveNewest" Link="prism.dll" />
     <None Include="$(NuGetPackageRoot)steamaudio.net.natives\4.6.1\runtimes\win-x64\native\phonon.dll" CopyToOutputDirectory="PreserveNewest" Link="phonon.dll" Condition="Exists('$(NuGetPackageRoot)steamaudio.net.natives\4.6.1\runtimes\win-x64\native\phonon.dll')" />
   </ItemGroup>
 
 </Project>
+

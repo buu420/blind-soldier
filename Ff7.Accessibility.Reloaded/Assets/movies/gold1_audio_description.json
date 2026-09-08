@@ -1,0 +1,56 @@
+[
+  {
+    "description": "A small blue cable car travels on suspended cables.",
+    "end_time": "00:00:03.129",
+    "id": "1",
+    "start_time": "00:00:00.000"
+  },
+  {
+    "description": "It glides above clouds beneath a dark sky.",
+    "end_time": "00:00:07.805",
+    "id": "2",
+    "start_time": "00:00:05.000"
+  },
+  {
+    "description": "It approaches vast golden structures.",
+    "end_time": "00:00:13.365",
+    "id": "3",
+    "start_time": "00:00:11.000"
+  },
+  {
+    "description": "Tiers are covered with glowing lights.",
+    "end_time": "00:00:17.050",
+    "id": "4",
+    "start_time": "00:00:15.000"
+  },
+  {
+    "description": "The view sweeps across the illuminated park.",
+    "end_time": "00:00:24.277",
+    "id": "5",
+    "start_time": "00:00:22.000"
+  },
+  {
+    "description": "Bright searchlights sweep across the park.",
+    "end_time": "00:00:28.106",
+    "id": "6",
+    "start_time": "00:00:26.000"
+  },
+  {
+    "description": "The car passes above colorful looping tracks.",
+    "end_time": "00:00:34.984",
+    "id": "7",
+    "start_time": "00:00:32.000"
+  },
+  {
+    "description": "A neon sign reads, Welcome, Gold Saucer.",
+    "end_time": "00:00:41.267",
+    "id": "8",
+    "start_time": "00:00:38.000"
+  },
+  {
+    "description": "It glides toward the entrance beneath the sign.",
+    "end_time": "00:00:44.378",
+    "id": "9",
+    "start_time": "00:00:42.000"
+  }
+]

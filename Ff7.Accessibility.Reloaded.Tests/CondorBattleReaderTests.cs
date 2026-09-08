@@ -722,6 +722,12 @@ internal static class CondorBattleReaderTests
 
     private static void DoesNotReportAPhaseChangeAsCasualties()
     {
+        // Run with the shipped defaults, so this covers the configuration a
+        // player actually has. Combat start legitimately says where the battle
+        // line is; what must never appear is a death. Filtering for casualties
+        // says that directly, where counting every line only said it by
+        // accident - and stopped being true the moment another event was added
+        // to the same edge.
         var tracker = new CondorBattleSpeechTracker();
         var line = new[] { Unit(slot: 0, x: 200, y: 500), Unit(slot: 1, x: 240, y: 500) };
         tracker.Observe(Battle(units: line, phase: 1));
@@ -729,9 +735,16 @@ internal static class CondorBattleReaderTests
 
         // The live array is rebuilt when the battle changes phase. Reporting
         // that as two deaths would be a lie told loudly.
+        var acrossThePhaseChange = tracker.Observe(Battle(units: [], phase: 2));
+        var casualties = acrossThePhaseChange
+            .Where(spoken =>
+                spoken.Contains("Lost ", StringComparison.Ordinal) ||
+                spoken.Contains("destroyed", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
         Equal(
             0,
-            tracker.Observe(Battle(units: [], phase: 2)).Count,
+            casualties.Count,
             "units cleared across a phase change");
     }
 

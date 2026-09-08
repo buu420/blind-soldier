@@ -326,7 +326,7 @@ public sealed class FieldNavigationMovementObserver
         _ => FieldNavigationInput.None
     };
 
-    private static (double X, double Y) PredictWorldDirection(
+    public static (double X, double Y) PredictWorldDirection(
         FieldNavigationInput input,
         FieldNavigationControlTransform transform)
     {

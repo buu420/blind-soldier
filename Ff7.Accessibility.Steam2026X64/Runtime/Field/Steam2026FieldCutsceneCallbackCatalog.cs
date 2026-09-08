@@ -16,7 +16,8 @@ internal enum Steam2026FieldCutsceneCallbackKind
     BackgroundOn,
     Sound,
     Akao,
-    Movie
+    Movie,
+    Dfanm
 }
 
 /// <summary>
@@ -175,6 +176,14 @@ internal sealed class Steam2026FieldCutsceneCallbackCatalog
                     0x016EAB60,
                     0x00BD4A70,
                     "48895C2408574883EC208B0D484B4601"),
+                TranslatedFieldCutsceneHostAbi.TranslatedX86VoidNoArguments),
+            Steam2026FieldCutsceneCallbackKind.Dfanm => new(
+                kind,
+                new TranslatedFunctionMapDefinition(
+                    0x00614424,
+                    0x016EA580,
+                    0x00BBA510,
+                    "48895C2408574883EC208B0DA8F04701"),
                 TranslatedFieldCutsceneHostAbi.TranslatedX86VoidNoArguments),
             _ => throw new ArgumentOutOfRangeException(nameof(kind))
         };

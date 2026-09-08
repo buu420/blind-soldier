@@ -393,10 +393,44 @@ function Assert-DualRuntimePackage {
     }
     Assert-PackageFile -Path (Join-Path $PackageRoot 'Assets\movies\opening_audio_description.ogg') `
         -Description 'opening movie audio description asset'
+    Assert-PackageFile -Path (Join-Path $PackageRoot 'Assets\movies\gold1_audio_description.ogg') `
+        -Description 'Gold Saucer arrival narration asset'
+    Assert-PackageFile -Path (Join-Path $PackageRoot 'Assets\movies\gold1_audio_description.json') `
+        -Description 'Gold Saucer arrival narration cue sidecar'
+    Assert-PackageFile -Path (Join-Path $PackageRoot 'Assets\movies\gold1_audio_description.credits.txt') `
+        -Description 'Gold Saucer arrival narration attribution'
+    # The five Round Square gondola films. Each is asserted by name so a missing
+    # recording fails the package instead of shipping a silent film.
+    foreach ($goldFilm in 2..6) {
+        Assert-PackageFile -Path (Join-Path $PackageRoot "Assets\movies\gold${goldFilm}_audio_description.ogg") `
+            -Description "Round Square gondola narration asset gold$goldFilm"
+        Assert-PackageFile -Path (Join-Path $PackageRoot "Assets\movies\gold${goldFilm}_audio_description.json") `
+            -Description "Round Square gondola narration cue sidecar gold$goldFilm"
+        Assert-PackageFile -Path (Join-Path $PackageRoot "Assets\movies\gold${goldFilm}_audio_description.credits.txt") `
+            -Description "Round Square gondola narration attribution gold$goldFilm"
+    }
+    # Root's original synthesized arcade timing cues. The independent device is what
+    # keeps them audible while the player is holding or hammering [OK], so a missing
+    # file here is a silent minigame rather than a cosmetic omission.
+    foreach ($arcadeCue in @(
+            'basketball_rise_tick.wav',
+            'basketball_pose_top.wav',
+            'basketball_cues.credits.txt',
+            'arm_wrestling_level.wav',
+            'arm_wrestling_push_ahead.wav',
+            'arm_wrestling_pushed_back.wav',
+            'arm_wrestling_cues.credits.txt',
+            'field_activity_button_ready.wav',
+            'field_activity_cues.credits.txt')) {
+        Assert-PackageFile -Path (Join-Path $PackageRoot "Assets\arcade\$arcadeCue") `
+            -Description "arcade timing cue $arcadeCue"
+    }
     Assert-PackageFile -Path (Join-Path $PackageRoot 'Assets\world\field-id-to-world-map-coords.json') `
         -Description 'world-map entrance coordinate metadata'
     Assert-PackageFile -Path (Join-Path $PackageRoot 'Assets\world\wm-field-menu-names.txt') `
         -Description 'world-map location name metadata'
+    Assert-PackageFile -Path (Join-Path $PackageRoot 'Assets\world\world-map-location-triggers.json') `
+        -Description 'native world-map location trigger metadata'
     Assert-PackageFile -Path (Join-Path $PackageRoot 'Assets\footsteps\cosmo\config.toml') `
         -Description 'Cosmo Memory footstep mapping'
     foreach ($sourceOnlyAsset in $script:AssetSourceOnlyDirectories) {
@@ -583,3 +617,4 @@ finally {
     X64Assembly = Join-Path $outputRoot 'x64\Ff7.Accessibility.Steam2026X64.dll'
     ModConfig = Join-Path $outputRoot 'ModConfig.json'
 }
+

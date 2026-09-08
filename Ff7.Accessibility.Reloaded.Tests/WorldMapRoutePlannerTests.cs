@@ -7,6 +7,7 @@ internal static class WorldMapRoutePlannerTests
     internal static void Run()
     {
         BuildsNativeWalkingRouteBetweenEarlyWorldLocations();
+        WalksFromCostaDelSolToTheMountCorelEntrance();
         WalksThroughTheZolomSwampButNeverAcrossCliffFaces();
         SelectsTheNearestMemberOfAChocoboTrackArea();
         PullsAWorldRouteStraightThroughOverlappingPortals();
@@ -49,14 +50,40 @@ internal static class WorldMapRoutePlannerTests
             kalm.TriangleId,
             route.StartTriangleId,
             $"route start triangle target={Describe(map.Triangles[kalm.TriangleId])} resolved={Describe(map.Triangles[route.StartTriangleId])} point={kalm.X},{kalm.Z}");
-        Equal(farm.TriangleId, route.TargetTriangleId, "route target triangle");
+        Equal(true, farm.ArrivalTriangleIds.Contains(route.TargetTriangleId),
+            "route target is one of the native entrance triangles");
+        var arrival = farm.NativeLocationArrivals.Single(candidate =>
+            candidate.TriangleId == route.TargetTriangleId);
+        Equal(arrival.X, route.Waypoints[^1].X, "route ends at a safe point inside the native trigger");
+        Equal(arrival.Z, route.Waypoints[^1].Z, "route ends at the native trigger on the Z axis");
         Equal(true, route.TrianglePath.Count > 1, "route traverses native terrain");
         Equal(true, route.Waypoints.Count >= 1, "route has stable guidance waypoints");
         Equal(true, route.TotalDistance > 0, "route has measurable progress");
 
         var mountedSuccess = planner.TryBuildRoute(StateAt(map, kalm, playerModelId: 4), farm, out var mountedRoute);
         Equal(true, mountedSuccess, $"Kalm to Chocobo Farm caught-Chocobo route: {planner.LastDiagnostic}");
-        Equal(farm.TriangleId, mountedRoute.TargetTriangleId, "caught-Chocobo route target triangle");
+        Equal(true, farm.ArrivalTriangleIds.Contains(mountedRoute.TargetTriangleId),
+            "caught-Chocobo route ends on a native entrance triangle");
+    }
+
+    private static void WalksFromCostaDelSolToTheMountCorelEntrance()
+    {
+        var (map, catalog) = Load();
+        var costa = catalog.Locations.Single(target =>
+            target.Label.Equals("Costa del Sol", StringComparison.OrdinalIgnoreCase));
+        var corel = catalog.Locations.Single(target => target.Label == "Mt. Corel");
+        var planner = new WorldMapRoutePlanner(map);
+
+        Equal(true, planner.TryBuildRoute(StateAt(map, costa, playerModelId: 0), corel, out var route),
+            $"Costa del Sol to Mount Corel walking route: {planner.LastDiagnostic}");
+        Equal(true, corel.ArrivalTriangleIds.Contains(route.TargetTriangleId),
+            "Mount Corel route reaches an actual native field entrance");
+        Equal(false, route.TrianglePath.Any(id => map.Triangles[id].TerrainId is 2 or 3 or 12),
+            "Costa route uses walkable paths, never mountain faces, deep sea or cliffs");
+        var arrival = corel.NativeLocationArrivals.Single(candidate =>
+            candidate.TriangleId == route.TargetTriangleId);
+        Equal(arrival.X, route.Waypoints[^1].X, "Mount Corel final waypoint reaches its native trigger X");
+        Equal(arrival.Z, route.Waypoints[^1].Z, "Mount Corel final waypoint reaches its native trigger Z");
     }
 
     private static void SelectsTheNearestMemberOfAChocoboTrackArea()
@@ -147,7 +174,8 @@ internal static class WorldMapRoutePlannerTests
         var catalog = WorldMapTargetCatalog.Load(
             map,
             Path.Combine(sourceRoot, "external", "kujata", "field-id-to-world-map-coords.json"),
-            Path.Combine(sourceRoot, "external", "kujata", "wm-field-menu-names.txt"));
+            Path.Combine(sourceRoot, "external", "kujata", "wm-field-menu-names.txt"),
+            Path.Combine(sourceRoot, "Ff7.Accessibility.Reloaded", "Assets", "world", "world-map-location-triggers.json"));
         return (map, catalog);
     }
 

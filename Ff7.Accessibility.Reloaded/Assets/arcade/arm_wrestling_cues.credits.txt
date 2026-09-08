@@ -1,0 +1,1 @@
+Original synthesized accessibility cues created for Blind Soldier on 2026-09-07. Mono 44.1 kHz 16-bit PCM. No game audio or external samples. Level pose: 70 ms, 660 Hz. Pushing ahead: 85 ms, 880 Hz. Pushed back: 85 ms, 440 Hz. Short fades avoid clicks. These sounds label revealed arm positions and do not represent an invented numerical gauge or hidden future outcome.

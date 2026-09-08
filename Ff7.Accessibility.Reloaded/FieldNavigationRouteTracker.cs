@@ -8,7 +8,8 @@ public readonly record struct FieldNavigationRouteGuidance(
     bool Replanned,
     FieldNavigationRouteAction? NextAction,
     string Diagnostic,
-    double ProgressRemainingDistance = double.NaN);
+    double ProgressRemainingDistance = double.NaN,
+    bool UsesNativeProbeClearance = false);
 
 public sealed record FieldNavigationRouteProbeSnapshot(
     int FieldId,
@@ -278,6 +279,9 @@ public sealed class FieldNavigationRouteTracker
                 return false;
             }
 
+            if (observedCorridor.Mode == FieldNavigationLookaheadMode.ReplanRequired)
+                return TryBuild(position, target, replanned: true, observedCorridor.Diagnostic, out guidance);
+
             corridorObservation = observedCorridor;
             resolvedTriangle = observedCorridor.ResolvedTriangle;
         }
@@ -331,13 +335,21 @@ public sealed class FieldNavigationRouteTracker
                 }
             }
         }
-        else if (corridorObservation?.Mode == FieldNavigationLookaheadMode.HeadingHeld)
+        else if (corridorObservation?.Mode == FieldNavigationLookaheadMode.HeadingHeld ||
+                 corridorObservation is { Mode: FieldNavigationLookaheadMode.VisibleStep } visibleOffRoute &&
+                 visibleOffRoute.StableWaypointIndex > waypointIndex &&
+                 previousPosition is { } priorVisiblePosition &&
+                 Distance(ToWaypoint(position), visibleOffRoute.Waypoint) >=
+                 Distance(ToWaypoint(priorVisiblePosition), visibleOffRoute.Waypoint) - 0.5d)
         {
             // A clear heading on a triangle outside the committed route can be
             // a wide neighboring lane, but it can also be a walkable side ramp.
             // Keep one continuous physical-deviation counter while the route
             // identity is absent. Alternating between heading-held and
-            // required-corner observations must not erase that evidence.
+            // required-corner observations must not erase that evidence. Seeing
+            // a future step beyond a retained corner also cannot confirm this
+            // lane when Cloud is moving away from that visible step. Moving
+            // toward it still reaches the ordinary confirmation branch below.
             ResetHeadingHeldOffRouteEvidence();
             if (ShouldReplanForDeviation(
                     previousPosition,
@@ -371,6 +383,22 @@ public sealed class FieldNavigationRouteTracker
             }
         }
 
+        if (corridorObservation is { RecoveryContinuation: { } continuation } detour)
+        {
+            var rejoinIndex = Math.Clamp(detour.StableWaypointIndex, waypointIndex, stableWaypoints.Count - 1);
+            var requiredPortal = stableWaypoints[rejoinIndex].RequiredPortalIndex;
+            var generatedRecovery = detour.Mode == FieldNavigationLookaheadMode.ObstacleRecovery;
+            stableWaypoints =
+            [
+                .. stableWaypoints.Take(waypointIndex),
+                new(detour.Waypoint, requiredPortal, MustReach: true, RequiresExplicitArrival: generatedRecovery),
+                new(continuation, requiredPortal, MustReach: true, RequiresExplicitArrival: generatedRecovery),
+                .. stableWaypoints.Skip(rejoinIndex)
+            ];
+            plan = plan with { StableWaypointsOverride = stableWaypoints };
+            corridorObservation = detour with { StableWaypointIndex = waypointIndex };
+        }
+
         // A held route heading is also valid progress when Cloud is on a clear
         // neighboring triangle that was not part of the original polygon path.
         // Requiring exact triangle membership here left the waypoint index
@@ -381,7 +409,7 @@ public sealed class FieldNavigationRouteTracker
             corridorConfirmed &&
             (routeIndex >= 0 ||
              corridorObservation?.Mode == FieldNavigationLookaheadMode.HeadingHeld);
-        AdvanceWaypoint(previousPosition, position, corridorProgressConfirmed);
+        AdvanceWaypoint(previousPosition, position, target, corridorProgressConfirmed, corridorObservation);
         guidanceWaypointIndex = waypointIndex;
         FieldNavigationRouteWaypoint? waypointOverride = corridorObservation?.Waypoint;
         var actionClampDiagnostic = string.Empty;
@@ -411,6 +439,7 @@ public sealed class FieldNavigationRouteTracker
                 (stableWaypoints.Count == 0 ||
                  stableWaypoints[observedWaypointIndex].RequiredPortalIndex > pendingAction.PortalIndex ||
                  waypointOverride is { } observedWaypoint &&
+                 observedWaypoint != stableWaypoints[observedWaypointIndex].Waypoint &&
                  Distance(ToWaypoint(position), observedWaypoint) >
                  Distance(ToWaypoint(position), pendingAction.Waypoint) + 0.5d))
             {
@@ -720,7 +749,8 @@ public sealed class FieldNavigationRouteTracker
             $"waypoint={waypoint.X},{waypoint.Y},{waypoint.Z}, " +
             $"remaining={remainingDistance:0}, progressRemaining={progressRemainingDistance:0}" +
             (nextAction is null ? string.Empty : $", nextAction={nextAction.Value.Kind}:{nextAction.Value.StableId}"),
-            progressRemainingDistance);
+            progressRemainingDistance,
+            plan.UsesNativeProbeClearance);
     }
 
     private static FieldNavigationRouteAction? FindNextAction(
@@ -1013,19 +1043,49 @@ public sealed class FieldNavigationRouteTracker
     private void AdvanceWaypoint(
         FieldPositionSnapshot? previousPosition,
         FieldPositionSnapshot position,
-        bool corridorConfirmed)
+        FieldNavigationTarget target,
+        bool corridorConfirmed,
+        FieldNavigationCorridorObservation? corridorObservation)
     {
         var waypointTolerance = GetWaypointTolerance(previousPosition, position);
         while (waypointIndex < stableWaypoints.Count - 1)
         {
             var step = stableWaypoints[waypointIndex];
-            var stepTolerance = step.MustReach
+            var isNativePortalCorner =
+                step.RequiredPortalIndex > 0 &&
+                step.RequiredPortalIndex <= plan!.Portals.Count &&
+                (step.Waypoint == plan.Portals[step.RequiredPortalIndex - 1].Left ||
+                 step.Waypoint == plan.Portals[step.RequiredPortalIndex - 1].Right);
+            // Proximity, swept tolerance and the tolerated waypoint plane do
+            // not prove that a corner has been crossed. Keep the native-visible
+            // corner until its continuation is walkable or its portal is passed;
+            // otherwise the route-progress clamp discards the safe lookahead
+            // and steers through the wall (Junon locker room, -1546,-764).
+            // Required steep approaches can also be native portal corners.
+            // Their small proximity radius must not bypass that portal; authored
+            // detour checkpoints keep their separate arrival behavior.
+            if ((!step.MustReach || isNativePortalCorner) &&
+                portalIndex < step.RequiredPortalIndex &&
+                corridorObservation is
+                {
+                    Mode: FieldNavigationLookaheadMode.VisibleStep or
+                        FieldNavigationLookaheadMode.RequiredCorner
+                } observation &&
+                waypointIndex >= observation.StableWaypointIndex)
+            {
+                break;
+            }
+
+            var stepTolerance = step.IsNativeEntryStep ? 2d : step.MustReach
                 ? MinimumWaypointArrivalDistance
                 : waypointTolerance;
             var currentWaypoint = ToWaypoint(position);
+            if (step.IsNativeEntryStep) currentWaypoint = currentWaypoint with { Z = step.Waypoint.Z };
             var crossedWaypoint = previousPosition is not null &&
                                     PassesWaypointBetweenSamples(
-                                        ToWaypoint(previousPosition.Value),
+                                        step.IsNativeEntryStep
+                                            ? ToWaypoint(previousPosition.Value) with { Z = step.Waypoint.Z }
+                                            : ToWaypoint(previousPosition.Value),
                                         currentWaypoint,
                                         step.Waypoint,
                                         stepTolerance);
@@ -1046,8 +1106,9 @@ public sealed class FieldNavigationRouteTracker
             // a wide sloped portal through the opposite endpoint and miss the
             // planar funnel corner's small arrival radius.
             var enteredSteepContinuation =
+                !step.RequiresExplicitArrival &&
                 corridorConfirmed &&
-                portalIndex >= Math.Max(0, step.RequiredPortalIndex - 1);
+                portalIndex >= step.RequiredPortalIndex;
             if (step.MustReach &&
                 !enteredSteepContinuation &&
                 waypointDistance > stepTolerance &&
@@ -1065,8 +1126,41 @@ public sealed class FieldNavigationRouteTracker
                 break;
             }
 
+            // Two model-avoidance turns can share one native triangle. Entering
+            // that triangle cannot satisfy the later bend, and the ordinary
+            // arrival tolerance cannot turn early through a wall or resident.
+            var nextStep = stableWaypoints[waypointIndex + 1];
+            if (step.RequiresExplicitArrival &&
+                (planner is not IFieldNavigationAutomaticMovementPlanner movementPlanner ||
+                 !(plan?.UsesNativeProbeClearance == true
+                     ? nextStep.IsNativeEntryStep
+                         ? IsNativeEntryContinuationClear(movementPlanner, position, target, nextStep.Waypoint)
+                         : movementPlanner.IsNativeProbeMovementClear(position, target, nextStep.Waypoint)
+                     : movementPlanner.IsAutomaticMovementClear(position, target, nextStep.Waypoint))))
+            {
+                break;
+            }
+
             waypointIndex++;
         }
+    }
+
+    private static bool IsNativeEntryContinuationClear(IFieldNavigationAutomaticMovementPlanner planner,
+        FieldPositionSnapshot position, FieldNavigationTarget target, FieldNavigationRouteWaypoint destination)
+    {
+        var dx = destination.X - (double)position.X;
+        var dy = destination.Y - (double)position.Y;
+        var distance = Math.Min(8d, Math.Sqrt(dx * dx + dy * dy));
+        foreach (var choice in new byte[] { 128, 96, 64, 32, 0, 224, 192, 160 }
+            .Select(heading => (Heading: heading, X: Math.Sin(heading * Math.PI / 128d), Y: -Math.Cos(heading * Math.PI / 128d)))
+            .Select(choice => (choice.Heading, choice.X, choice.Y, Progress: choice.X * dx + choice.Y * dy))
+            .Where(choice => choice.Progress > 0d).OrderByDescending(choice => choice.Progress))
+        {
+            var endpoint = new FieldNavigationRouteWaypoint(position.X + (int)Math.Round(choice.X * distance),
+                position.Y + (int)Math.Round(choice.Y * distance), position.Z);
+            if (planner.IsNativeProbeAutomaticMovementClear(position, target, endpoint, choice.Heading)) return true;
+        }
+        return false;
     }
 
     private FieldNavigationRouteHeading CreateLookaheadHeading(

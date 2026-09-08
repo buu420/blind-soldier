@@ -12,10 +12,57 @@ public readonly record struct HighwayCompositeUpdate(
 /// </summary>
 public sealed class HighwayAccessibilityComposer
 {
+    /// <summary>
+    /// What a poll actually says out loud, when the steering mode has something to
+    /// announce and the composed update does too.
+    ///
+    /// These arrive on the same pass and both are one-shot. The mode announces itself
+    /// on the first poll of every ride and again on every F8, and the composed speech
+    /// carries things that exist for a moment and then are gone - the arcade banner
+    /// above all, which is READY exactly while READY is on screen. Speaking the mode
+    /// and returning threw the other away: a ride acquired while READY was up lost
+    /// READY, and pressing F8 during GO or GOAL lost that word for good, because the
+    /// composer had already counted the banner as delivered.
+    ///
+    /// They are joined into one utterance instead, mode first, so neither can cut the
+    /// other off and nothing is dropped.
+    /// </summary>
+    public static IReadOnlyList<(string Text, bool Interrupt)> Deliver(
+        string? modeAnnouncement,
+        HighwaySpeechRequest? speech)
+    {
+        var hasMode = !string.IsNullOrWhiteSpace(modeAnnouncement);
+        if (!hasMode)
+        {
+            return speech is { } alone
+                ? [(alone.Text, alone.Interrupt)]
+                : Array.Empty<(string, bool)>();
+        }
+
+        // The mode always supersedes whatever was being said, and anything riding
+        // along with it inherits that.
+        return speech is { } composed
+            ? [($"{modeAnnouncement} {composed.Text}", true)]
+            : [(modeAnnouncement!, true)];
+    }
+
     private readonly HighwayAccessibilityTracker combatTracker;
     private readonly HighwaySteeringTracker steeringTracker;
     private readonly HighwayEngagementSteeringTracker engagementTracker;
     private HighwayOutputSource lastModerateOutput;
+
+    /// <summary>
+    /// The support vehicle's offset from Cloud, which drives collision *avoidance*
+    /// rather than escorting. It is supplied in both modes: FUN_00653076 initialises
+    /// that vehicle in the arcade run as well, and FUN_006567B0 takes fifty points
+    /// off when damage is applied, so the arcade player needs the same warning.
+    /// </summary>
+    public static HighwayPoint? TruckDeltaForTest(HighwayAccessibilityState? combatState) =>
+        combatState is { } state
+            ? new HighwayPoint(
+                state.Truck.Lateral - state.Cloud.Lateral,
+                state.Truck.Longitudinal - state.Cloud.Longitudinal)
+            : null;
 
     public HighwayAccessibilityComposer(
         HighwayAccessibilityTracker combatTracker,
@@ -57,11 +104,12 @@ public sealed class HighwayAccessibilityComposer
         }
         else
         {
-            HighwayPoint? truckDelta = combatState is { IsStoryChase: true } state
-                ? new HighwayPoint(
-                    state.Truck.Lateral - state.Cloud.Lateral,
-                    state.Truck.Longitudinal - state.Cloud.Longitudinal)
-                : null;
+            // This delta drives collision *avoidance*, not escorting, and the support
+            // vehicle is real and visible in the arcade mode too: FUN_00653076
+            // initialises it in both, and FUN_006567B0 takes fifty points off when
+            // damage is applied. Withholding it in arcade left the player with no
+            // warning about the one obstacle that costs them score.
+            var truckDelta = TruckDeltaForTest(combatState);
             steeringUpdate = steeringTracker.Update(road, truckDelta, nowUtc);
         }
 

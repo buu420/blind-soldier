@@ -170,7 +170,16 @@ public static class WorldMapConnectedRunFormatter
             "left" => -remainingHorizontal,
             _ => 0d
         };
-        segment = new FieldNavigationSpokenSegment(direction, Math.Max(0d, countedDistance));
+        if (countedDistance <= 0d)
+        {
+            // The player crossed the endpoint between world-map samples. A
+            // committed run describes the old leg, so continuing its direction
+            // would drive farther away forever. Let the ordinary current-to-
+            // waypoint resolver point back toward the still-unreached trigger.
+            return false;
+        }
+
+        segment = new FieldNavigationSpokenSegment(direction, countedDistance);
         return true;
     }
 

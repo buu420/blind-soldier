@@ -12,6 +12,7 @@ internal sealed class Steam2026FieldCutsceneCallbackContract
     private readonly object hookLeaseLock = new();
     private readonly Steam2026FieldCutsceneCallbackCatalog catalog;
     private readonly FieldScriptContextReader contextReader;
+    private readonly TranslatedX86AddressSpace movieSampleAddressSpace;
     private ActiveHookLease? activeHookLease;
     private long validationEpoch;
 
@@ -59,6 +60,7 @@ internal sealed class Steam2026FieldCutsceneCallbackContract
             memory);
         catalog = new Steam2026FieldCutsceneCallbackCatalog(validator);
         contextReader = new FieldScriptContextReader(addressSpace);
+        movieSampleAddressSpace = addressSpace;
         HasExactSupportedFingerprint = hasExactSupportedFingerprint;
     }
 
@@ -136,6 +138,14 @@ internal sealed class Steam2026FieldCutsceneCallbackContract
             == TranslatedFieldCutsceneHostAbi.TranslatedX86VoidNoArguments
         && TryResolveCurrentIdentity(identity.Metadata.Kind, out var current, out _)
         && current == identity;
+
+    /// <summary>
+    /// The film state as it stands at the native boundary, through the same checked
+    /// translated address space the script context uses. A failed read is reported
+    /// rather than being turned into a plausible-looking fresh handler state.
+    /// </summary>
+    internal bool TryCaptureMovieSample(int fieldId, out FieldMovieNarrationSample sample) =>
+        FieldMovieNarrationSampleReader.TryRead(movieSampleAddressSpace, fieldId, out sample);
 
     internal bool TryCaptureContext(
         Steam2026FieldCutsceneCallbackIdentity expectedIdentity,
@@ -234,6 +244,8 @@ internal sealed class Steam2026FieldCutsceneCallbackContract
                 opcode == FieldOpcodeAddressResolver.OpcodeFadeIndex,
             Steam2026FieldCutsceneCallbackKind.Anime1 =>
                 opcode == FieldOpcodeAddressResolver.OpcodeAnime1Index,
+            Steam2026FieldCutsceneCallbackKind.Dfanm =>
+                opcode == FieldOpcodeAddressResolver.OpcodeDfanmIndex,
             Steam2026FieldCutsceneCallbackKind.Visibility =>
                 opcode == FieldOpcodeAddressResolver.OpcodeVisibilityIndex,
             Steam2026FieldCutsceneCallbackKind.AnimOnceOrHold =>

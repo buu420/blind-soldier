@@ -9,10 +9,23 @@ namespace Ff7.Accessibility.Steam2026X64.Runtime.Field;
     global::Reloaded.Hooks.Definitions.X64.CallingConventions.Microsoft)]
 internal delegate void TranslatedFieldCutsceneCallbackOriginal();
 
+/// <param name="TimestampUtc">
+/// The instant observed at the native boundary, before the original ran. The
+/// description's start window is measured from here, so a queue that backs up
+/// cannot buy it a fresh two seconds.
+/// </param>
+/// <param name="HasMovieSample">
+/// True when <paramref name="MovieSample"/> was taken before the original. Only
+/// such a sample carries a usable MOVIE handler state: FUN_0061A321 turns a fresh
+/// 0 into a 4 on the call itself, so a sample read when this snapshot is drained
+/// reports the very first described film as a repeat.
+/// </param>
 internal readonly record struct Steam2026FieldCutsceneIngressSnapshot(
     long Sequence,
     DateTime TimestampUtc,
-    FieldScriptContext Context);
+    FieldScriptContext Context,
+    bool HasMovieSample = false,
+    FieldMovieNarrationSample MovieSample = default);
 
 /// <summary>
 /// Copies a checked, pointer-free WAIT or SOUND script context before invoking
@@ -58,17 +71,29 @@ internal sealed class Steam2026FieldCutsceneDetourIngressCoordinator : IDisposab
         try
         {
             var context = default(FieldScriptContext);
+            var movieSample = default(FieldMovieNarrationSample);
             var canPublish = ownsObservation
                              && Volatile.Read(ref stopped) == 0
                              && !IsFatallyDegraded
                              && IsCurrentIdentity()
                              && TryCaptureContext(out context);
 
+            // Both of these are destroyed by the original and cannot be recovered
+            // afterwards: the MOVIE handler mutates its own state on this call, and
+            // the elapsed time becomes whatever the queue happened to take. The
+            // sample is only taken for the film-start opcode, so every other hooked
+            // opcode keeps the cheap path.
+            var timestampUtc = default(DateTime);
+            var capturedTimestamp = canPublish && TryReadTimestamp(out timestampUtc);
+            var hasMovieSample = canPublish
+                                 && context.Opcode == FieldOpcodeAddressResolver.OpcodeMovieIndex
+                                 && TryCaptureMovieSample(context.FieldId, out movieSample);
+
             InvokeOriginal();
 
             if (!canPublish
+                || !capturedTimestamp
                 || !IsObservationCurrent(entryEpoch)
-                || !TryReadTimestamp(out var timestampUtc)
                 || !TryAllocateSequence(out var sequence))
             {
                 ResetObservationState();
@@ -78,7 +103,9 @@ internal sealed class Steam2026FieldCutsceneDetourIngressCoordinator : IDisposab
             var snapshot = new Steam2026FieldCutsceneIngressSnapshot(
                 sequence,
                 timestampUtc,
-                context);
+                context,
+                hasMovieSample,
+                movieSample);
             if (!IsObservationCurrent(entryEpoch)
                 || !observationGate.TryCommit())
             {
@@ -168,6 +195,20 @@ internal sealed class Steam2026FieldCutsceneDetourIngressCoordinator : IDisposab
         catch
         {
             context = default;
+            return false;
+        }
+    }
+
+    private bool TryCaptureMovieSample(int fieldId, out FieldMovieNarrationSample sample)
+    {
+        sample = default;
+        try
+        {
+            return contract.TryCaptureMovieSample(fieldId, out sample);
+        }
+        catch
+        {
+            sample = default;
             return false;
         }
     }

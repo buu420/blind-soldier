@@ -3,13 +3,26 @@ namespace Ff7.Accessibility.Reloaded;
 public sealed class FieldCutsceneDescriptionTracker
 {
     private readonly Dictionary<FieldCutsceneDescriptionKey, FieldCutsceneDescriptionCue> cues;
+    private readonly Dictionary<string, List<FieldCutsceneDescriptionKey>> recurringGroups;
     private readonly HashSet<FieldCutsceneDescriptionKey> spoken = [];
+
+    // The last byte each observed script was seen at. This is the tracker's only
+    // evidence that a script's own instruction pointer moved, and it is what tells a
+    // genuinely repeated action apart from one opcode being delivered over and over.
+    private readonly Dictionary<(int Field, int Entity, int Script), int> lastByteByScript = [];
     private readonly object sync = new();
     private int currentFieldId = -1;
 
     public FieldCutsceneDescriptionTracker(IEnumerable<FieldCutsceneDescriptionCue> cues)
     {
         this.cues = cues.ToDictionary(cue => cue.Key);
+        recurringGroups = this.cues.Values
+            .Where(cue => cue.IsRecurring)
+            .GroupBy(cue => cue.RecurringGroup, StringComparer.Ordinal)
+            .ToDictionary(
+                group => group.Key,
+                group => group.Select(cue => cue.Key).ToList(),
+                StringComparer.Ordinal);
     }
 
     public FieldCutsceneDescriptionCue? Observe(FieldScriptContext context)
@@ -20,21 +33,52 @@ public sealed class FieldCutsceneDescriptionTracker
             {
                 currentFieldId = context.FieldId;
                 spoken.Clear();
+                lastByteByScript.Clear();
             }
+
+            // Recorded for every observed opcode, described or not, and before any
+            // catalog filtering: an ordinary WAIT elsewhere in the same script is
+            // exactly the evidence that the script moved on.
+            var scriptKey = (context.FieldId, context.EntityId, context.ScriptId);
+            var movedSinceLastObservation =
+                lastByteByScript.TryGetValue(scriptKey, out var previousByte) &&
+                previousByte != context.ByteIndex;
+            lastByteByScript[scriptKey] = context.ByteIndex;
 
             var key = new FieldCutsceneDescriptionKey(
                 context.FieldId,
                 context.EntityId,
                 context.ScriptId,
                 context.ByteIndex);
-            if (!cues.TryGetValue(key, out var cue) ||
-                context.Opcode != cue.Opcode ||
-                !spoken.Add(key))
+            if (!cues.TryGetValue(key, out var cue) || context.Opcode != cue.Opcode)
             {
                 return null;
             }
 
-            return cue;
+            // A repeatable machine action is released for description again by the
+            // native re-entry into its own opening anchor - but only a real re-entry.
+            //
+            // A yielding request does not advance the script: REQEW (FUN_006124F2
+            // into FUN_006127A2 in mode 3) returns 1 with the caller's instruction
+            // pointer unchanged for as long as the requested animation is running, so
+            // the same opcode is delivered on every frame of it. Mog's accepted feed
+            // is exactly that, and treating those repeats as new food produced one
+            // description per animation frame. The group is therefore released only
+            // when this script has been observed somewhere else since, which is the
+            // game itself saying the action finished and came round again. Another
+            // entity running in between is not evidence about this one.
+            if (cue.StartsRecurringGroup &&
+                movedSinceLastObservation &&
+                spoken.Contains(key) &&
+                recurringGroups.TryGetValue(cue.RecurringGroup, out var groupKeys))
+            {
+                foreach (var groupKey in groupKeys)
+                {
+                    spoken.Remove(groupKey);
+                }
+            }
+
+            return spoken.Add(key) ? cue : null;
         }
     }
 
@@ -44,6 +88,7 @@ public sealed class FieldCutsceneDescriptionTracker
         {
             currentFieldId = -1;
             spoken.Clear();
+            lastByteByScript.Clear();
         }
     }
 }
@@ -59,7 +104,446 @@ public static class FieldCutsceneDescriptionCatalog
         .. CreateTrainAndSector7Descriptions(),
         .. CreateReactor5AndAerisDescriptions(),
         .. CreateWallMarketThroughMotorcycleDescriptions(),
-        .. CreateKalmThroughLowerJunonDescriptions()
+        .. CreateKalmThroughLowerJunonDescriptions(),
+        .. CreateUpperJunonThroughCargoShipDescriptions(),
+        .. CreateJunonJourneyVisualDescriptions(),
+        .. CreateCorelJourneyVisualDescriptions(),
+        .. CreateGoldSaucerFirstVisitDescriptions(),
+        .. CreateGoldSaucerArcadeDescriptions(),
+        .. CreateGoldSaucerGondolaFilmDescriptions(),
+        .. CreateGoldSaucerAreaDescriptions()
+    ];
+
+    /// <summary>
+    /// What each first-visit Gold Saucer area looks like, spoken once on arrival.
+    /// A sighted player takes the layout of a new room in at a glance and never has
+    /// to ask again, so these run from MPNAM: every field sets its own displayed area
+    /// name exactly once, from its director entity's init, on every entry. That gives
+    /// one description per arrival with no new hotkey and no repetition while the
+    /// player is in the room.
+    ///
+    /// Each description is limited to what is actually installed in the field - the
+    /// fixtures and machines that have their own entities, the exits, and the staff
+    /// and visitors the models place there. Nothing here describes a scene that only
+    /// happens once, because these fire on a later entry too; the scripted events
+    /// have their own anchored cues.
+    /// </summary>
+    public static IReadOnlyList<FieldCutsceneDescriptionCue> CreateGoldSaucerAreaDescriptions() =>
+    [
+        // 484 astage_a, "Event square". kei1 is a uniformed attendant and hito3..7
+        // with man1..3 and wom1..2 are the waiting crowd.
+        new(484, 0, 0, 30,
+            "Event Square. The theatre's stage front rises ahead of a wide open floor. " +
+            "An attendant in uniform stands by the entrance and visitors wait in front of it.",
+            FieldOpcodeAddressResolver.OpcodeMapNameIndex),
+
+        // 486 jet, "Speed square". The one arrowed gateway is the Shooting Coaster
+        // entrance; moni is the screen, choko wears the mascot costume, and the
+        // field's own dialogue warns visitors about the steps.
+        new(486, 0, 0, 14,
+            "Speed Square. Steps lead up to the Shooting Coaster's entrance, with a screen " +
+            "mounted above the walkway. Visitors and families move about, and a member of " +
+            "staff walks around in a chocobo costume.",
+            FieldOpcodeAddressResolver.OpcodeMapNameIndex),
+
+        // 487 jetin1, "Platform". che, man1, man2 and gairl are staff, jet is the
+        // ride car itself, and ramp1, ramp2 and panel are the boarding fixtures.
+        new(487, 0, 0, 14,
+            "The Shooting Coaster's boarding platform. Staff wait at the registration " +
+            "counter, ramps lead up to the ride car, and a control panel stands beside it.",
+            FieldOpcodeAddressResolver.OpcodeMapNameIndex),
+
+        // 488 bigwheel, "Round Square". Root's reviewed frames of the station itself,
+        // rather than a layout guessed from the entity names.
+        new(488, 0, 0, 173,
+            "Round Square. A wooden gondola waits at the boarding platform beside a ticket " +
+            "booth shaped like a yellow moogle. Railings run along the platform and pulley " +
+            "wheels turn overhead.",
+            FieldOpcodeAddressResolver.OpcodeMapNameIndex),
+
+        // 489 and 490 bwhlin, "Inside the Ferris Wheel". Deliberately one short
+        // sentence: the ride's first film starts about ten seconds after the field
+        // loads, and a long paragraph here would still be running over it.
+        new(489, 0, 0, 0,
+            "Inside a wooden gondola, with windows on both sides.",
+            FieldOpcodeAddressResolver.OpcodeMapNameIndex),
+        new(490, 0, 0, 0,
+            "Inside a wooden gondola, with windows on both sides.",
+            FieldOpcodeAddressResolver.OpcodeMapNameIndex),
+
+        // 491 ghotel, "Ghost Hotel". door, gate, light1 and light2 are the entrance
+        // fixtures and bat1..bat5 are the bats overhead.
+        new(491, 0, 0, 42,
+            "Ghost Square. The Ghost Hotel stands ahead behind a gate, its doorway lit by " +
+            "lamps, with bats circling overhead. Other visitors wander the street outside.",
+            FieldOpcodeAddressResolver.OpcodeMapNameIndex),
+
+        // 492 ghotin_1, "Hotel Lobby", and 495 ghotin_3, "Hotel Shop". Both are
+        // root's reviewed frames of the actual backgrounds rather than a layout
+        // inferred from entity names. Mr. Hangman is deliberately not named at the
+        // shop: the narrator introduces that name later, in the main hall.
+        new(492, 0, 0, 19,
+            "A red carpet and curling staircase fill a dark hall decorated with grinning " +
+            "monster faces. Skull-shaped lamps frame the doorways.",
+            FieldOpcodeAddressResolver.OpcodeMapNameIndex),
+        new(495, 0, 0, 14,
+            "Bottles and candles crowd a small counter beneath a red canopy. A fire glows " +
+            "beside hanging cages and monster-faced decorations.",
+            FieldOpcodeAddressResolver.OpcodeMapNameIndex),
+
+        // 505 games, "Wonder Square". The one gateway leads into the arcade building;
+        // choko and c2 wear the mascot costumes.
+        new(505, 0, 0, 41,
+            "Wonder Square. The way into the arcade building lies ahead. Visitors and " +
+            "families fill the square, with staff in mascot costumes among them.",
+            FieldOpcodeAddressResolver.OpcodeMapNameIndex),
+
+        // 506 games_1, "Building 1f.". ude1, ude2 and udel are the arm wrestling
+        // machine, ufo1 and ufo2 the two Wonder Catcher cabinets, bsl with ball,
+        // ring, base_l and bs_b the basketball game, and s1 the prize counter.
+        new(506, 0, 0, 14,
+            "The arcade's ground floor. The arm wrestling machine, the Wonder Catcher and " +
+            "the basketball hoop stand around the room, with the prize counter to one side " +
+            "and stairs up to the second floor.",
+            FieldOpcodeAddressResolver.OpcodeMapNameIndex),
+
+        // 507 games_2, "Building 2f.". mogu is the Mog House, bike the G Bike machine,
+        // and snowb and subm the snowboard and submarine machines, which stand here
+        // whether or not they can be played yet. kakul1 and kakul2 are the two control
+        // sides of one 3D Battler platform, not two cabinets: root's reviewed close
+        // frame shows a single glowing disc with a control station on either side.
+        new(507, 0, 0, 14,
+            "The arcade's upper floor. The Mog House, the 3D Battler platform and the " +
+            "G Bike machine stand around the room, along with the snowboard and submarine " +
+            "machines, and stairs lead back down.",
+            FieldOpcodeAddressResolver.OpcodeMapNameIndex),
+
+        // 509 chorace, "Chocobo Square". door, word, light and chocobo are the
+        // entrance fixtures; the Shinra soldiers here belong to one scripted scene
+        // and are not described by this per-arrival cue.
+        new(509, 0, 0, 24,
+            "Chocobo Square. The way into the racetrack building lies ahead, under a lit " +
+            "sign, with a chocobo beside it.",
+            FieldOpcodeAddressResolver.OpcodeMapNameIndex),
+
+        // 511 crcin_1, "Ticket Office". cg1..cg3 are the counter attendants, moni the
+        // screen, and kyaku1..kyaku5 the other customers. The odds sheet is named by
+        // the field's own dialogue.
+        new(511, 0, 0, 175,
+            "The chocobo racing ticket office. Attendants stand at the betting counter, " +
+            "a screen shows the track, and an odds sheet hangs nearby. Other customers " +
+            "watch and wait around the room.",
+            FieldOpcodeAddressResolver.OpcodeMapNameIndex)
+    ];
+
+    /// <summary>
+    /// The five Round Square gondola films. Each anchor is the F9 that starts the
+    /// film, immediately after the F8 that names it, in installed bwhlin (489) and
+    /// bwhlin2 (490) entity 0 <c>dic</c> script 0. Every film appears twice because
+    /// the ride's script forks on which companion came along, and only one branch
+    /// runs per ride.
+    ///
+    /// These paragraphs are the fallback: when the reviewed recording is available
+    /// the independent track plays instead, because a screen reader would be cut off
+    /// by any button press during the film. The text is the same reviewed prose,
+    /// joined into one paragraph, so a player without the audio assets still hears
+    /// what is on screen.
+    /// </summary>
+    public static IReadOnlyList<FieldCutsceneDescriptionCue> CreateGoldSaucerGondolaFilmDescriptions() =>
+    [
+        // Film 6, gold2.
+        new(489, 0, 0, 155, GondolaSpeedSquareText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        new(489, 0, 0, 345, GondolaSpeedSquareText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        // Film 7, gold3.
+        new(489, 0, 0, 210, GondolaChocoboSquareText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        new(489, 0, 0, 429, GondolaChocoboSquareText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        // Film 8, gold4.
+        new(489, 0, 0, 288, GondolaParkAndStatueText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        new(489, 0, 0, 612, GondolaParkAndStatueText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        // Film 10, gold5.
+        new(490, 0, 0, 91, GondolaGhostSquareText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        new(490, 0, 0, 223, GondolaGhostSquareText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        // Film 9, gold6. The file names and the native numbers are not in the same
+        // order here, which is why the anchor carries the number.
+        new(490, 0, 0, 146, GondolaEventSquareText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        new(490, 0, 0, 307, GondolaEventSquareText, FieldOpcodeAddressResolver.OpcodeMovieIndex)
+    ];
+
+    private const string GondolaSpeedSquareText =
+        "A roller coaster races along looping tracks outlined with lights. " +
+        "Searchlights sweep across the park beneath a full moon.";
+
+    private const string GondolaChocoboSquareText =
+        "Brightly colored chocobos race past the wooden gondola's windows beneath " +
+        "sweeping searchlights.";
+
+    private const string GondolaParkAndStatueText =
+        "The view sweeps over round platforms filled with rides and colorful lights. " +
+        "It rises along a huge golden tower. A colossal golden statue of a muscular " +
+        "man in a winged helmet towers over the park.";
+
+    private const string GondolaGhostSquareText =
+        "The wooden gondola passes a dark mansion and crooked gravestones, " +
+        "surrounded by swirling fog and bats.";
+
+    private const string GondolaEventSquareText =
+        "Colorful balloons rise from an outdoor stage, drifting around the wooden " +
+        "gondola.";
+
+    /// <summary>
+    /// Visible actions inside the Gold Saucer arcades. The narrator boxes and the
+    /// instruction, price and result windows are ordinary native dialogue and are
+    /// already spoken by the message path, so nothing here repeats them: each cue
+    /// describes only what the models do, anchored to the request that starts that
+    /// animation. Text is root's footage-reviewed prose.
+    /// </summary>
+    public static IReadOnlyList<FieldCutsceneDescriptionCue> CreateGoldSaucerArcadeDescriptions() =>
+    [
+        // mogu_1 event(6) Main drives the whole Mog House show. Entity 8 is Mog and
+        // entity 9 is the visiting moogle; each byte below is the request that runs
+        // one of their animations.
+        new(508, 6, 0, 43,
+            "Mog steps out of his mushroom-shaped house.",
+            FieldOpcodeAddressResolver.OpcodeRequestEwIndex),
+        // 174 branches on the feeding count: 14 is the underfed attempt and 15 the
+        // overfed one. Both look the same from outside, and the count itself is not
+        // exposed here.
+        new(508, 6, 0, 188,
+            "Mog flaps his wings, hops into the air and drops back to the ground.",
+            FieldOpcodeAddressResolver.OpcodeRequestEwIndex),
+        new(508, 6, 0, 199,
+            "Mog flaps his wings, hops into the air and drops back to the ground.",
+            FieldOpcodeAddressResolver.OpcodeRequestEwIndex),
+        // 263 is the branch the script only reaches when the attempt succeeds.
+        new(508, 6, 0, 263,
+            "Mog hops onto a mushroom, then flies in a wide loop around his home.",
+            FieldOpcodeAddressResolver.OpcodeRequestEwIndex),
+        new(508, 6, 0, 284,
+            "Mog lands and goes back inside. The house lights dim.",
+            FieldOpcodeAddressResolver.OpcodeRequestEwIndex),
+        // The visitor is described as a pink moogle until the narrator names her.
+        new(508, 6, 0, 306,
+            "A pink moogle approaches the house.",
+            FieldOpcodeAddressResolver.OpcodeRequestEwIndex),
+        new(508, 6, 0, 322,
+            "She knocks at the door.",
+            FieldOpcodeAddressResolver.OpcodeRequestEwIndex),
+        new(508, 6, 0, 328,
+            "Mog comes outside.",
+            FieldOpcodeAddressResolver.OpcodeRequestEwIndex),
+
+        // The accepted feed. esa(7) Main byte 82 is where the thrown nut is taken:
+        // it runs mogu's eat animation, hides the nut and only then increments the
+        // count at byte 91. The count itself is never spoken, and the narrator's own
+        // instruction and Mog's native squeak are left alone. Recurring, because the
+        // player feeds him again and again without leaving the room.
+        new(508, 7, 0, 82,
+            "Mog eats the nut.",
+            FieldOpcodeAddressResolver.OpcodeRequestEwIndex,
+            RecurringGroup: "mog-feeding", StartsRecurringGroup: true),
+
+        // The rest of the show, which the earlier eight cues stopped short of.
+        // event(6) Main byte 522 starts animation 14 and byte 536 runs its long
+        // middle section, which is the circling itself; magu has been requested at
+        // 533 and is watching by then.
+        new(508, 6, 0, 536,
+            "Mog circles through the air while the pink moogle watches.",
+            FieldOpcodeAddressResolver.OpcodeRequestEwIndex),
+        // 628 places Mog at the door, opens it and walks him out; 644 does the same
+        // for the visitor. She is still unnamed here - the narrator introduces the
+        // name Mag at byte 663, after both of these.
+        new(508, 6, 0, 628,
+            "Mog comes out of the house.",
+            FieldOpcodeAddressResolver.OpcodeRequestEwIndex),
+        new(508, 6, 0, 644,
+            "The pink moogle comes out and stands beside him.",
+            FieldOpcodeAddressResolver.OpcodeRequestEwIndex),
+        // 666 and 669 walk both of them along the same four waypoints to the west
+        // and hide the models. The narrator has named Mag by this point.
+        new(508, 6, 0, 666,
+            "Mog and Mag walk away together towards the edge of the clearing.",
+            FieldOpcodeAddressResolver.OpcodeRequestSwIndex),
+        // 699..919 request entities 10..21 in turn, each of which becomes visible at
+        // the house and follows the same path away. No count is spoken: the number
+        // of them is not something the description needs to assert.
+        new(508, 6, 0, 699,
+            "Small moogles pour out of the house, hopping across the clearing one after another.",
+            FieldOpcodeAddressResolver.OpcodeRequestIndex),
+        new(508, 6, 0, 919,
+            "The last one stops, looks back, then hurries after the others.",
+            FieldOpcodeAddressResolver.OpcodeRequestEwIndex),
+
+        // The Wonder Catcher. Root's review established there is no separately moving
+        // claw model, so the visible action is Cloud working the machine's controls
+        // and its lights flashing. games_1 cloud(1) script 8 is the left-hand control
+        // side and script 9 the right-hand side of the *same* machine, and the two
+        // run the same four animations after the gil check at byte 88. The prize
+        // windows that follow are ordinary native dialogue.
+        //
+        // These are grouped as recurring: the machine can be played again without
+        // leaving the room, and the once-per-visit rule that suits a story action
+        // would leave every play after the first silent. The group is released by the
+        // native re-entry into its own first anchor.
+        new(506, 1, 8, 113,
+            "Cloud steps up to the Wonder Catcher and starts it.",
+            FieldOpcodeAddressResolver.OpcodeAnimOnceIndex,
+            RecurringGroup: "wonder-catcher-left", StartsRecurringGroup: true),
+        new(506, 1, 8, 127,
+            "He takes hold of the controls and the cabinet lights flash.",
+            FieldOpcodeAddressResolver.OpcodeCanm2Index,
+            RecurringGroup: "wonder-catcher-left"),
+        new(506, 1, 8, 140,
+            "Cloud holds still, watching the machine work.",
+            FieldOpcodeAddressResolver.OpcodeAnimHoldIndex,
+            RecurringGroup: "wonder-catcher-left"),
+        new(506, 1, 8, 389,
+            "Cloud lets go of the controls and steps back.",
+            FieldOpcodeAddressResolver.OpcodeCanm2Index,
+            RecurringGroup: "wonder-catcher-left"),
+        new(506, 1, 9, 108,
+            "Cloud steps up to the Wonder Catcher and starts it.",
+            FieldOpcodeAddressResolver.OpcodeAnimOnceIndex,
+            RecurringGroup: "wonder-catcher-right", StartsRecurringGroup: true),
+        new(506, 1, 9, 122,
+            "He takes hold of the controls and the cabinet lights flash.",
+            FieldOpcodeAddressResolver.OpcodeCanm2Index,
+            RecurringGroup: "wonder-catcher-right"),
+        new(506, 1, 9, 135,
+            "Cloud holds still, watching the machine work.",
+            FieldOpcodeAddressResolver.OpcodeAnimHoldIndex,
+            RecurringGroup: "wonder-catcher-right"),
+        new(506, 1, 9, 384,
+            "Cloud lets go of the controls and steps back.",
+            FieldOpcodeAddressResolver.OpcodeCanm2Index,
+            RecurringGroup: "wonder-catcher-right")
+    ];
+
+    /// <summary>
+    /// Reviewed first-visit Gold Saucer scenes. Text comes from root's footage-backed
+    /// review, and every anchor is an installed opcode inside a native GameMoment
+    /// gate, so these fire once during the first visit and never on a later one.
+    /// Party composition varies here, so no cue names a companion the native script
+    /// does not itself guarantee: only Yuffie's arrival sits behind a native
+    /// IFMEMBQ availability test, and only Cait Sith and Dio are fixed by script.
+    /// </summary>
+    public static IReadOnlyList<FieldCutsceneDescriptionCue> CreateGoldSaucerFirstVisitDescriptions() =>
+    [
+        // gldgate/dic Main byte 608 gates the arrival on GameMoment 436. The scroll
+        // at 622 and the linear pan at 629 settle first; 638 is the first request,
+        // which runs before any companion arrives at 644.
+        new(497, 0, 0, 638,
+            "Seven round, brightly coloured tube entrances ring a circular floor painted with a huge smiling face.",
+            FieldOpcodeAddressResolver.OpcodeRequestSwIndex),
+        // The arrival is companion-aware because the installed script is: each byte
+        // below requests one named entity, and only Yuffie's sits behind an
+        // availability test. Barret, Red XIII, Tifa and Aeris are requested
+        // unconditionally, so naming them is what the screen actually shows - the
+        // PRTYE at 617 reduces the *party* to Cloud, but these five are placed as
+        // field models regardless.
+        new(497, 0, 0, 644,
+            "Barret walks in and looks around.",
+            FieldOpcodeAddressResolver.OpcodeRequestIndex),
+        new(497, 0, 0, 650,
+            "Red XIII walks in and stops beside him.",
+            FieldOpcodeAddressResolver.OpcodeRequestIndex),
+        new(497, 0, 0, 656,
+            "Tifa runs in and joins them.",
+            FieldOpcodeAddressResolver.OpcodeRequestIndex),
+        // 662 IFMEMBQ tests Yuffie's availability, so 665 runs only when she is here.
+        new(497, 0, 0, 665,
+            "Yuffie joins the group on the terminal floor.",
+            FieldOpcodeAddressResolver.OpcodeRequestIndex),
+        new(497, 0, 0, 671,
+            "Aeris hurries up to Cloud.",
+            FieldOpcodeAddressResolver.OpcodeRequestEwIndex),
+        // The departure. 826 makes Barret unavailable and 848 runs his script 6,
+        // which walks him to a tube, jumps him into it and hides the model.
+        new(497, 0, 0, 848,
+            "Barret runs to one of the tubes and jumps in.",
+            FieldOpcodeAddressResolver.OpcodeRequestEwIndex),
+
+        // games/dic Main byte 68 gates the Wonder Square scene on GameMoment 440.
+        // 81 is the first request of entity 7, the cat, before any dialogue.
+        new(505, 0, 0, 81,
+            "A small crowned cat riding a large white moogle approaches Cloud.",
+            FieldOpcodeAddressResolver.OpcodeRequestSwIndex),
+
+        // coloss/dic Main byte 34 gates the Battle Square discovery on 442. The
+        // pan at 47..63 settles before the first request at 68, which is Cloud reacting.
+        new(499, 0, 0, 68,
+            "A broad staircase with a purple carpet rises between rows of green tube entrances toward the arena.",
+            FieldOpcodeAddressResolver.OpcodeRequestEwIndex),
+        new(499, 0, 0, 103,
+            "Cloud runs forward and kneels beside a fallen person at the foot of the stairs.",
+            FieldOpcodeAddressResolver.OpcodeSplitIndex),
+
+        // coloin2/dic Main byte 42 gates the lobby on 442. This description is the
+        // first-visit incident only; the ordinary Arena Lobby is field 500.
+        new(501, 0, 0, 51,
+            "Several people lie motionless across a black-and-white tiled floor, beside a purple carpet.",
+            FieldOpcodeAddressResolver.OpcodeRequestIndex),
+        new(501, 0, 0, 118,
+            "Dio and large guards close in on the party.",
+            FieldOpcodeAddressResolver.OpcodeRequestSwIndex),
+
+        // clsin2_1/dic Main byte 21 gates the arena on 442; the pan settles by byte 49.
+        new(502, 0, 0, 49,
+            "Cloud and his companions stand on a raised stone platform with a red circular floor design, " +
+            "surrounded by a glowing purple trench.",
+            FieldOpcodeAddressResolver.OpcodeRequestIndex),
+        // 61 and 67 are kei2 and kei3, whose scripts both make the model visible and
+        // run it to the platform before turning it round.
+        new(502, 0, 0, 61,
+            "A uniformed guard runs onto the platform.",
+            FieldOpcodeAddressResolver.OpcodeRequestIndex),
+        new(502, 0, 0, 67,
+            "A second guard runs on and turns to face the group.",
+            FieldOpcodeAddressResolver.OpcodeRequestIndex),
+        // me1, me2 and me3 are the three mechanical guards. me1 simply appears;
+        // me2 and me3 each play an animation and JUMP onto the platform.
+        new(502, 0, 0, 110,
+            "A tall mechanical guard steps out onto the platform.",
+            FieldOpcodeAddressResolver.OpcodeRequestEwIndex),
+        new(502, 0, 0, 128,
+            "A second mechanical guard leaps down onto the platform.",
+            FieldOpcodeAddressResolver.OpcodeRequestIndex),
+        new(502, 0, 0, 131,
+            "A third leaps down on the other side.",
+            FieldOpcodeAddressResolver.OpcodeRequestEwIndex),
+        // 152, 155 and 158 run script 4 on all three, which is one animation and a
+        // walk toward the party.
+        new(502, 0, 0, 152,
+            "The mechanical guards close in on Cloud and his companions.",
+            FieldOpcodeAddressResolver.OpcodeRequestIndex),
+
+        // clsin2_3/dic Main writes 445 at byte 54 and jumps to Corel Prison at 88.
+        // 28 runs kei1's script 4, which turns the attendant and works the switch
+        // entity that opens the floor.
+        //
+        // 48 and 51 are two REQSW requests that start Cloud's and the mechanical
+        // guard's own scripts, each a JUMP to the same point below followed by hiding
+        // the model. Two asynchronous requests animating two model entities are not
+        // two separate falls: root's reviewed frames at source 1374 s and
+        // 1383.5..1388.5 s show the guard holding Cloud against its front and leaping
+        // through the hatch with him still held. The earlier pair described Cloud
+        // tumbling alone and the guard following, which is not what is on screen, so
+        // the shared jump is one cue anchored to the first of the two requests.
+        new(504, 0, 0, 28,
+            "A uniformed guard works a control, and the circular floor hatch opens onto a dark shaft.",
+            FieldOpcodeAddressResolver.OpcodeRequestEwIndex),
+        new(504, 0, 0, 48,
+            "The mechanical guard leaps into the opening with Cloud held against it.",
+            FieldOpcodeAddressResolver.OpcodeRequestSwIndex),
+
+        // jet: Dio's optional conversation. sen(6) script 5 is the one-shot LINE
+        // trigger that runs it, gated in dio's own init on GameMoment 440..442 and
+        // Bank[3][67] bit 1, so it happens once and only on this visit.
+        new(486, 6, 5, 10,
+            "A tall, heavily built man steps in front of Cloud.",
+            FieldOpcodeAddressResolver.OpcodeRequestSwIndex),
+        new(486, 6, 5, 464,
+            "Dio walks away across the square and out of sight.",
+            FieldOpcodeAddressResolver.OpcodeRequestSwIndex)
     ];
 
     public static IReadOnlyList<FieldCutsceneDescriptionCue> CreateOpeningTrainArrival() =>
@@ -1125,20 +1609,230 @@ public static class FieldCutsceneDescriptionCatalog
             0,
             0,
             79,
-            "The view sweeps from Lower Junon up the vast metal fortress to the Mako cannon and airfield above.",
+            "From an industrial bay, the view sweeps across Junon's vast cliffside Mako cannon, ribbed tower, red-bannered armor, stairways, and platforms above the sea. The story continues automatically when the panorama ends.",
             FieldOpcodeAddressResolver.OpcodeMovieIndex)
+    ];
+
+    /// <summary>
+    /// Upper Junon through the cargo-ship engine room. Movie cues anchor on the
+    /// native playMovie opcode, matching the field 359 entry already here.
+    /// </summary>
+    public static IReadOnlyList<FieldCutsceneDescriptionCue> CreateUpperJunonThroughCargoShipDescriptions() =>
+    [
+        // junair/dir Script 3 is the airport lift toggle. box0/Init adds a
+        // +624 display offset only while Bank 1[226] bit 6 is clear, placing
+        // the lift on the raised airfield level. Movie 13 clears the bit and
+        // raises the lift; movie 14 sets it and lowers the lift. The native
+        // filename table independently identifies them as junair_u and
+        // junair_d.
+        new(
+            384,
+            0,
+            3,
+            73,
+            "A massive stone-tiled airport lift rises from the pit, red edge lights glowing as it exposes the dark industrial shaft below.",
+            FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        new(
+            384,
+            0,
+            3,
+            201,
+            "The massive airport lift descends back into the pit until its tiled surface lies flush with the airfield.",
+            FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        // junair2/dir Main plays movie 38 during the first visit, when the
+        // story moment is 400. The executable's movie pointer table identifies
+        // movie 38 as hiwind0.avi.
+        new(
+            385,
+            0,
+            0,
+            136,
+            "Cloud climbs a ladder beneath the huge, balloon-backed Highwind; the view cuts to a smaller, sleek aircraft hovering over the airfield against the orange-purple sunset.",
+            FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        // junele2/direct Script 1 is called by produce/Main on field entry and
+        // Script 2 by border2/Go on the way out. The executable's movie table
+        // maps them to junelein and junelego. Frame inspection shows the open
+        // platform rising toward the camera in the first and rising away
+        // through the overhead opening in the second; no doors are visible.
+        new(
+            391,
+            2,
+            1,
+            5,
+            "A hazard-striped metal lift rises through a dark, pipe-lined circular shaft, orange light glowing beneath it beside a green-lit opening in the wall.",
+            FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        new(
+            391,
+            2,
+            2,
+            19,
+            "Viewed from below, the hazard-striped lift rises away through the dark, pipe-lined shaft and disappears through the opening overhead, leaving a green wall light below.",
+            FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        // junin7/direct Script 2 is started on field entry and Script 1 from
+        // border1/Go on exit. The movie table maps them to junin_in and
+        // junin_go. Direct frame inspection shows the same industrial
+        // platform and glowing CAUTION sign: it rises into view on entry and
+        // descends into the orange-lit shaft on exit.
+        new(
+            395,
+            3,
+            2,
+            8,
+            "A hazard-striped platform rises into view in a dark circular shaft beneath a glowing CAUTION sign; red indicators shine as pale vapor floods the chamber.",
+            FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        new(
+            395,
+            3,
+            1,
+            19,
+            "The hazard-striped platform descends into the dark shaft beneath the glowing CAUTION sign as orange light swells from the pit below.",
+            FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        // shpin_3/ELINE Go 1x. Byte 93 is the first of three entityExecuteSync
+        // calls into entity 8, CEFIROS. The line before it, dialog 5, is spoken
+        // text the reader already delivers, so this cue carries only the sight.
+        new(
+            440,
+            15,
+            5,
+            93,
+            "Sephiroth rises through the floor, silver hair trailing over his long black coat.",
+            FieldOpcodeAddressResolver.OpcodeRequestEwIndex),
+        // Bytes 155, 188 and 213 are three identical green fades before
+        // startBattle 488. Only the first is cued; the other two would repeat it.
+        new(
+            440,
+            15,
+            5,
+            155,
+            "Sephiroth flies past. Cloud falls amid green flashes.",
+            FieldOpcodeAddressResolver.OpcodeFadeIndex)
+    ];
+
+    /// <summary>
+    /// Costa del Sol, Corel and Gold Saucer arrival actions reviewed against
+    /// gameplay footage and exact installed field instructions. ViddyScribe
+    /// drafts and corrections are recorded in the accompanying analysis.
+    /// </summary>
+    public static IReadOnlyList<FieldCutsceneDescriptionCue> CreateCorelJourneyVisualDescriptions() =>
+    [
+        new(449, 5, 9, 0,
+            "Cloud and his companions gather around Hojo on the beach.",
+            FieldOpcodeAddressResolver.OpcodeSplitIndex),
+        new(449, 12, 14, 149,
+            "Hojo steps back and turns away from the group.",
+            FieldOpcodeAddressResolver.OpcodeAnimHoldIndex),
+        new(464, 9, 5, 151,
+            "The railway bridge lowers into place.",
+            FieldOpcodeAddressResolver.OpcodeRequestSwIndex),
+        // The native landing finishes before this WAIT. The next phase waits
+        // indefinitely for a fresh OK/Cancel edge, then LADER requires Up.
+        new(463, 0, 0, 66,
+            "Cloud hangs below the tracks. Press OK, then hold Up to climb back."),
+        new(450, 13, 4, 13,
+            "A townsman punches Barret, knocking him down."),
+        new(469, 3, 0, 34,
+            "A flashback shows wooden houses along Corel's busy streets."),
+        new(483, 2, 0, 6,
+            "Barret, Dyne, Scarlet and villagers gather in a small room lined with shelves."),
+        new(470, 3, 0, 53,
+            "Flames engulf Corel's wooden houses."),
+        new(457, 2, 3, 109,
+            "The blue cable car pulls away from the station and climbs along the cables.",
+            FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        new(457, 2, 4, 16,
+            "The blue cable car pulls away from the station and climbs along the cables.",
+            FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        new(496, 0, 0, 190,
+            "The cable car glides above the clouds toward the Gold Saucer. Huge golden platforms glow with lights, rides and towering attractions as the car approaches the neon entrance.",
+            FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        new(496, 0, 0, 201,
+            "The cable car docks inside a brightly colored station decorated with giant cartoon figures.",
+            FieldOpcodeAddressResolver.OpcodeMovieIndex)
+    ];
+
+    /// <summary>Reviewed Junon, cargo-ship and Costa del Sol arrival actions.</summary>
+    public static IReadOnlyList<FieldCutsceneDescriptionCue> CreateJunonJourneyVisualDescriptions() =>
+    [
+        // The uniform model becomes visible immediately before its scripted walk
+        // out of the lockers. This is not the repeating idle/field-entry VISI.
+        new(387, 17, 3, 17,
+            "Cloud steps out in a blue Shinra uniform and helmet, carrying a rifle.",
+            FieldOpcodeAddressResolver.OpcodeVisibilityIndex),
+        new(361, 14, 9, 93,
+            "Heidegger swings his arms among the scattered soldiers, then advances on Cloud.",
+            FieldOpcodeAddressResolver.OpcodeAnime1Index),
+        new(361, 5, 1, 50,
+            "The soldiers run off, leaving Cloud behind with the captain.",
+            FieldOpcodeAddressResolver.OpcodeRequestSwIndex),
+        // The demonstration after choosing the finishing move; no added speech
+        // during the later timed button-press performance.
+        new(387, 17, 16, 32,
+            "Cloud twirls his rifle and finishes in a pose.",
+            FieldOpcodeAddressResolver.OpcodeAnime1Index),
+        // SCR2DL at byte 23 starts the pan. This next request runs as it begins.
+        new(382, 3, 0, 32,
+            "The view pans down the ship to its open cargo ramp and the soldiers waiting on the dock.",
+            FieldOpcodeAddressResolver.OpcodeRequestEwIndex),
+        new(382, 19, 11, 34,
+            "Heidegger advances with raised arms. The captain and nearby soldiers recoil.",
+            FieldOpcodeAddressResolver.OpcodeAnime1Index),
+        // This loop starts in Red's first Talk script. His Main-script loop also
+        // runs offscreen and must never be used as a narration trigger.
+        new(436, 14, 1, 135,
+            "Red XIII sways awkwardly on two legs inside a sailor's uniform.",
+            FieldOpcodeAddressResolver.OpcodeDfanmIndex),
+        new(437, 3, 1, 129,
+            "Barret strides away from the bridge window and raises his fists.",
+            FieldOpcodeAddressResolver.OpcodeAnimHoldIndex),
+        new(440, 15, 5, 29,
+            "A red-uniformed crewman collapses and fades away.",
+            FieldOpcodeAddressResolver.OpcodeRequestEwIndex),
+        // After FADEW at 298, before party-specific reactions. Names and poses
+        // vary with party composition, so describe only the visible object.
+        new(440, 15, 5, 299,
+            "A severed arm lies on the deck between Cloud and his companions.",
+            FieldOpcodeAddressResolver.OpcodeWaitIndex),
+        // Cloud is revealed after the other companions have disembarked.
+        new(441, 7, 6, 15,
+            "The party gathers on a sunlit quay beside the cargo ship. A red seaplane floats nearby.",
+            FieldOpcodeAddressResolver.OpcodeVisibilityIndex),
+        // del12 is the separate Rufus/Heidegger dock scene, not arrival field441.
+        new(442, 9, 3, 33,
+            "A helicopter sweeps over the dock toward the helipad.",
+            FieldOpcodeAddressResolver.OpcodeVisibilityIndex),
+        new(442, 8, 11, 17,
+            "Heidegger knocks two sailors off the dock into the water.",
+            FieldOpcodeAddressResolver.OpcodeRequestEwIndex),
+        new(442, 9, 4, 45,
+            "The helicopter lifts off, leaving Heidegger on the dock.",
+            FieldOpcodeAddressResolver.OpcodeWaitIndex)
     ];
 }
 
+/// <param name="RecurringGroup">
+/// Non-empty for a cue that belongs to a minigame action the player repeats without
+/// leaving the room. A story action happens once per visit and is deduped for the
+/// whole visit, which is right for it and wrong for a machine that can be played
+/// again: the second play would be silent. Every cue in a group is released for
+/// description again when that group's own opening anchor runs again, which is the
+/// native re-entry into the script rather than a timer or a guess.
+/// </param>
+/// <param name="StartsRecurringGroup">
+/// True on the one anchor whose native execution begins the repeatable action.
+/// </param>
 public readonly record struct FieldCutsceneDescriptionCue(
     int FieldId,
     int EntityId,
     int ScriptId,
     int ByteIndex,
     string Text,
-    int Opcode = FieldOpcodeAddressResolver.OpcodeWaitIndex)
+    int Opcode = FieldOpcodeAddressResolver.OpcodeWaitIndex,
+    string RecurringGroup = "",
+    bool StartsRecurringGroup = false)
 {
     public FieldCutsceneDescriptionKey Key => new(FieldId, EntityId, ScriptId, ByteIndex);
+
+    public bool IsRecurring => !string.IsNullOrEmpty(RecurringGroup);
 }
 
 public readonly record struct FieldCutsceneDescriptionKey(

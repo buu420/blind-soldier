@@ -16,13 +16,18 @@ internal static class HighwayStateReaderTests
         var memory = CreateStableMemory();
         var reader = new HighwayStateReader(memory);
 
-        Equal(true, reader.TryRead(out var snapshot), "stable highway snapshot");
+        // The diagnostic rides along with the assertion. A field this reader started
+        // requiring after the fixture was written fails here as a bare false, and the
+        // reason it failed is the only thing that says which field it was.
+        var read = reader.TryRead(out var snapshot);
+        Equal(true, read, $"stable highway snapshot; {reader.LastDiagnostic}");
         Equal(HighwayStateReader.HighwayModule, snapshot.Module, "native highway module");
         Equal(1000d, snapshot.Cloud.LateralUnits, "Cloud fixed-point lateral position");
         Equal(2000d, snapshot.Cloud.LongitudinalUnits, "Cloud fixed-point longitudinal position");
         Equal(-250d, snapshot.Truck.LateralUnits, "truck fixed-point lateral position");
         Equal(3200d, snapshot.Truck.LongitudinalUnits, "truck fixed-point longitudinal position");
         Equal(3210, snapshot.Score, "native highway score");
+        Equal(9870, snapshot.HighScore, "native highway high score");
         Equal(true, snapshot.IsStoryChase, "native story chase flag");
 
         Equal(4, snapshot.PartyHealth.Count, "initialized party health entries only");
@@ -189,6 +194,12 @@ internal static class HighwayStateReaderTests
 
         WriteInt32(memory, (uint)HighwayStateReader.AddressStoryMode, 0);
         WriteInt32(memory, (uint)HighwayStateReader.AddressScore, 3210);
+
+        // HI-SCORE, which the arcade HUD draws beside the running score. The reader
+        // takes it in the same primitive block as the score, so a fixture that leaves
+        // it out fails the whole snapshot rather than only the field. It is seeded to
+        // something the score is not, so reading the wrong address cannot pass.
+        WriteInt32(memory, (uint)HighwayStateReader.AddressHighScore, 9870);
         return memory;
     }
 

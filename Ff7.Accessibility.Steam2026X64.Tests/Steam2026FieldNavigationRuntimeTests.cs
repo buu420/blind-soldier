@@ -20,8 +20,10 @@ internal static class Steam2026FieldNavigationRuntimeTests
         AllowsStoryAndObjectSelectionWhileExitRoutesAreIncoherent();
         PausesLiveTrackingWhileItsTargetOrRouteDomainIsIncoherent();
         DistinguishesCoherentBlockedRoutesFromNativeReadFailures();
+        RunPlannerCapabilities();
         RetainsToggleWhenBoundaryTurnsUnreadableDuringActionPreflight();
         ReplaysOptionalManualRoutePreflightWithoutRereadingNativeState();
+        ManualFallRewardGuidanceNeedsObjectCoherenceWithoutRouteCoherence();
         SkipsDirectionalInputWhenOnlySpatialFieldFeaturesOwnTheRuntime();
         IncludesDynamicDestinationInGatewayIdentity();
         FiltersScriptExitsByNativeProgressionState();
@@ -254,8 +256,23 @@ internal static class Steam2026FieldNavigationRuntimeTests
 
     private static void InterruptsSupersededDynamicGuidance()
     {
+        var ordinary = RunDynamicGuidance(renderOffsetZ: 0);
+        var airportLift = RunDynamicGuidance(renderOffsetZ: 624);
+        SequenceEqual(ordinary, airportLift,
+            "x64 runtime navigation must not change its route or speech when only OFST changes");
+    }
+
+    private static IReadOnlyList<(string Text, bool Interrupt)> RunDynamicGuidance(int renderOffsetZ)
+    {
         var fixture = FieldObservationFixture.CreatePopulated();
-        PopulateSingleTriangleWalkmesh(fixture);
+        fixture.Write(
+            FieldObservationFixture.ModelBase + FieldPositionReader.ModelZOffset,
+            BitConverter.GetBytes(300 + renderOffsetZ));
+        PopulateSingleTriangleWalkmesh(fixture, stackedFloor: true);
+        fixture.Write(
+            (uint)FieldPositionReader.AddressFieldModelsObjs + FieldPositionReader.FieldObjectStride +
+                FieldPositionReader.ObjectTriangleOffset,
+            BitConverter.GetBytes((ushort)0));
         fixture.Write(
             FieldObservationFixture.FieldGlobalPointer + FieldBoundaryStateReader.BoundaryBitsOffset,
             [0, 0]);
@@ -370,7 +387,7 @@ internal static class Steam2026FieldNavigationRuntimeTests
         Equal(
             true,
             spoken.Count >= 3,
-            "active beacon emits subsequent dynamic guidance; " +
+            "active navigation emits subsequent dynamic guidance; " +
             $"diagnostics={string.Join(" | ", diagnostics)}");
         Equal(
             true,
@@ -384,6 +401,7 @@ internal static class Steam2026FieldNavigationRuntimeTests
             true,
             autoWalkSink.Batches.SelectMany(batch => batch).Any(transition => transition.IsKeyDown),
             "x64 field integration injects the route-owned directional key");
+        return spoken;
     }
 
     private static void PlaysOnlyCoherentForegroundReachableExitPoints()
@@ -709,6 +727,226 @@ internal static class Steam2026FieldNavigationRuntimeTests
             "nonthrowing Invalid boundary state marks the route domain incoherent instead of looking like a legitimate blocked route");
     }
 
+    internal static void RunPlannerCapabilities()
+    {
+        PreservesNativePlannerCapabilitiesThroughTheController();
+        OptionalPlannerReadsPreserveArgumentsAndFailClosed();
+        PreparedActionRoutesKeepTheirSnapshotWithoutOptionalRereads();
+        MissingOptionalPlannerCapabilitiesNeverAuthorizeMovement();
+    }
+
+    private static readonly FieldPositionSnapshot CapabilityPosition = new(1, 453, 0, 138, 163, 0, 7, 0)
+    {
+        NativeFixedPosition = new(567420, 668896, 0)
+    };
+
+    private static readonly FieldNavigationTarget CapabilityTarget = new(
+        453, FieldNavigationCategory.Exits, "Exit to North Corel", 138, -217, 0, "453:wrapper-exit");
+
+    private static void PreservesNativePlannerCapabilitiesThroughTheController()
+    {
+        var inner = new CapabilityRoutePlanner();
+        var wrapper = new Steam2026FailClosedFieldRoutePlanner(inner);
+        var controller = new FieldNavigationController(new FieldNavigationTargetSource([CapabilityTarget]), wrapper);
+        var control = new FieldNavigationControlTransform(-128);
+        wrapper.BeginObservation();
+        controller.HandleAction(FieldNavigationAction.ToggleBeacon, CapabilityPosition, control);
+        Equal(true, controller.TryResolveAutomaticInput(CapabilityPosition, control, 80, out var input),
+            "a clear native short step remains usable through the x64 controller wrapper");
+        Equal(FieldNavigationInput.Down, input, "the short step preserves the native Down input");
+        Equal(1, inner.Calls.Count(call => call == "native automatic movement"),
+            "x64 must actually consult native movement feasibility instead of hiding its optional interface");
+        Equal(CapabilityPosition, inner.LastPosition, "the controller forwards the complete precise snapshot");
+        Equal((byte?)0, inner.LastRequestedHeading, "the control transform's exact native heading survives the wrapper");
+        Equal(CapabilityTarget, inner.LastTarget, "the native check receives the active target");
+
+        wrapper.BeginObservation();
+        controller.UpdateLiveTracking(CapabilityPosition, new(0, FieldNavigationInput.None), control, false, 80,
+            observedAt: DateTime.UnixEpoch);
+        Equal(1, inner.Calls.Count(call => call == "corridor"), "live tracking reaches the native corridor observer");
+        Equal(CapabilityPosition, inner.LastPosition, "corridor observation retains precise player coordinates");
+        Equal(true, controller.CurrentRouteGuidance?.UsesNativeProbeClearance == true,
+            "the x64 route retains the native probe mode");
+
+        wrapper.BeginObservation();
+        inner.Coherent = false;
+        var calls = inner.Calls.Count;
+        Equal(false, controller.TryResolveAutomaticInput(CapabilityPosition, control, 80, out input),
+            "an unreadable native movement check cannot produce automatic input");
+        Equal(FieldNavigationInput.None, input, "read failure yields no held direction");
+        Equal(calls + 1, inner.Calls.Count, "the controller cannot retry other inputs after the observation became incoherent");
+        Equal(true, wrapper.HadReadFailure, "native feasibility failure reaches the x64 coherence gate");
+        inner.Coherent = true;
+        wrapper.BeginObservation();
+        Equal(true, controller.TryResolveAutomaticInput(CapabilityPosition, control, 80, out _),
+            "a later coherent observation can resume the same route");
+    }
+
+    private static void OptionalPlannerReadsPreserveArgumentsAndFailClosed()
+    {
+        var inner = new CapabilityRoutePlanner();
+        var wrapper = new Steam2026FailClosedFieldRoutePlanner(inner);
+        var movement = Capability<IFieldNavigationAutomaticMovementPlanner>(wrapper);
+        var corridor = Capability<IFieldNavigationCorridorLookaheadPlanner>(wrapper);
+        var refresh = Capability<IFieldNavigationRouteRefreshPlanner>(wrapper);
+        var endpoint = new FieldNavigationRouteWaypoint(138, 155, 0);
+        var action = new FieldNavigationRouteAction(FieldNavigationTransitionKind.Ladder, "ladder:pending",
+            new(138, 120, 0), FieldNavigationInput.Up, new(138, 100, 0), 7, true, 0);
+        var heading = new FieldNavigationRouteHeading(true, 0, -8, "exact route heading", true, 9, 1);
+        FieldNavigationCorridorObservation observation = default;
+        FieldNavigationRoutePlan refreshed = null!;
+        (string Name, Func<bool> Read)[] reads =
+        [
+            ("automatic movement", () => movement.IsAutomaticMovementClear(CapabilityPosition, CapabilityTarget, endpoint)),
+            ("native continuation", () => movement.IsNativeProbeMovementClear(CapabilityPosition, CapabilityTarget, endpoint)),
+            ("native automatic movement", () => movement.IsNativeProbeAutomaticMovementClear(
+                CapabilityPosition, CapabilityTarget, endpoint, 52)),
+            ("corridor", () => corridor.TryObserveCorridor(CapabilityPosition, inner.Plan,
+                inner.Plan.StableWaypointsOverride!, 1, action, heading, out observation)),
+            ("refresh", () => refresh.TryBuildRouteFromCurrentTriangle(
+                CapabilityPosition, CapabilityTarget, 7, out refreshed))
+        ];
+
+        foreach (var read in reads)
+        {
+            wrapper.BeginObservation();
+            inner.Result = true;
+            inner.Coherent = true;
+            inner.Throws = false;
+            Equal(true, read.Read(), read.Name + " success is delegated");
+            Equal(read.Name, inner.Calls[^1], read.Name + " uses its distinct native method");
+            Equal(CapabilityPosition, inner.LastPosition, read.Name + " preserves exact metadata");
+            Equal(inner.LastDiagnostic, wrapper.LastDiagnostic, read.Name + " preserves the native diagnostic");
+            if (read.Name == "corridor")
+            {
+                Equal(inner.Observation, observation, "corridor output is forwarded without inventing clearance");
+                Equal(true, ReferenceEquals(inner.Plan, inner.LastPlan), "corridor receives the committed plan unchanged");
+                Equal(true, ReferenceEquals(inner.Plan.StableWaypointsOverride, inner.LastSteps), "corridor keeps the stable step sequence");
+                Equal(1, inner.LastWaypointIndex, "corridor keeps the current step index");
+                Equal((FieldNavigationRouteAction?)action, inner.LastAction, "corridor keeps pending native action gates");
+                Equal(heading, inner.LastRouteHeading, "corridor keeps recovery and heading evidence");
+            }
+            else if (read.Name == "refresh")
+            {
+                Equal(true, ReferenceEquals(inner.Plan, refreshed), "refresh preserves native plan flags and geometry");
+                Equal(7, inner.LastResolvedTriangle, "refresh preserves the already resolved triangle");
+            }
+            else
+            {
+                Equal(endpoint, inner.LastDestination, read.Name + " preserves the bounded destination");
+                if (read.Name == "native automatic movement")
+                    Equal((byte?)52, inner.LastRequestedHeading, "non-cardinal native heading is not reconstructed");
+            }
+
+            wrapper.BeginObservation();
+            inner.Result = false;
+            Equal(false, read.Read(), read.Name + " coherent blocked result remains blocked");
+            Equal(false, wrapper.HadReadFailure, read.Name + " blockage is not a read failure");
+            AssertNoOutput();
+
+            wrapper.BeginObservation();
+            inner.Result = true;
+            inner.Coherent = false;
+            Equal(false, read.Read(), read.Name + " cannot expose a successful result from an incoherent read");
+            Equal(true, wrapper.HadReadFailure, read.Name + " marks the observation incoherent");
+            AssertNoOutput();
+            var count = inner.Calls.Count;
+            var diagnostic = wrapper.LastDiagnostic;
+            inner.Coherent = true;
+            Equal(false, read.Read(), read.Name + " stays failed closed until BeginObservation");
+            Equal(count, inner.Calls.Count, read.Name + " cannot reread past a sticky failure");
+            Equal(diagnostic, wrapper.LastDiagnostic, read.Name + " retains the failure diagnostic");
+
+            wrapper.BeginObservation();
+            inner.Throws = true;
+            Equal(false, read.Read(), read.Name + " translated read exception fails closed");
+            Equal(true, wrapper.HadReadFailure, read.Name + " exception marks native data unreadable");
+            Equal(true, wrapper.LastDiagnostic.Contains("native capability read changed", StringComparison.Ordinal),
+                read.Name + " exception diagnostic is preserved");
+            AssertNoOutput();
+            inner.Throws = false;
+            wrapper.BeginObservation();
+            Equal(true, read.Read(), read.Name + " recovers only on a new observation");
+
+            void AssertNoOutput()
+            {
+                if (read.Name == "corridor") Equal(default(FieldNavigationCorridorObservation), observation,
+                    "failed corridor read cannot leak stale waypoint guidance");
+                if (read.Name == "refresh") Equal<FieldNavigationRoutePlan?>(null, refreshed,
+                    "failed refresh cannot leak a stale route");
+            }
+        }
+    }
+
+    private static void PreparedActionRoutesKeepTheirSnapshotWithoutOptionalRereads()
+    {
+        var inner = new CapabilityRoutePlanner();
+        var wrapper = new Steam2026FailClosedFieldRoutePlanner(inner);
+        var controller = new FieldNavigationController(new FieldNavigationTargetSource([CapabilityTarget]), wrapper);
+        var pending = new Steam2026FieldNavigationPendingActionBuffer();
+        var coherence = new Steam2026FieldNavigationDomainCoherence(true, true, true, true, true);
+        var control = new FieldNavigationControlTransform(-128);
+        foreach (var action in new[] { FieldNavigationAction.ToggleBeacon, FieldNavigationAction.NextTarget })
+        {
+            wrapper.BeginObservation();
+            inner.Calls.Clear();
+            pending.Capture([action]);
+            Equal(true, Steam2026FieldNavigationPendingActionExecutor.TryExecuteNext(pending, 453, controller,
+                wrapper, CapabilityPosition, control, ref coherence, out _, out var speech),
+                "the real pending executor commits a coherent cached action");
+            Equal(0, pending.Count, "a coherent action is consumed once");
+            Equal("resolve,build", string.Join(',', inner.Calls), "action replay performs no optional native reads after preflight");
+            Equal(true, controller.BeaconEnabled, "selection speech does not discard the active route");
+            Equal(new FieldNavigationRouteWaypoint(138, 120, 0), controller.CurrentRouteGuidance!.Value.Waypoint,
+                "cached startup guidance survives local selection tracker handling");
+            Equal(true, controller.CurrentRouteGuidance.Value.UsesNativeProbeClearance, "relock keeps native probe mode");
+            Equal(true, speech is { } selectedSpeech &&
+                        selectedSpeech.Speech.Contains("Exit to North Corel", StringComparison.Ordinal) &&
+                        selectedSpeech.Speech.Contains("down", StringComparison.OrdinalIgnoreCase) &&
+                        !selectedSpeech.Speech.Contains("at destination", StringComparison.OrdinalIgnoreCase),
+                "the pending action retains useful direction speech from its cached route");
+            Equal(true, coherence.Route, "suppressing optional action-time reads does not invent incoherence");
+        }
+
+        wrapper.BeginObservation();
+        Equal(true, wrapper.PrepareActionRoute(CapabilityPosition, CapabilityTarget).IsCoherent,
+            "precision test prepares a coherent route");
+        inner.Calls.Clear();
+        var refresh = Capability<IFieldNavigationRouteRefreshPlanner>(wrapper);
+        Equal(true, refresh.TryBuildRouteFromCurrentTriangle(CapabilityPosition, CapabilityTarget, 7, out var cached),
+            "matching refresh replays the prepared plan");
+        Equal(true, ReferenceEquals(inner.Plan, cached), "prepared refresh returns the same native plan");
+        Equal(0, inner.Calls.Count, "prepared refresh never rereads native state");
+        var changedFraction = CapabilityPosition with { NativeFixedPosition = new(567421, 668896, 0) };
+        Equal(false, wrapper.TryBuildRoute(changedFraction, CapabilityTarget, out _),
+            "identical integer XYZ cannot replay preflight from a different native fraction");
+        Equal(true, wrapper.HadReadFailure, "precise preflight identity mismatch fails closed");
+        Equal(0, inner.Calls.Count, "mismatched precision does not cause an unprepared native reread");
+        wrapper.CompletePreparedActionRoute();
+    }
+
+    private static void MissingOptionalPlannerCapabilitiesNeverAuthorizeMovement()
+    {
+        var wrapper = new Steam2026FailClosedFieldRoutePlanner(new RecordingRoutePlanner(false, false));
+        var movement = Capability<IFieldNavigationAutomaticMovementPlanner>(wrapper);
+        wrapper.BeginObservation();
+        Equal(false, movement.IsAutomaticMovementClear(CapabilityPosition, CapabilityTarget, new(138, 155, 0)),
+            "missing movement capability is not unconditional clearance");
+        Equal(false, movement.IsNativeProbeMovementClear(CapabilityPosition, CapabilityTarget, new(138, 155, 0)),
+            "missing native continuation capability is not replaced with a weaker check");
+        Equal(false, movement.IsNativeProbeAutomaticMovementClear(CapabilityPosition, CapabilityTarget, new(138, 155, 0), 0),
+            "missing immediate native capability is not unconditional clearance");
+        var inner = new CapabilityRoutePlanner();
+        Equal(false, Capability<IFieldNavigationCorridorLookaheadPlanner>(wrapper).TryObserveCorridor(
+            CapabilityPosition, inner.Plan, inner.Plan.StableWaypointsOverride!, 0, null, default, out _),
+            "missing corridor capability cannot invent visible geometry");
+        Equal(false, Capability<IFieldNavigationRouteRefreshPlanner>(wrapper).TryBuildRouteFromCurrentTriangle(
+            CapabilityPosition, CapabilityTarget, 7, out _), "missing refresh capability fails closed");
+    }
+
+    private static T Capability<T>(object planner) where T : class => planner as T ??
+        throw new InvalidOperationException("The x64 fail-closed wrapper hides " + typeof(T).Name + ".");
+
     private static FieldWalkmeshReader CreateSingleTriangleWalkmeshReader()
     {
         const int fieldDataBase = 0x02000000;
@@ -875,6 +1113,43 @@ internal static class Steam2026FieldNavigationRuntimeTests
         Equal(true, result?.Speech.Contains("Follow Avalanche", StringComparison.Ordinal) == true, "manual target label is still spoken");
         Equal(false, controller.BeaconEnabled, "optional manual speech never starts navigation");
         Equal(false, coherence.Route, "optional invalid route is retained as an incoherent route domain");
+    }
+
+    private static void ManualFallRewardGuidanceNeedsObjectCoherenceWithoutRouteCoherence()
+    {
+        var target = FieldManualObjectGuidanceTests.CreateVisibleFallReward();
+        var position = new FieldPositionSnapshot(1, 463, 0, 0, 0, 0, 0, 0);
+        var nativePlanner = new CountingIncoherentRoutePlanner();
+        var routePlanner = new Steam2026FailClosedFieldRoutePlanner(nativePlanner);
+        var controller = new FieldNavigationController(new FieldNavigationTargetSource([target]), routePlanner);
+        while (controller.CurrentCategory != FieldNavigationCategory.Objects)
+            controller.HandleAction(FieldNavigationAction.NextCategory, position);
+        var pending = new Steam2026FieldNavigationPendingActionBuffer();
+        pending.Capture([FieldNavigationAction.ToggleBeacon]);
+        var coherence = new Steam2026FieldNavigationDomainCoherence(
+            Exits: false, Story: false, Npcs: false, Objects: false, Route: false);
+        Equal(false, Steam2026FieldNavigationPendingActionExecutor.TryExecuteNext(pending, 463, controller,
+            routePlanner, position, new(0), ref coherence, out _, out _),
+            "manual reward speech still requires coherent native Objects and collection state");
+        Equal(1, pending.Count, "incoherent Objects retain the user's pending request");
+        coherence = coherence with { Objects = true };
+        Equal(true, Steam2026FieldNavigationPendingActionExecutor.TryExecuteNext(pending, 463, controller,
+            routePlanner, position, new(0), ref coherence, out _, out var result),
+            "a coherent manual reward must explain its controls even while the walking route is unreadable");
+        Equal(0, pending.Count, "manual guidance consumes the user's P/beacon request");
+        Equal(false, controller.BeaconEnabled, "manual reward instructions do not start navigation");
+        Equal(0, nativePlanner.ResolveCalls, "manual guidance must not probe the unrelated unreadable walkmesh");
+        Equal(true, result?.Speech.Contains("repeatedly press OK", StringComparison.OrdinalIgnoreCase) == true,
+            "the manual fall controls remain audible through the x64 action executor");
+
+        var emptyController = new FieldNavigationController(new FieldNavigationTargetSource([]), routePlanner);
+        while (emptyController.CurrentCategory != FieldNavigationCategory.Objects)
+            emptyController.HandleAction(FieldNavigationAction.NextCategory, position);
+        pending.Capture([FieldNavigationAction.ToggleBeacon]);
+        Equal(false, Steam2026FieldNavigationPendingActionExecutor.TryExecuteNext(pending, 463, emptyController,
+            routePlanner, position, new(0), ref coherence, out _, out _),
+            "having no selected target must not inherit the manual-reward exception to route coherence");
+        Equal(1, pending.Count, "ordinary no-target route-incoherent toggles retain their original pending behavior");
     }
 
     private static void SkipsDirectionalInputWhenOnlySpatialFieldFeaturesOwnTheRuntime()
@@ -1671,10 +1946,11 @@ internal static class Steam2026FieldNavigationRuntimeTests
         Equal(9, snapshot.Position.TriangleId, "native triangle remains independently recorded");
     }
 
-    private static void PopulateSingleTriangleWalkmesh(FieldObservationFixture fixture)
+    private static void PopulateSingleTriangleWalkmesh(FieldObservationFixture fixture, bool stackedFloor = false)
     {
         const uint fieldDataBase = 0x00080000;
         const int sectionOffset = 0x100;
+        var triangleCount = stackedFloor ? 2 : 1;
         fixture.Write(
             (uint)FieldWalkmeshReader.AddressFieldDataPtr,
             BitConverter.GetBytes(fieldDataBase));
@@ -1688,10 +1964,9 @@ internal static class Steam2026FieldNavigationRuntimeTests
                 sectionOffset +
                 sizeof(int) +
                 sizeof(int) +
-                FieldWalkmeshReader.TriangleSize +
-                FieldWalkmeshReader.AccessSize));
+                triangleCount * (FieldWalkmeshReader.TriangleSize + FieldWalkmeshReader.AccessSize)));
         var payload = fieldDataBase + sectionOffset + sizeof(int);
-        fixture.Write(payload, BitConverter.GetBytes(1));
+        fixture.Write(payload, BitConverter.GetBytes(triangleCount));
         var triangleBase = payload + sizeof(int);
         var vertices = new short[]
         {
@@ -1699,17 +1974,24 @@ internal static class Steam2026FieldNavigationRuntimeTests
             300, -300, 300, 0,
             0, 0, 300, 0
         };
-        for (var index = 0; index < vertices.Length; index++)
+        for (var triangle = 0; triangle < triangleCount; triangle++)
         {
-            fixture.Write(
-                triangleBase + (uint)(index * sizeof(short)),
-                BitConverter.GetBytes(vertices[index]));
+            for (var index = 0; index < vertices.Length; index++)
+            {
+                // A disconnected upper floor makes a rendered-position leak
+                // observable: it would pick the wrong storey and lose the route.
+                var value = (short)(vertices[index] + (index % 4 == 2 ? 624 * triangle : 0));
+                fixture.Write(
+                    triangleBase + (uint)(triangle * FieldWalkmeshReader.TriangleSize + index * sizeof(short)),
+                    BitConverter.GetBytes(value));
+            }
         }
 
-        var accessBase = triangleBase + FieldWalkmeshReader.TriangleSize;
-        fixture.Write(accessBase, BitConverter.GetBytes((short)-1));
-        fixture.Write(accessBase + sizeof(short), BitConverter.GetBytes((short)-1));
-        fixture.Write(accessBase + sizeof(short) * 2, BitConverter.GetBytes((short)-1));
+        var accessBase = triangleBase + (uint)(triangleCount * FieldWalkmeshReader.TriangleSize);
+        for (var adjacency = 0; adjacency < triangleCount * 3; adjacency++)
+        {
+            fixture.Write(accessBase + (uint)(sizeof(short) * adjacency), BitConverter.GetBytes((short)-1));
+        }
     }
 
     private static void Equal<T>(T expected, T actual, string label)
@@ -1776,6 +2058,108 @@ internal static class Steam2026FieldNavigationRuntimeTests
 
         public void Dispose()
         {
+        }
+    }
+
+    private sealed class CapabilityRoutePlanner : IFieldNavigationRoutePlanner,
+        IFieldNavigationAutomaticMovementPlanner, IFieldNavigationCorridorLookaheadPlanner,
+        IFieldNavigationRouteRefreshPlanner, IFieldNavigationRouteReadStatus
+    {
+        internal bool Result { get; set; } = true;
+        internal bool Coherent { get; set; } = true;
+        internal bool Throws { get; set; }
+        internal List<string> Calls { get; } = [];
+        internal FieldPositionSnapshot LastPosition { get; private set; }
+        internal FieldNavigationTarget LastTarget { get; private set; }
+        internal FieldNavigationRouteWaypoint LastDestination { get; private set; }
+        internal byte? LastRequestedHeading { get; private set; }
+        internal FieldNavigationRoutePlan? LastPlan { get; private set; }
+        internal IReadOnlyList<FieldNavigationRouteStep>? LastSteps { get; private set; }
+        internal int LastWaypointIndex { get; private set; }
+        internal FieldNavigationRouteAction? LastAction { get; private set; }
+        internal FieldNavigationRouteHeading LastRouteHeading { get; private set; }
+        internal int LastResolvedTriangle { get; private set; }
+        public bool LastReadWasCoherent { get; private set; } = true;
+        public string LastDiagnostic { get; private set; } = "not read";
+        internal FieldNavigationRoutePlan Plan { get; } = new(453, $"{CapabilityTarget.FieldId}:{CapabilityTarget.StableId}",
+            [7], [], new(138, -217, 0), 7,
+            StableWaypointsOverride: [new(new(138, 120, 0), 0, true, true, true), new(new(138, -217, 0), 0)],
+            UsesNativeProbeClearance: true);
+        internal FieldNavigationCorridorObservation Observation { get; } = new(7, new(138, 120, 0), 0,
+            FieldNavigationLookaheadMode.VisibleStep, true, "native corridor evidence");
+
+        public bool TryResolvePlayerTriangle(FieldPositionSnapshot position, out int triangle)
+        {
+            triangle = 7;
+            return Record("resolve", position);
+        }
+
+        public bool TryBuildRoute(FieldPositionSnapshot position, FieldNavigationTarget target,
+            out FieldNavigationRoutePlan plan)
+        {
+            plan = Plan;
+            LastTarget = target;
+            return Record("build", position);
+        }
+
+        public bool TryGetNextWaypoint(FieldPositionSnapshot position, FieldNavigationTarget target,
+            out FieldNavigationRouteWaypoint waypoint)
+        {
+            waypoint = new(138, 120, 0);
+            LastTarget = target;
+            return Record("waypoint", position);
+        }
+
+        public bool TryBuildRouteFromCurrentTriangle(FieldPositionSnapshot position, FieldNavigationTarget target,
+            int resolvedTriangle, out FieldNavigationRoutePlan plan)
+        {
+            plan = Plan;
+            LastTarget = target;
+            LastResolvedTriangle = resolvedTriangle;
+            return Record("refresh", position);
+        }
+
+        public bool IsAutomaticMovementClear(FieldPositionSnapshot position, FieldNavigationTarget target,
+            FieldNavigationRouteWaypoint destination) => RecordMovement("automatic movement", position, target, destination, null);
+
+        public bool IsNativeProbeMovementClear(FieldPositionSnapshot position, FieldNavigationTarget target,
+            FieldNavigationRouteWaypoint destination) => RecordMovement("native continuation", position, target, destination, null);
+
+        public bool IsNativeProbeAutomaticMovementClear(FieldPositionSnapshot position, FieldNavigationTarget target,
+            FieldNavigationRouteWaypoint destination, byte? requestedHeading = null) =>
+            RecordMovement("native automatic movement", position, target, destination, requestedHeading);
+
+        public bool TryObserveCorridor(FieldPositionSnapshot position, FieldNavigationRoutePlan plan,
+            IReadOnlyList<FieldNavigationRouteStep> stableWaypoints, int waypointIndex,
+            FieldNavigationRouteAction? nextAction, FieldNavigationRouteHeading heading,
+            out FieldNavigationCorridorObservation observation)
+        {
+            observation = Observation;
+            LastPlan = plan;
+            LastSteps = stableWaypoints;
+            LastWaypointIndex = waypointIndex;
+            LastAction = nextAction;
+            LastRouteHeading = heading;
+            return Record("corridor", position);
+        }
+
+        private bool RecordMovement(string operation, FieldPositionSnapshot position, FieldNavigationTarget target,
+            FieldNavigationRouteWaypoint destination, byte? requestedHeading)
+        {
+            LastTarget = target;
+            LastDestination = destination;
+            LastRequestedHeading = requestedHeading;
+            return Record(operation, position);
+        }
+
+        private bool Record(string operation, FieldPositionSnapshot position)
+        {
+            Calls.Add(operation);
+            LastPosition = position;
+            LastReadWasCoherent = Coherent;
+            LastDiagnostic = operation + (Coherent ? " coherent native result" : " unreadable native snapshot");
+            if (Throws) throw new InvalidDataException("native capability read changed");
+            return Result;
         }
     }
 

@@ -54,6 +54,10 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
     private readonly SwingingBarTimingCueTracker swingingBarTimingCueTracker = new();
     private readonly ImmediateWaveCuePlayer? swingingBarTimingCuePlayer;
     private readonly SquatMinigameCueCoordinator squatMinigameCueCoordinator;
+    private readonly JunonMinigameCueCoordinator junonMinigameCueCoordinator;
+    private readonly JunonTimingCueTracker junonTimingCueTracker = new();
+    private readonly JunonTimingCuePlayer? junonTimingCuePlayer;
+    private readonly JunonParadeAlignmentAssist junonParadeAlignmentAssist;
     private readonly Floor60SoldierTurnCueTracker floor60SoldierTurnCueTracker;
     private readonly Floor60GuardTimingStateReader floor60GuardTimingStateReader;
     private readonly ImmediateWaveCuePlayer? floor60ActionCuePlayer;
@@ -75,9 +79,11 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
     private DateTime lastFailureLogUtc = DateTime.MinValue;
     private string lastFailureMessage = string.Empty;
     private string lastStateDiagnostic = string.Empty;
+    private readonly FieldAutoWalkConvergenceTracker autoWalkConvergence = new();
     private string lastAutoWalkFailure = string.Empty;
     private bool pendingAutoWalkStart;
     private bool autoWalkRouteToggleQueued;
+    private bool junonParadeClaimsFieldInput;
     private int disposed;
 
     internal Steam2026FieldNavigationCoordinator(
@@ -119,7 +125,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         inputReader = new FieldNavigationInputReader(ReadUInt32);
         var ladderReader = new FieldLadderStateReader(ReadInt32, ReadUInt16, ReadByte);
         ladderObservationReader = new Steam2026FieldLadderObservationReader(
-            positionReader.Read,
+            positionReader.ReadNavigation,
             ladderReader.Read,
             () => addressSpace.TryReadUInt32(
                 (uint)FieldNavigationObjectReader.AddressFieldEventDataPtr,
@@ -135,6 +141,22 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         lineStateReader = new FieldScriptLineStateReader(addressSpace);
         squatMinigameCueCoordinator = new SquatMinigameCueCoordinator(
             new SquatMinigameStateReader(addressSpace));
+        junonMinigameCueCoordinator = new JunonMinigameCueCoordinator(
+            new JunonMinigameStateReader(addressSpace));
+        junonTimingCuePlayer = config.EnableJunonMinigamePrompts && config.EnableJunonTimingCue
+            ? new JunonTimingCuePlayer(
+                ResolveConfiguredPath(modDirectory, config.JunonTimingCueSoundPath,
+                    @"Assets\navigation\swing_jump_058.wav"),
+                config.JunonTimingCueVolumePercent,
+                log)
+            : null;
+        junonParadeAlignmentAssist = new JunonParadeAlignmentAssist(
+            HighwayAutoSteeringController.CreateCurrentProcess(addressSpace),
+            log,
+            new FieldWalkmeshRoutePlanner(
+                walkmeshReader,
+                boundaryStateReader,
+                dynamicObstacleProvider: dynamicObstacleReader.Read));
         floor60GuardTimingStateReader = new Floor60GuardTimingStateReader(addressSpace);
         var language = languageContext ?? Ff7GameLanguageDetector.Detect(
             gameRootDirectory,
@@ -164,7 +186,8 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             ReadInt32,
             ReadInt16,
             ReadByte,
-            FieldStoryEventCatalog.CreateAllFields());
+            FieldStoryEventCatalog.CreateAllFields(),
+            lineStateReader.IsEnabled);
         var fieldNavigationObjects = FieldNavigationObjectCatalog.CreateAllFields();
         var npcReader = new FieldNavigationNpcReader(
             ReadInt32,
@@ -175,7 +198,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             fieldNavigationObjects.Select(definition => (definition.FieldId, definition.EntityId)),
             lineStateReader.IsEnabled);
         npcObservationReader = new Steam2026FieldNpcObservationReader(
-            positionReader.Read,
+            positionReader.ReadNavigation,
             npcReader.ReadTargets,
             () => addressSpace.TryReadUInt32(
                 (uint)FieldNavigationObjectReader.AddressFieldEventDataPtr,
@@ -257,6 +280,14 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             $"script={SquatMinigameStateReader.ControllerScriptId}, " +
             $"state=0x{SquatMinigameStateReader.AddressExpectedStep:X8}.");
         log(
+            $"Native Steam 2026 Junon minigame prompts initialized: " +
+            $"enabled={config.EnableJunonMinigamePrompts}, " +
+            $"paradeAlignmentAssist={config.EnableJunonParadeAlignmentAssist}, " +
+            $"fields={JunonMinigameStateReader.CprFieldId}," +
+            $"{JunonMinigameStateReader.WelcomeParadeFieldId}," +
+            $"{JunonMinigameStateReader.SendOffFieldId}, " +
+            $"temporaryBank=0x{JunonMinigameStateReader.AddressTemporaryFieldBank:X8}.");
+        log(
             $"Native Steam 2026 floor 60 guard accessibility initialized: " +
             $"enabled={config.EnableFloor60SoldierTurnCue}, " +
             $"field={Floor60SoldierTurnCueTracker.FloorId}, " +
@@ -289,6 +320,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             frame.Lifecycle.ModuleId == FieldPositionReader.FieldModule;
         ObserveSwingingBarTimingCue(frame, nowUtc);
         ObserveSquatMinigameCue(frame, nowUtc);
+        ObserveJunonMinigameCues(frame, nowUtc);
         ObserveFloor60SoldierTurnCue(frame, nowUtc);
         var navigationEnabled = config.EnableFieldNavigationAssistant;
         var ownershipDisposition = ResolveOwnershipDisposition(
@@ -301,6 +333,8 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             config.EnableFieldLadderProximityCues,
             config.EnableFieldSwingingBarTimingCue ||
             config.EnableSquatMinigamePrompts ||
+            config.EnableJunonMinigamePrompts ||
+            config.EnableJunonParadeAlignmentAssist ||
             config.EnableFloor60SoldierTurnCue);
         if (observedActions.Count != 0)
         {
@@ -322,9 +356,29 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             return;
         }
 
+        if (junonParadeClaimsFieldInput)
+        {
+            pendingActions.Clear();
+            pendingAutoWalkStart = false;
+            autoWalkRouteToggleQueued = false;
+            controller.Reset();
+            autoWalk.Reset();
+            autoWalkConvergence.Reset();
+            guidanceRepeatGate.Reset();
+            exitPublicationGate.Reset();
+            exitSpatial.Reset();
+            ladderSpatial.Reset();
+            return;
+        }
+
         if (autoWalkToggleRequested && autoWalk.IsEnabledFor(NavigationAutoWalkDomain.Field))
         {
             _ = autoWalk.Stop();
+
+            // The key press, not the next scan. This coordinator only samples on its own
+            // cadence, so an off and on inside one scan interval would otherwise never be
+            // seen and the new walk would inherit the old one's deadline.
+            autoWalkConvergence.Reset();
             pendingAutoWalkStart = false;
             autoWalkRouteToggleQueued = false;
             Speak("Auto walk off.", interrupt: true, nowUtc, "P toggle");
@@ -339,6 +393,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             observedActions.Any(action => action != FieldNavigationAction.RepeatTarget))
         {
             _ = autoWalk.Stop();
+            autoWalkConvergence.Reset();
             Speak("Auto walk off.", interrupt: true, nowUtc, "navigation selection changed");
         }
 
@@ -383,6 +438,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                     nowUtc);
                 LogReadFailure($"base state unavailable: {baseDiagnostic}", nowUtc);
                 autoWalk.Suspend();
+                autoWalkConvergence.Suspend();
                 return;
             }
 
@@ -563,6 +619,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             {
                 controller.Reset();
                 autoWalk.Reset();
+                autoWalkConvergence.Reset();
                 pendingAutoWalkStart = false;
                 autoWalkRouteToggleQueued = false;
                 guidanceRepeatGate.Reset();
@@ -631,6 +688,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             if (pendingAutoWalkStart && controller.BeaconEnabled &&
                 autoWalk.TryStart(NavigationAutoWalkDomain.Field, routeActive: true))
             {
+                autoWalkConvergence.Reset();
                 pendingAutoWalkStart = false;
                 autoWalkRouteToggleQueued = false;
                 Speak("Auto walk on.", interrupt: true, nowUtc, "P toggle");
@@ -693,6 +751,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         catch (Exception ex)
         {
             autoWalk.Suspend();
+            autoWalkConvergence.Suspend();
             exitSpatial.Observe(default, default, NoTargets, true, false, false, nowUtc);
             ladderSpatial.Observe(
                 default,
@@ -865,12 +924,17 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         ObjectDisposedException.ThrowIf(disposed != 0, this);
         controller.Reset();
         autoWalk.Reset();
+        autoWalkConvergence.Reset();
         guidanceRepeatGate.Reset();
         pendingActions.Clear();
         exitSpatial.Reset();
         ladderSpatial.Reset();
         swingingBarTimingCueTracker.Reset();
         squatMinigameCueCoordinator.Reset();
+        junonMinigameCueCoordinator.Reset();
+        junonParadeAlignmentAssist.Reset("x64 field navigation reset");
+        junonTimingCueTracker.Reset();
+        junonParadeClaimsFieldInput = false;
         floor60SoldierTurnCueTracker.Reset();
         floor60StatueBeaconPlayer?.StopAll();
         currentObjects = NoTargets;
@@ -900,6 +964,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         ObjectDisposedException.ThrowIf(disposed != 0, this);
         pendingActions.Clear();
         autoWalk.Suspend();
+        autoWalkConvergence.Suspend();
         pendingAutoWalkStart = false;
         autoWalkRouteToggleQueued = false;
         exitPublicationGate.Reset();
@@ -907,6 +972,10 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         ladderSpatial.Reset();
         swingingBarTimingCueTracker.Reset();
         squatMinigameCueCoordinator.Reset();
+        junonMinigameCueCoordinator.Reset();
+        junonParadeAlignmentAssist.Reset("x64 field navigation suspended");
+        junonTimingCueTracker.Reset();
+        junonParadeClaimsFieldInput = false;
         floor60SoldierTurnCueTracker.Reset();
         floor60StatueBeaconPlayer?.StopAll();
         nextScanUtc = DateTime.MinValue;
@@ -922,6 +991,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         ObjectDisposedException.ThrowIf(disposed != 0, this);
         _ = NavigationAutoWalkKeyRouter.ObserveToggle(foregroundInput.ObserveRisingEdge);
         autoWalk.Suspend();
+        autoWalkConvergence.Suspend();
         pendingAutoWalkStart = false;
         autoWalkRouteToggleQueued = false;
     }
@@ -944,6 +1014,11 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         swingingBarTimingCuePlayer?.Dispose();
         swingingBarTimingCueTracker.Reset();
         squatMinigameCueCoordinator.Reset();
+        junonMinigameCueCoordinator.Reset();
+        junonParadeAlignmentAssist.Dispose();
+        junonTimingCueTracker.Reset();
+        junonTimingCuePlayer?.Dispose();
+        junonParadeClaimsFieldInput = false;
         floor60ActionCuePlayer?.Dispose();
         floor60StatueBeaconPlayer?.Dispose();
         floor60SoldierTurnCueTracker.Reset();
@@ -963,6 +1038,15 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
     {
         if (!autoWalk.IsEnabledFor(NavigationAutoWalkDomain.Field))
         {
+            _ = autoWalkConvergence.Observe(
+                new FieldAutoWalkConvergenceSample(
+                    IsAutoWalkEnabled: false,
+                    RouteIdentity: string.Empty,
+                    IsHeldByGame: false,
+                    Hold: FieldAutoWalkHoldReason.NoRoute,
+                    PortalIndex: 0,
+                    RemainingDistance: 0d),
+                nowUtc);
             return;
         }
 
@@ -972,6 +1056,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             control,
             Math.Max(0, config.FieldNavigationArrivalDistanceUnits),
             out direction);
+        StopAutoWalkIfItCannotGetCloser(position, hasDirection, canMove, nowUtc);
         var result = autoWalk.Drive(
             hasDirection ? direction : FieldNavigationInput.None,
             canMove: hasDirection,
@@ -988,6 +1073,59 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             LogInputDiagnostic($"auto walk failed closed: {result.Diagnostic}");
             Speak("Auto walk stopped because directional input failed.", true, nowUtc, "input failure");
         }
+    }
+
+    /// <summary>
+    /// The x64 runtime's copy of the Reloaded convergence guard - the same tracker, the
+    /// same sample, the same decision, because sharing the class without calling it is not
+    /// parity. Root's review said so in as many words.
+    /// </summary>
+    private void StopAutoWalkIfItCannotGetCloser(
+        FieldPositionSnapshot position,
+        bool hasDirection,
+        bool canMove,
+        DateTime nowUtc)
+    {
+        var guidance = controller.CurrentRouteGuidance;
+        var label = controller.CurrentTargetLabel;
+        if (!autoWalkConvergence.Observe(
+                new FieldAutoWalkConvergenceSample(
+                    IsAutoWalkEnabled: true,
+                    RouteIdentity: controller.CurrentRouteIdentity,
+                    IsHeldByGame: !canMove,
+                    Hold: guidance is null
+                        ? FieldAutoWalkHoldReason.NoRoute
+                        : hasDirection
+                            ? FieldAutoWalkHoldReason.None
+                            : controller.LastAutomaticInputHold,
+                    PortalIndex: guidance?.PortalIndex ?? 0,
+                    RemainingDistance: guidance?.RemainingDistance ?? 0d),
+                nowUtc))
+        {
+            return;
+        }
+
+        autoWalkConvergence.Reset();
+        LogInputDiagnostic(
+            "auto walk stopped: no meaningful progress for " +
+            $"{FieldAutoWalkConvergenceTracker.NoProgressTimeout.TotalSeconds:0} seconds; " +
+            $"target={label}, remaining={guidance?.RemainingDistance ?? 0d:0}, " +
+            $"portal={guidance?.PortalIndex ?? -1}, hold={controller.LastAutomaticInputHold}, " +
+            $"position={position.X},{position.Y}");
+        if (!autoWalk.Stop())
+        {
+            return;
+        }
+
+        pendingAutoWalkStart = false;
+        autoWalkRouteToggleQueued = false;
+        Speak(
+            string.IsNullOrWhiteSpace(label)
+                ? "Auto walk stopped. Could not get any closer. Navigation is still on."
+                : $"Auto walk stopped. Could not get closer to {label}. Navigation is still on.",
+            interrupt: true,
+            nowUtc,
+            "auto walk made no progress");
     }
 
     private void ObserveSwingingBarTimingCue(
@@ -1074,6 +1212,93 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         }
 
         Speak(prompt, interrupt: true, nowUtc, "native Wall Market squat cue");
+    }
+
+    private void ObserveJunonMinigameCues(
+        RuntimeFrameObservation frame,
+        DateTime nowUtc)
+    {
+        junonParadeClaimsFieldInput = false;
+        if ((!config.EnableJunonMinigamePrompts &&
+             !config.EnableJunonParadeAlignmentAssist) ||
+            frame.Lifecycle.IsShuttingDown ||
+            !frame.Lifecycle.IsForeground ||
+            frame.Lifecycle.ModuleId != FieldPositionReader.FieldModule ||
+            !foregroundInput.IsCurrentProcessForeground())
+        {
+            junonMinigameCueCoordinator.Reset();
+            junonParadeAlignmentAssist.Reset("x64 Junon host inactive");
+            junonTimingCueTracker.Reset();
+            return;
+        }
+
+        if (!junonMinigameCueCoordinator.TryRead(out var snapshot))
+        {
+            var unavailable = junonParadeAlignmentAssist.ObserveUnavailable(
+                config.EnableJunonParadeAlignmentAssist);
+            junonParadeClaimsFieldInput = unavailable.ClaimsFieldInput;
+            SpeakJunonParadeAlignmentStep(unavailable, nowUtc);
+            return;
+        }
+
+        var timingCueNeedsSpeechFallback = PlayJunonTimingCue(snapshot);
+        var alignment = junonParadeAlignmentAssist.Observe(
+            snapshot,
+            config.EnableJunonParadeAlignmentAssist);
+        junonParadeClaimsFieldInput = alignment.ClaimsFieldInput;
+        SpeakJunonParadeAlignmentStep(alignment, nowUtc);
+        if (!config.EnableJunonMinigamePrompts)
+        {
+            junonMinigameCueCoordinator.Reset();
+            return;
+        }
+
+        foreach (var cue in junonMinigameCueCoordinator.ObserveSnapshot(
+                     snapshot,
+                     alignment.IsAssistActive))
+        {
+            if (string.IsNullOrWhiteSpace(cue.Text))
+            {
+                continue;
+            }
+
+            Speak(cue.Text, cue.Interrupt, nowUtc, "native Junon minigame cue");
+        }
+
+        if (timingCueNeedsSpeechFallback)
+        {
+            Speak("Now.", interrupt: true, nowUtc, "Junon timing sound unavailable");
+        }
+    }
+
+    private bool PlayJunonTimingCue(JunonMinigameSnapshot snapshot)
+    {
+        if (!config.EnableJunonMinigamePrompts || !config.EnableJunonTimingCue)
+        {
+            junonTimingCueTracker.Reset();
+            return false;
+        }
+
+        if (!junonTimingCueTracker.Observe(snapshot))
+        {
+            return false;
+        }
+
+        var played = junonTimingCuePlayer?.Play() == true;
+        log($"Junon native Now timing cue: sequence={snapshot.Parade.NowPromptSequence}, played={played}.");
+        return !played;
+    }
+
+    private void SpeakJunonParadeAlignmentStep(
+        JunonParadeAlignmentStep step,
+        DateTime nowUtc)
+    {
+        if (string.IsNullOrWhiteSpace(step.Speech))
+        {
+            return;
+        }
+
+        Speak(step.Speech, interrupt: true, nowUtc, "native Junon parade alignment assist");
     }
 
     private void ObserveFloor60SoldierTurnCue(
@@ -1287,7 +1512,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         ladder = default;
         isLadderStateCoherent = false;
         diagnostic = "position unavailable";
-        var preliminary = positionReader.Read();
+        var preliminary = positionReader.ReadNavigation();
         if (!preliminary.IsUsable)
         {
             diagnostic = preliminary.Diagnostic;
@@ -1318,7 +1543,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             return false;
         }
 
-        var confirmation = positionReader.Read();
+        var confirmation = positionReader.ReadNavigation();
         if (!HasSameFieldOwnership(preliminary, confirmation))
         {
             diagnostic = "field/model ownership changed during base navigation read";
@@ -1476,7 +1701,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             var gameMomentAfter = ReadCheckedUInt16(
                 addressSpace,
                 FieldNavigationObjectReader.AddressFieldBankBase);
-            var ownershipAfter = positionReader.Read();
+            var ownershipAfter = positionReader.ReadNavigation();
             if (gameMomentAfter != gameMomentBefore
                 || !ownershipAfter.IsUsable
                 || ownershipAfter.Position.FieldId != position.FieldId

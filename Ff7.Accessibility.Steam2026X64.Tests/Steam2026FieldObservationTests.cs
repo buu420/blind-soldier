@@ -19,6 +19,7 @@ internal static class Steam2026FieldObservationTests
         supportedFingerprint = supported;
         unsupportedFingerprint = unsupported;
         ReadsEquivalentPointerFreeSnapshotsFromDirectAndTranslatedMemory();
+        ReadsNavigationInNativeSpaceThroughTheTranslatedPageTable();
         NormalizesOnlyCompleteNativeStateWithoutScalingCoordinates();
         ReacquiresFieldHotkeysAfterStalePostBattleMessageCount();
         ReleasesAssignedWindowAtClosedLifecyclePhase();
@@ -83,6 +84,34 @@ internal static class Steam2026FieldObservationTests
                 Equal(false, property.PropertyType == typeof(IntPtr) || property.PropertyType == typeof(UIntPtr), $"{outputType.Name}.{property.Name} has no host pointer type");
             }
         }
+    }
+
+    private static void ReadsNavigationInNativeSpaceThroughTheTranslatedPageTable()
+    {
+        var fixture = FieldObservationFixture.CreatePopulated();
+        // junair's OFST is added by FUN_006392BB to the rendered model only.
+        fixture.Write(
+            FieldObservationFixture.ModelBase + FieldPositionReader.ModelZOffset,
+            BitConverter.GetBytes(924));
+        var directReader = new FieldPositionReader(fixture.Direct);
+        var translatedReader = new FieldPositionReader(new TranslatedX86AddressSpace(
+            FieldObservationFixture.ModuleBase, fixture.Native));
+        var direct = directReader.ReadNavigation();
+        var translated = translatedReader.ReadNavigation();
+        Equal(true, direct.IsUsable, "native-coordinate direct navigation read");
+        Equal(true, translated.IsUsable, "native-coordinate translated navigation read");
+        Equal(direct.Position, translated.Position, "both runtimes navigate in the same coordinate space");
+        Equal(new FieldPositionSnapshot(1, 116, 1, 100, -200, 300, 9, 0xC0)
+            {
+                NativeFixedPosition = new FieldNavigationFixedPosition(100 << 12, -200 << 12, 300 << 12)
+            },
+            translated.Position, "translated navigation excludes the rendered lift offset");
+        Equal(924, translatedReader.Read().Position.Z,
+            "the translated visible-motion path keeps its rendered coordinate");
+
+        fixture.UnmapGuestPage((uint)FieldPositionReader.AddressFieldModelsObjs);
+        Equal(false, translatedReader.ReadNavigation().IsUsable,
+            "unmapped native-coordinate page must not become a zero-position navigation snapshot");
     }
 
     private static void NormalizesOnlyCompleteNativeStateWithoutScalingCoordinates()
@@ -764,6 +793,9 @@ internal sealed class FieldObservationFixture
         Write(ModelBase + FieldPositionReader.ModelZOffset, BitConverter.GetBytes(300));
         Write(ModelBase + FieldPositionReader.ModelDirectionOffset, [0xC0]);
         var objectBase = (uint)FieldPositionReader.AddressFieldModelsObjs + FieldPositionReader.FieldObjectStride;
+        Write(objectBase + FieldPositionReader.ObjectXOffset, BitConverter.GetBytes(100 * 4096));
+        Write(objectBase + FieldPositionReader.ObjectYOffset, BitConverter.GetBytes(-200 * 4096));
+        Write(objectBase + FieldPositionReader.ObjectZOffset, BitConverter.GetBytes(300 * 4096));
         Write(objectBase + FieldPositionReader.ObjectTriangleOffset, BitConverter.GetBytes((ushort)9));
 
         Write((uint)FieldScriptContextReader.AddressFieldScriptPtr, BitConverter.GetBytes(ScriptPointer));

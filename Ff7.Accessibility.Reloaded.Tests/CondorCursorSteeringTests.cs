@@ -33,7 +33,259 @@ internal static class CondorCursorSteeringTests
         StopsInsteadOfCrossingATargetItCannotLandOn();
         SlowingDownIsNotMistakenForAKeyTheGameIgnored();
         SittingOnTheTargetIsNotCrossingIt();
+        SteersTheDestinationCursorWithoutConfirmingTheOrder();
+        DestinationSteeringTracksTheSelectedEnemyRatherThanAStaleCoordinate();
+        DestinationSteeringRequiresACleanModeAndNoHeldDirection();
+        DestinationSteeringStopsAudiblyWhenItsModeOrTargetDisappears();
+        DestinationSteeringRefusesANewKeyDownWhenAnotherDirectionAppears();
+        SharedProductionPathStillSteersTheBattlefieldCursor();
     }
+
+    /// <summary>
+    /// Mode 3 owns a separate camera-relative coordinate pair. The jump must
+    /// steer that pair with directions and stop inside the native unit hit box;
+    /// it must never inject OK on the player's behalf.
+    /// </summary>
+    private static void SteersTheDestinationCursorWithoutConfirmingTheOrder()
+    {
+        var sink = new RecordingSink();
+        var steering = new CondorCursorSteering(new HighwayAutoSteeringController(sink));
+        var target = new CondorNavigationTarget("enemy Beast, 230 of 230", 300, 700, 20);
+        var snapshot = DestinationSnapshot(200, 500, Enemy(slot: 20, x: 300, y: 700));
+
+        Equal(true, steering.TryBegin(target, snapshot), "mode-3 destination jump accepted");
+        Equal(CondorCursorDomain.Destination, steering.Domain, "destination domain retained");
+
+        var travelling = steering.Step(snapshot);
+        Equal(CondorSteeringOutcome.Steering, travelling.Outcome, "destination cursor is travelling");
+        Equal(
+            new[] { HighwayAutoSteeringController.ScanCodeDown, HighwayAutoSteeringController.ScanCodeRight },
+            sink.HeldScanCodes(),
+            "mode 3 steers its own cursor down and right");
+
+        var arrived = steering.Step(snapshot with
+        {
+            DestinationX = 299,
+            DestinationY = 699,
+            HeldDirectionMask = CondorCursorSteering.MaskDown | CondorCursorSteering.MaskRight
+        });
+        Equal(CondorSteeringOutcome.Arrived, arrived.Outcome, "destination cursor arrives in the hit box");
+        Equal("Moving stopped.", arrived.Speech, "destination arrival is announced");
+        Equal(0, sink.HeldScanCodes().Length, "direction keys are released before the player presses OK");
+
+        var directionScanCodes = new HashSet<ushort>
+        {
+            HighwayAutoSteeringController.ScanCodeUp,
+            HighwayAutoSteeringController.ScanCodeDown,
+            HighwayAutoSteeringController.ScanCodeLeft,
+            HighwayAutoSteeringController.ScanCodeRight
+        };
+        if (sink.Transitions.Any(transition => !directionScanCodes.Contains(transition.ScanCode)))
+        {
+            throw new InvalidOperationException(
+                "destination steering emitted something other than a direction key; " +
+                "the player alone must confirm an order.");
+        }
+    }
+
+    /// <summary>
+    /// Enemies move from the first frame. A jump aimed at the coordinate spoken
+    /// when L was pressed would chase empty ground; the selected slot is the
+    /// identity and its current coordinate is the destination on every sample.
+    /// </summary>
+    private static void DestinationSteeringTracksTheSelectedEnemyRatherThanAStaleCoordinate()
+    {
+        var sink = new RecordingSink();
+        var steering = new CondorCursorSteering(new HighwayAutoSteeringController(sink));
+        var selected = new CondorNavigationTarget("enemy Beast, 230 of 230", 300, 700, 20);
+        var first = DestinationSnapshot(
+            200,
+            500,
+            Enemy(slot: 21, x: 100, y: 500),
+            Enemy(slot: 20, x: 300, y: 700));
+        Equal(true, steering.TryBegin(selected, first), "moving enemy selected");
+
+        steering.Step(first);
+        Equal(
+            new[] { HighwayAutoSteeringController.ScanCodeDown, HighwayAutoSteeringController.ScanCodeRight },
+            sink.HeldScanCodes(),
+            "first sample follows the enemy's first position");
+
+        // The same slot crossed to the other side of the cursor. The controller
+        // must turn with it rather than continue towards the old X=300 point.
+        var moved = DestinationSnapshot(
+            250,
+            550,
+            Enemy(slot: 21, x: 100, y: 500),
+            Enemy(slot: 20, x: 200, y: 700)) with
+        {
+            HeldDirectionMask = CondorCursorSteering.MaskDown | CondorCursorSteering.MaskRight
+        };
+        steering.Step(moved);
+        Equal(
+            new[] { HighwayAutoSteeringController.ScanCodeDown, HighwayAutoSteeringController.ScanCodeLeft },
+            sink.HeldScanCodes(),
+            "the selected slot's live position replaces its stale coordinate");
+    }
+
+    private static void DestinationSteeringRequiresACleanModeAndNoHeldDirection()
+    {
+        var target = new CondorNavigationTarget("enemy Beast, 230 of 230", 300, 700, 20);
+        var clean = DestinationSnapshot(200, 500, Enemy(slot: 20, x: 300, y: 700));
+
+        Refuses(clean with { ModalState = 2 }, "a modal overlay owns the keys");
+        Refuses(clean with { ReportState = 1 }, "a report owns the keys");
+        Refuses(clean with { HeldDirectionMask = CondorCursorSteering.MaskRight },
+            "a physical direction is already held");
+        Refuses(clean with { Units = Array.Empty<CondorBattleUnit>() },
+            "the selected enemy no longer exists");
+
+        void Refuses(CondorBattleSnapshot snapshot, string label)
+        {
+            var steering = new CondorCursorSteering(
+                new HighwayAutoSteeringController(new RecordingSink()));
+            Equal(false, steering.TryBegin(target, snapshot), label);
+            Equal(false, steering.IsSteering, $"{label}: no jump was armed");
+        }
+    }
+
+    private static void DestinationSteeringStopsAudiblyWhenItsModeOrTargetDisappears()
+    {
+        Abandons(
+            snapshot => snapshot with { InteractionMode = CondorBattleSnapshot.AllyUnitInteractionMode },
+            "destination mode changed");
+        Abandons(
+            snapshot => snapshot with { Units = Array.Empty<CondorBattleUnit>() },
+            "selected enemy disappeared");
+
+        static void Abandons(
+            Func<CondorBattleSnapshot, CondorBattleSnapshot> change,
+            string label)
+        {
+            var sink = new RecordingSink();
+            var steering = new CondorCursorSteering(new HighwayAutoSteeringController(sink));
+            var target = new CondorNavigationTarget("enemy Beast, 230 of 230", 300, 700, 20);
+            var snapshot = DestinationSnapshot(200, 500, Enemy(slot: 20, x: 300, y: 700));
+            Equal(true, steering.TryBegin(target, snapshot), $"{label}: jump accepted");
+            steering.Step(snapshot);
+
+            var stopped = steering.Step(change(snapshot));
+            Equal(CondorSteeringOutcome.Abandoned, stopped.Outcome, $"{label}: jump abandoned");
+            AssertSpoken(stopped, $"{label}: failure is never silent");
+            if (stopped.Speech?.Contains("Movement stopped", StringComparison.OrdinalIgnoreCase) != true)
+            {
+                throw new InvalidOperationException(
+                    $"{label}: expected an explicit movement-stop line, got '{stopped.Speech ?? "<null>"}'.");
+            }
+
+            Equal(0, sink.HeldScanCodes().Length, $"{label}: every direction key released");
+        }
+    }
+
+    private static void DestinationSteeringRefusesANewKeyDownWhenAnotherDirectionAppears()
+    {
+        var sink = new RecordingSink();
+        var steering = new CondorCursorSteering(new HighwayAutoSteeringController(sink));
+        var selected = new CondorNavigationTarget("enemy Beast, 230 of 230", 200, 700, 20);
+        var first = DestinationSnapshot(200, 500, Enemy(slot: 20, x: 200, y: 700));
+        Equal(true, steering.TryBegin(selected, first), "vertical destination jump accepted");
+        steering.Step(first);
+        Equal(
+            new[] { HighwayAutoSteeringController.ScanCodeDown },
+            sink.HeldScanCodes(),
+            "only the controller's down key is held");
+
+        // The enemy moved right, so the next steering decision would add Right.
+        // Left appearing in the native mask is not ours. Release before adding
+        // another key instead of fighting a physical direction from the player.
+        var contested = DestinationSnapshot(200, 520, Enemy(slot: 20, x: 300, y: 700)) with
+        {
+            HeldDirectionMask = CondorCursorSteering.MaskDown | CondorCursorSteering.MaskLeft
+        };
+        var stopped = steering.Step(contested);
+        Equal(CondorSteeringOutcome.Abandoned, stopped.Outcome,
+            "unexpected physical direction aborts before the new key-down");
+        AssertSpoken(stopped, "contested steering is never silent");
+        Equal(0, sink.HeldScanCodes().Length, "controller releases its own key on contested input");
+        if (sink.Transitions.Any(transition =>
+                transition.IsKeyDown &&
+                transition.ScanCode == HighwayAutoSteeringController.ScanCodeRight))
+        {
+            throw new InvalidOperationException(
+                "steering pressed Right after the native mask showed an unowned Left direction.");
+        }
+    }
+
+    private static void SharedProductionPathStillSteersTheBattlefieldCursor()
+    {
+        var sink = new RecordingSink();
+        var steering = new CondorCursorSteering(new HighwayAutoSteeringController(sink));
+        var unit = Enemy(slot: 20, x: 300, y: 700);
+        var target = new CondorNavigationTarget(unit.Describe(), unit.X, unit.Y, unit.Slot);
+        var snapshot = DestinationSnapshot(10, 20, unit) with
+        {
+            InteractionMode = CondorBattleSnapshot.CursorInteractionMode,
+            CursorX = 200,
+            CursorY = 500
+        };
+
+        Equal(true, steering.TryBegin(target, snapshot), "ordinary battlefield jump accepted");
+        Equal(CondorCursorDomain.Battlefield, steering.Domain, "battlefield domain retained");
+        steering.Step(snapshot);
+        Equal(
+            new[] { HighwayAutoSteeringController.ScanCodeDown, HighwayAutoSteeringController.ScanCodeRight },
+            sink.HeldScanCodes(),
+            "shared production overload reads the battlefield pair in mode 1");
+    }
+
+    private static CondorBattleSnapshot DestinationSnapshot(
+        int destinationX,
+        int destinationY,
+        params CondorBattleUnit[] units) =>
+        new(
+            InteractionMode: CondorBattleSnapshot.DestinationInteractionMode,
+            ModalState: 0,
+            SettingMenuRow: 0,
+            SettingMenuRotation: 0,
+            AvailableTypeIds: Array.Empty<int>(),
+            Gil: 1000,
+            // Deliberately opposite the destination cursor relative to the
+            // target. Reading the wrong pair would steer up-left, not down-right.
+            CursorX: 400,
+            CursorY: 800,
+            // Native terrain legality gates OK, not cursor movement. Steering
+            // must still reach the point and leave confirmation to the player.
+            CursorPlacementLegal: false,
+            UnitUnderCursorSlot: -1,
+            Units: units,
+            AlliedCount: units.Count(unit => !unit.IsEnemy),
+            EnemyCount: units.Count(unit => unit.IsEnemy),
+            Outcome: 0,
+            MessageId: -1,
+            Phase: 2,
+            ReportState: 0,
+            DeploymentFrontierY: 480,
+            EnemyAdvance: 0,
+            CollisionTriangles: Array.Empty<CondorCollisionTriangle>())
+        {
+            DestinationX = destinationX,
+            DestinationY = destinationY,
+            HeldDirectionMask = 0
+        };
+
+    private static CondorBattleUnit Enemy(int slot, int x, int y) =>
+        new(
+            Slot: slot,
+            IsEnemy: true,
+            TypeId: 18,
+            CurrentHp: 230,
+            MaximumHp: 230,
+            Attack: 35,
+            X: x,
+            Y: y,
+            IsDying: false,
+            Width: 16,
+            HeightAbove: 16);
 
     /// <summary>
     /// The check that matters most. Module 9 polls DirectInput, applies the
@@ -463,6 +715,8 @@ internal static class CondorCursorSteeringTests
     {
         private readonly HashSet<ushort> held = [];
 
+        internal List<HighwayKeyboardTransition> Transitions { get; } = [];
+
         internal bool RefuseEverything { get; init; }
 
         public HighwayKeyboardSendResult Send(IReadOnlyList<HighwayKeyboardTransition> transitions)
@@ -474,6 +728,7 @@ internal static class CondorCursorSteeringTests
 
             foreach (var transition in transitions)
             {
+                Transitions.Add(transition);
                 if (transition.IsKeyDown)
                 {
                     held.Add(transition.ScanCode);

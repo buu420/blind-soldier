@@ -21,7 +21,12 @@ public readonly record struct FieldScriptNavigationTransition(
     int TargetTriangle,
     string StableId,
     FieldNavigationInput RequiredInput = FieldNavigationInput.None,
-    bool RequiresAction = false);
+    bool RequiresAction = false,
+    // A traversal a LINE owns is anchored by that line's position, and the walkmesh
+    // triangle under it has to be worked out from the elevation. One the field polls
+    // for instead already names its triangle outright, and saying so is both exact and
+    // cheaper than guessing a storey from a height.
+    int SourceTriangle = -1);
 
 public readonly record struct FieldScriptNpcDefinition(
     int FieldId,
@@ -297,6 +302,11 @@ public sealed class FieldScriptNavigationCatalog
                              .Concat(okHandlerActions)
                              .Where(action => action.Kind is ActionKind.Ladder or ActionKind.Jump))
                 {
+                    if (IsMountCorelNpcCheeringJump(fieldId, group.Index, action, groups))
+                    {
+                        continue;
+                    }
+
                     var kind = action.Kind == ActionKind.Ladder
                         ? FieldNavigationTransitionKind.Ladder
                         : FieldNavigationTransitionKind.Jump;
@@ -355,6 +365,7 @@ public sealed class FieldScriptNavigationCatalog
             }
 
             AddNativeReverseLadderTransitions(fieldId, groups, transitions);
+            transitions.AddRange(ReadTrianglePolledLadders(fieldId, groups));
             transitions = transitions
                 .GroupBy(transition => transition.StableId, StringComparer.Ordinal)
                 .Select(group => group.First() with
@@ -673,6 +684,27 @@ public sealed class FieldScriptNavigationCatalog
     }
 
 
+    private static bool IsMountCorelNpcCheeringJump(
+        int fieldId,
+        int lineEntityId,
+        NavigationAction action,
+        IReadOnlyList<ScriptGroup> groups)
+    {
+        // mtcrl_6/border7 calls party slot zero's script 5. Cloud wraps onto
+        // the opposite upper track with XYZI; earith's coincidentally numbered
+        // script instead jumps in place while cheering on the lower track.
+        // The generic party routine comparison cannot see XYZI, so its lone
+        // remaining JUMP is not evidence that the player crosses between levels.
+        // Match the native Cloud landing bytes as well as this one false edge.
+        return fieldId == 464 && lineEntityId == 12 &&
+            action is { Kind: ActionKind.Jump, SourceGroup: 17, SourceScript: 5,
+                X: -1579, Y: 241, Triangle: 207 } &&
+            groups.Count > 16 && groups[16].Scripts.TryGetValue(5, out var cloudScript) &&
+            ReadOpcodes(cloudScript).Any(opcode => opcode.Offset == 5 &&
+                opcode.Bytes.AsSpan().SequenceEqual(
+                    new byte[] { 0xA5, 0, 0, 0x11, 0x0A, 0xFB, 0xFA, 0x07, 0x04, 0xF7, 0 }));
+    }
+
     /// <summary>
     /// Resolves a party-slot call by looking at every entity that carries a routine at this
     /// script index and doing something navigable with it. The copies must agree: agreement
@@ -690,9 +722,19 @@ public sealed class FieldScriptNavigationCatalog
     {
         IReadOnlyList<NavigationExecutionPath>? agreed = null;
         string? agreedKey = null;
+        var agreedIsPlacementOnly = false;
+        var agreedIsStrong = false;
         for (var groupIndex = 0; groupIndex < groups.Count; groupIndex++)
         {
-            if (!groups[groupIndex].Scripts.ContainsKey(scriptIndex))
+            // A party-member request names a slot, and only a playable character can be
+            // in one. Script numbers are per entity, so an ordinary entity that happens
+            // to have a script with the same number is answering a different question:
+            // in the Forgotten Capital's lake every one of the four platform lines keeps
+            // its own Move at index 3, so asking the family what its script 3 does used
+            // to collect three other lines' crossings alongside the character's, decide
+            // the family disagreed, and drop the first platform entirely.
+            if (!groups[groupIndex].Scripts.ContainsKey(scriptIndex) ||
+                !IsPlayableCharacterGroup(groups[groupIndex]))
             {
                 continue;
             }
@@ -710,11 +752,24 @@ public sealed class FieldScriptNavigationCatalog
                 continue;
             }
 
+            // A member whose whole answer is a placement is not disagreeing with one
+            // that climbs or jumps; it is doing something weaker. At Mount Corel's bird
+            // nest Cloud, Tifa and Cid all climb the same ladder while Yuffie's version
+            // of that script only sets her down at the top, and counting her landing as
+            // a rival answer threw the climb away entirely.
+            var placementOnly = navigable.All(path => path.Actions.All(action => action.IsPlacement));
+            if (placementOnly && agreedIsStrong)
+            {
+                continue;
+            }
+
             var key = DescribePartyMemberActions(navigable);
-            if (agreed is null)
+            if (agreed is null || (agreedIsPlacementOnly && !placementOnly))
             {
                 agreed = navigable;
                 agreedKey = key;
+                agreedIsPlacementOnly = placementOnly;
+                agreedIsStrong = !placementOnly;
                 continue;
             }
 
@@ -737,6 +792,19 @@ public sealed class FieldScriptNavigationCatalog
                     $"{action.Kind}:{action.SourceScript}:{action.X}:{action.Y}:{action.Z}:" +
                     $"{action.Triangle}:{action.DestinationField}:{action.RequiredInput}:" +
                     $"{action.RequiresActionActivation}"))));
+    // How many ways through one script the walk will follow before it stops looking.
+    //
+    // Sixty-four was enough while only byte comparisons forked the walk. A room built
+    // out of choices does not fit in that: Coral Valley's own climb routine asks twice
+    // and reads the party's triangle four times, which is twelve forks and up to four
+    // thousand ways through - so the walk ran out of room while still deep in one arm
+    // and reported a single landing for a ladder that reaches five places. The collapse
+    // afterwards keeps one edge per way through and then discards duplicates, so the
+    // number that matters is how many distinct landings survive, not how many ways were
+    // walked; this is set to cover the largest routine in the installed data with room
+    // over, and the whole-game sweep is what says it stays affordable.
+    private const int MaximumExecutionPaths = 4096;
+
     private static IReadOnlyList<NavigationExecutionPath> CollectNavigationActionPaths(
         IReadOnlyList<ScriptGroup> groups,
         int groupIndex,
@@ -769,7 +837,7 @@ public sealed class FieldScriptNavigationCatalog
             [],
             0));
         var results = new List<NavigationExecutionPath>();
-        while (pending.Count != 0 && results.Count < 64)
+        while (pending.Count != 0 && results.Count < MaximumExecutionPaths)
         {
             var cursor = pending.Pop();
             if (cursor.Steps >= 2048 ||
@@ -797,7 +865,7 @@ public sealed class FieldScriptNavigationCatalog
                     targetScript,
                     cursor.Constants,
                     nestedCallStack);
-                foreach (var calledPath in calledPaths.Take(64 - results.Count))
+                foreach (var calledPath in calledPaths.Take(MaximumExecutionPaths - results.Count))
                 {
                     var combinedActions = new List<NavigationAction>(
                         cursor.Actions.Count + calledPath.Actions.Count);
@@ -829,7 +897,7 @@ public sealed class FieldScriptNavigationCatalog
                     partyScript,
                     cursor.Constants,
                     nestedCallStack);
-                foreach (var calledPath in partyPaths.Take(64 - results.Count))
+                foreach (var calledPath in partyPaths.Take(MaximumExecutionPaths - results.Count))
                 {
                     var combinedActions = new List<NavigationAction>(
                         cursor.Actions.Count + calledPath.Actions.Count);
@@ -885,6 +953,26 @@ public sealed class FieldScriptNavigationCatalog
                         groupIndex,
                         scriptIndex,
                         BitConverter.ToUInt16(opcode.Bytes, 1))];
+                    break;
+                // XYZI. A field can carry the party across a gap by putting them down
+                // on the other side of it and then walking them a few steps, which is
+                // what the Forgotten Capital's lake platforms do: each of loslake1's
+                // four lines runs a party script whose XYZI places the character on the
+                // far platform's own triangle and whose MOVE then walks them clear of
+                // the edge. Without this the four platforms are four islands and the
+                // crystal chamber cannot be reached at all.
+                //
+                // The landing is the XYZI, not the MOVE: the MOVE is ordinary walking on
+                // the triangle the character has already been put on, and taking it as
+                // the destination would describe a place the field never sends them to.
+                case 0xA5 when HasConstantMovementArguments(opcode.Bytes) && opcode.Bytes.Length >= 11:
+                    nextActions = [.. cursor.Actions, NavigationAction.PlacedMove(
+                        groupIndex,
+                        scriptIndex,
+                        BitConverter.ToInt16(opcode.Bytes, 3),
+                        BitConverter.ToInt16(opcode.Bytes, 5),
+                        BitConverter.ToInt16(opcode.Bytes, 7),
+                        BitConverter.ToUInt16(opcode.Bytes, 9))];
                     break;
                 case 0xC0 when HasConstantMovementArguments(opcode.Bytes):
                     nextActions = [.. cursor.Actions, NavigationAction.Jump(
@@ -1007,13 +1095,35 @@ public sealed class FieldScriptNavigationCatalog
     {
         condition = null;
         falseTarget = -1;
+        // The engine measures a conditional's jump from the operand's own position, not
+        // from the end of the opcode: 6116A6 and 61171F both add the operand to the
+        // address of the byte it was read from, which is index 5 in a byte comparison
+        // whether the operand is one byte wide or two. The long form used to add six and
+        // so landed one past every branch it resolved - the same off-by-one Kujata's
+        // formatted goto carries for the long forms.
         if (opcode.Id == 0x14 && opcode.Bytes.Length >= 6)
         {
-            falseTarget = opcode.Offset + opcode.Bytes[5] + 5;
+            falseTarget = opcode.Offset + ByteComparisonOperandIndex + opcode.Bytes[5];
         }
         else if (opcode.Id == 0x15 && opcode.Bytes.Length >= 7)
         {
-            falseTarget = opcode.Offset + BitConverter.ToUInt16(opcode.Bytes, 5) + 6;
+            falseTarget = opcode.Offset + ByteComparisonOperandIndex +
+                BitConverter.ToUInt16(opcode.Bytes, 5);
+        }
+        else if (TryResolveComparisonBranch(opcode, out falseTarget))
+        {
+            // A word comparison forks the script exactly as a byte one does, and until
+            // now this said "not a conditional" and let the walk carry straight on into
+            // the false side. Every alternative a field guards with a word test was
+            // therefore folded into whichever branch happened to come last in the file.
+            // Coral Valley is where that showed: the cave asks which way to climb and
+            // then reads the party's own triangle - a word test - to pick the landing,
+            // and seven of its landings, including the one the way north is on, never
+            // reached the walkmesh graph at all. The comparands live in banks this walk
+            // does not track, so the answer is genuinely unknown and both sides are
+            // walked, which is what the byte forms already do when their bank is not
+            // constant.
+            return true;
         }
         else
         {
@@ -1181,6 +1291,348 @@ public sealed class FieldScriptNavigationCatalog
             deltaY * (double)deltaY +
             deltaZ * (double)deltaZ;
     }
+
+    // Ladders the field polls for rather than triggering from a LINE.
+    //
+    // Every traversal above is found by starting at a LINE entity and following what its
+    // scripts do. Cosmo Canyon's stairwell has no LINE anywhere in it: four unnamed
+    // entities sit in a loop reading the party leader's own position and, when the
+    // triangle underneath is one of the twenty-nine the shaft is built from and the
+    // confirm key is down, ask the leader to run one of seven pairs of climb scripts.
+    // Read only from LINEs, that field has no traversals at all and its seven storeys
+    // are seven islands, which is exactly what the installed catalog reported for it.
+    //
+    // Everything below is a check rather than an assumption, because a wrong edge here
+    // is a route the player cannot walk. The first draft of this assumed that a test of
+    // Bank[6][6] meant the leader's triangle, and the Cave of the Gi shows why that is
+    // not safe: gidun_1 fills the same bank with AXYZI from an ordinary entity, and its
+    // word 6 holds a Y coordinate. Comparing that against a triangle number would have
+    // invented a ladder out of a coincidence.
+    //
+    //   * The producer is verified. Only PXYZI - party member, not entity - counts, only
+    //     for party slot 0, and the address the later test reads has to be the address
+    //     that opcode wrote the triangle to.
+    //   * Control flow ends the press. The triangle test is the enclosing condition and
+    //     stands until the next one or a return, because the branches inside it belong
+    //     to it - the bottom rung offers one key on one branch and the confirm key on
+    //     the next, and both run the same climb. The press itself has to be the thing
+    //     immediately before the request, so any other conditional, any jump, or a
+    //     request that does not qualify drops it.
+    //   * The key mask is checked. Only the confirm bits count; a field that watches a
+    //     different key is watching for something else.
+    //   * The climb script has to belong to the leader family. A party-member request
+    //     names a slot, not an entity, so the script it runs is whichever character is
+    //     leading. That is only safe to read when the playable characters of the field
+    //     agree on the climb, so the same script index has to carry the same LADER in at
+    //     least two groups - the walk up to it differs by a few units per model and is
+    //     not part of the agreement.
+    private static IReadOnlyList<FieldScriptNavigationTransition> ReadTrianglePolledLadders(
+        int fieldId,
+        IReadOnlyList<ScriptGroup> groups)
+    {
+        var climbsByScript = ReadLeaderFamilyClimbs(groups);
+        if (climbsByScript.Count == 0)
+        {
+            return Array.Empty<FieldScriptNavigationTransition>();
+        }
+
+        var emptyConstants = new Dictionary<BankByteAddress, byte>();
+        var transitions = new List<FieldScriptNavigationTransition>();
+        foreach (var group in groups)
+        {
+            foreach (var script in group.Scripts)
+            {
+                var leaderTriangleAddress = -1;
+                var pendingTriangle = -1;
+                var pendingTriangleEnd = int.MaxValue;
+                var sawConfirm = false;
+                foreach (var opcode in ReadOpcodes(script.Value))
+                {
+                    if (opcode.Id == PartyMemberPositionOpcode)
+                    {
+                        leaderTriangleAddress = ReadLeaderTriangleAddress(opcode);
+                        continue;
+                    }
+
+                    if (opcode.Id == ReturnOpcode)
+                    {
+                        pendingTriangle = -1;
+                        sawConfirm = false;
+                        continue;
+                    }
+
+                    if (opcode.Id == CompareWordOpcode &&
+                        leaderTriangleAddress >= 0 &&
+                        IsLeaderTriangleTest(opcode, leaderTriangleAddress) &&
+                        TryResolveComparisonBranch(opcode, out var triangleTestEnd))
+                    {
+                        pendingTriangle = BitConverter.ToUInt16(opcode.Bytes, 4);
+                        // Where the test itself gives up. Everything the triangle governs
+                        // is inside its own body, so the match ends where the body does
+                        // rather than running on into whatever the field does next.
+                        pendingTriangleEnd = triangleTestEnd;
+                        sawConfirm = false;
+                        continue;
+                    }
+
+                    if (pendingTriangle >= 0 && opcode.Offset >= pendingTriangleEnd)
+                    {
+                        pendingTriangle = -1;
+                        pendingTriangleEnd = int.MaxValue;
+                        sawConfirm = false;
+                    }
+
+                    if (opcode.Id is KeyHeldOpcode or KeyPressedOpcode)
+                    {
+                        // Only the confirm key counts. A test of some other key is not
+                        // this shape, but it does not end the triangle test either: the
+                        // stairwell's bottom rung offers one key on one branch and the
+                        // confirm key on the next, and both run the same climb.
+                        sawConfirm = pendingTriangle >= 0 && IsConfirmKeyTest(opcode);
+                        continue;
+                    }
+
+                    if (opcode.Id is PartyMemberRequestOpcode or PartyMemberRequestSyncOpcode or
+                        PartyMemberRequestGuaranteedOpcode)
+                    {
+                        if (pendingTriangle >= 0 &&
+                            sawConfirm &&
+                            opcode.Bytes.Length >= 3 &&
+                            opcode.Bytes[1] == LeaderPartySlot &&
+                            climbsByScript.TryGetValue(opcode.Bytes[2] & NativeScriptNumberMask, out var climb))
+                        {
+                            transitions.Add(new FieldScriptNavigationTransition(
+                                fieldId,
+                                FieldNavigationTransitionKind.Ladder,
+                                group.Index,
+                                climb.FootX,
+                                climb.FootY,
+                                // The foot's own elevation is whatever the polled triangle
+                                // sits at, and the triangle travels with the transition so
+                                // it never has to be recovered from a height at all.
+                                0,
+                                climb.Ladder.X,
+                                climb.Ladder.Y,
+                                climb.Ladder.Z,
+                                climb.Ladder.Triangle,
+                                $"polled-ladder:{fieldId}:{group.Index}:{pendingTriangle}:{opcode.Bytes[2] & NativeScriptNumberMask}",
+                                climb.Ladder.RequiredInput,
+                                RequiresAction: true,
+                                SourceTriangle: pendingTriangle));
+                        }
+
+                        sawConfirm = false;
+                        continue;
+                    }
+
+                    // Anything else that can move control elsewhere ends the press. The
+                    // triangle test is the enclosing condition and stands until the next
+                    // one or a return; the confirm press has to be the thing immediately
+                    // before the request, so a jump or another test in between drops it.
+                    if (TryResolveUnconditionalBranch(opcode, out _) ||
+                        TryResolveConditionalBranch(opcode, emptyConstants, out _, out _) ||
+                        TryResolveComparisonBranch(opcode, out _))
+                    {
+                        sawConfirm = false;
+                    }
+                }
+            }
+        }
+
+        return transitions;
+    }
+
+    // The climb scripts a party-member request can reach. The request names a slot, so
+    // the script that runs belongs to whoever is leading; taking it from the first group
+    // that happens to have that number would read an unrelated actor's script. Only the
+    // groups the field itself binds to a playable character are read, and only a script
+    // they agree on, which in practice means the two or three leaders a field allows.
+    private static Dictionary<int, (NavigationAction Ladder, int FootX, int FootY)> ReadLeaderFamilyClimbs(
+        IReadOnlyList<ScriptGroup> groups)
+    {
+        var candidates = new Dictionary<int, List<(NavigationAction Ladder, int FootX, int FootY)>>();
+        foreach (var group in groups)
+        {
+            if (!IsPlayableCharacterGroup(group))
+            {
+                continue;
+            }
+
+            foreach (var script in group.Scripts)
+            {
+                if (!TryReadPolledLadderScript(group.Index, script.Key, script.Value, out var climb))
+                {
+                    continue;
+                }
+
+                if (!candidates.TryGetValue(script.Key, out var found))
+                {
+                    found = [];
+                    candidates[script.Key] = found;
+                }
+
+                found.Add(climb);
+            }
+        }
+
+        var agreed = new Dictionary<int, (NavigationAction Ladder, int FootX, int FootY)>();
+        foreach (var candidate in candidates)
+        {
+            if (candidate.Value.Count < MinimumLeaderFamilySize)
+            {
+                continue;
+            }
+
+            // Agreement is about the ladder, not about the walk up to it. Cosmo's
+            // stairwell has Cloud stepping to (-151,745) and Tifa and Cid to (-148,757)
+            // for the same climb, because they are different models standing in
+            // slightly different places; the ladder they then take is identical.
+            var first = candidate.Value[0];
+            if (candidate.Value.All(entry =>
+                    entry.Ladder.X == first.Ladder.X &&
+                    entry.Ladder.Y == first.Ladder.Y &&
+                    entry.Ladder.Z == first.Ladder.Z &&
+                    entry.Ladder.Triangle == first.Ladder.Triangle &&
+                    entry.Ladder.RequiredInput == first.Ladder.RequiredInput))
+            {
+                agreed[candidate.Key] = first;
+            }
+        }
+
+        return agreed;
+    }
+
+    // Where a comparison gives up, for the word forms the byte-form resolver above does
+    // not cover. A word comparison carries two sixteen-bit addresses instead of two
+    // bytes, so its operand sits at index 7 rather than 5, and 611A89 and 611B02 add it
+    // to that position exactly as the byte handlers do - the long form reads two bytes
+    // from the same place the short form reads one, and both branch from there. Reading
+    // it as "the end of the opcode" put the long form one byte past its real target.
+    private static bool TryResolveComparisonBranch(ParsedOpcode opcode, out int falseTarget)
+    {
+        falseTarget = -1;
+        switch (opcode.Id)
+        {
+            case CompareWordOpcode when opcode.Bytes.Length >= 8:
+            case CompareUnsignedWordOpcode when opcode.Bytes.Length >= 8:
+                falseTarget = opcode.Offset + WordComparisonOperandIndex +
+                    opcode.Bytes[WordComparisonOperandIndex];
+                return true;
+            case CompareWordLongOpcode when opcode.Bytes.Length >= 9:
+            case CompareUnsignedWordLongOpcode when opcode.Bytes.Length >= 9:
+                falseTarget = opcode.Offset + WordComparisonOperandIndex +
+                    BitConverter.ToUInt16(opcode.Bytes, WordComparisonOperandIndex);
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    // Where each comparison keeps the jump it takes when the test fails.
+    private const int ByteComparisonOperandIndex = 5;
+    private const int WordComparisonOperandIndex = 7;
+
+    // A group the field binds to a playable character with A0, rather than to an
+    // ordinary field model with A1. This is what makes the family real: a party-member
+    // request names a slot, and the script it runs belongs to whichever of these groups
+    // is currently leading.
+    private static bool IsPlayableCharacterGroup(ScriptGroup group) =>
+        group.Scripts.Values.Any(script =>
+            ReadOpcodes(script).Any(opcode => opcode.Id == PlayableCharacterBindingOpcode));
+
+    // PXYZI reads a party member's own position into four bank words. Only slot 0 - the
+    // character the player is actually moving - is a leader position, and the fourth
+    // word is the triangle. AXYZI looks similar and is not this: it reads an arbitrary
+    // entity, and in the Cave of the Gi its Y lands in the very word this used to
+    // assume was a triangle.
+    private static int ReadLeaderTriangleAddress(ParsedOpcode opcode)
+    {
+        if (opcode.Bytes.Length < 8 ||
+            opcode.Bytes[3] != LeaderPartySlot ||
+            (opcode.Bytes[2] & 0x0F) != LeaderPositionBank)
+        {
+            return -1;
+        }
+
+        return opcode.Bytes[7];
+    }
+
+    private static bool IsLeaderTriangleTest(ParsedOpcode opcode, int leaderTriangleAddress) =>
+        opcode.Bytes.Length >= 8 &&
+        (opcode.Bytes[1] & 0xF0) == LeaderPositionBank << 4 &&
+        (opcode.Bytes[1] & 0x0F) == 0x00 &&
+        BitConverter.ToUInt16(opcode.Bytes, 2) == leaderTriangleAddress &&
+        opcode.Bytes[6] == 0;
+
+    private static bool IsConfirmKeyTest(ParsedOpcode opcode) =>
+        opcode.Bytes.Length >= 3 &&
+        BitConverter.ToUInt16(opcode.Bytes, 1) == NativeConfirmKeyMask;
+
+    private static bool TryReadPolledLadderScript(
+        int groupIndex,
+        int scriptIndex,
+        byte[] script,
+        out (NavigationAction Ladder, int FootX, int FootY) climb)
+    {
+        climb = default;
+        var footX = 0;
+        var footY = 0;
+        var haveFoot = false;
+        foreach (var opcode in ReadOpcodes(script))
+        {
+            if (opcode.Id == WalkToOpcode && opcode.Bytes.Length >= 6 && opcode.Bytes[1] == 0)
+            {
+                footX = BitConverter.ToInt16(opcode.Bytes, 2);
+                footY = BitConverter.ToInt16(opcode.Bytes, 4);
+                haveFoot = true;
+                continue;
+            }
+
+            if (opcode.Id != 0xC2 || !HasConstantMovementArguments(opcode.Bytes))
+            {
+                continue;
+            }
+
+            var ladder = NavigationAction.Ladder(
+                groupIndex,
+                scriptIndex,
+                BitConverter.ToInt16(opcode.Bytes, 3),
+                BitConverter.ToInt16(opcode.Bytes, 5),
+                BitConverter.ToInt16(opcode.Bytes, 7),
+                BitConverter.ToUInt16(opcode.Bytes, 9),
+                ResolveLadderInput(opcode.Bytes[11]));
+            climb = (ladder, haveFoot ? footX : ladder.X, haveFoot ? footY : ladder.Y);
+            return true;
+        }
+
+        return false;
+    }
+
+    private const byte ReturnOpcode = 0x00;
+    private const byte CompareWordOpcode = 0x16;
+    private const byte CompareWordLongOpcode = 0x17;
+    private const byte CompareUnsignedWordOpcode = 0x18;
+    private const byte CompareUnsignedWordLongOpcode = 0x19;
+    private const byte KeyHeldOpcode = 0x30;
+    private const byte KeyPressedOpcode = 0x31;
+    // The three ways a script asks a party member to run one of its own scripts, taken
+    // from the pinned data: PREQ is 0x04, PRQSW 0x05 and PRQEW 0x06. An earlier reading
+    // of these was one out across the board and only worked because the stairwell
+    // happens to use 0x06 either way; 0x07 is not a party request at all.
+    private const byte PartyMemberRequestOpcode = 0x04;
+    private const byte PartyMemberRequestGuaranteedOpcode = 0x05;
+    private const byte PartyMemberRequestSyncOpcode = 0x06;
+
+    // A0 binds a group to a playable character; A1 binds one to an ordinary field model.
+    private const byte PlayableCharacterBindingOpcode = 0xA0;
+    private const byte PartyMemberPositionOpcode = 0x75;
+    private const byte WalkToOpcode = 0xA8;
+    private const byte LeaderPartySlot = 0x00;
+    private const int LeaderPositionBank = 6;
+    private const int NativeConfirmKeyMask = 544;
+    private const int NativeScriptNumberMask = 0x1F;
+    private const int MinimumLeaderFamilySize = 2;
+
 
     private static FieldNavigationInput ResolveLadderInput(byte nativeKey) => nativeKey switch
     {
@@ -1393,7 +1845,11 @@ public sealed class FieldScriptNavigationCatalog
         int Triangle,
         int DestinationField,
         FieldNavigationInput RequiredInput,
-        bool RequiresActionActivation)
+        bool RequiresActionActivation,
+        // An XYZI landing rather than a traversal the script performs. It is real
+        // movement, but it is the weaker kind of evidence: scripts also use XYZI to
+        // tidy a character into place at the end of an animation.
+        bool IsPlacement = false)
     {
         public static NavigationAction Ladder(
             int group,
@@ -1408,7 +1864,36 @@ public sealed class FieldScriptNavigationCatalog
         public static NavigationAction Jump(int group, int script, int x, int y, int triangle) =>
             new(ActionKind.Jump, group, script, x, y, null, triangle, -1, FieldNavigationInput.None, false);
 
+        /// <summary>
+        /// A crossing the field performs by placing the character somewhere and letting
+        /// them walk on from there. It has no key of its own - stepping onto the line is
+        /// the whole of it - so it is an ordinary jump as far as routing is concerned,
+        /// but it carries a real height because the two sides are on different floors.
+        /// </summary>
+        public static NavigationAction PlacedMove(int group, int script, int x, int y, int z, int triangle) =>
+            new(
+                ActionKind.Jump,
+                group,
+                script,
+                x,
+                y,
+                z,
+                triangle,
+                -1,
+                FieldNavigationInput.None,
+                false,
+                IsPlacement: true);
+
         public static NavigationAction MapJump(int group, int script, int destinationField) =>
             new(ActionKind.MapJump, group, script, 0, 0, null, -1, destinationField, FieldNavigationInput.None, false);
     }
 }
+
+
+
+
+
+
+
+
+

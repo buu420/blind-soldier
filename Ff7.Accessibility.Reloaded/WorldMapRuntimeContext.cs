@@ -16,7 +16,10 @@ public sealed class WorldMapRuntimeContext
         int distanceUnitsPerCount,
         TimeSpan guidanceInterval,
         TimeSpan walkingFootstepInterval,
-        TimeSpan chocoboFootstepInterval)
+        TimeSpan chocoboFootstepInterval,
+        int entranceCueInnerRange,
+        int entranceCueOuterRange,
+        TimeSpan entranceCueInterval)
     {
         Map = map ?? throw new ArgumentNullException(nameof(map));
         Catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
@@ -26,6 +29,14 @@ public sealed class WorldMapRuntimeContext
             map.WrapHeight,
             walkingFootstepInterval,
             chocoboFootstepInterval);
+        TerrainAnnouncements = new WorldMapTerrainAnnouncementTracker();
+        EntranceProximityCues = new WorldMapEntranceProximityCueTracker(
+            map,
+            Planner,
+            catalog.Locations,
+            entranceCueInnerRange,
+            entranceCueOuterRange,
+            entranceCueInterval);
         Navigation = new WorldMapNavigationController(
             map,
             Planner,
@@ -43,6 +54,10 @@ public sealed class WorldMapRuntimeContext
 
     public WorldMapFootstepTracker Footsteps { get; }
 
+    public WorldMapTerrainAnnouncementTracker TerrainAnnouncements { get; }
+
+    public WorldMapEntranceProximityCueTracker EntranceProximityCues { get; }
+
     public WorldMapNavigationController Navigation { get; }
 
     public bool IsAtTerrainBoundary(WorldMapStateSnapshot state, int terrainId) =>
@@ -50,6 +65,44 @@ public sealed class WorldMapRuntimeContext
 
     public bool IsOnTerrain(WorldMapStateSnapshot state, int terrainId) =>
         WorldMapTerrainProximity.IsOnTerrain(Map, Planner, state, terrainId);
+
+    public bool TryResolveSurface(
+        WorldMapStateSnapshot state,
+        out WorldMapSurfaceSample surface,
+        out string diagnostic)
+    {
+        surface = default;
+        if (state.CurrentModule != WorldMapStateReader.WorldModule)
+        {
+            diagnostic = $"module={state.CurrentModule}, not world map";
+            return false;
+        }
+
+        if (state.WorldMapType != Map.WorldMapType)
+        {
+            diagnostic = $"state map={state.WorldMapType}, loaded map={Map.WorldMapType}";
+            return false;
+        }
+
+        if (state.TerrainId is < 0 or > 31)
+        {
+            diagnostic = $"native terrain id={state.TerrainId} is outside 0 through 31";
+            return false;
+        }
+
+        if (state.RegionId is < 0 or > 31)
+        {
+            diagnostic = $"native region id={state.RegionId} is outside 0 through 31";
+            return false;
+        }
+
+        surface = new WorldMapSurfaceSample(
+            state.TerrainId,
+            state.HasChocoboTracks,
+            state.RegionId);
+        diagnostic = string.Empty;
+        return true;
+    }
 
     public IReadOnlyList<WorldMapEntitySnapshot> Entities => Volatile.Read(ref entities);
 
@@ -60,6 +113,8 @@ public sealed class WorldMapRuntimeContext
     {
         UpdateEntities(Array.Empty<WorldMapEntitySnapshot>());
         Footsteps.Reset();
+        TerrainAnnouncements.Reset();
+        EntranceProximityCues.Reset();
         Navigation.Reset();
     }
 }

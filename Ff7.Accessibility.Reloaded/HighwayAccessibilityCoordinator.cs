@@ -206,33 +206,29 @@ internal sealed class HighwayAccessibilityCoordinator : IDisposable
                 ? update.AutomaticDirection
                 : HighwaySteeringDirection.None);
 
-        if (mode.Announcement is { } announcement)
+        // One delivery site for both. The mode announces itself on the first poll of
+        // every ride and again on every F8, and the composed speech is one-shot too -
+        // the arcade banner most of all. Speaking the mode and returning threw the
+        // other away after the composer had already counted it as delivered, so a ride
+        // acquired while READY was on screen never heard READY, and F8 during GO or
+        // GOAL lost that word for good.
+        var deliveries = HighwayAccessibilityComposer.Deliver(mode.Announcement, update.Speech);
+        if (deliveries.Count > 0)
         {
             StopAll();
-            try
+            foreach (var (text, interrupt) in deliveries)
             {
-                speak(announcement, true);
-                log($"Highway steering mode speech: {announcement}");
-            }
-            catch (Exception ex)
-            {
-                log($"Highway steering mode Prism speech failed: {ex.Message}");
-            }
-
-            return;
-        }
-
-        if (update.Speech is { } speech)
-        {
-            StopAll();
-            try
-            {
-                speak(speech.Text, speech.Interrupt);
-                log($"Highway {speech.Kind.ToString().ToLowerInvariant()} speech: {speech.Text}");
-            }
-            catch (Exception ex)
-            {
-                log($"Highway Prism speech failed: {ex.Message}");
+                try
+                {
+                    speak(text, interrupt);
+                    log(mode.Announcement is null
+                        ? $"Highway {update.Speech?.Kind.ToString().ToLowerInvariant()} speech: {text}"
+                        : $"Highway steering mode speech: {text}");
+                }
+                catch (Exception ex)
+                {
+                    log($"Highway Prism speech failed: {ex.Message}");
+                }
             }
 
             return;
@@ -382,7 +378,18 @@ internal sealed class HighwayAccessibilityCoordinator : IDisposable
                     .ToArray()),
             snapshot.Score,
             snapshot.IsStoryChase,
-            snapshot.Cloud.AttackTimer);
+            snapshot.Cloud.AttackTimer,
+            snapshot.HighScore,
+            // The reader names the banner from the renderer's own texture list; this
+            // only carries it across the layout/policy boundary.
+            snapshot.Banner switch
+            {
+                HighwayBanner.Ready => HighwayBannerState.Ready,
+                HighwayBanner.Go => HighwayBannerState.Go,
+                HighwayBanner.Goal => HighwayBannerState.Goal,
+                HighwayBanner.None => HighwayBannerState.None,
+                _ => HighwayBannerState.Unknown
+            });
     }
 
     internal static HighwayRoadState MapRoadState(HighwayRoadStateSnapshot snapshot) =>

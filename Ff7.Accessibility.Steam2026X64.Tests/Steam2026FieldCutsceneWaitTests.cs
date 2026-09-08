@@ -18,6 +18,7 @@ internal static class Steam2026FieldCutsceneWaitTests
         ContractCapturesAStableWaitContextAcrossAnActiveHookLease(supportedRuntime);
         ContractCapturesAStableSoundContextAcrossAnActiveHookLease(supportedRuntime);
         ContractAcceptsBothOpcodesForSharedTranslatedHandlers(supportedRuntime);
+        DfanmIngressPreservesThePostDialogueAnimationContext(supportedRuntime);
         IngressCopiesContextBeforeCallingTheOriginalExactlyOnce(supportedRuntime);
         SoundIngressCopiesContextBeforeCallingTheOriginalExactlyOnce(supportedRuntime);
         IngressContainsOriginalAndQueueFailures(supportedRuntime);
@@ -45,7 +46,8 @@ internal static class Steam2026FieldCutsceneWaitTests
             (Steam2026FieldCutsceneCallbackKind.BackgroundOn, 0x0061A035u, 0x016EAB00ul, 0x00BD3CD0ul, "48895C24084889742410574883EC208B"),
             (Steam2026FieldCutsceneCallbackKind.Sound, 0x00613A2Du, 0x016EA430ul, 0x00BB72C0ul, "48895C2408574883EC208B0DF8224801"),
             (Steam2026FieldCutsceneCallbackKind.Akao, 0x006137F9u, 0x016EA410ul, 0x00BB6620ul, "48895C2408574883EC208B0D982F4801"),
-            (Steam2026FieldCutsceneCallbackKind.Movie, 0x0061A321u, 0x016EAB60ul, 0x00BD4A70ul, "48895C2408574883EC208B0D484B4601")
+            (Steam2026FieldCutsceneCallbackKind.Movie, 0x0061A321u, 0x016EAB60ul, 0x00BD4A70ul, "48895C2408574883EC208B0D484B4601"),
+            ((Steam2026FieldCutsceneCallbackKind)15, 0x00614424u, 0x016EA580ul, 0x00BBA510ul, "48895C2408574883EC208B0DA8F04701")
         };
 
         Equal(expected.Length, Enum.GetValues<Steam2026FieldCutsceneCallbackKind>().Length,
@@ -63,6 +65,7 @@ internal static class Steam2026FieldCutsceneWaitTests
                 metadata.HostAbi,
                 $"{item.Item1} translated host ABI");
         }
+        Equal(14, (int)Steam2026FieldCutsceneCallbackKind.Movie, "existing callback numeric identities remain stable");
 
         var delegateType = typeof(TranslatedFieldCutsceneCallbackOriginal);
         var unmanaged = delegateType.GetCustomAttribute<UnmanagedFunctionPointerAttribute>()
@@ -105,6 +108,72 @@ internal static class Steam2026FieldCutsceneWaitTests
             false,
             contract.TryCaptureContext(identity, out _),
             "shared animation handler rejects MESSAGE");
+    }
+
+    private static void DfanmIngressPreservesThePostDialogueAnimationContext(
+        Steam2026FingerprintResult supportedRuntime)
+    {
+        const int dfanmOpcode = 0xA2;
+        const ushort scriptBase = 0x0900;
+        const ushort scriptPosition = scriptBase + 135;
+        var kind = (Steam2026FieldCutsceneCallbackKind)15;
+        var fixture = CreateFixture(dfanmOpcode);
+        fixture.Write((uint)FieldScriptContextReader.AddressCurrentFieldId, BitConverter.GetBytes((ushort)436));
+        fixture.Write(FieldObservationFixture.ScriptPointer + 2, [15]);
+        fixture.Write((uint)FieldScriptContextReader.AddressCurrentEntityId, [14]);
+        fixture.Write((uint)(FieldScriptContextReader.AddressCurrentEntityScriptPriority + 14), [6]);
+        fixture.Write((uint)(FieldScriptContextReader.AddressCurrentEntityScriptId + 14 * 8 + 6), [1]);
+        var positionAddress = (uint)(FieldScriptContextReader.AddressFieldCurrScriptPosition + 14 * sizeof(ushort));
+        fixture.Write(positionAddress, BitConverter.GetBytes(scriptPosition));
+        var offsetTable = FieldObservationFixture.ScriptPointer + 16
+            + FieldScriptContextReader.ScriptOffsetTableHeaderSize + 15 * 8
+            + 14 * FieldScriptContextReader.ScriptOffsetEntityStride;
+        fixture.Write(offsetTable + sizeof(ushort), BitConverter.GetBytes(scriptBase));
+        fixture.Write(FieldObservationFixture.ScriptPointer + scriptPosition, [0xA2, 4, 1, 0x40]);
+
+        var contract = CreateExactContract(fixture, supportedRuntime);
+        Equal(true, contract.TryValidateCaptureIdentity(kind, out var identity), "DFANM has its own exact translated handler");
+        Equal(new FieldScriptContext(436, 14, 1, 135, dfanmOpcode),
+            ReadContext(contract, identity, "DFANM"), "DFANM decoder preserves the Red talk script and byte offset");
+        Equal(true, contract.TryValidateCaptureIdentity(Steam2026FieldCutsceneCallbackKind.Anime1, out var wrongKind),
+            "ANIME1 distinct callback identity");
+        Equal(false, contract.TryCaptureContext(wrongKind, out _), "ANIME1 cannot claim a DFANM callback");
+
+        var queue = new BoundedNativeIngressQueue<Steam2026FieldCutsceneIngressSnapshot>(2);
+        var originalCalls = 0;
+        using var ingress = new Steam2026FieldCutsceneDetourIngressCoordinator(contract, kind,
+            () =>
+            {
+                originalCalls++;
+                Equal(false, queue.TryDequeue(out _), "DFANM context is published only after native original");
+                fixture.Write(positionAddress, BitConverter.GetBytes((ushort)(scriptPosition + 3)));
+            }, () => Timestamp, queue);
+        fixture.Native.Write(identity.HostAddress, [0xE9]);
+        contract.ActivateHookLease(_ => true);
+        ingress.OnCallback();
+        Equal(1, originalCalls, "DFANM original executes exactly once");
+        Equal(true, queue.TryDequeue(out var snapshot), "DFANM pre-original context is published");
+        Equal(new FieldScriptContext(436, 14, 1, 135, dfanmOpcode), snapshot.Context,
+            "DFANM event survives native byte-position advancement");
+
+        var cue = new FieldCutsceneDescriptionCue(436, 14, 1, 135, "Post-dialogue animation.", dfanmOpcode);
+        var speech = new Steam2026FieldCutsceneDescriptionCoordinator(fixture.Direct, [cue]);
+        Equal(false, speech.Observe(snapshot with { Context = snapshot.Context with { ByteIndex = 136 } }),
+            "nearby DFANM cannot trigger the cue");
+        Equal(true, speech.Observe(snapshot), "exact DFANM ingress queues its cue");
+        Equal(false, speech.Observe(snapshot), "repeated DFANM does not repeat narration");
+        Equal(false, speech.TrySpeakPending(true, () => false, _ => false, Timestamp, out _),
+            "rejected DFANM narration remains queued");
+        Equal(true, speech.TrySpeakPending(true, () => false, text => text == cue.Text, Timestamp, out var spoken),
+            "DFANM narration retries successfully");
+        Equal(cue, spoken, "DFANM spoken cue retains exact identity");
+
+        ingress.OnCallback();
+        Equal(2, originalCalls, "wrong-opcode DFANM callback still executes original");
+        Equal(false, queue.TryDequeue(out _), "wrong opcode does not publish DFANM");
+        contract.RevokeHookLease();
+        fixture.Write(positionAddress, BitConverter.GetBytes(scriptPosition));
+        Equal(false, contract.TryCaptureContext(identity, out _), "DFANM patched prefix rejected after lease revocation");
     }
 
     private static void ContractCapturesAStableWaitContextAcrossAnActiveHookLease(

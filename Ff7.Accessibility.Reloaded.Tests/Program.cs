@@ -38,6 +38,7 @@ if (args.Contains("--condor-battle-only", StringComparer.OrdinalIgnoreCase))
 {
     CondorBattleInitializationTests.Run();
     CondorPlacementLineReadoutTests.Run();
+    CondorBattleAnnouncementTests.Run();
     CondorCursorSteeringTests.Run();
     CondorUnitMovementSpeechTests.Run();
     CondorBattleReaderTests.Run();
@@ -52,6 +53,7 @@ if (args.Contains("--condor-probe-silence-only", StringComparer.OrdinalIgnoreCas
 {
     CondorBattleInitializationTests.Run();
     CondorPlacementLineReadoutTests.Run();
+    CondorBattleAnnouncementTests.Run();
     CondorCursorSteeringTests.Run();
     CondorUnitMovementSpeechTests.Run();
     CondorResearchProbeSilenceTests.Run();
@@ -202,11 +204,22 @@ if (args.Contains("--wall-market-squat-only", StringComparer.OrdinalIgnoreCase))
     return;
 }
 
+if (args.Contains("--junon-minigames-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.JunonMinigameSpeechTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.JunonParadeAlignmentAssistTests.Run();
+    JunonMinigameRuntimeTests.Run();
+    Console.WriteLine("FFVII x86 Junon minigame speech tests passed.");
+    return;
+}
+
 if (args.Contains("--auto-walk-only", StringComparer.OrdinalIgnoreCase))
 {
-    NavigationAutoWalkControllerTests.Run();
+    NavigationAutoWalkControllerTests.Run(CreateInstalledFieldWalkmeshReader);
     AssertFieldCorridorLookaheadCreatesObstacleRecoverySideStep();
     AssertFieldCorridorLookaheadAvoidsLiveModelCollision();
+    AssertFieldCorridorLookaheadBypassesLiveModelAtFarEndOfLongSegment();
+    AssertFieldRouteTrackerRetainsInitialDistantModelBypass();
     AssertFieldNavigationRouteTrackerKeepsObstacleRecoveryUntilClear();
     AssertFieldNavigationRouteTrackerDoesNotDiscardShortRecoveryBeforeMovement();
     AssertFieldNavigationRouteTrackerRetainsBlockedEvidenceAcrossDirectionChanges();
@@ -256,7 +269,15 @@ if (args.Contains("--opening-movie-only", StringComparer.OrdinalIgnoreCase))
 if (args.Contains("--kalm-junon-descriptions-only", StringComparer.OrdinalIgnoreCase))
 {
     AssertFieldCutsceneDescriptionCatalogCoversKalmThroughLowerJunon();
-    Console.WriteLine("FFVII Kalm through Lower Junon description tests passed.");
+    AssertFieldCutsceneDescriptionCatalogCoversUpperJunonThroughCargoShip();
+    Console.WriteLine("FFVII Kalm through cargo ship description tests passed.");
+    return;
+}
+
+if (args.Contains("--junon-journey-descriptions-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.JunonJourneyDescriptionTests.Run(FindGameRoot());
+    Console.WriteLine("FFVII Junon through Costa del Sol scene description tests passed.");
     return;
 }
 
@@ -329,14 +350,20 @@ if (args.Contains("--multilingual-menu-only", StringComparer.OrdinalIgnoreCase))
 
 if (args.Contains("--world-map-only", StringComparer.OrdinalIgnoreCase))
 {
+    Ff7.Accessibility.Reloaded.Tests.WorldMapDataLoaderTests.Run();
     Ff7.Accessibility.Reloaded.Tests.WorldMapStateReaderTests.Run();
     Ff7.Accessibility.Reloaded.Tests.MidgarZolomStateReaderTests.Run();
     Ff7.Accessibility.Reloaded.Tests.WorldMapTargetCatalogTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.WorldMapLocationEntranceTests.Run();
     Ff7.Accessibility.Reloaded.Tests.WorldMapRoutePlannerTests.Run();
     Ff7.Accessibility.Reloaded.Tests.WorldMapFootstepTests.Run();
     Ff7.Accessibility.Reloaded.Tests.MidgarZolomCrossingTrackerTests.Run();
     Ff7.Accessibility.Reloaded.Tests.MidgarZolomAreaTrackerTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.WorldMapTerrainAnnouncementTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.WorldMapEntranceProximityCueTests.Run();
     Ff7.Accessibility.Reloaded.Tests.WorldMapNavigationControllerTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.NavigationProgressControlTests.Run();
+    AssertWorldEntranceCueUsesTheFullDirectionalSteamAudioRender();
     Console.WriteLine("FFVII shared world-map accessibility tests passed.");
     return;
 }
@@ -346,6 +373,154 @@ if (args.Contains("--kalm-ranch-navigation-only", StringComparer.OrdinalIgnoreCa
     Ff7.Accessibility.Reloaded.Tests.KalmExitPresentationTests.Run();
     Ff7.Accessibility.Reloaded.Tests.KalmRanchNavigationTests.Run();
     Console.WriteLine("FFVII Kalm and Chocobo Ranch navigation tests passed.");
+    return;
+}
+
+if (args.Contains("--junon-navigation-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.JunonFieldNavigationTests.Run(
+        CreateInstalledFieldWalkmeshReader);
+    Console.WriteLine("FFVII Junon field navigation tests passed.");
+    return;
+}
+
+if (args.Contains("--field-button-glyphs-only", StringComparer.OrdinalIgnoreCase))
+{
+    FieldButtonGlyphTests.Run();
+    Console.WriteLine("Field button glyph tests passed.");
+    return;
+}
+
+if (args.Contains("--field-navigation-precision-only", StringComparer.OrdinalIgnoreCase))
+{
+    FieldNavigationPrecisionTests.Run();
+    Console.WriteLine("Field navigation precision tests passed.");
+    return;
+}
+
+if (args.Contains("--native-field-movement-only", StringComparer.OrdinalIgnoreCase))
+{
+    FieldNavigationPrecisionTests.Run();
+    FieldNavigationNativeProbeMovementTests.Run(CreateInstalledFieldWalkmeshReader);
+    Console.WriteLine("Native field movement probe tests passed.");
+    return;
+}
+
+if (args.Contains("--north-corel-readout-only", StringComparer.OrdinalIgnoreCase))
+{
+    NorthCorelNavigationReadoutTests.Run(CreateInstalledFieldWalkmeshReader);
+    Console.WriteLine("North Corel navigation readout tests passed.");
+    return;
+}
+
+if (args.Contains("--north-corel-ether-only", StringComparer.OrdinalIgnoreCase))
+{
+    NorthCorelEtherInteractionTests.Run(CreateInstalledFieldWalkmeshReader);
+    Console.WriteLine("North Corel Ether interaction tests passed.");
+    return;
+}
+
+if (args.Contains("--gold-saucer-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.GoldSaucerFirstVisitTests.Run(CreateInstalledFieldWalkmeshReader);
+    Ff7.Accessibility.Reloaded.Tests.GoldSaucerMovieNarrationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.FieldMovieNarrationQueueSeamTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.GBikeArcadeModeTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.SpeedSquareCoasterTargetTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.ChocoboSquareTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.GoldSaucerDescriptionTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.GoldSaucerMinigameTests.Run();
+    Console.WriteLine("Gold Saucer first-visit tests passed.");
+    return;
+}
+
+if (args.Contains("--north-corel-repair-only", StringComparer.OrdinalIgnoreCase))
+{
+    FieldNavigationPrecisionTests.Run();
+    FieldNavigationNativeProbeMovementTests.Run(CreateInstalledFieldWalkmeshReader);
+    NorthCorelRecoveryHeightTests.Run(CreateInstalledFieldWalkmeshReader);
+    NorthCorelAlternateCorridorTests.Run(CreateInstalledFieldWalkmeshReader);
+    FieldAutoWalkRunPaceTests.Run();
+    NorthCorelNavigationReadoutTests.Run(CreateInstalledFieldWalkmeshReader);
+    NorthCorelEtherInteractionTests.Run(CreateInstalledFieldWalkmeshReader);
+    Ff7.Accessibility.Reloaded.Tests.WorldMapMountCorelNavigationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.NorthCorelNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
+    Console.WriteLine("North Corel route repair tests passed.");
+    return;
+}
+
+if (args.Contains("--world-mount-corel-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.WorldMapMountCorelNavigationTests.Run();
+    Console.WriteLine("World map Mount Corel navigation tests passed.");
+    return;
+}
+
+if (args.Contains("--mount-corel-repair-only", StringComparer.OrdinalIgnoreCase))
+{
+    MountCorelRouteRepairTests.Run(CreateInstalledFieldWalkmeshReader);
+    FieldButtonGlyphTests.Run();
+    FieldManualObjectGuidanceTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.FieldGatewayCompletionTests.Run();
+FieldGatewayTriggerPolicyTests.Run();
+ChocoboRaceControlReadoutTests.Run();
+FieldAutoWalkConvergenceTrackerTests.Run();
+FieldInteractionApproachBodyClearanceTests.Run(CreateInstalledFieldWalkmeshReader);
+    Console.WriteLine("Mount Corel repair tests passed.");
+    return;
+}
+
+if (args.Contains("--manual-field-objects-only", StringComparer.OrdinalIgnoreCase))
+{
+    FieldManualObjectGuidanceTests.Run();
+    Console.WriteLine("Manual field object guidance tests passed.");
+    return;
+}
+
+if (args.Contains("--field-gateway-completion-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.FieldGatewayCompletionTests.Run();
+FieldGatewayTriggerPolicyTests.Run();
+ChocoboRaceControlReadoutTests.Run();
+FieldAutoWalkConvergenceTrackerTests.Run();
+FieldInteractionApproachBodyClearanceTests.Run(CreateInstalledFieldWalkmeshReader);
+    Console.WriteLine("Field gateway completion tests passed.");
+    return;
+}
+
+if (args.Contains("--corel-descriptions-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.CorelJourneyDescriptionTests.Run();
+    Console.WriteLine("FFVII Corel journey descriptions passed.");
+    return;
+}
+
+if (args.Contains("--costa-gold-navigation-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.CostaDelSolNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
+    MountCorelNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
+    Ff7.Accessibility.Reloaded.Tests.NorthCorelNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
+    Ff7.Accessibility.Reloaded.Tests.NativeLineStoryArrivalTests.Run();
+    Console.WriteLine("FFVII Costa through Gold Saucer navigation tests passed.");
+    return;
+}
+
+if (args.Contains("--native-line-story-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.NativeLineStoryArrivalTests.Run();
+    return;
+}
+
+if (args.Contains("--mount-corel-navigation-only", StringComparer.OrdinalIgnoreCase))
+{
+    MountCorelNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
+    return;
+}
+
+if (args.Contains("--cargo-navigation-only", StringComparer.OrdinalIgnoreCase))
+{
+    CargoShipNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
+    Console.WriteLine("FFVII cargo ship native navigation tests passed.");
     return;
 }
 
@@ -532,12 +707,50 @@ FortCondorTests.Run();
 FortCondorLadderReachabilityTests.Run();
 FortCondorSaveRoomClimbTests.Run();
 TowerFieldTransitionAnchoringTests.Run();
+Ff7.Accessibility.Reloaded.Tests.JunonFieldNavigationTests.Run(
+    CreateInstalledFieldWalkmeshReader);
+CargoShipNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
+Ff7.Accessibility.Reloaded.Tests.CostaDelSolNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
+Ff7.Accessibility.Reloaded.Tests.HugeMateriaContactTests.Run(CreateInstalledFieldWalkmeshReader);
+Ff7.Accessibility.Reloaded.Tests.SubmarineMissionTests.Run();
+Ff7.Accessibility.Reloaded.Tests.Reactor5ButtonCueTests.Run();
+Ff7.Accessibility.Reloaded.Tests.CorelJourneyDescriptionTests.Run();
+MountCorelNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
+Ff7.Accessibility.Reloaded.Tests.NorthCorelNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
+NorthCorelEtherInteractionTests.Run(CreateInstalledFieldWalkmeshReader);
+Ff7.Accessibility.Reloaded.Tests.GoldSaucerFirstVisitTests.Run(CreateInstalledFieldWalkmeshReader);
+Ff7.Accessibility.Reloaded.Tests.GoldSaucerMovieNarrationTests.Run();
+Ff7.Accessibility.Reloaded.Tests.FieldMovieNarrationQueueSeamTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.GBikeArcadeModeTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.SpeedSquareCoasterTargetTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.ChocoboSquareTests.Run();
+Ff7.Accessibility.Reloaded.Tests.GoldSaucerDescriptionTests.Run();
+Ff7.Accessibility.Reloaded.Tests.GoldSaucerMinigameTests.Run();
+Ff7.Accessibility.Reloaded.Tests.WorldMapMountCorelNavigationTests.Run();
+FieldNavigationPrecisionTests.Run();
+FieldNavigationNativeProbeMovementTests.Run(CreateInstalledFieldWalkmeshReader);
+NorthCorelRecoveryHeightTests.Run(CreateInstalledFieldWalkmeshReader);
+Ff7.Accessibility.Reloaded.Tests.NativeLineStoryArrivalTests.Run();
+NorthCorelAlternateCorridorTests.Run(CreateInstalledFieldWalkmeshReader);
+    FieldAutoWalkRunPaceTests.Run();
+NorthCorelNavigationReadoutTests.Run(CreateInstalledFieldWalkmeshReader);
+Ff7.Accessibility.Reloaded.Tests.FieldGatewayCompletionTests.Run();
+FieldGatewayTriggerPolicyTests.Run();
+ChocoboRaceControlReadoutTests.Run();
+FieldAutoWalkConvergenceTrackerTests.Run();
+FieldInteractionApproachBodyClearanceTests.Run(CreateInstalledFieldWalkmeshReader);
+FieldManualObjectGuidanceTests.Run();
+MountCorelRouteRepairTests.Run(CreateInstalledFieldWalkmeshReader);
+FieldButtonGlyphTests.Run();
+Ff7.Accessibility.Reloaded.Tests.JunonMinigameSpeechTests.Run();
+Ff7.Accessibility.Reloaded.Tests.JunonParadeAlignmentAssistTests.Run();
+JunonMinigameRuntimeTests.Run();
 HighwayAccessibilityTrackerTests.Run();
 HighwaySteeringTrackerTests.Run();
 HighwayEngagementSteeringTrackerTests.Run();
 HighwayAutoSteeringModeTrackerTests.Run();
 HighwayAutoSteeringControllerTests.Run();
-NavigationAutoWalkControllerTests.Run();
+NavigationAutoWalkControllerTests.Run(CreateInstalledFieldWalkmeshReader);
 HighwayAccessibilityCoordinatorTests.Run();
 AssertMenuTextRendererDelegateHasReloadedFunctionAttribute();
 AssertFieldMessageOpenDelegateHasReloadedFunctionAttribute();
@@ -554,6 +767,7 @@ AssertFf7EncodedFieldTextDecodesAccentedWesternLetters();
 AssertCondorUnitCatalogMatchesShippedMinigameData();
 CondorBattleInitializationTests.Run();
 CondorPlacementLineReadoutTests.Run();
+CondorBattleAnnouncementTests.Run();
 CondorCursorSteeringTests.Run();
 CondorUnitMovementSpeechTests.Run();
 CondorBattleReaderTests.Run();
@@ -671,6 +885,8 @@ AssertFieldCutsceneDescriptionCatalogCoversTrainAndSector7();
 AssertFieldCutsceneDescriptionCatalogCoversReactor5AndAeris();
 AssertFieldCutsceneDescriptionCatalogCoversWallMarketThroughMotorcycleEscape();
 AssertFieldCutsceneDescriptionCatalogCoversKalmThroughLowerJunon();
+AssertFieldCutsceneDescriptionCatalogCoversUpperJunonThroughCargoShip();
+Ff7.Accessibility.Reloaded.Tests.JunonJourneyDescriptionTests.Run(FindGameRoot());
 AssertFieldCutsceneDescriptionTrackerSpeaksExactCueOnce();
 AssertFieldCutsceneDescriptionTrackerRequiresCatalogedOpcode();
 AssertFieldCutsceneDescriptionTrackerResetsOnFieldReentry();
@@ -705,7 +921,7 @@ AssertOpeningFieldZoneGateCoversMovieDetectionRace();
 AssertDeferredZoneSpeechWaitsForNativeControlUnlock();
 AssertDeferredZoneSpeechQueuesBehindCutsceneNarration();
 AssertFieldZoneTransitionCueUsesConfirmedFieldChangesOnly();
-AssertFieldZoneTransitionCueConfigDefaultsDisabled();
+AssertZoneTransitionCueDefaultsKeepFieldsSilentAndWorldAreasAudible();
 AssertSwingingBarTimingCueUsesNativeSuccessWindow();
 AssertSwingingBarTimingCueRearmsForTheNextAttempt();
 AssertFloor60StatueBeaconFollowsNativeHideSpotsAndGuardLines();
@@ -724,10 +940,13 @@ Ff7.Accessibility.Reloaded.Tests.MidgarZolomStateReaderTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WorldMapEntityReaderTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WorldMapDataLoaderTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WorldMapTargetCatalogTests.Run();
+Ff7.Accessibility.Reloaded.Tests.WorldMapLocationEntranceTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WorldMapRoutePlannerTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WorldMapFootstepTests.Run();
 Ff7.Accessibility.Reloaded.Tests.MidgarZolomCrossingTrackerTests.Run();
 Ff7.Accessibility.Reloaded.Tests.MidgarZolomAreaTrackerTests.Run();
+Ff7.Accessibility.Reloaded.Tests.WorldMapTerrainAnnouncementTests.Run();
+Ff7.Accessibility.Reloaded.Tests.WorldMapEntranceProximityCueTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WorldMapNavigationControllerTests.Run();
 AssertFieldLadderStateReaderReadsNativeMountedState();
 AssertFieldLadderStateReaderCorrectsWallClimbPenultimateLadderToLeft();
@@ -778,6 +997,7 @@ AssertFieldNavigationObjectCatalogNamesResolve();
 AssertFieldNavigationObjectCueClassifierUsesNativeCatalogMetadata();
 AssertFieldGatewayTargetReaderReadsEveryNativeGateway();
 AssertFieldGatewayTargetReaderRejectsInvalidState();
+AssertFieldActivityReadoutSpeaksTheNativeActivities();
 AssertFieldScriptNavigationCatalogReadsNativeTransitions();
 AssertFieldScriptNavigationCatalogIncludesActionActivatedFloor59Elevators();
 AssertWallClimbNavigationUsesNativeBranchAndCompositeLandings();
@@ -871,6 +1091,8 @@ AssertFieldWalkmeshSegmentTraceDoesNotJumpOverDisconnectedLevel();
 AssertFieldCorridorLookaheadKeepsClearHeading();
 AssertFieldCorridorLookaheadCreatesObstacleRecoverySideStep();
 AssertFieldCorridorLookaheadAvoidsLiveModelCollision();
+AssertFieldCorridorLookaheadBypassesLiveModelAtFarEndOfLongSegment();
+AssertFieldRouteTrackerRetainsInitialDistantModelBypass();
 AssertFieldCorridorLookaheadFindsFarthestVisibleStep();
 AssertFieldCorridorLookaheadTurnsAtRealWall();
 AssertFieldCorridorLookaheadStopsBeforeLadder();
@@ -1006,6 +1228,7 @@ AssertNavigationBeaconPlayerInitializesSteamAudioHrtf();
 AssertNavigationBeaconPlayerRendersAudibleSteamAudioSamples();
 AssertNavigationBeaconPlayerRendersDirectionalChannelSeparation();
 AssertNavigationBeaconPlayerRendersBackCueWithRearMarker();
+AssertWorldEntranceCueUsesTheFullDirectionalSteamAudioRender();
 AssertNavigationBeaconRearCueIsDistinctFromFront();
 AssertObjectCueGainPolicyClampsDistanceGain();
 AssertObjectCueConfigDefaultsEnabled();
@@ -1212,6 +1435,7 @@ AssertLegacyX86FingerprintAcceptsOnlyKnownExecutable();
 AssertReloadedMetadataNamesEveryValidatedHost();
 AssertLegacyX86CapabilitiesMapEveryRequiredSubsystem();
 AssertLegacyX86CapabilityValidationFailsClosedOnMissingSignal();
+Ff7.Accessibility.Reloaded.Tests.MainStoryCoverageTests.Run();
 
 Console.WriteLine("Reloaded accessibility tests passed.");
 
@@ -6361,7 +6585,11 @@ static void AssertFieldCutsceneDescriptionCatalogCoversKalmThroughLowerJunon()
     AssertContains(cues.Single(cue => cue.FieldId == 428).Text, "Lower Junon");
     AssertContains(cues.Single(cue => cue.FieldId == 429).Text, "Priscilla");
     AssertContains(cues.Single(cue => cue.FieldId == 434).Text, "motionless");
-    AssertContains(cues.Single(cue => cue.FieldId == 359).Text, "Mako cannon");
+    var upperJunonPanorama = cues.Single(cue => cue.FieldId == 359);
+    AssertContains(upperJunonPanorama.Text, "Mako cannon");
+    AssertContains(
+        upperJunonPanorama.Text,
+        "story continues automatically when the panorama ends");
 
     var vanillaFingerprints = new Dictionary<int, string>
     {
@@ -6425,6 +6653,47 @@ static void AssertFieldCutsceneDescriptionCatalogCoversKalmThroughLowerJunon()
             true,
             nativeOpcodes.Any(opcode => opcode.ByteIndex == cue.ByteIndex && opcode.Opcode == cue.Opcode),
             $"Kalm/Junon cue field={cue.FieldId} entity={cue.EntityId} script={cue.ScriptId} byte={cue.ByteIndex} must use its exact installed vanilla opcode");
+    }
+}
+
+static void AssertFieldCutsceneDescriptionCatalogCoversUpperJunonThroughCargoShip()
+{
+    Ff7.Accessibility.Reloaded.Tests.EchoSCompatibilityTests.AuthorizesInstalledJunonThroughCostaDescriptionAnchors(FindGameRoot());
+    var cues = FieldCutsceneDescriptionCatalog.CreateUpperJunonThroughCargoShipDescriptions();
+    AssertEqual(9, cues.Count, "Upper Junon through cargo ship cue count");
+    AssertEqual(
+        "384:0:3:73:F9;384:0:3:201:F9;385:0:0:136:F9;391:2:1:5:F9;391:2:2:19:F9;395:3:2:8:F9;395:3:1:19:F9;440:15:5:93:03;440:15:5:155:6B",
+        string.Join(';', cues.Select(cue =>
+            $"{cue.FieldId}:{cue.EntityId}:{cue.ScriptId}:{cue.ByteIndex}:{cue.Opcode:X2}")),
+        "Upper Junon through cargo ship exact native anchors and chronological order");
+    AssertEqual(cues.Count, cues.Select(cue => cue.Key).Distinct().Count(), "cue keys must be unique");
+    AssertEqual(true, cues.All(cue => !string.IsNullOrWhiteSpace(cue.Text)), "narration must not be blank");
+
+    var all = FieldCutsceneDescriptionCatalog.CreateEarlyGameDescriptions();
+    AssertEqual(all.Count, all.Select(cue => cue.Key).Distinct().Count(), "no duplicate keys once merged");
+    AssertEqual(1, all.Count(cue => cue.FieldId == 359), "the existing Junon establishing movie cue must survive");
+    var upperJunonPanorama = all.Single(cue => cue.FieldId == 359);
+    AssertContains(upperJunonPanorama.Text, "Mako cannon");
+    AssertContains(
+        upperJunonPanorama.Text,
+        "story continues automatically when the panorama ends");
+    AssertContains(cues.Single(cue => cue.FieldId == 384 && cue.ByteIndex == 73).Text, "rises");
+    AssertContains(cues.Single(cue => cue.FieldId == 384 && cue.ByteIndex == 201).Text, "descends");
+    AssertContains(cues.Single(cue => cue.FieldId == 385).Text, "Highwind");
+    AssertEqual(2, cues.Count(cue => cue.FieldId == 395), "Junon interior platform arrival and departure cues");
+    AssertEqual(
+        2,
+        cues.Where(cue => cue.FieldId == 395).Select(cue => cue.Text).Distinct().Count(),
+        "Junon interior platform arrival and departure must describe distinct visible actions");
+
+    var nativeCatalog = new FieldScriptNavigationCatalog(FindGameRoot());
+    foreach (var cue in cues)
+    {
+        var nativeOpcodes = nativeCatalog.ReadScriptOpcodes(cue.FieldId, cue.EntityId, cue.ScriptId);
+        AssertEqual(
+            true,
+            nativeOpcodes.Any(opcode => opcode.ByteIndex == cue.ByteIndex && opcode.Opcode == cue.Opcode),
+            $"Upper Junon cue field={cue.FieldId} entity={cue.EntityId} script={cue.ScriptId} byte={cue.ByteIndex} must use its exact installed vanilla opcode");
     }
 }
 
@@ -7019,13 +7288,35 @@ static void AssertFieldZoneTransitionCueUsesConfirmedFieldChangesOnly()
     AssertEqual(false, tracker.Observe(FieldPositionReader.FieldModule, 116, now.AddMilliseconds(3450)), "new game initial field must not sound like an exit");
 }
 
-static void AssertFieldZoneTransitionCueConfigDefaultsDisabled()
+static void AssertZoneTransitionCueDefaultsKeepFieldsSilentAndWorldAreasAudible()
 {
     var config = new AccessibilityConfig();
     AssertEqual(false, config.EnableFieldZoneTransitionCue, "post-transition zone cue should default disabled");
+    AssertEqual(true, config.EnableWorldMapEntranceProximityCues, "world-map entrance proximity cue should default enabled");
+    AssertEqual(512, config.WorldMapEntranceCueInnerRangeUnits, "world entrance cue inner range default");
+    AssertEqual(4096, config.WorldMapEntranceCueOuterRangeUnits, "world entrance cue outer range default");
+    AssertEqual(3200, config.WorldMapEntranceCueIntervalMs, "world entrance cue interval default");
+    AssertEqual(100, config.WorldMapEntranceCueVolumePercent, "world entrance cue volume default");
+    AssertEqual(@"Assets\navigation\field_zone_transition.wav", config.WorldMapEntranceCueSoundPath, "world entrance cue path default");
     AssertEqual(300, config.FieldZoneTransitionCueSettleMs, "field zone transition cue settle default");
     AssertEqual(100, config.FieldZoneTransitionCueVolumePercent, "field zone transition cue volume default");
     AssertEqual(@"Assets\navigation\field_zone_transition.wav", config.FieldZoneTransitionCueSoundPath, "field zone transition cue path default");
+
+    var shippedConfigPath = Path.Combine(
+        FindSourceRoot(),
+        "Ff7.Accessibility.Reloaded",
+        "Configuration",
+        "config.json");
+    var shippedConfig = JsonSerializer.Deserialize<AccessibilityConfig>(
+        File.ReadAllText(shippedConfigPath)) ??
+        throw new InvalidOperationException("The shipped accessibility configuration is empty.");
+    AssertEqual(false, shippedConfig.EnableFieldZoneTransitionCue, "shipped field transition cue remains disabled");
+    AssertEqual(true, shippedConfig.EnableWorldMapEntranceProximityCues, "shipped world entrance cue is enabled");
+    AssertEqual(512, shippedConfig.WorldMapEntranceCueInnerRangeUnits, "shipped world entrance inner range");
+    AssertEqual(4096, shippedConfig.WorldMapEntranceCueOuterRangeUnits, "shipped world entrance outer range");
+    AssertEqual(3200, shippedConfig.WorldMapEntranceCueIntervalMs, "shipped world entrance interval");
+    AssertEqual(@"Assets\navigation\field_zone_transition.wav", shippedConfig.WorldMapEntranceCueSoundPath, "shipped world entrance cue path");
+    AssertEqual(true, shippedConfig.EnableFieldExitProximityCues, "shipped field exit proximity cues remain enabled");
 }
 
 static void AssertSwingingBarTimingCueUsesNativeSuccessWindow()
@@ -10372,7 +10663,7 @@ static void AssertFieldStoryReaderFollowsNativeReactorDoorOrder()
         ReadInt32Value,
         ReadInt16Value,
         ReadByte,
-        definitions);
+        definitions, _ => true);
     var position = new FieldPositionSnapshot(1, 120, 0, -900, 2400, -277, 25, 0);
 
     var targets = reader.ReadTargets(position);
@@ -10425,12 +10716,12 @@ static void AssertFieldStoryReaderUsesNextNativeMilestone()
         (ReadByte(address + 2) << 16) |
         (ReadByte(address + 3) << 24);
 
-    var reader = new FieldStoryTargetReader(ReadInt32Value, ReadByte,
+    var reader = new FieldStoryTargetReader(ReadInt32Value, _ => 0, ReadByte,
     [
         new FieldStoryEventDefinition(200, FieldStoryTargetKind.Location, "Earlier event", X: 10, TargetGameMoment: 48),
         new FieldStoryEventDefinition(200, FieldStoryTargetKind.Location, "Next event", X: 20, TargetGameMoment: 51),
         new FieldStoryEventDefinition(200, FieldStoryTargetKind.Location, "Later event", X: 30, TargetGameMoment: 63)
-    ]);
+    ], _ => true);
     var position = new FieldPositionSnapshot(1, 200, 0, 0, 0, 0, 0, 0);
 
     var targets = reader.ReadTargets(position);
@@ -10454,7 +10745,7 @@ static void AssertFieldStoryReaderSupportsAnySetConditions()
         (ReadByte(address + 2) << 16) |
         (ReadByte(address + 3) << 24);
 
-    var reader = new FieldStoryTargetReader(ReadInt32Value, ReadByte,
+    var reader = new FieldStoryTargetReader(ReadInt32Value, _ => 0, ReadByte,
     [
         new FieldStoryEventDefinition(
             201,
@@ -10463,7 +10754,7 @@ static void AssertFieldStoryReaderSupportsAnySetConditions()
             X: 140,
             RequiredCondition: new FieldStoryStateCondition(1, 161, 0xE0, 0, AnyBitSet: true),
             CompletedCondition: new FieldStoryStateCondition(1, 160, 0x80, 0, AnyBitSet: true))
-    ]);
+    ], _ => true);
     var position = new FieldPositionSnapshot(1, 201, 0, 0, 0, 0, 0, 0);
 
     AssertEqual(0, reader.ReadTargets(position).Count, "an any-set requirement must reject a clear native bit group");
@@ -10483,7 +10774,7 @@ static void AssertFieldStoryReaderRequiresEveryNativeCondition()
         (ReadByte(address + 2) << 16) |
         (ReadByte(address + 3) << 24);
 
-    var reader = new FieldStoryTargetReader(ReadInt32Value, ReadByte,
+    var reader = new FieldStoryTargetReader(ReadInt32Value, _ => 0, ReadByte,
     [
         new FieldStoryEventDefinition(
             184,
@@ -10497,7 +10788,7 @@ static void AssertFieldStoryReaderRequiresEveryNativeCondition()
                 new FieldStoryStateCondition(5, 10, 0xFF, 1),
                 new FieldStoryStateCondition(5, 12, 0xFF, 1)
             ])
-    ]);
+    ], _ => true);
     var position = new FieldPositionSnapshot(1, 184, 0, 0, 0, 0, 0, 0);
 
     memory[FieldNavigationObjectReader.AddressTemporaryFieldBankBase + 10] = 1;
@@ -10562,7 +10853,7 @@ static void AssertFieldStoryCatalogExposesOnlyVisibleOpeningFollowersWithinNativ
         (ReadBarretByte(address + 2) << 16) |
         (ReadBarretByte(address + 3) << 24);
 
-    var barretReader = new FieldStoryTargetReader(ReadBarretInt32, ReadBarretByte, [barret]);
+    var barretReader = new FieldStoryTargetReader(ReadBarretInt32, _ => 0, ReadBarretByte, [barret], _ => true);
     var barretPosition = new FieldPositionSnapshot(1, 116, 0, 3600, 27700, 323, 30, 0);
     var targets = barretReader.ReadTargets(barretPosition);
     AssertEqual(1, targets.Count, "visible Barret should be the pending field 116 story objective at GameMoment 1");
@@ -10616,9 +10907,8 @@ static void AssertFieldStoryCatalogExposesOnlyVisibleOpeningFollowersWithinNativ
         (ReadAvalancheByte(address + 1) << 8)));
 
     var avalancheReader = new FieldStoryTargetReader(
-        ReadAvalancheInt32,
-        ReadAvalancheByte,
-        [avalanche]);
+        ReadAvalancheInt32, _ => 0, ReadAvalancheByte,
+        [avalanche], _ => true);
     var avalanchePosition = new FieldPositionSnapshot(1, 117, 0, 2200, 1200, 1298, 71, 0);
     targets = avalancheReader.ReadTargets(avalanchePosition);
     AssertEqual(1, targets.Count, "visible Avalanche should be the pending field 117 story objective at GameMoment 6");
@@ -10661,7 +10951,7 @@ static void AssertFieldStoryCatalogCoversFullGameAndReactorInteractions()
         "Talk to Jessie to unlock the second security door",
         "Press the walkway door button",
         "Go through the opened walkway door",
-        "Press the elevator switch",
+        "Stand on the elevator switch plate and press Confirm",
         "Talk to Jessie for ladder instructions",
         "Plant the bomb at the reactor core",
         "Help Jessie free her leg",
@@ -10797,10 +11087,14 @@ static void AssertFieldStoryCatalogCoversReactor5TrainEscape()
         (ReadByte(address + 3) << 24);
     WriteUInt16(memory, FieldNavigationObjectReader.AddressFieldBankBase, 108);
 
+    // The train cars gate their own lines, and the player radius is what the native Go
+    // handlers compare against, so this fixture supplies both the way the mod does.
     var reader = new FieldStoryTargetReader(
         ReadInt32Value,
+        _ => 40,
         ReadByte,
-        definitions.Where(definition => definition.FieldId == 139));
+        definitions.Where(definition => definition.FieldId == 139),
+        _ => true);
     var position = new FieldPositionSnapshot(1, 139, 0, 0, 0, 0, 0, 0);
     var targets = reader.ReadTargets(position);
     AssertEqual(1, targets.Count, "security alert should expose only its first native trigger");
@@ -10836,7 +11130,7 @@ static void AssertFieldStoryTargetReaderPreservesTunnelTriggerLine()
         (ReadByte(address + 1) << 8) |
         (ReadByte(address + 2) << 16) |
         (ReadByte(address + 3) << 24);
-    var reader = new FieldStoryTargetReader(ReadInt32Value, ReadByte, [definition]);
+    var reader = new FieldStoryTargetReader(ReadInt32Value, _ => 0, ReadByte, [definition], _ => true);
     var targets = reader.ReadTargets(
         new FieldPositionSnapshot(1, 161, 0, 663, 1920, -10, 37, 128));
 
@@ -10850,7 +11144,7 @@ static void AssertFieldStoryTargetReaderPreservesTunnelTriggerLine()
     var expectedDuctLine = new FieldNavigationTriggerLine(-38, 513, 0, -54, 600, 0);
     AssertEqual(expectedDuctLine, duct.TriggerLine, "junction Story should retain the native duct trigger");
 
-    var ductReader = new FieldStoryTargetReader(ReadInt32Value, ReadByte, [duct]);
+    var ductReader = new FieldStoryTargetReader(ReadInt32Value, _ => 0, ReadByte, [duct], _ => true);
     var ductTargets = ductReader.ReadTargets(
         new FieldPositionSnapshot(1, 162, 0, 0, 700, 0, 0, 128));
     AssertEqual(1, ductTargets.Count, "tunnel junction should expose its maintenance duct");
@@ -10885,7 +11179,7 @@ static void AssertFieldStoryCatalogAdvancesThroughTrainGraveyardTrainPositions()
         (ReadByte(address + 1) << 8) |
         (ReadByte(address + 2) << 16) |
         (ReadByte(address + 3) << 24);
-    var reader = new FieldStoryTargetReader(ReadInt32Value, ReadByte, definitions);
+    var reader = new FieldStoryTargetReader(ReadInt32Value, _ => 0, ReadByte, definitions, _ => true);
     var position = new FieldPositionSnapshot(1, 145, 0, 0, 0, 0, 104, 0);
 
     var expectedByState = new[]
@@ -10980,7 +11274,7 @@ static void AssertFieldStoryCatalogGuidesEntireSupportPillarEscape()
         ReadInt32Value,
         ReadInt16Value,
         ReadByte,
-        definitions);
+        definitions, _ => true);
     var position = new FieldPositionSnapshot(1, 160, 0, 0, 0, 6198, 0, 0);
 
     memory[FieldNavigationObjectReader.AddressTemporaryFieldBankBase + 15] = 1;
@@ -11114,7 +11408,7 @@ static void AssertFieldStoryCatalogCoversReactor5DescentAndBombPlacement()
     WriteUInt16(memory, FieldNavigationObjectReader.AddressFieldBankBase, 120);
     foreach (var definition in reactor5.Where(definition => definition.FieldId is >= 129 and <= 131))
     {
-        var reader = new FieldStoryTargetReader(ReadInt32Value, ReadByte, [definition]);
+        var reader = new FieldStoryTargetReader(ReadInt32Value, _ => 0, ReadByte, [definition], _ => true);
         var position = new FieldPositionSnapshot(
             1,
             definition.FieldId,
@@ -11134,7 +11428,7 @@ static void AssertFieldStoryCatalogCoversReactor5DescentAndBombPlacement()
     }
 
     var bomb = reactor5.Single(definition => definition.FieldId == 132);
-    var bombReader = new FieldStoryTargetReader(ReadInt32Value, ReadByte, [bomb]);
+    var bombReader = new FieldStoryTargetReader(ReadInt32Value, _ => 0, ReadByte, [bomb], _ => true);
     var bombPosition = new FieldPositionSnapshot(1, 132, 0, -86, -1088, -182, 0, 0);
     WriteUInt16(memory, FieldNavigationObjectReader.AddressFieldBankBase, 122);
     AssertEqual(0, bombReader.ReadTargets(bombPosition).Count, "bomb target stays hidden before the reactor memory");
@@ -11245,7 +11539,7 @@ static void AssertFieldStoryCatalogCoversReactor1PipingAndSaveRoom()
         (ReadByte(address + 1) << 8) |
         (ReadByte(address + 2) << 16) |
         (ReadByte(address + 3) << 24);
-    var reader = new FieldStoryTargetReader(ReadInt32Value, ReadByte, definitions);
+    var reader = new FieldStoryTargetReader(ReadInt32Value, _ => 0, ReadByte, definitions, _ => true);
 
     var elevator = new FieldPositionSnapshot(1, 121, 0, 86, 16, -6, 8, 0);
     var mainStaircase = elevator with { FieldId = 122, X = -682, Y = 308, Z = 1571, TriangleId = 92 };
@@ -11362,8 +11656,11 @@ static void AssertFieldStoryCatalogCoversReactor5EscapeAndChurchProgression()
         AssertEqual(127, definition.MaximumGameMoment, $"{label} maximum moment");
     }
 
+    // All three visits to that room use the same plate and the same words; this is the
+    // return trip.
     var elevatorSwitch = definitions.Single(candidate =>
-        candidate.Label == "Press the elevator switch to return upstairs");
+        candidate.Label == "Stand on the elevator switch plate and press Confirm" &&
+        candidate.MinimumGameMoment == 127);
     var elevatorExit = definitions.Single(candidate =>
         candidate.Label == "Leave the elevator for the security room");
     AssertEqual(121, elevatorSwitch.FieldId, "return elevator switch field");
@@ -11406,7 +11703,7 @@ static void AssertFieldStoryCatalogCoversReactor5EscapeAndChurchProgression()
         ReadInt32Value,
         ReadInt16Value,
         ReadByte,
-        [elevatorSwitch, elevatorExit]);
+        [elevatorSwitch, elevatorExit], _ => true);
     var elevatorPosition = new FieldPositionSnapshot(1, 121, 0, -116, -3, 5, 5, 64);
     var targets = elevatorReader.ReadTargets(elevatorPosition);
     AssertEqual(1, targets.Count, "the occupied elevator side should expose only its switch");
@@ -11419,7 +11716,7 @@ static void AssertFieldStoryCatalogCoversReactor5EscapeAndChurchProgression()
     var field128Definitions = definitions.Where(candidate =>
         candidate.FieldId == 128 &&
         candidate.Label is "Reach the simultaneous security controls" or "Continue to the bridge approach");
-    var field128Reader = new FieldStoryTargetReader(ReadInt32Value, ReadByte, field128Definitions);
+    var field128Reader = new FieldStoryTargetReader(ReadInt32Value, _ => 0, ReadByte, field128Definitions, _ => true);
     var field128Position = new FieldPositionSnapshot(1, 128, 0, -1485, 4298, -277, 52, 0);
     targets = field128Reader.ReadTargets(field128Position);
     AssertEqual(1, targets.Count, "moment 127 should route to the simultaneous security controls");
@@ -11485,9 +11782,8 @@ static void AssertFieldStoryCatalogCoversReactor5EscapeAndChurchProgression()
         (ReadChurchMeetingByte(address + 2) << 16) |
         (ReadChurchMeetingByte(address + 3) << 24);
     var churchMeetingReader = new FieldStoryTargetReader(
-        ReadChurchMeetingInt32,
-        ReadChurchMeetingByte,
-        [aerisMeeting, aerisAfterReno]);
+        ReadChurchMeetingInt32, _ => 0, ReadChurchMeetingByte,
+        [aerisMeeting, aerisAfterReno], _ => true);
     var churchMeetingPosition =
         new FieldPositionSnapshot(1, 183, 0, 0, 0, 0, 0, 0);
     WriteUInt16(
@@ -11519,11 +11815,16 @@ static void AssertFieldStoryCatalogCoversReactor5EscapeAndChurchProgression()
     var church = definitions
         .Where(candidate => candidate.FieldId == 184 && candidate.Priority == 0)
         .ToArray();
-    AssertEqual(4, church.Length, "the playable church escape should expose its route and three rescue stages");
+    // The route out, and every barrel the field lets the player push. Which one helps at
+    // each stage is the puzzle the scene is: 184's four barrels all carry a Talk gated
+    // only on 5[10], and picking the useful one from 5[12] handed the player the answer
+    // and left nothing at all once a wrong barrel had been used.
+    AssertEqual(5, church.Length, "the playable church escape should expose its route and all four barrels");
     var rafters = church.Single(candidate => candidate.Label == "Continue along the upper church rafters");
-    var leftBarrel = church.Single(candidate => candidate.Label == "Push the left barrel to help Aerith");
-    var middleBarrel = church.Single(candidate => candidate.Label == "Push the middle barrel to help Aerith");
-    var rightBarrel = church.Single(candidate => candidate.Label == "Push the right barrel to help Aerith");
+    var leftBarrel = church.Single(candidate => candidate.Label == "Push the barrel on the left");
+    var middleBarrel = church.Single(candidate => candidate.Label == "Push the barrel in the middle");
+    var rightBarrel = church.Single(candidate => candidate.Label == "Push the barrel on the right");
+    var farBarrel = church.Single(candidate => candidate.Label == "Push the far barrel");
 
     AssertEqual(FieldStoryTargetKind.Location, rafters.Kind, "church rafter route kind");
     AssertEqual(-198, rafters.X, "church rafter trigger approach x");
@@ -11533,28 +11834,25 @@ static void AssertFieldStoryCatalogCoversReactor5EscapeAndChurchProgression()
 
     var expectedBarrels = new[]
     {
-        (Definition: leftBarrel, EntityId: 10, Stage: (byte)1),
-        (Definition: middleBarrel, EntityId: 8, Stage: (byte)2),
-        (Definition: rightBarrel, EntityId: 9, Stage: (byte)3)
+        (Definition: leftBarrel, EntityId: 10),
+        (Definition: middleBarrel, EntityId: 8),
+        (Definition: rightBarrel, EntityId: 9),
+        (Definition: farBarrel, EntityId: 11)
     };
     foreach (var expected in expectedBarrels)
     {
-        var requiredConditions = expected.Definition.RequiredConditions ?? [];
         AssertEqual(FieldStoryTargetKind.Model, expected.Definition.Kind, $"{expected.Definition.Label} kind");
         AssertEqual(expected.EntityId, expected.Definition.EntityId, $"{expected.Definition.Label} entity");
         AssertEqual(152, expected.Definition.MinimumGameMoment, $"{expected.Definition.Label} minimum moment");
         AssertEqual(152, expected.Definition.MaximumGameMoment, $"{expected.Definition.Label} maximum moment");
-        AssertEqual(2, requiredConditions.Length, $"{expected.Definition.Label} native requirement count");
         AssertEqual(
-            true,
-            requiredConditions.Contains(
-                new FieldStoryStateCondition(5, 10, 0xFF, 1)),
-            $"{expected.Definition.Label} requires the active barrel window");
+            new FieldStoryStateCondition(5, 10, 0xFF, 1),
+            expected.Definition.RequiredCondition,
+            $"{expected.Definition.Label} is offered exactly while the field allows a barrel");
         AssertEqual(
-            true,
-            requiredConditions.Contains(
-                new FieldStoryStateCondition(5, 12, 0xFF, expected.Stage)),
-            $"{expected.Definition.Label} requires its native rescue stage");
+            0,
+            (expected.Definition.RequiredConditions ?? []).Length,
+            $"{expected.Definition.Label} must not depend on the hidden stage counter");
     }
 
     const int eventTable = 0x02370000;
@@ -11563,14 +11861,17 @@ static void AssertFieldStoryCatalogCoversReactor5EscapeAndChurchProgression()
     memory[FieldNavigationObjectReader.AddressFieldModelIdArray + 8] = 6;
     memory[FieldNavigationObjectReader.AddressFieldModelIdArray + 9] = 7;
     memory[FieldNavigationObjectReader.AddressFieldModelIdArray + 10] = 8;
+    memory[FieldNavigationObjectReader.AddressFieldModelIdArray + 11] = 9;
     WriteLiveFieldModel(memory, eventTable, 6, -383, 1916, 946);
     WriteLiveFieldModel(memory, eventTable, 7, 368, 1736, 946);
     WriteLiveFieldModel(memory, eventTable, 8, -368, 1301, 946);
+    // 184:11 bar4, the fourth barrel the scene puts out.
+    WriteLiveFieldModel(memory, eventTable, 9, 368, 1199, 946);
     var churchReader = new FieldStoryTargetReader(
         ReadInt32Value,
         ReadInt16Value,
         ReadByte,
-        church);
+        church, _ => true);
     var churchPosition = new FieldPositionSnapshot(1, 184, 0, 281, 1424, 0, 0, 64);
 
     WriteUInt16(memory, FieldNavigationObjectReader.AddressFieldBankBase, 151);
@@ -11582,17 +11883,30 @@ static void AssertFieldStoryCatalogCoversReactor5EscapeAndChurchProgression()
     targets = churchReader.ReadTargets(churchPosition);
     AssertEqual(0, targets.Count, "barrel Story must wait until Cloud chooses to help Aerith");
 
+    // Every stage of the rescue offers the same four barrels, because that is what the
+    // field offers: 184's barrels 8 to 11 each have a Talk the scene allows while 5[10]
+    // is one, and which of them helps is what the player is there to work out. The stage
+    // counter is the game's own bookkeeping and is deliberately not read.
     memory[FieldNavigationObjectReader.AddressTemporaryFieldBankBase + 10] = 1;
     for (byte stage = 1; stage <= 3; stage++)
     {
         memory[FieldNavigationObjectReader.AddressTemporaryFieldBankBase + 12] = stage;
         targets = churchReader.ReadTargets(churchPosition);
-        AssertEqual(1, targets.Count, $"church rescue stage {stage} should expose exactly one barrel");
         AssertEqual(
-            expectedBarrels.Single(expected => expected.Stage == stage).Definition.Label,
-            targets[0].Label,
-            $"church rescue stage {stage} barrel");
+            4,
+            targets.Count(target => target.TriggerEntityId is >= 8 and <= 11),
+            $"church rescue stage {stage} keeps every usable barrel available");
     }
+
+    // And a barrel the player has already used and lost is simply one fewer choice, not
+    // the end of the scene: the wrong-barrel battles hand control back for another try.
+    memory[FieldNavigationObjectReader.AddressFieldModelIdArray + 8] = 0xFF;
+    targets = churchReader.ReadTargets(churchPosition);
+    AssertEqual(
+        3,
+        targets.Count(target => target.TriggerEntityId is >= 8 and <= 11),
+        "a barrel the field has taken away leaves the others usable");
+    memory[FieldNavigationObjectReader.AddressFieldModelIdArray + 8] = 6;
 
     memory[FieldNavigationObjectReader.AddressTemporaryFieldBankBase + 10] = 0;
     targets = churchReader.ReadTargets(churchPosition);
@@ -11683,9 +11997,8 @@ static void AssertFieldStoryCatalogCoversReactor5EscapeAndChurchProgression()
             (ReadRouteByte(address + 2) << 16) |
             (ReadRouteByte(address + 3) << 24);
         var routeReader = new FieldStoryTargetReader(
-            ReadRouteInt32,
-            ReadRouteByte,
-            [definition]);
+            ReadRouteInt32, _ => 0, ReadRouteByte,
+            [definition], _ => true);
         var routePosition =
             new FieldPositionSnapshot(1, expected.Key, 0, 0, 0, 0, 0, 0);
 
@@ -11833,7 +12146,7 @@ static void AssertFieldStoryCatalogCoversAerisHouseFirstVisit()
         (ReadByte(address + 1) << 8) |
         (ReadByte(address + 2) << 16) |
         (ReadByte(address + 3) << 24);
-    var reader = new FieldStoryTargetReader(ReadInt32, ReadByte, definitions);
+    var reader = new FieldStoryTargetReader(ReadInt32, _ => 0, ReadByte, definitions, _ => true);
 
     void AssertOnlyTarget(int fieldId, int gameMoment, string expectedLabel)
     {
@@ -11975,7 +12288,7 @@ static void AssertFieldStoryCatalogCoversSector6AndWallMarketArrival()
         (ReadByte(address + 1) << 8) |
         (ReadByte(address + 2) << 16) |
         (ReadByte(address + 3) << 24);
-    var reader = new FieldStoryTargetReader(ReadInt32, ReadByte, definitions);
+    var reader = new FieldStoryTargetReader(ReadInt32, _ => 0, ReadByte, definitions, _ => true);
 
     void AssertOnlyTarget(int fieldId, int gameMoment, string expectedLabel)
     {
@@ -12067,9 +12380,8 @@ static void AssertInstalledAerisHouseSneakRouteAvoidsAllCatchLines()
         31,
         0);
     var targetReader = new FieldStoryTargetReader(
-        ReadInt32Value,
-        ReadByte,
-        FieldStoryEventCatalog.CreateAllFields());
+        ReadInt32Value, _ => 0, ReadByte,
+        FieldStoryEventCatalog.CreateAllFields(), _ => true);
     var target = targetReader.ReadTargets(start).Single();
     var planner = new FieldWalkmeshRoutePlanner(CreateInstalledFieldWalkmeshReader(190));
     var tracker = new FieldNavigationRouteTracker(planner);
@@ -12323,7 +12635,7 @@ static void AssertFieldStoryCatalogCoversSector4PlateRoute()
         (ReadByte(address + 3) << 24);
     foreach (var definition in definitions)
     {
-        var reader = new FieldStoryTargetReader(ReadInt32Value, ReadByte, [definition]);
+        var reader = new FieldStoryTargetReader(ReadInt32Value, _ => 0, ReadByte, [definition], _ => true);
         var position =
             new FieldPositionSnapshot(1, definition.FieldId, 0, definition.X, definition.Y, definition.Z, 0, 0);
 
@@ -12379,7 +12691,7 @@ static void AssertFieldStoryCatalogCoversSector7AndWallMarketMandatoryActions()
         "Talk to the doorman while disguised and enter",
         "Talk to Tifa until the escort and selection sequence begins",
         "Confront Scotch and Corneo's lackeys",
-        "Cross the bedroom rug and trigger the trap",
+        "Cross the rug in the middle of the bedroom",
         "Wake and check Aeris",
         "Wake and check Tifa",
         "Choose to climb out after defeating Aps",
@@ -12406,7 +12718,7 @@ static void AssertFieldStoryCatalogCoversConfirmedShinraBuildingActions()
     var labels = definitions.Select(definition => definition.Label).ToHashSet(StringComparer.Ordinal);
     foreach (var expected in new[]
     {
-        "Talk to the employee and choose silence to receive Keycard 62",
+        "Talk to the employee at the floor 61 desk",
         "Ask Mayor Domino for the password challenge",
         "Answer Mayor Domino's password",
         "Choose climb up at the bathroom vent",
@@ -12418,7 +12730,7 @@ static void AssertFieldStoryCatalogCoversConfirmedShinraBuildingActions()
         "Continue after Jenova; follow Hojo to the lab",
         "Talk to the lab assistant for Keycard 68",
         "Enter the 66th-floor elevator and press OK",
-        "Use the cell door and consider each party member until sleep is offered"
+        "Use the cell door"
     })
     {
         AssertEqual(true, labels.Contains(expected), $"native Shinra Building Story catalog should include: {expected}");
@@ -12440,9 +12752,8 @@ static void AssertFieldStoryReaderExposesBothShinraEntryRoutesAndInitialElevator
         [FieldNavigationObjectReader.AddressFieldBankBase + 1] = 0x01
     };
     var reader = new FieldStoryTargetReader(
-        _ => 0,
-        address => memory.GetValueOrDefault(address),
-        FieldStoryEventCatalog.CreateAllFields());
+        _ => 0, _ => 0, address => memory.GetValueOrDefault(address),
+        FieldStoryEventCatalog.CreateAllFields(), _ => true);
 
     static string[] ReadLabels(
         FieldStoryTargetReader targetReader,
@@ -12537,7 +12848,7 @@ static void AssertFieldStoryCatalogCoversSector6ThroughWorldMapGuideActions()
         (FieldId: 239, Label: "Continue signaling Barret and Tifa when the soldiers turn away"),
         (FieldId: 239, Label: "Cross to the far side after Barret and Tifa are safely across"),
         (FieldId: 239, Label: "Continue to floor 61 after clearing security"),
-        (FieldId: 241, Label: "Talk to the employee and choose silence to receive Keycard 62"),
+        (FieldId: 241, Label: "Talk to the employee at the floor 61 desk"),
         (FieldId: 241, Label: "Continue to Mayor Domino on floor 62"),
         (FieldId: 242, Label: "Ask Mayor Domino for the password challenge"),
         (FieldId: 242, Label: "Answer Mayor Domino's password"),
@@ -12554,7 +12865,7 @@ static void AssertFieldStoryCatalogCoversSector6ThroughWorldMapGuideActions()
         (FieldId: 262, Label: "Enter the principal laboratory chamber and rescue Aeris"),
         (FieldId: 262, Label: "Talk to the lab assistant for Keycard 68"),
         (FieldId: 233, Label: "Enter the 66th-floor elevator and press OK"),
-        (FieldId: 258, Label: "Use the cell door and consider each party member until sleep is offered"),
+        (FieldId: 258, Label: "Use the cell door"),
         (FieldId: 258, Label: "Inspect the dead guard outside the cell"),
         (FieldId: 258, Label: "Follow the blood trail out of the cell block"),
         (FieldId: 260, Label: "Talk to Red XIII in the Jenova chamber"),
@@ -12722,9 +13033,8 @@ static void AssertFieldStoryReaderSequencesPrisonInvestigationAndFloor70()
         [FieldNavigationObjectReader.AddressFieldBankBase + 1] = 302 >> 8
     };
     var reader = new FieldStoryTargetReader(
-        _ => 0,
-        address => memory.GetValueOrDefault(address),
-        definitions);
+        _ => 0, _ => 0, address => memory.GetValueOrDefault(address),
+        definitions, _ => true);
     var floor70Entry = new FieldPositionSnapshot(1, 266, 0, -295, 793, -5, 17, 0);
     var targets = reader.ReadTargets(floor70Entry);
     AssertEqual(1, targets.Count, "floor 70 moment 302 should expose one next Story target");
@@ -12745,9 +13055,8 @@ static void AssertFieldStoryReaderSequencesFloor60SecurityCrossing()
         [FieldNavigationObjectReader.AddressFieldBankBase + 1] = 0x01
     };
     var reader = new FieldStoryTargetReader(
-        _ => 0,
-        address => memory.GetValueOrDefault(address),
-        FieldStoryEventCatalog.CreateAllFields());
+        _ => 0, _ => 0, address => memory.GetValueOrDefault(address),
+        FieldStoryEventCatalog.CreateAllFields(), _ => true);
     var position = new FieldPositionSnapshot(1, 239, 263, 0, 0, 0, 0, 0);
 
     var first = reader.ReadTargets(position);
@@ -12811,7 +13120,7 @@ static void AssertFieldStoryReaderSequencesFloor65MidgarModelFromNativeFlags()
         ReadInt32,
         ReadInt16,
         ReadByte,
-        FieldStoryEventCatalog.CreateAllFields());
+        FieldStoryEventCatalog.CreateAllFields(), _ => true);
     var outerPosition = new FieldPositionSnapshot(1, 248, 0, 120, -921, 0, 84, 0);
     var modelPosition = new FieldPositionSnapshot(1, 249, 0, 0, -448, 0, 0, 0);
 
@@ -12944,9 +13253,8 @@ static void AssertFieldStoryReaderGuidesFloor66ConferenceDuct()
     var memory = new Dictionary<int, byte>();
     WriteUInt16(memory, FieldNavigationObjectReader.AddressFieldBankBase, 264);
     var reader = new FieldStoryTargetReader(
-        _ => 0,
-        address => memory.GetValueOrDefault(address),
-        FieldStoryEventCatalog.CreateAllFields());
+        _ => 0, _ => 0, address => memory.GetValueOrDefault(address),
+        FieldStoryEventCatalog.CreateAllFields(), _ => true);
     var position = new FieldPositionSnapshot(1, 253, 0, 454, 15, -28, 4, 0);
 
     var targets = reader.ReadTargets(position);
@@ -12965,9 +13273,8 @@ static void AssertFieldStoryReaderBridgesHojoToFloor67Stairs()
     var memory = new Dictionary<int, byte>();
     WriteUInt16(memory, FieldNavigationObjectReader.AddressFieldBankBase, 271);
     var reader = new FieldStoryTargetReader(
-        _ => 0,
-        address => memory.GetValueOrDefault(address),
-        FieldStoryEventCatalog.CreateAllFields());
+        _ => 0, _ => 0, address => memory.GetValueOrDefault(address),
+        FieldStoryEventCatalog.CreateAllFields(), _ => true);
     var position = new FieldPositionSnapshot(1, 250, 0, 548, -1044, 0, 0, 0);
 
     var targets = reader.ReadTargets(position);
@@ -12997,9 +13304,8 @@ static void AssertFieldStoryReaderSequencesEveryWallClimbStepFromNativeFlags()
     };
     var definitions = FieldStoryEventCatalog.CreateAllFields();
     var reader = new FieldStoryTargetReader(
-        _ => 0,
-        address => memory.GetValueOrDefault(address),
-        definitions);
+        _ => 0, _ => 0, address => memory.GetValueOrDefault(address),
+        definitions, _ => true);
 
     static void AssertSingleTarget(
         FieldStoryTargetReader targetReader,
@@ -13112,8 +13418,7 @@ static void AssertFieldStoryReaderSwitchesToFinalWallClimbLineAfterSuccessfulSwi
         45, 46, 47, 48, 49, 50, 176, 177
     ];
     var reader = new FieldStoryTargetReader(
-        _ => 0,
-        _ => (byte)0,
+        _ => 0, _ => 0, _ => (byte)0,
         [
             new FieldStoryEventDefinition(
                 223,
@@ -13133,7 +13438,7 @@ static void AssertFieldStoryReaderSwitchesToFinalWallClimbLineAfterSuccessfulSwi
                 Z: 3240,
                 Priority: 0,
                 RequiredPlayerTriangles: successfulLandingComponent)
-        ]);
+        ], _ => true);
 
     var beforeSwing = reader.ReadTargets(
         new FieldPositionSnapshot(1, 223, 0, -369, 1677, 3290, 13, 0));
@@ -13991,6 +14296,528 @@ static void AssertFieldGatewayTargetReaderRejectsInvalidState()
     AssertEqual(0, unreadableReader.ReadTargets(fieldPosition).Count, "unreadable trigger memory should expose no exits");
 }
 
+static void AssertFieldActivityReadoutSpeaksTheNativeActivities()
+{
+    var epoch = new DateTime(2026, 9, 7, 12, 0, 0, DateTimeKind.Utc);
+
+    static FieldActivityModelReading Seen(int entityId, int x, int y, int direction, int z = 0) =>
+        new(entityId, FieldActivityReadStatus.Visible,
+            new FieldActivityModelState(true, true, x, y, z, 0, direction));
+    static FieldActivityModelReading Hidden(int entityId) =>
+        new(entityId, FieldActivityReadStatus.Hidden, default);
+    static FieldActivityModelReading Torn(int entityId) =>
+        FieldActivityModelReading.Unreadable(entityId);
+    static FieldActivityWaitState Waiting(int index) => new(true, index, 0);
+    static FieldActivityWaitState Automatic() => new(true, -1, 60);
+
+    static FieldActivityObservation Look(
+        int fieldId,
+        int playerX = 0,
+        int playerY = 0,
+        int playerZ = 0,
+        bool controlled = true,
+        int gameMoment = 700,
+        int pillarGate = 0,
+        int controlDirection = 0,
+        bool transformUsable = true,
+        IReadOnlyList<FieldActivityModelReading>? models = null,
+        IReadOnlyDictionary<int, FieldActivityWaitState>? waits = null,
+        Func<int, bool>? lineEnabled = null,
+        Func<int, bool>? boundaryEnabled = null) =>
+        new(
+            fieldId,
+            playerX,
+            playerY,
+            playerZ,
+            0,
+            controlled,
+            gameMoment,
+            new FieldNavigationControlTransform(controlDirection),
+            transformUsable,
+            models ?? Array.Empty<FieldActivityModelReading>(),
+            waits ?? new Dictionary<int, FieldActivityWaitState>(),
+            lineEnabled ?? (_ => true),
+            boundaryEnabled,
+            pillarGate);
+
+    // --- the excavation is its own field, with its own placed workers ----------------
+    AssertEqual(true, FieldActivityReadout.HasActivity(772), "the dig is field 772, not the village");
+    AssertEqual(false, FieldActivityReadout.HasActivity(617), "the ordinary village is not the dig");
+    AssertEqual(
+        "14,15,16,17,18",
+        string.Join(",", FieldActivityReadout.ObservedEntities(772)),
+        "the five placed diggers are bonevil2 entities 14 to 18");
+    AssertEqual(
+        false,
+        FieldActivityReadout.ObservedEntities(772).Contains(6),
+        "the buried target is never observed");
+
+    AssertEqual(
+        "1 of 5 diggers placed: one ahead at 400, facing away.",
+        new FieldActivityReadout().Observe(Look(772, models: new[]
+        {
+            Seen(14, 0, -400, 0), Hidden(15), Hidden(16), Hidden(17), Hidden(18)
+        }), epoch).Speech,
+        "the dig reports how many of the five are placed and where they are");
+    AssertEqual(
+        "No diggers placed yet, 5 to place.",
+        new FieldActivityReadout().Observe(Look(772, models: new[]
+        {
+            Hidden(14), Hidden(15), Hidden(16), Hidden(17), Hidden(18)
+        }), epoch).Speech,
+        "an empty dig is reported as a phase, not as an error");
+    AssertEqual(
+        "Cannot read the diggers.",
+        new FieldActivityReadout().Observe(Look(772, models: new[]
+        {
+            Torn(14), Torn(15), Torn(16), Torn(17), Torn(18)
+        }), epoch).Speech,
+        "a failed read never becomes an empty dig");
+
+    // Facing goes through the same control transform as position: turning the room
+    // turns both. With control 0 a model at bearing 0 faces away; at control 64 the
+    // same bearing reads as a side.
+    AssertEqual(
+        "1 of 5 diggers placed: one to the right at 400, facing right.",
+        new FieldActivityReadout().Observe(Look(772, controlDirection: 64, models: new[]
+        {
+            Seen(14, 0, -400, 0), Hidden(15), Hidden(16), Hidden(17), Hidden(18)
+        }), epoch).Speech,
+        "a worker's facing is turned through the field transform, not assumed");
+    AssertEqual(
+        "1 of 5 diggers placed: one somewhere in the room at 400, " +
+            "facing a direction that cannot be read.",
+        new FieldActivityReadout().Observe(Look(772, transformUsable: false, models: new[]
+        {
+            Seen(14, 0, -400, 0), Hidden(15), Hidden(16), Hidden(17), Hidden(18)
+        }), epoch).Speech,
+        "without a readable transform no orientation is guessed");
+
+    // --- a wait is a place in a script, not the whole script -------------------------
+    var altar = new FieldActivityReadout();
+    AssertEqual(
+        null,
+        altar.Observe(Look(647, waits: new Dictionary<int, FieldActivityWaitState> { [0] = Automatic() }), epoch).Speech,
+        "the automatic part of the director's own Main says nothing");
+    var firstWait = altar.Observe(
+        Look(647, waits: new Dictionary<int, FieldActivityWaitState> { [0] = Waiting(0) }),
+        epoch.AddSeconds(1));
+    AssertEqual(
+        "The scene is waiting. Press Confirm to go on.",
+        firstWait.Speech,
+        "the first Confirm the director stops on is spoken");
+    AssertEqual(true, firstWait.PlayButtonReadyCue, "a button that has become ready plays its own cue");
+    AssertEqual(true, firstWait.IsPending, "a wait owns the player's next press");
+    AssertEqual(
+        null,
+        altar.Observe(
+            Look(647, waits: new Dictionary<int, FieldActivityWaitState> { [0] = Waiting(0) }),
+            epoch.AddSeconds(2)).Speech,
+        "the same wait is not repeated on every tick");
+    // Two consecutive waits say the same words; moving between them is still news.
+    var secondWait = altar.Observe(
+        Look(647, waits: new Dictionary<int, FieldActivityWaitState> { [0] = Waiting(1) }),
+        epoch.AddSeconds(3));
+    AssertEqual(
+        "The scene is waiting. Press Confirm to go on.",
+        secondWait.Speech,
+        "reaching the next Confirm is spoken even though the words are the same");
+    AssertEqual(true, secondWait.PlayButtonReadyCue, "the next wait plays its cue again");
+    AssertEqual(
+        "The scene is waiting. Press Confirm to go on.",
+        altar.Observe(
+            Look(647, waits: new Dictionary<int, FieldActivityWaitState> { [0] = Waiting(1) }),
+            epoch.AddSeconds(3).Add(FieldActivityReadout.PendingRepeatInterval)).Speech,
+        "an unanswered wait is offered again on its own slow beat");
+    AssertEqual(
+        null,
+        new FieldActivityReadout().Observe(
+            Look(647, waits: new Dictionary<int, FieldActivityWaitState>
+            {
+                [0] = FieldActivityWaitState.Unreadable
+            }), epoch).Speech,
+        "an unreadable script position is not a wait");
+
+    // 606's own wait, and its automatic stretch, in the same script.
+    var corridor = new FieldActivityReadout();
+    AssertEqual(
+        "The scene is waiting. Hold any direction to go on.",
+        corridor.Observe(
+            Look(606, waits: new Dictionary<int, FieldActivityWaitState> { [16] = Waiting(0) }),
+            epoch).Speech,
+        "the corridor names the direction wait its line actually stops on");
+    AssertEqual(
+        "The corridor is clear.",
+        new FieldActivityReadout().Observe(
+            Look(606,
+                waits: new Dictionary<int, FieldActivityWaitState> { [16] = Automatic() },
+                models: new[] { Hidden(26), Hidden(27), Hidden(28) }),
+            epoch).Speech,
+        "the automatic part of the same script is not a pending direction");
+
+    // --- moving hazards are bounded, not queued -------------------------------------
+    var rolling = new FieldActivityReadout();
+    var spoken = 0;
+    for (var sample = 0; sample < 50; sample++)
+    {
+        if (rolling.Observe(
+                Look(606, models: new[] { Seen(26, 0, -(300 - sample), 0), Hidden(27), Hidden(28) }),
+                epoch.AddMilliseconds(sample * 16)).Speech is not null)
+        {
+            spoken++;
+        }
+    }
+
+    AssertEqual(1, spoken, "fifty samples of one moving boulder are one sentence, not fifty");
+    // It does move on eventually, once the listener has had time and the words differ.
+    AssertEqual(
+        "Rolling: a boulder ahead, 100 away.",
+        rolling.Observe(
+            Look(606, models: new[] { Seen(26, 0, -80, 0), Hidden(27), Hidden(28) }),
+            epoch.AddSeconds(30)).Speech,
+        "a boulder that has genuinely closed is said again after the refresh interval");
+    AssertEqual(
+        "Cannot read the corridor.",
+        new FieldActivityReadout().Observe(
+            Look(606, models: new[] { Torn(26), Torn(27), Torn(28) }), epoch).Speech,
+        "a corridor that could not be read is never called clear");
+
+    // --- the clock only claims a bridge the field actually has ------------------------
+    var betweenHours = new FieldActivityReadout().Observe(
+        Look(607, models: new[] { Seen(21, 0, 0, 117) }), epoch).Speech;
+    AssertEqual(false, betweenHours!.Contains("bridge"), "a turning hand claims no bridge");
+    AssertEqual(
+        "Long hand between twelve and one.",
+        betweenHours,
+        "a hand between two hours is reported as being between them");
+    AssertEqual(
+        "Long hand at six. The bridge to doorway six is open.",
+        new FieldActivityReadout().Observe(
+            Look(607, models: new[] { Seen(21, 0, 0, 0) }, boundaryEnabled: _ => false), epoch).Speech,
+        "an hour whose own pair is unlocked is a bridge that is there");
+    AssertEqual(
+        "Long hand at six. The bridge to doorway six is not open.",
+        new FieldActivityReadout().Observe(
+            Look(607, models: new[] { Seen(21, 0, 0, 0) }, boundaryEnabled: triangle => triangle is 85 or 48),
+            epoch).Speech,
+        "an hour whose own pair is still locked is not a bridge");
+    AssertEqual(
+        "Long hand at six.",
+        new FieldActivityReadout().Observe(
+            Look(607, models: new[] { Seen(21, 0, 0, 0) }), epoch).Speech,
+        "with no readable lock state the clock says where the hand is and nothing more");
+    // The second hand never stops. It is worth carrying in the line, and worth nothing
+    // as a reason to speak: a clock that talked every time it moved would bury the room.
+    var ticking = new FieldActivityReadout();
+    var firstClock = ticking.Observe(
+        Look(607, models: new[] { Seen(21, 0, 0, 0), Seen(23, 0, 0, 0) }), epoch);
+    AssertEqual(
+        "Long hand at six, second hand at six.",
+        firstClock.Speech,
+        "the clock says both hands when it has something to say");
+    var ticks = 0;
+    for (var tick = 1; tick <= 40; tick++)
+    {
+        if (ticking.Observe(
+                Look(607, models: new[] { Seen(21, 0, 0, 0), Seen(23, 0, 0, (tick * 6) % 256) }),
+                epoch.AddSeconds(tick)).Speech is not null)
+        {
+            ticks++;
+        }
+    }
+
+    AssertEqual(0, ticks, "forty seconds of a moving second hand say nothing on their own");
+    AssertEqual(
+        "Long hand at five, second hand at six.",
+        ticking.Observe(
+            Look(607, models: new[] { Seen(21, 0, 0, 22), Seen(23, 0, 0, 0) }),
+            epoch.AddSeconds(41)).Speech,
+        "the long hand reaching a new hour is still news");
+
+    AssertEqual(
+        "Cannot read the clock hands.",
+        new FieldActivityReadout().Observe(Look(607, models: new[] { Torn(21) }), epoch).Speech,
+        "an unreadable hand is not a bearing");
+
+    // The hour table is entity 21's own script 10.
+    foreach (var (hour, bearing) in new[]
+             {
+                 (0, 128), (1, 106), (2, 86), (3, 64), (4, 42), (5, 22),
+                 (6, 0), (7, 234), (8, 214), (9, 192), (10, 170), (11, 150)
+             })
+    {
+        AssertEqual(hour, FieldActivityReadout.AlignedHour(bearing), $"bearing {bearing} is hour {hour}");
+    }
+
+    AssertEqual(-1, FieldActivityReadout.AlignedHour(117), "a bearing between two hours is on neither");
+
+    // --- crossings and pillars belong to a place, not to a pair of coordinates --------
+    AssertEqual(
+        "At a crossing. Press Confirm to jump across.",
+        new FieldActivityReadout().Observe(
+            Look(610, playerX: -581, playerY: 200, playerZ: 370, models: new[] { Hidden(27) }), epoch).Speech,
+        "standing on the upper crossing names its Confirm");
+    AssertEqual(
+        "No doorway has the guard in it.",
+        new FieldActivityReadout().Observe(
+            Look(610, playerX: -581, playerY: 200, playerZ: -10, models: new[] { Hidden(27) }), epoch).Speech,
+        "the same coordinates on the other floor are not that crossing");
+    AssertEqual(
+        "No doorway has the guard in it.",
+        new FieldActivityReadout().Observe(
+            Look(610, playerX: -581, playerY: 200, playerZ: 370, lineEnabled: _ => false,
+                models: new[] { Hidden(27) }), epoch).Speech,
+        "a crossing whose line the field has switched off is not offered");
+    AssertEqual(
+        "No doorway has the guard in it.",
+        new FieldActivityReadout().Observe(
+            Look(610, playerX: -581, playerY: 200, playerZ: 370, controlled: false,
+                models: new[] { Hidden(27) }), epoch).Speech,
+        "no button is named while the party is being moved for them");
+    AssertEqual(
+        "Cannot see where the guard is.",
+        new FieldActivityReadout().Observe(
+            Look(610, models: new[] { Torn(27) }), epoch).Speech,
+        "a guard who could not be read is not a guard who is not there");
+
+    // st1's own Go script: Left from 667, Right only from 673.
+    AssertEqual(
+        "At a pillar. Press left to jump on.",
+        new FieldActivityReadout().Observe(
+            Look(646, playerX: 809, playerY: -695, playerZ: -141, gameMoment: 667), epoch).Speech,
+        "on the way out the first pillar has no way back yet");
+    AssertEqual(
+        "At a pillar. Press left to jump on, right to jump back.",
+        new FieldActivityReadout().Observe(
+            Look(646, playerX: 809, playerY: -695, playerZ: -141, gameMoment: 673), epoch).Speech,
+        "from 673 the first pillar can be crossed both ways");
+    AssertEqual(
+        "At a pillar. Press up or left to jump on, down or right to jump back.",
+        new FieldActivityReadout().Observe(
+            Look(646, playerX: 740, playerY: -785, playerZ: -106), epoch).Speech,
+        "the middle pillars take either of two directions each way");
+    AssertEqual(
+        null,
+        new FieldActivityReadout().Observe(
+            Look(646, playerX: 809, playerY: -695, playerZ: -141, pillarGate: 1), epoch).Speech,
+        "no pillar is offered while the field's own gate is set");
+    AssertEqual(
+        null,
+        new FieldActivityReadout().Observe(
+            Look(646, playerX: 809, playerY: -695, playerZ: 200), epoch).Speech,
+        "a pillar on another floor is not the pillar underfoot");
+    AssertEqual(
+        null,
+        new FieldActivityReadout().Observe(Look(646, playerX: 0, playerY: 0), epoch).Speech,
+        "standing nowhere near a pillar says nothing about jumping");
+
+    // --- the Glacier, Whirlwind and Junon activities -------------------------------
+    static FieldActivityObservation Cliff(int fieldId, bool windowUsable, int degrees, int climbing) =>
+        Look(fieldId) with
+        {
+            NumericWindow = new FieldActivityNumericWindow(windowUsable, degrees, 2),
+            ReadTemporaryByte = index => index == 13 ? climbing : 0
+        };
+
+    AssertEqual(
+        "Body temperature 34 degrees. Press Square to warm up.",
+        new FieldActivityReadout().Observe(Cliff(689, true, 34, 0), epoch).Speech,
+        "the cliff speaks the number its own numeric window is showing, and the control");
+    AssertEqual(
+        "Body temperature 29 degrees.",
+        new FieldActivityReadout().Observe(Cliff(692, true, 29, 1), epoch).Speech,
+        "while the climbing bit is set the warming press is not offered");
+    AssertEqual(
+        null,
+        new FieldActivityReadout().Observe(Cliff(694, false, 34, 0), epoch).Speech,
+        "no numeric window on screen is not a temperature of zero");
+    AssertEqual(
+        true,
+        FieldActivityReadout.ObservedNumericWindow(689) == 1 &&
+            FieldActivityReadout.NeedsTemporaryBank(689),
+        "the cliff reads window 1 and the field's own temporary bytes");
+
+    static FieldActivityObservation Wind(int fieldId, IReadOnlyDictionary<int, int> bank) =>
+        Look(fieldId) with { ReadTemporaryByte = index => bank.TryGetValue(index, out var v) ? v : 0 };
+
+    AssertEqual(
+        "The wind has dropped. Cross now.",
+        new FieldActivityReadout().Observe(
+            Wind(709, new Dictionary<int, int> { [0] = 12, [4] = 1 }), epoch).Speech,
+        "an open crossing is said in what the player can see, not in the phase counter");
+    AssertEqual(
+        "The wind is blowing hard.",
+        new FieldActivityReadout().Observe(
+            Wind(709, new Dictionary<int, int> { [0] = 40, [4] = 0 }), epoch).Speech,
+        "a shut crossing is said as shut, never as a time until it opens");
+    AssertEqual(
+        "The wind has dropped. Cross now.",
+        new FieldActivityReadout().Observe(
+            Wind(710, new Dictionary<int, int> { [18] = 0 }), epoch).Speech,
+        "the second ledge crosses while its own byte is zero");
+    AssertEqual(
+        "The wind is blowing hard.",
+        new FieldActivityReadout().Observe(
+            Wind(710, new Dictionary<int, int> { [18] = 1 }), epoch).Speech,
+        "and not while it is set");
+    AssertEqual(
+        "The wind has dropped. Cross now.",
+        new FieldActivityReadout().Observe(
+            Wind(711, new Dictionary<int, int> { [1] = 20, [6] = 3, [7] = 1 }), epoch).Speech,
+        "the third ledge says the same thing, with none of its own numbers in it");
+
+    // An opening can be over before the shared cadence comes round, so a change of state
+    // is said at once - while a state that has not changed still waits its turn.
+    var ledge = new FieldActivityReadout();
+    AssertEqual(
+        "The wind is blowing hard.",
+        ledge.Observe(Wind(711, new Dictionary<int, int> { [7] = 0 }), epoch).Speech,
+        "the ledge starts by saying what it is doing now");
+    AssertEqual(
+        "The wind has dropped. Cross now.",
+        ledge.Observe(
+            Wind(711, new Dictionary<int, int> { [7] = 1 }), epoch.AddMilliseconds(200)).Speech,
+        "a short opening two tenths of a second later is not held back by the cadence");
+    AssertEqual(
+        null,
+        ledge.Observe(
+            Wind(711, new Dictionary<int, int> { [7] = 1 }), epoch.AddMilliseconds(400)).Speech,
+        "but the same opening is not repeated while it lasts");
+    AssertEqual(
+        "Cannot read the wind.",
+        new FieldActivityReadout().Observe(Look(711), epoch).Speech,
+        "an unreadable ledge is never called safe");
+
+    var struggle = new FieldActivityReadout();
+    var firstHold = struggle.Observe(
+        Look(706, waits: new Dictionary<int, FieldActivityWaitState> { [0] = Waiting(0) }), epoch);
+    AssertEqual("Hold on. Press any button.", firstHold.Speech, "the Whirlwind hold names its press");
+    AssertEqual(true, firstHold.PlayButtonReadyCue, "a frozen screen waiting on a button plays the cue");
+    AssertEqual(
+        "Hold on. Press any button.",
+        struggle.Observe(
+            Look(706, waits: new Dictionary<int, FieldActivityWaitState> { [0] = Waiting(1) }),
+            epoch.AddSeconds(1)).Speech,
+        "the second of the three holds is its own press");
+    AssertEqual(
+        null,
+        new FieldActivityReadout().Observe(
+            Look(706, waits: new Dictionary<int, FieldActivityWaitState> { [0] = Automatic() }), epoch).Speech,
+        "the animation between the holds asks for nothing");
+
+    AssertEqual(
+        "Forcing the door. Press a direction or Confirm, again and again.",
+        new FieldActivityReadout().Observe(
+            Look(401, waits: new Dictionary<int, FieldActivityWaitState> { [4] = Waiting(0) }), epoch).Speech,
+        "the locked door names every input its own loop accepts");
+    AssertEqual(
+        "Tied to the chair. Menu moves your head, Switch your right arm, " +
+            "OK your left arm, Cancel your legs. The key cannot be made out.",
+        new FieldActivityReadout().Observe(
+            Look(402, waits: new Dictionary<int, FieldActivityWaitState> { [3] = Waiting(0) }), epoch).Speech,
+        "the chair names which button moves which limb, and a key it could not look at is " +
+        "said to be unreadable rather than passed off as taken");
+    AssertEqual(
+        null,
+        new FieldActivityReadout().Observe(
+            Look(402, waits: new Dictionary<int, FieldActivityWaitState> { [3] = Automatic() }), epoch).Speech,
+        "outside the chair's own polling body it says nothing");
+    AssertEqual(
+        "Hold Confirm.",
+        new FieldActivityReadout().Observe(
+            Look(416, waits: new Dictionary<int, FieldActivityWaitState> { [4] = Waiting(0) }), epoch).Speech,
+        "the confrontation names the held Confirm its script stops on");
+
+    static FieldActivityObservation Lever(int fieldId, int waitIndex, int leverState) =>
+        Look(fieldId, waits: new Dictionary<int, FieldActivityWaitState>
+            {
+                [FieldActivityReadout.CorelPursuitCidEntityId] = Waiting(waitIndex),
+                [FieldActivityReadout.CorelBrakingCidEntityId] = Waiting(waitIndex)
+            }) with { ReadTemporaryByte = index => index == 16 ? leverState : 0 };
+
+    AssertEqual(
+        "Working the handcar. Press Up for the left lever.",
+        new FieldActivityReadout().Observe(Lever(728, 0, 0), epoch).Speech,
+        "the handcar names the lever its own byte is waiting on");
+    AssertEqual(
+        "Working the handcar. Press Menu for the right lever.",
+        new FieldActivityReadout().Observe(Lever(728, 0, 1), epoch).Speech,
+        "and the other one when it has moved on");
+    AssertEqual(
+        "Working the handcar. Up and Menu work the two levers in turn.",
+        new FieldActivityReadout().Observe(
+            Look(728, waits: new Dictionary<int, FieldActivityWaitState>
+                { [FieldActivityReadout.CorelPursuitCidEntityId] = Waiting(0) }), epoch).Speech,
+        "with no readable state it names both levers rather than guessing one");
+    AssertEqual(
+        null,
+        new FieldActivityReadout().Observe(
+            Look(728, waits: new Dictionary<int, FieldActivityWaitState>
+                { [FieldActivityReadout.CorelPursuitCidEntityId] = Automatic() }), epoch).Speech,
+        "the pursuit says nothing while its own script is not at the levers");
+
+    var brakes = new FieldActivityReadout();
+    AssertEqual(
+        "At the brakes. Press Up then Menu, or Down then Cancel.",
+        brakes.Observe(Lever(730, 0, 0), epoch).Speech,
+        "the brakes name both pairs the field accepts, and neither as the right one");
+    AssertEqual(
+        "At the brakes. Press Up then Menu, or Down then Cancel.",
+        brakes.Observe(Lever(730, 1, 0), epoch.AddSeconds(1)).Speech,
+        "the second stop is its own press even though it reads the same");
+
+    // The chair says what has visibly happened, and never what to try next. The key is
+    // on the floor - 402:8's placement puts it at (31,-188) while she is at (-16,-105) -
+    // and its script drags it toward her, so the gap is what a sighted player watches.
+    static FieldActivityObservation Chair(
+        int animation,
+        FieldActivityReadStatus keyStatus,
+        int keyX = 31,
+        int keyY = -188) =>
+        Look(402,
+            waits: new Dictionary<int, FieldActivityWaitState>
+                { [FieldActivityReadout.JunonGasChairTifaEntityId] = Waiting(0) },
+            models: new[]
+            {
+                new FieldActivityModelReading(
+                    FieldActivityReadout.JunonGasChairTifaEntityId,
+                    FieldActivityReadStatus.Visible,
+                    new FieldActivityModelState(true, true, -16, -105, 5, 83, 0, animation)),
+                new FieldActivityModelReading(
+                    FieldActivityReadout.JunonGasChairKeyEntityId,
+                    keyStatus,
+                    new FieldActivityModelState(true, true, keyX, keyY, 8, 39, 40))
+            });
+
+    const string chairLegend =
+        "Tied to the chair. Menu moves your head, Switch your right arm, " +
+        "OK your left arm, Cancel your legs.";
+    var chair = new FieldActivityReadout();
+    AssertEqual(
+        chairLegend + " The key is on the floor a short way from you.",
+        chair.Observe(Chair(4, FieldActivityReadStatus.Visible), epoch).Speech,
+        "the chair names the four limbs and where the key actually is");
+    AssertEqual(
+        chairLegend + " Your legs moved. The key is on the floor near your feet.",
+        chair.Observe(
+            Chair(12, FieldActivityReadStatus.Visible, keyX: -13, keyY: -120),
+            epoch.AddSeconds(1)).Speech,
+        "the key being dragged closer is a visible change and is reported as one");
+    AssertEqual(
+        chairLegend + " Your head and legs moved together. The key is off the floor now.",
+        chair.Observe(Chair(20, FieldActivityReadStatus.Hidden), epoch.AddSeconds(2)).Speech,
+        "the key leaving the floor is a visible fact and is reported as one");
+
+    foreach (var fieldId in new[] { 689, 692, 694, 709, 710, 711, 706, 401, 402, 416, 728, 730 })
+    {
+        AssertEqual(true, FieldActivityReadout.HasActivity(fieldId), $"field {fieldId} has an activity");
+    }
+
+    AssertEqual(
+        null,
+        new FieldActivityReadout().Observe(Look(608), epoch).Speech,
+        "a field with no native activity is left alone");
+}
 static void AssertFieldScriptNavigationCatalogReadsNativeTransitions()
 {
     var catalog = new FieldScriptNavigationCatalog(FindGameRoot());
@@ -14006,41 +14833,62 @@ static void AssertFieldScriptNavigationCatalogReadsNativeTransitions()
         ladderField.Transitions.Any(transition => transition.Kind == FieldNavigationTransitionKind.Jump),
         "nmkin_2 should expose its line-triggered scripted jump as an off-mesh route");
 
+    // Each of nmkin_3's four climbs ends with a height test - cl script 9 reads the
+    // party's own Y after the ladder and only steps them across to triangle 44 when it
+    // is above 1024, script 7 the same against 1792 - and the false side of that test
+    // returns with the party still standing where the ladder left them. Both endings
+    // are real, so both are route edges: the climb that ends at the ladder's own
+    // landing, and the climb that ends stepped across. What must still not appear is a
+    // setup jump - the JUMP at the top of scripts 7 and 9 that positions the party
+    // before the climb - as a destination of its own line.
     var multiLevelField = catalog.ReadField(123);
     AssertEqual(
-        6,
+        10,
         multiLevelField.Transitions.Count,
-        "nmkin_3 should expose four composite ladders and two standalone jumps");
+        "nmkin_3 should expose both endings of each of its four climbs and two standalone jumps");
     AssertEqual(
-        4,
+        8,
         multiLevelField.Transitions.Count(transition => transition.Kind == FieldNavigationTransitionKind.Ladder),
         "nmkin_3 setup and cleanup jumps must not become alternatives to its ladders");
     AssertEqual(
         2,
         multiLevelField.Transitions.Count(transition => transition.Kind == FieldNavigationTransitionKind.Jump),
         "nmkin_3 should retain only its two standalone platform jumps");
-    AssertEqual(
-        FieldNavigationInput.Down,
-        multiLevelField.Transitions.Single(transition => transition.SourceEntityId == 10).RequiredInput,
-        "nmkin_3 lower ladder line should retain the native down input");
-    AssertEqual(
-        FieldNavigationInput.Up,
-        multiLevelField.Transitions.Single(transition => transition.SourceEntityId == 11).RequiredInput,
-        "nmkin_3 upper ladder line should retain the native up input");
-    AssertEqual(
-        true,
-        multiLevelField.Transitions.Single(transition => transition.SourceEntityId == 10).RequiresAction,
-        "nmkin_3 lower ladder must retain its native IFKEYON action gate");
-    AssertEqual(
-        true,
-        multiLevelField.Transitions.Single(transition => transition.SourceEntityId == 11).RequiresAction,
-        "nmkin_3 upper ladder must retain its native IFKEYON action gate");
+    foreach (var (entityId, input, landings) in new[]
+             {
+                 (8, FieldNavigationInput.Down, new[] { 28, 7 }),
+                 (9, FieldNavigationInput.Up, new[] { 37, 7 }),
+                 (10, FieldNavigationInput.Down, new[] { 2, 44 }),
+                 (11, FieldNavigationInput.Up, new[] { 13, 44 })
+             })
+    {
+        var lineTransitions = multiLevelField.Transitions
+            .Where(transition => transition.SourceEntityId == entityId)
+            .ToArray();
+        AssertEqual(
+            string.Join(",", landings.OrderBy(landing => landing)),
+            string.Join(",", lineTransitions.Select(transition => transition.TargetTriangle).OrderBy(landing => landing)),
+            $"nmkin_3 line {entityId} should offer the ladder's own landing and the height test's step across");
+        foreach (var transition in lineTransitions)
+        {
+            AssertEqual(input, transition.RequiredInput, $"nmkin_3 line {entityId} should retain its native climb input");
+            AssertEqual(true, transition.RequiresAction, $"nmkin_3 line {entityId} must retain its native IFKEYON action gate");
+        }
+    }
 
+    // The same shape as nmkin_3: the climb, then a test on the party's own triangle
+    // that steps them across to 18 only when it does not match, and a return that
+    // leaves them on the ladder's own landing when it does. Both endings are the
+    // field's, so both directions of this ladder carry two.
     var returnField = catalog.ReadField(124);
     AssertEqual(
-        2,
+        4,
         returnField.Transitions.Count(transition => transition.Kind == FieldNavigationTransitionKind.Ladder),
-        "nmkin_4 should expose both directions of its native ladder after the boss");
+        "nmkin_4 should expose both endings of both directions of its native ladder after the boss");
+    AssertEqual(
+        "18,18,21,27",
+        string.Join(",", returnField.Transitions.Select(transition => transition.TargetTriangle).OrderBy(triangle => triangle)),
+        "nmkin_4 should offer each climb's own landing alongside the tested step across");
     AssertEqual(
         0,
         returnField.Transitions.Count(transition => transition.Kind == FieldNavigationTransitionKind.Jump),
@@ -14101,10 +14949,22 @@ static void AssertWallClimbNavigationUsesNativeBranchAndCompositeLandings()
     var compositeDescent = secondClimb.Transitions
         .Where(transition => transition.SourceEntityId == 12)
         .ToArray();
-    AssertEqual(1, compositeDescent.Length, "wcrimb_2 line30 should be one composite climb");
-    AssertEqual(FieldNavigationTransitionKind.Ladder, compositeDescent[0].Kind, "wcrimb_2 line30 route kind");
-    AssertEqual(FieldNavigationInput.Down, compositeDescent[0].RequiredInput, "wcrimb_2 line30 native direction");
-    AssertEqual(81, compositeDescent[0].TargetTriangle, "wcrimb_2 line30 must land after its two cleanup jumps");
+    // cloud script 13 climbs down to triangle 62 and only then asks whether the party
+    // is standing where it expects; when they are it walks them on through 76 to 81,
+    // and when they are not it returns and leaves them on 62. The cleanup jumps are
+    // still one edge with the climb rather than alternatives to it - what is new here
+    // is that the climb which stops at its own landing is an ending too.
+    AssertEqual(2, compositeDescent.Length, "wcrimb_2 line30 should be one composite climb per native ending");
+    foreach (var descent in compositeDescent)
+    {
+        AssertEqual(FieldNavigationTransitionKind.Ladder, descent.Kind, "wcrimb_2 line30 route kind");
+        AssertEqual(FieldNavigationInput.Down, descent.RequiredInput, "wcrimb_2 line30 native direction");
+    }
+
+    AssertEqual(
+        "62,81",
+        string.Join(",", compositeDescent.Select(descent => descent.TargetTriangle).OrderBy(triangle => triangle)),
+        "wcrimb_2 line30 must offer its own landing and the one after its two cleanup jumps");
 
     AssertEqual(
         true,
@@ -16306,6 +17166,97 @@ static void AssertFieldCorridorLookaheadAvoidsLiveModelCollision()
             destination,
             obstacles),
         "the recovery point must reconnect to the route without cutting through the model");
+}
+
+static void AssertFieldCorridorLookaheadBypassesLiveModelAtFarEndOfLongSegment()
+{
+    var mesh = CreateWideVerticalCorridorWalkmesh();
+    var position = new FieldPositionSnapshot(1, 901, 0, 600, 50, 0, 0, 0);
+    var destination = new FieldNavigationRouteWaypoint(600, 580, 0);
+    var plan = new FieldNavigationRoutePlan(
+        901,
+        "901:story:north",
+        Enumerable.Range(0, 12).ToArray(),
+        Array.Empty<FieldNavigationRoutePortal>(),
+        destination,
+        11);
+    FieldNavigationRouteStep[] steps = [new(destination, 0)];
+    FieldNavigationDynamicObstacle[] obstacles =
+    [
+        new(ModelIndex: 4, X: 600, Y: 540, Z: 0, ClearanceRadius: 30d)
+    ];
+
+    var found = FieldNavigationCorridorLookahead.TryResolve(
+        mesh,
+        resolvedTriangle: 0,
+        position,
+        plan,
+        steps,
+        waypointIndex: 0,
+        nextAction: null,
+        heading: default,
+        isTriangleBlocked: null,
+        dynamicObstacles: obstacles,
+        out var observation);
+
+    AssertEqual(true, found, "a model near the far end of a long route segment must not make the story unreachable");
+    AssertEqual(
+        FieldNavigationLookaheadMode.ObstacleRecovery,
+        observation.Mode,
+        "a distant live model should produce a model-local bypass");
+    AssertEqual(
+        false,
+        FieldNavigationDynamicObstacleGeometry.IntersectsAny(
+            new FieldNavigationRouteWaypoint(position.X, position.Y, position.Z),
+            observation.Waypoint,
+            obstacles),
+        "the long approach to the model-local bypass must clear the collision cylinder");
+    AssertEqual(
+        false,
+        FieldNavigationDynamicObstacleGeometry.IntersectsAny(
+            observation.Waypoint,
+            destination,
+            obstacles),
+        "the model-local bypass must reconnect beyond the collision cylinder");
+}
+
+static void AssertFieldRouteTrackerRetainsInitialDistantModelBypass()
+{
+    var mesh = CreateWideVerticalCorridorWalkmesh();
+    var position = new FieldPositionSnapshot(1, 901, 0, 600, 50, 0, 0, 0);
+    var target = new FieldNavigationTarget(
+        901,
+        FieldNavigationCategory.Story,
+        "Distant story trigger",
+        600,
+        580,
+        0,
+        "901:story:distant");
+    FieldNavigationDynamicObstacle[] obstacles =
+    [
+        new(ModelIndex: 4, X: 600, Y: 540, Z: 0, ClearanceRadius: 30d)
+    ];
+    var planner = new FieldWalkmeshRoutePlanner(
+        CreateFieldWalkmeshReader(mesh.Triangles.ToArray()),
+        dynamicObstacleProvider: (_, _) => obstacles);
+    var tracker = new FieldNavigationRouteTracker(planner);
+
+    AssertEqual(
+        true,
+        tracker.TryStart(position, target, out var started),
+        "navigation must start around a distant live model");
+    AssertEqual(
+        false,
+        started.Waypoint == new FieldNavigationRouteWaypoint(target.X, target.Y, target.Z),
+        "navigation must start on the model-local bypass rather than the blocked destination");
+    AssertEqual(
+        true,
+        tracker.TryUpdate(position, target, out var retained),
+        "navigation must survive the next stationary runtime sample");
+    AssertEqual(
+        started.Waypoint,
+        retained.Waypoint,
+        "a mandatory initial bypass must not be skipped before the player moves");
 }
 
 static void AssertFieldCorridorLookaheadFindsFarthestVisibleStep()
@@ -23190,6 +24141,41 @@ static void AssertNavigationBeaconPlayerRendersBackCueWithRearMarker()
     AssertEqual(true, backMarker > backEarly * 0.85d, $"back/down delayed rear marker should stay prominent, early={backEarly:0.000000}, marker={backMarker:0.000000}");
 }
 
+static void AssertWorldEntranceCueUsesTheFullDirectionalSteamAudioRender()
+{
+    var cue = CreateNavigationBeaconCue("right", 1f, 0f, 1f, 0f, 0f);
+
+    var mono = NavigationBeaconSound.LoadMonoSamples(
+        GetFieldZoneTransitionSoundPath(),
+        expectedSampleRate: 44100);
+    AssertEqual(131382, mono.Length, "complete field-zone WAV frame count");
+    var rendered = RenderNavigationBeaconSamples(cue, mono);
+    AssertEqual(mono.Length * 2, rendered.Length, "directional entrance HRTF render preserves the complete WAV duration");
+
+    var energy = CalculateStereoEnergy(rendered);
+    var louder = Math.Max(energy.LeftRms, energy.RightRms);
+    var imbalance = louder <= 0d
+        ? 0d
+        : Math.Abs(energy.LeftRms - energy.RightRms) / louder;
+    AssertEqual(true, louder > 0.01d, $"directional world entrance cue remains audible, rms={louder:0.000000}");
+    AssertEqual(
+        true,
+        imbalance > 0.05d,
+        $"directional world entrance cue has spatial channel separation, left={energy.LeftRms:0.000000}, right={energy.RightRms:0.000000}");
+
+    var duplicatedMono = new float[mono.Length * 2];
+    for (var frame = 0; frame < mono.Length; frame++)
+    {
+        duplicatedMono[frame * 2] = mono[frame];
+        duplicatedMono[frame * 2 + 1] = mono[frame];
+    }
+
+    AssertEqual(
+        false,
+        rendered.SequenceEqual(duplicatedMono),
+        "world entrance cue must pass through Steam Audio rather than raw duplicated mono");
+}
+
 static void AssertNavigationBeaconRearCueIsDistinctFromFront()
 {
     var sound = LoadNavigationBeaconMonoSamples();
@@ -23663,6 +24649,13 @@ static string GetNavigationBeaconSoundPath()
     var outputDirectory = Path.GetDirectoryName(typeof(FieldNavigationController).Assembly.Location)
         ?? throw new InvalidOperationException("Could not resolve navigation beacon output directory.");
     return Path.Combine(outputDirectory, "Assets", "navigation", "navigation_beacon_214_remix.wav");
+}
+
+static string GetFieldZoneTransitionSoundPath()
+{
+    var outputDirectory = Path.GetDirectoryName(typeof(FieldNavigationController).Assembly.Location)
+        ?? throw new InvalidOperationException("Could not resolve field-zone cue output directory.");
+    return Path.Combine(outputDirectory, "Assets", "navigation", "field_zone_transition.wav");
 }
 
 static float[] LoadNavigationBeaconMonoSamples() =>
@@ -29660,3 +30653,8 @@ static class BlindSoldierRuntimeLeaseTests
         reacquired.Dispose();
     }
 }
+
+
+
+
+

@@ -31,6 +31,13 @@ coverage/
 *.backup-*/
 AccessibilityBackups/
 .worktrees/
+.active-build-*/
+.active-release-*/
+**/.artifacts/
+/accessibility_prototype/
+/reloaded/
+/.write-probe
+/546
 
 # Downloaded or generated reverse-engineering workspaces
 tools/ghidra/

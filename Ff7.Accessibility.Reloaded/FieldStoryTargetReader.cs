@@ -9,12 +9,34 @@ public enum FieldStoryTargetKind
     Location
 }
 
+/// <summary>
+/// A test a row has to satisfy before it is offered.
+///
+/// <para><paramref name="PartyMemberId"/> is the field scripts' own <c>IFPRTY</c>:
+/// whether a named character is in the party right now, read from the three slots the
+/// engine keeps at Bank[3][9], [10] and [11]. It cannot be expressed as a mask over one
+/// byte, because the character can be in any of the three, and it is not the same
+/// question as whether their model is on screen - the Whirlwind Maze keeps Barret and
+/// Red standing there whether or not they are in the party, and only the ones who are
+/// not will take the Black Materia. When it is set, the bank fields are unused.</para>
+/// </summary>
 public readonly record struct FieldStoryStateCondition(
     int Bank,
     int Address,
     byte Mask,
     byte Value,
-    bool AnyBitSet = false);
+    bool AnyBitSet = false,
+    int? MinimumSetBits = null,
+    int? MaximumSetBits = null,
+    /// <summary>
+    /// The masked byte read as a number, compared the way the script compares it. This
+    /// is not the same test as counting set bits: 208:11's Talk waits for 5[2] to reach
+    /// three, and 5[2] goes on counting to five as the remaining men are spoken to.
+    /// </summary>
+    int? MinimumValue = null,
+    int? MaximumValue = null,
+    int? PartyMemberId = null,
+    bool RequirePartyMember = false);
 
 public readonly record struct FieldStoryEventDefinition(
     int FieldId,
@@ -39,7 +61,11 @@ public readonly record struct FieldStoryEventDefinition(
     FieldNavigationRouteDetour? RouteDetour = null,
     FieldNavigationRouteDetour[]? RouteDetours = null,
     int[]? RequiredPlayerTriangles = null,
-    int[]? ExcludedPlayerTriangles = null);
+    int[]? ExcludedPlayerTriangles = null,
+    int[]? CompletionPlayerTriangles = null,
+    int? RequiredEnabledLineEntityId = null,
+    bool UsesPlayerCollisionRadius = false,
+    bool UsesContactRange = false);
 
 public static class FieldStoryEventCatalog
 {
@@ -97,6 +123,7 @@ public sealed class FieldStoryTargetReader
     private readonly Func<int, int> readInt32;
     private readonly Func<int, short> readInt16;
     private readonly Func<int, byte> readByte;
+    private readonly Func<int, bool>? isLineEnabled;
     private readonly IReadOnlyDictionary<int, IReadOnlyList<FieldStoryEventDefinition>> definitionsByField;
 
     public FieldStoryTargetReader(
@@ -111,11 +138,13 @@ public sealed class FieldStoryTargetReader
         Func<int, int> readInt32,
         Func<int, short> readInt16,
         Func<int, byte> readByte,
-        IEnumerable<FieldStoryEventDefinition> definitions)
+        IEnumerable<FieldStoryEventDefinition> definitions,
+        Func<int, bool>? isLineEnabled = null)
     {
         this.readInt32 = readInt32;
         this.readInt16 = readInt16;
         this.readByte = readByte;
+        this.isLineEnabled = isLineEnabled;
         definitionsByField = definitions
             .GroupBy(definition => definition.FieldId)
             .ToDictionary(
@@ -139,6 +168,8 @@ public sealed class FieldStoryTargetReader
                 !MeetsCondition(definition.RequiredCondition) ||
                 !MeetsConditions(definition.RequiredConditions) ||
                 !MeetsPlayerTriangleConditions(definition, position.TriangleId) ||
+                (definition.RequiredEnabledLineEntityId is { } requiredLine &&
+                 isLineEnabled?.Invoke(requiredLine) != true) ||
                 MeetsCompletedCondition(definition.CompletedCondition))
             {
                 continue;
@@ -167,8 +198,17 @@ public sealed class FieldStoryTargetReader
             .Min();
         if (nextMilestone >= 0)
         {
+            // Narrowing to the nearest milestone stops two different chapters of the story
+            // being offered at once. It is not meant to hide a step on the way to that
+            // milestone, and a row that declares no milestone is exactly that: it completes
+            // nothing, so it cannot be the wrong one to offer alongside the moment it leads
+            // to. Reactor 5's upper piping is the case that made this visible - the doors at
+            // either end carry moments 123 and 128, and with those present the three jumps
+            // that cross the pipe were filtered out and the room went silent in the middle.
             current = current
-                .Where(candidate => candidate.Definition.TargetGameMoment == nextMilestone)
+                .Where(candidate =>
+                    candidate.Definition.TargetGameMoment < 0 ||
+                    candidate.Definition.TargetGameMoment == nextMilestone)
                 .ToArray();
         }
 
@@ -181,6 +221,27 @@ public sealed class FieldStoryTargetReader
     {
         if (definition.Kind == FieldStoryTargetKind.Location)
         {
+            if (definition.UsesPlayerCollisionRadius)
+            {
+                // Native Go handlers require distance to the LINE strictly less
+                // than the player's event+0x72 radius (FUN_00637ABB). A configured
+                // navigation threshold can stop outside the activation region.
+                //
+                // A row that says this must be a line and must have a readable radius:
+                // without either there is no reach to measure, and offering an approach
+                // whose activation region is unknown would send the player to a spot the
+                // game may not accept. The row that carries the same crossing without
+                // this switch is the one to use when the reach is not the point.
+                var playerTable = readInt32(FieldNavigationObjectReader.AddressFieldEventDataPtr);
+                var count = readByte(FieldPositionReader.AddressFieldNumModels);
+                if (definition.TriggerLine is null || playerTable == 0 || position.ModelIndex >= count)
+                    return null;
+                var playerAddress = playerTable + position.ModelIndex * FieldNavigationObjectReader.FieldEventDataStride;
+                var radius = (int)readInt16(playerAddress + ModelCollisionRadiusOffset);
+                if (radius <= 1)
+                    return null;
+                return CreateTarget(definition, definition.X, definition.Y, definition.Z, radius - 1);
+            }
             return CreateTarget(definition, definition.X, definition.Y, definition.Z);
         }
 
@@ -202,6 +263,17 @@ public sealed class FieldStoryTargetReader
             return null;
         }
 
+        // A character who has not joined the party yet is an ordinary field NPC, and
+        // several required conversations belong to one - Cid standing in his own house
+        // before he joins, for instance. The same entity becomes the party leader
+        // later, and the field engine then maps it to the model the player is moving.
+        // Offering a Talk with the model under the player's own control would send
+        // them to walk into themselves.
+        if (modelId == position.ModelIndex)
+        {
+            return null;
+        }
+
         var eventAddress = eventTable + modelId * FieldNavigationObjectReader.FieldEventDataStride;
         if (readByte(eventAddress + FieldNavigationObjectReader.VisibilityOffset) == 0)
         {
@@ -213,9 +285,24 @@ public sealed class FieldStoryTargetReader
         var playerCollisionRadius = Math.Max(
             0,
             (int)readInt16(playerEventAddress + ModelCollisionRadiusOffset));
-        var interactionRadius = playerCollisionRadius + Math.Max(
-            0,
-            (int)readInt16(eventAddress + ModelTalkRadiusOffset));
+
+        // Contact is not Talk at a different distance; it is a different test.
+        //
+        // FUN_00637724 walks the models, requires the logical height difference to be
+        // strictly inside (-127, 128), and then compares the squared horizontal distance
+        // against the square of half the sum of the two collision radii at +0x72 - the
+        // player's and the model's. Talk is the player's collision radius plus the
+        // model's own talk radius at +0x74, which is a larger and quite differently
+        // shaped reach. Getting this wrong at Cosmo Canyon's storage stands would put
+        // the thing the player has to walk into at a distance the game will not accept.
+        // Those four stands are storage slots that 566:14:4 fills in the order the
+        // materia were brought in, so none of them is a fixed colour or a fixed mission.
+        var interactionRadius = definition.UsesContactRange
+            ? (playerCollisionRadius +
+                Math.Max(0, (int)readInt16(eventAddress + ModelCollisionRadiusOffset))) / 2
+            : playerCollisionRadius + Math.Max(
+                0,
+                (int)readInt16(eventAddress + ModelTalkRadiusOffset));
         return CreateTarget(
             definition,
             FromModelFixedPoint(readInt32(eventAddress + FieldNavigationObjectReader.PositionXOffset)),
@@ -248,7 +335,14 @@ public sealed class FieldStoryTargetReader
             InteractionRadius: interactionRadius,
             TriggerLine: definition.TriggerLine,
             RouteDetour: definition.RouteDetour,
-            RouteDetours: definition.RouteDetours);
+            RouteDetours: definition.RouteDetours,
+            CompletionTriangles: definition.CompletionPlayerTriangles,
+            Activation:
+                definition.UsesContactRange
+                    ? FieldNavigationActivation.Contact
+                    : definition.Kind == FieldStoryTargetKind.Model
+                        ? FieldNavigationActivation.Talk
+                        : FieldNavigationActivation.Default);
 
     private int ReadGameMoment() =>
         readByte(FieldNavigationObjectReader.AddressFieldBankBase) |
@@ -289,11 +383,41 @@ public sealed class FieldStoryTargetReader
                !excluded.Contains(playerTriangle);
     }
 
+    /// <summary>The three party slots the engine keeps, in Bank[3].</summary>
+    private static readonly int[] PartySlotAddresses = [9, 10, 11];
+
+    /// <summary>No character occupies this slot.</summary>
+    private const byte EmptyPartySlot = 0xFF;
+
     private bool MeetsCondition(FieldStoryStateCondition condition)
     {
+        if (condition.PartyMemberId is { } partyMemberId)
+        {
+            var present = false;
+            foreach (var slot in PartySlotAddresses)
+            {
+                if (!TryResolveByteBankAddress(3, slot, out var slotAddress))
+                {
+                    return false;
+                }
+
+                var occupant = readByte(slotAddress);
+                if (occupant != EmptyPartySlot && occupant == partyMemberId)
+                {
+                    present = true;
+                    break;
+                }
+            }
+
+            return present == condition.RequirePartyMember;
+        }
+
         if (condition.Mask == 0)
         {
-            return true;
+            // An omitted condition is a wildcard; an explicitly counted
+            // prerequisite with no bits selected is not an omitted condition.
+            return condition.MinimumSetBits is null && condition.MaximumSetBits is null &&
+                condition.MinimumValue is null && condition.MaximumValue is null;
         }
 
         if (!TryResolveByteBankAddress(condition.Bank, condition.Address, out var address))
@@ -302,6 +426,22 @@ public sealed class FieldStoryTargetReader
         }
 
         var maskedValue = readByte(address) & condition.Mask;
+        if (condition.MinimumValue is not null || condition.MaximumValue is not null)
+        {
+            return maskedValue >= (condition.MinimumValue ?? int.MinValue) &&
+                maskedValue <= (condition.MaximumValue ?? int.MaxValue);
+        }
+
+        if (condition.MinimumSetBits is not null || condition.MaximumSetBits is not null)
+        {
+            // shpin_2/EARITH2 Talk counts bank 3[184] bits 0..6 before
+            // testing >= 3. Count the saved flags, not its temporary tally.
+            var minimum = condition.MinimumSetBits ?? 0;
+            var maximum = condition.MaximumSetBits ?? 8;
+            var count = System.Numerics.BitOperations.PopCount((uint)maskedValue);
+            return minimum >= 0 && maximum <= 8 && minimum <= maximum &&
+                count >= minimum && count <= maximum;
+        }
         return condition.AnyBitSet
             ? maskedValue != 0
             : maskedValue == condition.Value;

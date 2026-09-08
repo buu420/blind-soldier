@@ -28,9 +28,6 @@ internal static class DualRuntimeSharedSourceTests
             ["FfnxPopupSpeechTracker.cs"] = "FFNx is a legacy-executable driver.",
             ["FfnxPopupStateReader.cs"] = "FFNx is a legacy-executable driver.",
             ["FieldMessageSpeechTracker.cs"] = "x64 reads field messages through its own hook set.",
-            ["FieldZoneTransitionCuePlayer.cs"] =
-                "x64 plays this cue through the shared ImmediateWaveCuePlayer, which is the " +
-                "same WaveFileReader/WaveOutEvent path with a shorter buffer.",
             ["FieldRunStateReader.cs"] = "x64 reads run state through Steam2026FieldObservationReader.",
             ["NameEntryMenuSpeechTracker.cs"] = "x64 has Steam2026NameEntrySpeechCoordinator.",
             ["RenderedMenuTextSpeechTracker.cs"] = "x64 has Steam2026RenderedMenuSpeechTracker."
@@ -40,6 +37,7 @@ internal static class DualRuntimeSharedSourceTests
     {
         EverySharedReaderAndTrackerIsCompiledIntoBothRuntimes();
         TheFortCondorBattleReaderIsCompiledIntoBothRuntimes();
+        EveryJunonSourceIsCompiledIntoBothRuntimes();
         TheX64RuntimeResetIncludesFortCondorState();
     }
 
@@ -187,6 +185,46 @@ internal static class DualRuntimeSharedSourceTests
                 $"{string.Join(", ", missing)}. This is a dual-runtime mod; add a " +
                 "<Compile Include> link to Ff7.Accessibility.Steam2026X64.csproj, or, if the " +
                 "file really is legacy-only, add it to legacyOnly here with the reason.");
+        }
+    }
+
+    /// <summary>
+    /// Junon's readers, speech, navigation, and minigame assistance are shared
+    /// features. Discovering every <c>Junon*.cs</c> file keeps a newly added
+    /// helper from compiling only into the legacy runtime.
+    /// </summary>
+    private static void EveryJunonSourceIsCompiledIntoBothRuntimes()
+    {
+        var root = FindSourceRoot();
+        var csproj = File.ReadAllText(Path.Combine(
+            root,
+            "Ff7.Accessibility.Steam2026X64",
+            "Ff7.Accessibility.Steam2026X64.csproj"));
+        var discovered = Directory
+            .EnumerateFiles(
+                Path.Combine(root, "Ff7.Accessibility.Reloaded"),
+                "Junon*.cs",
+                SearchOption.TopDirectoryOnly)
+            .Select(Path.GetFileName)
+            .Where(name => name is not null)
+            .Select(name => name!)
+            .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        if (discovered.Length == 0)
+        {
+            throw new InvalidOperationException(
+                "No Junon sources were discovered, so this guard is checking nothing.");
+        }
+
+        var missing = discovered
+            .Where(name => !csproj.Contains(name, StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        if (missing.Length > 0)
+        {
+            throw new InvalidOperationException(
+                "Junon sources are compiled into the legacy runtime but not the x64 one: " +
+                $"{string.Join(", ", missing)}. Add shared <Compile Include> links before shipping.");
         }
     }
 

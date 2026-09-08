@@ -75,15 +75,17 @@ $linePickupSpecs = @(
     [pscustomobject]@{ FieldName = 'hideway2'; EntityId = 10; ScriptType = 'Go'; ExpectedPickups = @('STITM:185:1'); CueKind = 'Chest'; CollectedBank = 1; CollectedAddress = 58; CollectedMask = 0x80; RequiredBank = -1; RequiredAddress = -1; RequiredMask = 0; RequiredValue = 0; MinimumGameMoment = -1; MaximumGameMoment = -1 },
     [pscustomobject]@{ FieldName = 'hideway3'; EntityId = 10; ScriptType = 'Go'; ExpectedPickups = @('SMTRA:28:1'); CueKind = ''; CollectedBank = 1; CollectedAddress = 58; CollectedMask = 0x20; RequiredBank = -1; RequiredAddress = -1; RequiredMask = 0; RequiredValue = 0; MinimumGameMoment = -1; MaximumGameMoment = -1 },
     [pscustomobject]@{ FieldName = 'mkt_ia'; EntityId = 5; ScriptType = 'Go'; ExpectedPickups = @('STITM:159:1'); CueKind = 'Item'; CollectedBank = 1; CollectedAddress = 37; CollectedMask = 0x20; RequiredBank = -1; RequiredAddress = -1; RequiredMask = 0; RequiredValue = 0; MinimumGameMoment = 999; MaximumGameMoment = -1 },
-    [pscustomobject]@{ FieldName = 'ncoin1'; EntityId = 3; ScriptType = '[OK]'; ExpectedPickups = @('STITM:3:1'); CueKind = 'Item'; CollectedBank = 15; CollectedAddress = 1; CollectedMask = 0x01; RequiredBank = -1; RequiredAddress = -1; RequiredMask = 0; RequiredValue = 0; MinimumGameMoment = -1; MaximumGameMoment = -1 }
+    [pscustomobject]@{ FieldName = 'ncoin1'; EntityId = 3; ScriptType = '[OK]'; ExpectedPickups = @('STITM:3:1'); CueKind = 'Item'; CollectedBank = 15; CollectedAddress = 1; CollectedMask = 0x01; RequiredBank = -1; RequiredAddress = -1; RequiredMask = 0; RequiredValue = 0; MinimumGameMoment = -1; MaximumGameMoment = -1; UsesPlayerCollisionRadius = $true }
 )
 
 # A few visible pickup models use scripted contact/jump sequences instead of a
 # Talk handler. They still expose native model position and visibility at runtime.
 $directModelPickupSpecs = @(
     [pscustomobject]@{ FieldName = 'las3_3'; EntityId = 5; ScriptType = 'Script 3'; ExpectedPickup = 'SMTRA:12:1'; CollectedBank = 1; CollectedAddress = 50; CollectedMask = 0x10 },
-    [pscustomobject]@{ FieldName = 'mtcrl_5'; EntityId = 5; ScriptType = 'Script 3'; ExpectedPickup = 'STITM:298:1'; CollectedBank = 15; CollectedAddress = 115; CollectedMask = 0x04 },
-    [pscustomobject]@{ FieldName = 'mtcrl_5'; EntityId = 6; ScriptType = 'Script 3'; ExpectedPickup = 'STITM:196:1'; CollectedBank = 15; CollectedAddress = 115; CollectedMask = 0x08 }
+    [pscustomobject]@{ FieldName = 'mtcrl_5'; EntityId = 5; ScriptType = 'Script 3'; ExpectedPickup = 'STITM:298:1'; CollectedBank = 15; CollectedAddress = 115; CollectedMask = 0x04; ManualNavigationGuidance = 'To reach this item, hold Right and repeatedly press OK during the fall. From here, press OK, then hold Up to climb back. Auto walk is unavailable for this item.' },
+    [pscustomobject]@{ FieldName = 'mtcrl_5'; EntityId = 6; ScriptType = 'Script 3'; ExpectedPickup = 'STITM:196:1'; CollectedBank = 15; CollectedAddress = 115; CollectedMask = 0x08; ManualNavigationGuidance = 'To reach this item, hold Left and repeatedly press OK during the fall. From here, press OK, then hold Up to climb back. Auto walk is unavailable for this item.' },
+    [pscustomobject]@{ FieldName = 'junmin2'; EntityId = 16; ScriptType = 'Talk'; ExpectedPickup = 'STITM:95:1'; ExpectedModelResource = 'junmin2shinra_guard.char'; ExpectedCollectedWrite = 'BITON:15:118:4'; CollectedBank = 15; CollectedAddress = 118; CollectedMask = 0x10 },
+    [pscustomobject]@{ FieldName = 'junmin5'; EntityId = 9; ScriptType = 'Talk'; ExpectedPickup = 'STITM:95:1'; ExpectedModelResource = 'junmin5shinra_guard.char'; ExpectedCollectedWrite = 'BITON:15:118:6'; CollectedBank = 15; CollectedAddress = 118; CollectedMask = 0x40 }
 )
 
 function Add-Definition {
@@ -110,7 +112,10 @@ function Add-Definition {
         [int] $StaticZ = 0,
         [string] $CueKindOverride = '',
         [int] $MinimumGameMoment = -1,
-        [int] $MaximumGameMoment = -1
+        [int] $MaximumGameMoment = -1,
+        [bool] $UsesTalkInteraction = $false,
+        [string] $ManualNavigationGuidance = '',
+        [bool] $UsesPlayerCollisionRadius = $false
     )
 
     $definitions.Add([ordered]@{
@@ -138,6 +143,15 @@ function Add-Definition {
         minimumGameMoment = $MinimumGameMoment
         maximumGameMoment = $MaximumGameMoment
     })
+    if ($UsesTalkInteraction) {
+        $definitions[$definitions.Count - 1]['usesTalkInteraction'] = $true
+    }
+    if ($ManualNavigationGuidance) {
+        $definitions[$definitions.Count - 1]['manualNavigationGuidance'] = $ManualNavigationGuidance
+    }
+    if ($UsesPlayerCollisionRadius) {
+        $definitions[$definitions.Count - 1]['usesPlayerCollisionRadius'] = $true
+    }
 }
 
 function Get-ReachableScripts {
@@ -247,18 +261,19 @@ foreach ($file in Get-ChildItem -LiteralPath $fieldJsonRoot -Filter '*.json') {
             continue
         }
 
+        $directSpec = $directModelPickupSpecs |
+            Where-Object { $_.FieldName -eq $fieldName -and $_.EntityId -eq $entity.entityId } |
+            Select-Object -First 1
+
         if ($modelResource -match 'fieldbg_saveicn') {
             Add-Definition $fieldIds[$fieldName] $fieldName $entity.entityId $entity.entityName $modelResource 'SavePoint' -1 'Save Point'
             continue
         }
 
-        if ($modelResource -notmatch 'fieldbg_') {
+        if ($modelResource -notmatch 'fieldbg_' -and $null -eq $directSpec) {
             continue
         }
 
-        $directSpec = $directModelPickupSpecs |
-            Where-Object { $_.FieldName -eq $fieldName -and $_.EntityId -eq $entity.entityId } |
-            Select-Object -First 1
         if ($null -ne $directSpec) {
             $pickupScript = $entity.scripts |
                 Where-Object { $_.scriptType -eq $directSpec.ScriptType } |
@@ -274,6 +289,18 @@ foreach ($file in Get-ChildItem -LiteralPath $fieldJsonRoot -Filter '*.json') {
             if ($actualPickup -ne $directSpec.ExpectedPickup) {
                 throw "Native direct model pickup drift for ${fieldName}:$($entity.entityId): expected $($directSpec.ExpectedPickup), found $actualPickup"
             }
+            if ($directSpec.ExpectedModelResource -and
+                $modelResource -ne $directSpec.ExpectedModelResource) {
+                throw "Native direct model resource drift for ${fieldName}:$($entity.entityId): expected $($directSpec.ExpectedModelResource), found $modelResource"
+            }
+            if ($directSpec.ExpectedCollectedWrite) {
+                $collectedWrites = @($pickupScript.ops |
+                    Where-Object { $_.op -eq 'BITON' } |
+                    ForEach-Object { "BITON:$($_.bd):$($_.d):$($_.bit)" })
+                if ($directSpec.ExpectedCollectedWrite -notin $collectedWrites) {
+                    throw "Native direct model collection drift for ${fieldName}:$($entity.entityId): expected $($directSpec.ExpectedCollectedWrite), found $($collectedWrites -join ', ')"
+                }
+            }
 
             Add-Definition `
                 -FieldId $fieldIds[$fieldName] -FieldName $fieldName -EntityId $entity.entityId `
@@ -281,7 +308,8 @@ foreach ($file in Get-ChildItem -LiteralPath $fieldJsonRoot -Filter '*.json') {
                 -Kind $(if ($pickup.op -eq 'SMTRA') { 'Materia' } else { 'Item' }) `
                 -NativeId ([int]$pickup.t) -Quantity $quantity `
                 -CollectedBank $directSpec.CollectedBank -CollectedAddress $directSpec.CollectedAddress `
-                -CollectedMask $directSpec.CollectedMask
+                -CollectedMask $directSpec.CollectedMask -UsesTalkInteraction ($directSpec.ScriptType -eq 'Talk') `
+                -ManualNavigationGuidance $directSpec.ManualNavigationGuidance
             continue
         }
 
@@ -406,7 +434,7 @@ foreach ($file in Get-ChildItem -LiteralPath $fieldJsonRoot -Filter '*.json') {
             -NativeId $nativeId -Label $label -Quantity $quantity `
             -CollectedBank $collectedBank -CollectedAddress $collectedAddress `
             -CollectedMask $collectedMask -MinimumGameMoment $minimumGameMoment `
-            -MaximumGameMoment $maximumGameMoment
+            -MaximumGameMoment $maximumGameMoment -UsesTalkInteraction $true
     }
 
     foreach ($spec in @($linePickupSpecs | Where-Object { $_.FieldName -eq $fieldName })) {
@@ -455,7 +483,8 @@ foreach ($file in Get-ChildItem -LiteralPath $fieldJsonRoot -Filter '*.json') {
                 -RequiredValue $spec.RequiredValue -TargetKind 'Line' `
                 -StaticX $staticX -StaticY $staticY -StaticZ $staticZ `
                 -CueKindOverride $spec.CueKind -MinimumGameMoment $spec.MinimumGameMoment `
-                -MaximumGameMoment $spec.MaximumGameMoment
+                -MaximumGameMoment $spec.MaximumGameMoment `
+                -UsesPlayerCollisionRadius ($null -ne $spec.PSObject.Properties['UsesPlayerCollisionRadius'] -and $spec.UsesPlayerCollisionRadius)
         }
     }
 }
@@ -619,8 +648,42 @@ Add-Definition -FieldId 609 -FieldName 'kuro_6' -EntityId 7 -EntityName 'box' -M
 
 $deduplicated = @($definitions |
     Group-Object { "$($_.fieldId):$($_.entityId):$($_.kind):$($_.nativeId):$($_.label):$($_.targetKind):$($_.staticX):$($_.staticY):$($_.staticZ):$($_.requiredBank):$($_.requiredAddress):$($_.requiredMask):$($_.requiredValue)" } |
-    ForEach-Object { $_.Group[0] } |
-    Sort-Object fieldId, entityId, kind, nativeId, label)
+    ForEach-Object { $_.Group[0] })
+
+# Keep established J/L cycling order stable when the catalog is regenerated.
+# Existing definitions retain their prior positions; newly reviewed objects are
+# appended in generator order so a focused addition cannot reorder every field.
+function Get-DefinitionKey($definition) {
+    return "$($definition.fieldId):$($definition.entityId):$($definition.kind):$($definition.nativeId):$($definition.label):$($definition.targetKind):$($definition.staticX):$($definition.staticY):$($definition.staticZ):$($definition.requiredBank):$($definition.requiredAddress):$($definition.requiredMask):$($definition.requiredValue)"
+}
+
+$rankByKey = @{}
+$nextRank = 0
+if (Test-Path -LiteralPath $OutputPath) {
+    try {
+        $existingDocument = Get-Content -LiteralPath $OutputPath -Raw | ConvertFrom-Json
+        foreach ($definition in $existingDocument.definitions) {
+            $key = Get-DefinitionKey $definition
+            if (-not $rankByKey.ContainsKey($key)) {
+                $rankByKey[$key] = $nextRank
+                $nextRank++
+            }
+        }
+    }
+    catch {
+        Write-Warning "Could not preserve existing object target order: $($_.Exception.Message)"
+    }
+}
+foreach ($definition in $deduplicated) {
+    $key = Get-DefinitionKey $definition
+    if (-not $rankByKey.ContainsKey($key)) {
+        $rankByKey[$key] = $nextRank
+        $nextRank++
+    }
+}
+$deduplicated = @($deduplicated | Sort-Object {
+    $rankByKey[(Get-DefinitionKey $_)]
+})
 
 $sourceCommit = (git -C $KujataDataRoot rev-parse HEAD).Trim()
 $document = [ordered]@{

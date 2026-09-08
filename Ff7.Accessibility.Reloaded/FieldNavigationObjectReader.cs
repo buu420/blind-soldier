@@ -41,7 +41,10 @@ public readonly record struct FieldNavigationObjectDefinition(
     int StaticZ = 0,
     FieldObjectCueKind? CueKindOverride = null,
     int MinimumGameMoment = -1,
-    int MaximumGameMoment = -1);
+    int MaximumGameMoment = -1,
+    bool UsesTalkInteraction = false,
+    string? ManualNavigationGuidance = null,
+    bool UsesPlayerCollisionRadius = false);
 
 public static class FieldNavigationObjectCatalog
 {
@@ -189,11 +192,41 @@ public sealed class FieldNavigationObjectReader
             int x;
             int y;
             int z;
+            var interactionRadius = DefaultInteractionRadius;
             if (definition.TargetKind == FieldNavigationObjectTargetKind.Line)
             {
                 if (!isLineEnabled(definition.EntityId))
                 {
                     continue;
+                }
+
+                if (definition.UsesPlayerCollisionRadius)
+                {
+                    if (!modelStateRead)
+                    {
+                        eventTable = readInt32(AddressFieldEventDataPtr);
+                        modelCount = readByte(FieldPositionReader.AddressFieldNumModels);
+                        modelStateRead = true;
+                    }
+
+                    if (eventTable == 0 || position.ModelIndex < 0 || position.ModelIndex >= modelCount)
+                    {
+                        continue;
+                    }
+
+                    // The reviewed LINE's OK handler requires strict native
+                    // distance < player event+0x72 (FUN_00637ABB/00637D35).
+                    // Keep the midpoint approach inside that range; missing
+                    // player geometry must not revive the old 48-unit guess.
+                    var playerAddress = eventTable + position.ModelIndex * FieldEventDataStride;
+                    var radius = unchecked((short)ReadUInt16(
+                        playerAddress + FieldNavigationNpcReader.CollisionRadiusOffset));
+                    if (radius <= 1)
+                    {
+                        continue;
+                    }
+
+                    interactionRadius = radius - 1;
                 }
 
                 x = definition.StaticX;
@@ -232,6 +265,19 @@ public sealed class FieldNavigationObjectReader
                     continue;
                 }
 
+                if (definition.UsesTalkInteraction)
+                {
+                    if (position.ModelIndex < 0 || position.ModelIndex >= modelCount ||
+                        readByte(eventAddress + FieldNavigationNpcReader.TalkDisabledOffset) != 0)
+                    {
+                        continue;
+                    }
+
+                    var playerAddress = eventTable + position.ModelIndex * FieldEventDataStride;
+                    interactionRadius = ReadUInt16(playerAddress + FieldNavigationNpcReader.CollisionRadiusOffset) +
+                        ReadUInt16(eventAddress + FieldNavigationNpcReader.TalkRadiusOffset);
+                }
+
                 x = FromModelFixedPoint(readInt32(eventAddress + PositionXOffset));
                 y = FromModelFixedPoint(readInt32(eventAddress + PositionYOffset));
                 z = FromModelFixedPoint(readInt32(eventAddress + PositionZOffset));
@@ -257,7 +303,8 @@ public sealed class FieldNavigationObjectReader
                         ? definition.EntityId
                         : -1,
                 CompletesOnArrival: definition.Kind == FieldNavigationObjectKind.SavePoint,
-                InteractionRadius: DefaultInteractionRadius));
+                InteractionRadius: interactionRadius,
+                ManualNavigationGuidance: definition.ManualNavigationGuidance));
         }
 
         return targets.Count == 0 ? EmptyTargets : targets;

@@ -1,8 +1,8 @@
-﻿{
+{
     "schemaVersion":  2,
     "source":  "dangarfeld/kujata-data field script extraction",
     "sourceCommit":  "f2316fa54f27ebd1ce4e19242fc3c789337c1eba",
-    "definitionCount":  421,
+    "definitionCount":  423,
     "definitions":  [
                         {
                             "fieldId":  436,
@@ -52,7 +52,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  439,
@@ -77,7 +78,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  427,
@@ -102,7 +104,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  427,
@@ -127,7 +130,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  422,
@@ -177,7 +181,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  298,
@@ -202,7 +207,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  299,
@@ -227,7 +233,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  299,
@@ -252,7 +259,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  440,
@@ -277,7 +285,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  227,
@@ -327,7 +336,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  628,
@@ -352,7 +362,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  628,
@@ -377,7 +388,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  629,
@@ -402,7 +414,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  553,
@@ -427,7 +440,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  628,
@@ -452,7 +466,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  628,
@@ -477,7 +492,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  625,
@@ -502,7 +518,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  169,
@@ -552,7 +569,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  426,
@@ -577,7 +595,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  627,
@@ -602,7 +621,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  164,
@@ -627,7 +647,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  166,
@@ -652,7 +673,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  705,
@@ -702,7 +724,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  705,
@@ -727,7 +750,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  703,
@@ -777,7 +801,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  704,
@@ -802,7 +827,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  736,
@@ -827,7 +853,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  737,
@@ -852,7 +879,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  737,
@@ -877,7 +905,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  576,
@@ -902,7 +931,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  736,
@@ -952,7 +982,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  737,
@@ -977,7 +1008,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  128,
@@ -1002,7 +1034,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  128,
@@ -1077,7 +1110,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  308,
@@ -1102,7 +1136,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  619,
@@ -1127,7 +1162,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  132,
@@ -1152,7 +1188,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  656,
@@ -1177,7 +1214,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  656,
@@ -1202,7 +1240,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  408,
@@ -1252,7 +1291,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  657,
@@ -1277,7 +1317,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  655,
@@ -1302,7 +1343,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  465,
@@ -1327,7 +1369,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  311,
@@ -1352,7 +1395,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  311,
@@ -1377,7 +1421,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  463,
@@ -1402,7 +1447,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "manualNavigationGuidance":  "To reach this item, hold Left and repeatedly press OK during the fall. From here, press OK, then hold Up to climb back. Auto walk is unavailable for this item."
                         },
                         {
                             "fieldId":  465,
@@ -1427,7 +1473,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  465,
@@ -1452,7 +1499,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  453,
@@ -1477,7 +1525,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  "Item",
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesPlayerCollisionRadius":  true
                         },
                         {
                             "fieldId":  125,
@@ -1502,7 +1551,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  317,
@@ -1527,7 +1577,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  317,
@@ -1552,7 +1603,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  120,
@@ -1577,7 +1629,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  121,
@@ -1627,7 +1680,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  124,
@@ -1677,7 +1731,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  149,
@@ -1702,7 +1757,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  198,
@@ -1752,7 +1808,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  145,
@@ -1777,7 +1834,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  149,
@@ -1827,7 +1885,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  462,
@@ -1852,7 +1911,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  462,
@@ -1902,7 +1962,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "manualNavigationGuidance":  "To reach this item, hold Right and repeatedly press OK during the fall. From here, press OK, then hold Up to climb back. Auto walk is unavailable for this item."
                         },
                         {
                             "fieldId":  195,
@@ -1952,7 +2013,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  462,
@@ -1977,7 +2039,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  90,
@@ -2002,7 +2065,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  90,
@@ -2027,7 +2091,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  91,
@@ -2052,7 +2117,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  88,
@@ -2077,7 +2143,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  90,
@@ -2102,7 +2169,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  90,
@@ -2127,7 +2195,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  91,
@@ -2152,7 +2221,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  560,
@@ -2177,7 +2247,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  558,
@@ -2202,7 +2273,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  554,
@@ -2227,7 +2299,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  91,
@@ -2252,7 +2325,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  91,
@@ -2277,7 +2351,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  91,
@@ -2302,7 +2377,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  319,
@@ -2327,7 +2403,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  321,
@@ -2352,7 +2429,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  431,
@@ -2377,7 +2455,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  317,
@@ -2402,7 +2481,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  317,
@@ -2452,7 +2532,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  350,
@@ -2477,7 +2558,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  352,
@@ -2502,7 +2584,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  352,
@@ -2527,7 +2610,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  88,
@@ -2577,7 +2661,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  351,
@@ -2602,7 +2687,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  351,
@@ -2627,7 +2713,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  591,
@@ -2652,7 +2739,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  245,
@@ -4302,7 +4390,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  573,
@@ -4352,7 +4441,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  591,
@@ -4377,7 +4467,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  579,
@@ -4427,7 +4518,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  80,
@@ -4452,7 +4544,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  184,
@@ -4552,7 +4645,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  116,
@@ -5302,7 +5396,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  332,
@@ -5352,7 +5447,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  342,
@@ -5377,7 +5473,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  342,
@@ -5402,7 +5499,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  342,
@@ -5427,7 +5525,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  343,
@@ -5452,7 +5551,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  693,
@@ -5477,7 +5577,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  693,
@@ -5502,7 +5603,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  696,
@@ -5527,7 +5629,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  690,
@@ -5552,7 +5655,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  690,
@@ -5577,7 +5681,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  693,
@@ -5627,7 +5732,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  447,
@@ -5652,7 +5758,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  190,
@@ -5677,7 +5784,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  599,
@@ -5702,7 +5810,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  599,
@@ -5727,7 +5836,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  447,
@@ -5752,7 +5862,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  187,
@@ -5777,7 +5888,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  337,
@@ -5877,7 +5989,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  187,
@@ -5927,7 +6040,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  583,
@@ -6052,7 +6166,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  524,
@@ -6077,7 +6192,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  687,
@@ -6127,7 +6243,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  666,
@@ -6152,7 +6269,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  678,
@@ -6177,7 +6295,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  682,
@@ -6202,7 +6321,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  684,
@@ -6227,7 +6347,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  659,
@@ -6252,7 +6373,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  494,
@@ -6302,7 +6424,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  547,
@@ -6327,7 +6450,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  697,
@@ -6352,7 +6476,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  697,
@@ -6377,7 +6502,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  699,
@@ -6427,7 +6553,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  548,
@@ -6452,7 +6579,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  496,
@@ -6502,7 +6630,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  549,
@@ -6527,7 +6656,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  548,
@@ -6552,7 +6682,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  548,
@@ -6577,7 +6708,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  247,
@@ -6677,7 +6809,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  1008,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  247,
@@ -6777,7 +6910,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  248,
@@ -6802,7 +6936,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  248,
@@ -6827,7 +6962,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  248,
@@ -6852,7 +6988,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  248,
@@ -6877,7 +7014,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  248,
@@ -6902,7 +7040,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  621,
@@ -6927,7 +7066,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  622,
@@ -6952,7 +7092,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  622,
@@ -6977,7 +7118,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  646,
@@ -7027,7 +7169,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  620,
@@ -7052,7 +7195,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  624,
@@ -7077,7 +7221,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  236,
@@ -7102,7 +7247,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  1008,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  245,
@@ -7127,7 +7273,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  1008,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  245,
@@ -7152,7 +7299,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  1008,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  624,
@@ -7177,7 +7325,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  110,
@@ -7227,7 +7376,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  1008,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  212,
@@ -7252,7 +7402,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  212,
@@ -7277,7 +7428,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  355,
@@ -7327,7 +7479,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  209,
@@ -7352,7 +7505,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  211,
@@ -7377,7 +7531,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  358,
@@ -7402,7 +7557,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  539,
@@ -7427,7 +7583,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  512,
@@ -7452,7 +7609,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  599,
@@ -7477,7 +7635,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  529,
@@ -7527,7 +7686,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  539,
@@ -7552,7 +7712,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  256,
@@ -7602,7 +7763,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  262,
@@ -7627,7 +7789,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  257,
@@ -7652,7 +7815,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  257,
@@ -7702,7 +7866,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  262,
@@ -7727,7 +7892,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  230,
@@ -7752,7 +7918,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  230,
@@ -7777,7 +7944,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  740,
@@ -7802,7 +7970,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  262,
@@ -7827,7 +7996,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  263,
@@ -7852,7 +8022,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  264,
@@ -7902,7 +8073,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  761,
@@ -7927,7 +8099,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  761,
@@ -7952,7 +8125,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  761,
@@ -8002,7 +8176,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  760,
@@ -8052,7 +8227,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  762,
@@ -8077,7 +8253,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  762,
@@ -8127,7 +8304,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  764,
@@ -8177,7 +8355,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  762,
@@ -8202,7 +8381,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  762,
@@ -8252,7 +8432,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  758,
@@ -8277,7 +8458,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  758,
@@ -8302,7 +8484,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  757,
@@ -8327,7 +8510,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  757,
@@ -8352,7 +8536,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  757,
@@ -8402,7 +8587,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  759,
@@ -8452,7 +8638,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  760,
@@ -8477,7 +8664,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  758,
@@ -8527,7 +8715,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  759,
@@ -8552,7 +8741,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  733,
@@ -8577,7 +8767,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  734,
@@ -8602,7 +8793,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  734,
@@ -8627,7 +8819,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  733,
@@ -8652,7 +8845,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  733,
@@ -8677,7 +8871,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  733,
@@ -8702,7 +8897,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  173,
@@ -8752,7 +8948,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  144,
@@ -8777,7 +8974,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  144,
@@ -8802,7 +9000,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  193,
@@ -8827,7 +9026,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  156,
@@ -8877,7 +9077,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  633,
@@ -8902,7 +9103,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  636,
@@ -8927,7 +9129,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  636,
@@ -8952,7 +9155,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  631,
@@ -8977,7 +9181,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  632,
@@ -9002,7 +9207,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  633,
@@ -9052,7 +9258,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  739,
@@ -9077,7 +9284,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  732,
@@ -9152,7 +9360,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  739,
@@ -9202,7 +9411,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  604,
@@ -9227,7 +9437,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  605,
@@ -9252,7 +9463,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  606,
@@ -9277,7 +9489,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  604,
@@ -9302,7 +9515,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  604,
@@ -9327,7 +9541,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  604,
@@ -9352,7 +9567,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  608,
@@ -9377,7 +9593,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  747,
@@ -9402,7 +9619,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  747,
@@ -9452,7 +9670,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  610,
@@ -9477,7 +9696,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  612,
@@ -9502,7 +9722,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  747,
@@ -9527,7 +9748,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  394,
@@ -9602,7 +9824,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  473,
@@ -9702,7 +9925,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  378,
@@ -9727,7 +9951,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  604,
@@ -9752,7 +9977,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  604,
@@ -9777,7 +10003,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  369,
@@ -9802,7 +10029,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  369,
@@ -9827,7 +10055,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  380,
@@ -9852,7 +10081,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  753,
@@ -9877,7 +10107,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  753,
@@ -9902,7 +10133,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  753,
@@ -10002,7 +10234,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  754,
@@ -10027,7 +10260,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  754,
@@ -10127,7 +10361,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  754,
@@ -10152,7 +10387,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  754,
@@ -10177,7 +10413,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  748,
@@ -10202,7 +10439,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  748,
@@ -10227,7 +10465,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  748,
@@ -10277,7 +10516,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  748,
@@ -10302,7 +10542,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  748,
@@ -10327,7 +10568,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  749,
@@ -10352,7 +10594,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  750,
@@ -10377,7 +10620,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  750,
@@ -10402,7 +10646,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  750,
@@ -10452,7 +10697,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  749,
@@ -10502,7 +10748,8 @@
                             "staticZ":  0,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  287,
@@ -10528,6 +10775,58 @@
                             "cueKindOverride":  null,
                             "minimumGameMoment":  344,
                             "maximumGameMoment":  384
+                        },
+                        {
+                            "fieldId":  368,
+                            "entityId":  16,
+                            "kind":  "Item",
+                            "nativeId":  95,
+                            "label":  "",
+                            "quantity":  1,
+                            "collectedBank":  15,
+                            "collectedAddress":  118,
+                            "collectedMask":  16,
+                            "requiredBank":  -1,
+                            "requiredAddress":  -1,
+                            "requiredMask":  0,
+                            "requiredValue":  0,
+                            "sourceFieldName":  "junmin2",
+                            "sourceEntityName":  "takara3",
+                            "sourceModelResource":  "junmin2shinra_guard.char",
+                            "targetKind":  "Model",
+                            "staticX":  0,
+                            "staticY":  0,
+                            "staticZ":  0,
+                            "cueKindOverride":  null,
+                            "minimumGameMoment":  -1,
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
+                        },
+                        {
+                            "fieldId":  381,
+                            "entityId":  9,
+                            "kind":  "Item",
+                            "nativeId":  95,
+                            "label":  "",
+                            "quantity":  1,
+                            "collectedBank":  15,
+                            "collectedAddress":  118,
+                            "collectedMask":  64,
+                            "requiredBank":  -1,
+                            "requiredAddress":  -1,
+                            "requiredMask":  0,
+                            "requiredValue":  0,
+                            "sourceFieldName":  "junmin5",
+                            "sourceEntityName":  "takara1",
+                            "sourceModelResource":  "junmin5shinra_guard.char",
+                            "targetKind":  "Model",
+                            "staticX":  0,
+                            "staticY":  0,
+                            "staticZ":  0,
+                            "cueKindOverride":  null,
+                            "minimumGameMoment":  -1,
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         }
                     ]
 }

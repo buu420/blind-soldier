@@ -14,6 +14,26 @@ public readonly record struct HighwayPartyHealth(
     int CurrentHp,
     int MaximumHp);
 
+/// <summary>
+/// The word the arcade HUD is painting across the screen right now. The renderer puts
+/// up one of its own three textures - guaa, huaa and iuaa, which read READY, GO! and
+/// GOAL - and nothing at all for any other state.
+/// </summary>
+public enum HighwayBannerState
+{
+    /// <summary>
+    /// The HUD could not be read this frame. Held rather than treated as a change,
+    /// so a moment's failure during GOAL does not read as the word leaving and
+    /// coming back.
+    /// </summary>
+    Unknown,
+
+    None,
+    Ready,
+    Go,
+    Goal
+}
+
 public sealed record HighwayAccessibilityState(
     HighwayPoint Cloud,
     HighwayPoint Truck,
@@ -21,7 +41,9 @@ public sealed record HighwayAccessibilityState(
     IReadOnlyList<HighwayPartyHealth> PartyHealth,
     int Score,
     bool IsStoryChase,
-    int CloudAttackTimer = 0);
+    int CloudAttackTimer = 0,
+    int HighScore = 0,
+    HighwayBannerState Banner = HighwayBannerState.None);
 
 public enum HighwayCueKind
 {
@@ -84,6 +106,7 @@ public sealed class HighwayAccessibilityTracker
     private HighwayCueKind? lastCueKind;
     private bool chaseStarted;
     private bool distanceWarningArmed;
+    private HighwayBannerState lastBanner = HighwayBannerState.None;
     private readonly Dictionary<int, HighwayAttackSide> attackSideBySlot = new();
 
     public HighwayAccessibilityTracker(
@@ -130,14 +153,39 @@ public sealed class HighwayAccessibilityTracker
             distanceWarningArmed = true;
         }
 
+        // The word on screen, said when it appears rather than when the state that
+        // will eventually produce it changes. GOAL carries the score the HUD is
+        // showing at that moment, which is the one a sighted player reads off the
+        // end of the ride.
+        var bannerChanged =
+            state.Banner != HighwayBannerState.Unknown && state.Banner != lastBanner;
+        if (state.Banner != HighwayBannerState.Unknown)
+        {
+            lastBanner = state.Banner;
+        }
+
+        var bannerText = bannerChanged && state.Banner != HighwayBannerState.None
+            ? DescribeBanner(state.Banner, state.Score)
+            : null;
+
         if (statusRequested)
         {
+            var status = CreateStatus(state, activeEnemies.Length, truckDelta, truckDistance);
             return new HighwayAccessibilityUpdate(
                 null,
                 new HighwaySpeechRequest(
                     HighwaySpeechKind.Status,
-                    CreateStatus(state, activeEnemies.Length, truckDelta, truckDistance),
+                    // A banner that came up on the same pass would otherwise be lost:
+                    // the request is only true for this one tick, and so is the change.
+                    bannerText is null ? status : $"{bannerText} {status}",
                     Interrupt: true));
+        }
+
+        if (bannerText is not null)
+        {
+            return new HighwayAccessibilityUpdate(
+                null,
+                new HighwaySpeechRequest(HighwaySpeechKind.Warning, bannerText, Interrupt: true));
         }
 
         if (chaseStarted && distanceWarningArmed && truckDistance >= warningDistance)
@@ -206,6 +254,7 @@ public sealed class HighwayAccessibilityTracker
         lastCueKind = null;
         chaseStarted = false;
         distanceWarningArmed = false;
+        lastBanner = HighwayBannerState.None;
         attackSideBySlot.Clear();
     }
 
@@ -268,6 +317,34 @@ public sealed class HighwayAccessibilityTracker
             delta.Longitudinal,
             distance);
 
+    /// <summary>
+    /// The spoken status for a state, without having to drive a whole tick through
+    /// the tracker to reach it.
+    /// </summary>
+    public static string CreateStatusForTest(HighwayAccessibilityState state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        var truckDelta = Subtract(state.Truck, state.Cloud);
+        return CreateStatus(
+            state,
+            state.Enemies.Count(enemy => enemy.IsActive && enemy.HitPoints > 0),
+            truckDelta,
+            Length(truckDelta));
+    }
+
+    /// <summary>
+    /// What the banner says. GOAL is the end of the ride and the score beside it stops
+    /// moving, so it is read out with the word; READY and GO are the start signal and
+    /// carry nothing else.
+    /// </summary>
+    private static string DescribeBanner(HighwayBannerState banner, int score) => banner switch
+    {
+        HighwayBannerState.Ready => "Ready.",
+        HighwayBannerState.Go => "Go!",
+        HighwayBannerState.Goal => $"Goal. Score {score}.",
+        _ => string.Empty
+    };
+
     private static string CreateStatus(
         HighwayAccessibilityState state,
         int activeEnemyCount,
@@ -281,6 +358,15 @@ public sealed class HighwayAccessibilityTracker
             $"Highway. {bikerText} Truck {DescribeDirection(truckDelta)}, " +
             $"{Math.Round(truckDistance, MidpointRounding.AwayFromZero):0} units. " +
             $"Score {state.Score}.";
+
+        // The arcade HUD draws HI-SCORE beside the running score; the story chase's
+        // HUD is the party display and draws neither, so it is only added here where
+        // it is actually on screen.
+        if (!state.IsStoryChase && state.HighScore > 0)
+        {
+            status += $" High score {state.HighScore}.";
+        }
+
         if (state.PartyHealth.Count == 0)
         {
             return status;

@@ -55,6 +55,7 @@ public sealed class WorldMapStateReader
             $"module={first.Module}, map={first.WorldMapType}, progress={first.WorldProgress}, " +
             $"player=0x{first.PlayerPointer:X8}, model={first.ModelId}, " +
             $"position={first.X},{first.Y},{first.Z}, terrain={first.TerrainId}, " +
+            $"terrainScript={first.TerrainScriptId}, " +
             $"region={first.RegionId}, camera={first.CameraFront}");
     }
 
@@ -85,6 +86,8 @@ public sealed class WorldMapStateReader
             0,
             0,
             0,
+            0,
+            false,
             0,
             0,
             0);
@@ -133,7 +136,9 @@ public sealed class WorldMapStateReader
         }
 
         var terrainId = walkmapType & 0x1F;
+        var terrainScriptId = (walkmapType >> 5) & 0x07;
         var regionId = (walkmapType >> 9) & 0x1F;
+        var hasChocoboTracks = (walkmapType & 0x8000) != 0;
         frame = frame with
         {
             X = x,
@@ -141,7 +146,9 @@ public sealed class WorldMapStateReader
             Z = z,
             Facing = facing,
             TerrainId = terrainId,
+            TerrainScriptId = terrainScriptId,
             RegionId = regionId,
+            HasChocoboTracks = hasChocoboTracks,
             Direction = direction,
             ModelId = modelId,
             MovementSpeed = movementSpeed
@@ -191,7 +198,9 @@ public sealed class WorldMapStateReader
         int Z,
         short Facing,
         int TerrainId,
+        int TerrainScriptId,
         int RegionId,
+        bool HasChocoboTracks,
         short Direction,
         byte ModelId,
         byte MovementSpeed)
@@ -211,7 +220,11 @@ public sealed class WorldMapStateReader
             ModelId,
             MovementSpeed,
             CameraFront,
-            new FieldNavigationControlTransform(ToSignedControlDirection(CameraFront)));
+            new FieldNavigationControlTransform(ToSignedControlDirection(CameraFront)))
+        {
+            HasChocoboTracks = HasChocoboTracks,
+            TerrainScriptId = TerrainScriptId
+        };
     }
 }
 
@@ -233,6 +246,10 @@ public readonly record struct WorldMapStateSnapshot(
     FieldNavigationControlTransform ControlTransform)
 {
     public bool IsOverworld => WorldMapType == 0;
+
+    public bool HasChocoboTracks { get; init; }
+
+    public int TerrainScriptId { get; init; }
 }
 
 public readonly record struct WorldMapStateReadResult(

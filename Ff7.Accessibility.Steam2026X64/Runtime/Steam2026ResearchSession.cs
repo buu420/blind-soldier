@@ -106,6 +106,66 @@ internal sealed class Steam2026ResearchSession : IDisposable
         worker.Start();
     }
 
+    /// <summary>
+    /// Opens the reviewed narration asset for a described native film. Every failure
+    /// returns null, which leaves the coordinator on its ordinary spoken-paragraph
+    /// path rather than losing the description entirely.
+    /// </summary>
+    internal static IFieldMovieNarrationOutput? CreateFieldMovieNarrationOutput(
+        AccessibilityConfig config,
+        string modDirectory,
+        FieldMovieNarrationTrack track,
+        Action<string> log)
+    {
+        try
+        {
+            if (!config.EnableFieldMovieNarrationTracks)
+            {
+                log($"Field movie narration disabled in config; {track.Label} falls back to speech.");
+                return null;
+            }
+
+            var directory = config.FieldMovieNarrationTrackDirectory;
+            var path = Path.IsPathRooted(directory)
+                ? Path.Combine(directory, track.FileName)
+                : Path.Combine(modDirectory, directory, track.FileName);
+            if (!File.Exists(path))
+            {
+                log($"Field movie narration track missing: {path}");
+                return null;
+            }
+
+            return new OpeningMovieAudioTrackPlayer(
+                path,
+                config.FieldMovieNarrationTrackVolumePercent,
+                log,
+                $"Field movie {track.Label}");
+        }
+        catch (Exception ex)
+        {
+            log($"Field movie narration output could not be created ({track.Label}): {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Resolves an arcade cue path against the mod directory, falling back to that
+    /// cue's own packaged asset.
+    /// </summary>
+    /// <remarks>
+    /// The previous form had two defects that a non-empty configured path hid. Its
+    /// verbatim fallback string contained a literal newline and had lost both
+    /// separators, so a blank setting resolved to a path that cannot exist; and one
+    /// fallback served both basketball cues, so a blank top-of-rise path would have
+    /// quietly played the rise tick instead. Each caller now supplies the fallback
+    /// for its own cue.
+    /// </remarks>
+    internal static string ResolveArcadeCuePath(string modDirectory, string configured, string fallback)
+    {
+        var path = string.IsNullOrWhiteSpace(configured) ? fallback : configured;
+        return Path.IsPathRooted(path) ? path : Path.Combine(modDirectory, path);
+    }
+
     internal void Suspend()
     {
         Interlocked.Exchange(ref resetRequested, 1);
@@ -215,6 +275,26 @@ internal sealed class Steam2026ResearchSession : IDisposable
         Steam2026FieldNavigationCoordinator? fieldNavigationCoordinator = null;
         Steam2026WorldMapAccessibilityCoordinator? worldMapAccessibilityCoordinator = null;
         HighwayAccessibilityCoordinator? highwayAccessibilityCoordinator = null;
+        // The Speed Square coaster runs the original x86 code, so the translated
+        // guest address space reaches exactly the globals the x86 build reads.
+        SpeedSquareCoasterStateReader? speedSquareCoasterReader = null;
+        var speedSquareCoasterReadout = new SpeedSquareCoasterReadout();
+        SpeedSquareCoasterTargetReader? speedSquareCoasterTargetReader = null;
+        var speedSquareCoasterAimReadout = new SpeedSquareCoasterAimReadout();
+        NavigationBeaconPlayer? speedSquareCoasterTargetCuePlayer = null;
+        ChocoboSquareStateReader? chocoboSquareReader = null;
+        var chocoboSquareReadout = new ChocoboSquareReadout();
+        WonderSquareBasketballStateReader? wonderSquareBasketballReader = null;
+        var wonderSquareBasketballReadout = new WonderSquareBasketballReadout();
+        WonderSquareArmWrestlingStateReader? wonderSquareArmWrestlingReader = null;
+        var wonderSquareArmWrestlingReadout = new WonderSquareArmWrestlingReadout();
+        WonderSquare3DBattlerStateReader? wonderSquare3DBattlerReader = null;
+        var wonderSquare3DBattlerReadout = new WonderSquare3DBattlerReadout();
+        ImmediateWaveCuePlayer? basketballWindUpCuePlayer = null;
+        ImmediateWaveCuePlayer? basketballTopCuePlayer = null;
+        ImmediateWaveCuePlayer? armWrestlingLevelCuePlayer = null;
+        ImmediateWaveCuePlayer? armWrestlingPushAheadCuePlayer = null;
+        ImmediateWaveCuePlayer? armWrestlingPushedBackCuePlayer = null;
         Steam2026FieldFootstepNavigationProbe? fieldFootstepNavigationProbe = null;
         Steam2026BattleRendererHookSet? battleRendererHookSet = null;
         Steam2026BattleAccessibilityCoordinator? battleAccessibilityCoordinator = null;
@@ -555,6 +635,7 @@ internal sealed class Steam2026ResearchSession : IDisposable
                             memory,
                             TimeSpan.FromMilliseconds(
                                 Math.Max(100, config.FieldMessageStableMs)),
+                            config,
                             log);
                         var candidateMenuReader = new Steam2026MenuObservationReader(
                             fingerprint,
@@ -586,8 +667,30 @@ internal sealed class Steam2026ResearchSession : IDisposable
                                 fingerprint,
                                 moduleBase,
                                 memory);
+                        // Independent film narration plays on its own device so an
+                        // ordinary button press cannot cut a 45-second description
+                        // into a fragment. A missing asset, a disabled track or a
+                        // device that will not open leaves the coordinator on its
+                        // ordinary spoken-paragraph path.
+                        FieldMovieNarrationTracker? candidateFilmNarration = null;
+                        try
+                        {
+                            candidateFilmNarration = new FieldMovieNarrationTracker(
+                                track => CreateFieldMovieNarrationOutput(config, modDirectory, track, log),
+                                log,
+                                FieldPositionReader.FieldModule);
+                        }
+                        catch (Exception ex)
+                        {
+                            candidateFilmNarration = null;
+                            log($"Native Steam 2026 film narration remains disabled: {ex.Message}");
+                        }
+
                         var candidateCutsceneDescriptions =
-                            new Steam2026FieldCutsceneDescriptionCoordinator(sharedFieldAddressSpace);
+                            new Steam2026FieldCutsceneDescriptionCoordinator(
+                                sharedFieldAddressSpace,
+                                FieldCutsceneDescriptionCatalog.CreateEarlyGameDescriptions(),
+                                candidateFilmNarration);
                         var candidateCutsceneDialogueProbe =
                             new Steam2026FieldDialogueObservationReader(sharedFieldAddressSpace);
                         var candidateFieldZoneSpeechCoordinator =
@@ -651,6 +754,100 @@ internal sealed class Steam2026ResearchSession : IDisposable
                         catch (Exception ex)
                         {
                             log($"Native Steam 2026 highway accessibility remains disabled: {ex.Message}");
+                        }
+                        try
+                        {
+                            speedSquareCoasterReader = new SpeedSquareCoasterStateReader(sharedFieldAddressSpace);
+                            chocoboSquareReader = new ChocoboSquareStateReader(sharedFieldAddressSpace);
+                            speedSquareCoasterTargetReader =
+                                new SpeedSquareCoasterTargetReader(sharedFieldAddressSpace);
+                            speedSquareCoasterTargetCuePlayer?.Dispose();
+                            speedSquareCoasterTargetCuePlayer = config.EnableSpeedSquareCoasterTargetCues
+                                ? new NavigationBeaconPlayer(
+                                    ResolveArcadeCuePath(
+                                        modDirectory,
+                                        config.WorldMapEntranceCueSoundPath,
+                                        @"Assets
+avigationield_zone_transition.wav"),
+                                    config.SpeedSquareCoasterTargetCueVolumePercent,
+                                    log)
+                                : null;
+                        }
+                        catch (Exception ex)
+                        {
+                            speedSquareCoasterReader = null;
+                            speedSquareCoasterTargetReader = null;
+                            log($"Native Steam 2026 Speed Square readout remains disabled: {ex.Message}");
+                        }
+                        try
+                        {
+                            wonderSquareBasketballReader =
+                                new WonderSquareBasketballStateReader(sharedFieldAddressSpace);
+                            wonderSquareArmWrestlingReader =
+                                new WonderSquareArmWrestlingStateReader(sharedFieldAddressSpace);
+                            wonderSquare3DBattlerReader =
+                                new WonderSquare3DBattlerStateReader(sharedFieldAddressSpace);
+                            basketballWindUpCuePlayer?.Dispose();
+                            basketballTopCuePlayer?.Dispose();
+                            basketballWindUpCuePlayer = config.EnableWonderSquareBasketballCues
+                                ? new ImmediateWaveCuePlayer(
+                                    ResolveArcadeCuePath(
+                                        modDirectory,
+                                        config.WonderSquareBasketballWindUpCueSoundPath,
+                                        ArcadeCueAssets.BasketballRiseTick),
+                                    config.WonderSquareBasketballCueVolumePercent,
+                                    "Basketball wind-up tick",
+                                    log)
+                                : null;
+                            basketballTopCuePlayer = config.EnableWonderSquareBasketballCues
+                                ? new ImmediateWaveCuePlayer(
+                                    ResolveArcadeCuePath(
+                                        modDirectory,
+                                        config.WonderSquareBasketballTopCueSoundPath,
+                                        ArcadeCueAssets.BasketballPoseTop),
+                                    config.WonderSquareBasketballCueVolumePercent,
+                                    "Basketball top-of-rise cue",
+                                    log)
+                                : null;
+
+                            armWrestlingLevelCuePlayer?.Dispose();
+                            armWrestlingPushAheadCuePlayer?.Dispose();
+                            armWrestlingPushedBackCuePlayer?.Dispose();
+                            armWrestlingLevelCuePlayer = config.EnableWonderSquareArmWrestlingCues
+                                ? new ImmediateWaveCuePlayer(
+                                    ResolveArcadeCuePath(
+                                        modDirectory,
+                                        config.WonderSquareArmWrestlingLevelCueSoundPath,
+                                        ArcadeCueAssets.ArmWrestlingLevel),
+                                    config.WonderSquareArmWrestlingCueVolumePercent,
+                                    "Arm wrestling level tone",
+                                    log)
+                                : null;
+                            armWrestlingPushAheadCuePlayer = config.EnableWonderSquareArmWrestlingCues
+                                ? new ImmediateWaveCuePlayer(
+                                    ResolveArcadeCuePath(
+                                        modDirectory,
+                                        config.WonderSquareArmWrestlingPushAheadCueSoundPath,
+                                        ArcadeCueAssets.ArmWrestlingPushAhead),
+                                    config.WonderSquareArmWrestlingCueVolumePercent,
+                                    "Arm wrestling pushing-ahead tone",
+                                    log)
+                                : null;
+                            armWrestlingPushedBackCuePlayer = config.EnableWonderSquareArmWrestlingCues
+                                ? new ImmediateWaveCuePlayer(
+                                    ResolveArcadeCuePath(
+                                        modDirectory,
+                                        config.WonderSquareArmWrestlingPushedBackCueSoundPath,
+                                        ArcadeCueAssets.ArmWrestlingPushedBack),
+                                    config.WonderSquareArmWrestlingCueVolumePercent,
+                                    "Arm wrestling pushed-back tone",
+                                    log)
+                                : null;
+                        }
+                        catch (Exception ex)
+                        {
+                            wonderSquareBasketballReader = null;
+                            log($"Native Steam 2026 Basketball cues remain disabled: {ex.Message}");
                         }
                         pump = candidatePump;
                         menuReader = candidateMenuReader;
@@ -930,12 +1127,32 @@ internal sealed class Steam2026ResearchSession : IDisposable
                         ref lastSetupLogUtc);
                 }
 
+                if (cutsceneDescriptions is not null)
+                {
+                    // The independent track outlives a single frame, so its native
+                    // lifetime is checked every frame and whenever the host stops
+                    // being the foreground window.
+                    if (isHostForeground)
+                    {
+                        cutsceneDescriptions.ObserveNativeFilm(now);
+                    }
+                    else if (cutsceneDescriptions.IsNativeFilmNarrationPlaying)
+                    {
+                        cutsceneDescriptions.SuspendNativeFilmNarration(
+                            FieldMovieNarrationStopReason.Suspended);
+                    }
+                }
+
                 if (cutsceneHookSet is not null && cutsceneDescriptions is not null)
                 {
                     while (cutsceneHookSet.TryDequeue(out var snapshot))
                     {
                         cutsceneDescriptions.Observe(snapshot);
                     }
+
+                    // A field whose own entry anchor ran before this runtime attached
+                    // would otherwise never be described at all.
+                    cutsceneDescriptions.ObserveStableField(now);
 
                     if (cutsceneDialogueProbe is not null
                         && cutsceneDescriptions.TrySpeakPending(
@@ -1080,6 +1297,294 @@ internal sealed class Steam2026ResearchSession : IDisposable
                         highwayAccessibilityCoordinator?.Reset("native x64 highway processing fault");
                         LogRuntimeFault(
                             $"Native highway accessibility reset after a fault: {ex.Message}",
+                            now,
+                            ref lastRuntimeFault,
+                            ref lastRuntimeFaultLogUtc);
+                    }
+
+                    try
+                    {
+                        // Same shared reader and readout as the x86 build, so the
+                        // spoken aim and charge are identical on both runtimes.
+                        if (!config.EnableSpeedSquareCoasterReadout || speedSquareCoasterReader is null)
+                        {
+                            speedSquareCoasterReadout.Reset();
+                        }
+                        else
+                        {
+                            var coasterSpeech = speedSquareCoasterReader.TryRead(out var coasterState)
+                                ? speedSquareCoasterReadout.Observe(coasterState)
+                                : speedSquareCoasterReadout.Observe(default);
+                            if (coasterSpeech is not null && config.EnableSpeech)
+                            {
+                                output.Speak(coasterSpeech, true);
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        speedSquareCoasterReadout.Reset();
+                        LogRuntimeFault(
+                            $"Speed Square coaster readout reset after a fault: {ex.Message}",
+                            now,
+                            ref lastRuntimeFault,
+                            ref lastRuntimeFaultLogUtc);
+                    }
+
+                    try
+                    {
+                        // Where the currently rendered targets are, the displayed
+                        // score, and resolved hits. The direction also plays on the
+                        // mod's own spatial device, because the fire button is
+                        // pressed constantly and every press cuts off speech.
+                        if (!config.EnableSpeedSquareCoasterTargetCues ||
+                            speedSquareCoasterReader is null ||
+                            speedSquareCoasterTargetReader is null ||
+                            !isHostForeground)
+                        {
+                            speedSquareCoasterAimReadout.Reset();
+                        }
+                        // The score and the fire flag arrive inside the snapshot,
+                        // read under the same module and presentation bookends as
+                        // the boxes, so a held frame is never described with a
+                        // later frame's sight, score or trigger.
+                        else if (speedSquareCoasterReader.TryRead(out var aimState) &&
+                                 aimState.IsActive &&
+                                 speedSquareCoasterTargetReader.TryReadTargets(
+                                     aimState.CursorX, aimState.CursorY, out var coasterTargets))
+                        {
+                            var aimCue = speedSquareCoasterAimReadout.Observe(
+                                aimState, coasterTargets, now);
+                            if (aimCue.Beacon is { } coasterBeacon)
+                            {
+                                speedSquareCoasterTargetCuePlayer?.Play(coasterBeacon);
+                            }
+
+                            if (aimCue.Speech is { } aimSpeech && config.EnableSpeech)
+                            {
+                                output.Speak(aimSpeech, true);
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        speedSquareCoasterAimReadout.Reset();
+                        LogRuntimeFault(
+                            $"Speed Square coaster target readout reset after a fault: {ex.Message}",
+                            now,
+                            ref lastRuntimeFault,
+                            ref lastRuntimeFaultLogUtc);
+                    }
+
+                    try
+                    {
+                        // The chocobo racing screens, each read only while its own
+                        // native substate is the one dispatching.
+                        if (!config.EnableChocoboSquareReadout ||
+                            chocoboSquareReader is null ||
+                            !isHostForeground)
+                        {
+                            chocoboSquareReadout.Reset();
+                        }
+                        else if (chocoboSquareReader.TryReadPhase(out var chocoboPhase))
+                        {
+                            // K, the same status key the rest of the mod uses, and
+                            // short-circuited on the phase for the same reason Fort
+                            // Condor's is on the module: nothing else that owns K
+                            // may lose a press to a screen that is not up.
+                            var chocoboStatusRequested =
+                                chocoboPhase != ChocoboSquarePhase.None &&
+                                foregroundInput.ObserveRisingEdge(0x4B);
+
+                            IReadOnlyList<string> chocoboLines = Array.Empty<string>();
+                            string? chocoboStatus = null;
+                            switch (chocoboPhase)
+                            {
+                                case ChocoboSquarePhase.Betting
+                                    when chocoboSquareReader.TryReadBetting(out var betting):
+                                    chocoboLines = chocoboSquareReadout.ObserveBetting(betting);
+                                    chocoboStatus = chocoboStatusRequested
+                                        ? ChocoboSquareReadout.DescribeBettingStatus(betting)
+                                        : null;
+                                    break;
+                                case ChocoboSquarePhase.Race
+                                    when chocoboSquareReader.TryReadRace(out var race):
+                                    chocoboLines = chocoboSquareReadout.ObserveRace(race);
+                                    chocoboStatus = chocoboStatusRequested
+                                        ? ChocoboSquareReadout.DescribeRaceStatus(race)
+                                        : null;
+                                    break;
+                                case ChocoboSquarePhase.Results
+                                    when chocoboSquareReader.TryReadResults(out var results):
+                                    chocoboLines = chocoboSquareReadout.ObserveResults(results);
+                                    chocoboStatus = chocoboStatusRequested
+                                        ? ChocoboSquareReadout.DescribeResultsStatus(results)
+                                        : null;
+                                    break;
+                                case ChocoboSquarePhase.None:
+                                    chocoboSquareReadout.Reset();
+                                    break;
+                            }
+
+                            // Last, so anything the screen has just changed is heard
+                            // before the answer to the request.
+                            if (chocoboStatus is not null)
+                            {
+                                chocoboLines = chocoboLines.Append(chocoboStatus).ToList();
+                            }
+
+                            if (config.EnableSpeech)
+                            {
+                                foreach (var chocoboLine in chocoboLines)
+                                {
+                                    output.Speak(chocoboLine, false);
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        chocoboSquareReadout.Reset();
+                        LogRuntimeFault(
+                            $"Chocobo Square readout reset after a fault: {ex.Message}",
+                            now,
+                            ref lastRuntimeFault,
+                            ref lastRuntimeFaultLogUtc);
+                    }
+
+                    try
+                    {
+                        // Same shared reader and readout as the x86 build, so the
+                        // wind-up tick and the top-of-rise marker match on both.
+                        if (!config.EnableWonderSquareBasketballCues ||
+                            wonderSquareBasketballReader is null ||
+                            !isHostForeground)
+                        {
+                            wonderSquareBasketballReadout.Reset();
+                            wonderSquareBasketballReader?.Reset();
+                        }
+                        else if (wonderSquareBasketballReader.TryRead(out var basketball))
+                        {
+                            var cue = wonderSquareBasketballReadout.Observe(basketball);
+                            if (cue.RiseStarted)
+                            {
+                                basketballWindUpCuePlayer?.Play("basketball wind-up");
+                            }
+
+                            if (cue.RiseSettled &&
+                                basketballTopCuePlayer?.Play("basketball ball at the top") != true &&
+                                config.EnableSpeech)
+                            {
+                                // A missing asset or an unopenable device must not
+                                // swallow the landmark. Bounded to one attempt per
+                                // wind-up, because the event itself fires once.
+                                output.Speak("Ball at the top.", false);
+                            }
+
+                            if (cue.Speech is not null && config.EnableSpeech)
+                            {
+                                output.Speak(cue.Speech, false);
+                            }
+                        }
+                        else
+                        {
+                            wonderSquareBasketballReadout.Reset();
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        wonderSquareBasketballReadout.Reset();
+                        wonderSquareBasketballReader?.Reset();
+                        LogRuntimeFault(
+                            $"Basketball readout reset after a fault: {ex.Message}",
+                            now,
+                            ref lastRuntimeFault,
+                            ref lastRuntimeFaultLogUtc);
+                    }
+
+                    try
+                    {
+                        if (!config.EnableWonderSquareArmWrestlingCues ||
+                            wonderSquareArmWrestlingReader is null ||
+                            !isHostForeground)
+                        {
+                            wonderSquareArmWrestlingReadout.Reset();
+                        }
+                        else if (wonderSquareArmWrestlingReader.TryRead(out var armWrestling))
+                        {
+                            var lean = wonderSquareArmWrestlingReadout.Observe(armWrestling, out var pose);
+                            if (lean is not null)
+                            {
+                                // The contest asks for continuous [OK] presses and
+                                // each press interrupts screen-reader speech, so the
+                                // pose also sounds on its own device. One tone per
+                                // revealed change, never per poll.
+                                var tone = pose switch
+                                {
+                                    WonderSquareArmWrestlingPose.PushingAhead or
+                                        WonderSquareArmWrestlingPose.TheirArmDown => armWrestlingPushAheadCuePlayer,
+                                    WonderSquareArmWrestlingPose.BeingPushedBack or
+                                        WonderSquareArmWrestlingPose.YourArmDown => armWrestlingPushedBackCuePlayer,
+                                    WonderSquareArmWrestlingPose.Level => armWrestlingLevelCuePlayer,
+                                    _ => null
+                                };
+                                tone?.Play($"arm wrestling {pose}");
+                                if (config.EnableSpeech)
+                                {
+                                    output.Speak(lean, true);
+                                }
+                            }
+                        }
+                        else
+                        {
+                            wonderSquareArmWrestlingReadout.Reset();
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        wonderSquareArmWrestlingReadout.Reset();
+                        LogRuntimeFault(
+                            $"Arm wrestling readout reset after a fault: {ex.Message}",
+                            now,
+                            ref lastRuntimeFault,
+                            ref lastRuntimeFaultLogUtc);
+                    }
+
+                    try
+                    {
+                        if (!config.EnableWonderSquare3DBattlerCues ||
+                            wonderSquare3DBattlerReader is null ||
+                            !isHostForeground)
+                        {
+                            wonderSquare3DBattlerReadout.Reset();
+                            wonderSquare3DBattlerReader?.Reset();
+                        }
+                        else if (wonderSquare3DBattlerReader.TryRead(out var battler))
+                        {
+                            // Through the shared delivery, so a two-line batch is one
+                            // utterance here too rather than a second interrupt that
+                            // cuts the first exchange off part way through.
+                            foreach (var (battlerText, battlerInterrupt) in
+                                     WonderSquare3DBattlerReadout.Deliver(
+                                         wonderSquare3DBattlerReadout.Observe(battler)))
+                            {
+                                if (config.EnableSpeech)
+                                {
+                                    output.Speak(battlerText, battlerInterrupt);
+                                }
+                            }
+                        }
+                        else
+                        {
+                            wonderSquare3DBattlerReadout.Reset();
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        wonderSquare3DBattlerReadout.Reset();
+                        wonderSquare3DBattlerReader?.Reset();
+                        LogRuntimeFault(
+                            $"3D Battler readout reset after a fault: {ex.Message}",
                             now,
                             ref lastRuntimeFault,
                             ref lastRuntimeFaultLogUtc);
@@ -2134,6 +2639,7 @@ internal sealed class Steam2026ResearchSession : IDisposable
             fieldMessageHookSet?.Dispose();
             askCursorHookSet?.Dispose();
             cutsceneHookSet?.Dispose();
+            cutsceneDescriptions?.SuspendNativeFilmNarration(FieldMovieNarrationStopReason.Unloaded);
             cutsceneDescriptions?.Reset();
             cutsceneNarrationSpeechTracker.Reset();
             fieldZoneSpeechCoordinator?.Reset();
@@ -2148,6 +2654,16 @@ internal sealed class Steam2026ResearchSession : IDisposable
             fieldNavigationCoordinator?.Dispose();
             worldMapAccessibilityCoordinator?.Dispose();
             highwayAccessibilityCoordinator?.Dispose();
+            // These were previously released inside the setup block, one statement
+            // after they had been constructed, so every field-stack rebuild disposed
+            // the very players it had just created and no arcade cue could ever
+            // sound. They belong here, with the rest of the worker's teardown.
+            basketballWindUpCuePlayer?.Dispose();
+            basketballTopCuePlayer?.Dispose();
+            armWrestlingLevelCuePlayer?.Dispose();
+            armWrestlingPushAheadCuePlayer?.Dispose();
+            armWrestlingPushedBackCuePlayer?.Dispose();
+            speedSquareCoasterTargetCuePlayer?.Dispose();
             fieldFootstepNavigationProbe?.Dispose();
             // Before the output is disposed at the end of this scope.
             Volatile.Write(ref lifecycleOutput, null);

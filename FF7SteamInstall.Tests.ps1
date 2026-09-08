@@ -1967,6 +1967,8 @@ public static class Fixture
                 Should Be $true
             Test-Path -LiteralPath (Join-Path $output 'Assets\world\wm-field-menu-names.txt') -PathType Leaf |
                 Should Be $true
+            Test-Path -LiteralPath (Join-Path $output 'Assets\world\world-map-location-triggers.json') -PathType Leaf |
+                Should Be $true
             Test-Path -LiteralPath (Join-Path $output 'Assets\footsteps\cosmo\config.toml') -PathType Leaf |
                 Should Be $true
             foreach ($fieldCueAsset in @(

@@ -18,6 +18,16 @@ internal enum CondorSteeringOutcome
     Abandoned
 }
 
+/// <summary>Which of module 9's two camera-relative cursors is being steered.</summary>
+internal enum CondorCursorDomain
+{
+    /// <summary>The ordinary battlefield cursor at 0x00CBCCC0.</summary>
+    Battlefield,
+
+    /// <summary>The command destination cursor at 0x00C75268.</summary>
+    Destination
+}
+
 internal readonly record struct CondorSteeringStep(
     CondorSteeringOutcome Outcome,
     string? Speech);
@@ -27,12 +37,13 @@ internal readonly record struct CondorSteeringStep(
 /// keys, and lets go when it arrives.
 /// </summary>
 /// <remarks>
-/// <para>The cursor global at 0x00CBCCC0 is camera-relative and cannot be
-/// written directly: <c>FUN_005FE91B</c> derives the cursor as
+/// <para>Both the battlefield pair at 0x00CBCCC0 and the destination pair at
+/// 0x00C75268 are camera-relative and cannot be written directly:
+/// <c>FUN_005FE8CF</c> selects one, then <c>FUN_005FE91B</c> derives it as
 /// <c>cursor - camera</c>, clamps the relative value and moves the camera origin
 /// and the scroll accumulators in lockstep, so a value stored into the world
-/// global alone is carried straight through and never brought back. The cursor
-/// also <em>is</em> the hire position, so a teleport followed by a purchase
+/// global alone is carried straight through and never brought back. The ordinary
+/// cursor also <em>is</em> the hire position, so a teleport followed by a purchase
 /// spends real gil placing a unit off the field. See
 /// <see cref="CondorCursorMover"/>, which refuses that write and always will.
 /// </para>
@@ -91,6 +102,7 @@ internal sealed class CondorCursorSteering : IDisposable
     internal const uint MaskRight = 0x2000;
     internal const uint MaskDown = 0x4000;
     internal const uint MaskLeft = 0x8000;
+    internal const uint DirectionMask = MaskUp | MaskRight | MaskDown | MaskLeft;
 
     /// <summary>
     /// How many readings a synthesized key gets to show up in the game's own
@@ -135,7 +147,10 @@ internal sealed class CondorCursorSteering : IDisposable
     private readonly Action<string> log;
 
     private (int X, int Y)? target;
+    private CondorCursorDomain? domain;
+    private CondorNavigationTarget? navigationTarget;
     private (int X, int Y)? lastCursor;
+    private (int X, int Y)? lastObservedCursor;
     private (int X, int Y)? lastDelta;
     private int crossingsX;
     private int crossingsY;
@@ -145,7 +160,9 @@ internal sealed class CondorCursorSteering : IDisposable
     private int stalled;
     private int samples;
     private uint awaitingMask;
+    private uint requestedMask;
     private int unacknowledged;
+    private bool enforceInputOwnership;
     private bool disposed;
 
     internal CondorCursorSteering(
@@ -159,14 +176,73 @@ internal sealed class CondorCursorSteering : IDisposable
     /// <summary>Whether a jump is running.</summary>
     internal bool IsSteering => target is not null;
 
+    /// <summary>The cursor domain owned by the running navigation jump.</summary>
+    internal CondorCursorDomain? Domain => domain;
+
+    /// <summary>
+    /// Starts a navigation jump from one coherent module-9 snapshot.
+    /// </summary>
+    /// <remarks>
+    /// The selected target's stable key, not the coordinate that happened to be
+    /// spoken when it was selected, is retained. Live units move continuously;
+    /// every later step resolves that key again before pressing another key.
+    /// </remarks>
+    internal bool TryBegin(CondorNavigationTarget selected, CondorBattleSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+
+        var activeDomain = snapshot.CursorUnderPlayerControl
+            ? CondorCursorDomain.Battlefield
+            : snapshot.DestinationCursorUnderPlayerControl
+                ? CondorCursorDomain.Destination
+                : (CondorCursorDomain?)null;
+
+        if (activeDomain is null)
+        {
+            log("Fort Condor steering: refused, the direction keys are not moving a cursor.");
+            return false;
+        }
+
+        if ((snapshot.HeldDirectionMask & DirectionMask) != 0)
+        {
+            log("Fort Condor steering: refused, a direction key is already held.");
+            return false;
+        }
+
+        if (!TryResolveTarget(snapshot, selected, activeDomain.Value, out var currentTarget))
+        {
+            log("Fort Condor steering: refused, the selected target is no longer on the battlefield.");
+            return false;
+        }
+
+        var cursor = activeDomain == CondorCursorDomain.Destination
+            ? (X: snapshot.DestinationX, Y: snapshot.DestinationY)
+            : (X: snapshot.CursorX, Y: snapshot.CursorY);
+
+        domain = activeDomain;
+        navigationTarget = selected;
+        enforceInputOwnership = true;
+        Start(currentTarget.X, currentTarget.Y, cursor.X, cursor.Y);
+        return true;
+    }
+
     /// <summary>
     /// Starts a jump. Replaces any jump already running, because the player
     /// pressing the key again means they changed their mind.
     /// </summary>
     internal void Begin(int targetX, int targetY, int cursorX, int cursorY)
     {
+        domain = null;
+        navigationTarget = null;
+        enforceInputOwnership = false;
+        Start(targetX, targetY, cursorX, cursorY);
+    }
+
+    private void Start(int targetX, int targetY, int cursorX, int cursorY)
+    {
         target = (targetX, targetY);
         lastCursor = null;
+        lastObservedCursor = (cursorX, cursorY);
         lastDelta = null;
         crossingsX = 0;
         crossingsY = 0;
@@ -175,9 +251,81 @@ internal sealed class CondorCursorSteering : IDisposable
         stalled = 0;
         samples = 0;
         awaitingMask = 0;
+        requestedMask = 0;
         unacknowledged = 0;
         startingDistance = Distance(targetX - cursorX, targetY - cursorY);
         log($"Fort Condor steering: going to {targetX}, {targetY} from {cursorX}, {cursorY}.");
+    }
+
+    /// <summary>
+    /// One production steering pass from a coherent reader snapshot.
+    /// </summary>
+    /// <remarks>
+    /// This overload owns the safety contract the two hosts must not duplicate:
+    /// selecting the correct coordinate pair, requiring the original mode on
+    /// every pass, and proving the selected live unit still exists before any
+    /// new direction key can go down.
+    /// </remarks>
+    internal CondorSteeringStep Step(CondorBattleSnapshot? snapshot)
+    {
+        if (target is null)
+        {
+            return new CondorSteeringStep(CondorSteeringOutcome.Idle, null);
+        }
+
+        if (snapshot is null)
+        {
+            return Step(
+                cursorReadable: false,
+                underCursorControl: true,
+                cursorX: lastObservedCursor?.X ?? 0,
+                cursorY: lastObservedCursor?.Y ?? 0,
+                heldDirectionMask: 0);
+        }
+
+        if (domain is not { } activeDomain)
+        {
+            return Stop(
+                CondorSteeringOutcome.Abandoned,
+                MovementStoppedSpeech(),
+                "the running navigation jump had no cursor domain");
+        }
+
+        var underControl = activeDomain == CondorCursorDomain.Destination
+            ? snapshot.DestinationCursorUnderPlayerControl
+            : snapshot.CursorUnderPlayerControl;
+        if (!underControl)
+        {
+            return Stop(
+                CondorSteeringOutcome.Abandoned,
+                MovementStoppedSpeech(),
+                $"{activeDomain.ToString().ToLowerInvariant()} cursor control was taken away");
+        }
+
+        var cursor = activeDomain == CondorCursorDomain.Destination
+            ? (X: snapshot.DestinationX, Y: snapshot.DestinationY)
+            : (X: snapshot.CursorX, Y: snapshot.CursorY);
+        lastObservedCursor = cursor;
+
+        if (navigationTarget is { } selected)
+        {
+            if (!TryResolveTarget(snapshot, selected, activeDomain, out var currentTarget))
+            {
+                return Stop(
+                    CondorSteeringOutcome.Abandoned,
+                    MovementStoppedSpeech(),
+                    $"selected target {selected.Key} left the battlefield");
+            }
+
+            Retarget(currentTarget.X, currentTarget.Y, cursor.X, cursor.Y);
+        }
+
+        return Step(
+            cursorReadable: true,
+            underCursorControl: true,
+            cursor.X,
+            cursor.Y,
+            snapshot.HeldDirectionMask);
     }
 
     /// <summary>
@@ -345,6 +493,25 @@ internal sealed class CondorCursorSteering : IDisposable
             ? HighwaySteeringDirection.None
             : ResolveDirection(drivingX ? Math.Sign(dx) : 0, drivingY ? Math.Sign(dy) : 0);
 
+        var requested = MaskFor(direction);
+
+        // A navigation jump starts only while no physical direction is held.
+        // Re-check before every transition that would put a new direction down:
+        // a bit outside the set this controller asked for belongs to the player
+        // (or to some other injector), and fighting it would make the result
+        // unpredictable. The native held mask cannot distinguish the player
+        // holding the exact same key as us; no global keyboard hook is added for
+        // that unobservable case.
+        var addsKeyDown = (requested & ~requestedMask) != 0;
+        var unownedHeld = (heldDirectionMask & DirectionMask) & ~requestedMask;
+        if (enforceInputOwnership && addsKeyDown && unownedHeld != 0)
+        {
+            return Stop(
+                CondorSteeringOutcome.Abandoned,
+                MovementStoppedSpeech(),
+                $"another direction was held before a key-down: 0x{unownedHeld:X4}");
+        }
+
         var result = keys.Apply(direction);
         if (!result.Success)
         {
@@ -365,12 +532,13 @@ internal sealed class CondorCursorSteering : IDisposable
         //
         // Only a change re-arms. Re-arming every reading would reset the count
         // each pass and the acknowledgement check would never fire at all.
-        var requested = MaskFor(direction);
         if (requested != awaitingMask)
         {
             awaitingMask = requested;
             unacknowledged = 0;
         }
+
+        requestedMask = requested;
 
         return new CondorSteeringStep(CondorSteeringOutcome.Steering, null);
     }
@@ -433,6 +601,77 @@ internal sealed class CondorCursorSteering : IDisposable
 
     private static int Distance(int dx, int dy) => Math.Abs(dx) + Math.Abs(dy);
 
+    private static bool TryResolveTarget(
+        CondorBattleSnapshot snapshot,
+        CondorNavigationTarget selected,
+        CondorCursorDomain activeDomain,
+        out CondorNavigationTarget current)
+    {
+        if (selected.Key < 0)
+        {
+            // A remembered loss is useful ground for the ordinary battlefield
+            // cursor, but mode 3 is specifically choosing a live unit's command
+            // destination. There is no unit left to keep validating there.
+            current = selected;
+            return activeDomain == CondorCursorDomain.Battlefield;
+        }
+
+        foreach (var unit in snapshot.Units)
+        {
+            if (unit.Slot != selected.Key || unit.IsDying)
+            {
+                continue;
+            }
+
+            current = selected with
+            {
+                Description = unit.Describe(),
+                X = unit.X,
+                Y = unit.Y
+            };
+            return true;
+        }
+
+        current = default;
+        return false;
+    }
+
+    private void Retarget(int targetX, int targetY, int cursorX, int cursorY)
+    {
+        if (target is not { } previous || previous == (targetX, targetY))
+        {
+            return;
+        }
+
+        if (previous.X != targetX)
+        {
+            crossingsX = 0;
+            settledX = false;
+        }
+
+        if (previous.Y != targetY)
+        {
+            crossingsY = 0;
+            settledY = false;
+        }
+
+        // A changed target, rather than a cursor crossing, invalidates the old
+        // delta. Keeping it would count the enemy walking past the cursor as an
+        // overshoot by the steering loop.
+        lastDelta = null;
+        target = (targetX, targetY);
+        startingDistance = Math.Max(
+            startingDistance,
+            Distance(targetX - cursorX, targetY - cursorY));
+    }
+
+    private string MovementStoppedSpeech()
+    {
+        return lastObservedCursor is { } cursor
+            ? $"Movement stopped at {cursor.X}, {cursor.Y}."
+            : "Movement stopped.";
+    }
+
     /// <summary>The bits the battle should report while this direction is held.</summary>
     private static uint MaskFor(HighwaySteeringDirection direction) => direction switch
     {
@@ -462,7 +701,12 @@ internal sealed class CondorCursorSteering : IDisposable
         stalled = 0;
         samples = 0;
         awaitingMask = 0;
+        requestedMask = 0;
         unacknowledged = 0;
+        domain = null;
+        navigationTarget = null;
+        enforceInputOwnership = false;
+        lastObservedCursor = null;
 
         // Released before anything else can go wrong. Every exit from a jump
         // comes through here for exactly this reason.

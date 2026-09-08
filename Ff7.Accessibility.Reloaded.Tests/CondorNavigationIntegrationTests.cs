@@ -19,6 +19,7 @@ internal static class CondorNavigationIntegrationTests
         TheCursorReadoutDoesNotRepeatItself();
         SyntheticJumpSuppressesIntermediateDestinationPositions();
         ManualDestinationMovementStillReadsItsSettledPosition();
+        RefusedDestinationJumpReportsTheDestinationCursorRatherThanTheBattlefieldCursor();
     }
 
     private static CondorBattleUnit Ally(int slot, int typeId, int x, int y, int hp = 200) =>
@@ -236,6 +237,28 @@ internal static class CondorNavigationIntegrationTests
             "Destination 240, 640.",
             Single(tracker.Observe(manuallyMoved)),
             "manual settled destination readout is unchanged");
+    }
+
+    private static void RefusedDestinationJumpReportsTheDestinationCursorRatherThanTheBattlefieldCursor()
+    {
+        var tracker = new CondorBattleSpeechTracker();
+        var enemy = Enemy(20, 18, 300, 700);
+        tracker.Observe(Snapshot(
+            new[] { enemy },
+            cursorX: 20,
+            cursorY: 30,
+            interactionMode: CondorBattleSnapshot.DestinationInteractionMode,
+            destinationX: 200,
+            destinationY: 500));
+        tracker.Navigate(CondorNavigationAction.NextCategory); // Enemies, selects slot 20.
+
+        var refused = tracker.Navigate(CondorNavigationAction.JumpToTarget, _ => false);
+        AssertContains(refused, "Cursor at 200, 500");
+        if (refused?.Contains("Cursor at 20, 30", StringComparison.Ordinal) == true)
+        {
+            throw new InvalidOperationException(
+                "a refused mode-3 jump reported the unrelated battlefield cursor.");
+        }
     }
 
     private static string Single(IReadOnlyList<string> lines)

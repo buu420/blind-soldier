@@ -5,7 +5,8 @@ public readonly record struct FieldNavigationDynamicObstacle(
     int X,
     int Y,
     int Z,
-    double ClearanceRadius);
+    double ClearanceRadius,
+    double PlayerCollisionRadius = 0d);
 
 public static class FieldNavigationDynamicObstacleGeometry
 {
@@ -46,16 +47,54 @@ public static class FieldNavigationDynamicObstacleGeometry
         var segmentX = end.X - (double)start.X;
         var segmentY = end.Y - (double)start.Y;
         var segmentLengthSquared = segmentX * segmentX + segmentY * segmentY;
+        if (obstacle.PlayerCollisionRadius > 0d &&
+            double.IsFinite(obstacle.PlayerCollisionRadius) &&
+            segmentLengthSquared > 0.000001d)
+        {
+            // FUN_00636c41 checks the proposed movement at three points a
+            // player radius ahead: the heading and its +/-45-degree flanks.
+            // FUN_00637724 applies the half-sum clearance at each point, not
+            // at Cloud's center. Omitting these probes cuts through models.
+            var forwardScale = obstacle.PlayerCollisionRadius / Math.Sqrt(segmentLengthSquared);
+            var forwardX = segmentX * forwardScale;
+            var forwardY = segmentY * forwardScale;
+            var diagonalScale = 1d / Math.Sqrt(2d);
+            return IntersectsCylinder(start, end, obstacle, forwardX, forwardY) ||
+                   IntersectsCylinder(start, end, obstacle,
+                       (forwardX - forwardY) * diagonalScale,
+                       (forwardY + forwardX) * diagonalScale) ||
+                   IntersectsCylinder(start, end, obstacle,
+                       (forwardX + forwardY) * diagonalScale,
+                       (forwardY - forwardX) * diagonalScale);
+        }
+
+        return IntersectsCylinder(start, end, obstacle, 0d, 0d);
+    }
+
+    private static bool IntersectsCylinder(
+        FieldNavigationRouteWaypoint start,
+        FieldNavigationRouteWaypoint end,
+        FieldNavigationDynamicObstacle obstacle,
+        double offsetX,
+        double offsetY)
+    {
+        var startX = start.X + offsetX;
+        var startY = start.Y + offsetY;
+        var endX = end.X + offsetX;
+        var endY = end.Y + offsetY;
+        var segmentX = endX - startX;
+        var segmentY = endY - startY;
+        var segmentLengthSquared = segmentX * segmentX + segmentY * segmentY;
         var amount = segmentLengthSquared <= 0.000001d
             ? 0d
             : Math.Clamp(
-                ((obstacle.X - start.X) * segmentX +
-                 (obstacle.Y - start.Y) * segmentY) /
+                ((obstacle.X - startX) * segmentX +
+                 (obstacle.Y - startY) * segmentY) /
                 segmentLengthSquared,
                 0d,
                 1d);
-        var closestX = start.X + segmentX * amount;
-        var closestY = start.Y + segmentY * amount;
+        var closestX = startX + segmentX * amount;
+        var closestY = startY + segmentY * amount;
         var closestZ = start.Z + (end.Z - start.Z) * amount;
         if (Math.Abs(obstacle.Z - closestZ) > NativeMaximumVerticalSeparation)
         {
@@ -71,15 +110,23 @@ public static class FieldNavigationDynamicObstacleGeometry
             return false;
         }
 
+        // A forward probe can begin inside a model even though Cloud's center
+        // is outside it. The native routine rejects that first movement step;
+        // a distant endpoint outside the cylinder cannot authorize the path.
+        if (offsetX != 0d || offsetY != 0d)
+        {
+            return true;
+        }
+
         // A torn or boundary-rounded sample can put Cloud fractionally inside a
         // cylinder he is already leaving. Do not turn the escape direction into
         // another blockage; the native game permits the models to separate.
         var startDistanceSquared =
-            Math.Pow(obstacle.X - start.X, 2) +
-            Math.Pow(obstacle.Y - start.Y, 2);
+            Math.Pow(obstacle.X - startX, 2) +
+            Math.Pow(obstacle.Y - startY, 2);
         var endDistanceSquared =
-            Math.Pow(obstacle.X - end.X, 2) +
-            Math.Pow(obstacle.Y - end.Y, 2);
+            Math.Pow(obstacle.X - endX, 2) +
+            Math.Pow(obstacle.Y - endY, 2);
         return startDistanceSquared >= clearanceSquared ||
                endDistanceSquared <= startDistanceSquared + 0.000001d;
     }
@@ -89,7 +136,8 @@ public static class FieldNavigationDynamicObstacleGeometry
 /// Reads the field-model collision cylinders used by the original PC movement
 /// routine. The native check excludes the player and collision-disabled models,
 /// accepts a vertical delta of at most 127 units, and compares planar distance
-/// against half the sum of the two model collision widths.
+/// against half the sum of the two model collision widths at the player's
+/// forward and +/-45-degree movement probes.
 /// </summary>
 public sealed class FieldNavigationDynamicObstacleReader
 {
@@ -180,7 +228,8 @@ public sealed class FieldNavigationDynamicObstacleReader
                 x,
                 y,
                 z,
-                clearance));
+                clearance,
+                PlayerCollisionRadius: playerCollisionWidth));
         }
 
         return obstacles.Count == 0 ? Empty : obstacles;

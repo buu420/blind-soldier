@@ -215,7 +215,24 @@ public static class Ff7EncodedTextDecoder
                     builder.Append(PartyNames[value - 0xea]);
                     break;
                 case 0xf6:
-                    builder.Append("[OK]");
+                    // PC field 462's native prompts pair F6 with these button
+                    // codes. Keep legacy single-byte buttons and all unverified
+                    // following bytes, including Japanese kana, unchanged.
+                    var pairedButton = !japanese && index + 1 < bytes.Length
+                        ? bytes[index + 1] switch
+                        {
+                            0x10 => "[OK]",
+                            0x19 => "[LEFT]",
+                            0x1a => "[RIGHT]",
+                            _ => null
+                        }
+                        : null;
+                    if (pairedButton is not null)
+                    {
+                        index++;
+                    }
+
+                    builder.Append(pairedButton ?? "[OK]");
                     break;
                 case 0xf7:
                     builder.Append("[MENU]");

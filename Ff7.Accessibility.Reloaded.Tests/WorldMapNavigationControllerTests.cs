@@ -7,11 +7,16 @@ internal static class WorldMapNavigationControllerTests
     internal static void Run()
     {
         UsesTheApprovedFieldNavigationActionsAndCategoryOrder();
+        NavigatesTerrainRegionsThroughTheSharedCategoryUx();
         ListsOnlyDestinationsReachableOnTheCurrentWorldSurface();
         StartsTheKalmRouteFromMidgarInsteadOfClaimingArrival();
         ExposesTheCurrentWorldRouteAsAutomaticDirectionalInput();
         DoesNotRepeatAnUnchangedWorldMapLegOnTheTimer();
         DoesNotRepeatOneDirectionAcrossConnectedWorldWaypoints();
+        CorrectsBackTowardACrossedCommittedWaypoint();
+        StopsNearTargetHuntingInsteadOfOscillatingForever();
+        StopsAutomaticWalkingThatCannotConvergeWithoutDroppingNavigation();
+        AllowsAutomaticWalkingThatKeepsMakingProgress();
         KeepsTheRouteAcrossNearbyWalkableTriangleDrift();
         WaitsForSustainedWorldMapDeviationBeforeReplanning();
         ResumesTheSameRouteAfterWorldMapCombat();
@@ -20,8 +25,88 @@ internal static class WorldMapNavigationControllerTests
         UsesNativeWorldMapAxesAtCameraZero();
         UsesNativeWorldMapAxesAfterQuarterTurn();
         StartsRoutesReportsProgressAndCompletesOnNativeArrival();
+        DoesNotArriveAtTheOldJunonMarkerBeforeTheNativeTrigger();
         ProgressFallsWhenThePlayerBacktracksAlongTheSameRoute();
         UsesTheSharedScreenRelativeDirectionFormatter();
+    }
+
+    private static void NavigatesTerrainRegionsThroughTheSharedCategoryUx()
+    {
+        var (map, catalog, planner) = Load();
+        var junon = catalog.Locations.Single(target => target.Label == "Junon");
+        var state = StateAt(map, junon);
+        var progress = new RecordingProgress();
+        var controller = new WorldMapNavigationController(
+            map,
+            planner,
+            (current, category) => catalog.ReadTargets(
+                category,
+                current,
+                Array.Empty<WorldMapEntitySnapshot>()),
+            progress);
+
+        WorldMapNavigationOutput? selected = null;
+        for (var index = 1; index < WorldMapTargetCatalog.CategoryOrder.Count; index++)
+        {
+            selected = controller.HandleAction(FieldNavigationAction.NextCategory, state);
+        }
+
+        Equal(WorldMapNavigationCategory.Regions, controller.CurrentCategory,
+            "O reaches the terrain-region category through the normal category order");
+        Contains("Regions", selected!.Value.Speech,
+            "the shared category speech names Regions");
+
+        var regionTargets = catalog.ReadTargets(
+            WorldMapNavigationCategory.Regions,
+            state,
+            Array.Empty<WorldMapEntitySnapshot>());
+        var forestIndex = regionTargets
+            .Select((target, index) => (target, index))
+            .Single(pair => pair.target.Label == "Forest, Junon Area")
+            .index;
+        for (var index = 0; index < forestIndex; index++)
+        {
+            selected = controller.HandleAction(FieldNavigationAction.NextTarget, state);
+        }
+
+        Contains("Forest, Junon Area", selected!.Value.Speech,
+            "J and L use the normal target speech for a terrain region");
+        var started = controller.HandleAction(FieldNavigationAction.ToggleBeacon, state);
+        Equal(true, controller.BeaconEnabled,
+            "I starts spoken navigation to a terrain region");
+        Contains("Navigation on", started!.Value.Speech,
+            "terrain-region navigation uses the normal route-start speech");
+        Contains("Forest, Junon Area", started.Value.Speech,
+            "terrain-region route speech retains the selected label");
+        Equal(0, progress.ActivatedAt,
+            "terrain-region navigation activates the shared progress indicator");
+
+        var retainedTriangle = map.Triangles[regionTargets[forestIndex].ArrivalTriangleIds.First()];
+        var inside = state with
+        {
+            X = retainedTriangle.Centroid.X,
+            Y = retainedTriangle.Centroid.Y,
+            Z = retainedTriangle.Centroid.Z,
+            TerrainId = retainedTriangle.TerrainId,
+            RegionId = retainedTriangle.RegionId
+        };
+        var arrivalController = new WorldMapNavigationController(
+            map,
+            planner,
+            (current, category) => catalog.ReadTargets(
+                category,
+                current,
+                Array.Empty<WorldMapEntitySnapshot>()));
+        WorldMapNavigationOutput? currentRegion = null;
+        for (var index = 1; index < WorldMapTargetCatalog.CategoryOrder.Count; index++)
+        {
+            currentRegion = arrivalController.HandleAction(FieldNavigationAction.NextCategory, inside);
+        }
+
+        Contains("Forest, Junon Area", currentRegion!.Value.Speech,
+            "the current terrain region sorts first when the player is inside it");
+        Contains("at destination", currentRegion.Value.Speech,
+            "being inside a retained terrain region uses the normal arrival wording");
     }
 
     private static void ListsOnlyDestinationsReachableOnTheCurrentWorldSurface()
@@ -151,6 +236,101 @@ internal static class WorldMapNavigationControllerTests
             now.AddSeconds(4));
         Equal<string?>(null, sameDirectionPastWaypoint?.Speech,
             "crossing a route waypoint does not repeat the same controller direction");
+    }
+
+    private static void CorrectsBackTowardACrossedCommittedWaypoint()
+    {
+        var crossed = State(x: 140, z: 0) with
+        {
+            ControlTransform = new FieldNavigationControlTransform(0)
+        };
+        var run = WorldMapConnectedRunFormatter.Resolve(
+            new WorldMapRouteWaypoint(0, 0, 0),
+            [new WorldMapRouteWaypoint(100, 0, 0)],
+            0,
+            crossed,
+            0x48000,
+            0x38000,
+            1);
+
+        Equal("left", run.Direction,
+            "a crossed committed leg corrects back toward its waypoint instead of continuing away");
+        DoesNotContain("at destination", run.Speech,
+            "crossing a waypoint outside its native arrival trigger is not a false arrival");
+    }
+
+    private static void StopsAutomaticWalkingThatCannotConvergeWithoutDroppingNavigation()
+    {
+        var (map, catalog, planner) = Load();
+        var kalm = catalog.Locations.Single(target => target.Label == "Kalm");
+        var farm = catalog.Locations.Single(target => target.Label == "Chocobo Farm");
+        var state = StateAt(map, kalm);
+        var now = new DateTime(2026, 8, 25, 12, 0, 0, DateTimeKind.Utc);
+        var controller = new WorldMapNavigationController(
+            map,
+            planner,
+            (_, _) => [farm],
+            guidanceInterval: TimeSpan.Zero);
+
+        _ = controller.HandleAction(FieldNavigationAction.ToggleBeacon, state, now);
+        _ = controller.Observe(state, now.AddMilliseconds(100), automaticWalkActive: true);
+        WorldMapNavigationOutput? stopped = null;
+        for (var sample = 1; sample <= 12; sample++)
+        {
+            stopped = controller.Observe(
+                state,
+                now.AddMilliseconds(100 + sample * 500),
+                automaticWalkActive: true) ?? stopped;
+        }
+
+        Equal(true, stopped?.StopAutoWalk,
+            "a world auto walk with no net progress issues an explicit stop directive");
+        Contains("Auto walk stopped", stopped?.Speech,
+            "a stranded player is told that automatic movement stopped");
+        Contains("Could not get closer to Chocobo Farm", stopped?.Speech,
+            "the convergence failure names the destination");
+        Equal(true, controller.BeaconEnabled,
+            "spoken navigation stays on so the player can continue manually");
+        Equal(true, controller.TryResolveAutomaticInput(state, out _),
+            "the route remains available after only automatic movement stops");
+    }
+
+    private static void StopsNearTargetHuntingInsteadOfOscillatingForever()
+    {
+        var tracker = new WorldMapAutoWalkConvergenceTracker();
+        var now = new DateTime(2026, 8, 25, 12, 0, 0, DateTimeKind.Utc);
+        var bouncingNearTarget = new[] { 80d, 8d, 40d, 7d, 60d, 6d, 48d, 9d, 55d, 8d, 42d, 7d };
+
+        for (var index = 0; index < bouncingNearTarget.Length - 1; index++)
+        {
+            Equal(
+                false,
+                tracker.Observe(waypointIndex: 2, bouncingNearTarget[index], now.AddMilliseconds(index * 500)),
+                $"near-target correction sample {index} gets time to converge");
+        }
+
+        Equal(
+            true,
+            tracker.Observe(
+                waypointIndex: 2,
+                bouncingNearTarget[^1],
+                now.AddMilliseconds((bouncingNearTarget.Length - 1) * 500)),
+            "repeated near-target crossings fail closed instead of hunting forever");
+    }
+
+    private static void AllowsAutomaticWalkingThatKeepsMakingProgress()
+    {
+        var tracker = new WorldMapAutoWalkConvergenceTracker();
+        var now = new DateTime(2026, 8, 25, 12, 0, 0, DateTimeKind.Utc);
+        var distances = new[] { 1_000d, 900d, 800d, 700d, 600d, 500d, 400d };
+
+        for (var index = 0; index < distances.Length; index++)
+        {
+            Equal(
+                false,
+                tracker.Observe(waypointIndex: 2, distances[index], now.AddSeconds(index)),
+                $"steady automatic progress sample {index} remains active");
+        }
     }
 
     private static void KeepsTheRouteAcrossNearbyWalkableTriangleDrift()
@@ -374,6 +554,38 @@ internal static class WorldMapNavigationControllerTests
         Equal(true, progress.Completed, "native progress completes");
     }
 
+    private static void DoesNotArriveAtTheOldJunonMarkerBeforeTheNativeTrigger()
+    {
+        var (map, catalog, planner) = Load();
+        var junon = catalog.Locations.Single(target => target.Label == "Junon");
+        var controller = new WorldMapNavigationController(
+            map,
+            planner,
+            (_, _) => [junon],
+            guidanceInterval: TimeSpan.Zero);
+        var oldMarker = State(x: 169_821, z: 146_958) with
+        {
+            Y = 0,
+            TerrainId = 9,
+            RegionId = 2,
+            TerrainScriptId = 0
+        };
+        var now = DateTime.UtcNow;
+
+        var started = controller.HandleAction(FieldNavigationAction.ToggleBeacon, oldMarker, now);
+
+        Equal(true, controller.BeaconEnabled,
+            "Junon navigation remains active at the former coordinate marker");
+        DoesNotContain("Arrived", started?.Speech,
+            "the former coordinate marker does not announce a false arrival");
+
+        var arrived = controller.Observe(StateAt(map, junon), now.AddSeconds(1));
+        Equal(false, controller.BeaconEnabled,
+            "Junon navigation ends on the native terrain-script trigger");
+        Contains("Arrived at Junon", arrived?.Speech,
+            "the native trigger announces the real arrival");
+    }
+
     private static void ProgressFallsWhenThePlayerBacktracksAlongTheSameRoute()
     {
         var start = new WorldMapRouteWaypoint(0, 0, 0);
@@ -414,7 +626,8 @@ internal static class WorldMapNavigationControllerTests
         {
             Y = target.Y,
             TerrainId = triangle.TerrainId,
-            RegionId = target.RegionId
+            RegionId = target.RegionId,
+            TerrainScriptId = triangle.TerrainScriptId
         };
     }
 
@@ -426,7 +639,8 @@ internal static class WorldMapNavigationControllerTests
         Y = triangle.Centroid.Y,
         Z = triangle.Centroid.Z,
         TerrainId = triangle.TerrainId,
-        RegionId = triangle.RegionId & 0x1F
+        RegionId = triangle.RegionId & 0x1F,
+        TerrainScriptId = triangle.TerrainScriptId
     };
 
     private static WorldMapStateSnapshot State(int x, int z) => new(
@@ -469,7 +683,8 @@ internal static class WorldMapNavigationControllerTests
         var catalog = WorldMapTargetCatalog.Load(
             map,
             Path.Combine(sourceRoot, "external", "kujata", "field-id-to-world-map-coords.json"),
-            Path.Combine(sourceRoot, "external", "kujata", "wm-field-menu-names.txt"));
+            Path.Combine(sourceRoot, "external", "kujata", "wm-field-menu-names.txt"),
+            Path.Combine(sourceRoot, "Ff7.Accessibility.Reloaded", "Assets", "world", "world-map-location-triggers.json"));
         return (map, catalog, new WorldMapRoutePlanner(map));
     }
 

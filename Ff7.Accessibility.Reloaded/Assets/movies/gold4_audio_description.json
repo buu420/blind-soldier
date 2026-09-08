@@ -1,0 +1,20 @@
+[
+  {
+    "id": "1",
+    "start_time": "00:00:00.500",
+    "end_time": "00:00:04.689",
+    "description": "The view sweeps over round platforms filled with rides and colorful lights."
+  },
+  {
+    "id": "2",
+    "start_time": "00:00:13.100",
+    "end_time": "00:00:15.664",
+    "description": "It rises along a huge golden tower."
+  },
+  {
+    "id": "3",
+    "start_time": "00:00:23.100",
+    "end_time": "00:00:27.779",
+    "description": "A colossal golden statue of a muscular man in a winged helmet towers over the park."
+  }
+]

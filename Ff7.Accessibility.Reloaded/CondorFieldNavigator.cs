@@ -162,12 +162,14 @@ public sealed class CondorFieldNavigator
     /// action was not one this navigator handles.
     /// </summary>
     /// <param name="moveCursor">
-    /// Moves the game's own cursor, returning whether it took. Only
-    /// <see cref="CondorNavigationAction.JumpToTarget"/> uses it.
+    /// Asks the host to steer the game's active cursor to this stable target,
+    /// returning whether the jump was accepted. Only
+    /// <see cref="CondorNavigationAction.JumpToTarget"/> uses it; carrying the
+    /// key prevents a moving unit from being reduced to a stale coordinate.
     /// </param>
     public string? Handle(
         CondorNavigationAction action,
-        Func<int, int, bool>? moveCursor = null)
+        Func<CondorNavigationTarget, bool>? moveCursor = null)
     {
         switch (action)
         {
@@ -280,14 +282,14 @@ public sealed class CondorFieldNavigator
     /// the truth whether or not the jump reached what it was aimed at. A host
     /// that cannot steer still says both positions and claims nothing.</para>
     /// </remarks>
-    private string Locate(Func<int, int, bool>? moveCursor)
+    private string Locate(Func<CondorNavigationTarget, bool>? moveCursor)
     {
         if (Current is not { } target)
         {
             return $"{Name(Category)}. None.";
         }
 
-        if (moveCursor is not null && moveCursor(target.X, target.Y))
+        if (moveCursor is not null && moveCursor(target))
         {
             return "Moving.";
         }
