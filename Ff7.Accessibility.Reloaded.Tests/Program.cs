@@ -207,7 +207,7 @@ if (args.Contains("--wall-market-squat-only", StringComparer.OrdinalIgnoreCase))
 if (args.Contains("--junon-minigames-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.JunonMinigameSpeechTests.Run();
-    Ff7.Accessibility.Reloaded.Tests.JunonParadeAlignmentAssistTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.JunonParadeAlignmentAssistTests.RunWithInstalledGameData();
     JunonMinigameRuntimeTests.Run();
     Console.WriteLine("FFVII x86 Junon minigame speech tests passed.");
     return;
@@ -353,7 +353,7 @@ if (args.Contains("--world-map-only", StringComparer.OrdinalIgnoreCase))
     Ff7.Accessibility.Reloaded.Tests.WorldMapDataLoaderTests.Run();
     Ff7.Accessibility.Reloaded.Tests.WorldMapStateReaderTests.Run();
     Ff7.Accessibility.Reloaded.Tests.MidgarZolomStateReaderTests.Run();
-    Ff7.Accessibility.Reloaded.Tests.WorldMapTargetCatalogTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.WorldMapTargetCatalogTests.RunWithInstalledGameData();
     Ff7.Accessibility.Reloaded.Tests.WorldMapLocationEntranceTests.Run();
     Ff7.Accessibility.Reloaded.Tests.WorldMapRoutePlannerTests.Run();
     Ff7.Accessibility.Reloaded.Tests.WorldMapFootstepTests.Run();
@@ -743,7 +743,7 @@ FieldManualObjectGuidanceTests.Run();
 MountCorelRouteRepairTests.Run(CreateInstalledFieldWalkmeshReader);
 FieldButtonGlyphTests.Run();
 Ff7.Accessibility.Reloaded.Tests.JunonMinigameSpeechTests.Run();
-Ff7.Accessibility.Reloaded.Tests.JunonParadeAlignmentAssistTests.Run();
+Ff7.Accessibility.Reloaded.Tests.JunonParadeAlignmentAssistTests.RunWithInstalledGameData();
 JunonMinigameRuntimeTests.Run();
 HighwayAccessibilityTrackerTests.Run();
 HighwaySteeringTrackerTests.Run();
@@ -939,7 +939,7 @@ Ff7.Accessibility.Reloaded.Tests.WorldMapStateReaderTests.Run();
 Ff7.Accessibility.Reloaded.Tests.MidgarZolomStateReaderTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WorldMapEntityReaderTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WorldMapDataLoaderTests.Run();
-Ff7.Accessibility.Reloaded.Tests.WorldMapTargetCatalogTests.Run();
+Ff7.Accessibility.Reloaded.Tests.WorldMapTargetCatalogTests.RunWithInstalledGameData();
 Ff7.Accessibility.Reloaded.Tests.WorldMapLocationEntranceTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WorldMapRoutePlannerTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WorldMapFootstepTests.Run();

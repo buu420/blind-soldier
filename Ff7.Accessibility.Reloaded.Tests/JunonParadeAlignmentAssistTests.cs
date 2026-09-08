@@ -5,6 +5,10 @@ namespace Ff7.Accessibility.Reloaded.Tests;
 
 internal static class JunonParadeAlignmentAssistTests
 {
+    /// <summary>
+    /// Everything the parade assist can be held to without a licensed copy of the
+    /// game on the machine. These are the cases a build server runs.
+    /// </summary>
     public static void Run()
     {
         AlignmentAssistDefaultsOnButCanBeDisabled();
@@ -21,12 +25,29 @@ internal static class JunonParadeAlignmentAssistTests
         WaitsForAParadeGapAndResumesWhenItOpens();
         AnnouncesWhenTheMovingLineArrivesDuringAWait();
         UnreadableRouteStateRemainsATerminalFault();
-        TraversesTheNativeWalkmeshWhileTheRanksMove();
         AStallRecordsTheNativeTargetAndHeldDirection();
         FailsOutLoudWhenTheGameDoesNotAcknowledgeTheDirection();
         FailsOutLoudWhenMappedInputCannotBeSent();
         RepeatedResetRetriesARejectedKeyRelease();
         ManualModeKeepsTheExistingSpokenDirections();
+    }
+
+    /// <summary>
+    /// The whole suite, including the regression that walks the real junonr4
+    /// walkmesh out of the installed flevel.
+    ///
+    /// <para>This is deliberately a separate entry point rather than a skip. A
+    /// machine with the game installed must run the native traversal - it is the
+    /// only case that proves the assist crosses the parade ground the game
+    /// actually has - so this throws rather than passing quietly when
+    /// FF7_ACCESSIBILITY_DATA_ROOT is missing. A build server calls
+    /// <see cref="Run()"/> instead, and gets every case that does not need a
+    /// licensed copy of the game.</para>
+    /// </summary>
+    public static void RunWithInstalledGameData()
+    {
+        Run();
+        TraversesTheNativeWalkmeshWhileTheRanksMove();
     }
 
     private static void AlignmentAssistDefaultsOnButCanBeDisabled()

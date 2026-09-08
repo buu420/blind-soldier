@@ -426,6 +426,62 @@ Describe 'Blind Soldier aggregate portable release gate' {
         $dualRuntimeBuilder | Should Not Match "ModVersion\s+-cne\s+'0\.2\.0'"
     }
 
+    It 'keeps the x64 module-only gate free of licensed game fixtures' {
+        # The release gate runs --module-tests-only on a build machine that has no
+        # copy of Final Fantasy VII. Dispatch 34281653749 died inside it because
+        # JunonParadeAlignmentAssistTests walks the real junonr4 walkmesh, and two
+        # more suites in the same list read WM0.MAP. Suites with native fixtures
+        # now expose a second entry point, and this keeps the two apart: nothing
+        # in the module-only list may reach for installed game data, and the full
+        # suites must still call the native entry points rather than the cheap
+        # ones.
+        $x64Program = [IO.File]::ReadAllText((Join-Path $PSScriptRoot `
+            'Ff7.Accessibility.Steam2026X64.Tests\Program.cs'))
+        $x86Program = [IO.File]::ReadAllText((Join-Path $PSScriptRoot `
+            'Ff7.Accessibility.Reloaded.Tests\Program.cs'))
+
+        $start = $x64Program.IndexOf('--module-tests-only',
+            [StringComparison]::Ordinal)
+        $start | Should Not Be -1
+        $end = $x64Program.IndexOf('Steam 2026 x64 module tests passed.',
+            $start, [StringComparison]::Ordinal)
+        $end | Should Not Be -1
+        # Comment lines are dropped: this block explains the split in prose, and
+        # the prose naturally names the very calls the assertions forbid.
+        $moduleOnly = (($x64Program.Substring($start, $end - $start) -split "`r?`n") |
+            Where-Object { $_.TrimStart() -notlike '//*' }) -join "`n"
+
+        # A suite that needs the game announces it in its own name, so a data
+        # fixture cannot re-enter this mode without saying so out loud.
+        $moduleOnly | Should Not Match 'RunWithInstalledGameData'
+        # Every case in this one builds a world coordinator around the installed
+        # data root, so it has no honest data-free subset.
+        $moduleOnly | Should Not Match `
+            ([regex]::Escape('Steam2026WorldMapTerrainPriorityTests.Run()'))
+
+        foreach ($program in @($x64Program, $x86Program)) {
+            foreach ($required in @(
+                'JunonParadeAlignmentAssistTests.RunWithInstalledGameData()',
+                'WorldMapTargetCatalogTests.RunWithInstalledGameData()')) {
+                $program | Should Match ([regex]::Escape($required))
+            }
+        }
+
+        # And the split has to be real on both sides: a data-free entry point that
+        # still runs the native case would be a silent skip wearing a new name.
+        $parade = [IO.File]::ReadAllText((Join-Path $PSScriptRoot `
+            'Ff7.Accessibility.Reloaded.Tests\JunonParadeAlignmentAssistTests.cs'))
+        $parade | Should Match ([regex]::Escape(
+            'public static void RunWithInstalledGameData()'))
+        $paradeDataFree = $parade.Substring(
+            $parade.IndexOf('public static void Run()', [StringComparison]::Ordinal),
+            $parade.IndexOf('public static void RunWithInstalledGameData()',
+                [StringComparison]::Ordinal) -
+            $parade.IndexOf('public static void Run()', [StringComparison]::Ordinal))
+        $paradeDataFree | Should Not Match 'TraversesTheNativeWalkmeshWhileTheRanksMove'
+        $parade | Should Match 'FF7_ACCESSIBILITY_DATA_ROOT'
+    }
+
     It 'keeps supported-host validation independent of developer-local game files' {
         $programPath = Join-Path $PSScriptRoot `
             'Ff7.Accessibility.Reloaded.Tests\Program.cs'

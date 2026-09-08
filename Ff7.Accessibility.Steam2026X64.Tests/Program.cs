@@ -55,6 +55,10 @@ if (args.Contains("--module-tests-only", StringComparer.OrdinalIgnoreCase))
         includeTranslatedAddressSpace: false);
     Steam2026BattleObservationTests.ReadsBattleInventoryObjectRowsAndAvailability();
     Steam2026FieldNavigationRuntimeTests.Run();
+    // Every suite named here must run without a licensed copy of the game: this
+    // is the mode the release gate uses on a build machine. Suites with native
+    // fixtures expose a separate RunWithInstalledGameData entry point, which the
+    // full suite below calls instead.
     Ff7.Accessibility.Reloaded.Tests.JunonFieldNavigationTests.Run();
     Ff7.Accessibility.Reloaded.Tests.JunonMinigameSpeechTests.Run();
     Ff7.Accessibility.Reloaded.Tests.JunonParadeAlignmentAssistTests.Run();
@@ -62,7 +66,10 @@ if (args.Contains("--module-tests-only", StringComparer.OrdinalIgnoreCase))
     NavigationAutoWalkControllerTests.Run();
     Ff7.Accessibility.Reloaded.Tests.WorldMapTerrainAnnouncementTests.Run();
     Ff7.Accessibility.Reloaded.Tests.WorldMapTargetCatalogTests.Run();
-    Steam2026WorldMapTerrainPriorityTests.Run();
+    // Steam2026WorldMapTerrainPriorityTests is deliberately absent. Every one of
+    // its cases builds a world coordinator around the installed data root, so
+    // there is no honest data-free subset of it to run here. It stays mandatory
+    // in --world-map-only and in the full suite.
     Steam2026TitleLoadMenuSpeechBridgeTests.Run();
     Steam2026FieldExitNavigationProfileTests.Run();
     PrismAbiProbeTests.Run();
@@ -73,7 +80,7 @@ if (args.Contains("--module-tests-only", StringComparer.OrdinalIgnoreCase))
 if (args.Contains("--world-map-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.WorldMapNavigationControllerTests.Run();
-    Ff7.Accessibility.Reloaded.Tests.WorldMapTargetCatalogTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.WorldMapTargetCatalogTests.RunWithInstalledGameData();
     Ff7.Accessibility.Reloaded.Tests.WorldMapTerrainAnnouncementTests.Run();
     Ff7.Accessibility.Reloaded.Tests.NavigationProgressControlTests.Run();
     Steam2026WorldMapTerrainPriorityTests.Run();
@@ -253,7 +260,7 @@ if (args.Contains("--wall-market-squat-only", StringComparer.OrdinalIgnoreCase))
 if (args.Contains("--junon-minigames-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.JunonMinigameSpeechTests.Run();
-    Ff7.Accessibility.Reloaded.Tests.JunonParadeAlignmentAssistTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.JunonParadeAlignmentAssistTests.RunWithInstalledGameData();
     Steam2026JunonMinigameRuntimeTests.Run();
     Console.WriteLine("Steam 2026 x64 Junon minigame speech tests passed.");
     return;
@@ -445,7 +452,7 @@ CondorNavigationIntegrationTests.Run();
 HighwayAutoSteeringControllerTests.Run();
 NavigationAutoWalkControllerTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WorldMapNavigationControllerTests.Run();
-Ff7.Accessibility.Reloaded.Tests.WorldMapTargetCatalogTests.Run();
+Ff7.Accessibility.Reloaded.Tests.WorldMapTargetCatalogTests.RunWithInstalledGameData();
 Ff7.Accessibility.Reloaded.Tests.WorldMapTerrainAnnouncementTests.Run();
 Ff7.Accessibility.Reloaded.Tests.NavigationProgressControlTests.Run();
 Steam2026WorldMapTerrainPriorityTests.Run();
@@ -550,7 +557,7 @@ FieldManualObjectGuidanceTests.Run();
 MountCorelRouteRepairTests.Run(CreateInstalledFieldWalkmeshReader);
 FieldButtonGlyphTests.Run();
 Ff7.Accessibility.Reloaded.Tests.JunonMinigameSpeechTests.Run();
-Ff7.Accessibility.Reloaded.Tests.JunonParadeAlignmentAssistTests.Run();
+Ff7.Accessibility.Reloaded.Tests.JunonParadeAlignmentAssistTests.RunWithInstalledGameData();
 Steam2026JunonMinigameRuntimeTests.Run();
 Steam2026FieldCutsceneWaitTests.Run(native);
 Steam2026FieldMovieNarrationAdapterTests.Run();
