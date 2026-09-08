@@ -98,11 +98,17 @@ function Invoke-VerificationCommand {
     )
     Write-Host "[$($Command.Name)] $($Command.FilePath) $($Command.Arguments -join ' ')"
     $output = @()
+    # Every caller value is captured before any of them is replaced. Capturing
+    # inside the same loop that sets them means a failure part way through leaves
+    # the rest uncaptured, and the finally block below then "restores" them to
+    # nothing - which deletes a caller's variable rather than putting it back.
     $priorEnvironment = @{}
+    foreach ($name in @($Command.Environment.Keys)) {
+        $priorEnvironment[$name] = [Environment]::GetEnvironmentVariable(
+            $name, [EnvironmentVariableTarget]::Process)
+    }
     try {
         foreach ($name in @($Command.Environment.Keys)) {
-            $priorEnvironment[$name] = [Environment]::GetEnvironmentVariable(
-                $name, [EnvironmentVariableTarget]::Process)
             [Environment]::SetEnvironmentVariable($name,
                 [string]$Command.Environment[$name],
                 [EnvironmentVariableTarget]::Process)
@@ -216,6 +222,15 @@ $commands.Add((New-VerificationCommand -Name 'Shared.Tests' `
         '-c','Release') -WorkingDirectory $scriptRoot))
 $reloadedProject = Join-Path $scriptRoot `
     'Ff7.Accessibility.Reloaded.Tests\Ff7.Accessibility.Reloaded.Tests.csproj'
+# The suite reads shipped source files - Configuration\config.json for the Fort
+# Condor announcement defaults, catalogs and assets for others - out of
+# FF7_ACCESSIBILITY_SOURCE_ROOT. A developer exports it by hand and never
+# notices; a build machine does not, so the v0.5.3 tag build threw
+# 'FF7_ACCESSIBILITY_SOURCE_ROOT is required.' out of
+# --condor-probe-silence-only. This runner knows the checkout it is verifying,
+# so it says so, on both branches. It needs no game data: the tree it names is
+# this repository.
+$reloadedSourceRoot = $scriptRoot
 if ($hasGameDataRuntime) {
     $commands.Add((New-VerificationCommand -Name 'Reloaded.Tests' `
         -FilePath 'dotnet' -Arguments @('run','--project',$reloadedProject,
@@ -223,6 +238,7 @@ if ($hasGameDataRuntime) {
         -Environment @{
             FF7_ACCESSIBILITY_RUNTIME = $GameRuntimePath
             FF7_ACCESSIBILITY_DATA_ROOT = $GameRuntimePath
+            FF7_ACCESSIBILITY_SOURCE_ROOT = $reloadedSourceRoot
         }))
 }
 else {
@@ -252,7 +268,10 @@ else {
     $commands.Add((New-VerificationCommand -Name 'Reloaded.Tests' `
         -FilePath 'powershell.exe' -Arguments @('-NoProfile',
             '-NonInteractive','-ExecutionPolicy','Bypass','-Command',
-            $portableCommand) -WorkingDirectory $scriptRoot))
+            $portableCommand) -WorkingDirectory $scriptRoot `
+        -Environment @{
+            FF7_ACCESSIBILITY_SOURCE_ROOT = $reloadedSourceRoot
+        }))
 }
 $commands.Add((New-VerificationCommand -Name 'Steam2026X64.Tests' `
     -FilePath 'dotnet' -Arguments @('run','--project',
