@@ -52,7 +52,7 @@ internal static class CondorFieldNavigatorTests
 
         var jumped = new List<(int X, int Y)>();
         navigator.Handle(CondorNavigationAction.JumpToTarget,
-            (x, y) => { jumped.Add((x, y)); return true; });
+            target => { jumped.Add((target.X, target.Y)); return true; });
 
         AssertEqual(1, jumped.Count, "jump happened");
         AssertEqual((100, 900), jumped[0], "jump went to the still-selected Fighter, at its new position");
@@ -225,13 +225,16 @@ internal static class CondorFieldNavigatorTests
         var navigator = NavigatorWith(new[] { Ally(0, 1, 428, 706) });
         navigator.Handle(CondorNavigationAction.NextTarget);
 
-        var moved = new List<(int X, int Y)>();
+        var moved = new List<CondorNavigationTarget>();
         var spoken = navigator.Handle(
             CondorNavigationAction.JumpToTarget,
-            (x, y) => { moved.Add((x, y)); return true; });
+            target => { moved.Add(target); return true; });
 
         AssertEqual(1, moved.Count, "the steering was asked once");
-        AssertEqual((428, 706), moved[0], "the steering was given the target's coordinates");
+        AssertEqual((428, 706), (moved[0].X, moved[0].Y),
+            "the steering was given the target's coordinates");
+        AssertEqual(0, moved[0].Key,
+            "the steering was given the target's stable unit slot, not coordinates alone");
         AssertEqual("Moving.", spoken, "an accepted jump announces movement once");
 
         if (spoken is not null && spoken.Contains("Cursor at", StringComparison.Ordinal))
@@ -253,7 +256,7 @@ internal static class CondorFieldNavigatorTests
             new[] { Ally(0, 1, 428, 706) }, cursorX: 100, cursorY: 200);
         navigator.Handle(CondorNavigationAction.NextTarget);
         var spoken = navigator.Handle(
-            CondorNavigationAction.JumpToTarget, (_, _) => false);
+            CondorNavigationAction.JumpToTarget, _ => false);
 
         AssertContains(spoken, "428, 706");   // where the thing is
         AssertContains(spoken, "100, 200");   // where the cursor still is

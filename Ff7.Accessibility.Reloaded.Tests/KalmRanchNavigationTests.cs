@@ -717,7 +717,7 @@ internal static class KalmRanchNavigationTests
             memory.ReadInt32,
             memory.ReadInt16,
             memory.ReadByte,
-            FieldStoryEventCatalog.CreateAllFields());
+            FieldStoryEventCatalog.CreateAllFields(), _ => true);
         var targets = reader.ReadTargets(
             new FieldPositionSnapshot(1, fieldId, 0, 0, 0, 0, 0, 0));
         var target = targets.SingleOrDefault(candidate => candidate.Label == expectedLabel);
@@ -748,7 +748,7 @@ internal static class KalmRanchNavigationTests
             memory.ReadInt32,
             memory.ReadInt16,
             memory.ReadByte,
-            FieldStoryEventCatalog.CreateAllFields());
+            FieldStoryEventCatalog.CreateAllFields(), _ => true);
         var targets = reader.ReadTargets(
             new FieldPositionSnapshot(
                 1,
@@ -780,7 +780,7 @@ internal static class KalmRanchNavigationTests
             memory.ReadInt32,
             memory.ReadInt16,
             memory.ReadByte,
-            FieldStoryEventCatalog.CreateAllFields());
+            FieldStoryEventCatalog.CreateAllFields(), _ => true);
         AssertEqual(
             0,
             reader.ReadTargets(new FieldPositionSnapshot(1, fieldId, 0, 0, 0, 0, 0, 0)).Count,
@@ -799,7 +799,7 @@ internal static class KalmRanchNavigationTests
             memory.ReadInt32,
             memory.ReadInt16,
             memory.ReadByte,
-            FieldStoryEventCatalog.CreateAllFields());
+            FieldStoryEventCatalog.CreateAllFields(), _ => true);
         AssertEqual(
             false,
             reader.ReadTargets(new FieldPositionSnapshot(1, fieldId, 0, 0, 0, 0, 0, 0))

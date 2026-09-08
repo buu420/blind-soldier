@@ -48,6 +48,24 @@ internal static class DualRuntimeFeatureWiringTests
             @"Ff7.Accessibility.Reloaded\Mod.cs",
             @"Ff7.Accessibility.Steam2026X64\Runtime\World\Steam2026WorldMapAccessibilityCoordinator.cs"),
 
+        new("world.terrain-announcements",
+            "WorldMapTerrainAnnouncementTracker.cs",
+            "TerrainAnnouncements",
+            @"Ff7.Accessibility.Reloaded\Mod.cs",
+            @"Ff7.Accessibility.Steam2026X64\Runtime\World\Steam2026WorldMapAccessibilityCoordinator.cs"),
+
+        new("world.native-location-entrances",
+            "WorldMapTargetCatalog.cs",
+            "WorldMapTargetCatalog.Load",
+            @"Ff7.Accessibility.Reloaded\Mod.cs",
+            @"Ff7.Accessibility.Steam2026X64\Runtime\World\Steam2026WorldMapAccessibilityCoordinator.cs"),
+
+        new("world.location-entrance-proximity-cues",
+            "WorldMapEntranceProximityCueTracker.cs",
+            "EntranceProximityCues",
+            @"Ff7.Accessibility.Reloaded\Mod.cs",
+            @"Ff7.Accessibility.Steam2026X64\Runtime\World\Steam2026WorldMapAccessibilityCoordinator.cs"),
+
         new("movie.opening-description",
             "OpeningMovieDescription.cs",
             "OpeningMovieDescription",
@@ -74,6 +92,12 @@ internal static class DualRuntimeFeatureWiringTests
             "CondorCursorSteering",
             @"Ff7.Accessibility.Reloaded\Mod.cs",
             @"Ff7.Accessibility.Steam2026X64\Runtime\Steam2026ResearchObservationPump.cs"),
+
+        new("field.junon-parade-alignment",
+            "JunonParadeAlignmentAssist.cs",
+            "JunonParadeAlignmentAssist",
+            @"Ff7.Accessibility.Reloaded\Mod.cs",
+            @"Ff7.Accessibility.Steam2026X64\Runtime\Field\Steam2026FieldNavigationCoordinator.cs"),
 
         // The physical keys every synthesized direction press uses. FFVII's
         // untouched default binds movement to the numeric keypad, so a runtime
@@ -145,6 +169,13 @@ internal static class DualRuntimeFeatureWiringTests
     {
         BothRuntimesAnnounceSuspendAndResume();
         BothCondorHostsBankStatusBeforeReading();
+        BothCondorHostsPassAutomaticAnnouncementSettings();
+        BothCondorHostsDelegateCursorDomainAndTargetIdentityToSharedSteering();
+        BothWorldHostsCommitRicherTerrainOnlyAfterDelivery();
+        BothWorldHostsReserveTerrainForProgressControlSpeech();
+        BothWorldHostsDeliverNativeEntranceProximityCuesWithoutReusingAreaSpeech();
+        BothWorldHostsRequireNativeLocationTriggerMetadata();
+        BothWorldHostsHonorLogicalAutoWalkStopRequests();
         var root = FindSourceRoot();
         var x64Csproj = File.ReadAllText(Path.Combine(
             root, "Ff7.Accessibility.Steam2026X64", "Ff7.Accessibility.Steam2026X64.csproj"));
@@ -185,6 +216,441 @@ internal static class DualRuntimeFeatureWiringTests
         {
             throw new InvalidOperationException(
                 "Shared features are not wired into both runtimes:" +
+                Environment.NewLine + string.Join(Environment.NewLine, failures));
+        }
+    }
+
+    /// <summary>
+    /// Both runtimes must hand the same coherent snapshot and stable navigation
+    /// target to the shared Fort Condor steering policy. If either host chooses
+    /// CursorX versus DestinationX itself, mode-3 support can drift back to one
+    /// runtime even though the controller is compiled into both assemblies.
+    /// </summary>
+    private static void BothCondorHostsDelegateCursorDomainAndTargetIdentityToSharedSteering()
+    {
+        var root = FindSourceRoot();
+        var sites = new[]
+        {
+            ("x86", Path.Combine(root, "Ff7.Accessibility.Reloaded", "Mod.cs")),
+            ("x64", Path.Combine(
+                root,
+                "Ff7.Accessibility.Steam2026X64",
+                "Runtime",
+                "Steam2026ResearchObservationPump.cs"))
+        };
+
+        var failures = new List<string>();
+        foreach (var (runtime, path) in sites)
+        {
+            var text = File.ReadAllText(path);
+            if (!text.Contains(
+                    "condorCursorSteering.TryBegin(target, snapshot)",
+                    StringComparison.Ordinal))
+            {
+                failures.Add($"{runtime} does not pass target identity and the coherent snapshot to TryBegin.");
+            }
+
+            if (!text.Contains("condorCursorSteering.Step(snapshot)", StringComparison.Ordinal))
+            {
+                failures.Add($"{runtime} does not let shared steering select the live cursor domain.");
+            }
+
+            if (!text.Contains(
+                    "target => BeginCondorCursorJump(snapshot, target)",
+                    StringComparison.Ordinal))
+            {
+                failures.Add($"{runtime} reduces the selected unit back to a bare coordinate before steering.");
+            }
+        }
+
+        if (failures.Count > 0)
+        {
+            throw new InvalidOperationException(
+                "Fort Condor destination steering is not wired symmetrically:" +
+                Environment.NewLine + string.Join(Environment.NewLine, failures));
+        }
+    }
+
+    private static void BothCondorHostsPassAutomaticAnnouncementSettings()
+    {
+        var root = FindSourceRoot();
+        var legacy = File.ReadAllText(Path.Combine(
+            root, "Ff7.Accessibility.Reloaded", "Mod.cs"));
+        var steamSession = File.ReadAllText(Path.Combine(
+            root,
+            "Ff7.Accessibility.Steam2026X64",
+            "Runtime",
+            "Steam2026ResearchSession.cs"));
+        var steamPump = File.ReadAllText(Path.Combine(
+            root,
+            "Ff7.Accessibility.Steam2026X64",
+            "Runtime",
+            "Steam2026ResearchObservationPump.cs"));
+
+        var legacyConstruction = WindowAfter(legacy, "new CondorBattleSpeechTracker(", 500);
+        var steamPumpConstruction = WindowAfter(
+            steamSession,
+            "new Steam2026ResearchObservationPump(",
+            700);
+        var steamTrackerConstruction = WindowAfter(
+            steamPump,
+            "new CondorBattleSpeechTracker(",
+            500);
+
+        foreach (var key in new[]
+                 {
+                     "EnableCondorBattleLineAnnouncements",
+                     "EnableCondorEnemyArrivalAnnouncements"
+                 })
+        {
+            if (!legacyConstruction.Contains($"config.{key}", StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    $"x86 constructs the Fort Condor tracker without config.{key}.");
+            }
+
+            if (!steamPumpConstruction.Contains("config", StringComparison.Ordinal) ||
+                !steamTrackerConstruction.Contains($"config.{key}", StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    $"x64 does not carry config.{key} through the session pump into the shared tracker.");
+            }
+        }
+    }
+
+    private static string WindowAfter(string source, string marker, int length)
+    {
+        var start = source.IndexOf(marker, StringComparison.Ordinal);
+        return start < 0
+            ? string.Empty
+            : source.Substring(start, Math.Min(length, source.Length - start));
+    }
+
+    private static void BothWorldHostsHonorLogicalAutoWalkStopRequests()
+    {
+        var root = FindSourceRoot();
+        var sites = new[]
+        {
+            ("x86",
+                Path.Combine(root, "Ff7.Accessibility.Reloaded", "Mod.cs"),
+                "StopNavigationAutoWalk(",
+                "NavigationAutoWalkDomain.WorldMap"),
+            ("x64", Path.Combine(
+                root,
+                "Ff7.Accessibility.Steam2026X64",
+                "Runtime",
+                "World",
+                "Steam2026WorldMapAccessibilityCoordinator.cs"),
+                "autoWalk.Stop()",
+                "NavigationAutoWalkDomain.WorldMap")
+        };
+
+        foreach (var (runtime, path, stopCall, activeDomain) in sites)
+        {
+            var text = File.ReadAllText(path);
+            var stopMarker = text.IndexOf("value.StopAutoWalk", StringComparison.Ordinal);
+            var stopWindow = stopMarker < 0
+                ? string.Empty
+                : text.Substring(stopMarker, Math.Min(500, text.Length - stopMarker));
+            var observeMarker = text.IndexOf("runtime.Navigation.Observe(", StringComparison.Ordinal);
+            var observeWindow = observeMarker < 0
+                ? string.Empty
+                : text.Substring(observeMarker, Math.Min(500, text.Length - observeMarker));
+            if (!stopWindow.Contains(stopCall, StringComparison.Ordinal) ||
+                !observeWindow.Contains("IsEnabledFor", StringComparison.Ordinal) ||
+                !observeWindow.Contains(activeDomain, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    $"{runtime} does not feed or honor logical world-map auto-walk convergence and can strand the player.");
+            }
+        }
+    }
+
+    private static void BothWorldHostsRequireNativeLocationTriggerMetadata()
+    {
+        var root = FindSourceRoot();
+        var hostPaths = new[]
+        {
+            Path.Combine(root, "Ff7.Accessibility.Reloaded", "Mod.cs"),
+            Path.Combine(
+                root,
+                "Ff7.Accessibility.Steam2026X64",
+                "Runtime",
+                "World",
+                "Steam2026WorldMapAccessibilityCoordinator.cs")
+        };
+        var failures = new List<string>();
+        foreach (var hostPath in hostPaths)
+        {
+            var source = File.ReadAllText(hostPath);
+            foreach (var required in new[]
+                     {
+                         "world-map-location-triggers.json",
+                         "WorldMapTargetCatalog.Load(map, coordinatePath, menuNamePath, triggerPath)",
+                         "UnresolvedLocations"
+                     })
+            {
+                if (!source.Contains(required, StringComparison.Ordinal))
+                {
+                    failures.Add($"{Path.GetFileName(hostPath)} does not require or report {required}.");
+                }
+            }
+        }
+
+        foreach (var projectPath in new[]
+                 {
+                     Path.Combine(root, "Ff7.Accessibility.Reloaded", "Ff7.Accessibility.Reloaded.csproj"),
+                     Path.Combine(root, "Ff7.Accessibility.Steam2026X64", "Ff7.Accessibility.Steam2026X64.csproj")
+                 })
+        {
+            if (!File.ReadAllText(projectPath).Contains(
+                    "world-map-location-triggers.json",
+                    StringComparison.Ordinal))
+            {
+                failures.Add($"{Path.GetFileName(projectPath)} does not ship native location triggers.");
+            }
+        }
+
+        if (!File.ReadAllText(Path.Combine(root, "Build-DualRuntimePackage.ps1")).Contains(
+                "native world-map location trigger metadata",
+                StringComparison.Ordinal))
+        {
+            failures.Add("The dual-runtime package gate does not require native location triggers.");
+        }
+
+        if (failures.Count > 0)
+        {
+            throw new InvalidOperationException(
+                "Native world-map entrance metadata is not wired into both runtimes:" +
+                Environment.NewLine + string.Join(Environment.NewLine, failures));
+        }
+    }
+
+    private static void BothWorldHostsDeliverNativeEntranceProximityCuesWithoutReusingAreaSpeech()
+    {
+        var root = FindSourceRoot();
+        var sites = new[]
+        {
+            (
+                "x86",
+                Path.Combine(root, "Ff7.Accessibility.Reloaded", "Mod.cs"),
+                "private void ObserveWorldMapEntranceCue(",
+                "private void ObserveWorldMapTerrain(",
+                "worldMapEntranceCuePlayer?.Play(spatialCue, ready.Gain)"),
+            (
+                "x64",
+                Path.Combine(
+                    root,
+                    "Ff7.Accessibility.Steam2026X64",
+                    "Runtime",
+                    "World",
+                    "Steam2026WorldMapAccessibilityCoordinator.cs"),
+                "private void ObserveEntranceCue(",
+                "private void PlayFootstep(",
+                "entranceCuePlayer?.Play(spatialCue, ready.Gain)")
+        };
+
+        var failures = new List<string>();
+        foreach (var (runtime, path, startMarker, endMarker, playback) in sites)
+        {
+            var source = File.ReadAllText(path);
+            var start = source.IndexOf(startMarker, StringComparison.Ordinal);
+            var end = start < 0
+                ? -1
+                : source.IndexOf(endMarker, start + startMarker.Length, StringComparison.Ordinal);
+            if (start < 0 || end <= start)
+            {
+                failures.Add($"{runtime}: world entrance delivery method could not be inspected.");
+                continue;
+            }
+
+            var method = source[start..end];
+            foreach (var required in new[]
+                     {
+                         "EnableWorldMapEntranceProximityCues",
+                         "EntranceProximityCues.Update(",
+                         "WorldMapEntranceProximitySpatializer.CreateCue(",
+                         "ready.Arrival.TriangleId",
+                         "ready.DistanceUnits",
+                         playback
+                     })
+            {
+                if (!method.Contains(required, StringComparison.Ordinal))
+                {
+                    failures.Add($"{runtime}: world entrance host is missing {required}.");
+                }
+            }
+
+            if (method.Contains("EnableFieldZoneTransitionCue", StringComparison.Ordinal) ||
+                method.Contains("PlayCentered(", StringComparison.Ordinal))
+            {
+                failures.Add($"{runtime}: world entrance delivery still uses a field gate or one-shot centered playback.");
+            }
+        }
+
+        var x86Source = File.ReadAllText(sites[0].Item2);
+        if (!x86Source.Contains("ObserveWorldMapEntranceCue(runtime, state, now);", StringComparison.Ordinal))
+        {
+            failures.Add("x86: the live world-map tick never calls the entrance cue.");
+        }
+
+        var x64Source = File.ReadAllText(sites[1].Item2);
+        if (!x64Source.Contains("ObserveEntranceCue(runtime, state, nowUtc);", StringComparison.Ordinal))
+        {
+            failures.Add("x64: the live world-map observation never calls the entrance cue.");
+        }
+
+        foreach (var (runtime, source, startMarker, endMarker) in new[]
+                 {
+                     ("x86", x86Source, "private void ObserveWorldMapTerrain(", "private void ResetWorldMapAccessibility("),
+                     ("x64", x64Source, "private void ObserveTerrain(", "private void ObserveEntranceCue(")
+                 })
+        {
+            var start = source.IndexOf(startMarker, StringComparison.Ordinal);
+            var end = start < 0 ? -1 : source.IndexOf(endMarker, start, StringComparison.Ordinal);
+            var method = start >= 0 && end > start ? source[start..end] : string.Empty;
+            if (method.Contains("WorldMapEntrance", StringComparison.Ordinal) ||
+                method.Contains("PlayCentered(", StringComparison.Ordinal))
+            {
+                failures.Add($"{runtime}: named-area speech still emits the old one-shot sound.");
+            }
+        }
+
+        var x64FieldSource = File.ReadAllText(Path.Combine(
+            root,
+            "Ff7.Accessibility.Steam2026X64",
+            "Runtime",
+            "Field",
+            "Steam2026FieldZoneTransitionCueCoordinator.cs"));
+        if (!x64FieldSource.Contains("EnableFieldZoneTransitionCue", StringComparison.Ordinal) ||
+            !x64FieldSource.Contains("PlayField(", StringComparison.Ordinal) ||
+            x64FieldSource.Contains("PlayWorldMapAreaTransition", StringComparison.Ordinal) ||
+            x64FieldSource.Contains("worldAreaPlayer", StringComparison.Ordinal))
+        {
+            failures.Add("x64: the field transition coordinator did not remain field-only.");
+        }
+
+        if (failures.Count > 0)
+        {
+            throw new InvalidOperationException(
+                "World-map entrances do not use native repeating spatial cues while named-area speech and field transitions stay separate:" +
+                Environment.NewLine + string.Join(Environment.NewLine, failures));
+        }
+    }
+
+    private static void BothWorldHostsReserveTerrainForProgressControlSpeech()
+    {
+        var root = FindSourceRoot();
+        var sites = new[]
+        {
+            (
+                "x86",
+                Path.Combine(root, "Ff7.Accessibility.Reloaded", "Mod.cs"),
+                "private void TickWorldMapAccessibility()",
+                "private void ObserveWorldMapTerrain("),
+            (
+                "x64",
+                Path.Combine(
+                    root,
+                    "Ff7.Accessibility.Steam2026X64",
+                    "Runtime",
+                    "World",
+                    "Steam2026WorldMapAccessibilityCoordinator.cs"),
+                "internal void Observe(RuntimeFrameObservation frame, DateTime nowUtc)",
+                "internal static bool ShouldThrottleObservation(")
+        };
+
+        var failures = new List<string>();
+        foreach (var (runtime, path, startMarker, endMarker) in sites)
+        {
+            var source = File.ReadAllText(path);
+            var start = source.IndexOf(startMarker, StringComparison.Ordinal);
+            var end = source.IndexOf(endMarker, start + startMarker.Length, StringComparison.Ordinal);
+            if (start < 0 || end <= start)
+            {
+                failures.Add($"{runtime}: world observation method could not be inspected.");
+                continue;
+            }
+
+            var method = source[start..end];
+            var revision = method.IndexOf(".SpeechRevision", StringComparison.Ordinal);
+            var priority = method.IndexOf("progressControlSpeechWasObserved", StringComparison.Ordinal);
+            var terrain = runtime == "x86"
+                ? method.LastIndexOf("ObserveWorldMapTerrain(", StringComparison.Ordinal)
+                : method.LastIndexOf("ObserveTerrain(", StringComparison.Ordinal);
+            if (revision < 0 || priority < revision || terrain <= priority)
+            {
+                failures.Add(
+                    $"{runtime}: progress-control speech is not observed before world-map terrain speech.");
+            }
+        }
+
+        if (failures.Count > 0)
+        {
+            throw new InvalidOperationException(
+                "World-map terrain does not yield to F5-F7 in both runtimes:" +
+                Environment.NewLine + string.Join(Environment.NewLine, failures));
+        }
+    }
+
+    private static void BothWorldHostsCommitRicherTerrainOnlyAfterDelivery()
+    {
+        var root = FindSourceRoot();
+        var sites = new[]
+        {
+            (
+                "x86",
+                Path.Combine(root, "Ff7.Accessibility.Reloaded", "Mod.cs"),
+                "private bool ObserveMidgarZolomCrossing(",
+                "private bool ProcessWorldMapNavigationOutput("),
+            (
+                "x64",
+                Path.Combine(
+                    root,
+                    "Ff7.Accessibility.Steam2026X64",
+                    "Runtime",
+                    "World",
+                    "Steam2026WorldMapAccessibilityCoordinator.cs"),
+                "private bool ObserveMidgarZolomCrossing(",
+                "public void Dispose()")
+        };
+
+        var failures = new List<string>();
+        foreach (var (runtime, path, startMarker, endMarker) in sites)
+        {
+            var source = File.ReadAllText(path);
+            var start = source.IndexOf(startMarker, StringComparison.Ordinal);
+            var end = start < 0
+                ? -1
+                : source.IndexOf(endMarker, start + startMarker.Length, StringComparison.Ordinal);
+            if (start < 0 || end <= start)
+            {
+                failures.Add($"{runtime}: could not isolate the world-map marsh host method.");
+                continue;
+            }
+
+            var method = source[start..end];
+            if (!method.Contains(
+                    "state.TerrainId == MidgarZolomAreaTracker.MarshTerrainId",
+                    StringComparison.Ordinal))
+            {
+                failures.Add($"{runtime}: richer marsh speech is not driven by the coherent native terrain id.");
+            }
+
+            var delivery = method.IndexOf("var areaCueDelivered =", StringComparison.Ordinal);
+            var accepted = method.IndexOf("if (areaCueDelivered)", StringComparison.Ordinal);
+            var record = method.IndexOf(".RecordExternalTerrainSpeech(", StringComparison.Ordinal);
+            if (delivery < 0 || accepted <= delivery || record <= accepted)
+            {
+                failures.Add(
+                    $"{runtime}: generic swamp speech can be suppressed before the richer cue is accepted.");
+            }
+        }
+
+        if (failures.Count > 0)
+        {
+            throw new InvalidOperationException(
+                "World-map terrain fallback is not delivery-aware in both runtimes:" +
                 Environment.NewLine + string.Join(Environment.NewLine, failures));
         }
     }

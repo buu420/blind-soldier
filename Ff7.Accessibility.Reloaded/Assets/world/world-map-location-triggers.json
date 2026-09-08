@@ -1,0 +1,752 @@
+{
+  "SchemaVersion": 1,
+  "Source": "FFVII world_us.lgp wm*.ev terrain-script call table and EnterFieldScene opcodes",
+  "SourceFilesSha256": {
+    "wm0.ev": "a020dace94f21b73094c204c54b01e13b3688002f65ffd9b1edf8ada5e372a64",
+    "wm2.ev": "d1dea5c78225873d07b8c532d74e3bc35aebf4fb4a744906dd9771fbc3c18e64",
+    "wm3.ev": "df90900e379b547eff8371e234dbf7d5e8fcf290b28ab484994a73ad4e6aef8d"
+  },
+  "Locations": [
+    {
+      "LocationId": 1,
+      "Label": "Midgar",
+      "WorldMapType": 0,
+      "MeshX": 22,
+      "MeshY": 14,
+      "TerrainScriptId": 7,
+      "NativeDestinations": [
+        {
+          "LocationId": 1,
+          "EntryPointIds": [
+            0
+          ]
+        }
+      ],
+      "FunctionIds": [
+        "0xA0E4"
+      ]
+    },
+    {
+      "LocationId": 2,
+      "Label": "Kalm",
+      "WorldMapType": 0,
+      "MeshX": 24,
+      "MeshY": 13,
+      "TerrainScriptId": 7,
+      "NativeDestinations": [
+        {
+          "LocationId": 2,
+          "EntryPointIds": [
+            0
+          ]
+        }
+      ],
+      "FunctionIds": [
+        "0x9EC4"
+      ]
+    },
+    {
+      "LocationId": 3,
+      "Label": "Chocobo Farm",
+      "WorldMapType": 0,
+      "MeshX": 29,
+      "MeshY": 16,
+      "TerrainScriptId": 7,
+      "NativeDestinations": [
+        {
+          "LocationId": 3,
+          "EntryPointIds": [
+            0,
+            1
+          ]
+        }
+      ],
+      "FunctionIds": [
+        "0xA5D4"
+      ]
+    },
+    {
+      "LocationId": 4,
+      "Label": "Mithryl Mine (Midgar side)",
+      "WorldMapType": 0,
+      "MeshX": 26,
+      "MeshY": 18,
+      "TerrainScriptId": 7,
+      "NativeDestinations": [
+        {
+          "LocationId": 4,
+          "EntryPointIds": [
+            0
+          ]
+        }
+      ],
+      "FunctionIds": [
+        "0xAA24"
+      ]
+    },
+    {
+      "LocationId": 5,
+      "Label": "Mithryl Mine (Junon side)",
+      "WorldMapType": 0,
+      "MeshX": 25,
+      "MeshY": 19,
+      "TerrainScriptId": 7,
+      "NativeDestinations": [
+        {
+          "LocationId": 5,
+          "EntryPointIds": [
+            0
+          ]
+        }
+      ],
+      "FunctionIds": [
+        "0xAC54"
+      ]
+    },
+    {
+      "LocationId": 6,
+      "Label": "Condor",
+      "WorldMapType": 0,
+      "MeshX": 24,
+      "MeshY": 20,
+      "TerrainScriptId": 7,
+      "NativeDestinations": [
+        {
+          "LocationId": 6,
+          "EntryPointIds": [
+            0
+          ]
+        }
+      ],
+      "FunctionIds": [
+        "0xAE84"
+      ]
+    },
+    {
+      "LocationId": 7,
+      "Label": "Junon",
+      "WorldMapType": 0,
+      "MeshX": 20,
+      "MeshY": 17,
+      "TerrainScriptId": 7,
+      "NativeDestinations": [
+        {
+          "LocationId": 7,
+          "EntryPointIds": [
+            0
+          ]
+        }
+      ],
+      "FunctionIds": [
+        "0xA784"
+      ]
+    },
+    {
+      "LocationId": 8,
+      "Label": "Temple of the Ancients",
+      "WorldMapType": 0,
+      "MeshX": 20,
+      "MeshY": 22,
+      "TerrainScriptId": 7,
+      "NativeDestinations": [
+        {
+          "LocationId": 8,
+          "EntryPointIds": [
+            0
+          ]
+        }
+      ],
+      "FunctionIds": [
+        "0xB2C4"
+      ]
+    },
+    {
+      "LocationId": 9,
+      "Label": "Old Man's House (Mythril)",
+      "WorldMapType": 0,
+      "MeshX": 24,
+      "MeshY": 16,
+      "TerrainScriptId": 7,
+      "NativeDestinations": [
+        {
+          "LocationId": 9,
+          "EntryPointIds": [
+            0
+          ]
+        }
+      ],
+      "FunctionIds": [
+        "0xA584"
+      ]
+    },
+    {
+      "LocationId": 10,
+      "Label": "Weapon Seller",
+      "WorldMapType": 0,
+      "MeshX": 15,
+      "MeshY": 21,
+      "TerrainScriptId": 7,
+      "NativeDestinations": [
+        {
+          "LocationId": 10,
+          "EntryPointIds": [
+            0
+          ]
+        }
+      ],
+      "FunctionIds": [
+        "0xB034"
+      ]
+    },
+    {
+      "LocationId": 11,
+      "Label": "Mideel",
+      "WorldMapType": 0,
+      "MeshX": 26,
+      "MeshY": 24,
+      "TerrainScriptId": 7,
+      "NativeDestinations": [
+        {
+          "LocationId": 11,
+          "EntryPointIds": [
+            0,
+            1
+          ]
+        }
+      ],
+      "FunctionIds": [
+        "0xB7A4"
+      ]
+    },
+    {
+      "LocationId": 12,
+      "Label": "Materia Cave (Quadra Magic)",
+      "WorldMapType": 0,
+      "MeshX": 33,
+      "MeshY": 17,
+      "TerrainScriptId": 7,
+      "NativeDestinations": [
+        {
+          "LocationId": 12,
+          "EntryPointIds": [
+            0
+          ]
+        }
+      ],
+      "FunctionIds": [
+        "0xA854"
+      ]
+    },
+    {
+      "LocationId": 13,
+      "Label": "Costa Del Sol",
+      "WorldMapType": 0,
+      "MeshX": 17,
+      "MeshY": 15,
+      "TerrainScriptId": 7,
+      "NativeDestinations": [
+        {
+          "LocationId": 13,
+          "EntryPointIds": [
+            0
+          ]
+        }
+      ],
+      "FunctionIds": [
+        "0xA2D4"
+      ]
+    },
+    {
+      "LocationId": 14,
+      "Label": "Mt. Coral",
+      "WorldMapType": 0,
+      "MeshX": 13,
+      "MeshY": 14,
+      "TerrainScriptId": 7,
+      "NativeDestinations": [
+        {
+          "LocationId": 14,
+          "EntryPointIds": [
+            0
+          ]
+        }
+      ],
+      "FunctionIds": [
+        "0xA054"
+      ]
+    },
+    {
+      "LocationId": 15,
+      "Label": "North Coral",
+      "WorldMapType": 0,
+      "MeshX": 13,
+      "MeshY": 15,
+      "TerrainScriptId": 7,
+      "NativeDestinations": [
+        {
+          "LocationId": 15,
+          "EntryPointIds": [
+            0,
+            1
+          ]
+        }
+      ],
+      "FunctionIds": [
+        "0xA294"
+      ]
+    },
+    {
+      "LocationId": 16,
+      "Label": "Corel Prison/Desert",
+      "WorldMapType": 0,
+      "MeshX": 14,
+      "MeshY": 18,
+      "TerrainScriptId": 7,
+      "NativeDestinations": [
+        {
+          "LocationId": 16,
+          "EntryPointIds": [
+            0
+          ]
+        }
+      ],
+      "FunctionIds": [
+        "0xA964"
+      ]
+    },
+    {
+      "LocationId": 17,
+      "Label": "Gongaga",
+      "WorldMapType": 0,
+      "MeshX": 13,
+      "MeshY": 22,
+      "TerrainScriptId": 7,
+      "NativeDestinations": [
+        {
+          "LocationId": 17,
+          "EntryPointIds": [
+            0
+          ]
+        }
+      ],
+      "FunctionIds": [
+        "0xB254"
+      ]
+    },
+    {
+      "LocationId": 18,
+      "Label": "Cosmo Canyon",
+      "WorldMapType": 0,
+      "MeshX": 10,
+      "MeshY": 20,
+      "TerrainScriptId": 7,
+      "NativeDestinations": [
+        {
+          "LocationId": 18,
+          "EntryPointIds": [
+            0
+          ]
+        }
+      ],
+      "FunctionIds": [
+        "0xADA4"
+      ]
+    },
+    {
+      "LocationId": 19,
+      "Label": "Nibelheim (Town Side)",
+      "WorldMapType": 0,
+      "MeshX": 11,
+      "MeshY": 16,
+      "TerrainScriptId": 7,
+      "NativeDestinations": [
+        {
+          "LocationId": 19,
+          "EntryPointIds": [
+            0
+          ]
+        }
+      ],
+      "FunctionIds": [
+        "0xA4B4"
+      ]
+    },
+    {
+      "LocationId": 20,
+      "Label": "Rocket Town (South Side)",
+      "WorldMapType": 0,
+      "MeshX": 10,
+      "MeshY": 14,
+      "TerrainScriptId": 7,
+      "NativeDestinations": [
+        {
+          "LocationId": 20,
+          "EntryPointIds": [
+            0,
+            1
+          ]
+        }
+      ],
+      "FunctionIds": [
+        "0xA024"
+      ]
+    },
+    {
+      "LocationId": 21,
+      "Label": "Lucrecia's Cave",
+      "WorldMapType": 0,
+      "MeshX": 12,
+      "MeshY": 17,
+      "TerrainScriptId": 7,
+      "NativeDestinations": [
+        {
+          "LocationId": 21,
+          "EntryPointIds": [
+            0
+          ]
+        }
+      ],
+      "FunctionIds": [
+        "0xA704"
+      ]
+    },
+    {
+      "LocationId": 22,
+      "Label": "Materia Cave (HP<->MP Materia)",
+      "WorldMapType": 0,
+      "MeshX": 14,
+      "MeshY": 13,
+      "TerrainScriptId": 7,
+      "NativeDestinations": [
+        {
+          "LocationId": 22,
+          "EntryPointIds": [
+            0
+          ]
+        }
+      ],
+      "FunctionIds": [
+        "0x9E24"
+      ]
+    },
+    {
+      "LocationId": 23,
+      "Label": "Wutai",
+      "WorldMapType": 0,
+      "MeshX": 4,
+      "MeshY": 10,
+      "TerrainScriptId": 7,
+      "NativeDestinations": [
+        {
+          "LocationId": 23,
+          "EntryPointIds": [
+            0,
+            1
+          ]
+        }
+      ],
+      "FunctionIds": [
+        "0x96C4"
+      ]
+    },
+    {
+      "LocationId": 24,
+      "Label": "Materia Cave (Mime Materia)",
+      "WorldMapType": 0,
+      "MeshX": 6,
+      "MeshY": 15,
+      "TerrainScriptId": 7,
+      "NativeDestinations": [
+        {
+          "LocationId": 24,
+          "EntryPointIds": [
+            0
+          ]
+        }
+      ],
+      "FunctionIds": [
+        "0xA224"
+      ]
+    },
+    {
+      "LocationId": 25,
+      "Label": "Bone Village",
+      "WorldMapType": 0,
+      "MeshX": 19,
+      "MeshY": 10,
+      "TerrainScriptId": 7,
+      "NativeDestinations": [
+        {
+          "LocationId": 25,
+          "EntryPointIds": [
+            0
+          ]
+        }
+      ],
+      "FunctionIds": [
+        "0x97B4"
+      ]
+    },
+    {
+      "LocationId": 26,
+      "Label": "Corel Valley Cave (Icicle Area)",
+      "WorldMapType": 0,
+      "MeshX": 19,
+      "MeshY": 8,
+      "TerrainScriptId": 7,
+      "NativeDestinations": [
+        {
+          "LocationId": 26,
+          "EntryPointIds": [
+            0
+          ]
+        }
+      ],
+      "FunctionIds": [
+        "0x9334"
+      ]
+    },
+    {
+      "LocationId": 27,
+      "Label": "Icicle Inn (South Side)",
+      "WorldMapType": 0,
+      "MeshX": 15,
+      "MeshY": 8,
+      "TerrainScriptId": 7,
+      "NativeDestinations": [
+        {
+          "LocationId": 27,
+          "EntryPointIds": [
+            0
+          ]
+        }
+      ],
+      "FunctionIds": [
+        "0x92F4"
+      ]
+    },
+    {
+      "LocationId": 28,
+      "Label": "Chocobo Sage's House",
+      "WorldMapType": 0,
+      "MeshX": 17,
+      "MeshY": 8,
+      "TerrainScriptId": 7,
+      "NativeDestinations": [
+        {
+          "LocationId": 28,
+          "EntryPointIds": [
+            0
+          ]
+        }
+      ],
+      "FunctionIds": [
+        "0x9314"
+      ]
+    },
+    {
+      "LocationId": 29,
+      "Label": "Materia Cave (Knights of the Round Materia)",
+      "WorldMapType": 0,
+      "MeshX": 32,
+      "MeshY": 1,
+      "TerrainScriptId": 7,
+      "NativeDestinations": [
+        {
+          "LocationId": 29,
+          "EntryPointIds": [
+            0
+          ]
+        }
+      ],
+      "FunctionIds": [
+        "0x8444"
+      ]
+    },
+    {
+      "LocationId": 43,
+      "Label": "Nibelheim (Mt. Nibel Side)",
+      "WorldMapType": 0,
+      "MeshX": 11,
+      "MeshY": 16,
+      "TerrainScriptId": 6,
+      "NativeDestinations": [
+        {
+          "LocationId": 43,
+          "EntryPointIds": [
+            0
+          ]
+        }
+      ],
+      "FunctionIds": [
+        "0xA4B3"
+      ]
+    },
+    {
+      "LocationId": 44,
+      "Label": "Mt. Nibel (Nibelheim Side)",
+      "WorldMapType": 0,
+      "MeshX": 11,
+      "MeshY": 15,
+      "TerrainScriptId": 7,
+      "NativeDestinations": [
+        {
+          "LocationId": 44,
+          "EntryPointIds": [
+            0
+          ]
+        }
+      ],
+      "FunctionIds": [
+        "0xA274"
+      ]
+    },
+    {
+      "LocationId": 46,
+      "Label": "Mt. Nibel (West Side)",
+      "WorldMapType": 0,
+      "MeshX": 10,
+      "MeshY": 16,
+      "TerrainScriptId": 7,
+      "NativeDestinations": [
+        {
+          "LocationId": 46,
+          "EntryPointIds": [
+            0
+          ]
+        }
+      ],
+      "FunctionIds": [
+        "0xA4A4"
+      ]
+    },
+    {
+      "LocationId": 47,
+      "Label": "Icicle Inn (North Side)",
+      "WorldMapType": 0,
+      "MeshX": 15,
+      "MeshY": 8,
+      "TerrainScriptId": 6,
+      "NativeDestinations": [
+        {
+          "LocationId": 47,
+          "EntryPointIds": [
+            0
+          ]
+        }
+      ],
+      "FunctionIds": [
+        "0x92F3"
+      ]
+    },
+    {
+      "LocationId": 48,
+      "Label": "Great Glacier",
+      "WorldMapType": 0,
+      "MeshX": 16,
+      "MeshY": 6,
+      "TerrainScriptId": 7,
+      "NativeDestinations": [
+        {
+          "LocationId": 48,
+          "EntryPointIds": [
+            0
+          ]
+        }
+      ],
+      "FunctionIds": [
+        "0x8E84"
+      ]
+    },
+    {
+      "LocationId": 49,
+      "Label": "Rocket Town (North Side)",
+      "WorldMapType": 0,
+      "MeshX": 10,
+      "MeshY": 14,
+      "TerrainScriptId": 7,
+      "NativeDestinations": [
+        {
+          "LocationId": 20,
+          "EntryPointIds": [
+            0,
+            1
+          ]
+        }
+      ],
+      "FunctionIds": [
+        "0xA024"
+      ]
+    },
+    {
+      "LocationId": 57,
+      "Label": "Sleeping Forest",
+      "WorldMapType": 0,
+      "MeshX": 19,
+      "MeshY": 10,
+      "TerrainScriptId": 6,
+      "NativeDestinations": [
+        {
+          "LocationId": 57,
+          "EntryPointIds": [
+            0
+          ]
+        }
+      ],
+      "FunctionIds": [
+        "0x97B3"
+      ]
+    },
+    {
+      "LocationId": 58,
+      "Label": "Valley, City of Ancients entrance",
+      "WorldMapType": 0,
+      "MeshX": 19,
+      "MeshY": 9,
+      "TerrainScriptId": 7,
+      "NativeDestinations": [
+        {
+          "LocationId": 58,
+          "EntryPointIds": [
+            0
+          ]
+        }
+      ],
+      "FunctionIds": [
+        "0x9574"
+      ]
+    }
+  ],
+  "UnresolvedLocations": [
+    {
+      "LocationId": 40,
+      "Label": "Tiny Bronco Acquisition",
+      "Reason": "No native terrain-script EnterFieldScene trigger resolves this catalog location."
+    },
+    {
+      "LocationId": 41,
+      "Label": "Highwind Acquisition",
+      "Reason": "No native terrain-script EnterFieldScene trigger resolves this catalog location."
+    },
+    {
+      "LocationId": 45,
+      "Label": "Leaving Highwind",
+      "Reason": "No native terrain-script EnterFieldScene trigger resolves this catalog location."
+    },
+    {
+      "LocationId": 54,
+      "Label": "Submarine Acquisition",
+      "Reason": "No native terrain-script EnterFieldScene trigger resolves this catalog location."
+    },
+    {
+      "LocationId": 55,
+      "Label": "Ancient Forest",
+      "Reason": "No native terrain-script EnterFieldScene trigger resolves this catalog location."
+    },
+    {
+      "LocationId": 59,
+      "Label": "Northern Crater",
+      "Reason": "No native terrain-script EnterFieldScene trigger resolves this catalog location."
+    }
+  ]
+}

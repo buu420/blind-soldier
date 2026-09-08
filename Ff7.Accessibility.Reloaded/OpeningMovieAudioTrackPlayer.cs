@@ -4,29 +4,33 @@ using NAudio.Wave.SampleProviders;
 
 namespace Ff7.Accessibility.Reloaded;
 
-internal sealed class OpeningMovieAudioTrackPlayer : IDisposable
+internal sealed class OpeningMovieAudioTrackPlayer : IFieldMovieNarrationOutput
 {
     private readonly string path;
     private readonly float volume;
     private readonly Action<string> log;
+    // The same Vorbis/WaveOut playback is used for the opening film and for
+    // described in-game films; only the diagnostic wording differs.
+    private readonly string label;
     private readonly object sync = new();
     private ActivePlayback? activePlayback;
 
-    public OpeningMovieAudioTrackPlayer(string path, int volumePercent, Action<string> log)
+    public OpeningMovieAudioTrackPlayer(string path, int volumePercent, Action<string> log, string label = "Opening movie")
     {
         this.path = path;
         volume = OpeningMovieAudioTrackVolumePolicy.ToGain(volumePercent);
         this.log = log;
+        this.label = label;
 
         if (File.Exists(path))
         {
             log(
-                $"Opening movie narration track: {path} " +
+                $"{label} narration track: {path} " +
                 $"({new FileInfo(path).Length} bytes), volume={volume * 100:0}%.");
         }
         else
         {
-            log($"Opening movie narration track missing: {path}");
+            log($"{label} narration track missing: {path}");
         }
     }
 
@@ -53,13 +57,13 @@ internal sealed class OpeningMovieAudioTrackPlayer : IDisposable
 
         if (volume <= 0)
         {
-            log($"Opening movie narration skipped ({reason}): volume is 0%.");
+            log($"{label} narration skipped ({reason}): volume is 0%.");
             return false;
         }
 
         if (!File.Exists(path))
         {
-            log($"Opening movie narration skipped ({reason}): file is missing at {path}");
+            log($"{label} narration skipped ({reason}): file is missing at {path}");
             return false;
         }
 
@@ -90,12 +94,12 @@ internal sealed class OpeningMovieAudioTrackPlayer : IDisposable
             }
 
             output.Play();
-            log($"Opening movie narration started ({reason}).");
+            log($"{label} narration started ({reason}).");
             return true;
         }
         catch (Exception ex)
         {
-            log($"Opening movie narration failed to start ({reason}): {ex.Message}");
+            log($"{label} narration failed to start ({reason}): {ex.Message}");
             return false;
         }
     }
@@ -115,7 +119,7 @@ internal sealed class OpeningMovieAudioTrackPlayer : IDisposable
         }
 
         playback.Dispose();
-        log($"Opening movie narration stopped ({reason}).");
+        log($"{label} narration stopped ({reason}).");
         return true;
     }
 
@@ -144,11 +148,11 @@ internal sealed class OpeningMovieAudioTrackPlayer : IDisposable
         playback.Dispose();
         if (exception is not null)
         {
-            log($"Opening movie narration playback failed: {exception.Message}");
+            log($"{label} narration playback failed: {exception.Message}");
         }
         else
         {
-            log("Opening movie narration reached the end of its track.");
+            log($"{label} narration reached the end of its track.");
         }
     }
 

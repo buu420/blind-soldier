@@ -9,6 +9,7 @@ internal static class WorldMapStateReaderTests
         ReadsCoherentNativeWorldPlayerState();
         RejectsOtherModulesAndNullPlayer();
         RejectsTornNestedPlayerState();
+        RejectsATornNativeTrackFlag();
     }
 
     private static void ReadsCoherentNativeWorldPlayerState()
@@ -25,7 +26,10 @@ internal static class WorldMapStateReaderTests
         WriteInt32(bytes, player + WorldMapStateReader.PositionYOffset, 700);
         WriteInt32(bytes, player + WorldMapStateReader.PositionZOffset, 113_000);
         WriteInt16(bytes, player + WorldMapStateReader.FacingOffset, 1234);
-        WriteUInt16(bytes, player + WorldMapStateReader.WalkmapTypeOffset, (ushort)(4 | (2 << 9)));
+        WriteUInt16(
+            bytes,
+            player + WorldMapStateReader.WalkmapTypeOffset,
+            (ushort)(4 | (7 << 5) | (2 << 9) | (1 << 15)));
         WriteInt16(bytes, player + WorldMapStateReader.DirectionOffset, 2345);
         WriteByte(bytes, player + WorldMapStateReader.ModelIdOffset, 0);
         WriteByte(bytes, player + WorldMapStateReader.MovementSpeedOffset, 30);
@@ -37,7 +41,9 @@ internal static class WorldMapStateReaderTests
         Equal(700, result.State.Y, "world elevation");
         Equal(113_000, result.State.Z, "world z");
         Equal(4, result.State.TerrainId, "terrain id");
+        Equal(7, result.State.TerrainScriptId, "native terrain script id");
         Equal(2, result.State.RegionId, "region id");
+        Equal(true, result.State.HasChocoboTracks, "native chocobo-track bit");
         Equal(0, result.State.PlayerModelId, "player model id");
         Equal(30, result.State.MovementSpeed, "movement speed");
         Equal(341, result.State.GameMoment, "game moment");
@@ -76,6 +82,29 @@ internal static class WorldMapStateReaderTests
             new TearingWorldMemory(bytes, (uint)(player + WorldMapStateReader.PositionXOffset))).Read();
 
         Equal(false, result.IsUsable, "torn nested entity state fails closed");
+    }
+
+    private static void RejectsATornNativeTrackFlag()
+    {
+        const int player = 0x0012_3000;
+        var bytes = CreateHeader(WorldMapStateReader.WorldModule, player);
+        WriteInt32(bytes, player + WorldMapStateReader.PositionXOffset, 100);
+        WriteInt32(bytes, player + WorldMapStateReader.PositionYOffset, 200);
+        WriteInt32(bytes, player + WorldMapStateReader.PositionZOffset, 300);
+        WriteInt16(bytes, player + WorldMapStateReader.FacingOffset, 0);
+        WriteUInt16(bytes, player + WorldMapStateReader.WalkmapTypeOffset, 1);
+        WriteInt16(bytes, player + WorldMapStateReader.DirectionOffset, 0);
+        WriteByte(bytes, player + WorldMapStateReader.ModelIdOffset, 0);
+        WriteByte(bytes, player + WorldMapStateReader.MovementSpeedOffset, 30);
+
+        var result = new WorldMapStateReader(
+            new TearingWorldMemory(
+                bytes,
+                (uint)(player + WorldMapStateReader.WalkmapTypeOffset),
+                byteIndex: 1,
+                xorMask: 0x80)).Read();
+
+        Equal(false, result.IsUsable, "a track flag that changes between samples fails closed");
     }
 
     private static Dictionary<int, byte> CreateHeader(byte module, int playerPointer)
@@ -123,7 +152,9 @@ internal static class WorldMapStateReaderTests
 
     private sealed class TearingWorldMemory(
         IReadOnlyDictionary<int, byte> bytes,
-        uint tearingAddress) : Ff7.Accessibility.LegacyLayout.ILegacyAddressSpace
+        uint tearingAddress,
+        int byteIndex = 0,
+        byte xorMask = 1) : Ff7.Accessibility.LegacyLayout.ILegacyAddressSpace
     {
         private int readCount;
 
@@ -140,7 +171,7 @@ internal static class WorldMapStateReaderTests
 
             if (virtualAddress == tearingAddress && Interlocked.Increment(ref readCount) >= 2)
             {
-                destination[0]++;
+                destination[byteIndex] ^= xorMask;
             }
 
             return true;

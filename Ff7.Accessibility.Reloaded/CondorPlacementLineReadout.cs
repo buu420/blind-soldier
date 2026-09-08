@@ -18,13 +18,24 @@ namespace Ff7.Accessibility.Reloaded;
 /// below it had already opened. He lost. Nothing in the mod ever said the line
 /// had moved. This is that fact, on a key.</para>
 ///
-/// <para>On a key rather than in the running readout on purpose: the earlier
-/// version of this was spoken with every placement answer and buried the
-/// coordinates the cursor readout exists to deliver, which is why it was taken
-/// out on 2026-08-22. It is reference the player asks for, not commentary.</para>
+/// <para>The full relation to the cursor is on P rather than in the running
+/// cursor readout: the earlier version buried the coordinates that readout
+/// exists to deliver. The line itself is also an event when combat begins and
+/// when it has moved materially, because a sighted player sees that boundary
+/// move without asking.</para>
 /// </remarks>
 public static class CondorPlacementLineReadout
 {
+    /// <summary>
+    /// The event sentence shared by automatic speech and the first sentence of
+    /// the P-key answer, so the same snapshot cannot produce two line numbers.
+    /// </summary>
+    public static string DescribeLine(CondorBattleSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        return $"Battle line at {CondorPlacementRegion.VerticalLimit(snapshot)}.";
+    }
+
     /// <summary>
     /// Says where the line is and how far the cursor is from it.
     /// </summary>
@@ -35,7 +46,7 @@ public static class CondorPlacementLineReadout
         var line = CondorPlacementRegion.VerticalLimit(snapshot);
         var parts = new List<string>
         {
-            $"Battle line at {line}",
+            DescribeLine(snapshot).TrimEnd('.'),
             DescribeCursor(snapshot.CursorY, line)
         };
 

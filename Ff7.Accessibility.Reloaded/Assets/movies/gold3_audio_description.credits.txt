@@ -1,0 +1,10 @@
+Visual description drafts generated with ViddyScribe (https://viddyscribe.com),
+then reviewed and corrected against the original Final Fantasy VII film.
+
+Narration synthesized locally using Microsoft Zira Desktop, rate 1.
+This is narration-only audio. The game supplies its original movie and music.
+Film: gold3.avi; native movie number: 7.
+Source and narration duration: 11.200000 seconds.
+ViddyScribe reviewed text job: 2e6da0c5-e356-4fd9-b727-1a905be3c568.
+Mono 44.1 kHz Vorbis quality 6; each spoken cue normalized toward -22 dBFS RMS, peak limited to -1 dBFS.
+Preserve this attribution when distributing the narration asset.

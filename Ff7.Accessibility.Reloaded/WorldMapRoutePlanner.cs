@@ -99,8 +99,9 @@ public sealed class WorldMapRoutePlanner
             .Select(id => map.Triangles[id])
             .Where(triangle => ContainsPoint(triangle, normalizedX, normalizedZ))
             .OrderBy(triangle => triangle.TerrainId == state.TerrainId ? 0 : 1)
+            .ThenBy(triangle => triangle.TerrainScriptId == state.TerrainScriptId ? 0 : 1)
             .ThenBy(triangle => (triangle.RegionId & 0x1F) == state.RegionId ? 0 : 1)
-            .ThenBy(triangle => Math.Abs(triangle.Centroid.Y - state.Y))
+            .ThenBy(triangle => Math.Abs(SurfaceHeightAt(triangle, normalizedX, normalizedZ) - state.Y))
             .FirstOrDefault();
         if (containing is not null)
         {
@@ -112,7 +113,8 @@ public sealed class WorldMapRoutePlanner
         var nearest = candidates
             .Select(id => map.Triangles[id])
             .Where(triangle => triangle.TerrainId == state.TerrainId)
-            .OrderBy(triangle => DistanceSquared(
+            .OrderBy(triangle => triangle.TerrainScriptId == state.TerrainScriptId ? 0 : 1)
+            .ThenBy(triangle => DistanceSquared(
                 state.X,
                 state.Y,
                 state.Z,
@@ -217,6 +219,150 @@ public sealed class WorldMapRoutePlanner
             ? $"target {target.Label} shares walkable component {startComponent}"
             : $"target {target.Label} is outside walkable component {startComponent}";
         return reachable;
+    }
+
+    internal bool CanTraverseSegment(WorldMapStateSnapshot state, WorldMapRouteWaypoint destination)
+    {
+        if (!TryResolvePlayerTriangle(state, out var startTriangle))
+        {
+            return false;
+        }
+
+        // Highwind flies above ground faces, including native vertical faces
+        // with no X/Z area. Retain the native owner/position check above.
+        if (state.PlayerModelId == 3)
+        {
+            return true;
+        }
+
+        var end = Unwrap(destination, state.X, state.Z);
+        var pending = new Queue<(int TriangleId, double EnteredAt)>();
+        var entered = new Dictionary<int, double> { [startTriangle] = 0d };
+        pending.Enqueue((startTriangle, 0d));
+        while (pending.TryDequeue(out var current))
+        {
+            var triangle = map.Triangles[current.TriangleId];
+            if (!WorldMapTerrainPassability.CanTraverse(state.PlayerModelId, state.WorldMapType, triangle.TerrainId) ||
+                !TryClipSegment(triangle, state, end, out var first, out var last) ||
+                current.EnteredAt < first - 1e-7 || current.EnteredAt > last + 1e-7)
+            {
+                continue;
+            }
+
+            if (last >= 1d - 1e-7)
+            {
+                return true;
+            }
+
+            foreach (var neighborId in triangle.Neighbors)
+            {
+                if (!TryFindSharedEdge(triangle, map.Triangles[neighborId], out var a, out var b) ||
+                    !TryIntersectEdge(state, end, Unwrap(a, state.X, state.Z), Unwrap(b, state.X, state.Z),
+                        out var edgeFirst, out var edgeLast))
+                {
+                    continue;
+                }
+
+                var nextAt = Math.Max(current.EnteredAt, edgeFirst);
+                if (nextAt > Math.Min(last, edgeLast) + 1e-7 ||
+                    entered.TryGetValue(neighborId, out var prior) && prior <= nextAt + 1e-7)
+                {
+                    continue;
+                }
+
+                entered[neighborId] = nextAt;
+                pending.Enqueue((neighborId, nextAt));
+            }
+        }
+
+        return false;
+    }
+
+    private bool TryClipSegment(WorldMapTriangle triangle, WorldMapStateSnapshot start,
+        WorldMapRouteWaypoint end, out double first, out double last)
+    {
+        first = 0d;
+        last = 1d;
+        var vertices = new[] { Unwrap(triangle.Vertex0, start.X, start.Z),
+            Unwrap(triangle.Vertex1, start.X, start.Z), Unwrap(triangle.Vertex2, start.X, start.Z) };
+        var winding = Math.Sign(Cross(vertices[1].X - vertices[0].X, vertices[1].Z - vertices[0].Z,
+            vertices[2].X - vertices[0].X, vertices[2].Z - vertices[0].Z));
+        if (winding == 0) return false;
+        for (var index = 0; index < 3; index++)
+        {
+            var a = vertices[index];
+            var b = vertices[(index + 1) % 3];
+            var from = winding * Cross(b.X - a.X, b.Z - a.Z, start.X - a.X, start.Z - a.Z);
+            var to = winding * Cross(b.X - a.X, b.Z - a.Z, end.X - a.X, end.Z - a.Z);
+            if (from < 0d && to < 0d) return false;
+            if (from < 0d) first = Math.Max(first, from / (from - to));
+            if (to < 0d) last = Math.Min(last, from / (from - to));
+            if (first > last + 1e-7) return false;
+        }
+        return true;
+    }
+
+    private static bool TryIntersectEdge(WorldMapStateSnapshot start, WorldMapRouteWaypoint end,
+        WorldMapRouteWaypoint a, WorldMapRouteWaypoint b, out double first, out double last)
+    {
+        first = last = 0d;
+        var dx = end.X - (double)start.X;
+        var dz = end.Z - (double)start.Z;
+        var ex = b.X - (double)a.X;
+        var ez = b.Z - (double)a.Z;
+        var denominator = Cross(dx, dz, ex, ez);
+        var ax = a.X - (double)start.X;
+        var az = a.Z - (double)start.Z;
+        if (Math.Abs(denominator) > 1e-7)
+        {
+            first = last = Cross(ax, az, ex, ez) / denominator;
+            var edgeAt = Cross(ax, az, dx, dz) / denominator;
+            return first >= -1e-7 && first <= 1d + 1e-7 && edgeAt >= -1e-7 && edgeAt <= 1d + 1e-7;
+        }
+
+        var lengthSquared = dx * dx + dz * dz;
+        if (lengthSquared <= 0d || Math.Abs(Cross(ax, az, dx, dz)) > 1e-7) return false;
+        var atA = (ax * dx + az * dz) / lengthSquared;
+        var atB = ((b.X - (double)start.X) * dx + (b.Z - (double)start.Z) * dz) / lengthSquared;
+        first = Math.Max(0d, Math.Min(atA, atB));
+        last = Math.Min(1d, Math.Max(atA, atB));
+        return first <= last + 1e-7;
+    }
+
+    private static double Cross(double ax, double az, double bx, double bz) => ax * bz - az * bx;
+
+    internal bool TryResolveReachableComponent(
+        WorldMapStateSnapshot state,
+        out int componentId)
+    {
+        componentId = -1;
+        if (!TryResolvePlayerTriangle(state, out var triangleId) ||
+            !WorldMapTerrainPassability.CanTraverse(
+                state.PlayerModelId,
+                state.WorldMapType,
+                map.Triangles[triangleId].TerrainId))
+        {
+            return false;
+        }
+
+        componentId = GetComponentId(
+            state.PlayerModelId,
+            state.WorldMapType,
+            triangleId);
+        return componentId >= 0;
+    }
+
+    internal int GetComponentId(
+        int playerModelId,
+        int worldMapType,
+        int triangleId)
+    {
+        if (triangleId < 0 || triangleId >= map.Triangles.Count)
+        {
+            return -1;
+        }
+
+        return GetComponentIds(playerModelId, worldMapType)[triangleId];
     }
 
     public double MeasureRemainingDistance(
@@ -420,9 +566,18 @@ public sealed class WorldMapRoutePlanner
                 unwrappedCentroids[index + 1]));
         }
 
-        var normalizedFinalPoint = targetTriangle == target.TriangleId
-            ? new WorldMapRouteWaypoint(target.X, target.Y, target.Z)
-            : ToWaypoint(map.Triangles[targetTriangle].Centroid);
+        var nativeArrival = target.NativeLocationArrivals
+            .Where(arrival => arrival.TriangleId == targetTriangle)
+            .Select(arrival => (WorldMapNativeLocationArrival?)arrival)
+            .FirstOrDefault();
+        var normalizedFinalPoint = nativeArrival is { } resolvedNativeArrival
+            ? new WorldMapRouteWaypoint(
+                resolvedNativeArrival.X,
+                resolvedNativeArrival.Y,
+                resolvedNativeArrival.Z)
+            : targetTriangle == target.TriangleId
+                ? new WorldMapRouteWaypoint(target.X, target.Y, target.Z)
+                : ToWaypoint(map.Triangles[targetTriangle].Centroid);
         var finalReference = unwrappedCentroids.Count > 0 ? unwrappedCentroids[^1] : start;
         var unwrappedFinalPoint = Unwrap(
             normalizedFinalPoint,
@@ -596,6 +751,18 @@ public sealed class WorldMapRoutePlanner
 
     private static WorldMapRouteWaypoint ToWaypoint(WorldMapVertex vertex) =>
         new(vertex.X, vertex.Y, vertex.Z);
+
+    private static double SurfaceHeightAt(WorldMapTriangle triangle, int x, int z)
+    {
+        var a = triangle.Vertex0;
+        var b = triangle.Vertex1;
+        var c = triangle.Vertex2;
+        var denominator = (b.Z - c.Z) * (double)(a.X - c.X) + (c.X - b.X) * (double)(a.Z - c.Z);
+        if (denominator == 0d) return triangle.Centroid.Y;
+        var weightA = ((b.Z - c.Z) * (double)(x - c.X) + (c.X - b.X) * (double)(z - c.Z)) / denominator;
+        var weightB = ((c.Z - a.Z) * (double)(x - c.X) + (a.X - c.X) * (double)(z - c.Z)) / denominator;
+        return weightA * a.Y + weightB * b.Y + (1d - weightA - weightB) * c.Y;
+    }
 
     private static bool ContainsPoint(WorldMapTriangle triangle, int x, int z)
     {

@@ -26,8 +26,21 @@ internal static class WorldMapDataLoaderTests
         Equal(69, map.RawBlockCount, "overworld physical blocks");
         Equal(63, map.ActiveBlockCount, "overworld logical blocks");
         Equal(true, map.Triangles.Count > 10_000, "overworld triangle population");
-        Equal(124, map.Triangles.Count(triangle => WorldMapDataLoader.IsChocoboTrackTexture(triangle.TextureId)), "native chocobo-track triangles");
+        var nativeTracks = map.Triangles.Where(triangle => triangle.HasChocoboTracks).ToArray();
+        var textureGuess = map.Triangles
+            .Where(triangle => triangle.TextureId is 233 or 254 or 281)
+            .ToArray();
+        Equal(837, nativeTracks.Length, "native chocobo-track triangles");
+        Equal(124, textureGuess.Length, "former texture-id proxy triangles");
+        Equal(
+            123,
+            nativeTracks.Select(triangle => triangle.Id).Intersect(textureGuess.Select(triangle => triangle.Id)).Count(),
+            "native and proxy overlap exposes 714 omissions and one false positive");
         Equal(true, map.Triangles.Any(triangle => triangle.Neighbors.Count > 0), "triangle adjacency");
+        var junonTriggers = map.Triangles
+            .Where(triangle => triangle.MeshX == 20 && triangle.MeshZ == 17 && triangle.TerrainScriptId == 7)
+            .ToArray();
+        Equal(4, junonTriggers.Length, "native Junon terrain-script triangles");
     }
 
     private static void AppliesNativeOverworldProgressReplacements()

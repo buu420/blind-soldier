@@ -13,8 +13,10 @@ public sealed record WorldMapTriangle(
     WorldMapVertex Vertex1,
     WorldMapVertex Vertex2,
     int TerrainId,
+    int TerrainScriptId,
     int TextureId,
     int RegionId,
+    bool HasChocoboTracks,
     IReadOnlyList<int> Neighbors)
 {
     public WorldMapVertex Centroid => new(

@@ -1,0 +1,16 @@
+Junon through Gold Saucer arrival visual descriptions
+
+Audio descriptions generated with ViddyScribe (https://viddyscribe.com).
+The drafts were reviewed and corrected against original-game footage and
+native FFVII field scripts before integration. The mod speaks the reviewed
+text at native game events using the player's configured speech output.
+
+Reference gameplay: SourceSpy91, Final Fantasy VII no-commentary walkthrough:
+Junon Airport: https://www.youtube.com/watch?v=GAYIDUod0pc
+Cargo Ship: https://www.youtube.com/watch?v=ZNprVuzoHQo
+Costa del Sol: https://www.youtube.com/watch?v=7rGZNRD7SYI
+Mount Corel: https://www.youtube.com/watch?v=YsvJ7rWO2Hg
+North Corel: https://www.youtube.com/watch?v=7bTko6nB2AI
+Gold Saucer: https://www.youtube.com/watch?v=0TEpfDj9aBA
+
+Reference footage and generated draft videos are not distributed with the mod.

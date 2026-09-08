@@ -99,7 +99,28 @@ public sealed class CondorBattleSpeechTracker
         };
 
     private readonly Action<string> log;
+    private readonly bool enableBattleLineAnnouncements;
+    private readonly bool enableEnemyArrivalAnnouncements;
     private readonly HashSet<int> reportedUnknownTypes = [];
+
+    /// <summary>
+    /// Sixteen native cursor steps. Across the 2026-08-29 battle trace this
+    /// reports nine meaningful positions in thirteen minutes, including the
+    /// combat-start snap and the deepest advance, without narrating small
+    /// reversals around a unit's current row.
+    /// </summary>
+    private const int BattleLineMovementThreshold = 64;
+
+    private const int LeftEnemySpawnX = 64;
+    private const int RightEnemySpawnX = 288;
+    private const int EnemySpawnY = 992;
+
+    /// <summary>
+    /// Each native simulation pass moves a unit by at most one cursor unit. The
+    /// reader polls at about 10 Hz, so this admits many delayed frames while the
+    /// two 224-unit-separated spawn neighborhoods remain disjoint.
+    /// </summary>
+    private const int EnemySpawnObservationRadius = 64;
 
     /// <summary>
     /// How many disagreements between the calculated answer and the game's own
@@ -177,6 +198,7 @@ public sealed class CondorBattleSpeechTracker
 
     private bool started;
     private int lastAdvanceBand = -1;
+    private int? lastAnnouncedBattleLine;
     private int lastPhase;
     private bool resultSpoken;
     private int lastMessageId;
@@ -195,14 +217,22 @@ public sealed class CondorBattleSpeechTracker
     private (int X, int Y)? lastDestinationSample;
     private bool statefulReadoutSupersedesSpeech;
 
-    public CondorBattleSpeechTracker(Action<string>? log = null) =>
+    public CondorBattleSpeechTracker(
+        Action<string>? log = null,
+        bool enableBattleLineAnnouncements = true,
+        bool enableEnemyArrivalAnnouncements = true)
+    {
         this.log = log ?? (_ => { });
+        this.enableBattleLineAnnouncements = enableBattleLineAnnouncements;
+        this.enableEnemyArrivalAnnouncements = enableEnemyArrivalAnnouncements;
+    }
 
     /// <summary>Forgets the battle, so re-entering module 9 announces itself again.</summary>
     public void Reset()
     {
         started = false;
         lastAdvanceBand = -1;
+        lastAnnouncedBattleLine = null;
         resultSpoken = false;
         standing.Clear();
         previousMotionUnits.Clear();
@@ -256,9 +286,9 @@ public sealed class CondorBattleSpeechTracker
     /// Answers and consumes the banked P press: where the battle line is now.
     /// </summary>
     /// <remarks>
-    /// Unlike the status key this has no opening-line special case to avoid
-    /// duplicating, because nothing else ever says where the line is - which was
-    /// the entire problem. See <see cref="CondorPlacementLineReadout"/>.
+    /// The automatic event only says the line after a meaningful change. P is
+    /// still the on-demand answer that also says where the cursor stands relative
+    /// to it, and it remains available when automatic announcements are disabled.
     /// </remarks>
     public string? ConsumeRequestedPlacementLine(CondorBattleSnapshot snapshot)
     {
@@ -310,12 +340,13 @@ public sealed class CondorBattleSpeechTracker
     /// Applies one navigation action and returns what to say.
     /// </summary>
     /// <param name="moveCursor">
-    /// Moves the game's own cursor, returning whether the write took. Only the
-    /// jump uses it; passing null means a jump reports that it could not move.
+    /// Asks the host to steer the game's active cursor to the selected stable
+    /// target, returning whether the jump was accepted. Only the jump uses it;
+    /// passing null means a jump reports that it could not move.
     /// </param>
     public string? Navigate(
         CondorNavigationAction action,
-        Func<int, int, bool>? moveCursor = null) =>
+        Func<CondorNavigationTarget, bool>? moveCursor = null) =>
         navigator.Handle(action, moveCursor);
 
     /// <summary>
@@ -395,7 +426,7 @@ public sealed class CondorBattleSpeechTracker
             // Populate the navigator before the host applies keys banked during
             // confirmation. Otherwise the first accepted state can be spoken
             // correctly while J/L still answer "None."
-            navigator.Update(snapshot.Units, snapshot.CursorX, snapshot.CursorY);
+            navigator.Update(snapshot.Units, snapshot.NavigationCursorX, snapshot.NavigationCursorY);
 
             if (snapshot.SettingMenuOpen)
             {
@@ -423,6 +454,7 @@ public sealed class CondorBattleSpeechTracker
             RememberStanding(snapshot);
             SeedOrderedMoves(snapshot);
             lastAdvanceBand = AdvanceBand(snapshot.EnemyAdvance);
+            lastAnnouncedBattleLine = CondorPlacementRegion.VerticalLimit(snapshot);
             Remember(snapshot);
 
             // Entry is a finite ordered description, not a stream of stale
@@ -475,7 +507,8 @@ public sealed class CondorBattleSpeechTracker
                 $"{snapshot.LivingEnemies} enemy units still standing.");
         }
 
-        lines.AddRange(ObserveCasualties(snapshot, bannerChanged));
+        lines.AddRange(ObserveBattleLine(snapshot));
+        lines.AddRange(ObserveUnitPopulationChanges(snapshot, bannerChanged));
         lines.AddRange(ObserveEnemyAdvance(snapshot));
 
         if (snapshot.GameSpeed != lastGameSpeed)
@@ -486,7 +519,7 @@ public sealed class CondorBattleSpeechTracker
 
         // After the casualty diff, so a unit that has just fallen is already in
         // the losses list rather than still counted among the living.
-        navigator.Update(snapshot.Units, snapshot.CursorX, snapshot.CursorY);
+        navigator.Update(snapshot.Units, snapshot.NavigationCursorX, snapshot.NavigationCursorY);
         lines.AddRange(ObserveUnitMovement(snapshot));
 
         if (snapshot.SettingMenuOpen && !lastSettingMenuOpen)
@@ -764,7 +797,7 @@ public sealed class CondorBattleSpeechTracker
     }
 
     /// <summary>
-    /// The units that have gone down since the last reading.
+    /// The units that have gone down or entered since the last reading.
     /// </summary>
     /// <remarks>
     /// This is the drumbeat of the battle and what a sighted player is actually
@@ -774,10 +807,12 @@ public sealed class CondorBattleSpeechTracker
     /// silence and the player had to ask who had won.
     ///
     /// <para>Only read across a steady phase. The live array is rebuilt when the
-    /// battle changes phase, and reporting that as twenty deaths would be a lie
-    /// told loudly.</para>
+    /// battle changes phase, and reporting that as twenty deaths followed by
+    /// twenty arrivals would be a lie told loudly.</para>
     /// </remarks>
-    private IEnumerable<string> ObserveCasualties(CondorBattleSnapshot snapshot, bool bannerChanged)
+    private IEnumerable<string> ObserveUnitPopulationChanges(
+        CondorBattleSnapshot snapshot,
+        bool bannerChanged)
     {
         var lines = new List<string>();
         var alive = snapshot.Units
@@ -820,6 +855,23 @@ public sealed class CondorBattleSpeechTracker
                     : $"{enemies.Count} enemies destroyed.";
                 var left = Pluralize(snapshot.LivingEnemies, "enemy", "enemies");
                 lines.Add($"{what} {left} left.");
+            }
+
+            if (enableEnemyArrivalAnnouncements)
+            {
+                foreach (var arrived in alive.Values
+                             .Where(unit => unit.IsEnemy && !standing.ContainsKey(unit.Slot))
+                             .OrderBy(unit => unit.Slot))
+                {
+                    var side = EnemySpawnSide(arrived);
+                    var line = side is null
+                        ? $"{Capitalize(arrived.Name)} appeared. Entry side unavailable."
+                        : $"{Capitalize(arrived.Name)} entered from the {side}.";
+                    lines.Add(line);
+                    log(
+                        $"Fort Condor enemy arrival: slot={arrived.Slot}, type={arrived.TypeId}, " +
+                        $"position={arrived.X},{arrived.Y}, side={side ?? "unavailable"}.");
+                }
             }
         }
 
@@ -968,6 +1020,64 @@ public sealed class CondorBattleSpeechTracker
 
         UpdateUnitStopReadouts(snapshot, current);
         return lines;
+    }
+
+    /// <summary>
+    /// The build boundary as an event, separate from the cursor readout. The
+    /// anchor is the last value the player actually heard, not the previous
+    /// sample, so slow cumulative movement still reaches the threshold.
+    /// </summary>
+    private IEnumerable<string> ObserveBattleLine(CondorBattleSnapshot snapshot)
+    {
+        var line = CondorPlacementRegion.VerticalLimit(snapshot);
+        if (lastAnnouncedBattleLine is not { } announced)
+        {
+            lastAnnouncedBattleLine = line;
+            yield break;
+        }
+
+        if (!enableBattleLineAnnouncements)
+        {
+            lastAnnouncedBattleLine = line;
+            yield break;
+        }
+
+        var combatBegan =
+            lastPhase == CondorPlacementRegion.SetupPhase &&
+            snapshot.Phase != CondorPlacementRegion.SetupPhase;
+        if (!combatBegan && Math.Abs(line - announced) < BattleLineMovementThreshold)
+        {
+            yield break;
+        }
+
+        lastAnnouncedBattleLine = line;
+        yield return CondorPlacementLineReadout.DescribeLine(snapshot);
+    }
+
+    private static string? EnemySpawnSide(CondorBattleUnit unit)
+    {
+        var leftDistance = DistanceSquared(unit.X, unit.Y, LeftEnemySpawnX, EnemySpawnY);
+        var rightDistance = DistanceSquared(unit.X, unit.Y, RightEnemySpawnX, EnemySpawnY);
+        var maximumDistance = EnemySpawnObservationRadius * EnemySpawnObservationRadius;
+
+        if (leftDistance <= maximumDistance && leftDistance < rightDistance)
+        {
+            return "left";
+        }
+
+        if (rightDistance <= maximumDistance && rightDistance < leftDistance)
+        {
+            return "right";
+        }
+
+        return null;
+    }
+
+    private static long DistanceSquared(int x, int y, int anchorX, int anchorY)
+    {
+        var dx = (long)x - anchorX;
+        var dy = (long)y - anchorY;
+        return (dx * dx) + (dy * dy);
     }
 
     private void AcknowledgeOrderedMoveIfFollowing(

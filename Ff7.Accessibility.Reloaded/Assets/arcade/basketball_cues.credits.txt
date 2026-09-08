@@ -1,0 +1,1 @@
+Original synthesized accessibility cues created for Blind Soldier on 2026-09-07. Mono 44.1 kHz 16-bit PCM. No game audio or external samples. Rise tick: 32 ms, 550 Hz; top pose: 95 ms, 1100 Hz. Both have short fades to avoid clicks. These sounds label native visible animation states; they do not encode the game's hidden success threshold.

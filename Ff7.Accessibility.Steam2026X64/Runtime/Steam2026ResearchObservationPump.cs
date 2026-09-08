@@ -48,8 +48,10 @@ internal sealed class Steam2026ResearchObservationPump
         ulong moduleBase,
         INativeMemoryReader memory,
         TimeSpan fieldMessageStableWindow,
+        AccessibilityConfig config,
         Action<string>? log = null)
     {
+        ArgumentNullException.ThrowIfNull(config);
         this.log = log ?? (_ => { });
         lifecycleReader = new Steam2026LifecycleObservationReader(
             fingerprint,
@@ -81,7 +83,10 @@ internal sealed class Steam2026ResearchObservationPump
         // Module 9 has no text to intercept on either executable, so the same
         // reader and the same wording are used here as on x86.
         condorBattleReader = new CondorBattleStateReader(translatedAddressSpace);
-        condorBattleSpeechTracker = new CondorBattleSpeechTracker(this.log);
+        condorBattleSpeechTracker = new CondorBattleSpeechTracker(
+            this.log,
+            config.EnableCondorBattleLineAnnouncements,
+            config.EnableCondorEnemyArrivalAnnouncements);
 
         // The same shared steering the x86 runtime uses. The jump used to exist
         // on one executable only; routing both through one implementation is
@@ -231,7 +236,7 @@ internal sealed class Steam2026ResearchObservationPump
         {
             var spoken = condorBattleSpeechTracker.Navigate(
                 action,
-                (x, y) => BeginCondorCursorJump(snapshot, x, y));
+                target => BeginCondorCursorJump(snapshot, target));
             if (string.IsNullOrEmpty(spoken))
             {
                 continue;
@@ -255,19 +260,16 @@ internal sealed class Steam2026ResearchObservationPump
     /// refuses that write and always will. This holds the game's own direction
     /// keys instead and lets go when the cursor gets there.
     /// </remarks>
-    private bool BeginCondorCursorJump(CondorBattleSnapshot snapshot, int x, int y)
+    private bool BeginCondorCursorJump(
+        CondorBattleSnapshot snapshot,
+        CondorNavigationTarget target)
     {
-        if (!snapshot.CursorUnderPlayerControl)
-        {
-            // A menu has the direction keys. Steering now would operate that
-            // menu instead, so the navigator falls back to saying both
-            // positions rather than claiming a move it cannot make.
-            log("Fort Condor steering: refused, the direction keys are not moving the cursor.");
-            return false;
-        }
-
-        condorCursorSteering.Begin(x, y, snapshot.CursorX, snapshot.CursorY);
-        return true;
+        // The shared controller selects the battlefield or destination cursor
+        // from this coherent snapshot, retains the selected unit's stable slot,
+        // and enforces the mode/modal/report and held-input gates identically on
+        // x86 and x64. This host never injects OK; the controller only owns the
+        // four mapped direction keys.
+        return condorCursorSteering.TryBegin(target, snapshot);
     }
 
     /// <summary>
@@ -282,12 +284,7 @@ internal sealed class Steam2026ResearchObservationPump
             return null;
         }
 
-        var step = condorCursorSteering.Step(
-            cursorReadable: snapshot is not null,
-            underCursorControl: snapshot?.CursorUnderPlayerControl ?? true,
-            snapshot?.CursorX ?? 0,
-            snapshot?.CursorY ?? 0,
-            snapshot?.HeldDirectionMask ?? 0);
+        var step = condorCursorSteering.Step(snapshot);
 
         if (step.Speech is { } speech)
         {

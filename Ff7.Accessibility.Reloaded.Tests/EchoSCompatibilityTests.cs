@@ -52,6 +52,90 @@ internal static class EchoSCompatibilityTests
         Equal(false, reader.TryRead(out _), "torn loaded script rejected");
     }
 
+    internal static void AuthorizesInstalledJunonThroughCostaDescriptionAnchors(string gameRoot)
+    {
+        const uint scriptPointer = 0x02000000;
+        var source = new FlevelDataSource(gameRoot);
+        var nativeCatalog = new FieldScriptNavigationCatalog(gameRoot);
+        var fieldIds = new[] { 361, 382, 384, 385, 387, 391, 395, 436, 437, 440, 441, 442,
+            449, 450, 457, 463, 464, 469, 470, 483, 496 };
+        var cues = FieldCutsceneDescriptionCatalog.CreateEarlyGameDescriptions();
+        foreach (var fieldId in fieldIds)
+        {
+            Equal(true, source.TryReadField(fieldId, out var encoded), $"read installed description field {fieldId}");
+            var bytes = Ff7LzsDecoder.DecodeFieldFile(encoded);
+            var sectionOffset = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(6));
+            var sectionLength = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(sectionOffset));
+            var section = bytes.AsSpan(sectionOffset + sizeof(int), sectionLength).ToArray();
+            var memory = new ScriptIdentityMemory();
+            memory.Write((uint)FieldScriptContextReader.AddressCurrentModule, FieldPositionReader.FieldModule);
+            memory.WriteUInt16((uint)FieldScriptContextReader.AddressCurrentFieldId, (ushort)fieldId);
+            memory.WriteUInt32((uint)FieldScriptContextReader.AddressFieldScriptPtr, scriptPointer);
+            memory.Write(scriptPointer, section);
+            var reader = new LoadedFieldScriptIdentityReader(memory);
+            Equal(true, reader.TryRead(out var identity), $"coherent installed identity for field {fieldId}");
+            Console.WriteLine($"Installed description identity: field={fieldId}, sha256={identity.ScriptPrefixSha256}.");
+            if (fieldId == 440)
+            {
+                Equal(
+                    "F570555FA98BC0BCA9DEA33D792FE1B3E05D8232484532DA76BABA825B8C505B",
+                    identity.ScriptPrefixSha256,
+                    "cargo engine-room installed prefix matches the user's live 2026-09-05 identity");
+            }
+            Equal(SupportedFieldScriptVariant.Vanilla, EchoSCompatibilityManifest.ResolveVariant(identity),
+                $"installed field {fieldId} must authorize its native descriptions");
+
+            if (fieldId == 436)
+            {
+                var nativeDfanm = nativeCatalog.ReadScriptOpcodes(436, 14, 1).Single(opcode => opcode.ByteIndex == 135);
+                Equal("A20401", Convert.ToHexString(nativeDfanm.Bytes.ToArray()), "installed Red talk animation-loop instruction");
+                var tableOffset = BinaryPrimitives.ReadUInt16LittleEndian(section.AsSpan(6)) * 4
+                    + FieldScriptContextReader.ScriptOffsetTableHeaderSize + section[2] * 8
+                    + 14 * FieldScriptContextReader.ScriptOffsetEntityStride + sizeof(ushort);
+                var scriptBase = BinaryPrimitives.ReadUInt16LittleEndian(section.AsSpan(tableOffset));
+                memory.Write((uint)FieldScriptContextReader.AddressCurrentEntityId, 14);
+                memory.Write((uint)(FieldScriptContextReader.AddressCurrentEntityScriptPriority + 14), 6);
+                memory.Write((uint)(FieldScriptContextReader.AddressCurrentEntityScriptId + 14 * 8 + 6), 1);
+                memory.WriteUInt16((uint)(FieldScriptContextReader.AddressFieldCurrScriptPosition + 14 * sizeof(ushort)), (ushort)(scriptBase + 135));
+                Equal(true, new FieldScriptContextReader(memory).TryRead(out var context), "installed Red talk DFANM context decodes");
+                Equal(new FieldScriptContext(436, 14, 1, 135, 0xA2), context, "installed DFANM retains exact script owner and byte position");
+            }
+
+            var tracker = new EchoSFieldCutsceneDescriptionTracker();
+            foreach (var cue in cues.Where(cue => cue.FieldId == fieldId))
+            {
+                var native = nativeCatalog.ReadScriptOpcodes(cue.FieldId, cue.EntityId, cue.ScriptId)
+                    .Single(opcode => opcode.ByteIndex == cue.ByteIndex);
+                Equal(cue.Opcode, native.Opcode, $"authorized field {fieldId} exact native opcode at {cue.ByteIndex}");
+                var context = new FieldScriptContext(cue.FieldId, cue.EntityId, cue.ScriptId, cue.ByteIndex, cue.Opcode);
+                Equal(null, tracker.Observe(context with { ByteIndex = cue.ByteIndex + 1 }, identity), "nearby byte remains silent");
+                Equal(null, tracker.Observe(context with { Opcode = (byte)(cue.Opcode ^ 1) }, identity), "wrong opcode remains silent");
+                Equal(null, tracker.Observe(context, identity with { FieldId = fieldId + 1 }), "wrong field identity remains silent");
+                Equal(cue.Text, tracker.Observe(context, identity)?.Text, $"authorized field {fieldId} cue is deliverable");
+                Equal(null, tracker.Observe(context, identity), "repeated native handler remains deduplicated");
+            }
+
+            // Changing actual script bytes must not authorize a nearby or modified variant.
+            section[31] ^= 1;
+            memory.Write(scriptPointer, section);
+            Equal(true, reader.TryRead(out var changed), "coherent modified script identity");
+            Equal(SupportedFieldScriptVariant.Unknown, EchoSCompatibilityManifest.ResolveVariant(changed),
+                $"modified field {fieldId} remains unsupported");
+            tracker.Reset();
+            foreach (var cue in cues.Where(cue => cue.FieldId == fieldId))
+            {
+                Equal(null, tracker.Observe(new FieldScriptContext(cue.FieldId, cue.EntityId, cue.ScriptId, cue.ByteIndex, cue.Opcode), changed),
+                    "modified script cannot produce catalog narration");
+            }
+        }
+
+        foreach (var fieldId in FieldCutsceneDescriptionCatalog.CreateEarlyGameDescriptions().Select(cue => cue.FieldId).Distinct())
+        {
+            Equal(true, EchoSCompatibilityManifest.SupportsDescriptionField(fieldId),
+                $"catalog field {fieldId} must have an exact identity authorization entry");
+        }
+    }
+
     private static void SelectsOnlyExactSupportedDescriptionVariants()
     {
         var tracker = new EchoSFieldCutsceneDescriptionTracker();

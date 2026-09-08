@@ -5,7 +5,7 @@ using Ff7.Accessibility.Reloaded;
 namespace Ff7.Accessibility.Steam2026X64.Runtime.Field;
 
 /// <summary>
-/// Plays the short cue that marks arriving on a new field map.
+/// Owns the one-shot player for field-map transitions.
 /// </summary>
 /// <remarks>
 /// <para>The legacy runtime has had this since it was written; this one shipped the
@@ -20,15 +20,18 @@ namespace Ff7.Accessibility.Steam2026X64.Runtime.Field;
 /// announce arrival on a map the player never entered, and a false report is the
 /// worst thing this mod can produce.</para>
 ///
-/// <para>Off by default on both runtimes, so this changes nothing audible until
-/// <see cref="AccessibilityConfig.EnableFieldZoneTransitionCue"/> is turned on.</para>
+/// <para>The field-map feature remains off by default and is governed only by
+/// <see cref="AccessibilityConfig.EnableFieldZoneTransitionCue"/>. World-map
+/// entrances use their own repeating proximity player in the world coordinator;
+/// they must never activate this dormant field transition.</para>
 /// </remarks>
 internal sealed class Steam2026FieldZoneTransitionCueCoordinator : IDisposable
 {
     private readonly AccessibilityConfig config;
     private readonly ILegacyAddressSpace addressSpace;
     private readonly FieldZoneTransitionCueTracker tracker;
-    private readonly ImmediateWaveCuePlayer? player;
+    private readonly ImmediateWaveCuePlayer? fieldPlayer;
+    private readonly Action<string>? playFieldCue;
     private readonly Action<string> log;
     private int disposed;
 
@@ -36,29 +39,29 @@ internal sealed class Steam2026FieldZoneTransitionCueCoordinator : IDisposable
         AccessibilityConfig config,
         ILegacyAddressSpace addressSpace,
         string modDirectory,
-        Action<string> log)
+        Action<string> log,
+        Action<string>? playFieldCue = null)
     {
         this.config = config ?? throw new ArgumentNullException(nameof(config));
         this.addressSpace = addressSpace ?? throw new ArgumentNullException(nameof(addressSpace));
         this.log = log ?? throw new ArgumentNullException(nameof(log));
+        this.playFieldCue = playFieldCue;
         ArgumentException.ThrowIfNullOrWhiteSpace(modDirectory);
 
         tracker = new FieldZoneTransitionCueTracker(
             TimeSpan.FromMilliseconds(Math.Max(0, config.FieldZoneTransitionCueSettleMs)));
 
-        // Null when the feature is off, mirroring the legacy host's shape, so a
-        // disabled cue holds no audio device open.
-        player = config.EnableFieldZoneTransitionCue
+        var soundPath = ResolveSoundPath(modDirectory, config.FieldZoneTransitionCueSoundPath);
+        fieldPlayer = playFieldCue is null && config.EnableFieldZoneTransitionCue
             ? new ImmediateWaveCuePlayer(
-                ResolveSoundPath(modDirectory, config.FieldZoneTransitionCueSoundPath),
+                soundPath,
                 config.FieldZoneTransitionCueVolumePercent,
-                "Native Steam 2026 field zone transition cue",
+                "Native Steam 2026 zone transition cue",
                 log)
             : null;
-
         log(
-            "Native Steam 2026 field zone transition cue " +
-            $"{(config.EnableFieldZoneTransitionCue ? "enabled" : "disabled")}, " +
+            "Native Steam 2026 one-shot zone cue " +
+            $"field={(config.EnableFieldZoneTransitionCue ? "enabled" : "disabled")}, " +
             $"settle={Math.Max(0, config.FieldZoneTransitionCueSettleMs)}ms.");
     }
 
@@ -111,7 +114,7 @@ internal sealed class Steam2026FieldZoneTransitionCueCoordinator : IDisposable
             return;
         }
 
-        player?.Play($"field={tracker.PreviousFieldId}->{tracker.CurrentFieldId}");
+        PlayField($"field={tracker.PreviousFieldId}->{tracker.CurrentFieldId}");
     }
 
     /// <summary>
@@ -143,6 +146,17 @@ internal sealed class Steam2026FieldZoneTransitionCueCoordinator : IDisposable
 
     internal void Reset() => tracker.Reset();
 
+    private void PlayField(string reason)
+    {
+        if (playFieldCue is not null)
+        {
+            playFieldCue(reason);
+            return;
+        }
+
+        fieldPlayer?.Play(reason);
+    }
+
     public void Dispose()
     {
         if (Interlocked.Exchange(ref disposed, 1) != 0)
@@ -151,6 +165,6 @@ internal sealed class Steam2026FieldZoneTransitionCueCoordinator : IDisposable
         }
 
         tracker.Reset();
-        player?.Dispose();
+        fieldPlayer?.Dispose();
     }
 }

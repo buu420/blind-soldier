@@ -72,6 +72,17 @@ internal sealed class HighwayAutoSteeringController : IDisposable
 
     internal string LastDiagnostic { get; private set; } = string.Empty;
 
+    internal bool HasOwnedKeys
+    {
+        get
+        {
+            lock (sync)
+            {
+                return ownedKeys.Count != 0;
+            }
+        }
+    }
+
     internal HighwayAutoSteeringInputResult Apply(HighwaySteeringDirection direction)
     {
         lock (sync)

@@ -10,6 +10,16 @@ public enum NativeFieldHookEventKind : byte
     TimerSet
 }
 
+/// <param name="HasIngressMovieSample">
+/// True when <see cref="IngressMovieSample"/> was taken at the native boundary,
+/// before the original ran. Only such a sample carries a usable MOVIE handler
+/// state, because the handler turns a fresh 0 into a 4 on the call itself.
+/// </param>
+/// <param name="IngressTimestampTicks">
+/// UTC ticks captured at the native boundary. The worker uses this rather than the
+/// drain time, so a queue that backs up cannot buy a description a fresh start
+/// window.
+/// </param>
 public readonly record struct NativeFieldHookEvent(
     NativeFieldHookEventKind Kind,
     FieldOpcodeMessageObservation MessageObservation,
@@ -21,7 +31,10 @@ public readonly record struct NativeFieldHookEvent(
     int FirstQuestionLine,
     int LastQuestionLine,
     int CurrentQuestionLine,
-    long LifecycleToken);
+    long LifecycleToken,
+    bool HasIngressMovieSample = false,
+    FieldMovieNarrationSample IngressMovieSample = default,
+    long IngressTimestampTicks = 0);
 
 public sealed class NativeFieldHookEventQueue
 {
@@ -38,6 +51,9 @@ public sealed class NativeFieldHookEventQueue
         public int LastQuestionLine;
         public int CurrentQuestionLine;
         public long LifecycleToken;
+        public bool HasIngressMovieSample;
+        public FieldMovieNarrationSample IngressMovieSample;
+        public long IngressTimestampTicks;
     }
 
     private readonly Slot[] slots;
@@ -126,6 +142,19 @@ public sealed class NativeFieldHookEventQueue
             lifecycleToken);
 
     public bool TryCaptureCutsceneContext(FieldScriptContext context) =>
+        TryCaptureCutsceneContext(context, hasIngressMovieSample: false, default, ingressTimestampTicks: 0);
+
+    /// <summary>
+    /// Captures a cutscene opcode along with the film state and the instant observed
+    /// at the native boundary. Both are recorded before the original runs, because
+    /// neither can be recovered afterwards: the handler state is mutated by the call
+    /// and the elapsed time is whatever the queue happened to take.
+    /// </summary>
+    public bool TryCaptureCutsceneContext(
+        FieldScriptContext context,
+        bool hasIngressMovieSample,
+        FieldMovieNarrationSample ingressMovieSample,
+        long ingressTimestampTicks) =>
         TryCapture(
             NativeFieldHookEventKind.CutsceneContext,
             default,
@@ -137,7 +166,10 @@ public sealed class NativeFieldHookEventQueue
             firstQuestionLine: -1,
             lastQuestionLine: -1,
             currentQuestionLine: -1,
-            lifecycleToken: 0);
+            lifecycleToken: 0,
+            hasIngressMovieSample,
+            ingressMovieSample,
+            ingressTimestampTicks);
 
     public bool TryCaptureTimerSet(FieldScriptContext context, int result) =>
         TryCapture(
@@ -174,7 +206,10 @@ public sealed class NativeFieldHookEventQueue
             slot.FirstQuestionLine,
             slot.LastQuestionLine,
             slot.CurrentQuestionLine,
-            slot.LifecycleToken);
+            slot.LifecycleToken,
+            slot.HasIngressMovieSample,
+            slot.IngressMovieSample,
+            slot.IngressTimestampTicks);
         Volatile.Write(ref readSequence, read + 1);
         return true;
     }
@@ -207,7 +242,10 @@ public sealed class NativeFieldHookEventQueue
         int firstQuestionLine,
         int lastQuestionLine,
         int currentQuestionLine,
-        long lifecycleToken)
+        long lifecycleToken,
+        bool hasIngressMovieSample = false,
+        FieldMovieNarrationSample ingressMovieSample = default,
+        long ingressTimestampTicks = 0)
     {
         if (Interlocked.Exchange(ref captureGate, 1) != 0)
         {
@@ -237,6 +275,9 @@ public sealed class NativeFieldHookEventQueue
             slot.LastQuestionLine = lastQuestionLine;
             slot.CurrentQuestionLine = currentQuestionLine;
             slot.LifecycleToken = lifecycleToken;
+            slot.HasIngressMovieSample = hasIngressMovieSample;
+            slot.IngressMovieSample = ingressMovieSample;
+            slot.IngressTimestampTicks = ingressTimestampTicks;
             Volatile.Write(ref writeSequence, write + 1);
             return true;
         }

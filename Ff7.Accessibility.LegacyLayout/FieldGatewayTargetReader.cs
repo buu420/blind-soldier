@@ -171,6 +171,18 @@ public sealed class FieldGatewayTargetReader
         FieldPositionSnapshot position,
         FieldGatewayFrame frame)
     {
+        // A field whose Director has switched every gateway trigger off still has a full
+        // gateway table; the game simply never checks it. Reading the table and offering
+        // what is in it tells the player there is a way out where there is not one, and
+        // auto walk then drives at it indefinitely. See FieldGatewayTriggerPolicy.
+        if (!FieldGatewayTriggerPolicy.AreGatewayTriggersUsable(position.FieldId))
+        {
+            LastDiagnostic =
+                $"field={position.FieldId}, trigger=0x{frame.Ownership.TriggerPointer:X8}, count=0, " +
+                "destinations=none; this field disables every gateway trigger";
+            return EmptyTargets;
+        }
+
         var targets = new List<FieldNavigationTarget>(GatewayCount);
         var destinationFields = new List<int>(GatewayCount);
         var table = frame.Bytes.AsSpan();

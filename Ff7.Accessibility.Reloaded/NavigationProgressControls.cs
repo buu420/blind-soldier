@@ -39,6 +39,7 @@ internal sealed class NavigationProgressController
     private readonly object sync = new();
     private bool enabled;
     private int intervalPercent;
+    private long speechRevision;
 
     internal NavigationProgressController(bool enabled, int intervalPercent)
     {
@@ -66,6 +67,22 @@ internal sealed class NavigationProgressController
             lock (sync)
             {
                 return intervalPercent;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Advances whenever a progress-control hotkey produces speech, even when
+    /// no navigation route is active and therefore no progress-bar value is
+    /// published. World-map terrain speech uses this to yield to F5-F7.
+    /// </summary>
+    internal long SpeechRevision
+    {
+        get
+        {
+            lock (sync)
+            {
+                return speechRevision;
             }
         }
     }
@@ -102,6 +119,8 @@ internal sealed class NavigationProgressController
                 default:
                     throw new ArgumentOutOfRangeException(nameof(action), action, null);
             }
+
+            speechRevision++;
         }
 
         Changed?.Invoke();
@@ -146,6 +165,7 @@ internal sealed class IntervalFieldNavigationProgressSink :
     private int currentPercent;
     private bool publishedActive;
     private int publishedPercent = -1;
+    private long publicationRevision;
     private bool disposed;
 
     internal IntervalFieldNavigationProgressSink(
@@ -155,6 +175,22 @@ internal sealed class IntervalFieldNavigationProgressSink :
         this.inner = inner ?? throw new ArgumentNullException(nameof(inner));
         this.settings = settings ?? throw new ArgumentNullException(nameof(settings));
         settings.Changed += OnSettingsChanged;
+    }
+
+    /// <summary>
+    /// Advances only when the accessible progress control is actually changed.
+    /// World-map terrain speech uses this to yield on that observation rather
+    /// than speaking over a screen reader's progress announcement.
+    /// </summary>
+    internal long PublicationRevision
+    {
+        get
+        {
+            lock (sync)
+            {
+                return publicationRevision;
+            }
+        }
     }
 
     public void Activate(int percent)
@@ -199,6 +235,7 @@ internal sealed class IntervalFieldNavigationProgressSink :
             }
 
             inner.Complete();
+            publicationRevision++;
             publishedActive = true;
             publishedPercent = 100;
         }
@@ -218,6 +255,7 @@ internal sealed class IntervalFieldNavigationProgressSink :
             if (publishedActive)
             {
                 inner.Deactivate();
+                publicationRevision++;
             }
 
             publishedActive = false;
@@ -252,6 +290,7 @@ internal sealed class IntervalFieldNavigationProgressSink :
                 if (publishedActive)
                 {
                     inner.Deactivate();
+                    publicationRevision++;
                 }
 
                 publishedActive = false;
@@ -266,6 +305,7 @@ internal sealed class IntervalFieldNavigationProgressSink :
             if (completed)
             {
                 inner.Complete();
+                publicationRevision++;
                 publishedActive = true;
                 publishedPercent = 100;
                 return;
@@ -284,6 +324,7 @@ internal sealed class IntervalFieldNavigationProgressSink :
 
         var quantized = settings.Quantize(currentPercent);
         inner.Activate(quantized);
+        publicationRevision++;
         publishedActive = true;
         publishedPercent = quantized;
     }
@@ -299,6 +340,7 @@ internal sealed class IntervalFieldNavigationProgressSink :
         if (!publishedActive)
         {
             inner.Activate(quantized);
+            publicationRevision++;
             publishedActive = true;
             publishedPercent = quantized;
             return;
@@ -310,6 +352,7 @@ internal sealed class IntervalFieldNavigationProgressSink :
         }
 
         inner.SetValue(quantized);
+        publicationRevision++;
         publishedPercent = quantized;
     }
 

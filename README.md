@@ -13,8 +13,94 @@ is not tied to one particular screen reader.
 > [!IMPORTANT]
 > This project is for the original Final Fantasy VII PC game, not Final
 > Fantasy VII Remake or Rebirth. It is a pre-release project under active
-> development. Current live testing covers the story from the opening through
-> the first arrival on the world map.
+> development. Live play has reached the first Gold Saucer visit and the Corel
+> Prison chocobo race. Accessibility support is implemented well beyond that
+> point, but it has not been validated by a complete playthrough. See
+> [Coverage and testing status](#coverage-and-testing-status).
+
+## Coverage and testing status
+
+Blind Soldier is a pre-release project. This section separates what is
+**implemented** from what has been **played**, because those are not the same
+thing and only the second one finds the problems a real session finds.
+
+**Played by a person:** the story from the opening through the first Gold
+Saucer visit and the Corel Prison chocobo race. Story guidance for later chapters
+has been implemented and checked offline; those chapters still need playtesting.
+
+### Story guidance
+
+The Story navigation category uses 1110 definitions tied to the game's progress
+state and field scripts, covering the opening through the
+ending: the Midgar chapters, Kalm, the marshes and Mythril Mine, Junon, the
+cargo ship, Costa del Sol, Mount Corel, North Corel, the Gold Saucer, Corel
+Prison, the buggy and Gongaga onward, the western continent, the Temple of the
+Ancients, the northern journey, the Junon escape, the Highwind and the Huge
+Materia, the return to Midgar, and the Northern Crater.
+
+A definition tells Blind Soldier where the next required interaction or
+destination is for the progress state you are actually in. It is not a
+walkthrough and it does not make story or party choices for you.
+
+**This is not a full-game validation.** The catalog and the state transitions
+around it are checked by automated tests against the installed field scripts.
+Nobody has played the whole game with it. Expect gaps, especially in optional
+exploration, and please report them.
+
+### Regions and set pieces
+
+- **Junon:** the town and the Shinra building floors, the parade with its
+  alignment assist and timing cues, the practice and drill sequences, and the
+  routes through to the cargo ship.
+- **Cargo ship and Costa del Sol:** the ship's decks and the Costa arrival,
+  its inn and shops, and the routes onward to Mount Corel.
+- **Mount Corel, North Corel and Corel Prison:** the ropeway, the mountain
+  corridors, the town, the prison drop point, and the handoff back to the
+  Gold Saucer.
+- **Gold Saucer:** the entrance and the individual squares, their descriptions,
+  and the minigames listed below.
+- **Fort Condor:** the battlefield navigator, cursor movement with `I`, unit
+  and order readouts, and the battle interfaces.
+
+### Minigames and activities
+
+Implemented with spoken state, cues, or both: the motorcycle/highway escape
+(including optional automatic steering on `F8`), the Speed Square coaster with
+its aiming readout, G-Bike, 3D Battler, arm wrestling, basketball, the Wonder
+Square arcade, the Junon parade and marching drills, the swinging-bar and
+squat timing cues, Fort Condor, the submarine mission, and Chocobo Square
+betting, racing and results.
+
+Feedback presents the state a sighted player is shown. Optional steering and
+alignment assists are available where listed; other actions remain under your control.
+
+### Descriptions and movies
+
+Recorded audio description ships for the opening movie and for six Gold Saucer
+movies. **Most of the game's other FMVs have no recorded description yet.**
+Field cutscene and area descriptions are written per field and are more
+complete in the areas that have been worked on than elsewhere; `K` reads the
+current area description again where one exists.
+
+### Navigation and auto walk
+
+Field and world-map navigation, routes, auto walk and the progress indicator
+are described under [Navigation](#navigation). This release repairs two
+reproduced classes of stall and adds a spoken guard for the rest; see
+[Auto walk](#auto-walk).
+
+### Known gaps
+
+- No complete playthrough has been done. Later story guidance has offline
+  checks, but later chapters still need playtesting and further accessibility work.
+- The Steam 2026 x64 runtime shares its code and its regressions with the x86
+  runtime but has had much less live play. It needs broader testing.
+- Auto walk's improvements are proved by offline route and movement fixtures,
+  not by play. Walking while **holding the Run button**, and a milder
+  back-and-forth dither at some corners, still need testing and reports.
+- Most FMVs have no recorded audio description.
+- Optional exploration, side quests and missable content are far less covered
+  than the required route.
 
 ## Requirements
 
@@ -39,10 +125,10 @@ instead of reading unverified game memory.
 Choose one download from the
 [Blind Soldier Releases page](https://github.com/buu420/blind-soldier/releases):
 
-- [Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.5.2/Blind-Soldier-Portable.zip)
+- [Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.5.3/Blind-Soldier-Portable.zip)
   is the complete dual-runtime package. Use it for Steam 2026 x64 or when one
   extracted package must support both x86 and x64 installations.
-- [Blind-Soldier-2013-x86-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.5.2/Blind-Soldier-2013-x86-Portable.zip)
+- [Blind-Soldier-2013-x86-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.5.3/Blind-Soldier-2013-x86-Portable.zip)
   is the smaller legacy-only package. Use it for the 2013 x86 game, including
   stock 7th Heaven/FFNx. It deliberately contains no Steam 2026 launcher or
   x64 files.
@@ -80,6 +166,13 @@ release does not ship a Windows system DLL.
 
 - To update or repair, close the game and extract the newer ZIP over the same
   game folder.
+- **Keep your settings when updating.** The ZIP ships a default
+  `Reloaded-II\Mods\ff7.accessibility.reloaded\Configuration\config.json`, and
+  extracting over an existing install replaces the one you have been using.
+  Copy that file somewhere safe first, extract the new ZIP, then copy your file
+  back. It holds your language choice, every feature toggle, the progress
+  interval, volumes and timing settings, so replacing it silently returns all
+  of them to their defaults.
 - To remove the mod, close the game and delete the files listed by
   `portable-manifest.json`, then restore any launcher or `.local\version.dll` you
   backed up before extraction.
@@ -147,17 +240,17 @@ Visual Studio C++ Build Tools, and PowerShell, then run:
 ```powershell
 .\Build-BlindSoldierPortablePackage.ps1 `
   -OutputPath .\artifacts\Blind-Soldier-Portable.zip `
-  -Version 0.5.2
+  -Version 0.5.3
 .\Verify-BlindSoldierPortablePackage.ps1 `
   -ArchivePath .\artifacts\Blind-Soldier-Portable.zip `
-  -ExpectedVersion 0.5.2
+  -ExpectedVersion 0.5.3
 .\Build-BlindSoldier2013PortablePackage.ps1 `
   -SourceArchivePath .\artifacts\Blind-Soldier-Portable.zip `
   -OutputPath .\artifacts\Blind-Soldier-2013-x86-Portable.zip `
-  -Version 0.5.2
+  -Version 0.5.3
 .\Verify-BlindSoldier2013PortablePackage.ps1 `
   -ArchivePath .\artifacts\Blind-Soldier-2013-x86-Portable.zip `
-  -ExpectedVersion 0.5.2 `
+  -ExpectedVersion 0.5.3 `
   -ExpectedSourceArchivePath .\artifacts\Blind-Soldier-Portable.zip
 ```
 
@@ -180,7 +273,7 @@ foreground. The normal game controls are unchanged.
 | `O` | Next navigation category |
 | `J` | Previous target in the selected category |
 | `L` | Next target in the selected category |
-| `K` | Repeat the selected target, or report the active route and progress |
+| `K` | Repeat the selected target, or report the active route and progress. On a supported minigame or activity screen, report its current state instead |
 | `I` | Start navigation to the selected target, or stop the active route |
 | `P` | Start or stop automatic walking to the selected navigation target |
 | `F5` | Turn route progress indicators off or on |
@@ -340,6 +433,46 @@ directions. It only hides the native progress control for the current session.
   position.
 - If the problem repeats, report the field or world-map location, selected
   category and target, whether you were walking or running, and what was spoken.
+
+## Chocobo racing
+
+While you are riding in a race, Blind Soldier reads the parts of the screen a
+sighted player is watching. Everything below comes from your own chocobo's
+record - the same values the game's HUD is drawn from. It never reads a rival's
+hidden speed or stamina, never infers anything from which key you pressed, and
+never presses anything for you.
+
+Spoken as it happens:
+
+- **Automatic or manual control**, when the race opens and every time it
+  changes. This is the mode the HUD's own sprite shows, not a guess.
+- **Speeding up** and **slowing down**, from the speed that actually moves your
+  chocobo rather than from a button you asked with, so a request the game
+  refuses is not announced as a change. Announcements are spaced by about a
+  second, and a rough stretch of track cannot flood you; a genuine reversal
+  caught inside that gap is still spoken, and a change that is undone before it
+  can be spoken is dropped rather than reported late. Picking the pace up again
+  after holding it steady is announced again.
+- **Dashing**, once per dash, and only when the game accepted it and stamina is
+  going into it.
+- **Stamina**, as the gauge's own percentage when it crosses a quarter, when it
+  empties, and when it comes back up. Running out again after a small recovery
+  is announced again. If the gauge cannot be read at all it is called unknown,
+  never empty.
+- **Your own place**, when it changes, and your **finish** with its place. If
+  the ranking strip settles on a different place a moment after you cross the
+  line, the corrected place is spoken.
+- The **full finishing order** is announced during a race you are betting on.
+  While you are riding it is held back unless your own place moves, because it
+  was drowning everything above.
+
+Press `K` at any time during a race for the whole state at once: the control
+mode, your place, the stamina reading, whether you are dashing, the full
+finishing order, and the other chocobos' positions relative to the one the
+camera is following. `K` also reads the betting screen and the results screen.
+
+Nothing is spoken while the screen is faded to black, on the running readout or
+on `K`, because a sighted player is being shown nothing either.
 
 ## Gameplay help
 

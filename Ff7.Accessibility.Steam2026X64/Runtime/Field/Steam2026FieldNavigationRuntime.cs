@@ -196,7 +196,8 @@ internal static class Steam2026FieldNavigationActionGate
         FieldNavigationAction action,
         FieldNavigationCategory currentCategory,
         bool beaconEnabled,
-        Steam2026FieldNavigationDomainCoherence coherence)
+        Steam2026FieldNavigationDomainCoherence coherence,
+        bool? requiresCoherentRoute = null)
     {
         // Turning an active beacon off is always safe and must never be trapped
         // behind a transient native read failure.
@@ -215,7 +216,7 @@ internal static class Steam2026FieldNavigationActionGate
         // edge pending if its checked native route state tore, avoiding a false
         // "route unavailable" / "Navigation off" announcement. Plain target
         // browsing remains independent from exit/route reads.
-        return !RequiresCoherentRoute(action, beaconEnabled) || coherence.Route;
+        return !(requiresCoherentRoute ?? RequiresCoherentRoute(action, beaconEnabled)) || coherence.Route;
     }
 
     internal static bool CanUpdateLiveTracking(
@@ -306,20 +307,23 @@ internal static class Steam2026FieldNavigationPendingActionExecutor
         {
             Route = coherence.Route && !routePlanner.HadReadFailure
         };
+        var planningPosition =
+            FieldNavigationController.ResolveRoutePlanningPosition(position, ladderState);
         if (!pendingActions.TryPeekReadyForField(
                 fieldId,
                 candidate => Steam2026FieldNavigationActionGate.IsReady(
                     candidate,
                     controller.CurrentCategory,
                     controller.BeaconEnabled,
-                    checkedCoherence),
+                    checkedCoherence,
+                    requiresCoherentRoute: controller.PreviewActionRoute(
+                        candidate, planningPosition, includeSelectionRoute: false).Target is { } target &&
+                        !string.IsNullOrWhiteSpace(target.ManualNavigationGuidance) ? false : null),
                 out var candidate))
         {
             return false;
         }
 
-        var planningPosition =
-            FieldNavigationController.ResolveRoutePlanningPosition(position, ladderState);
         var preview = controller.PreviewActionRoute(
             candidate,
             planningPosition,
@@ -346,6 +350,18 @@ internal static class Steam2026FieldNavigationPendingActionExecutor
         try
         {
             result = controller.HandleAction(candidate, position, control, ladderState);
+
+            // The field's existing status command also reads the current area back.
+            // The automatic delivery on arrival is gone the moment a button press
+            // interrupts the screen reader, and no generic repeat-last buffer can
+            // recover it once a navigation line has replaced it.
+            if (candidate == FieldNavigationAction.RepeatTarget && result is { } spoken)
+            {
+                result = spoken with
+                {
+                    Speech = FieldAreaDescriptionStatus.Append(spoken.Speech, fieldId)
+                };
+            }
         }
         finally
         {
@@ -366,6 +382,9 @@ internal readonly record struct Steam2026FieldRoutePreflight(
 
 internal sealed class Steam2026FailClosedFieldRoutePlanner :
     IFieldNavigationRoutePlanner,
+    IFieldNavigationAutomaticMovementPlanner,
+    IFieldNavigationCorridorLookaheadPlanner,
+    IFieldNavigationRouteRefreshPlanner,
     IFieldNavigationRouteReadStatus
 {
     private readonly IFieldNavigationRoutePlanner inner;
@@ -560,6 +579,113 @@ internal sealed class Steam2026FailClosedFieldRoutePlanner :
             HadReadFailure = true;
             LastDiagnostic = $"checked route waypoint read failed: {ex.Message}";
             waypoint = default;
+            return false;
+        }
+    }
+
+    public bool IsAutomaticMovementClear(
+        FieldPositionSnapshot position,
+        FieldNavigationTarget target,
+        FieldNavigationRouteWaypoint destination) =>
+        TryReadOptionalCapability("automatic movement", inner is IFieldNavigationAutomaticMovementPlanner movement
+            ? () => movement.IsAutomaticMovementClear(position, target, destination)
+            : null);
+
+    public bool IsNativeProbeMovementClear(
+        FieldPositionSnapshot position,
+        FieldNavigationTarget target,
+        FieldNavigationRouteWaypoint destination) =>
+        TryReadOptionalCapability("native continuation", inner is IFieldNavigationAutomaticMovementPlanner movement
+            ? () => movement.IsNativeProbeMovementClear(position, target, destination)
+            : null);
+
+    public bool IsNativeProbeAutomaticMovementClear(
+        FieldPositionSnapshot position,
+        FieldNavigationTarget target,
+        FieldNavigationRouteWaypoint destination,
+        byte? requestedHeading = null) =>
+        TryReadOptionalCapability("native automatic movement", inner is IFieldNavigationAutomaticMovementPlanner movement
+            ? () => movement.IsNativeProbeAutomaticMovementClear(position, target, destination, requestedHeading)
+            : null);
+
+    public bool TryObserveCorridor(
+        FieldPositionSnapshot position,
+        FieldNavigationRoutePlan plan,
+        IReadOnlyList<FieldNavigationRouteStep> stableWaypoints,
+        int waypointIndex,
+        FieldNavigationRouteAction? nextAction,
+        FieldNavigationRouteHeading heading,
+        out FieldNavigationCorridorObservation observation)
+    {
+        FieldNavigationCorridorObservation candidate = default;
+        var result = TryReadOptionalCapability("corridor observation", inner is IFieldNavigationCorridorLookaheadPlanner corridor
+            ? () => corridor.TryObserveCorridor(position, plan, stableWaypoints, waypointIndex, nextAction, heading, out candidate)
+            : null);
+        observation = result ? candidate : default;
+        return result;
+    }
+
+    public bool TryBuildRouteFromCurrentTriangle(
+        FieldPositionSnapshot position,
+        FieldNavigationTarget target,
+        int resolvedTriangle,
+        out FieldNavigationRoutePlan plan)
+    {
+        plan = null!;
+        if (HadReadFailure) return false;
+        if (preparedActionRoute is { } prepared)
+        {
+            if (!prepared.Matches(position, target) || prepared.ResolvedTriangle != resolvedTriangle)
+            {
+                HadReadFailure = true;
+                LastDiagnostic = "prepared route refresh position, target or triangle changed";
+                return false;
+            }
+
+            if (inner is IFieldNavigationRouteRefreshPlanner && prepared.BuildResult && prepared.Plan is { } cached &&
+                cached.TrianglePath.Count > 0 && cached.TrianglePath[0] == resolvedTriangle)
+            {
+                plan = cached;
+                return true;
+            }
+
+            return false;
+        }
+
+        FieldNavigationRoutePlan candidate = null!;
+        var result = TryReadOptionalCapability("route refresh", inner is IFieldNavigationRouteRefreshPlanner refresh
+            ? () => refresh.TryBuildRouteFromCurrentTriangle(position, target, resolvedTriangle, out candidate)
+            : null);
+        if (result) plan = candidate;
+        return result;
+    }
+
+    private bool TryReadOptionalCapability(string operation, Func<bool>? read)
+    {
+        if (HadReadFailure) return false;
+        // Action replay has already consumed its checked native snapshot. A
+        // selection's temporary tracker may request lookahead here; declining
+        // leaves its cached startup guidance usable without a post-commit read
+        // or a fabricated claim of native clearance. Live observation resumes
+        // after CompletePreparedActionRoute.
+        if (preparedActionRoute is not null) return false;
+        if (read is null)
+        {
+            LastDiagnostic = $"checked route {operation} capability unavailable";
+            return false;
+        }
+
+        try
+        {
+            var result = read();
+            LastDiagnostic = inner.LastDiagnostic;
+            CaptureInnerReadStatus();
+            return result && !HadReadFailure;
+        }
+        catch (Exception ex)
+        {
+            HadReadFailure = true;
+            LastDiagnostic = $"checked route {operation} failed: {ex.Message}";
             return false;
         }
     }

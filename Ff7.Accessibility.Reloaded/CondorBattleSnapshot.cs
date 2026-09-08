@@ -174,6 +174,28 @@ public sealed record CondorBattleSnapshot(
         ReportState == 0;
 
     /// <summary>
+    /// Whether the direction keys are moving the command destination cursor.
+    /// </summary>
+    /// <remarks>
+    /// Mode 3 is not a menu: <c>FUN_005FD958</c> sends the same held direction
+    /// mask through <c>FUN_005FE771</c> and <c>FUN_005FE8CF</c>, selecting the
+    /// separate coordinate pair at 0x00C75268. A modal overlay or report still
+    /// takes those keys away and must stop steering immediately.
+    /// </remarks>
+    public bool DestinationCursorUnderPlayerControl =>
+        InteractionMode == DestinationInteractionMode &&
+        ModalState == 0 &&
+        ReportState == 0;
+
+    /// <summary>The cursor coordinate navigation actions currently act around.</summary>
+    public int NavigationCursorX =>
+        InteractionMode == DestinationInteractionMode ? DestinationX : CursorX;
+
+    /// <inheritdoc cref="NavigationCursorX"/>
+    public int NavigationCursorY =>
+        InteractionMode == DestinationInteractionMode ? DestinationY : CursorY;
+
+    /// <summary>
     /// The value of <see cref="EnemyAdvance"/> when the enemy has reached the
     /// fort. The game derives the gauge from the leading enemy's position and
     /// draws it as a row of segments, so it is on screen throughout a battle.

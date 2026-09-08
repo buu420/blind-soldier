@@ -7,11 +7,47 @@ internal static class NavigationProgressControlTests
     internal static void Run()
     {
         DefaultsMatchTheAccessibleFivePercentMode();
+        ControlSpeechRevisionChangesForEverySpokenAction();
         QuantizesForwardAndBackwardProgressAtTheSelectedInterval();
+        PublicationRevisionChangesOnlyWhenTheAccessibleControlChanges();
         ToggleHidesAndRestoresAnActiveRouteAtItsCurrentProgress();
         OneToggleControlsFieldAndWorldRouteIndicators();
         IntervalKeysWrapThroughTheFourSupportedValues();
         HotkeyRouterSamplesF5ThroughF7OnceAndInOrder();
+    }
+
+    private static void ControlSpeechRevisionChangesForEverySpokenAction()
+    {
+        var settings = new NavigationProgressController(enabled: true, intervalPercent: 10);
+
+        Equal(0L, settings.SpeechRevision, "initial control speech revision");
+        _ = settings.HandleAction(NavigationProgressHotkeyAction.Toggle);
+        Equal(1L, settings.SpeechRevision, "toggle speech advances the control revision");
+        _ = settings.HandleAction(NavigationProgressHotkeyAction.PreviousInterval);
+        Equal(2L, settings.SpeechRevision, "previous-interval speech advances the control revision");
+        _ = settings.HandleAction(NavigationProgressHotkeyAction.NextInterval);
+        Equal(3L, settings.SpeechRevision, "next-interval speech advances the control revision");
+    }
+
+    private static void PublicationRevisionChangesOnlyWhenTheAccessibleControlChanges()
+    {
+        var settings = new NavigationProgressController(enabled: true, intervalPercent: 10);
+        var native = new RecordingProgressSink();
+        using var sink = new IntervalFieldNavigationProgressSink(native, settings);
+
+        Equal(0L, sink.PublicationRevision, "initial publication revision");
+        sink.Activate(3);
+        Equal(1L, sink.PublicationRevision, "activating the accessible control advances the revision");
+        sink.SetValue(9);
+        Equal(1L, sink.PublicationRevision, "remaining in one quantized bucket does not claim speech priority");
+        sink.SetValue(10);
+        Equal(2L, sink.PublicationRevision, "publishing a new percentage advances the revision");
+        sink.SetValue(19);
+        Equal(2L, sink.PublicationRevision, "an unpublished raw percentage does not advance it");
+        sink.Complete();
+        Equal(3L, sink.PublicationRevision, "completion advances the revision");
+        sink.Deactivate();
+        Equal(4L, sink.PublicationRevision, "deactivation advances the revision");
     }
 
     private static void DefaultsMatchTheAccessibleFivePercentMode()

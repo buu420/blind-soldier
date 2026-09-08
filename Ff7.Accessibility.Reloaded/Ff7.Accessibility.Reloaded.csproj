@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net8.0-windows</TargetFramework>
@@ -40,15 +40,50 @@
     <None Include="Assets\navigation\object_materia_190_pitch70.wav" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Assets\navigation\object_chest_253_pitch70.wav" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Assets\navigation\object_item_357_pitch70.wav" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Root's original synthesized arcade cues, listed one by one for the same
+         reason the films are: a glob that matches nothing still builds green, and a
+         silent timing cue is exactly the failure these exist to prevent. -->
+    <None Include="Assets\arcade\basketball_rise_tick.wav" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\arcade\basketball_pose_top.wav" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\arcade\basketball_cues.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\arcade\arm_wrestling_level.wav" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\arcade\arm_wrestling_push_ahead.wav" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\arcade\arm_wrestling_pushed_back.wav" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\arcade\arm_wrestling_cues.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\arcade\field_activity_button_ready.wav" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\arcade\field_activity_cues.credits.txt" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Assets\movies\opening_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\gold1_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\gold1_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\gold1_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The five Round Square gondola films. Listed one by one for the same reason
+         gold1 is: a glob that silently matches nothing still produces a green build
+         and a silent film. -->
+    <None Include="Assets\movies\gold2_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\gold2_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\gold2_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\gold3_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\gold3_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\gold3_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\gold4_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\gold4_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\gold4_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\gold5_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\gold5_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\gold5_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\gold6_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\gold6_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\gold6_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
     <None Include="ModConfig.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Assets\footsteps\selected_subway_step.ogg" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Assets\footsteps\cosmo\config.toml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Assets\footsteps\cosmo\*.ogg" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\external\kujata\field-id-to-world-map-coords.json" Link="Assets\world\field-id-to-world-map-coords.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\external\kujata\wm-field-menu-names.txt" Link="Assets\world\wm-field-menu-names.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\world\world-map-location-triggers.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Native\win-x86\prism.dll" CopyToOutputDirectory="PreserveNewest" Link="prism.dll" />
     <None Include="$(NuGetPackageRoot)steamaudio.net.natives\4.6.1\runtimes\win-x86\native\phonon.dll" CopyToOutputDirectory="PreserveNewest" Link="phonon.dll" Condition="Exists('$(NuGetPackageRoot)steamaudio.net.natives\4.6.1\runtimes\win-x86\native\phonon.dll')" />
   </ItemGroup>
 
 </Project>
+

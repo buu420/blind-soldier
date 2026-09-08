@@ -17,6 +17,7 @@ public sealed class FieldOpcodeAddressResolver
     public const int OpcodeSplitIndex = 0x09;
     public const int OpcodeScroll2DIndex = 0x66;
     public const int OpcodeFadeIndex = 0x6B;
+    public const int OpcodeDfanmIndex = 0xA2;
     public const int OpcodeAnime1Index = 0xA3;
     public const int OpcodeVisibilityIndex = 0xA4;
     public const int OpcodeAnimOnceIndex = 0xAF;
@@ -28,6 +29,14 @@ public sealed class FieldOpcodeAddressResolver
     public const int OpcodeSoundIndex = 0xF1;
     public const int OpcodeAkaoIndex = 0xF2;
     public const int OpcodeMovieIndex = 0xF9;
+
+    /// <summary>
+    /// MPNAM, the opcode that sets the field's own displayed area name. Every field
+    /// runs exactly one of these from its director entity's init, on every entry, so
+    /// it is the natural anchor for a description of what the area looks like: it
+    /// runs once when the player arrives and never again until the next arrival.
+    /// </summary>
+    public const int OpcodeMapNameIndex = 0x43;
 
     private readonly Func<int, int> readInt32;
     private readonly Func<int, byte> readByte;

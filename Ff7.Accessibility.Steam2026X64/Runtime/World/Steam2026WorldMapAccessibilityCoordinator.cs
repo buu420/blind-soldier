@@ -49,18 +49,25 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
     private readonly Dictionary<(int MapType, int ProgressStage), WorldMapRuntimeContext> runtimes = [];
     private readonly NativeFieldNavigationProgressBar? progressBar;
     private readonly IntervalFieldNavigationProgressSink? progressSink;
+    private readonly NavigationProgressController progressController;
     private readonly FootstepSoundPlayer footstepPlayer;
     private readonly CosmoFootstepSequencer? cosmoFootsteps;
+    private readonly NavigationBeaconPlayer? entranceCuePlayer;
     private readonly NavigationAutoWalkController autoWalk;
     private readonly Action<string, bool> speak;
     private readonly Action<string> log;
+    private readonly Action<NavigationBeaconCue, float>? playEntranceCue;
     private DateTime nextScanUtc = DateTime.MinValue;
     private string lastStateDiagnostic = string.Empty;
     private string lastEntityDiagnostic = string.Empty;
     private string lastNavigationDiagnostic = string.Empty;
     private string lastFootstepDiagnostic = string.Empty;
+    private string lastTerrainDiagnostic = string.Empty;
+    private string lastTerrainFailure = string.Empty;
     private string lastSuppressionKey = string.Empty;
     private string lastAutoWalkFailure = string.Empty;
+    private long lastProgressPublicationRevision;
+    private long lastProgressControlSpeechRevision;
     private bool wasActive;
     private int disposed;
 
@@ -73,7 +80,8 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         Action<string, bool> speak,
         Action<string> log,
         NavigationProgressController? progressController = null,
-        NavigationAutoWalkController? autoWalk = null)
+        NavigationAutoWalkController? autoWalk = null,
+        Action<NavigationBeaconCue, float>? playEntranceCue = null)
     {
         this.config = config ?? throw new ArgumentNullException(nameof(config));
         ArgumentNullException.ThrowIfNull(addressSpace);
@@ -82,11 +90,15 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(modDirectory);
         this.speak = speak ?? throw new ArgumentNullException(nameof(speak));
         this.log = log ?? throw new ArgumentNullException(nameof(log));
+        this.playEntranceCue = playEntranceCue;
         this.autoWalk = autoWalk ?? NavigationAutoWalkController.CreateCurrentProcess(addressSpace);
 
         stateReader = new WorldMapStateReader(addressSpace);
         entityReader = new WorldMapEntityReader(addressSpace);
         midgarZolomStateReader = new MidgarZolomStateReader(addressSpace);
+        this.progressController = progressController ?? new NavigationProgressController(
+            config.EnableNavigationProgressIndicators,
+            config.NavigationProgressIntervalPercent);
         progressBar = config.EnableWorldMapNavigationAssistant
             ? new NativeFieldNavigationProgressBar(log)
             : null;
@@ -94,9 +106,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
             ? null
             : new IntervalFieldNavigationProgressSink(
                 progressBar,
-                progressController ?? new NavigationProgressController(
-                    config.EnableNavigationProgressIndicators,
-                    config.NavigationProgressIntervalPercent));
+                this.progressController);
         footstepPlayer = new FootstepSoundPlayer(
             ResolveModPath(
                 modDirectory,
@@ -105,6 +115,15 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
             config.FieldFootstepVolumePercent,
             log);
         cosmoFootsteps = TryCreateCosmoFootsteps(config, modDirectory, log);
+        entranceCuePlayer = playEntranceCue is null && config.EnableWorldMapEntranceProximityCues
+            ? new NavigationBeaconPlayer(
+                ResolveModPath(
+                    modDirectory,
+                    config.WorldMapEntranceCueSoundPath,
+                    @"Assets\navigation\field_zone_transition.wav"),
+                config.WorldMapEntranceCueVolumePercent,
+                log)
+            : null;
 
         var coordinatePath = Path.Combine(
             modDirectory,
@@ -116,11 +135,18 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
             "Assets",
             "world",
             "wm-field-menu-names.txt");
-        if (!File.Exists(coordinatePath) || !File.Exists(menuNamePath))
+        var triggerPath = Path.Combine(
+            modDirectory,
+            "Assets",
+            "world",
+            "world-map-location-triggers.json");
+        if (!File.Exists(coordinatePath) || !File.Exists(menuNamePath) || !File.Exists(triggerPath))
         {
             throw new FileNotFoundException(
                 "Installed world-map location metadata is incomplete.",
-                !File.Exists(coordinatePath) ? coordinatePath : menuNamePath);
+                !File.Exists(coordinatePath)
+                    ? coordinatePath
+                    : !File.Exists(menuNamePath) ? menuNamePath : triggerPath);
         }
 
         foreach (var mapType in new[] { 0, 2, 3 })
@@ -143,7 +169,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
                         mapType,
                         progressStage,
                         mapPath);
-                    var catalog = WorldMapTargetCatalog.Load(map, coordinatePath, menuNamePath);
+                    var catalog = WorldMapTargetCatalog.Load(map, coordinatePath, menuNamePath, triggerPath);
                     runtimes.Add(
                         (mapType, progressStage),
                         new WorldMapRuntimeContext(
@@ -153,11 +179,21 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
                             Math.Max(1, config.WorldMapNavigationSpeechDistanceUnitsPerCount),
                             TimeSpan.FromMilliseconds(Math.Max(0, config.WorldMapNavigationSpeechIntervalMs)),
                             TimeSpan.FromMilliseconds(Math.Max(80, config.WorldMapFootstepWalkIntervalMs)),
-                            TimeSpan.FromMilliseconds(Math.Max(80, config.WorldMapFootstepChocoboIntervalMs))));
+                            TimeSpan.FromMilliseconds(Math.Max(80, config.WorldMapFootstepChocoboIntervalMs)),
+                            Math.Max(0, config.WorldMapEntranceCueInnerRangeUnits),
+                            Math.Max(1, config.WorldMapEntranceCueOuterRangeUnits),
+                            TimeSpan.FromMilliseconds(Math.Max(0, config.WorldMapEntranceCueIntervalMs))));
                     log(
                         $"Native Steam 2026 world-map type {mapType}, progress stage {progressStage} ready: " +
                         $"triangles={map.Triangles.Count}, locations={catalog.Locations.Count}, " +
+                        $"unresolvedLocations={catalog.UnresolvedLocations.Count}, " +
                         $"chocoboTracks={catalog.ChocoboTracks.Count}.");
+                    if (mapType == 0 && progressStage == 0 && catalog.UnresolvedLocations.Count > 0)
+                    {
+                        log(
+                            "Native Steam 2026 world-map locations without a terrain-script entrance were omitted: " +
+                            string.Join(", ", catalog.UnresolvedLocations.Select(location => location.Label)) + ".");
+                    }
                 }
             }
             catch (Exception ex)
@@ -183,16 +219,19 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         ArgumentNullException.ThrowIfNull(frame);
         if (frame.Lifecycle.ModuleId != WorldMapStateReader.WorldModule)
         {
+            lastProgressControlSpeechRevision = progressController.SpeechRevision;
             ResetMidgarZolomTrackers();
             if (WorldMapNavigationLifecycle.IsCombatInterruptionModule(frame.Lifecycle.ModuleId))
             {
                 foreach (var context in runtimes.Values)
                 {
                     context.Footsteps.Reset();
+                    context.EntranceProximityCues.Reset();
                     context.Navigation.PauseForCombat(
                         $"native combat module {frame.Lifecycle.ModuleId}");
                 }
 
+                entranceCuePlayer?.StopAll();
                 autoWalk.Suspend();
                 return;
             }
@@ -211,11 +250,21 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
             foregroundInput.ObserveRisingEdge);
         var autoWalkToggleRequested = NavigationAutoWalkKeyRouter.ObserveToggle(
             foregroundInput.ObserveRisingEdge);
+        var autoWalkToggleWasObserved = autoWalkToggleRequested;
         wasActive = true;
         var isForeground =
             foregroundInput.IsCurrentProcessForeground() &&
             frame.Lifecycle.IsForeground &&
             !frame.Lifecycle.IsShuttingDown;
+        var higherPrioritySpeech = false;
+        var progressControlRevision = progressController.SpeechRevision;
+        var progressControlSpeechWasObserved =
+            progressControlRevision != lastProgressControlSpeechRevision;
+        if (progressControlSpeechWasObserved)
+        {
+            higherPrioritySpeech = true;
+            lastProgressControlSpeechRevision = progressControlRevision;
+        }
         if (!isForeground)
         {
             // Keep sampling above so a held key cannot become a delayed edge,
@@ -229,6 +278,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         {
             _ = autoWalk.Stop();
             speak("Auto walk off.", true);
+            higherPrioritySpeech = true;
             log("Native Steam 2026 world-map auto walk: P toggle off.");
             autoWalkToggleRequested = false;
         }
@@ -238,10 +288,19 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         {
             _ = autoWalk.Stop();
             speak("Auto walk off.", true);
+            higherPrioritySpeech = true;
             log("Native Steam 2026 world-map auto walk stopped because the selection changed.");
         }
 
-        if (nowUtc < nextScanUtc && actions.Count == 0 && !autoWalkToggleRequested)
+        // A toggle-off is consumed above after speaking. Keep its original edge
+        // through this throttle so the terrain tracker sees that higher-priority
+        // speech and waits for a quiet interval instead of talking over it.
+        if (ShouldThrottleObservation(
+                nowUtc,
+                nextScanUtc,
+                actions.Count,
+                autoWalkToggleWasObserved,
+                progressControlSpeechWasObserved))
         {
             return;
         }
@@ -259,7 +318,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
                         stateResult.State.WorldProgress)),
                 out var runtime))
         {
-            SilenceForRecovery();
+            SilenceForRecovery(nowUtc, higherPrioritySpeech);
             return;
         }
 
@@ -274,6 +333,8 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
             if (!ReferenceEquals(context, runtime))
             {
                 context.Footsteps.Reset();
+                context.EntranceProximityCues.Reset();
+                context.TerrainAnnouncements.Reset();
                 context.Navigation.Suspend("another native world map is active");
             }
         }
@@ -281,12 +342,21 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         if (!isForeground)
         {
             runtime.Footsteps.Reset();
+            runtime.EntranceProximityCues.Reset();
+            entranceCuePlayer?.StopAll();
+            runtime.TerrainAnnouncements.ObserveUnavailable(nowUtc);
             ResetMidgarZolomTrackers();
             autoWalk.Suspend();
             return;
         }
 
-        ObserveMidgarZolomCrossing(runtime, state);
+        higherPrioritySpeech |= ObserveMidgarZolomCrossing(runtime, state);
+        var progressRevision = progressSink?.PublicationRevision ?? 0;
+        if (progressRevision != lastProgressPublicationRevision)
+        {
+            higherPrioritySpeech = true;
+            lastProgressPublicationRevision = progressRevision;
+        }
 
         if (config.EnableWorldMapFootstepFeedback && runtime.Footsteps.Observe(state, nowUtc))
         {
@@ -294,23 +364,26 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         }
 
         LogDiagnostic("footsteps", runtime.Footsteps.LastDiagnostic, ref lastFootstepDiagnostic);
+        ObserveEntranceCue(runtime, state, nowUtc);
         if (!config.EnableWorldMapNavigationAssistant)
         {
             runtime.Navigation.Suspend("world navigation disabled");
             autoWalk.Reset();
+            ObserveTerrain(runtime, state, nowUtc, higherPrioritySpeech);
             return;
         }
 
         foreach (var action in actions)
         {
-            ProcessOutput(runtime.Navigation.HandleAction(action, state, nowUtc));
+            higherPrioritySpeech |= ProcessOutput(
+                runtime.Navigation.HandleAction(action, state, nowUtc));
         }
 
         if (autoWalkToggleRequested)
         {
             if (!runtime.Navigation.BeaconEnabled)
             {
-                ProcessOutput(
+                higherPrioritySpeech |= ProcessOutput(
                     runtime.Navigation.HandleAction(FieldNavigationAction.ToggleBeacon, state, nowUtc));
             }
 
@@ -319,22 +392,48 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
                     runtime.Navigation.BeaconEnabled))
             {
                 speak("Auto walk on.", true);
+                higherPrioritySpeech = true;
                 log("Native Steam 2026 world-map auto walk: P toggle on.");
             }
         }
 
-        ProcessOutput(runtime.Navigation.Observe(state, nowUtc));
-        UpdateAutoWalk(runtime, state);
+        higherPrioritySpeech |= ProcessOutput(runtime.Navigation.Observe(
+            state,
+            nowUtc,
+            autoWalk.IsEnabledFor(NavigationAutoWalkDomain.WorldMap)));
+        higherPrioritySpeech |= UpdateAutoWalk(runtime, state);
+        progressRevision = progressSink?.PublicationRevision ?? 0;
+        if (progressRevision != lastProgressPublicationRevision)
+        {
+            higherPrioritySpeech = true;
+            lastProgressPublicationRevision = progressRevision;
+        }
+
+        ObserveTerrain(runtime, state, nowUtc, higherPrioritySpeech);
         LogDiagnostic("navigation", runtime.Navigation.LastDiagnostic, ref lastNavigationDiagnostic);
     }
+
+    internal static bool ShouldThrottleObservation(
+        DateTime nowUtc,
+        DateTime nextScanUtc,
+        int navigationActionCount,
+        bool autoWalkToggleWasObserved,
+        bool progressControlSpeechWasObserved) =>
+        nowUtc < nextScanUtc &&
+        navigationActionCount == 0 &&
+        !autoWalkToggleWasObserved &&
+        !progressControlSpeechWasObserved;
 
     internal void Suspend(string diagnostic)
     {
         foreach (var runtime in runtimes.Values)
         {
             runtime.Footsteps.Reset();
+            runtime.EntranceProximityCues.Reset();
+            runtime.TerrainAnnouncements.ObserveUnavailable(DateTime.UtcNow);
         }
 
+        entranceCuePlayer?.StopAll();
         ResetMidgarZolomTrackers();
 
         autoWalk.Suspend();
@@ -347,25 +446,32 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         {
             runtime.UpdateEntities(Array.Empty<WorldMapEntitySnapshot>());
             runtime.Footsteps.Reset();
+            runtime.TerrainAnnouncements.Reset();
+            runtime.EntranceProximityCues.Reset();
             runtime.Navigation.Suspend(diagnostic);
         }
 
+        entranceCuePlayer?.StopAll();
         progressSink?.Deactivate();
         ResetMidgarZolomTrackers();
         autoWalk.Reset();
         nextScanUtc = DateTime.MinValue;
+        lastTerrainFailure = string.Empty;
+        lastTerrainDiagnostic = string.Empty;
+        lastProgressPublicationRevision = progressSink?.PublicationRevision ?? 0;
+        lastProgressControlSpeechRevision = progressController.SpeechRevision;
         wasActive = false;
         log($"Native Steam 2026 world-map accessibility reset: {diagnostic}.");
     }
 
-    private void ObserveMidgarZolomCrossing(
+    private bool ObserveMidgarZolomCrossing(
         WorldMapRuntimeContext runtime,
         WorldMapStateSnapshot state)
     {
         if (!config.EnableSpeech)
         {
             ResetMidgarZolomTrackers();
-            return;
+            return false;
         }
 
         var zolom = midgarZolomStateReader.Read();
@@ -376,30 +482,64 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         // Captured rather than returned on, because the area cue has to be
         // considered on every pass and needs to know whether the crossing cue
         // just spoke - two cues in one breath would bury each other.
-        var crossingCueSpoken = midgarZolomCrossingTracker.Observe(state, zolom, isAtMarshShore);
-        if (crossingCueSpoken)
+        var crossingCueReady = midgarZolomCrossingTracker.Observe(state, zolom, isAtMarshShore);
+        var speechDelivered = false;
+        if (crossingCueReady)
         {
             log(
                 $"Native Steam 2026 Midgar Zolom crossing window: " +
                 $"player={state.X},{state.Z}, zolom={zolom.State.X},{zolom.State.Z}, " +
                 $"shoreline={isAtMarshShore}.");
-            speak(MidgarZolomCrossingTracker.CueText, true);
+            speechDelivered = TrySpeakMidgarZolom(
+                MidgarZolomCrossingTracker.CueText,
+                "crossing window");
         }
 
+        // The native player word is coherent with the terrain announcement
+        // sample. A static geometry lookup is unnecessary here and can choose
+        // the wrong overlapping triangle at a world-map seam.
         var isOnMarsh =
             state.IsOverworld &&
-            runtime.IsOnTerrain(state, MidgarZolomAreaTracker.MarshTerrainId);
-        var areaCue = midgarZolomAreaTracker.Observe(state, zolom, isOnMarsh, crossingCueSpoken);
+            state.TerrainId == MidgarZolomAreaTracker.MarshTerrainId;
+        var areaCue = midgarZolomAreaTracker.Observe(
+            state,
+            zolom,
+            isOnMarsh,
+            crossingCueReady && speechDelivered);
         if (areaCue is null)
         {
-            return;
+            return speechDelivered;
         }
 
         log(
             $"Native Steam 2026 Midgar Zolom area: player={state.X},{state.Z}, " +
             $"model={state.PlayerModelId}, onMarsh={isOnMarsh}, " +
             $"zolom={zolom.State.IsActive}: {areaCue}");
-        speak(areaCue, true);
+        var areaCueDelivered = TrySpeakMidgarZolom(areaCue, "area cue");
+        if (areaCueDelivered)
+        {
+            runtime.TerrainAnnouncements.RecordExternalTerrainSpeech(
+                new WorldMapSurfaceSample(state.TerrainId, state.HasChocoboTracks, state.RegionId),
+                MidgarZolomAreaTracker.MarshTerrainId);
+        }
+
+        return speechDelivered || areaCueDelivered;
+    }
+
+    private bool TrySpeakMidgarZolom(string text, string context)
+    {
+        try
+        {
+            speak(text, true);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            log(
+                $"Native Steam 2026 Midgar Zolom {context} speech failed; " +
+                $"generic terrain remains available: {ex.Message}");
+            return false;
+        }
     }
 
     public void Dispose()
@@ -416,22 +556,157 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
 
         progressSink?.Dispose();
         progressBar?.Dispose();
+        entranceCuePlayer?.Dispose();
         footstepPlayer.Dispose();
         autoWalk.Dispose();
         runtimes.Clear();
     }
 
-    private void ProcessOutput(WorldMapNavigationOutput? output)
+    private bool ProcessOutput(WorldMapNavigationOutput? output)
     {
         if (output is not { } value)
         {
-            return;
+            return false;
+        }
+
+        if (value.StopAutoWalk)
+        {
+            _ = autoWalk.Stop();
+            log(
+                "Native Steam 2026 world-map navigation requested an automatic-walk " +
+                "fail-stop; regular navigation remains active.");
         }
 
         if (!string.IsNullOrWhiteSpace(value.Speech))
         {
             log($"Native Steam 2026 world-map speech: {value.Speech}");
             speak(value.Speech, true);
+            return true;
+        }
+
+        return false;
+    }
+
+    private void ObserveTerrain(
+        WorldMapRuntimeContext runtime,
+        WorldMapStateSnapshot state,
+        DateTime nowUtc,
+        bool higherPrioritySpeech)
+    {
+        if (!config.EnableSpeech)
+        {
+            runtime.TerrainAnnouncements.Reset();
+            return;
+        }
+
+        if (!runtime.TryResolveSurface(state, out var surface, out var diagnostic))
+        {
+            runtime.TerrainAnnouncements.ObserveUnavailable(nowUtc, higherPrioritySpeech);
+            if (!string.Equals(diagnostic, lastTerrainFailure, StringComparison.Ordinal))
+            {
+                lastTerrainFailure = diagnostic;
+                log($"Native Steam 2026 world-map terrain unavailable: {diagnostic}.");
+            }
+
+            return;
+        }
+
+        lastTerrainFailure = string.Empty;
+        var announcement = runtime.TerrainAnnouncements.ObserveAnnouncement(
+            surface,
+            nowUtc,
+            higherPrioritySpeech);
+        if (config.EnableWorldMapNavigationDiagnostics)
+        {
+            LogDiagnostic(
+                "terrain",
+                runtime.TerrainAnnouncements.LastDiagnostic,
+                ref lastTerrainDiagnostic);
+        }
+
+        if (announcement is not { } ready)
+        {
+            return;
+        }
+
+        log(
+            $"Native Steam 2026 world-map terrain announcement: " +
+            $"player={state.X},{state.Z}, model={state.PlayerModelId}, " +
+            $"terrain={surface.TerrainId} ({WorldMapTerrainNames.GetName(surface.TerrainId)}), " +
+            $"region={surface.RegionId?.ToString() ?? "unavailable"}, " +
+            $"tracks={surface.HasChocoboTracks}: {ready.Speech}");
+        try
+        {
+            speak(ready.Speech, false);
+            runtime.TerrainAnnouncements.AcknowledgeSpeech();
+        }
+        catch (Exception ex)
+        {
+            // The x64 speech boundary throws where the x86 host returns false.
+            // Leave the announcement unacknowledged so a transient failure can
+            // never silently consume the player's current terrain.
+            log($"Native Steam 2026 world-map terrain speech failed and remains pending: {ex.Message}");
+            return;
+        }
+
+    }
+
+    private void ObserveEntranceCue(
+        WorldMapRuntimeContext runtime,
+        WorldMapStateSnapshot state,
+        DateTime nowUtc)
+    {
+        if (!config.EnableWorldMapEntranceProximityCues)
+        {
+            runtime.EntranceProximityCues.Reset();
+            entranceCuePlayer?.StopAll();
+            return;
+        }
+
+        var proximity = runtime.EntranceProximityCues.Update(state, nowUtc);
+        if (proximity is not { } ready)
+        {
+            return;
+        }
+
+        var cue = WorldMapEntranceProximitySpatializer.CreateCue(runtime.Map, state, ready);
+        if (cue is not { } spatialCue)
+        {
+            runtime.EntranceProximityCues.Reset();
+            log(
+                $"Native Steam 2026 world-map entrance cue refused: target={ready.Target.Label}, " +
+                $"triangle={ready.Arrival.TriangleId}, player={state.X},{state.Z}.");
+            return;
+        }
+
+        try
+        {
+            var played = false;
+            if (playEntranceCue is not null)
+            {
+                playEntranceCue(spatialCue, ready.Gain);
+                played = true;
+            }
+            else
+            {
+                played = entranceCuePlayer?.Play(spatialCue, ready.Gain) == true;
+            }
+
+            if (played)
+            {
+                log(
+                    $"Native Steam 2026 world-map entrance cue played: target={ready.Target.Label}, " +
+                    $"triangle={ready.Arrival.TriangleId}, " +
+                    $"entrance={ready.Arrival.X},{ready.Arrival.Z}, " +
+                    $"player={state.X},{state.Z}, distance={ready.DistanceUnits:0}, " +
+                    $"gain={ready.Gain:0.000}.");
+            }
+        }
+        catch (Exception ex)
+        {
+            // The x64 host treats every output boundary as fallible. A device or
+            // test seam failure must not tear down world-map speech or navigation.
+            log($"Native Steam 2026 world-map entrance cue failed: {ex.Message}");
         }
     }
 
@@ -461,23 +736,26 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         }
     }
 
-    private void SilenceForRecovery()
+    private void SilenceForRecovery(DateTime nowUtc, bool higherPrioritySpeech = false)
     {
         foreach (var runtime in runtimes.Values)
         {
             runtime.Footsteps.Reset();
+            runtime.EntranceProximityCues.Reset();
+            runtime.TerrainAnnouncements.ObserveUnavailable(nowUtc, higherPrioritySpeech);
         }
 
+        entranceCuePlayer?.StopAll();
         ResetMidgarZolomTrackers();
 
         autoWalk.Suspend();
     }
 
-    private void UpdateAutoWalk(WorldMapRuntimeContext runtime, WorldMapStateSnapshot state)
+    private bool UpdateAutoWalk(WorldMapRuntimeContext runtime, WorldMapStateSnapshot state)
     {
         if (!autoWalk.IsEnabledFor(NavigationAutoWalkDomain.WorldMap))
         {
-            return;
+            return false;
         }
 
         var hasDirection = runtime.Navigation.TryResolveAutomaticInput(state, out var direction);
@@ -488,7 +766,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         if (result.Success)
         {
             lastAutoWalkFailure = string.Empty;
-            return;
+            return false;
         }
 
         if (!string.Equals(result.Diagnostic, lastAutoWalkFailure, StringComparison.Ordinal))
@@ -496,7 +774,10 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
             lastAutoWalkFailure = result.Diagnostic;
             log($"Native Steam 2026 world-map auto walk failed closed: {result.Diagnostic}");
             speak("Auto walk stopped because directional input failed.", true);
+            return true;
         }
+
+        return false;
     }
 
     private void LogDiagnostic(string kind, string diagnostic, ref string prior)

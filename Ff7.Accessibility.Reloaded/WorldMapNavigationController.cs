@@ -4,7 +4,9 @@ public delegate IReadOnlyList<WorldMapNavigationTarget> WorldMapTargetProvider(
     WorldMapStateSnapshot state,
     WorldMapNavigationCategory category);
 
-public readonly record struct WorldMapNavigationOutput(string? Speech);
+public readonly record struct WorldMapNavigationOutput(
+    string? Speech,
+    bool StopAutoWalk = false);
 
 public readonly record struct WorldMapNavigationProbeSnapshot(
     bool BeaconEnabled,
@@ -36,6 +38,7 @@ public static class WorldMapNavigationLifecycle
 public sealed class WorldMapNavigationController
 {
     private const double WaypointArrivalDistance = 480d;
+    private const double AutomaticMovementProbeDistance = 120d;
     private const int DefaultDistanceUnitsPerCount = 512;
     private const int OffRouteReplanDistanceCounts = 12;
     private static readonly TimeSpan OffRouteReplanDelay = TimeSpan.FromSeconds(5);
@@ -47,6 +50,8 @@ public sealed class WorldMapNavigationController
     private readonly int distanceUnitsPerCount;
     private readonly TimeSpan guidanceInterval;
     private readonly Dictionary<WorldMapNavigationCategory, int> selectedIndices = new();
+    private readonly WorldMapAutoWalkConvergenceTracker autoWalkConvergence = new();
+    private readonly FieldNavigationMovementObserver automaticDirection = new();
 
     private int categoryIndex;
     private bool beaconEnabled;
@@ -158,11 +163,13 @@ public sealed class WorldMapNavigationController
 
     public WorldMapNavigationOutput? Observe(
         WorldMapStateSnapshot state,
-        DateTime observedAt = default)
+        DateTime observedAt = default,
+        bool automaticWalkActive = false)
     {
         var now = observedAt == default ? DateTime.UtcNow : observedAt;
         if (!beaconEnabled)
         {
+            autoWalkConvergence.Reset();
             return null;
         }
 
@@ -183,6 +190,7 @@ public sealed class WorldMapNavigationController
         if (resumedAfterCombat)
         {
             combatPaused = false;
+            autoWalkConvergence.Reset();
             progressSink?.Activate(progressPercent);
             lastGuidanceAt = DateTime.MinValue;
         }
@@ -233,7 +241,7 @@ public sealed class WorldMapNavigationController
             return null;
         }
 
-        if (target.HasArrived(playerTriangle))
+        if (target.HasArrived(state, playerTriangle))
         {
             progressSink?.Complete();
             var label = target.Label;
@@ -278,7 +286,32 @@ public sealed class WorldMapNavigationController
                 : DescribeRouteTransition(replanned.Value, resumedAfterCombat);
         }
 
-        UpdateProgressAndWaypoint(state);
+        var guidanceMeasurement = UpdateProgressAndWaypoint(state, automaticWalkActive);
+        if (!automaticWalkActive)
+        {
+            autoWalkConvergence.Reset();
+        }
+        else
+        {
+            var remainingAlongRoute = Math.Max(
+                0d,
+                activeRoute.TotalDistance * (1d - guidanceMeasurement.Fraction));
+            var remainingDistance = Math.Sqrt(
+                remainingAlongRoute * remainingAlongRoute +
+                guidanceMeasurement.DistanceFromRoute * guidanceMeasurement.DistanceFromRoute);
+            if (autoWalkConvergence.Observe(waypointIndex, remainingDistance, now))
+            {
+                autoWalkConvergence.Reset();
+                lastDiagnostic =
+                    $"auto walk made no meaningful progress for " +
+                    $"{WorldMapAutoWalkConvergenceTracker.NoProgressTimeout.TotalSeconds:0} seconds; " +
+                    $"remaining={remainingDistance:0}, waypoint={waypointIndex}";
+                return new WorldMapNavigationOutput(
+                    $"Auto walk stopped. Could not get closer to {target.Label}. " +
+                    "Regular navigation is still on.",
+                    StopAutoWalk: true);
+            }
+        }
 
         string? speech = null;
         if (now - lastGuidanceAt >= guidanceInterval)
@@ -317,27 +350,51 @@ public sealed class WorldMapNavigationController
             return false;
         }
 
-        var run = WorldMapConnectedRunFormatter.Resolve(
-            routeStart,
-            route.Waypoints,
-            waypointIndex,
-            state,
-            map.WrapWidth,
-            map.WrapHeight,
-            distanceUnitsPerCount);
-        input = run.Direction switch
+        waypointIndex = ResolveAutomaticWaypoint(state, route, waypointIndex);
+        var waypoint = route.Waypoints[waypointIndex];
+        var dx = WorldMapTargetCatalog.WrappedDelta(state.X, waypoint.X, map.WrapWidth);
+        var dz = WorldMapTargetCatalog.WrappedDelta(state.Z, waypoint.Z, map.WrapHeight);
+        // Speech may smooth short legs and suppress sub-count diagonals. Native
+        // movement must aim from the actual accepted position on every sample.
+        input = automaticDirection.ResolveStickDirection(-dx, dz, state.ControlTransform).Input;
+        var probeDistance = Math.Min(AutomaticMovementProbeDistance, Math.Sqrt(dx * (double)dx + dz * (double)dz));
+        bool IsClear(FieldNavigationInput candidate)
         {
-            "up" => FieldNavigationInput.Up,
-            "up-right" => FieldNavigationInput.UpRight,
-            "right" => FieldNavigationInput.Right,
-            "down-right" => FieldNavigationInput.DownRight,
-            "down" => FieldNavigationInput.Down,
-            "down-left" => FieldNavigationInput.DownLeft,
-            "left" => FieldNavigationInput.Left,
-            "up-left" => FieldNavigationInput.UpLeft,
-            _ => FieldNavigationInput.None
-        };
+            var (x, z) = PredictNativeMovement(candidate, state.CameraFront);
+            return planner.CanTraverseSegment(state, new(
+                state.X + (int)Math.Round(x * probeDistance), state.Y,
+                state.Z + (int)Math.Round(z * probeDistance)));
+        }
+
+        // A clear oblique route can quantize to a cardinal key that hits a
+        // cliff. Keep the closest forward key with a clear native short step.
+        if (input is >= FieldNavigationInput.Up and <= FieldNavigationInput.UpLeft && !IsClear(input))
+        {
+            input = Enum.GetValues<FieldNavigationInput>()
+                .Where(candidate => candidate is >= FieldNavigationInput.Up and <= FieldNavigationInput.UpLeft)
+                .Select(candidate => (Input: candidate, World: PredictNativeMovement(candidate, state.CameraFront)))
+                .Select(candidate => (candidate.Input, Progress:
+                    (candidate.World.X * dx + candidate.World.Z * dz) /
+                    Math.Sqrt(candidate.World.X * candidate.World.X + candidate.World.Z * candidate.World.Z)))
+                .Where(candidate => candidate.Progress > 0d)
+                .OrderByDescending(candidate => candidate.Progress)
+                .Select(candidate => candidate.Input)
+                .FirstOrDefault(IsClear);
+        }
         return input is >= FieldNavigationInput.Up and <= FieldNavigationInput.UpLeft;
+    }
+
+    private static (double X, double Z) PredictNativeMovement(FieldNavigationInput input, int cameraFront)
+    {
+        var stick = FieldNavigationMovementObserver.ToStickDirection(input);
+        // FUN0074EA48 uses 3/4 speed on both diagonal axes and the full native
+        // camera angle, before the eight-bit control transform loses precision.
+        var scale = stick.X != 0f && stick.Y != 0f ? 0.75d : 1d;
+        var x = Math.Sign(stick.X) * scale;
+        var z = Math.Sign(stick.Y) * scale;
+        var angle = cameraFront * Math.PI * 2d / 4096d;
+        return (x * Math.Cos(angle) - z * Math.Sin(angle),
+            x * Math.Sin(angle) + z * Math.Cos(angle));
     }
 
     public void Suspend(string diagnostic)
@@ -361,6 +418,7 @@ public sealed class WorldMapNavigationController
         }
 
         combatPaused = true;
+        autoWalkConvergence.Reset();
         progressSink?.Deactivate();
         lastDiagnostic = string.IsNullOrWhiteSpace(diagnostic)
             ? "world navigation paused for combat"
@@ -414,7 +472,7 @@ public sealed class WorldMapNavigationController
             return new WorldMapNavigationOutput($"Route unavailable to {target.Label}. Navigation off.");
         }
 
-        if (target.HasArrived(playerTriangle))
+        if (target.HasArrived(state, playerTriangle))
         {
             progressSink?.Complete();
             ResetRoute(deactivateProgress: false);
@@ -431,6 +489,7 @@ public sealed class WorldMapNavigationController
 
         beaconEnabled = true;
         combatPaused = false;
+        autoWalkConvergence.Reset();
         activeTarget = target;
         activeRoute = route;
         routeStart = new WorldMapRouteWaypoint(state.X, state.Y, state.Z);
@@ -447,7 +506,7 @@ public sealed class WorldMapNavigationController
         activeMapType = state.WorldMapType;
         activeWorldProgress = state.WorldProgress;
         lastGuidanceAt = now;
-        UpdateProgressAndWaypoint(state);
+        _ = UpdateProgressAndWaypoint(state);
         lastDiagnostic = planner.LastDiagnostic;
         var guidance = CreateGuidanceSpeech(state, includeTarget: true, includeProgress: false);
         lastGuidanceSignature = CreateGuidanceSignature(state);
@@ -532,11 +591,11 @@ public sealed class WorldMapNavigationController
         return $"{run.Direction}:{run.EndWaypointIndex}";
     }
 
-    private void UpdateProgressAndWaypoint(WorldMapStateSnapshot state)
+    private WorldMapPolylineProgress UpdateProgressAndWaypoint(WorldMapStateSnapshot state, bool automaticWalkActive = false)
     {
         if (activeRoute is null)
         {
-            return;
+            return default;
         }
 
         var guidanceMeasurement = MeasurePolylineProgress(
@@ -559,8 +618,25 @@ public sealed class WorldMapNavigationController
             guidanceMeasurement.NextWaypointIndex,
             0,
             Math.Max(0, activeRoute.Waypoints.Count - 1));
+        if (automaticWalkActive)
+        {
+            waypointIndex = ResolveAutomaticWaypoint(state, activeRoute, waypointIndex);
+        }
         lastDiagnostic =
             $"route progress={progressPercent}, waypoint={waypointIndex}, offset={guidanceMeasurement.DistanceFromRoute:0}";
+        return guidanceMeasurement;
+    }
+
+    private int ResolveAutomaticWaypoint(WorldMapStateSnapshot state, WorldMapRoutePlan route, int suggestedIndex)
+    {
+        var index = Math.Clamp(suggestedIndex, 0, route.Waypoints.Count - 1);
+        // Spoken guidance smooths nearby legs, but automatic movement cannot
+        // cross a native cliff just because both ends share one component.
+        while (index > 0 && !planner.CanTraverseSegment(state, route.Waypoints[index]))
+        {
+            index--;
+        }
+        return index;
     }
 
     internal static WorldMapPolylineProgress MeasurePolylineProgress(
@@ -703,6 +779,7 @@ public sealed class WorldMapNavigationController
         lastGuidanceAt = DateTime.MinValue;
         offRouteSince = DateTime.MinValue;
         lastGuidanceSignature = string.Empty;
+        autoWalkConvergence.Reset();
     }
 
     private static string DisplayName(WorldMapNavigationCategory category) => category switch
@@ -743,3 +820,60 @@ public readonly record struct WorldMapPolylineProgress(
     double Fraction,
     int NextWaypointIndex,
     double DistanceFromRoute);
+
+internal sealed class WorldMapAutoWalkConvergenceTracker
+{
+    internal static readonly TimeSpan NoProgressTimeout = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan MaximumObservedSampleGap = TimeSpan.FromSeconds(2);
+    private const double MeaningfulProgressDistance = 32d;
+
+    private DateTime lastObservedAt = DateTime.MinValue;
+    private DateTime lastProgressAt = DateTime.MinValue;
+    private double bestRemainingDistance = double.PositiveInfinity;
+    private int bestWaypointIndex = -1;
+
+    internal bool Observe(int waypointIndex, double remainingDistance, DateTime observedAt)
+    {
+        if (!double.IsFinite(remainingDistance) || remainingDistance < 0d)
+        {
+            Reset();
+            return false;
+        }
+
+        if (lastObservedAt == DateTime.MinValue ||
+            observedAt <= lastObservedAt ||
+            observedAt - lastObservedAt > MaximumObservedSampleGap)
+        {
+            Begin(waypointIndex, remainingDistance, observedAt);
+            return false;
+        }
+
+        lastObservedAt = observedAt;
+        if (waypointIndex > bestWaypointIndex ||
+            remainingDistance <= bestRemainingDistance - MeaningfulProgressDistance)
+        {
+            bestWaypointIndex = Math.Max(bestWaypointIndex, waypointIndex);
+            bestRemainingDistance = remainingDistance;
+            lastProgressAt = observedAt;
+            return false;
+        }
+
+        return observedAt - lastProgressAt >= NoProgressTimeout;
+    }
+
+    internal void Reset()
+    {
+        lastObservedAt = DateTime.MinValue;
+        lastProgressAt = DateTime.MinValue;
+        bestRemainingDistance = double.PositiveInfinity;
+        bestWaypointIndex = -1;
+    }
+
+    private void Begin(int waypointIndex, double remainingDistance, DateTime observedAt)
+    {
+        lastObservedAt = observedAt;
+        lastProgressAt = observedAt;
+        bestRemainingDistance = remainingDistance;
+        bestWaypointIndex = waypointIndex;
+    }
+}

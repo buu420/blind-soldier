@@ -74,7 +74,8 @@ public sealed class Mod : IModV1, IModV2
     private ILoggerV2? logger;
     private PrismNativeSpeaker? speaker;
     private FootstepSoundPlayer? footstepSoundPlayer;
-    private FieldZoneTransitionCuePlayer? fieldZoneTransitionCuePlayer;
+    private ImmediateWaveCuePlayer? fieldZoneTransitionCuePlayer;
+    private NavigationBeaconPlayer? worldMapEntranceCuePlayer;
     private ImmediateWaveCuePlayer? swingingBarTimingCuePlayer;
     private ImmediateWaveCuePlayer? floor60ActionCuePlayer;
     private NavigationBeaconPlayer? floor60StatueBeaconPlayer;
@@ -144,6 +145,7 @@ public sealed class Mod : IModV1, IModV2
     private readonly TitleMenuVisualDetector titleMenuVisualDetector = new();
     private OpeningMovieDescription? openingMovieDescription;
     private OpeningMovieAudioTrackPlayer? openingMovieAudioTrackPlayer;
+    private FieldMovieNarrationTracker? fieldMovieNarrationTracker;
     private string modDirectory = AppContext.BaseDirectory;
     private string? gameRootDirectory;
     private Ff7GameLanguageContext? gameLanguage;
@@ -160,6 +162,45 @@ public sealed class Mod : IModV1, IModV2
     private bool ffnxRuntimeLoaded;
     private CurrentProcessLegacyAddressSpace? currentProcessLegacyAddressSpace;
     private FfnxPopupStateReader? ffnxPopupStateReader;
+    private SpeedSquareCoasterStateReader? speedSquareCoasterReader;
+    private SpeedSquareCoasterTargetReader? speedSquareCoasterTargetReader;
+    private SpeedSquareCoasterAimReadout? speedSquareCoasterAimReadout;
+    private NavigationBeaconPlayer? speedSquareCoasterTargetCuePlayer;
+    private ChocoboSquareStateReader? chocoboSquareReader;
+    private ChocoboSquareReadout? chocoboSquareReadout;
+    private SpeedSquareCoasterReadout? speedSquareCoasterReadout;
+    private FieldActivityStateReader? fieldActivityStateReader;
+    private FieldActivityReadout? fieldActivityReadout;
+    private FieldBoundaryStateReader? fieldActivityBoundaryStateReader;
+    private ImmediateWaveCuePlayer? fieldActivityButtonCuePlayer;
+    private SubmarineMissionStateReader? submarineMissionReader;
+    private SubmarineMissionReadout? submarineMissionReadout;
+    private ImmediateWaveCuePlayer? submarineMissionLockCuePlayer;
+
+    /// <summary>
+    /// The submarine mission is its own module and owns the screen and every button
+    /// while it runs. Field and world navigation stand down rather than talking over it
+    /// or leaving a route alive behind it.
+    /// </summary>
+    private bool submarineMissionOwnsInput;
+    private Reactor5ButtonStateReader? reactor5ButtonReader;
+    private Reactor5ButtonCueTracker? reactor5ButtonCueTracker;
+    private ImmediateWaveCuePlayer? reactor5ButtonCuePlayer;
+    private string? fieldActivityCurrentLine;
+    private bool fieldActivityOwnsInput;
+    private WonderSquareBasketballStateReader? wonderSquareBasketballReader;
+    private WonderSquareBasketballReadout? wonderSquareBasketballReadout;
+    private WonderSquareArmWrestlingStateReader? wonderSquareArmWrestlingReader;
+    private WonderSquareArmWrestlingReadout? wonderSquareArmWrestlingReadout;
+    private WonderSquare3DBattlerStateReader? wonderSquare3DBattlerReader;
+    private WonderSquare3DBattlerReadout? wonderSquare3DBattlerReadout;
+    // The wind-up tick and the top-of-rise marker play on their own devices, so the
+    // button the player is holding cannot interrupt them.
+    private ImmediateWaveCuePlayer? basketballWindUpCuePlayer;
+    private ImmediateWaveCuePlayer? basketballTopCuePlayer;
+    private ImmediateWaveCuePlayer? armWrestlingLevelCuePlayer;
+    private ImmediateWaveCuePlayer? armWrestlingPushAheadCuePlayer;
+    private ImmediateWaveCuePlayer? armWrestlingPushedBackCuePlayer;
     private readonly FfnxPopupSpeechTracker ffnxPopupSpeechTracker = new();
     private DateTime lastFfnxPopupReaderProbeAt = DateTime.MinValue;
     private string lastFfnxPopupReaderDiagnostic = string.Empty;
@@ -219,6 +260,11 @@ public sealed class Mod : IModV1, IModV2
         new(TimeSpan.FromMilliseconds(300));
     private readonly SwingingBarTimingCueTracker swingingBarTimingCueTracker = new();
     private SquatMinigameCueCoordinator? squatMinigameCueCoordinator;
+    private JunonMinigameCueCoordinator? junonMinigameCueCoordinator;
+    private readonly JunonTimingCueTracker junonTimingCueTracker = new();
+    private JunonTimingCuePlayer? junonTimingCuePlayer;
+    private JunonParadeAlignmentAssist? junonParadeAlignmentAssist;
+    private bool junonParadeClaimsFieldInput;
     private Floor60SoldierTurnCueTracker floor60SoldierTurnCueTracker = new();
     private Floor60GuardTimingStateReader? floor60GuardTimingStateReader;
     private FieldMessageReader? fieldMessageReader;
@@ -234,6 +280,8 @@ public sealed class Mod : IModV1, IModV2
     private LoadedFieldScriptIdentity? loadedFieldScriptIdentity;
     private readonly HashSet<string> loggedLoadedFieldScriptIdentities = [];
     private EchoSFieldCutsceneDescriptionTracker fieldCutsceneDescriptionTracker = new();
+    private readonly FieldAreaDescriptionColdStartTracker fieldAreaDescriptionColdStart =
+        new(FieldCutsceneDescriptionCatalog.CreateGoldSaucerAreaDescriptions());
     private readonly EchoSDisclaimerSpeechTracker echoSDisclaimerSpeechTracker = new();
     private readonly EchoSReactorTimerOverrideTracker echoSReactorTimerOverrideTracker = new();
     private readonly FieldCutsceneSpeechPriority fieldCutsceneSpeechPriority = new();
@@ -349,7 +397,15 @@ public sealed class Mod : IModV1, IModV2
     private int lastFieldOpcodeSoundHookAttemptTarget;
     private string lastFieldOpcodeCutsceneResolutionDiagnostic = string.Empty;
     private readonly object fieldCutsceneDescriptionSync = new();
-    private readonly Queue<FieldCutsceneDescriptionCue> pendingFieldCutsceneDescriptions = new();
+    private readonly FieldCutsceneDescriptionDeliveryQueue pendingFieldCutsceneDescriptions = new();
+    // Shares the one live queue, so the ordering contract is the same object the
+    // monitor loop uses and the same one its regression drives.
+    private readonly FieldCutsceneDescriptionDelivery fieldCutsceneDescriptionDelivery;
+
+    // Public because the Reloaded loader constructs this type by reflection; a
+    // private constructor would remove the implicit public one and stop the mod
+    // loading at all.
+    public Mod() => fieldCutsceneDescriptionDelivery = new(pendingFieldCutsceneDescriptions);
     private readonly HashSet<FieldCutsceneDescriptionKey> observedFieldCutsceneOpcodes = [];
     private string lastDeferredZoneLogText = string.Empty;
     private string lastFieldPositionDiagnosticState = string.Empty;
@@ -360,6 +416,9 @@ public sealed class Mod : IModV1, IModV2
     private string lastFieldNavigationControlDiagnostic = string.Empty;
     private string lastFieldNavigationInputDiagnostic = string.Empty;
     private string lastFieldNavigationProgressDiagnostic = string.Empty;
+    private string lastFieldAutoWalkPaceDiagnostic = string.Empty;
+    private readonly FieldAutoWalkConvergenceTracker fieldAutoWalkConvergence = new();
+    private FieldPositionSnapshot? lastFieldAutoWalkPacePosition;
     private string lastFieldNavigationRouteDiagnostic = string.Empty;
     private uint lastFieldPositionModelBase;
     private string lastFieldRunStateDiagnostic = string.Empty;
@@ -381,6 +440,10 @@ public sealed class Mod : IModV1, IModV2
     private string lastWorldMapEntityDiagnostic = string.Empty;
     private string lastWorldMapNavigationDiagnostic = string.Empty;
     private string lastWorldMapFootstepDiagnostic = string.Empty;
+    private string lastWorldMapTerrainDiagnostic = string.Empty;
+    private string lastWorldMapTerrainFailure = string.Empty;
+    private long lastWorldMapProgressPublicationRevision;
+    private long lastWorldMapProgressControlSpeechRevision;
     private bool worldMapWasActive;
     private int fieldObjectCueErrorCount;
     private int fieldExitCueErrorCount;
@@ -450,13 +513,32 @@ public sealed class Mod : IModV1, IModV2
         saveMenuSpeechTracker.Reset();
         DiscardCompetingSaveMenuSpeech();
         squatMinigameCueCoordinator?.Reset();
+        junonMinigameCueCoordinator?.Reset();
+        junonParadeAlignmentAssist?.Reset("mod suspended");
+        junonTimingCueTracker.Reset();
+        junonParadeClaimsFieldInput = false;
         floor60SoldierTurnCueTracker.Reset();
         floor60StatueBeaconPlayer?.StopAll();
         floor60ActionCuePlayer?.Dispose();
         highwayAccessibilityCoordinator?.Reset("mod suspended");
         navigationAutoWalkController?.Reset();
+        fieldAutoWalkConvergence.Reset();
         pendingNavigationAutoWalkToggle = NavigationAutoWalkDomain.None;
         ResetWorldMapAccessibility("mod suspended");
+        // The film narration plays on its own device, so a suspended mod would
+        // otherwise keep describing a film the player is no longer watching.
+        fieldMovieNarrationTracker?.Stop(FieldMovieNarrationStopReason.Suspended);
+        speedSquareCoasterReadout?.Reset();
+        submarineMissionReadout?.Reset();
+        submarineMissionOwnsInput = false;
+        reactor5ButtonCueTracker?.Reset();
+        speedSquareCoasterAimReadout?.Reset();
+        chocoboSquareReadout?.Reset();
+        wonderSquareBasketballReadout?.Reset();
+        wonderSquareBasketballReader?.Reset();
+        wonderSquareArmWrestlingReadout?.Reset();
+        wonderSquare3DBattlerReadout?.Reset();
+        wonderSquare3DBattlerReader?.Reset();
         Speak("Final Fantasy Seven accessibility mod suspended.");
     }
 
@@ -479,7 +561,9 @@ public sealed class Mod : IModV1, IModV2
             saveMenuSpeechTracker.Reset();
             rootMainMenuRenderEvidenceTracker.Reset();
             squatMinigameCueCoordinator?.Reset();
+            junonMinigameCueCoordinator?.Reset();
             cancellation?.Cancel();
+            junonTimingCueTracker.Reset();
             if (monitorThread is { IsAlive: true } && Thread.CurrentThread != monitorThread)
             {
                 monitorThread.Join(TimeSpan.FromSeconds(1));
@@ -487,10 +571,19 @@ public sealed class Mod : IModV1, IModV2
 
             module19WriterProbe?.Dispose();
             openingMovieAudioTrackPlayer?.Dispose();
+            fieldMovieNarrationTracker?.Dispose();
+            basketballWindUpCuePlayer?.Dispose();
+            basketballTopCuePlayer?.Dispose();
+            armWrestlingLevelCuePlayer?.Dispose();
+            armWrestlingPushAheadCuePlayer?.Dispose();
+            armWrestlingPushedBackCuePlayer?.Dispose();
+            speedSquareCoasterTargetCuePlayer?.Dispose();
             footstepSoundPlayer?.Dispose();
             fieldZoneTransitionCuePlayer?.Dispose();
+            worldMapEntranceCuePlayer?.Dispose();
             swingingBarTimingCuePlayer?.Dispose();
             floor60ActionCuePlayer?.Dispose();
+            junonTimingCuePlayer?.Dispose();
             floor60StatueBeaconPlayer?.Dispose();
             highwayAccessibilityCoordinator?.Dispose();
 
@@ -498,6 +591,9 @@ public sealed class Mod : IModV1, IModV2
             // the mod unloads would leave them held down in the player's game.
             condorCursorSteering?.Dispose();
             condorCursorSteering = null;
+            junonParadeAlignmentAssist?.Dispose();
+            junonParadeAlignmentAssist = null;
+            junonParadeClaimsFieldInput = false;
             navigationAutoWalkController?.Dispose();
             navigationAutoWalkController = null;
             pendingNavigationAutoWalkToggle = NavigationAutoWalkDomain.None;
@@ -660,12 +756,149 @@ public sealed class Mod : IModV1, IModV2
             ResolveOpeningMovieAudioTrackPath(),
             config.OpeningMovieAudioTrackVolumePercent,
             Log);
+        fieldMovieNarrationTracker = new FieldMovieNarrationTracker(
+            CreateFieldMovieNarrationOutput,
+            Log,
+            FieldPositionReader.FieldModule);
         fieldVisibleWindowSpeechCoordinator = new FieldVisibleWindowSpeechCoordinator(
             TimeSpan.FromMilliseconds(Math.Max(100, config.FieldMessageStableMs)));
         var legacyAddressSpace = new CurrentProcessLegacyAddressSpace();
         currentProcessLegacyAddressSpace = legacyAddressSpace;
+        speedSquareCoasterReader = new SpeedSquareCoasterStateReader(legacyAddressSpace);
+        speedSquareCoasterTargetReader = new SpeedSquareCoasterTargetReader(legacyAddressSpace);
+        speedSquareCoasterAimReadout = new SpeedSquareCoasterAimReadout();
+        chocoboSquareReader = new ChocoboSquareStateReader(legacyAddressSpace);
+        chocoboSquareReadout = new ChocoboSquareReadout();
+        speedSquareCoasterTargetCuePlayer?.Dispose();
+        speedSquareCoasterTargetCuePlayer = config.EnableSpeedSquareCoasterTargetCues
+            ? new NavigationBeaconPlayer(
+                ResolveWorldMapEntranceCueSoundPath(),
+                config.SpeedSquareCoasterTargetCueVolumePercent,
+                Log)
+            : null;
+        speedSquareCoasterReadout = new SpeedSquareCoasterReadout();
+        submarineMissionReader = new SubmarineMissionStateReader(legacyAddressSpace);
+        submarineMissionReadout = new SubmarineMissionReadout();
+        submarineMissionLockCuePlayer?.Dispose();
+        submarineMissionLockCuePlayer = config.EnableSubmarineMissionReadout
+            ? new ImmediateWaveCuePlayer(
+                ResolveArcadeCueSoundPath(
+                    config.SubmarineMissionLockCueSoundPath,
+                    ArcadeCueAssets.FieldActivityButtonReady),
+                config.SubmarineMissionCueVolumePercent,
+                "Submarine target lock cue",
+                Log)
+            : null;
+        reactor5ButtonReader = new Reactor5ButtonStateReader(legacyAddressSpace, ReadByte);
+        reactor5ButtonCueTracker = new Reactor5ButtonCueTracker();
+        reactor5ButtonCuePlayer?.Dispose();
+        reactor5ButtonCuePlayer = config.EnableReactor5ButtonCue
+            ? new ImmediateWaveCuePlayer(
+                ResolveArcadeCueSoundPath(
+                    config.Reactor5ButtonCueSoundPath,
+                    ArcadeCueAssets.FieldActivityButtonReady),
+                config.Reactor5ButtonCueVolumePercent,
+                "Reactor 5 button timing cue",
+                Log)
+            : null;
+        fieldActivityStateReader = new FieldActivityStateReader(legacyAddressSpace);
+        fieldActivityReadout = new FieldActivityReadout();
+        fieldActivityBoundaryStateReader = new FieldBoundaryStateReader(legacyAddressSpace);
+        fieldActivityButtonCuePlayer?.Dispose();
+        fieldActivityButtonCuePlayer = config.EnableFieldActivityReadout
+            ? new ImmediateWaveCuePlayer(
+                ResolveArcadeCueSoundPath(
+                    config.FieldActivityButtonReadyCueSoundPath, ArcadeCueAssets.FieldActivityButtonReady),
+                config.FieldActivityCueVolumePercent,
+                "Field activity button-ready cue",
+                Log)
+            : null;
+        fieldActivityCurrentLine = null;
+        fieldActivityOwnsInput = false;
+        wonderSquareBasketballReader = new WonderSquareBasketballStateReader(legacyAddressSpace);
+        wonderSquareBasketballReadout = new WonderSquareBasketballReadout();
+        wonderSquareArmWrestlingReader = new WonderSquareArmWrestlingStateReader(legacyAddressSpace);
+        wonderSquareArmWrestlingReadout = new WonderSquareArmWrestlingReadout();
+        wonderSquare3DBattlerReader = new WonderSquare3DBattlerStateReader(legacyAddressSpace);
+        wonderSquare3DBattlerReadout = new WonderSquare3DBattlerReadout();
+        basketballWindUpCuePlayer?.Dispose();
+        basketballTopCuePlayer?.Dispose();
+        if (config.EnableWonderSquareBasketballCues)
+        {
+            basketballWindUpCuePlayer = new ImmediateWaveCuePlayer(
+                ResolveArcadeCueSoundPath(
+                    config.WonderSquareBasketballWindUpCueSoundPath, ArcadeCueAssets.BasketballRiseTick),
+                config.WonderSquareBasketballCueVolumePercent,
+                "Basketball wind-up tick",
+                Log);
+            basketballTopCuePlayer = new ImmediateWaveCuePlayer(
+                ResolveArcadeCueSoundPath(
+                    config.WonderSquareBasketballTopCueSoundPath, ArcadeCueAssets.BasketballPoseTop),
+                config.WonderSquareBasketballCueVolumePercent,
+                "Basketball top-of-rise cue",
+                Log);
+        }
+        else
+        {
+            basketballWindUpCuePlayer = null;
+            basketballTopCuePlayer = null;
+        }
+
+        armWrestlingLevelCuePlayer?.Dispose();
+        armWrestlingPushAheadCuePlayer?.Dispose();
+        armWrestlingPushedBackCuePlayer?.Dispose();
+        if (config.EnableWonderSquareArmWrestlingCues)
+        {
+            armWrestlingLevelCuePlayer = new ImmediateWaveCuePlayer(
+                ResolveArcadeCueSoundPath(
+                    config.WonderSquareArmWrestlingLevelCueSoundPath, ArcadeCueAssets.ArmWrestlingLevel),
+                config.WonderSquareArmWrestlingCueVolumePercent,
+                "Arm wrestling level tone",
+                Log);
+            armWrestlingPushAheadCuePlayer = new ImmediateWaveCuePlayer(
+                ResolveArcadeCueSoundPath(
+                    config.WonderSquareArmWrestlingPushAheadCueSoundPath, ArcadeCueAssets.ArmWrestlingPushAhead),
+                config.WonderSquareArmWrestlingCueVolumePercent,
+                "Arm wrestling pushing-ahead tone",
+                Log);
+            armWrestlingPushedBackCuePlayer = new ImmediateWaveCuePlayer(
+                ResolveArcadeCueSoundPath(
+                    config.WonderSquareArmWrestlingPushedBackCueSoundPath, ArcadeCueAssets.ArmWrestlingPushedBack),
+                config.WonderSquareArmWrestlingCueVolumePercent,
+                "Arm wrestling pushed-back tone",
+                Log);
+        }
+        else
+        {
+            armWrestlingLevelCuePlayer = null;
+            armWrestlingPushAheadCuePlayer = null;
+            armWrestlingPushedBackCuePlayer = null;
+        }
         squatMinigameCueCoordinator = new SquatMinigameCueCoordinator(
             new SquatMinigameStateReader(legacyAddressSpace));
+        junonMinigameCueCoordinator = new JunonMinigameCueCoordinator(
+            new JunonMinigameStateReader(legacyAddressSpace));
+        junonTimingCueTracker.Reset();
+        junonTimingCuePlayer?.Dispose();
+        var junonCuePath = string.IsNullOrWhiteSpace(config.JunonTimingCueSoundPath)
+            ? @"Assets\navigation\swing_jump_058.wav"
+            : config.JunonTimingCueSoundPath;
+        junonTimingCuePlayer = config.EnableJunonMinigamePrompts && config.EnableJunonTimingCue
+            ? new JunonTimingCuePlayer(
+                Path.IsPathRooted(junonCuePath) ? junonCuePath : Path.Combine(modDirectory, junonCuePath),
+                config.JunonTimingCueVolumePercent,
+                Log)
+            : null;
+        junonParadeAlignmentAssist?.Dispose();
+        junonParadeAlignmentAssist = new JunonParadeAlignmentAssist(
+            HighwayAutoSteeringController.CreateCurrentProcess(legacyAddressSpace),
+            Log,
+            new FieldWalkmeshRoutePlanner(
+                new FieldWalkmeshReader(ReadInt32, ReadInt16),
+                new FieldBoundaryStateReader(legacyAddressSpace),
+                dynamicObstacleProvider: new FieldNavigationDynamicObstacleReader(
+                    ReadInt32, ReadInt16, ReadByte).Read));
+        junonParadeClaimsFieldInput = false;
         highwayAccessibilityCoordinator?.Dispose();
         highwayAccessibilityCoordinator = new HighwayAccessibilityCoordinator(
             config,
@@ -681,7 +914,10 @@ public sealed class Mod : IModV1, IModV2
         condorMinigameProbe = new CondorMinigameProbe(
             legacyAddressSpace, Log, text => Speak(text, interrupt: false));
         condorBattleStateReader = new CondorBattleStateReader(legacyAddressSpace);
-        condorBattleSpeechTracker = new CondorBattleSpeechTracker(Log);
+        condorBattleSpeechTracker = new CondorBattleSpeechTracker(
+            Log,
+            config.EnableCondorBattleLineAnnouncements,
+            config.EnableCondorEnemyArrivalAnnouncements);
 
         // The jump presses the game's own direction keys rather than writing the
         // cursor, so it needs the live control table to know which physical keys
@@ -726,9 +962,17 @@ public sealed class Mod : IModV1, IModV2
             TimeSpan.FromMilliseconds(Math.Max(0, config.FieldZoneTransitionCueSettleMs)));
         fieldZoneTransitionCuePlayer?.Dispose();
         fieldZoneTransitionCuePlayer = config.EnableFieldZoneTransitionCue
-            ? new FieldZoneTransitionCuePlayer(
+            ? new ImmediateWaveCuePlayer(
                 ResolveFieldZoneTransitionCueSoundPath(),
                 config.FieldZoneTransitionCueVolumePercent,
+                "Zone transition cue",
+                Log)
+            : null;
+        worldMapEntranceCuePlayer?.Dispose();
+        worldMapEntranceCuePlayer = config.EnableWorldMapEntranceProximityCues
+            ? new NavigationBeaconPlayer(
+                ResolveWorldMapEntranceCueSoundPath(),
+                config.WorldMapEntranceCueVolumePercent,
                 Log)
             : null;
         swingingBarTimingCueTracker.Reset();
@@ -752,6 +996,13 @@ public sealed class Mod : IModV1, IModV2
             $"field={SquatMinigameStateReader.GymFieldId}, entity={SquatMinigameStateReader.CloudEntityId}, " +
             $"script={SquatMinigameStateReader.ControllerScriptId}, " +
             $"state=0x{SquatMinigameStateReader.AddressExpectedStep:X8}.");
+        Log(
+            $"Junon native minigame prompts initialized: enabled={config.EnableJunonMinigamePrompts}, " +
+            $"paradeAlignmentAssist={config.EnableJunonParadeAlignmentAssist}, " +
+            $"fields={JunonMinigameStateReader.CprFieldId}," +
+            $"{JunonMinigameStateReader.WelcomeParadeFieldId}," +
+            $"{JunonMinigameStateReader.SendOffFieldId}, " +
+            $"temporaryBank=0x{JunonMinigameStateReader.AddressTemporaryFieldBank:X8}.");
         floor60SoldierTurnCueTracker = new Floor60SoldierTurnCueTracker(
             TimeSpan.FromMilliseconds(Math.Max(0, config.Floor60StatueBeaconIntervalMs)),
             Math.Max(0, config.Floor60StatueArrivalDistanceUnits),
@@ -991,7 +1242,8 @@ public sealed class Mod : IModV1, IModV2
             ReadInt32,
             ReadInt16,
             ReadByte,
-            fieldStoryEvents);
+            fieldStoryEvents,
+            fieldScriptLineStateReader.IsEnabled);
         var fieldWalkmeshReader = new FieldWalkmeshReader(ReadInt32, ReadInt16);
         var fieldBoundaryStateReader = new FieldBoundaryStateReader(legacyAddressSpace);
         var fieldDynamicObstacleReader = new FieldNavigationDynamicObstacleReader(
@@ -1001,12 +1253,24 @@ public sealed class Mod : IModV1, IModV2
         IReadOnlyList<FieldScriptNavigationTransition> ReadNavigationTransitions(int fieldId)
         {
             var result = fieldScriptNavigationCatalog?.ReadField(fieldId);
-            return result is null
-                ? []
-                : fieldScriptNavigationTransitionTracker.Resolve(
-                    fieldId,
-                    result.Transitions,
-                    transition => fieldScriptLineStateReader.IsEnabled(transition.SourceEntityId));
+            if (result is null)
+            {
+                return [];
+            }
+
+            // Availability and height are one step, in that order, and the tracker owns
+            // both so that nothing here can accidentally do only half of it. The walkmesh
+            // is only read when something in the field actually needs a height resolved.
+            var walkmesh = result.Transitions.Any(transition => transition.SourceTriangle >= 0)
+                ? fieldWalkmeshReader
+                    .Read(new FieldPositionSnapshot(FieldPositionReader.FieldModule, fieldId, 0, 0, 0, 0, 0, 0))
+                    .Walkmesh
+                : null;
+            return fieldScriptNavigationTransitionTracker.ResolveForNavigation(
+                fieldId,
+                result.Transitions,
+                fieldScriptLineStateReader.IsEnabled,
+                walkmesh);
         }
 
         fieldNavigationTransitionProvider = ReadNavigationTransitions;
@@ -1254,8 +1518,18 @@ public sealed class Mod : IModV1, IModV2
                 TickFieldZoneTransitionCue();
                 TickFieldSwingingBarTimingCue();
                 TickSquatMinigameCue();
+                TickJunonMinigameCues();
                 TickCondorBattleReader();
                 TickCondorMinigameProbe();
+                TickFieldActivityReadout();
+                TickSpeedSquareCoasterReadout();
+                TickSpeedSquareCoasterTargets();
+                TickWonderSquareBasketballReadout();
+                TickWonderSquareArmWrestlingReadout();
+                TickWonderSquare3DBattlerReadout();
+                TickChocoboSquareReadout();
+                TickSubmarineMissionReadout();
+                TickReactor5ButtonCue();
                 TickFloor60SoldierTurnCue();
                 TickTitleMenuReader();
                 TickOpeningMovieDescription();
@@ -1288,7 +1562,10 @@ public sealed class Mod : IModV1, IModV2
                 try
                 {
                     highwayAccessibilityCoordinator?.Reset("x86 monitor loop fault");
+                    junonParadeAlignmentAssist?.Reset("x86 monitor loop fault");
+                    junonParadeClaimsFieldInput = false;
                     navigationAutoWalkController?.Suspend();
+                    fieldMovieNarrationTracker?.Stop(FieldMovieNarrationStopReason.Suspended);
                 }
                 catch (Exception resetException)
                 {
@@ -1349,6 +1626,12 @@ public sealed class Mod : IModV1, IModV2
         }
 
         if (config.EnableSquatMinigamePrompts)
+        {
+            sleep = Math.Min(sleep, 30);
+        }
+
+        if (config.EnableJunonMinigamePrompts ||
+            config.EnableJunonParadeAlignmentAssist)
         {
             sleep = Math.Min(sleep, 30);
         }
@@ -1520,8 +1803,13 @@ public sealed class Mod : IModV1, IModV2
                     foregroundProcessGate.IsCurrentProcessForeground()),
                 text =>
                 {
-                    Log($"Repeat last speech: {text}");
-                    return config.EnableSpeech && speaker?.Speak(text, interrupt: true) == true;
+                    // While a native activity is on screen, asking again means asking
+                    // about it. Replaying whatever happened to be said last would hand
+                    // back a line of dialogue that has already gone by, which is not
+                    // what the player is asking for with a clock in front of them.
+                    var spoken = fieldActivityCurrentLine ?? text;
+                    Log($"Repeat last speech: {spoken}");
+                    return config.EnableSpeech && speaker?.Speak(spoken, interrupt: true) == true;
                 });
         }
         catch (Exception ex)
@@ -1600,7 +1888,7 @@ public sealed class Mod : IModV1, IModV2
                         HandleDeferredFieldAskCursor(hookEvent);
                         break;
                     case NativeFieldHookEventKind.CutsceneContext:
-                        HandleFieldCutsceneDescriptionContext(hookEvent.ScriptContext);
+                        HandleFieldCutsceneDescriptionContext(hookEvent);
                         break;
                     case NativeFieldHookEventKind.TimerSet:
                         HandleEchoSReactorTimerSet(hookEvent.ScriptContext, hookEvent.Result);
@@ -1790,7 +2078,7 @@ public sealed class Mod : IModV1, IModV2
         }
 
         fieldZoneTransitionCuePlayer?.Play(
-            fieldZoneTransitionCueTracker.PreviousFieldId,
+            $"field={fieldZoneTransitionCueTracker.PreviousFieldId}->" +
             fieldZoneTransitionCueTracker.CurrentFieldId);
     }
 
@@ -2011,7 +2299,7 @@ public sealed class Mod : IModV1, IModV2
         {
             var spoken = condorBattleSpeechTracker.Navigate(
                 action,
-                (x, y) => BeginCondorCursorJump(snapshot, x, y));
+                target => BeginCondorCursorJump(snapshot, target));
             if (string.IsNullOrEmpty(spoken))
             {
                 continue;
@@ -2082,24 +2370,21 @@ public sealed class Mod : IModV1, IModV2
     /// refuses that write and always will. This holds the game's own direction
     /// keys instead and lets go when the cursor gets there.
     /// </remarks>
-    private bool BeginCondorCursorJump(CondorBattleSnapshot snapshot, int x, int y)
+    private bool BeginCondorCursorJump(
+        CondorBattleSnapshot snapshot,
+        CondorNavigationTarget target)
     {
         if (condorCursorSteering is null)
         {
             return false;
         }
 
-        if (!snapshot.CursorUnderPlayerControl)
-        {
-            // A menu has the direction keys. Steering now would operate that
-            // menu instead, so the navigator falls back to saying both
-            // positions rather than claiming a move it cannot make.
-            Log("Fort Condor steering: refused, the direction keys are not moving the cursor.");
-            return false;
-        }
-
-        condorCursorSteering.Begin(x, y, snapshot.CursorX, snapshot.CursorY);
-        return true;
+        // The shared controller selects the battlefield or destination cursor
+        // from this coherent snapshot, retains the selected unit's stable slot,
+        // and enforces the mode/modal/report and held-input gates identically on
+        // x86 and x64. This host never injects OK; the controller only owns the
+        // four mapped direction keys.
+        return condorCursorSteering.TryBegin(target, snapshot);
     }
 
     /// <summary>
@@ -2114,12 +2399,7 @@ public sealed class Mod : IModV1, IModV2
             return;
         }
 
-        var step = condorCursorSteering.Step(
-            cursorReadable: snapshot is not null,
-            underCursorControl: snapshot?.CursorUnderPlayerControl ?? true,
-            snapshot?.CursorX ?? 0,
-            snapshot?.CursorY ?? 0,
-            snapshot?.HeldDirectionMask ?? 0);
+        var step = condorCursorSteering.Step(snapshot);
 
         if (step.Speech is { } speech)
         {
@@ -2137,6 +2417,598 @@ public sealed class Mod : IModV1, IModV2
     /// The Fort Condor battle is silent because it draws no text the mod can
     /// see. See CondorMinigameProbe for what this samples and why.
     /// </summary>
+    /// <summary>
+    /// Speaks the native activities this route passes through - the rolling corridor,
+    /// the clock, the chase, the Bone Village dig, the pillar jumps and the altar
+    /// scene - from what is visibly on screen right now.
+    ///
+    /// The delivery is bounded by the readout itself rather than here: a new situation
+    /// is said once, an unanswered wait is said again on a slow beat, and a hazard that
+    /// is only moving is refreshed no faster than a listener can follow. This method is
+    /// the plumbing - it gathers the live state, plays the protected cue, and lets the
+    /// rest of the field speech know when the activity owns the player's next press.
+    /// </summary>
+    private void TickFieldActivityReadout()
+    {
+        fieldActivityOwnsInput = false;
+        fieldActivityCurrentLine = null;
+        if (!config.EnableFieldActivityReadout ||
+            fieldActivityStateReader is null ||
+            fieldActivityReadout is null ||
+            fieldPositionReader is null)
+        {
+            return;
+        }
+
+        var result = fieldPositionReader.ReadNavigation();
+        if (!result.IsUsable || !FieldActivityReadout.HasActivity(result.Position.FieldId))
+        {
+            fieldActivityReadout.Reset();
+            return;
+        }
+
+        var observation = ReadFieldActivityObservation(result.Position);
+        var cue = fieldActivityReadout.Observe(observation, DateTime.UtcNow);
+        fieldActivityOwnsInput = cue.IsPending;
+        fieldActivityCurrentLine = fieldActivityReadout.Describe(observation);
+
+        if (cue.PlayButtonReadyCue &&
+            fieldActivityButtonCuePlayer?.Play("field activity button ready") != true)
+        {
+            // A missing asset or a device that will not open must not swallow the fact
+            // that the game has stopped for the player. The spoken line below still
+            // carries it.
+            Log("Field activity button-ready cue could not be played.");
+        }
+
+        if (cue.Speech is not null)
+        {
+            Speak(cue.Speech, false);
+        }
+    }
+
+    /// <summary>
+    /// Gathers exactly the live state the current field's activity needs, and nothing
+    /// else. Anything that cannot be read is reported as unreadable rather than being
+    /// left out, so the readout can tell an empty room from a failed look.
+    /// </summary>
+    private FieldActivityObservation ReadFieldActivityObservation(FieldPositionSnapshot position)
+    {
+        var fieldId = position.FieldId;
+        var models = new List<FieldActivityModelReading>();
+        foreach (var entityId in FieldActivityReadout.ObservedEntities(fieldId))
+        {
+            models.Add(fieldActivityStateReader!.ReadModel(fieldId, entityId));
+        }
+
+        var waits = new Dictionary<int, FieldActivityWaitState>();
+        foreach (var entityId in FieldActivityReadout.ObservedWaitEntities(fieldId))
+        {
+            waits[entityId] = fieldActivityStateReader!.ReadWaitState(
+                fieldId,
+                entityId,
+                FieldActivityReadout.WaitAnchors(fieldId, entityId));
+        }
+
+        Func<int, bool>? isLineEnabled = null;
+        if (fieldScriptLineStateReader is not null &&
+            FieldActivityReadout.ObservedLineEntities(fieldId).Count > 0)
+        {
+            var enabled = new Dictionary<int, bool>();
+            var readable = true;
+            foreach (var entityId in FieldActivityReadout.ObservedLineEntities(fieldId))
+            {
+                if (!fieldScriptLineStateReader.TryRead(entityId, out var state))
+                {
+                    readable = false;
+                    break;
+                }
+
+                enabled[entityId] = state;
+            }
+
+            if (readable)
+            {
+                isLineEnabled = entityId => enabled.TryGetValue(entityId, out var state) && state;
+            }
+        }
+
+        Func<int, bool>? isBoundaryEnabled = null;
+        if (fieldActivityBoundaryStateReader is not null &&
+            FieldActivityReadout.ObservedBoundaryTriangles(fieldId).Count > 0)
+        {
+            var boundary = fieldActivityBoundaryStateReader.Read(
+                position,
+                FieldBoundaryStateReader.MaximumTriangleCount);
+            if (boundary.IsUsable)
+            {
+                var state = boundary.State;
+                isBoundaryEnabled = triangle => state.IsBoundaryEnabled(triangle);
+            }
+        }
+
+        var controlResult = fieldNavigationControlReader?.Read(position)
+            ?? new FieldNavigationControlReadResult(false, default, "control reader is not initialized");
+
+        // The player has control when the field says so and nothing scripted is moving
+        // them. Naming a button while the party is being walked would be inviting a
+        // press into a scene that is not listening for one.
+        var isControlled =
+            fieldAudibleCueState.Module == FieldPositionReader.FieldModule &&
+            fieldAudibleCueState.UserControl == 0 &&
+            fieldAudibleCueState.MovieActive == 0;
+
+        // The cliff draws its body temperature in a native numeric window, whose value
+        // is stored apart from the text a window carries; a reader that only sees
+        // strings gets the word "Degrees" and never the number in front of it.
+        var numericWindowId = FieldActivityReadout.ObservedNumericWindow(fieldId);
+        var numericWindow = numericWindowId >= 0
+            ? fieldActivityStateReader!.ReadNumericWindow(fieldId, numericWindowId)
+            : default;
+
+        Func<int, int>? readTemporaryByte = FieldActivityReadout.NeedsTemporaryBank(fieldId)
+            ? index => ReadByte(FieldNavigationObjectReader.AddressTemporaryFieldBankBase + index)
+            : null;
+
+        return new FieldActivityObservation(
+            fieldId,
+            position.X,
+            position.Y,
+            position.Z,
+            position.TriangleId,
+            isControlled,
+            ReadFieldActivityGameMoment(),
+            controlResult.Transform,
+            controlResult.IsUsable,
+            models,
+            waits,
+            isLineEnabled,
+            isBoundaryEnabled,
+            ReadFieldActivityPillarGate())
+        {
+            NumericWindow = numericWindow,
+            ReadTemporaryByte = readTemporaryByte
+        };
+    }
+
+    private int ReadFieldActivityGameMoment() =>
+        ReadByte(FieldNavigationObjectReader.AddressFieldBankBase) |
+        (ReadByte(FieldNavigationObjectReader.AddressFieldBankBase + 1) << 8);
+
+    /// <summary>
+    /// Bank[5][9], which every pillar's Go script tests before it looks at any key.
+    /// </summary>
+    private int ReadFieldActivityPillarGate() =>
+        ReadByte(FieldNavigationObjectReader.AddressTemporaryFieldBankBase + 9);
+
+
+    /// <summary>
+    /// Plays the Reactor 5 timing tone on the start of Barret and Tifa's raise.
+    ///
+    /// The field's own dialogue has already told the player to push at the same time as
+    /// the others, so nothing is said here: what is missing without sight is the moment,
+    /// and a tone on its own device is the one signal a held button cannot cut off.
+    /// </summary>
+    private void TickReactor5ButtonCue()
+    {
+        if (!config.EnableReactor5ButtonCue ||
+            reactor5ButtonReader is null ||
+            reactor5ButtonCueTracker is null ||
+            fieldPositionReader is null)
+        {
+            return;
+        }
+
+        var position = fieldPositionReader.ReadNavigation();
+        if (!position.IsUsable ||
+            position.Position.FieldId != Reactor5ButtonCueTracker.FieldId)
+        {
+            reactor5ButtonCueTracker.Reset();
+            return;
+        }
+
+        if (!reactor5ButtonReader.TryRead(position.Position.FieldId, out var observation))
+        {
+            // A torn or unreadable frame is not evidence the event has ended, so the
+            // tracked raise is left as it was and this pass simply plays nothing.
+            return;
+        }
+
+        if (reactor5ButtonCueTracker.Observe(observation).PlayCue &&
+            reactor5ButtonCuePlayer?.Play("Reactor 5 button timing") != true)
+        {
+            Log("Reactor 5 button timing cue could not be played.");
+        }
+    }
+
+    /// <summary>
+    /// Speaks the submarine mission's own instruments and the markers it is drawing.
+    /// The mission owns its module outright, so nothing field or world related is
+    /// running while this is; leaving it clears every cached reading so a second run
+    /// cannot inherit the first one's targets.
+    /// </summary>
+    private void TickSubmarineMissionReadout()
+    {
+        if (!config.EnableSubmarineMissionReadout ||
+            submarineMissionReader is null ||
+            submarineMissionReadout is null)
+        {
+            return;
+        }
+
+        if (!submarineMissionReader.TryRead(out var snapshot))
+        {
+            // A reading that cannot be trusted is not a mission that has ended, so
+            // ownership is left exactly as it was.
+            // A reading that cannot be trusted is not a mission that has ended, so the
+            // tracked state is left exactly as it was and this pass simply says nothing.
+            if (config.EnableSubmarineMissionDiagnostics)
+            {
+                Log($"Submarine mission: {submarineMissionReader.LastDiagnostic}");
+            }
+
+            return;
+        }
+
+        submarineMissionOwnsInput = snapshot.IsActive;
+        var cue = submarineMissionReadout.Observe(snapshot, DateTime.UtcNow);
+        if (cue.PlayLockCue &&
+            submarineMissionLockCuePlayer?.Play("submarine target lock") != true)
+        {
+            Log("Submarine target lock cue could not be played.");
+        }
+
+        if (cue.Speech is not null)
+        {
+            Speak(cue.Speech, false);
+        }
+
+        // The same key that answers "what is on screen now" everywhere else. It is
+        // short-circuited on the mission being live, so no other owner of K loses a
+        // press to a mission that is not running.
+        if (snapshot.IsActive &&
+            WasNavigationKeyPressed(
+                VirtualKeyK,
+                foregroundProcessGate.IsCurrentProcessForeground()))
+        {
+            Speak(submarineMissionReadout.Describe(snapshot), true);
+        }
+
+        if (config.EnableSubmarineMissionDiagnostics)
+        {
+            Log($"Submarine mission: {submarineMissionReader.LastDiagnostic}");
+        }
+    }
+
+    /// <summary>
+    /// Speaks the Speed Square coaster's own visible aim and charge. Both are drawn
+    /// on screen for a sighted player; nothing here reveals target positions or
+    /// outcomes, and no input is ever issued.
+    /// </summary>
+    private void TickSpeedSquareCoasterReadout()
+    {
+        if (!config.EnableSpeedSquareCoasterReadout ||
+            speedSquareCoasterReader is null ||
+            speedSquareCoasterReadout is null)
+        {
+            return;
+        }
+
+        if (!speedSquareCoasterReader.TryRead(out var state))
+        {
+            var left = speedSquareCoasterReadout.Observe(default);
+            if (left is not null)
+            {
+                Speak(left, false);
+            }
+
+            return;
+        }
+
+        var speech = speedSquareCoasterReadout.Observe(state);
+        if (speech is null)
+        {
+            return;
+        }
+
+        if (config.EnableSpeedSquareCoasterDiagnostics)
+        {
+            Log($"Speed Square coaster: {speedSquareCoasterReader.LastDiagnostic}");
+        }
+
+        // The aim changes continuously while a direction is held, so a new readout
+        // supersedes the previous one rather than queueing behind it.
+        Speak(speech, true);
+    }
+
+    /// <summary>
+    /// Where the coaster's currently rendered targets are, the displayed score and
+    /// resolved hits. The direction also plays as a spatial cue on the mod's own
+    /// device, because the fire button is pressed constantly during a run and each
+    /// press interrupts screen-reader speech. Nothing here moves the sight or fires.
+    /// </summary>
+    private void TickSpeedSquareCoasterTargets()
+    {
+        if (!config.EnableSpeedSquareCoasterTargetCues ||
+            speedSquareCoasterReader is null ||
+            speedSquareCoasterTargetReader is null ||
+            speedSquareCoasterAimReadout is null)
+        {
+            return;
+        }
+
+        if (!speedSquareCoasterReader.TryRead(out var state) || !state.IsActive)
+        {
+            speedSquareCoasterAimReadout.Reset();
+            return;
+        }
+
+        // An unreadable or torn frame is silence rather than "the targets have gone".
+        // The score and the fire flag come back inside the snapshot, read under the
+        // same module and presentation bookends as the boxes themselves.
+        if (!speedSquareCoasterTargetReader.TryReadTargets(state.CursorX, state.CursorY, out var targets))
+        {
+            return;
+        }
+
+        var cue = speedSquareCoasterAimReadout.Observe(state, targets, DateTime.UtcNow);
+        if (cue.IsEmpty)
+        {
+            return;
+        }
+
+        if (config.EnableSpeedSquareCoasterDiagnostics)
+        {
+            Log($"Speed Square coaster targets: {speedSquareCoasterTargetReader.LastDiagnostic}");
+        }
+
+        if (cue.Beacon is { } beacon)
+        {
+            speedSquareCoasterTargetCuePlayer?.Play(beacon);
+        }
+
+        if (cue.Speech is { } speech)
+        {
+            Speak(speech, true);
+        }
+    }
+
+    /// <summary>
+    /// Resolves an arcade cue path against the mod directory. Each caller supplies
+    /// the fallback for its own cue: a top-of-rise cue that quietly falls back to the
+    /// rise tick is worse than silence, because the two moments become
+    /// indistinguishable.
+    /// </summary>
+    private string ResolveArcadeCueSoundPath(string configured, string fallback)
+    {
+        var path = string.IsNullOrWhiteSpace(configured) ? fallback : configured;
+        return Path.IsPathRooted(path) ? path : Path.Combine(modDirectory, path);
+    }
+
+    /// <summary>
+    /// Speaks and cues the Basketball Game's visible wind-up. The ordinary result and
+    /// GP windows stay with the native dialogue path; nothing here presses or
+    /// releases the button, and the script's own success value is never read.
+    /// </summary>
+    private void TickWonderSquareBasketballReadout()
+    {
+        if (!config.EnableWonderSquareBasketballCues ||
+            wonderSquareBasketballReader is null ||
+            wonderSquareBasketballReadout is null)
+        {
+            return;
+        }
+
+        if (!wonderSquareBasketballReader.TryRead(out var state))
+        {
+            wonderSquareBasketballReadout.Reset();
+            return;
+        }
+
+        var cue = wonderSquareBasketballReadout.Observe(state);
+        if (cue.IsEmpty)
+        {
+            return;
+        }
+
+        if (config.EnableWonderSquareBasketballDiagnostics)
+        {
+            Log($"Wonder Square basketball: {wonderSquareBasketballReader.LastDiagnostic}");
+        }
+
+        if (cue.RiseStarted)
+        {
+            basketballWindUpCuePlayer?.Play("basketball wind-up");
+        }
+
+        if (cue.RiseSettled && basketballTopCuePlayer?.Play("basketball ball at the top") != true)
+        {
+            // A missing asset or a device that will not open must not swallow the
+            // landmark. This is bounded to one attempt per wind-up because the event
+            // itself fires once, so a broken device cannot talk over native dialogue
+            // on every tick.
+            Speak("Ball at the top.", false);
+        }
+
+        if (cue.Speech is not null)
+        {
+            Speak(cue.Speech, false);
+        }
+    }
+
+    /// <summary>
+    /// Speaks which way the locked arms are leaning during an Arm Wrestling bout.
+    /// The ready, win and loss windows stay with the native dialogue path.
+    /// </summary>
+    private void TickWonderSquareArmWrestlingReadout()
+    {
+        if (!config.EnableWonderSquareArmWrestlingCues ||
+            wonderSquareArmWrestlingReader is null ||
+            wonderSquareArmWrestlingReadout is null)
+        {
+            return;
+        }
+
+        if (!wonderSquareArmWrestlingReader.TryRead(out var state))
+        {
+            wonderSquareArmWrestlingReadout.Reset();
+            return;
+        }
+
+        var speech = wonderSquareArmWrestlingReadout.Observe(state, out var pose);
+        if (speech is null)
+        {
+            return;
+        }
+
+        if (config.EnableWonderSquareBasketballDiagnostics)
+        {
+            Log($"Wonder Square arm wrestling: {wonderSquareArmWrestlingReader.LastDiagnostic}");
+        }
+
+        // The contest asks for continuous [OK] presses and each press interrupts
+        // screen-reader speech, so the pose change is carried by a short tone on its
+        // own device as well. One tone per revealed change, never per poll.
+        PlayArmWrestlingPoseCue(pose);
+
+        // The lean changes as the bout swings, so a new reading supersedes the
+        // previous one rather than queueing behind it.
+        Speak(speech, true);
+    }
+
+    private void PlayArmWrestlingPoseCue(WonderSquareArmWrestlingPose pose)
+    {
+        var player = pose switch
+        {
+            WonderSquareArmWrestlingPose.PushingAhead or
+                WonderSquareArmWrestlingPose.TheirArmDown => armWrestlingPushAheadCuePlayer,
+            WonderSquareArmWrestlingPose.BeingPushedBack or
+                WonderSquareArmWrestlingPose.YourArmDown => armWrestlingPushedBackCuePlayer,
+            WonderSquareArmWrestlingPose.Level => armWrestlingLevelCuePlayer,
+            _ => null
+        };
+        player?.Play($"arm wrestling {pose}");
+    }
+
+    /// <summary>
+    /// The chocobo racing screens. Each is read only while its own native substate is
+    /// the one dispatching, so a stale global from a previous visit is never spoken.
+    /// </summary>
+    private void TickChocoboSquareReadout()
+    {
+        if (!config.EnableChocoboSquareReadout ||
+            chocoboSquareReader is null ||
+            chocoboSquareReadout is null)
+        {
+            return;
+        }
+
+        if (!chocoboSquareReader.TryReadPhase(out var phase))
+        {
+            chocoboSquareReadout.Reset();
+            return;
+        }
+
+        // K is the mod's own status key everywhere else, and it means the same thing
+        // here. Sampled before the state read and short-circuited on the phase, so a
+        // tap that lands between two reads is still seen and no other owner of K
+        // loses a press to a screen that is not up.
+        var statusRequested =
+            phase != ChocoboSquarePhase.None &&
+            WasNavigationKeyPressed(VirtualKeyK, foregroundProcessGate.IsCurrentProcessForeground());
+
+        var lines = phase switch
+        {
+            ChocoboSquarePhase.Betting when chocoboSquareReader.TryReadBetting(out var betting) =>
+                WithStatus(
+                    chocoboSquareReadout.ObserveBetting(betting),
+                    statusRequested ? ChocoboSquareReadout.DescribeBettingStatus(betting) : null),
+            ChocoboSquarePhase.Race when chocoboSquareReader.TryReadRace(out var race) =>
+                WithStatus(
+                    chocoboSquareReadout.ObserveRace(race),
+                    statusRequested ? ChocoboSquareReadout.DescribeRaceStatus(race) : null),
+            ChocoboSquarePhase.Results when chocoboSquareReader.TryReadResults(out var results) =>
+                WithStatus(
+                    chocoboSquareReadout.ObserveResults(results),
+                    statusRequested ? ChocoboSquareReadout.DescribeResultsStatus(results) : null),
+            ChocoboSquarePhase.None => ResetChocoboSquare(),
+            _ => Array.Empty<string>()
+        };
+
+        if (lines.Count == 0)
+        {
+            return;
+        }
+
+        if (config.EnableChocoboSquareDiagnostics)
+        {
+            Log($"Chocobo Square: {chocoboSquareReader.LastDiagnostic}");
+        }
+
+        foreach (var line in lines)
+        {
+            Speak(line, false);
+        }
+    }
+
+    private IReadOnlyList<string> ResetChocoboSquare()
+    {
+        chocoboSquareReadout?.Reset();
+        return Array.Empty<string>();
+    }
+
+    /// <summary>
+    /// Appends an answer to a status request. It goes last so anything the screen has
+    /// just changed is still heard first.
+    /// </summary>
+    private static IReadOnlyList<string> WithStatus(IReadOnlyList<string> lines, string? status)
+    {
+        if (status is null)
+        {
+            return lines;
+        }
+
+        var combined = new List<string>(lines.Count + 1);
+        combined.AddRange(lines);
+        combined.Add(status);
+        return combined;
+    }
+
+    private void TickWonderSquare3DBattlerReadout()
+    {
+        if (!config.EnableWonderSquare3DBattlerCues ||
+            wonderSquare3DBattlerReader is null ||
+            wonderSquare3DBattlerReadout is null)
+        {
+            return;
+        }
+
+        if (!wonderSquare3DBattlerReader.TryRead(out var state))
+        {
+            wonderSquare3DBattlerReadout.Reset();
+            return;
+        }
+
+        var lines = wonderSquare3DBattlerReadout.Observe(state);
+        if (lines.Count == 0)
+        {
+            return;
+        }
+
+        if (config.EnableWonderSquare3DBattlerDiagnostics)
+        {
+            Log($"Wonder Square 3D Battler: {wonderSquare3DBattlerReader.LastDiagnostic}");
+        }
+
+        // Each point supersedes the last, the same way the cabinet's own score does -
+        // but a two-line batch is one point, and speaking its halves separately let
+        // the second cut off the first.
+        foreach (var (text, interrupt) in WonderSquare3DBattlerReadout.Deliver(lines))
+        {
+            Speak(text, interrupt);
+        }
+    }
+
     private void TickCondorMinigameProbe()
     {
         if (!config.EnableCondorMinigameProbe || condorMinigameProbe is null)
@@ -2194,6 +3066,98 @@ public sealed class Mod : IModV1, IModV2
 
         Speak(prompt, interrupt: true);
         Log($"Wall Market squat visual step announced from native state: {prompt}.");
+    }
+
+    private void TickJunonMinigameCues()
+    {
+        junonParadeClaimsFieldInput = false;
+        if ((!config.EnableJunonMinigamePrompts &&
+             !config.EnableJunonParadeAlignmentAssist) ||
+            !foregroundProcessGate.IsCurrentProcessForeground() ||
+            junonMinigameCueCoordinator is null ||
+            junonParadeAlignmentAssist is null)
+        {
+            junonMinigameCueCoordinator?.Reset();
+            junonParadeAlignmentAssist?.Reset("Junon host inactive");
+            junonTimingCueTracker.Reset();
+            return;
+        }
+
+        if (!junonMinigameCueCoordinator.TryRead(out var snapshot))
+        {
+            var unavailable = junonParadeAlignmentAssist.ObserveUnavailable(
+                config.EnableJunonParadeAlignmentAssist);
+            junonParadeClaimsFieldInput = unavailable.ClaimsFieldInput;
+            SpeakJunonParadeAlignmentStep(unavailable);
+            return;
+        }
+
+        var timingCueNeedsSpeechFallback = PlayJunonTimingCue(snapshot);
+        var alignment = junonParadeAlignmentAssist.Observe(
+            snapshot,
+            config.EnableJunonParadeAlignmentAssist);
+        junonParadeClaimsFieldInput = alignment.ClaimsFieldInput;
+        if (junonParadeClaimsFieldInput)
+        {
+            battleStatusLimitKeyFrameRouter.DiscardNavigationPress(
+                FieldPositionReader.FieldModule);
+            DiscardNavigationAutoWalkToggle(NavigationAutoWalkDomain.Field);
+            StopNavigationAutoWalk(NavigationAutoWalkDomain.Field, announce: false);
+        }
+
+        SpeakJunonParadeAlignmentStep(alignment);
+        if (!config.EnableJunonMinigamePrompts)
+        {
+            junonMinigameCueCoordinator.Reset();
+            return;
+        }
+
+        foreach (var cue in junonMinigameCueCoordinator.ObserveSnapshot(
+                     snapshot,
+                     alignment.IsAssistActive))
+        {
+            if (string.IsNullOrWhiteSpace(cue.Text))
+            {
+                continue;
+            }
+
+            Speak(cue.Text, cue.Interrupt);
+            Log($"Junon visual minigame state announced from native data: {cue.Text}");
+        }
+
+        if (timingCueNeedsSpeechFallback)
+        {
+            Speak("Now.", interrupt: true);
+        }
+    }
+
+    private bool PlayJunonTimingCue(JunonMinigameSnapshot snapshot)
+    {
+        if (!config.EnableJunonMinigamePrompts || !config.EnableJunonTimingCue)
+        {
+            junonTimingCueTracker.Reset();
+            return false;
+        }
+
+        if (!junonTimingCueTracker.Observe(snapshot))
+        {
+            return false;
+        }
+
+        var played = junonTimingCuePlayer?.Play() == true;
+        Log($"Junon native Now timing cue: sequence={snapshot.Parade.NowPromptSequence}, played={played}.");
+        return !played;
+    }
+
+    private void SpeakJunonParadeAlignmentStep(JunonParadeAlignmentStep step)
+    {
+        if (string.IsNullOrWhiteSpace(step.Speech))
+        {
+            return;
+        }
+
+        Speak(step.Speech, interrupt: true);
+        Log($"Junon parade alignment assist announced: {step.Speech}");
     }
 
     private void TickFloor60SoldierTurnCue()
@@ -2590,6 +3554,22 @@ public sealed class Mod : IModV1, IModV2
 
         RefreshFieldCutsceneDescriptionHook();
 
+        // Independent narration outlives a single tick, so its native lifetime is
+        // checked before anything else: the film ending, another film starting, and
+        // leaving the field or the module all expire a pending start and stop an
+        // active track. Losing the foreground stops it too, because it plays on its
+        // own device and would keep talking over another window.
+        if (!foregroundProcessGate.IsCurrentProcessForeground())
+        {
+            fieldMovieNarrationTracker?.Stop(FieldMovieNarrationStopReason.Suspended);
+        }
+        else
+        {
+            fieldMovieNarrationTracker?.Observe(
+                ReadFieldMovieNarrationSample(ReadUInt16(FieldScriptContextReader.AddressCurrentFieldId)),
+                DateTime.UtcNow);
+        }
+
         if (ReadByte(FieldScriptContextReader.AddressCurrentModule) != FieldPositionReader.FieldModule)
         {
             ResetFieldCutsceneDescriptionState(resetCompatibilityState: true);
@@ -2602,6 +3582,25 @@ public sealed class Mod : IModV1, IModV2
             _ = TryGetLoadedFieldScriptIdentity(fieldId, out _);
         }
 
+        // The area description normally runs from the field's own area-name opcode,
+        // which is missed outright when the mod attaches to a game already standing
+        // in a room, or when a save is loaded straight into one. This offers it from
+        // a stable field observation instead, through the same queue, so it still
+        // waits behind dialogue and still happens once per visit.
+        if (fieldAreaDescriptionColdStart.Observe(
+                FieldPositionReader.FieldModule, fieldId, DateTime.UtcNow) is { } coldStartCue)
+        {
+            lock (fieldCutsceneDescriptionSync)
+            {
+                pendingFieldCutsceneDescriptions.Enqueue(coldStartCue);
+            }
+
+            if (config.EnableFieldCutsceneDescriptionDiagnostics)
+            {
+                Log($"Field area description queued from a stable field observation: field={fieldId}.");
+            }
+        }
+
         if (FieldCutsceneSpeechPriority.ShouldWaitForDialogue(
                 ReadByte(FieldAudibleCueStateReader.AddressActiveFieldMessageCount),
                 fieldMessageReader?.HasReadableActiveWindow() == true))
@@ -2609,41 +3608,79 @@ public sealed class Mod : IModV1, IModV2
             return;
         }
 
-        FieldCutsceneDescriptionCue? cue = null;
-        lock (fieldCutsceneDescriptionSync)
-        {
-            while (pendingFieldCutsceneDescriptions.Count > 0)
-            {
-                var candidate = pendingFieldCutsceneDescriptions.Dequeue();
-                if (candidate.FieldId == fieldId)
-                {
-                    cue = candidate;
-                    break;
-                }
-            }
-        }
+        var now = DateTime.UtcNow;
+        var sample = ReadFieldMovieNarrationSample(fieldId);
 
-        if (cue is null)
+        // The whole ordering contract - peek, hold for a native film that has not
+        // started yet, commit only after real acceptance, and reserve the dialogue
+        // window only after that - lives in the shared delivery step so it can be
+        // tested apart from the monitor loop.
+        var outcome = fieldCutsceneDescriptionDelivery.Deliver(
+            fieldId,
+            candidate => fieldMovieNarrationTracker?.Begin(
+                    candidate.FieldId,
+                    candidate.EntityId,
+                    candidate.ScriptId,
+                    candidate.ByteIndex,
+                    sample,
+                    now)
+                ?? FieldMovieNarrationStartResult.NotDescribed,
+            text => Speak(text, false),
+            candidate => fieldCutsceneSpeechPriority.BeginNarration(candidate.FieldId, candidate.Text, now),
+            out var delivered);
+
+        if (config.EnableFieldCutsceneDescriptionDiagnostics &&
+            outcome is FieldCutsceneDeliveryOutcome.Narrated or FieldCutsceneDeliveryOutcome.Spoken)
+        {
+            Log(
+                $"Field cutscene description speech: field={delivered.FieldId}, entity={delivered.EntityId}, " +
+                $"script={delivered.ScriptId}, byte={delivered.ByteIndex}, outcome={outcome}, text={delivered.Text}");
+        }
+    }
+
+    private FieldMovieNarrationSample ReadFieldMovieNarrationSample(int fieldId)
+    {
+        ReadFieldMovieHandlerState(out var handlerState, out var handlerPhase);
+        return new FieldMovieNarrationSample(
+            MovieActive: ReadUInt16(FieldAudibleCueStateReader.AddressFieldMovieActive) != 0,
+            MovieNumber: ReadUInt16(FieldAudibleCueStateReader.AddressFieldMovieNumber),
+            CurrentModule: ReadByte(FieldScriptContextReader.AddressCurrentModule),
+            CurrentFieldId: fieldId,
+            MovieHandlerState: handlerState,
+            MovieHandlerPhase: handlerPhase);
+    }
+
+    /// <summary>
+    /// Reads the MOVIE opcode handler's own state through the field script context
+    /// pointer. This is what tells a genuinely new film apart from the handler
+    /// meeting the same opcode again on a later frame of the film it already started.
+    /// Both values fall back to unknown when the pointer is not a plausible guest
+    /// address, and the tracker then relies on its own bookkeeping instead.
+    /// </summary>
+    private static void ReadFieldMovieHandlerState(out int state, out int phase)
+    {
+        state = FieldMovieNarrationPolicy.MovieHandlerStateUnknown;
+        phase = FieldMovieNarrationPolicy.MovieHandlerStateUnknown;
+
+        var context = ReadUInt32(FieldAudibleCueStateReader.AddressFieldScriptContextPointer);
+        if (!IsPlausibleGuestPointer(context))
         {
             return;
         }
 
-        if (config.EnableFieldCutsceneDescriptionDiagnostics)
-        {
-            Log(
-                $"Field cutscene description speech: field={cue.Value.FieldId}, entity={cue.Value.EntityId}, " +
-                $"script={cue.Value.ScriptId}, byte={cue.Value.ByteIndex}, text={cue.Value.Text}");
-        }
-
-        var now = DateTime.UtcNow;
-        fieldCutsceneSpeechPriority.BeginNarration(cue.Value.FieldId, cue.Value.Text, now);
-        Speak(cue.Value.Text, false);
+        state = ReadByte((int)(context + FieldAudibleCueStateReader.FieldScriptContextStateOffset));
+        phase = ReadInt16((int)(context + FieldAudibleCueStateReader.FieldScriptContextPhaseOffset));
     }
+
+    private static bool IsPlausibleGuestPointer(uint pointer) =>
+        pointer >= 0x00010000u && pointer <= 0x7FFF0000u;
 
     private void ResetFieldCutsceneDescriptionState(bool resetCompatibilityState = false)
     {
         fieldCutsceneDescriptionTracker.Reset();
+        fieldAreaDescriptionColdStart.Reset();
         fieldCutsceneSpeechPriority.Reset();
+        fieldMovieNarrationTracker?.Stop(FieldMovieNarrationStopReason.Unloaded);
         if (resetCompatibilityState)
         {
             loadedFieldScriptIdentity = null;
@@ -2737,7 +3774,7 @@ public sealed class Mod : IModV1, IModV2
     {
         lock (fieldCutsceneDescriptionSync)
         {
-            return pendingFieldCutsceneDescriptions.Any(cue => cue.FieldId == fieldId);
+            return pendingFieldCutsceneDescriptions.HasPendingFor(fieldId);
         }
     }
 
@@ -3744,11 +4781,16 @@ public sealed class Mod : IModV1, IModV2
             "Assets",
             "world",
             "wm-field-menu-names.txt");
-        if (!File.Exists(coordinatePath) || !File.Exists(menuNamePath))
+        var triggerPath = Path.Combine(
+            modDirectory,
+            "Assets",
+            "world",
+            "world-map-location-triggers.json");
+        if (!File.Exists(coordinatePath) || !File.Exists(menuNamePath) || !File.Exists(triggerPath))
         {
             Log(
                 "World-map accessibility unavailable: installed location metadata is missing. " +
-                $"coordinates={coordinatePath}, names={menuNamePath}.");
+                $"coordinates={coordinatePath}, names={menuNamePath}, triggers={triggerPath}.");
             return;
         }
 
@@ -3772,7 +4814,7 @@ public sealed class Mod : IModV1, IModV2
                         mapType,
                         progressStage,
                         mapPath);
-                    var catalog = WorldMapTargetCatalog.Load(map, coordinatePath, menuNamePath);
+                    var catalog = WorldMapTargetCatalog.Load(map, coordinatePath, menuNamePath, triggerPath);
                     var runtime = new WorldMapRuntimeContext(
                         map,
                         catalog,
@@ -3780,12 +4822,22 @@ public sealed class Mod : IModV1, IModV2
                         Math.Max(1, config.WorldMapNavigationSpeechDistanceUnitsPerCount),
                         TimeSpan.FromMilliseconds(Math.Max(0, config.WorldMapNavigationSpeechIntervalMs)),
                         TimeSpan.FromMilliseconds(Math.Max(80, config.WorldMapFootstepWalkIntervalMs)),
-                        TimeSpan.FromMilliseconds(Math.Max(80, config.WorldMapFootstepChocoboIntervalMs)));
+                        TimeSpan.FromMilliseconds(Math.Max(80, config.WorldMapFootstepChocoboIntervalMs)),
+                        Math.Max(0, config.WorldMapEntranceCueInnerRangeUnits),
+                        Math.Max(1, config.WorldMapEntranceCueOuterRangeUnits),
+                        TimeSpan.FromMilliseconds(Math.Max(0, config.WorldMapEntranceCueIntervalMs)));
                     worldMapRuntimes.Add((mapType, progressStage), runtime);
                     Log(
                         $"World-map type {mapType}, progress stage {progressStage} initialized from {mapPath}: " +
                         $"triangles={map.Triangles.Count}, locations={catalog.Locations.Count}, " +
+                        $"unresolvedLocations={catalog.UnresolvedLocations.Count}, " +
                         $"chocoboTracks={catalog.ChocoboTracks.Count}, wrap={map.WrapWidth}x{map.WrapHeight}.");
+                    if (mapType == 0 && progressStage == 0 && catalog.UnresolvedLocations.Count > 0)
+                    {
+                        Log(
+                            "World-map locations without a native terrain-script entrance were omitted: " +
+                            string.Join(", ", catalog.UnresolvedLocations.Select(location => location.Label)) + ".");
+                    }
                 }
             }
             catch (Exception ex)
@@ -3802,9 +4854,19 @@ public sealed class Mod : IModV1, IModV2
 
     private void TickWorldMapAccessibility()
     {
+        if (submarineMissionOwnsInput)
+        {
+            battleStatusLimitKeyFrameRouter.DiscardNavigationPress(
+                WorldMapStateReader.WorldModule);
+            DiscardNavigationAutoWalkToggle(NavigationAutoWalkDomain.WorldMap);
+            StopNavigationAutoWalk(NavigationAutoWalkDomain.WorldMap, announce: false);
+            return;
+        }
+
         if (!config.EnableSpeech &&
             !config.EnableWorldMapFootstepFeedback &&
-            !config.EnableWorldMapNavigationAssistant)
+            !config.EnableWorldMapNavigationAssistant &&
+            !config.EnableWorldMapEntranceProximityCues)
         {
             battleStatusLimitKeyFrameRouter.DiscardNavigationPress(
                 WorldMapStateReader.WorldModule);
@@ -3814,10 +4876,19 @@ public sealed class Mod : IModV1, IModV2
         }
 
         var now = DateTime.UtcNow;
+        var progressControlRevision = navigationProgressController.SpeechRevision;
+        var progressControlSpeechWasObserved =
+            progressControlRevision != lastWorldMapProgressControlSpeechRevision;
+        if (progressControlSpeechWasObserved)
+        {
+            lastWorldMapProgressControlSpeechRevision = progressControlRevision;
+        }
+
         if (now - lastWorldMapScanAt < TimeSpan.FromMilliseconds(Math.Max(30, config.WorldMapScanIntervalMs)) &&
             !battleStatusLimitKeyFrameRouter.HasNavigationPress(
                 WorldMapStateReader.WorldModule) &&
-            !HasNavigationAutoWalkToggle(NavigationAutoWalkDomain.WorldMap))
+            !HasNavigationAutoWalkToggle(NavigationAutoWalkDomain.WorldMap) &&
+            !progressControlSpeechWasObserved)
         {
             return;
         }
@@ -3838,9 +4909,11 @@ public sealed class Mod : IModV1, IModV2
                     foreach (var context in worldMapRuntimes.Values)
                     {
                         context.Footsteps.Reset();
+                        context.EntranceProximityCues.Reset();
                         context.Navigation.PauseForCombat($"native combat module {module}");
                     }
 
+                    worldMapEntranceCuePlayer?.StopAll();
                     SuspendNavigationAutoWalk(NavigationAutoWalkDomain.WorldMap);
                     return;
                 }
@@ -3888,8 +4961,13 @@ public sealed class Mod : IModV1, IModV2
                 foreach (var context in worldMapRuntimes.Values)
                 {
                     context.Footsteps.Reset();
+                    context.EntranceProximityCues.Reset();
+                    context.TerrainAnnouncements.ObserveUnavailable(
+                        now,
+                        progressControlSpeechWasObserved);
                 }
 
+                worldMapEntranceCuePlayer?.StopAll();
                 midgarZolomCrossingTracker.Reset();
             midgarZolomAreaTracker.Reset();
 
@@ -3915,6 +4993,8 @@ public sealed class Mod : IModV1, IModV2
                 if (!ReferenceEquals(context, runtime))
                 {
                     context.Footsteps.Reset();
+                    context.EntranceProximityCues.Reset();
+                    context.TerrainAnnouncements.Reset();
                     context.Navigation.Suspend("another native world map is active");
                 }
             }
@@ -3925,13 +5005,26 @@ public sealed class Mod : IModV1, IModV2
                     WorldMapStateReader.WorldModule);
                 DiscardNavigationAutoWalkToggle(NavigationAutoWalkDomain.WorldMap);
                 runtime.Footsteps.Reset();
+                runtime.EntranceProximityCues.Reset();
+                worldMapEntranceCuePlayer?.StopAll();
+                runtime.TerrainAnnouncements.ObserveUnavailable(now);
                 midgarZolomCrossingTracker.Reset();
             midgarZolomAreaTracker.Reset();
                 SuspendNavigationAutoWalk(NavigationAutoWalkDomain.WorldMap);
                 return;
             }
 
-            ObserveMidgarZolomCrossing(runtime, state);
+            // Always advance the Zolom tracker. Progress-control speech only
+            // reserves this pass's speech lane; it must not short-circuit the
+            // richer marsh state machine.
+            var higherPrioritySpeech = ObserveMidgarZolomCrossing(runtime, state);
+            higherPrioritySpeech |= progressControlSpeechWasObserved;
+            var progressRevision = worldMapNavigationProgressSink?.PublicationRevision ?? 0;
+            if (progressRevision != lastWorldMapProgressPublicationRevision)
+            {
+                higherPrioritySpeech = true;
+                lastWorldMapProgressPublicationRevision = progressRevision;
+            }
 
             if (config.EnableWorldMapFootstepFeedback && runtime.Footsteps.Observe(state, now))
             {
@@ -3945,6 +5038,7 @@ public sealed class Mod : IModV1, IModV2
                 Log($"World-map footsteps: {runtime.Footsteps.LastDiagnostic}.");
             }
 
+            ObserveWorldMapEntranceCue(runtime, state, now);
             if (!config.EnableWorldMapNavigationAssistant)
             {
                 battleStatusLimitKeyFrameRouter.DiscardNavigationPress(
@@ -3952,27 +5046,44 @@ public sealed class Mod : IModV1, IModV2
                 DiscardNavigationAutoWalkToggle(NavigationAutoWalkDomain.WorldMap);
                 runtime.Navigation.Suspend("world navigation disabled");
                 StopNavigationAutoWalk(NavigationAutoWalkDomain.WorldMap, announce: false);
+                ObserveWorldMapTerrain(runtime, state, now, higherPrioritySpeech);
                 return;
             }
 
             var actions = ReadFieldNavigationActions(WorldMapStateReader.WorldModule).ToArray();
             if (actions.Any(IsNavigationSelectionAction))
             {
-                StopNavigationAutoWalk(NavigationAutoWalkDomain.WorldMap, announce: true);
+                higherPrioritySpeech |= StopNavigationAutoWalk(
+                    NavigationAutoWalkDomain.WorldMap,
+                    announce: true);
             }
 
             foreach (var action in actions)
             {
-                ProcessWorldMapNavigationOutput(runtime.Navigation.HandleAction(action, state, now));
+                higherPrioritySpeech |= ProcessWorldMapNavigationOutput(
+                    runtime.Navigation.HandleAction(action, state, now));
             }
 
             if (TakeNavigationAutoWalkToggle(NavigationAutoWalkDomain.WorldMap))
             {
-                ToggleWorldMapAutoWalk(runtime, state, now);
+                higherPrioritySpeech |= ToggleWorldMapAutoWalk(runtime, state, now);
             }
 
-            ProcessWorldMapNavigationOutput(runtime.Navigation.Observe(state, now));
-            UpdateWorldMapAutoWalk(runtime, state);
+            higherPrioritySpeech |= ProcessWorldMapNavigationOutput(
+                runtime.Navigation.Observe(
+                    state,
+                    now,
+                    navigationAutoWalkController?.IsEnabledFor(
+                        NavigationAutoWalkDomain.WorldMap) == true));
+            higherPrioritySpeech |= UpdateWorldMapAutoWalk(runtime, state);
+            progressRevision = worldMapNavigationProgressSink?.PublicationRevision ?? 0;
+            if (progressRevision != lastWorldMapProgressPublicationRevision)
+            {
+                higherPrioritySpeech = true;
+                lastWorldMapProgressPublicationRevision = progressRevision;
+            }
+
+            ObserveWorldMapTerrain(runtime, state, now, higherPrioritySpeech);
             if (config.EnableWorldMapNavigationDiagnostics &&
                 !string.Equals(runtime.Navigation.LastDiagnostic, lastWorldMapNavigationDiagnostic, StringComparison.Ordinal))
             {
@@ -3990,6 +5101,11 @@ public sealed class Mod : IModV1, IModV2
             worldMapAccessibilityErrorCount++;
             midgarZolomCrossingTracker.Reset();
             midgarZolomAreaTracker.Reset();
+            foreach (var context in worldMapRuntimes.Values)
+            {
+                context.EntranceProximityCues.Reset();
+            }
+            worldMapEntranceCuePlayer?.StopAll();
             SuspendNavigationAutoWalk(NavigationAutoWalkDomain.WorldMap);
             if (worldMapAccessibilityErrorCount <= 10)
             {
@@ -3998,7 +5114,7 @@ public sealed class Mod : IModV1, IModV2
         }
     }
 
-    private void ObserveMidgarZolomCrossing(
+    private bool ObserveMidgarZolomCrossing(
         WorldMapRuntimeContext runtime,
         WorldMapStateSnapshot state)
     {
@@ -4006,7 +5122,7 @@ public sealed class Mod : IModV1, IModV2
         {
             midgarZolomCrossingTracker.Reset();
             midgarZolomAreaTracker.Reset();
-            return;
+            return false;
         }
 
         var zolom = midgarZolomStateReader?.Read()
@@ -4016,41 +5132,167 @@ public sealed class Mod : IModV1, IModV2
         var isAtMarshShore =
             state.IsOverworld &&
             runtime.IsAtTerrainBoundary(state, terrainId: 7);
-        var crossingCueSpoken = midgarZolomCrossingTracker.Observe(state, zolom, isAtMarshShore);
-        if (crossingCueSpoken)
+        var crossingCueReady = midgarZolomCrossingTracker.Observe(state, zolom, isAtMarshShore);
+        var speechDelivered = false;
+        if (crossingCueReady)
         {
             Log(
                 $"Midgar Zolom crossing window: player={state.X},{state.Z}, " +
                 $"zolom={zolom.State.X},{zolom.State.Z}, shoreline={isAtMarshShore}.");
-            Speak(MidgarZolomCrossingTracker.CueText);
+            speechDelivered |= Speak(MidgarZolomCrossingTracker.CueText);
         }
 
+        // The player's packed native walkmap word is already double-sampled by
+        // WorldMapStateReader. Do not make the richer marsh cue depend on a
+        // second static-triangle lookup that can be ambiguous at overlaps.
         var isOnMarsh =
             state.IsOverworld &&
-            runtime.IsOnTerrain(state, MidgarZolomAreaTracker.MarshTerrainId);
-        var areaCue = midgarZolomAreaTracker.Observe(state, zolom, isOnMarsh, crossingCueSpoken);
+            state.TerrainId == MidgarZolomAreaTracker.MarshTerrainId;
+        var areaCue = midgarZolomAreaTracker.Observe(
+            state,
+            zolom,
+            isOnMarsh,
+            crossingCueReady && speechDelivered);
         if (areaCue is null)
         {
-            return;
+            return speechDelivered;
         }
 
         Log(
             $"Midgar Zolom area: player={state.X},{state.Z}, model={state.PlayerModelId}, " +
             $"onMarsh={isOnMarsh}, zolom={zolom.State.IsActive}: {areaCue}");
-        Speak(areaCue);
+        var areaCueDelivered = Speak(areaCue);
+        speechDelivered |= areaCueDelivered;
+        if (areaCueDelivered)
+        {
+            runtime.TerrainAnnouncements.RecordExternalTerrainSpeech(
+                new WorldMapSurfaceSample(state.TerrainId, state.HasChocoboTracks, state.RegionId),
+                MidgarZolomAreaTracker.MarshTerrainId);
+        }
+
+        return speechDelivered;
     }
 
-    private void ProcessWorldMapNavigationOutput(WorldMapNavigationOutput? output)
+    private bool ProcessWorldMapNavigationOutput(WorldMapNavigationOutput? output)
     {
         if (output is not { } value)
         {
-            return;
+            return false;
+        }
+
+        if (value.StopAutoWalk)
+        {
+            _ = StopNavigationAutoWalk(
+                NavigationAutoWalkDomain.WorldMap,
+                announce: false);
+            Log("World-map navigation requested an automatic-walk fail-stop; regular navigation remains active.");
         }
 
         if (!string.IsNullOrWhiteSpace(value.Speech))
         {
             Log($"World-map navigation speech: {value.Speech}");
-            Speak(value.Speech);
+            return Speak(value.Speech);
+        }
+
+        return false;
+    }
+
+    private void ObserveWorldMapEntranceCue(
+        WorldMapRuntimeContext runtime,
+        WorldMapStateSnapshot state,
+        DateTime now)
+    {
+        if (!config.EnableWorldMapEntranceProximityCues)
+        {
+            runtime.EntranceProximityCues.Reset();
+            worldMapEntranceCuePlayer?.StopAll();
+            return;
+        }
+
+        var proximity = runtime.EntranceProximityCues.Update(state, now);
+        if (proximity is not { } ready)
+        {
+            return;
+        }
+
+        var cue = WorldMapEntranceProximitySpatializer.CreateCue(runtime.Map, state, ready);
+        if (cue is not { } spatialCue)
+        {
+            runtime.EntranceProximityCues.Reset();
+            Log(
+                $"World-map entrance cue refused: target={ready.Target.Label}, " +
+                $"triangle={ready.Arrival.TriangleId}, player={state.X},{state.Z}.");
+            return;
+        }
+
+        if (worldMapEntranceCuePlayer?.Play(spatialCue, ready.Gain) == true)
+        {
+            Log(
+                $"World-map entrance cue played: target={ready.Target.Label}, " +
+                $"triangle={ready.Arrival.TriangleId}, " +
+                $"entrance={ready.Arrival.X},{ready.Arrival.Z}, " +
+                $"player={state.X},{state.Z}, distance={ready.DistanceUnits:0}, " +
+                $"gain={ready.Gain:0.000}.");
+        }
+    }
+
+    private void ObserveWorldMapTerrain(
+        WorldMapRuntimeContext runtime,
+        WorldMapStateSnapshot state,
+        DateTime now,
+        bool higherPrioritySpeech)
+    {
+        if (!config.EnableSpeech)
+        {
+            runtime.TerrainAnnouncements.Reset();
+            return;
+        }
+
+        if (!runtime.TryResolveSurface(state, out var surface, out var diagnostic))
+        {
+            runtime.TerrainAnnouncements.ObserveUnavailable(now, higherPrioritySpeech);
+            if (!string.Equals(diagnostic, lastWorldMapTerrainFailure, StringComparison.Ordinal))
+            {
+                lastWorldMapTerrainFailure = diagnostic;
+                Log($"World-map terrain unavailable: {diagnostic}.");
+            }
+
+            return;
+        }
+
+        lastWorldMapTerrainFailure = string.Empty;
+        var announcement = runtime.TerrainAnnouncements.ObserveAnnouncement(
+            surface,
+            now,
+            higherPrioritySpeech);
+        if (config.EnableWorldMapNavigationDiagnostics &&
+            !string.Equals(
+                runtime.TerrainAnnouncements.LastDiagnostic,
+                lastWorldMapTerrainDiagnostic,
+                StringComparison.Ordinal))
+        {
+            lastWorldMapTerrainDiagnostic = runtime.TerrainAnnouncements.LastDiagnostic;
+            Log($"World-map terrain state: {lastWorldMapTerrainDiagnostic}.");
+        }
+
+        if (announcement is not { } ready)
+        {
+            return;
+        }
+
+        Log(
+            $"World-map terrain announcement: player={state.X},{state.Z}, " +
+            $"model={state.PlayerModelId}, terrain={surface.TerrainId} " +
+            $"({WorldMapTerrainNames.GetName(surface.TerrainId)}), " +
+            $"region={surface.RegionId?.ToString() ?? "unavailable"}, " +
+            $"tracks={surface.HasChocoboTracks}: {ready.Speech}");
+        if (Speak(ready.Speech, interrupt: false))
+        {
+            runtime.TerrainAnnouncements.AcknowledgeSpeech();
+        }
+        else
+        {
+            Log("World-map terrain speech was not accepted and remains pending for retry.");
         }
     }
 
@@ -4060,15 +5302,24 @@ public sealed class Mod : IModV1, IModV2
         {
             runtime.UpdateEntities(Array.Empty<WorldMapEntitySnapshot>());
             runtime.Footsteps.Reset();
+            runtime.TerrainAnnouncements.Reset();
+            runtime.EntranceProximityCues.Reset();
             runtime.Navigation.Suspend(diagnostic);
         }
 
+        worldMapEntranceCuePlayer?.StopAll();
         worldMapNavigationProgressSink?.Deactivate();
         midgarZolomCrossingTracker.Reset();
             midgarZolomAreaTracker.Reset();
         worldMapWasActive = false;
         lastWorldMapFootstepDiagnostic = string.Empty;
         lastWorldMapNavigationDiagnostic = string.Empty;
+        lastWorldMapTerrainDiagnostic = string.Empty;
+        lastWorldMapTerrainFailure = string.Empty;
+        lastWorldMapProgressPublicationRevision =
+            worldMapNavigationProgressSink?.PublicationRevision ?? 0;
+        lastWorldMapProgressControlSpeechRevision =
+            navigationProgressController.SpeechRevision;
         if (config.EnableWorldMapNavigationDiagnostics)
         {
             Log($"World-map accessibility reset: {diagnostic}.");
@@ -4094,6 +5345,28 @@ public sealed class Mod : IModV1, IModV2
 
     private void TickFieldNavigationAssistant()
     {
+        if (submarineMissionOwnsInput)
+        {
+            battleStatusLimitKeyFrameRouter.DiscardNavigationPress(
+                FieldPositionReader.FieldModule);
+            DiscardNavigationAutoWalkToggle(NavigationAutoWalkDomain.Field);
+            StopNavigationAutoWalk(NavigationAutoWalkDomain.Field, announce: false);
+            fieldNavigationController.Reset();
+            fieldNavigationGuidanceRepeatGate.Reset();
+            return;
+        }
+
+        if (junonParadeClaimsFieldInput)
+        {
+            battleStatusLimitKeyFrameRouter.DiscardNavigationPress(
+                FieldPositionReader.FieldModule);
+            DiscardNavigationAutoWalkToggle(NavigationAutoWalkDomain.Field);
+            StopNavigationAutoWalk(NavigationAutoWalkDomain.Field, announce: false);
+            fieldNavigationController.Reset();
+            fieldNavigationGuidanceRepeatGate.Reset();
+            return;
+        }
+
         if (!config.EnableFieldNavigationAssistant)
         {
             battleStatusLimitKeyFrameRouter.DiscardNavigationPress(
@@ -4115,7 +5388,7 @@ public sealed class Mod : IModV1, IModV2
         lastFieldNavigationScanAt = now;
         try
         {
-            var result = fieldPositionReader?.Read() ?? throw new InvalidOperationException("Field position reader is not initialized.");
+            var result = fieldPositionReader?.ReadNavigation() ?? throw new InvalidOperationException("Field position reader is not initialized.");
             if (!result.IsUsable)
             {
                 battleStatusLimitKeyFrameRouter.DiscardNavigationPress(
@@ -4143,10 +5416,15 @@ public sealed class Mod : IModV1, IModV2
             var exits = reachableFieldExitTargetProvider?.ReadTargets(
                 result.Position,
                 fieldPositionIsScripted) ?? [];
-            var navigationSuppressed = FieldNavigationSuppressionPolicy.IsNavigationSuppressed(
-                fieldAudibleCueState,
-                ladderState,
-                ladderResult.IsUsable);
+            // A native activity that has stopped for a button owns what the player does
+            // next. Reading out a walk to somewhere else over the top of it would be
+            // telling them to leave a scene that is not going to continue without them.
+            var navigationSuppressed =
+                fieldActivityOwnsInput ||
+                FieldNavigationSuppressionPolicy.IsNavigationSuppressed(
+                    fieldAudibleCueState,
+                    ladderState,
+                    ladderResult.IsUsable);
             var navigationForeground = foregroundProcessGate.IsCurrentProcessForeground();
             if (navigationSuppressed || !navigationForeground || !controlResult.IsUsable)
             {
@@ -4293,9 +5571,17 @@ public sealed class Mod : IModV1, IModV2
                     continue;
                 }
 
-                Log($"Field navigation speech: {speech.Value.Speech}");
+                // The field's existing status command also reads the current area
+                // back. The automatic delivery on arrival is gone the moment any
+                // button interrupts the screen reader, and no generic repeat-last
+                // buffer can recover it once a navigation line has replaced it.
+                var line = action == FieldNavigationAction.RepeatTarget
+                    ? FieldAreaDescriptionStatus.Append(speech.Value.Speech, result.Position.FieldId)
+                    : speech.Value.Speech;
+
+                Log($"Field navigation speech: {line}");
                 fieldNavigationGuidanceRepeatGate.Reset();
-                Speak(speech.Value.Speech);
+                Speak(line);
                 lastNavigationSpeechAt = now;
             }
 
@@ -4324,7 +5610,9 @@ public sealed class Mod : IModV1, IModV2
                     navigationSuppressed,
                     foregroundProcessGate.IsCurrentProcessForeground(),
                     controlResult.IsUsable,
-                    fieldNavigationController.BeaconEnabled))
+                    // A mounted ladder speaks for itself even with no route running: the
+                    // field can put the party on one without being asked.
+                    fieldNavigationController.BeaconEnabled || ladderState.IsMounted))
             {
                 if (fieldNavigationController.BeaconEnabled && fieldNavigationRoutePlanner is not null &&
                     !string.Equals(
@@ -4343,7 +5631,8 @@ public sealed class Mod : IModV1, IModV2
                     predictionHorizonMs: FieldNavigationSpeechPolicy.ResolveIntervalMs(
                         config.FieldNavigationSpeechIntervalMs,
                         config.FieldNavigationRunningSpeechIntervalMs,
-                        input.IsDirectionalRun));
+                        input.IsDirectionalRun),
+                    ladderState: ladderState);
                 if (spokenGuidance is not null &&
                     fieldNavigationGuidanceRepeatGate.ShouldSpeak(spokenGuidance.Value.Speech, now))
                 {
@@ -4843,24 +6132,26 @@ public sealed class Mod : IModV1, IModV2
                 NavigationAutoWalkDomain.Field,
                 routeActive: true) == true)
         {
+            fieldAutoWalkConvergence.Reset();
             Log("Field navigation auto walk started for the selected target.");
             Speak("Auto walk on.", interrupt: true);
         }
     }
 
-    private void ToggleWorldMapAutoWalk(
+    private bool ToggleWorldMapAutoWalk(
         WorldMapRuntimeContext runtime,
         WorldMapStateSnapshot state,
         DateTime now)
     {
         if (StopNavigationAutoWalk(NavigationAutoWalkDomain.WorldMap, announce: true))
         {
-            return;
+            return true;
         }
 
+        var speechDelivered = false;
         if (!runtime.Navigation.BeaconEnabled)
         {
-            ProcessWorldMapNavigationOutput(
+            speechDelivered |= ProcessWorldMapNavigationOutput(
                 runtime.Navigation.HandleAction(FieldNavigationAction.ToggleBeacon, state, now));
         }
 
@@ -4870,8 +6161,10 @@ public sealed class Mod : IModV1, IModV2
                 routeActive: true) == true)
         {
             Log("World-map navigation auto walk started for the selected target.");
-            Speak("Auto walk on.", interrupt: true);
+            speechDelivered |= Speak("Auto walk on.", interrupt: true);
         }
+
+        return speechDelivered;
     }
 
     private void UpdateFieldAutoWalk(
@@ -4882,6 +6175,18 @@ public sealed class Mod : IModV1, IModV2
     {
         if (navigationAutoWalkController?.IsEnabledFor(NavigationAutoWalkDomain.Field) != true)
         {
+            // Switched off. Coming back on has to be a fresh measurement: otherwise a walk
+            // that was stalling when the player turned it off would stop the next one they
+            // start, seconds later, for a target it never measured.
+            _ = fieldAutoWalkConvergence.Observe(
+                new FieldAutoWalkConvergenceSample(
+                    IsAutoWalkEnabled: false,
+                    RouteIdentity: string.Empty,
+                    IsHeldByGame: false,
+                    Hold: FieldAutoWalkHoldReason.NoRoute,
+                    PortalIndex: 0,
+                    RemainingDistance: 0d),
+                DateTime.UtcNow);
             return;
         }
 
@@ -4897,16 +6202,137 @@ public sealed class Mod : IModV1, IModV2
             canMove: hasDirection && !movementSuppressed,
             routeActive: fieldNavigationController.BeaconEnabled,
             observedInput: observedInput);
+        LogFieldAutoWalkPace(position, direction, hasDirection, observedInput);
+        StopFieldAutoWalkIfItCannotGetCloser(position, control, hasDirection, movementSuppressed);
         HandleNavigationAutoWalkInputResult(result, NavigationAutoWalkDomain.Field);
     }
 
-    private void UpdateWorldMapAutoWalk(
+    /// <summary>
+    /// Stops field auto walk when it has stopped getting anywhere, and says so.
+    ///
+    /// <para>The world map has had this since it was written; the field never did. In the
+    /// 2026-09-08 recording the player selected an exit in the Chocobo Square racing room
+    /// whose gateway the field's own Director had switched off, and auto walk drove at it
+    /// for ninety-nine consecutive samples without a word. The dead gateway itself is fixed
+    /// in FieldGatewayTriggerPolicy; this is the net underneath, for whatever else can hold
+    /// the party up - a model in a doorway, a route that cannot be walked, a target that
+    /// moved.</para>
+    ///
+    /// <para>It measures the same thing the world map does: the best remaining distance to
+    /// the target, and how long since that improved. Anything the game owns - a scripted
+    /// control lock, a dialogue, a movie - suspends the measurement instead of counting
+    /// against it, because the party cannot move then and that is not auto walk's failure.
+    /// Regular navigation is left running, so the player keeps the beacon and the spoken
+    /// directions and can simply walk it themselves.</para>
+    ///
+    /// <para>What decides which of those it is comes from the route itself, in
+    /// <see cref="FieldNavigationAssistant.LastAutomaticInputHold"/>. That distinction is
+    /// the whole guard: a party waiting at an interaction point or a ladder prompt is
+    /// exempt, and a party with a route and no direction that probes clear is measured
+    /// rather than excused - which is the failure this was written for, and the one the
+    /// first version quietly reset away on every sample.</para>
+    /// </summary>
+    private void StopFieldAutoWalkIfItCannotGetCloser(
+        FieldPositionSnapshot position,
+        FieldNavigationControlReadResult control,
+        bool hasDirection,
+        bool movementSuppressed)
+    {
+        var guidance = fieldNavigationController.CurrentRouteGuidance;
+        var label = fieldNavigationController.CurrentTargetLabel;
+        if (!fieldAutoWalkConvergence.Observe(
+                new FieldAutoWalkConvergenceSample(
+                    IsAutoWalkEnabled: true,
+                    RouteIdentity: fieldNavigationController.CurrentRouteIdentity,
+                    IsHeldByGame: movementSuppressed || !control.IsUsable,
+                    Hold: guidance is null
+                        ? FieldAutoWalkHoldReason.NoRoute
+                        : hasDirection
+                            ? FieldAutoWalkHoldReason.None
+                            : fieldNavigationController.LastAutomaticInputHold,
+                    PortalIndex: guidance?.PortalIndex ?? 0,
+                    RemainingDistance: guidance?.RemainingDistance ?? 0d),
+                DateTime.UtcNow))
+        {
+            return;
+        }
+
+        fieldAutoWalkConvergence.Reset();
+        Log(
+            $"Field auto walk stopped: no meaningful progress for " +
+            $"{FieldAutoWalkConvergenceTracker.NoProgressTimeout.TotalSeconds:0} seconds; " +
+            $"target={label}, remaining={guidance?.RemainingDistance ?? 0d:0}, " +
+            $"portal={guidance?.PortalIndex ?? -1}, hold={fieldNavigationController.LastAutomaticInputHold}, " +
+            $"position={position.X},{position.Y}");
+        if (StopNavigationAutoWalk(NavigationAutoWalkDomain.Field, announce: false))
+        {
+            Speak(
+                string.IsNullOrWhiteSpace(label)
+                    ? "Auto walk stopped. Could not get any closer. Navigation is still on."
+                    : $"Auto walk stopped. Could not get closer to {label}. Navigation is still on.",
+                interrupt: true);
+        }
+    }
+
+    /// <summary>
+    /// What auto walk asked for, what the game did with it, and how far the party moved
+    /// while it was asking.
+    ///
+    /// <para>The existing "Field navigation input" line records only what the game reports,
+    /// so a log cannot tell a direction the mod never asked for from one the game swallowed
+    /// - and that is exactly the distinction the reported "auto walk freezes while holding
+    /// Run" needs. The 2026-09-08 session shows the party alternating Up and Down across a
+    /// fixed waypoint at a running pace, but not whether the mod commanded both. This says
+    /// so directly, and records the pace: about sixteen units a sample walking and
+    /// forty-five to forty-eight running, which is what decides whether a waypoint can be
+    /// landed on at all.</para>
+    ///
+    /// <para>Diagnostics only, and only when they are switched on. Nothing here changes
+    /// what is commanded.</para>
+    /// </summary>
+    private void LogFieldAutoWalkPace(
+        FieldPositionSnapshot position,
+        FieldNavigationInput commanded,
+        bool hasDirection,
+        FieldNavigationInput observedInput)
+    {
+        if (!config.EnableFieldNavigationDiagnostics)
+        {
+            lastFieldAutoWalkPacePosition = null;
+            return;
+        }
+
+        var previous = lastFieldAutoWalkPacePosition;
+        lastFieldAutoWalkPacePosition = position;
+        var step = previous is { } from && from.FieldId == position.FieldId
+            ? Math.Sqrt(
+                Math.Pow(position.X - (double)from.X, 2) +
+                Math.Pow(position.Y - (double)from.Y, 2))
+            : 0d;
+
+        var guidance = fieldNavigationController.CurrentRouteGuidance;
+        var diagnostic =
+            $"commanded={(hasDirection ? commanded : FieldNavigationInput.None)}, " +
+            $"observed={observedInput}, step={step:0.0}, " +
+            (guidance is { } route
+                ? $"waypoint={route.Waypoint.X},{route.Waypoint.Y}, remaining={route.RemainingDistance:0}"
+                : "no route guidance");
+        if (string.Equals(diagnostic, lastFieldAutoWalkPaceDiagnostic, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        lastFieldAutoWalkPaceDiagnostic = diagnostic;
+        Log($"Field auto walk pace: {diagnostic}");
+    }
+
+    private bool UpdateWorldMapAutoWalk(
         WorldMapRuntimeContext runtime,
         WorldMapStateSnapshot state)
     {
         if (navigationAutoWalkController?.IsEnabledFor(NavigationAutoWalkDomain.WorldMap) != true)
         {
-            return;
+            return false;
         }
 
         var hasDirection = runtime.Navigation.TryResolveAutomaticInput(state, out var direction);
@@ -4914,27 +6340,27 @@ public sealed class Mod : IModV1, IModV2
             hasDirection ? direction : FieldNavigationInput.None,
             canMove: hasDirection,
             routeActive: runtime.Navigation.BeaconEnabled);
-        HandleNavigationAutoWalkInputResult(result, NavigationAutoWalkDomain.WorldMap);
+        return HandleNavigationAutoWalkInputResult(result, NavigationAutoWalkDomain.WorldMap);
     }
 
-    private void HandleNavigationAutoWalkInputResult(
+    private bool HandleNavigationAutoWalkInputResult(
         HighwayAutoSteeringInputResult result,
         NavigationAutoWalkDomain domain)
     {
         if (result.Success)
         {
             lastNavigationAutoWalkFailure = string.Empty;
-            return;
+            return false;
         }
 
         if (string.Equals(lastNavigationAutoWalkFailure, result.Diagnostic, StringComparison.Ordinal))
         {
-            return;
+            return false;
         }
 
         lastNavigationAutoWalkFailure = result.Diagnostic;
         Log($"{domain} auto walk stopped: {result.Diagnostic}");
-        Speak("Auto walk stopped. Directional input is unavailable.", interrupt: true);
+        return Speak("Auto walk stopped. Directional input is unavailable.", interrupt: true);
     }
 
     private bool StopNavigationAutoWalk(
@@ -4947,6 +6373,14 @@ public sealed class Mod : IModV1, IModV2
         }
 
         navigationAutoWalkController.Stop();
+        if (domain == NavigationAutoWalkDomain.Field)
+        {
+            // The stop itself, not the sample that notices it later. A player who switches
+            // auto walk off and straight back on gets a new walk, and a new walk starts
+            // with its own five seconds.
+            fieldAutoWalkConvergence.Reset();
+        }
+
         lastNavigationAutoWalkFailure = string.Empty;
         Log($"{domain} auto walk stopped.");
         if (announce)
@@ -4959,9 +6393,19 @@ public sealed class Mod : IModV1, IModV2
 
     private void SuspendNavigationAutoWalk(NavigationAutoWalkDomain domain)
     {
-        if (navigationAutoWalkController?.IsEnabledFor(domain) == true)
+        if (navigationAutoWalkController?.IsEnabledFor(domain) != true)
         {
-            navigationAutoWalkController.Suspend();
+            return;
+        }
+
+        navigationAutoWalkController.Suspend();
+        if (domain == NavigationAutoWalkDomain.Field)
+        {
+            // Lost focus, or a domain the guard has no business measuring. The party is
+            // not being asked to move, so the time is exempt - but what was already
+            // measured is kept, because a suspension that comes and goes must not be a way
+            // of never being measured at all.
+            fieldAutoWalkConvergence.Suspend();
         }
     }
 
@@ -7421,13 +8865,68 @@ public sealed class Mod : IModV1, IModV2
     private int FieldOpcodeCutsceneDetour(IHook<FieldOpcodeCutsceneDelegate>? activeHook)
     {
         var context = TryReadFieldScriptContext();
+
+        // The MOVIE handler's own state and the instant this opcode actually ran are
+        // both destroyed by the original: FUN_0061A321 turns a fresh 0 into a 4 on
+        // this very call, and the queue can drain seconds later. Capture them here,
+        // with direct reads only - no allocation, no device or file work, no logging
+        // - and only for the film-start opcode, so every other hooked opcode keeps
+        // the cheap path.
+        var hasIngressSample = false;
+        var ingressSample = default(FieldMovieNarrationSample);
+        var ingressTicks = 0L;
+        if (context is { } captured)
+        {
+            ingressTicks = ReadIngressTimestampTicks();
+            if (captured.Opcode == FieldOpcodeAddressResolver.OpcodeMovieIndex)
+            {
+                hasIngressSample = TryCaptureFieldMovieNarrationSample(captured.FieldId, out ingressSample);
+            }
+        }
+
         var result = activeHook?.OriginalFunction() ?? 0;
         if (context is { } value)
         {
-            nativeFieldHookEventQueue.TryCaptureCutsceneContext(value);
+            nativeFieldHookEventQueue.TryCaptureCutsceneContext(
+                value,
+                hasIngressSample,
+                ingressSample,
+                ingressTicks);
         }
 
         return result;
+    }
+
+    private static long ReadIngressTimestampTicks()
+    {
+        try
+        {
+            return DateTime.UtcNow.Ticks;
+        }
+        catch (Exception)
+        {
+            return 0L;
+        }
+    }
+
+    /// <summary>
+    /// The film sample as it stands at the native boundary. Direct reads, so this
+    /// allocates nothing and makes no system call beyond the clock; a failure is
+    /// reported rather than being turned into a plausible-looking state 0.
+    /// </summary>
+    private bool TryCaptureFieldMovieNarrationSample(int fieldId, out FieldMovieNarrationSample sample)
+    {
+        sample = default;
+        try
+        {
+            sample = ReadFieldMovieNarrationSample(fieldId);
+            return true;
+        }
+        catch (Exception)
+        {
+            Interlocked.Increment(ref nativeFieldHookCaptureErrorCount);
+            return false;
+        }
     }
 
     private FieldScriptContext? TryReadFieldScriptContext()
@@ -7454,15 +8953,49 @@ public sealed class Mod : IModV1, IModV2
         }
     }
 
-    private void HandleFieldCutsceneDescriptionContext(FieldScriptContext? context)
+    private void HandleFieldCutsceneDescriptionContext(NativeFieldHookEvent hookEvent)
     {
-        if (context is null || !config.EnableFieldCutsceneDescriptions)
+        FieldScriptContext? context = hookEvent.ScriptContext;
+        if (!config.EnableFieldCutsceneDescriptions)
         {
             return;
         }
 
         try
         {
+            // Record the film episode here, where the native opcode actually ran,
+            // and before any identity or catalog filtering. A later delivery is then
+            // matched against the film that was starting at this instant rather than
+            // whatever film happens to be running by then, and any other film start
+            // expires the older opportunity even when it carries no narration.
+            //
+            // The handler state and the instant come from the capture taken before
+            // the original ran; the live sample is read here and used only for the
+            // episode counter and the "another film is running" refusal, which are
+            // facts about now. Without the split, the native handler's own 0 -> 4
+            // transition makes the very first described film look like a repeat.
+            var liveSample = ReadFieldMovieNarrationSample(context.Value.FieldId);
+            var ingressSample = hookEvent.HasIngressMovieSample
+                ? hookEvent.IngressMovieSample
+                : liveSample with
+                {
+                    MovieHandlerState = FieldMovieNarrationPolicy.MovieHandlerStateUnknown,
+                    MovieHandlerPhase = FieldMovieNarrationPolicy.MovieHandlerStateUnknown
+                };
+            var ingressUtc = hookEvent.IngressTimestampTicks > 0
+                ? new DateTime(hookEvent.IngressTimestampTicks, DateTimeKind.Utc)
+                : DateTime.UtcNow;
+
+            fieldMovieNarrationTracker?.NoteIngress(
+                context.Value.FieldId,
+                context.Value.EntityId,
+                context.Value.ScriptId,
+                context.Value.ByteIndex,
+                context.Value.Opcode,
+                ingressSample,
+                ingressUtc,
+                liveSample);
+
             if (config.EnableFieldCutsceneDescriptionDiagnostics &&
                 context.Value.FieldId is DeferredZoneSpeechTracker.OpeningFieldId or 133 or 134 or 136 or 137)
             {
@@ -7497,6 +9030,13 @@ public sealed class Mod : IModV1, IModV2
             if (cue is null)
             {
                 return;
+            }
+
+            // The field's own area-name anchor really did run, so the cold-start
+            // fallback must not offer the same description a second time.
+            if (cue.Value.Opcode == FieldOpcodeAddressResolver.OpcodeMapNameIndex)
+            {
+                fieldAreaDescriptionColdStart.NoteNativeAnchor(cue.Value.FieldId);
             }
 
             lock (fieldCutsceneDescriptionSync)
@@ -8587,6 +10127,31 @@ public sealed class Mod : IModV1, IModV2
         return OpeningMoviePathResolver.Resolve(gameRootDirectory, ffnxRuntimeLoaded);
     }
 
+    private IFieldMovieNarrationOutput? CreateFieldMovieNarrationOutput(FieldMovieNarrationTrack track)
+    {
+        if (!config.EnableFieldMovieNarrationTracks)
+        {
+            Log($"Field movie narration disabled in config; {track.Label} falls back to speech.");
+            return null;
+        }
+
+        var directory = config.FieldMovieNarrationTrackDirectory;
+        var path = Path.IsPathRooted(directory)
+            ? Path.Combine(directory, track.FileName)
+            : Path.Combine(modDirectory, directory, track.FileName);
+        if (!File.Exists(path))
+        {
+            Log($"Field movie narration track missing: {path}");
+            return null;
+        }
+
+        return new OpeningMovieAudioTrackPlayer(
+            path,
+            config.FieldMovieNarrationTrackVolumePercent,
+            Log,
+            $"Field movie {track.Label}");
+    }
+
     private string ResolveOpeningMovieAudioTrackPath()
     {
         var configuredPath = string.IsNullOrWhiteSpace(config.OpeningMovieAudioTrackPath)
@@ -8693,6 +10258,16 @@ public sealed class Mod : IModV1, IModV2
         var configuredPath = string.IsNullOrWhiteSpace(config.FieldZoneTransitionCueSoundPath)
             ? @"Assets\navigation\field_zone_transition.wav"
             : config.FieldZoneTransitionCueSoundPath;
+        return Path.IsPathRooted(configuredPath)
+            ? configuredPath
+            : Path.Combine(modDirectory, configuredPath);
+    }
+
+    private string ResolveWorldMapEntranceCueSoundPath()
+    {
+        var configuredPath = string.IsNullOrWhiteSpace(config.WorldMapEntranceCueSoundPath)
+            ? @"Assets\navigation\field_zone_transition.wav"
+            : config.WorldMapEntranceCueSoundPath;
         return Path.IsPathRooted(configuredPath)
             ? configuredPath
             : Path.Combine(modDirectory, configuredPath);
@@ -10205,3 +11780,8 @@ internal static class MainMenuSpeechOwnership
 [global::Reloaded.Hooks.Definitions.X86.Function(global::Reloaded.Hooks.Definitions.X86.CallingConventions.Cdecl)]
 [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
 public delegate void BattleDamageDisplayDelegate();
+
+
+
+
+

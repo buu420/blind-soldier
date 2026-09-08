@@ -160,6 +160,19 @@ public sealed class FieldNavigationTargetSource
 
 public sealed class FieldNavigationController
 {
+    // The native movement probe's own reach, and the reach auto walk used for every speed
+    // before the running pace was measured.
+    private const double NativeProbeDistance = 8d;
+
+    // One navigation sample of running, with a little room. Beyond this a jump between
+    // samples is a map change or a script placement rather than a walk, and probing that
+    // far would reject directions that are perfectly walkable.
+    private const double MaximumLookaheadDistance = 64d;
+
+    // Under two units between samples is the party standing still; the field reports
+    // whole units and a walking step is sixteen.
+    private const double StalledMovementDistance = 2d;
+
     private const int LadderActionArrivalDistance = 56;
     private const int LadderLandingArrivalDistance = 96;
     private const int LadderEndpointMatchDistance = 224;
@@ -227,7 +240,14 @@ public sealed class FieldNavigationController
     private FieldNavigationCategory beaconCategory;
     private int beaconFieldId = -1;
     private int[] beaconDestinationFieldIds = [];
+    private FieldNavigationTarget[] beaconDepartureExits = [];
     private bool beaconCompletesOnFieldTransition;
+    // The distance the party covered between the last two automatic samples, which is how
+    // far the clearance probe should look. See TryResolveAutomaticInput.
+    private FieldPositionSnapshot? lastAutomaticPosition;
+    private double lookaheadDistance;
+    private bool automaticMovementStalled;
+
     private bool interactionArrivalPaused;
     private int interactionArrivalDistance;
     private int categoryIndex;
@@ -272,6 +292,38 @@ public sealed class FieldNavigationController
     public int CurrentRouteProgressPercent => routeProgressTracker.Percent;
 
     public string LastNavigationDiagnostic { get; private set; } = string.Empty;
+
+    /// <summary>
+    /// Why the last call to <see cref="TryResolveAutomaticInput"/> produced no direction.
+    ///
+    /// <para>Auto walk holds still for several completely different reasons and they must
+    /// not be treated alike. Waiting at an interaction point or a ladder for the player to
+    /// press something is correct behaviour and no one should be told about it. Having a
+    /// route, a waypoint and no direction that probes clear is the party wedged against
+    /// something, which is precisely the failure the convergence guard exists to catch -
+    /// and while both looked the same from outside, the guard reset itself on every sample
+    /// of the second and so could never trip.</para>
+    /// </summary>
+    public FieldAutoWalkHoldReason LastAutomaticInputHold { get; private set; } =
+        FieldAutoWalkHoldReason.NoRoute;
+
+    /// <summary>
+    /// The label of the target the beacon is on, for messages about the route itself.
+    /// Empty when no route is running.
+    /// </summary>
+    public string CurrentTargetLabel => BeaconEnabled ? beaconTargetLabel : string.Empty;
+
+    /// <summary>
+    /// What is being walked to, as something two targets cannot share.
+    ///
+    /// <para>The label will not do. A room with two men in it has two targets called
+    /// "Man", and an identity built from the label cannot tell the player changing between
+    /// them from the player staying put - which is the one thing this is for. The stable
+    /// target id is the id the catalog and the route planner already key on, and the field
+    /// and category are carried with it because ids are only unique inside them.</para>
+    /// </summary>
+    public string CurrentRouteIdentity =>
+        BeaconEnabled ? $"{beaconFieldId}|{beaconCategory}|{beaconTargetId}" : string.Empty;
 
     public FieldNavigationControllerProbeSnapshot CreateProbeSnapshot(
         FieldPositionSnapshot position)
@@ -358,6 +410,11 @@ public sealed class FieldNavigationController
                 return default;
         }
 
+        if (target is { } manualTarget && !string.IsNullOrWhiteSpace(manualTarget.ManualNavigationGuidance))
+        {
+            return new FieldNavigationActionRoutePreview(false, false, target);
+        }
+
         return new FieldNavigationActionRoutePreview(
             target is not null && (requiresCoherentRoute || includeSelectionRoute),
             requiresCoherentRoute,
@@ -381,7 +438,8 @@ public sealed class FieldNavigationController
             X = ladderState.Target.X,
             Y = ladderState.Target.Y,
             Z = ladderState.Target.Z,
-            TriangleId = (ushort)ladderState.TargetTriangle
+            TriangleId = (ushort)ladderState.TargetTriangle,
+            NativeFixedPosition = null
         };
     }
 
@@ -413,12 +471,14 @@ public sealed class FieldNavigationController
         beaconTargetLabel = string.Empty;
         beaconFieldId = -1;
         beaconDestinationFieldIds = [];
+        beaconDepartureExits = [];
         beaconCompletesOnFieldTransition = false;
         interactionArrivalPaused = false;
         interactionArrivalDistance = 0;
         ResetLadderMountPrompt();
         routeTracker?.Reset();
         movementObserver.Reset();
+        ResetAutomaticPace();
         velocityEstimator.Reset();
         positionContinuityTracker.Reset();
         routeProgressTracker.Reset();
@@ -498,6 +558,12 @@ public sealed class FieldNavigationController
                     return DescribeCurrentSelection(position, controlTransform, ladderState);
                 }
 
+                if (!string.IsNullOrWhiteSpace(target.Value.ManualNavigationGuidance))
+                {
+                    Reset();
+                    return DescribeManualTarget(target.Value);
+                }
+
                 if (!TryLockBeacon(target.Value, position, ladderState))
                 {
                     return new FieldNavigationActionResult(
@@ -547,7 +613,8 @@ public sealed class FieldNavigationController
                 expectedDestinations.Length == 0
                     ? category == FieldNavigationCategory.Exits
                     : expectedDestinations.Contains(position.FieldId);
-            var reached = completesOnFieldTransition && destinationMatches;
+            var reached = completesOnFieldTransition && destinationMatches &&
+                MatchesDepartureGateway(position.FieldId);
             var reason = reached
                 ? $"matching field transition to {position.FieldId}"
                 : $"native target field changed to {position.FieldId}";
@@ -571,7 +638,7 @@ public sealed class FieldNavigationController
             return new FieldNavigationActionResult(
                 reached
                     ? $"{label} reached. Navigation off."
-                    : $"{label} no longer available. Navigation off.");
+                    : $"Left the area. Navigation to {label} cancelled.");
         }
 
         if (isSuppressed)
@@ -790,7 +857,9 @@ public sealed class FieldNavigationController
                 completed: true);
         }
 
-        if (pendingLadderAction is null && !canCompleteOnArrival)
+        if (pendingLadderAction is null &&
+            !canCompleteOnArrival &&
+            !CompletesByCrossing(target.Value))
         {
             if (interactionArrivalPaused)
             {
@@ -828,7 +897,12 @@ public sealed class FieldNavigationController
                     $"{LastNavigationDiagnostic}, interaction arrival paused at " +
                     $"{interactionArrivalDistance} units";
                 return new FieldNavigationActionResult(
-                    $"{beaconTargetLabel} reached. Interact here. Navigation paused.");
+                    target.Value.Activation == FieldNavigationActivation.Contact
+                        // Nothing is pressed here. The script runs because the party
+                        // walked into it, which is what a sighted player does when the
+                        // materia is the only thing in the room.
+                        ? $"{beaconTargetLabel} reached. Walk into it. Navigation paused."
+                        : $"{beaconTargetLabel} reached. Interact here. Navigation paused.");
             }
         }
 
@@ -928,14 +1002,41 @@ public sealed class FieldNavigationController
         FieldPositionSnapshot position,
         FieldNavigationControlTransform controlTransform,
         int arrivalDistanceUnits,
-        int predictionHorizonMs = 0)
+        int predictionHorizonMs = 0,
+        FieldLadderStateSnapshot ladderState = default)
     {
+        // Being on a ladder is worth saying whether or not the player asked for a route
+        // to it. Some fields start the climb themselves: coming back down from the
+        // rocket cabin the party lands on a two-triangle ledge and the field immediately
+        // puts them on a ladder facing down, and with no route running there was nothing
+        // at all to say which way it goes or that turning round returns to the gantry.
+        // A sighted player can see the ladder under their character; this is the same
+        // information.
+        // A route that owns the climb knows which way the player wants to go, and says
+        // only that: offering the way back would be inviting them off their own route.
         if (BeaconEnabled && activeLadderState.IsMounted)
         {
-            var climbDirection = FormatInputDirection(activeLadderGuidanceInput);
-            return climbDirection is null
+            var routedDirection = FormatInputDirection(activeLadderGuidanceInput);
+            return routedDirection is null
                 ? new FieldNavigationActionResult("climb the ladder")
-                : new FieldNavigationActionResult($"climb {climbDirection}");
+                : new FieldNavigationActionResult($"climb {routedDirection}");
+        }
+
+        // With no route, the ladder is all there is to say, and both ways off it matter -
+        // the player did not choose to be here and may well want to go back.
+        if (ladderState is { IsUsable: true, IsMounted: true })
+        {
+            var climbDirection = FormatInputDirection(ladderState.RequiredInput);
+            if (climbDirection is null)
+            {
+                return new FieldNavigationActionResult("climb the ladder");
+            }
+
+            var back = FormatInputDirection(Opposite(ladderState.RequiredInput));
+            return new FieldNavigationActionResult(
+                back is null
+                    ? $"climb {climbDirection}"
+                    : $"climb {climbDirection}, or {back} to go back");
         }
 
         if (!BeaconEnabled ||
@@ -949,7 +1050,7 @@ public sealed class FieldNavigationController
 
         var target = GetBeaconTarget(position);
         if (target is null ||
-            IsWithinArrivalDistance(position, target.Value, arrivalDistanceUnits, currentGuidance))
+            IsWithinArrivalDistance(position, target.Value, arrivalDistanceUnits, currentGuidance, forCompletion: true))
         {
             return null;
         }
@@ -992,14 +1093,23 @@ public sealed class FieldNavigationController
         out FieldNavigationInput input)
     {
         input = FieldNavigationInput.None;
+        LastAutomaticInputHold = FieldAutoWalkHoldReason.NoRoute;
         if (BeaconEnabled && activeLadderState.IsMounted)
         {
             input = activeLadderGuidanceInput;
-            return IsDirectionalInput(input);
+            if (IsDirectionalInput(input))
+            {
+                LastAutomaticInputHold = FieldAutoWalkHoldReason.None;
+                return true;
+            }
+
+            // On a ladder with nothing to press is the ladder's own business - the player
+            // gets off it by hand - and never a route that cannot find its way.
+            LastAutomaticInputHold = FieldAutoWalkHoldReason.PlayerAction;
+            return false;
         }
 
         if (!BeaconEnabled ||
-            interactionArrivalPaused ||
             !FieldPositionReader.IsUsable(position) ||
             position.FieldId != beaconFieldId ||
             currentGuidance is null)
@@ -1007,26 +1117,162 @@ public sealed class FieldNavigationController
             return false;
         }
 
-        var target = GetBeaconTarget(position);
-        if (target is null ||
-            IsWithinArrivalDistance(position, target.Value, arrivalDistanceUnits, currentGuidance))
+        if (interactionArrivalPaused)
         {
+            // Stopped at an interaction point on purpose. Auto walk must not press it, so
+            // standing here is the route working, not failing.
+            LastAutomaticInputHold = FieldAutoWalkHoldReason.PlayerAction;
+            return false;
+        }
+
+        var target = GetBeaconTarget(position);
+        if (target is null)
+        {
+            return false;
+        }
+
+        if (IsWithinArrivalDistance(position, target.Value, arrivalDistanceUnits, currentGuidance, forCompletion: true))
+        {
+            LastAutomaticInputHold = FieldAutoWalkHoldReason.Arrived;
             return false;
         }
 
         if (pendingLadderAction is { RequiresAction: true } action &&
             IsNear(position, action.Waypoint, LadderActionArrivalDistance))
         {
+            LastAutomaticInputHold = FieldAutoWalkHoldReason.PlayerAction;
             return false;
         }
 
+        ObserveAutomaticPace(position);
         var waypoint = ResolveGuidanceWaypoint(currentGuidance.Value);
         var recommendation = movementObserver.ResolveStickDirection(
             waypoint.X - position.X,
             waypoint.Y - position.Y,
             controlTransform);
         input = recommendation.Input;
-        return IsDirectionalInput(input);
+        if (IsDirectionalInput(input) && routePlanner is IFieldNavigationAutomaticMovementPlanner nativePlanner)
+        {
+            var deltaX = waypoint.X - position.X;
+            var deltaY = waypoint.Y - position.Y;
+            var distance = Math.Sqrt(deltaX * (double)deltaX + deltaY * (double)deltaY);
+            bool IsClear(FieldNavigationInput candidate, double probeDistance)
+            {
+                var (x, y) = FieldNavigationMovementObserver.PredictWorldDirection(candidate, controlTransform);
+                var candidateDestination = new FieldNavigationRouteWaypoint(
+                    position.X + (int)Math.Round(x * probeDistance),
+                    position.Y + (int)Math.Round(y * probeDistance), position.Z);
+                var nativeBaseAngle = candidate switch
+                {
+                    FieldNavigationInput.Up => 0, FieldNavigationInput.UpRight => -32,
+                    FieldNavigationInput.Right => -64, FieldNavigationInput.DownRight => -96,
+                    FieldNavigationInput.Down => 128, FieldNavigationInput.DownLeft => 96,
+                    FieldNavigationInput.Left => 64, FieldNavigationInput.UpLeft => 32,
+                    _ => 0
+                };
+                return currentGuidance.Value.UsesNativeProbeClearance
+                    ? nativePlanner.IsNativeProbeAutomaticMovementClear(position, target.Value, candidateDestination,
+                        unchecked((byte)(controlTransform.SignedControlDirection + nativeBaseAngle)))
+                    : nativePlanner.IsAutomaticMovementClear(position, target.Value, candidateDestination);
+            }
+
+            // A clear diagonal route can round to a blocked cardinal input.
+            // Keep the closest forward input whose native movement probes clear.
+            var recommended = input;
+            FieldNavigationInput ChooseClear(double probeDistance)
+            {
+                if (IsClear(recommended, probeDistance))
+                {
+                    return recommended;
+                }
+
+                return Enum.GetValues<FieldNavigationInput>()
+                    .Where(IsDirectionalInput)
+                    .Select(candidate => (Input: candidate,
+                        World: FieldNavigationMovementObserver.PredictWorldDirection(candidate, controlTransform)))
+                    .Select(candidate => (candidate.Input,
+                        Progress: candidate.World.X * deltaX + candidate.World.Y * deltaY))
+                    .Where(candidate => candidate.Progress > 0d)
+                    .OrderByDescending(candidate => candidate.Progress)
+                    .Select(candidate => candidate.Input)
+                    .FirstOrDefault(candidate => IsClear(candidate, probeDistance));
+            }
+
+            // Only when the party is actually stuck. A direction that is clear for the
+            // eight units this checks and blocked at twenty is how a running party ends
+            // up standing against a wall while auto walk keeps asking for it - so once a
+            // sample has produced no movement, look as far as the party was moving before
+            // it stopped and prefer a direction that stays clear that far.
+            //
+            // A party that is moving keeps the eight-unit probe exactly as before. That
+            // matters: threading a narrow doorway needs a direction that is clear through
+            // the gap and no further, and demanding a running step of clearance would
+            // reject it.
+            var reach = automaticMovementStalled
+                ? Math.Min(Math.Max(NativeProbeDistance, lookaheadDistance), distance)
+                : Math.Min(NativeProbeDistance, distance);
+            var chosen = ChooseClear(reach);
+
+            // Nothing clear that far out is not a reason to give up: the eight-unit answer
+            // is what this always did, and auto walk must always come away with a
+            // direction. So the longer reach can only ever change which of the directions
+            // already on the table is preferred.
+            input = IsDirectionalInput(chosen) || reach <= NativeProbeDistance
+                ? chosen
+                : ChooseClear(Math.Min(NativeProbeDistance, distance));
+        }
+
+        if (IsDirectionalInput(input))
+        {
+            LastAutomaticInputHold = FieldAutoWalkHoldReason.None;
+            return true;
+        }
+
+        // A route, a waypoint, somewhere to be - and not one direction toward it came back
+        // clear. That is the party wedged against something, and it is measurable.
+        LastAutomaticInputHold = FieldAutoWalkHoldReason.NoClearDirection;
+        return false;
+    }
+
+    /// <summary>
+    /// How far the party moved between this automatic sample and the last one.
+    ///
+    /// <para>This is the distance the clearance probe has to cover, and the session that
+    /// prompted it measured both paces: about sixteen units a sample walking and
+    /// forty-five to forty-eight running. It decays rather than dropping to nothing when
+    /// the party stops, because a party stopped by a wall is precisely when the longer
+    /// reach is needed to find a way round it, and a jump larger than one running sample
+    /// is a map change or a script placement rather than a walk.</para>
+    /// </summary>
+    private void ObserveAutomaticPace(FieldPositionSnapshot position)
+    {
+        var previous = lastAutomaticPosition;
+        lastAutomaticPosition = position;
+        if (previous is not { } from || from.FieldId != position.FieldId)
+        {
+            lookaheadDistance = 0d;
+            automaticMovementStalled = false;
+            return;
+        }
+
+        var dx = position.X - (double)from.X;
+        var dy = position.Y - (double)from.Y;
+        var step = Math.Sqrt((dx * dx) + (dy * dy));
+        automaticMovementStalled = step < StalledMovementDistance;
+        if (!automaticMovementStalled)
+        {
+            // Only a sample that actually moved says anything about the pace. A stalled
+            // one keeps the pace it was travelling at, which is the distance the probe
+            // needs to cover to find the way round whatever stopped it.
+            lookaheadDistance = Math.Min(step, MaximumLookaheadDistance);
+        }
+    }
+
+    private void ResetAutomaticPace()
+    {
+        lastAutomaticPosition = null;
+        lookaheadDistance = 0d;
+        automaticMovementStalled = false;
     }
 
     private FieldNavigationActionResult? UpdateMountedLadder(
@@ -1402,6 +1648,7 @@ public sealed class FieldNavigationController
         lastAcceptedPosition = null;
         ResetLadderMountPrompt();
         movementObserver.Reset();
+        ResetAutomaticPace();
         velocityEstimator.Reset();
         LastNavigationDiagnostic = $"navigation route reset for {diagnostic}";
     }
@@ -1423,6 +1670,7 @@ public sealed class FieldNavigationController
         positionContinuityTracker.Reset();
         velocityEstimator.Reset();
         movementObserver.Reset();
+        ResetAutomaticPace();
 
         if (!routeRefreshPending)
         {
@@ -1692,6 +1940,11 @@ public sealed class FieldNavigationController
             return new FieldNavigationActionResult($"{categoryName}: none for this field yet.");
         }
 
+        if (!string.IsNullOrWhiteSpace(target.Value.ManualNavigationGuidance))
+        {
+            return DescribeManualTarget(target.Value);
+        }
+
         if (ladderState.IsUsable && ladderState.IsMounted)
         {
             var climbDirection = FormatInputDirection(ladderState.RequiredInput);
@@ -1727,7 +1980,16 @@ public sealed class FieldNavigationController
                     guidance,
                     selectionRoute,
                     controlTransform.Value,
-                    out _);
+                    out var spokenDirection);
+                if (guidance.RemainingDistance > ResolveArrivalDistance(target.Value, DefaultSelectionArrivalDistance) &&
+                    string.Equals(spokenOffset, "at destination", StringComparison.Ordinal))
+                {
+                    // A short opening run can round to zero while later turns
+                    // remain. Preserve its direction and sub-count distance.
+                    spokenOffset = string.IsNullOrEmpty(spokenDirection)
+                        ? null
+                        : $"{spokenDirection} less than 1";
+                }
             }
         }
         var distance = routeDistance ?? Math.Sqrt(
@@ -1738,6 +2000,9 @@ public sealed class FieldNavigationController
             : spokenOffset ?? "direction unavailable";
         return new FieldNavigationActionResult($"{categoryName}, {target.Value.Label}. {direction}.");
     }
+
+    private static FieldNavigationActionResult DescribeManualTarget(FieldNavigationTarget target) =>
+        new($"{GetCategoryDisplayName(target.Category)}, {target.Label}. {target.ManualNavigationGuidance}");
 
     private int ResolveSpokenDistanceUnits(int fieldId) =>
         Math.Max(1, spokenDistanceUnitsPerCountResolver(fieldId));
@@ -1844,6 +2109,12 @@ public sealed class FieldNavigationController
         FieldLadderStateSnapshot ladderState = default)
     {
         Reset();
+        if (!string.IsNullOrWhiteSpace(target.ManualNavigationGuidance))
+        {
+            LastNavigationDiagnostic = $"manual traversal required, field={target.FieldId}, target={GetTargetId(target)}";
+            return false;
+        }
+
         if (routeTracker is null)
         {
             LastNavigationDiagnostic = $"route planner unavailable, field={target.FieldId}, target={GetTargetId(target)}";
@@ -1864,10 +2135,16 @@ public sealed class FieldNavigationController
         beaconTargetId = GetTargetId(target);
         beaconTargetLabel = target.Label;
         beaconDestinationFieldIds = ResolveDestinationFieldIds(target, position);
+        // Cache these while the native source still describes the departure field.
+        // Different gateways can lead to different tracks on the same destination screen.
+        beaconDepartureExits = target.TriggerLine is null ? [] :
+            source.GetTargets(position, FieldNavigationCategory.Exits)
+                .Where(exit => exit.TriggerLine is not null &&
+                    exit.DestinationFieldIds is { Count: > 0 })
+                .ToArray();
         beaconCompletesOnFieldTransition =
             target.Category == FieldNavigationCategory.Exits ||
             target.CompletesOnArrival &&
-            target.TriggerLine is not null &&
             beaconDestinationFieldIds.Length > 0;
         currentGuidance = guidance;
         var correctedMountedRoute = false;
@@ -1979,6 +2256,61 @@ public sealed class FieldNavigationController
             .ToArray();
     }
 
+    private bool MatchesDepartureGateway(int destinationField)
+    {
+        if (beaconLockedTarget?.TriggerLine is not { } selectedLine ||
+            lastAcceptedPosition is not { } departure)
+            return true;
+
+        var lines = beaconDepartureExits
+            .Where(exit => exit.DestinationFieldIds!.Contains(destinationField))
+            .Select(exit => exit.TriggerLine!.Value).Distinct().ToArray();
+        // A wide doorway can consist of joined native segments (Costa's beach uses
+        // three). Treat that connected gateway as one entrance before comparing it
+        // with separate entrances such as Mount Corel's upper and lower tracks.
+        var selectedGateway = new HashSet<FieldNavigationTriggerLine> { selectedLine };
+        bool expanded;
+        do
+        {
+            expanded = false;
+            foreach (var line in lines)
+                if (!selectedGateway.Contains(line) &&
+                    selectedGateway.Any(connected => LinesShareEndpoint(connected, line)))
+                    expanded |= selectedGateway.Add(line);
+        } while (expanded);
+
+        var selectedDistance = selectedGateway.Min(line => SquaredDistanceToLine(departure, line));
+        foreach (var line in lines)
+        {
+            if (!selectedGateway.Contains(line) &&
+                SquaredDistanceToLine(departure, line) + 0.001d < selectedDistance)
+                return false;
+        }
+        return true;
+    }
+
+    private static bool LinesShareEndpoint(FieldNavigationTriggerLine a, FieldNavigationTriggerLine b) =>
+        (a.StartX, a.StartY, a.StartZ) == (b.StartX, b.StartY, b.StartZ) ||
+        (a.StartX, a.StartY, a.StartZ) == (b.EndX, b.EndY, b.EndZ) ||
+        (a.EndX, a.EndY, a.EndZ) == (b.StartX, b.StartY, b.StartZ) ||
+        (a.EndX, a.EndY, a.EndZ) == (b.EndX, b.EndY, b.EndZ);
+
+    private static double SquaredDistanceToLine(
+        FieldPositionSnapshot position, FieldNavigationTriggerLine line)
+    {
+        var dx = (double)line.EndX - line.StartX;
+        var dy = (double)line.EndY - line.StartY;
+        var dz = (double)line.EndZ - line.StartZ;
+        var lengthSquared = dx * dx + dy * dy + dz * dz;
+        var t = lengthSquared == 0 ? 0 : Math.Clamp(
+            ((position.X - line.StartX) * dx + (position.Y - line.StartY) * dy +
+             (position.Z - line.StartZ) * dz) / lengthSquared, 0, 1);
+        var x = position.X - (line.StartX + t * dx);
+        var y = position.Y - (line.StartY + t * dy);
+        var z = position.Z - (line.StartZ + t * dz);
+        return x * x + y * y + z * z;
+    }
+
     private static string GetTargetId(FieldNavigationTarget target) =>
         string.IsNullOrWhiteSpace(target.StableId)
             ? $"{target.FieldId}:{target.Category}:{target.Label}:{target.X}:{target.Y}:{target.Z}"
@@ -2011,7 +2343,35 @@ public sealed class FieldNavigationController
         FieldNavigationRouteGuidance? guidance = null,
         bool forCompletion = false)
     {
+        // A native triangle activation has no radius at all. The script fires when the
+        // party leader's own walkmesh triangle enters the set, so anything short of that
+        // is not an arrival no matter how close it measures. Falling back to a radius
+        // here released auto walk on the plaza, one step outside the ramp the player
+        // was being sent to.
+        if (forCompletion && target.CompletionTriangles is { Count: > 0 } completionTriangles)
+        {
+            return completionTriangles.Contains(position.TriangleId);
+        }
+
         var threshold = ResolveArrivalDistance(target, arrivalDistanceUnits, forCompletion);
+        // Contact is measured on the party's own position, not on what is left of the
+        // route. FUN_00637724 compares the squared horizontal distance on its own
+        // against the square of half the sum of the two collision widths and tests the
+        // height separately against a band of its own, so a materia standing a hundred
+        // units up on its stand is within reach even though the walk to it is long. It
+        // is also strictly less than, not within: standing exactly on the boundary is a
+        // touch the game refuses.
+        if (target.Activation == FieldNavigationActivation.Contact)
+        {
+            var contactX = target.X - position.X;
+            var contactY = target.Y - position.Y;
+            return contactX * (double)contactX + contactY * (double)contactY <
+                       threshold * (double)threshold &&
+                   FieldWalkmeshRoutePlanner.IsWithinActivationVerticalRange(
+                       target,
+                       target.Z - position.Z);
+        }
+
         if (guidance is not null)
         {
             return guidance.Value.RemainingDistance <= threshold;
@@ -2027,14 +2387,26 @@ public sealed class FieldNavigationController
         var dx = target.X - position.X;
         var dy = target.Y - position.Y;
         var dz = target.Z - position.Z;
+
+        // Contact is not a sphere. FUN_00637724 compares the squared horizontal
+        // distance on its own against the square of half the sum of the two collision
+        // widths, and tests the height separately against its own band. Measuring it
+        // as a sphere would refuse the Huge Materia from a step above it while the
+        // game itself would have accepted the touch.
+        if (target.Activation == FieldNavigationActivation.Contact)
+        {
+            return dx * (double)dx + dy * (double)dy <= threshold * (double)threshold &&
+                   FieldWalkmeshRoutePlanner.IsWithinActivationVerticalRange(target, dz);
+        }
+
         return dx * (double)dx +
                dy * (double)dy +
                dz * (double)dz <= threshold * (double)threshold;
     }
 
-    // Completing a route means something different for an exit than for anything else. A
-    // native gateway or a script trigger line only fires when the party crosses it, so an
-    // exit route deliberately ends on the crossing and is finished only once the player is
+    // A native gateway or an arrival-completing script line is a traversal even when the
+    // player selected it from Story. It only fires when the party reaches the crossing,
+    // so its route ends on the crossing and is finished only once the player is
     // actually there. Measuring completion against a radius ended the route short of the
     // crossing and released auto walk, leaving the player beside a doorway that never
     // opened: 122 units short at the Honey Bee Inn lobby rooms, and 72 units short of the
@@ -2043,8 +2415,11 @@ public sealed class FieldNavigationController
     // radius is used for - beacon cues, interaction pauses, NPCs and objects - which really
     // are reached by standing near them.
     private static bool CompletesByCrossing(FieldNavigationTarget target) =>
-        target.Category == FieldNavigationCategory.Exits &&
-        (target.TriggerLine is not null || target.DestinationFieldIds is { Count: > 0 });
+        (target.Category == FieldNavigationCategory.Exits ||
+         target.Category == FieldNavigationCategory.Story && target.CompletesOnArrival) &&
+        (target.TriggerLine is not null ||
+         target.DestinationFieldIds is { Count: > 0 } ||
+         target.CompletionTriangles is { Count: > 0 });
 
     private static int ResolveArrivalDistance(
         FieldNavigationTarget target,
@@ -2092,3 +2467,4 @@ public sealed class FieldNavigationController
             _ => category.ToString()
         };
 }
+

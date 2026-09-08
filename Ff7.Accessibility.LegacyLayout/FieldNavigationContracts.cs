@@ -8,6 +8,19 @@ public enum FieldNavigationCategory
     Objects
 }
 
+/// <summary>
+/// How the native field engine turns standing next to something into the thing
+/// happening. Talk is a Confirm press against the model's own talk radius; Contact
+/// is the collision test FUN_00637724 runs while the party is walking, and fires
+/// from walking into the model rather than from any button at all.
+/// </summary>
+public enum FieldNavigationActivation
+{
+    Default,
+    Talk,
+    Contact
+}
+
 public enum FieldObjectCueKind
 {
     None,
@@ -46,4 +59,11 @@ public readonly record struct FieldNavigationTarget(
     IReadOnlyList<int>? DestinationFieldIds = null,
     FieldNavigationTriggerLine? TriggerLine = null,
     FieldNavigationRouteDetour? RouteDetour = null,
-    IReadOnlyList<FieldNavigationRouteDetour>? RouteDetours = null);
+    IReadOnlyList<FieldNavigationRouteDetour>? RouteDetours = null,
+    string? ManualNavigationGuidance = null,
+    // Some native activations are neither a trigger line nor a gateway: the script
+    // polls the party leader's walkmesh triangle and fires when it enters a set of
+    // triangles. Those targets are reached only by standing on one of them, so a
+    // proximity radius can release auto walk while the player is still outside.
+    IReadOnlyList<int>? CompletionTriangles = null,
+    FieldNavigationActivation Activation = FieldNavigationActivation.Default);

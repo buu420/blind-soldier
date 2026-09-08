@@ -192,7 +192,9 @@ public readonly record struct FieldWalkmeshOffMeshLink(
 public readonly record struct FieldNavigationRouteStep(
     FieldNavigationRouteWaypoint Waypoint,
     int RequiredPortalIndex,
-    bool MustReach = false);
+    bool MustReach = false,
+    bool RequiresExplicitArrival = false,
+    bool IsNativeEntryStep = false);
 
 public readonly record struct FieldNavigationRoutePortal(
     int FromTriangle,
@@ -230,7 +232,8 @@ public sealed record FieldNavigationRoutePlan(
     int TargetTriangle,
     double FinalApproachToTargetDistance = 0d,
     FieldNavigationTriggerLine? TargetTriggerLine = null,
-    IReadOnlyList<FieldNavigationRouteStep>? StableWaypointsOverride = null);
+    IReadOnlyList<FieldNavigationRouteStep>? StableWaypointsOverride = null,
+    bool UsesNativeProbeClearance = false);
 
 public interface IFieldNavigationRoutePlanner
 {
@@ -270,11 +273,26 @@ public interface IFieldNavigationRouteReadStatus
     bool LastReadWasCoherent { get; }
 }
 
+public interface IFieldNavigationAutomaticMovementPlanner
+{
+    bool IsAutomaticMovementClear(FieldPositionSnapshot position,
+        FieldNavigationTarget target, FieldNavigationRouteWaypoint destination);
+
+    bool IsNativeProbeMovementClear(FieldPositionSnapshot position,
+        FieldNavigationTarget target, FieldNavigationRouteWaypoint destination) =>
+        IsAutomaticMovementClear(position, target, destination);
+
+    bool IsNativeProbeAutomaticMovementClear(FieldPositionSnapshot position,
+        FieldNavigationTarget target, FieldNavigationRouteWaypoint destination, byte? requestedHeading = null) =>
+        IsNativeProbeMovementClear(position, target, destination);
+}
+
 public sealed class FieldWalkmeshRoutePlanner :
     IFieldNavigationRoutePlanner,
     IFieldNavigationRouteRefreshPlanner,
     IFieldNavigationCorridorLookaheadPlanner,
-    IFieldNavigationRouteReadStatus
+    IFieldNavigationRouteReadStatus,
+    IFieldNavigationAutomaticMovementPlanner
 {
     private const int LadderPairMaximumEndpointDistance = 192;
 
@@ -285,7 +303,28 @@ public sealed class FieldWalkmeshRoutePlanner :
     /// </summary>
     private const double OffMeshLinkMaximumAnchorElevationError = 192d;
     private const int NativeInteractionVerticalRange = 256;
+
+    // FUN_00637724 accepts a Contact only while the logical height difference is
+    // strictly inside (-127, 128). The bound is not symmetric, and it is a good deal
+    // tighter than Talk's, so a Contact approach chosen with Talk's range can be
+    // placed on a ledge the game will never let the party touch from.
+    private const int NativeContactVerticalLowerBound = -127;
+    private const int NativeContactVerticalUpperBound = 128;
     private const double InteractionApproachInset = 8d;
+
+    /// <summary>
+    /// How far past its own radius a body has to be from the wall before the native probe
+    /// will let it stand there, as multiples of that radius. The first entry is not used -
+    /// the legacy eight-unit inset is always tried first, so every approach that works
+    /// today is unchanged - and the rest are only reached when the body does not fit.
+    /// </summary>
+    private static readonly double[] InteractionApproachBodyMultiples = [1.0d, 1.5d, 2.0d];
+
+    /// <summary>
+    /// The furthest a candidate may be pushed toward the centroid. Past halfway the point
+    /// stops being an approach to the target and becomes a walk to the middle of the room.
+    /// </summary>
+    private const double MaximumInteractionApproachFraction = 0.45d;
     private const double InteractionRangeEpsilon = 0.5d;
 
     private readonly FieldWalkmeshReader reader;
@@ -315,6 +354,80 @@ public sealed class FieldWalkmeshRoutePlanner :
     public string LastDiagnostic { get; private set; } = string.Empty;
 
     public bool LastReadWasCoherent { get; private set; } = true;
+
+    public bool IsAutomaticMovementClear(FieldPositionSnapshot position,
+        FieldNavigationTarget target, FieldNavigationRouteWaypoint destination)
+    {
+        LastReadWasCoherent = true;
+        LastDiagnostic = "automatic movement clearance";
+        var obstacles = dynamicObstacleProvider?.Invoke(position, target);
+        if (obstacles is not { Count: > 0 })
+        {
+            return true;
+        }
+
+        var current = new FieldNavigationRouteWaypoint(position.X, position.Y, position.Z);
+        if (FieldNavigationDynamicObstacleGeometry.IntersectsAny(current, destination, obstacles))
+        {
+            return false;
+        }
+
+        var result = reader.Read(position);
+        if (!result.IsUsable || result.Walkmesh is null)
+        {
+            LastReadWasCoherent = false;
+            LastDiagnostic = result.Diagnostic;
+            return false;
+        }
+        if (!TryReadBoundaryState(position, result.Walkmesh, out var boundaries, out var boundaryDiagnostic))
+        { LastReadWasCoherent = false; LastDiagnostic = boundaryDiagnostic; return false; }
+
+        var triangle = FieldWalkmeshPathfinder.ResolveTriangle(result.Walkmesh,
+            position.X, position.Y, position.Z, preferredTriangleIndex: -1);
+        return triangle >= 0 && FieldWalkmeshPathfinder.TraceWalkableSegment(
+            result.Walkmesh, triangle, current, destination, boundaries.IsBoundaryEnabled).IsClear;
+    }
+
+    public bool IsNativeProbeMovementClear(FieldPositionSnapshot position,
+        FieldNavigationTarget target, FieldNavigationRouteWaypoint destination)
+    {
+        LastReadWasCoherent = true;
+        LastDiagnostic = "native straight movement clearance";
+        var obstacles = dynamicObstacleProvider?.Invoke(position, target) ?? Array.Empty<FieldNavigationDynamicObstacle>();
+        var radius = obstacles.Where(obstacle => double.IsFinite(obstacle.PlayerCollisionRadius))
+            .Select(obstacle => obstacle.PlayerCollisionRadius).DefaultIfEmpty(0d).Max();
+        if (radius <= 0d) return false;
+        var current = new FieldNavigationRouteWaypoint(position.X, position.Y, position.Z);
+        if (FieldNavigationDynamicObstacleGeometry.IntersectsAny(current, destination, obstacles)) return false;
+        var result = reader.Read(position);
+        if (!result.IsUsable || result.Walkmesh is null)
+        { LastReadWasCoherent = false; LastDiagnostic = result.Diagnostic; return false; }
+        if (!TryReadBoundaryState(position, result.Walkmesh, out var boundaries, out var boundaryDiagnostic))
+        { LastReadWasCoherent = false; LastDiagnostic = boundaryDiagnostic; return false; }
+        var triangle = FieldWalkmeshPathfinder.ResolveTriangle(result.Walkmesh,
+            position.X, position.Y, position.Z, position.TriangleId);
+        return triangle >= 0 && AreNativeWallProbesClear(result.Walkmesh, triangle, current, destination,
+            radius, boundaries.IsBoundaryEnabled);
+    }
+
+    public bool IsNativeProbeAutomaticMovementClear(FieldPositionSnapshot position,
+        FieldNavigationTarget target, FieldNavigationRouteWaypoint destination, byte? requestedHeading = null)
+    {
+        LastReadWasCoherent = true;
+        LastDiagnostic = "native immediate movement clearance";
+        var obstacles = dynamicObstacleProvider?.Invoke(position, target) ?? Array.Empty<FieldNavigationDynamicObstacle>();
+        var radius = obstacles.Where(obstacle => double.IsFinite(obstacle.PlayerCollisionRadius))
+            .Select(obstacle => obstacle.PlayerCollisionRadius).DefaultIfEmpty(0d).Max();
+        var result = reader.Read(position);
+        if (!result.IsUsable || result.Walkmesh is null)
+        { LastReadWasCoherent = false; LastDiagnostic = result.Diagnostic; return false; }
+        if (radius <= 0d) return false;
+        if (!TryReadBoundaryState(position, result.Walkmesh, out var boundaries, out var boundaryDiagnostic))
+        { LastReadWasCoherent = false; LastDiagnostic = boundaryDiagnostic; return false; }
+        return FieldNavigationNativeProbeMovement.IsClear(result.Walkmesh, position.TriangleId,
+            new(position.X, position.Y, position.Z), destination, radius, obstacles, boundaries.IsBoundaryEnabled,
+            requestedHeading, position.NativeFixedPosition);
+    }
 
     public bool TryResolvePlayerTriangle(
         FieldPositionSnapshot position,
@@ -398,6 +511,7 @@ public sealed class FieldWalkmeshRoutePlanner :
         var routeDetourDiagnostic = string.Empty;
         var dynamicModelRouteBlocked = false;
         var usedDynamicModelDetour = false;
+        var usesNativeProbeClearance = false;
         var dynamicModelDiagnostic = string.Empty;
         IReadOnlyList<FieldNavigationRouteDetour> appliedRouteDetours =
             Array.Empty<FieldNavigationRouteDetour>();
@@ -437,6 +551,18 @@ public sealed class FieldWalkmeshRoutePlanner :
                 out targetTriangle);
         }
 
+        // The player's own collision radius, which the obstacle reader already carries.
+        // Without it there is nothing to check a body against, and the search behaves as it
+        // always has. Only the interaction fallback needs it, so an ordinary route that has
+        // already been built never pays for the obstacle read.
+        var interactionBodyRadius = !found && target.InteractionRadius > 0
+            ? (dynamicObstacleProvider?.Invoke(position, target)
+                    ?? Array.Empty<FieldNavigationDynamicObstacle>())
+                .Where(obstacle => double.IsFinite(obstacle.PlayerCollisionRadius))
+                .Select(obstacle => obstacle.PlayerCollisionRadius)
+                .DefaultIfEmpty(0d)
+                .Max()
+            : 0d;
         if (!found &&
             target.InteractionRadius > 0 &&
             TryBuildInteractionRangeRoute(
@@ -446,6 +572,16 @@ public sealed class FieldWalkmeshRoutePlanner :
                 target,
                 boundaryState.IsBoundaryEnabled,
                 offMeshLinks,
+                interactionBodyRadius,
+                interactionBodyRadius <= 0d
+                    ? null
+                    : (triangleIndex, waypoint) => CanBodyStandAtApproach(
+                        result.Walkmesh,
+                        triangleIndex,
+                        target,
+                        waypoint,
+                        interactionBodyRadius,
+                        boundaryState.IsBoundaryEnabled),
                 out trianglePath,
                 out portals,
                 out targetTriangle,
@@ -522,7 +658,19 @@ public sealed class FieldWalkmeshRoutePlanner :
                     routeSteps[0].Waypoint.X - current.X,
                     routeSteps[0].Waypoint.Y - current.Y,
                     "initial native route heading");
-                for (var index = routeSteps.Count - 1; index >= 0; index--)
+                // Rejoining a later visible step must not erase a required
+                // script-avoidance checkpoint or an earlier recovery bend.
+                var requiredStepLimit = routeSteps.Count - 1;
+                for (var index = 0; index < routeSteps.Count; index++)
+                {
+                    if (routeSteps[index].MustReach)
+                    {
+                        requiredStepLimit = index;
+                        break;
+                    }
+                }
+
+                for (var index = requiredStepLimit; index >= 0; index--)
                 {
                     var step = routeSteps[index];
                     if (step.RequiredPortalIndex > firstActionPortal ||
@@ -544,17 +692,50 @@ public sealed class FieldWalkmeshRoutePlanner :
                         continue;
                     }
 
+                    var rejoinIndex = Math.Clamp(recovery.StableWaypointIndex, 0, routeSteps.Count - 1);
+                    var requiredPortal = routeSteps[rejoinIndex].RequiredPortalIndex;
+                    if (!TryProjectRecoveryBends(
+                            result.Walkmesh, playerTriangle, current,
+                            recovery.Waypoint, recovery.RecoveryContinuation, routeSteps[rejoinIndex].Waypoint,
+                            boundaryState.IsBoundaryEnabled, dynamicObstacles, out var recoveryBends))
+                    {
+                        continue;
+                    }
+
                     stableWaypointsOverride =
                     [
-                        new FieldNavigationRouteStep(
-                            recovery.Waypoint,
-                            RequiredPortalIndex: 0,
-                            MustReach: true),
-                        .. routeSteps
+                        .. recoveryBends.Select(bend => new FieldNavigationRouteStep(
+                            bend, requiredPortal, MustReach: true, RequiresExplicitArrival: true)),
+                        .. routeSteps.Skip(rejoinIndex)
                     ];
                     usedDynamicModelDetour = true;
                     dynamicModelDiagnostic = recovery.Diagnostic;
                     break;
+                }
+
+                var alternateDiagnostic = string.Empty;
+                // The native movement helper's normal walking speed is verified
+                // for this house; other flat fields can alter scale or speed.
+                if (!usedDynamicModelDetour && position.FieldId == 453 &&
+                    offMeshLinks.Count == 0 && routeDetours.Count == 0 &&
+                    !routeSteps.Any(step => step.MustReach) &&
+                    TryBuildAlternateModelCorridor(
+                        result.Walkmesh, playerTriangle, current, targetTriangle, finalApproach,
+                        boundaryState.IsBoundaryEnabled, dynamicObstacles, target.TriggerLine,
+                        position.NativeFixedPosition,
+                        out var alternateTriangles, out var alternatePortals, out var alternateSteps,
+                        out var alternateApproach, out alternateDiagnostic))
+                {
+                    trianglePath = alternateTriangles;
+                    portals = alternatePortals;
+                    stableWaypointsOverride = alternateSteps;
+                    finalApproach = alternateApproach;
+                    usesNativeProbeClearance = true;
+                    finalApproachToTargetDistance = usedTriggerLineApproach ? 0d : Math.Sqrt(
+                        Math.Pow(finalApproach.X - target.X, 2) + Math.Pow(finalApproach.Y - target.Y, 2) +
+                        Math.Pow(finalApproach.Z - target.Z, 2));
+                    usedDynamicModelDetour = true;
+                    dynamicModelDiagnostic = alternateDiagnostic;
                 }
 
                 if (!usedDynamicModelDetour)
@@ -563,7 +744,8 @@ public sealed class FieldWalkmeshRoutePlanner :
                     dynamicModelRouteBlocked = true;
                     dynamicModelDiagnostic =
                         $"live model blocks route at {routeSteps[0].Waypoint.X}," +
-                        $"{routeSteps[0].Waypoint.Y},{routeSteps[0].Waypoint.Z}";
+                        $"{routeSteps[0].Waypoint.Y},{routeSteps[0].Waypoint.Z}" +
+                        (string.IsNullOrEmpty(alternateDiagnostic) ? string.Empty : $", {alternateDiagnostic}");
                 }
             }
         }
@@ -605,8 +787,538 @@ public sealed class FieldWalkmeshRoutePlanner :
             targetTriangle,
             finalApproachToTargetDistance,
             target.TriggerLine,
-            stableWaypointsOverride);
+            stableWaypointsOverride,
+            usesNativeProbeClearance);
         activeTarget = target;
+        return true;
+    }
+
+    private readonly record struct ModelCorridorNode(FieldNavigationRouteWaypoint Point, int Triangle);
+
+    private static bool TryBuildAlternateModelCorridor(
+        FieldWalkmesh walkmesh,
+        int startTriangle,
+        FieldNavigationRouteWaypoint start,
+        int targetTriangle,
+        FieldNavigationRouteWaypoint target,
+        Func<int, bool>? isTriangleBlocked,
+        IReadOnlyList<FieldNavigationDynamicObstacle> obstacles,
+        FieldNavigationTriggerLine? triggerLine,
+        FieldNavigationFixedPosition? nativeFixedPosition,
+        out IReadOnlyList<int> trianglePath,
+        out IReadOnlyList<FieldNavigationRoutePortal> portals,
+        out IReadOnlyList<FieldNavigationRouteStep> steps,
+        out FieldNavigationRouteWaypoint finalApproach,
+        out string diagnostic)
+    {
+        trianglePath = Array.Empty<int>();
+        portals = Array.Empty<FieldNavigationRoutePortal>();
+        steps = Array.Empty<FieldNavigationRouteStep>();
+        finalApproach = target;
+        diagnostic = string.Empty;
+        // This is a last resort for small rooms after cheap local avoidance
+        // fails. Bound both geometry work and wall time because moving models
+        // can cause previews and replans on successive native snapshots.
+        const int maximumTriangles = 32;
+        const int maximumNodes = 640;
+        const int maximumEdgeChecks = 16384;
+        const int maximumMilliseconds = 40;
+        if (nativeFixedPosition is { } fixedPosition &&
+            (fixedPosition.X >> 12 != start.X || fixedPosition.Y >> 12 != start.Y || fixedPosition.Z >> 12 != start.Z))
+            return false;
+        if (walkmesh.Triangles.Count > maximumTriangles ||
+            !FieldNavigationNativeProbeMovement.IsSupportedWalkmesh(walkmesh) ||
+            isTriangleBlocked?.Invoke(startTriangle) == true ||
+            isTriangleBlocked?.Invoke(targetTriangle) == true)
+        {
+            return false;
+        }
+
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        var playerRadius = obstacles.Where(obstacle => double.IsFinite(obstacle.PlayerCollisionRadius))
+            .Select(obstacle => obstacle.PlayerCollisionRadius).DefaultIfEmpty(0d).Max();
+        if (playerRadius <= 0d) return false;
+        var nodes = new List<ModelCorridorNode> { new(start, startTriangle), new(target, targetTriangle) };
+        var nativeStart = nativeFixedPosition is { } raw && raw.X >> 12 == start.X &&
+            raw.Y >> 12 == start.Y && raw.Z >> 12 == start.Z
+            ? new FieldNavigationNativeMovementState(raw.X, raw.Y, raw.Z, startTriangle, 0)
+            : new FieldNavigationNativeMovementState(start.X << 12, start.Y << 12, start.Z << 12, startTriangle, 0);
+        var wallCorners = new HashSet<(int X, int Y, int Z)>();
+        var generationBudgetExceeded = false;
+        foreach (var triangle in walkmesh.Triangles)
+        {
+            if (isTriangleBlocked?.Invoke(triangle.Index) == true) continue;
+            var center = triangle.GetCentroid();
+            AddNode(center.X, center.Y, triangle);
+            for (var edgeIndex = 0; edgeIndex < 3; edgeIndex++)
+            {
+                var edge = triangle.GetEdge(edgeIndex);
+                if (triangle.GetAdjacentTriangle(edgeIndex) < 0)
+                {
+                    wallCorners.Add((edge.Start.X, edge.Start.Y, edge.Start.Z));
+                    wallCorners.Add((edge.End.X, edge.End.Y, edge.End.Z));
+                }
+                foreach (var fraction in new[] { 0.15d, 0.5d, 0.85d })
+                foreach (var inset in new[] { 0.25d })
+                {
+                    var x = edge.Start.X + (edge.End.X - edge.Start.X) * fraction;
+                    var y = edge.Start.Y + (edge.End.Y - edge.Start.Y) * fraction;
+                    // Include the interior beside solid edges: a resident can
+                    // block the center of a room while that interior is clear.
+                    // Never place a node on a shared-edge ownership boundary.
+                    AddNode(x + (center.X - x) * inset, y + (center.Y - y) * inset, triangle);
+                }
+            }
+        }
+        // Native corners and live model contours supply the short turns that
+        // triangle-only samples miss. The two/six-unit margins accommodate
+        // integer candidates without changing any collision width.
+        foreach (var corner in wallCorners)
+            AddCircle(corner.X, corner.Y, corner.Z, playerRadius + 2d);
+        foreach (var obstacle in obstacles)
+        {
+            if (!double.IsFinite(obstacle.ClearanceRadius) || obstacle.ClearanceRadius <= 0d) continue;
+            foreach (var radius in new[] { obstacle.ClearanceRadius + 6d,
+                         obstacle.ClearanceRadius + playerRadius / Math.Sqrt(2d) + 4d,
+                         obstacle.ClearanceRadius + playerRadius / Math.Sqrt(2d) + 6d,
+                         obstacle.ClearanceRadius + playerRadius + 6d })
+                AddCircle(obstacle.X, obstacle.Y, obstacle.Z, radius);
+        }
+        var nativeEntries = new Dictionary<int, IReadOnlyList<FieldNavigationNativeMovementState>>();
+        void SeedNativeEntries()
+        {
+            var entryQueue = new Queue<(FieldNavigationNativeMovementState State, IReadOnlyList<FieldNavigationNativeMovementState> Path)>();
+            var entrySeen = new HashSet<(int X, int Y, int Triangle)> { (nativeStart.FixedX, nativeStart.FixedY, startTriangle) };
+            entryQueue.Enqueue((nativeStart, Array.Empty<FieldNavigationNativeMovementState>()));
+            while (entryQueue.TryDequeue(out var entry) && entrySeen.Count < 128 &&
+                   clock.ElapsedMilliseconds <= maximumMilliseconds && !generationBudgetExceeded)
+            {
+                if (entry.Path.Count >= 3) continue;
+                foreach (var heading in new byte[] { 128, 96, 64, 32, 0, 224, 192, 160 })
+                {
+                    if (entrySeen.Count >= 128 || clock.ElapsedMilliseconds > maximumMilliseconds) break;
+                    var movement = FieldNavigationNativeProbeMovement.Step(walkmesh, entry.State, heading,
+                        1024, (int)playerRadius, obstacles, isTriangleBlocked);
+                    if (!movement.IsSupported || !movement.Moved) continue;
+                    var next = movement.State;
+                    if (!Enumerable.Range(0, 8).Any(direction =>
+                        FieldNavigationNativeProbeMovement.Step(walkmesh, next, (byte)(direction * 32),
+                            1024, (int)playerRadius, obstacles, isTriangleBlocked).Moved)) continue;
+                    var dx = (next.FixedX - (double)nativeStart.FixedX) / 4096d;
+                    var dy = (next.FixedY - (double)nativeStart.FixedY) / 4096d;
+                    if (dx * dx + dy * dy > 144d) continue;
+                    var point = new FieldNavigationRouteWaypoint((int)Math.Round(next.FixedX / 4096d),
+                        (int)Math.Round(next.FixedY / 4096d), next.FixedZ >> 12);
+                    // Derived turn points must request the very native key whose
+                    // complete retry/probe sequence established this short arc.
+                    if (!TryChooseNativeEntryStep(entry.State, point, out var chosen) || chosen.State != next) continue;
+                    if (!entrySeen.Add((next.FixedX, next.FixedY, next.TriangleId))) continue;
+                    var origin = entry.Path.Count == 0 ? start : new FieldNavigationRouteWaypoint(
+                        (int)Math.Round(entry.State.FixedX / 4096d), (int)Math.Round(entry.State.FixedY / 4096d), entry.State.FixedZ >> 12);
+                    var trace = FieldWalkmeshPathfinder.TraceWalkableSegment(walkmesh, entry.State.TriangleId,
+                        origin, point, isTriangleBlocked, applyPortalInset: false);
+                    if (!trace.IsClear || trace.EndTriangle != next.TriangleId) continue;
+                    IReadOnlyList<FieldNavigationNativeMovementState> prefix = [.. entry.Path, next];
+                    var node = new ModelCorridorNode(point, next.TriangleId);
+                    var nodeIndex = nodes.IndexOf(node);
+                    if (nodeIndex < 0)
+                    {
+                        if (nodes.Count >= maximumNodes) { generationBudgetExceeded = true; break; }
+                        nodeIndex = nodes.Count;
+                        nodes.Add(node);
+                    }
+                    if (nodeIndex != 0 && !nativeEntries.ContainsKey(nodeIndex)) nativeEntries[nodeIndex] = prefix;
+                    entryQueue.Enqueue((next, prefix));
+                }
+            }
+        }
+        if (generationBudgetExceeded || nodes.Count > maximumNodes || clock.ElapsedMilliseconds > maximumMilliseconds)
+        { diagnostic = $"alternate candidate budget, nodes={nodes.Count}, ms={clock.Elapsed.TotalMilliseconds:0.0}"; return false; }
+
+        var edgeChecks = 0;
+        var goalIndices = new List<int> { 1 };
+        var originalEndpointHasClearApproach = false;
+        for (var index = 0; index < nodes.Count; index++)
+        {
+            if (index == 1) continue;
+            if (++edgeChecks > maximumEdgeChecks || clock.ElapsedMilliseconds > maximumMilliseconds)
+            { diagnostic = $"alternate approach budget, nodes={nodes.Count}, edges={edgeChecks}, ms={clock.Elapsed.TotalMilliseconds:0.0}"; return false; }
+            if (!IsClear(nodes[index], nodes[1], out _)) continue;
+            originalEndpointHasClearApproach = true;
+            break;
+        }
+        if (!originalEndpointHasClearApproach && triggerLine is { } line)
+        {
+            goalIndices.Clear();
+            foreach (var fraction in new[] { 0.5d, 0.25d, 0.75d })
+            {
+                var point = new FieldNavigationRouteWaypoint(
+                    (int)Math.Round(line.StartX + (line.EndX - line.StartX) * fraction),
+                    (int)Math.Round(line.StartY + (line.EndY - line.StartY) * fraction),
+                    (int)Math.Round(line.StartZ + (line.EndZ - line.StartZ) * fraction));
+                var trace = FieldWalkmeshPathfinder.TraceWalkableSegment(
+                    walkmesh, targetTriangle, target, point, isTriangleBlocked);
+                if (!trace.IsClear || trace.EndTriangle != targetTriangle) continue;
+                goalIndices.Add(nodes.Count);
+                nodes.Add(new(point, targetTriangle));
+            }
+        }
+        if (goalIndices.Count == 0 || nodes.Count > maximumNodes) return false;
+
+        var entryChecks = new Dictionary<int, bool>();
+        double[] costs;
+        int[] previous;
+        bool[] visited;
+        PriorityQueue<int, double> queue;
+        HashSet<int> activeNativeEntries;
+        var seededNativeEntries = false;
+        int reachedGoal;
+    Search:
+        costs = Enumerable.Repeat(double.PositiveInfinity, nodes.Count).ToArray();
+        previous = Enumerable.Repeat(-1, nodes.Count).ToArray();
+        visited = new bool[nodes.Count];
+        queue = new PriorityQueue<int, double>();
+        costs[0] = 0d;
+        queue.Enqueue(0, 0d);
+        activeNativeEntries = new HashSet<int>();
+        foreach (var (nodeIndex, prefix) in nativeEntries)
+        {
+            costs[nodeIndex] = prefix.Count * (4d + playerRadius / 4d);
+            previous[nodeIndex] = 0;
+            activeNativeEntries.Add(nodeIndex);
+            queue.Enqueue(nodeIndex, costs[nodeIndex] + goalIndices.Min(goal => Math.Sqrt(
+                Math.Pow(nodes[nodeIndex].Point.X - nodes[goal].Point.X, 2) +
+                Math.Pow(nodes[nodeIndex].Point.Y - nodes[goal].Point.Y, 2))));
+        }
+        reachedGoal = -1;
+        while (queue.TryDequeue(out var index, out _))
+        {
+            if (visited[index]) continue;
+            visited[index] = true;
+            if (goalIndices.Contains(index)) { reachedGoal = index; break; }
+            var from = nodes[index];
+            for (var candidate = 0; candidate < nodes.Count; candidate++)
+            {
+                if (visited[candidate]) continue;
+                var to = nodes[candidate];
+                var triangle = walkmesh.Triangles[from.Triangle];
+                if (from.Triangle != to.Triangle && triangle.Adjacent0 != to.Triangle &&
+                    triangle.Adjacent1 != to.Triangle && triangle.Adjacent2 != to.Triangle) continue;
+                var dx = to.Point.X - (double)from.Point.X;
+                var dy = to.Point.Y - (double)from.Point.Y;
+                var dz = to.Point.Z - (double)from.Point.Z;
+                // Each additional checkpoint is another quantized turn. Prefer
+                // a similarly short clear route with fewer tiny intermediate
+                // turns, while retaining them when geometry requires them.
+                var cost = costs[index] + Math.Sqrt(dx * dx + dy * dy + dz * dz) + playerRadius / 4d;
+                if (cost >= costs[candidate]) continue;
+                if (++edgeChecks > maximumEdgeChecks ||
+                    (edgeChecks % 64 == 0 && clock.ElapsedMilliseconds > maximumMilliseconds))
+                { diagnostic = $"alternate search budget, nodes={nodes.Count}, edges={edgeChecks}, ms={clock.Elapsed.TotalMilliseconds:0.0}"; return false; }
+                if (!IsClear(from, to, out _)) continue;
+                if (index == 0 && !HasExecutableEntry(candidate)) continue;
+                costs[candidate] = cost;
+                previous[candidate] = index;
+                activeNativeEntries.Remove(candidate);
+                var goalDistance = goalIndices.Min(goal => Math.Sqrt(
+                    Math.Pow(to.Point.X - nodes[goal].Point.X, 2) +
+                    Math.Pow(to.Point.Y - nodes[goal].Point.Y, 2) +
+                    Math.Pow(to.Point.Z - nodes[goal].Point.Z, 2)));
+                queue.Enqueue(candidate, cost + goalDistance);
+            }
+        }
+        if (reachedGoal < 0 && !seededNativeEntries && clock.ElapsedMilliseconds <= maximumMilliseconds)
+        {
+            // The native entry bridge is needed only if the cheaper strict
+            // corridor cannot start or connect. Preserve the same total budget.
+            seededNativeEntries = true;
+            SeedNativeEntries();
+            if (!generationBudgetExceeded && nativeEntries.Count > 0 &&
+                clock.ElapsedMilliseconds <= maximumMilliseconds) goto Search;
+        }
+        if (reachedGoal < 0)
+        { diagnostic = $"alternate graph unavailable, nodes={nodes.Count}, edges={edgeChecks}, ms={clock.Elapsed.TotalMilliseconds:0.0}"; return false; }
+
+        var path = new List<int> { reachedGoal };
+        while (path[^1] != 0) path.Add(previous[path[^1]]);
+        path.Reverse();
+        var tracedTriangles = new List<int> { startTriangle };
+        var routeSteps = new List<FieldNavigationRouteStep>();
+        var firstOrdinaryIndex = 0;
+        if (path.Count > 1 && activeNativeEntries.Contains(path[1]))
+        {
+            var currentPoint = start;
+            var currentTriangle = startTriangle;
+            foreach (var state in nativeEntries[path[1]])
+            {
+                var point = new FieldNavigationRouteWaypoint((int)Math.Round(state.FixedX / 4096d),
+                    (int)Math.Round(state.FixedY / 4096d), state.FixedZ >> 12);
+                var trace = FieldWalkmeshPathfinder.TraceWalkableSegment(walkmesh, currentTriangle,
+                    currentPoint, point, isTriangleBlocked, applyPortalInset: false);
+                if (!trace.IsClear || trace.EndTriangle != state.TriangleId) return false;
+                tracedTriangles.AddRange(trace.TraversedTriangles.Skip(1));
+                routeSteps.Add(new(point, tracedTriangles.Count - 1,
+                    MustReach: true, RequiresExplicitArrival: true, IsNativeEntryStep: true));
+                currentPoint = point;
+                currentTriangle = state.TriangleId;
+            }
+            firstOrdinaryIndex = 1;
+        }
+        for (var index = firstOrdinaryIndex; index < path.Count - 1;)
+        {
+            var selected = -1;
+            FieldWalkmeshSegmentTrace selectedTrace = default;
+            // Simplify only when the complete replacement leg passes both
+            // native walkmesh tracing and every unchanged model probe.
+            for (var candidate = path.Count - 1; candidate > index; candidate--)
+            {
+                if (++edgeChecks > maximumEdgeChecks || clock.ElapsedMilliseconds > maximumMilliseconds)
+                { diagnostic = $"alternate simplify budget, nodes={nodes.Count}, edges={edgeChecks}, ms={clock.Elapsed.TotalMilliseconds:0.0}"; return false; }
+                if (!IsClear(nodes[path[index]], nodes[path[candidate]], out var trace)) continue;
+                if (index == 0 && !HasExecutableEntry(path[candidate])) continue;
+                selected = candidate;
+                selectedTrace = trace;
+                break;
+            }
+            if (selected < 0) return false;
+            tracedTriangles.AddRange(selectedTrace.TraversedTriangles.Skip(1));
+            routeSteps.Add(new FieldNavigationRouteStep(nodes[path[selected]].Point,
+                tracedTriangles.Count - 1, MustReach: selected < path.Count - 1,
+                RequiresExplicitArrival: selected < path.Count - 1));
+            index = selected;
+        }
+        // The existing corridor tracker requires one ordered visit per native
+        // triangle. Do not return a graph loop with ambiguous portal progress.
+        if (tracedTriangles.Distinct().Count() != tracedTriangles.Count ||
+            !FieldWalkmeshPathfinder.TryBuildNativePortals(walkmesh, tracedTriangles, out portals))
+        { diagnostic = $"alternate native portal sequence unavailable, triangles={string.Join(',', tracedTriangles)}"; return false; }
+        trianglePath = tracedTriangles;
+        steps = routeSteps;
+        finalApproach = nodes[reachedGoal].Point;
+        diagnostic = $"alternate native model corridor, nodes={nodes.Count}, edgeChecks={edgeChecks}, " +
+                     $"searchMs={clock.Elapsed.TotalMilliseconds:0.0}";
+        return true;
+
+        bool HasExecutableEntry(int candidate)
+        {
+            if (entryChecks.TryGetValue(candidate, out var cached)) return cached;
+            var destination = nodes[candidate].Point;
+            var state = nativeStart;
+            var seen = new HashSet<(int X, int Y)>();
+            for (var tick = 0; tick < 32; tick++)
+            {
+                if (clock.ElapsedMilliseconds > maximumMilliseconds) break;
+                var x = state.FixedX >> 12;
+                var y = state.FixedY >> 12;
+                var dx = destination.X - x;
+                var dy = destination.Y - y;
+                if ((long)dx * dx + (long)dy * dy <= 16)
+                    return entryChecks[candidate] = Enumerable.Range(0, 8).Any(direction =>
+                        FieldNavigationNativeProbeMovement.Step(walkmesh, state, (byte)(direction * 32),
+                            1024, (int)playerRadius, obstacles, isTriangleBlocked).Moved);
+                if (!seen.Add((state.FixedX, state.FixedY))) break;
+                if (!TryChooseNativeEntryStep(state, destination, out var step)) break;
+                state = step.State;
+            }
+            return entryChecks[candidate] = false;
+        }
+
+        bool TryChooseNativeEntryStep(FieldNavigationNativeMovementState state,
+            FieldNavigationRouteWaypoint destination, out FieldNavigationNativeMovementStepResult chosen)
+        {
+            chosen = default;
+            var dx = destination.X - (state.FixedX >> 12);
+            var dy = destination.Y - (state.FixedY >> 12);
+            foreach (var choice in new byte[] { 128, 96, 64, 32, 0, 224, 192, 160 }
+                .Select(heading => (Heading: heading, X: Math.Sin(heading * Math.PI / 128d), Y: -Math.Cos(heading * Math.PI / 128d)))
+                .Select(choice => (choice.Heading, choice.X, choice.Y, Progress: choice.X * dx + choice.Y * dy))
+                .Where(choice => choice.Progress > 0d).OrderByDescending(choice => choice.Progress))
+            {
+                var result = FieldNavigationNativeProbeMovement.Step(walkmesh, state, choice.Heading,
+                    1024, (int)playerRadius, obstacles, isTriangleBlocked);
+                if (!result.IsSupported || !result.Moved ||
+                    (result.State.FixedX - (double)state.FixedX) * choice.X +
+                    (result.State.FixedY - (double)state.FixedY) * choice.Y <= 0d) continue;
+                chosen = result;
+                return true;
+            }
+            return false;
+        }
+
+        void AddNode(double x, double y, FieldWalkmeshTriangle triangle)
+        {
+            if (nodes.Count >= maximumNodes || clock.ElapsedMilliseconds > maximumMilliseconds)
+            { generationBudgetExceeded = true; return; }
+            var roundedX = (int)Math.Round(x);
+            var roundedY = (int)Math.Round(y);
+            var point = new FieldNavigationRouteWaypoint(roundedX, roundedY,
+                (int)Math.Round(InterpolateTriangleZ(triangle, roundedX, roundedY)));
+            var node = new ModelCorridorNode(point, triangle.Index);
+            var trace = FieldWalkmeshPathfinder.TraceWalkableSegment(
+                walkmesh, triangle.Index, point, point, isTriangleBlocked);
+            if (trace.IsClear && trace.EndTriangle == triangle.Index && !nodes.Contains(node)) nodes.Add(node);
+        }
+
+        void AddCircle(double x, double y, double z, double radius)
+        {
+            for (var angleIndex = 0; angleIndex < 16; angleIndex++)
+            {
+                if (generationBudgetExceeded) return;
+                var angle = angleIndex * Math.PI / 8d;
+                var pointX = (int)Math.Round(x + Math.Sin(angle) * radius);
+                var pointY = (int)Math.Round(y - Math.Cos(angle) * radius);
+                var triangle = FieldWalkmeshPathfinder.ResolveTriangle(walkmesh, pointX, pointY, (int)Math.Round(z), -1);
+                if (triangle < 0 || isTriangleBlocked?.Invoke(triangle) == true) continue;
+                AddNode(pointX, pointY, walkmesh.Triangles[triangle]);
+            }
+        }
+
+        bool IsClear(ModelCorridorNode from, ModelCorridorNode to, out FieldWalkmeshSegmentTrace trace)
+        {
+            trace = default;
+            if (FieldNavigationDynamicObstacleGeometry.IntersectsAny(from.Point, to.Point, obstacles)) return false;
+            trace = FieldWalkmeshPathfinder.TraceWalkableSegment(
+                walkmesh, from.Triangle, from.Point, to.Point, isTriangleBlocked, applyPortalInset: false);
+            return trace.IsClear && trace.EndTriangle == to.Triangle &&
+                   trace.TraversedTriangles.Count > 0 && trace.TraversedTriangles[0] == from.Triangle &&
+                   AreNativeWallProbePathsClear(walkmesh, from.Triangle, trace.EndTriangle,
+                       from.Point, to.Point, playerRadius, isTriangleBlocked);
+        }
+    }
+
+    private static bool AreNativeWallProbesClear(
+        FieldWalkmesh walkmesh, int startTriangle, FieldNavigationRouteWaypoint start,
+        FieldNavigationRouteWaypoint end, double playerRadius, Func<int, bool>? isTriangleBlocked)
+    {
+        var center = FieldWalkmeshPathfinder.TraceWalkableSegment(walkmesh, startTriangle, start, end,
+            isTriangleBlocked, applyPortalInset: false);
+        return center.IsClear && AreNativeWallProbePathsClear(walkmesh, startTriangle, center.EndTriangle,
+            start, end, playerRadius, isTriangleBlocked);
+    }
+
+    private static bool AreNativeWallProbePathsClear(
+        FieldWalkmesh walkmesh, int startTriangle, int endTriangle, FieldNavigationRouteWaypoint start,
+        FieldNavigationRouteWaypoint end, double playerRadius, Func<int, bool>? isTriangleBlocked)
+    {
+        var dx = end.X - (double)start.X;
+        var dy = end.Y - (double)start.Y;
+        var length = Math.Sqrt(dx * dx + dy * dy);
+        if (length < 0.000001d) return true;
+        var forwardX = dx * playerRadius / length;
+        var forwardY = dy * playerRadius / length;
+        var diagonal = 1d / Math.Sqrt(2d);
+        foreach (var (offsetX, offsetY) in new[] { (forwardX, forwardY),
+                     ((forwardX - forwardY) * diagonal, (forwardY + forwardX) * diagonal),
+                     ((forwardX + forwardY) * diagonal, (forwardY - forwardX) * diagonal) })
+        {
+            var probeStart = start with { X = (int)(start.X + offsetX), Y = (int)(start.Y + offsetY) };
+            var probeEnd = end with { X = (int)(end.X + offsetX), Y = (int)(end.Y + offsetY) };
+            // The native wall helper walks the first outside edge from the
+            // player's current triangle. A global XY lookup can pick a stacked
+            // floor, while tracing the radial spoke invents a center collision
+            // that the native offset-point test does not perform.
+            if (!TryResolveNativeProbeTriangle(walkmesh, startTriangle, probeStart, isTriangleBlocked, out var probeTriangle)) return false;
+            probeStart = probeStart with { Z = (int)Math.Round(InterpolateTriangleZ(walkmesh.Triangles[probeTriangle], probeStart.X, probeStart.Y)) };
+            if (!TryResolveNativeProbeTriangle(walkmesh, endTriangle, probeEnd, isTriangleBlocked, out var probeEndTriangle)) return false;
+            if (probeTriangle == probeEndTriangle) continue;
+            probeEnd = probeEnd with { Z = (int)Math.Round(InterpolateTriangleZ(walkmesh.Triangles[probeEndTriangle], probeEnd.X, probeEnd.Y)) };
+            var trace = FieldWalkmeshPathfinder.TraceWalkableSegment(walkmesh, probeTriangle, probeStart, probeEnd,
+                isTriangleBlocked, applyPortalInset: false);
+            if (!trace.IsClear || trace.EndTriangle != probeEndTriangle) return false;
+        }
+        return true;
+    }
+
+    private static bool TryResolveNativeProbeTriangle(FieldWalkmesh walkmesh, int startTriangle,
+        FieldNavigationRouteWaypoint point, Func<int, bool>? isTriangleBlocked, out int resolvedTriangle)
+    {
+        resolvedTriangle = startTriangle;
+        for (var attempt = 0; attempt <= walkmesh.Triangles.Count; attempt++)
+        {
+            if (resolvedTriangle < 0 || resolvedTriangle >= walkmesh.Triangles.Count ||
+                isTriangleBlocked?.Invoke(resolvedTriangle) == true) return false;
+            var triangle = walkmesh.Triangles[resolvedTriangle];
+            var next = -1;
+            for (var edgeIndex = 0; edgeIndex < 3; edgeIndex++)
+            {
+                var edge = triangle.GetEdge(edgeIndex);
+                var side = (edge.End.Y - (double)edge.Start.Y) * (point.X - edge.Start.X) -
+                           (edge.End.X - (double)edge.Start.X) * (point.Y - edge.Start.Y);
+                if (side >= 0d) continue;
+                next = triangle.GetAdjacentTriangle(edgeIndex);
+                if (next < 0 || isTriangleBlocked?.Invoke(next) == true) return false;
+                break;
+            }
+            if (next < 0) return true;
+            resolvedTriangle = next;
+        }
+        return false;
+    }
+
+    private static bool TryProjectRecoveryBends(
+        FieldWalkmesh walkmesh,
+        int startTriangle,
+        FieldNavigationRouteWaypoint start,
+        FieldNavigationRouteWaypoint firstBend,
+        FieldNavigationRouteWaypoint? secondBend,
+        FieldNavigationRouteWaypoint rejoin,
+        Func<int, bool>? isTriangleBlocked,
+        IReadOnlyList<FieldNavigationDynamicObstacle> obstacles,
+        out IReadOnlyList<FieldNavigationRouteWaypoint> projectedBends,
+        bool validateRejoin = true)
+    {
+        projectedBends = Array.Empty<FieldNavigationRouteWaypoint>();
+        FieldNavigationRouteWaypoint[] originalPoints = secondBend is { } second
+            ? [firstBend, second, rejoin]
+            : [firstBend, rejoin];
+        var projected = new List<FieldNavigationRouteWaypoint>(originalPoints.Length - 1);
+        var originalStart = start;
+        var projectedStart = start;
+        var originalTriangle = startTriangle;
+        var projectedTriangle = startTriangle;
+        var pointCount = originalPoints.Length - (validateRejoin ? 0 : 1);
+        for (var index = 0; index < pointCount; index++)
+        {
+            var originalEnd = originalPoints[index];
+            var originalTrace = FieldWalkmeshPathfinder.TraceWalkableSegment(
+                walkmesh, originalTriangle, originalStart, originalEnd, isTriangleBlocked);
+            if (!originalTrace.IsClear)
+            {
+                return false;
+            }
+
+            // Recovery candidates estimate Z along the direction to a distant
+            // waypoint. That estimate can float above a lower floor on the way
+            // to an elevated doorway. Only generated bends become surface points;
+            // the native/authored rejoin and its portal metadata stay unchanged.
+            var isRecoveryBend = index < originalPoints.Length - 1;
+            var projectedEnd = isRecoveryBend
+                ? originalEnd with
+                {
+                    Z = (int)Math.Round(InterpolateTriangleZ(
+                        walkmesh.Triangles[originalTrace.EndTriangle], originalEnd.X, originalEnd.Y))
+                }
+                : originalEnd;
+            var projectedTrace = FieldWalkmeshPathfinder.TraceWalkableSegment(
+                walkmesh, projectedTriangle, projectedStart, projectedEnd, isTriangleBlocked);
+            if (!projectedTrace.IsClear || projectedTrace.EndTriangle != originalTrace.EndTriangle ||
+                FieldNavigationDynamicObstacleGeometry.IntersectsAny(projectedStart, projectedEnd, obstacles))
+            {
+                return false;
+            }
+
+            if (isRecoveryBend)
+            {
+                projected.Add(projectedEnd);
+            }
+
+            originalStart = originalEnd;
+            projectedStart = projectedEnd;
+            originalTriangle = originalTrace.EndTriangle;
+            projectedTriangle = projectedTrace.EndTriangle;
+        }
+
+        projectedBends = projected;
         return true;
     }
 
@@ -1061,6 +1773,29 @@ public sealed class FieldWalkmeshRoutePlanner :
         var dynamicObstacles = dynamicObstacleProvider?.Invoke(
             position,
             matchingTarget);
+        if (plan.UsesNativeProbeClearance && stableWaypoints.Count > 0)
+        {
+            var index = Math.Clamp(waypointIndex, 0, stableWaypoints.Count - 1);
+            var waypoint = stableWaypoints[index].Waypoint;
+            if (dynamicObstacles is { Count: 0 })
+            {
+                observation = new(resolvedTriangle, waypoint, index,
+                    FieldNavigationLookaheadMode.ReplanRequired, false,
+                    "native model set is empty; rebuild ordinary route");
+                return true;
+            }
+            var current = new FieldNavigationRouteWaypoint(position.X, position.Y, position.Z);
+            var radius = dynamicObstacles?.Where(obstacle => double.IsFinite(obstacle.PlayerCollisionRadius))
+                .Select(obstacle => obstacle.PlayerCollisionRadius).DefaultIfEmpty(0d).Max() ?? 0d;
+            var clear = radius > 0d && !FieldNavigationDynamicObstacleGeometry.IntersectsAny(current, waypoint, dynamicObstacles) &&
+                        AreNativeWallProbesClear(result.Walkmesh, resolvedTriangle, current, waypoint,
+                            radius, boundaryState.IsBoundaryEnabled);
+            observation = new FieldNavigationCorridorObservation(
+                resolvedTriangle, waypoint, index,
+                clear ? FieldNavigationLookaheadMode.VisibleStep : FieldNavigationLookaheadMode.RequiredCorner,
+                clear, clear ? "native probe corridor checkpoint" : "native probe corridor checkpoint obstructed");
+            return true;
+        }
         var found = FieldNavigationCorridorLookahead.TryResolve(
             result.Walkmesh,
             resolvedTriangle,
@@ -1073,6 +1808,28 @@ public sealed class FieldWalkmeshRoutePlanner :
             boundaryState.IsBoundaryEnabled,
             dynamicObstacles,
             out observation);
+        if (found && observation.Mode == FieldNavigationLookaheadMode.ObstacleRecovery && stableWaypoints.Count > 0)
+        {
+            var rejoin = stableWaypoints[Math.Clamp(observation.StableWaypointIndex, 0, stableWaypoints.Count - 1)].Waypoint;
+            // A resident can enter after route activation. Project live recovery
+            // observations before the tracker splices or retains their bends,
+            // using the same native-floor and collision checks as initial plans.
+            var retainedRecovery = heading.RecoveryWaypoint == observation.Waypoint;
+            found = TryProjectRecoveryBends(result.Walkmesh, resolvedTriangle,
+                new(position.X, position.Y, position.Z), observation.Waypoint,
+                observation.RecoveryContinuation, rejoin, boundaryState.IsBoundaryEnabled,
+                dynamicObstacles ?? Array.Empty<FieldNavigationDynamicObstacle>(), out var projected,
+                validateRejoin: !retainedRecovery);
+            if (found)
+            {
+                observation = observation with
+                {
+                    Waypoint = projected[0],
+                    RecoveryContinuation = projected.Count > 1 ? projected[1] : null,
+                    Diagnostic = observation.Diagnostic + ", recovery bends on native surface"
+                };
+            }
+        }
         LastDiagnostic = found
             ? $"{result.Diagnostic}, {boundaryDiagnostic}, dynamicModels={dynamicObstacles?.Count ?? 0}, {observation.Diagnostic}"
             : $"{result.Diagnostic}, {boundaryDiagnostic}, corridor observation unavailable";
@@ -1408,6 +2165,43 @@ public sealed class FieldWalkmeshRoutePlanner :
         return result.IsUsable;
     }
 
+    /// <summary>
+    /// Whether a body of this radius can make the final step onto the approach point.
+    ///
+    /// <para>The probe is the one native movement uses, run over the last few units into
+    /// the point along the line the player would arrive on. A point four units inside a
+    /// wall passes every centre-only test and fails this one, which is the whole reason
+    /// the counter approach in jetin1 was being offered at all.</para>
+    /// </summary>
+    private static bool CanBodyStandAtApproach(
+        FieldWalkmesh walkmesh,
+        int triangleIndex,
+        FieldNavigationTarget target,
+        FieldNavigationRouteWaypoint approach,
+        double bodyRadius,
+        Func<int, bool>? isTriangleBlocked)
+    {
+        // The last step is made walking *toward* the target, so the probe has to be run
+        // that way round: from a point just short of the approach, into it. Probing from
+        // the centroid instead would test a different line and pass points the player
+        // cannot actually arrive at.
+        var toTargetX = target.X - (double)approach.X;
+        var toTargetY = target.Y - (double)approach.Y;
+        var length = Math.Sqrt((toTargetX * toTargetX) + (toTargetY * toTargetY));
+        if (length <= 0.001d)
+        {
+            return true;
+        }
+
+        const double FinalStepUnits = 4d;
+        var start = new FieldNavigationRouteWaypoint(
+            approach.X - (int)Math.Round(toTargetX / length * FinalStepUnits),
+            approach.Y - (int)Math.Round(toTargetY / length * FinalStepUnits),
+            approach.Z);
+        return AreNativeWallProbesClear(
+            walkmesh, triangleIndex, start, approach, bodyRadius, isTriangleBlocked);
+    }
+
     private static bool TryBuildInteractionRangeRoute(
         FieldWalkmesh walkmesh,
         int playerTriangle,
@@ -1415,6 +2209,8 @@ public sealed class FieldWalkmeshRoutePlanner :
         FieldNavigationTarget target,
         Func<int, bool>? isTriangleBlocked,
         IReadOnlyList<FieldWalkmeshOffMeshLink> offMeshLinks,
+        double bodyRadius,
+        Func<int, FieldNavigationRouteWaypoint, bool>? canBodyStand,
         out IReadOnlyList<int> bestTrianglePath,
         out IReadOnlyList<FieldNavigationRoutePortal> bestPortals,
         out int bestTargetTriangle,
@@ -1436,7 +2232,10 @@ public sealed class FieldWalkmeshRoutePlanner :
             if (isTriangleBlocked?.Invoke(triangleIndex) == true ||
                 !TryCreateInteractionApproach(
                     walkmesh.Triangles[triangleIndex],
+                    triangleIndex,
                     target,
+                    bodyRadius,
+                    canBodyStand,
                     out var approach,
                     out var approachToTargetDistance))
             {
@@ -1485,9 +2284,25 @@ public sealed class FieldWalkmeshRoutePlanner :
         return found;
     }
 
+    /// <summary>
+    /// Where on this triangle the player could stand and still reach the target.
+    ///
+    /// <para>The closest point on the triangle is the obvious answer and the wrong one: it
+    /// is on the edge, and a body with a radius cannot be on an edge. So the point is moved
+    /// toward the centroid, and - this is the part that was missing - the result has to
+    /// survive the same native wall probe the movement code uses before it is offered.</para>
+    ///
+    /// <para>The eight-unit inset is tried first so that every approach the mod produces
+    /// today is produced identically today. Only when the body does not fit there does the
+    /// search try further in, and a triangle where nothing fits is rejected rather than
+    /// returned - which is what lets a reachable triangle win instead.</para>
+    /// </summary>
     private static bool TryCreateInteractionApproach(
         FieldWalkmeshTriangle triangle,
+        int triangleIndex,
         FieldNavigationTarget target,
+        double bodyRadius,
+        Func<int, FieldNavigationRouteWaypoint, bool>? canBodyStand,
         out FieldNavigationRouteWaypoint approach,
         out double approachToTargetDistance)
     {
@@ -1497,31 +2312,76 @@ public sealed class FieldWalkmeshRoutePlanner :
         var centroid = triangle.GetCentroid();
         var insetX = centroid.X - closest.X;
         var insetY = centroid.Y - closest.Y;
-        var insetLength = Math.Sqrt(insetX * insetX + insetY * insetY);
-        if (insetLength > 0.001d)
+        var insetLength = Math.Sqrt((insetX * insetX) + (insetY * insetY));
+
+        foreach (var inset in EnumerateInteractionInsets(bodyRadius))
         {
-            var amount = Math.Min(InteractionApproachInset / insetLength, 0.25d);
-            closest = new RouteCoordinate(
-                closest.X + insetX * amount,
-                closest.Y + insetY * amount);
+            var candidate = closest;
+            if (insetLength > 0.001d)
+            {
+                var amount = Math.Min(
+                    inset / insetLength,
+                    inset <= InteractionApproachInset ? 0.25d : MaximumInteractionApproachFraction);
+                candidate = new RouteCoordinate(
+                    closest.X + (insetX * amount),
+                    closest.Y + (insetY * amount));
+            }
+
+            var x = (int)Math.Round(candidate.X);
+            var y = (int)Math.Round(candidate.Y);
+            var z = (int)Math.Round(InterpolateTriangleZ(triangle, x, y));
+            var dx = target.X - x;
+            var dy = target.Y - y;
+            var distance = Math.Sqrt((dx * (double)dx) + (dy * (double)dy));
+            if (distance >= target.InteractionRadius - InteractionRangeEpsilon ||
+                !IsWithinActivationVerticalRange(target, target.Z - z))
+            {
+                // Further in only ever moves away from the target, so once the range is
+                // lost it stays lost on this triangle.
+                break;
+            }
+
+            var waypoint = new FieldNavigationRouteWaypoint(x, y, z);
+            if (canBodyStand is not null && !canBodyStand(triangleIndex, waypoint))
+            {
+                continue;
+            }
+
+            approach = waypoint;
+            approachToTargetDistance = distance;
+            return true;
         }
 
-        var x = (int)Math.Round(closest.X);
-        var y = (int)Math.Round(closest.Y);
-        var z = (int)Math.Round(InterpolateTriangleZ(triangle, x, y));
-        var dx = target.X - x;
-        var dy = target.Y - y;
-        approachToTargetDistance = Math.Sqrt(dx * (double)dx + dy * (double)dy);
-        if (approachToTargetDistance >= target.InteractionRadius - InteractionRangeEpsilon ||
-            Math.Abs(target.Z - z) >= NativeInteractionVerticalRange)
-        {
-            approachToTargetDistance = 0d;
-            return false;
-        }
-
-        approach = new FieldNavigationRouteWaypoint(x, y, z);
-        return true;
+        approachToTargetDistance = 0d;
+        return false;
     }
+
+    /// <summary>
+    /// The insets to try, nearest the target first. Without a readable body radius there is
+    /// only the legacy one, so a runtime that cannot see the player's own collision size
+    /// behaves exactly as it did before.
+    /// </summary>
+    private static IEnumerable<double> EnumerateInteractionInsets(double bodyRadius)
+    {
+        yield return InteractionApproachInset;
+        if (bodyRadius <= InteractionApproachInset)
+        {
+            yield break;
+        }
+
+        foreach (var multiple in InteractionApproachBodyMultiples)
+        {
+            yield return bodyRadius * multiple;
+        }
+    }
+
+    internal static bool IsWithinActivationVerticalRange(
+        FieldNavigationTarget target,
+        int verticalDelta) =>
+        target.Activation == FieldNavigationActivation.Contact
+            ? verticalDelta > NativeContactVerticalLowerBound &&
+              verticalDelta < NativeContactVerticalUpperBound
+            : Math.Abs(verticalDelta) < NativeInteractionVerticalRange;
 
     private static RouteCoordinate ClosestPointOnTriangle2D(
         FieldWalkmeshTriangle triangle,
@@ -1683,6 +2543,50 @@ public sealed class FieldWalkmeshRoutePlanner :
 
     private readonly record struct RouteCoordinate(double X, double Y);
 
+    /// <summary>
+    /// Gives a transition that names its own walkmesh triangle the elevation that
+    /// triangle is at.
+    /// </summary>
+    /// <remarks>
+    /// A traversal a LINE owns is anchored by that line's own position, height and all.
+    /// One the field polls for names a triangle instead and never writes a height down,
+    /// so until it is looked up the transition reads as sitting at zero. That is not
+    /// only the planner's problem: the ladder mount and proximity cues measure distance
+    /// in three dimensions and the cue is spatialised from the same height, so a
+    /// stairwell whose lower storeys are two thousand units down would go silent on
+    /// every one of them, and the storey checks that stop a ladder two floors below from
+    /// being announced would have nothing to compare. Every consumer therefore gets the
+    /// same resolved collection from the provider rather than solving it for itself.
+    /// </remarks>
+    public static IReadOnlyList<FieldScriptNavigationTransition> AnchorTransitionSourceHeights(
+        IReadOnlyList<FieldScriptNavigationTransition> transitions,
+        FieldWalkmesh walkmesh)
+    {
+        if (transitions.Count == 0)
+        {
+            return transitions;
+        }
+
+        List<FieldScriptNavigationTransition>? anchored = null;
+        for (var index = 0; index < transitions.Count; index++)
+        {
+            var transition = transitions[index];
+            if (transition.SourceTriangle < 0 || transition.SourceTriangle >= walkmesh.Triangles.Count)
+            {
+                anchored?.Add(transition);
+                continue;
+            }
+
+            anchored ??= [.. transitions.Take(index)];
+            anchored.Add(transition with
+            {
+                SourceZ = (int)Math.Round(walkmesh.Triangles[transition.SourceTriangle].GetCentroid().Z)
+            });
+        }
+
+        return anchored ?? transitions;
+    }
+
     private IReadOnlyList<FieldWalkmeshOffMeshLink> ResolveOffMeshLinks(int fieldId, FieldWalkmesh walkmesh)
     {
         var transitions = transitionProvider?.Invoke(fieldId);
@@ -1690,6 +2594,8 @@ public sealed class FieldWalkmeshRoutePlanner :
         {
             return Array.Empty<FieldWalkmeshOffMeshLink>();
         }
+
+        transitions = AnchorTransitionSourceHeights(transitions, walkmesh);
 
         var links = new List<FieldWalkmeshOffMeshLink>(transitions.Count);
         foreach (var transition in transitions)
@@ -1704,15 +2610,26 @@ public sealed class FieldWalkmeshRoutePlanner :
             // A trigger's authored elevation is exact, so it must anchor to a
             // triangle on its own storey or to none at all. See
             // FieldWalkmeshPathfinder.ResolveTriangleAtElevation.
-            var sourceTriangle = FieldWalkmeshPathfinder.ResolveTriangleAtElevation(
-                walkmesh,
-                transition.SourceX,
-                transition.SourceY,
-                transition.SourceZ,
-                OffMeshLinkMaximumAnchorElevationError);
-            if (sourceTriangle < 0)
+            // A transition the field polls for already knows which triangle it watches,
+            // and that is the native answer rather than an inference from a height. Only
+            // fall back to the elevation search when no triangle was recorded.
+            int sourceTriangle;
+            if (transition.SourceTriangle >= 0 && transition.SourceTriangle < walkmesh.Triangles.Count)
             {
-                continue;
+                sourceTriangle = transition.SourceTriangle;
+            }
+            else
+            {
+                sourceTriangle = FieldWalkmeshPathfinder.ResolveTriangleAtElevation(
+                    walkmesh,
+                    transition.SourceX,
+                    transition.SourceY,
+                    transition.SourceZ,
+                    OffMeshLinkMaximumAnchorElevationError);
+                if (sourceTriangle < 0)
+                {
+                    continue;
+                }
             }
 
             var targetTriangleIndex = transition.TargetTriangle;
@@ -1784,12 +2701,15 @@ public sealed class FieldWalkmeshRoutePlanner :
             // end: a trigger belongs to its own storey or to nothing. Pairing
             // through the permissive resolver would re-admit the wrong floor by
             // the back door.
-            var candidateSourceTriangle = FieldWalkmeshPathfinder.ResolveTriangleAtElevation(
-                walkmesh,
-                candidate.SourceX,
-                candidate.SourceY,
-                candidate.SourceZ,
-                OffMeshLinkMaximumAnchorElevationError);
+            var candidateSourceTriangle =
+                candidate.SourceTriangle >= 0 && candidate.SourceTriangle < walkmesh.Triangles.Count
+                    ? candidate.SourceTriangle
+                    : FieldWalkmeshPathfinder.ResolveTriangleAtElevation(
+                        walkmesh,
+                        candidate.SourceX,
+                        candidate.SourceY,
+                        candidate.SourceZ,
+                        OffMeshLinkMaximumAnchorElevationError);
             if (candidateSourceTriangle < 0)
             {
                 continue;
@@ -2543,7 +3463,8 @@ public static class FieldWalkmeshPathfinder
         int startTriangleIndex,
         FieldNavigationRouteWaypoint start,
         FieldNavigationRouteWaypoint end,
-        Func<int, bool>? isTriangleBlocked = null)
+        Func<int, bool>? isTriangleBlocked = null,
+        bool applyPortalInset = true)
     {
         const double intersectionEpsilon = 0.000001d;
         var triangles = walkmesh.Triangles;
@@ -2688,7 +3609,7 @@ public static class FieldWalkmeshPathfinder
                     continue;
                 }
 
-                if (!IsWithinInsetPortal(triangle.GetEdge(edgeIndex), crossingX, crossingY))
+                if (applyPortalInset && !IsWithinInsetPortal(triangle.GetEdge(edgeIndex), crossingX, crossingY))
                 {
                     continue;
                 }
@@ -3206,6 +4127,27 @@ public static class FieldWalkmeshPathfinder
         return true;
     }
 
+    internal static bool TryBuildNativePortals(
+        FieldWalkmesh walkmesh,
+        IReadOnlyList<int> trianglePath,
+        out IReadOnlyList<FieldNavigationRoutePortal> portals)
+    {
+        var converted = new List<FieldNavigationRoutePortal>();
+        for (var index = 0; index < trianglePath.Count - 1; index++)
+        {
+            var from = trianglePath[index];
+            var to = trianglePath[index + 1];
+            if (!TryCreatePortal(walkmesh.Triangles[from], walkmesh.Triangles[to], out var left, out var right))
+            {
+                portals = Array.Empty<FieldNavigationRoutePortal>();
+                return false;
+            }
+            converted.Add(new(from, to, ToWaypoint(left), ToWaypoint(right)));
+        }
+        portals = converted;
+        return true;
+    }
+
     private static bool TryBuildPortals(
         IReadOnlyList<FieldWalkmeshTriangle> triangles,
         IReadOnlyList<int> path,
@@ -3359,3 +4301,6 @@ public static class FieldWalkmeshPathfinder
 
     private readonly record struct FunnelCorner(RoutePoint Point, int PortalIndex);
 }
+
+
+
