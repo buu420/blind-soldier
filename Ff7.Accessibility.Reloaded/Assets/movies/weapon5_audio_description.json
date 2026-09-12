@@ -1,0 +1,44 @@
+[
+  {
+    "description": "The creature lifts its head, opening its fanged mouth.",
+    "start_time": "00:00:00.000",
+    "end_time": "00:00:02.430",
+    "id": "1"
+  },
+  {
+    "description": "Blue-white light builds inside its jaws.",
+    "start_time": "00:00:08.000",
+    "end_time": "00:00:10.410",
+    "id": "2"
+  },
+  {
+    "description": "A beam blasts through the fortress wall, leaving a dark hole.",
+    "start_time": "00:00:14.000",
+    "end_time": "00:00:17.000",
+    "id": "3"
+  },
+  {
+    "description": "It faces the cannon at close range.",
+    "start_time": "00:00:22.000",
+    "end_time": "00:00:24.080",
+    "id": "4"
+  },
+  {
+    "description": "The cannon fires into its head. Flames erupt.",
+    "start_time": "00:00:26.500",
+    "end_time": "00:00:29.140",
+    "id": "5"
+  },
+  {
+    "description": "The enormous body crashes into the water.",
+    "start_time": "00:00:32.500",
+    "end_time": "00:00:34.710",
+    "id": "6"
+  },
+  {
+    "description": "Smoke drifts past the cannon.",
+    "start_time": "00:00:40.000",
+    "end_time": "00:00:41.820",
+    "id": "7"
+  }
+]

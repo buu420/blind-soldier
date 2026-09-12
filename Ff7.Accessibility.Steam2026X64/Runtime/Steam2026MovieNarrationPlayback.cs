@@ -4,6 +4,12 @@ namespace Ff7.Accessibility.Steam2026X64.Runtime;
 
 internal interface ISteam2026MovieNarrationPlayback : IDisposable
 {
+    /// <summary>
+    /// Opens the track and the output device ahead of the film, off the caller's thread.
+    /// The opening film is the one case where starting has to be instant.
+    /// </summary>
+    bool Prepare(string reason);
+
     bool Start(string reason);
 
     bool Stop(string reason);
@@ -32,6 +38,8 @@ internal sealed class Steam2026MovieNarrationPlayback : ISteam2026MovieNarration
             volumePercent,
             log);
     }
+
+    public bool Prepare(string reason) => player.Prepare(reason);
 
     public bool Start(string reason) => player.Start(reason);
 

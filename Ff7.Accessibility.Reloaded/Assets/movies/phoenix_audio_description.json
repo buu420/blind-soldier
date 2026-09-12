@@ -1,0 +1,32 @@
+[
+  {
+    "description": "A huge brown condor shelters a glowing egg.",
+    "start_time": "00:00:00.000",
+    "end_time": "00:00:02.720",
+    "id": "1"
+  },
+  {
+    "description": "A violet sphere surrounds them.",
+    "start_time": "00:00:08.000",
+    "end_time": "00:00:09.850",
+    "id": "2"
+  },
+  {
+    "description": "Flames engulf the bird.",
+    "start_time": "00:00:12.000",
+    "end_time": "00:00:13.400",
+    "id": "3"
+  },
+  {
+    "description": "The condor falls, scattering feathers.",
+    "start_time": "00:00:19.000",
+    "end_time": "00:00:21.380",
+    "id": "4"
+  },
+  {
+    "description": "The egg remains.",
+    "start_time": "00:00:24.000",
+    "end_time": "00:00:25.610",
+    "id": "5"
+  }
+]

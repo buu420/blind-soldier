@@ -1,0 +1,32 @@
+[
+  {
+    "description": "The Highwind passes beneath the vast, fiery Meteor.",
+    "start_time": "00:00:00.000",
+    "end_time": "00:00:03.070",
+    "id": "1"
+  },
+  {
+    "description": "Cloud and his companions leap from the airship.",
+    "start_time": "00:00:09.000",
+    "end_time": "00:00:11.440",
+    "id": "2"
+  },
+  {
+    "description": "Midgar's circular city and towering cannon lie below.",
+    "start_time": "00:00:16.000",
+    "end_time": "00:00:19.160",
+    "id": "3"
+  },
+  {
+    "description": "Pale parachutes descend through the scaffolding.",
+    "start_time": "00:00:24.000",
+    "end_time": "00:00:26.330",
+    "id": "4"
+  },
+  {
+    "description": "Factory walls rush past.",
+    "start_time": "00:00:31.000",
+    "end_time": "00:00:33.000",
+    "id": "5"
+  }
+]

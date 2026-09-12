@@ -1,0 +1,32 @@
+[
+  {
+    "description": "Soldiers aim shoulder launchers from the battlements.",
+    "start_time": "00:00:00.000",
+    "end_time": "00:00:02.550",
+    "id": "1"
+  },
+  {
+    "description": "Rockets arc out across the water.",
+    "start_time": "00:00:06.000",
+    "end_time": "00:00:08.070",
+    "id": "2"
+  },
+  {
+    "description": "Explosions throw up spray around the creature.",
+    "start_time": "00:00:12.000",
+    "end_time": "00:00:14.370",
+    "id": "3"
+  },
+  {
+    "description": "It surges closer. A soldier drops from view.",
+    "start_time": "00:00:18.000",
+    "end_time": "00:00:20.560",
+    "id": "4"
+  },
+  {
+    "description": "The creature towers beneath Junon's cannon.",
+    "start_time": "00:00:24.000",
+    "end_time": "00:00:26.180",
+    "id": "5"
+  }
+]

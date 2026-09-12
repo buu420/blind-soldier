@@ -1,0 +1,38 @@
+[
+  {
+    "description": "A dark cannon points over the sea at sunset.",
+    "start_time": "00:00:00.000",
+    "end_time": "00:00:02.120",
+    "id": "1"
+  },
+  {
+    "description": "A silver airship sweeps alongside it.",
+    "start_time": "00:00:06.000",
+    "end_time": "00:00:08.430",
+    "id": "2"
+  },
+  {
+    "description": "A rope drops from the airship's railing.",
+    "start_time": "00:00:13.000",
+    "end_time": "00:00:15.260",
+    "id": "3"
+  },
+  {
+    "description": "Tifa grabs the rope and swings over the water.",
+    "start_time": "00:00:20.000",
+    "end_time": "00:00:22.220",
+    "id": "4"
+  },
+  {
+    "description": "The Highwind climbs into the orange sky.",
+    "start_time": "00:00:28.000",
+    "end_time": "00:00:30.240",
+    "id": "5"
+  },
+  {
+    "description": "It flies away from Junon.",
+    "start_time": "00:00:39.000",
+    "end_time": "00:00:40.540",
+    "id": "6"
+  }
+]

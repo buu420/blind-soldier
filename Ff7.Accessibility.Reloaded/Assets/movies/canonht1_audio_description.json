@@ -1,0 +1,26 @@
+[
+  {
+    "description": "The creature's white eyes gleam.",
+    "start_time": "00:00:00.000",
+    "end_time": "00:00:01.800",
+    "id": "1"
+  },
+  {
+    "description": "The Highwind sweeps overhead.",
+    "start_time": "00:00:04.000",
+    "end_time": "00:00:05.830",
+    "id": "2"
+  },
+  {
+    "description": "A blue-white beam tears through the creature's chest.",
+    "start_time": "00:00:12.000",
+    "end_time": "00:00:14.500",
+    "id": "3"
+  },
+  {
+    "description": "It topples. An enormous clawed hand slumps into the dust.",
+    "start_time": "00:00:17.500",
+    "end_time": "00:00:20.710",
+    "id": "4"
+  }
+]

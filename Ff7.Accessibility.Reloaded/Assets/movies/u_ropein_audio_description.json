@@ -1,0 +1,20 @@
+[
+  {
+    "description": "Lamps light a dark tunnel.",
+    "start_time": "00:00:00.500",
+    "end_time": "00:00:02.040",
+    "id": "1"
+  },
+  {
+    "description": "The car emerges through a giant monster's mouth.",
+    "start_time": "00:00:03.000",
+    "end_time": "00:00:05.360",
+    "id": "2"
+  },
+  {
+    "description": "Colorful lanterns surround a Welcome sign.",
+    "start_time": "00:00:06.500",
+    "end_time": "00:00:08.890",
+    "id": "3"
+  }
+]

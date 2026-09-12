@@ -93,6 +93,11 @@ internal sealed class Steam2026ResearchAccessibilityOutput : IAccessibilityOutpu
         this.localizer = localizer ?? throw new ArgumentNullException(nameof(localizer));
         this.log = log ?? throw new ArgumentNullException(nameof(log));
         this.movieNarrationPlayback = movieNarrationPlayback;
+
+        // Warmed at construction for the same reason the classic runtime warms it at mod
+        // initialization: opening the track and the device is the slowest part, and the
+        // opening film cannot wait for it.
+        this.movieNarrationPlayback?.Prepare("runtime initialization");
     }
 
     public void Speak(string text, bool interrupt)

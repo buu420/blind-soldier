@@ -1,0 +1,14 @@
+[
+  {
+    "description": "A locomotive approaches North Corel.",
+    "start_time": "00:00:00.000",
+    "end_time": "00:00:02.080",
+    "id": "1"
+  },
+  {
+    "description": "It stops behind the barrier.",
+    "start_time": "00:00:05.000",
+    "end_time": "00:00:06.550",
+    "id": "2"
+  }
+]

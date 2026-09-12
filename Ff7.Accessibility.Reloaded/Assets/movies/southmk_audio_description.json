@@ -1,0 +1,20 @@
+[
+  {
+    "description": "Cloud hangs from the broken catwalk.",
+    "start_time": "00:00:00.000",
+    "end_time": "00:00:01.950",
+    "id": "1"
+  },
+  {
+    "description": "Flames erupt. Barret crouches over Tifa.",
+    "start_time": "00:00:03.600",
+    "end_time": "00:00:05.820",
+    "id": "2"
+  },
+  {
+    "description": "Cloud tumbles past enormous pipes and disappears into mist.",
+    "start_time": "00:00:08.000",
+    "end_time": "00:00:11.210",
+    "id": "3"
+  }
+]

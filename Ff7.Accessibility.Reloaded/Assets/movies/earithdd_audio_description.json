@@ -1,0 +1,74 @@
+[
+  {
+    "description": "Aeris kneels in prayer, then opens her eyes.",
+    "start_time": "00:00:00.000",
+    "end_time": "00:00:02.640",
+    "id": "1"
+  },
+  {
+    "description": "Cloud watches her, his expression serious.",
+    "start_time": "00:00:05.000",
+    "end_time": "00:00:07.420",
+    "id": "2"
+  },
+  {
+    "description": "She lifts her head and smiles.",
+    "start_time": "00:00:10.000",
+    "end_time": "00:00:11.950",
+    "id": "3"
+  },
+  {
+    "description": "Sephiroth plunges from above, his long sword pointed downward.",
+    "start_time": "00:00:15.600",
+    "end_time": "00:00:19.490",
+    "id": "4"
+  },
+  {
+    "description": "The blade pierces Aeris from behind.",
+    "start_time": "00:00:21.000",
+    "end_time": "00:00:23.090",
+    "id": "5"
+  },
+  {
+    "description": "Her head bows. Her eyes close.",
+    "start_time": "00:00:25.500",
+    "end_time": "00:00:27.720",
+    "id": "6"
+  },
+  {
+    "description": "Sephiroth smiles faintly, then withdraws the blade.",
+    "start_time": "00:00:33.000",
+    "end_time": "00:00:35.740",
+    "id": "7"
+  },
+  {
+    "description": "Aeris slumps. Her ribbon loosens, releasing a glowing pale green orb.",
+    "start_time": "00:00:40.000",
+    "end_time": "00:00:43.870",
+    "id": "8"
+  },
+  {
+    "description": "The orb spins as it falls.",
+    "start_time": "00:00:46.500",
+    "end_time": "00:00:48.300",
+    "id": "9"
+  },
+  {
+    "description": "It bounces down stone steps, then drops over the edge.",
+    "start_time": "00:00:50.000",
+    "end_time": "00:00:53.200",
+    "id": "10"
+  },
+  {
+    "description": "It falls past towering platforms beneath a swirling column of light.",
+    "start_time": "00:00:58.000",
+    "end_time": "00:01:01.940",
+    "id": "11"
+  },
+  {
+    "description": "The orb splashes into the water below.",
+    "start_time": "00:01:05.000",
+    "end_time": "00:01:07.290",
+    "id": "12"
+  }
+]

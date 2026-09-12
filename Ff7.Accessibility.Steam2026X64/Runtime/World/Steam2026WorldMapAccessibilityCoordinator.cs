@@ -54,6 +54,9 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
     private readonly CosmoFootstepSequencer? cosmoFootsteps;
     private readonly NavigationBeaconPlayer? entranceCuePlayer;
     private readonly NavigationAutoWalkController autoWalk;
+
+    /// <summary>Where every automatic direction is delivered; never a Windows key event.</summary>
+    private readonly Steam2026NativeDirectionalInputSink directionalInput;
     private readonly Action<string, bool> speak;
     private readonly Action<string> log;
     private readonly Action<NavigationBeaconCue, float>? playEntranceCue;
@@ -71,6 +74,15 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
     private bool wasActive;
     private int disposed;
 
+    // The controller navigation menu. Fetched through a delegate because SDL is
+    // loaded when the host first looks for a pad, which is often after this exists.
+    private readonly Func<ControllerNavigationCapture?> controllerCapture;
+    private ControllerNavigationDispatcher? controllerNavigation;
+    private WorldMapRuntimeContext? controllerRuntime;
+    private WorldMapStateSnapshot controllerState;
+    private DateTime controllerNowUtc;
+    private bool controllerMenuIsOpen;
+
     internal Steam2026WorldMapAccessibilityCoordinator(
         AccessibilityConfig config,
         ILegacyAddressSpace addressSpace,
@@ -81,8 +93,14 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         Action<string> log,
         NavigationProgressController? progressController = null,
         NavigationAutoWalkController? autoWalk = null,
-        Action<NavigationBeaconCue, float>? playEntranceCue = null)
+        Action<NavigationBeaconCue, float>? playEntranceCue = null,
+        Func<ControllerNavigationCapture?>? controllerCapture = null,
+        Steam2026NativeDirectionalInputSink? directionalInput = null)
     {
+        // Never a Win32 sink. See the field coordinator: this host synthesizes the legacy
+        // keyboard state, and the keys the control table names are the screen reader's.
+        this.directionalInput = directionalInput ?? new Steam2026NativeDirectionalInputSink();
+        this.controllerCapture = controllerCapture ?? (static () => null);
         this.config = config ?? throw new ArgumentNullException(nameof(config));
         ArgumentNullException.ThrowIfNull(addressSpace);
         this.foregroundInput = foregroundInput ?? throw new ArgumentNullException(nameof(foregroundInput));
@@ -91,7 +109,9 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         this.speak = speak ?? throw new ArgumentNullException(nameof(speak));
         this.log = log ?? throw new ArgumentNullException(nameof(log));
         this.playEntranceCue = playEntranceCue;
-        this.autoWalk = autoWalk ?? NavigationAutoWalkController.CreateCurrentProcess(addressSpace);
+        this.autoWalk = autoWalk ?? NavigationAutoWalkController.CreateCurrentProcess(
+            addressSpace,
+            this.directionalInput);
 
         stateReader = new WorldMapStateReader(addressSpace);
         entityReader = new WorldMapEntityReader(addressSpace);
@@ -397,11 +417,26 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
             }
         }
 
-        higherPrioritySpeech |= ProcessOutput(runtime.Navigation.Observe(
+        controllerRuntime = runtime;
+        controllerState = state;
+        controllerNowUtc = nowUtc;
+        DrainControllerNavigation(isForeground);
+
+        // The route keeps running while the menu is open; it just stops narrating
+        // itself, so recurring directions cannot talk over the item being read.
+        var routeObservation = runtime.Navigation.Observe(
             state,
             nowUtc,
-            autoWalk.IsEnabledFor(NavigationAutoWalkDomain.WorldMap)));
-        higherPrioritySpeech |= UpdateAutoWalk(runtime, state);
+            autoWalk.IsEnabledFor(NavigationAutoWalkDomain.WorldMap));
+        if (controllerMenuIsOpen)
+        {
+            autoWalk.Suspend();
+        }
+        else
+        {
+            higherPrioritySpeech |= ProcessOutput(routeObservation);
+            higherPrioritySpeech |= UpdateAutoWalk(runtime, state, nowUtc);
+        }
         progressRevision = progressSink?.PublicationRevision ?? 0;
         if (progressRevision != lastProgressPublicationRevision)
         {
@@ -751,7 +786,62 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         autoWalk.Suspend();
     }
 
-    private bool UpdateAutoWalk(WorldMapRuntimeContext runtime, WorldMapStateSnapshot state)
+
+    /// <summary>
+    /// Tells the capture what the world looks like and does whatever it queued.
+    /// The world map owns the pad only while module 3 is the live one, so the field
+    /// coordinator cannot consume a command meant for a world selection.
+    /// </summary>
+    private void DrainControllerNavigation(bool isForeground)
+    {
+        var capture = controllerCapture();
+        if (capture is null)
+        {
+            controllerMenuIsOpen = false;
+            return;
+        }
+
+        capture.PublishContext(
+            ControllerNavigationDomain.WorldMap,
+            isForeground,
+            config.EnableWorldMapNavigationAssistant,
+            gameIsBusy: false,
+            controllerNowUtc,
+            identity: 0);
+
+        controllerNavigation ??= new ControllerNavigationDispatcher(
+            new ControllerNavigationServices(
+                () => controllerRuntime?.Navigation.BeaconEnabled == true,
+                action => controllerRuntime?.Navigation
+                    .HandleAction(action, controllerState, controllerNowUtc)?.Speech,
+                () => autoWalk.IsEnabledFor(NavigationAutoWalkDomain.WorldMap),
+                () => autoWalk.TryStart(NavigationAutoWalkDomain.WorldMap, routeActive: true),
+                StopEveryControllerAutoWalk,
+                () => autoWalk.Suspend()),
+            speech => { speak(speech, true); return true; },
+            log);
+
+        _ = controllerNavigation.Drain(capture, ControllerNavigationDomain.WorldMap, controllerNowUtc);
+        controllerMenuIsOpen = capture.IsOpen;
+    }
+
+    /// <summary>
+    /// Ends the automatic walk whatever domain owns it. A is spoken guidance, and
+    /// spoken guidance means the mod stops driving; and a stop pressed as the module
+    /// changes must still reach the walk that is actually running.
+    /// </summary>
+    private void StopEveryControllerAutoWalk()
+    {
+        if (autoWalk.Enabled)
+        {
+            _ = autoWalk.Stop();
+        }
+    }
+
+    private bool UpdateAutoWalk(
+        WorldMapRuntimeContext runtime,
+        WorldMapStateSnapshot state,
+        DateTime nowUtc)
     {
         if (!autoWalk.IsEnabledFor(NavigationAutoWalkDomain.WorldMap))
         {
@@ -765,6 +855,12 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
             routeActive: runtime.Navigation.BeaconEnabled);
         if (result.Success)
         {
+            // After the drive, so the renewal belongs to the direction just committed to.
+            if (hasDirection)
+            {
+                directionalInput.Renew(nowUtc);
+            }
+
             lastAutoWalkFailure = string.Empty;
             return false;
         }

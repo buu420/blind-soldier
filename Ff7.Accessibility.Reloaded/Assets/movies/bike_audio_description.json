@@ -1,0 +1,62 @@
+[
+  {
+    "description": "Tifa, Aeris, Red XIII and Barret turn.",
+    "start_time": "00:00:00.000",
+    "end_time": "00:00:02.810",
+    "id": "1"
+  },
+  {
+    "description": "Cloud straddles a large black motorcycle.",
+    "start_time": "00:00:05.200",
+    "end_time": "00:00:07.670",
+    "id": "2"
+  },
+  {
+    "description": "Tifa stands beside a turquoise truck.",
+    "start_time": "00:00:09.200",
+    "end_time": "00:00:11.400",
+    "id": "3"
+  },
+  {
+    "description": "Cloud rides through shattered glass into the hall.",
+    "start_time": "00:00:13.000",
+    "end_time": "00:00:15.510",
+    "id": "4"
+  },
+  {
+    "description": "He skids around the truck as the others board.",
+    "start_time": "00:00:18.500",
+    "end_time": "00:00:20.980",
+    "id": "5"
+  },
+  {
+    "description": "The truck crashes through glass. Both vehicles descend to the lower level.",
+    "start_time": "00:00:23.000",
+    "end_time": "00:00:26.760",
+    "id": "6"
+  },
+  {
+    "description": "Cloud speeds through a doorway, the truck following.",
+    "start_time": "00:00:30.000",
+    "end_time": "00:00:32.590",
+    "id": "7"
+  },
+  {
+    "description": "Tifa drives, with Aeris beside her.",
+    "start_time": "00:00:34.000",
+    "end_time": "00:00:36.060",
+    "id": "8"
+  },
+  {
+    "description": "They burst through glass onto the raised roadway.",
+    "start_time": "00:00:38.300",
+    "end_time": "00:00:40.570",
+    "id": "9"
+  },
+  {
+    "description": "Motorcycle and truck speed away along the night highway.",
+    "start_time": "00:00:43.000",
+    "end_time": "00:00:45.930",
+    "id": "10"
+  }
+]

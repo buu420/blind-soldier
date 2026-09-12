@@ -1,0 +1,44 @@
+[
+  {
+    "description": "Steam vents around the rocket.",
+    "start_time": "00:00:00.000",
+    "end_time": "00:00:01.600",
+    "id": "1"
+  },
+  {
+    "description": "The countdown reaches zero. Engines blaze white.",
+    "start_time": "00:00:08.000",
+    "end_time": "00:00:10.970",
+    "id": "2"
+  },
+  {
+    "description": "Exhaust blasts through the town.",
+    "start_time": "00:00:14.000",
+    "end_time": "00:00:16.120",
+    "id": "3"
+  },
+  {
+    "description": "The rocket lifts away from its launch tower.",
+    "start_time": "00:00:20.000",
+    "end_time": "00:00:22.290",
+    "id": "4"
+  },
+  {
+    "description": "It passes above rooftops and a swinging inn sign.",
+    "start_time": "00:00:28.000",
+    "end_time": "00:00:30.840",
+    "id": "5"
+  },
+  {
+    "description": "A thick white plume trails across the blue sky.",
+    "start_time": "00:00:36.000",
+    "end_time": "00:00:38.680",
+    "id": "6"
+  },
+  {
+    "description": "Below the climbing rocket, smoke spreads in a ring.",
+    "start_time": "00:00:46.000",
+    "end_time": "00:00:48.570",
+    "id": "7"
+  }
+]

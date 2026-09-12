@@ -15,7 +15,19 @@ public enum FieldCutsceneDeliveryOutcome
     Spoken,
 
     /// <summary>The speaker refused; the cue stays at the head for the next tick.</summary>
-    Refused
+    Refused,
+
+    /// <summary>
+    /// The cue described a film the game is not playing and nothing has been written
+    /// for the one it is. Spent without being spoken, deliberately.
+    /// </summary>
+    Withheld,
+
+    /// <summary>
+    /// The film this cue describes is already being described. Spent deliberately,
+    /// unspoken, and without reserving a dialogue window.
+    /// </summary>
+    AlreadyDescribed
 }
 
 /// <summary>
@@ -25,12 +37,18 @@ public enum FieldCutsceneDeliveryOutcome
 /// </summary>
 public sealed class FieldCutsceneDescriptionDelivery(FieldCutsceneDescriptionDeliveryQueue queue)
 {
+    /// <param name="describeRunningFilm">
+    /// What the film that is actually playing shows, when the cue's own paragraph
+    /// describes a different one. Returning null means nothing has been written for
+    /// it, and the cue is dropped rather than spoken.
+    /// </param>
     public FieldCutsceneDeliveryOutcome Deliver(
         int fieldId,
         Func<FieldCutsceneDescriptionCue, FieldMovieNarrationStartResult> beginNarration,
         Func<string, bool> trySpeak,
         Action<FieldCutsceneDescriptionCue> onDelivered,
-        out FieldCutsceneDescriptionCue delivered)
+        out FieldCutsceneDescriptionCue delivered,
+        Func<string?>? describeRunningFilm = null)
     {
         ArgumentNullException.ThrowIfNull(beginNarration);
         ArgumentNullException.ThrowIfNull(trySpeak);
@@ -58,12 +76,44 @@ public sealed class FieldCutsceneDescriptionDelivery(FieldCutsceneDescriptionDel
             return FieldCutsceneDeliveryOutcome.Waiting;
         }
 
+        // The film is already being described, by its recording or by the cue
+        // schedule that took over from one. Saying the paragraph as well would
+        // describe the scene twice. The cue is spent so it cannot come back, and no
+        // dialogue window is reserved because nothing was said.
+        if (narration == FieldMovieNarrationStartResult.AlreadyDescribed)
+        {
+            queue.CommitDelivered(cue);
+            delivered = cue;
+            return FieldCutsceneDeliveryOutcome.AlreadyDescribed;
+        }
+
+        // The paragraph was written for a film that is not the one playing. This is
+        // what a disc change does to an anchor: the address is the same and the film
+        // is not. Saying it anyway would describe the wrong scene with confidence,
+        // which is worse than saying nothing, so the cue is spent either way.
+        var text = cue.Text;
+        if (narration == FieldMovieNarrationStartResult.DescribesADifferentFilm)
+        {
+            var substitute = describeRunningFilm?.Invoke();
+            if (string.IsNullOrWhiteSpace(substitute))
+            {
+                queue.CommitDelivered(cue);
+                onDelivered(cue);
+                delivered = cue;
+                return FieldCutsceneDeliveryOutcome.Withheld;
+            }
+
+            text = substitute;
+        }
+
         // Only reserve the dialogue window once the speaker has actually taken the
         // text, and leave a refused cue at the head of the queue.
-        if (!trySpeak(cue.Text))
+        if (!trySpeak(text))
         {
             return FieldCutsceneDeliveryOutcome.Refused;
         }
+
+        cue = cue with { Text = text };
 
         queue.CommitDelivered(cue);
         onDelivered(cue);

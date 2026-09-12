@@ -16,6 +16,7 @@ internal sealed class Steam2026FieldCutsceneDescriptionCoordinator
     private readonly FieldCutsceneSpeechPriority speechPriority = new();
     private readonly Queue<FieldCutsceneDescriptionCue> pending = new();
     private readonly FieldMovieNarrationTracker? narration;
+    private readonly CutsceneVoicePlayer? cutsceneVoice;
     private readonly FieldAreaDescriptionColdStartTracker areaColdStart =
         new(FieldCutsceneDescriptionCatalog.CreateGoldSaucerAreaDescriptions());
     private int currentFieldId = -1;
@@ -29,12 +30,45 @@ internal sealed class Steam2026FieldCutsceneDescriptionCoordinator
     internal Steam2026FieldCutsceneDescriptionCoordinator(
         ILegacyAddressSpace addressSpace,
         IEnumerable<FieldCutsceneDescriptionCue> cues,
-        FieldMovieNarrationTracker? narration = null)
+        FieldMovieNarrationTracker? narration = null,
+        CutsceneVoicePlayer? cutsceneVoice = null)
     {
         this.addressSpace = addressSpace ?? throw new ArgumentNullException(nameof(addressSpace));
         ArgumentNullException.ThrowIfNull(cues);
         tracker = new FieldCutsceneDescriptionTracker(cues);
         this.narration = narration;
+        this.cutsceneVoice = cutsceneVoice;
+    }
+
+    /// <summary>
+    /// Says a description in the recorded voice when there is a recording of those
+    /// exact words, and hands it to the caller's speaker when there is not. Returning
+    /// false means nobody said it, which keeps the cue at the head of the queue.
+    /// </summary>
+    private bool SpeakDescription(
+        Func<string, bool> trySpeak,
+        string text,
+        CutsceneVoiceOwner owner,
+        out TimeSpan? clipDuration)
+    {
+        var delivery = CutsceneVoiceSpeaker.Deliver(cutsceneVoice, text, owner, trySpeak);
+        clipDuration = delivery.ClipDuration;
+        return delivery.Spoken;
+    }
+
+    /// <summary>
+    /// Holds the dialogue window for the description just said: the clip's own length
+    /// when it was a recording, the word-count estimate when it was speech.
+    /// </summary>
+    private void ReserveDescriptionWindow(int fieldId, string text, TimeSpan? clipDuration, DateTime nowUtc)
+    {
+        if (clipDuration is { } duration)
+        {
+            speechPriority.BeginNarration(fieldId, duration, nowUtc);
+            return;
+        }
+
+        speechPriority.BeginNarration(fieldId, text, nowUtc);
     }
 
     internal bool Observe(Steam2026FieldCutsceneIngressSnapshot snapshot)
@@ -225,12 +259,39 @@ internal sealed class Steam2026FieldCutsceneDescriptionCoordinator
                 {
                     return false;
                 }
+
+                // The film is already being described, by its recording or by the cue
+                // schedule that took over from one. Reading the paragraph as well
+                // would describe the same footage twice, so the cue is spent without
+                // being spoken and without reserving a dialogue window.
+                if (result == FieldMovieNarrationStartResult.AlreadyDescribed)
+                {
+                    pending.Dequeue();
+                    return false;
+                }
+
+                // The paragraph describes a film the game is not playing, which is
+                // what a disc change does to an anchor: same address, different
+                // film. Say what is actually running, or say nothing.
+                if (result == FieldMovieNarrationStartResult.DescribesADifferentFilm)
+                {
+                    if (!FieldMovieNarrationTracker.TryDescribeRunningFilm(
+                            deliverySample, out var running))
+                    {
+                        pending.Dequeue();
+                        return false;
+                    }
+
+                    cue = cue with { Text = running };
+                }
             }
 
             bool accepted;
+            TimeSpan? clipDuration;
             try
             {
-                accepted = trySpeak(cue.Text);
+                accepted = SpeakDescription(
+                    trySpeak, cue.Text, CutsceneVoiceOwner.FieldAction, out clipDuration);
             }
             catch
             {
@@ -243,7 +304,7 @@ internal sealed class Steam2026FieldCutsceneDescriptionCoordinator
             }
 
             pending.Dequeue();
-            speechPriority.BeginNarration(cue.FieldId, cue.Text, nowUtc);
+            ReserveDescriptionWindow(cue.FieldId, cue.Text, clipDuration, nowUtc);
             spokenCue = cue;
             return true;
         }
@@ -251,25 +312,107 @@ internal sealed class Steam2026FieldCutsceneDescriptionCoordinator
 
     /// <summary>
     /// Per-frame native film lifecycle. Expires a pending start opportunity and
-    /// stops an active track when the film ends, another film starts, or the field
-    /// or module changes.
+    /// stops an active track when the film ends, another film starts, the field or
+    /// module changes, or the game puts its own words on screen.
     /// </summary>
-    internal void ObserveNativeFilm(DateTime nowUtc)
+    /// <param name="hasReadableActiveMessage">
+    /// Whether a dialogue window is open and readable right now. A film can run with
+    /// native text over it, and the text wins.
+    /// </param>
+    internal void ObserveNativeFilm(DateTime nowUtc, Func<bool>? hasReadableActiveMessage = null)
     {
-        if (narration is null || nowUtc.Kind != DateTimeKind.Utc)
+        if (nowUtc.Kind != DateTimeKind.Utc)
         {
+            return;
+        }
+
+        if (narration is null)
+        {
+            // No film tracker, but a field description may still be playing and the
+            // game may still be talking over it.
+            lock (sync)
+            {
+                if (DialogueIsOnScreen(hasReadableActiveMessage))
+                {
+                    cutsceneVoice?.Stop("native dialogue opened");
+                }
+            }
+
             return;
         }
 
         lock (sync)
         {
+            // A failed read is not "carry on". The independent track plays on its own
+            // device and the deferred schedule is spoken by the host, so leaving both
+            // running against state nobody can see is how a description ends up over
+            // the wrong scene. Stop, and let the next readable frame start again.
             if (!addressSpace.TryReadUInt16((uint)FieldPositionReader.AddressFieldId, out var fieldId) ||
                 !TryReadMovieSample(fieldId, out var sample))
             {
+                narration.Stop(FieldMovieNarrationStopReason.Unloaded);
+
+                // The same unknown applies to a recorded description: nobody can see
+                // what is on screen, so nothing should be describing it.
+                cutsceneVoice?.Stop("the native film state could not be read");
                 return;
             }
 
-            narration.Observe(sample, nowUtc);
+            var dialogueIsOnScreen = DialogueIsOnScreen(hasReadableActiveMessage);
+            if (dialogueIsOnScreen)
+            {
+                cutsceneVoice?.Stop("native dialogue opened");
+            }
+
+            narration.Observe(sample, nowUtc, dialogueIsOnScreen);
+        }
+    }
+
+    /// <summary>
+    /// The next cue of a film whose recording gave way to the game's own words, or
+    /// null. Spoken through the ordinary path, which is what lets the description and
+    /// the dialogue alternate instead of overlapping.
+    /// </summary>
+    /// <param name="trySpeak">
+    /// Only acceptance advances the film's schedule, so a speaker that refuses leaves
+    /// the cue to be offered again instead of losing it.
+    /// </param>
+    internal bool TryDeliverDeferredFilmCue(
+        DateTime nowUtc,
+        Func<bool>? hasReadableActiveMessage,
+        Func<string, bool> trySpeak,
+        out string delivered,
+        out int deliveredFieldId)
+    {
+        delivered = string.Empty;
+        deliveredFieldId = -1;
+        if (narration is null || nowUtc.Kind != DateTimeKind.Utc)
+        {
+            return false;
+        }
+
+        lock (sync)
+        {
+            // While a description is still being read out, the next one waits - the
+            // same reservation every other cue in this coordinator obeys.
+            if (speechPriority.ShouldQueueDialogue(currentFieldId, nowUtc))
+            {
+                return false;
+            }
+
+            TimeSpan? clipDuration = null;
+            if (!narration.TryDeliverDeferredCue(
+                    DialogueIsOnScreen(hasReadableActiveMessage),
+                    text => SpeakDescription(
+                        trySpeak, text, CutsceneVoiceOwner.FilmCue, out clipDuration),
+                    out delivered))
+            {
+                return false;
+            }
+
+            ReserveDescriptionWindow(currentFieldId, delivered, clipDuration, nowUtc);
+            deliveredFieldId = currentFieldId;
+            return true;
         }
     }
 
@@ -283,6 +426,10 @@ internal sealed class Steam2026FieldCutsceneDescriptionCoordinator
         lock (sync)
         {
             narration?.Stop(reason);
+
+            // A recorded description plays on the same device and would keep talking
+            // over whatever window the player moved to.
+            cutsceneVoice?.Stop(reason.ToString());
         }
     }
 
@@ -319,8 +466,36 @@ internal sealed class Steam2026FieldCutsceneDescriptionCoordinator
         lock (sync)
         {
             ResetFieldState();
+
+            // An explicit reset is the host tearing the session down, not the story
+            // moving to the next room, so the film narration and every recorded
+            // description go with it.
+            narration?.Stop(FieldMovieNarrationStopReason.Unloaded);
+            cutsceneVoice?.Stop("the coordinator was reset");
             currentFieldId = -1;
         }
+    }
+
+    /// <summary>
+    /// Whether the game has its own words on screen right now.
+    ///
+    /// <para>Two different unknowns, deliberately treated differently. No probe at
+    /// all means dialogue reading is not configured on this host, so there is no
+    /// second voice to collide with and narration proceeds. A probe that is there but
+    /// whose read fails is a real unknown: assume the game is talking rather than
+    /// talk over it.</para>
+    /// </summary>
+    private bool DialogueIsOnScreen(Func<bool>? hasReadableActiveMessage)
+    {
+        if (hasReadableActiveMessage is null)
+        {
+            return false;
+        }
+
+        return !TryReadStableFieldState(hasReadableActiveMessage, out _, out _,
+                   out var activeMessageCount, out var hasReadableMessage) ||
+               FieldCutsceneSpeechPriority.ShouldWaitForDialogue(
+                   activeMessageCount, hasReadableMessage);
     }
 
     private bool TryReadStableFieldState(
@@ -396,12 +571,24 @@ internal sealed class Steam2026FieldCutsceneDescriptionCoordinator
         return true;
     }
 
+    /// <summary>
+    /// Clears the cues that belong to the field the player has left.
+    ///
+    /// <para>This deliberately does <b>not</b> stop the film narration. Story cues are
+    /// bound to a field; a film is not. One film runs across four Highwind fields,
+    /// and the first snapshot the coordinator ever drains arrives while
+    /// <c>currentFieldId</c> is still -1, so stopping here killed a film that the
+    /// native tick had legitimately started moments earlier. The film's own lifetime
+    /// is decided by <see cref="ObserveNativeFilm"/> from the engine's state - it
+    /// ends when the film ends, when another film starts, when the module changes or
+    /// when the evidence stops reading - and by the explicit stops below.</para>
+    /// </summary>
     private void ResetFieldState()
     {
         pending.Clear();
         tracker.Reset();
         speechPriority.Reset();
-        narration?.Stop(FieldMovieNarrationStopReason.FieldChanged);
+        cutsceneVoice?.StopIfOwnedBy(CutsceneVoiceOwner.FieldAction, "the field changed");
     }
 
     private static bool IsSupportedIngressOpcode(int opcode) =>

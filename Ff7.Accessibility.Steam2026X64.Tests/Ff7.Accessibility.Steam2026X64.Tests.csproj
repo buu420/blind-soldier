@@ -49,6 +49,14 @@
              Link="SharedTests\GoldSaucerFirstVisitTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\GoldSaucerMovieNarrationTests.cs"
              Link="SharedTests\GoldSaucerMovieNarrationTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\ReviewedFilmNarrationTests.cs"
+             Link="SharedTests\ReviewedFilmNarrationTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\FilmNarrationSeamTests.cs"
+             Link="SharedTests\FilmNarrationSeamTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\CutsceneVoiceTests.cs"
+             Link="SharedTests\CutsceneVoiceTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\ControllerNavigationMenuTests.cs"
+             Link="SharedTests\ControllerNavigationMenuTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\GoldSaucerDescriptionTests.cs"
              Link="SharedTests\GoldSaucerDescriptionTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\FakeFieldScriptMemory.cs"

@@ -1,0 +1,20 @@
+[
+  {
+    "description": "A gloved hand places a purple orb inside the crystal.",
+    "start_time": "00:00:00.000",
+    "end_time": "00:00:03.040",
+    "id": "1"
+  },
+  {
+    "description": "It floats beside Sephiroth's motionless body.",
+    "start_time": "00:00:04.600",
+    "end_time": "00:00:07.630",
+    "id": "2"
+  },
+  {
+    "description": "Blue tendrils coil around him and the orb.",
+    "start_time": "00:00:09.500",
+    "end_time": "00:00:12.030",
+    "id": "3"
+  }
+]

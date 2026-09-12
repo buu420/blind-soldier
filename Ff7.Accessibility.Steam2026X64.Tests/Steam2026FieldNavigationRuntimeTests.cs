@@ -401,7 +401,68 @@ internal static class Steam2026FieldNavigationRuntimeTests
             true,
             autoWalkSink.Batches.SelectMany(batch => batch).Any(transition => transition.IsKeyDown),
             "x64 field integration injects the route-owned directional key");
+
+        AssertReassertsASwallowedDirection(coordinator, fixture, autoWalkSink, autoWalk, frame, now);
         return spoken;
+    }
+
+    /// <summary>
+    /// The native runtime must pass the direction the game is actually acting on into
+    /// <c>Drive</c>, or the shared controller's reassertion can never run: it only
+    /// triggers on an observed <c>None</c>, and the optional argument defaults to null,
+    /// which skips the check altogether. Both native call sites omitted it while x86 has
+    /// always passed it, so a direction the game swallowed stayed swallowed for ever.
+    /// </summary>
+    private static void AssertReassertsASwallowedDirection(
+        Steam2026FieldNavigationCoordinator coordinator,
+        FieldObservationFixture fixture,
+        RecordingKeyboardInputSink autoWalkSink,
+        NavigationAutoWalkController autoWalk,
+        RuntimeFrameObservation frame,
+        DateTime now)
+    {
+        // The game is reporting no direction at all while auto walk holds one down:
+        // exactly the swallowed-key case. Three such reads are the shared controller's
+        // threshold, so four frames must produce a release and a fresh press.
+        fixture.Write(
+            (uint)FieldNavigationInputReader.AddressCurrentKeyInput,
+            BitConverter.GetBytes(0u));
+        var beforeReassert = autoWalkSink.Batches.Count;
+        Equal(true, autoWalk.Enabled, "the native autowalk is active before input recovery");
+        for (var step = 1; step <= 4; step++)
+        {
+            coordinator.Observe(frame, now + TimeSpan.FromSeconds(8) + TimeSpan.FromMilliseconds(step * 100));
+        }
+
+        var reassertBatches = autoWalkSink.Batches.Skip(beforeReassert).ToArray();
+        Equal(
+            true,
+            reassertBatches.SelectMany(batch => batch).Any(transition => !transition.IsKeyDown),
+            "a direction the game is not acting on is released");
+        Equal(
+            true,
+            reassertBatches.SelectMany(batch => batch).Any(transition => transition.IsKeyDown),
+            "and pressed again, which is the reassertion the null observed input disabled");
+
+        // Now the game reports the same direction the route commanded. The key stays
+        // held and nothing is re-sent: reasserting a direction that is being honoured
+        // would drop a frame of movement on every pass.
+        Equal(true, autoWalk.Enabled, "input recovery leaves the native autowalk active");
+        var held = autoWalkSink.Batches.Count;
+        fixture.Write(
+            (uint)FieldNavigationInputReader.AddressCurrentKeyInput,
+            BitConverter.GetBytes(
+                FieldNavigationInputReader.DownMask | FieldNavigationInputReader.RightMask));
+        for (var step = 5; step <= 12; step++)
+        {
+            coordinator.Observe(frame, now + TimeSpan.FromSeconds(8) + TimeSpan.FromMilliseconds(step * 100));
+        }
+
+        Equal(
+            0,
+            autoWalkSink.Batches.Count - held,
+            "an observed direction that matches the commanded one is left alone");
+        Equal(true, autoWalk.Enabled, "no extra key batches means held movement, not a stopped autowalk");
     }
 
     private static void PlaysOnlyCoherentForegroundReachableExitPoints()

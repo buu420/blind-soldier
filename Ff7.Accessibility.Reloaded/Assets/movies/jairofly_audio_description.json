@@ -1,0 +1,32 @@
+[
+  {
+    "description": "A pink propeller plane lifts from the grass, kicking up dust.",
+    "start_time": "00:00:00.000",
+    "end_time": "00:00:03.120",
+    "id": "1"
+  },
+  {
+    "description": "It banks around the leaning rocket above the village.",
+    "start_time": "00:00:07.000",
+    "end_time": "00:00:09.470",
+    "id": "2"
+  },
+  {
+    "description": "The plane sweeps close past the rocket's high framework.",
+    "start_time": "00:00:17.000",
+    "end_time": "00:00:19.790",
+    "id": "3"
+  },
+  {
+    "description": "It swoops over rooftops, then passes overhead.",
+    "start_time": "00:00:27.000",
+    "end_time": "00:00:29.790",
+    "id": "4"
+  },
+  {
+    "description": "Projectiles strike. The plane trails fire and smoke toward the coast.",
+    "start_time": "00:00:34.000",
+    "end_time": "00:00:37.710",
+    "id": "5"
+  }
+]

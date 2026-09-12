@@ -1,0 +1,26 @@
+[
+  {
+    "description": "Stone platforms hang before an emerald curtain.",
+    "start_time": "00:00:00.000",
+    "end_time": "00:00:02.340",
+    "id": "1"
+  },
+  {
+    "description": "The blocks rise, break apart, and scatter.",
+    "start_time": "00:00:06.000",
+    "end_time": "00:00:08.350",
+    "id": "2"
+  },
+  {
+    "description": "Green streaks rush toward a distant point of light.",
+    "start_time": "00:00:14.000",
+    "end_time": "00:00:16.440",
+    "id": "3"
+  },
+  {
+    "description": "White light flares.",
+    "start_time": "00:00:28.000",
+    "end_time": "00:00:29.180",
+    "id": "4"
+  }
+]

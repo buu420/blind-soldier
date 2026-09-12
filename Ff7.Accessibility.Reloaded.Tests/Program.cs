@@ -174,6 +174,16 @@ if (args.Contains("--reactor-ladder-only", StringComparer.OrdinalIgnoreCase))
     return;
 }
 
+if (args.Contains("--controller-nav-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.ControllerNavigationMenuTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.ControllerNavigationAdapterTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.ControllerCaptureNestedExportTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.ControllerCaptureHookInstallationTests.Run();
+    Console.WriteLine("Controller navigation tests passed.");
+    return;
+}
+
 if (args.Contains("--field-navigation-output-only", StringComparer.OrdinalIgnoreCase))
 {
     AssertFieldNavigationControllerAnnouncesNativeLadderAtEntry();
@@ -262,6 +272,7 @@ if (args.Contains("--host-validation-only", StringComparer.OrdinalIgnoreCase))
 if (args.Contains("--opening-movie-only", StringComparer.OrdinalIgnoreCase))
 {
     AssertOpeningMovieActivityUsesNativeStateForVirtualFfnxMovies();
+    Ff7.Accessibility.Reloaded.Tests.OpeningMovieStartupTests.Run();
     Console.WriteLine("FFVII opening movie activity tests passed.");
     return;
 }
@@ -424,6 +435,9 @@ if (args.Contains("--gold-saucer-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.GoldSaucerFirstVisitTests.Run(CreateInstalledFieldWalkmeshReader);
     Ff7.Accessibility.Reloaded.Tests.GoldSaucerMovieNarrationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.ReviewedFilmNarrationTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.FilmNarrationSeamTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.CutsceneVoiceTests.Run();
     Ff7.Accessibility.Reloaded.Tests.FieldMovieNarrationQueueSeamTests.Run();
     Ff7.Accessibility.Reloaded.Tests.GBikeArcadeModeTests.Run();
     Ff7.Accessibility.Reloaded.Tests.SpeedSquareCoasterTargetTests.Run();
@@ -689,6 +703,7 @@ AssertOpeningMovieDescriptionConfigDefaultsDisabled();
 AssertOpeningMovieAudioTrackConfigDefaultsEnabled();
 AssertOpeningMovieAudioTrackPolicyUsesIndependentPlayback();
 AssertOpeningMovieAudioTrackVolumeMatchesFfnxGain();
+Ff7.Accessibility.Reloaded.Tests.OpeningMovieStartupTests.Run();
 AssertFfnxRuntimeDetectorRecognizesDriverModules();
 Ff7.Accessibility.Reloaded.Tests.NavigationProgressControlTests.Run();
 FfnxPopupSpeechTests.Run();
@@ -720,6 +735,9 @@ Ff7.Accessibility.Reloaded.Tests.NorthCorelNavigationTests.Run(CreateInstalledFi
 NorthCorelEtherInteractionTests.Run(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.GoldSaucerFirstVisitTests.Run(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.GoldSaucerMovieNarrationTests.Run();
+Ff7.Accessibility.Reloaded.Tests.ReviewedFilmNarrationTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.FilmNarrationSeamTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.CutsceneVoiceTests.Run();
 Ff7.Accessibility.Reloaded.Tests.FieldMovieNarrationQueueSeamTests.Run();
     Ff7.Accessibility.Reloaded.Tests.GBikeArcadeModeTests.Run();
     Ff7.Accessibility.Reloaded.Tests.SpeedSquareCoasterTargetTests.Run();
@@ -751,6 +769,10 @@ HighwayEngagementSteeringTrackerTests.Run();
 HighwayAutoSteeringModeTrackerTests.Run();
 HighwayAutoSteeringControllerTests.Run();
 NavigationAutoWalkControllerTests.Run(CreateInstalledFieldWalkmeshReader);
+Ff7.Accessibility.Reloaded.Tests.ControllerNavigationMenuTests.Run();
+Ff7.Accessibility.Reloaded.Tests.ControllerNavigationAdapterTests.Run();
+Ff7.Accessibility.Reloaded.Tests.ControllerCaptureNestedExportTests.Run();
+Ff7.Accessibility.Reloaded.Tests.ControllerCaptureHookInstallationTests.Run();
 HighwayAccessibilityCoordinatorTests.Run();
 AssertMenuTextRendererDelegateHasReloadedFunctionAttribute();
 AssertFieldMessageOpenDelegateHasReloadedFunctionAttribute();
@@ -887,6 +909,7 @@ AssertFieldCutsceneDescriptionCatalogCoversWallMarketThroughMotorcycleEscape();
 AssertFieldCutsceneDescriptionCatalogCoversKalmThroughLowerJunon();
 AssertFieldCutsceneDescriptionCatalogCoversUpperJunonThroughCargoShip();
 Ff7.Accessibility.Reloaded.Tests.JunonJourneyDescriptionTests.Run(FindGameRoot());
+Ff7.Accessibility.Reloaded.Tests.SetoVisualDescriptionTests.Run(FindGameRoot());
 AssertFieldCutsceneDescriptionTrackerSpeaksExactCueOnce();
 AssertFieldCutsceneDescriptionTrackerRequiresCatalogedOpcode();
 AssertFieldCutsceneDescriptionTrackerResetsOnFieldReentry();
@@ -6276,7 +6299,9 @@ static void AssertFieldCutsceneDescriptionCatalogCoversSector8EscapeActions()
         "Cosmo-compatible SOUND anchors");
 
     AssertContains(cues.Single(cue => cue.FieldId == 133 && cue.ByteIndex == 3).Text, "bomb");
-    AssertContains(cues.Single(cue => cue.FieldId == 133 && cue.ByteIndex == 78).Text, "Reactor erupts");
+    // The Sector 8 reactor film is 3.467 s; the paragraph was replaced with the
+    // reviewed one-line description that can actually be spoken inside it.
+    AssertContains(cues.Single(cue => cue.FieldId == 133 && cue.ByteIndex == 78).Text, "fireball");
     AssertEqual(
         FieldOpcodeAddressResolver.OpcodeMovieIndex,
         cues.Single(cue => cue.FieldId == 133 && cue.ByteIndex == 78).Opcode,
@@ -6527,10 +6552,12 @@ static void AssertFieldCutsceneDescriptionCatalogCoversWallMarketThroughMotorcyc
     var rufusRooftop = cues.Single(cue => cue.FieldId == 269 && cue.EntityId == 1 && cue.ScriptId == 1 && cue.ByteIndex == 0);
     AssertEqual(FieldOpcodeAddressResolver.OpcodeRequestEwIndex, rufusRooftop.Opcode, "Rufus rooftop native request-ew anchor");
     AssertContains(rufusRooftop.Text, "rooftop");
+    // The bike escape now speaks the paragraph written from the film itself, which
+    // is also what the bike recording says.
     var motorcycleEscape = cues.Single(cue => cue.FieldId == 234);
-    AssertContains(motorcycleEscape.Text, "display truck");
-    AssertContains(motorcycleEscape.Text, "motorcycle");
-    AssertContains(motorcycleEscape.Text, "showroom glass");
+    AssertContains(motorcycleEscape.Text, "black motorcycle");
+    AssertContains(motorcycleEscape.Text, "turquoise truck");
+    AssertContains(motorcycleEscape.Text, "night highway");
 
     var nativeCatalog = new FieldScriptNavigationCatalog(FindGameRoot());
     foreach (var cue in cues)
@@ -6567,8 +6594,8 @@ static void AssertFieldCutsceneDescriptionCatalogCoversKalmThroughLowerJunon()
 
     AssertContains(cues.Single(cue => cue.FieldId == 277).Text, "Shinra truck");
     AssertContains(cues.Single(cue => cue.FieldId == 282 && cue.EntityId == 8).Text, "cowboy hat");
-    AssertContains(cues.Single(cue => cue.FieldId == 311).Text, "Mt. Nibel");
-    AssertContains(cues.Single(cue => cue.FieldId == 312).Text, "rope bridge");
+    AssertContains(cues.Single(cue => cue.FieldId == 311).Text, "reactor nestles between peaks");
+    AssertContains(cues.Single(cue => cue.FieldId == 312).Text, "bridge");
     AssertContains(cues.Single(cue => cue.FieldId == 318).Text, "Mako spring");
     AssertContains(cues.Single(cue => cue.FieldId == 323 && cue.EntityId == 9).Text, "pod");
     AssertContains(cues.Single(cue => cue.FieldId == 304).Text, "library desk");
@@ -6586,7 +6613,7 @@ static void AssertFieldCutsceneDescriptionCatalogCoversKalmThroughLowerJunon()
     AssertContains(cues.Single(cue => cue.FieldId == 429).Text, "Priscilla");
     AssertContains(cues.Single(cue => cue.FieldId == 434).Text, "motionless");
     var upperJunonPanorama = cues.Single(cue => cue.FieldId == 359);
-    AssertContains(upperJunonPanorama.Text, "Mako cannon");
+    AssertContains(upperJunonPanorama.Text, "cannon");
     AssertContains(
         upperJunonPanorama.Text,
         "story continues automatically when the panorama ends");
@@ -6658,7 +6685,7 @@ static void AssertFieldCutsceneDescriptionCatalogCoversKalmThroughLowerJunon()
 
 static void AssertFieldCutsceneDescriptionCatalogCoversUpperJunonThroughCargoShip()
 {
-    Ff7.Accessibility.Reloaded.Tests.EchoSCompatibilityTests.AuthorizesInstalledJunonThroughCostaDescriptionAnchors(FindGameRoot());
+    Ff7.Accessibility.Reloaded.Tests.EchoSCompatibilityTests.AuthorizesInstalledDescriptionAnchors(FindGameRoot());
     var cues = FieldCutsceneDescriptionCatalog.CreateUpperJunonThroughCargoShipDescriptions();
     AssertEqual(9, cues.Count, "Upper Junon through cargo ship cue count");
     AssertEqual(
@@ -6673,13 +6700,13 @@ static void AssertFieldCutsceneDescriptionCatalogCoversUpperJunonThroughCargoShi
     AssertEqual(all.Count, all.Select(cue => cue.Key).Distinct().Count(), "no duplicate keys once merged");
     AssertEqual(1, all.Count(cue => cue.FieldId == 359), "the existing Junon establishing movie cue must survive");
     var upperJunonPanorama = all.Single(cue => cue.FieldId == 359);
-    AssertContains(upperJunonPanorama.Text, "Mako cannon");
+    AssertContains(upperJunonPanorama.Text, "cannon");
     AssertContains(
         upperJunonPanorama.Text,
         "story continues automatically when the panorama ends");
     AssertContains(cues.Single(cue => cue.FieldId == 384 && cue.ByteIndex == 73).Text, "rises");
-    AssertContains(cues.Single(cue => cue.FieldId == 384 && cue.ByteIndex == 201).Text, "descends");
-    AssertContains(cues.Single(cue => cue.FieldId == 385).Text, "Highwind");
+    AssertContains(cues.Single(cue => cue.FieldId == 384 && cue.ByteIndex == 201).Text, "lowers");
+    AssertContains(cues.Single(cue => cue.FieldId == 385).Text, "airship");
     AssertEqual(2, cues.Count(cue => cue.FieldId == 395), "Junon interior platform arrival and departure cues");
     AssertEqual(
         2,
@@ -30653,8 +30680,3 @@ static class BlindSoldierRuntimeLeaseTests
         reacquired.Dispose();
     }
 }
-
-
-
-
-

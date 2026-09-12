@@ -1,0 +1,20 @@
+[
+  {
+    "description": "The creature's shoulder armor opens. Its chest glows.",
+    "start_time": "00:00:00.000",
+    "end_time": "00:00:02.970",
+    "id": "1"
+  },
+  {
+    "description": "Yellow light pours out, then golden projectiles launch.",
+    "start_time": "00:00:05.500",
+    "end_time": "00:00:08.690",
+    "id": "2"
+  },
+  {
+    "description": "They streak over the plain.",
+    "start_time": "00:00:11.500",
+    "end_time": "00:00:13.030",
+    "id": "3"
+  }
+]

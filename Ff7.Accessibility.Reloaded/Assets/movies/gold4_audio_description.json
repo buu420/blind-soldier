@@ -1,20 +1,20 @@
 [
   {
-    "id": "1",
+    "description": "The view sweeps over round platforms filled with rides and colorful lights.",
     "start_time": "00:00:00.500",
-    "end_time": "00:00:04.689",
-    "description": "The view sweeps over round platforms filled with rides and colorful lights."
+    "end_time": "00:00:04.370",
+    "id": "1"
   },
   {
-    "id": "2",
+    "description": "It rises along a huge golden tower.",
     "start_time": "00:00:13.100",
-    "end_time": "00:00:15.664",
-    "description": "It rises along a huge golden tower."
+    "end_time": "00:00:15.360",
+    "id": "2"
   },
   {
-    "id": "3",
+    "description": "A colossal golden statue of a muscular man in a winged helmet towers over the park.",
     "start_time": "00:00:23.100",
-    "end_time": "00:00:27.779",
-    "description": "A colossal golden statue of a muscular man in a winged helmet towers over the park."
+    "end_time": "00:00:27.590",
+    "id": "3"
   }
 ]

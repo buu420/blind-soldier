@@ -1,0 +1,27 @@
+Blind Soldier - audio description narration
+
+Current narration voice: Brice, generated locally from his approved voice
+reference at his request, with permission for voice cloning and distribution.
+Voice model: Qwen/Qwen3-TTS-12Hz-1.7B-Base
+(https://github.com/QwenLM/Qwen3-TTS).
+Existing description scripts and their attributions are retained. These assets
+contain narration only; original game dialogue, films and music are unchanged.
+Speech has not been time-stretched or pitch-shifted.
+Voice replacement revision: Brice-All-Narration-20260912.
+
+Original script attribution and historical provenance (previous voice superseded):
+
+Blind Soldier - film audio description
+
+Script drafted with Descript, then visually reviewed, corrected and timed by Codex.
+Narration generated locally from the supplied opening narrator recording, with the
+performer's explicit permission for voice cloning and distribution with this mod.
+Voice model: Qwen/Qwen3-TTS-12Hz-1.7B-Base (https://github.com/QwenLM/Qwen3-TTS).
+This asset contains narration only. FFVII supplies the original film and soundtrack.
+
+Film: meteosky.avi; native movie number 59.
+Source duration: 17.400 seconds.
+Source SHA-256: 30fcad44d31d728b4c73037ce69a59bfef85c52e335c29e4909a8f4016052cef
+Descript script job: project-agent-edit-84460948-c365-45d3-97e9-568eebf3c0b1-ef06f646-612f-4dd1-b8d4-0d5efed96972
+3 timed cues. 44.1 kHz mono Vorbis quality6.
+Only outer silence trimmed; speech was neither sped up nor clipped to fit.

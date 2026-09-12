@@ -1,0 +1,338 @@
+[
+  {
+    "description": "Sephiroth throws his arms wide and disintegrates into red and white light.",
+    "start_time": "00:00:00.000",
+    "end_time": "00:00:03.650",
+    "id": "1"
+  },
+  {
+    "description": "Cloud stands alone in a black void.",
+    "start_time": "00:00:12.000",
+    "end_time": "00:00:14.030",
+    "id": "2"
+  },
+  {
+    "description": "Green particles stream around him. Golden lights swirl away into the darkness.",
+    "start_time": "00:00:19.000",
+    "end_time": "00:00:23.310",
+    "id": "3"
+  },
+  {
+    "description": "Cloud: Lifestream?",
+    "start_time": "00:00:42.000",
+    "end_time": "00:00:43.610",
+    "id": "4"
+  },
+  {
+    "description": "A slender hand reaches down through brilliant light. Cloud reaches toward it.",
+    "start_time": "00:00:49.000",
+    "end_time": "00:00:52.920",
+    "id": "5"
+  },
+  {
+    "description": "Tifa reaches from a ledge.",
+    "start_time": "00:01:02.000",
+    "end_time": "00:01:03.620",
+    "id": "6"
+  },
+  {
+    "description": "The ledge crumbles. Tifa falls, and Cloud catches her while dangling by one arm.",
+    "start_time": "00:01:07.000",
+    "end_time": "00:01:11.170",
+    "id": "7"
+  },
+  {
+    "description": "Cloud: I think I'm beginning to understand.",
+    "start_time": "00:01:21.000",
+    "end_time": "00:01:23.170",
+    "id": "8"
+  },
+  {
+    "description": "Tifa: What?",
+    "start_time": "00:01:24.000",
+    "end_time": "00:01:25.020",
+    "id": "9"
+  },
+  {
+    "description": "Cloud: An answer from the Planet... the Promised Land...",
+    "start_time": "00:01:27.000",
+    "end_time": "00:01:29.740",
+    "id": "10"
+  },
+  {
+    "description": "I think I can meet her...there.",
+    "start_time": "00:01:36.000",
+    "end_time": "00:01:37.370",
+    "id": "11"
+  },
+  {
+    "description": "Tifa: Yeah, let's go meet her.",
+    "start_time": "00:01:42.000",
+    "end_time": "00:01:44.260",
+    "id": "12"
+  },
+  {
+    "description": "They climb onto the ledge above a pit of swirling blue-white energy.",
+    "start_time": "00:01:46.000",
+    "end_time": "00:01:49.520",
+    "id": "13"
+  },
+  {
+    "description": "Cloud: Hey, where is everyone?",
+    "start_time": "00:02:00.000",
+    "end_time": "00:02:02.170",
+    "id": "14"
+  },
+  {
+    "description": "Barret: Hey!",
+    "start_time": "00:02:06.000",
+    "end_time": "00:02:06.910",
+    "id": "15"
+  },
+  {
+    "description": "Cloud: I'm glad you're all safe!",
+    "start_time": "00:02:09.000",
+    "end_time": "00:02:11.220",
+    "id": "16"
+  },
+  {
+    "description": "Barret: They all seem to be safe, too. But...now what're we going to do?",
+    "start_time": "00:02:12.000",
+    "end_time": "00:02:16.140",
+    "id": "17"
+  },
+  {
+    "description": "Red Thirteen: Holy should be moving soon, and that means this place will...",
+    "start_time": "00:02:21.000",
+    "end_time": "00:02:24.740",
+    "id": "18"
+  },
+  {
+    "description": "Cid: Oh, Lady Luck don't fail me now...",
+    "start_time": "00:02:29.000",
+    "end_time": "00:02:31.490",
+    "id": "19"
+  },
+  {
+    "description": "They look up as rubble falls.",
+    "start_time": "00:02:36.000",
+    "end_time": "00:02:37.620",
+    "id": "20"
+  },
+  {
+    "description": "The Highwind bursts through the rock ceiling in a cloud of dust. A red-haired woman is painted on its hull.",
+    "start_time": "00:02:43.000",
+    "end_time": "00:02:48.390",
+    "id": "21"
+  },
+  {
+    "description": "A blue-white pillar erupts from the mountain crater beneath a blood-red sky.",
+    "start_time": "00:03:00.000",
+    "end_time": "00:03:03.800",
+    "id": "22"
+  },
+  {
+    "description": "The Highwind sweeps out beside the towering energy column.",
+    "start_time": "00:03:12.000",
+    "end_time": "00:03:14.720",
+    "id": "23"
+  },
+  {
+    "description": "The deck tilts.",
+    "start_time": "00:03:21.000",
+    "end_time": "00:03:22.010",
+    "id": "24"
+  },
+  {
+    "description": "Cid: Shit!",
+    "start_time": "00:03:24.000",
+    "end_time": "00:03:24.960",
+    "id": "25"
+  },
+  {
+    "description": "Cid pulls a lever marked Emergency.",
+    "start_time": "00:03:27.000",
+    "end_time": "00:03:29.300",
+    "id": "26"
+  },
+  {
+    "description": "The airship blazes away, trailing a thick white plume across the red sky.",
+    "start_time": "00:03:31.000",
+    "end_time": "00:03:35.190",
+    "id": "27"
+  },
+  {
+    "description": "Wind blows across a town's rooftops.",
+    "start_time": "00:03:46.000",
+    "end_time": "00:03:48.260",
+    "id": "28"
+  },
+  {
+    "description": "Marlene: The flower girl?",
+    "start_time": "00:03:57.000",
+    "end_time": "00:03:58.520",
+    "id": "29"
+  },
+  {
+    "description": "Marlene opens a window. The curtains billow.",
+    "start_time": "00:04:01.000",
+    "end_time": "00:04:03.190",
+    "id": "30"
+  },
+  {
+    "description": "Meteor looms above distant Midgar.",
+    "start_time": "00:04:13.000",
+    "end_time": "00:04:15.180",
+    "id": "31"
+  },
+  {
+    "description": "Red twisters descend from Meteor and coil around Midgar's towers.",
+    "start_time": "00:04:23.000",
+    "end_time": "00:04:26.450",
+    "id": "32"
+  },
+  {
+    "description": "Lightning flashes as roofs tear away. Debris and explosions fill the streets.",
+    "start_time": "00:04:39.000",
+    "end_time": "00:04:43.710",
+    "id": "33"
+  },
+  {
+    "description": "A bright point appears in the sky. Blue-white light streaks across the city.",
+    "start_time": "00:04:58.000",
+    "end_time": "00:05:02.160",
+    "id": "34"
+  },
+  {
+    "description": "Marlene watches.",
+    "start_time": "00:05:09.000",
+    "end_time": "00:05:10.120",
+    "id": "35"
+  },
+  {
+    "description": "Meteor presses against a broad ring of blue-white light.",
+    "start_time": "00:05:13.000",
+    "end_time": "00:05:15.890",
+    "id": "36"
+  },
+  {
+    "description": "Meteor grinds against the glowing cushion above Midgar.",
+    "start_time": "00:05:22.000",
+    "end_time": "00:05:24.820",
+    "id": "37"
+  },
+  {
+    "description": "The Highwind flies beside the glow. The party looks out.",
+    "start_time": "00:05:37.000",
+    "end_time": "00:05:39.900",
+    "id": "38"
+  },
+  {
+    "description": "Barret: Wait a damn minute! What's going to happen to Midgar? We can't let that happen!",
+    "start_time": "00:05:45.000",
+    "end_time": "00:05:48.970",
+    "id": "39"
+  },
+  {
+    "description": "Cait Sith: I had everyone take refuge in the slums, but the way things are now...",
+    "start_time": "00:05:54.000",
+    "end_time": "00:05:58.510",
+    "id": "40"
+  },
+  {
+    "description": "Red Thirteen: It's too late for Holy. Meteor is approaching the Planet. Holy is having the opposite effect.",
+    "start_time": "00:06:06.000",
+    "end_time": "00:06:11.640",
+    "id": "41"
+  },
+  {
+    "description": "We've gotta worry about the Planet.",
+    "start_time": "00:06:18.000",
+    "end_time": "00:06:19.410",
+    "id": "42"
+  },
+  {
+    "description": "Cid watches from the cockpit. Cloud stands beside Tifa.",
+    "start_time": "00:06:27.000",
+    "end_time": "00:06:30.170",
+    "id": "43"
+  },
+  {
+    "description": "Sparkling green streams rise from cracks in the rock, curling into tendrils.",
+    "start_time": "00:06:38.000",
+    "end_time": "00:06:42.560",
+    "id": "44"
+  },
+  {
+    "description": "Green spirals spread across the dark landscape.",
+    "start_time": "00:06:55.000",
+    "end_time": "00:06:57.700",
+    "id": "45"
+  },
+  {
+    "description": "Cid: What the hell is that?",
+    "start_time": "00:07:03.000",
+    "end_time": "00:07:04.800",
+    "id": "46"
+  },
+  {
+    "description": "Cloud: Lifestream.",
+    "start_time": "00:07:09.000",
+    "end_time": "00:07:10.550",
+    "id": "47"
+  },
+  {
+    "description": "Green ribbons stream across the sky.",
+    "start_time": "00:07:13.000",
+    "end_time": "00:07:15.150",
+    "id": "48"
+  },
+  {
+    "description": "Villagers watch from their windows.",
+    "start_time": "00:07:19.000",
+    "end_time": "00:07:20.880",
+    "id": "49"
+  },
+  {
+    "description": "A yellow flower rests on Marlene's windowsill.",
+    "start_time": "00:07:27.000",
+    "end_time": "00:07:29.620",
+    "id": "50"
+  },
+  {
+    "description": "Countless green ribbons join across the hills.",
+    "start_time": "00:07:32.000",
+    "end_time": "00:07:34.610",
+    "id": "51"
+  },
+  {
+    "description": "Midgar's tower breaks apart.",
+    "start_time": "00:07:43.000",
+    "end_time": "00:07:44.780",
+    "id": "52"
+  },
+  {
+    "description": "Green streams weave together, flowing toward Meteor.",
+    "start_time": "00:07:49.000",
+    "end_time": "00:07:51.780",
+    "id": "53"
+  },
+  {
+    "description": "The tendrils reach into Meteor beyond the blue-white ring.",
+    "start_time": "00:08:04.000",
+    "end_time": "00:08:06.840",
+    "id": "54"
+  },
+  {
+    "description": "Across the planet's curved surface, green streams converge around Meteor's blazing halo.",
+    "start_time": "00:08:14.000",
+    "end_time": "00:08:18.850",
+    "id": "55"
+  },
+  {
+    "description": "Aeris opens her eyes among green lights.",
+    "start_time": "00:08:36.000",
+    "end_time": "00:08:38.520",
+    "id": "56"
+  }
+]

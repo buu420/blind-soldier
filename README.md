@@ -1,4 +1,4 @@
-﻿# Blind Soldier
+# Blind Soldier
 
 Blind Soldier is an accessibility mod for the original Windows PC version
 of **Final Fantasy VII**. It presents information that a sighted player would
@@ -76,8 +76,10 @@ alignment assists are available where listed; other actions remain under your co
 
 ### Descriptions and movies
 
-Recorded audio description ships for the opening movie and for six Gold Saucer
-movies. **Most of the game's other FMVs have no recorded description yet.**
+Recorded audio description ships for the opening movie and 99 other movie tracks,
+plus 618 short movie and cutscene action clips. All packaged narration uses
+Brice's approved voice. Coverage is limited to the included scenes; this does
+not mean every cutscene or optional event has been described.
 Field cutscene and area descriptions are written per field and are more
 complete in the areas that have been worked on than elsewhere; `K` reads the
 current area description again where one exists.
@@ -98,7 +100,8 @@ reproduced classes of stall and adds a spoken guard for the rest; see
 - Auto walk's improvements are proved by offline route and movement fixtures,
   not by play. Walking while **holding the Run button**, and a milder
   back-and-forth dither at some corners, still need testing and reports.
-- Most FMVs have no recorded audio description.
+- Description coverage is limited to the included movie and action cues; scenes
+  without authored descriptions still need work.
 - Optional exploration, side quests and missable content are far less covered
   than the required route.
 
@@ -125,10 +128,10 @@ instead of reading unverified game memory.
 Choose one download from the
 [Blind Soldier Releases page](https://github.com/buu420/blind-soldier/releases):
 
-- [Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.5.3/Blind-Soldier-Portable.zip)
+- [Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.5.4/Blind-Soldier-Portable.zip)
   is the complete dual-runtime package. Use it for Steam 2026 x64 or when one
   extracted package must support both x86 and x64 installations.
-- [Blind-Soldier-2013-x86-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.5.3/Blind-Soldier-2013-x86-Portable.zip)
+- [Blind-Soldier-2013-x86-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.5.4/Blind-Soldier-2013-x86-Portable.zip)
   is the smaller legacy-only package. Use it for the 2013 x86 game, including
   stock 7th Heaven/FFNx. It deliberately contains no Steam 2026 launcher or
   x64 files.
@@ -240,17 +243,17 @@ Visual Studio C++ Build Tools, and PowerShell, then run:
 ```powershell
 .\Build-BlindSoldierPortablePackage.ps1 `
   -OutputPath .\artifacts\Blind-Soldier-Portable.zip `
-  -Version 0.5.3
+  -Version 0.5.4
 .\Verify-BlindSoldierPortablePackage.ps1 `
   -ArchivePath .\artifacts\Blind-Soldier-Portable.zip `
-  -ExpectedVersion 0.5.3
+  -ExpectedVersion 0.5.4
 .\Build-BlindSoldier2013PortablePackage.ps1 `
   -SourceArchivePath .\artifacts\Blind-Soldier-Portable.zip `
   -OutputPath .\artifacts\Blind-Soldier-2013-x86-Portable.zip `
-  -Version 0.5.3
+  -Version 0.5.4
 .\Verify-BlindSoldier2013PortablePackage.ps1 `
   -ArchivePath .\artifacts\Blind-Soldier-2013-x86-Portable.zip `
-  -ExpectedVersion 0.5.3 `
+  -ExpectedVersion 0.5.4 `
   -ExpectedSourceArchivePath .\artifacts\Blind-Soldier-Portable.zip
 ```
 
@@ -284,6 +287,29 @@ foreground. The normal game controls are unchanged.
 Progress intervals are `5`, `10`, `15`, and `20` percent. `F6` and `F7` wrap
 around at either end. Key changes to progress settings last for the current
 game session; the installed configuration supplies the next launch's defaults.
+
+### Controller navigation menu
+
+Click the right stick (R3) to open the spoken navigation menu in a field or
+on the world map. R3 also reopens it while navigation is running. Automatic
+walking pauses while you browse.
+
+| Button | Action while the navigation menu is open |
+| --- | --- |
+| D-pad Up / Down | Previous / next target |
+| LB / L1 | Previous category |
+| RB / R1 | Next category |
+| A / Cross | Start spoken guidance to the selected target and close the menu |
+| X / Square | Start automatic walking to the selected target and close the menu |
+| B / Circle, or R3 again | Stop navigation and automatic walking, then close the menu |
+
+The D-pad controls selection; the left stick does not cycle targets. Choosing
+the same target again keeps navigation running. The menu uses the same
+targets and categories as the keyboard shortcuts above.
+
+Individual D-pad presses respond immediately. Holding Up or Down starts scrolling
+after a short delay, at about three targets per second. Each bumper press changes
+one category, even if the D-pad is already repeating.
 
 ### Battle status keys
 

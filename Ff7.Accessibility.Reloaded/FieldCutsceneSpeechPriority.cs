@@ -18,10 +18,25 @@ public sealed class FieldCutsceneSpeechPriority
             NarrationPaddingMs + words * MillisecondsPerWord,
             MinimumNarrationMs,
             MaximumNarrationMs);
+        BeginNarration(fieldId, TimeSpan.FromMilliseconds(durationMs), now);
+    }
+
+    /// <summary>
+    /// Reserves the window for a description whose real length is known - a recording
+    /// rather than screen-reader speech.
+    ///
+    /// <para>The word-count estimate above exists because nobody can know how long a
+    /// screen reader will take. A recording's length is not a guess, so it is used as
+    /// it stands: clamping it to the estimate's bounds would hold the window open
+    /// after a two-second clip had finished, or release it in the middle of a long
+    /// one.</para>
+    /// </summary>
+    public void BeginNarration(int fieldId, TimeSpan duration, DateTime now)
+    {
         lock (sync)
         {
             narrationFieldId = fieldId;
-            narrationProtectedUntil = now.AddMilliseconds(durationMs);
+            narrationProtectedUntil = now + (duration > TimeSpan.Zero ? duration : TimeSpan.Zero);
         }
     }
 

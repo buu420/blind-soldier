@@ -16,6 +16,9 @@ internal static class Steam2026FieldMovieNarrationAdapterTests
     private const int ArrivalFilm = 40;
     private const int DockingFilm = 4;
 
+    /// <summary>boogdemo, a reviewed catalog film the global path can describe.</summary>
+    private const int CatalogFilm = 42;
+
     private static readonly DateTime Timestamp = new(2026, 9, 7, 12, 0, 0, DateTimeKind.Utc);
 
     private static readonly FieldCutsceneDescriptionCue ArrivalCue =
@@ -38,6 +41,87 @@ internal static class Steam2026FieldMovieNarrationAdapterTests
         TheNativeF9RepeatCannotRestartTheDescription();
         TheStateCapturedBeforeTheOriginalStartsTheVeryFirstFilm();
         ADelayedDrainUsesTheRealCaptureTimeRatherThanTheDrainTime();
+        AFieldChangeDoesNotKillAFilmThatIsStillOnScreen();
+    }
+
+    /// <summary>
+    /// Root's item 6, in the wrapper rather than in the policy. The coordinator
+    /// resets its field state whenever a snapshot arrives for a new field - including
+    /// the very first one, because it starts at -1 - and the reset stopped the film
+    /// narration outright. In the production order the native tick runs before the
+    /// first snapshot drains, so a film started globally was killed by its own first
+    /// snapshot; and a film that legitimately runs across a field change was killed
+    /// by the change.
+    /// </summary>
+    private static void AFieldChangeDoesNotKillAFilmThatIsStillOnScreen()
+    {
+        var memory = new FakeAddressSpace { Module = 1, FieldId = Gldst };
+        var output = new FakeOutput();
+        var narration = new FieldMovieNarrationTracker(
+            _ => output, _ => { }, FieldPositionReader.FieldModule);
+        var coordinator = Create(memory, narration);
+
+        // The native tick sees the film first, with no snapshot yet: this is the
+        // global path, and there is no anchor involved at all.
+        // Film 42 is boogdemo, one of the reviewed catalog films the global path
+        // describes. gold1 deliberately is not in that catalog - it keeps its own
+        // anchor - so it cannot exercise this path.
+        memory.SetFilm(CatalogFilm, active: true);
+        memory.MovieFrame = 0;
+        coordinator.ObserveNativeFilm(Timestamp);
+        Equal(true, coordinator.IsNativeFilmNarrationPlaying,
+            "the film starts from the native tick alone");
+        Equal(1, output.Starts, "exactly one start");
+
+        // Now its first snapshot drains, which is the first time the coordinator has
+        // ever seen a field. That must not stop the film it just started.
+        coordinator.Observe(Snapshot(ArrivalByte));
+        Equal(true, coordinator.IsNativeFilmNarrationPlaying,
+            "the first drained snapshot must not stop the film");
+        Equal(0, output.Stops, "nothing may have been stopped");
+
+        // The story moves to another field while the same film keeps running - the
+        // Highwind case. The pending field-bound cues are cleared, the film is not.
+        memory.FieldId = 497;
+        memory.MovieFrame = 90;
+        coordinator.Observe(new Steam2026FieldCutsceneIngressSnapshot(
+            2,
+            Timestamp.AddSeconds(6),
+            new FieldScriptContext(497, 0, 0, 638, FieldOpcodeAddressResolver.OpcodeRequestSwIndex)));
+        Equal(true, coordinator.IsNativeFilmNarrationPlaying,
+            "a field change under a film that is still on screen must not stop it");
+        Equal(1, output.Starts, "and must not restart it either");
+
+        // A real ending still stops it: the film goes away.
+        memory.SetFilm(0, active: false);
+        coordinator.ObserveNativeFilm(Timestamp.AddSeconds(10));
+        Equal(false, coordinator.IsNativeFilmNarrationPlaying, "the film ending stops the track");
+
+        // And so does leaving the field module altogether.
+        var exiting = new FakeAddressSpace { Module = 1, FieldId = Gldst };
+        var exitingOutput = new FakeOutput();
+        var exitingCoordinator = Create(
+            exiting,
+            new FieldMovieNarrationTracker(_ => exitingOutput, _ => { }, FieldPositionReader.FieldModule));
+        exiting.SetFilm(CatalogFilm, active: true);
+        exitingCoordinator.ObserveNativeFilm(Timestamp);
+        Equal(true, exitingCoordinator.IsNativeFilmNarrationPlaying, "the control - it is playing");
+        exiting.Module = 3;
+        exitingCoordinator.ObserveNativeFilm(Timestamp.AddSeconds(2));
+        Equal(false, exitingCoordinator.IsNativeFilmNarrationPlaying,
+            "leaving the field module stops the track");
+
+        // An explicit reset stops it too.
+        var resetting = new FakeAddressSpace { Module = 1, FieldId = Gldst };
+        var resetOutput = new FakeOutput();
+        var resetCoordinator = Create(
+            resetting,
+            new FieldMovieNarrationTracker(_ => resetOutput, _ => { }, FieldPositionReader.FieldModule));
+        resetting.SetFilm(CatalogFilm, active: true);
+        resetCoordinator.ObserveNativeFilm(Timestamp);
+        Equal(true, resetCoordinator.IsNativeFilmNarrationPlaying, "the control - it is playing");
+        resetCoordinator.Reset();
+        Equal(false, resetCoordinator.IsNativeFilmNarrationPlaying, "an explicit reset stops the track");
     }
 
     /// <summary>
@@ -472,7 +556,14 @@ internal static class Steam2026FieldMovieNarrationAdapterTests
                 FieldPositionReader.FieldModule,
                 Gldst,
                 handlerState,
-                handlerPhase));
+                handlerPhase,
+                // The Gold Saucer is disc 1, and these samples are the engine playing
+                // a film, so the fixture says both rather than relying on a default
+                // production would refuse.
+                Disc: 1,
+                MovieCommand: FieldMovieNarrationSample.CommandStartMovie,
+                // A film at frame zero is a film that has just started.
+                MovieFrame: 0));
 
     private sealed class FakeAddressSpace : ILegacyAddressSpace
     {
@@ -492,6 +583,16 @@ internal static class Steam2026FieldMovieNarrationAdapterTests
 
         public short HandlerPhase { get; set; } = FieldMovieNarrationPolicy.MovieHandlerPhaseYielding;
         public bool ScriptContextReadable { get; set; } = true;
+
+        public byte Disc { get; set; } = 1;
+
+        public byte MovieCommand { get; set; } =
+            FieldMovieNarrationSample.CommandStartMovie;
+
+        public byte MoviesSkipped { get; set; }
+
+        /// <summary>The film's own frame counter; zero is a film that just started.</summary>
+        public ushort MovieFrame { get; set; }
 
         private ushort movieActive;
         private ushort movieNumber;
@@ -533,6 +634,26 @@ internal static class Steam2026FieldMovieNarrationAdapterTests
                     return Write(destination, movieActive);
                 case (uint)FieldAudibleCueStateReader.AddressFieldMovieNumber when destination.Length == 2:
                     return Write(destination, movieNumber);
+
+                // The three bytes the runtime now needs before it will name a film:
+                // which disc the name blocks are chosen by, which command owns the
+                // argument word, and whether the engine is skipping films entirely.
+                // The Gold Saucer is disc 1 and these fixtures are the engine playing
+                // a film normally.
+                case (uint)MovieFilmNameResolver.AddressMovieDisc when destination.Length == 1:
+                    destination[0] = Disc;
+                    return true;
+                case (uint)FieldAudibleCueStateReader.AddressFieldMovieCommand
+                    when destination.Length == 1:
+                    destination[0] = MovieCommand;
+                    return true;
+                case (uint)FieldAudibleCueStateReader.AddressFieldMoviesSkipped
+                    when destination.Length == 1:
+                    destination[0] = MoviesSkipped;
+                    return true;
+                case (uint)FieldAudibleCueStateReader.AddressFieldMovieFrame
+                    when destination.Length == 2:
+                    return Write(destination, MovieFrame);
                 default:
                     return false;
             }

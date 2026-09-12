@@ -1,0 +1,26 @@
+[
+  {
+    "description": "Rufus watches golden projectiles approach his office.",
+    "start_time": "00:00:00.000",
+    "end_time": "00:00:03.220",
+    "id": "1"
+  },
+  {
+    "description": "His blue eyes narrow.",
+    "start_time": "00:00:05.500",
+    "end_time": "00:00:06.860",
+    "id": "2"
+  },
+  {
+    "description": "Flames burst through the windows, engulfing him.",
+    "start_time": "00:00:08.500",
+    "end_time": "00:00:11.070",
+    "id": "3"
+  },
+  {
+    "description": "The tower's summit burns.",
+    "start_time": "00:00:13.000",
+    "end_time": "00:00:14.510",
+    "id": "4"
+  }
+]
