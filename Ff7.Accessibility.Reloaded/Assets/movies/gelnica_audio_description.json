@@ -1,0 +1,26 @@
+[
+  {
+    "description": "A camouflage aircraft waits on an elevated runway.",
+    "start_time": "00:00:00.000",
+    "end_time": "00:00:02.770",
+    "id": "1"
+  },
+  {
+    "description": "A turntable rotates it toward the runway.",
+    "start_time": "00:00:05.500",
+    "end_time": "00:00:07.770",
+    "id": "2"
+  },
+  {
+    "description": "Its propellers spin as it accelerates.",
+    "start_time": "00:00:10.000",
+    "end_time": "00:00:12.190",
+    "id": "3"
+  },
+  {
+    "description": "It lifts into the orange sky.",
+    "start_time": "00:00:15.000",
+    "end_time": "00:00:16.850",
+    "id": "4"
+  }
+]

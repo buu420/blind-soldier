@@ -1,13 +1,41 @@
-Audio descriptions generated with ViddyScribe (https://viddyscribe.com).
+Blind Soldier - audio description narration
 
-Gold Saucer arrival, gold1.avi. Narration-only Standard AD output, reviewed
-against the original game's visuals. The game supplies its own movie and music.
-This asset contains the separate narration only; it does not replace the film.
+Current narration voice: Brice, generated locally from his approved voice
+reference at his request, with permission for voice cloning and distribution.
+Voice model: Qwen/Qwen3-TTS-12Hz-1.7B-Base
+(https://github.com/QwenLM/Qwen3-TTS).
+Existing description scripts and their attributions are retained. These assets
+contain narration only; original game dialogue, films and music are unchanged.
+Speech has not been time-stretched or pitch-shifted.
+Voice replacement revision: Brice-All-Narration-20260912.
 
-ViddyScribe job: 58c1faa2-fcf3-4cd4-8671-577a0fb99817
-Source duration: 45.2 seconds. Narration track: 45.0 seconds.
-Nine descriptions; last spoken description ends at 44.378 seconds.
-Converted from the untrimmed 44.1 kHz mono WAV to Vorbis quality 6.
+Original script attribution and historical provenance (previous voice superseded):
 
-The separately exported described companion video includes visible ViddyScribe
-attribution. Preserve this credit when distributing the narration asset.
+Blind Soldier - film audio description
+
+Existing reviewed script retained; narration voice replaced at the user's request.
+Narration generated locally from the supplied opening narrator recording, with the
+performer's explicit permission for voice cloning and distribution with this mod.
+Voice model: Qwen/Qwen3-TTS-12Hz-1.7B-Base (https://github.com/QwenLM/Qwen3-TTS).
+This asset contains narration only. FFVII supplies the original film and soundtrack.
+
+Film: gold1.avi.
+Source duration: 45.200 seconds.
+Source SHA-256: 8bc44df01113fc3410ce2f0cc6fe203ed1b1879829aeb547c74827bed3018304
+9 timed cues. 44.1 kHz mono Vorbis quality6.
+Only outer silence trimmed; speech was neither sped up nor clipped to fit.
+
+Original script attribution and previous narration provenance (voice now replaced):
+Audio descriptions generated with ViddyScribe (https://viddyscribe.com).
+
+Gold Saucer arrival, gold1.avi. Narration-only Standard AD output, reviewed
+against the original game's visuals. The game supplies its own movie and music.
+This asset contains the separate narration only; it does not replace the film.
+
+ViddyScribe job: 58c1faa2-fcf3-4cd4-8671-577a0fb99817
+Source duration: 45.2 seconds. Narration track: 45.0 seconds.
+Nine descriptions; last spoken description ends at 44.378 seconds.
+Converted from the untrimmed 44.1 kHz mono WAV to Vorbis quality 6.
+
+The separately exported described companion video includes visible ViddyScribe
+attribution. Preserve this credit when distributing the narration asset.

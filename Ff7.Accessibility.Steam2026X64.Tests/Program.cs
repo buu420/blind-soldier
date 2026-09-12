@@ -64,12 +64,20 @@ if (args.Contains("--module-tests-only", StringComparer.OrdinalIgnoreCase))
     Ff7.Accessibility.Reloaded.Tests.JunonParadeAlignmentAssistTests.Run();
     Steam2026JunonMinigameRuntimeTests.Run();
     NavigationAutoWalkControllerTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.ControllerNavigationMenuTests.Run();
+    Steam2026AutoWalkCoherenceTests.Run();
+    Steam2026NativeDirectionalInputTests.Run();
+    Steam2026SdlControllerPollStarvationTests.Run();
+    Steam2026SdlControllerCaptureHookTests.Run();
     Ff7.Accessibility.Reloaded.Tests.WorldMapTerrainAnnouncementTests.Run();
     Ff7.Accessibility.Reloaded.Tests.WorldMapTargetCatalogTests.Run();
     // Steam2026WorldMapTerrainPriorityTests is deliberately absent. Every one of
     // its cases builds a world coordinator around the installed data root, so
     // there is no honest data-free subset of it to run here. It stays mandatory
     // in --world-map-only and in the full suite.
+    Ff7.Accessibility.Reloaded.Tests.ReviewedFilmNarrationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.FilmNarrationSeamTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.CutsceneVoiceTests.Run();
     Steam2026TitleLoadMenuSpeechBridgeTests.Run();
     Steam2026FieldExitNavigationProfileTests.Run();
     PrismAbiProbeTests.Run();
@@ -155,6 +163,9 @@ if (args.Contains("--gold-saucer-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.GoldSaucerFirstVisitTests.Run(CreateInstalledFieldWalkmeshReader);
     Ff7.Accessibility.Reloaded.Tests.GoldSaucerMovieNarrationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.ReviewedFilmNarrationTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.FilmNarrationSeamTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.CutsceneVoiceTests.Run();
     Ff7.Accessibility.Reloaded.Tests.GoldSaucerDescriptionTests.Run();
     Ff7.Accessibility.Reloaded.Tests.GoldSaucerMinigameTests.Run();
     Console.WriteLine("Gold Saucer first-visit tests passed.");
@@ -358,6 +369,7 @@ if (args.Contains("--cutscene-ingress-only", StringComparer.OrdinalIgnoreCase))
 {
     Steam2026FieldCutsceneWaitTests.Run(native);
     Steam2026FieldMovieNarrationAdapterTests.Run();
+    Steam2026CutsceneVoiceAdapterTests.Run();
     Console.WriteLine("Steam 2026 x64 cutscene ingress tests passed.");
     return;
 }
@@ -531,6 +543,7 @@ AssertMenuObservationReaderPublicConstructionRequiresExactFingerprint(native, le
 Steam2026FieldObservationTests.Run(native, legacy);
 Steam2026FieldNavigationObservationTests.Run(native, legacy);
 Steam2026FieldNavigationRuntimeTests.Run();
+Steam2026NativeDirectionalInputTests.Run();
 Steam2026FieldObjectObservationTests.Run();
 Ff7.Accessibility.Reloaded.Tests.JunonFieldNavigationTests.Run(
     CreateInstalledFieldWalkmeshReader);
@@ -543,6 +556,9 @@ Ff7.Accessibility.Reloaded.Tests.NorthCorelNavigationTests.Run(CreateInstalledFi
 NorthCorelEtherInteractionTests.Run(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.GoldSaucerFirstVisitTests.Run(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.GoldSaucerMovieNarrationTests.Run();
+Ff7.Accessibility.Reloaded.Tests.ReviewedFilmNarrationTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.FilmNarrationSeamTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.CutsceneVoiceTests.Run();
 Ff7.Accessibility.Reloaded.Tests.GoldSaucerDescriptionTests.Run();
 Ff7.Accessibility.Reloaded.Tests.GoldSaucerMinigameTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WorldMapMountCorelNavigationTests.Run();
@@ -561,6 +577,7 @@ Ff7.Accessibility.Reloaded.Tests.JunonParadeAlignmentAssistTests.RunWithInstalle
 Steam2026JunonMinigameRuntimeTests.Run();
 Steam2026FieldCutsceneWaitTests.Run(native);
 Steam2026FieldMovieNarrationAdapterTests.Run();
+Steam2026CutsceneVoiceAdapterTests.Run();
 Steam2026FieldDialogueObservationTests.Run(native, legacy);
 Steam2026FieldDialogueSpeechStabilityTests.Run();
 Steam2026BattleObservationTests.Run(native, legacy);

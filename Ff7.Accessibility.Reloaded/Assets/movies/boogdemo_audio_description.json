@@ -1,0 +1,26 @@
+[
+  {
+    "description": "A yellow comet crosses a star field marked with blue grid lines.",
+    "start_time": "00:00:00.000",
+    "end_time": "00:00:03.540",
+    "id": "1"
+  },
+  {
+    "description": "Red orbital paths curve past a cracked, glowing rocky body.",
+    "start_time": "00:00:08.000",
+    "end_time": "00:00:11.610",
+    "id": "2"
+  },
+  {
+    "description": "Planets circle along red paths against a distant galaxy.",
+    "start_time": "00:00:17.000",
+    "end_time": "00:00:20.250",
+    "id": "3"
+  },
+  {
+    "description": "Rock fragments tumble toward a dark vortex ringed with violet light.",
+    "start_time": "00:00:26.000",
+    "end_time": "00:00:29.710",
+    "id": "4"
+  }
+]

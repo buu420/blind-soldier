@@ -1,0 +1,20 @@
+[
+  {
+    "description": "The escape pod drifts above the blue planet.",
+    "start_time": "00:00:00.000",
+    "end_time": "00:00:02.440",
+    "id": "1"
+  },
+  {
+    "description": "The rocket speeds onward, its boosters blazing.",
+    "start_time": "00:00:10.000",
+    "end_time": "00:00:12.460",
+    "id": "2"
+  },
+  {
+    "description": "It dwindles against Meteor's immense, fiery surface.",
+    "start_time": "00:00:18.000",
+    "end_time": "00:00:20.580",
+    "id": "3"
+  }
+]

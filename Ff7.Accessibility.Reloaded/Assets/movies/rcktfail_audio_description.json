@@ -1,0 +1,26 @@
+[
+  {
+    "description": "The rocket rises slightly on fiery engines. Support arms fall away.",
+    "start_time": "00:00:00.000",
+    "end_time": "00:00:03.940",
+    "id": "1"
+  },
+  {
+    "description": "The flames die. Smoke rolls across the forest.",
+    "start_time": "00:00:06.000",
+    "end_time": "00:00:08.720",
+    "id": "2"
+  },
+  {
+    "description": "The rocket tips sideways and remains leaning against its framework.",
+    "start_time": "00:00:15.000",
+    "end_time": "00:00:18.410",
+    "id": "3"
+  },
+  {
+    "description": "The rusted rocket now looms above village rooftops.",
+    "start_time": "00:00:27.000",
+    "end_time": "00:00:29.860",
+    "id": "4"
+  }
+]

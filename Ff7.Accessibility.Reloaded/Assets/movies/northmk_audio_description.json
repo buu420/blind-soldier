@@ -1,0 +1,20 @@
+[
+  {
+    "description": "Blue arcs flicker across the reactor.",
+    "start_time": "00:00:00.500",
+    "end_time": "00:00:02.910",
+    "id": "1"
+  },
+  {
+    "description": "An orange fireball erupts above Midgar.",
+    "start_time": "00:00:03.100",
+    "end_time": "00:00:05.500",
+    "id": "2"
+  },
+  {
+    "description": "The circular city recedes below. The fireball shrinks into smoke.",
+    "start_time": "00:00:07.200",
+    "end_time": "00:00:10.620",
+    "id": "3"
+  }
+]

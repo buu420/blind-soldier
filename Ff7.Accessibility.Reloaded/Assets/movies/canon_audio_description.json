@@ -1,0 +1,62 @@
+[
+  {
+    "description": "Pipes and cylinders cover the massive cannon, mounted high on scaffolding.",
+    "start_time": "00:00:00.000",
+    "end_time": "00:00:04.160",
+    "id": "1"
+  },
+  {
+    "description": "Midgar's reactors surround the central tower.",
+    "start_time": "00:00:12.000",
+    "end_time": "00:00:14.510",
+    "id": "2"
+  },
+  {
+    "description": "Green light and steam flare from the reactors.",
+    "start_time": "00:00:20.000",
+    "end_time": "00:00:22.810",
+    "id": "3"
+  },
+  {
+    "description": "Glowing streams flow along pipes toward the cannon.",
+    "start_time": "00:00:32.000",
+    "end_time": "00:00:34.770",
+    "id": "4"
+  },
+  {
+    "description": "From above, green spokes converge. The city lights go dark.",
+    "start_time": "00:00:40.000",
+    "end_time": "00:00:43.320",
+    "id": "5"
+  },
+  {
+    "description": "A blue-purple ring swirls before the cannon's muzzle.",
+    "start_time": "00:00:50.000",
+    "end_time": "00:00:52.880",
+    "id": "6"
+  },
+  {
+    "description": "A brilliant circular pulse expands.",
+    "start_time": "00:00:59.000",
+    "end_time": "00:01:01.190",
+    "id": "7"
+  },
+  {
+    "description": "The cannon fires a blue-white beam, recoiling.",
+    "start_time": "00:01:05.000",
+    "end_time": "00:01:07.430",
+    "id": "8"
+  },
+  {
+    "description": "Sparks shower from the machinery.",
+    "start_time": "00:01:10.500",
+    "end_time": "00:01:12.600",
+    "id": "9"
+  },
+  {
+    "description": "The beam streaks across the sky.",
+    "start_time": "00:01:14.500",
+    "end_time": "00:01:16.590",
+    "id": "10"
+  }
+]

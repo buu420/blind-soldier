@@ -1,0 +1,38 @@
+[
+  {
+    "description": "Wavering blue light surrounds a luminous shell-shaped shrine.",
+    "start_time": "00:00:00.000",
+    "end_time": "00:00:02.990",
+    "id": "1"
+  },
+  {
+    "description": "An image of Aeris appears, lowering her eyes, then looking up.",
+    "start_time": "00:00:10.000",
+    "end_time": "00:00:13.080",
+    "id": "2"
+  },
+  {
+    "description": "Her face turns away.",
+    "start_time": "00:00:20.000",
+    "end_time": "00:00:21.190",
+    "id": "3"
+  },
+  {
+    "description": "Pale materia tumbles through the vision.",
+    "start_time": "00:00:24.000",
+    "end_time": "00:00:26.190",
+    "id": "4"
+  },
+  {
+    "description": "Stone pillars shimmer behind it.",
+    "start_time": "00:00:30.000",
+    "end_time": "00:00:31.680",
+    "id": "5"
+  },
+  {
+    "description": "The green orb glows beneath rippling water, sending light upward.",
+    "start_time": "00:00:35.500",
+    "end_time": "00:00:38.700",
+    "id": "6"
+  }
+]

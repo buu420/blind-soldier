@@ -1,0 +1,20 @@
+[
+  {
+    "description": "Fireworks blossom above the Gold Saucer's golden towers.",
+    "start_time": "00:00:00.000",
+    "end_time": "00:00:03.200",
+    "id": "1"
+  },
+  {
+    "description": "A gondola glides high above the glittering park.",
+    "start_time": "00:00:07.500",
+    "end_time": "00:00:10.110",
+    "id": "2"
+  },
+  {
+    "description": "Colored sparks burst and trail across the dark sky.",
+    "start_time": "00:00:14.000",
+    "end_time": "00:00:16.770",
+    "id": "3"
+  }
+]

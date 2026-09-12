@@ -148,6 +148,104 @@ internal sealed class Steam2026ResearchSession : IDisposable
         }
     }
 
+    /// <summary>Where the recorded descriptions and their manifest live.</summary>
+    internal const string CutsceneVoiceDirectory = "Assets/cutscene-voice";
+
+    /// <summary>
+    /// One recorded description, opened through the same Vorbis player the films use.
+    /// </summary>
+    internal static IFieldMovieNarrationOutput? CreateCutsceneVoiceOutput(
+        AccessibilityConfig config,
+        string modDirectory,
+        CutsceneVoiceClip clip,
+        Action<string> log)
+    {
+        try
+        {
+            if (!config.EnableFieldCutsceneDescriptions)
+            {
+                return null;
+            }
+
+            var path = Path.Combine(modDirectory, CutsceneVoiceDirectory, clip.FileName);
+            if (!File.Exists(path))
+            {
+                log($"Cutscene voice recording missing: {path}");
+                return null;
+            }
+
+            return new OpeningMovieAudioTrackPlayer(
+                path,
+                config.FieldMovieNarrationTrackVolumePercent,
+                log,
+                "Cutscene description");
+        }
+        catch (Exception ex)
+        {
+            log($"Cutscene voice output could not be created ({clip.FileName}): {ex.Message}");
+            return null;
+        }
+    }
+
+    internal static CutsceneVoiceManifest LoadCutsceneVoiceManifest(
+        AccessibilityConfig config,
+        string modDirectory,
+        Action<string> log)
+    {
+        try
+        {
+            if (!config.EnableFieldCutsceneDescriptions)
+            {
+                return CutsceneVoiceManifest.Empty;
+            }
+
+            var path = Path.Combine(modDirectory, CutsceneVoiceDirectory, "manifest.json");
+            if (!File.Exists(path))
+            {
+                log("Cutscene voice manifest not installed; descriptions use speech.");
+                return CutsceneVoiceManifest.Empty;
+            }
+
+            var manifest = CutsceneVoiceManifest.Parse(File.ReadAllText(path), log);
+            log($"Cutscene voice manifest: {manifest.Count} recorded description(s)" +
+                (manifest.SourceHash is null ? "." : $", source {manifest.SourceHash}."));
+            return manifest;
+        }
+        catch (Exception ex)
+        {
+            log($"Cutscene voice manifest could not be loaded: {ex.Message}");
+            return CutsceneVoiceManifest.Empty;
+        }
+    }
+
+    /// <summary>
+    /// The recording's cue windows, from the sidecar beside it. The x64 package ships
+    /// the same asset folder, so this is the same file the x86 runtime reads.
+    /// </summary>
+    internal static IReadOnlyList<MovieNarrationCue> ReadFieldMovieNarrationCues(
+        AccessibilityConfig config,
+        string modDirectory,
+        FieldMovieNarrationTrack track,
+        Action<string> log)
+    {
+        try
+        {
+            var directory = config.FieldMovieNarrationTrackDirectory;
+            var stem = Path.GetFileNameWithoutExtension(track.FileName) + ".json";
+            var path = Path.IsPathRooted(directory)
+                ? Path.Combine(directory, stem)
+                : Path.Combine(modDirectory, directory, stem);
+            return File.Exists(path)
+                ? MovieNarrationCueSchedule.Parse(File.ReadAllText(path))
+                : [];
+        }
+        catch (Exception ex)
+        {
+            log($"Field movie narration cue schedule could not be read ({track.Label}): {ex.Message}");
+            return [];
+        }
+    }
+
     /// <summary>
     /// Resolves an arcade cue path against the mod directory, falling back to that
     /// cue's own packaged asset.
@@ -273,6 +371,13 @@ internal sealed class Steam2026ResearchSession : IDisposable
         Steam2026FieldZoneTransitionCueCoordinator? fieldZoneTransitionCueCoordinator = null;
         Steam2026FieldObjectObservationReader? fieldObjectReader = null;
         Steam2026FieldNavigationCoordinator? fieldNavigationCoordinator = null;
+
+        // The controller navigation menu's capture over SDL. Installed as soon as
+        // SDL2 is loaded, which can be well after we attach, and retried until it
+        // is: without it the menu refuses to open rather than reading a pad the
+        // game is reading too.
+        Steam2026SdlControllerCaptureHook? controllerCaptureHook = null;
+        var nextControllerCaptureAttemptUtc = DateTime.MinValue;
         Steam2026WorldMapAccessibilityCoordinator? worldMapAccessibilityCoordinator = null;
         HighwayAccessibilityCoordinator? highwayAccessibilityCoordinator = null;
         // The Speed Square coaster runs the original x86 code, so the translated
@@ -316,6 +421,16 @@ internal sealed class Steam2026ResearchSession : IDisposable
         var battleOptions = CreateBattleOptions(config);
         var battleStatusHotkeyController = new BattleStatusHotkeyController();
         var foregroundInput = Steam2026ForegroundInputAdapter.CreateCurrentProcess(fingerprint);
+
+        // Where automatic movement is delivered on this host. Not SendInput: the host
+        // synthesizes the legacy keyboard state from its own logical actions inside its
+        // DirectInput shim, so pressing the keys the control table names never reached the
+        // game - and numpad 2, which that table names for Down, is NVDA's read-current-
+        // character command, so the presses reached the player's screen reader instead.
+        var directionalInput = new Steam2026NativeDirectionalInputSink(
+            foregroundInput.IsCurrentProcessForeground);
+        Steam2026NativeDirectInputKeyboardHook? directionalInputHook = null;
+        var nextDirectionalInputAttemptUtc = DateTime.MinValue;
         var navigationProgressController = new NavigationProgressController(
             config.EnableNavigationProgressIndicators,
             config.NavigationProgressIntervalPercent);
@@ -673,12 +788,15 @@ internal sealed class Steam2026ResearchSession : IDisposable
                         // device that will not open leaves the coordinator on its
                         // ordinary spoken-paragraph path.
                         FieldMovieNarrationTracker? candidateFilmNarration = null;
+                        CutsceneVoicePlayer? candidateCutsceneVoice = null;
                         try
                         {
                             candidateFilmNarration = new FieldMovieNarrationTracker(
                                 track => CreateFieldMovieNarrationOutput(config, modDirectory, track, log),
                                 log,
-                                FieldPositionReader.FieldModule);
+                                FieldPositionReader.FieldModule,
+                                track => ReadFieldMovieNarrationCues(config, modDirectory, track, log),
+                                (owner, reason) => candidateCutsceneVoice?.StopIfOwnedBy(owner, reason));
                         }
                         catch (Exception ex)
                         {
@@ -686,11 +804,30 @@ internal sealed class Steam2026ResearchSession : IDisposable
                             log($"Native Steam 2026 film narration remains disabled: {ex.Message}");
                         }
 
+                        // The recorded voice for scene descriptions. It refuses while
+                        // a film's own recording has the device, so two descriptions
+                        // can never play at once, and it declines quietly when a
+                        // recording for those exact words is not installed.
+                        try
+                        {
+                            candidateCutsceneVoice = new CutsceneVoicePlayer(
+                                LoadCutsceneVoiceManifest(config, modDirectory, log),
+                                clip => CreateCutsceneVoiceOutput(config, modDirectory, clip, log),
+                                log,
+                                () => candidateFilmNarration?.IsPlaying == true);
+                        }
+                        catch (Exception ex)
+                        {
+                            candidateCutsceneVoice = null;
+                            log($"Native Steam 2026 cutscene voice remains disabled: {ex.Message}");
+                        }
+
                         var candidateCutsceneDescriptions =
                             new Steam2026FieldCutsceneDescriptionCoordinator(
                                 sharedFieldAddressSpace,
                                 FieldCutsceneDescriptionCatalog.CreateEarlyGameDescriptions(),
-                                candidateFilmNarration);
+                                candidateFilmNarration,
+                                candidateCutsceneVoice);
                         var candidateCutsceneDialogueProbe =
                             new Steam2026FieldDialogueObservationReader(sharedFieldAddressSpace);
                         var candidateFieldZoneSpeechCoordinator =
@@ -719,7 +856,12 @@ internal sealed class Steam2026ResearchSession : IDisposable
                                 log,
                                 fieldFootstepNavigationProbe,
                                 navigationProgressController,
-                                gameLanguage);
+                                gameLanguage,
+                                autoWalk: null,
+                                // Late-bound: SDL loads when the host first looks
+                                // for a pad, often after this coordinator exists.
+                                controllerCapture: () => controllerCaptureHook?.Capture,
+                                directionalInput: directionalInput);
                         }
                         catch (Exception ex)
                         {
@@ -736,7 +878,11 @@ internal sealed class Steam2026ResearchSession : IDisposable
                                     modDirectory,
                                     (text, interrupt) => output.Speak(text, interrupt),
                                     log,
-                                    navigationProgressController);
+                                    navigationProgressController,
+                                    autoWalk: null,
+                                    playEntranceCue: null,
+                                    controllerCapture: () => controllerCaptureHook?.Capture,
+                                    directionalInput: directionalInput);
                         }
                         catch (Exception ex)
                         {
@@ -1100,6 +1246,67 @@ avigationield_zone_transition.wav"),
                         ref lastSetupLogUtc);
                 }
 
+                // Automatic movement's delivery. The seam is the host's own native
+                // IDirectInputDeviceA::GetDeviceState, validated against its registration
+                // record and live prefix, so the direction is marked in the keyboard state
+                // it has just built and read by the translated caller on the same call.
+                if ((config.EnableFieldNavigationAssistant || config.EnableWorldMapNavigationAssistant)
+                    && hooks is not null
+                    && directionalInputHook is null
+                    && now >= nextDirectionalInputAttemptUtc)
+                {
+                    nextDirectionalInputAttemptUtc = now + SetupRetryInterval;
+                    if (Steam2026NativeDirectInputKeyboardHook.TryInstall(
+                            fingerprint,
+                            moduleBase,
+                            moduleImageSize,
+                            memory,
+                            memory as INativeMemoryWriter,
+                            hooks,
+                            directionalInput,
+                            out var installedDirectionalInput,
+                            out var directionalInputDiagnostic,
+                            log))
+                    {
+                        directionalInputHook = installedDirectionalInput;
+                    }
+
+                    LogSetup(
+                        directionalInputDiagnostic,
+                        now,
+                        ref lastSetupDiagnostic,
+                        ref lastSetupLogUtc);
+                }
+
+                // The controller navigation capture. SDL2 is loaded by the host when
+                // it gets as far as opening a controller, which can be long after we
+                // attach, so this retries on the same clock every other hook uses.
+                if ((config.EnableFieldNavigationAssistant || config.EnableWorldMapNavigationAssistant)
+                    && hooks is not null
+                    && controllerCaptureHook is null
+                    && now >= nextControllerCaptureAttemptUtc)
+                {
+                    nextControllerCaptureAttemptUtc = now + SetupRetryInterval;
+                    if (Steam2026SdlControllerCaptureHook.TryInstall(
+                            hooks,
+                            isInstalled => new ControllerNavigationCapture(
+                                suppressor => new ControllerNavigationMenu(
+                                    EmptyGamepadReader.Instance, suppressor),
+                                isInstalled),
+                            out var installedControllerCapture,
+                            out var controllerCaptureDiagnostic,
+                            log: log))
+                    {
+                        controllerCaptureHook = installedControllerCapture;
+                    }
+
+                    LogSetup(
+                        controllerCaptureDiagnostic,
+                        now,
+                        ref lastSetupDiagnostic,
+                        ref lastSetupLogUtc);
+                }
+
                 if (config.EnableFieldCutsceneDescriptions
                     && hooks is not null
                     && cutsceneDescriptions is not null
@@ -1132,15 +1339,13 @@ avigationield_zone_transition.wav"),
                     // The independent track outlives a single frame, so its native
                     // lifetime is checked every frame and whenever the host stops
                     // being the foreground window.
-                    if (isHostForeground)
-                    {
-                        cutsceneDescriptions.ObserveNativeFilm(now);
-                    }
-                    else if (cutsceneDescriptions.IsNativeFilmNarrationPlaying)
-                    {
-                        cutsceneDescriptions.SuspendNativeFilmNarration(
-                            FieldMovieNarrationStopReason.Suspended);
-                    }
+                    Steam2026FieldCutsceneHostTick.ObserveOrSuspend(
+                        cutsceneDescriptions,
+                        isHostForeground,
+                        now,
+                        cutsceneDialogueProbe is null
+                            ? null
+                            : () => cutsceneDialogueProbe.TryRead(out _));
                 }
 
                 if (cutsceneHookSet is not null && cutsceneDescriptions is not null)
@@ -1154,7 +1359,34 @@ avigationield_zone_transition.wav"),
                     // would otherwise never be described at all.
                     cutsceneDescriptions.ObserveStableField(now);
 
-                    if (cutsceneDialogueProbe is not null
+                    // A film that gave way to dialogue keeps being described: its
+                    // remaining cues are spoken at the moments they belong to, once
+                    // the game has stopped talking. Delivery goes through the same
+                    // reservation as every other description, and only the speaker
+                    // accepting the words advances the film's schedule.
+                    if (Steam2026FieldCutsceneHostTick.TryDeliverDeferredFilmCue(
+                            cutsceneDescriptions,
+                            isHostForeground,
+                            now,
+                            cutsceneDialogueProbe is null
+                                ? null
+                                : () => cutsceneDialogueProbe.TryRead(out _),
+                            text =>
+                            {
+                                output.Speak(text, interrupt: false);
+                                return true;
+                            },
+                            out var deferredFilmCue,
+                            out var deferredFilmField))
+                    {
+                        lastCutsceneNarrationFieldId = deferredFilmField;
+                        cutsceneNarrationSpeechTracker.Begin(deferredFilmField);
+                        if (config.EnableFieldCutsceneDescriptionDiagnostics)
+                        {
+                            log($"Native Steam 2026 film cue spoken: {deferredFilmCue}");
+                        }
+                    }
+                    else if (cutsceneDialogueProbe is not null
                         && cutsceneDescriptions.TrySpeakPending(
                             isHostForeground,
                             () => cutsceneDialogueProbe.TryRead(out _),
@@ -2651,6 +2883,9 @@ avigationield_zone_transition.wav"),
             hookSet?.Dispose();
             footstepCoordinator?.Dispose();
             fieldObjectSpatialCoordinator?.Dispose();
+            // The detour comes out before the coordinators it queues into go away.
+            controllerCaptureHook?.Dispose();
+            directionalInputHook?.Dispose();
             fieldNavigationCoordinator?.Dispose();
             worldMapAccessibilityCoordinator?.Dispose();
             highwayAccessibilityCoordinator?.Dispose();

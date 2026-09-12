@@ -1,0 +1,18 @@
+Blind Soldier - audio description narration
+
+Current narration voice: Brice, generated locally from his approved voice
+reference at his request, with permission for voice cloning and distribution.
+Voice model: Qwen/Qwen3-TTS-12Hz-1.7B-Base
+(https://github.com/QwenLM/Qwen3-TTS).
+Existing description scripts and their attributions are retained. These assets
+contain narration only; original game dialogue, films and music are unchanged.
+Speech has not been time-stretched or pitch-shifted.
+Voice replacement revision: Brice-All-Narration-20260912.
+
+Original script attribution and historical provenance (previous voice superseded):
+
+Blind Soldier cutscene description voice clips
+
+Narration generated locally from the supplied opening narrator recording with the performer's explicit permission for voice cloning and distribution with this mod. Voice model: Qwen/Qwen3-TTS-12Hz-1.7B-Base (https://github.com/QwenLM/Qwen3-TTS).
+
+Existing action-description wording is retained. Timed movie clips reuse validated recordings whose script attribution is preserved beside the corresponding film in Assets/movies. No original game dialogue is replaced. These files contain narration only.

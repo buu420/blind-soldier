@@ -1,0 +1,74 @@
+[
+  {
+    "description": "An airship turns away from a huge white column above the crater.",
+    "start_time": "00:00:00.000",
+    "end_time": "00:00:03.390",
+    "id": "1"
+  },
+  {
+    "description": "Monstrous faces stir in darkness, their eyes glowing.",
+    "start_time": "00:00:07.000",
+    "end_time": "00:00:10.040",
+    "id": "2"
+  },
+  {
+    "description": "Ice shifts. A gigantic claw grips the rim.",
+    "start_time": "00:00:13.000",
+    "end_time": "00:00:15.530",
+    "id": "3"
+  },
+  {
+    "description": "An armored creature rises, red eyes glowing.",
+    "start_time": "00:00:19.000",
+    "end_time": "00:00:21.470",
+    "id": "4"
+  },
+  {
+    "description": "The party watches from the airship's deck.",
+    "start_time": "00:00:25.000",
+    "end_time": "00:00:27.030",
+    "id": "5"
+  },
+  {
+    "description": "A towering fanged beast stretches its arms, a pink core glowing in its chest.",
+    "start_time": "00:00:30.000",
+    "end_time": "00:00:34.590",
+    "id": "6"
+  },
+  {
+    "description": "Blue rings flare around another armored creature.",
+    "start_time": "00:00:38.000",
+    "end_time": "00:00:40.510",
+    "id": "7"
+  },
+  {
+    "description": "Tifa shields her face and falls onto the deck.",
+    "start_time": "00:00:44.000",
+    "end_time": "00:00:46.360",
+    "id": "8"
+  },
+  {
+    "description": "Barret braces himself against the railing.",
+    "start_time": "00:00:49.000",
+    "end_time": "00:00:51.240",
+    "id": "9"
+  },
+  {
+    "description": "A winged beast rises through swirling blue energy.",
+    "start_time": "00:00:54.000",
+    "end_time": "00:00:56.620",
+    "id": "10"
+  },
+  {
+    "description": "Blue streaks shoot skyward as the airship escapes.",
+    "start_time": "00:00:59.000",
+    "end_time": "00:01:01.810",
+    "id": "11"
+  },
+  {
+    "description": "The airship recedes into the starry sky.",
+    "start_time": "00:01:04.000",
+    "end_time": "00:01:06.260",
+    "id": "12"
+  }
+]

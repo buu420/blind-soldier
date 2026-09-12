@@ -54,7 +54,10 @@ internal static class FieldMovieNarrationQueueSeamTests
             CurrentModule: FieldPositionReader.FieldModule,
             CurrentFieldId: Gldst,
             MovieHandlerState: FieldMovieNarrationPolicy.MovieHandlerStateFreshEntry,
-            MovieHandlerPhase: 0);
+            MovieHandlerPhase: 0,
+            Disc: 1,
+            MovieCommand: FieldMovieNarrationSample.CommandStartMovie,
+            MovieFrame: 0);
         Equal(true,
             queue.TryCaptureCutsceneContext(
                 new FieldScriptContext(Gldst, 0, 0, ArrivalByte, FieldOpcodeAddressResolver.OpcodeMovieIndex),
@@ -118,7 +121,10 @@ internal static class FieldMovieNarrationQueueSeamTests
             CurrentModule: FieldPositionReader.FieldModule,
             CurrentFieldId: Gldst,
             MovieHandlerState: FieldMovieNarrationPolicy.MovieHandlerStateInProgress,
-            MovieHandlerPhase: FieldMovieNarrationPolicy.MovieHandlerPhaseYielding);
+            MovieHandlerPhase: FieldMovieNarrationPolicy.MovieHandlerPhaseYielding,
+            Disc: 1,
+            MovieCommand: FieldMovieNarrationSample.CommandStartMovie,
+            MovieFrame: 0);
 
         queue.TryCaptureCutsceneContext(
             new FieldScriptContext(Gldst, 0, 0, ArrivalByte, FieldOpcodeAddressResolver.OpcodeMovieIndex),
@@ -164,7 +170,10 @@ internal static class FieldMovieNarrationQueueSeamTests
             CurrentModule: FieldPositionReader.FieldModule,
             CurrentFieldId: Gldst,
             MovieHandlerState: FieldMovieNarrationPolicy.MovieHandlerStateInProgress,
-            MovieHandlerPhase: FieldMovieNarrationPolicy.MovieHandlerPhaseYielding);
+            MovieHandlerPhase: FieldMovieNarrationPolicy.MovieHandlerPhaseYielding,
+            Disc: 1,
+            MovieCommand: FieldMovieNarrationSample.CommandStartMovie,
+            MovieFrame: 0);
 
         // The worker substitutes an explicitly unknown handler state, so the tracker
         // uses its own bookkeeping instead of trusting the mutated live value.
@@ -186,7 +195,8 @@ internal static class FieldMovieNarrationQueueSeamTests
         queue.TryCaptureCutsceneContext(
             new FieldScriptContext(Gldst, 0, 0, ArrivalByte, FieldOpcodeAddressResolver.OpcodeMovieIndex),
             hasIngressMovieSample: true,
-            new FieldMovieNarrationSample(true, ArrivalFilm, 1, Gldst, 0, 0),
+            new FieldMovieNarrationSample(true, ArrivalFilm, 1, Gldst, 0, 0,
+                Disc: 1, MovieCommand: FieldMovieNarrationSample.CommandStartMovie, MovieFrame: 0),
             Start.Ticks);
 
         Equal(true, queue.TryDequeue(out var message), "the message event drains first");

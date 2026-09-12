@@ -111,6 +111,8 @@ public static class FieldCutsceneDescriptionCatalog
         .. CreateGoldSaucerFirstVisitDescriptions(),
         .. CreateGoldSaucerArcadeDescriptions(),
         .. CreateGoldSaucerGondolaFilmDescriptions(),
+        .. CreateReviewedFilmFallbackDescriptions(),
+        .. CreateSetoVisualDescriptions(),
         .. CreateGoldSaucerAreaDescriptions()
     ];
 
@@ -268,6 +270,341 @@ public static class FieldCutsceneDescriptionCatalog
         new(490, 0, 0, 146, GondolaEventSquareText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
         new(490, 0, 0, 307, GondolaEventSquareText, FieldOpcodeAddressResolver.OpcodeMovieIndex)
     ];
+
+    /// <summary>
+    /// Spoken descriptions for the reviewed films, at every installed anchor
+    /// including their later replays. An independent track falls back to these
+    /// when its recording is missing, disabled or refused.
+    /// </summary>
+    public static IReadOnlyList<FieldCutsceneDescriptionCue> CreateReviewedFilmFallbackDescriptions() =>
+    [
+        // Film 3, d_ropein.
+        new(457, 1, 0, 85, DRopeinText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        // Film 5, u_ropego.
+        new(496, 13, 5, 21, URopegoText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        // Film 20, mkup.
+        new(117, 0, 0, 143, MkupText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        new(695, 1, 3, 19, MkupText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        // Film 21, northmk.
+        new(119, 0, 3, 17, NorthmkText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        new(706, 3, 3, 266, NorthmkText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        // Film 22, mk8.
+        new(707, 1, 1, 427, Mk8Text, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        new(777, 0, 0, 51, Mk8Text, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        // Film 23, ontrain.
+        new(137, 0, 3, 452, OntrainText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        new(706, 3, 3, 243, OntrainText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        new(708, 2, 3, 21, OntrainText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        // Film 24, mainplr.
+        new(143, 5, 1, 5, MainplrText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        new(706, 3, 3, 285, MainplrText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        new(708, 2, 3, 40, MainplrText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        // Film 25, smk.
+        new(127, 2, 6, 69, SmkText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        new(400, 0, 3, 5, SmkText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        new(763, 0, 0, 714, SmkText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        // Film 26, southmk.
+        new(127, 2, 7, 84, SouthmkText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        new(399, 0, 0, 359, SouthmkText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        // Film 27, plrexp.
+        new(160, 1, 3, 187, PlrexpText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        new(399, 0, 0, 389, PlrexpText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        // Film 28, fallpl.
+        new(399, 0, 0, 171, FallplText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        // Film 29, monitor.
+        new(240, 8, 0, 15, MonitorText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        new(402, 0, 0, 81, MonitorText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        // Film 30, bike.
+        new(411, 13, 3, 190, BikeText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        // Film 31, mtnvl.
+        new(402, 3, 13, 133, MtnvlText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        // Film 32, mtnvl2.
+        new(416, 0, 3, 5, Mtnvl2Text, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        // Film 33, brgnvl.
+        new(356, 11, 11, 260, BrgnvlText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        // Film 34, nvlmk.
+        new(729, 4, 0, 104, NvlmkText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        new(730, 11, 3, 90, NvlmkText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        // Film 35, nivlsfs.
+        new(730, 11, 0, 1218, NivlsfsText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        // Film 37, junon.
+        new(725, 8, 4, 34, JunonText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        // Film 38, hiwind0.
+        new(726, 4, 5, 2, Hiwind0Text, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        // Film 39, mtcrl.
+        new(462, 3, 1, 14, MtcrlText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        new(727, 5, 5, 2, MtcrlText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        // Film 41, biskdead.
+        new(461, 1, 1, 9, BiskdeadText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        new(567, 12, 13, 640, BiskdeadText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        // Film 42, boogdemo.
+        new(643, 1, 3, 29, BoogdemoText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        // Film 44, setogake.
+        new(569, 14, 3, 105, SetogakeText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        // Film 45, rcktfail.
+        new(569, 3, 3, 130, RcktfailText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        // Film 46, jairofly.
+        new(774, 14, 3, 102, JairoflyText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        // Film 47, jairofal.
+        new(87, 0, 0, 34, JairofalText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        new(637, 2, 9, 239, JairofalText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        // Film 48, gold7.
+        new(347, 0, 0, 74, Gold7Text, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        new(489, 0, 0, 538, Gold7Text, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        // Film 49, gold7_2.
+        new(347, 0, 0, 125, Gold72Text, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        new(489, 0, 0, 686, Gold72Text, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        new(489, 0, 0, 759, Gold72Text, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        new(489, 0, 0, 832, Gold72Text, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        new(489, 0, 0, 905, Gold72Text, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        // Film 50, earithdd.
+        new(67, 2, 3, 42, EarithddText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        new(647, 0, 0, 229, EarithddText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        // Film 51, funeral.
+        new(67, 2, 3, 83, FuneralText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        new(641, 0, 0, 80, FuneralText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        // Film 52, car_1209.
+        new(779, 3, 0, 64, Car1209Text, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        // Film 54, greatpit.
+        new(68, 4, 2, 542, GreatpitText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        // Film 55, c_scene1.
+        new(67, 1, 0, 40, CScene1Text, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        // Film 56, c_scene2.
+        new(643, 3, 3, 79, CScene2Text, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        // Film 57, c_scene3.
+        new(639, 0, 0, 23, CScene3Text, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        // Film 58, biglight.
+        new(639, 0, 0, 35, BiglightText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        // Film 59, meteosky.
+        new(67, 2, 3, 30, MeteoskyText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        // Film 60, weapon0.
+        new(269, 1, 2, 87, Weapon0Text, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        // The sites below were found by following the script call graph rather than
+        // by looking for a PMVIE above the MOVIE: here the film is prepared and
+        // played by two separate one-opcode scripts that a director script requests
+        // in turn. Films 30 and 44 get their first play this way; the anchors that
+        // shipped before were both replays.
+        new(543, 13, 6, 0, BoogdemoText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        new(550, 14, 4, 0, SetogakeText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        new(742, 13, 4, 0, JairoflyText, FieldOpcodeAddressResolver.OpcodeMovieIndex),
+        new(236, 11, 5, 0, Car1209Text, FieldOpcodeAddressResolver.OpcodeMovieIndex)
+    ];
+
+    private const string DRopeinText =
+        "A blue cable car approaches the rocky station. It docks. " +
+        "Propellers slow, and vapor jets beside it.";
+
+    private const string URopegoText =
+        "A cable car waits in a monster's mouth. It reverses into darkness " +
+        "as fireworks burst above.";
+
+    private const string MkupText =
+        "The North Gate stands open. A huge green reactor tower looms " +
+        "above, wreathed in vapor.";
+
+    private const string NorthmkText =
+        "Blue arcs flicker across the reactor. An orange fireball erupts " +
+        "above Midgar. The circular city recedes below. The fireball " +
+        "shrinks into smoke.";
+
+    private const string Mk8Text =
+        "A fireball bursts through the passage.";
+
+    private const string OntrainText =
+        "Cloud jumps onto the train and crouches. The train enters a lit " +
+        "tunnel. Empty tracks lead into the tunnel.";
+
+    private const string MainplrText =
+        "A black train rushes past on elevated tracks. It winds around an " +
+        "enormous steel-braced pillar beneath the city's plate.";
+
+    private const string SmkText =
+        "Sparks split the catwalk.";
+
+    private const string SouthmkText =
+        "Cloud hangs from the broken catwalk. Flames erupt. Barret crouches " +
+        "over Tifa. Cloud tumbles past enormous pipes and disappears into " +
+        "mist.";
+
+    private const string PlrexpText =
+        "A circular platform surrounds the pillar. Explosions tear holes in " +
+        "the pillar. Fiery chunks fall away. Dust and debris surround the " +
+        "platform far below.";
+
+    private const string FallplText =
+        "Steel supports stretch beneath Midgar's plate. Explosions race up " +
+        "the pillar. Fiery debris rains down. A television turns to static. " +
+        "The room darkens. The huge plate plunges. Lights go out. People " +
+        "flee through an alley, debris billowing behind. Between two green " +
+        "towers, Sector 7 burns beneath clouds of smoke. President Shinra " +
+        "watches the destruction from above. The view rises along the " +
+        "green-lit Shinra tower.";
+
+    private const string MonitorText =
+        "A guard sits before surveillance monitors. One shows elevator " +
+        "doors on floor sixty.";
+
+    private const string BikeText =
+        "Tifa, Aeris, Red XIII and Barret turn. Cloud straddles a large " +
+        "black motorcycle. Tifa stands beside a turquoise truck. Cloud " +
+        "rides through shattered glass into the hall. He skids around the " +
+        "truck as the others board. The truck crashes through glass. Both " +
+        "vehicles descend to the lower level. Cloud speeds through a " +
+        "doorway, the truck following. Tifa drives, with Aeris beside her. " +
+        "They burst through glass onto the raised roadway. Motorcycle and " +
+        "truck speed away along the night highway.";
+
+    private const string MtnvlText =
+        "Jagged black spires rise beneath an ochre sky. A reactor nestles " +
+        "between peaks. Suspension bridges span the gaps. Mist drifts " +
+        "across a barren stone canyon.";
+
+    private const string Mtnvl2Text =
+        "Misty crevices and bare cliffs pass below. The view approaches a " +
+        "metal reactor wedged between pointed rock walls.";
+
+    private const string BrgnvlText =
+        "A plank bridge twists above the canyon. Boards split. The bridge's " +
+        "center gives way. Broken planks hang against the cliff, shedding " +
+        "splinters into mist.";
+
+    private const string NvlmkText =
+        "Green pods line a red-lit chamber. A monstrous face peers through " +
+        "a porthole. One pod vents steam. A thin blue-gray creature " +
+        "emerges, with a spiky head and long claws. Steam drifts around it " +
+        "as the view retreats behind girders.";
+
+    private const string NivlsfsText =
+        "Sephiroth raises his head, green eyes fixed ahead, faintly " +
+        "smiling. He turns away, his long blade at his side. Silver hair " +
+        "flowing, he walks into the towering flames.";
+
+    private const string JunonText =
+        "An industrial passage opens onto an orange sunset. A massive " +
+        "cannon looms outside. Bronze fortifications and red banners line " +
+        "the sea cliffs. The immense cannon projects from the fortress over " +
+        "dark water.";
+
+    private const string Hiwind0Text =
+        "Cloud climbs a ladder up the metal tower. A huge gray airship " +
+        "towers above him, with broad wings and powerful engines. It hangs " +
+        "moored above the airfield, lights blinking against pink clouds.";
+
+    private const string MtcrlText =
+        "Timber crossbeams rush past through a deep passage.";
+
+    private const string BiskdeadText =
+        "Impacts chip the cliff face, scattering dust and rock.";
+
+    private const string BoogdemoText =
+        "A yellow comet crosses a star field marked with blue grid lines. " +
+        "Red orbital paths curve past a cracked, glowing rocky body. " +
+        "Planets circle along red paths against a distant galaxy. Rock " +
+        "fragments tumble toward a dark vortex ringed with violet light.";
+
+    private const string SetogakeText =
+        "Petrified Seto stands beneath an orange moon. Spears pierce his " +
+        "stone back above his lowered head.";
+
+    private const string RcktfailText =
+        "The rocket rises slightly on fiery engines. Support arms fall " +
+        "away. The flames die. Smoke rolls across the forest. The rocket " +
+        "tips sideways and remains leaning against its framework. The " +
+        "rusted rocket now looms above village rooftops.";
+
+    private const string JairoflyText =
+        "A pink propeller plane lifts from the grass, kicking up dust. It " +
+        "banks around the leaning rocket above the village. The plane " +
+        "sweeps close past the rocket's high framework. It swoops over " +
+        "rooftops, then passes overhead. Projectiles strike. The plane " +
+        "trails fire and smoke toward the coast.";
+
+    private const string JairofalText =
+        "Trailing black smoke, the plane descends over the sea. It strikes " +
+        "the water in white spray. It remains afloat, trailing smoke.";
+
+    private const string Gold7Text =
+        "Fireworks blossom above the Gold Saucer's golden towers. A gondola " +
+        "glides high above the glittering park. Colored sparks burst and " +
+        "trail across the dark sky.";
+
+    private const string Gold72Text =
+        "The Gold Saucer rises from clouds, golden platforms circled by " +
+        "green tracks. Searchlights sweep beneath bursts of pink, green, " +
+        "white and purple fireworks.";
+
+    private const string EarithddText =
+        "Aeris kneels in prayer, then opens her eyes. Cloud watches her, " +
+        "his expression serious. She lifts her head and smiles. Sephiroth " +
+        "plunges from above, his long sword pointed downward. The blade " +
+        "pierces Aeris from behind. Her head bows. Her eyes close. " +
+        "Sephiroth smiles faintly, then withdraws the blade. Aeris slumps. " +
+        "Her ribbon loosens, releasing a glowing pale green orb. The orb " +
+        "spins as it falls. It bounces down stone steps, then drops over " +
+        "the edge. It falls past towering platforms beneath a swirling " +
+        "column of light. The orb splashes into the water below.";
+
+    private const string FuneralText =
+        "Cloud supports Aeris on her back, her hands folded across her " +
+        "chest. Head bowed, he gently lowers her into the blue water. She " +
+        "sinks through shafts of light, her loose hair drifting. Her arms " +
+        "float apart as she recedes into the depths.";
+
+    private const string Car1209Text =
+        "A title: Shinra Electric Power Company Motor Mobiles. A " +
+        "streamlined silver open-top car rotates beside columns of " +
+        "specifications. A brass three-wheeler turns, displaying exposed " +
+        "pipes, round headlights and red wheel rims. An enclosed vintage " +
+        "car rotates, with gold fittings, large lamps and curved exhausts. " +
+        "Its body vanishes, revealing the chassis. Labels: Packaging, Power " +
+        "Unit, Footwork. An engine glows green. Text: Mako Engine, produced " +
+        "by Shinra. A wheel and suspension diagram appears, labeled Shinra " +
+        "suspension system, S S wishbone. The Shinra emblem appears beside " +
+        "a model lineup: new model S five ten. A Japanese dealer list " +
+        "appears. Welcome to Shinra M M.";
+
+    private const string GreatpitText =
+        "A snowy crater rim stretches beneath green auroras. Turquoise " +
+        "energy rises from its center, wrapped in spiraling white bands. " +
+        "Glowing particles stream up through the column. The vast circular " +
+        "crater recedes among snow-covered mountains.";
+
+    private const string CScene1Text =
+        "Blue light streaks the cavern walls. Tangled roots suspend a " +
+        "turquoise crystal overhead. The roots shudder. White fragments " +
+        "cascade down.";
+
+    private const string CScene2Text =
+        "Dust rises beneath tangled roots. Rocks tumble onto the ledge. " +
+        "Sephiroth floats motionless inside a blue crystal.";
+
+    private const string CScene3Text =
+        "A gloved hand places a purple orb inside the crystal. It floats " +
+        "beside Sephiroth's motionless body. Blue tendrils coil around him " +
+        "and the orb.";
+
+    private const string BiglightText =
+        "An airship turns away from a huge white column above the crater. " +
+        "Monstrous faces stir in darkness, their eyes glowing. Ice shifts. " +
+        "A gigantic claw grips the rim. An armored creature rises, red eyes " +
+        "glowing. The party watches from the airship's deck. A towering " +
+        "fanged beast stretches its arms, a pink core glowing in its chest. " +
+        "Blue rings flare around another armored creature. Tifa shields her " +
+        "face and falls onto the deck. Barret braces himself against the " +
+        "railing. A winged beast rises through swirling blue energy. Blue " +
+        "streaks shoot skyward as the airship escapes. The airship recedes " +
+        "into the starry sky.";
+
+    private const string MeteoskyText =
+        "Window shutters rise beside an operating table. A huge fiery red " +
+        "orb hangs in orange clouds beside a smaller sphere. It looms above " +
+        "Junon's fortress and cannon.";
+
+    private const string Weapon0Text =
+        "Red banners hang over an industrial roadway. Road panels lift, " +
+        "exposing huge gears beneath a wall marked Junon. Gears and " +
+        "hydraulic pistons turn the massive cannon. The fortress cannon " +
+        "levels toward the sea.";
 
     private const string GondolaSpeedSquareText =
         "A roller coaster races along looping tracks outlined with lights. " +
@@ -657,7 +994,7 @@ public static class FieldCutsceneDescriptionCatalog
             0,
             0,
             78,
-            "The No. 1 Reactor erupts in a towering fireball. Flames surge through the surrounding Sector 8 streets.",
+            Mk8Text,
             FieldOpcodeAddressResolver.OpcodeMovieIndex),
         new(
             133,
@@ -761,7 +1098,8 @@ public static class FieldCutsceneDescriptionCatalog
             17,
             1,
             5,
-            "The train races along elevated tracks through Midgar's industrial undercity, spiraling beneath the enormous plate overhead.",
+            "A black train rushes past on elevated tracks. It winds around an " +
+            "enormous steel-braced pillar beneath the city's plate.",
             FieldOpcodeAddressResolver.OpcodeMovieIndex),
         new(
             139,
@@ -1268,7 +1606,7 @@ public static class FieldCutsceneDescriptionCatalog
             11,
             3,
             2,
-            "President Shinra watches from his office as the pillar buckles and the Sector 7 plate crashes down, crushing Seventh Heaven and the slums. Cloud, Tifa, and Barret swing away on a cable.",
+            FallplText,
             FieldOpcodeAddressResolver.OpcodeMovieIndex),
         new(
             193,
@@ -1387,12 +1725,16 @@ public static class FieldCutsceneDescriptionCatalog
             0,
             "On Shinra's rooftop, Rufus stands alone across from Cloud, calm and motionless in his long white coat.",
             FieldOpcodeAddressResolver.OpcodeRequestEwIndex),
+        // This anchor is the first play of bike.avi, which now has its own recording
+        // and a paragraph written from the footage. The paragraph that used to sit
+        // here was written before anyone had seen the film and called the motorcycle
+        // red; it is black.
         new(
             234,
             36,
             4,
             0,
-            "The others pile into a display truck while Cloud starts a red motorcycle. The truck smashes through the showroom glass, and both vehicles race down the building's stairs onto the expressway.",
+            BikeText,
             FieldOpcodeAddressResolver.OpcodeMovieIndex),
         new(
             226,
@@ -1443,14 +1785,18 @@ public static class FieldCutsceneDescriptionCatalog
             0,
             0,
             207,
-            "Jagged peaks and deep ravines surround Mt. Nibel as the group climbs toward the reactor high on the mountainside.",
+            "Jagged black spires rise beneath an ochre sky. A reactor nestles " +
+            "between peaks. Suspension bridges span the gaps. Mist drifts " +
+            "across a barren stone canyon.",
             FieldOpcodeAddressResolver.OpcodeMovieIndex),
         new(
             312,
             10,
             3,
             106,
-            "The rope bridge tears loose. Tifa, Cloud, Sephiroth, and the two infantrymen plunge into the ravine.",
+            "A plank bridge twists above the canyon. Boards split. The bridge's " +
+            "center gives way. Broken planks hang against the cliff, shedding " +
+            "splinters into mist.",
             FieldOpcodeAddressResolver.OpcodeMovieIndex),
         new(
             313,
@@ -1477,7 +1823,10 @@ public static class FieldCutsceneDescriptionCatalog
             9,
             7,
             236,
-            "A metal pod bursts open, spilling a twisted human-shaped creature onto the reactor floor.",
+            "Green pods line a red-lit chamber. A monstrous face peers through " +
+            "a porthole. One pod vents steam. A thin blue-gray creature " +
+            "emerges, with a spiky head and long claws. Steam drifts around it " +
+            "as the view retreats behind girders.",
             FieldOpcodeAddressResolver.OpcodeMovieIndex),
         new(
             332,
@@ -1504,14 +1853,18 @@ public static class FieldCutsceneDescriptionCatalog
             1,
             1,
             22,
-            "Framed by the burning town, Sephiroth turns toward Cloud, then walks away through the flames with his sword in hand.",
+            "Sephiroth raises his head, green eyes fixed ahead, faintly " +
+            "smiling. He turns away, his long blade at his side. Silver hair " +
+            "flowing, he walks into the towering flames.",
             FieldOpcodeAddressResolver.OpcodeMovieIndex),
         new(
             292,
             2,
             1,
             10,
-            "Framed by the burning town, Sephiroth turns toward Cloud, then walks away through the flames with his sword in hand.",
+            "Sephiroth raises his head, green eyes fixed ahead, faintly " +
+            "smiling. He turns away, his long blade at his side. Silver hair " +
+            "flowing, he walks into the towering flames.",
             FieldOpcodeAddressResolver.OpcodeMovieIndex),
         new(
             101,
@@ -1609,7 +1962,11 @@ public static class FieldCutsceneDescriptionCatalog
             0,
             0,
             79,
-            "From an industrial bay, the view sweeps across Junon's vast cliffside Mako cannon, ribbed tower, red-bannered armor, stairways, and platforms above the sea. The story continues automatically when the panorama ends.",
+            "An industrial passage opens onto an orange sunset. A massive " +
+            "cannon looms outside. Bronze fortifications and red banners line " +
+            "the sea cliffs. The immense cannon projects from the fortress over " +
+            "dark water. The story continues automatically when the panorama " +
+            "ends.",
             FieldOpcodeAddressResolver.OpcodeMovieIndex)
     ];
 
@@ -1630,14 +1987,14 @@ public static class FieldCutsceneDescriptionCatalog
             0,
             3,
             73,
-            "A massive stone-tiled airport lift rises from the pit, red edge lights glowing as it exposes the dark industrial shaft below.",
+            "The huge platform rises to the upper deck.",
             FieldOpcodeAddressResolver.OpcodeMovieIndex),
         new(
             384,
             0,
             3,
             201,
-            "The massive airport lift descends back into the pit until its tiled surface lies flush with the airfield.",
+            "The huge platform lowers to the airfield.",
             FieldOpcodeAddressResolver.OpcodeMovieIndex),
         // junair2/dir Main plays movie 38 during the first visit, when the
         // story moment is 400. The executable's movie pointer table identifies
@@ -1647,7 +2004,9 @@ public static class FieldCutsceneDescriptionCatalog
             0,
             0,
             136,
-            "Cloud climbs a ladder beneath the huge, balloon-backed Highwind; the view cuts to a smaller, sleek aircraft hovering over the airfield against the orange-purple sunset.",
+            "Cloud climbs a ladder up the metal tower. A huge gray airship " +
+            "towers above him, with broad wings and powerful engines. It hangs " +
+            "moored above the airfield, lights blinking against pink clouds.",
             FieldOpcodeAddressResolver.OpcodeMovieIndex),
         // junele2/direct Script 1 is called by produce/Main on field entry and
         // Script 2 by border2/Go on the way out. The executable's movie table
@@ -1659,14 +2018,15 @@ public static class FieldCutsceneDescriptionCatalog
             2,
             1,
             5,
-            "A hazard-striped metal lift rises through a dark, pipe-lined circular shaft, orange light glowing beneath it beside a green-lit opening in the wall.",
+            "A striped platform rises through the shaft to a green-lit landing.",
             FieldOpcodeAddressResolver.OpcodeMovieIndex),
         new(
             391,
             2,
             2,
             19,
-            "Viewed from below, the hazard-striped lift rises away through the dark, pipe-lined shaft and disappears through the opening overhead, leaving a green wall light below.",
+            "The platform leaves the green-lit landing and recedes into the " +
+            "shaft.",
             FieldOpcodeAddressResolver.OpcodeMovieIndex),
         // junin7/direct Script 2 is started on field entry and Script 1 from
         // border1/Go on exit. The movie table maps them to junin_in and
@@ -1678,14 +2038,16 @@ public static class FieldCutsceneDescriptionCatalog
             3,
             2,
             8,
-            "A hazard-striped platform rises into view in a dark circular shaft beneath a glowing CAUTION sign; red indicators shine as pale vapor floods the chamber.",
+            "The platform approaches the landing marked Caution. It settles " +
+            "amid billowing vapor.",
             FieldOpcodeAddressResolver.OpcodeMovieIndex),
         new(
             395,
             3,
             1,
             19,
-            "The hazard-striped platform descends into the dark shaft beneath the glowing CAUTION sign as orange light swells from the pit below.",
+            "The platform leaves the Caution sign behind, moving toward the " +
+            "foreground.",
             FieldOpcodeAddressResolver.OpcodeMovieIndex),
         // shpin_3/ELINE Go 1x. Byte 93 is the first of three entityExecuteSync
         // calls into entity 8, CEFIROS. The line before it, dialog 5, is spoken
@@ -1737,17 +2099,45 @@ public static class FieldCutsceneDescriptionCatalog
         new(470, 3, 0, 53,
             "Flames engulf Corel's wooden houses."),
         new(457, 2, 3, 109,
-            "The blue cable car pulls away from the station and climbs along the cables.",
+            "A blue cable car's propellers spin. It lifts along cables into the " +
+            "golden sky.",
             FieldOpcodeAddressResolver.OpcodeMovieIndex),
         new(457, 2, 4, 16,
-            "The blue cable car pulls away from the station and climbs along the cables.",
+            "A blue cable car's propellers spin. It lifts along cables into the " +
+            "golden sky.",
             FieldOpcodeAddressResolver.OpcodeMovieIndex),
         new(496, 0, 0, 190,
             "The cable car glides above the clouds toward the Gold Saucer. Huge golden platforms glow with lights, rides and towering attractions as the car approaches the neon entrance.",
             FieldOpcodeAddressResolver.OpcodeMovieIndex),
         new(496, 0, 0, 201,
-            "The cable car docks inside a brightly colored station decorated with giant cartoon figures.",
+            "Lamps light a dark tunnel. The car emerges through a giant " +
+            "monster's mouth. Colorful lanterns surround a Welcome sign.",
             FieldOpcodeAddressResolver.OpcodeMovieIndex)
+    ];
+
+    /// <summary>Visually reviewed Seto scene actions, anchored to the installed director and actor scripts.</summary>
+    public static IReadOnlyList<FieldCutsceneDescriptionCue> CreateSetoVisualDescriptions() =>
+    [
+        // The director asks Cloud to leave; script8 then gestures, walks out and hides him.
+        new(550, 8, 3, 217,
+            "Cloud and his companion leave Bugenhagen alone with Red XIII.",
+            FieldOpcodeAddressResolver.OpcodeRequestSwIndex),
+        // The spread-arms loop immediately precedes his native 'thinking lately' line.
+        new(550, 10, 9, 0,
+            "Bugenhagen spreads his arms wide while speaking to Red XIII.",
+            FieldOpcodeAddressResolver.OpcodeDfanmIndex),
+        // The final request runs Red script13's two jumps, not script3's entrance jumps.
+        new(550, 8, 3, 406,
+            "Red XIII leaps from one rock ledge to another toward Seto.",
+            FieldOpcodeAddressResolver.OpcodeRequestEwIndex),
+        // After both jumps, Red raises his head before the camera pans to Seto.
+        new(550, 5, 13, 103,
+            "Red XIII raises his head upward toward the stone figure above.",
+            FieldOpcodeAddressResolver.OpcodeCanm2Index),
+        // The first droplet appears (VISI1); KIRAB/KIRAC and the later droplets stay deduplicated.
+        new(550, 11, 3, 17,
+            "Clear droplets fall from the stone figure's eyes.",
+            FieldOpcodeAddressResolver.OpcodeVisibilityIndex)
     ];
 
     /// <summary>Reviewed Junon, cargo-ship and Costa del Sol arrival actions.</summary>

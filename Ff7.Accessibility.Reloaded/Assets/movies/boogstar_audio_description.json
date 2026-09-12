@@ -1,0 +1,50 @@
+[
+  {
+    "description": "Colored planets circle a bright light along red orbits, beneath a starry dome.",
+    "start_time": "00:00:00.000",
+    "end_time": "00:00:03.930",
+    "id": "1"
+  },
+  {
+    "description": "The view closes on a blue-green globe.",
+    "start_time": "00:00:12.000",
+    "end_time": "00:00:14.120",
+    "id": "2"
+  },
+  {
+    "description": "Pink and yellow lights rise from its surface, then drift down.",
+    "start_time": "00:00:20.000",
+    "end_time": "00:00:22.970",
+    "id": "3"
+  },
+  {
+    "description": "Green particles spread below. Colored lights swirl around the globe.",
+    "start_time": "00:00:29.000",
+    "end_time": "00:00:32.870",
+    "id": "4"
+  },
+  {
+    "description": "The globe rotates, wrapped in shifting, luminous trails.",
+    "start_time": "00:00:38.000",
+    "end_time": "00:00:40.990",
+    "id": "5"
+  },
+  {
+    "description": "A thin stream of light flows away. The globe darkens.",
+    "start_time": "00:01:00.000",
+    "end_time": "00:01:03.300",
+    "id": "6"
+  },
+  {
+    "description": "The globe breaks into black fragments.",
+    "start_time": "00:01:12.000",
+    "end_time": "00:01:14.060",
+    "id": "7"
+  },
+  {
+    "description": "Only the starry backdrop remains.",
+    "start_time": "00:01:18.000",
+    "end_time": "00:01:20.150",
+    "id": "8"
+  }
+]

@@ -1,0 +1,17 @@
+Blind Soldier - audio description narration
+
+Current narration voice: Brice, generated locally from his approved voice
+reference at his request, with permission for voice cloning and distribution.
+Voice model: Qwen/Qwen3-TTS-12Hz-1.7B-Base
+(https://github.com/QwenLM/Qwen3-TTS).
+Existing description scripts and their attributions are retained. These assets
+contain narration only; original game dialogue, films and music are unchanged.
+Speech has not been time-stretched or pitch-shifted.
+Voice replacement revision: Brice-All-Narration-20260912.
+
+Opening narration uses the approved natural-cadence recording, with an
+additional volume increase from the title onward. Its scene timing is retained.
+
+Historical opening credits (previous narration superseded):
+
+No separate prior opening credit file was present at the initial inventory.

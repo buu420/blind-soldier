@@ -1,10 +1,38 @@
-Visual description drafts generated with ViddyScribe (https://viddyscribe.com),
-then reviewed and corrected against the original Final Fantasy VII film.
+Blind Soldier - audio description narration
 
-Narration synthesized locally using Microsoft Zira Desktop, rate 1.
-This is narration-only audio. The game supplies its original movie and music.
-Film: gold5.avi; native movie number: 10.
-Source and narration duration: 10.133333 seconds.
-ViddyScribe reviewed text job: 2e6da0c5-e356-4fd9-b727-1a905be3c568.
-Mono 44.1 kHz Vorbis quality 6; each spoken cue normalized toward -22 dBFS RMS, peak limited to -1 dBFS.
-Preserve this attribution when distributing the narration asset.
+Current narration voice: Brice, generated locally from his approved voice
+reference at his request, with permission for voice cloning and distribution.
+Voice model: Qwen/Qwen3-TTS-12Hz-1.7B-Base
+(https://github.com/QwenLM/Qwen3-TTS).
+Existing description scripts and their attributions are retained. These assets
+contain narration only; original game dialogue, films and music are unchanged.
+Speech has not been time-stretched or pitch-shifted.
+Voice replacement revision: Brice-All-Narration-20260912.
+
+Original script attribution and historical provenance (previous voice superseded):
+
+Blind Soldier - film audio description
+
+Existing reviewed script retained; narration voice replaced at the user's request.
+Narration generated locally from the supplied opening narrator recording, with the
+performer's explicit permission for voice cloning and distribution with this mod.
+Voice model: Qwen/Qwen3-TTS-12Hz-1.7B-Base (https://github.com/QwenLM/Qwen3-TTS).
+This asset contains narration only. FFVII supplies the original film and soundtrack.
+
+Film: gold5.avi.
+Source duration: 10.133 seconds.
+Source SHA-256: 4c862341ef1946f26411fa1f9a3b90351b9f8a726d3c2483996b5a8ea1545740
+1 timed cues. 44.1 kHz mono Vorbis quality6.
+Only outer silence trimmed; speech was neither sped up nor clipped to fit.
+
+Original script attribution and previous narration provenance (voice now replaced):
+Visual description drafts generated with ViddyScribe (https://viddyscribe.com),
+then reviewed and corrected against the original Final Fantasy VII film.
+
+Narration synthesized locally using Microsoft Zira Desktop, rate 1.
+This is narration-only audio. The game supplies its original movie and music.
+Film: gold5.avi; native movie number: 10.
+Source and narration duration: 10.133333 seconds.
+ViddyScribe reviewed text job: 2e6da0c5-e356-4fd9-b727-1a905be3c568.
+Mono 44.1 kHz Vorbis quality 6; each spoken cue normalized toward -22 dBFS RMS, peak limited to -1 dBFS.
+Preserve this attribution when distributing the narration asset.

@@ -159,6 +159,13 @@ public sealed class Mod : IModV1, IModV2
     private DateTime lastOpeningMovieProbeAt = DateTime.MinValue;
     private bool openingMovieDetected;
     private bool openingMoviePlaybackActive;
+
+    // When the movie file was first seen open. The engine raises its own film flag a
+    // little later, and that flag is the anchor the narration wants; this is how long it
+    // has been waited for.
+    private DateTime? openingMovieArmedAtUtc;
+    private bool openingMovieNativeFlagSeen;
+    private bool openingMovieHandlePollingSuppressed;
     private bool ffnxRuntimeLoaded;
     private CurrentProcessLegacyAddressSpace? currentProcessLegacyAddressSpace;
     private FfnxPopupStateReader? ffnxPopupStateReader;
@@ -357,6 +364,19 @@ public sealed class Mod : IModV1, IModV2
     private readonly MidgarZolomAreaTracker midgarZolomAreaTracker = new();
     private readonly Dictionary<(int MapType, int ProgressStage), WorldMapRuntimeContext> worldMapRuntimes = [];
     private NavigationAutoWalkController? navigationAutoWalkController;
+
+    // The controller navigation menu. The hook decides, inside the game's own
+    // XInput read, which buttons the game may see; everything that speaks or walks
+    // happens here on the monitor thread from the commands it leaves behind.
+    private XInputCaptureHook? controllerCaptureHook;
+    private ControllerNavigationDispatcher? fieldControllerNavigation;
+    private ControllerNavigationDispatcher? worldControllerNavigation;
+    private FieldPositionSnapshot controllerFieldPosition;
+    private FieldNavigationControlTransform? controllerFieldTransform;
+    private FieldLadderStateSnapshot controllerFieldLadder;
+    private WorldMapStateSnapshot controllerWorldState;
+    private WorldMapRuntimeContext? controllerWorldRuntime;
+    private DateTime controllerNavigationNow;
     private NavigationAutoWalkDomain pendingNavigationAutoWalkToggle;
     private string lastNavigationAutoWalkFailure = string.Empty;
     private NativeFieldNavigationProgressBar? worldMapNavigationProgressBar;
@@ -401,6 +421,15 @@ public sealed class Mod : IModV1, IModV2
     // Shares the one live queue, so the ordering contract is the same object the
     // monitor loop uses and the same one its regression drives.
     private readonly FieldCutsceneDescriptionDelivery fieldCutsceneDescriptionDelivery;
+
+    /// <summary>Where the recorded descriptions and their manifest live.</summary>
+    private const string CutsceneVoiceDirectory = "Assets/cutscene-voice";
+
+    private CutsceneVoicePlayer? cutsceneVoicePlayer;
+
+    // How long the description just said actually lasts, when it was a recording.
+    // Null means the screen reader said it and its length can only be estimated.
+    private TimeSpan? lastDescriptionClipDuration;
 
     // Public because the Reloaded loader constructs this type by reflection; a
     // private constructor would remove the implicit public one and stop the mod
@@ -572,6 +601,7 @@ public sealed class Mod : IModV1, IModV2
             module19WriterProbe?.Dispose();
             openingMovieAudioTrackPlayer?.Dispose();
             fieldMovieNarrationTracker?.Dispose();
+            cutsceneVoicePlayer?.Dispose();
             basketballWindUpCuePlayer?.Dispose();
             basketballTopCuePlayer?.Dispose();
             armWrestlingLevelCuePlayer?.Dispose();
@@ -597,6 +627,13 @@ public sealed class Mod : IModV1, IModV2
             navigationAutoWalkController?.Dispose();
             navigationAutoWalkController = null;
             pendingNavigationAutoWalkToggle = NavigationAutoWalkDomain.None;
+
+            // The detour comes out before anything it calls into goes away. Its
+            // delegate is kept alive by the hook object until this runs.
+            controllerCaptureHook?.Dispose();
+            controllerCaptureHook = null;
+            fieldControllerNavigation = null;
+            worldControllerNavigation = null;
             fieldExitCuePlayer?.Dispose();
             fieldLadderCuePlayer?.Dispose();
             fieldLadderMountCuePlayer?.Dispose();
@@ -756,10 +793,32 @@ public sealed class Mod : IModV1, IModV2
             ResolveOpeningMovieAudioTrackPath(),
             config.OpeningMovieAudioTrackVolumePercent,
             Log);
+
+        // Warmed here rather than when the film starts. Opening the track and the output
+        // device is the slowest thing this player does, and the opening film is the one
+        // case where it has to be instant; it is released again if detection completes
+        // without it ever playing.
+        if (OpeningMovieAudioTrackPolicy.ShouldUseReloadedPlayback(
+                config.EnableOpeningMovieAudioTrack,
+                ffnxRuntimeLoaded))
+        {
+            openingMovieAudioTrackPlayer.Prepare("mod initialization");
+        }
         fieldMovieNarrationTracker = new FieldMovieNarrationTracker(
             CreateFieldMovieNarrationOutput,
             Log,
-            FieldPositionReader.FieldModule);
+            FieldPositionReader.FieldModule,
+            ReadFieldMovieNarrationCues,
+            (owner, reason) => cutsceneVoicePlayer?.StopIfOwnedBy(owner, reason));
+
+        // The recorded voice sits in front of the screen reader for scene
+        // descriptions only. It refuses while a film's own recording has the device,
+        // so two descriptions can never play at once.
+        cutsceneVoicePlayer = new CutsceneVoicePlayer(
+            LoadCutsceneVoiceManifest(),
+            CreateCutsceneVoiceOutput,
+            Log,
+            () => fieldMovieNarrationTracker?.IsPlaying == true);
         fieldVisibleWindowSpeechCoordinator = new FieldVisibleWindowSpeechCoordinator(
             TimeSpan.FromMilliseconds(Math.Max(100, config.FieldMessageStableMs)));
         var legacyAddressSpace = new CurrentProcessLegacyAddressSpace();
@@ -3459,19 +3518,39 @@ public sealed class Mod : IModV1, IModV2
         if (openingPath is null)
         {
             openingMoviePlaybackActive = false;
+            openingMovieArmedAtUtc = null;
             openingMovieAudioTrackPlayer?.Stop("movie path unavailable");
             return;
         }
 
-        var fileHandleActive = RestartManagerProbe.IsFileOpenByProcess(
-            openingPath,
-            Process.GetCurrentProcess().Id);
         var nativeFieldIdBefore = ReadUInt16(FieldPositionReader.AddressFieldId);
         var nativeCueState = default(FieldAudibleCueState);
         var nativeStateReadable =
             fieldAudibleCueStateReader?.TryRead(out nativeCueState) == true;
         var nativeFieldIdAfter = ReadUInt16(FieldPositionReader.AddressFieldId);
         nativeStateReadable &= nativeFieldIdBefore == nativeFieldIdAfter;
+
+        // Once the engine has raised its own film flag for this film, the Restart Manager
+        // query adds nothing the flag does not already say, and it is the only blocking
+        // system call in this loop - a loop shared with every other description. It is
+        // skipped only while that flag is actually readable, so a read that starts failing
+        // falls back to the handle on the same tick rather than ending the film early.
+        var skipHandleQuery = OpeningMovieActivityPolicy.ShouldSkipFileHandleQuery(
+            openingMovieDetected,
+            openingMovieNativeFlagSeen,
+            nativeStateReadable);
+        if (skipHandleQuery && !openingMovieHandlePollingSuppressed)
+        {
+            openingMovieHandlePollingSuppressed = true;
+            Log(
+                "Opening movie tracking switched to the native film flag; " +
+                "Restart Manager file-handle polling paused while it stays readable.");
+        }
+
+        var fileHandleActive = !skipHandleQuery &&
+            RestartManagerProbe.IsFileOpenByProcess(
+                openingPath,
+                Process.GetCurrentProcess().Id);
         var activity = OpeningMovieActivityPolicy.Resolve(
             fileHandleActive,
             nativeStateReadable,
@@ -3480,6 +3559,21 @@ public sealed class Mod : IModV1, IModV2
             nativeCueState.MovieActive);
         var isActive = activity.IsActive;
         openingMoviePlaybackActive = isActive;
+
+        // Asked directly, not taken from activity.Signal: Resolve reports the file handle
+        // whenever it is open, so in the normal case - handle and flag both true - the
+        // native signal never appears there and this was never set, which left the
+        // Restart Manager polling for the whole film.
+        var nativeFilmActive = OpeningMovieActivityPolicy.IsNativeOpeningFilmActive(
+            nativeStateReadable,
+            nativeCueState.Module,
+            nativeFieldIdBefore,
+            nativeCueState.MovieActive);
+        if (nativeFilmActive)
+        {
+            openingMovieNativeFlagSeen = true;
+        }
+
         if (openingMovieDetected)
         {
             if (openingMovieDescription.IsRunning &&
@@ -3500,22 +3594,73 @@ public sealed class Mod : IModV1, IModV2
             return;
         }
 
-        if (isActive)
+        // The file opening and the film beginning are not the same instant. Starting on
+        // the handle put the narration ahead of the picture by however long the decoder
+        // took to get going; the engine raising its own flag is the closer anchor, so the
+        // handle now only arms the device and the flag starts the track.
+        var gate = OpeningMovieActivityPolicy.ResolveStart(
+            fileHandleActive,
+            nativeStateReadable,
+            nativeCueState.Module,
+            nativeFieldIdBefore,
+            nativeCueState.MovieActive,
+            openingMovieArmedAtUtc is { } armedAt
+                ? (lastOpeningMovieProbeAt - armedAt).TotalMilliseconds
+                : null);
+        var reloadedPlayback = OpeningMovieAudioTrackPolicy.ShouldUseReloadedPlayback(
+            config.EnableOpeningMovieAudioTrack,
+            ffnxRuntimeLoaded);
+        if (gate.Action == OpeningMovieStartAction.Arm)
+        {
+            if (openingMovieArmedAtUtc is null)
+            {
+                openingMovieArmedAtUtc = lastOpeningMovieProbeAt;
+                Log($"Opening movie file opened; preparing narration: path={openingPath}");
+                if (reloadedPlayback)
+                {
+                    openingMovieAudioTrackPlayer?.Prepare("opening movie file opened");
+                }
+            }
+
+            CompleteOpeningMovieProbeLifetime(isActive);
+            return;
+        }
+
+        if (gate.Action == OpeningMovieStartAction.Start)
         {
             openingMovieDetected = true;
             Log(
                 $"Detected active opening movie: signal={activity.Signal}, " +
-                $"path={openingPath}");
+                $"anchor={gate.Anchor}, path={openingPath}");
             if (config.EnableOpeningMovieDescription)
             {
                 openingMovieDescription.Start();
             }
 
-            if (OpeningMovieAudioTrackPolicy.ShouldUseReloadedPlayback(
-                    config.EnableOpeningMovieAudioTrack,
-                    ffnxRuntimeLoaded))
+            // Where the film already is, from the engine's own counter. Two readings,
+            // because a single zero is also what a film reads before it has delivered a
+            // frame; only progression anchors the start.
+            var offset = TimeSpan.Zero;
+            var anchor = gate.Anchor;
+            var firstFrame = ReadUInt16(FieldAudibleCueStateReader.AddressFieldMovieFrame);
+            var secondFrame = ReadUInt16(FieldAudibleCueStateReader.AddressFieldMovieFrame);
+            if (OpeningMovieActivityPolicy.TryResolveFrameOffset(
+                    nativeFilmActive,
+                    firstFrame,
+                    secondFrame,
+                    out var frameOffset,
+                    out var frameAnchor))
             {
-                openingMovieAudioTrackPlayer?.Start("native opening movie start");
+                offset = frameOffset;
+                anchor = frameAnchor;
+            }
+
+            if (reloadedPlayback)
+            {
+                openingMovieAudioTrackPlayer?.StartTimed(
+                    "native opening movie start",
+                    offset,
+                    anchor);
             }
         }
 
@@ -3535,12 +3680,21 @@ public sealed class Mod : IModV1, IModV2
         openingMovieProbeLifetime.Observe(
             module,
             fieldId,
-            openingMovieDetected,
+            // An armed film counts as detected here. The window between the file opening
+            // and the engine's flag is short and bounded by the start grace, and without
+            // this a field that has not settled on the opening id yet could retire the
+            // probe inside that window and the narration would never start at all.
+            openingMovieDetected || openingMovieArmedAtUtc is not null,
             movieFileActive,
             supportedEchoSDisclaimer);
         if (wasActive && !openingMovieProbeLifetime.ShouldProbe)
         {
             Log("Opening movie detection complete; stopped Restart Manager file-handle polling.");
+            if (openingMovieAudioTrackPlayer?.IsPlaying != true)
+            {
+                // Nothing is going to play it now, so the warmed device goes back.
+                openingMovieAudioTrackPlayer?.Stop("opening movie detection complete");
+            }
         }
     }
 
@@ -3562,13 +3716,26 @@ public sealed class Mod : IModV1, IModV2
         if (!foregroundProcessGate.IsCurrentProcessForeground())
         {
             fieldMovieNarrationTracker?.Stop(FieldMovieNarrationStopReason.Suspended);
+            cutsceneVoicePlayer?.Stop("the game is no longer the foreground window");
+
+            // Nothing below may run on an unfocused tick. The recorded voice opens
+            // its own device and never consults the foreground gate that
+            // <see cref="Speak"/> does, so falling through would let this very tick
+            // start a clip again immediately after stopping one - and it would go on
+            // talking over whatever window the player has moved to.
+            //
+            // The queue is deliberately left as it stands. These cues are still owed;
+            // they are delivered on the next tick the game is actually in front of
+            // the player.
+            return;
         }
-        else
-        {
-            fieldMovieNarrationTracker?.Observe(
-                ReadFieldMovieNarrationSample(ReadUInt16(FieldScriptContextReader.AddressCurrentFieldId)),
-                DateTime.UtcNow);
-        }
+
+        fieldMovieNarrationTracker?.Observe(
+            ReadFieldMovieNarrationSample(ReadUInt16(FieldScriptContextReader.AddressCurrentFieldId)),
+            DateTime.UtcNow,
+            FieldCutsceneSpeechPriority.ShouldWaitForDialogue(
+                ReadByte(FieldAudibleCueStateReader.AddressActiveFieldMessageCount),
+                fieldMessageReader?.HasReadableActiveWindow() == true));
 
         if (ReadByte(FieldScriptContextReader.AddressCurrentModule) != FieldPositionReader.FieldModule)
         {
@@ -3601,14 +3768,44 @@ public sealed class Mod : IModV1, IModV2
             }
         }
 
-        if (FieldCutsceneSpeechPriority.ShouldWaitForDialogue(
-                ReadByte(FieldAudibleCueStateReader.AddressActiveFieldMessageCount),
-                fieldMessageReader?.HasReadableActiveWindow() == true))
+        var dialogueIsOnScreen = FieldCutsceneSpeechPriority.ShouldWaitForDialogue(
+            ReadByte(FieldAudibleCueStateReader.AddressActiveFieldMessageCount),
+            fieldMessageReader?.HasReadableActiveWindow() == true);
+        if (dialogueIsOnScreen)
         {
+            // A recorded description plays on the same independent device a film's
+            // recording uses, so the game's own words take it away in the same way.
+            cutsceneVoicePlayer?.Stop("native dialogue opened");
             return;
         }
 
         var now = DateTime.UtcNow;
+
+        // A film whose recording gave way to dialogue keeps being described: its
+        // remaining cues are spoken at the moments they belong to, once the game has
+        // finished talking. This runs before the ordinary queue so a cue that is due
+        // now is not held behind a paragraph for a later scene.
+        //
+        // The same reservation every other description obeys applies here: while one
+        // cue is still being read out, the next is not offered. The tracker only
+        // advances its schedule when the speaker actually takes the words, so a
+        // refusal leaves the cue to be offered again rather than losing it.
+        if (fieldMovieNarrationTracker is { } narration &&
+            !fieldCutsceneSpeechPriority.ShouldQueueDialogue(fieldId, now) &&
+            narration.TryDeliverDeferredCue(
+                dialogueIsOnScreen,
+                text => SpeakDescription(text, CutsceneVoiceOwner.FilmCue),
+                out var deferredCue))
+        {
+            ReserveDescriptionWindow(fieldId, deferredCue, now);
+            if (config.EnableFieldCutsceneDescriptionDiagnostics)
+            {
+                Log($"Field movie narration deferred cue spoken: field={fieldId}, text={deferredCue}");
+            }
+
+            return;
+        }
+
         var sample = ReadFieldMovieNarrationSample(fieldId);
 
         // The whole ordering contract - peek, hold for a native film that has not
@@ -3625,9 +3822,12 @@ public sealed class Mod : IModV1, IModV2
                     sample,
                     now)
                 ?? FieldMovieNarrationStartResult.NotDescribed,
-            text => Speak(text, false),
-            candidate => fieldCutsceneSpeechPriority.BeginNarration(candidate.FieldId, candidate.Text, now),
-            out var delivered);
+            SpeakDescription,
+            candidate => ReserveDescriptionWindow(candidate.FieldId, candidate.Text, now),
+            out var delivered,
+            () => FieldMovieNarrationTracker.TryDescribeRunningFilm(sample, out var paragraph)
+                ? paragraph
+                : null);
 
         if (config.EnableFieldCutsceneDescriptionDiagnostics &&
             outcome is FieldCutsceneDeliveryOutcome.Narrated or FieldCutsceneDeliveryOutcome.Spoken)
@@ -3647,7 +3847,11 @@ public sealed class Mod : IModV1, IModV2
             CurrentModule: ReadByte(FieldScriptContextReader.AddressCurrentModule),
             CurrentFieldId: fieldId,
             MovieHandlerState: handlerState,
-            MovieHandlerPhase: handlerPhase);
+            MovieHandlerPhase: handlerPhase,
+            Disc: ReadByte(MovieFilmNameResolver.AddressMovieDisc),
+            MovieCommand: ReadByte(FieldAudibleCueStateReader.AddressFieldMovieCommand),
+            MoviesSkipped: ReadByte(FieldAudibleCueStateReader.AddressFieldMoviesSkipped),
+            MovieFrame: ReadUInt16(FieldAudibleCueStateReader.AddressFieldMovieFrame));
     }
 
     /// <summary>
@@ -3681,6 +3885,8 @@ public sealed class Mod : IModV1, IModV2
         fieldAreaDescriptionColdStart.Reset();
         fieldCutsceneSpeechPriority.Reset();
         fieldMovieNarrationTracker?.Stop(FieldMovieNarrationStopReason.Unloaded);
+        cutsceneVoicePlayer?.StopIfOwnedBy(
+            CutsceneVoiceOwner.FieldAction, "the field description state was reset");
         if (resetCompatibilityState)
         {
             loadedFieldScriptIdentity = null;
@@ -5069,13 +5275,37 @@ public sealed class Mod : IModV1, IModV2
                 higherPrioritySpeech |= ToggleWorldMapAutoWalk(runtime, state, now);
             }
 
-            higherPrioritySpeech |= ProcessWorldMapNavigationOutput(
-                runtime.Navigation.Observe(
-                    state,
-                    now,
-                    navigationAutoWalkController?.IsEnabledFor(
-                        NavigationAutoWalkDomain.WorldMap) == true));
-            higherPrioritySpeech |= UpdateWorldMapAutoWalk(runtime, state);
+            controllerWorldRuntime = runtime;
+            controllerWorldState = state;
+            controllerNavigationNow = now;
+            var controllerMenuIsOpen = DrainControllerNavigation(
+                worldControllerNavigation,
+                ControllerNavigationDomain.WorldMap,
+                WorldMapStateReader.WorldModule,
+                navigationIsSuppressed: false);
+
+            // While the menu is open the player is reading a list. Routine route
+            // directions arriving every few seconds would talk over the item they are
+            // trying to hear, so the route keeps running and stops narrating itself.
+            var worldRouteObservation = runtime.Navigation.Observe(
+                state,
+                now,
+                navigationAutoWalkController?.IsEnabledFor(
+                    NavigationAutoWalkDomain.WorldMap) == true);
+            if (!controllerMenuIsOpen)
+            {
+                higherPrioritySpeech |= ProcessWorldMapNavigationOutput(worldRouteObservation);
+            }
+
+            if (controllerMenuIsOpen)
+            {
+                // Held still while the player reads the list, without losing the route.
+                navigationAutoWalkController?.Suspend();
+            }
+            else
+            {
+                higherPrioritySpeech |= UpdateWorldMapAutoWalk(runtime, state);
+            }
             progressRevision = worldMapNavigationProgressSink?.PublicationRevision ?? 0;
             if (progressRevision != lastWorldMapProgressPublicationRevision)
             {
@@ -5595,13 +5825,33 @@ public sealed class Mod : IModV1, IModV2
                     now);
             }
 
+            // The controller menu, from the commands the input hook left behind. The
+            // hook has already kept these buttons from the game; this is where they
+            // become speech and routes.
+            controllerFieldPosition = result.Position;
+            controllerFieldTransform = controlResult.IsUsable ? controlResult.Transform : null;
+            controllerFieldLadder = ladderState;
+            controllerNavigationNow = now;
+            var controllerMenuIsOpen = DrainControllerNavigation(
+                fieldControllerNavigation,
+                ControllerNavigationDomain.Field,
+                FieldPositionReader.FieldModule,
+                navigationSuppressed || !navigationForeground);
+
             UpdateFieldAutoWalk(
                 result.Position,
                 controlResult,
-                navigationSuppressed || !navigationForeground,
+                // An open menu holds the party still without giving up the route:
+                // the player is choosing where to go, not asking to be carried off
+                // the spot while they read.
+                navigationSuppressed || !navigationForeground || controllerMenuIsOpen,
                 input.Direction);
 
-            if (FieldNavigationSpeechPolicy.IsDue(
+            // Routine route directions stay quiet while the menu is open. The route
+            // keeps running; it just stops talking over the item the player is trying
+            // to hear. The menu's own announcements are unaffected.
+            if (!controllerMenuIsOpen &&
+                FieldNavigationSpeechPolicy.IsDue(
                     now,
                     lastNavigationSpeechAt,
                     config.FieldNavigationSpeechIntervalMs,
@@ -6036,6 +6286,8 @@ public sealed class Mod : IModV1, IModV2
     {
         var module = ReadByte(FieldPositionReader.AddressCurrentModule);
         var foreground = foregroundProcessGate.IsCurrentProcessForeground();
+        PublishControllerNavigationContextFromModule(module, foreground);
+
         var domain = module switch
         {
             FieldPositionReader.FieldModule when config.EnableFieldNavigationAssistant =>
@@ -6077,6 +6329,197 @@ public sealed class Mod : IModV1, IModV2
             pendingNavigationAutoWalkToggle = domain;
         }
     }
+
+    /// <summary>
+    /// Puts the controller menu in front of the game's own XInput read.
+    ///
+    /// <para>Failing here costs the controller menu and nothing else: every keyboard
+    /// binding still works, and the game's input is untouched because no detour went
+    /// in. So it logs and carries on.</para>
+    /// </summary>
+    private void InstallControllerNavigationCapture(IReloadedHooks installedHooks)
+    {
+        if (controllerCaptureHook is not null ||
+            !(config.EnableFieldNavigationAssistant || config.EnableWorldMapNavigationAssistant))
+        {
+            return;
+        }
+
+        if (!XInputCaptureHook.TryInstall(
+                installedHooks,
+                isInstalled => new ControllerNavigationCapture(
+                    suppressor => new ControllerNavigationMenu(
+                        EmptyGamepadReader.Instance, suppressor),
+                    isInstalled,
+                    isForegroundNow: foregroundProcessGate.IsCurrentProcessForeground),
+                out var installed,
+                out var diagnostic,
+                log: Log))
+        {
+            Log($"Controller navigation is unavailable: {diagnostic}");
+            return;
+        }
+
+        controllerCaptureHook = installed;
+        Log(diagnostic);
+
+        fieldControllerNavigation = new ControllerNavigationDispatcher(
+            new ControllerNavigationServices(
+                () => fieldNavigationController.BeaconEnabled,
+                action => fieldNavigationController.HandleAction(
+                    action,
+                    controllerFieldPosition,
+                    controllerFieldTransform,
+                    controllerFieldLadder)?.Speech,
+                () => navigationAutoWalkController?.IsEnabledFor(NavigationAutoWalkDomain.Field) == true,
+                () =>
+                {
+                    if (navigationAutoWalkController?.TryStart(
+                            NavigationAutoWalkDomain.Field, routeActive: true) != true)
+                    {
+                        return false;
+                    }
+
+                    fieldAutoWalkConvergence.Reset();
+                    return true;
+                },
+                StopEveryControllerAutoWalk,
+                () => navigationAutoWalkController?.Suspend()),
+            speech => Speak(speech, interrupt: true),
+            Log);
+
+        worldControllerNavigation = new ControllerNavigationDispatcher(
+            new ControllerNavigationServices(
+                () => controllerWorldRuntime?.Navigation.BeaconEnabled == true,
+                action => controllerWorldRuntime?.Navigation
+                    .HandleAction(action, controllerWorldState, controllerNavigationNow)?.Speech,
+                () => navigationAutoWalkController?.IsEnabledFor(NavigationAutoWalkDomain.WorldMap) == true,
+                () => navigationAutoWalkController?.TryStart(
+                    NavigationAutoWalkDomain.WorldMap, routeActive: true) == true,
+                StopEveryControllerAutoWalk,
+                () => navigationAutoWalkController?.Suspend()),
+            speech => Speak(speech, interrupt: true),
+            Log);
+    }
+
+    /// <summary>
+    /// Ends the automatic walk whatever domain owns it.
+    ///
+    /// <para>Both the stop button and a plain A press come through here. A is spoken
+    /// guidance, and spoken guidance means the mod is no longer driving; and a stop
+    /// pressed as the module changes must still reach the walk that is running, not
+    /// only the one the adapter it arrived at knows about.</para>
+    /// </summary>
+    private void StopEveryControllerAutoWalk()
+    {
+        pendingNavigationAutoWalkToggle = NavigationAutoWalkDomain.None;
+        if (navigationAutoWalkController?.Enabled == true)
+        {
+            _ = navigationAutoWalkController.Stop();
+        }
+
+        fieldAutoWalkConvergence.Reset();
+    }
+
+    /// <summary>
+    /// Tells the capture what the world looks like and does whatever it queued.
+    /// Returns whether the menu owns the pad. Called from every tick that can reach a
+    /// navigable module, and <see cref="PublishControllerNavigationUnavailable"/>
+    /// covers the ticks that cannot.
+    /// </summary>
+    private bool DrainControllerNavigation(
+        ControllerNavigationDispatcher? dispatcher,
+        ControllerNavigationDomain domain,
+        int ownerModule,
+        bool navigationIsSuppressed)
+    {
+        var capture = controllerCaptureHook?.Capture;
+        if (capture is null || dispatcher is null)
+        {
+            return false;
+        }
+
+        var now = DateTime.UtcNow;
+        var module = ReadByte(FieldPositionReader.AddressCurrentModule);
+        capture.PublishContext(
+            domain,
+            foregroundProcessGate.IsCurrentProcessForeground(),
+            module == ownerModule,
+            navigationIsSuppressed,
+            now,
+            // The field is the identity. A selection made in one room must not be
+            // applied in the next: the target it named is not there.
+            identity: domain == ControllerNavigationDomain.Field
+                ? ReadUInt16(FieldPositionReader.AddressFieldId)
+                : 0);
+
+        var isOpen = capture.IsOpen;
+        _ = dispatcher.Drain(capture, domain, now);
+        return isOpen && capture.IsOpen;
+    }
+
+    /// <summary>
+    /// Says the menu may not act: navigation switched off, an unreadable frame, a
+    /// battle, a minigame, a native menu, the window behind something else, or the mod
+    /// going away.
+    ///
+    /// <para>This exists because the drain above sits late in the field and world
+    /// ticks and every earlier return would otherwise leave the last published context
+    /// standing. A context that says "in a field, focused" for ever is a menu that
+    /// opens in a battle.</para>
+    /// </summary>
+    private void PublishControllerNavigationUnavailable()
+    {
+        controllerCaptureHook?.Capture.PublishUnavailable(
+            ControllerNavigationDomain.None, DateTime.UtcNow);
+    }
+
+    /// <summary>
+    /// The floor under every other publication. This runs on a tick that has no early
+    /// returns, so a module the menu must not touch - a battle, a minigame, a shop -
+    /// closes it even though no navigation tick ever reaches the drain there.
+    ///
+    /// <para>Without this the last context published while walking about a field would
+    /// stand for ever, and R3 would open a navigation menu in the middle of a fight.</para>
+    /// </summary>
+    private void PublishControllerNavigationContextFromModule(byte module, bool isForeground)
+    {
+        var capture = controllerCaptureHook?.Capture;
+        if (capture is null)
+        {
+            return;
+        }
+
+        var domain = module switch
+        {
+            FieldPositionReader.FieldModule when config.EnableFieldNavigationAssistant =>
+                ControllerNavigationDomain.Field,
+            WorldMapStateReader.WorldModule when config.EnableWorldMapNavigationAssistant =>
+                ControllerNavigationDomain.WorldMap,
+            _ => ControllerNavigationDomain.None
+        };
+
+        if (domain == ControllerNavigationDomain.None || !isForeground)
+        {
+            capture.PublishUnavailable(domain, DateTime.UtcNow);
+            StopEveryControllerAutoWalk();
+            return;
+        }
+
+        // The navigable case is only the floor: the field and world ticks republish
+        // with what they alone know - suppression, an unreadable frame, a dialogue -
+        // a moment later, and that refresh is what keeps the context fresh.
+        capture.PublishContext(
+            domain,
+            true,
+            true,
+            gameIsBusy: false,
+            DateTime.UtcNow,
+            identity: domain == ControllerNavigationDomain.Field
+                ? ReadUInt16(FieldPositionReader.AddressFieldId)
+                : 0);
+    }
+
 
     private bool HasNavigationAutoWalkToggle(NavigationAutoWalkDomain domain) =>
         pendingNavigationAutoWalkToggle == domain;
@@ -7413,6 +7856,7 @@ public sealed class Mod : IModV1, IModV2
             {
                 hooks = target;
                 Log("Reloaded.Hooks controller acquired.");
+                InstallControllerNavigationCapture(target);
             }
             else
             {
@@ -10127,6 +10571,107 @@ public sealed class Mod : IModV1, IModV2
         return OpeningMoviePathResolver.Resolve(gameRootDirectory, ffnxRuntimeLoaded);
     }
 
+    /// <summary>
+    /// Says a scene description: in the recorded voice when there is a recording of
+    /// those exact words, and through the screen reader when there is not.
+    ///
+    /// <para>Returning false means nobody said it, which is what keeps the cue at the
+    /// head of the queue instead of dropping it silently. The last spoken length is
+    /// remembered so the caller can reserve the dialogue window for exactly as long as
+    /// a recording actually lasts.</para>
+    /// </summary>
+    private bool SpeakDescription(string text) =>
+        SpeakDescription(text, CutsceneVoiceOwner.FieldAction);
+
+    /// <summary>
+    /// Says a scene description: in the recorded voice when there is a recording of
+    /// those exact words, and through the screen reader when there is not.
+    ///
+    /// <para>Being busy is not the same as having nothing. A recording that exists but
+    /// cannot start yet because another description is still speaking returns false
+    /// <em>without</em> falling back - the words would be said in the wrong voice, on
+    /// top of the first one, and the cue would be spent. It stays queued and is
+    /// offered again a tick later.</para>
+    /// </summary>
+    private bool SpeakDescription(string text, CutsceneVoiceOwner owner)
+    {
+        var delivery = CutsceneVoiceSpeaker.Deliver(
+            cutsceneVoicePlayer,
+            text,
+            owner,
+            spoken => Speak(spoken, false),
+            (spoken, length) =>
+            {
+                if (config.EnableFieldCutsceneDescriptionDiagnostics)
+                {
+                    Log($"Cutscene description spoken in the recorded voice " +
+                        $"({length.TotalSeconds:0.##}s): {spoken}");
+                }
+            });
+
+        lastDescriptionClipDuration = delivery.ClipDuration;
+        return delivery.Spoken;
+    }
+
+    /// <summary>
+    /// Holds the dialogue window for the description just said - the clip's own
+    /// length when it was a recording, the word-count estimate when it was speech.
+    /// </summary>
+    private void ReserveDescriptionWindow(int fieldId, string text, DateTime now)
+    {
+        if (lastDescriptionClipDuration is { } clipDuration)
+        {
+            fieldCutsceneSpeechPriority.BeginNarration(fieldId, clipDuration, now);
+            return;
+        }
+
+        fieldCutsceneSpeechPriority.BeginNarration(fieldId, text, now);
+    }
+
+    private IFieldMovieNarrationOutput? CreateCutsceneVoiceOutput(CutsceneVoiceClip clip)
+    {
+        if (!config.EnableFieldCutsceneDescriptions)
+        {
+            return null;
+        }
+
+        var path = Path.Combine(modDirectory, CutsceneVoiceDirectory, clip.FileName);
+        if (!File.Exists(path))
+        {
+            Log($"Cutscene voice recording missing: {path}");
+            return null;
+        }
+
+        return new OpeningMovieAudioTrackPlayer(
+            path,
+            config.FieldMovieNarrationTrackVolumePercent,
+            Log,
+            "Cutscene description");
+    }
+
+    private CutsceneVoiceManifest LoadCutsceneVoiceManifest()
+    {
+        try
+        {
+            var path = Path.Combine(modDirectory, CutsceneVoiceDirectory, "manifest.json");
+            if (!File.Exists(path))
+            {
+                Log("Cutscene voice manifest not installed; descriptions use speech.");
+                return CutsceneVoiceManifest.Empty;
+            }
+
+            var manifest = CutsceneVoiceManifest.Parse(File.ReadAllText(path), Log);
+            Log($"Cutscene voice manifest: {manifest.Count} recorded description(s)" +
+                (manifest.SourceHash is null ? "." : $", source {manifest.SourceHash}."));
+            return manifest;
+        }
+        catch (Exception ex)
+        {
+            Log($"Cutscene voice manifest could not be loaded: {ex.Message}");
+            return CutsceneVoiceManifest.Empty;
+        }
+    }
+
     private IFieldMovieNarrationOutput? CreateFieldMovieNarrationOutput(FieldMovieNarrationTrack track)
     {
         if (!config.EnableFieldMovieNarrationTracks)
@@ -10150,6 +10695,32 @@ public sealed class Mod : IModV1, IModV2
             config.FieldMovieNarrationTrackVolumePercent,
             Log,
             $"Field movie {track.Label}");
+    }
+
+    /// <summary>
+    /// The recording's cue windows, from the sidecar that ships beside it. Read only
+    /// when a film has to give way to the game's own dialogue, so the cost is paid
+    /// once on the rare films that talk over themselves.
+    /// </summary>
+    private IReadOnlyList<MovieNarrationCue> ReadFieldMovieNarrationCues(
+        FieldMovieNarrationTrack track)
+    {
+        try
+        {
+            var directory = config.FieldMovieNarrationTrackDirectory;
+            var stem = Path.GetFileNameWithoutExtension(track.FileName) + ".json";
+            var path = Path.IsPathRooted(directory)
+                ? Path.Combine(directory, stem)
+                : Path.Combine(modDirectory, directory, stem);
+            return File.Exists(path)
+                ? MovieNarrationCueSchedule.Parse(File.ReadAllText(path))
+                : [];
+        }
+        catch (Exception ex)
+        {
+            Log($"Field movie narration cue schedule could not be read ({track.Label}): {ex.Message}");
+            return [];
+        }
     }
 
     private string ResolveOpeningMovieAudioTrackPath()
@@ -11780,8 +12351,3 @@ internal static class MainMenuSpeechOwnership
 [global::Reloaded.Hooks.Definitions.X86.Function(global::Reloaded.Hooks.Definitions.X86.CallingConventions.Cdecl)]
 [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
 public delegate void BattleDamageDisplayDelegate();
-
-
-
-
-

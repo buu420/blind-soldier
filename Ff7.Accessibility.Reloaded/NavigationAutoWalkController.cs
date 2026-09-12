@@ -53,6 +53,16 @@ internal sealed class NavigationAutoWalkController : IDisposable
         ILegacyAddressSpace addressSpace) =>
         new(HighwayAutoSteeringController.CreateCurrentProcess(addressSpace));
 
+    /// <summary>
+    /// The same controller over a host-chosen delivery for the keys it resolves. Used by
+    /// the Steam 2026 runtime, whose keys are marked in the native keyboard state rather
+    /// than pressed on the player's keyboard.
+    /// </summary>
+    internal static NavigationAutoWalkController CreateCurrentProcess(
+        ILegacyAddressSpace addressSpace,
+        IHighwayKeyboardInputSink sink) =>
+        new(HighwayAutoSteeringController.CreateCurrentProcess(addressSpace, sink));
+
     internal bool Enabled => !disposed && domain != NavigationAutoWalkDomain.None;
 
     internal string LastDiagnostic { get; private set; } = string.Empty;

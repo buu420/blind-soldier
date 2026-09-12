@@ -230,11 +230,19 @@ internal static class Steam2026ResearchAccessibilityOutputTests
 
     private sealed class RecordingNarrationPlayback : ISteam2026MovieNarrationPlayback
     {
+        internal List<string> PrepareReasons { get; } = [];
+
         internal List<string> StartReasons { get; } = [];
 
         internal List<string> StopReasons { get; } = [];
 
         internal int DisposeCount { get; private set; }
+
+        public bool Prepare(string reason)
+        {
+            PrepareReasons.Add(reason);
+            return true;
+        }
 
         public bool Start(string reason)
         {

@@ -1,0 +1,20 @@
+[
+  {
+    "description": "A huge armored creature looms, its chest glowing red.",
+    "start_time": "00:00:00.000",
+    "end_time": "00:00:02.740",
+    "id": "1"
+  },
+  {
+    "description": "It turns, white eyes shining above its red mouth.",
+    "start_time": "00:00:08.000",
+    "end_time": "00:00:10.760",
+    "id": "2"
+  },
+  {
+    "description": "A long blade-like crest runs down its back.",
+    "start_time": "00:00:14.000",
+    "end_time": "00:00:16.690",
+    "id": "3"
+  }
+]

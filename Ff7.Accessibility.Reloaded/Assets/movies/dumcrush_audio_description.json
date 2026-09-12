@@ -1,0 +1,32 @@
+[
+  {
+    "description": "Tifa pushes Cloud in his wheelchair.",
+    "start_time": "00:00:00.000",
+    "end_time": "00:00:02.350",
+    "id": "1"
+  },
+  {
+    "description": "Buildings collapse behind them.",
+    "start_time": "00:00:04.500",
+    "end_time": "00:00:06.010",
+    "id": "2"
+  },
+  {
+    "description": "They face a green glow.",
+    "start_time": "00:00:09.500",
+    "end_time": "00:00:10.910",
+    "id": "3"
+  },
+  {
+    "description": "The walkway crumbles beneath them.",
+    "start_time": "00:00:12.500",
+    "end_time": "00:00:14.310",
+    "id": "4"
+  },
+  {
+    "description": "They fall into luminous green water. Ripples spread.",
+    "start_time": "00:00:16.500",
+    "end_time": "00:00:19.360",
+    "id": "5"
+  }
+]

@@ -64,6 +64,14 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
     private readonly NavigationBeaconPlayer? floor60StatueBeaconPlayer;
     private readonly Steam2026FieldNavigationPendingActionBuffer pendingActions = new();
     private readonly NavigationAutoWalkController autoWalk;
+
+    /// <summary>
+    /// Where every automatic direction this runtime drives is delivered. No Windows key
+    /// events: this host synthesizes the legacy keyboard state from its own logical
+    /// actions, so the keys are marked in that state instead - and numpad 2, which the
+    /// control table names for Down, is NVDA's "read current character".
+    /// </summary>
+    private readonly Steam2026NativeDirectionalInputSink directionalInput;
     private readonly Steam2026FieldExitPublicationGate exitPublicationGate = new();
     private readonly Action<string, bool> speak;
     private readonly Action<string> log;
@@ -81,8 +89,20 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
     private string lastStateDiagnostic = string.Empty;
     private readonly FieldAutoWalkConvergenceTracker autoWalkConvergence = new();
     private string lastAutoWalkFailure = string.Empty;
+    private string lastAutoWalkPace = string.Empty;
     private bool pendingAutoWalkStart;
     private bool autoWalkRouteToggleQueued;
+
+    // The controller navigation menu. The SDL capture hook has already decided,
+    // inside the game's own button read, which presses the game may see; this is
+    // where the ones it kept become speech and routes.
+    private readonly Func<ControllerNavigationCapture?> controllerCapture;
+    private ControllerNavigationDispatcher? controllerNavigation;
+    private FieldPositionSnapshot controllerPosition;
+    private FieldNavigationControlTransform? controllerControl;
+    private FieldLadderStateSnapshot controllerLadder;
+    private DateTime controllerNowUtc;
+    private bool controllerMenuIsOpen;
     private bool junonParadeClaimsFieldInput;
     private int disposed;
 
@@ -98,8 +118,15 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         Steam2026FieldFootstepNavigationProbe? probe = null,
         NavigationProgressController? progressController = null,
         Ff7GameLanguageContext? languageContext = null,
-        NavigationAutoWalkController? autoWalk = null)
+        NavigationAutoWalkController? autoWalk = null,
+        Func<ControllerNavigationCapture?>? controllerCapture = null,
+        Steam2026NativeDirectionalInputSink? directionalInput = null)
     {
+        // Never a Win32 sink, even when no sink is supplied: an unattached one refuses
+        // presses with a diagnostic the player hears, which is the honest outcome on a
+        // host whose keyboard-state overlay is missing.
+        this.directionalInput = directionalInput ?? new Steam2026NativeDirectionalInputSink();
+        this.controllerCapture = controllerCapture ?? (static () => null);
         this.config = config ?? throw new ArgumentNullException(nameof(config));
         ArgumentNullException.ThrowIfNull(addressSpace);
         this.addressSpace = addressSpace;
@@ -110,7 +137,9 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         this.speak = speak ?? throw new ArgumentNullException(nameof(speak));
         this.log = log ?? throw new ArgumentNullException(nameof(log));
         this.probe = probe;
-        this.autoWalk = autoWalk ?? NavigationAutoWalkController.CreateCurrentProcess(addressSpace);
+        this.autoWalk = autoWalk ?? NavigationAutoWalkController.CreateCurrentProcess(
+            addressSpace,
+            this.directionalInput);
 
         int ReadInt32(int address) => ReadCheckedInt32(addressSpace, address);
         short ReadInt16(int address) => ReadCheckedInt16(addressSpace, address);
@@ -298,6 +327,78 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             $"arrival={Math.Max(0, config.Floor60StatueArrivalDistanceUnits)}, " +
             $"reactionLeadMs={Math.Max(0, config.Floor60GuardReactionLeadMilliseconds)}, " +
             $"reactionLeadTicks={Floor60SoldierTurnCueTracker.ReactionLeadMillisecondsToTicks(config.Floor60GuardReactionLeadMilliseconds)}.");
+    }
+
+    /// <summary>
+    /// Tells the capture what the world looks like and does whatever it queued.
+    ///
+    /// <para>The capture is fetched through a delegate rather than held, because SDL
+    /// is loaded when the host first looks for a pad and that is often long after
+    /// this coordinator exists. Constructing with a null and never looking again is
+    /// how the menu ends up permanently dead on a session that started early.</para>
+    /// </summary>
+    private void DrainControllerNavigation(bool moduleSupportsNavigation, bool isForeground)
+    {
+        var capture = controllerCapture();
+        if (capture is null)
+        {
+            controllerMenuIsOpen = false;
+            return;
+        }
+
+        capture.PublishContext(
+            ControllerNavigationDomain.Field,
+            isForeground,
+            moduleSupportsNavigation && config.EnableFieldNavigationAssistant,
+            gameIsBusy: false,
+            controllerNowUtc,
+            // The field is the identity: a selection made in one room must not be
+            // applied in the next.
+            identity: controllerPosition.FieldId);
+
+        controllerNavigation ??= new ControllerNavigationDispatcher(
+            new ControllerNavigationServices(
+                () => controller.BeaconEnabled,
+                action => controller
+                    .HandleAction(action, controllerPosition, controllerControl, controllerLadder)?.Speech,
+                () => autoWalk.IsEnabledFor(NavigationAutoWalkDomain.Field),
+                () =>
+                {
+                    if (!autoWalk.TryStart(NavigationAutoWalkDomain.Field, routeActive: true))
+                    {
+                        return false;
+                    }
+
+                    autoWalkConvergence.Reset();
+                    return true;
+                },
+                StopEveryControllerAutoWalk,
+                () => autoWalk.Suspend()),
+            speech => { Speak(speech, interrupt: true, controllerNowUtc, "controller"); return true; },
+            log);
+
+        _ = controllerNavigation.Drain(capture, ControllerNavigationDomain.Field, controllerNowUtc);
+        controllerMenuIsOpen = capture.IsOpen;
+    }
+
+    /// <summary>
+    /// Ends the automatic walk whatever domain owns it, and clears the keyboard
+    /// path's pending start with it.
+    ///
+    /// <para>A is spoken guidance, and spoken guidance means the mod stops driving;
+    /// a stop pressed as the module changes must still reach the walk that is
+    /// actually running rather than only this adapter's domain.</para>
+    /// </summary>
+    private void StopEveryControllerAutoWalk()
+    {
+        if (autoWalk.Enabled)
+        {
+            _ = autoWalk.Stop();
+        }
+
+        autoWalkConvergence.Reset();
+        pendingAutoWalkStart = false;
+        autoWalkRouteToggleQueued = false;
     }
 
     internal void Observe(RuntimeFrameObservation frame, DateTime nowUtc)
@@ -489,7 +590,8 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                     Speak(live.Speech, interrupt: true, nowUtc, "native ladder tracking");
                 }
 
-                UpdateAutoWalk(position, control, canMove: !navigationSuppressed, nowUtc);
+                UpdateAutoWalk(
+                    position, control, canMove: !navigationSuppressed, nowUtc, input.Direction);
 
                 if (!navigationSuppressed && FieldNavigationSpeechPolicy.IsDue(
                         nowUtc,
@@ -541,8 +643,14 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                         ladder.IsMounted ||
                         (cue.Module == FieldPositionReader.FieldModule && cue.UserControl != 0))
                 : NoTargets;
-            var routeCoherent = nativeExitsCoherent && !routePlanner.HadReadFailure;
-            var exitsCoherent = nativeExitsCoherent && routeCoherent;
+            var resolvedCoherence = Steam2026FieldNavigationActionGate.ResolveCoherence(
+                nativeExitsCoherent,
+                storyCoherent,
+                npcsCoherent,
+                objectsCoherent,
+                routePlanner.HadReadFailure);
+            var routeCoherent = resolvedCoherence.Route;
+            var exitsCoherent = resolvedCoherence.Exits;
             if (!exitsCoherent)
             {
                 currentReachableExits = NoTargets;
@@ -627,12 +735,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                 return;
             }
 
-            var coherence = new Steam2026FieldNavigationDomainCoherence(
-                exitsCoherent,
-                storyCoherent,
-                npcsCoherent,
-                objectsCoherent,
-                routeCoherent);
+            var coherence = resolvedCoherence;
             if (pendingAutoWalkStart && !controller.BeaconEnabled && !autoWalkRouteToggleQueued)
             {
                 pendingActions.Capture([FieldNavigationAction.ToggleBeacon]);
@@ -694,6 +797,14 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                 Speak("Auto walk on.", interrupt: true, nowUtc, "P toggle");
             }
 
+            controllerPosition = position;
+            controllerControl = control;
+            controllerLadder = ladder;
+            controllerNowUtc = nowUtc;
+            DrainControllerNavigation(
+                frame.Lifecycle.ModuleId == FieldPositionReader.FieldModule,
+                frame.Lifecycle.IsForeground && foregroundInput.IsCurrentProcessForeground());
+
             var canUpdateLiveTracking = Steam2026FieldNavigationActionGate.CanUpdateLiveTracking(
                 controller.CurrentCategory,
                 controller.BeaconEnabled,
@@ -716,7 +827,8 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             }
 
 
-            UpdateAutoWalk(position, control, canMove: canUpdateLiveTracking, nowUtc);
+            UpdateAutoWalk(
+                position, control, canMove: canUpdateLiveTracking, nowUtc, input.Direction);
 
             var canCreateGuidance = Steam2026FieldNavigationActionGate.CanUpdateLiveTracking(
                 controller.CurrentCategory,
@@ -922,6 +1034,12 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
     internal void Reset()
     {
         ObjectDisposedException.ThrowIf(disposed != 0, this);
+
+        // A reset is the session tearing down or the module changing underneath.
+        // The menu closes with it, and anything queued but not a stop goes: those
+        // selections were about a place the player is no longer in.
+        controllerCapture()?.RequestClose();
+        controllerMenuIsOpen = false;
         controller.Reset();
         autoWalk.Reset();
         autoWalkConvergence.Reset();
@@ -962,6 +1080,11 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
     internal void Suspend()
     {
         ObjectDisposedException.ThrowIf(disposed != 0, this);
+
+        // Losing the foreground or the frame closes the menu too, so nothing held
+        // through the gap can act when it comes back.
+        controllerCapture()?.RequestClose();
+        controllerMenuIsOpen = false;
         pendingActions.Clear();
         autoWalk.Suspend();
         autoWalkConvergence.Suspend();
@@ -1030,11 +1153,19 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         exitPublicationGate.Reset();
     }
 
+    /// <param name="observedInput">
+    /// The direction the game is actually acting on, from the same coherent base read
+    /// the rest of this frame uses. Without it the shared controller cannot tell a held
+    /// key that the game swallowed from one it is honouring, so its reassertion never
+    /// runs - it only triggers on an observed <c>None</c>, and a null skips the check
+    /// entirely. x86 has always passed this; both native call sites omitted it.
+    /// </param>
     private void UpdateAutoWalk(
         FieldPositionSnapshot position,
         FieldNavigationControlTransform control,
         bool canMove,
-        DateTime nowUtc)
+        DateTime nowUtc,
+        FieldNavigationInput observedInput)
     {
         if (!autoWalk.IsEnabledFor(NavigationAutoWalkDomain.Field))
         {
@@ -1050,6 +1181,10 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             return;
         }
 
+        // An open navigation menu holds the party still without giving up the
+        // route: the player is choosing where to go, not asking to be carried off
+        // the spot while they read the list.
+        canMove = canMove && !controllerMenuIsOpen;
         var direction = FieldNavigationInput.None;
         var hasDirection = canMove && controller.TryResolveAutomaticInput(
             position,
@@ -1057,12 +1192,37 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             Math.Max(0, config.FieldNavigationArrivalDistanceUnits),
             out direction);
         StopAutoWalkIfItCannotGetCloser(position, hasDirection, canMove, nowUtc);
+
+        // State changes only, never per frame. A stall is diagnosed by whether a
+        // direction was requested and whether the game was acting on one, and neither
+        // was previously recorded anywhere.
+        var pace = hasDirection
+            ? $"requested={direction}, observed={observedInput}"
+            : $"requested=none, observed={observedInput}, canMove={canMove}, " +
+              $"menuOpen={controllerMenuIsOpen}, hold={controller.LastAutomaticInputHold}";
+        if (!string.Equals(pace, lastAutoWalkPace, StringComparison.Ordinal))
+        {
+            lastAutoWalkPace = pace;
+            LogInputDiagnostic($"auto walk pace: {pace}");
+        }
+
         var result = autoWalk.Drive(
             hasDirection ? direction : FieldNavigationInput.None,
             canMove: hasDirection,
-            routeActive: controller.BeaconEnabled);
+            routeActive: controller.BeaconEnabled,
+            observedInput: observedInput);
         if (result.Success)
         {
+            // Renewed after the drive, never before it, so the renewal always belongs to
+            // the direction the controller has just committed to. A direction nobody
+            // renews goes inert within half a second without being taken off the shared
+            // controller behind its back - stopping, pausing, arriving and opening the
+            // menu all release it through Drive on this same frame.
+            if (hasDirection)
+            {
+                directionalInput.Renew(nowUtc);
+            }
+
             lastAutoWalkFailure = string.Empty;
             return;
         }
@@ -1070,7 +1230,10 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         if (!string.Equals(result.Diagnostic, lastAutoWalkFailure, StringComparison.Ordinal))
         {
             lastAutoWalkFailure = result.Diagnostic;
-            LogInputDiagnostic($"auto walk failed closed: {result.Diagnostic}");
+            var delivery = directionalInput.Diagnostic;
+            LogInputDiagnostic(
+                $"auto walk failed closed: {result.Diagnostic}"
+                + (delivery.Length == 0 ? string.Empty : $" ({delivery})"));
             Speak("Auto walk stopped because directional input failed.", true, nowUtc, "input failure");
         }
     }
@@ -1088,16 +1251,17 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
     {
         var guidance = controller.CurrentRouteGuidance;
         var label = controller.CurrentTargetLabel;
+        var hold = guidance is null
+            ? FieldAutoWalkHoldReason.NoRoute
+            : hasDirection
+                ? FieldAutoWalkHoldReason.None
+                : controller.LastAutomaticInputHold;
         if (!autoWalkConvergence.Observe(
                 new FieldAutoWalkConvergenceSample(
                     IsAutoWalkEnabled: true,
                     RouteIdentity: controller.CurrentRouteIdentity,
                     IsHeldByGame: !canMove,
-                    Hold: guidance is null
-                        ? FieldAutoWalkHoldReason.NoRoute
-                        : hasDirection
-                            ? FieldAutoWalkHoldReason.None
-                            : controller.LastAutomaticInputHold,
+                    Hold: hold,
                     PortalIndex: guidance?.PortalIndex ?? 0,
                     RemainingDistance: guidance?.RemainingDistance ?? 0d),
                 nowUtc))
@@ -1110,7 +1274,8 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             "auto walk stopped: no meaningful progress for " +
             $"{FieldAutoWalkConvergenceTracker.NoProgressTimeout.TotalSeconds:0} seconds; " +
             $"target={label}, remaining={guidance?.RemainingDistance ?? 0d:0}, " +
-            $"portal={guidance?.PortalIndex ?? -1}, hold={controller.LastAutomaticInputHold}, " +
+            $"portal={guidance?.PortalIndex ?? -1}, hold={hold}, canMove={canMove}, " +
+            $"direction={hasDirection}, input={autoWalk.LastDiagnostic}, " +
             $"position={position.X},{position.Y}");
         if (!autoWalk.Stop())
         {

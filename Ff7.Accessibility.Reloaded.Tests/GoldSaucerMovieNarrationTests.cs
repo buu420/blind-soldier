@@ -153,12 +153,22 @@ internal static class GoldSaucerMovieNarrationTests
         Equal("gold1_audio_description.ogg", track.FileName, "the arrival track file must be the reviewed asset");
         Equal(ArrivalFilm, track.MovieNumber, "the arrival track must name the native film number");
         Equal(45.0d, track.DurationSeconds, "the arrival track duration must match the 45-second film");
-        Equal(false, FieldMovieNarrationPolicy.TryResolve(Gldst, 0, 0, DockingByte, out _),
-            "the docking film start must not resolve to the panorama narration");
+        // The docking film now has a recording of its own, so this anchor resolves -
+        // but it must resolve to that film and never to the 45-second panorama. The
+        // point of the byte-level anchor is exactly this separation: both films start
+        // from the same field, module and entity.
+        Equal(true, FieldMovieNarrationPolicy.TryResolve(Gldst, 0, 0, DockingByte, out var docking),
+            "the docking film start resolves to its own narration track");
+        Equal(DockingFilm, docking.MovieNumber,
+            "the docking anchor must name the docking film, not the panorama");
+        Equal("u_ropein_audio_description.ogg", docking.FileName,
+            "the docking anchor must play the docking recording");
         Equal(false, FieldMovieNarrationPolicy.TryResolve(Gldst, 0, 0, 185, out _),
             "the prepare opcode must not start narration");
-        Equal(false, FieldMovieNarrationPolicy.TryResolve(457, 2, 3, 109, out _),
-            "the ropeway departure cue has no independent track");
+        Equal(true, FieldMovieNarrationPolicy.TryResolve(457, 2, 3, 109, out var ropeway),
+            "the ropeway departure film now carries its own recording");
+        Equal("d_ropego_audio_description.ogg", ropeway.FileName,
+            "the ropeway departure anchor must play the ropeway recording");
     }
 
     private static void StartsOnItsOwnFilmAndIgnoresDuplicateDelivery()
@@ -442,8 +452,14 @@ internal static class GoldSaucerMovieNarrationTests
         var boundaries = new (FieldMovieNarrationSample Sample, string Expected)[]
         {
             (Idle(), "MovieEnded"),
-            (new FieldMovieNarrationSample(true, ArrivalFilm, 3, Gldst), "ModuleChanged"),
-            (new FieldMovieNarrationSample(true, ArrivalFilm, FieldModule, 497), "FieldChanged"),
+            (new FieldMovieNarrationSample(true, ArrivalFilm, 3, Gldst, Disc: 1,
+                MovieCommand: FieldMovieNarrationSample.CommandStartMovie, MovieFrame: 0), "ModuleChanged"),
+            // A new field with no film running, or a different one: the scene the
+            // description belongs to is over either way.
+            (new FieldMovieNarrationSample(false, 0, FieldModule, 497, Disc: 1,
+                MovieCommand: FieldMovieNarrationSample.CommandStartMovie, MovieFrame: 0), "FieldChanged"),
+            (new FieldMovieNarrationSample(true, DockingFilm, FieldModule, 497, Disc: 1,
+                MovieCommand: FieldMovieNarrationSample.CommandStartMovie, MovieFrame: 0), "FieldChanged"),
             (Playing(DockingFilm), "OtherMovieStarted")
         };
         foreach (var (sample, expected) in boundaries)
@@ -467,6 +483,22 @@ internal static class GoldSaucerMovieNarrationTests
         steadyTracker.Observe(Playing(ArrivalFilm), Start.AddSeconds(10));
         Equal(true, steadyTracker.IsPlaying, "an unchanged film must keep playing");
         Equal(0, steady.Stops, "an unchanged film must not stop the track");
+
+        // A film can outlive the field that started it - the Highwind sequence runs
+        // one film across four fields whose scripts have a MOVIE and no PMVIE of
+        // their own. The story moving on under a film that is still the same film is
+        // not the film ending, and cutting the description there would lose the rest
+        // of it for no reason.
+        var continued = new FakeOutput();
+        using var continuedTracker = Create(continued, out _);
+        Ingress(continuedTracker, ArrivalByte, Playing(ArrivalFilm), Start);
+        Equal(true, Deliver(continuedTracker, ArrivalByte, Playing(ArrivalFilm), Start.AddMilliseconds(100)), "starts");
+        continuedTracker.Observe(
+            new FieldMovieNarrationSample(true, ArrivalFilm, FieldModule, 497, Disc: 1,
+                MovieCommand: FieldMovieNarrationSample.CommandStartMovie, MovieFrame: 90),
+            Start.AddSeconds(6));
+        Equal(true, continuedTracker.IsPlaying, "the same film in a new field keeps playing");
+        Equal(0, continued.Stops, "and is not restarted");
 
         var unloaded = new FakeOutput();
         var unloadedTracker = Create(unloaded, out _);
@@ -529,7 +561,9 @@ internal static class GoldSaucerMovieNarrationTests
         var assets = Path.Combine(sourceRoot, "Ff7.Accessibility.Reloaded", "Assets", "movies");
         var track = Path.Combine(assets, FieldMovieNarrationPolicy.GoldSaucerArrival.FileName);
         Equal(true, File.Exists(track), $"the reviewed narration asset must be present at {track}");
-        Equal("FE28B901831880C63193C6FD6E22918A3B3BD253DE6E75C65E8708C01738E552",
+        // Brice's approved voice export (2026-09-12), with the same script and cue starts.
+        // qa-release.json records the audio, transcript and duration checks for these bytes.
+        Equal("6E4D52C3F5297F024FB4F2E4B8C1D258EA524063ED0C5E7FE96B8F38830EC255",
             Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(track))),
             "the packaged narration must be the reviewed recording");
         foreach (var companion in new[] { "gold1_audio_description.json", "gold1_audio_description.credits.txt" })
@@ -541,17 +575,20 @@ internal static class GoldSaucerMovieNarrationTests
 
     private static void EveryGondolaFilmIsAnchoredToItsOwnInstalledFilmStart()
     {
-        // Five films, each with two anchors because the ride's script forks on which
-        // companion came along. gold7 and gold7_2 are deliberately absent: they are
-        // the evening date scene, not a first-visit gondola view.
+        // The five first-visit gondola views, each with two anchors because the
+        // ride's script forks on which companion came along. Selected by film number
+        // rather than by field: gold7 and gold7_2, the evening date scene, start from
+        // the same field and now carry reviewed recordings of their own, so a
+        // field-wide filter no longer means "the gondola films".
+        int[] gondolaFilms = [6, 7, 8, 9, 10];
         var gondola = FieldMovieNarrationPolicy.All
-            .Where(track => track.FieldId is 489 or 490)
+            .Where(track => gondolaFilms.Contains(track.MovieNumber))
             .ToArray();
         Equal(10, gondola.Length, "the five gondola films must each carry both companion branches");
         Equal(5, gondola.Select(track => track.MovieNumber).Distinct().Count(),
             "the ten anchors must cover exactly five films");
-        Equal(false, gondola.Any(track => track.MovieNumber is 48 or 49),
-            "gold7 and gold7_2 must not be described");
+        Equal(true, gondola.All(track => track.FieldId is 489 or 490),
+            "every gondola anchor belongs to bwhlin or bwhlin2");
         Equal(10, gondola.Select(track => (track.FieldId, track.ByteIndex)).Distinct().Count(),
             "no two anchors may share a field and byte");
 
@@ -650,11 +687,21 @@ internal static class GoldSaucerMovieNarrationTests
         // manifest is.
     }
 
-    private static FieldMovieNarrationSample Playing(int movieNumber) =>
-        new(true, movieNumber, FieldModule, Gldst);
+    // A synthetic sample has to say which disc it is on and which command owns the
+    // film number, because production refuses to identify a film without both. The
+    // Gold Saucer is disc 1 and these samples are the engine playing a film, so that
+    // is what they say rather than leaving a default to stand in for evidence.
+    // The film's own frame counter is part of a sample now: a film at frame zero is
+    // a film that has just started, which is what these fixtures mean.
+    private static FieldMovieNarrationSample Playing(int movieNumber, int frame = 0) =>
+        new(true, movieNumber, FieldModule, Gldst,
+            Disc: 1, MovieCommand: FieldMovieNarrationSample.CommandStartMovie,
+            MovieFrame: frame);
 
     private static FieldMovieNarrationSample Idle() =>
-        new(false, 0, FieldModule, Gldst);
+        new(false, 0, FieldModule, Gldst,
+            Disc: 1, MovieCommand: FieldMovieNarrationSample.CommandStartMovie,
+            MovieFrame: 0);
 
     private static FieldMovieNarrationSample Fresh(FieldMovieNarrationSample sample) =>
         sample with

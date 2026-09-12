@@ -66,9 +66,19 @@ internal sealed class HighwayAutoSteeringController : IDisposable
 
     internal static HighwayAutoSteeringController CreateCurrentProcess(
         ILegacyAddressSpace addressSpace) =>
-        new(
-            new Win32HighwayKeyboardInputSink(),
-            new HighwayDirectionInputMappingResolver(addressSpace));
+        CreateCurrentProcess(addressSpace, new Win32HighwayKeyboardInputSink());
+
+    /// <summary>
+    /// The same live control-table resolution over a delivery the host chooses. The Steam
+    /// 2026 runtime supplies one that marks the resolved keys in the keyboard state its
+    /// own DirectInput shim synthesizes, because that host does not read the keyboard the
+    /// original did and <c>SendInput</c> reaches the player's screen reader instead of the
+    /// game.
+    /// </summary>
+    internal static HighwayAutoSteeringController CreateCurrentProcess(
+        ILegacyAddressSpace addressSpace,
+        IHighwayKeyboardInputSink sink) =>
+        new(sink, new HighwayDirectionInputMappingResolver(addressSpace));
 
     internal string LastDiagnostic { get; private set; } = string.Empty;
 

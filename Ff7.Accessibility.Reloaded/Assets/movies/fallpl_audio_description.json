@@ -1,0 +1,50 @@
+[
+  {
+    "description": "Steel supports stretch beneath Midgar's plate.",
+    "start_time": "00:00:00.000",
+    "end_time": "00:00:02.540",
+    "id": "1"
+  },
+  {
+    "description": "Explosions race up the pillar. Fiery debris rains down.",
+    "start_time": "00:00:04.700",
+    "end_time": "00:00:08.120",
+    "id": "2"
+  },
+  {
+    "description": "A television turns to static. The room darkens.",
+    "start_time": "00:00:13.100",
+    "end_time": "00:00:15.540",
+    "id": "3"
+  },
+  {
+    "description": "The huge plate plunges. Lights go out.",
+    "start_time": "00:00:18.000",
+    "end_time": "00:00:20.290",
+    "id": "4"
+  },
+  {
+    "description": "People flee through an alley, debris billowing behind.",
+    "start_time": "00:00:23.000",
+    "end_time": "00:00:25.850",
+    "id": "5"
+  },
+  {
+    "description": "Between two green towers, Sector 7 burns beneath clouds of smoke.",
+    "start_time": "00:00:30.000",
+    "end_time": "00:00:33.910",
+    "id": "6"
+  },
+  {
+    "description": "President Shinra watches the destruction from above.",
+    "start_time": "00:00:39.000",
+    "end_time": "00:00:41.420",
+    "id": "7"
+  },
+  {
+    "description": "The view rises along the green-lit Shinra tower.",
+    "start_time": "00:00:45.500",
+    "end_time": "00:00:47.960",
+    "id": "8"
+  }
+]

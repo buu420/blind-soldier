@@ -52,13 +52,31 @@ internal static class EchoSCompatibilityTests
         Equal(false, reader.TryRead(out _), "torn loaded script rejected");
     }
 
-    internal static void AuthorizesInstalledJunonThroughCostaDescriptionAnchors(string gameRoot)
+    /// <summary>
+    /// Every installed field the description catalog anchors in: read its real script
+    /// section, resolve the identity the runtime would resolve, and drive each cue
+    /// through the production wrapper with the negatives that matter - a nearby byte,
+    /// the wrong opcode, another field's identity, a repeated handler delivery, and a
+    /// mutated script prefix that must authorize nothing at all.
+    /// </summary>
+    internal static void AuthorizesInstalledDescriptionAnchors(string gameRoot)
     {
         const uint scriptPointer = 0x02000000;
         var source = new FlevelDataSource(gameRoot);
         var nativeCatalog = new FieldScriptNavigationCatalog(gameRoot);
+        // Every field the description catalog anchors a reviewed film in, plus the
+        // Junon-through-Costa set this check started with. Each one is read from the
+        // installed flevel, resolved through the production identity reader and driven
+        // through EchoSFieldCutsceneDescriptionTracker cue by cue.
         var fieldIds = new[] { 361, 382, 384, 385, 387, 391, 395, 436, 437, 440, 441, 442,
-            449, 450, 457, 463, 464, 469, 470, 483, 496 };
+            449, 450, 457, 463, 464, 469, 470, 483, 496,
+            67, 68, 87, 117, 119, 127, 133, 137, 139, 143, 160, 240, 269, 292, 311, 312,
+            323, 347, 356, 359, 384, 385, 391, 395, 399, 400, 402, 411, 416, 457, 461, 462,
+            489, 496, 567, 569, 637, 639, 641, 643, 647, 695, 706, 707, 708, 725, 726, 727,
+            729, 730, 763, 774, 777, 779,
+            // The sites the script call graph resolved: the first plays of the bike
+            // and Seto films and three further ones.
+            234, 236, 543, 550, 742 };
         var cues = FieldCutsceneDescriptionCatalog.CreateEarlyGameDescriptions();
         foreach (var fieldId in fieldIds)
         {

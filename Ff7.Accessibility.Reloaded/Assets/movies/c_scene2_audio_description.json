@@ -1,0 +1,20 @@
+[
+  {
+    "description": "Dust rises beneath tangled roots.",
+    "start_time": "00:00:00.300",
+    "end_time": "00:00:02.380",
+    "id": "1"
+  },
+  {
+    "description": "Rocks tumble onto the ledge.",
+    "start_time": "00:00:04.000",
+    "end_time": "00:00:05.740",
+    "id": "2"
+  },
+  {
+    "description": "Sephiroth floats motionless inside a blue crystal.",
+    "start_time": "00:00:07.700",
+    "end_time": "00:00:10.210",
+    "id": "3"
+  }
+]

@@ -53,6 +53,7 @@
     <None Include="Assets\arcade\field_activity_button_ready.wav" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Assets\arcade\field_activity_cues.credits.txt" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Assets\movies\opening_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\opening_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Assets\movies\gold1_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Assets\movies\gold1_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Assets\movies\gold1_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
@@ -74,6 +75,291 @@
     <None Include="Assets\movies\gold6_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Assets\movies\gold6_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Assets\movies\gold6_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The reviewed film descriptions: 47 films, one recording, one timed sidecar
+         and one credits file each. Listed by name rather than globbed so a stray
+         file cannot ship and a missing one fails the build. -->
+    <None Include="Assets\movies\biglight_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\biglight_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\biglight_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\bike_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\bike_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\bike_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\biskdead_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\biskdead_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\biskdead_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\boogdemo_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\boogdemo_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\boogdemo_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\brgnvl_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\brgnvl_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\brgnvl_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\c_scene1_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\c_scene1_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\c_scene1_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\c_scene2_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\c_scene2_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\c_scene2_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\c_scene3_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\c_scene3_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\c_scene3_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\car_1209_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\car_1209_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\car_1209_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\d_ropego_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\d_ropego_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\d_ropego_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\d_ropein_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\d_ropein_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\d_ropein_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\earithdd_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\earithdd_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\earithdd_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\fallpl_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\fallpl_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\fallpl_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\funeral_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\funeral_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\funeral_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\gold7_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\gold7_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\gold7_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\gold7_2_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\gold7_2_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\gold7_2_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\greatpit_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\greatpit_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\greatpit_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\hiwind0_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\hiwind0_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\hiwind0_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\jairofal_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\jairofal_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\jairofal_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\jairofly_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\jairofly_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\jairofly_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\junair_d_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\junair_d_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\junair_d_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\junair_u_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\junair_u_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\junair_u_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\junelego_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\junelego_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\junelego_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\junelein_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\junelein_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\junelein_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\junin_go_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\junin_go_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\junin_go_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\junin_in_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\junin_in_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\junin_in_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\junon_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\junon_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\junon_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\mainplr_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\mainplr_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\mainplr_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\meteosky_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\meteosky_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\meteosky_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\mk8_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\mk8_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\mk8_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\mkup_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\mkup_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\mkup_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\monitor_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\monitor_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\monitor_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\mtcrl_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\mtcrl_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\mtcrl_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\mtnvl_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\mtnvl_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\mtnvl_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\mtnvl2_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\mtnvl2_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\mtnvl2_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\nivlsfs_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\nivlsfs_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\nivlsfs_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\northmk_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\northmk_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\northmk_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\nvlmk_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\nvlmk_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\nvlmk_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\ontrain_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\ontrain_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\ontrain_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\plrexp_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\plrexp_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\plrexp_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\rcktfail_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\rcktfail_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\rcktfail_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\setogake_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\setogake_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\setogake_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\smk_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\smk_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\smk_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\southmk_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\southmk_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\southmk_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\u_ropego_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\u_ropego_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\u_ropego_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\u_ropein_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\u_ropein_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\u_ropein_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\weapon0_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\weapon0_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\weapon0_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The second reviewed batch: 46 more films, one recording, one timed
+         sidecar and one credits file each. The sidecar is not decoration - it is
+         what lets a film the game talks over keep being described. -->
+    <None Include="Assets\movies\boogdown_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\boogdown_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\boogdown_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\boogstar_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\boogstar_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\boogstar_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\boogup_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\boogup_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\boogup_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\canon_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\canon_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\canon_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\canonh1p_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\canonh1p_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\canonh1p_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\canonh3f_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\canonh3f_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\canonh3f_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\canonht0_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\canonht0_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\canonht0_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\canonht1_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\canonht1_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\canonht1_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\canonht2_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\canonht2_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\canonht2_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\canonon_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\canonon_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\canonon_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\dumcrush_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\dumcrush_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\dumcrush_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\ending1_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\ending1_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\ending1_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\ending2_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\ending2_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\ending2_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\ending3_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\ending3_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\ending3_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\fcar_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\fcar_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\fcar_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\feelwin0_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\feelwin0_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\feelwin0_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\feelwin1_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\feelwin1_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\feelwin1_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\fship2_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\fship2_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\fship2_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\gelnica_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\gelnica_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\gelnica_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\hwindfly_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\hwindfly_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\hwindfly_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\hwindjet_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\hwindjet_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\hwindjet_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\jenova_e_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\jenova_e_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\jenova_e_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\junsea_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\junsea_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\junsea_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\last4_4_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\last4_4_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\last4_4_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\lastflor_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\lastflor_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\lastflor_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\lastmap_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\lastmap_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\lastmap_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\loslake1_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\loslake1_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\loslake1_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\lslmv_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\lslmv_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\lslmv_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\meteofix_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\meteofix_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\meteofix_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\nrcrl_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\nrcrl_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\nrcrl_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\nrcrl_b_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\nrcrl_b_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\nrcrl_b_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\parashot_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\parashot_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\parashot_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\phoenix_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\phoenix_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\phoenix_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\rckethit0_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\rckethit0_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\rckethit0_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\rckethit1_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\rckethit1_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\rckethit1_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\rcketoff_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\rcketoff_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\rcketoff_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\weapon1_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\weapon1_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\weapon1_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\weapon2_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\weapon2_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\weapon2_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\weapon3_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\weapon3_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\weapon3_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\weapon4_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\weapon4_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\weapon4_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\weapon5_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\weapon5_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\weapon5_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\wh2e2_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\wh2e2_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\wh2e2_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\white2_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\white2_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\white2_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\zmind01_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\zmind01_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\zmind01_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\zmind02_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\zmind02_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\zmind02_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\zmind03_audio_description.credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\zmind03_audio_description.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\movies\zmind03_audio_description.ogg" CopyToOutputDirectory="PreserveNewest" />
     <None Include="ModConfig.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Assets\footsteps\selected_subway_step.ogg" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Assets\footsteps\cosmo\config.toml" CopyToOutputDirectory="PreserveNewest" />
@@ -85,5 +371,15 @@
     <None Include="$(NuGetPackageRoot)steamaudio.net.natives\4.6.1\runtimes\win-x86\native\phonon.dll" CopyToOutputDirectory="PreserveNewest" Link="phonon.dll" Condition="Exists('$(NuGetPackageRoot)steamaudio.net.natives\4.6.1\runtimes\win-x86\native\phonon.dll')" />
   </ItemGroup>
 
-</Project>
 
+  <ItemGroup>
+    <!-- The recorded scene descriptions: one clip per distinct description, named by
+         the SHA-256 of its exact text, plus the manifest that maps text to clip. The
+         wildcard is scoped to this folder alone; every other asset is still declared
+         by name. A missing clip is not a failure - that description falls back to the
+         screen reader. -->
+    <None Include="Assets\cutscene-voice\credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\cutscene-voice\*.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\cutscene-voice\*.ogg" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

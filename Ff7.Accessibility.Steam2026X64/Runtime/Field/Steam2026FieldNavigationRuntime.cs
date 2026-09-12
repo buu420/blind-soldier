@@ -219,6 +219,32 @@ internal static class Steam2026FieldNavigationActionGate
         return !(requiresCoherentRoute ?? RequiresCoherentRoute(action, beaconEnabled)) || coherence.Route;
     }
 
+    /// <summary>
+    /// Which target domains are coherent this frame, and whether a route may be walked.
+    ///
+    /// <para><c>Route</c> is the route planner's own read health and nothing else. It
+    /// used to be <c>nativeExitsCoherent &amp;&amp; !hadReadFailure</c>, which silently
+    /// stopped auto walk to a <em>story</em> target whenever the unrelated exit scan
+    /// failed - and that scan fails routinely while the field's model ownership
+    /// changes. The exits category still needs its own domain: that is what
+    /// <c>IsCategoryCoherent</c> is for.</para>
+    /// </summary>
+    internal static Steam2026FieldNavigationDomainCoherence ResolveCoherence(
+        bool nativeExitsCoherent,
+        bool storyCoherent,
+        bool npcsCoherent,
+        bool objectsCoherent,
+        bool routePlannerHadReadFailure)
+    {
+        var route = !routePlannerHadReadFailure;
+        return new Steam2026FieldNavigationDomainCoherence(
+            Exits: nativeExitsCoherent && route,
+            Story: storyCoherent,
+            Npcs: npcsCoherent,
+            Objects: objectsCoherent,
+            Route: route);
+    }
+
     internal static bool CanUpdateLiveTracking(
         FieldNavigationCategory currentCategory,
         bool beaconEnabled,

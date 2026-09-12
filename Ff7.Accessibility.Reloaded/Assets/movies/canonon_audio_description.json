@@ -1,0 +1,32 @@
+[
+  {
+    "description": "Meteor blazes through the clouds.",
+    "start_time": "00:00:00.000",
+    "end_time": "00:00:01.920",
+    "id": "1"
+  },
+  {
+    "description": "Helicopters sweep past, their searchlights shining.",
+    "start_time": "00:00:04.000",
+    "end_time": "00:00:07.040",
+    "id": "2"
+  },
+  {
+    "description": "They circle Shinra's towers and enormous pipework.",
+    "start_time": "00:00:14.000",
+    "end_time": "00:00:16.810",
+    "id": "3"
+  },
+  {
+    "description": "A gleaming cannon barrel stretches above scaffolds and cables.",
+    "start_time": "00:00:26.000",
+    "end_time": "00:00:29.430",
+    "id": "4"
+  },
+  {
+    "description": "The massive weapon towers over Midgar.",
+    "start_time": "00:00:39.000",
+    "end_time": "00:00:41.310",
+    "id": "5"
+  }
+]

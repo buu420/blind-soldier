@@ -42,15 +42,47 @@ public static class FieldMovieNarrationSampleReader
         }
 
         TryReadHandlerState(memory, out var handlerState, out var handlerPhase);
+
+        // Both are byte reads, and both must fail closed. An unreadable command byte
+        // means the argument word cannot be trusted as a film number; an unreadable
+        // skip gate means we do not know whether the player is being shown anything.
+        var command = memory.TryReadByte(
+            (uint)FieldAudibleCueStateReader.AddressFieldMovieCommand, out var commandByte)
+            ? commandByte
+            : FieldMovieNarrationSample.CommandUnknown;
+        var skipped = memory.TryReadByte(
+            (uint)FieldAudibleCueStateReader.AddressFieldMoviesSkipped, out var skipByte)
+            ? skipByte
+            : 1;
+
         sample = new FieldMovieNarrationSample(
             MovieActive: movieActive != 0,
             MovieNumber: movieNumber,
             CurrentModule: module,
             CurrentFieldId: fieldId,
             MovieHandlerState: handlerState,
-            MovieHandlerPhase: handlerPhase);
+            MovieHandlerPhase: handlerPhase,
+            Disc: ReadDisc(memory),
+            MovieCommand: command,
+            MoviesSkipped: skipped,
+            MovieFrame: memory.TryReadUInt16(
+                (uint)FieldAudibleCueStateReader.AddressFieldMovieFrame, out var frame)
+                ? frame
+                : FieldMovieNarrationSample.FrameUnknown);
         return true;
     }
+
+    /// <summary>
+    /// The disc the game would resolve a film number against, or
+    /// <see cref="MovieFilmNameResolver.DiscUnknown"/> when it cannot be read. A
+    /// failed read is not evidence that the disc changed, so it leaves the film
+    /// number check in charge rather than silencing every description.
+    /// </summary>
+    public static int ReadDisc(ILegacyAddressSpace memory) =>
+        memory is not null &&
+        memory.TryReadByte((uint)MovieFilmNameResolver.AddressMovieDisc, out var disc)
+            ? disc
+            : MovieFilmNameResolver.DiscUnknown;
 
     /// <summary>
     /// The handler's state byte and phase word, through the field script context

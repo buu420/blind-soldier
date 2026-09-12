@@ -1,0 +1,20 @@
+[
+  {
+    "description": "A brilliant beam streaks across snowy mountains.",
+    "start_time": "00:00:00.000",
+    "end_time": "00:00:02.510",
+    "id": "1"
+  },
+  {
+    "description": "A dome covers the crater.",
+    "start_time": "00:00:06.000",
+    "end_time": "00:00:07.480",
+    "id": "2"
+  },
+  {
+    "description": "The beam strikes. The glowing dome collapses.",
+    "start_time": "00:00:08.500",
+    "end_time": "00:00:11.340",
+    "id": "3"
+  }
+]

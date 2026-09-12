@@ -1,0 +1,44 @@
+[
+  {
+    "description": "Sephiroth: But they...",
+    "start_time": "00:00:01.000",
+    "end_time": "00:00:02.640",
+    "id": "1"
+  },
+  {
+    "description": "Those worthless creatures are stealing the planet from Mother.",
+    "start_time": "00:00:04.000",
+    "end_time": "00:00:06.750",
+    "id": "2"
+  },
+  {
+    "description": "But now I'm here with you, so don't worry.",
+    "start_time": "00:00:12.000",
+    "end_time": "00:00:14.180",
+    "id": "3"
+  },
+  {
+    "description": "Sephiroth tears the metallic figure loose. Cables strain and spark.",
+    "start_time": "00:00:18.000",
+    "end_time": "00:00:22.150",
+    "id": "4"
+  },
+  {
+    "description": "The figure falls against a pipe.",
+    "start_time": "00:00:25.000",
+    "end_time": "00:00:26.490",
+    "id": "5"
+  },
+  {
+    "description": "A tank glows blue.",
+    "start_time": "00:00:30.000",
+    "end_time": "00:00:31.440",
+    "id": "6"
+  },
+  {
+    "description": "Behind glass, a pale blue being hangs among red flesh and cables, its headgear labeled Jenova.",
+    "start_time": "00:00:34.000",
+    "end_time": "00:00:40.130",
+    "id": "7"
+  }
+]
