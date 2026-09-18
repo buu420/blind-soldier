@@ -179,8 +179,10 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                 config.JunonTimingCueVolumePercent,
                 log)
             : null;
+        // Use the host's native keyboard-state overlay, as ordinary autowalk does.
+        // Windows SendInput does not reach this runtime's synthesized DIK buffer.
         junonParadeAlignmentAssist = new JunonParadeAlignmentAssist(
-            HighwayAutoSteeringController.CreateCurrentProcess(addressSpace),
+            HighwayAutoSteeringController.CreateCurrentProcess(addressSpace, this.directionalInput),
             log,
             new FieldWalkmeshRoutePlanner(
                 walkmeshReader,
@@ -1407,10 +1409,28 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         }
 
         var timingCueNeedsSpeechFallback = PlayJunonTimingCue(snapshot);
+
+        // Release ordinary autowalk before the parade acquires any shared input tokens.
+        // Releasing it afterward could erase a key the parade now believes it owns.
+        if (config.EnableJunonParadeAlignmentAssist &&
+            snapshot.Kind == JunonMinigameKind.WelcomeParade &&
+            snapshot.Parade.IsActive)
+        {
+            autoWalk.Reset();
+        }
+
         var alignment = junonParadeAlignmentAssist.Observe(
             snapshot,
             config.EnableJunonParadeAlignmentAssist);
         junonParadeClaimsFieldInput = alignment.ClaimsFieldInput;
+
+        // Parade frames bypass UpdateAutoWalk, so renew their native input here.
+        // Pauses release the owned keys; renewing an empty sink has no effect.
+        if (alignment.IsAssistActive)
+        {
+            directionalInput.Renew(nowUtc);
+        }
+
         SpeakJunonParadeAlignmentStep(alignment, nowUtc);
         if (!config.EnableJunonMinigamePrompts)
         {

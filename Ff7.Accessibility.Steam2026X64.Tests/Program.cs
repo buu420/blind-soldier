@@ -78,6 +78,7 @@ if (args.Contains("--module-tests-only", StringComparer.OrdinalIgnoreCase))
     Ff7.Accessibility.Reloaded.Tests.ControllerNavigationDomainOwnershipTests.Run();
     Steam2026AutoWalkCoherenceTests.Run();
     Steam2026NativeDirectionalInputTests.Run();
+    Steam2026JunonParadeNativeInputTests.Run();
     Steam2026SdlControllerOwnershipTests.Run();
     Steam2026SdlControllerPollStarvationTests.Run();
     Steam2026SdlControllerCaptureHookTests.Run();
@@ -284,6 +285,7 @@ if (args.Contains("--junon-minigames-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.JunonMinigameSpeechTests.Run();
     Ff7.Accessibility.Reloaded.Tests.JunonParadeAlignmentAssistTests.RunWithInstalledGameData();
+    Steam2026JunonParadeNativeInputTests.Run();
     Steam2026JunonMinigameRuntimeTests.Run();
     Console.WriteLine("Steam 2026 x64 Junon minigame speech tests passed.");
     return;
@@ -556,6 +558,7 @@ Steam2026FieldObservationTests.Run(native, legacy);
 Steam2026FieldNavigationObservationTests.Run(native, legacy);
 Steam2026FieldNavigationRuntimeTests.Run();
 Steam2026NativeDirectionalInputTests.Run();
+Steam2026JunonParadeNativeInputTests.Run();
 Steam2026FieldObjectObservationTests.Run();
 Ff7.Accessibility.Reloaded.Tests.JunonFieldNavigationTests.Run(
     CreateInstalledFieldWalkmeshReader);
