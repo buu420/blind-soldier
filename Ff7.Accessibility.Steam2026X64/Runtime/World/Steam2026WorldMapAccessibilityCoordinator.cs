@@ -420,7 +420,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         controllerRuntime = runtime;
         controllerState = state;
         controllerNowUtc = nowUtc;
-        DrainControllerNavigation(isForeground);
+        higherPrioritySpeech |= DrainControllerNavigation(isForeground);
 
         // The route keeps running while the menu is open; it just stops narrating
         // itself, so recurring directions cannot talk over the item being read.
@@ -792,13 +792,13 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
     /// The world map owns the pad only while module 3 is the live one, so the field
     /// coordinator cannot consume a command meant for a world selection.
     /// </summary>
-    private void DrainControllerNavigation(bool isForeground)
+    private bool DrainControllerNavigation(bool isForeground)
     {
         var capture = controllerCapture();
         if (capture is null)
         {
             controllerMenuIsOpen = false;
-            return;
+            return false;
         }
 
         capture.PublishContext(
@@ -821,8 +821,9 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
             speech => { speak(speech, true); return true; },
             log);
 
-        _ = controllerNavigation.Drain(capture, ControllerNavigationDomain.WorldMap, controllerNowUtc);
+        var spoke = controllerNavigation.Drain(capture, ControllerNavigationDomain.WorldMap, controllerNowUtc);
         controllerMenuIsOpen = capture.IsOpen;
+        return spoke;
     }
 
     /// <summary>

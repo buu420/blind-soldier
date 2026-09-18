@@ -79,6 +79,27 @@ public sealed class ControllerNavigationCapture : IGameInputSuppressor
 
     public bool IsOpen => menu.IsOpen;
 
+    /// <summary>
+    /// Whether any button is being kept from the game right now - the menu is open, or
+    /// it has closed and is still holding the press that closed it until the player
+    /// lets go.
+    ///
+    /// <para>A host that can be reading more than one controller needs this to decide
+    /// whether another pad may take the menu over. It may not while this is true: an
+    /// open menu is not somebody else's to take, and cutting the tail short would
+    /// release the press that chose a destination into the game underneath.</para>
+    /// </summary>
+    public bool IsSuppressing
+    {
+        get
+        {
+            lock (policySync)
+            {
+                return menu.IsSuppressing;
+            }
+        }
+    }
+
     public string LastRefusal => menu.LastRefusal;
 
     public long ObservedPolls => Interlocked.Read(ref observedPolls);

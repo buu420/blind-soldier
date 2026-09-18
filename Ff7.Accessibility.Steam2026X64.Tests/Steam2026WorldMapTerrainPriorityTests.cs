@@ -18,6 +18,92 @@ internal static class Steam2026WorldMapTerrainPriorityTests
         TheWorldEntranceCueDoesNotActivateDormantFieldTransitions();
         TheX64WorldEntranceCueUsesTheFullDirectionalSteamAudioRender();
         TheX64HostRepeatsADirectionalCueTowardJunonsNativeEntrance();
+        ControllerBumpersCycleWorldCategoriesAndKeepSpeechPriority();
+    }
+
+    private static void ControllerBumpersCycleWorldCategoriesAndKeepSpeechPriority()
+    {
+        var spoken = new List<string>();
+        var memory = SeedWorldMemory(terrainId: 0);
+        var held = new HashSet<int>();
+        var now = Epoch;
+        using var hook = Steam2026SdlControllerCaptureHook.CreateForDecideTest(
+            installed => new ControllerNavigationCapture(
+                suppressor => new ControllerNavigationMenu(EmptyGamepadReader.Instance, suppressor),
+                installed),
+            (_, button) => (byte)(held.Contains(button) ? 1 : 0),
+            _ => 1,
+            () => now);
+        using var coordinator = CreateCoordinator(
+            memory, new MutableInput(),
+            new NavigationAutoWalkController(new AcceptingKeyboardSink()),
+            (text, _) => spoken.Add(text),
+            controllerCapture: () => hook.Capture);
+
+        void Frame(int milliseconds, int? button = null)
+        {
+            now = Epoch.AddMilliseconds(milliseconds);
+            held.Clear();
+            if (button.HasValue) held.Add(button.Value);
+            // The game need not ask about R3 or either bumper for the hook to see them.
+            _ = hook.InvokeGetButtonForTest(0x1234, 0);
+            Observe(coordinator, now);
+            hook.Capture.PublishUnavailable(ControllerNavigationDomain.Field, now);
+        }
+
+        Frame(0);
+        Frame(300);
+        Frame(600);
+        Frame(900);
+        Frame(1100, 8); // R3
+        Equal(true, hook.Capture.IsOpen, "world controller menu opens");
+        Equal(ControllerNavigationDomain.WorldMap, hook.Capture.Owner,
+            "inactive field coordinator cannot take the world menu");
+        Frame(1300);
+        spoken.Clear();
+
+        Frame(1500, 10); // R1
+        Equal(true, spoken.Last().StartsWith("Story", StringComparison.Ordinal), "R1 selects Story");
+        Frame(1700);
+        Frame(1900, 10);
+        Equal(true, spoken.Last().StartsWith("Transportation", StringComparison.Ordinal),
+            "a second R1 selects Transportation");
+        var afterPress = spoken.Count;
+        Frame(2100, 10);
+        Frame(2300, 10);
+        Equal(afterPress, spoken.Count, "holding R1 does not skip categories");
+        Frame(2500);
+        Frame(2700, 9); // L1
+        Equal(true, spoken.Last().StartsWith("Story", StringComparison.Ordinal), "L1 returns to Story");
+        Frame(2900);
+
+        // Terrain becomes stable on the same scan as the deliberate category press.
+        // Its interrupting speech must wait, just as it does for keyboard navigation.
+        memory.SetTerrain(1);
+        Frame(3200);
+        Frame(3500);
+        Frame(3800);
+        spoken.Clear();
+        Frame(4100, 10);
+        Equal(true, spoken.Any(text => text.StartsWith("Transportation", StringComparison.Ordinal)),
+            "the bumper reaches the world navigation service");
+        DoesNotContain("Entered forest.", spoken,
+            "terrain cannot interrupt the controller category announcement");
+        Frame(4300);
+        Frame(4700);
+        Contains("Left grass. Entered forest.", spoken,
+            "deferred terrain still speaks after controller navigation is quiet");
+
+        var nextPress = 4900;
+        foreach (var category in new[] { "Events", "Chocobo Tracks", "Regions", "Locations", "Story", "Transportation" })
+        {
+            spoken.Clear();
+            Frame(nextPress, 10);
+            Equal(true, spoken.Any(text => text.StartsWith(category, StringComparison.Ordinal)),
+                $"R1 cycles through {category}, including empty categories");
+            Frame(nextPress + 200);
+            nextPress += 400;
+        }
     }
 
     private static void AProgressControlUtteranceWithoutAnActiveRouteDefersTerrainSpeech()
@@ -364,14 +450,15 @@ internal static class Steam2026WorldMapTerrainPriorityTests
         Action<string, bool> speak,
         NavigationProgressController? progressController = null,
         bool enableWorldMapEntranceProximityCues = false,
-        Action<NavigationBeaconCue, float>? playEntranceCue = null)
+        Action<NavigationBeaconCue, float>? playEntranceCue = null,
+        Func<ControllerNavigationCapture?>? controllerCapture = null)
     {
         var dataRoot = Environment.GetEnvironmentVariable("FF7_ACCESSIBILITY_DATA_ROOT") ??
             throw new InvalidOperationException("FF7_ACCESSIBILITY_DATA_ROOT is required.");
         var config = new AccessibilityConfig
         {
             EnableSpeech = true,
-            EnableWorldMapNavigationAssistant = false,
+            EnableWorldMapNavigationAssistant = controllerCapture is not null,
             EnableWorldMapNavigationDiagnostics = false,
             EnableWorldMapFootstepFeedback = false,
             UseCosmoFootstepSounds = false,
@@ -388,7 +475,8 @@ internal static class Steam2026WorldMapTerrainPriorityTests
             _ => { },
             progressController,
             autoWalk: autoWalk,
-            playEntranceCue: playEntranceCue);
+            playEntranceCue: playEntranceCue,
+            controllerCapture: controllerCapture);
     }
 
     private static void EstablishSurface(

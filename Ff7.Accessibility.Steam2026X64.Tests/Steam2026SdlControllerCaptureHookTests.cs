@@ -145,7 +145,10 @@ internal static class Steam2026SdlControllerCaptureHookTests
             Sdl.SetVirtualButton(joystick, ButtonA, 0);
             _ = Sdl.GetButton(controller, ButtonA);
 
-            // A second device is somebody else's: read by nobody, filtered by nobody.
+            // A second device, which is the reported fault. Two pads open means two
+            // pads read every frame, and the menu used to belong for ever to whichever
+            // one SDL happened to enumerate first - so the pad in the player's hands
+            // could never produce an edge, while its ordinary controls kept working.
             var secondDevice = Sdl.AttachVirtual(TypeGameController, 6, 15, 1);
             if (secondDevice >= 0)
             {
@@ -153,15 +156,61 @@ internal static class Steam2026SdlControllerCaptureHookTests
                 if (second != 0)
                 {
                     var secondJoystick = Sdl.GameControllerGetJoystick(second);
+
+                    // It arrives with its stick already clicked. The first thing we
+                    // ever learn about a device is not a press: a resting state or a
+                    // thumb that happened to be down must be released first.
                     Sdl.SetVirtualButton(secondJoystick, ButtonRightStick, 1);
+                    hook.Capture.PublishContext(
+                        ControllerNavigationDomain.Field, true, true, false, DateTime.UtcNow, identity: 500);
                     Equal((byte)1, Sdl.GetButton(second, ButtonRightStick),
-                        "a second controller's buttons reach the game untouched");
-                    Equal(controller, hook.LatchedController, "and the latch does not move to it");
+                        "a click we never saw go down reaches the game untouched");
+                    Equal(false, hook.Capture.IsOpen, "and does not open the menu");
+                    Equal(controller, hook.LatchedController,
+                        "nor move the menu to that pad");
+
+                    // Released and clicked afresh. The game still only asks about A -
+                    // it never asks about the stick click - and the menu has to open on
+                    // this pad anyway.
+                    Sdl.SetVirtualButton(secondJoystick, ButtonRightStick, 0);
+                    _ = Sdl.GetButton(second, ButtonA);
+                    Sdl.SetVirtualButton(secondJoystick, ButtonRightStick, 1);
+                    hook.Capture.PublishContext(
+                        ControllerNavigationDomain.Field, true, true, false, DateTime.UtcNow, identity: 500);
+                    Equal((byte)0, Sdl.GetButton(second, ButtonA),
+                        "a read of A on the second pad opens the menu from its own R3");
+                    Equal(true, hook.Capture.IsOpen, "the menu is open");
+                    Equal(second, hook.LatchedController, "on the pad that asked for it");
+
+                    // And the pad that used to own it cannot take it back while it is
+                    // open: a list somebody is reading is not another player's to grab.
+                    Sdl.SetVirtualButton(joystick, ButtonRightStick, 1);
+                    hook.Capture.PublishContext(
+                        ControllerNavigationDomain.Field, true, true, false, DateTime.UtcNow, identity: 500);
+                    Equal((byte)1, Sdl.GetButton(controller, ButtonRightStick),
+                        "the other pad keeps its own buttons while somebody else has the menu");
+                    Equal(true, hook.Capture.IsOpen, "which stays open");
+                    Equal(second, hook.LatchedController, "on the pad that opened it");
+                    Sdl.SetVirtualButton(joystick, ButtonRightStick, 0);
+                    _ = Sdl.GetButton(controller, ButtonA);
+
+                    // Closing the pad that owns the menu takes the menu with it.
                     Sdl.GameControllerClose(second);
+                    Equal((nint)0, hook.LatchedController,
+                        "closing the pad that owns the menu releases it");
+                    Equal(false, hook.Capture.IsOpen, "and the menu goes with it");
                 }
 
                 Sdl.DetachVirtual(secondDevice);
             }
+
+            // With nobody owning it, the pad still plugged in takes the menu back on
+            // its very next read - the same first-read latch a lone pad has always had.
+            hook.Capture.PublishContext(
+                ControllerNavigationDomain.Field, true, true, false, DateTime.UtcNow, identity: 500);
+            _ = Sdl.GetButton(controller, ButtonA);
+            Equal(controller, hook.LatchedController,
+                "and the remaining pad is latched again on its next read");
 
             // Closing the latched device releases it, through the production Close
             // detour, and nothing is read afterwards.

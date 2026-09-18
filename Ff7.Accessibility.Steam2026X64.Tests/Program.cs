@@ -41,6 +41,16 @@ if (args.Contains("--main-menu-ownership-only", StringComparer.OrdinalIgnoreCase
     return;
 }
 
+// The controller-ownership regressions on their own. They need no game data and no
+// hooking backend, so this is the switch to run while working on the capture.
+if (args.Contains("--controller-ownership-only", StringComparer.OrdinalIgnoreCase))
+{
+    Steam2026SdlControllerOwnershipTests.Run();
+    Steam2026SdlControllerPollStarvationTests.Run();
+    Console.WriteLine("Steam 2026 x64 controller ownership tests passed.");
+    return;
+}
+
 if (args.Contains("--module-tests-only", StringComparer.OrdinalIgnoreCase))
 {
     CondorBattleInitializationTests.Run();
@@ -67,6 +77,7 @@ if (args.Contains("--module-tests-only", StringComparer.OrdinalIgnoreCase))
     Ff7.Accessibility.Reloaded.Tests.ControllerNavigationMenuTests.Run();
     Steam2026AutoWalkCoherenceTests.Run();
     Steam2026NativeDirectionalInputTests.Run();
+    Steam2026SdlControllerOwnershipTests.Run();
     Steam2026SdlControllerPollStarvationTests.Run();
     Steam2026SdlControllerCaptureHookTests.Run();
     Ff7.Accessibility.Reloaded.Tests.WorldMapTerrainAnnouncementTests.Run();
