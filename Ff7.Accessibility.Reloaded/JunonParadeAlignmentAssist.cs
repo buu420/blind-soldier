@@ -304,6 +304,13 @@ internal sealed class JunonParadeAlignmentAssist : IDisposable
             return default;
         }
 
+        // Preserve the original fault until a lifecycle reset. Later unreadable frames
+        // must not repeat the warning or interrupt the remaining manual guidance.
+        if (disabledForParade)
+        {
+            return new JunonParadeAlignmentStep(true, false, null);
+        }
+
         Pause("parade snapshot unavailable");
         if (++unreadableSamples <= UnreadableLimit)
         {

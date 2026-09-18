@@ -25,6 +25,7 @@ internal static class JunonParadeAlignmentAssistTests
         WaitsForAParadeGapAndResumesWhenItOpens();
         AnnouncesWhenTheMovingLineArrivesDuringAWait();
         UnreadableRouteStateRemainsATerminalFault();
+        AStoppedAssistDoesNotKeepAnnouncingUnreadableSnapshots();
         AStallRecordsTheNativeTargetAndHeldDirection();
         FailsOutLoudWhenTheGameDoesNotAcknowledgeTheDirection();
         FailsOutLoudWhenMappedInputCannotBeSent();
@@ -402,6 +403,56 @@ internal static class JunonParadeAlignmentAssistTests
         Equal(true, resumed.IsAssistActive, "cleared crowd obstruction resumes in the same parade");
         Equal("Parade alignment assist resumed.", resumed.Speech, "movement resumption is audible");
         Equal(1, sink.HeldScanCodes().Length, "the assist actually sends movement after the opening appears");
+    }
+
+    /// <summary>
+    /// The player's first welcome parade, in the order the log actually records it.
+    ///
+    /// <para>The assist stopped once, for a real reason: at 14:36:17Z the game did not
+    /// take direction <c>0x6000</c>, because the host had built the assist on the Win32
+    /// key sink instead of the native one. That terminal stop is correct and stays.</para>
+    ///
+    /// <para>What followed was not. Reading the parade tears often - <c>TryRead</c> takes
+    /// two captures and requires them to match on held input and message count - so the
+    /// host calls <c>ObserveUnavailable</c> in bursts, and every one of those bursts gave
+    /// up all over again and said so, with interrupt, on top of the movement cues the same
+    /// parade was still producing. 1562 repeats of one sentence, against two activations.
+    /// A fault that has already been announced is announced once.</para>
+    /// </summary>
+    private static void AStoppedAssistDoesNotKeepAnnouncingUnreadableSnapshots()
+    {
+        var sink = new RecordingSink();
+        using var assist = CreateAssist(sink);
+        _ = assist.Observe(Parade(), enabled: true);
+
+        // The original fault: the game never reports the direction the assist asked for.
+        var announcements = 0;
+        for (var sample = 0; sample <= JunonParadeAlignmentAssist.AcknowledgementLimit; sample++)
+        {
+            var step = assist.Observe(Parade(heldInput: 0), enabled: true);
+            if (!string.IsNullOrWhiteSpace(step.Speech))
+            {
+                announcements++;
+            }
+        }
+
+        Equal(1, announcements, "the direction the game refused is reported once");
+        Equal(0, sink.HeldScanCodes().Length, "and movement is released when it is");
+
+        // Everything after it is the torn reads the parade produces normally.
+        for (var frame = 0; frame < 40; frame++)
+        {
+            var step = assist.ObserveUnavailable(enabled: true);
+            if (!string.IsNullOrWhiteSpace(step.Speech))
+            {
+                announcements++;
+            }
+        }
+
+        Equal(1, announcements,
+            "a stopped assist does not lose track out loud on every unreadable frame");
+        Equal(0, sink.HeldScanCodes().Length,
+            "and movement stays released for as long as it is stopped");
     }
 
     private static void UnreadableRouteStateRemainsATerminalFault()
