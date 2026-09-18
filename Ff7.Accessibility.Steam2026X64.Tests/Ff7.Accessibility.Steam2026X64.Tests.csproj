@@ -57,6 +57,8 @@
              Link="SharedTests\CutsceneVoiceTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\ControllerNavigationMenuTests.cs"
              Link="SharedTests\ControllerNavigationMenuTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\ControllerNavigationDomainOwnershipTests.cs"
+             Link="SharedTests\ControllerNavigationDomainOwnershipTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\GoldSaucerDescriptionTests.cs"
              Link="SharedTests\GoldSaucerDescriptionTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\FakeFieldScriptMemory.cs"

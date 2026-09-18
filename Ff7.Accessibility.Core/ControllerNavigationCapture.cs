@@ -79,6 +79,27 @@ public sealed class ControllerNavigationCapture : IGameInputSuppressor
 
     public bool IsOpen => menu.IsOpen;
 
+    /// <summary>
+    /// Whether any button is being kept from the game right now - the menu is open, or
+    /// it has closed and is still holding the press that closed it until the player
+    /// lets go.
+    ///
+    /// <para>A host that can be reading more than one controller needs this to decide
+    /// whether another pad may take the menu over. It may not while this is true: an
+    /// open menu is not somebody else's to take, and cutting the tail short would
+    /// release the press that chose a destination into the game underneath.</para>
+    /// </summary>
+    public bool IsSuppressing
+    {
+        get
+        {
+            lock (policySync)
+            {
+                return menu.IsSuppressing;
+            }
+        }
+    }
+
     public string LastRefusal => menu.LastRefusal;
 
     public long ObservedPolls => Interlocked.Read(ref observedPolls);
@@ -262,15 +283,51 @@ public sealed class ControllerNavigationCapture : IGameInputSuppressor
         return true;
     }
 
-    /// <summary>Asks the menu to close on its next poll. Safe from the worker.</summary>
-    public void RequestClose()
+    /// <summary>
+    /// Asks the menu to close on its next poll, whoever owns it. Safe from the worker.
+    /// This is the global form, and it is what a shutdown, an unload, or a lifecycle
+    /// frame that has stopped making sense needs.
+    /// </summary>
+    public void RequestClose() => RequestClose(ControllerNavigationDomain.None);
+
+    /// <summary>
+    /// The same, asked for by one domain, and refused where that domain is not the one
+    /// holding the pad. This is the rule <see cref="PublishContext"/> and
+    /// <see cref="PublishUnavailable"/> already keep, and the one this call was missing.
+    ///
+    /// <para>One capture serves the field and the world map, and exactly one of them is
+    /// live. The field coordinator is suspended on every worker frame it is not the live
+    /// module, and its suspend asked for a close unconditionally - so on the world map
+    /// the menu was shut a frame after it opened, in silence, and the bumper the player
+    /// pressed next reached the game and swung the camera instead of changing category.
+    /// The queue went with it, which is the same fault seen from the other side: those
+    /// selections belong to whoever is holding the pad.</para>
+    ///
+    /// <para>There is deliberately no freshness test here, unlike the two publishing
+    /// calls. They install a generation and so must be able to displace an owner that
+    /// has gone away; this one only ever declines to close, and declining cannot strand
+    /// a menu. A generation whose owner has stopped publishing stops being fresh, and
+    /// <see cref="ControllerNavigationMenu.Observe"/> closes the menu itself on the next
+    /// poll. The owning coordinator also publishes unavailability on module changes,
+    /// so battle entry does not have to wait for that freshness timeout.</para>
+    /// </summary>
+    public void RequestClose(ControllerNavigationDomain domain)
     {
         lock (policySync)
         {
-            menu.RequestClose();
-        }
+            if (domain != ControllerNavigationDomain.None &&
+                generation.Domain != ControllerNavigationDomain.None &&
+                generation.Domain != domain)
+            {
+                // Somebody else's menu, and somebody else's queued selections with it.
+                return;
+            }
 
-        Commands.ClearExceptStops();
+            menu.RequestClose();
+            // Keep the ownership check and queue cleanup together: a new domain
+            // must not publish and enqueue between accepting this close and cleanup.
+            Commands.ClearExceptStops();
+        }
     }
 
     /// <summary>Teardown, once no callback can still run.</summary>

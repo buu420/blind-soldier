@@ -177,6 +177,7 @@ if (args.Contains("--reactor-ladder-only", StringComparer.OrdinalIgnoreCase))
 if (args.Contains("--controller-nav-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.ControllerNavigationMenuTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.ControllerNavigationDomainOwnershipTests.Run();
     Ff7.Accessibility.Reloaded.Tests.ControllerNavigationAdapterTests.Run();
     Ff7.Accessibility.Reloaded.Tests.ControllerCaptureNestedExportTests.Run();
     Ff7.Accessibility.Reloaded.Tests.ControllerCaptureHookInstallationTests.Run();
@@ -770,6 +771,7 @@ HighwayAutoSteeringModeTrackerTests.Run();
 HighwayAutoSteeringControllerTests.Run();
 NavigationAutoWalkControllerTests.Run(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.ControllerNavigationMenuTests.Run();
+Ff7.Accessibility.Reloaded.Tests.ControllerNavigationDomainOwnershipTests.Run();
 Ff7.Accessibility.Reloaded.Tests.ControllerNavigationAdapterTests.Run();
 Ff7.Accessibility.Reloaded.Tests.ControllerCaptureNestedExportTests.Run();
 Ff7.Accessibility.Reloaded.Tests.ControllerCaptureHookInstallationTests.Run();

@@ -1038,7 +1038,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         // A reset is the session tearing down or the module changing underneath.
         // The menu closes with it, and anything queued but not a stop goes: those
         // selections were about a place the player is no longer in.
-        controllerCapture()?.RequestClose();
+        controllerCapture()?.RequestClose(ControllerNavigationDomain.Field);
         controllerMenuIsOpen = false;
         controller.Reset();
         autoWalk.Reset();
@@ -1083,7 +1083,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
 
         // Losing the foreground or the frame closes the menu too, so nothing held
         // through the gap can act when it comes back.
-        controllerCapture()?.RequestClose();
+        controllerCapture()?.RequestClose(ControllerNavigationDomain.Field);
         controllerMenuIsOpen = false;
         pendingActions.Clear();
         autoWalk.Suspend();
