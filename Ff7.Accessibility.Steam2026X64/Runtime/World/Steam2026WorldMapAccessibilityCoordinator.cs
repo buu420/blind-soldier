@@ -239,6 +239,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         ArgumentNullException.ThrowIfNull(frame);
         if (frame.Lifecycle.ModuleId != WorldMapStateReader.WorldModule)
         {
+            PublishControllerUnavailable(nowUtc);
             lastProgressControlSpeechRevision = progressController.SpeechRevision;
             ResetMidgarZolomTrackers();
             if (WorldMapNavigationLifecycle.IsCombatInterruptionModule(frame.Lifecycle.ModuleId))
@@ -258,7 +259,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
 
             if (wasActive)
             {
-                Reset($"module changed to {frame.Lifecycle.ModuleId}");
+                Reset($"module changed to {frame.Lifecycle.ModuleId}", nowUtc);
             }
 
             return;
@@ -287,6 +288,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         }
         if (!isForeground)
         {
+            PublishControllerUnavailable(nowUtc);
             // Keep sampling above so a held key cannot become a delayed edge,
             // but never dispatch a background command or retain movement.
             actions = Array.Empty<FieldNavigationAction>();
@@ -387,6 +389,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         ObserveEntranceCue(runtime, state, nowUtc);
         if (!config.EnableWorldMapNavigationAssistant)
         {
+            PublishControllerUnavailable(nowUtc);
             runtime.Navigation.Suspend("world navigation disabled");
             autoWalk.Reset();
             ObserveTerrain(runtime, state, nowUtc, higherPrioritySpeech);
@@ -461,6 +464,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
 
     internal void Suspend(string diagnostic)
     {
+        PublishControllerUnavailable(DateTime.UtcNow);
         foreach (var runtime in runtimes.Values)
         {
             runtime.Footsteps.Reset();
@@ -475,8 +479,9 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         log($"Native Steam 2026 world-map accessibility suspended: {diagnostic}.");
     }
 
-    internal void Reset(string diagnostic)
+    internal void Reset(string diagnostic, DateTime? nowUtc = null)
     {
+        PublishControllerUnavailable(nowUtc ?? DateTime.UtcNow);
         foreach (var runtime in runtimes.Values)
         {
             runtime.UpdateEntities(Array.Empty<WorldMapEntitySnapshot>());
@@ -773,6 +778,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
 
     private void SilenceForRecovery(DateTime nowUtc, bool higherPrioritySpeech = false)
     {
+        PublishControllerUnavailable(nowUtc);
         foreach (var runtime in runtimes.Values)
         {
             runtime.Footsteps.Reset();
@@ -788,10 +794,18 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
 
 
     /// <summary>
-    /// Tells the capture what the world looks like and does whatever it queued.
-    /// The world map owns the pad only while module 3 is the live one, so the field
-    /// coordinator cannot consume a command meant for a world selection.
+    /// Retires the world context without closing another active domain's menu.
     /// </summary>
+    private void PublishControllerUnavailable(DateTime nowUtc)
+    {
+        // The field coordinator no longer closes another domain's menu. The world
+        // coordinator must therefore retire its own context as soon as it stops
+        // being usable, including battle entry before the freshness timeout.
+        controllerCapture()?.PublishUnavailable(ControllerNavigationDomain.WorldMap, nowUtc);
+        controllerMenuIsOpen = false;
+    }
+
+    /// <summary>Publishes the usable world context and applies its queued commands.</summary>
     private bool DrainControllerNavigation(bool isForeground)
     {
         var capture = controllerCapture();

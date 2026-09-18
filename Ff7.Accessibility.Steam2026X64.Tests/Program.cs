@@ -75,6 +75,7 @@ if (args.Contains("--module-tests-only", StringComparer.OrdinalIgnoreCase))
     Steam2026JunonMinigameRuntimeTests.Run();
     NavigationAutoWalkControllerTests.Run();
     Ff7.Accessibility.Reloaded.Tests.ControllerNavigationMenuTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.ControllerNavigationDomainOwnershipTests.Run();
     Steam2026AutoWalkCoherenceTests.Run();
     Steam2026NativeDirectionalInputTests.Run();
     Steam2026SdlControllerOwnershipTests.Run();

@@ -39,6 +39,26 @@ internal static class Steam2026WorldMapTerrainPriorityTests
             new NavigationAutoWalkController(new AcceptingKeyboardSink()),
             (text, _) => spoken.Add(text),
             controllerCapture: () => hook.Capture);
+        using var inactiveField = new Steam2026FieldNavigationCoordinator(
+            new AccessibilityConfig
+            {
+                EnableFieldNavigationAssistant = true,
+                EnableFieldExitProximityCues = false,
+                EnableFieldLadderProximityCues = false,
+                EnableFieldSwingingBarTimingCue = false,
+                EnableSquatMinigamePrompts = false,
+                EnableJunonMinigamePrompts = false,
+                EnableJunonParadeAlignmentAssist = false,
+                EnableFloor60SoldierTurnCue = false
+            },
+            memory,
+            new MutableInput().CreateAdapter(),
+            new Steam2026FieldObjectObservationReader(memory, _ => null, _ => null,
+                Array.Empty<FieldNavigationObjectDefinition>()),
+            Path.GetTempPath(), AppContext.BaseDirectory,
+            (_, _) => { }, _ => { },
+            autoWalk: new NavigationAutoWalkController(new AcceptingKeyboardSink()),
+            controllerCapture: () => hook.Capture);
 
         void Frame(int milliseconds, int? button = null)
         {
@@ -48,7 +68,10 @@ internal static class Steam2026WorldMapTerrainPriorityTests
             // The game need not ask about R3 or either bumper for the hook to see them.
             _ = hook.InvokeGetButtonForTest(0x1234, 0);
             Observe(coordinator, now);
-            hook.Capture.PublishUnavailable(ControllerNavigationDomain.Field, now);
+            // Match the host's real order: world coordinator first, inactive field
+            // coordinator afterward. A stand-in PublishUnavailable call missed the
+            // unconditional RequestClose inside the field coordinator's Suspend.
+            inactiveField.Observe(WorldFrame(now), now);
         }
 
         Frame(0);
@@ -60,6 +83,8 @@ internal static class Steam2026WorldMapTerrainPriorityTests
         Equal(ControllerNavigationDomain.WorldMap, hook.Capture.Owner,
             "inactive field coordinator cannot take the world menu");
         Frame(1300);
+        Equal(true, hook.Capture.IsOpen,
+            "the world menu survives the next input poll after the inactive field tick");
         spoken.Clear();
 
         Frame(1500, 10); // R1
@@ -104,6 +129,53 @@ internal static class Steam2026WorldMapTerrainPriorityTests
             Frame(nextPress + 200);
             nextPress += 400;
         }
+
+        now = Epoch.AddMilliseconds(nextPress);
+        var battle = WorldFrame(now) with
+        {
+            Lifecycle = new GameLifecycleObservation(true, false, BattleStateReader.BattleModule, 1)
+        };
+        coordinator.Observe(battle, now);
+        inactiveField.Observe(battle, now);
+        _ = hook.InvokeGetButtonForTest(0x1234, 0);
+        Equal(false, hook.Capture.IsOpen, "entering battle closes the world menu immediately");
+        held.Add(10);
+        Equal((byte)1, hook.InvokeGetButtonForTest(0x1234, 10),
+            "the battle receives its own controller buttons");
+        held.Clear();
+        _ = hook.InvokeGetButtonForTest(0x1234, 0);
+        held.Add(8);
+        _ = hook.InvokeGetButtonForTest(0x1234, 0);
+        Equal(false, hook.Capture.IsOpen,
+            "a fresh R3 cannot reopen world navigation during the battle freshness window");
+
+        Frame(nextPress + 200);
+        Frame(nextPress + 400, 8);
+        Equal(true, hook.Capture.IsOpen, "world navigation can reopen after returning from battle");
+        Frame(nextPress + 600);
+        memory.ReadsSucceed = false;
+        Frame(nextPress + 800);
+        _ = hook.InvokeGetButtonForTest(0x1234, 0);
+        Equal(false, hook.Capture.IsOpen, "an unreadable world snapshot retires its menu immediately");
+        memory.ReadsSucceed = true;
+
+        // Check the reverse handoff too: the inactive world coordinator cannot
+        // invalidate a fresh field menu when it resets its former world session.
+        now = Epoch.AddMilliseconds(nextPress + 1000);
+        held.Clear();
+        hook.Capture.PublishContext(ControllerNavigationDomain.Field, true, true, false, now, 433);
+        _ = hook.InvokeGetButtonForTest(0x1234, 0);
+        held.Add(8);
+        _ = hook.InvokeGetButtonForTest(0x1234, 0);
+        Equal(true, hook.Capture.IsOpen, "the field opens its own menu after leaving the world map");
+        coordinator.Observe(WorldFrame(now) with
+        {
+            Lifecycle = new GameLifecycleObservation(true, false, FieldPositionReader.FieldModule, 2)
+        }, now);
+        _ = hook.InvokeGetButtonForTest(0x1234, 0);
+        Equal(true, hook.Capture.IsOpen, "an inactive world reset leaves the field menu open");
+        Equal(ControllerNavigationDomain.Field, hook.Capture.Owner,
+            "an inactive world reset preserves the field context");
     }
 
     private static void AProgressControlUtteranceWithoutAnActiveRouteDefersTerrainSpeech()
@@ -492,8 +564,10 @@ internal static class Steam2026WorldMapTerrainPriorityTests
     private static void Observe(
         Steam2026WorldMapAccessibilityCoordinator coordinator,
         DateTime now) =>
-        coordinator.Observe(
-            new RuntimeFrameObservation(
+        coordinator.Observe(WorldFrame(now), now);
+
+    private static RuntimeFrameObservation WorldFrame(DateTime now) =>
+            new(
                 now,
                 new GameLifecycleObservation(
                     IsForeground: true,
@@ -504,8 +578,7 @@ internal static class Steam2026WorldMapTerrainPriorityTests
                 RuntimeDomainUpdate<DialoguePageObservation>.Unchanged,
                 RuntimeDomainUpdate<FieldFrameObservation>.Unchanged,
                 RuntimeDomainUpdate<BattleFrameObservation>.Unchanged,
-                RuntimeDomainUpdate<NavigationWorldObservation>.Unchanged),
-            now);
+                RuntimeDomainUpdate<NavigationWorldObservation>.Unchanged);
 
     private static MutableWorldMemory SeedWorldMemory(int terrainId)
     {
