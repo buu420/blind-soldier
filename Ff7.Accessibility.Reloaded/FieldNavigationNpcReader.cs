@@ -344,7 +344,33 @@ public sealed class FieldNavigationNpcReader
             [(355, 28)] = "Item shopkeeper",
             [(355, 29)] = "Fort Condor elder",
             [(356, 22)] = "Lookout",
-            [(358, 15)] = "Condor"
+            [(358, 15)] = "Condor",
+
+            // North Corel: installed ncorel/ncoin1..3/ncoinn CHAR model metadata
+            // and native Talk/Action scripts. Anonymous residents have no speaker
+            // heading. Shop staff and the seated couple delegate to LINE scripts;
+            // the dog's Talk barks without displaying a MESSAGE.
+            [(450, 13)] = "Barret",
+            [(450, 20)] = "Man",
+            [(450, 21)] = "General store shopkeeper",
+            [(450, 22)] = "Man",
+            [(450, 23)] = "Man",
+            [(450, 24)] = "Weapon shopkeeper",
+            [(450, 25)] = "Item shopkeeper",
+            [(453, 7)] = "Woman",
+            [(453, 8)] = "Old man",
+            [(454, 6)] = "Old woman",
+            [(454, 7)] = "Man",
+            [(454, 8)] = "Boy",
+            [(455, 11)] = "Woman",
+            [(455, 12)] = "Old man",
+            [(455, 13)] = "Girl",
+            [(455, 14)] = "Old woman",
+            [(455, 15)] = "Dog",
+            [(456, 11)] = "Innkeeper",
+
+            // innman2 loads the ARFD resident model; use a generic role here.
+            [(456, 12)] = "Man"
         };
 
     private static readonly IReadOnlyDictionary<
@@ -373,7 +399,22 @@ public sealed class FieldNavigationNpcReader
             // counter LINE calls the shopkeeper's native scripts 3 and 4.
             [(203, 7)] = (
                 2,
-                new FieldNavigationTriggerLine(-2, 0, 0, 127, 0, 0))
+                new FieldNavigationTriggerLine(-2, 0, 0, 127, 0, 0)),
+
+            // ncorel: wsline/tsline call the visible shopkeeper's script 3;
+            // bzline1 calls man2 script 9 (Buy / Listen / Not interested).
+            // The bazaar also has a second working side, bzline2. Use its front
+            // counter here so there is one target per visible shopkeeper.
+            [(450, 24)] = (5, new(-150, -300, 0, -150, -404, 0)),
+            [(450, 25)] = (6, new(31, -203, 0, 127, -199, 0)),
+            [(450, 21)] = (7, new(45, -276, 0, -74, -350, 0)),
+
+            // ncoin3: the seated couple's dialogue lives on ad scripts 3/4.
+            // jitlkr reaches those scripts from the old man's chair; babtlk1
+            // reaches the couple's conversation from the old woman's chair.
+            // Model visibility and live LINE enable state still gate both.
+            [(455, 12)] = (3, new(31, 15, 0, 81, 34, 0)),
+            [(455, 14)] = (5, new(-3, 243, 0, -62, 200, 0))
         };
 
     private static readonly IReadOnlyDictionary<int, IReadOnlyList<FieldScriptNpcDefinition>>
@@ -413,7 +454,8 @@ public sealed class FieldNavigationNpcReader
                 // Fort Condor: condor1, condor2, convil_1..convil_4. Every
                 // visible Talk model there is labeled above; anything else on
                 // these screens loads no model and must not be guessed at.
-                .Concat(Enumerable.Range(353, 6)));
+                .Concat(Enumerable.Range(353, 6))
+                .Concat([450, 453, 454, 455, 456]));
 
     private readonly Func<int, int> readInt32;
     private readonly Func<int, short> readInt16;

@@ -358,6 +358,8 @@ internal sealed class Steam2026ResearchObservationPump
     internal void ResetCountdownSpeech() =>
         countdownSpeechCoordinator.Reset();
 
+    internal void ResetMenuIngress() => rootMainMenuRenderEvidenceTracker.Reset();
+
     internal void ObserveMenuIngress(TranslatedMenuIngressSnapshot snapshot)
     {
         if (snapshot.Text is not { } text ||

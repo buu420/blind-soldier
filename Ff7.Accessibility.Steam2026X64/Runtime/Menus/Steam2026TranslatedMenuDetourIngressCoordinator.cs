@@ -62,6 +62,7 @@ internal sealed class Steam2026TranslatedMenuDetourIngressCoordinator : IDisposa
     private long nextSequence;
     private long observationEpoch;
     private int fatalIngressFailure;
+    private int queueOverflow;
     private int stopped;
 
     internal Steam2026TranslatedMenuDetourIngressCoordinator(
@@ -157,12 +158,25 @@ internal sealed class Steam2026TranslatedMenuDetourIngressCoordinator : IDisposa
     /// </summary>
     internal bool IsFatallyDegraded => Volatile.Read(ref fatalIngressFailure) != 0;
 
+    // Managed consumer only. Once full, producers observe nothing until the whole
+    // incomplete batch has been discarded. The owner resets speech trackers before
+    // consuming subsequent captures, so old and new menu frames cannot be combined.
+    internal bool RecoverQueueOverflow(Action discardPending)
+    {
+        if (Volatile.Read(ref queueOverflow) == 0) return false;
+        discardPending();
+        ResetObservationState();
+        Volatile.Write(ref queueOverflow, 0);
+        return true;
+    }
+
     private void ProcessCallback(
         Steam2026MenuCallbackKind kind,
         Steam2026MenuCallbackIdentity expectedIdentity,
         TranslatedMenuCallbackOriginal original)
     {
         var entryEpoch = Volatile.Read(ref observationEpoch);
+        var leaseGeneration = contract.ObservationGeneration;
         var ownsObservation = observationGate.TryEnter();
         try
         {
@@ -170,6 +184,7 @@ internal sealed class Steam2026TranslatedMenuDetourIngressCoordinator : IDisposa
             var canPublish = ownsObservation
                              && Volatile.Read(ref stopped) == 0
                              && !IsFatallyDegraded
+                             && Volatile.Read(ref queueOverflow) == 0
                              && IsCurrentIdentity(expectedIdentity)
                              && TryCapturePayload(kind, out payload);
             if (!canPublish)
@@ -181,7 +196,7 @@ internal sealed class Steam2026TranslatedMenuDetourIngressCoordinator : IDisposa
             InvokeOriginal(original);
 
             if (!canPublish
-                || !IsObservationCurrent(entryEpoch, expectedIdentity)
+                || !IsObservationCurrent(entryEpoch, leaseGeneration, expectedIdentity)
                 || !TryReadTimestamp(out var timestampUtc)
                 || !TryAllocateSequence(out var sequence))
             {
@@ -190,7 +205,7 @@ internal sealed class Steam2026TranslatedMenuDetourIngressCoordinator : IDisposa
             }
 
             var snapshot = payload.ToSnapshot(kind, sequence, timestampUtc);
-            if (!IsObservationCurrent(entryEpoch, expectedIdentity)
+            if (!IsObservationCurrent(entryEpoch, leaseGeneration, expectedIdentity)
                 || !observationGate.TryCommit())
             {
                 ResetObservationState();
@@ -207,10 +222,13 @@ internal sealed class Steam2026TranslatedMenuDetourIngressCoordinator : IDisposa
 
     private bool IsObservationCurrent(
         long entryEpoch,
+        long leaseGeneration,
         Steam2026MenuCallbackIdentity expectedIdentity) =>
         Volatile.Read(ref stopped) == 0
         && !IsFatallyDegraded
+        && Volatile.Read(ref queueOverflow) == 0
         && entryEpoch == Volatile.Read(ref observationEpoch)
+        && leaseGeneration == contract.ObservationGeneration
         && IsCurrentIdentity(expectedIdentity);
 
     private Steam2026MenuCallbackIdentity ValidateInitialIdentity(
@@ -393,6 +411,9 @@ internal sealed class Steam2026TranslatedMenuDetourIngressCoordinator : IDisposa
             {
                 return true;
             }
+            Volatile.Write(ref queueOverflow, 1);
+            ResetObservationState();
+            return false;
         }
         catch
         {

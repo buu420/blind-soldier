@@ -9,6 +9,12 @@ internal sealed class Steam2026MenuCallbackContract
 {
     private const long HookLeaseHealthProbeIntervalMilliseconds = 1000;
 
+    // Failed probes suspend observation immediately. Keep the hooks available for
+    // two retries before permanent retirement, so a transient read cannot silence
+    // every later party menu in the session. Captures use cached lease identities;
+    // they must remain suspended until the full mapped-identity probe recovers.
+    private const int HookLeaseUnhealthyProbesBeforeRetirement = 3;
+
     private readonly object tokenAuthority = new();
     private readonly object hookLeaseLock = new();
     private readonly Steam2026MenuCallbackCatalog catalog;
@@ -18,6 +24,7 @@ internal sealed class Steam2026MenuCallbackContract
     private long validationEpoch;
     private long nextHookLeaseHealthProbeMilliseconds;
     private int hookLeaseUnhealthy;
+    private int consecutiveUnhealthyHookLeaseProbes;
 
     public Steam2026MenuCallbackContract(
         ulong moduleBase,
@@ -69,6 +76,7 @@ internal sealed class Steam2026MenuCallbackContract
     }
 
     internal bool HasExactSupportedFingerprint { get; }
+    internal long ObservationGeneration => Volatile.Read(ref validationEpoch);
 
     internal void ActivateHookLease(Func<Steam2026MenuCallbackKind, bool> isCohortEnabled)
     {
@@ -111,6 +119,7 @@ internal sealed class Steam2026MenuCallbackContract
                 validatedCohort);
             Volatile.Write(ref nextHookLeaseHealthProbeMilliseconds, 0);
             Volatile.Write(ref hookLeaseUnhealthy, 0);
+            Volatile.Write(ref consecutiveUnhealthyHookLeaseProbes, 0);
             Volatile.Write(ref activeHookLease, lease);
         }
     }
@@ -123,6 +132,7 @@ internal sealed class Steam2026MenuCallbackContract
             Interlocked.Increment(ref validationEpoch);
             Volatile.Write(ref nextHookLeaseHealthProbeMilliseconds, 0);
             Volatile.Write(ref hookLeaseUnhealthy, 0);
+            Volatile.Write(ref consecutiveUnhealthyHookLeaseProbes, 0);
         }
     }
 
@@ -165,12 +175,23 @@ internal sealed class Steam2026MenuCallbackContract
             return true;
         }
 
-        if (!healthy)
+        if (healthy)
         {
-            Interlocked.Exchange(ref hookLeaseUnhealthy, 1);
+            Interlocked.Exchange(ref consecutiveUnhealthyHookLeaseProbes, 0);
+            return true;
         }
 
-        return healthy;
+        // A single failed probe is a read that did not answer, not proof the cohort has
+        // gone. Retirement is permanent for the session, so it waits for agreement.
+        var failedProbes = Interlocked.Increment(ref consecutiveUnhealthyHookLeaseProbes);
+        Interlocked.Increment(ref validationEpoch);
+        if (failedProbes < HookLeaseUnhealthyProbesBeforeRetirement)
+        {
+            return true;
+        }
+
+        Interlocked.Exchange(ref hookLeaseUnhealthy, 1);
+        return false;
     }
 
     internal bool TryValidateCaptureIdentity(
@@ -343,10 +364,12 @@ internal sealed class Steam2026MenuCallbackContract
         var lease = Volatile.Read(ref activeHookLease);
         if (lease is not null)
         {
-            validationGeneration = lease.Generation;
+            validationGeneration = Volatile.Read(ref validationEpoch);
             try
             {
-                return lease.IsCohortEnabled(kind)
+                return Volatile.Read(ref consecutiveUnhealthyHookLeaseProbes) == 0
+                       && Volatile.Read(ref hookLeaseUnhealthy) == 0
+                       && lease.IsCohortEnabled(kind)
                        && lease.TryGetValidatedIdentity(kind, out identity);
             }
             catch

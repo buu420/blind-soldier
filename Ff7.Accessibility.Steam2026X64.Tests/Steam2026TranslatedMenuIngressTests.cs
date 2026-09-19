@@ -25,6 +25,16 @@ internal static class Steam2026TranslatedMenuIngressTests
         Steam2026MenuCallbackKind.AsciiRenderer
     ];
 
+    // These ingress tests supply their own native memory; the portable CI gate
+    // can exercise them without opening a licensed executable.
+    public static void RunPortable() => Run(
+        new Steam2026FingerprintResult(new RuntimeIdentity(
+            Steam2026Fingerprint.SupportedRuntimeId, @"C:\fixture\FFVII.exe",
+            Steam2026Fingerprint.SupportedSha256, true, string.Empty), true, "Supported test fixture"),
+        new Steam2026FingerprintResult(new RuntimeIdentity(
+            "unsupported-test-fixture", @"C:\fixture\ff7_en.exe",
+            string.Empty, false, string.Empty), false, "Unsupported test fixture"));
+
     public static void Run(
         Steam2026FingerprintResult supported,
         Steam2026FingerprintResult unsupported)
@@ -36,12 +46,14 @@ internal static class Steam2026TranslatedMenuIngressTests
         ConstructionRequiresExactFingerprintAndEveryCurrentIdentity(supported, unsupported);
         EncodedTextCallbackStaysWithinBoundedNativeReadBudget(supported);
         ActiveLeaseMappingCorruptionFailsTheRateLimitedHealthProbe(supported);
+        ATransientMappingReadDoesNotRetireTheMenuCohort(supported);
+        CaptureCannotSpanLeaseProbeRecovery(supported);
         ActiveLeaseCohortDisableFailsTheRateLimitedHealthProbe(supported);
         HookSetPollsLeaseHealthOutsideTheNativeCallbackPath();
         CapturesEveryGuestPayloadBeforeOriginalAndPublishesAfter(supported);
         ActiveWidgetUsesCheckedPointerFreeNormalization(supported);
         CaptureIdentityClockAndSinkFailuresAreContained(supported);
-        QueueOverflowPermanentlyDegradesIngress(supported);
+        QueueOverflowDiscardsIncompleteBatchAndRecovers(supported);
         CommittedSnapshotCanFinishPublicationAfterStop(supported);
         OriginalFailuresAreContainedAndPermanentlyDegradeIngress(supported);
         ReentrantCallbacksKeepCapturesIsolatedAndFailClosed(supported);
@@ -102,15 +114,108 @@ internal static class Steam2026TranslatedMenuIngressTests
             ProbeActiveLeaseHealth(contract, 999),
             "menu lease health probe is rate limited for one second");
         Equal(
-            false,
+            true,
             ProbeActiveLeaseHealth(contract, 1000),
-            "mapped menu identity loss poisons the active lease");
+            "one lost mapped menu identity read is not yet proof");
+        Equal(
+            true,
+            ProbeActiveLeaseHealth(contract, 2000),
+            "nor are two");
+        Equal(
+            false,
+            ProbeActiveLeaseHealth(contract, 3000),
+            "sustained mapped menu identity loss poisons the active lease");
 
         contract.RevokeHookLease();
         Equal(
             false,
             ProbeActiveLeaseHealth(contract, 2000),
             "unexpected revoked menu lease is structurally unhealthy");
+    }
+
+    /// <summary>
+    /// The log confirms permanent retirement before later Fort Condor visits, but
+    /// does not identify which retirement cause fired. Exercise the independently
+    /// reproducible single-probe failure, including actual capture suspension and
+    /// recovery. Cached lease identities must not be used during the retry period.
+    /// </summary>
+    private static void ATransientMappingReadDoesNotRetireTheMenuCohort(
+        Steam2026FingerprintResult supported)
+    {
+        var fixture = new TranslatedCallCaptureFixture();
+        var contract = CreateExactContract(fixture, supported);
+        PrepareValidCall(fixture, Steam2026MenuCallbackKind.CursorA);
+        var captures = new List<TranslatedMenuIngressSnapshot>();
+        var originalCalls = 0;
+        using var coordinator = CreateCoordinator(contract,
+            cursorAOriginal: () => originalCalls++, captureSink: captures.Add);
+        contract.ActivateHookLease(_ => true);
+        Equal(true, ProbeActiveLeaseHealth(contract, 0), "initial menu lease health");
+        coordinator.OnCursorA();
+        Equal(1, captures.Count, "healthy menu captures initially");
+
+        var metadata = Steam2026MenuCallbackCatalog.GetMetadata(
+            Steam2026MenuCallbackKind.CursorA);
+        var record = TranslatedCallCaptureFixture.ModuleBase
+            + metadata.FunctionMap.MappingRecordRva;
+        var original = new byte[TranslatedFunctionMapValidator.MappingRecordSize];
+        Equal(true, fixture.Native.TryRead(record, original),
+            "the fixture mapping record reads back");
+        var lost = new byte[TranslatedFunctionMapValidator.MappingRecordSize];
+
+        // An invalid/unavailable mapping for one probe interval.
+        fixture.Native.Write(record, lost);
+        Equal(true, ProbeActiveLeaseHealth(contract, 1000),
+            "one unreadable probe does not silence the party menu for the session");
+        coordinator.OnCursorA();
+        Equal(1, captures.Count, "failed health probe suspends cached-identity capture immediately");
+        Equal(2, originalCalls, "suspended observation still forwards the game's original");
+
+        fixture.Native.Write(record, original);
+        Equal(true, ProbeActiveLeaseHealth(contract, 2000),
+            "and the lease is healthy again once the read answers");
+        coordinator.OnCursorA();
+        Equal(2, captures.Count, "menu capture resumes after mapped identities recover");
+        Equal(true, ProbeActiveLeaseHealth(contract, 3000),
+            "with no strike carried against it");
+
+        // A real loss still retires it, and promptly.
+        fixture.Native.Write(record, lost);
+        Equal(true, ProbeActiveLeaseHealth(contract, 4000), "first sustained failure");
+        Equal(true, ProbeActiveLeaseHealth(contract, 5000), "second sustained failure");
+        Equal(false, ProbeActiveLeaseHealth(contract, 6000),
+            "three seconds of genuine loss still retires the cohort");
+
+        contract.RevokeHookLease();
+    }
+
+    private static void CaptureCannotSpanLeaseProbeRecovery(Steam2026FingerprintResult supported)
+    {
+        var fixture = new TranslatedCallCaptureFixture();
+        var contract = CreateExactContract(fixture, supported);
+        PrepareValidCall(fixture, Steam2026MenuCallbackKind.CursorA);
+        var captures = new List<TranslatedMenuIngressSnapshot>();
+        var record = TranslatedCallCaptureFixture.ModuleBase +
+            Steam2026MenuCallbackCatalog.GetMetadata(Steam2026MenuCallbackKind.CursorA).FunctionMap.MappingRecordRva;
+        var original = new byte[TranslatedFunctionMapValidator.MappingRecordSize];
+        Equal(true, fixture.Native.TryRead(record, original), "save mapping for recovery race");
+        var interruptOnce = true;
+        using var coordinator = CreateCoordinator(contract, cursorAOriginal: () =>
+        {
+            if (!interruptOnce) return;
+            interruptOnce = false;
+            fixture.Native.Write(record, new byte[original.Length]);
+            Equal(true, ProbeActiveLeaseHealth(contract, 1000), "retry holds the hooks");
+            fixture.Native.Write(record, original);
+            Equal(true, ProbeActiveLeaseHealth(contract, 2000), "probe recovers during original");
+        }, captureSink: captures.Add);
+        contract.ActivateHookLease(_ => true);
+        Equal(true, ProbeActiveLeaseHealth(contract, 0), "initial recovery-race lease");
+        coordinator.OnCursorA();
+        Equal(0, captures.Count, "capture begun before a failed probe cannot publish after recovery");
+        coordinator.OnCursorA();
+        Equal(1, captures.Count, "fresh capture after recovery publishes normally");
+        contract.RevokeHookLease();
     }
 
     private static void ActiveLeaseCohortDisableFailsTheRateLimitedHealthProbe(
@@ -128,24 +233,31 @@ internal static class Steam2026TranslatedMenuIngressTests
             ProbeActiveLeaseHealth(contract, 999),
             "disabled menu cohort waits for the next health interval");
         Equal(
-            false,
+            true,
             ProbeActiveLeaseHealth(contract, 1000),
-            "disabled menu cohort poisons the active lease");
+            "a disabled menu cohort is not retired on one probe");
+        Equal(
+            true,
+            ProbeActiveLeaseHealth(contract, 2000),
+            "nor on two");
+        Equal(
+            false,
+            ProbeActiveLeaseHealth(contract, 3000),
+            "a cohort that stays disabled poisons the active lease");
 
         cohortEnabled = true;
         Equal(
             false,
-            ProbeActiveLeaseHealth(contract, 2000),
+            ProbeActiveLeaseHealth(contract, 4000),
             "poisoned menu lease health remains sticky");
         contract.RevokeHookLease();
     }
 
     private static void HookSetPollsLeaseHealthOutsideTheNativeCallbackPath()
     {
-        var prototypeRoot = FindPrototypeRoot();
+        var prototypeRoot = FindSourceRoot();
         var projectRoot = Path.Combine(
             prototypeRoot,
-            "reloaded",
             "Ff7.Accessibility.Steam2026X64");
         var hookSetSource = File.ReadAllText(Path.Combine(
             projectRoot,
@@ -246,8 +358,7 @@ internal static class Steam2026TranslatedMenuIngressTests
     private static void BoundedIngressQueueUsesNoBlockingPrimitive()
     {
         var source = File.ReadAllText(Path.Combine(
-            FindPrototypeRoot(),
-            "reloaded",
+            FindSourceRoot(),
             "Ff7.Accessibility.Steam2026X64",
             "Runtime",
             "NativeIngressQueue.cs"));
@@ -681,7 +792,7 @@ internal static class Steam2026TranslatedMenuIngressTests
         }
     }
 
-    private static void QueueOverflowPermanentlyDegradesIngress(
+    private static void QueueOverflowDiscardsIncompleteBatchAndRecovers(
         Steam2026FingerprintResult supported)
     {
         var fixture = new TranslatedCallCaptureFixture();
@@ -698,13 +809,24 @@ internal static class Steam2026TranslatedMenuIngressTests
 
         PrepareValidCall(fixture, Steam2026MenuCallbackKind.CursorA);
         coordinator.OnCursorA();
-        Equal(true, coordinator.IsFatallyDegraded, "menu queue overflow permanently degrades ingress");
+        Equal(false, coordinator.IsFatallyDegraded, "a full queue does not permanently silence party menus");
 
         PrepareValidCall(fixture, Steam2026MenuCallbackKind.CursorA);
         coordinator.OnCursorA();
         Equal(3, originals, "menu originals remain callable after queue overflow");
-        Equal(true, queue.TryDequeue(out _), "first menu capture remains queued after overflow");
-        Equal(false, queue.TryDequeue(out _), "overflowed and degraded menu captures are not queued");
+        var discarded = 0;
+        Equal(true, coordinator.RecoverQueueOverflow(() =>
+        {
+            while (queue.TryDequeue(out _)) discarded++;
+        }), "consumer acknowledges and clears the overflow");
+        Equal(1, discarded, "incomplete batch is entirely discarded");
+        Equal(false, queue.TryDequeue(out _), "no stale captures remain after recovery");
+        Equal(false, coordinator.RecoverQueueOverflow(() => throw new Exception("unexpected repeat")),
+            "overflow acknowledgment is consumed once");
+        coordinator.OnCursorA();
+        Equal(4, originals, "original still runs after recovery");
+        Equal(true, queue.TryDequeue(out var recovered), "fresh menu is captured after recovery");
+        Equal(3L, recovered.Sequence, "new capture follows the lost sequence without replay");
     }
 
     private static void CommittedSnapshotCanFinishPublicationAfterStop(
@@ -943,8 +1065,8 @@ internal static class Steam2026TranslatedMenuIngressTests
         Equal(false, typeof(IFf7RuntimeBackend).IsAssignableFrom(ingressType), "menu ingress is not a backend");
         Equal(false, typeof(IRuntimeEventSink).IsAssignableFrom(ingressType), "menu ingress is not a runtime event sink");
 
-        var prototypeRoot = FindPrototypeRoot();
-        var projectRoot = Path.Combine(prototypeRoot, "reloaded", "Ff7.Accessibility.Steam2026X64");
+        var prototypeRoot = FindSourceRoot();
+        var projectRoot = Path.Combine(prototypeRoot, "Ff7.Accessibility.Steam2026X64");
         var sourcePath = Path.Combine(
             projectRoot,
             "Runtime",
@@ -1189,13 +1311,16 @@ internal static class Steam2026TranslatedMenuIngressTests
         }
     }
 
-    private static string FindPrototypeRoot()
+    private static string FindSourceRoot()
     {
+        var configured = Environment.GetEnvironmentVariable("FF7_ACCESSIBILITY_SOURCE_ROOT");
+        if (!string.IsNullOrEmpty(configured) &&
+            Directory.Exists(Path.Combine(configured, "Ff7.Accessibility.Steam2026X64")))
+            return configured;
         var current = new DirectoryInfo(AppContext.BaseDirectory);
         while (current is not null)
         {
-            if (Directory.Exists(Path.Combine(current.FullName, "analysis", "dual_runtime")) &&
-                Directory.Exists(Path.Combine(current.FullName, "reloaded")))
+            if (Directory.Exists(Path.Combine(current.FullName, "Ff7.Accessibility.Steam2026X64")))
             {
                 return current.FullName;
             }
@@ -1203,7 +1328,7 @@ internal static class Steam2026TranslatedMenuIngressTests
             current = current.Parent;
         }
 
-        throw new DirectoryNotFoundException("Unable to locate accessibility_prototype root.");
+        throw new DirectoryNotFoundException("Unable to locate Blind Soldier source root.");
     }
 
     private static bool Throws<TException>(Action action)
