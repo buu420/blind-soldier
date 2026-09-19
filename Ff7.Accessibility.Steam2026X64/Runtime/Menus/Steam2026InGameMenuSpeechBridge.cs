@@ -364,9 +364,9 @@ internal sealed class Steam2026InGameMenuSpeechBridge
             return null;
         }
 
-        if (ownsWorldMapIngress && !saveMenu.IsActive &&
-            !IsExactQuitEvidenceCurrent(now) &&
-            !IsExactWorldMapMenuEvidenceCurrent(now))
+        // PHS and Status use screen title/cursor draws rather than ActiveMenuWidget.
+        // Use the same short-lived evidence here and in the worker's pre-Poll gate.
+        if (ownsWorldMapIngress && !HasCurrentWorldMapMenuEvidence(now))
         {
             RevokeOwnership();
             return null;
@@ -431,7 +431,11 @@ internal sealed class Steam2026InGameMenuSpeechBridge
 
     internal bool HasWorldMapMenuOwnership(DateTime now) =>
         ownsMenu && ownsWorldMapIngress && now.Kind == DateTimeKind.Utc &&
-        (saveMenu.IsActive || IsExactWorldMapMenuEvidenceCurrent(now));
+        HasCurrentWorldMapMenuEvidence(now);
+
+    private bool HasCurrentWorldMapMenuEvidence(DateTime now) =>
+        saveMenu.IsActive || IsExactQuitEvidenceCurrent(now) ||
+        IsExactWorldMapMenuEvidenceCurrent(now) || partyFormation.IsActive(now) || statusMenu.IsActive(now);
 
     internal bool HasExactQuitOwnership(DateTime now) =>
         ownsMenu && now.Kind == DateTimeKind.Utc && IsExactQuitEvidenceCurrent(now);

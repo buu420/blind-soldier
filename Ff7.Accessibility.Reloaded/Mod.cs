@@ -819,6 +819,12 @@ public sealed class Mod : IModV1, IModV2
             CreateCutsceneVoiceOutput,
             Log,
             () => fieldMovieNarrationTracker?.IsPlaying == true);
+
+        // The device is the only thing that knows a recording is still being heard: it
+        // plays outside the screen reader, so neither Prism nor the word-count estimate
+        // can see it. Field dialogue delivery waits on this.
+        fieldCutsceneSpeechPriority.AttachRecordingProbe(
+            () => cutsceneVoicePlayer?.IsPlaying == true);
         fieldVisibleWindowSpeechCoordinator = new FieldVisibleWindowSpeechCoordinator(
             TimeSpan.FromMilliseconds(Math.Max(100, config.FieldMessageStableMs)));
         var legacyAddressSpace = new CurrentProcessLegacyAddressSpace();
@@ -3773,13 +3779,13 @@ public sealed class Mod : IModV1, IModV2
             fieldMessageReader?.HasReadableActiveWindow() == true);
         if (dialogueIsOnScreen)
         {
-            // A recorded description plays on the same independent device a film's
-            // recording uses, so the game's own words take it away in the same way.
-            cutsceneVoicePlayer?.Stop("native dialogue opened");
+            // Let the current clip finish. The dialogue delivery paths retain their
+            // pending lines until the independent output device is done.
             return;
         }
 
         var now = DateTime.UtcNow;
+        if (fieldCutsceneSpeechPriority.ShouldDeferDialogueDelivery(now)) return;
 
         // A film whose recording gave way to dialogue keeps being described: its
         // remaining cues are spoken at the moments they belong to, once the game has
@@ -4256,7 +4262,8 @@ public sealed class Mod : IModV1, IModV2
                 try
                 {
                     delivered = config.SpeakFieldMessages &&
-                        Speak(item.Text, item.Interrupt);
+                        fieldCutsceneSpeechPriority.TryDeliverDialogue(now,
+                            () => Speak(item.Text, item.Interrupt));
                 }
                 catch
                 {
@@ -4484,6 +4491,16 @@ public sealed class Mod : IModV1, IModV2
                     peek.OwnershipIdentity,
                     now,
                     out nativeInterrupt))
+            {
+                return;
+            }
+
+            // Before the take, which is destructive, and well before TryCommitEmission.
+            // A recorded description is still on its own device; handing this line to the
+            // screen reader now would speak over it, because the reader's queue does not
+            // wait for that device. The pending speech keeps its exact lifecycle and is
+            // offered again on the next tick, once the clip has finished.
+            if (fieldCutsceneSpeechPriority.ShouldDeferDialogueDelivery(now))
             {
                 return;
             }
@@ -7656,6 +7673,15 @@ public sealed class Mod : IModV1, IModV2
     private void TickFieldDialogueDrawSpeech()
     {
         if (!config.EnableFieldDialogueDrawSpeech || Volatile.Read(ref activeFieldAskIdentity) is not null)
+        {
+            return;
+        }
+
+        // Checked before Poll, which dequeues. A recorded description is still being
+        // heard, so taking the line out of the tracker now and handing it to the screen
+        // reader would talk over the clip - the reader's own queue is a different device
+        // and does not wait for it. Left where it is and offered again next tick.
+        if (fieldCutsceneSpeechPriority.ShouldDeferDialogueDelivery(DateTime.UtcNow))
         {
             return;
         }

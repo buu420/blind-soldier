@@ -17,8 +17,12 @@ internal sealed class Steam2026CutsceneNarrationSpeechTracker
         int fieldId,
         bool estimatedProtection,
         bool speechStateAvailable,
-        bool speechIsActive)
+        bool speechIsActive,
+        bool recordingIsPlaying = false)
     {
+        // Prism's idle state cannot end a recording on the independent device.
+        if (recordingIsPlaying) return true;
+
         if (!estimatedProtection)
         {
             return false;

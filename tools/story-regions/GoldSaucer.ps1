@@ -140,6 +140,15 @@ Add-Definition -FieldId 497 -FieldName 'gldgate' -Kind Location -EntityId 14 `
 # The gateways themselves stay in the ordinary native Exits list untouched; what is
 # removed is only this region's claim that they are first-visit objectives.
 
+# Cait Sith joins in Wonder Square (games), not on the Terminal Floor. Its jp3
+# LINE contact script delegates to cloud Script 4 with destination selector 3,
+# which MAPJUMPs directly to coloss (499). Offer that visible tube at moment 442.
+Add-Definition -FieldId 505 -FieldName 'games' -Kind Location -EntityId 18 `
+    -Label 'Take the Battle Square exit' -X 11 -Y -834 -Z 0 `
+    -MinimumGameMoment 442 -MaximumGameMoment 444 -Priority 0 `
+    -EntityName 'jp3' -ScriptType 'Contact' -RequiredEnabledLineEntityId 18 `
+    -TriggerLine ([ordered]@{ startX=30; startY=-852; startZ=0; endX=-8; endY=-815; endZ=0 })
+
 # --- Available attractions -------------------------------------------------
 # Every machine below is an [OK] or walk-over LINE, not a gateway and not a model,
 # so none of them appear in the ordinary Exits, Objects or NPCs lists. Their

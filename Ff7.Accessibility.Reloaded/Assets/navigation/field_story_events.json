@@ -5,7 +5,7 @@
   "scannedGameMomentWrites": 334,
   "navigableGameMomentWrites": 118,
   "unresolvedAutomaticOrIndirectWrites": 219,
-  "definitionCount": 1110,
+  "definitionCount": 1111,
   "definitions": [
     {
       "fieldId": 115,
@@ -20726,6 +20726,32 @@
         "mask": 128,
         "value": 128
       }
+    },
+    {
+      "fieldId": 505,
+      "kind": "Location",
+      "label": "Take the Battle Square exit",
+      "entityId": 18,
+      "x": 11,
+      "y": -834,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 442,
+      "maximumGameMoment": 444,
+      "priority": 0,
+      "sourceFieldName": "games",
+      "sourceEntityName": "jp3",
+      "sourceScriptType": "Contact",
+      "completesOnArrival": true,
+      "triggerLine": {
+        "startX": 30,
+        "startY": -852,
+        "startZ": 0,
+        "endX": -8,
+        "endY": -815,
+        "endZ": 0
+      },
+      "requiredEnabledLineEntityId": 18
     },
     {
       "fieldId": 506,

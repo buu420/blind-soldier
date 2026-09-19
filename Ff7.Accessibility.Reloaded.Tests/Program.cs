@@ -439,8 +439,16 @@ if (args.Contains("--north-corel-ether-only", StringComparer.OrdinalIgnoreCase))
     return;
 }
 
+if (args.Contains("--gold-saucer-followup-only", StringComparer.OrdinalIgnoreCase))
+{
+    GoldSaucerFollowupTests.Run(Environment.GetEnvironmentVariable("FF7_ACCESSIBILITY_DATA_ROOT"));
+    Console.WriteLine("Gold Saucer follow-up tests passed.");
+    return;
+}
+
 if (args.Contains("--gold-saucer-only", StringComparer.OrdinalIgnoreCase))
 {
+    GoldSaucerFollowupTests.Run(Environment.GetEnvironmentVariable("FF7_ACCESSIBILITY_DATA_ROOT"));
     Ff7.Accessibility.Reloaded.Tests.GoldSaucerFirstVisitTests.Run(CreateInstalledFieldWalkmeshReader);
     Ff7.Accessibility.Reloaded.Tests.GoldSaucerMovieNarrationTests.Run();
     Ff7.Accessibility.Reloaded.Tests.ReviewedFilmNarrationTests.RunWithInstalledGameData();
@@ -742,6 +750,7 @@ Ff7.Accessibility.Reloaded.Tests.CorelJourneyDescriptionTests.Run();
 MountCorelNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.NorthCorelNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
 NorthCorelEtherInteractionTests.Run(CreateInstalledFieldWalkmeshReader);
+GoldSaucerFollowupTests.Run(Environment.GetEnvironmentVariable("FF7_ACCESSIBILITY_DATA_ROOT"));
 Ff7.Accessibility.Reloaded.Tests.GoldSaucerFirstVisitTests.Run(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.GoldSaucerMovieNarrationTests.Run();
 Ff7.Accessibility.Reloaded.Tests.ReviewedFilmNarrationTests.RunWithInstalledGameData();

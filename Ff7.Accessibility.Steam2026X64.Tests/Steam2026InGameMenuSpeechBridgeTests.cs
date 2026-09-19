@@ -19,6 +19,10 @@ internal static class Steam2026InGameMenuSpeechBridgeTests
         ReadsNativeOrderRowsAndPendingSwap();
         ReadsScriptedReformPartySelection();
         ReadsNormalPhsPartySelection();
+        ReadsNormalPhsPartySelectionFromTheWorldMap();
+        ReadsStatusSummaryFromTheWorldMap();
+        WorldMapMenuEvidenceExpiresWhenTheScreenStopsDrawing();
+        WorldMapTraversalAloneStillSpeaksNothing();
         ReformValidationDoesNotAlternateWithTranslatedInstruction();
         ReadsMagicCategoryWithoutRenderedCursor();
         ReadsNativeMagicAndPartySelections();
@@ -406,6 +410,139 @@ internal static class Steam2026InGameMenuSpeechBridgeTests
             "PHS. Party slot 2, Barret. Press Start when finished.",
             bridge.Poll(now.AddMilliseconds(80)),
             "PHS inside the menu module reads the checked party slot");
+    }
+
+    // PHS has no ActiveMenuWidget. Its own draws must keep both the worker's
+    // ownership gate and the speech bridge active on world-map module 3.
+    private static void ReadsNormalPhsPartySelectionFromTheWorldMap()
+    {
+        const int worldMapModule = 3;
+        var bridge = CreateBridge(settleTime: TimeSpan.FromMilliseconds(30));
+        var now = UtcNow();
+        var sequence = 0L;
+
+        ObserveText(bridge, ref sequence, now, "PHS", 508, 14, 7, 0, moduleId: worldMapModule);
+        ObserveText(
+            bridge,
+            ref sequence,
+            now,
+            "Select with START button.",
+            26,
+            13,
+            7,
+            ConfigContext,
+            moduleId: worldMapModule);
+        ObserveText(bridge, ref sequence, now, "Cloud", 134, 77, 7, ConfigContext, moduleId: worldMapModule);
+        ObserveText(bridge, ref sequence, now, "Barret", 134, 214, 7, ConfigContext, moduleId: worldMapModule);
+        ObserveText(bridge, ref sequence, now, "Tifa", 134, 351, 7, ConfigContext, moduleId: worldMapModule);
+        ObserveCursor(
+            bridge,
+            ref sequence,
+            now.AddMilliseconds(1),
+            0,
+            257,
+            0x3DCF0D84,
+            moduleId: worldMapModule);
+
+        Equal(
+            "PHS. Party slot 2, Barret. Press Start when finished.",
+            PollWorldMapLikeHost(bridge, now.AddMilliseconds(80)),
+            "PHS opened from the world map reads the checked party slot");
+    }
+
+    // Status likewise needs title/detail evidence after the root widget expires.
+    private static void ReadsStatusSummaryFromTheWorldMap()
+    {
+        const int worldMapModule = 3;
+        var status = CreateStatus();
+        var bridge = CreateBridge(status: () => status, settleTime: TimeSpan.FromMilliseconds(30));
+        var now = UtcNow();
+        var sequence = 0L;
+
+        ObserveText(bridge, ref sequence, now, "Status", 508, 13, 7, RootContext, moduleId: worldMapModule);
+        ObserveText(
+            bridge,
+            ref sequence,
+            now.AddMilliseconds(4),
+            "Strength",
+            60,
+            120,
+            5,
+            ConfigContext,
+            moduleId: worldMapModule);
+
+        Contains(
+            PollWorldMapLikeHost(bridge, now.AddMilliseconds(40)),
+            "Cloud. Level 7. HP 314 of 314. MP 54 of 54",
+            "Status opened from the world map reads identity and resources");
+    }
+
+    /// <summary>
+    /// The screen's own claim is evidence for as long as the screen is being drawn, and no
+    /// longer. Once the player closes it and goes back to walking, the stale claim must not
+    /// keep the bridge speaking.
+    /// </summary>
+    private static void WorldMapMenuEvidenceExpiresWhenTheScreenStopsDrawing()
+    {
+        const int worldMapModule = 3;
+        var status = CreateStatus();
+        var bridge = CreateBridge(status: () => status, settleTime: TimeSpan.FromMilliseconds(30));
+        var now = UtcNow();
+        var sequence = 0L;
+
+        ObserveText(bridge, ref sequence, now, "Status", 508, 13, 7, RootContext, moduleId: worldMapModule);
+        ObserveText(
+            bridge,
+            ref sequence,
+            now.AddMilliseconds(4),
+            "Strength",
+            60,
+            120,
+            5,
+            ConfigContext,
+            moduleId: worldMapModule);
+        Contains(
+            bridge.Poll(now.AddMilliseconds(40)),
+            "Cloud",
+            "the fixture opened the Status screen");
+
+        // The player closes it and walks on. Nothing draws the screen any more, so a second
+        // later the claim has lapsed and the bridge has let go.
+        Equal(
+            null,
+            bridge.Poll(now.AddSeconds(1)),
+            "a Status claim nobody is drawing any more stops holding the world map");
+        Equal(false, bridge.HasWorldMapMenuOwnership(now.AddSeconds(1)),
+            "the worker must release world-map menu ownership when the screen closes");
+    }
+
+    /// <summary>
+    /// The other half of the same gate. Traversing the world map draws no menu, so
+    /// nothing may claim ownership there - the PHS screen has to be genuinely open.
+    /// </summary>
+    private static string? PollWorldMapLikeHost(Steam2026InGameMenuSpeechBridge bridge, DateTime now)
+    {
+        // The worker tests ownership before Poll and resets a bridge that has no
+        // claim. Testing Poll alone misses an otherwise complete menu fix.
+        if (!bridge.HasWorldMapMenuOwnership(now)) bridge.Reset();
+        return bridge.Poll(now);
+    }
+
+    private static void WorldMapTraversalAloneStillSpeaksNothing()
+    {
+        const int worldMapModule = 3;
+        var bridge = CreateBridge(settleTime: TimeSpan.FromMilliseconds(30));
+        var now = UtcNow();
+        var sequence = 0L;
+
+        // Ordinary world-map text with none of the PHS screen's own evidence.
+        ObserveText(bridge, ref sequence, now, "Cloud", 134, 77, 7, ConfigContext, moduleId: worldMapModule);
+        ObserveText(bridge, ref sequence, now, "Barret", 134, 214, 7, ConfigContext, moduleId: worldMapModule);
+
+        Equal(
+            null,
+            bridge.Poll(now.AddMilliseconds(80)),
+            "world-map travel without an open menu stays silent");
     }
 
     private static void ReformValidationDoesNotAlternateWithTranslatedInstruction()

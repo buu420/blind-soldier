@@ -42,10 +42,13 @@ internal static class Steam2026CutsceneVoiceAdapterTests
     public static void Run()
     {
         ABusyDeviceKeepsTheCueInsteadOfSpendingItInTheWrongVoice();
+        AnUnrecordedCueWaitsBehindAPlayingRecording();
         AFilmStartingTakesTheDeviceFromAFieldDescription();
         ADeferredCueClipDiesWithTheFilmItDescribes();
         ADeferredCueClipSurvivesAFieldChangeUnderTheSameFilm();
         TheHostBoundariesStopAFieldDescriptionAsWellAsAFilm();
+        ADialogueBoxLetsTheStartedClipFinishAndWaitsForIt();
+        AHostCancelReleasesTheHeldDialogueImmediately();
         TheHostSuspendsOffForegroundWhenNoFilmIsPlaying();
         TheHostStartsNoDeferredCueOffForegroundAndKeepsIt();
     }
@@ -159,11 +162,6 @@ internal static class Steam2026CutsceneVoiceAdapterTests
                 memory.FilmStateReadable = false;
                 f.Coordinator.ObserveNativeFilm(Timestamp.AddSeconds(1));
             }),
-            ("the game put its own words on screen", (memory, f) =>
-            {
-                memory.ActiveMessageCount = 1;
-                f.Coordinator.ObserveNativeFilm(Timestamp.AddSeconds(1), () => true);
-            }),
         };
 
         foreach (var (what, apply) in cases)
@@ -175,7 +173,90 @@ internal static class Steam2026CutsceneVoiceAdapterTests
         }
     }
 
+    /// <summary>
+    /// The player's report: a recorded action description is cut off the instant a text
+    /// box opens. One session's log carries 18 of them.
+    ///
+    /// <para>A description that has already started is a sentence or two on its own
+    /// device. It finishes, and the game's own words wait for it - which the shared
+    /// priority can only know by asking that device, because the recording is outside
+    /// the screen reader and neither Prism nor the word-count estimate can see it.</para>
+    ///
+    /// <para>What does not change: no second description is offered while the text box
+    /// is up, and every other reason to stop a clip still stops it.</para>
+    /// </summary>
+    private static void ADialogueBoxLetsTheStartedClipFinishAndWaitsForIt()
+    {
+        var fixture = SpeakingAFieldDescription("a text box opened");
+        var dialogue = Timestamp.AddSeconds(1);
+
+        fixture.Memory.ActiveMessageCount = 1;
+        fixture.Coordinator.ObserveNativeFilm(dialogue, () => true);
+
+        Equal(true, fixture.Clip.IsPlaying, "the description the player is hearing keeps going");
+        Equal(0, fixture.Clip.Stops, "and nothing stopped it");
+        Equal(
+            true,
+            fixture.Coordinator.ShouldQueueDialogue(Gldst, dialogue),
+            "the game's words wait for it, on the device's word rather than an estimate");
+
+        // And nothing new starts on top of it while the box is up.
+        Equal(
+            false,
+            fixture.Coordinator.TrySpeakPending(true, () => true, _ => true, dialogue, out _),
+            "no second description is offered over the first");
+        Equal(1, fixture.Clip.Starts, "still exactly one clip");
+
+        // The device reaches the end of the clip by itself - not a stop.
+        fixture.Clip.Finish();
+        Equal(
+            false,
+            fixture.Coordinator.ShouldQueueDialogue(Gldst, dialogue.AddMilliseconds(1)),
+            "and the moment it finishes, the dialogue is released");
+        Equal(0, fixture.Clip.Stops, "the clip was never cut short");
+    }
+
+    /// <summary>
+    /// The hold is the device's, so anything that takes the device away releases it at
+    /// once. A host boundary must not leave the game's words waiting on a clip that is
+    /// no longer playing.
+    /// </summary>
+    private static void AHostCancelReleasesTheHeldDialogueImmediately()
+    {
+        var fixture = SpeakingAFieldDescription("the host cancelled");
+        var dialogue = Timestamp.AddSeconds(1);
+
+        fixture.Memory.ActiveMessageCount = 1;
+        fixture.Coordinator.ObserveNativeFilm(dialogue, () => true);
+        Equal(true, fixture.Coordinator.ShouldQueueDialogue(Gldst, dialogue), "the dialogue is waiting");
+
+        fixture.Coordinator.SuspendNativeFilmNarration(FieldMovieNarrationStopReason.Suspended);
+
+        Equal(false, fixture.Clip.IsPlaying, "the host takes the device back");
+        Equal(1, fixture.Clip.Stops, "exactly once");
+        Equal(
+            false,
+            fixture.Coordinator.ShouldQueueDialogue(Gldst, dialogue.AddMilliseconds(1)),
+            "and the game's words are no longer held behind it");
+    }
+
     /// <summary>A field description playing in the recorded voice, and nothing else.</summary>
+    private static void AnUnrecordedCueWaitsBehindAPlayingRecording()
+    {
+        var f = SpeakingAFieldDescription("unrecorded next cue");
+        var spoken = new List<string>();
+        f.Coordinator.Observe(Snapshot(Gldst, 20, 2, Timestamp.AddSeconds(1)));
+        Equal(false, f.Coordinator.TrySpeakPending(true, () => false,
+            t => { spoken.Add(t); return true; }, Timestamp.AddSeconds(1), out _),
+            "an unrecorded next cue must not use Prism over the current recording");
+        Equal(0, spoken.Count, "no second voice overlaps");
+        f.Clip.Finish();
+        Equal(true, f.Coordinator.TrySpeakPending(true, () => false,
+            t => { spoken.Add(t); return true; }, Timestamp.AddSeconds(2), out _),
+            "the unrecorded cue still falls back to speech once the device is free");
+        Equal(Second, spoken.Single(), "the queued cue was not lost");
+    }
+
     private static Fixture SpeakingAFieldDescription(string what)
     {
         var memory = new FakeAddressSpace { Module = 1, FieldId = Gldst };
