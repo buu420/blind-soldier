@@ -14,6 +14,7 @@ internal static class Steam2026ResearchAccessibilityOutputTests
         RepeatsLastDeliveredSpeechWithoutReplacingIt();
         LocalizesBeforePrismAndRepeatStorage();
         NarrationCompletionReleasesDialogueWithoutReprotectingIt();
+        PrismCompletionCannotReleaseAnIndependentRecording();
     }
 
     private static void ForwardsMovieNarrationLifecycleAndOwnsPlayback()
@@ -160,6 +161,19 @@ internal static class Steam2026ResearchAccessibilityOutputTests
         Equal("Itinéraire terminé.", spoken[0], "localized x64 Prism speech");
         Equal(true, output.RepeatLast(), "localized speech is repeatable");
         Equal("Itinéraire terminé.", spoken[1], "repeat stores localized x64 speech");
+    }
+
+    private static void PrismCompletionCannotReleaseAnIndependentRecording()
+    {
+        var tracker = new Steam2026CutsceneNarrationSpeechTracker();
+        tracker.Begin(133);
+        tracker.ShouldProtectDialogue(133, true, true, true);
+        Equal(true, tracker.ShouldProtectDialogue(133, true, true, false, recordingIsPlaying: true),
+            "Prism became idle but the independent recording still holds dialogue");
+        Equal(true, tracker.ShouldProtectDialogue(133, false, true, false, recordingIsPlaying: true),
+            "device playback remains authoritative beyond the estimate");
+        Equal(false, tracker.ShouldProtectDialogue(133, false, true, false, recordingIsPlaying: false),
+            "actual recording completion releases the queued line");
     }
 
     private static void NarrationCompletionReleasesDialogueWithoutReprotectingIt()

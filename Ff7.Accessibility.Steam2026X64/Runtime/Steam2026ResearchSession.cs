@@ -1939,7 +1939,8 @@ avigationield_zone_transition.wav"),
                             currentFieldId,
                             estimatedNarrationProtection,
                             speechStateAvailable,
-                            speechIsActive);
+                            speechIsActive,
+                            cutsceneDescriptions?.ShouldDeferDialogueDelivery(now) == true);
                     if (frame.Dialogue is
                         {
                             Kind: RuntimeDomainUpdateKind.Present,

@@ -38,6 +38,14 @@ internal sealed class Steam2026FieldCutsceneDescriptionCoordinator
         tracker = new FieldCutsceneDescriptionTracker(cues);
         this.narration = narration;
         this.cutsceneVoice = cutsceneVoice;
+
+        // The priority policy asks the device, not a word-count estimate, whether a
+        // recording is still being heard. Without this the only way the game's words
+        // could take precedence was to stop the clip.
+        if (cutsceneVoice is not null)
+        {
+            speechPriority.AttachRecordingProbe(() => cutsceneVoice.IsPlaying);
+        }
     }
 
     /// <summary>
@@ -218,7 +226,8 @@ internal sealed class Steam2026FieldCutsceneDescriptionCoordinator
                 return false;
             }
 
-            if (FieldCutsceneSpeechPriority.ShouldWaitForDialogue(
+            if (speechPriority.ShouldDeferDialogueDelivery(nowUtc) ||
+                FieldCutsceneSpeechPriority.ShouldWaitForDialogue(
                     activeMessageCount,
                     hasReadableMessage))
             {
@@ -328,16 +337,8 @@ internal sealed class Steam2026FieldCutsceneDescriptionCoordinator
 
         if (narration is null)
         {
-            // No film tracker, but a field description may still be playing and the
-            // game may still be talking over it.
-            lock (sync)
-            {
-                if (DialogueIsOnScreen(hasReadableActiveMessage))
-                {
-                    cutsceneVoice?.Stop("native dialogue opened");
-                }
-            }
-
+            // An already-started action clip finishes; dialogue delivery waits for
+            // its device. No new description starts while a text box is open.
             return;
         }
 
@@ -358,12 +359,11 @@ internal sealed class Steam2026FieldCutsceneDescriptionCoordinator
                 return;
             }
 
+            // The flag still reaches the film tracker, so a long recording hands over to
+            // the game's words and its remaining cues go onto the deferred schedule
+            // exactly as before. What no longer happens is stopping a clip that has
+            // already started: it finishes, and the dialogue waits.
             var dialogueIsOnScreen = DialogueIsOnScreen(hasReadableActiveMessage);
-            if (dialogueIsOnScreen)
-            {
-                cutsceneVoice?.Stop("native dialogue opened");
-            }
-
             narration.Observe(sample, nowUtc, dialogueIsOnScreen);
         }
     }
@@ -448,6 +448,9 @@ internal sealed class Steam2026FieldCutsceneDescriptionCoordinator
         }
     }
 
+
+    internal bool ShouldDeferDialogueDelivery(DateTime nowUtc) =>
+        speechPriority.ShouldDeferDialogueDelivery(nowUtc);
 
     internal bool ShouldQueueDialogue(int fieldId, DateTime nowUtc) =>
         nowUtc.Kind == DateTimeKind.Utc

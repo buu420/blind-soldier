@@ -6,6 +6,7 @@ internal static class FieldVisibleWindowSpeechCoordinatorTests
 {
     public static void Run()
     {
+        PollingDialogueRetriesAfterARecordingFinishes();
         SpeaksSimultaneousWindowsOnceInNativeOrder();
         HoldsReadyLaterWindowBehindEarlierSettlingWindow();
         DispatchesReadyEarlierWindowAndQueuesLaterSettlingWindow();
@@ -55,6 +56,34 @@ internal static class FieldVisibleWindowSpeechCoordinatorTests
         UnqueuedAskIdentityDoesNotClaimPollingWindow();
         AskOwnershipDoesNotSuppressOverlappingTextCollisions();
         TypewriterGrowthAfterAVisiblePauseSpeaksOnlyTheNewSuffix();
+    }
+
+    private static void PollingDialogueRetriesAfterARecordingFinishes()
+    {
+        var Start = DateTime.UnixEpoch;
+        const int Field = 496;
+        var playing = true;
+        var priority = new FieldCutsceneSpeechPriority();
+        priority.AttachRecordingProbe(() => playing);
+        priority.BeginNarration(Field, TimeSpan.FromSeconds(10), Start);
+        var windows = new FieldVisibleWindowSpeechCoordinator(TimeSpan.Zero);
+        FieldVisibleWindowSnapshot[] page = [new(0, 2, "Cloud: Let's go.", 0x700040)];
+        windows.Observe(page, 1, Start, requireDeliveryAcknowledgement: true);
+        var dispatch = windows.Observe(page, 1, Start.AddTicks(1), requireDeliveryAcknowledgement: true).Single();
+        var delivered = new List<string>();
+        bool Speak(string text) { delivered.Add(text); return true; }
+        var accepted = priority.TryDeliverDialogue(Start.AddTicks(1), () => Speak(dispatch.Text));
+        windows.AcknowledgePollingSpeech(dispatch.DispatchToken, accepted);
+        Equal(false, accepted, "polling must not acknowledge dialogue during a clip");
+        Equal(0, delivered.Count, "nothing reaches the screen reader over the recording");
+        playing = false;
+        var retry = windows.Observe(page, 1, Start.AddSeconds(1), requireDeliveryAcknowledgement: true).Single();
+        accepted = priority.TryDeliverDialogue(Start.AddSeconds(1), () => Speak(retry.Text));
+        windows.AcknowledgePollingSpeech(retry.DispatchToken, accepted);
+        Equal(true, accepted, "the pending line is released when the device finishes");
+        Equal("Cloud: Let's go.", delivered.Single(), "the exact line is spoken once");
+        Equal(0, windows.Observe(page, 1, Start.AddSeconds(2), requireDeliveryAcknowledgement: true).Count,
+            "acknowledged dialogue is not repeated");
     }
 
     private static void SpeaksSimultaneousWindowsOnceInNativeOrder()

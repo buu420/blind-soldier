@@ -24,6 +24,7 @@ internal static class CutsceneVoiceTests
 
     public static void Run()
     {
+        RecordingCompletionAndTimeoutReleaseDialogue();
         TheFileNameIsTheHashOfTheExactText();
         AManifestEntryWithoutADurationIsSkipped();
         ARecordedDescriptionIsPlayedInsteadOfSpoken();
@@ -33,6 +34,30 @@ internal static class CutsceneVoiceTests
         ASecondDescriptionWaitsInTheQueueRatherThanBeingSpokenOver();
         TheDialogueWindowIsHeldForTheClipsRealLength();
         TheDeliveryStepConsumesACueOnlyWhenSomebodySaidIt();
+    }
+
+    private static void RecordingCompletionAndTimeoutReleaseDialogue()
+    {
+        var playing = true;
+        var priority = new FieldCutsceneSpeechPriority();
+        priority.AttachRecordingProbe(() => playing);
+        priority.BeginNarration(Field, TimeSpan.FromSeconds(2), Start);
+        Equal(true, priority.ShouldQueueDialogue(Field, Start.AddSeconds(3)),
+            "actual recording outlives its estimated reservation");
+        Equal(true, priority.ShouldDeferDialogueDelivery(Start.AddSeconds(3)), "independent output owns delivery");
+        playing = false;
+        Equal(false, priority.ShouldQueueDialogue(Field, Start.AddSeconds(3)), "device completion releases dialogue");
+        priority.BeginNarration(Field, TimeSpan.FromSeconds(15), Start);
+        Equal(false, priority.ShouldQueueDialogue(Field, Start.AddMilliseconds(1)),
+            "cancellation before the first observation does not leave a silent reservation");
+        playing = true;
+        priority.BeginNarration(Field, TimeSpan.FromSeconds(2), Start);
+        Equal(false, priority.ShouldQueueDialogue(Field, Start.AddSeconds(31)), "stalled recording cannot mute x64 forever");
+        Equal(false, priority.ShouldDeferDialogueDelivery(Start.AddSeconds(31)), "same timeout applies to legacy delivery");
+        priority.Reset();
+        Equal(false, priority.ShouldDeferDialogueDelivery(Start.AddSeconds(32)), "field reset cannot extend a stalled clip");
+        priority.AttachRecordingProbe(() => throw new InvalidOperationException("device lost"));
+        Equal(false, priority.ShouldQueueDialogue(Field, Start.AddSeconds(33)), "failed device probe releases dialogue");
     }
 
     private static void TheFileNameIsTheHashOfTheExactText()

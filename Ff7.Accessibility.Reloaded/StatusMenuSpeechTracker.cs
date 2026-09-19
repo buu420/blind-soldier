@@ -21,6 +21,27 @@ public sealed class StatusMenuSpeechTracker
         this.settleTime = settleTime < TimeSpan.Zero ? TimeSpan.Zero : settleTime;
     }
 
+    /// <summary>
+    /// Whether the Status screen is open, on the evidence this tracker already uses to
+    /// decide it may speak: the exact Status title, or a detail row drawn while that
+    /// title was recent.
+    ///
+    /// <para>A host whose module id cannot tell a menu from ordinary play - the world
+    /// map keeps module 3 either way - needs this to know the screen is genuinely up.</para>
+    /// </summary>
+    public bool IsActive(DateTime now)
+    {
+        if (now.Kind != DateTimeKind.Utc)
+        {
+            return false;
+        }
+
+        lock (sync)
+        {
+            return IsRecent(lastTitleAt, now) || IsRecent(lastDetailsAt, now);
+        }
+    }
+
     public void ObserveDraw(MenuTextRenderEntry entry, DateTime now)
     {
         lock (sync)

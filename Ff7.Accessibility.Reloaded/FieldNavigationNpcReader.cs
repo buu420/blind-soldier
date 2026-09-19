@@ -370,7 +370,17 @@ public sealed class FieldNavigationNpcReader
             [(456, 11)] = "Innkeeper",
 
             // innman2 loads the ARFD resident model; use a generic role here.
-            [(456, 12)] = "Man"
+            [(456, 12)] = "Man",
+
+            // crcin_2: native model-loader resources gold_dirver1, gold_driver2/3 and sub_esto.
+            // Joe is named in MESSAGE 14. The other jockeys have anonymous Talk
+            // text (including ellipses), which must not make them disappear.
+            [(512, 4)] = "Joe",
+            [(512, 5)] = "Jockey",
+            [(512, 6)] = "Jockey",
+            [(512, 7)] = "Jockey",
+            [(512, 8)] = "Jockey",
+            [(512, 9)] = "Ester"
         };
 
     private static readonly IReadOnlyDictionary<
@@ -455,7 +465,7 @@ public sealed class FieldNavigationNpcReader
                 // visible Talk model there is labeled above; anything else on
                 // these screens loads no model and must not be guessed at.
                 .Concat(Enumerable.Range(353, 6))
-                .Concat([450, 453, 454, 455, 456]));
+                .Concat([450, 453, 454, 455, 456, 512]));
 
     private readonly Func<int, int> readInt32;
     private readonly Func<int, short> readInt16;
