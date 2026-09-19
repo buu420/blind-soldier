@@ -151,6 +151,15 @@ internal sealed class Steam2026TranslatedMenuHookSet : IDisposable
     internal bool TryDequeue(out TranslatedMenuIngressSnapshot snapshot) =>
         captureQueue.TryDequeue(out snapshot);
 
+    internal bool RecoverQueueOverflow() => coordinator?.RecoverQueueOverflow(() =>
+    {
+        while (captureQueue.TryDequeue(out _)) { }
+    }) == true;
+
+    internal string DegradationReason => coordinator?.IsFatallyDegraded == true
+        ? "native original or observation queue threw an exception"
+        : "mapped callback identities did not recover after consecutive failed health checks";
+
     public void Dispose()
     {
         if (Interlocked.Exchange(ref disposed, 1) != 0)

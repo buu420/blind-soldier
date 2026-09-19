@@ -2570,6 +2570,15 @@ avigationield_zone_transition.wav"),
 
                 if (hookSet is not null)
                 {
+                    if (hookSet.RecoverQueueOverflow())
+                    {
+                        pump?.ResetMenuIngress();
+                        tracker.Reset();
+                        inGameMenuBridge?.Reset();
+                        titleLoadMenuBridge?.ResetIngress();
+                        nameEntryPromptSpeechCoordinator.Reset();
+                        log("Translated menu queue filled; discarded incomplete observations and resumed capture.");
+                    }
                     if (hasExactShopMenuOwnership)
                     {
                         inGameMenuBridge?.Reset();
@@ -2637,6 +2646,17 @@ avigationield_zone_transition.wav"),
                         }
                     }
 
+                    // A producer may overflow while this worker is draining. Clear
+                    // that partial batch before any menu tracker can speak it.
+                    if (hookSet.RecoverQueueOverflow())
+                    {
+                        pump?.ResetMenuIngress();
+                        tracker.Reset();
+                        inGameMenuBridge?.Reset();
+                        titleLoadMenuBridge?.ResetIngress();
+                        nameEntryPromptSpeechCoordinator.Reset();
+                        log("Translated menu queue filled during drain; discarded incomplete observations and resumed capture.");
+                    }
                     try
                     {
                         nameEntryPromptSpeechCoordinator.Poll(DateTime.UtcNow);
@@ -2721,7 +2741,7 @@ avigationield_zone_transition.wav"),
 
                     if (hookSet.IsFatallyDegraded)
                     {
-                        log("Translated menu ingress degraded; disabling its full hook cohort.");
+                        log($"Translated menu ingress degraded ({hookSet.DegradationReason}); disabling its full hook cohort.");
                         hookSet.Dispose();
                         hookSet = null;
                         hooksPermanentlyDisabled = true;

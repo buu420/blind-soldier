@@ -418,6 +418,13 @@ if (args.Contains("--native-field-movement-only", StringComparer.OrdinalIgnoreCa
     return;
 }
 
+if (args.Contains("--north-corel-npcs-only", StringComparer.OrdinalIgnoreCase))
+{
+    NorthCorelNpcTests.Run(FindGameRoot());
+    Console.WriteLine("North Corel NPC tests passed.");
+    return;
+}
+
 if (args.Contains("--north-corel-readout-only", StringComparer.OrdinalIgnoreCase))
 {
     NorthCorelNavigationReadoutTests.Run(CreateInstalledFieldWalkmeshReader);
@@ -720,6 +727,7 @@ AssertMenuTextRenderDiagnosticsFiltersAndDedupes();
 AssertRenderedMenuTextSpeechTrackerPrefersHighlightedText();
 PartyFormationSpeechTrackerTests.Run();
 FortCondorTests.Run();
+NorthCorelNpcTests.Run(FindGameRoot());
 FortCondorLadderReachabilityTests.Run();
 FortCondorSaveRoomClimbTests.Run();
 TowerFieldTransitionAnchoringTests.Run();

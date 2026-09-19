@@ -51,8 +51,18 @@ if (args.Contains("--controller-ownership-only", StringComparer.OrdinalIgnoreCas
     return;
 }
 
+if (args.Contains("--north-corel-npcs-only", StringComparer.OrdinalIgnoreCase))
+{
+    NorthCorelNpcTests.Run(Environment.GetEnvironmentVariable("FF7_ACCESSIBILITY_DATA_ROOT")
+        ?? throw new InvalidOperationException("Set FF7_ACCESSIBILITY_DATA_ROOT to the installed game data."));
+    Console.WriteLine("Steam 2026 x64 North Corel NPC tests passed.");
+    return;
+}
+
 if (args.Contains("--module-tests-only", StringComparer.OrdinalIgnoreCase))
 {
+    NorthCorelNpcTests.Run();
+    Steam2026TranslatedMenuIngressTests.RunPortable();
     CondorBattleInitializationTests.Run();
     CondorPlacementLineReadoutTests.Run();
     CondorCursorSteeringTests.Run();
@@ -385,6 +395,15 @@ if (args.Contains("--cutscene-ingress-only", StringComparer.OrdinalIgnoreCase))
     Steam2026FieldMovieNarrationAdapterTests.Run();
     Steam2026CutsceneVoiceAdapterTests.Run();
     Console.WriteLine("Steam 2026 x64 cutscene ingress tests passed.");
+    return;
+}
+
+// The translated menu ingress cohort on its own - the party menu's callbacks and the
+// lease that decides whether they stay installed.
+if (args.Contains("--translated-menu-ingress-only", StringComparer.OrdinalIgnoreCase))
+{
+    Steam2026TranslatedMenuIngressTests.Run(native, legacy);
+    Console.WriteLine("Steam 2026 x64 translated menu ingress tests passed.");
     return;
 }
 
