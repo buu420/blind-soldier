@@ -70,6 +70,7 @@ if (args.Contains("--cutscene-voice-only", StringComparer.OrdinalIgnoreCase))
 
 if (args.Contains("--module-tests-only", StringComparer.OrdinalIgnoreCase))
 {
+    Ff7.Accessibility.Reloaded.Tests.CostaDelSolNavigationTests.Run();
     GoldSaucerFollowupTests.Run();
     NorthCorelNpcTests.Run();
     Steam2026TranslatedMenuIngressTests.RunPortable();

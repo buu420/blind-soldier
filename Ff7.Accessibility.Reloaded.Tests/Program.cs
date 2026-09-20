@@ -15591,7 +15591,9 @@ static void AssertFieldNavigationNpcReaderUsesNativeTalkState()
         ReadInt32Value,
         ReadInt16Value,
         ReadByte,
-        (_, _) => ["Biggs", "We made it!"],
+        // Quoted, as the field text is: a heading only names a speaker when what follows
+        // it is speech, which is what keeps menus and counters from becoming people.
+        (_, _) => ["Biggs", "“We made it!”"],
         _ => definitions);
     var position = new FieldPositionSnapshot(1, 135, 0, 0, 0, 0, 0, 0);
     var targets = reader.ReadTargets(position);
@@ -15652,7 +15654,7 @@ static void AssertFieldNavigationNpcReaderUsesNativeInteractionLineProxy()
         ReadInt32Value,
         ReadInt16Value,
         ReadByte,
-        (_, _) => ["Item shopkeeper", "What would you like?"],
+        (_, _) => ["Item shopkeeper", "“What would you like?”"],
         _ => definitions,
         isLineEnabled: id => id == lineEntityId && lineEnabled);
     var position = new FieldPositionSnapshot(1, 179, 0, 0, 0, 0, 0, 0);
@@ -16301,7 +16303,7 @@ static void AssertFieldNavigationNpcUsesNativeInteractionRadius()
         ReadInt32Value,
         ReadInt16Value,
         ReadByte,
-        (_, _) => ["Station Guard", "Hey!"],
+        (_, _) => ["Station Guard", "“Hey!”"],
         _ => definitions);
     var position = new FieldPositionSnapshot(1, 135, playerModelId, 0, 0, 0, 0, 0);
     var target = reader.ReadTargets(position).Single();
