@@ -436,8 +436,7 @@ internal static class CostaDelSolNavigationTests
     }
 
     /// <summary>
-    /// A mesh nobody has reviewed produces no label, so the change can only add people the
-    /// game draws and never invents one.
+    /// Airship crew keep their own role even when the entity name also matches sailors.
     /// </summary>
     private static void CrewRolesDistinguishAirshipAndShipUniforms()
     {
@@ -454,7 +453,7 @@ internal static class CostaDelSolNavigationTests
     private static void SpeakerHeadingsRequireLetters()
     {
         var targets = new NpcMemory(22, "zz").Reader(
-                "unreviewed_mesh.char", ["...", "\"Hello.\""])
+                "unreviewed_mesh.char", ["...", "“Hello.”"])
             .ReadTargets(new FieldPositionSnapshot(1, 441, 0, 0, 0, 0, 0, 0));
         Equal(0, targets.Count, "punctuation alone is not a speaker name");
     }
