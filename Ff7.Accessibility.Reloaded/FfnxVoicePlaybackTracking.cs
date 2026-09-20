@@ -197,6 +197,20 @@ public sealed class FfnxVoicePlaybackTracker
         return age >= 0 && age <= maximumAgeTicks;
     }
 
+    public bool ShouldSuppressPolling(
+        int fieldId,
+        int windowId,
+        long timestamp,
+        bool verifiedVoiceHookInstalled,
+        bool hasActiveAsk)
+    {
+        // Playback is observed through a separately verified FFNx hook. A field
+        // need not have a reviewed description-script fingerprint to own its voice.
+        return verifiedVoiceHookInstalled &&
+            !hasActiveAsk &&
+            ShouldSuppressPrism(fieldId, windowId, timestamp);
+    }
+
     public void ObserveNoMessages() => activeMessage = null;
 
     public void Reset()

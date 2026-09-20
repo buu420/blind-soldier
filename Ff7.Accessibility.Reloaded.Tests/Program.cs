@@ -20,6 +20,15 @@ if (args.Contains("--prism-abi-probe-only", StringComparer.OrdinalIgnoreCase))
     return;
 }
 
+if (args.Contains("--ffnx-voice-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.EchoSCompatibilityTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.FfnxVoiceSpeechTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.FieldVisibleWindowSpeechCoordinatorTests.Run();
+    Console.WriteLine("FFVII FFNx voice and dialogue ownership tests passed.");
+    return;
+}
+
 if (args.Contains("--zolom-marsh-extent", StringComparer.OrdinalIgnoreCase))
 {
     ZolomMarshExtentProbe.Run();
@@ -727,6 +736,7 @@ DualRuntimeSharedSourceTests.Run();
 CondorResearchProbeSilenceTests.Run();
 PrismAbiProbeTests.Run();
 Ff7.Accessibility.Reloaded.Tests.EchoSCompatibilityTests.Run();
+Ff7.Accessibility.Reloaded.Tests.FfnxVoiceSpeechTests.Run();
 Ff7.Accessibility.Reloaded.Tests.LegacyStartupDiagnosticsTests.Run();
 AssertOpeningMoviePathResolverUsesFfnxOverrideOnlyWhenLoaded();
 AssertOpeningMovieActivityUsesNativeStateForVirtualFfnxMovies();

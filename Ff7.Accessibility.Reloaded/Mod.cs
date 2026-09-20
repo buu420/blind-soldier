@@ -2009,12 +2009,9 @@ public sealed class Mod : IModV1, IModV2
         while (ffnxVoicePlaybackEventQueue.TryDequeue(out var observation))
         {
             ffnxVoicePlaybackTracker.ObserveVoice(observation);
-            if (echoSCompatibilityActive)
-            {
-                Log(
-                    $"FFNx voice playback: field={observation.FieldName}, window={observation.WindowId}, " +
-                    $"dialog={observation.DialogId}, page={observation.Page}, played={observation.Played}.");
-            }
+            Log(
+                $"FFNx voice playback: field={observation.FieldName}, window={observation.WindowId}, " +
+                $"dialog={observation.DialogId}, page={observation.Page}, played={observation.Played}.");
         }
 
         var dropped = ffnxVoicePlaybackEventQueue.DroppedCount;
@@ -4240,13 +4237,12 @@ public sealed class Mod : IModV1, IModV2
                         activeMessageCount,
                         now,
                         nativeOwnershipSpeechPending) ||
-                    (echoSCompatibilityActive &&
-                     ffnxPlayVoiceHook is not null &&
-                     askIdentity is null &&
-                     ffnxVoicePlaybackTracker.ShouldSuppressPrism(
-                         fieldId,
-                         window.WindowId,
-                         voiceTimestamp)),
+                    ffnxVoicePlaybackTracker.ShouldSuppressPolling(
+                        fieldId,
+                        window.WindowId,
+                        voiceTimestamp,
+                        ffnxPlayVoiceHook is not null,
+                        askIdentity is not null),
                 askIdentity,
                 nativeFieldMessageOwnershipTracker.WasSpeechDelivered(
                     askIdentity,
