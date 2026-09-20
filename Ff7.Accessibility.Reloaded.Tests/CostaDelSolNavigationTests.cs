@@ -11,6 +11,20 @@ internal static class CostaDelSolNavigationTests
 
     public static void Run()
     {
+        HarbourCrewAreOfferedFromTheModelTheGameDraws();
+        SceneryAndPartyMembersNeverBecomePeopleToWalkTo();
+        PartyMembersKeepTheNameTheirOwnDialogueGives();
+        SceneryIsNotNamedByWhoeverSpeaksOverIt();
+        TownsfolkAreDescribedByTheMeshTheFieldLoads();
+        AFieldNameCannotInventARole();
+        NamedTownspeopleKeepTheirNames();
+        ShopAndInnStaffBehindCountersAreOffered();
+        AnimalsAndSilentActorsAreOffered();
+        ATitleWithAFullStopIsStillAName();
+        CrewRolesDistinguishAirshipAndShipUniforms();
+        SpeakerHeadingsRequireLetters();
+        AnAmbiguousMeshIsNotGuessedIntoAGender();
+        AnUnrecognisedModelIsStillNotGuessedAt();
         TownExitRemainsSelectableAlongsideOptionalVisits();
         FirstDockDepartureUsesItsNativeEnabledLine();
         HojoSceneUsesTheWomanAndItsActualCompletionFlags();
@@ -19,6 +33,7 @@ internal static class CostaDelSolNavigationTests
         BallUsesOnlyItsVisibleLiveModel();
         InteriorReturnsRemainAvailableWithoutOptionalInteractions();
         CostaObjectivesEndWhenMountCorelAdvancesTheStory();
+        ReturnShipHasADistinctBoardingLabel();
     }
 
     public static void Run(Func<int, FieldWalkmeshReader> createWalkmeshReader)
@@ -26,6 +41,477 @@ internal static class CostaDelSolNavigationTests
         Run();
         NativeGatewaysAreReachableFromTheirInstalledEntrances(createWalkmeshReader);
         BarretCanBeApproachedOutsideHisNativeLockedBathroom(createWalkmeshReader);
+        TheNativeCatalogFindsTheActorsTheFieldsDraw();
+    }
+
+    /// <summary>
+    /// The labels above are decided from a definition, and a definition the catalog never
+    /// produced is a person nobody can reach. These read the installed FLEVEL itself, so a
+    /// change to how entities are discovered cannot quietly empty a town while the label
+    /// tests carry on passing.
+    /// </summary>
+    private static void TheNativeCatalogFindsTheActorsTheFieldsDraw()
+    {
+        var gameRoot = Environment.GetEnvironmentVariable("FF7_ACCESSIBILITY_DATA_ROOT");
+        if (string.IsNullOrWhiteSpace(gameRoot) || !Directory.Exists(gameRoot))
+        {
+            return;
+        }
+
+        var catalog = new FieldScriptNavigationCatalog(gameRoot);
+
+        // Costa del Sol harbour: the six models the field loads, bound to their own CHAR
+        // slot rather than to load order.
+        var harbour = catalog.ReadField(441).Npcs.ToDictionary(npc => npc.EntityId);
+        foreach (var (entity, model) in new[]
+                 {
+                     (14, "shinra_crew.char"), (15, "shinra_crew.char"),
+                     (16, "shinra_crew.char"), (17, "shinra_ippan_3.char"),
+                     (18, "kosta_rgirl.char"), (19, "kosta_sman2.char")
+                 })
+        {
+            True(harbour.ContainsKey(entity), $"441:{entity} is in the native catalog");
+            Equal(model, harbour[entity].ModelResourceName, $"441:{entity} loads its own mesh");
+        }
+
+        // Bone Village: seven residents whose entities the script never named.
+        var boneVillage = catalog.ReadField(617).Npcs
+            .Where(npc => npc.EntityName.Length == 0 && npc.ModelResourceName.StartsWith("bone_"))
+            .ToArray();
+        Equal(7, boneVillage.Length, "Bone Village's unnamed entities are catalogued");
+
+        // Talk that says nothing: a Junon dog, Nibelheim's menu-only woman, and the Ghost
+        // Hotel receptionist whose Talk only hands off to the greeting script.
+        foreach (var (field, entity) in new[] { (360, 25), (270, 11), (492, 8), (721, 10) })
+        {
+            True(
+                catalog.ReadField(field).Npcs.Any(npc => npc.EntityId == entity),
+                $"{field}:{entity} is catalogued despite carrying no message");
+        }
+
+        // Counters: staff with no Talk at all, reached across the line in front of them.
+        foreach (var (field, entity) in new[]
+                 {
+                     (451, 18), (451, 19), (457, 14), (576, 5),
+                     (650, 10), (650, 11), (651, 12), (651, 14), (330, 10)
+                 })
+        {
+            var matches = catalog.ReadField(field).Npcs
+                .Where(npc => npc.EntityId == entity)
+                .ToArray();
+            Equal(1, matches.Length, $"{field}:{entity} is reachable across its counter");
+            True(
+                matches[0].InteractionLineEntityId.HasValue,
+                $"{field}:{entity} is gated on the native line, not on a talk flag");
+        }
+
+        // And the ones that must stay out: a scene that drives a bystander, the line that
+        // walks the player out of a Mideel house, and the Gold Saucer arm-wrestling arms.
+        foreach (var (field, entity) in new[] { (452, 23), (722, 8), (416, 7) }
+                     .Concat(Enumerable.Range(19, 9).Select(entity => (363, entity))))
+        {
+            True(
+                catalog.ReadField(field).Npcs.All(npc => npc.EntityId != entity),
+                $"{field}:{entity} is a scene and stays out of the list");
+        }
+    }
+
+    private static void ReturnShipHasADistinctBoardingLabel()
+    {
+        // del1/wmJump uses transport entry 39, which has no native room name.
+        // Once the fare is paid, calling this merely "Exit" hides its purpose.
+        var ship = new FieldNavigationTarget(441, FieldNavigationCategory.Exits,
+            "Scripted exit", -737, 770, 63, "script-exit:441:6:39",
+            TriggerEntityId: 6, DestinationFieldIds: [39],
+            TriggerLine: new(-737, 672, 63, -737, 867, 63));
+        var resolver = new FieldExitLabelResolver(_ => FieldMapNameResolution.Unknown,
+            () => "Costa del Sol Harbor");
+        var labeled = resolver.Resolve([ship]).Single();
+        Equal("Board the ship to Junon", labeled.Label, "return-trip boarding is identifiable");
+        Equal(ship with { Label = labeled.Label }, labeled,
+            "labelling must preserve native exit ownership and geometry");
+    }
+
+    /// <summary>
+    /// The player's report: standing on the Costa del Sol harbour, talking to a sailor,
+    /// paying a hundred gil for the passage - and the mod listing no NPCs at all.
+    ///
+    /// <para>Field 441 del1 carries six modelled Talk entities. None of them is in a
+    /// reviewed field and none of their dialogue opens with a speaker heading - dialog 66
+    /// begins <c>"There's no ship to Junon</c> - so the only label source there was ever
+    /// going to find nothing, and every one of them was dropped. The mesh the field loads
+    /// is the description that survives, and it is also what the player is looking at.</para>
+    /// </summary>
+    private static void HarbourCrewAreOfferedFromTheModelTheGameDraws()
+    {
+        var harbour = new (int Entity, string EntityName, string Model, string Label)[]
+        {
+            (14, "crew1", "del1shinra_crew.char", "Sailor"),
+            (15, "crew2", "del1shinra_crew.char", "Sailor"),
+            (16, "crew3", "del1shinra_crew.char", "Sailor"),
+            // The suited mesh: his own dialogue heads itself "Shinra manager", and the
+            // curated Midgar row on the same mesh says the same.
+            (17, "busiman", "del1shinra_ippan_3.char", "Shinra manager"),
+            (18, "woman1", "del1kosta_rgirl.char", "Woman"),
+            (19, "man2", "del1kosta_sman2.char", "Man")
+        };
+
+        foreach (var (entity, entityName, model, label) in harbour)
+        {
+            var memory = new NpcMemory(entity, entityName);
+            var reader = memory.Reader(model);
+            var position = new FieldPositionSnapshot(1, 441, 0, 0, 0, 0, 0, 0);
+            var targets = reader.ReadTargets(position);
+
+            Equal(1, targets.Count, $"{model} is somebody the player can walk to");
+            Equal(label, targets.Single().Label, $"{model} is announced by what it is");
+            Equal($"npc:441:{entity}", targets.Single().StableId, "native identity");
+
+            // The gates that were already right stay right.
+            memory.Visible = false;
+            Equal(0, reader.ReadTargets(position).Count, "hidden crew are omitted");
+            memory.Visible = true;
+            memory.TalkDisabled = true;
+            Equal(0, reader.ReadTargets(position).Count, "a script-owned actor is not a talk target");
+            memory.TalkDisabled = false;
+            memory.ModelId = 0xff;
+            Equal(0, reader.ReadTargets(position).Count, "an unloaded model is omitted");
+        }
+    }
+
+    /// <summary>
+    /// The other half of reading the mesh. Treasure, scenery and the player's own party are
+    /// never conjured into somebody to walk to out of a mesh or an entity name - a barrel
+    /// whose entity is called "man1" is still a barrel.
+    /// </summary>
+    private static void SceneryAndPartyMembersNeverBecomePeopleToWalkTo()
+    {
+        foreach (var model in new[]
+                 {
+                     "del1fieldbg_trb_wood.char",
+                     "del1fieldbg_potion.char",
+                     "del1main_n_tifa.char",
+                     "del1main_ballet.char"
+                 })
+        {
+            var memory = new NpcMemory(20, "man1");
+            // Ordinary dialogue, so the only thing that could name these is the role
+            // fallback - and for these two families it must not.
+            var reader = memory.Reader(model, ["Something said out loud."]);
+            Equal(
+                0,
+                reader.ReadTargets(new FieldPositionSnapshot(1, 441, 0, 0, 0, 0, 0, 0)).Count,
+                $"{model} is not a person to walk to");
+        }
+    }
+
+    /// <summary>
+    /// Reading the mesh may only ever add people. A party member in a scene is named by the
+    /// heading on their own dialogue, and that has to keep working: suppressing the invented
+    /// identity must not also suppress the real one the game already gave.
+    /// </summary>
+    private static void PartyMembersKeepTheNameTheirOwnDialogueGives()
+    {
+        var memory = new NpcMemory(20, "tifa");
+        var reader = memory.Reader(
+            "del1main_n_tifa.char",
+            ["Tifa", "“Something said out loud.”"]);
+        var targets = reader.ReadTargets(new FieldPositionSnapshot(1, 441, 0, 0, 0, 0, 0, 0));
+        Equal(1, targets.Count, "a party member who names herself is still offered");
+        Equal("Tifa", targets[0].Label, "and still under her own name");
+    }
+
+    /// <summary>
+    /// A scene often hangs its dialogue on the nearest piece of furniture, so the barrels
+    /// in the church store room carry Aeris's lines and the till in Seventh Heaven carries
+    /// Wedge's. Reading the heading off those announces a barrel as a person and sends the
+    /// player across the room to talk to it, which is worse than not listing it: nothing a
+    /// sighted player sees there is Aeris.
+    /// </summary>
+    private static void SceneryIsNotNamedByWhoeverSpeaksOverIt()
+    {
+        foreach (var (model, speaker) in new[]
+                 {
+                     ("fieldbg_taru.char", "Aerith"),
+                     ("fieldbg_cash.char", "Wedge"),
+                     ("fieldbg_hana.char", "Jessie"),
+                     ("fieldbg_trb_glow.char", "Barret")
+                 })
+        {
+            var memory = new NpcMemory(24, "bar1");
+            var reader = memory.Reader(model, [speaker, "“Something said out loud.”"]);
+            Equal(
+                0,
+                reader.ReadTargets(new FieldPositionSnapshot(1, 441, 0, 0, 0, 0, 0, 0)).Count,
+                $"{model} is not {speaker}");
+        }
+    }
+
+    /// <summary>
+    /// Costa's harbour is not the only town whose people carry no speaker heading. These
+    /// are the meshes and entity names the rest of the settlements use for the same kind
+    /// of ordinary person, each one taken from the field that loads it: Junon's citizens
+    /// and its female guards, the Junon inn's reception, Wutai's children, Corel prison's
+    /// inhabitants, and the cat that wanders a town screen.
+    /// </summary>
+    private static void TownsfolkAreDescribedByTheMeshTheFieldLoads()
+    {
+        foreach (var (entityName, model, expected) in new[]
+                 {
+                     // blin61, blin64, blin66_1: Junon citizens. The entity names are
+                     // scene labels - ZAKOA, NETARO, or nothing at all - so only the mesh
+                     // says who is standing there.
+                     ("ZAKOA", "shinra_ippan_1.char", "Townsperson"),
+                     ("", "shinra_ippan_1.char", "Townsperson"),
+                     ("KEIBIA", "shinra_onna.char", "Woman"),
+                     ("OTOKO", "shinra_ippan_2.char", "Man"),
+                     ("uketuke", "market_buka.char", "Receptionist"),
+                     ("OYAJI", "market_merchant.char", "Shopkeeper"),
+                     ("MAGO", "utai_child.char", "Child"),
+                     ("nara5", "korel_narazu107.char", "Man"),
+                     ("junon2", "animal_cat1.char", "Cat")
+                 })
+        {
+            var memory = new NpcMemory(22, entityName);
+            var targets = memory
+                .Reader(model, ["Something said out loud."])
+                .ReadTargets(new FieldPositionSnapshot(1, 441, 0, 0, 0, 0, 0, 0));
+            Equal(1, targets.Count, $"{model} is somebody to walk to");
+            Equal(expected, targets[0].Label, $"{model} is described by what it is");
+        }
+    }
+
+    /// <summary>
+    /// A model resource is the field's own name followed by the mesh, and the Don Corneo
+    /// screens are called "onna". Cloud in a dress there is still not a woman standing in
+    /// the room, whether or not the field name was trimmed off first.
+    /// </summary>
+    private static void AFieldNameCannotInventARole()
+    {
+        var memory = new NpcMemory(23, "cloud");
+        var reader = memory.Reader("onna_52modify_clouds.char", ["Something said out loud."]);
+        Equal(
+            0,
+            reader.ReadTargets(new FieldPositionSnapshot(1, 441, 0, 0, 0, 0, 0, 0)).Count,
+            "a field called onna does not turn its models into women");
+    }
+
+    /// <summary>
+    /// Reading the mesh before the dialogue is what stops a chocobo being announced as
+    /// Cloud, but it would also flatten the townspeople the game does name: the Wutai
+    /// Pagoda's five masters, the AVALANCHE members on the pillar, Johnny outside Costa.
+    /// Each of these is a reviewed row, and each was confirmed twice over - the heading on
+    /// the entity's own spoken dialogue, and the name the field's script gives the entity.
+    /// </summary>
+    private static void NamedTownspeopleKeepTheirNames()
+    {
+        foreach (var (field, entity, entityName, model, expected) in new[]
+                 {
+                     (242, 26, "DOMINO", "std_oldm4.char", "Domino"),
+                     (242, 25, "HATT", "std_man17.char", "Hart"),
+                     (586, 17, "goriki", "5towerutai2_man.char", "Gorky"),
+                     (586, 18, "shake", "5towerutai_child.char", "Shake"),
+                     (586, 19, "tiehofu", "5towerutai_woman.char", "Chekhov"),
+                     (586, 20, "sutanif", "5towerutai_man.char", "Staniv"),
+                     (448, 14, "johnny", "std_man4.char", "Johnny"),
+                     (158, 2, "big", "midgal_avaman.char", "Biggs"),
+                     (120, 10, "av_j", "midgal_avawoman.char", "Jessie")
+                 })
+        {
+            var memory = new NpcMemory(entity, entityName, field);
+            var targets = memory
+                .Reader(model, ["Something entirely unlike a name."])
+                .ReadTargets(new FieldPositionSnapshot(1, field, 0, 0, 0, 0, 0, 0));
+            Equal(1, targets.Count, $"{field}:{entity} is somebody to walk to");
+            Equal(expected, targets[0].Label, $"{field}:{entity} keeps the name the game gives");
+        }
+    }
+
+    /// <summary>
+    /// Shop and inn staff are commonly placed behind a counter with no Talk of their own,
+    /// and are reached by a LINE laid along the customer's side. Each of these was taken
+    /// from the field's own scripts, and each keeps the visible role a sighted player is
+    /// looking at rather than anything the till would tell them.
+    /// </summary>
+    private static void ShopAndInnStaffBehindCountersAreOffered()
+    {
+        foreach (var (field, entity, entityName, model, expected) in new[]
+                 {
+                     (451, 18, "wepsp", "std_fm1.char", "Weapon shopkeeper"),
+                     (451, 19, "boy1", "gon_boy.char", "Boy"),
+                     (457, 14, "mogiri", "std_man7.char", "Ropeway attendant"),
+                     (576, 5, "OYAJI", "utai_woman.char", "Materia shopkeeper"),
+                     (650, 10, "wepsp", "std_oldm3.char", "Weapon shopkeeper"),
+                     (650, 11, "bozu1", "snow_child.char", "Child"),
+                     (651, 12, "innman1", "std_man7.char", "Inn staff"),
+                     (651, 13, "innman2", "snow_man.char", "Inn staff"),
+                     (651, 14, "gesm1", "kosta_sman1.char", "Guest"),
+                     (651, 15, "gesm2", "kosta_sman2.char", "Guest"),
+                     (330, 10, "lady", "std_fw1.char", "Woman")
+                 })
+        {
+            var memory = new NpcMemory(entity, entityName, field);
+            var targets = memory
+                .Reader(model, ["Something said out loud."])
+                .ReadTargets(new FieldPositionSnapshot(1, field, 0, 0, 0, 0, 0, 0));
+            Equal(1, targets.Count, $"{field}:{entity} is somebody to walk to");
+            Equal(expected, targets[0].Label, $"{field}:{entity} keeps its visible role");
+        }
+    }
+
+    /// <summary>
+    /// The town animals answer with a bark and an animation rather than a message, and the
+    /// shop and hotel staff whose Talk only opens a menu or hands off to another script are
+    /// no less real for saying nothing themselves.
+    /// </summary>
+    private static void AnimalsAndSilentActorsAreOffered()
+    {
+        foreach (var (field, entity, entityName, model, expected) in new[]
+                 {
+                     (360, 25, "dog", "animal_dog2.char", "Dog"),
+                     // A reviewed field, so this one needs its own row to survive.
+                     (284, 14, "dog1", "animal_dog1.char", "Dog"),
+                     (368, 13, "cat5", "animal_cat102.char", "Cat"),
+                     (587, 16, "DOGA", "animal_dog1.char", "Dog"),
+                     (721, 10, "cat", "animal_cat2.char", "Cat"),
+                     (270, 11, "n_woman", "std_woman5.char", "Woman"),
+                     (492, 7, "noppo", "gold_noppo.char", "Hotel attendant"),
+                     (492, 8, "semusi", "gold_semusi.char", "Hotel receptionist")
+                 })
+        {
+            var memory = new NpcMemory(entity, entityName, field);
+            var targets = memory
+                .Reader(model, ["Something said out loud."])
+                .ReadTargets(new FieldPositionSnapshot(1, field, 0, 0, 0, 0, 0, 0));
+            Equal(1, targets.Count, $"{field}:{entity} is somebody to walk to");
+            Equal(expected, targets[0].Label, $"{field}:{entity} is described by what it is");
+        }
+    }
+
+    /// <summary>
+    /// Corel prison's gate keeper and the Ghost Hotel's proprietor head their own dialogue
+    /// with their name, and the speaker test used to throw both away over the full stop.
+    /// </summary>
+    private static void ATitleWithAFullStopIsStillAName()
+    {
+        foreach (var (field, entity, entityName, model, expected) in new[]
+                 {
+                     (477, 8, "corts", "korel_korts.char", "Mr.Coates"),
+                     (495, 4, "kubi", "gold_hang.char", "Mr. Hangman")
+                 })
+        {
+            var memory = new NpcMemory(entity, entityName, field);
+            var targets = memory
+                .Reader(model, [expected, "“Welcome.”"])
+                .ReadTargets(new FieldPositionSnapshot(1, field, 0, 0, 0, 0, 0, 0));
+            Equal(1, targets.Count, $"{field}:{entity} is somebody to walk to");
+            Equal(expected, targets[0].Label, $"{field}:{entity} keeps the name it gives");
+        }
+    }
+
+    /// <summary>
+    /// "std_fm1" looks like it ought to mean female, and it does not: Mt Corel's resident
+    /// on that mesh is an out-of-work miner talking about his bulldozer, while North
+    /// Corel's runs the weapon shop and Icicle Inn's is drinking in the bar. It is the
+    /// game's ordinary adult townsperson, so it is given a reviewed label where one is
+    /// wanted and never turned into a gender by the look of the token.
+    /// </summary>
+    private static void AnAmbiguousMeshIsNotGuessedIntoAGender()
+    {
+        var reviewed = new NpcMemory(7, "fm1", 465);
+        var targets = reviewed
+            .Reader("std_fm1.char", ["Something said out loud."])
+            .ReadTargets(new FieldPositionSnapshot(1, 465, 0, 0, 0, 0, 0, 0));
+        Equal(1, targets.Count, "465:7 is somebody to walk to");
+        Equal("Townsperson", targets[0].Label, "465:7 keeps a reviewed, neutral label");
+
+        // Anywhere without a reviewed row the mesh stays unspoken rather than guessed.
+        var unreviewed = new NpcMemory(9, "fm2", 464);
+        Equal(
+            0,
+            unreviewed
+                .Reader("std_fm1.char", ["Something said out loud."])
+                .ReadTargets(new FieldPositionSnapshot(1, 464, 0, 0, 0, 0, 0, 0)).Count,
+            "std_fm1 is not read as a woman");
+    }
+
+    /// <summary>
+    /// A mesh nobody has reviewed produces no label, so the change can only add people the
+    /// game draws and never invents one.
+    /// </summary>
+    private static void CrewRolesDistinguishAirshipAndShipUniforms()
+    {
+        foreach (var (model, expected) in new[]
+                 { ("rocket_crew1.char", "Crew member"), ("rocket_crew2.char", "Crew member"),
+                   ("shinra_crew.char", "Sailor") })
+        {
+            var targets = new NpcMemory(22, "crew1").Reader(model)
+                .ReadTargets(new FieldPositionSnapshot(1, 441, 0, 0, 0, 0, 0, 0));
+            Equal(expected, targets.Single().Label, "crew descriptions respect the native model family");
+        }
+    }
+
+    private static void SpeakerHeadingsRequireLetters()
+    {
+        var targets = new NpcMemory(22, "zz").Reader(
+                "unreviewed_mesh.char", ["...", "\"Hello.\""])
+            .ReadTargets(new FieldPositionSnapshot(1, 441, 0, 0, 0, 0, 0, 0));
+        Equal(0, targets.Count, "punctuation alone is not a speaker name");
+    }
+
+    private static void AnUnrecognisedModelIsStillNotGuessedAt()
+    {
+        var memory = new NpcMemory(21, "zz");
+        var reader = memory.Reader("del1kosta_something_new.char");
+        Equal(
+            0,
+            reader.ReadTargets(new FieldPositionSnapshot(1, 441, 0, 0, 0, 0, 0, 0)).Count,
+            "an unreviewed mesh stays unlabelled rather than being guessed at");
+    }
+
+    private sealed class NpcMemory(int entity, string entityName = "crew1", int fieldId = 441)
+    {
+        private const int EventTable = 0x02404000;
+        private static readonly int Npc =
+            EventTable + FieldNavigationObjectReader.FieldEventDataStride;
+
+        public bool Visible = true;
+        public bool TalkDisabled;
+        public byte ModelId = 1;
+
+        private byte ReadByte(int address)
+        {
+            if (address == FieldPositionReader.AddressFieldNumModels) return 2;
+            if (address >= FieldNavigationObjectReader.AddressFieldModelIdArray &&
+                address < FieldNavigationObjectReader.AddressFieldModelIdArray + 256)
+            {
+                return address == FieldNavigationObjectReader.AddressFieldModelIdArray + entity
+                    ? ModelId
+                    : (byte)0xff;
+            }
+
+            if (address == Npc + FieldNavigationObjectReader.VisibilityOffset)
+            {
+                return Visible ? (byte)1 : (byte)0;
+            }
+
+            if (address == Npc + FieldNavigationNpcReader.TalkDisabledOffset)
+            {
+                return TalkDisabled ? (byte)1 : (byte)0;
+            }
+
+            return 0;
+        }
+
+        public FieldNavigationNpcReader Reader(string model, IReadOnlyList<string>? dialogue = null) =>
+            new(
+                address => address == FieldNavigationObjectReader.AddressFieldEventDataPtr
+                    ? EventTable
+                    : 0,
+                _ => 48,
+                ReadByte,
+                (_, _) => dialogue ?? ["“There's no ship to Junon."],
+                _ => [new FieldScriptNpcDefinition(fieldId, entity, entityName, [66], null, null, model)]);
     }
 
     private static void TownExitRemainsSelectableAlongsideOptionalVisits()
@@ -310,6 +796,12 @@ internal static class CostaDelSolNavigationTests
     {
         if (!EqualityComparer<T>.Default.Equals(expected, actual))
             throw new InvalidOperationException($"{label}: expected {expected}, got {actual}");
+    }
+
+    private static void True(bool condition, string label)
+    {
+        if (!condition)
+            throw new InvalidOperationException(label);
     }
 
     private sealed class NativeMemory

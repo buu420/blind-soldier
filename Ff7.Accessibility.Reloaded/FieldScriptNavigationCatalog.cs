@@ -28,13 +28,23 @@ public readonly record struct FieldScriptNavigationTransition(
     // cheaper than guessing a storey from a height.
     int SourceTriangle = -1);
 
+/// <param name="ModelResourceName">
+/// The mesh this entity's own <c>CHAR</c> argument selects out of the field's model
+/// loader, or empty where it loads none.
+///
+/// <para>It is the only description of an NPC the game itself supplies that survives to
+/// the runtime. The entity name is a script label and the dialogue is words on screen;
+/// the model is what the player is looking at, which is why the generic role a target is
+/// announced with is derived from this rather than from either of the others.</para>
+/// </param>
 public readonly record struct FieldScriptNpcDefinition(
     int FieldId,
     int EntityId,
     string EntityName,
     IReadOnlyList<int> DialogIds,
     int? InteractionLineEntityId = null,
-    FieldNavigationTriggerLine? InteractionLine = null);
+    FieldNavigationTriggerLine? InteractionLine = null,
+    string ModelResourceName = "");
 
 public readonly record struct FieldScriptWaitDefinition(
     int FieldId,
@@ -84,6 +94,26 @@ public sealed class FieldScriptNavigationCatalog
     private const int FieldHeaderSectionCountOffset = 2;
     private const int FieldHeaderSectionOffsetsOffset = 6;
     private const int SectionLengthSize = 4;
+    private const int OpcodeLoadModel = 0xA1;
+
+    // FLEVEL slot 0 contains Init/Main; slot 1 is Talk, or a LINE's OK handler.
+    private const int TalkScript = 1;
+    private const int LineConfirmScript = 1;
+    private const byte MenuOpcode = 0x49;
+    private const byte SoundOpcode = 0xF1;
+    private const byte SoundParameterOpcode = 0xF2;
+    private const byte EntityRequestOpcode = 0x01;
+    private const byte EntityRequestSyncOpcode = 0x06;
+
+    // Field model loader, section 3 of the field file. Header is a blank word, the model
+    // count and the scale; each model record is a length-prefixed name followed by a fixed
+    // tail carrying its animation count, then that many variable-length animation records.
+    private const int ModelLoaderSectionIndex = 2;
+    private const int ModelLoaderCountOffset = 2;
+    private const int ModelLoaderHeaderSize = 6;
+    private const int ModelRecordTailSize = 46;
+    private const int ModelRecordAnimationCountOffset = 14;
+    private const int ModelAnimationTailSize = 2;
     private const int ScriptCount = 32;
     private const int ScriptPointerTableEntrySize = sizeof(ushort);
     private const int ScriptPointerTableGroupSize = ScriptCount * ScriptPointerTableEntrySize;
@@ -248,7 +278,10 @@ public sealed class FieldScriptNavigationCatalog
 
             var transitions = new List<FieldScriptNavigationTransition>();
             var exits = new List<FieldNavigationTarget>();
-            var npcs = ReadNpcs(fieldId, groups);
+            var npcs = ReadNpcs(
+                fieldId,
+                groups,
+                StripFieldPrefix(ReadModelResourceNames(fieldBytes), fieldName));
             var waits = ReadWaits(fieldId, groups);
             var mapNameDialogIds = ReadMapNameDialogIds(groups);
             foreach (var group in groups)
@@ -409,7 +442,8 @@ public sealed class FieldScriptNavigationCatalog
 
     private static IReadOnlyList<FieldScriptNpcDefinition> ReadNpcs(
         int fieldId,
-        IReadOnlyList<ScriptGroup> groups)
+        IReadOnlyList<ScriptGroup> groups,
+        IReadOnlyList<string> modelResources)
     {
         var definitions = new List<FieldScriptNpcDefinition>();
         foreach (var group in groups)
@@ -427,11 +461,29 @@ public sealed class FieldScriptNavigationCatalog
                 dialogIds,
                 new HashSet<(int Group, int Script)>());
             var uniqueDialogIds = dialogIds.Distinct().ToArray();
+
+            // An entity that says nothing can still be somebody the player talks to. The
+            // dogs and cats of Junon, Wutai, Icicle Inn and Mideel answer with a bark and
+            // an animation, Nibelheim's n_woman opens a menu, and the Ghost Hotel's
+            // receptionist hands off to the script that greets you. All of those are real
+            // interactions and none of them carries a MESSAGE.
+            // The model requirement applies only to this new path. An entity that says
+            // something has always been catalogued whether or not it is drawn, and the
+            // runtime decides; but an entity that says nothing has only its mesh to make
+            // it somebody, so a scene director with a hand-off Talk is not one.
+            var speaks = uniqueDialogIds.Length > 0 ||
+                         (LoadsModel(group) && HasPerceivableTalk(group));
+
             var interactionLine = ReadNpcInteractionLine(
                 groups,
                 group,
-                allowEnabledTalkProxy: uniqueDialogIds.Length == 0);
-            if (uniqueDialogIds.Length == 0 && interactionLine is null)
+                allowEnabledTalkProxy: !speaks);
+
+            // Only an entity with nothing of its own is reached through a counter, so an
+            // entity that already answers keeps being gated on its own native Talk flag.
+            interactionLine ??= speaks ? null : ReadCounterLine(groups, group);
+
+            if (!speaks && interactionLine is null)
             {
                 continue;
             }
@@ -442,11 +494,258 @@ public sealed class FieldScriptNavigationCatalog
                 group.Name,
                 uniqueDialogIds,
                 interactionLine?.EntityId,
-                interactionLine?.Line));
+                interactionLine?.Line,
+                ReadModelResourceName(group, modelResources)));
         }
 
         return definitions;
     }
+
+    /// <summary>
+    /// The mesh this entity loads, from its own init script's <c>CHAR</c> argument
+    /// indexed into the field's model loader. Empty when it loads none, which is how a
+    /// scene director or a pure trigger is told from something the player can see.
+    /// </summary>
+    private static string ReadModelResourceName(
+        ScriptGroup group,
+        IReadOnlyList<string> modelResources)
+    {
+        if (modelResources.Count == 0 || !group.Scripts.TryGetValue(0, out var initScript))
+        {
+            return string.Empty;
+        }
+
+        foreach (var opcode in ReadOpcodes(initScript))
+        {
+            if (opcode.Id != OpcodeLoadModel || opcode.Bytes.Length < 2)
+            {
+                continue;
+            }
+
+            var index = opcode.Bytes[1];
+            return index < modelResources.Count ? modelResources[index] : string.Empty;
+        }
+
+        return string.Empty;
+    }
+
+    /// <summary>
+    /// The loader stores each resource as the field's own name followed by the mesh, so
+    /// Costa's harbour holds "del1" + "shinra_crew.char". Only the second half describes
+    /// who is standing there, and leaving the first half attached would let a field name
+    /// answer for the model: the Don Corneo screens are called "onna", which is Japanese
+    /// for woman, and everything loaded on them would read as one. A resource that does
+    /// not carry the prefix is left as it is.
+    /// </summary>
+    private static IReadOnlyList<string> StripFieldPrefix(
+        IReadOnlyList<string> resources,
+        string fieldName)
+    {
+        if (fieldName.Length == 0 || resources.Count == 0)
+        {
+            return resources;
+        }
+
+        var stripped = new List<string>(resources.Count);
+        foreach (var resource in resources)
+        {
+            stripped.Add(resource.StartsWith(fieldName, StringComparison.OrdinalIgnoreCase)
+                ? resource[fieldName.Length..]
+                : resource);
+        }
+
+        return stripped;
+    }
+
+    /// <summary>
+    /// The model loader's resource names, one per loader slot in the order the field
+    /// declares them, so slot <c>n</c> here is exactly the model a <c>CHAR n</c> selects.
+    ///
+    /// <para>The section is walked by its documented records rather than scanned for
+    /// printable text. A scan silently drops any record whose name is not the shape it
+    /// expects, and every slot after that one then answers for the wrong model - which is
+    /// the one failure this must not have, because the result is used to describe a person
+    /// to somebody who cannot see them.</para>
+    ///
+    /// <para>If the records do not add up, no names are returned at all. An entity with no
+    /// resource name falls back to its dialogue exactly as it did before; a shifted one
+    /// would confidently describe somebody else.</para>
+    /// </summary>
+    private static IReadOnlyList<string> ReadModelResourceNames(byte[] fieldBytes)
+    {
+        // The header says how many sections the file has; a field with fewer than three
+        // has no model loader and its third offset is somebody else's data.
+        if (!IsReadable(fieldBytes, FieldHeaderSectionCountOffset, sizeof(int)) ||
+            BitConverter.ToInt32(fieldBytes, FieldHeaderSectionCountOffset) <=
+                ModelLoaderSectionIndex)
+        {
+            return Array.Empty<string>();
+        }
+
+        var offsetPosition = FieldHeaderSectionOffsetsOffset +
+                             (ModelLoaderSectionIndex * sizeof(int));
+        if (!IsReadable(fieldBytes, offsetPosition, sizeof(int)))
+        {
+            return Array.Empty<string>();
+        }
+
+        var sectionOffset = BitConverter.ToInt32(fieldBytes, offsetPosition);
+        if (sectionOffset <= 0 || !IsReadable(fieldBytes, sectionOffset, SectionLengthSize))
+        {
+            return Array.Empty<string>();
+        }
+
+        var length = BitConverter.ToInt32(fieldBytes, sectionOffset);
+        var start = sectionOffset + SectionLengthSize;
+        if (length < ModelLoaderHeaderSize || !IsReadable(fieldBytes, start, length))
+        {
+            return Array.Empty<string>();
+        }
+
+        var end = start + length;
+        var modelCount = BitConverter.ToUInt16(fieldBytes, start + ModelLoaderCountOffset);
+        var position = start + ModelLoaderHeaderSize;
+        var names = new List<string>(modelCount);
+
+        for (var model = 0; model < modelCount; model++)
+        {
+            if (position + sizeof(ushort) > end)
+            {
+                return Array.Empty<string>();
+            }
+
+            var nameLength = BitConverter.ToUInt16(fieldBytes, position);
+            position += sizeof(ushort);
+            if (nameLength == 0 || position + nameLength + ModelRecordTailSize > end)
+            {
+                return Array.Empty<string>();
+            }
+
+            names.Add(System.Text.Encoding.ASCII
+                .GetString(fieldBytes, position, nameLength)
+                .TrimEnd('\0'));
+            position += nameLength;
+
+            // The animation table follows the record's fixed tail, and its own records are
+            // variable length too, so they have to be stepped over to reach the next model.
+            var animations = BitConverter.ToUInt16(
+                fieldBytes,
+                position + ModelRecordAnimationCountOffset);
+            position += ModelRecordTailSize;
+
+            for (var animation = 0; animation < animations; animation++)
+            {
+                if (position + sizeof(ushort) > end)
+                {
+                    return Array.Empty<string>();
+                }
+
+                position += sizeof(ushort) +
+                            BitConverter.ToUInt16(fieldBytes, position) +
+                            ModelAnimationTailSize;
+                if (position > end)
+                {
+                    return Array.Empty<string>();
+                }
+            }
+        }
+
+        return names;
+    }
+
+    /// <summary>
+    /// Whether the entity's Talk script does anything the player would notice. A MESSAGE
+    /// is the usual answer and is counted by the caller; this covers the rest - a shop or
+    /// save menu, a sound, an animation, or handing off to another entity's script, which
+    /// is how the Ghost Hotel's receptionist produces its greeting.
+    ///
+    /// <para>Turning to face the player is deliberately not enough. Several North Corel
+    /// residents have a Talk that only turns them round, and they are scenery with legs.
+    /// </para>
+    /// </summary>
+    /// <summary>
+    /// Whether the field draws anything for this entity. Read from the entity's own CHAR
+    /// opcode rather than from the model loader, so a field whose optional model metadata
+    /// will not parse still discovers the same actors.
+    /// </summary>
+    private static bool LoadsModel(ScriptGroup group) =>
+        group.Scripts.TryGetValue(0, out var initScript) &&
+        ReadOpcodes(initScript).Any(opcode => opcode.Id == OpcodeLoadModel);
+
+    private static bool HasPerceivableTalk(ScriptGroup group) =>
+        group.Scripts.TryGetValue(TalkScript, out var talk) &&
+        ReadOpcodes(talk).Any(opcode =>
+            opcode.Id is MenuOpcode or SoundOpcode or SoundParameterOpcode ||
+            // ANIME1/2, ANIM!1/2, CANIM1/2, CANM!1/2 and ANIMB.
+            // A4 is VISI and AB is TURA; neither is an animation command.
+            opcode.Id is 0xA3 or 0xAE or 0xAF or 0xBA or 0xB0 or 0xBB or 0xB1 or 0xBC or 0xDD ||
+            opcode.Id is >= EntityRequestOpcode and <= EntityRequestSyncOpcode);
+
+    /// <summary>
+    /// The counter an entity is served across, for an entity that has no Talk of its own.
+    ///
+    /// <para>Shop and inn staff are commonly placed behind a counter with no interaction
+    /// at all, and a LINE laid along the customer's side of it runs the exchange. The
+    /// line's confirm script - the one the engine runs when the player presses OK inside
+    /// it - is the game's own statement that this is something you walk up to and use,
+    /// and so is an explicit confirm-key test in any of its other scripts. Both are
+    /// required, because a LINE on its own is just as often a cutscene trigger: North
+    /// Corel's thanks1 and Mideel's exit line both drive bystanders the same way and must
+    /// not turn them into people to walk to.</para>
+    ///
+    /// <para>Counters are frequently approachable from more than one side - Icicle Inn's
+    /// shop has four lines around it and its tables have one on each side - so the lowest
+    /// numbered line is taken rather than the entity being dropped for being ambiguous.
+    /// Any one of them is a valid way to reach the same person.</para>
+    /// </summary>
+    private static NpcInteractionLineDefinition? ReadCounterLine(
+        IReadOnlyList<ScriptGroup> groups,
+        ScriptGroup npcGroup)
+    {
+        if (!LoadsModel(npcGroup))
+        {
+            return null;
+        }
+
+        NpcInteractionLineDefinition? chosen = null;
+        foreach (var lineGroup in groups)
+        {
+            if (lineGroup.Index == npcGroup.Index ||
+                !lineGroup.Scripts.TryGetValue(0, out var lineInit) ||
+                !TryReadLine(lineInit, out var line))
+            {
+                continue;
+            }
+
+            foreach (var (scriptIndex, script) in lineGroup.Scripts)
+            {
+                if (scriptIndex != LineConfirmScript && !RequiresActionActivation(script))
+                {
+                    continue;
+                }
+
+                if (!RequestsEntity(script, npcGroup.Index))
+                {
+                    continue;
+                }
+
+                if (chosen is null || lineGroup.Index < chosen.Value.EntityId)
+                {
+                    chosen = new NpcInteractionLineDefinition(lineGroup.Index, line.TriggerLine);
+                }
+
+                break;
+            }
+        }
+
+        return chosen;
+    }
+
+    private static bool RequestsEntity(byte[] script, int entityId) =>
+        ReadOpcodes(script).Any(opcode =>
+            opcode.Id is >= EntityRequestOpcode and <= EntityRequestSyncOpcode &&
+            opcode.Bytes.Length >= 3 &&
+            opcode.Bytes[1] == entityId);
 
     private static NpcInteractionLineDefinition? ReadNpcInteractionLine(
         IReadOnlyList<ScriptGroup> groups,
@@ -462,31 +761,9 @@ public sealed class FieldScriptNavigationCatalog
             return null;
         }
 
-        var candidates = new List<NpcInteractionLineDefinition>();
-        foreach (var lineGroup in groups)
-        {
-            if (!lineGroup.Scripts.TryGetValue(0, out var lineInit) ||
-                !TryReadLine(lineInit, out var line) ||
-                !lineGroup.Scripts.Values.Any(script =>
-                    ReadOpcodes(script).Any(opcode =>
-                        opcode.Id is >= 0x01 and <= 0x06 &&
-                        opcode.Bytes.Length >= 3 &&
-                        opcode.Bytes[1] == npcGroup.Index)))
-            {
-                continue;
-            }
-
-            candidates.Add(new NpcInteractionLineDefinition(
-                lineGroup.Index,
-                line.TriggerLine));
-        }
-
-        return candidates
-            .Distinct()
-            .Take(2)
-            .ToArray() is [var single]
-                ? single
-                : null;
+        // A scene can animate a non-talkable actor through a LINE as well. Require
+        // the same manual-interaction evidence as other counters before exposing it.
+        return ReadCounterLine(groups, npcGroup);
     }
 
     private static IReadOnlyList<FieldScriptWaitDefinition> ReadWaits(

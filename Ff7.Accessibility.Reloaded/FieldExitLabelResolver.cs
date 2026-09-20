@@ -136,6 +136,9 @@ public sealed class FieldExitLabelResolver
             "script-exit:355:3:354" => "Ladder down to the fort entrance",
             "script-exit:355:4:354" => "Ladder down to the fort entrance",
             "script-exit:356:5:358" => "Way up to the top of the mountain",
+            // del1/wmJump boards the return ship after crew1 enables its LINE.
+            // MAPJUMP 39 is a world-map transport entry with no room name.
+            "script-exit:441:6:39" => "Board the ship to Junon",
             _ => null
         };
         if (exactLabel is not null)
