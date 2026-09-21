@@ -139,6 +139,10 @@ public sealed class FieldExitLabelResolver
             // del1/wmJump boards the return ship after crew1 enables its LINE.
             // MAPJUMP 39 is a world-map transport entry with no room name.
             "script-exit:441:6:39" => "Board the ship to Junon",
+            // gongaga/line4 leaves the village on a Confirm press. Whether it reaches the
+            // world map or the jungle is chosen by bank 3 address 132 bit 6, so the label
+            // names neither.
+            "script-exit:518:11:17,514" => "Leave Gongaga; press Confirm",
             _ => null
         };
         if (exactLabel is not null)
