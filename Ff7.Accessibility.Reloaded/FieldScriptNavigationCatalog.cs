@@ -1360,9 +1360,17 @@ public sealed class FieldScriptNavigationCatalog
         int fieldId,
         int entityId,
         int scriptId) =>
-        fieldId == 238 &&
-        entityId is >= 14 and <= 17 &&
-        scriptId == 1;
+        (fieldId == 238 &&
+         entityId is >= 14 and <= 17 &&
+         scriptId == 1) ||
+
+        // gongaga: line4 is the only way back out of the village - its six native
+        // gateways are all building doors. The handler MAPJUMPs to wm16 or to gonjun1
+        // depending on bank 3 address 132 bit 6, so both destinations are recorded and
+        // the label promises neither.
+        (fieldId == 518 &&
+         entityId == 11 &&
+         scriptId == 1);
 
     private static bool TryResolveConditionalBranch(
         ParsedOpcode opcode,

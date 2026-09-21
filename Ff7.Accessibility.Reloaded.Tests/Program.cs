@@ -544,6 +544,13 @@ if (args.Contains("--costa-gold-navigation-only", StringComparer.OrdinalIgnoreCa
     return;
 }
 
+if (args.Contains("--gongaga-navigation-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.GongagaNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
+    Console.WriteLine("FFVII Gongaga navigation tests passed.");
+    return;
+}
+
 if (args.Contains("--native-line-story-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.NativeLineStoryArrivalTests.Run();
@@ -753,6 +760,7 @@ Ff7.Accessibility.Reloaded.Tests.JunonFieldNavigationTests.Run(
     CreateInstalledFieldWalkmeshReader);
 CargoShipNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.CostaDelSolNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
+Ff7.Accessibility.Reloaded.Tests.GongagaNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.HugeMateriaContactTests.Run(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.SubmarineMissionTests.Run();
 Ff7.Accessibility.Reloaded.Tests.Reactor5ButtonCueTests.Run();

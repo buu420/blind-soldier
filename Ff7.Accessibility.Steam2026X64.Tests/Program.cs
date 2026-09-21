@@ -71,6 +71,7 @@ if (args.Contains("--cutscene-voice-only", StringComparer.OrdinalIgnoreCase))
 if (args.Contains("--module-tests-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.CostaDelSolNavigationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.GongagaNavigationTests.Run();
     GoldSaucerFollowupTests.Run();
     NorthCorelNpcTests.Run();
     Steam2026TranslatedMenuIngressTests.RunPortable();
@@ -606,6 +607,7 @@ Ff7.Accessibility.Reloaded.Tests.JunonFieldNavigationTests.Run(
 Ff7.Accessibility.Reloaded.Tests.JunonJourneyDescriptionTests.Run();
 CargoShipNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.CostaDelSolNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
+Ff7.Accessibility.Reloaded.Tests.GongagaNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.CorelJourneyDescriptionTests.Run();
 MountCorelNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.NorthCorelNavigationTests.Run(CreateInstalledFieldWalkmeshReader);

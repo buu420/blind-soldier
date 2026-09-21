@@ -4,6 +4,10 @@ public sealed class FieldNavigationNpcReader
 {
     // Ghidra: ff7_en.exe opcode 0x7E (TLKON) writes directly to field_event_data + 0x61.
     public const int TalkDisabledOffset = 0x61;
+
+    // Script bank 3 sits one page past the field bank base, as the object and story
+    // readers already resolve it.
+    private const int ScriptBankThreeOffset = 0x100;
     public const int CollisionRadiusOffset = 0x72;
     public const int TalkRadiusOffset = 0x74;
 
@@ -470,7 +474,14 @@ public sealed class FieldNavigationNpcReader
             [(651, 13)] = "Inn staff",
             [(651, 14)] = "Guest",
             [(651, 15)] = "Guest",
-            [(651, 17)] = "Patron"
+            [(651, 17)] = "Patron",
+
+            // gongaga: the two companions who stay in the village after the Zack's
+            // parents scene. Their own Talk is a bare RET and the conversation is
+            // reached from the LINE in front of them, the same way the reviewed shop
+            // and inn counters work.
+            [(518, 15)] = "Tifa",
+            [(518, 16)] = "Aerith"
         };
 
     private static readonly IReadOnlyDictionary<
@@ -514,7 +525,32 @@ public sealed class FieldNavigationNpcReader
             // reaches the couple's conversation from the old woman's chair.
             // Model visibility and live LINE enable state still gate both.
             [(455, 12)] = (3, new(31, 15, 0, 81, 34, 0)),
-            [(455, 14)] = (5, new(-3, 243, 0, -62, 200, 0))
+            [(455, 14)] = (5, new(-3, 243, 0, -62, 200, 0)),
+
+            // gongaga: line1 runs Aeris's conversation about Zack directly. line2 and
+            // line3 are the two sides of Tifa's, and both call the event group's script
+            // 4, which asks Tifa for her own script 3. line2 is taken as the one side
+            // per visible companion, as the other reviewed two-sided counters are.
+            [(518, 16)] = (8, new(-111, -284, 17, -69, -74, 17)),
+            [(518, 15)] = (9, new(321, 559, 17, 173, 800, 17))
+        };
+
+    /// <summary>
+    /// Conversations a field offers once and then records as had.
+    ///
+    /// <para>Gongaga's companions wait on bank 3 address 129 - bit 1 for Aeris, bit 2 for
+    /// Tifa - and the scripts that run them clear that bit as the conversation begins, so
+    /// the target stops being offered exactly when the game stops offering it. Visibility
+    /// alone is insufficient: Tifa also appears elsewhere in the village during a later
+    /// story visit, while these LINE handlers still require the pending flag.</para>
+    /// </summary>
+    private static readonly IReadOnlyDictionary<
+        (int FieldId, int EntityId),
+        (int Address, byte Mask)> VerifiedPendingConversations =
+        new Dictionary<(int FieldId, int EntityId), (int Address, byte Mask)>
+        {
+            [(518, 16)] = (129, 0x02),
+            [(518, 15)] = (129, 0x04)
         };
 
     private static readonly IReadOnlyDictionary<int, IReadOnlyList<FieldScriptNpcDefinition>>
@@ -615,6 +651,11 @@ public sealed class FieldNavigationNpcReader
                 continue;
             }
 
+            if (!IsConversationStillPending(definition))
+            {
+                continue;
+            }
+
             var modelId = readByte(FieldNavigationObjectReader.AddressFieldModelIdArray + definition.EntityId);
             if (modelId == 0xFF || modelId >= modelCount || modelId == position.ModelIndex)
             {
@@ -675,6 +716,25 @@ public sealed class FieldNavigationNpcReader
         }
 
         return targets.Count == 0 ? EmptyTargets : targets;
+    }
+
+    /// <summary>
+    /// Whether a reviewed one-time conversation is still on offer. Entities without such a
+    /// row are unaffected.
+    /// </summary>
+    private bool IsConversationStillPending(FieldScriptNpcDefinition definition)
+    {
+        if (!VerifiedPendingConversations.TryGetValue(
+                (definition.FieldId, definition.EntityId),
+                out var pending))
+        {
+            return true;
+        }
+
+        var address = FieldNavigationObjectReader.AddressFieldBankBase +
+                      ScriptBankThreeOffset +
+                      pending.Address;
+        return (readByte(address) & pending.Mask) != 0;
     }
 
     private static IReadOnlyList<FieldScriptNpcDefinition> MergeVerifiedDefinitions(
