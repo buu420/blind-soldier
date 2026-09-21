@@ -1,0 +1,25 @@
+Blind Soldier - Cosmo Canyon through Nibelheim narration batch, 2026-09-21
+
+13 clips: 10 area descriptions delivered from each field's own native MPNAM, and 3
+scripted actions anchored on the native instruction that performs them.
+
+Voice
+  Brice's own approved voice reference only, at his request and with his permission for
+  distribution with this mod. No other speaker, and no reference recording ships.
+  Natural delivery: no tempo change, no pitch shift, no time stretching.
+
+Source of the descriptions
+  Written from the game's own backgrounds and scripts. The anchors - field, entity,
+  script, instruction byte and opcode - were read out of both installed archives and
+  matched exactly in each. Nothing describes a gesture the script does not perform, and
+  no reference image or video is included in this package.
+
+Generation
+  Descript, scripts-only job
+  project-agent-edit-84460948-c365-45d3-97e9-568eebf3c0b1-33a7c8e5-f4d1-4b59-b8cd-32af196d8958
+  1.932 credits.
+
+Scope
+  These files add to the existing narration. No previous recording, film or piece of game
+  audio was altered, replaced or re-encoded, and the 618 clips that were already installed
+  are unchanged.

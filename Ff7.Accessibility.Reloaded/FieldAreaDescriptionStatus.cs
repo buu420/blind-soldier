@@ -1,4 +1,4 @@
-namespace Ff7.Accessibility.Reloaded;
+﻿namespace Ff7.Accessibility.Reloaded;
 
 /// <summary>
 /// The current area's description, on demand.
@@ -17,7 +17,7 @@ namespace Ff7.Accessibility.Reloaded;
 public static class FieldAreaDescriptionStatus
 {
     private static readonly IReadOnlyDictionary<int, string> Descriptions =
-        FieldCutsceneDescriptionCatalog.CreateGoldSaucerAreaDescriptions()
+        FieldCutsceneDescriptionCatalog.CreateAllAreaDescriptions()
             .Where(cue => cue.Opcode == FieldOpcodeAddressResolver.OpcodeMapNameIndex)
             .GroupBy(cue => cue.FieldId)
             .ToDictionary(group => group.Key, group => group.First().Text);

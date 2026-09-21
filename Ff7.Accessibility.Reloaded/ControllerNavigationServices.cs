@@ -1,4 +1,4 @@
-namespace Ff7.Accessibility.Reloaded;
+﻿namespace Ff7.Accessibility.Reloaded;
 
 /// <summary>
 /// The one place that decides what a controller start or stop does to the navigation
@@ -13,6 +13,8 @@ namespace Ff7.Accessibility.Reloaded;
 public sealed class ControllerNavigationServices : IControllerNavigationTarget
 {
     private readonly Func<bool> beaconEnabled;
+    private readonly Func<bool> navigationIsHeld;
+    private readonly Action requestAutoWalkWhenHeld;
     private readonly Func<FieldNavigationAction, string?> handleAction;
     private readonly Func<bool> autoWalkIsActive;
     private readonly Func<bool> tryStartAutoWalk;
@@ -24,14 +26,28 @@ public sealed class ControllerNavigationServices : IControllerNavigationTarget
     /// player can press B after the module has already changed, and a stop that only
     /// knew about the domain it was asked from would leave them being driven.
     /// </param>
+    /// <param name="navigationIsHeld">
+    /// A destination is selected and waiting for the game to open its way. The beacon is
+    /// off while that is true, so every rule below that asked only about the beacon would
+    /// treat a held selection as no selection: B would not cancel it, and A or X would
+    /// cancel it by accident instead of restating it.
+    /// </param>
+    /// <param name="requestAutoWalkWhenHeld">
+    /// Carries "walk me there" across the wait. Without it, X at a shut door degrades into
+    /// spoken guidance and the player is never walked when the door opens.
+    /// </param>
     public ControllerNavigationServices(
         Func<bool> beaconEnabled,
         Func<FieldNavigationAction, string?> handleAction,
         Func<bool> autoWalkIsActive,
         Func<bool> tryStartAutoWalk,
         Action stopEveryAutoWalk,
-        Action suspendAutoWalk)
+        Action suspendAutoWalk,
+        Func<bool>? navigationIsHeld = null,
+        Action? requestAutoWalkWhenHeld = null)
     {
+        this.navigationIsHeld = navigationIsHeld ?? (static () => false);
+        this.requestAutoWalkWhenHeld = requestAutoWalkWhenHeld ?? (static () => { });
         this.beaconEnabled = beaconEnabled ?? throw new ArgumentNullException(nameof(beaconEnabled));
         this.handleAction = handleAction ?? throw new ArgumentNullException(nameof(handleAction));
         this.autoWalkIsActive = autoWalkIsActive ?? throw new ArgumentNullException(nameof(autoWalkIsActive));
@@ -40,7 +56,11 @@ public sealed class ControllerNavigationServices : IControllerNavigationTarget
         this.suspendAutoWalk = suspendAutoWalk ?? throw new ArgumentNullException(nameof(suspendAutoWalk));
     }
 
-    public bool RouteIsActive => beaconEnabled();
+    /// <summary>
+    /// Navigation is engaged: either walking a route, or holding a destination until the
+    /// game opens its way. Both are a selection the player made and can cancel.
+    /// </summary>
+    public bool RouteIsActive => beaconEnabled() || navigationIsHeld();
 
     public bool AutoWalkIsActive => autoWalkIsActive();
 
@@ -64,6 +84,14 @@ public sealed class ControllerNavigationServices : IControllerNavigationTarget
     {
         stopEveryAutoWalk();
         var speech = RestartBeacon();
+        if (navigationIsHeld())
+        {
+            // The way is shut for now. Remember that this was a walk, not a reading, and
+            // do not start anything: the hold produces no movement at all.
+            requestAutoWalkWhenHeld();
+            return speech;
+        }
+
         if (!beaconEnabled() || !tryStartAutoWalk())
         {
             return speech;
@@ -76,7 +104,7 @@ public sealed class ControllerNavigationServices : IControllerNavigationTarget
     public string? Stop()
     {
         stopEveryAutoWalk();
-        var speech = beaconEnabled()
+        var speech = RouteIsActive
             ? handleAction(FieldNavigationAction.ToggleBeacon)
             : null;
         return string.IsNullOrWhiteSpace(speech) ? "Navigation off." : speech;
@@ -94,7 +122,7 @@ public sealed class ControllerNavigationServices : IControllerNavigationTarget
     /// </summary>
     private string? RestartBeacon()
     {
-        if (beaconEnabled())
+        if (RouteIsActive)
         {
             _ = handleAction(FieldNavigationAction.ToggleBeacon);
         }

@@ -1,0 +1,236 @@
+[
+  {
+    "id": "cosmo_fire",
+    "runtime": "legacy",
+    "field": 526,
+    "entity": 4,
+    "script": 0,
+    "byte": 12,
+    "opcode": "0x43"
+  },
+  {
+    "id": "cosmo_gate_room",
+    "runtime": "legacy",
+    "field": 531,
+    "entity": 3,
+    "script": 0,
+    "byte": 4,
+    "opcode": "0x43"
+  },
+  {
+    "id": "cosmo_observatory_outside",
+    "runtime": "legacy",
+    "field": 540,
+    "entity": 1,
+    "script": 0,
+    "byte": 0,
+    "opcode": "0x43"
+  },
+  {
+    "id": "cosmo_research_inside",
+    "runtime": "legacy",
+    "field": 544,
+    "entity": 1,
+    "script": 0,
+    "byte": 4,
+    "opcode": "0x43"
+  },
+  {
+    "id": "gi_bridges",
+    "runtime": "legacy",
+    "field": 547,
+    "entity": 2,
+    "script": 0,
+    "byte": 0,
+    "opcode": "0x43"
+  },
+  {
+    "id": "gi_head",
+    "runtime": "legacy",
+    "field": 549,
+    "entity": 4,
+    "script": 0,
+    "byte": 0,
+    "opcode": "0x43"
+  },
+  {
+    "id": "nibelheim_arrival",
+    "runtime": "legacy",
+    "field": 284,
+    "entity": 0,
+    "script": 0,
+    "byte": 5,
+    "opcode": "0x43"
+  },
+  {
+    "id": "mansion_hall",
+    "runtime": "legacy",
+    "field": 298,
+    "entity": 0,
+    "script": 0,
+    "byte": 16,
+    "opcode": "0x43"
+  },
+  {
+    "id": "mansion_coffins",
+    "runtime": "legacy",
+    "field": 303,
+    "entity": 0,
+    "script": 0,
+    "byte": 26,
+    "opcode": "0x43"
+  },
+  {
+    "id": "mansion_library",
+    "runtime": "legacy",
+    "field": 308,
+    "entity": 0,
+    "script": 0,
+    "byte": 28,
+    "opcode": "0x43"
+  },
+  {
+    "id": "red_greets_guard",
+    "runtime": "legacy",
+    "field": 525,
+    "entity": 16,
+    "script": 5,
+    "byte": 119,
+    "opcode": "0x1"
+  },
+  {
+    "id": "red_returns",
+    "runtime": "legacy",
+    "field": 525,
+    "entity": 9,
+    "script": 8,
+    "byte": 14,
+    "opcode": "0xa4"
+  },
+  {
+    "id": "gate_open",
+    "runtime": "legacy",
+    "field": 531,
+    "entity": 15,
+    "script": 1,
+    "byte": 105,
+    "opcode": "0x3"
+  },
+  {
+    "id": "cosmo_fire",
+    "runtime": "steam2026",
+    "field": 526,
+    "entity": 4,
+    "script": 0,
+    "byte": 12,
+    "opcode": "0x43"
+  },
+  {
+    "id": "cosmo_gate_room",
+    "runtime": "steam2026",
+    "field": 531,
+    "entity": 3,
+    "script": 0,
+    "byte": 4,
+    "opcode": "0x43"
+  },
+  {
+    "id": "cosmo_observatory_outside",
+    "runtime": "steam2026",
+    "field": 540,
+    "entity": 1,
+    "script": 0,
+    "byte": 0,
+    "opcode": "0x43"
+  },
+  {
+    "id": "cosmo_research_inside",
+    "runtime": "steam2026",
+    "field": 544,
+    "entity": 1,
+    "script": 0,
+    "byte": 4,
+    "opcode": "0x43"
+  },
+  {
+    "id": "gi_bridges",
+    "runtime": "steam2026",
+    "field": 547,
+    "entity": 2,
+    "script": 0,
+    "byte": 0,
+    "opcode": "0x43"
+  },
+  {
+    "id": "gi_head",
+    "runtime": "steam2026",
+    "field": 549,
+    "entity": 4,
+    "script": 0,
+    "byte": 0,
+    "opcode": "0x43"
+  },
+  {
+    "id": "nibelheim_arrival",
+    "runtime": "steam2026",
+    "field": 284,
+    "entity": 0,
+    "script": 0,
+    "byte": 5,
+    "opcode": "0x43"
+  },
+  {
+    "id": "mansion_hall",
+    "runtime": "steam2026",
+    "field": 298,
+    "entity": 0,
+    "script": 0,
+    "byte": 16,
+    "opcode": "0x43"
+  },
+  {
+    "id": "mansion_coffins",
+    "runtime": "steam2026",
+    "field": 303,
+    "entity": 0,
+    "script": 0,
+    "byte": 26,
+    "opcode": "0x43"
+  },
+  {
+    "id": "mansion_library",
+    "runtime": "steam2026",
+    "field": 308,
+    "entity": 0,
+    "script": 0,
+    "byte": 28,
+    "opcode": "0x43"
+  },
+  {
+    "id": "red_greets_guard",
+    "runtime": "steam2026",
+    "field": 525,
+    "entity": 16,
+    "script": 5,
+    "byte": 119,
+    "opcode": "0x1"
+  },
+  {
+    "id": "red_returns",
+    "runtime": "steam2026",
+    "field": 525,
+    "entity": 9,
+    "script": 8,
+    "byte": 14,
+    "opcode": "0xa4"
+  },
+  {
+    "id": "gate_open",
+    "runtime": "steam2026",
+    "field": 531,
+    "entity": 15,
+    "script": 1,
+    "byte": 105,
+    "opcode": "0x3"
+  }
+]

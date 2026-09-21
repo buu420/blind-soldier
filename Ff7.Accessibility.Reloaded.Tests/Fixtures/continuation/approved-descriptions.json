@@ -1,0 +1,2356 @@
+[
+  {
+    "id": "ancnt1",
+    "anchor": [
+      646,
+      0,
+      0,
+      3,
+      67
+    ],
+    "text": "Pale towers with dark pointed roofs rise above a misty circular space, linked by curved walkways and separate stone pillars."
+  },
+  {
+    "id": "ancnt4",
+    "anchor": [
+      649,
+      0,
+      0,
+      13,
+      67
+    ],
+    "text": "A narrow curved stone bridge climbs steps to a round raised platform with a curved rim, pale mist lying below."
+  },
+  {
+    "id": "anfrst_1",
+    "anchor": [
+      620,
+      0,
+      0,
+      62,
+      67
+    ],
+    "text": "Thick tree trunks line a mossy path beside a rock face, with red star-shaped plants low down and orange cupped plants hanging overhead."
+  },
+  {
+    "id": "anfrst_2",
+    "anchor": [
+      621,
+      0,
+      0,
+      14,
+      67
+    ],
+    "text": "Interlaced, moss-covered branches form a high trail through dense green foliage."
+  },
+  {
+    "id": "anfrst_3",
+    "anchor": [
+      622,
+      0,
+      0,
+      38,
+      67
+    ],
+    "text": "Mossy rock ledges and crooked tree roots surround a small dark pool, with red plants scattered across the forest floor."
+  },
+  {
+    "id": "blue_1",
+    "anchor": [
+      640,
+      0,
+      0,
+      14,
+      67
+    ],
+    "text": "Pale branching formations rise from blue-lit rocky ledges around a deep, narrow gap."
+  },
+  {
+    "id": "blue_2",
+    "anchor": [
+      641,
+      0,
+      0,
+      26,
+      67
+    ],
+    "text": "An enormous skull and curved ribs lie among pale tree-like formations under shafts of blue-white light."
+  },
+  {
+    "id": "bonevil",
+    "anchor": [
+      617,
+      0,
+      0,
+      12,
+      67
+    ],
+    "text": "A huge skull crowns a rocky terrace above canvas shelters. Giant ribs curve across the lower ground, with a ladder joining the levels."
+  },
+  {
+    "id": "datiao_1",
+    "anchor": [
+      592,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "Colossal stone figures are carved into the cliffs, with narrow paths winding around their heads and outstretched arms."
+  },
+  {
+    "id": "datiao_2",
+    "anchor": [
+      593,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "A cliff path curls past an enormous crowned stone face and layers of carved hands."
+  },
+  {
+    "id": "datiao_3",
+    "anchor": [
+      594,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "A narrow ledge curves along a carved figure's chest, above an open stone hand and a sheer cliff."
+  },
+  {
+    "id": "datiao_4",
+    "anchor": [
+      595,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "A carved face fills the cliffside above a thin ledge, with a massive stone arm stretching overhead."
+  },
+  {
+    "id": "datiao_5",
+    "anchor": [
+      596,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "Steep stairs zigzag between monumental stone carvings up the cliff wall."
+  },
+  {
+    "id": "datiao_7",
+    "anchor": [
+      598,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "A narrow ridge circles a monumental stone hand with two fingers raised, forest stretching far below."
+  },
+  {
+    "id": "datiao_8",
+    "anchor": [
+      599,
+      10,
+      0,
+      0,
+      67
+    ],
+    "text": "A dark rocky passage curls around two bright orange pools, their glow casting warm light on the surrounding rock."
+  },
+  {
+    "id": "jtempl",
+    "anchor": [
+      600,
+      3,
+      0,
+      0,
+      67
+    ],
+    "text": "Stone walls and a heavy archway stand in a shadowy forest clearing, with steps climbing toward the archway."
+  },
+  {
+    "id": "jtemplb",
+    "anchor": [
+      601,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "Square stone walls surround a deep rectangular pit with a rough, pale interior and a blue-black bottom."
+  },
+  {
+    "id": "jtmpin1",
+    "anchor": [
+      602,
+      2,
+      0,
+      2,
+      67
+    ],
+    "text": "An enormous golden, fanged face hangs above a stone altar in an orange-lit chamber flanked by tall columns and standing braziers."
+  },
+  {
+    "id": "kuro_1",
+    "anchor": [
+      604,
+      1,
+      0,
+      56,
+      67
+    ],
+    "text": "Stone staircases and narrow platforms interlock at awkward angles across a sprawling, multilevel maze."
+  },
+  {
+    "id": "kuro_10",
+    "anchor": [
+      614,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "A low, arched passage runs between rough stone walls into darkness."
+  },
+  {
+    "id": "kuro_12",
+    "anchor": [
+      616,
+      3,
+      0,
+      0,
+      67
+    ],
+    "text": "Steps rise to an ornate doorway at the far end of a bare, dim stone chamber."
+  },
+  {
+    "id": "kuro_2",
+    "anchor": [
+      605,
+      3,
+      0,
+      0,
+      67
+    ],
+    "text": "Shelves line the walls of a cramped, amber-lit stone room, with pots sitting among thick columns."
+  },
+  {
+    "id": "kuro_3",
+    "anchor": [
+      606,
+      4,
+      0,
+      0,
+      67
+    ],
+    "text": "A long, arched stone bridge leads past a circular blue pool ringed by columns."
+  },
+  {
+    "id": "kuro_4",
+    "anchor": [
+      607,
+      0,
+      0,
+      32,
+      67
+    ],
+    "text": "Numbered doorways ring a huge circular stone chamber around a deep central shaft."
+  },
+  {
+    "id": "kuro_6",
+    "anchor": [
+      609,
+      2,
+      0,
+      0,
+      67
+    ],
+    "text": "Short stairs rise to a stone platform between two black braziers, warm orange light falling across rough cave walls."
+  },
+  {
+    "id": "kuro_8",
+    "anchor": [
+      611,
+      2,
+      0,
+      56,
+      67
+    ],
+    "text": "Tall columns separate expansive wall paintings in warm gold and orange, showing rows of figures and a large circular sun-like symbol."
+  },
+  {
+    "id": "losin2",
+    "anchor": [
+      632,
+      2,
+      0,
+      0,
+      67
+    ],
+    "text": "Wooden platforms fill a tall shell-shaped building, with a ladder connecting the levels beside branching red coral."
+  },
+  {
+    "id": "losinn",
+    "anchor": [
+      636,
+      2,
+      0,
+      0,
+      67
+    ],
+    "text": "Beds line the curved walls of a shell-shaped room, where a twisting central column rises through wooden floors connected by steps."
+  },
+  {
+    "id": "loslake2",
+    "anchor": [
+      638,
+      0,
+      0,
+      50,
+      67
+    ],
+    "text": "A circular stone walkway surrounds a glowing blue center, with steps and tall columns rising among curved shell-like structures."
+  },
+  {
+    "id": "lost1",
+    "anchor": [
+      630,
+      1,
+      0,
+      0,
+      67
+    ],
+    "text": "A stone path crosses water toward a towering cluster of pale branches, surrounded by layered shell-like platforms."
+  },
+  {
+    "id": "lost2",
+    "anchor": [
+      634,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "Pale stone paths weave among shell-shaped houses beneath layered green canopies, with tall brown cliffs rising in the background."
+  },
+  {
+    "id": "lost3",
+    "anchor": [
+      635,
+      1,
+      0,
+      0,
+      67
+    ],
+    "text": "A narrow pale stone walkway curves along a deep rocky gap between tall brown cliffs, leading toward a doorway."
+  },
+  {
+    "id": "nvdun1",
+    "anchor": [
+      317,
+      0,
+      0,
+      17,
+      67
+    ],
+    "text": "Large rusted pipes bend through a tall green cavern, while catwalks and ladders link platforms above the rocky floor."
+  },
+  {
+    "id": "nvdun3",
+    "anchor": [
+      319,
+      0,
+      0,
+      67,
+      67
+    ],
+    "text": "Thick twisting brown roots frame a narrow passage leading toward pale blue-green rock and light."
+  },
+  {
+    "id": "nvmkin1",
+    "anchor": [
+      322,
+      0,
+      0,
+      54,
+      67
+    ],
+    "text": "Metal catwalks bridge a deep industrial shaft lined with hanging cables and pipes. Yellow railings border the walkways, with white light glowing below."
+  },
+  {
+    "id": "nvmkin21",
+    "anchor": [
+      323,
+      0,
+      0,
+      68,
+      67
+    ],
+    "text": "Rows of tall rounded pods with blue-lit windows flank a central staircase, while thick red pipes arch overhead in the red-lit chamber."
+  },
+  {
+    "id": "nvmkin22",
+    "anchor": [
+      324,
+      0,
+      0,
+      8,
+      67
+    ],
+    "text": "Rows of tall rounded pods with blue-lit windows flank a central staircase, while thick red pipes arch overhead in the red-lit chamber."
+  },
+  {
+    "id": "nvmkin31",
+    "anchor": [
+      326,
+      0,
+      0,
+      32,
+      67
+    ],
+    "text": "A winged human-shaped ornament hangs high above a curved red tube. Large cylindrical vessels surround a round platform in the dark chamber."
+  },
+  {
+    "id": "rckt",
+    "anchor": [
+      557,
+      6,
+      0,
+      14,
+      67
+    ],
+    "text": "A tall leaning rocket rises above a town of low houses, with trees flanking the broad central street."
+  },
+  {
+    "id": "rckt2",
+    "anchor": [
+      551,
+      7,
+      0,
+      2,
+      67
+    ],
+    "text": "An empty metal gantry rises above a town of low houses, with trees flanking the broad central street."
+  },
+  {
+    "id": "rcktbas1",
+    "anchor": [
+      561,
+      2,
+      0,
+      24,
+      67
+    ],
+    "text": "Cylindrical boosters crowd the foot of a large rocket, with metal stairs, scaffold platforms, and thick pipes standing above the grass."
+  },
+  {
+    "id": "rcktbas2",
+    "anchor": [
+      562,
+      4,
+      0,
+      24,
+      67
+    ],
+    "text": "The rocket's tall metal body rises through an open framework of narrow stairways and platforms, high above the trees and grass."
+  },
+  {
+    "id": "rcktin1",
+    "anchor": [
+      563,
+      0,
+      0,
+      12,
+      67
+    ],
+    "text": "A narrow metal passage is lined with pipes, cables, bright floor lights, and black-and-yellow warning stripes."
+  },
+  {
+    "id": "rcktin2",
+    "anchor": [
+      564,
+      1,
+      0,
+      68,
+      67
+    ],
+    "text": "Pipes run along the ceiling and walls of a narrow metal passage, leading to a dark square doorway with steps at the near end."
+  },
+  {
+    "id": "rcktin3",
+    "anchor": [
+      565,
+      1,
+      0,
+      12,
+      67
+    ],
+    "text": "A brightly lit metal corridor leads to a circular hatch, with pipes and angled fittings lining both sides."
+  },
+  {
+    "id": "rcktin6",
+    "anchor": [
+      568,
+      3,
+      0,
+      40,
+      67
+    ],
+    "text": "A grated metal walkway leads to a ladder between cramped walls covered with equipment panels and pipes."
+  },
+  {
+    "id": "rcktin8",
+    "anchor": [
+      570,
+      0,
+      0,
+      12,
+      67
+    ],
+    "text": "A narrow metal ladder shaft descends past bright strip lights, with black-and-yellow warning stripes around its edges."
+  },
+  {
+    "id": "rktinn1",
+    "anchor": [
+      555,
+      3,
+      0,
+      14,
+      67
+    ],
+    "text": "A wooden reception counter and a separate bar occupy a warmly lit room, with round tables standing nearby."
+  },
+  {
+    "id": "rktinn2",
+    "anchor": [
+      556,
+      4,
+      0,
+      14,
+      67
+    ],
+    "text": "Two pairs of beds occupy wooden guest rooms, each with small round tables and narrow washrooms beside them."
+  },
+  {
+    "id": "rkt_i",
+    "anchor": [
+      554,
+      5,
+      0,
+      14,
+      67
+    ],
+    "text": "A long shop counter crosses the wooden front room, with bedrooms and a small washroom behind it."
+  },
+  {
+    "id": "rkt_w",
+    "anchor": [
+      553,
+      5,
+      0,
+      14,
+      67
+    ],
+    "text": "A shop counter runs beside wooden floorboards, with framed displays behind it, while a bedroom and small washroom occupy the rear rooms."
+  },
+  {
+    "id": "sandun_2",
+    "anchor": [
+      629,
+      0,
+      0,
+      4,
+      67
+    ],
+    "text": "A rough gray cave slopes toward a small dark opening in the far wall."
+  },
+  {
+    "id": "sango2",
+    "anchor": [
+      626,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "A path runs along a huge curved hollow shell, passing pointed rock formations and pale branching growths."
+  },
+  {
+    "id": "sango3",
+    "anchor": [
+      627,
+      0,
+      0,
+      4,
+      67
+    ],
+    "text": "A towering spiral shell studded with long sharp spines rises in a rocky cleft, surrounded by colorful coral-like growths."
+  },
+  {
+    "id": "slfrst_1",
+    "anchor": [
+      618,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "A narrow earthy path winds between tall trees, disappearing into the dense green forest."
+  },
+  {
+    "id": "tower5",
+    "anchor": [
+      586,
+      4,
+      0,
+      0,
+      67
+    ],
+    "text": "Red-framed upper windows overlook a wooden hall, where a large circular emblem fills the center of the floor."
+  },
+  {
+    "id": "utapb",
+    "anchor": [
+      580,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "A brightly decorated tavern with red walls features wooden tables, green stools, and a long counter, with a tree growing from a stone planter inside."
+  },
+  {
+    "id": "uta_im",
+    "anchor": [
+      576,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "A tiled shop awning hangs above a long counter, while boxes, jars, bundled poles, and hanging papers crowd the wooden room."
+  },
+  {
+    "id": "utmin1",
+    "anchor": [
+      577,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "Cabinets, chests, hanging papers, and small ornaments fill a cramped wooden house with a low ceiling."
+  },
+  {
+    "id": "utmin2",
+    "anchor": [
+      578,
+      3,
+      0,
+      0,
+      67
+    ],
+    "text": "A round low table stands among floor cushions in a wooden room, with a thick braided rope hanging above a curtained alcove."
+  },
+  {
+    "id": "uttmpin1",
+    "anchor": [
+      588,
+      4,
+      0,
+      0,
+      67
+    ],
+    "text": "A narrow garden with stepping stones and bamboo runs beside a red wooden building, its inner room covered in patterned mats."
+  },
+  {
+    "id": "uttmpin2",
+    "anchor": [
+      589,
+      3,
+      0,
+      0,
+      67
+    ],
+    "text": "A narrow stone garden borders a red wooden house, with patterned floor mats, wall hangings, and shelves of books inside."
+  },
+  {
+    "id": "uttmpin3",
+    "anchor": [
+      590,
+      4,
+      0,
+      0,
+      67
+    ],
+    "text": "A golden many-armed statue stands at the far end of a wooden hall, beyond a large circular emblem painted on the floor."
+  },
+  {
+    "id": "uttmpin4",
+    "anchor": [
+      591,
+      2,
+      0,
+      0,
+      67
+    ],
+    "text": "Floor cushions line a long wooden room beneath hanging red decorations, with two large patterned rugs occupying the center."
+  },
+  {
+    "id": "uutai1",
+    "anchor": [
+      579,
+      9,
+      0,
+      0,
+      67
+    ],
+    "text": "Red arched bridges cross winding streams between buildings with dark curved roofs, framed by trees and steep cliffs."
+  },
+  {
+    "id": "uutai2",
+    "anchor": [
+      587,
+      1,
+      0,
+      0,
+      67
+    ],
+    "text": "A many-tiered red pagoda rises beyond a broad stone courtyard, flanked by red wooden pavilions."
+  },
+  {
+    "id": "yufy1",
+    "anchor": [
+      581,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "A folding screen separates a bed from a wooden room containing low tables, cushions, shelves, and red-framed windows."
+  },
+  {
+    "id": "yufy2",
+    "anchor": [
+      582,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "Small pale statues line both sides of a wooden hall, with a purple rug bearing a large dark symbol lying in the middle."
+  },
+  {
+    "id": "canon_1",
+    "anchor": [
+      740,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "Metal stairs zigzag through a tall framework of girders, pipes, and grated platforms."
+  },
+  {
+    "id": "canon_2",
+    "anchor": [
+      741,
+      4,
+      0,
+      0,
+      67
+    ],
+    "text": "Broad metal platforms sit high on an industrial framework, with railings, thick red pipes, and smaller pipes crossing their surfaces."
+  },
+  {
+    "id": "gaiafoot",
+    "anchor": [
+      686,
+      3,
+      0,
+      0,
+      67
+    ],
+    "text": "A dark wooden cabin with a steep roof stands beside a snowy trail at the foot of high white mountains."
+  },
+  {
+    "id": "gaia_1",
+    "anchor": [
+      689,
+      1,
+      0,
+      0,
+      67
+    ],
+    "text": "Small snow-covered ledges rise up a steep blue-white cliff face, with dark hollows between the rocks."
+  },
+  {
+    "id": "gaia_2",
+    "anchor": [
+      692,
+      1,
+      0,
+      0,
+      67
+    ],
+    "text": "A steep icy cliff is broken by small ledges and dark rock outcrops."
+  },
+  {
+    "id": "gaia_31",
+    "anchor": [
+      694,
+      1,
+      0,
+      0,
+      67
+    ],
+    "text": "Staggered snowy shelves climb an icy cliff toward a small dark opening."
+  },
+  {
+    "id": "gaia_32",
+    "anchor": [
+      695,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "A dark cave mouth opens near the foot of a broad ice-covered wall beneath a deep blue sky."
+  },
+  {
+    "id": "gaiin_1",
+    "anchor": [
+      690,
+      1,
+      0,
+      0,
+      67
+    ],
+    "text": "Blue crystal walls surround several rocky ledges and dark tunnel openings inside a tall cavern."
+  },
+  {
+    "id": "gaiin_4",
+    "anchor": [
+      696,
+      1,
+      0,
+      0,
+      67
+    ],
+    "text": "Tall narrow rock spires rise from a deep blue icy gorge, with snow-covered ledges along both walls."
+  },
+  {
+    "id": "gaiin_5",
+    "anchor": [
+      697,
+      1,
+      0,
+      0,
+      67
+    ],
+    "text": "Blue and violet crystals glow around a deep shaft, with narrow ledges running past dark cave openings on opposite sides."
+  },
+  {
+    "id": "holu_1",
+    "anchor": [
+      687,
+      1,
+      0,
+      0,
+      67
+    ],
+    "text": "A pale animal-skin rug covers the center of a wooden cabin. A bed, work table, bottles, and stacked supplies line the walls."
+  },
+  {
+    "id": "holu_2",
+    "anchor": [
+      688,
+      2,
+      0,
+      0,
+      67
+    ],
+    "text": "Wooden stairs climb to a loft beneath steep rafters. Pale bedding lies on both levels, with daylight entering through a small window."
+  },
+  {
+    "id": "hyou1",
+    "anchor": [
+      658,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "A wooden sign headed Ice Gate stands beside a snow-covered path, with white hills and a line of evergreen trees beyond."
+  },
+  {
+    "id": "hyou3",
+    "anchor": [
+      660,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "A broad snowy path passes between low rocky ridges beneath distant white mountains."
+  },
+  {
+    "id": "hyou5_1",
+    "anchor": [
+      664,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "Snow-laden evergreen trees stand beside the pale shore of a partly frozen lake."
+  },
+  {
+    "id": "hyou5_4",
+    "anchor": [
+      667,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "A small snow-covered rocky island rises from pale green water, with a dark cave mouth opening at its base."
+  },
+  {
+    "id": "hyou6",
+    "anchor": [
+      668,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "A fallen tree trunk spans a narrow snowy ravine between rocky banks."
+  },
+  {
+    "id": "hyou7",
+    "anchor": [
+      676,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "A solitary snow-covered evergreen stands in an open white slope."
+  },
+  {
+    "id": "hyou8_1",
+    "anchor": [
+      677,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "Rounded pillars and ridges of ice crowd a snowy hollow, with winding passages between them."
+  },
+  {
+    "id": "hyou9",
+    "anchor": [
+      679,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "Snowy paths branch between exposed brown rock ridges."
+  },
+  {
+    "id": "hyou10",
+    "anchor": [
+      680,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "A snowy ridge winds above misty drops on both sides."
+  },
+  {
+    "id": "hyou11",
+    "anchor": [
+      681,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "A snow-covered valley runs among brown cliffs and low ledges beneath distant mountains."
+  },
+  {
+    "id": "hyou12",
+    "anchor": [
+      682,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "A small tent stands on the icy floor of a dark cave, with a tunnel opening in the back wall."
+  },
+  {
+    "id": "hyou13_1",
+    "anchor": [
+      683,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "A narrow snow-covered shelf curves around a towering cliff, with jagged white peaks in the distance."
+  },
+  {
+    "id": "icedun_2",
+    "anchor": [
+      662,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "Long icicles hang above an icy shaft crossed by huge curved, rib-like formations."
+  },
+  {
+    "id": "ithos",
+    "anchor": [
+      720,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "An examination table and shelves of medical equipment occupy one side of a wooden clinic. Curtains divide three beds on the other side."
+  },
+  {
+    "id": "itmin1",
+    "anchor": [
+      721,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "A small wooden home contains a central table on a round rug, a curtained bed, shelves, and a stove."
+  },
+  {
+    "id": "itmin2",
+    "anchor": [
+      722,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "A bed, a stove with pots, and a round dining table fill a worn wooden room."
+  },
+  {
+    "id": "itown1a",
+    "anchor": [
+      712,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "Wooden buildings stand on raised walkways in a lush forest. Ramps and stairs join the different levels."
+  },
+  {
+    "id": "itown12",
+    "anchor": [
+      713,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "Wooden buildings stand on raised walkways in a lush forest. Ramps and stairs join the different levels."
+  },
+  {
+    "id": "itown1b",
+    "anchor": [
+      714,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "Broken wooden walkways hang over a broad green-glowing crater, with surviving forest and buildings around the rim."
+  },
+  {
+    "id": "ithill",
+    "anchor": [
+      716,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "Splintered beams and broken wooden platforms crisscross a deep green-glowing hollow."
+  },
+  {
+    "id": "itown_i",
+    "anchor": [
+      718,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "Jars and bottles cover a wooden shop counter, with a tall clock and crowded shelves against the back wall."
+  },
+  {
+    "id": "itown_m",
+    "anchor": [
+      719,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "Metal shields and other equipment hang on a small shop's walls above a wooden counter, with a leafy plant beside the counter."
+  },
+  {
+    "id": "itown_w",
+    "anchor": [
+      717,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "Weapons and armor fill a wooden shop, including a large dark cannon, a target on the wall, and a small desk by the entrance."
+  },
+  {
+    "id": "sninn_1",
+    "anchor": [
+      651,
+      1,
+      0,
+      0,
+      67
+    ],
+    "text": "A broad staircase divides a warmly lit wooden inn lobby, with a counter, patterned rugs, and lamps around the room."
+  },
+  {
+    "id": "snmin1",
+    "anchor": [
+      655,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "Two beds with curtains sit behind a dining table on a patterned rug in a warmly lit wooden home."
+  },
+  {
+    "id": "snmin2",
+    "anchor": [
+      656,
+      1,
+      0,
+      0,
+      67
+    ],
+    "text": "A split wooden room contains rows of small plants, a metal stove, shelves, and hanging lamps."
+  },
+  {
+    "id": "snw_w",
+    "anchor": [
+      650,
+      1,
+      0,
+      0,
+      67
+    ],
+    "text": "An L-shaped wooden counter and a glass-topped display case stand in a stone-walled shop, with a staircase rising at the back."
+  },
+  {
+    "id": "snmayor",
+    "anchor": [
+      657,
+      14,
+      0,
+      0,
+      67
+    ],
+    "text": "Banks of equipment and monitors fill the upper part of a dim room, with a bed and patterned rug on the lower wooden floor."
+  },
+  {
+    "id": "las0_2",
+    "anchor": [
+      745,
+      1,
+      0,
+      2,
+      67
+    ],
+    "text": "A long rope ladder hangs from the airship beside a steep rocky drop."
+  },
+  {
+    "id": "las0_3",
+    "anchor": [
+      746,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "A rough stony slope stretches beneath the airship's dark underside."
+  },
+  {
+    "id": "las0_4",
+    "anchor": [
+      747,
+      6,
+      0,
+      4,
+      67
+    ],
+    "text": "A rocky shaft curves around a bright green glow deep below, with a small dark opening high in the wall."
+  },
+  {
+    "id": "las0_5",
+    "anchor": [
+      748,
+      1,
+      0,
+      4,
+      67
+    ],
+    "text": "Narrow greenish rock shelves descend around a deep cleft, with dark cave openings between the ledges."
+  },
+  {
+    "id": "las0_6",
+    "anchor": [
+      749,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "Pale ledges zigzag down a tall purple-gray rock face, broken by dark openings and deep cracks."
+  },
+  {
+    "id": "las0_7",
+    "anchor": [
+      750,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "A winding series of rough reddish ledges descends through a cramped rocky shaft."
+  },
+  {
+    "id": "las1_1",
+    "anchor": [
+      752,
+      3,
+      0,
+      4,
+      67
+    ],
+    "text": "A narrow path spirals around a tall ridged stone column in darkness."
+  },
+  {
+    "id": "las1_2",
+    "anchor": [
+      753,
+      2,
+      0,
+      4,
+      67
+    ],
+    "text": "A rough pale path coils around a tall ribbed pillar, above scattered rock formations and a distant orange glow."
+  },
+  {
+    "id": "las1_3",
+    "anchor": [
+      754,
+      1,
+      0,
+      4,
+      67
+    ],
+    "text": "Pale winding rock formations stretch through a dark cavern toward an orange-lit opening."
+  },
+  {
+    "id": "las1_4",
+    "anchor": [
+      755,
+      0,
+      0,
+      4,
+      67
+    ],
+    "text": "Huge curved rib-like formations arch over a cavern filled with warm amber and green light."
+  },
+  {
+    "id": "las2_2",
+    "anchor": [
+      757,
+      5,
+      0,
+      0,
+      67
+    ],
+    "text": "Thick twisting roots and fine pale tendrils cover uneven rock ledges inside a yellow-green cavern."
+  },
+  {
+    "id": "las3_1",
+    "anchor": [
+      760,
+      0,
+      0,
+      4,
+      67
+    ],
+    "text": "Flat-topped gray stone pillars form staggered platforms over a deep green-black gap."
+  },
+  {
+    "id": "las3_2",
+    "anchor": [
+      761,
+      0,
+      0,
+      4,
+      67
+    ],
+    "text": "Narrow stone ledges curve around tall gray pillars, with green light glowing between them."
+  },
+  {
+    "id": "las3_3",
+    "anchor": [
+      762,
+      0,
+      0,
+      4,
+      67
+    ],
+    "text": "Broad gray ledges and round stone pillars form a rough stairway through a cavern, with green light in its cracks."
+  },
+  {
+    "id": "md8brdg2",
+    "anchor": [
+      738,
+      1,
+      0,
+      0,
+      67
+    ],
+    "text": "A stairway descends between metal frameworks, pipes, and tall industrial walls."
+  },
+  {
+    "id": "md8_32",
+    "anchor": [
+      739,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "Ladders and narrow platforms crowd a tall industrial shaft beside a round pipe opening and heavy machinery."
+  },
+  {
+    "id": "md8_5",
+    "anchor": [
+      731,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "Narrow buildings with lit windows stand beneath an immense steel structure, with street lamps along the road."
+  },
+  {
+    "id": "md8_6",
+    "anchor": [
+      732,
+      3,
+      0,
+      0,
+      67
+    ],
+    "text": "A rust-colored metal bridge crosses a narrow alley between high stone walls."
+  },
+  {
+    "id": "md8_b1",
+    "anchor": [
+      733,
+      1,
+      0,
+      0,
+      67
+    ],
+    "text": "Metal ladders, grated platforms, and narrow bridges span an enormous industrial shaft, with thick pipes along the walls."
+  },
+  {
+    "id": "md8_b2",
+    "anchor": [
+      734,
+      1,
+      0,
+      0,
+      67
+    ],
+    "text": "Stairs and narrow bridges link suspended industrial platforms beside large pipes and heavy girders."
+  },
+  {
+    "id": "sbwy4_22",
+    "anchor": [
+      735,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "Dim lamps light a narrow metal corridor lined with pipes, ending at a closed panel marked with red graffiti."
+  },
+  {
+    "id": "tunnel_4",
+    "anchor": [
+      736,
+      6,
+      0,
+      0,
+      67
+    ],
+    "text": "Two rail tracks run through a dark metal tunnel beneath pipes and low ceiling lights."
+  },
+  {
+    "id": "tunnel_5",
+    "anchor": [
+      737,
+      8,
+      0,
+      0,
+      67
+    ],
+    "text": "Rail tracks converge at a junction inside a tall industrial tunnel, lined with pipes and small red lights."
+  },
+  {
+    "id": "tunnel_6",
+    "anchor": [
+      778,
+      6,
+      0,
+      0,
+      67
+    ],
+    "text": "Two rail tracks run through a dark metal tunnel beneath pipes and low ceiling lights."
+  },
+  {
+    "id": "trnad_3",
+    "anchor": [
+      704,
+      1,
+      0,
+      0,
+      67
+    ],
+    "text": "Jagged gray-green rocks form a series of narrow ledges and steep drops."
+  },
+  {
+    "id": "trnad_4",
+    "anchor": [
+      705,
+      12,
+      0,
+      0,
+      67
+    ],
+    "text": "A narrow rocky ridge rises between towering spires, with pale light and mist in the deep gaps."
+  },
+  {
+    "id": "trnad_51",
+    "anchor": [
+      706,
+      0,
+      0,
+      8,
+      67
+    ],
+    "text": "Thick brown roots spread above enormous glowing blue crystals in a tall cavern."
+  },
+  {
+    "id": "trnad_53",
+    "anchor": [
+      708,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "Thick brown roots spread above enormous glowing blue crystals in a tall cavern."
+  },
+  {
+    "id": "woa_1",
+    "anchor": [
+      709,
+      3,
+      0,
+      0,
+      67
+    ],
+    "text": "A narrow flat-topped rocky ridge extends across a vast mist-filled chasm."
+  },
+  {
+    "id": "woa_2",
+    "anchor": [
+      710,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "A narrow flat-topped rocky ridge extends across a vast mist-filled chasm."
+  },
+  {
+    "id": "woa_3",
+    "anchor": [
+      711,
+      5,
+      0,
+      0,
+      67
+    ],
+    "text": "A narrow broken ridge stretches between tall rock pillars above a mist-filled chasm."
+  },
+  {
+    "id": "cosin1",
+    "anchor": [
+      529,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "Wooden platforms and barrels line a red-rock passage. A lit weapon-shop sign hangs above a counter on the lower level."
+  },
+  {
+    "id": "cosin1_1",
+    "anchor": [
+      530,
+      0,
+      0,
+      4,
+      67
+    ],
+    "text": "A hanging green lamp lights a cramped wooden room with barrels, shelves, and a small desk beneath a peaked roof."
+  },
+  {
+    "id": "cosin3",
+    "anchor": [
+      532,
+      3,
+      0,
+      4,
+      67
+    ],
+    "text": "A bottle-lined bar fills the lower level of a red-rock room. Wooden stairs and railings connect the upper walkway, and lamps light the walls."
+  },
+  {
+    "id": "cosin4",
+    "anchor": [
+      533,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "Stone steps join two small ledges in a red-rock passage, with lamps, crates, and barrels against the walls."
+  },
+  {
+    "id": "cosmin2",
+    "anchor": [
+      535,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "A wooden counter and cluttered shelves fill a small peaked-roof shop beneath a hanging green lamp."
+  },
+  {
+    "id": "cosmin3",
+    "anchor": [
+      536,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "A low table and stools sit beneath a hanging green lamp in a small wooden home, with cooking pots and shelves around the edges."
+  },
+  {
+    "id": "cosmin4",
+    "anchor": [
+      537,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "Pale hides cover the floor of a dim wooden room beneath a peaked roof and a green hanging lamp."
+  },
+  {
+    "id": "cosmin6",
+    "anchor": [
+      538,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "Two beds and a small table fit into a red-rock room, with a window and a washbasin against the walls."
+  },
+  {
+    "id": "cosmin7",
+    "anchor": [
+      539,
+      1,
+      0,
+      0,
+      67
+    ],
+    "text": "Two wooden rooms beneath separate peaked roofs are joined by a short passage, with counters, shelves, and hanging lamps inside."
+  },
+  {
+    "id": "gidun_4",
+    "anchor": [
+      548,
+      2,
+      0,
+      0,
+      67
+    ],
+    "text": "Twisting rock bridges and narrow paths cross red-lit chasms inside a cavern, with patches of green light on the stone."
+  },
+  {
+    "id": "gninn",
+    "anchor": [
+      522,
+      3,
+      0,
+      14,
+      67
+    ],
+    "text": "Two beds occupy the upper level of a rounded timber-lined building, with wooden steps leading down to a small reception area."
+  },
+  {
+    "id": "gnmk",
+    "anchor": [
+      517,
+      0,
+      0,
+      4,
+      67
+    ],
+    "text": "Shattered pipes, bent metal, and broken industrial walls crowd a narrow path through the ruins of a reactor."
+  },
+  {
+    "id": "gnmkf",
+    "anchor": [
+      516,
+      0,
+      0,
+      16,
+      67
+    ],
+    "text": "Jagged gray industrial ruins rise beyond a dirt clearing, with trees framing the view."
+  },
+  {
+    "id": "gomin",
+    "anchor": [
+      523,
+      1,
+      0,
+      8,
+      67
+    ],
+    "text": "A wooden table and a bed occupy a round timber-lined home, with daylight falling through a window."
+  },
+  {
+    "id": "gongaga",
+    "anchor": [
+      518,
+      7,
+      0,
+      2,
+      67
+    ],
+    "text": "Small round huts with domed roofs cluster around winding dirt paths between steep rocks and dense greenery."
+  },
+  {
+    "id": "gonjun1",
+    "anchor": [
+      514,
+      0,
+      0,
+      16,
+      67
+    ],
+    "text": "A pale dirt path passes beneath large fallen tree trunks in dense green jungle."
+  },
+  {
+    "id": "gonjun2",
+    "anchor": [
+      515,
+      0,
+      0,
+      16,
+      67
+    ],
+    "text": "Pale dirt paths meet at a fork beneath tall trees and thick jungle undergrowth."
+  },
+  {
+    "id": "gon_i",
+    "anchor": [
+      521,
+      2,
+      0,
+      2,
+      67
+    ],
+    "text": "Jars and bottles cover a curved wooden counter inside a small round shop, with shelves and hanging goods around the walls."
+  },
+  {
+    "id": "gon_wa1",
+    "anchor": [
+      519,
+      2,
+      0,
+      2,
+      67
+    ],
+    "text": "Weapons hang above a wooden counter in a round timber-lined shop, with a red patterned rug on the floor."
+  },
+  {
+    "id": "gon_wa2",
+    "anchor": [
+      520,
+      1,
+      0,
+      2,
+      67
+    ],
+    "text": "Fur rugs and stacked bedding line a circular wooden room. A round opening in the floor leads down to the level below."
+  },
+  {
+    "id": "goson",
+    "anchor": [
+      524,
+      2,
+      0,
+      2,
+      67
+    ],
+    "text": "A low table sits on a patterned rug surrounded by round cushions, inside a curved wooden room with cupboards and a bed."
+  },
+  {
+    "id": "niv_ti1",
+    "anchor": [
+      286,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "Wooden stairs lead into a home with a round dining table and a compact kitchen crowded with pots and cupboards."
+  },
+  {
+    "id": "niv_ti2",
+    "anchor": [
+      287,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "A piano stands along the lower wall of a wooden room, with a bedroom and small sitting area behind it."
+  },
+  {
+    "id": "niv_ti4",
+    "anchor": [
+      289,
+      0,
+      0,
+      3,
+      67
+    ],
+    "text": "A piano stands along the lower wall of a wooden room, with a bedroom and small sitting area behind it."
+  },
+  {
+    "id": "sinin1_1",
+    "anchor": [
+      297,
+      0,
+      0,
+      16,
+      67
+    ],
+    "text": "Two staircases curve around a shadowed landing beneath tall arched windows and a hanging chandelier."
+  },
+  {
+    "id": "sininb1",
+    "anchor": [
+      302,
+      0,
+      0,
+      16,
+      67
+    ],
+    "text": "A rough purple-lit underground passage leads toward a pale stairway in the distance."
+  },
+  {
+    "id": "sininb51",
+    "anchor": [
+      309,
+      0,
+      0,
+      16,
+      67
+    ],
+    "text": "Curving shelves packed with books surround a central desk covered in papers and open books beneath a warm ceiling lamp."
+  },
+  {
+    "id": "mtnvl2",
+    "anchor": [
+      311,
+      0,
+      0,
+      65,
+      67
+    ],
+    "text": "Jagged, thornlike mountain spires surround narrow, winding rock ledges above deep gaps beneath a cloudy sky."
+  },
+  {
+    "id": "mtnvl3",
+    "anchor": [
+      312,
+      0,
+      0,
+      29,
+      67
+    ],
+    "text": "A long rope suspension bridge spans a deep gap between jagged rock spires, with a barren rocky valley below."
+  },
+  {
+    "id": "mtnvl4",
+    "anchor": [
+      313,
+      0,
+      0,
+      17,
+      67
+    ],
+    "text": "A narrow rock ledge winds around a towering, pointed mountain spire, with sharp projections jutting out over misty depths."
+  },
+  {
+    "id": "mtnvl5",
+    "anchor": [
+      314,
+      0,
+      0,
+      17,
+      67
+    ],
+    "text": "A curved rock ledge runs around the foot of a jagged mountain wall, with metal pipes and platforms clinging to the rock above."
+  },
+  {
+    "id": "mtnvl6",
+    "anchor": [
+      315,
+      0,
+      0,
+      29,
+      67
+    ],
+    "text": "A tall cylindrical industrial tower stands against a steep mountain wall, with thick curved pipes and metal stairs at its base."
+  },
+  {
+    "id": "mtnvl6b",
+    "anchor": [
+      316,
+      0,
+      0,
+      41,
+      67
+    ],
+    "text": "Two railed metal ramps lead up to a rectangular doorway beneath a large cylindrical tower, surrounded by heavy pipes and framework."
+  },
+  {
+    "id": "nvdun2",
+    "anchor": [
+      318,
+      0,
+      0,
+      45,
+      67
+    ],
+    "text": "Rock ledges descend through a tall, narrow cavern, with pale green light falling across rough walls and hanging stone formations."
+  },
+  {
+    "id": "nvmkin32",
+    "anchor": [
+      327,
+      0,
+      0,
+      22,
+      67
+    ],
+    "text": "A huge blue-lit cylindrical tank towers above heavy pipes in a tall chamber crowded with metal beams and machinery."
+  },
+  {
+    "id": "anfrst_4",
+    "anchor": [
+      623,
+      0,
+      0,
+      58,
+      67
+    ],
+    "text": "Thick trees and trailing vines surround mossy ground, with giant red-lipped pitcher plants rising among the roots and rocks."
+  },
+  {
+    "id": "anfrst_5",
+    "anchor": [
+      624,
+      0,
+      0,
+      4,
+      67
+    ],
+    "text": "Greenish light falls into a small cave with rough stone walls, where an opening pierces the rock at each end."
+  },
+  {
+    "id": "ancnt2",
+    "anchor": [
+      647,
+      0,
+      0,
+      3,
+      67
+    ],
+    "text": "A curved stairway descends inside a round stone chamber lined with railings and tall pillars, pale light filling the space below."
+  },
+  {
+    "id": "kuro_5",
+    "anchor": [
+      608,
+      9,
+      0,
+      0,
+      67
+    ],
+    "text": "A large carved relief fills one wall of a round stone chamber, with two slender stands before it in warm orange light."
+  },
+  {
+    "id": "kuro_7",
+    "anchor": [
+      610,
+      2,
+      0,
+      0,
+      67
+    ],
+    "text": "Three tiers of rough stone ledges line a cavern wall, with a doorway framed by columns on the upper level."
+  },
+  {
+    "id": "losin3",
+    "anchor": [
+      633,
+      1,
+      0,
+      0,
+      67
+    ],
+    "text": "Stone steps connect two levels of a small, rough-walled room, with low pale sleeping platforms beneath a bright rectangular window."
+  },
+  {
+    "id": "loslake1",
+    "anchor": [
+      637,
+      0,
+      0,
+      61,
+      67
+    ],
+    "text": "Pale branching structures arch above curved stone walkways and stairs, with a large central basin over water beneath a bright blue opening."
+  },
+  {
+    "id": "sango1",
+    "anchor": [
+      625,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "A broad fallen trunk bridges pale, uneven rocky ground, with red coral-like branches rising beside pools of blue-green water."
+  },
+  {
+    "id": "slfrst_2",
+    "anchor": [
+      619,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "Tall, slender trees crowd around a narrow forest path, their branches fading into blue-green mist."
+  },
+  {
+    "id": "rcktin4",
+    "anchor": [
+      566,
+      1,
+      0,
+      12,
+      67
+    ],
+    "text": "A narrow metal walkway cuts through a chamber packed with long pipes, with a ladder descending through a yellow-and-black striped opening."
+  },
+  {
+    "id": "rcktin5",
+    "anchor": [
+      567,
+      6,
+      0,
+      50,
+      67
+    ],
+    "text": "A cramped metal cockpit has two seats facing a broad dark window and banks of switches, with a thick cable lying across the floor."
+  },
+  {
+    "id": "rcktin7",
+    "anchor": [
+      569,
+      2,
+      0,
+      0,
+      67
+    ],
+    "text": "A large circular hatch fills the end of a narrow metal walkway, surrounded by thick cables and curving structural ribs."
+  },
+  {
+    "id": "rktmin1",
+    "anchor": [
+      559,
+      3,
+      0,
+      14,
+      67
+    ],
+    "text": "A warmly lit wooden home has a long sitting room with a table and patterned floor, with two small bedrooms opening off its far end."
+  },
+  {
+    "id": "rktmin2",
+    "anchor": [
+      560,
+      4,
+      0,
+      14,
+      67
+    ],
+    "text": "A wooden staircase connects a lamp-lit bedroom with a small dining area, where a round table and kitchen counter stand on the lower floor."
+  },
+  {
+    "id": "rktsid",
+    "anchor": [
+      558,
+      4,
+      0,
+      20,
+      67
+    ],
+    "text": "Round tables and shelves crowd a wooden room with a patterned rug, a small sleeping room opening behind it beside an equipment-filled workshop."
+  },
+  {
+    "id": "gidun_1",
+    "anchor": [
+      546,
+      5,
+      0,
+      4,
+      67
+    ],
+    "text": "Uneven stone paths cross a broad cavern among hanging stalactites and green-lit rock walls, narrow shafts of pale light cutting across them."
+  },
+  {
+    "id": "sinin2_1",
+    "anchor": [
+      299,
+      0,
+      0,
+      30,
+      67
+    ],
+    "text": "A curved upper landing overlooks a mansion hall, with dim rooms of worn furniture opening off it beneath tall, pale-lit windows."
+  },
+  {
+    "id": "sinin2_2",
+    "anchor": [
+      300,
+      0,
+      0,
+      28,
+      67
+    ],
+    "text": "Dim, wood-floored rooms open beside a mansion landing, tall windows casting pale light over worn furniture and a narrow central passage."
+  },
+  {
+    "id": "sininb32",
+    "anchor": [
+      305,
+      0,
+      0,
+      4,
+      67
+    ],
+    "text": "Tall bookcases crowd a dim stone room, with books and papers covering tables beneath hanging lamps and heavy round containers along the walls."
+  },
+  {
+    "id": "gaiin_2",
+    "anchor": [
+      691,
+      1,
+      0,
+      0,
+      67
+    ],
+    "text": "Blue crystal-lined ledges wind above a deep, green-glowing chasm, with dark openings piercing the walls at different heights."
+  },
+  {
+    "id": "gaiin_3",
+    "anchor": [
+      693,
+      3,
+      0,
+      0,
+      67
+    ],
+    "text": "Rounded pools glow blue-white across an iridescent cavern floor, with crystal formations crowding the walls beneath a dark upper opening."
+  },
+  {
+    "id": "hyou2",
+    "anchor": [
+      659,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "Snow-laden trees stand close together in a dense forest, a narrow pale path winding between their dark trunks."
+  },
+  {
+    "id": "hyou13_2",
+    "anchor": [
+      684,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "A low icy cavern has jagged walls and a snow-covered floor, with bright white light pouring through an opening near the ground."
+  },
+  {
+    "id": "hyou8_2",
+    "anchor": [
+      678,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "Dark blue rock and ice frame a low cavern passage, with bright white light filling an opening beside the uneven frozen floor."
+  },
+  {
+    "id": "icedun_1",
+    "anchor": [
+      661,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "Blue ice coats stepped rock ledges inside a tall cavern, icicles hanging from the upper edges above a bright opening in the lower wall."
+  },
+  {
+    "id": "las2_3",
+    "anchor": [
+      758,
+      7,
+      0,
+      0,
+      67
+    ],
+    "text": "Thin pale roots spread across greenish ground inside a low, ochre-colored cave enclosed by rounded rock walls."
+  },
+  {
+    "id": "las4_0",
+    "anchor": [
+      763,
+      0,
+      0,
+      0,
+      67
+    ],
+    "text": "Broad, broken rock ledges project from a dark cavern wall above a brilliant, green-lit drop."
+  },
+  {
+    "id": "las4_1",
+    "anchor": [
+      764,
+      0,
+      0,
+      2,
+      67
+    ],
+    "text": "A rough circular opening breaks through the cavern floor, with a short chain of small rock platforms extending over its brilliant green depths."
+  },
+  {
+    "id": "las4_2",
+    "anchor": [
+      765,
+      0,
+      0,
+      21,
+      67
+    ],
+    "text": "Separate slabs of rock form a staggered path through a dark void, their jagged undersides outlined in green-blue light."
+  },
+  {
+    "id": "las4_3",
+    "anchor": [
+      766,
+      0,
+      0,
+      5,
+      67
+    ],
+    "text": "Scattered rock fragments surround a large green-blue crystal formation, pale square tiles covering part of its upper surface."
+  },
+  {
+    "id": "sninn_2",
+    "anchor": [
+      652,
+      3,
+      0,
+      0,
+      67
+    ],
+    "text": "A small wooden bedroom sits beneath a steep, snow-covered roof, a bedside lamp lighting a double bed with patterned covers."
+  },
+  {
+    "id": "sninn_b1",
+    "anchor": [
+      653,
+      1,
+      0,
+      0,
+      67
+    ],
+    "text": "An L-shaped bar and round wooden tables fill a stone-floored cellar, with stairs rising along the back wall and warm lamps brightening the room."
+  },
+  {
+    "id": "snow",
+    "anchor": [
+      654,
+      7,
+      0,
+      0,
+      67
+    ],
+    "text": "Steep-roofed wooden houses line snowy paths among bare trees, warm windows glowing beneath deep snow with a massive ice wall behind the village."
+  },
+  {
+    "id": "trnad_2",
+    "anchor": [
+      703,
+      1,
+      0,
+      0,
+      67
+    ],
+    "text": "Jagged gray rock ledges cross a barren landscape beneath a towering pale cliff, a green-lit chasm opening along the lower edge."
+  },
+  {
+    "id": "cosmo_observatory_display_starts",
+    "anchor": [
+      541,
+      16,
+      3,
+      28,
+      3
+    ],
+    "text": "The room dims. Glowing planets and orbital paths appear above."
+  },
+  {
+    "id": "vincent_coffin_opens",
+    "anchor": [
+      303,
+      0,
+      3,
+      4,
+      3
+    ],
+    "text": "The coffin opens."
+  },
+  {
+    "id": "sephiroth_leaves_library",
+    "anchor": [
+      308,
+      4,
+      6,
+      70,
+      164
+    ],
+    "text": "Sephiroth moves away and disappears."
+  },
+  {
+    "id": "palmer_appears",
+    "anchor": [
+      558,
+      24,
+      3,
+      45,
+      164
+    ],
+    "text": "Palmer appears."
+  },
+  {
+    "id": "sephiroth_basement_leaves",
+    "anchor": [
+      307,
+      2,
+      4,
+      52,
+      164
+    ],
+    "text": "Sephiroth moves away and disappears."
+  },
+  {
+    "id": "sephiroth_clock_room_appears",
+    "anchor": [
+      611,
+      21,
+      5,
+      142,
+      188
+    ],
+    "text": "Sephiroth appears."
+  }
+]

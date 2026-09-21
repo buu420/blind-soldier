@@ -90,15 +90,53 @@ public static class WorldMapConnectedRunFormatter
             endIndex = index;
         }
 
+        if (firstSegment is null)
+        {
+            // Standing on a corner, with every remaining leg too short to count on its
+            // own. Take the first corner that is still somewhere else, not the end of the
+            // route: a chain of short legs can turn around impassable ground, and a
+            // straight line to the last point would send the player over the cliff the
+            // corners exist to walk around. The turn order is kept by stopping at the
+            // first one.
+            for (var index = firstIndex; index < waypoints.Count; index++)
+            {
+                firstSegment = ResolveSegment(
+                    state.X,
+                    state.Z,
+                    waypoints[index],
+                    state.ControlTransform,
+                    wrapWidth,
+                    wrapHeight,
+                    scale);
+                if (firstSegment is not null)
+                {
+                    endIndex = index;
+                    break;
+                }
+            }
+        }
+
         if (firstSegment is not { } run)
         {
             return new WorldMapSpokenRun("at destination", string.Empty, firstIndex);
         }
 
-        return new WorldMapSpokenRun(
-            FieldNavigationSpokenCueFormatter.Format(run, scale),
-            run.Direction,
-            endIndex);
+        // A run shorter than half a count rounds to zero, and the shared field formatter
+        // reads a zero count as having arrived. On a world route that is wrong: the town
+        // entrance is approached over a handful of tiny corners, and saying "at
+        // destination" at 52% of the way to Cosmo Canyon both misleads the player and
+        // hides the direction they still need. Whether they have arrived is decided by the
+        // controller's native arrival test, which is untouched; this only keeps the
+        // remaining direction speakable. The field assistant already does the same for its
+        // own short opening runs.
+        var speech = FieldNavigationSpokenCueFormatter.Format(run, scale);
+        if (string.Equals(speech, "at destination", StringComparison.Ordinal) &&
+            !string.IsNullOrEmpty(run.Direction))
+        {
+            speech = $"{run.Direction} less than 1";
+        }
+
+        return new WorldMapSpokenRun(speech, run.Direction, endIndex);
     }
 
     private static FieldNavigationSpokenSegment? ResolveSegment(

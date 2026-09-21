@@ -1,4 +1,4 @@
-using Ff7.Accessibility.Runtime.Abstractions;
+﻿using Ff7.Accessibility.Runtime.Abstractions;
 using Ff7.Accessibility.Reloaded;
 using Ff7.Accessibility.Steam2026X64;
 using Ff7.Accessibility.Steam2026X64.Runtime.Menus;
@@ -277,6 +277,23 @@ if (args.Contains("--costa-gold-navigation-only", StringComparer.OrdinalIgnoreCa
     Ff7.Accessibility.Reloaded.Tests.NorthCorelNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
     Ff7.Accessibility.Reloaded.Tests.NativeLineStoryArrivalTests.Run();
     Console.WriteLine("Steam 2026 x64 Costa through Gold Saucer navigation tests passed.");
+    return;
+}
+
+if (args.Contains("--continuation-descriptions-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.ContinuationDescriptionTests.RunCatalogAndNative();
+    Console.WriteLine("Steam 2026 x64 continuation description catalog and native tests passed.");
+    Ff7.Accessibility.Reloaded.Tests.ContinuationDescriptionTests.RunPayloadReadiness();
+    return;
+}
+
+if (args.Contains("--cosmo-navigation-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.CosmoCanyonNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
+    Ff7.Accessibility.Reloaded.Tests.CosmoNibelheimDescriptionTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.ContinuationDescriptionTests.RunCatalogAndNative();
+    Console.WriteLine("Steam 2026 x64 Cosmo Canyon navigation tests passed.");
     return;
 }
 
@@ -608,6 +625,9 @@ Ff7.Accessibility.Reloaded.Tests.JunonJourneyDescriptionTests.Run();
 CargoShipNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.CostaDelSolNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.GongagaNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
+Ff7.Accessibility.Reloaded.Tests.CosmoCanyonNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
+Ff7.Accessibility.Reloaded.Tests.CosmoNibelheimDescriptionTests.Run();
+Ff7.Accessibility.Reloaded.Tests.ContinuationDescriptionTests.RunCatalogAndNative();
 Ff7.Accessibility.Reloaded.Tests.CorelJourneyDescriptionTests.Run();
 MountCorelNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.NorthCorelNavigationTests.Run(CreateInstalledFieldWalkmeshReader);

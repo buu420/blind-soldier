@@ -1,4 +1,4 @@
-using Ff7.Accessibility.LegacyLayout;
+﻿using Ff7.Accessibility.LegacyLayout;
 using Ff7.Accessibility.Reloaded;
 
 namespace Ff7.Accessibility.Steam2026X64.Runtime.Field;
@@ -18,7 +18,7 @@ internal sealed class Steam2026FieldCutsceneDescriptionCoordinator
     private readonly FieldMovieNarrationTracker? narration;
     private readonly CutsceneVoicePlayer? cutsceneVoice;
     private readonly FieldAreaDescriptionColdStartTracker areaColdStart =
-        new(FieldCutsceneDescriptionCatalog.CreateGoldSaucerAreaDescriptions());
+        new(FieldCutsceneDescriptionCatalog.CreateAllAreaDescriptions());
     private int currentFieldId = -1;
 
     internal Steam2026FieldCutsceneDescriptionCoordinator(

@@ -1,4 +1,4 @@
-namespace Ff7.Accessibility.Reloaded;
+﻿namespace Ff7.Accessibility.Reloaded;
 
 /// <summary>
 /// Owns the architecture-neutral world-map services for one native map type.
@@ -23,7 +23,14 @@ public sealed class WorldMapRuntimeContext
     {
         Map = map ?? throw new ArgumentNullException(nameof(map));
         Catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
-        Planner = new WorldMapRoutePlanner(map);
+        // The entrance metadata has to be on the planner the game actually uses, not only
+        // on one a test configured. Without this assignment every guarded routing test
+        // passes while the live guard is empty and automatic walking still zones into the
+        // neighbouring town.
+        Planner = new WorldMapRoutePlanner(map)
+        {
+            EntranceTriangleIds = catalog.EntranceTriangleIds
+        };
         Footsteps = new WorldMapFootstepTracker(
             map.WrapWidth,
             map.WrapHeight,
@@ -43,7 +50,8 @@ public sealed class WorldMapRuntimeContext
             (state, category) => Catalog.ReadTargets(category, state, Entities),
             progressSink,
             distanceUnitsPerCount,
-            guidanceInterval);
+            guidanceInterval,
+            () => Entities);
     }
 
     public WorldMapData Map { get; }

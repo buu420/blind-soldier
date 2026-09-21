@@ -1,4 +1,4 @@
-namespace Ff7.Accessibility.Reloaded;
+﻿namespace Ff7.Accessibility.Reloaded;
 
 public delegate IReadOnlyList<WorldMapNavigationTarget> WorldMapTargetProvider(
     WorldMapStateSnapshot state,
@@ -53,6 +53,12 @@ public sealed class WorldMapNavigationController
     private readonly WorldMapAutoWalkConvergenceTracker autoWalkConvergence = new();
     private readonly FieldNavigationMovementObserver automaticDirection = new();
 
+    // Live world entities, when the host supplies them, so a parked vehicle can be walked
+    // around instead of pressed into.
+    private readonly Func<IReadOnlyList<WorldMapEntitySnapshot>>? entityProvider;
+    private WorldMapVehicleDetourPlanner? detourPlanner;
+    private bool measuringLocalDetour;
+
     private int categoryIndex;
     private bool beaconEnabled;
     private bool combatPaused;
@@ -62,6 +68,15 @@ public sealed class WorldMapNavigationController
     private WorldMapRouteWaypoint progressRouteStart;
     private IReadOnlyList<WorldMapRouteWaypoint> progressRouteWaypoints = Array.Empty<WorldMapRouteWaypoint>();
     private int waypointIndex;
+
+    // The native entry handoff is spoken once per route, not on every sample.
+    private bool entryHandoffAnnounced;
+
+    // Holding at a native entrance this model may not use. The destination is retained
+    // and automatic walking yields no input until the party leaves the vehicle.
+    private bool awaitingNativeEntry;
+    private WorldMapRouteWaypoint nativeEntryHoldOrigin;
+    private const double NativeEntryHoldRadius = 1024d;
     private int progressPercent;
     private int activeModelId = -1;
     private int activeMapType = -1;
@@ -77,8 +92,10 @@ public sealed class WorldMapNavigationController
         WorldMapTargetProvider targetProvider,
         IFieldNavigationProgressSink? progressSink = null,
         int distanceUnitsPerCount = DefaultDistanceUnitsPerCount,
-        TimeSpan? guidanceInterval = null)
+        TimeSpan? guidanceInterval = null,
+        Func<IReadOnlyList<WorldMapEntitySnapshot>>? entityProvider = null)
     {
+        this.entityProvider = entityProvider;
         this.map = map ?? throw new ArgumentNullException(nameof(map));
         this.planner = planner ?? throw new ArgumentNullException(nameof(planner));
         this.targetProvider = targetProvider ?? throw new ArgumentNullException(nameof(targetProvider));
@@ -195,6 +212,26 @@ public sealed class WorldMapNavigationController
             lastGuidanceAt = DateTime.MinValue;
         }
 
+        // Holding at an entrance the game will not open for this model. The destination is
+        // kept and nothing is said again until something actually changes: either the
+        // party leaves the vehicle, or they drive away and the route is wanted once more.
+        if (awaitingNativeEntry && activeTarget is { } awaited)
+        {
+            // The native terrain handler restores the prior position after a refused
+            // entry. Leaving the trigger triangle is not evidence of a dismount.
+            if (ShouldHoldNativeEntry(awaited, state))
+            {
+                return null;
+            }
+
+            awaitingNativeEntry = false;
+            entryHandoffAnnounced = false;
+            var resumed = StartNavigation(awaited, state, now, announceOn: false);
+            return resumed is null
+                ? null
+                : DescribeRouteTransition(resumed.Value, resumedAfterCombat);
+        }
+
         if (state.PlayerModelId != activeModelId ||
             state.WorldMapType != activeMapType ||
             state.WorldProgress != activeWorldProgress)
@@ -226,7 +263,15 @@ public sealed class WorldMapNavigationController
         {
             target = refreshed;
             activeTarget = refreshed;
-            if (refreshed.TriangleId != activeRoute.TargetTriangleId)
+            // Replan when the route no longer ends somewhere the target can be reached
+            // from, not merely when the target's own centre triangle differs from the
+            // triangle the route ends on. Those are different things: the catalog gives an
+            // entity every walkable neighbour as an arrival, and the planner routes to
+            // whichever of them it reaches first, so the centre and the route end normally
+            // disagree for a vehicle that has not moved at all. Comparing them announced a
+            // fresh route on every observation, which is how the parked Buggy came to be
+            // repeated several times a second.
+            if (!refreshed.ArrivalTriangleIds.Contains(activeRoute.TargetTriangleId))
             {
                 var replanned = StartNavigation(refreshed, state, now, announceOn: false);
                 return replanned is null
@@ -243,6 +288,23 @@ public sealed class WorldMapNavigationController
 
         if (target.HasArrived(state, playerTriangle))
         {
+            if (!IsNativeEntryModelSatisfied(target, state.PlayerModelId))
+            {
+                awaitingNativeEntry = true;
+                nativeEntryHoldOrigin = new(state.X, state.Y, state.Z);
+                lastDiagnostic =
+                    $"native entry refuses model {state.PlayerModelId} on triangle {playerTriangle}";
+                if (entryHandoffAnnounced)
+                {
+                    return null;
+                }
+
+                entryHandoffAnnounced = true;
+                return new WorldMapNavigationOutput(
+                    DescribeNativeEntryHandoff(target),
+                    StopAutoWalk: true);
+            }
+
             progressSink?.Complete();
             var label = target.Label;
             ResetRoute(deactivateProgress: false);
@@ -290,6 +352,7 @@ public sealed class WorldMapNavigationController
         if (!automaticWalkActive)
         {
             autoWalkConvergence.Reset();
+            measuringLocalDetour = false;
         }
         else
         {
@@ -299,7 +362,22 @@ public sealed class WorldMapNavigationController
             var remainingDistance = Math.Sqrt(
                 remainingAlongRoute * remainingAlongRoute +
                 guidanceMeasurement.DistanceFromRoute * guidanceMeasurement.DistanceFromRoute);
-            if (autoWalkConvergence.Observe(waypointIndex, remainingDistance, now))
+            var convergenceWaypoint = waypointIndex;
+            var hasLocalDetour = ResolveVehicleDetour(state, activeRoute.Waypoints[waypointIndex], out _) ==
+                WorldMapVehicleDetourPlanner.DetourOutcome.Detour;
+            if (hasLocalDetour != measuringLocalDetour)
+            {
+                // Local and full-route distances have different origins. Rejoining the
+                // global route must not compare its long remainder to a short detour.
+                autoWalkConvergence.Reset();
+                measuringLocalDetour = hasLocalDetour;
+            }
+            if (hasLocalDetour && detourPlanner is { } localPath)
+            {
+                remainingDistance = localPath.RemainingDistance(state);
+                convergenceWaypoint = activeRoute.Waypoints.Count + localPath.Corner;
+            }
+            if (autoWalkConvergence.Observe(convergenceWaypoint, remainingDistance, now))
             {
                 autoWalkConvergence.Reset();
                 lastDiagnostic =
@@ -350,20 +428,50 @@ public sealed class WorldMapNavigationController
             return false;
         }
 
+        // Waiting for the party to leave the vehicle. Steering them anywhere would either
+        // push them off the entrance or drive them at a door that will not open, so the
+        // hold is stated here rather than left to a caller noticing StopAutoWalk.
+        if (ShouldHoldNativeEntry(activeTarget, state) || IsAwaitingNativeEntry(activeTarget, state))
+        {
+            return false;
+        }
+
         waypointIndex = ResolveAutomaticWaypoint(state, route, waypointIndex);
         var waypoint = route.Waypoints[waypointIndex];
+
+        // A vehicle the party parked themselves can physically refuse the approach. Walk
+        // round it rather than pressing into it, and stop rather than pretend when there
+        // is no clear way in.
+        var detourOutcome = ResolveVehicleDetour(state, waypoint, out var detour);
+        switch (detourOutcome)
+        {
+            case WorldMapVehicleDetourPlanner.DetourOutcome.Blocked:
+                return false;
+            case WorldMapVehicleDetourPlanner.DetourOutcome.Detour:
+                waypoint = detour;
+                break;
+        }
         var dx = WorldMapTargetCatalog.WrappedDelta(state.X, waypoint.X, map.WrapWidth);
         var dz = WorldMapTargetCatalog.WrappedDelta(state.Z, waypoint.Z, map.WrapHeight);
         // Speech may smooth short legs and suppress sub-count diagonals. Native
         // movement must aim from the actual accepted position on every sample.
         input = automaticDirection.ResolveStickDirection(-dx, dz, state.ControlTransform).Input;
-        var probeDistance = Math.Min(AutomaticMovementProbeDistance, Math.Sqrt(dx * (double)dx + dz * (double)dz));
+        var probeDistance = detourOutcome == WorldMapVehicleDetourPlanner.DetourOutcome.Detour
+            ? AutomaticMovementProbeDistance
+            : Math.Min(AutomaticMovementProbeDistance, Math.Sqrt(dx * (double)dx + dz * (double)dz));
         bool IsClear(FieldNavigationInput candidate)
         {
             var (x, z) = PredictNativeMovement(candidate, state.CameraFront);
-            return planner.CanTraverseSegment(state, new(
+            var next = new WorldMapRouteWaypoint(
                 state.X + (int)Math.Round(x * probeDistance), state.Y,
-                state.Z + (int)Math.Round(z * probeDistance)));
+                state.Z + (int)Math.Round(z * probeDistance));
+            // The same entrance rule the route was built with. A step the planner would
+            // never route through must not be pressed either, or automatic walking zones
+            // into a town the player did not select.
+            return planner.CanTraverseSegment(state, next, null, activeTarget?.NativeEntranceExemptions) &&
+                (state.PlayerModelId is not (0 or 1 or 2) || entityProvider is null ||
+                 !WorldMapVehicleObstacles.BlocksSegment(entityProvider().Where(WorldMapVehicleObstacles.IsParkedBuggy).ToArray(), state.PlayerModelId,
+                     state.X, state.Z, next.X, next.Z, map.WrapWidth, map.WrapHeight));
         }
 
         // A clear oblique route can quantize to a cardinal key that hits a
@@ -474,6 +582,27 @@ public sealed class WorldMapNavigationController
 
         if (target.HasArrived(state, playerTriangle))
         {
+            if (!IsNativeEntryModelSatisfied(target, state.PlayerModelId))
+            {
+                // Selecting, or reselecting, the destination while parked on its entrance
+                // in a vehicle the game refuses. Keep it: dropping the destination here is
+                // what made the player lose Cosmo Canyon by asking for it again.
+                beaconEnabled = true;
+                combatPaused = false;
+                activeTarget = target;
+                activeModelId = state.PlayerModelId;
+                activeMapType = state.WorldMapType;
+                activeWorldProgress = state.WorldProgress;
+                awaitingNativeEntry = true;
+                nativeEntryHoldOrigin = new(state.X, state.Y, state.Z);
+                entryHandoffAnnounced = true;
+                lastDiagnostic =
+                    $"native entry refuses model {state.PlayerModelId} on triangle {playerTriangle}";
+                return new WorldMapNavigationOutput(
+                    DescribeNativeEntryHandoff(target),
+                    StopAutoWalk: true);
+            }
+
             progressSink?.Complete();
             ResetRoute(deactivateProgress: false);
             lastDiagnostic = $"already at target triangle {playerTriangle}";
@@ -494,6 +623,8 @@ public sealed class WorldMapNavigationController
         activeRoute = route;
         routeStart = new WorldMapRouteWaypoint(state.X, state.Y, state.Z);
         waypointIndex = 0;
+        entryHandoffAnnounced = false;
+        awaitingNativeEntry = false;
         offRouteSince = DateTime.MinValue;
         if (!continuesProgressRoute)
         {
@@ -523,6 +654,12 @@ public sealed class WorldMapNavigationController
         }
 
         var target = GetSelectedTarget(state)!;
+        if (IsAwaitingNativeEntry(target, state))
+        {
+            return new WorldMapNavigationOutput(
+                $"{DisplayName(CurrentCategory)}, {target.Label} entrance. The way in is on foot, so leave the vehicle here.");
+        }
+
         if (planner.TryBuildRoute(state, target, out var preview) && preview.Waypoints.Count > 0)
         {
             var routeStart = new WorldMapRouteWaypoint(state.X, state.Y, state.Z);
@@ -555,22 +692,40 @@ public sealed class WorldMapNavigationController
     {
         var target = activeTarget;
         var route = activeRoute;
+        if (target is not null && (ShouldHoldNativeEntry(target, state) || IsAwaitingNativeEntry(target, state)))
+        {
+            // Repeating the destination while parked on its entrance must not report an
+            // arrival the game has refused.
+            return DescribeNativeEntryHandoff(target);
+        }
+
         if (target is null || route is null || route.Waypoints.Count == 0)
         {
             return includeTarget && target is not null ? target.Label : "nearby";
         }
 
-        var direction = WorldMapConnectedRunFormatter.Resolve(
+        var direction = ResolveGuidanceRun(state, route).Speech;
+        var prefix = includeTarget ? $"{target.Label}. " : string.Empty;
+        var progress = includeProgress ? $" Route progress {progressPercent} percent." : string.Empty;
+        return $"{prefix}{direction}.{progress}".Trim();
+    }
+
+    private WorldMapSpokenRun ResolveGuidanceRun(WorldMapStateSnapshot state, WorldMapRoutePlan route)
+    {
+        if (ResolveVehicleDetour(state, route.Waypoints[waypointIndex], out _) ==
+            WorldMapVehicleDetourPlanner.DetourOutcome.Detour && detourPlanner is { } localPath)
+        {
+            return WorldMapConnectedRunFormatter.Resolve(new(state.X, state.Y, state.Z), localPath.Path,
+                localPath.Corner, state, map.WrapWidth, map.WrapHeight, distanceUnitsPerCount);
+        }
+        return WorldMapConnectedRunFormatter.Resolve(
             routeStart,
             route.Waypoints,
             waypointIndex,
             state,
             map.WrapWidth,
             map.WrapHeight,
-            distanceUnitsPerCount).Speech;
-        var prefix = includeTarget ? $"{target.Label}. " : string.Empty;
-        var progress = includeProgress ? $" Route progress {progressPercent} percent." : string.Empty;
-        return $"{prefix}{direction}.{progress}".Trim();
+            distanceUnitsPerCount);
     }
 
     private string CreateGuidanceSignature(WorldMapStateSnapshot state)
@@ -580,14 +735,7 @@ public sealed class WorldMapNavigationController
             return string.Empty;
         }
 
-        var run = WorldMapConnectedRunFormatter.Resolve(
-            routeStart,
-            route.Waypoints,
-            waypointIndex,
-            state,
-            map.WrapWidth,
-            map.WrapHeight,
-            distanceUnitsPerCount);
+        var run = ResolveGuidanceRun(state, route);
         return $"{run.Direction}:{run.EndWaypointIndex}";
     }
 
@@ -627,12 +775,88 @@ public sealed class WorldMapNavigationController
         return guidanceMeasurement;
     }
 
+    /// <summary>
+    /// Destinations the game itself refuses to let a vehicle enter.
+    ///
+    /// <para>Cosmo Canyon's world handler tests the player model before it will open the
+    /// field: wm0.ev handler ADA4 at IP 2D1C..2D36 pushes special 8, compares it against
+    /// 0, 1 and 2, and returns without entering unless one of those matches. Standing on
+    /// the entrance triangle in the Buggy therefore satisfies the mod's arrival test while
+    /// the game will not actually admit the party, and announcing "Arrived" there leaves a
+    /// blind player waiting at a door that never opens.</para>
+    ///
+    /// <para>Only the rule proven from the installed script is recorded. Nothing here
+    /// dismounts anybody or touches game state; the party is told what the game wants and
+    /// the route is kept so that changing model on foot resumes it.</para>
+    /// </summary>
+    private static readonly IReadOnlyDictionary<string, IReadOnlySet<int>> NativeEntryModels =
+        new Dictionary<string, IReadOnlySet<int>>(StringComparer.Ordinal)
+        {
+            // wm0.ev handler ADA4, IP 2D1C..2D36: push special 8, compare against 0, 1 and
+            // 2, return unless one matches, then opcode 0x318 EnterField with native
+            // destination 18 decimal and entry 0.
+            ["Cosmo Canyon"] = new HashSet<int> { 0, 1, 2 }
+        };
+
+    /// <summary>
+    /// Whether the game will admit this model at this destination. The same place is
+    /// offered both as a Location and, while it is the current stage, as a Story target
+    /// carrying the same label, so the rule has to answer for both.
+    /// </summary>
+    private static bool IsNativeEntryModelSatisfied(WorldMapNavigationTarget target, int playerModelId) =>
+        target.Kind is not (WorldMapTargetKind.Location or WorldMapTargetKind.Story) ||
+        !NativeEntryModels.TryGetValue(target.Label, out var allowed) ||
+        allowed.Contains(playerModelId);
+
+    /// <summary>
+    /// The party is standing where the destination is reached, in a model the game will
+    /// not let in. Used by selection, observation and the model-change replan alike, so
+    /// none of them can announce an arrival the game will not honour.
+    /// </summary>
+    private bool IsAwaitingNativeEntry(WorldMapNavigationTarget target, WorldMapStateSnapshot state) =>
+        !IsNativeEntryModelSatisfied(target, state.PlayerModelId) &&
+        planner.TryResolvePlayerTriangle(state, out var triangle) &&
+        target.HasArrived(state, triangle);
+
+    private bool ShouldHoldNativeEntry(WorldMapNavigationTarget target, WorldMapStateSnapshot state)
+    {
+        var dx = (double)WorldMapTargetCatalog.WrappedDelta(nativeEntryHoldOrigin.X, state.X, map.WrapWidth);
+        var dz = (double)WorldMapTargetCatalog.WrappedDelta(nativeEntryHoldOrigin.Z, state.Z, map.WrapHeight);
+        return awaitingNativeEntry && state.WorldMapType == activeMapType &&
+            !IsNativeEntryModelSatisfied(target, state.PlayerModelId) &&
+            dx * dx + dz * dz <= NativeEntryHoldRadius * NativeEntryHoldRadius;
+    }
+
+    private static string DescribeNativeEntryHandoff(WorldMapNavigationTarget target) =>
+        $"{target.Label} entrance. The way in is on foot, so leave the vehicle here. " +
+        "Navigation stays on.";
+
+    private WorldMapVehicleDetourPlanner.DetourOutcome ResolveVehicleDetour(
+        WorldMapStateSnapshot state,
+        WorldMapRouteWaypoint goal,
+        out WorldMapRouteWaypoint aim)
+    {
+        aim = goal;
+        if (entityProvider is null || activeTarget is not { } target)
+        {
+            return WorldMapVehicleDetourPlanner.DetourOutcome.Clear;
+        }
+
+        detourPlanner ??= new WorldMapVehicleDetourPlanner(map, planner);
+        return detourPlanner.Resolve(state, entityProvider(), target, goal, out aim);
+    }
+
     private int ResolveAutomaticWaypoint(WorldMapStateSnapshot state, WorldMapRoutePlan route, int suggestedIndex)
     {
         var index = Math.Clamp(suggestedIndex, 0, route.Waypoints.Count - 1);
         // Spoken guidance smooths nearby legs, but automatic movement cannot
-        // cross a native cliff just because both ends share one component.
-        while (index > 0 && !planner.CanTraverseSegment(state, route.Waypoints[index]))
+        // cross a native cliff just because both ends share one component - and it cannot
+        // aim across somebody else's doorway either. The same exemption the route was
+        // built with belongs here: a null set turns the entrance check off, which would
+        // let line-of-sight selection pick a waypoint the final step probe then refuses.
+        while (index > 0 &&
+               !planner.CanTraverseSegment(
+                   state, route.Waypoints[index], null, activeTarget?.NativeEntranceExemptions))
         {
             index--;
         }
@@ -772,6 +996,8 @@ public sealed class WorldMapNavigationController
         activeRoute = null;
         progressRouteWaypoints = Array.Empty<WorldMapRouteWaypoint>();
         waypointIndex = 0;
+        entryHandoffAnnounced = false;
+        awaitingNativeEntry = false;
         progressPercent = 0;
         activeModelId = -1;
         activeMapType = -1;
@@ -780,6 +1006,8 @@ public sealed class WorldMapNavigationController
         offRouteSince = DateTime.MinValue;
         lastGuidanceSignature = string.Empty;
         autoWalkConvergence.Reset();
+        detourPlanner?.Invalidate();
+        measuringLocalDetour = false;
     }
 
     private static string DisplayName(WorldMapNavigationCategory category) => category switch

@@ -1,5 +1,5 @@
 {
-  "sourceHash": "aa70709200d117a9ba2adac3ec555a7570fb8e99c5c2bd98ed379497c6a2c7ed",
+  "sourceHash": "e4482c46b437e924f15bb1569627177273d06920a85542082836b022753200f0",
   "entries": [
     {
       "text": "A Japanese dealer list appears. Welcome to Shinra M M.",
@@ -3090,6 +3090,1106 @@
       "text": "Yuffie joins the group on the terminal floor.",
       "file": "b66552e637abd73534df0b1f0146a496d562d919b37853b79362e82ba870de71.ogg",
       "duration_seconds": 2.32
+    },
+    {
+      "text": "A small bonfire burns on a raised stone terrace with reddish canyon walls. Wooden ladders and lit doorways surround the open space.",
+      "file": "69cac5976a5127c7549e2a4b25b5438414aaaa6843743178c84d9af5b781cef3.ogg",
+      "duration_seconds": 7.6
+    },
+    {
+      "text": "Lamps light red rock walls as a tall wooden ladder rises through a shaft. Pipes and a gauge surround a heavy doorway.",
+      "file": "9de40e0b6a579bf52f70814007653201207721411f3726fe212e2990f0e7514c.ogg",
+      "duration_seconds": 7.09
+    },
+    {
+      "text": "A domed observatory stands on a rocky summit, its telescope angled into a pink and purple sky beneath a crescent moon.",
+      "file": "f34b7257ddd76090227cd74a5c5fe2ac8395414a2436b917b3bf415f0ade1b9b.ogg",
+      "duration_seconds": 6.69
+    },
+    {
+      "text": "Ladders connect cluttered wooden floors inside the observatory. Hanging plants, tables and machinery fill the rooms, lit by colored windows.",
+      "file": "27fb8361d83eff90aaacbcc98381f2cb74d1ffd0871e65e7b6d47f89e76c5858.ogg",
+      "duration_seconds": 8.09
+    },
+    {
+      "text": "Narrow stone paths and small bridges cross among rock columns above red-lit depths. Green patches mark the surrounding rock.",
+      "file": "1b6efcab80e7dfbe4ad77f9ad1bd2eb43a79fa99a47c2d77e4e9be127a6aa7b2.ogg",
+      "duration_seconds": 7.36
+    },
+    {
+      "text": "A huge snarling face is carved into the far rock wall, its mouth open. A round stone platform sits in front, flanked by red-lit pools.",
+      "file": "c0edfd3b7d45acbab84fc889dc4b636a3a006993472eb6f48ac3f7f8ee1746c8.ogg",
+      "duration_seconds": 8.840045351473924
+    },
+    {
+      "text": "Red-roofed timber houses surround a cobbled square with a round water tank on a wooden tower. A large dark mansion stands beyond the houses.",
+      "file": "c2ad45667b17f58857baf554fecb6aaef8495616767c2ba4265da9b7270e8c4d.ogg",
+      "duration_seconds": 8.71
+    },
+    {
+      "text": "A dim mansion hall has high stained walls and tall windows. Long corridors lead to adjoining rooms with old furniture.",
+      "file": "00b155c613249fabc322ed42a97d123aa3a9824a7cdbdde39a17aace4dbd6411.ogg",
+      "duration_seconds": 6.48
+    },
+    {
+      "text": "A rough stone passage leads into a brick chamber holding several purple-red coffins.",
+      "file": "fe2ea034ffd096042154e0eff2cffbe93287a622023e8e8cc7dab10a3100d7c3.ogg",
+      "duration_seconds": 4.42
+    },
+    {
+      "text": "Tall bookcases crowd a narrow, dim passage. An open book lies among piles of books on the floor.",
+      "file": "15067309e6aeb3aef758391c62f67831673f909d30d4726bca0f36c5d699dc95.ogg",
+      "duration_seconds": 6.25
+    },
+    {
+      "text": "Red XIII moves ahead toward the gate guard.",
+      "file": "5fc7dd70ecf7c5a17e240a4f3021b0201cc816bcf1be2e7e41b618a63bf0c548.ogg",
+      "duration_seconds": 2.38
+    },
+    {
+      "text": "Red XIII comes back toward Cloud.",
+      "file": "22ba719dcd9a7bc3656c3b5acd564d27b4452b8a1154c1d787520e43264d7c9c.ogg",
+      "duration_seconds": 2.21
+    },
+    {
+      "text": "The sealed doorway opens.",
+      "file": "aebd8d989a197eec37de7d51952791e54a281748a8d3215f88ed3bb0c8a6f7a8.ogg",
+      "duration_seconds": 1.5
+    },
+    {
+      "text": "Pale towers with dark pointed roofs rise above a misty circular space, linked by curved walkways and separate stone pillars.",
+      "file": "9c0e8aeb24fe73e811ba8ad72639e81befc4c7ee5ba8a15a9b49cd8fd510f265.ogg",
+      "duration_seconds": 7.26
+    },
+    {
+      "text": "A narrow curved stone bridge climbs steps to a round raised platform with a curved rim, pale mist lying below.",
+      "file": "5f5632e0ab59d8779c675bf773c5f566b0a6614ebfa12b26829ebb7ff18376ea.ogg",
+      "duration_seconds": 6.55
+    },
+    {
+      "text": "Thick tree trunks line a mossy path beside a rock face, with red star-shaped plants low down and orange cupped plants hanging overhead.",
+      "file": "1a5f250e40dd95fdd6e72d8566df28b77dbb7d6733dc29f80ba7b96757506b2f.ogg",
+      "duration_seconds": 7.75
+    },
+    {
+      "text": "Interlaced, moss-covered branches form a high trail through dense green foliage.",
+      "file": "99e9f67be72273ce55d88dc8a7299c8ee7f9c39ae6ab72502b737487cfa33cee.ogg",
+      "duration_seconds": 4.44
+    },
+    {
+      "text": "Mossy rock ledges and crooked tree roots surround a small dark pool, with red plants scattered across the forest floor.",
+      "file": "8c0d439cb2e2788c548069e69e87d6a8c18ca51dda24f8640361508d263a78aa.ogg",
+      "duration_seconds": 6.81
+    },
+    {
+      "text": "Pale branching formations rise from blue-lit rocky ledges around a deep, narrow gap.",
+      "file": "14edbaa987374c6fe7be15b62934f9ed5b638a9c559381103ef9b31e0140c34b.ogg",
+      "duration_seconds": 4.71
+    },
+    {
+      "text": "An enormous skull and curved ribs lie among pale tree-like formations under shafts of blue-white light.",
+      "file": "c5dd29aef0a39c9f0dc5c82624d2352c5648ca7c5975fc763f49344a0e95e40c.ogg",
+      "duration_seconds": 5.49
+    },
+    {
+      "text": "A huge skull crowns a rocky terrace above canvas shelters. Giant ribs curve across the lower ground, with a ladder joining the levels.",
+      "file": "ed6e13ec598809b4a45bfbed79084e18180822e3d534ffb569a50c794303b5cb.ogg",
+      "duration_seconds": 8.19
+    },
+    {
+      "text": "Colossal stone figures are carved into the cliffs, with narrow paths winding around their heads and outstretched arms.",
+      "file": "1eb6b8f9943c7d67429b47cb7cc49cb9d347bc86a6654616aa730ceeb16bf66b.ogg",
+      "duration_seconds": 6.41
+    },
+    {
+      "text": "A cliff path curls past an enormous crowned stone face and layers of carved hands.",
+      "file": "404eaa9bb7b359ddd1e53caed7e62672e6916a1c8f5c5aab4d528c6e8ddbfb1a.ogg",
+      "duration_seconds": 4.8
+    },
+    {
+      "text": "A narrow ledge curves along a carved figure's chest, above an open stone hand and a sheer cliff.",
+      "file": "e09504731d6422c1e82c77ee339fcb591894f1bc3c1ad4282471ba733147035d.ogg",
+      "duration_seconds": 5.15
+    },
+    {
+      "text": "A carved face fills the cliffside above a thin ledge, with a massive stone arm stretching overhead.",
+      "file": "d25389633600e02eecfcd8c5bfb714facd0dca8248b1bd57731443e0c8118aee.ogg",
+      "duration_seconds": 6.04
+    },
+    {
+      "text": "Steep stairs zigzag between monumental stone carvings up the cliff wall.",
+      "file": "528682832ae9a15ca86954d8a9184de400ed6eb84270de07958c4a0b3127fc44.ogg",
+      "duration_seconds": 3.94
+    },
+    {
+      "text": "A narrow ridge circles a monumental stone hand with two fingers raised, forest stretching far below.",
+      "file": "c44e83010b2f1cc1fd225d2b1060f692f77f6a6a8ace90c9b42dde91f6d5fe0c.ogg",
+      "duration_seconds": 5.96
+    },
+    {
+      "text": "A dark rocky passage curls around two bright orange pools, their glow casting warm light on the surrounding rock.",
+      "file": "318c4d31ccc32fd14026bdb425ff5b0bcbb418a3b5d09bc058e54934cd39b969.ogg",
+      "duration_seconds": 6.24
+    },
+    {
+      "text": "Stone walls and a heavy archway stand in a shadowy forest clearing, with steps climbing toward the archway.",
+      "file": "762a3a459d795dbf00c17afae1ab7f33b933b33f31c48aac1e17c6cc3de7a583.ogg",
+      "duration_seconds": 5.62
+    },
+    {
+      "text": "Square stone walls surround a deep rectangular pit with a rough, pale interior and a blue-black bottom.",
+      "file": "88700227b19605a7d30eb22273283c1a91ea418446e17bd5a77ad9c43bae5cd7.ogg",
+      "duration_seconds": 5.75
+    },
+    {
+      "text": "An enormous golden, fanged face hangs above a stone altar in an orange-lit chamber flanked by tall columns and standing braziers.",
+      "file": "737adec9214d5994b29be7d482f09a4743047c277e4ffc902f941c9ba4f0e937.ogg",
+      "duration_seconds": 7.38
+    },
+    {
+      "text": "Stone staircases and narrow platforms interlock at awkward angles across a sprawling, multilevel maze.",
+      "file": "c706b5c40505b0610bbe54571f1c3bd65c0d47f465dd39b893b1136b0642a85f.ogg",
+      "duration_seconds": 5.62
+    },
+    {
+      "text": "A low, arched passage runs between rough stone walls into darkness.",
+      "file": "737a3d7d3eeb728e8de00ebb2506fb3cd48f04a20f62a7d83362abf86c041a9f.ogg",
+      "duration_seconds": 4.01
+    },
+    {
+      "text": "Steps rise to an ornate doorway at the far end of a bare, dim stone chamber.",
+      "file": "4527f5695279990340a86753a6797a49f1f00733a9c946eab8b54fcb9492dd2e.ogg",
+      "duration_seconds": 4.39
+    },
+    {
+      "text": "Shelves line the walls of a cramped, amber-lit stone room, with pots sitting among thick columns.",
+      "file": "0521f7a502c2a2b44fc71fad1c6a8539260d8361eb0853173b72f2bea15d422d.ogg",
+      "duration_seconds": 5.08
+    },
+    {
+      "text": "A long, arched stone bridge leads past a circular blue pool ringed by columns.",
+      "file": "61b09cdf2c976d25a4045dc451ce6d453efcd2e339337cea3f997361bd91c6eb.ogg",
+      "duration_seconds": 4.89
+    },
+    {
+      "text": "Numbered doorways ring a huge circular stone chamber around a deep central shaft.",
+      "file": "2c49ca97e808a9fcd3d615021086d89e313c368a1b51d4891195bcdefb3676e3.ogg",
+      "duration_seconds": 4.7
+    },
+    {
+      "text": "Short stairs rise to a stone platform between two black braziers, warm orange light falling across rough cave walls.",
+      "file": "2dfa725b424f45c300cdea20fdd7ae3335a4689e1db0e26b5877ceb2120a0e08.ogg",
+      "duration_seconds": 7.11
+    },
+    {
+      "text": "Tall columns separate expansive wall paintings in warm gold and orange, showing rows of figures and a large circular sun-like symbol.",
+      "file": "2b6418ec6d8f8a44f43f9c411726ddda87e2c0b9cfa7a9cdbdb9539c3f970508.ogg",
+      "duration_seconds": 8.03
+    },
+    {
+      "text": "Wooden platforms fill a tall shell-shaped building, with a ladder connecting the levels beside branching red coral.",
+      "file": "c7c2e019812be164f4122091da68111f45ebbc30a20f72dd0ff210a5dd178f2a.ogg",
+      "duration_seconds": 6.12
+    },
+    {
+      "text": "Beds line the curved walls of a shell-shaped room, where a twisting central column rises through wooden floors connected by steps.",
+      "file": "b6087846f0bc5e92c09ce6a6084b315b87220d03aa1c2f14b3a9d49544318116.ogg",
+      "duration_seconds": 7.31
+    },
+    {
+      "text": "A circular stone walkway surrounds a glowing blue center, with steps and tall columns rising among curved shell-like structures.",
+      "file": "0ee32e4bbc5234091cdabd9bdb613502005240def9e3d39da930da2d0fc8a6c0.ogg",
+      "duration_seconds": 6.97
+    },
+    {
+      "text": "A stone path crosses water toward a towering cluster of pale branches, surrounded by layered shell-like platforms.",
+      "file": "00fe10bc95f26b937e973525aa69f44e9f5950da40f5929b9fbf4c8b8dfdf2bd.ogg",
+      "duration_seconds": 6.78
+    },
+    {
+      "text": "Pale stone paths weave among shell-shaped houses beneath layered green canopies, with tall brown cliffs rising in the background.",
+      "file": "3831d6729d6ac7ffbacc551be60b56d2657dc0124c967cb6ae37acae3232b831.ogg",
+      "duration_seconds": 7.4
+    },
+    {
+      "text": "A narrow pale stone walkway curves along a deep rocky gap between tall brown cliffs, leading toward a doorway.",
+      "file": "1ee8e29cb694c43f881389e5b63f1c4a991f23705b8cb5ea38f9569cb2641881.ogg",
+      "duration_seconds": 7.03
+    },
+    {
+      "text": "Large rusted pipes bend through a tall green cavern, while catwalks and ladders link platforms above the rocky floor.",
+      "file": "d79da4234701e10d61ecc5bbb006b857c4f1cdd6dc2b6ed86406a7599f22d9e8.ogg",
+      "duration_seconds": 6.27
+    },
+    {
+      "text": "Thick twisting brown roots frame a narrow passage leading toward pale blue-green rock and light.",
+      "file": "bc446b1af2f390d53eaa2d1f40f26abadb4383d27e1ebd0e00f04b458dcdbc65.ogg",
+      "duration_seconds": 5.03
+    },
+    {
+      "text": "Metal catwalks bridge a deep industrial shaft lined with hanging cables and pipes. Yellow railings border the walkways, with white light glowing below.",
+      "file": "1ee2eadaa0bb4a99780d4422aa7a89d87d14b5e4bd4c1d077e103a6c1addd95b.ogg",
+      "duration_seconds": 8.8
+    },
+    {
+      "text": "Rows of tall rounded pods with blue-lit windows flank a central staircase, while thick red pipes arch overhead in the red-lit chamber.",
+      "file": "9817eafddf8dcb2d94e61e5b4adfc6d79d1af03995bf63fab8c334c7a65ad57b.ogg",
+      "duration_seconds": 7.990045351473923
+    },
+    {
+      "text": "A winged human-shaped ornament hangs high above a curved red tube. Large cylindrical vessels surround a round platform in the dark chamber.",
+      "file": "fe29514f538fae9f4ef71afe5b4dae7efb7c7d40247f4f17716289f48422dc7f.ogg",
+      "duration_seconds": 7.92
+    },
+    {
+      "text": "A tall leaning rocket rises above a town of low houses, with trees flanking the broad central street.",
+      "file": "8af7abf22687734bad736e0a010181db5f0b2c355d34d815f05dae4e3c7676c5.ogg",
+      "duration_seconds": 5.73
+    },
+    {
+      "text": "An empty metal gantry rises above a town of low houses, with trees flanking the broad central street.",
+      "file": "187b822b687fb0d7c0b040e107ef4785e4f9371a81e8b75c04ff09b412b1eff6.ogg",
+      "duration_seconds": 5.67
+    },
+    {
+      "text": "Cylindrical boosters crowd the foot of a large rocket, with metal stairs, scaffold platforms, and thick pipes standing above the grass.",
+      "file": "f97e3fa153ae0720b7385c4244f842fcd0289a7764ce54460a03733b1ea7e0b3.ogg",
+      "duration_seconds": 7.17
+    },
+    {
+      "text": "The rocket's tall metal body rises through an open framework of narrow stairways and platforms, high above the trees and grass.",
+      "file": "5399259f5284f79e6f08687410b1ed6c44b057734bc78bdb00d2d0077e7a040f.ogg",
+      "duration_seconds": 7.36
+    },
+    {
+      "text": "A narrow metal passage is lined with pipes, cables, bright floor lights, and black-and-yellow warning stripes.",
+      "file": "a660866dded85961d3dce7d1c1b95f3bb15615889aeaa7f6aff326ffa3b70d00.ogg",
+      "duration_seconds": 5.89
+    },
+    {
+      "text": "Pipes run along the ceiling and walls of a narrow metal passage, leading to a dark square doorway with steps at the near end.",
+      "file": "8a6803884356f272c0e9aaf9da9d4e9db532ac03f004beec2ed958ec930fc3cb.ogg",
+      "duration_seconds": 6.850045351473923
+    },
+    {
+      "text": "A brightly lit metal corridor leads to a circular hatch, with pipes and angled fittings lining both sides.",
+      "file": "2f36aeccfb35669ab66e17bd9bf11ad089706f06036476f9477da3104a4500e3.ogg",
+      "duration_seconds": 6.19
+    },
+    {
+      "text": "A grated metal walkway leads to a ladder between cramped walls covered with equipment panels and pipes.",
+      "file": "79b7e8cc70ccf4b943aa3cae9e001b27e1afd525b8a768f52785420185463381.ogg",
+      "duration_seconds": 5.3
+    },
+    {
+      "text": "A narrow metal ladder shaft descends past bright strip lights, with black-and-yellow warning stripes around its edges.",
+      "file": "35a3187ffece64992c7c2700d71cd711501020d3235f33d1c83f623fab0255f6.ogg",
+      "duration_seconds": 6.89
+    },
+    {
+      "text": "A wooden reception counter and a separate bar occupy a warmly lit room, with round tables standing nearby.",
+      "file": "571aa899b9adc9814d618656efbf8aa3f7fdf4a5018321647b0cd3e12724716c.ogg",
+      "duration_seconds": 6.18
+    },
+    {
+      "text": "Two pairs of beds occupy wooden guest rooms, each with small round tables and narrow washrooms beside them.",
+      "file": "4bb757a3294bd26b20739465ea274c286989c56365b4abf9d56718becf1e3f2d.ogg",
+      "duration_seconds": 6.03
+    },
+    {
+      "text": "A long shop counter crosses the wooden front room, with bedrooms and a small washroom behind it.",
+      "file": "e412caa66773db88ecafc85e2484aa63b00b0f7a5d572fb93a7f73265288f1e9.ogg",
+      "duration_seconds": 4.99
+    },
+    {
+      "text": "A shop counter runs beside wooden floorboards, with framed displays behind it, while a bedroom and small washroom occupy the rear rooms.",
+      "file": "9acc47c721871d32b46e3400e4afb55bd888c09f86b950b599df19631071d14d.ogg",
+      "duration_seconds": 7.47
+    },
+    {
+      "text": "A rough gray cave slopes toward a small dark opening in the far wall.",
+      "file": "6ea7f2bc3d06ae05c818fd078954dbf34861a616aa514c15df6f83b1797dfb68.ogg",
+      "duration_seconds": 3.7
+    },
+    {
+      "text": "A path runs along a huge curved hollow shell, passing pointed rock formations and pale branching growths.",
+      "file": "dd2e7c9841069b899687552c297a00844add69ef62c7b8a65bef51322e0f88a9.ogg",
+      "duration_seconds": 6.58
+    },
+    {
+      "text": "A towering spiral shell studded with long sharp spines rises in a rocky cleft, surrounded by colorful coral-like growths.",
+      "file": "995095e49487a983616002fb4bcda08ac8dfb5f5e8f5b3c89736a98b8a1cd090.ogg",
+      "duration_seconds": 7.58
+    },
+    {
+      "text": "A narrow earthy path winds between tall trees, disappearing into the dense green forest.",
+      "file": "adfc12b45037c0c9aaf507326b24ab9257ff416b7c965943bb69f2110dfe86ff.ogg",
+      "duration_seconds": 5.170045351473923
+    },
+    {
+      "text": "Red-framed upper windows overlook a wooden hall, where a large circular emblem fills the center of the floor.",
+      "file": "1c531146c6e2062712eb345b7ee15c5be017069cb1c4e72e48aa6c5708e11a17.ogg",
+      "duration_seconds": 5.39
+    },
+    {
+      "text": "A brightly decorated tavern with red walls features wooden tables, green stools, and a long counter, with a tree growing from a stone planter inside.",
+      "file": "84a82e14c58034ed66751a1b7a84e769fdeb50ff5adbd9fb66f8ee7c12cb3693.ogg",
+      "duration_seconds": 8.47
+    },
+    {
+      "text": "A tiled shop awning hangs above a long counter, while boxes, jars, bundled poles, and hanging papers crowd the wooden room.",
+      "file": "7d97329db14a02df6afc75323a66aa47abf61315959939a55cc8d0ad5fd41ab2.ogg",
+      "duration_seconds": 6.92
+    },
+    {
+      "text": "Cabinets, chests, hanging papers, and small ornaments fill a cramped wooden house with a low ceiling.",
+      "file": "89463b28201c9d3f18fb5c30bc7cbd9df1e94606983b24330499f64b6a0e9682.ogg",
+      "duration_seconds": 5.57
+    },
+    {
+      "text": "A round low table stands among floor cushions in a wooden room, with a thick braided rope hanging above a curtained alcove.",
+      "file": "07e6f43339a33f7f166bd99d2c2b04a0cea15c777dafe7740ce4b41c92046b8f.ogg",
+      "duration_seconds": 6.41
+    },
+    {
+      "text": "A narrow garden with stepping stones and bamboo runs beside a red wooden building, its inner room covered in patterned mats.",
+      "file": "828229cd8cc72012ebfaa838220ab55f5f6816021bc5c5e9d1d83879dbf9a231.ogg",
+      "duration_seconds": 6.6
+    },
+    {
+      "text": "A narrow stone garden borders a red wooden house, with patterned floor mats, wall hangings, and shelves of books inside.",
+      "file": "57a8a23cee1dab9908bf7235586a90267bc7264a1cd57dc8d951a2d2196fb07a.ogg",
+      "duration_seconds": 6.64
+    },
+    {
+      "text": "A golden many-armed statue stands at the far end of a wooden hall, beyond a large circular emblem painted on the floor.",
+      "file": "63d62e6e4d2272040117303282da3a7014664ccc3136e1d4863f9a8637c53708.ogg",
+      "duration_seconds": 6.66
+    },
+    {
+      "text": "Floor cushions line a long wooden room beneath hanging red decorations, with two large patterned rugs occupying the center.",
+      "file": "764d79f6ccf4acf630f25f36face72b8d2dfe782a453f6cfb868abf8510e6c72.ogg",
+      "duration_seconds": 6.34
+    },
+    {
+      "text": "Red arched bridges cross winding streams between buildings with dark curved roofs, framed by trees and steep cliffs.",
+      "file": "7e3750db3b17e4a5dedf1fab2edafd27282245137ad2d75c9e62597e7d7a49a5.ogg",
+      "duration_seconds": 6.6
+    },
+    {
+      "text": "A many-tiered red pagoda rises beyond a broad stone courtyard, flanked by red wooden pavilions.",
+      "file": "5a7c3b8b6386e6087e2ce98b26aae3cd639a33e263d2a377bf092d7758e093f9.ogg",
+      "duration_seconds": 5.84
+    },
+    {
+      "text": "A folding screen separates a bed from a wooden room containing low tables, cushions, shelves, and red-framed windows.",
+      "file": "3a06793151c4d306b8342976acd01e06db20e51c3a6364198e5a4cd345442b95.ogg",
+      "duration_seconds": 6.4
+    },
+    {
+      "text": "Small pale statues line both sides of a wooden hall, with a purple rug bearing a large dark symbol lying in the middle.",
+      "file": "940d71fe8de2121ccf5bbf5ac9dceeacd106a0447294ed5a17f53ddf1d1cfd24.ogg",
+      "duration_seconds": 6.13
+    },
+    {
+      "text": "Metal stairs zigzag through a tall framework of girders, pipes, and grated platforms.",
+      "file": "6327a433f5b8f07294193c6eefff5e3f769cd221477cf91ed169579b7431f5a1.ogg",
+      "duration_seconds": 4.64
+    },
+    {
+      "text": "Broad metal platforms sit high on an industrial framework, with railings, thick red pipes, and smaller pipes crossing their surfaces.",
+      "file": "b973045c1434e6ec7c70e3f4925a4a12f55482b1366657791b657be38af1d8b6.ogg",
+      "duration_seconds": 7.29
+    },
+    {
+      "text": "A dark wooden cabin with a steep roof stands beside a snowy trail at the foot of high white mountains.",
+      "file": "dd39f0b0844de8b50a16f34e4ac6b488cb00428d84b604d158c8eca9c7eec3ff.ogg",
+      "duration_seconds": 5.63
+    },
+    {
+      "text": "Small snow-covered ledges rise up a steep blue-white cliff face, with dark hollows between the rocks.",
+      "file": "107408981d1de14659285639f62163631ba58a0406d1569b42962a9275465451.ogg",
+      "duration_seconds": 5.52
+    },
+    {
+      "text": "A steep icy cliff is broken by small ledges and dark rock outcrops.",
+      "file": "fb20915b0ebedd35cb65739ebfe5d05394aa301fa3dd36279ad4336d866a7f6f.ogg",
+      "duration_seconds": 4.03
+    },
+    {
+      "text": "Staggered snowy shelves climb an icy cliff toward a small dark opening.",
+      "file": "4b4fc8c6408abde62a818525c8267e648b2ebadfc14d7d4f5d73269934fdf3c7.ogg",
+      "duration_seconds": 3.8
+    },
+    {
+      "text": "A dark cave mouth opens near the foot of a broad ice-covered wall beneath a deep blue sky.",
+      "file": "a9daf0aefda011329098d6d9e26fa1e1de233f5de3f0902fe4da93be06ce8685.ogg",
+      "duration_seconds": 5.13
+    },
+    {
+      "text": "Blue crystal walls surround several rocky ledges and dark tunnel openings inside a tall cavern.",
+      "file": "609b100e0e29a5df5f40d3e4147f810c96c78682fc80fb458bf6cc6b8cc37831.ogg",
+      "duration_seconds": 5.39
+    },
+    {
+      "text": "Tall narrow rock spires rise from a deep blue icy gorge, with snow-covered ledges along both walls.",
+      "file": "7399ddde8bcd5c0698c77dc5c365857ebe5f502f19de90ff00ba29037ce86bed.ogg",
+      "duration_seconds": 6.58
+    },
+    {
+      "text": "Blue and violet crystals glow around a deep shaft, with narrow ledges running past dark cave openings on opposite sides.",
+      "file": "d87ab7dbd191b0e47b36a7638d7a9a67b1f83f5b580c5b8d90eda4ffcf495f41.ogg",
+      "duration_seconds": 7.22
+    },
+    {
+      "text": "A pale animal-skin rug covers the center of a wooden cabin. A bed, work table, bottles, and stacked supplies line the walls.",
+      "file": "6413a8881ac018390b07b3bf7d9b6959cfaa10688e2de02ee7d42d0b889cdbbe.ogg",
+      "duration_seconds": 8.22
+    },
+    {
+      "text": "Wooden stairs climb to a loft beneath steep rafters. Pale bedding lies on both levels, with daylight entering through a small window.",
+      "file": "4dca853e77d139acf37d7720fafde55dc6ff641701ccca247b91ce7c83d240b1.ogg",
+      "duration_seconds": 7.67
+    },
+    {
+      "text": "A wooden sign headed Ice Gate stands beside a snow-covered path, with white hills and a line of evergreen trees beyond.",
+      "file": "ff3f7d608069fe6a6c7798c10bafcdd953f6619dbd58c1410477e8d191c189e2.ogg",
+      "duration_seconds": 6.5
+    },
+    {
+      "text": "A broad snowy path passes between low rocky ridges beneath distant white mountains.",
+      "file": "7f79cb9c5a6fc031a39c6b2bfb895b8c18c137f9d3037c728ae06ae7c9ddf513.ogg",
+      "duration_seconds": 4.66
+    },
+    {
+      "text": "Snow-laden evergreen trees stand beside the pale shore of a partly frozen lake.",
+      "file": "9ce1647f589768162269cbacef4631ce21c601eda53c86438b798aa9475742b6.ogg",
+      "duration_seconds": 4.35
+    },
+    {
+      "text": "A small snow-covered rocky island rises from pale green water, with a dark cave mouth opening at its base.",
+      "file": "efa4eee6fcd194450aef6083f43314f7a0015e5890f8d6aadd96961e37394963.ogg",
+      "duration_seconds": 6.33
+    },
+    {
+      "text": "A fallen tree trunk spans a narrow snowy ravine between rocky banks.",
+      "file": "d84fbbfa67c1cf2973e0b494c0961fbe1d2d167c3e2962025e77dc023a0ac119.ogg",
+      "duration_seconds": 4.09
+    },
+    {
+      "text": "A solitary snow-covered evergreen stands in an open white slope.",
+      "file": "0e01de7b57a08536e4d15544dd608cbabf3e7be00400aae42adf9ef56e8be5d6.ogg",
+      "duration_seconds": 3.71
+    },
+    {
+      "text": "Rounded pillars and ridges of ice crowd a snowy hollow, with winding passages between them.",
+      "file": "98ce5420550aa45ace05efb3e3503944b8b405250316018631b1e0d1930956f8.ogg",
+      "duration_seconds": 4.8
+    },
+    {
+      "text": "Snowy paths branch between exposed brown rock ridges.",
+      "file": "7cb8fec0cf89d96ae6448c1ea72ad1e84e4b8072c67183b36a3d47e26558b0e7.ogg",
+      "duration_seconds": 3.35
+    },
+    {
+      "text": "A snowy ridge winds above misty drops on both sides.",
+      "file": "70e3e02060a7d3c61eaed21d6f565268bff9fa11aa0dec8838f913d3c432fe66.ogg",
+      "duration_seconds": 3.32
+    },
+    {
+      "text": "A snow-covered valley runs among brown cliffs and low ledges beneath distant mountains.",
+      "file": "97c36f4c943d03db39bc684dda0e12f8c734dc6af47a3cc03069bcadafcf4948.ogg",
+      "duration_seconds": 4.47
+    },
+    {
+      "text": "A small tent stands on the icy floor of a dark cave, with a tunnel opening in the back wall.",
+      "file": "12120327d2b5f0eace79720be17c80dca9c851863de499a8358e92c16d1f642a.ogg",
+      "duration_seconds": 4.7
+    },
+    {
+      "text": "A narrow snow-covered shelf curves around a towering cliff, with jagged white peaks in the distance.",
+      "file": "95a33302f84d1597f288c147cf24decba964db791a96aae404f6496fb27e2dee.ogg",
+      "duration_seconds": 5.46
+    },
+    {
+      "text": "Long icicles hang above an icy shaft crossed by huge curved, rib-like formations.",
+      "file": "e7e60085697c1266f7750504c079565b1b90b875207c38b2977fb91137f1c6f5.ogg",
+      "duration_seconds": 5.44
+    },
+    {
+      "text": "An examination table and shelves of medical equipment occupy one side of a wooden clinic. Curtains divide three beds on the other side.",
+      "file": "a2326bea95122272edddbe72fe785e0cd94cec11ef01051b61aa9e455c9116b9.ogg",
+      "duration_seconds": 7.54
+    },
+    {
+      "text": "A small wooden home contains a central table on a round rug, a curtained bed, shelves, and a stove.",
+      "file": "2d8187ecc65bb6485efa6d602f583bc8eb5d46d27d32ed64092d74b1bf3041bf.ogg",
+      "duration_seconds": 6.14
+    },
+    {
+      "text": "A bed, a stove with pots, and a round dining table fill a worn wooden room.",
+      "file": "37fc6ab0819a45bf70ac36838a1720b9db8825cb456cd6e48afa97aab30b7927.ogg",
+      "duration_seconds": 4.49
+    },
+    {
+      "text": "Wooden buildings stand on raised walkways in a lush forest. Ramps and stairs join the different levels.",
+      "file": "da27c5c4479cd7f9d77e94b202e44272305e24fdc74b48825096032b55207db1.ogg",
+      "duration_seconds": 5.48
+    },
+    {
+      "text": "Broken wooden walkways hang over a broad green-glowing crater, with surviving forest and buildings around the rim.",
+      "file": "77b8c696cead174c7bebe839199c852588ea9c8102cec8ed32955c2336dd354c.ogg",
+      "duration_seconds": 6.09
+    },
+    {
+      "text": "Splintered beams and broken wooden platforms crisscross a deep green-glowing hollow.",
+      "file": "c9bb8f8d0ff1e4145e952d60955a41f2810fbd9032d32737fda130560c8e3c67.ogg",
+      "duration_seconds": 4.970045351473923
+    },
+    {
+      "text": "Jars and bottles cover a wooden shop counter, with a tall clock and crowded shelves against the back wall.",
+      "file": "add7d2e51f9ce02cd596e87e86c6e6d73376bea1bec962f926bd6eb5b56cabaa.ogg",
+      "duration_seconds": 5.21
+    },
+    {
+      "text": "Metal shields and other equipment hang on a small shop's walls above a wooden counter, with a leafy plant beside the counter.",
+      "file": "61b9f2f674378760c3b8a32f643be38d888d149298ee7a383e18cddc126e1053.ogg",
+      "duration_seconds": 6.26
+    },
+    {
+      "text": "Weapons and armor fill a wooden shop, including a large dark cannon, a target on the wall, and a small desk by the entrance.",
+      "file": "4ac4321ed18a4137479772905ce9827f2bd8b9cfd4078d466f305ea05e3c5ce0.ogg",
+      "duration_seconds": 6.89
+    },
+    {
+      "text": "A broad staircase divides a warmly lit wooden inn lobby, with a counter, patterned rugs, and lamps around the room.",
+      "file": "b5a40c9850a120b12fbc27139757fc04393578867dac1688f4d37aaa2f612caa.ogg",
+      "duration_seconds": 6.4
+    },
+    {
+      "text": "Two beds with curtains sit behind a dining table on a patterned rug in a warmly lit wooden home.",
+      "file": "0bb0e88f2241b6aa4e2818d5e3cb378cb88fd8d3fbc50d142debc317a125aec4.ogg",
+      "duration_seconds": 5.110045351473923
+    },
+    {
+      "text": "A split wooden room contains rows of small plants, a metal stove, shelves, and hanging lamps.",
+      "file": "ff32e3f9381b127e4ac2cec50f9c38d30b929c8609f848d8c7fd286fe27bd432.ogg",
+      "duration_seconds": 5.71
+    },
+    {
+      "text": "An L-shaped wooden counter and a glass-topped display case stand in a stone-walled shop, with a staircase rising at the back.",
+      "file": "537d11edc3f92e9a55149997c19f1dc4c46b0240259f755e3a29d74de20ef2f5.ogg",
+      "duration_seconds": 7.07
+    },
+    {
+      "text": "Banks of equipment and monitors fill the upper part of a dim room, with a bed and patterned rug on the lower wooden floor.",
+      "file": "b0c727408f874177e4880cab3b7835dc851d39df10b131e59d958aa569782249.ogg",
+      "duration_seconds": 6.2
+    },
+    {
+      "text": "A long rope ladder hangs from the airship beside a steep rocky drop.",
+      "file": "aa04a5456b0ef63f2d345221c9108287762ce1da24e3b8781309cefb35b52b88.ogg",
+      "duration_seconds": 3.69
+    },
+    {
+      "text": "A rough stony slope stretches beneath the airship's dark underside.",
+      "file": "e546af7b37e790c29d53c89515295dce2266163e225d31e96f529a404ea4060f.ogg",
+      "duration_seconds": 3.62
+    },
+    {
+      "text": "A rocky shaft curves around a bright green glow deep below, with a small dark opening high in the wall.",
+      "file": "e997faaf4373f2fd7ddce1ca65197a61e358830cf4c87438df22f2dea1925a02.ogg",
+      "duration_seconds": 5.52
+    },
+    {
+      "text": "Narrow greenish rock shelves descend around a deep cleft, with dark cave openings between the ledges.",
+      "file": "91f20546c7a7f24f445e7ed92292d9600f5b9d8eb0141d937a4ad98953dad793.ogg",
+      "duration_seconds": 5.61
+    },
+    {
+      "text": "Pale ledges zigzag down a tall purple-gray rock face, broken by dark openings and deep cracks.",
+      "file": "ed3b677a97d2262583a45625a03d637e10100c05142ea65c96b35176c7b61a85.ogg",
+      "duration_seconds": 6.02
+    },
+    {
+      "text": "A winding series of rough reddish ledges descends through a cramped rocky shaft.",
+      "file": "ffdafbb2b7db8ec4f74401e59466c15b5507f93a3fee87ca2ed55a041b3ab078.ogg",
+      "duration_seconds": 4.52
+    },
+    {
+      "text": "A narrow path spirals around a tall ridged stone column in darkness.",
+      "file": "9a785cd8ee423ce5efe859d7dd10a6025092bdf9cdbb89ce9995117fffaed34d.ogg",
+      "duration_seconds": 3.85
+    },
+    {
+      "text": "A rough pale path coils around a tall ribbed pillar, above scattered rock formations and a distant orange glow.",
+      "file": "47abdcd396cf47438da769f2550a0bc93345cb54cf9692c05b1e39528a63a55f.ogg",
+      "duration_seconds": 6.75
+    },
+    {
+      "text": "Pale winding rock formations stretch through a dark cavern toward an orange-lit opening.",
+      "file": "3a6976973e962823a4825b27973eb4669690590491e48b88ae1723411b6cc5df.ogg",
+      "duration_seconds": 4.16
+    },
+    {
+      "text": "Huge curved rib-like formations arch over a cavern filled with warm amber and green light.",
+      "file": "43592391f9eb432c33a4a3e248d24d6144b5812ccaf9c5775986e7723b5d249d.ogg",
+      "duration_seconds": 4.79
+    },
+    {
+      "text": "Thick twisting roots and fine pale tendrils cover uneven rock ledges inside a yellow-green cavern.",
+      "file": "d139f15b09f6c3788c951002773bb98c6e3a734917b59d56308a8658df1a5190.ogg",
+      "duration_seconds": 5.27
+    },
+    {
+      "text": "Flat-topped gray stone pillars form staggered platforms over a deep green-black gap.",
+      "file": "14bf7cf21d3f5d873c483df0428e4a864be9f96d012ff135f46ba6c8419e0397.ogg",
+      "duration_seconds": 4.820045351473923
+    },
+    {
+      "text": "Narrow stone ledges curve around tall gray pillars, with green light glowing between them.",
+      "file": "4cf78e9dfc920f2d03b16f5c5c53c68e60169d7b617d8d0a31b2d223a08483ed.ogg",
+      "duration_seconds": 4.57
+    },
+    {
+      "text": "Broad gray ledges and round stone pillars form a rough stairway through a cavern, with green light in its cracks.",
+      "file": "9f7f1b2629d523e40109ad764471a75b9225c2a5ca920eb705549a7e4899e9cb.ogg",
+      "duration_seconds": 5.84
+    },
+    {
+      "text": "A stairway descends between metal frameworks, pipes, and tall industrial walls.",
+      "file": "e9cb588aecd8e232e007c6291258db439021c5feacf31530c9cab9457af88046.ogg",
+      "duration_seconds": 4.25
+    },
+    {
+      "text": "Ladders and narrow platforms crowd a tall industrial shaft beside a round pipe opening and heavy machinery.",
+      "file": "cc2beccfb1de200950a5a5cff7b5713f83962b0478b7b8f534302bc755c07274.ogg",
+      "duration_seconds": 6.24
+    },
+    {
+      "text": "Narrow buildings with lit windows stand beneath an immense steel structure, with street lamps along the road.",
+      "file": "9f1d8207f862ea2740e6a726edb4c2cfa7452574458036f262621f5959dfd0a5.ogg",
+      "duration_seconds": 5.55
+    },
+    {
+      "text": "A rust-colored metal bridge crosses a narrow alley between high stone walls.",
+      "file": "9650a5ea4f1f006846d1ec1592901a4795eb2cf9b640aed9ec8fae03ef362d33.ogg",
+      "duration_seconds": 4.48
+    },
+    {
+      "text": "Metal ladders, grated platforms, and narrow bridges span an enormous industrial shaft, with thick pipes along the walls.",
+      "file": "7f0168d16bc47bad58303ddf8edb900f11c669f3c21ef4b70d24e2c0c45f9a2c.ogg",
+      "duration_seconds": 6.83
+    },
+    {
+      "text": "Stairs and narrow bridges link suspended industrial platforms beside large pipes and heavy girders.",
+      "file": "c61f91490f081564f96d13d1e349a989997e9e49a429643e342597176d9b5681.ogg",
+      "duration_seconds": 5.8
+    },
+    {
+      "text": "Dim lamps light a narrow metal corridor lined with pipes, ending at a closed panel marked with red graffiti.",
+      "file": "420578942518fb1f3170eb301c1876337330be8e9721a606a77e5be337d12a1e.ogg",
+      "duration_seconds": 5.95
+    },
+    {
+      "text": "Two rail tracks run through a dark metal tunnel beneath pipes and low ceiling lights.",
+      "file": "dc9963f72352e57628a6031286bd34e0e16d1a68f28b8960aa7781edd803d8f1.ogg",
+      "duration_seconds": 4.1
+    },
+    {
+      "text": "Rail tracks converge at a junction inside a tall industrial tunnel, lined with pipes and small red lights.",
+      "file": "e60e09af1168f6a7967d130b032a79527886ac0f310156558daab32faf23df41.ogg",
+      "duration_seconds": 5.88
+    },
+    {
+      "text": "Jagged gray-green rocks form a series of narrow ledges and steep drops.",
+      "file": "8c5e15c5e093c3c4a5d23219251408a5f92af3608537828578c197b2e706a829.ogg",
+      "duration_seconds": 4.36
+    },
+    {
+      "text": "A narrow rocky ridge rises between towering spires, with pale light and mist in the deep gaps.",
+      "file": "096495ee50bd2de6c69effc8a91379f4eafec598d389d61af4e85f14d472cce6.ogg",
+      "duration_seconds": 5.74
+    },
+    {
+      "text": "Thick brown roots spread above enormous glowing blue crystals in a tall cavern.",
+      "file": "7b99df6eb540dbfd4ccf8027c13fc4384dba6f66935d064459dec33495aeb642.ogg",
+      "duration_seconds": 4.15
+    },
+    {
+      "text": "A narrow flat-topped rocky ridge extends across a vast mist-filled chasm.",
+      "file": "c002bb079e2012a8d927a5d17b1556240d288fb246271a3408650faa9e219048.ogg",
+      "duration_seconds": 4.41
+    },
+    {
+      "text": "A narrow broken ridge stretches between tall rock pillars above a mist-filled chasm.",
+      "file": "1494d7b4a19133a327633c4eab87a4671d2bca6d3399cd1fd5bc6ecb24d0e966.ogg",
+      "duration_seconds": 4.88
+    },
+    {
+      "text": "Wooden platforms and barrels line a red-rock passage. A lit weapon-shop sign hangs above a counter on the lower level.",
+      "file": "dd01c9bfba779957d66dd848cd705aed9aa282f532947c5c2db0cfa4f899e559.ogg",
+      "duration_seconds": 6.6
+    },
+    {
+      "text": "A hanging green lamp lights a cramped wooden room with barrels, shelves, and a small desk beneath a peaked roof.",
+      "file": "4d074f1aeeb7d94c31f931ce8e0745f33307f5b6e069341dea5e2fb1c2a73825.ogg",
+      "duration_seconds": 5.95
+    },
+    {
+      "text": "A bottle-lined bar fills the lower level of a red-rock room. Wooden stairs and railings connect the upper walkway, and lamps light the walls.",
+      "file": "c959df6dcf67ea49b7d1028e80711d089c873f1832f187a746d7b482f56839bb.ogg",
+      "duration_seconds": 8.23
+    },
+    {
+      "text": "Stone steps join two small ledges in a red-rock passage, with lamps, crates, and barrels against the walls.",
+      "file": "d0fe565eeecf75bb430ac4dba7f4f8ac5b55980bd8a324e98ba63fec5ec6b3c5.ogg",
+      "duration_seconds": 6.01
+    },
+    {
+      "text": "A wooden counter and cluttered shelves fill a small peaked-roof shop beneath a hanging green lamp.",
+      "file": "4856b936a96694a7e2a5081dd35309dd829367f799d73768b7eaa3b6070d18d5.ogg",
+      "duration_seconds": 4.77
+    },
+    {
+      "text": "A low table and stools sit beneath a hanging green lamp in a small wooden home, with cooking pots and shelves around the edges.",
+      "file": "8fe6babc68654398faa37e9eb9401bc47646f36a58aab0609b769dc27c38511e.ogg",
+      "duration_seconds": 6.95
+    },
+    {
+      "text": "Pale hides cover the floor of a dim wooden room beneath a peaked roof and a green hanging lamp.",
+      "file": "22982ab6d26e263d41f0473708bb2b4b5b77966559dd65ae4c66cb6620e91e14.ogg",
+      "duration_seconds": 5.2
+    },
+    {
+      "text": "Two beds and a small table fit into a red-rock room, with a window and a washbasin against the walls.",
+      "file": "9604e4efc993712d2ff1180b002d6051667f6cb4acc0436216a87d1ff664e838.ogg",
+      "duration_seconds": 5.6
+    },
+    {
+      "text": "Two wooden rooms beneath separate peaked roofs are joined by a short passage, with counters, shelves, and hanging lamps inside.",
+      "file": "1e04e3866d6bf20fab87a31cc777d30289f7225fd22198d6efcea2e1304d684f.ogg",
+      "duration_seconds": 6.71
+    },
+    {
+      "text": "Twisting rock bridges and narrow paths cross red-lit chasms inside a cavern, with patches of green light on the stone.",
+      "file": "bedfed1da97216e2ebb713f32997ef4422f0bf90d711f24ee10523d4ebf7f83b.ogg",
+      "duration_seconds": 6.57
+    },
+    {
+      "text": "Two beds occupy the upper level of a rounded timber-lined building, with wooden steps leading down to a small reception area.",
+      "file": "0e61855dfeb86c7f44d4f93134fb6e98c01391566ada29225e7a4a069101dfae.ogg",
+      "duration_seconds": 6.820045351473923
+    },
+    {
+      "text": "Shattered pipes, bent metal, and broken industrial walls crowd a narrow path through the ruins of a reactor.",
+      "file": "8e085baf05b667423553399fe30cebec3897790bed67f82f5ed469bbbc2f8b27.ogg",
+      "duration_seconds": 5.71
+    },
+    {
+      "text": "Jagged gray industrial ruins rise beyond a dirt clearing, with trees framing the view.",
+      "file": "f32b6948d92b5e0500d19e31c27691a6d766b153fe99f7e7dadaeb693730ebce.ogg",
+      "duration_seconds": 5.05
+    },
+    {
+      "text": "A wooden table and a bed occupy a round timber-lined home, with daylight falling through a window.",
+      "file": "0fa46a53bf6adb98db601145b4706091e719e8749808f0ffcb84c01a689d962b.ogg",
+      "duration_seconds": 4.97
+    },
+    {
+      "text": "Small round huts with domed roofs cluster around winding dirt paths between steep rocks and dense greenery.",
+      "file": "d664621a96736b41e8bcf3d9aee4ec97e7d886f5b00ab260d4da50f96d382cf3.ogg",
+      "duration_seconds": 6.72
+    },
+    {
+      "text": "A pale dirt path passes beneath large fallen tree trunks in dense green jungle.",
+      "file": "98d801c35e7f4d2effe576ae14f6f85343447ed736e034f15bfc32a5930f9834.ogg",
+      "duration_seconds": 4.25
+    },
+    {
+      "text": "Pale dirt paths meet at a fork beneath tall trees and thick jungle undergrowth.",
+      "file": "d6d28c4f7cf1c8e736c6458ac90dbb41335ec8f315712f4e7d5bb74b6c74a1ce.ogg",
+      "duration_seconds": 4.09
+    },
+    {
+      "text": "Jars and bottles cover a curved wooden counter inside a small round shop, with shelves and hanging goods around the walls.",
+      "file": "a250175fb7d00214641d6bcb97870841f3b2f46620bad33b22123afda25a1d85.ogg",
+      "duration_seconds": 6.880045351473923
+    },
+    {
+      "text": "Weapons hang above a wooden counter in a round timber-lined shop, with a red patterned rug on the floor.",
+      "file": "3b7b3cd1ffdab0abaab3d702addd9b32c3008b325a1331f1776a3e721c764dae.ogg",
+      "duration_seconds": 5.86
+    },
+    {
+      "text": "Fur rugs and stacked bedding line a circular wooden room. A round opening in the floor leads down to the level below.",
+      "file": "b513777bcb182fede03f32bd53ea9933d1a7969d7a428c177fb9997ae1bb6d3a.ogg",
+      "duration_seconds": 6.72
+    },
+    {
+      "text": "A low table sits on a patterned rug surrounded by round cushions, inside a curved wooden room with cupboards and a bed.",
+      "file": "3ee79e17884e55e3ca8b1a41bbce6691fe8b95f014a6335b7f5259510babd12c.ogg",
+      "duration_seconds": 6.55
+    },
+    {
+      "text": "Wooden stairs lead into a home with a round dining table and a compact kitchen crowded with pots and cupboards.",
+      "file": "95a598480829f88649acdd8e56e4b4cfb9f2ffe00a082aa8e6b082f1f4b1ceac.ogg",
+      "duration_seconds": 5.83
+    },
+    {
+      "text": "A piano stands along the lower wall of a wooden room, with a bedroom and small sitting area behind it.",
+      "file": "c6083fb250897e85541bb9fdd36fbbb45fe21d4a0c451e044fcf05d33413e633.ogg",
+      "duration_seconds": 5.28
+    },
+    {
+      "text": "Two staircases curve around a shadowed landing beneath tall arched windows and a hanging chandelier.",
+      "file": "d9d11bfbdab0dc22c8f768b79166e897997f659a4d14d6bd444ea1f94d50bca9.ogg",
+      "duration_seconds": 5.28
+    },
+    {
+      "text": "A rough purple-lit underground passage leads toward a pale stairway in the distance.",
+      "file": "937e0619528338efd386cd1ef6987b8bf392d4494bb4ee44082c17237fb90658.ogg",
+      "duration_seconds": 4.26
+    },
+    {
+      "text": "Curving shelves packed with books surround a central desk covered in papers and open books beneath a warm ceiling lamp.",
+      "file": "f3ab3520a310f3d7f3d9a21ed5f9a5f01a82ef650a6cd80d68673be5b1a9f431.ogg",
+      "duration_seconds": 6.18
+    },
+    {
+      "text": "Jagged, thornlike mountain spires surround narrow, winding rock ledges above deep gaps beneath a cloudy sky.",
+      "file": "8331f91a2b12f147d39870db1feee224d772b0f8415ba1961793f806de371e23.ogg",
+      "duration_seconds": 6.14
+    },
+    {
+      "text": "A long rope suspension bridge spans a deep gap between jagged rock spires, with a barren rocky valley below.",
+      "file": "67a8f4ffa44a8e51f1a891b84e5fa79ce7fe3a791173064640f0f371d131a9d6.ogg",
+      "duration_seconds": 6.2
+    },
+    {
+      "text": "A narrow rock ledge winds around a towering, pointed mountain spire, with sharp projections jutting out over misty depths.",
+      "file": "7de850dbaaf24dd2ed74e42f20823b1eca67ece5ced6d8bcc8ed5937018c9ea9.ogg",
+      "duration_seconds": 7.3
+    },
+    {
+      "text": "A curved rock ledge runs around the foot of a jagged mountain wall, with metal pipes and platforms clinging to the rock above.",
+      "file": "1042e87cd412b7f4614dee5f90aed0b67850629c2f81879405f6f059cb10ce3b.ogg",
+      "duration_seconds": 6.47
+    },
+    {
+      "text": "A tall cylindrical industrial tower stands against a steep mountain wall, with thick curved pipes and metal stairs at its base.",
+      "file": "1fca611c2d610da469225a08c3142c9a1e755ac2f8843466e81e57872e4a5163.ogg",
+      "duration_seconds": 7.4
+    },
+    {
+      "text": "Two railed metal ramps lead up to a rectangular doorway beneath a large cylindrical tower, surrounded by heavy pipes and framework.",
+      "file": "71c4fb55a03132d2e7546059de74b85e262d91a93a876295803af533db07028e.ogg",
+      "duration_seconds": 7.28
+    },
+    {
+      "text": "Rock ledges descend through a tall, narrow cavern, with pale green light falling across rough walls and hanging stone formations.",
+      "file": "bdc1c0eb66284a9e4135bafa420615243d004d2738027b2917388b64cf94623e.ogg",
+      "duration_seconds": 6.830045351473923
+    },
+    {
+      "text": "A huge blue-lit cylindrical tank towers above heavy pipes in a tall chamber crowded with metal beams and machinery.",
+      "file": "0af9ab0ea54f67c34b13baefa70af353463bad7c986d869bf6fc04c1f4aa543b.ogg",
+      "duration_seconds": 6.71
+    },
+    {
+      "text": "Thick trees and trailing vines surround mossy ground, with giant red-lipped pitcher plants rising among the roots and rocks.",
+      "file": "be1e99ceaa00b6898ef38ff91128c83ccd969b1a3098439cdc4ea50f6b2a3fa2.ogg",
+      "duration_seconds": 6.950045351473923
+    },
+    {
+      "text": "Greenish light falls into a small cave with rough stone walls, where an opening pierces the rock at each end.",
+      "file": "4d89616927f95ee1b5aadbe1e8bd6147817c38645da43b051adf9c55cae645d8.ogg",
+      "duration_seconds": 5.31
+    },
+    {
+      "text": "A curved stairway descends inside a round stone chamber lined with railings and tall pillars, pale light filling the space below.",
+      "file": "ba2c25361d96c7a7d5b645043bdc51733107e05d88010e6b5449f5484a3ec2a7.ogg",
+      "duration_seconds": 7.53
+    },
+    {
+      "text": "A large carved relief fills one wall of a round stone chamber, with two slender stands before it in warm orange light.",
+      "file": "d288bdcadd3e03d8709d6f090c75e53ed2da0cca12d5e04556a4364ee721e2a5.ogg",
+      "duration_seconds": 6.57
+    },
+    {
+      "text": "Three tiers of rough stone ledges line a cavern wall, with a doorway framed by columns on the upper level.",
+      "file": "a4ee7d63802507c7fbd668d3e68aff8e791683794b9a80bf6e578d828d429b30.ogg",
+      "duration_seconds": 5.59
+    },
+    {
+      "text": "Stone steps connect two levels of a small, rough-walled room, with low pale sleeping platforms beneath a bright rectangular window.",
+      "file": "df73efb277724218e8b5528be9eb4c91b006349ee28a84af1af8eb569eec95fe.ogg",
+      "duration_seconds": 6.930045351473923
+    },
+    {
+      "text": "Pale branching structures arch above curved stone walkways and stairs, with a large central basin over water beneath a bright blue opening.",
+      "file": "ced7c67258d80cda43ba6497624e4652be913bc8c2798300a595ae1b331a95cf.ogg",
+      "duration_seconds": 7.4
+    },
+    {
+      "text": "A broad fallen trunk bridges pale, uneven rocky ground, with red coral-like branches rising beside pools of blue-green water.",
+      "file": "2b66970628a749f67957358eb3ffb304d976226bb8f32e82dbbbd7e742466fe1.ogg",
+      "duration_seconds": 8.47
+    },
+    {
+      "text": "Tall, slender trees crowd around a narrow forest path, their branches fading into blue-green mist.",
+      "file": "67b3e0276ed4559e73bfe4f10c44ba29a58d417cb69e464460f7fa864487ee67.ogg",
+      "duration_seconds": 6.02
+    },
+    {
+      "text": "A narrow metal walkway cuts through a chamber packed with long pipes, with a ladder descending through a yellow-and-black striped opening.",
+      "file": "a00aa9bef6e0d5acb9a9bc92df297a88bfca7b87272101af44173859ddc10500.ogg",
+      "duration_seconds": 7.05
+    },
+    {
+      "text": "A cramped metal cockpit has two seats facing a broad dark window and banks of switches, with a thick cable lying across the floor.",
+      "file": "c8aee59dc2bc8f9c15f82eb4520bf66c7f2b79b1107ddc84f7eedceea9b7638b.ogg",
+      "duration_seconds": 7.56
+    },
+    {
+      "text": "A large circular hatch fills the end of a narrow metal walkway, surrounded by thick cables and curving structural ribs.",
+      "file": "2e8aca9d96e9bbe5aabf8e6a8b83035a8570295eff62a2b1fc72d781c9e165d2.ogg",
+      "duration_seconds": 6.56
+    },
+    {
+      "text": "A warmly lit wooden home has a long sitting room with a table and patterned floor, with two small bedrooms opening off its far end.",
+      "file": "0a043f1f291d3ec506696e1f92149f7425ce4e47822c9d394f712e69c14f5af3.ogg",
+      "duration_seconds": 7.48
+    },
+    {
+      "text": "A wooden staircase connects a lamp-lit bedroom with a small dining area, where a round table and kitchen counter stand on the lower floor.",
+      "file": "4e43a035b2d4f79dce6f8018f9b413ecc65962e4ceff740c3ef7638897691971.ogg",
+      "duration_seconds": 6.98
+    },
+    {
+      "text": "Round tables and shelves crowd a wooden room with a patterned rug, a small sleeping room opening behind it beside an equipment-filled workshop.",
+      "file": "7a0771779876462651f0cdc28c7db1326cbd320719871d08a4ec33e6678f76a7.ogg",
+      "duration_seconds": 7.63
+    },
+    {
+      "text": "Uneven stone paths cross a broad cavern among hanging stalactites and green-lit rock walls, narrow shafts of pale light cutting across them.",
+      "file": "97ebcc5061da892aa33a6d1c2c3699507ed5f67392247321dfac7a64aca02346.ogg",
+      "duration_seconds": 8.17
+    },
+    {
+      "text": "A curved upper landing overlooks a mansion hall, with dim rooms of worn furniture opening off it beneath tall, pale-lit windows.",
+      "file": "04b57d854f5edb26a818d924777aae0a8280ce42dc7782d62024876e08f36b68.ogg",
+      "duration_seconds": 7.29
+    },
+    {
+      "text": "Dim, wood-floored rooms open beside a mansion landing, tall windows casting pale light over worn furniture and a narrow central passage.",
+      "file": "986fc7bdb1ab1f4bf63a4e83c6d4ea80d8ecd6b616cef5c5940a7b391cbb78c8.ogg",
+      "duration_seconds": 7.86
+    },
+    {
+      "text": "Tall bookcases crowd a dim stone room, with books and papers covering tables beneath hanging lamps and heavy round containers along the walls.",
+      "file": "6e2b5f4eecb8e84c08c1098b7cd2c9a6d3b9f1bb44109debe167b36a8003938e.ogg",
+      "duration_seconds": 8.23
+    },
+    {
+      "text": "Blue crystal-lined ledges wind above a deep, green-glowing chasm, with dark openings piercing the walls at different heights.",
+      "file": "1648188c78ea73fdec4613e46dd1712d710fd4d93f45e9feec03ab4f1903e52d.ogg",
+      "duration_seconds": 6.67
+    },
+    {
+      "text": "Rounded pools glow blue-white across an iridescent cavern floor, with crystal formations crowding the walls beneath a dark upper opening.",
+      "file": "7471a3a00121826ab950634b98128ae0cdf8bb12dbb1b5d2a92f92ac6071af56.ogg",
+      "duration_seconds": 7.69
+    },
+    {
+      "text": "Snow-laden trees stand close together in a dense forest, a narrow pale path winding between their dark trunks.",
+      "file": "f69695c593d385eca7be3fad6d2577cd5a19044bec096f93d34e1a3049923f33.ogg",
+      "duration_seconds": 6.49
+    },
+    {
+      "text": "A low icy cavern has jagged walls and a snow-covered floor, with bright white light pouring through an opening near the ground.",
+      "file": "2f2853dee4f9461b5778af7328de5d700f610f499b2eae7118538fb1d24e7bf3.ogg",
+      "duration_seconds": 6.56
+    },
+    {
+      "text": "Dark blue rock and ice frame a low cavern passage, with bright white light filling an opening beside the uneven frozen floor.",
+      "file": "49d00ab27444d4df7ffb61ccdfb651543fe25c548c8b4da2636c16c02c350f77.ogg",
+      "duration_seconds": 7.51
+    },
+    {
+      "text": "Blue ice coats stepped rock ledges inside a tall cavern, icicles hanging from the upper edges above a bright opening in the lower wall.",
+      "file": "ad3c2c98c3904279fbffe6734842fc4d24395db506dc4f5296425159ca7401c4.ogg",
+      "duration_seconds": 7.38
+    },
+    {
+      "text": "Thin pale roots spread across greenish ground inside a low, ochre-colored cave enclosed by rounded rock walls.",
+      "file": "12faace73c3db5521bdacb6f10ee9b75b3d0877c8f7921ce56380150e85fc6d2.ogg",
+      "duration_seconds": 6.42
+    },
+    {
+      "text": "Broad, broken rock ledges project from a dark cavern wall above a brilliant, green-lit drop.",
+      "file": "f203e30be16e403dfff248d355f4bb86d4e6abfea4497b09877a112c80cadaa7.ogg",
+      "duration_seconds": 5.07
+    },
+    {
+      "text": "A rough circular opening breaks through the cavern floor, with a short chain of small rock platforms extending over its brilliant green depths.",
+      "file": "2a0fd63b872c91320e4c6678363b65510d5fd1fde4e362ecf32d75bf81357e57.ogg",
+      "duration_seconds": 7.55
+    },
+    {
+      "text": "Separate slabs of rock form a staggered path through a dark void, their jagged undersides outlined in green-blue light.",
+      "file": "baec6841e6f0bbaf37dd10a484d8116045c78011936c4684f0d66d5730eb71c0.ogg",
+      "duration_seconds": 6.64
+    },
+    {
+      "text": "Scattered rock fragments surround a large green-blue crystal formation, pale square tiles covering part of its upper surface.",
+      "file": "3fb6c9b49d7cd2f6f39fb8bb08a55d4d5f9d2e1ad8aa4bcead222235a953a455.ogg",
+      "duration_seconds": 7.3
+    },
+    {
+      "text": "A small wooden bedroom sits beneath a steep, snow-covered roof, a bedside lamp lighting a double bed with patterned covers.",
+      "file": "73ce89a9b9d06629c8f24d9e41829515cdad73621657ee2f5c9afc0c91c5f1f5.ogg",
+      "duration_seconds": 7.03
+    },
+    {
+      "text": "An L-shaped bar and round wooden tables fill a stone-floored cellar, with stairs rising along the back wall and warm lamps brightening the room.",
+      "file": "cad4b78c808e46933fb96de68b3e60a0b160a69f75dc2bd909e742cfce8ab267.ogg",
+      "duration_seconds": 8.35
+    },
+    {
+      "text": "Steep-roofed wooden houses line snowy paths among bare trees, warm windows glowing beneath deep snow with a massive ice wall behind the village.",
+      "file": "ab224f50863eb12761a819244155eb2ab85f5837996f7118b57be569740d0793.ogg",
+      "duration_seconds": 8.84
+    },
+    {
+      "text": "Jagged gray rock ledges cross a barren landscape beneath a towering pale cliff, a green-lit chasm opening along the lower edge.",
+      "file": "1f08f98268e0769f051e5e5474ebe3cb56e19623360184c496d36ed4b409fc18.ogg",
+      "duration_seconds": 7.53
+    },
+    {
+      "text": "The room dims. Glowing planets and orbital paths appear above.",
+      "file": "d2b44bc5ec9644398c842c656cc4fd1322cfbc3dfcb0ac89135eb0fd23658ebc.ogg",
+      "duration_seconds": 3.6
+    },
+    {
+      "text": "The coffin opens.",
+      "file": "1a707fcd0ec423da774393dd3fe64eaa7518ef84c9a1f7c8781f3c507a2d9a3c.ogg",
+      "duration_seconds": 1.26
+    },
+    {
+      "text": "Sephiroth moves away and disappears.",
+      "file": "12ff03eec748be055ed6fb58d33049976c69de10e70369c95905b6ccb97c5491.ogg",
+      "duration_seconds": 2.38
+    },
+    {
+      "text": "Palmer appears.",
+      "file": "4247ff5b7795181eaa16be574088904002deb0796e50584d533f2c3ad13f2070.ogg",
+      "duration_seconds": 1.2
+    },
+    {
+      "text": "Sephiroth appears.",
+      "file": "c8be98b64cb02f06b8ca129c06ced3628736511d783331b24a8642f70281aa5a.ogg",
+      "duration_seconds": 1.32
     }
   ]
 }

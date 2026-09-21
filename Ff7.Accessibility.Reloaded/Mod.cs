@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -288,7 +288,7 @@ public sealed class Mod : IModV1, IModV2
     private readonly HashSet<string> loggedLoadedFieldScriptIdentities = [];
     private EchoSFieldCutsceneDescriptionTracker fieldCutsceneDescriptionTracker = new();
     private readonly FieldAreaDescriptionColdStartTracker fieldAreaDescriptionColdStart =
-        new(FieldCutsceneDescriptionCatalog.CreateGoldSaucerAreaDescriptions());
+        new(FieldCutsceneDescriptionCatalog.CreateAllAreaDescriptions());
     private readonly EchoSDisclaimerSpeechTracker echoSDisclaimerSpeechTracker = new();
     private readonly EchoSReactorTimerOverrideTracker echoSReactorTimerOverrideTracker = new();
     private readonly FieldCutsceneSpeechPriority fieldCutsceneSpeechPriority = new();
@@ -5772,6 +5772,19 @@ public sealed class Mod : IModV1, IModV2
                 lastNavigationSpeechAt = now;
             }
 
+            // A destination held for a shut door has just started. If the player asked to
+            // be walked there rather than told the way, honour that now and only now.
+            if (fieldNavigationController.TryConsumeHeldAutoWalkRequest() &&
+                navigationAutoWalkController?.TryStart(
+                    NavigationAutoWalkDomain.Field,
+                    routeActive: true) == true)
+            {
+                fieldAutoWalkConvergence.Reset();
+                Log("Field navigation auto walk started for a destination that was held shut.");
+                Speak("Auto walk on.", interrupt: true);
+                lastNavigationSpeechAt = now;
+            }
+
             if (config.EnableFieldNavigationDiagnostics &&
                 fieldNavigationController.CurrentRouteGuidance is { } guidance)
             {
@@ -6397,7 +6410,9 @@ public sealed class Mod : IModV1, IModV2
                     return true;
                 },
                 StopEveryControllerAutoWalk,
-                () => navigationAutoWalkController?.Suspend()),
+                () => navigationAutoWalkController?.Suspend(),
+                () => fieldNavigationController.IsHoldingForNativeBoundary,
+                fieldNavigationController.RequestAutoWalkForHeldRoute),
             speech => Speak(speech, interrupt: true),
             Log);
 
@@ -6581,6 +6596,14 @@ public sealed class Mod : IModV1, IModV2
                 Speak(value.Speech);
                 lastNavigationSpeechAt = now;
             }
+        }
+
+        if (fieldNavigationController.IsHoldingForNativeBoundary)
+        {
+            // The way is shut for now. Remember this was a walk and drive nothing; the
+            // held destination starts it when the game opens the door.
+            fieldNavigationController.RequestAutoWalkForHeldRoute();
+            return;
         }
 
         if (fieldNavigationController.BeaconEnabled &&

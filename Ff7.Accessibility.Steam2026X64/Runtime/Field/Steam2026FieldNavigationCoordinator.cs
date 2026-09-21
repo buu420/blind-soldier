@@ -1,4 +1,4 @@
-using Ff7.Accessibility.Core;
+﻿using Ff7.Accessibility.Core;
 using Ff7.Accessibility.LegacyLayout;
 using Ff7.Accessibility.Reloaded;
 using Ff7.Accessibility.Runtime.Abstractions;
@@ -375,7 +375,9 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                     return true;
                 },
                 StopEveryControllerAutoWalk,
-                () => autoWalk.Suspend()),
+                () => autoWalk.Suspend(),
+                () => controller.IsHoldingForNativeBoundary,
+                controller.RequestAutoWalkForHeldRoute),
             speech => { Speak(speech, interrupt: true, controllerNowUtc, "controller"); return true; },
             log);
 
@@ -738,14 +740,18 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             }
 
             var coherence = resolvedCoherence;
-            if (pendingAutoWalkStart && !controller.BeaconEnabled && !autoWalkRouteToggleQueued)
+            if (FieldNavigationAutoWalkIntent.ShouldQueueAutoWalkToggle(
+                    pendingAutoWalkStart,
+                    controller.BeaconEnabled,
+                    controller.IsHoldingForNativeBoundary,
+                    autoWalkRouteToggleQueued))
             {
                 pendingActions.Capture([FieldNavigationAction.ToggleBeacon]);
                 autoWalkRouteToggleQueued = true;
             }
             if (pendingActions.TryTakeEmergencyBeaconOff(
                     position.FieldId,
-                    controller.BeaconEnabled,
+                    controller.BeaconEnabled || controller.IsHoldingForNativeBoundary,
                     out var beaconOffAction))
             {
                 var beaconOff = controller.HandleAction(beaconOffAction, position, control);
@@ -785,12 +791,20 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                     autoWalkRouteToggleQueued = false;
                     if (!controller.BeaconEnabled)
                     {
+                        // A shut door does not cancel the walk the player asked for: the
+                        // request moves onto the hold and is honoured when it opens.
+                        if (controller.IsHoldingForNativeBoundary)
+                        {
+                            controller.RequestAutoWalkForHeldRoute();
+                        }
+
                         pendingAutoWalkStart = false;
                     }
                 }
             }
 
-            if (pendingAutoWalkStart && controller.BeaconEnabled &&
+            if ((pendingAutoWalkStart || controller.TryConsumeHeldAutoWalkRequest()) &&
+                controller.BeaconEnabled &&
                 autoWalk.TryStart(NavigationAutoWalkDomain.Field, routeActive: true))
             {
                 autoWalkConvergence.Reset();

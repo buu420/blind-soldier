@@ -1,4 +1,4 @@
-namespace Ff7.Accessibility.Reloaded;
+﻿namespace Ff7.Accessibility.Reloaded;
 
 public readonly record struct WorldMapRouteWaypoint(int X, int Y, int Z);
 
@@ -74,6 +74,71 @@ public sealed class WorldMapRoutePlanner
     }
 
     public string LastDiagnostic { get; private set; } = string.Empty;
+
+    /// <summary>
+    /// Triangles the native world script turns into a field entry, from
+    /// <see cref="WorldMapTargetCatalog.EntranceTriangleIds"/>. Routing, segment clearance
+    /// and the controller's own step probe all consult the same set, so a shortcut, a
+    /// detour and an automatic key press cannot disagree about where a zone starts.
+    /// Empty by default, which is exactly the behaviour that shipped.
+    /// </summary>
+    public IReadOnlySet<int> EntranceTriangleIds { get; set; } = new HashSet<int>();
+
+    /// <summary>
+    /// Whether walking onto this triangle would enter a field the player did not ask for.
+    ///
+    /// <para>Only a selected place's own entrance is exempt - see
+    /// <see cref="WorldMapNavigationTarget.NativeEntranceExemptions"/>, which is empty for
+    /// anything that is not a location or its story copy. A vehicle or a chocobo track that
+    /// happens to sit in a trigger cell does not license entering that zone.</para>
+    ///
+    /// <para>The triangle the party is already standing on is never closed to them, so a
+    /// party that starts on a trigger can still be walked off it.</para>
+    /// </summary>
+    public bool IsUnwantedEntrance(int triangleId, IReadOnlySet<int>? exemptTriangles, int startTriangle = -1) =>
+        EntranceTriangleIds.Count > 0 &&
+        triangleId != startTriangle &&
+        EntranceTriangleIds.Contains(triangleId) &&
+        exemptTriangles?.Contains(triangleId) != true;
+
+    /// <summary>
+    /// The exemptions that apply to a route starting here: the destination's own entrance,
+    /// plus the whole trigger the party is already standing in.
+    ///
+    /// <para>A native trigger is a mesh cell, not one triangle - Gongaga's is sixty-four of
+    /// them. Exempting only the single triangle under the party walls them inside their own
+    /// doorway with no way out at all. Crossing the rest of that same trigger enters nothing
+    /// new either: FUN_00765F61 fires a terrain handler only when the script id under the
+    /// party <em>changes</em>, and clears its latch only on a script below 3, so moving
+    /// within one script-7 cell cannot re-trigger it.</para>
+    /// </summary>
+    private IReadOnlySet<int> ResolveEscapeExemptions(int startTriangle, IReadOnlySet<int>? exempt)
+    {
+        if (EntranceTriangleIds.Count == 0 ||
+            startTriangle < 0 ||
+            !EntranceTriangleIds.Contains(startTriangle))
+        {
+            return exempt ?? EmptyExemptions;
+        }
+
+        var escape = new HashSet<int>(exempt ?? EmptyExemptions) { startTriangle };
+        var pending = new Queue<int>();
+        pending.Enqueue(startTriangle);
+        while (pending.TryDequeue(out var current))
+        {
+            foreach (var neighbor in map.Triangles[current].Neighbors)
+            {
+                if (EntranceTriangleIds.Contains(neighbor) && escape.Add(neighbor))
+                {
+                    pending.Enqueue(neighbor);
+                }
+            }
+        }
+
+        return escape;
+    }
+
+    private static readonly IReadOnlySet<int> EmptyExemptions = new HashSet<int>();
 
     public bool TryResolvePlayerTriangle(WorldMapStateSnapshot state, out int triangleId)
     {
@@ -166,11 +231,20 @@ public sealed class WorldMapRoutePlanner
             return false;
         }
 
-        if (!TryFindTrianglePath(state, startTriangle, goals, out var path, out var targetTriangle))
+        // Route around every other place's entrance. There is no fallback: a route that
+        // walks the party into a town they did not ask for is not a success, and the step
+        // probe would refuse it anyway, so the two would disagree. A truthful "no safe
+        // route" is the only other answer.
+        var exemptEntrances = ResolveEscapeExemptions(startTriangle, target.NativeEntranceExemptions);
+        if (!TryFindTrianglePath(
+                state, startTriangle, goals, exemptEntrances, out var path, out var targetTriangle))
         {
-            LastDiagnostic =
-                $"no native route from triangle {startTriangle} to {target.Label} " +
-                $"for model {state.PlayerModelId}";
+            LastDiagnostic = EntranceTriangleIds.Count > 0 &&
+                             TryFindTrianglePath(state, startTriangle, goals, null, out _, out _)
+                ? $"no route to {target.Label} for model {state.PlayerModelId} that avoids " +
+                  "another native field entrance"
+                : $"no native route from triangle {startTriangle} to {target.Label} " +
+                  $"for model {state.PlayerModelId}";
             return false;
         }
 
@@ -221,7 +295,16 @@ public sealed class WorldMapRoutePlanner
         return reachable;
     }
 
-    internal bool CanTraverseSegment(WorldMapStateSnapshot state, WorldMapRouteWaypoint destination)
+    /// <param name="exemptEntrances">
+    /// The selected destination's own arrival triangles, when there is one. Supplying it
+    /// makes the segment refuse to cross any other native field entrance, which is what
+    /// keeps a walk to a parked vehicle out of the neighbouring town.
+    /// </param>
+    internal bool CanTraverseSegment(
+        WorldMapStateSnapshot state,
+        WorldMapRouteWaypoint destination,
+        int? destinationTriangle = null,
+        IReadOnlySet<int>? exemptEntrances = null)
     {
         if (!TryResolvePlayerTriangle(state, out var startTriangle))
         {
@@ -235,6 +318,12 @@ public sealed class WorldMapRoutePlanner
             return true;
         }
 
+        // A null exempt set still means "this caller is not avoiding entrances at all".
+        if (exemptEntrances is not null)
+        {
+            exemptEntrances = ResolveEscapeExemptions(startTriangle, exemptEntrances);
+        }
+
         var end = Unwrap(destination, state.X, state.Z);
         var pending = new Queue<(int TriangleId, double EnteredAt)>();
         var entered = new Dictionary<int, double> { [startTriangle] = 0d };
@@ -243,13 +332,15 @@ public sealed class WorldMapRoutePlanner
         {
             var triangle = map.Triangles[current.TriangleId];
             if (!WorldMapTerrainPassability.CanTraverse(state.PlayerModelId, state.WorldMapType, triangle.TerrainId) ||
+                (exemptEntrances is not null &&
+                 IsUnwantedEntrance(current.TriangleId, exemptEntrances, startTriangle)) ||
                 !TryClipSegment(triangle, state, end, out var first, out var last) ||
                 current.EnteredAt < first - 1e-7 || current.EnteredAt > last + 1e-7)
             {
                 continue;
             }
 
-            if (last >= 1d - 1e-7)
+            if (last >= 1d - 1e-7 && (destinationTriangle is null || current.TriangleId == destinationTriangle))
             {
                 return true;
             }
@@ -392,6 +483,7 @@ public sealed class WorldMapRoutePlanner
         WorldMapStateSnapshot state,
         int start,
         IReadOnlySet<int> goals,
+        IReadOnlySet<int>? exemptEntrances,
         out IReadOnlyList<int> path,
         out int target)
     {
@@ -437,7 +529,9 @@ public sealed class WorldMapRoutePlanner
                 if (!WorldMapTerrainPassability.CanTraverse(
                         state.PlayerModelId,
                         state.WorldMapType,
-                        next.TerrainId))
+                        next.TerrainId) ||
+                    (exemptEntrances is not null &&
+                     IsUnwantedEntrance(neighbor, exemptEntrances, start)))
                 {
                     continue;
                 }

@@ -1,4 +1,4 @@
-namespace Ff7.Accessibility.Reloaded;
+﻿namespace Ff7.Accessibility.Reloaded;
 
 public enum FieldNavigationAction
 {
@@ -237,6 +237,16 @@ public sealed class FieldNavigationController
         TimeSpan.FromMilliseconds(120);
     private string beaconTargetId = string.Empty;
     private string beaconTargetLabel = string.Empty;
+
+    /// <summary>
+    /// A destination the player asked for while the game was holding its way shut. Cosmo
+    /// Canyon's observatory is the reported case: Bugenhagen locks the door down for the
+    /// length of his lecture and the research centre's upper door while he walks the party
+    /// in. Cancelling there left a blind player with no destination and no way to know the
+    /// door had opened, so the selection is kept and started the moment it does.
+    /// </summary>
+    private FieldNavigationTarget? pendingBoundaryTarget;
+    private bool heldAutoWalkRequested;
     private FieldNavigationCategory beaconCategory;
     private int beaconFieldId = -1;
     private int[] beaconDestinationFieldIds = [];
@@ -445,7 +455,137 @@ public sealed class FieldNavigationController
 
     public void Reset()
     {
+        CancelHeldBoundaryTarget();
         ResetCore(deactivateProgress: true);
+    }
+
+    /// <summary>
+    /// Whether the last route attempt failed only because the game is currently holding a
+    /// native walkmesh boundary shut, rather than because there is no such route.
+    /// </summary>
+    public bool LastRouteFailureWasNativeBoundary =>
+        routePlanner is IFieldNavigationNativeBoundaryStatus status &&
+        status.LastFailureWasNativeBoundary;
+
+    /// <summary>The destination being held until the game opens its way, if any.</summary>
+    public string HeldForNativeBoundaryLabel => pendingBoundaryTarget?.Label ?? string.Empty;
+
+    /// <summary>
+    /// A destination is selected and waiting for the game to open its way.
+    ///
+    /// <para>Callers that ask "is navigation engaged" must test this as well as
+    /// <see cref="BeaconEnabled"/>. A hold is pending intent, not a movement route: no input
+    /// is produced while it waits, but B must still cancel it, changing the selection must
+    /// still replace it, and an auto-walk request must survive it.</para>
+    /// </summary>
+    public bool IsHoldingForNativeBoundary => pendingBoundaryTarget is not null;
+
+    /// <summary>
+    /// Records that the player asked to be walked there, not merely told the way. Ignored
+    /// unless a hold is actually armed, so a plain speech selection can never turn into a
+    /// walk by itself.
+    /// </summary>
+    public void RequestAutoWalkForHeldRoute() =>
+        heldAutoWalkRequested = pendingBoundaryTarget is not null;
+
+    /// <summary>
+    /// Whether the held destination that has just started was an auto-walk request. Taken
+    /// once: the caller starts the walk, and a later frame must not start it again.
+    /// </summary>
+    public bool TryConsumeHeldAutoWalkRequest()
+    {
+        if (!heldAutoWalkRequested || !BeaconEnabled)
+        {
+            return false;
+        }
+
+        heldAutoWalkRequested = false;
+        return true;
+    }
+
+    /// <summary>
+    /// Cancels a held destination. Used by B, by a repeated toggle, and by anything that
+    /// replaces or invalidates the selection.
+    /// </summary>
+    public bool CancelHeldBoundaryTarget()
+    {
+        if (pendingBoundaryTarget is null)
+        {
+            heldAutoWalkRequested = false;
+            return false;
+        }
+
+        pendingBoundaryTarget = null;
+        heldAutoWalkRequested = false;
+        return true;
+    }
+
+    /// <summary>
+    /// The player moved the selection. A destination held for a shut door belongs to the
+    /// selection they left, so it must not activate behind the new one.
+    /// </summary>
+    private void DropHeldBoundaryTargetOnSelectionChange(FieldPositionSnapshot position)
+    {
+        if (pendingBoundaryTarget is not { } held)
+        {
+            return;
+        }
+
+        var selected = GetSelectedTarget(position);
+        if (selected is null ||
+            !string.Equals(GetTargetId(selected.Value), GetTargetId(held), StringComparison.Ordinal))
+        {
+            CancelHeldBoundaryTarget();
+        }
+    }
+
+    private FieldNavigationActionResult? TryStartHeldBoundaryRoute(
+        FieldPositionSnapshot position,
+        FieldNavigationControlTransform controlTransform,
+        FieldLadderStateSnapshot ladderState)
+    {
+        if (pendingBoundaryTarget is not { } held)
+        {
+            return null;
+        }
+
+        if (!FieldPositionReader.IsUsable(position))
+        {
+            return null;
+        }
+
+        if (position.FieldId != held.FieldId)
+        {
+            // Left the screen the door belongs to. Nothing is owed here.
+            CancelHeldBoundaryTarget();
+            return null;
+        }
+
+        // TryLockBeacon resets first, and a reset clears the hold along with everything
+        // else. The player asked to be walked there before the door opened; that request
+        // has to survive the mechanics of starting the route it belongs to.
+        var walkWasRequested = heldAutoWalkRequested;
+        if (!TryLockBeacon(held, position, ladderState))
+        {
+            if (LastRouteFailureWasNativeBoundary)
+            {
+                pendingBoundaryTarget = held;
+                heldAutoWalkRequested = walkWasRequested;
+                return null;
+            }
+
+            CancelHeldBoundaryTarget();
+            return new FieldNavigationActionResult(
+                $"Route unavailable to {held.Label}. Navigation off.");
+        }
+
+        pendingBoundaryTarget = null;
+        heldAutoWalkRequested = walkWasRequested;
+        var guidance = CreateSpokenGuidance(position, controlTransform, arrivalDistanceUnits: 0);
+        return new FieldNavigationActionResult(
+            guidance is null
+                ? $"The way to {held.Label} is open. Navigation on."
+                : $"The way to {held.Label} is open. Navigation on. {guidance.Value.Speech}.");
     }
 
     private void ResetCore(bool deactivateProgress)
@@ -517,18 +657,22 @@ public sealed class FieldNavigationController
         {
             case FieldNavigationAction.PreviousCategory:
                 MoveCategory(-1);
+                DropHeldBoundaryTargetOnSelectionChange(position);
                 RelockBeaconToSelection(position);
                 return DescribeCurrentSelection(position, controlTransform, ladderState);
             case FieldNavigationAction.NextCategory:
                 MoveCategory(1);
+                DropHeldBoundaryTargetOnSelectionChange(position);
                 RelockBeaconToSelection(position);
                 return DescribeCurrentSelection(position, controlTransform, ladderState);
             case FieldNavigationAction.PreviousTarget:
                 MoveTarget(position, -1);
+                DropHeldBoundaryTargetOnSelectionChange(position);
                 RelockBeaconToSelection(position);
                 return DescribeCurrentSelection(position, controlTransform, ladderState);
             case FieldNavigationAction.NextTarget:
                 MoveTarget(position, 1);
+                DropHeldBoundaryTargetOnSelectionChange(position);
                 RelockBeaconToSelection(position);
                 return DescribeCurrentSelection(position, controlTransform, ladderState);
             case FieldNavigationAction.RepeatTarget:
@@ -552,6 +696,11 @@ public sealed class FieldNavigationController
                     return new FieldNavigationActionResult("Navigation off.");
                 }
 
+                if (CancelHeldBoundaryTarget())
+                {
+                    return new FieldNavigationActionResult("Navigation off.");
+                }
+
                 var target = GetSelectedTarget(position);
                 if (target is null)
                 {
@@ -566,9 +715,24 @@ public sealed class FieldNavigationController
 
                 if (!TryLockBeacon(target.Value, position, ladderState))
                 {
+                    if (LastRouteFailureWasNativeBoundary)
+                    {
+                        // Nothing routes through the lock and nothing pretends it is
+                        // open. The destination is held and started when the game
+                        // releases it, which is the information a sighted player gets
+                        // from watching the door.
+                        pendingBoundaryTarget = target.Value;
+                        return new FieldNavigationActionResult(
+                            $"{target.Value.Label}. The way is shut just now. " +
+                            "Navigation will start when it opens.");
+                    }
+
+                    CancelHeldBoundaryTarget();
                     return new FieldNavigationActionResult(
                         $"Route unavailable to {target.Value.Label}. Navigation off.");
                 }
+
+                CancelHeldBoundaryTarget();
 
                 var initialGuidance = controlTransform is null
                     ? null
@@ -593,7 +757,11 @@ public sealed class FieldNavigationController
     {
         if (!BeaconEnabled)
         {
-            return null;
+            // Not while the game owns the speech. Bugenhagen's door opens mid-line, and
+            // announcing over voiced dialogue is its own defect; the hold simply waits.
+            return isSuppressed
+                ? null
+                : TryStartHeldBoundaryRoute(position, controlTransform, ladderState);
         }
 
         if (!FieldPositionReader.IsUsable(position))

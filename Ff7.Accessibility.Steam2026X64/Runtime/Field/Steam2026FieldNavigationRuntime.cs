@@ -1,4 +1,4 @@
-using Ff7.Accessibility.Core;
+﻿using Ff7.Accessibility.Core;
 using Ff7.Accessibility.Reloaded;
 
 namespace Ff7.Accessibility.Steam2026X64.Runtime.Field;

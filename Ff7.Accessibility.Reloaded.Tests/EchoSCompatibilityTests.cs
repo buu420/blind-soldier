@@ -1,4 +1,4 @@
-using Ff7.Accessibility.Reloaded;
+﻿using Ff7.Accessibility.Reloaded;
 using Ff7.Accessibility.LegacyLayout;
 using System.Buffers.Binary;
 using System.Security.Cryptography;
@@ -76,7 +76,9 @@ internal static class EchoSCompatibilityTests
             729, 730, 763, 774, 777, 779,
             // The sites the script call graph resolved: the first plays of the bike
             // and Seto films and three further ones.
-            234, 236, 543, 550, 742 };
+            234, 236, 543, 550, 742,
+            // Cosmo Canyon, the Cave of the Gi and Nibelheim, from the 2026-09-21 batch.
+            284, 298, 303, 308, 525, 526, 531, 540, 544, 547, 549 };
         var cues = FieldCutsceneDescriptionCatalog.CreateEarlyGameDescriptions();
         foreach (var fieldId in fieldIds)
         {
