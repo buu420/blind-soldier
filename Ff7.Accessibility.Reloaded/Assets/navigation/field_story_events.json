@@ -5,7 +5,7 @@
   "scannedGameMomentWrites": 334,
   "navigableGameMomentWrites": 118,
   "unresolvedAutomaticOrIndirectWrites": 219,
-  "definitionCount": 1111,
+  "definitionCount": 1112,
   "definitions": [
     {
       "fieldId": 115,
@@ -35376,6 +35376,43 @@
           "value": 0
         }
       ]
+    },
+    {
+      "fieldId": 544,
+      "kind": "Model",
+      "label": "Talk to Red XIII",
+      "entityId": 5,
+      "x": 0,
+      "y": 0,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 469,
+      "maximumGameMoment": 492,
+      "priority": 0,
+      "sourceFieldName": "bugin2",
+      "sourceEntityName": "RED",
+      "sourceScriptType": "Talk",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 161,
+          "mask": 8,
+          "value": 8
+        },
+        {
+          "bank": 3,
+          "address": 170,
+          "mask": 1,
+          "value": 0
+        }
+      ],
+      "completedCondition": {
+        "bank": 3,
+        "address": 170,
+        "mask": 1,
+        "value": 1
+      }
     }
   ]
 }

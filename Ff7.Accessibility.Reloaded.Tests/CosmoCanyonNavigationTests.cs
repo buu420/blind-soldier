@@ -489,17 +489,25 @@ internal static class CosmoCanyonNavigationTests
 
         var shut = controller.HandleAction(FieldNavigationAction.ToggleBeacon, ObservatoryStall, transform);
         Contains("shut just now", shut?.Speech, "a locked door must be explained, not reported as missing");
-        Equal(false, controller.BeaconEnabled, "nothing is walked while the door is shut");
         Equal(WayBackDown.Label, controller.HeldForNativeBoundaryLabel,
             "the destination must be kept, not cancelled");
 
-        // Still shut: silent, still held. This is the interval the log spends repeating
-        // "Route unavailable ... Navigation off" every time the player asks.
+        // This case used to assert that nothing was walked anywhere while the door was
+        // shut. That was the wrong contract for this particular door, and holding to it is
+        // what left the player waiting for an event that could not happen: 541's lock is
+        // released by entity 15 LINEW script 5, which only runs when the party crosses the
+        // line it declares. The approach to that line is started here; what must still be
+        // true is that the destination is kept and that the real route is what eventually
+        // starts. ObservatoryApproachNavigationTests owns the approach behaviour itself.
+        Equal(WayBackDown.Label, controller.HeldForNativeBoundaryLabel,
+            "the real destination is still the one being waited for");
+
+        // Still shut: still held. The approach may speak its own guidance, but the held
+        // destination must not be cancelled or completed while the door stays locked.
         for (var sample = 0; sample < 5; sample++)
         {
-            Equal(null, controller.UpdateLiveTracking(
-                ObservatoryStall, default, transform, isSuppressed: false)?.Speech,
-                "a held destination must not chatter while the door stays shut");
+            controller.UpdateLiveTracking(
+                ObservatoryStall, default, transform, isSuppressed: false);
             Equal(WayBackDown.Label, controller.HeldForNativeBoundaryLabel, "the hold must survive");
         }
 

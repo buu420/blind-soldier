@@ -417,7 +417,8 @@ public static class FieldNavigationCorridorLookahead
                 (int)Math.Round((endpoint.Z + entryMidpoint.Z) * 0.375d + exitMidpoint.Z * 0.25d));
             var continuation = stableWaypoints[continuationIndex].Waypoint;
             var entryTrace = FieldWalkmeshPathfinder.TraceWalkableSegment(
-                walkmesh, resolvedTriangle, current, candidate, isTriangleBlocked);
+                walkmesh, resolvedTriangle, current, candidate, isTriangleBlocked,
+                allowStartingEdgeCrossing: true);
             if (!entryTrace.IsClear || entryTrace.EndTriangle != entry.ToTriangle ||
                 FieldNavigationDynamicObstacleGeometry.IntersectsAny(current, candidate, dynamicObstacles))
             {

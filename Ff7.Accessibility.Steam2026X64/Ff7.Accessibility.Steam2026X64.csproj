@@ -1007,6 +1007,8 @@
     <Compile Include="..\Ff7.Accessibility.Reloaded\WorldMapVehicleObstacles.cs" Link="Shared\WorldMapVehicleObstacles.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldNavigationAutoWalkIntent.cs" Link="Shared\FieldNavigationAutoWalkIntent.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldCutsceneContinuationDescriptions.cs" Link="Shared\FieldCutsceneContinuationDescriptions.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldMotionActionDescriptions.cs" Link="Shared\FieldMotionActionDescriptions.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldNativeDoorOpeningLines.cs" Link="Shared\FieldNativeDoorOpeningLines.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\WorldMapVehicleDetourPlanner.cs" Link="Shared\WorldMapVehicleDetourPlanner.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\WorldMapEntranceProximityCueTracker.cs" Link="Shared\WorldMapEntranceProximityCueTracker.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\WorldMapRuntimeContext.cs" Link="Shared\WorldMapRuntimeContext.cs" />

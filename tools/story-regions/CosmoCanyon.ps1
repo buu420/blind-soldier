@@ -154,6 +154,24 @@ foreach ($pass in @(
         -TriggerLine ([ordered]@{ startX=-224; startY=164; startZ=-16; endX=-196; endY=233; endZ=-9 })
 }
 
+# --- The observatory, the first time ---------------------------------------------
+# Until the scene in bugin2 has played, the room has exactly one step in it, and the
+# catalog did not have it: a player standing in Bugenhagen's house with Red XIII in
+# front of them was told Story: none.
+#
+# bugin2/RED 5 Init is the gate, and it is a complete one. It returns at once unless
+# Bank[3][161] bit 3 is set - Red XIII has to have been spoken to down in the canyon
+# first - and returns again once Bank[3][170] bit 0 is set. Only between those two does
+# it reach TLKON, VISI and the two IDLCKs at 38 and 42 that hold triangles 23 and 18
+# while he is standing there. His Talk is three bytes: REQ AD 10 Script 3, and it is
+# that script's only caller. AD 3 plays the whole introduction and sets Bank[3][170]
+# bit 0 at byte 102, so the flag that hides him again is the flag the scene writes.
+Add-Definition @cosmoFirstVisit -FieldId 544 -FieldName 'bugin2' -Kind Model -EntityId 5 `
+    -Label 'Talk to Red XIII' `
+    -RequiredConditions @($cosmoRedSpoken, $cosmoObservatoryUnseen) `
+    -CompletedCondition $cosmoObservatorySeen `
+    -EntityName 'RED' -ScriptType 'Talk'
+
 # --- Back down again to choose who comes -----------------------------------------
 # The first observatory scene ends with the party standing inside bugin2 as Cloud
 # alone. The companions are in four rooms scattered through the canyon, so the way to

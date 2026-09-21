@@ -1431,6 +1431,15 @@ public sealed class Mod : IModV1, IModV2
                 fieldNavigationCadence,
                 fieldFootstepDistanceProbe.GetFieldSummary(fieldId)),
             fieldNavigationProgressSink);
+
+        // The two Cosmo observatory doors are released by native LINE scripts, and the
+        // game switches those lines on and off. Reading the live state is what keeps the
+        // approach from walking the party to a trigger that is currently dead; a state
+        // that cannot be read is not a promise either, so it answers null.
+        fieldNavigationController.NativeLineIsEnabled = (_, entityId) =>
+            fieldScriptLineStateReader is { } lines && lines.TryRead(entityId, out var enabled)
+                ? enabled
+                : null;
         Log(
             $"Field exits initialized from all {FieldGatewayTargetReader.GatewayCount} native trigger gateway records " +
             "plus live-enabled, line-triggered MAPJUMP scripts " +

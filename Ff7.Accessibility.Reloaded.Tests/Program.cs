@@ -1,4 +1,4 @@
-using System.Drawing;
+﻿using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using Ff7.Accessibility.Core;
@@ -548,10 +548,14 @@ if (args.Contains("--gongaga-navigation-only", StringComparer.OrdinalIgnoreCase)
 {
     Ff7.Accessibility.Reloaded.Tests.GongagaNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
     Ff7.Accessibility.Reloaded.Tests.CosmoCanyonNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
+    Ff7.Accessibility.Reloaded.Tests.ObservatoryApproachNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
+    Ff7.Accessibility.Reloaded.Tests.CosmoObservatoryStoryTests.Run();
     Ff7.Accessibility.Reloaded.Tests.CosmoNibelheimDescriptionTests.Run();
     Ff7.Accessibility.Reloaded.Tests.ContinuationDescriptionTests.RunCatalogAndNative();
     Ff7.Accessibility.Reloaded.Tests.ContinuationFingerprintTests.Run();
     Ff7.Accessibility.Reloaded.Tests.ContinuationMovieOverlapTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.MotionActionDescriptionTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.MotionActionDescriptionTests.RunAgainstInstalledArchive();
     Console.WriteLine("FFVII Gongaga navigation tests passed.");
     return;
 }
@@ -561,8 +565,11 @@ if (args.Contains("--continuation-descriptions-only", StringComparer.OrdinalIgno
     Ff7.Accessibility.Reloaded.Tests.ContinuationDescriptionTests.RunCatalogAndNative();
     Ff7.Accessibility.Reloaded.Tests.ContinuationFingerprintTests.Run();
     Ff7.Accessibility.Reloaded.Tests.ContinuationMovieOverlapTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.MotionActionDescriptionTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.MotionActionDescriptionTests.RunAgainstInstalledArchive();
     Console.WriteLine("FFVII continuation description catalog and native tests passed.");
     Ff7.Accessibility.Reloaded.Tests.ContinuationDescriptionTests.RunPayloadReadiness();
+    Ff7.Accessibility.Reloaded.Tests.MotionActionDescriptionTests.RunPayloadReadiness();
     return;
 }
 
@@ -601,10 +608,14 @@ if (args.Contains("--description-inventory", StringComparer.OrdinalIgnoreCase))
 if (args.Contains("--cosmo-navigation-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.CosmoCanyonNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
+    Ff7.Accessibility.Reloaded.Tests.ObservatoryApproachNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
+    Ff7.Accessibility.Reloaded.Tests.CosmoObservatoryStoryTests.Run();
     Ff7.Accessibility.Reloaded.Tests.CosmoNibelheimDescriptionTests.Run();
     Ff7.Accessibility.Reloaded.Tests.ContinuationDescriptionTests.RunCatalogAndNative();
     Ff7.Accessibility.Reloaded.Tests.ContinuationFingerprintTests.Run();
     Ff7.Accessibility.Reloaded.Tests.ContinuationMovieOverlapTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.MotionActionDescriptionTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.MotionActionDescriptionTests.RunAgainstInstalledArchive();
     Console.WriteLine("FFVII Cosmo Canyon navigation tests passed.");
     return;
 }
@@ -820,10 +831,14 @@ CargoShipNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.CostaDelSolNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.GongagaNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.CosmoCanyonNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
+Ff7.Accessibility.Reloaded.Tests.ObservatoryApproachNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
+Ff7.Accessibility.Reloaded.Tests.CosmoObservatoryStoryTests.Run();
 Ff7.Accessibility.Reloaded.Tests.CosmoNibelheimDescriptionTests.Run();
 Ff7.Accessibility.Reloaded.Tests.ContinuationDescriptionTests.RunCatalogAndNative();
 Ff7.Accessibility.Reloaded.Tests.ContinuationFingerprintTests.Run();
 Ff7.Accessibility.Reloaded.Tests.ContinuationMovieOverlapTests.Run();
+Ff7.Accessibility.Reloaded.Tests.MotionActionDescriptionTests.Run();
+Ff7.Accessibility.Reloaded.Tests.MotionActionDescriptionTests.RunAgainstInstalledArchive();
 Ff7.Accessibility.Reloaded.Tests.HugeMateriaContactTests.Run(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.SubmarineMissionTests.Run();
 Ff7.Accessibility.Reloaded.Tests.Reactor5ButtonCueTests.Run();

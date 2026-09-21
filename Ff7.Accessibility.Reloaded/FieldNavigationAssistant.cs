@@ -247,6 +247,20 @@ public sealed class FieldNavigationController
     /// </summary>
     private FieldNavigationTarget? pendingBoundaryTarget;
     private bool heldAutoWalkRequested;
+
+    /// <summary>
+    /// The active route is the walk to the line that opens a held door, not the held
+    /// destination itself. Cosmo Canyon's observatory doors are released by a native LINE
+    /// script the party has to cross; standing still never opens them.
+    /// </summary>
+    private bool beaconIsBoundaryApproach;
+
+    /// <summary>
+    /// The approach to a door-opening line was started as a walk. The request is consumed
+    /// to walk that leg, so it has to be re-armed when the destination's own route starts
+    /// or "walk me there" would stop at the door.
+    /// </summary>
+    private bool boundaryApproachWasAutoWalk;
     private FieldNavigationCategory beaconCategory;
     private int beaconFieldId = -1;
     private int[] beaconDestinationFieldIds = [];
@@ -467,6 +481,85 @@ public sealed class FieldNavigationController
         routePlanner is IFieldNavigationNativeBoundaryStatus status &&
         status.LastFailureWasNativeBoundary;
 
+    /// <summary>
+    /// Whether the game currently has a field's native line switched on: true, false, or
+    /// null when the state could not be read. Both runtimes supply this from the shared
+    /// <c>FieldScriptLineStateReader</c>; a null reader leaves the approach unavailable
+    /// rather than assuming a line is live.
+    /// </summary>
+    public Func<int, int, bool?>? NativeLineIsEnabled { get; set; }
+
+    /// <summary>The triangles the last boundary failure named, in the order it named them.</summary>
+    private IReadOnlyList<int> LastBlockingBoundaryTriangles =>
+        routePlanner is IFieldNavigationNativeBoundaryStatus status
+            ? status.LastBlockingBoundaryTriangles
+            : Array.Empty<int>();
+
+    /// <summary>
+    /// Starts the walk to the line that releases a held door, if one of the triangles the
+    /// game is holding shut is released by walking onto a line at all.
+    ///
+    /// <para>The approach is an ordinary route to somewhere the player can already stand
+    /// with the door shut. Nothing here opens anything: crossing the line is what the
+    /// game's own script reacts to, and the held destination is started only when the
+    /// boundary actually clears.</para>
+    /// </summary>
+    private bool TryStartBoundaryApproach(
+        FieldNavigationTarget held,
+        FieldPositionSnapshot position,
+        FieldLadderStateSnapshot ladderState)
+    {
+        // The boundary names every lock the field has on, not the one in this route's way.
+        // Only the door whose release is what lets this route through is the right one to
+        // walk to; a destination blocked by a different door must not be sent here.
+        if (routePlanner is not IFieldNavigationNativeBoundaryStatus boundary ||
+            !FieldNativeDoorOpeningLines.TryFindForGoal(
+                held.FieldId,
+                LastBlockingBoundaryTriangles,
+                triangle => boundary.WouldRouteIfBoundaryReleased(position, held, triangle),
+                out var opening))
+        {
+            return false;
+        }
+
+        // The game switches these lines on and off, and 544's starts switched off: its
+        // entity 19 Init runs LINON 0 whenever Red XIII has been spoken to and the
+        // observatory scene has not played yet. Walking to a line in that state opens
+        // nothing. So does walking to one whose state could not be read, and so does
+        // walking to one when no host supplied a reader at all - all three hold instead.
+        if (NativeLineIsEnabled?.Invoke(held.FieldId, opening.LineEntityId) != true)
+        {
+            return false;
+        }
+
+        var approach = new FieldNavigationTarget(
+            held.FieldId,
+            held.Category,
+            held.Label,
+            opening.ApproachX,
+            opening.ApproachY,
+            opening.ApproachZ,
+            StableId: $"{GetTargetId(held)}:opening-line",
+            TriggerLine: opening.Line);
+
+        var walkWasRequested = heldAutoWalkRequested;
+        if (!TryLockBeacon(approach, position, ladderState))
+        {
+            // The line itself is out of reach. Hold, exactly as before.
+            pendingBoundaryTarget = held;
+            heldAutoWalkRequested = walkWasRequested;
+            return false;
+        }
+
+        // TryLockBeacon resets, which clears the hold. The destination the player asked for
+        // is still the destination; only the leg being walked is different.
+        pendingBoundaryTarget = held;
+        heldAutoWalkRequested = walkWasRequested;
+        beaconIsBoundaryApproach = true;
+        boundaryApproachWasAutoWalk = walkWasRequested;
+        return true;
+    }
+
     /// <summary>The destination being held until the game opens its way, if any.</summary>
     public string HeldForNativeBoundaryLabel => pendingBoundaryTarget?.Label ?? string.Empty;
 
@@ -485,8 +578,16 @@ public sealed class FieldNavigationController
     /// unless a hold is actually armed, so a plain speech selection can never turn into a
     /// walk by itself.
     /// </summary>
-    public void RequestAutoWalkForHeldRoute() =>
+    public void RequestAutoWalkForHeldRoute()
+    {
         heldAutoWalkRequested = pendingBoundaryTarget is not null;
+        if (heldAutoWalkRequested && beaconIsBoundaryApproach)
+        {
+            // The request arrives after the approach has already started, so record it
+            // here too or the destination's own leg would not be walked.
+            boundaryApproachWasAutoWalk = true;
+        }
+    }
 
     /// <summary>
     /// Whether the held destination that has just started was an auto-walk request. Taken
@@ -515,8 +616,20 @@ public sealed class FieldNavigationController
             return false;
         }
 
+        var wasWalkingToTheDoor = beaconIsBoundaryApproach;
         pendingBoundaryTarget = null;
         heldAutoWalkRequested = false;
+        beaconIsBoundaryApproach = false;
+        boundaryApproachWasAutoWalk = false;
+
+        // The walk to a door-opening line exists only to serve the destination being held.
+        // Cancelling the hold - B, a repeated toggle, or the selection moving on - has to
+        // end that leg too, or the old approach keeps running behind the new selection.
+        if (wasWalkingToTheDoor && BeaconEnabled)
+        {
+            ResetCore(deactivateProgress: true);
+        }
+
         return true;
     }
 
@@ -563,14 +676,26 @@ public sealed class FieldNavigationController
 
         // TryLockBeacon resets first, and a reset clears the hold along with everything
         // else. The player asked to be walked there before the door opened; that request
-        // has to survive the mechanics of starting the route it belongs to.
-        var walkWasRequested = heldAutoWalkRequested;
+        // has to survive the mechanics of starting the route it belongs to. Capture
+        // the approach intent before TryLockBeacon resets both intent flags.
+        var walkWasRequested = heldAutoWalkRequested || boundaryApproachWasAutoWalk;
         if (!TryLockBeacon(held, position, ladderState))
         {
             if (LastRouteFailureWasNativeBoundary)
             {
                 pendingBoundaryTarget = held;
                 heldAutoWalkRequested = walkWasRequested;
+
+                // The door is still shut, and the reason it cannot be walked to may have
+                // changed since the hold began: 544's line is dead for the whole of the
+                // first observatory visit and the scene that ends it is what runs the
+                // LINON 1. So ask again every frame rather than only when the destination
+                // was selected, and start the approach on the frame the line comes on.
+                if (!beaconIsBoundaryApproach)
+                {
+                    TryStartBoundaryApproach(held, position, ladderState);
+                }
+
                 return null;
             }
 
@@ -580,7 +705,11 @@ public sealed class FieldNavigationController
         }
 
         pendingBoundaryTarget = null;
+        // The approach may already have spent the request walking to the door; the player
+        // asked to be walked to the destination, so the second leg walks too.
         heldAutoWalkRequested = walkWasRequested;
+        beaconIsBoundaryApproach = false;
+        boundaryApproachWasAutoWalk = false;
         var guidance = CreateSpokenGuidance(position, controlTransform, arrivalDistanceUnits: 0);
         return new FieldNavigationActionResult(
             guidance is null
@@ -718,10 +847,25 @@ public sealed class FieldNavigationController
                     if (LastRouteFailureWasNativeBoundary)
                     {
                         // Nothing routes through the lock and nothing pretends it is
-                        // open. The destination is held and started when the game
-                        // releases it, which is the information a sighted player gets
-                        // from watching the door.
+                        // open. Where the game releases the lock when the party crosses a
+                        // line, walk them to that line; the destination they asked for is
+                        // still the destination and starts when the boundary clears.
                         pendingBoundaryTarget = target.Value;
+                        if (TryStartBoundaryApproach(target.Value, position, ladderState))
+                        {
+                            var approachGuidance = controlTransform is null
+                                ? null
+                                : CreateSpokenGuidance(position, controlTransform.Value,
+                                    arrivalDistanceUnits: 0);
+                            return new FieldNavigationActionResult(
+                                $"{target.Value.Label}. Approaching the door." +
+                                (approachGuidance is null
+                                    ? string.Empty
+                                    : $" {approachGuidance.Value.Speech}."));
+                        }
+
+                        // Nothing opens this one by being walked to, so it waits, which is
+                        // the information a sighted player gets from watching the door.
                         return new FieldNavigationActionResult(
                             $"{target.Value.Label}. The way is shut just now. " +
                             "Navigation will start when it opens.");
@@ -762,6 +906,37 @@ public sealed class FieldNavigationController
             return isSuppressed
                 ? null
                 : TryStartHeldBoundaryRoute(position, controlTransform, ladderState);
+        }
+
+        // Walking to the line that opens a held door is a leg, not the destination. Each
+        // frame, ask whether the game has released the lock yet; when it has, the real
+        // route replaces this one. Until then the approach carries on untouched.
+        //
+        // The question is asked of the planner directly rather than by attempting the real
+        // route, because attempting it resets the beacon: probing with TryLockBeacon tore
+        // down the approach on every frame and left the destination cancelled.
+        if (beaconIsBoundaryApproach && !isSuppressed &&
+            pendingBoundaryTarget is { } heldDestination &&
+            routePlanner is not null &&
+            position.FieldId == heldDestination.FieldId &&
+            routePlanner.TryBuildRoute(
+                ResolveRoutePlanningPosition(position, ladderState), heldDestination, out _))
+        {
+            var opened = TryStartHeldBoundaryRoute(position, controlTransform, ladderState);
+            if (opened is not null)
+            {
+                return opened;
+            }
+        }
+
+        if (beaconIsBoundaryApproach)
+        {
+            // The leg to the line is not somewhere to arrive at. The game's own test is
+            // strict - the squared distance has to be inside the player's radius, and a
+            // route that stops within a footstep of the line opens nothing - so the walk
+            // runs right up to it rather than to a generic arrival distance. Seventy units
+            // short of the door was still seventy units short.
+            arrivalDistanceUnits = 0;
         }
 
         if (!FieldPositionReader.IsUsable(position))
@@ -837,6 +1012,13 @@ public sealed class FieldNavigationController
             // Cloud is transitioning through a ladder. Retain only the already
             // locked target, and only until the mounted transition resolves.
             target = lockedTarget;
+        }
+
+        if (target is null && beaconIsBoundaryApproach && beaconLockedTarget is { } approachTarget)
+        {
+            // Kept for a leg whose beacon id has already moved on; the ordinary case is
+            // resolved by GetBeaconTarget itself.
+            target = approachTarget;
         }
 
         if (target is null)
@@ -1055,7 +1237,7 @@ public sealed class FieldNavigationController
                         : $"Navigation resumed. {resumedGuidance.Value.Speech}.");
             }
 
-            if (isWithinArrivalDistance)
+            if (isWithinArrivalDistance && !beaconIsBoundaryApproach)
             {
                 interactionArrivalPaused = true;
                 interactionArrivalDistance = ResolveArrivalDistance(
@@ -1216,6 +1398,12 @@ public sealed class FieldNavigationController
             return null;
         }
 
+        // Spoken navigation must guide all the way to the native opening line too.
+        if (beaconIsBoundaryApproach)
+        {
+            arrivalDistanceUnits = 0;
+        }
+
         var target = GetBeaconTarget(position);
         if (target is null ||
             IsWithinArrivalDistance(position, target.Value, arrivalDistanceUnits, currentGuidance, forCompletion: true))
@@ -1233,6 +1421,17 @@ public sealed class FieldNavigationController
             out var connectedDirection);
         if (string.Equals(speech, "at destination", StringComparison.Ordinal))
         {
+            // A sub-half-step instruction normally rounds to arrival. An opening
+            // line still needs that last movement, so retain its direction.
+            if (beaconIsBoundaryApproach &&
+                FieldNavigationSpokenCueFormatter.TryResolveSegment(
+                    waypoint.X - position.X, waypoint.Y - position.Y,
+                    controlTransform, ResolveSpokenDistanceUnits(position.FieldId),
+                    out var finalApproach))
+            {
+                return new FieldNavigationActionResult($"{finalApproach.Direction} a little");
+            }
+
             return null;
         }
 
@@ -1297,6 +1496,13 @@ public sealed class FieldNavigationController
         if (target is null)
         {
             return false;
+        }
+
+        if (beaconIsBoundaryApproach)
+        {
+            // The same reason the tracking pass drops it: a walk that stops a footstep
+            // short of a native line has not crossed anything.
+            arrivalDistanceUnits = 0;
         }
 
         if (IsWithinArrivalDistance(position, target.Value, arrivalDistanceUnits, currentGuidance, forCompletion: true))
@@ -2396,6 +2602,19 @@ public sealed class FieldNavigationController
             }
         }
 
+        // The walk to a door-opening line is a leg the mod created, so it is not in the
+        // native target list and never will be. Resolving it here rather than at one call
+        // site is what makes the rest of the assistant see it: guidance, progress and -
+        // the one that matters - the automatic input that actually walks the party there.
+        // Its stable id is the destination's with a suffix, so reaching the line can still
+        // never be mistaken for reaching the destination.
+        if (beaconIsBoundaryApproach &&
+            beaconLockedTarget is { } approach &&
+            string.Equals(GetTargetId(approach), beaconTargetId, StringComparison.Ordinal))
+        {
+            return approach;
+        }
+
         return null;
     }
 
@@ -2635,4 +2854,3 @@ public sealed class FieldNavigationController
             _ => category.ToString()
         };
 }
-

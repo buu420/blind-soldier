@@ -86,10 +86,17 @@ public sealed class ControllerNavigationServices : IControllerNavigationTarget
         var speech = RestartBeacon();
         if (navigationIsHeld())
         {
-            // The way is shut for now. Remember that this was a walk, not a reading, and
-            // do not start anything: the hold produces no movement at all.
+            // The way is shut for now. Remember that this was a walk, not a reading.
             requestAutoWalkWhenHeld();
-            return speech;
+            if (!beaconEnabled())
+            {
+                // Nothing is routed, so nothing moves: the hold produces no movement at all.
+                return speech;
+            }
+
+            // A route is running even though the destination is held - the walk to the
+            // line that opens the door. Walking that leg is the request, not a substitute
+            // for it, so it falls through and starts.
         }
 
         if (!beaconEnabled() || !tryStartAutoWalk())

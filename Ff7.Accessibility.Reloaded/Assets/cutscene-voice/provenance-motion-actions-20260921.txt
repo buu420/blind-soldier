@@ -1,0 +1,20 @@
+Blind Soldier motion descriptions, 2026-09-21
+
+Added 8 recordings for 8 in-engine action cues. Scripts drafted by
+Descript from independently reviewed gameplay footage, then edited against those
+observations. Descript did not inspect frames. Game-script instruction boundaries
+and callback support were checked separately in both installed game archives.
+
+Narration: Brice's approved own-voice clone, generated locally using
+Qwen3-TTS-12Hz-1.7B-Base. Approved reference SHA-256:
+2ede6b6c6c27938e7a63f3ea0c64b533ca0fd6f4c6a9cd0fa5110e2153a070a5
+Natural tempo and pitch, fixed loudness gain and outer-silence trimming only.
+Independent transcription and decoded mono 44.1 kHz Vorbis validation recorded
+in the batch's voice-assets-ready.json and word-review.json.
+No voice reference or gameplay footage is distributed in the mod.
+All 838 baseline recordings and all movie-description assets are unchanged.
+
+Motion catalog SHA-256: 52a19dc19bfedcbcfc49e3995dba73c178d06b9ff087b9d5fec35ca09b7feac7
+Descript script jobs:
+project-agent-edit-84460948-c365-45d3-97e9-568eebf3c0b1-4ef9c669-808e-4dbb-a074-a616833c7224
+project-agent-edit-84460948-c365-45d3-97e9-568eebf3c0b1-8acfe3f4-a811-4d32-a570-7885ff5f7739

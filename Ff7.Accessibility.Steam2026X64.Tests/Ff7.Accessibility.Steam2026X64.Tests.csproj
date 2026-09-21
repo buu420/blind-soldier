@@ -77,8 +77,11 @@
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\WorldMapVehicleApproachReplayTests.cs" Link="SharedTests\WorldMapVehicleApproachReplayTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\CosmoCanyonNavigationTests.cs" Link="SharedTests\CosmoCanyonNavigationTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\CosmoCanyonNavigationCallerTests.cs" Link="SharedTests\CosmoCanyonNavigationCallerTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\ObservatoryApproachNavigationTests.cs" Link="SharedTests\ObservatoryApproachNavigationTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\CosmoObservatoryStoryTests.cs" Link="SharedTests\CosmoObservatoryStoryTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\CosmoNibelheimDescriptionTests.cs" Link="SharedTests\CosmoNibelheimDescriptionTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\ContinuationDescriptionTests.cs" Link="SharedTests\ContinuationDescriptionTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\MotionActionDescriptionTests.cs" Link="SharedTests\MotionActionDescriptionTests.cs" />
     <!-- ContinuationDescriptionTests reads these from its own output directory, so the
          x64 runner needs the same frozen copies the x86 one has. Test data only. -->
     <None Include="..\Ff7.Accessibility.Reloaded.Tests\Fixtures\**\*.json"
