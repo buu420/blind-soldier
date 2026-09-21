@@ -51,6 +51,7 @@ internal static class Steam2026CutsceneVoiceAdapterTests
         AHostCancelReleasesTheHeldDialogueImmediately();
         TheHostSuspendsOffForegroundWhenNoFilmIsPlaying();
         TheHostStartsNoDeferredCueOffForegroundAndKeepsIt();
+        ABatch6ArrivalWaitsForTheFilmsOwnRecording();
     }
 
     /// <summary>
@@ -363,6 +364,93 @@ internal static class Steam2026CutsceneVoiceAdapterTests
             coordinator.TrySpeakPending(true, () => false, Prism, Timestamp.AddSeconds(31), out _),
             "the control - it is delivered");
         Equal(1, spokenAloud.Count, "by the screen reader");
+    }
+
+    /// <summary>
+    /// The x64 half of the movie-overlap check for the 2026-09-21 continuation batch.
+    /// The x86 half is <c>ContinuationMovieOverlapTests</c> in the other project; this is
+    /// the same guarantee through the actual x64 coordinator.
+    ///
+    /// <para>Seven of the batch's new arrival descriptions are on screens that play a film
+    /// with a reviewed recording of its own - 311, 312, 567, 569, 637, 647 and 763. This
+    /// runtime has no MPNAM callback at all - <c>Steam2026FieldCutsceneCallbackCatalog</c>
+    /// hooks sixteen opcode handlers and the area-name one is not among them - so on x64
+    /// every arrival description is delivered by the settling-window path below rather than
+    /// by the field's own anchor. That path fires about two seconds after the field becomes
+    /// readable, which on these screens can be while the film is running.</para>
+    ///
+    /// <para>The cue must then be held, not spoken. Falling back to the screen reader
+    /// would read the room over the film's own description and spend the cue doing it.</para>
+    /// </summary>
+    private static void ABatch6ArrivalWaitsForTheFilmsOwnRecording()
+    {
+        // mtnvl2, whose film is movie 31 mtnvl on disc 1 - a reviewed recording.
+        const int Mtnvl2 = 311;
+        const int MtnvlFilm = 31;
+
+        var arrival = FieldCutsceneDescriptionCatalog.CreateAllAreaDescriptions()
+            .Single(cue => cue.FieldId == Mtnvl2 &&
+                           cue.Opcode == FieldOpcodeAddressResolver.OpcodeMapNameIndex);
+
+        var memory = new FakeAddressSpace { Module = 1, FieldId = Mtnvl2, Disc = 1 };
+        var filmOutput = new FakeOutput();
+        var clip = new FakeOutput();
+        CutsceneVoicePlayer? voice = null;
+        var narration = new FieldMovieNarrationTracker(
+            _ => filmOutput,
+            _ => { },
+            FieldPositionReader.FieldModule,
+            null,
+            (owner, reason) => voice?.StopIfOwnedBy(owner, reason));
+        voice = new CutsceneVoicePlayer(
+            Manifest((arrival.Text, 8.5d)), _ => clip, _ => { }, () => narration.IsPlaying);
+        var coordinator = new Steam2026FieldCutsceneDescriptionCoordinator(
+            memory,
+            FieldCutsceneDescriptionCatalog.CreateEarlyGameDescriptions(),
+            narration,
+            voice);
+
+        // The film is running and describing itself.
+        memory.SetFilm(MtnvlFilm, active: true);
+        memory.MovieFrame = 0;
+        coordinator.ObserveNativeFilm(Timestamp);
+        Equal(true, coordinator.IsNativeFilmNarrationPlaying,
+            "the mtnvl film narration started, or the rest of this proves nothing");
+
+        // The arrival description arrives underneath it, by the only route x64 has for
+        // one: the field has been readable and unchanged for longer than the settling
+        // window, and its own anchor was never seen because nothing hooks it here.
+        coordinator.ObserveStableField(Timestamp.AddSeconds(1));
+        coordinator.ObserveStableField(
+            Timestamp.AddSeconds(1) + FieldAreaDescriptionColdStartTracker.SettlingWindow
+                + TimeSpan.FromMilliseconds(1));
+
+        var spokenByScreenReader = new List<string>();
+        bool Speak(string text)
+        {
+            spokenByScreenReader.Add(text);
+            return true;
+        }
+
+        Equal(false,
+            coordinator.TrySpeakPending(true, () => false, Speak, Timestamp.AddSeconds(2), out _),
+            "nothing is delivered over the film");
+        Equal(0, spokenByScreenReader.Count, "and the screen reader was never handed the words");
+        Equal(0, clip.Starts, "and no second clip opened on the device");
+        Equal(true, filmOutput.IsPlaying, "the film's own description is untouched");
+
+        // The film finishes. Now the room is described, in its own recorded voice.
+        filmOutput.Finish();
+        memory.SetFilm(0, active: false);
+        coordinator.ObserveNativeFilm(Timestamp.AddSeconds(21));
+        Equal(false, coordinator.IsNativeFilmNarrationPlaying, "the film is over");
+
+        Equal(true,
+            coordinator.TrySpeakPending(true, () => false, Speak, Timestamp.AddSeconds(22), out var spoken),
+            "the held cue is delivered afterwards");
+        Equal(arrival.Text, spoken.Text, "and it is the arrival description, unaltered");
+        Equal(1, clip.Starts, "said once, by its own recording");
+        Equal(0, spokenByScreenReader.Count, "never by the screen reader");
     }
 
     /// <summary>

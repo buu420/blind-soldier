@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -14,6 +14,17 @@
     <ProjectReference Include="..\Ff7.Accessibility.Core\Ff7.Accessibility.Core.csproj" />
     <ProjectReference Include="..\Ff7.Accessibility.Runtime.Abstractions\Ff7.Accessibility.Runtime.Abstractions.csproj" />
     <ProjectReference Include="..\Ff7.Accessibility.Reloaded\Ff7.Accessibility.Reloaded.csproj" />
+  </ItemGroup>
+
+  <!-- Frozen, sanitized copies of the two canonical description files the catalog tests
+       check against. They used to be read by absolute path out of a working directory on
+       one machine, which meant those checks quietly did nothing anywhere else. Test data
+       only: no mod project includes anything from this project, so none of this can reach
+       a runtime package. -->
+  <ItemGroup>
+    <None Include="Fixtures\**\*.json"
+          CopyToOutputDirectory="PreserveNewest"
+          LinkBase="Fixtures" />
   </ItemGroup>
 
 </Project>

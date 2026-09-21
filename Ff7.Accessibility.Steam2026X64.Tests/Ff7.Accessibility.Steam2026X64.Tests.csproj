@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -74,6 +74,16 @@
              Link="SharedTests\FieldNavigationPrecisionTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\PrismAbiProbeTests.cs"
              Link="SharedTests\PrismAbiProbeTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\WorldMapVehicleApproachReplayTests.cs" Link="SharedTests\WorldMapVehicleApproachReplayTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\CosmoCanyonNavigationTests.cs" Link="SharedTests\CosmoCanyonNavigationTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\CosmoCanyonNavigationCallerTests.cs" Link="SharedTests\CosmoCanyonNavigationCallerTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\CosmoNibelheimDescriptionTests.cs" Link="SharedTests\CosmoNibelheimDescriptionTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\ContinuationDescriptionTests.cs" Link="SharedTests\ContinuationDescriptionTests.cs" />
+    <!-- ContinuationDescriptionTests reads these from its own output directory, so the
+         x64 runner needs the same frozen copies the x86 one has. Test data only. -->
+    <None Include="..\Ff7.Accessibility.Reloaded.Tests\Fixtures\**\*.json"
+          CopyToOutputDirectory="PreserveNewest"
+          LinkBase="Fixtures" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\WorldMapNavigationControllerTests.cs"
              Link="SharedTests\WorldMapNavigationControllerTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\WorldMapMountCorelNavigationTests.cs"

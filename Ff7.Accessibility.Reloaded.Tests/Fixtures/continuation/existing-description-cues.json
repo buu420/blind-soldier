@@ -1,0 +1,1390 @@
+{
+  "note": "The cues that had already shipped when the 2026-09-21 continuation batch was prepared. Frozen so the catalog tests can prove none of them was dropped or reworded, on any machine. Regenerate with emit-fixtures.py.",
+  "totalCues": 346,
+  "cues": [
+    {
+      "key": "67:1:0:40",
+      "text": "Blue light streaks the cavern walls. Tangled roots suspend a turquoise crystal overhead. The roots shudder. White fragments cascade down."
+    },
+    {
+      "key": "67:2:3:30",
+      "text": "Window shutters rise beside an operating table. A huge fiery red orb hangs in orange clouds beside a smaller sphere. It looms above Junon's fortress and cannon."
+    },
+    {
+      "key": "67:2:3:42",
+      "text": "Aeris kneels in prayer, then opens her eyes. Cloud watches her, his expression serious. She lifts her head and smiles. Sephiroth plunges from above, his long sword pointed downward. The blade pierces Aeris from behind. Her head bows. Her eyes close. Sephiroth smiles faintly, then withdraws the blade. Aeris slumps. Her ribbon loosens, releasing a glowing pale green orb. The orb spins as it falls. It bounces down stone steps, then drops over the edge. It falls past towering platforms beneath a swirling column of light. The orb splashes into the water below."
+    },
+    {
+      "key": "67:2:3:83",
+      "text": "Cloud supports Aeris on her back, her hands folded across her chest. Head bowed, he gently lowers her into the blue water. She sinks through shafts of light, her loose hair drifting. Her arms float apart as she recedes into the depths."
+    },
+    {
+      "key": "68:4:2:542",
+      "text": "A snowy crater rim stretches beneath green auroras. Turquoise energy rises from its center, wrapped in spiraling white bands. Glowing particles stream up through the column. The vast circular crater recedes among snow-covered mountains."
+    },
+    {
+      "key": "87:0:0:34",
+      "text": "Trailing black smoke, the plane descends over the sea. It strikes the water in white spray. It remains afloat, trailing smoke."
+    },
+    {
+      "key": "101:0:0:15",
+      "text": "The view sweeps across jagged Mt. Nibel toward the reactor, a massive metal structure built into the mountainside."
+    },
+    {
+      "key": "116:0:0:160",
+      "text": "A train pulls into the station beside a metal platform under green industrial light."
+    },
+    {
+      "key": "116:0:0:192",
+      "text": "Avalanche fighters leap down and rush the platform, knocking two Shinra guards to the ground."
+    },
+    {
+      "key": "116:0:0:204",
+      "text": "Barret, a towering man with a gun-arm, steps off. Cloud flips down behind him, an enormous sword on his back."
+    },
+    {
+      "key": "116:0:0:269",
+      "text": "Barret motions for Cloud to follow and charges up the platform, leaving the fallen guards behind."
+    },
+    {
+      "key": "117:0:0:82",
+      "text": "Cloud catches up with Biggs, Jessie, and Wedge at a locked security gate. Barret charges in, jabbing a finger as he orders them to split up."
+    },
+    {
+      "key": "117:0:0:85",
+      "text": "Jessie works the controls. The two heavy doors unlock and slide apart."
+    },
+    {
+      "key": "117:0:0:122",
+      "text": "Jessie, Biggs, and Wedge run through the open gate one after another."
+    },
+    {
+      "key": "117:0:0:134",
+      "text": "Barret gives Cloud one last suspicious look, then runs after the others. Left alone, Cloud turns toward the towering reactor."
+    },
+    {
+      "key": "117:0:0:143",
+      "text": "The North Gate stands open. A huge green reactor tower looms above, wreathed in vapor."
+    },
+    {
+      "key": "119:0:3:17",
+      "text": "Blue arcs flicker across the reactor. An orange fireball erupts above Midgar. The circular city recedes below. The fireball shrinks into smoke."
+    },
+    {
+      "key": "125:3:5:54",
+      "text": "The reactor flashes red. Cloud freezes on tiptoe as a sharp hum pierces his thoughts."
+    },
+    {
+      "key": "125:3:6:34",
+      "text": "Cloud kneels beside the reactor machinery and begins setting the bomb."
+    },
+    {
+      "key": "125:3:6:89",
+      "text": "Cloud finishes arming the bomb and rises."
+    },
+    {
+      "key": "127:2:6:69",
+      "text": "Sparks split the catwalk."
+    },
+    {
+      "key": "127:2:7:68",
+      "text": "Cloud's grip slips. He falls into the darkness below."
+    },
+    {
+      "key": "127:2:7:84",
+      "text": "Cloud hangs from the broken catwalk. Flames erupt. Barret crouches over Tifa. Cloud tumbles past enormous pipes and disappears into mist."
+    },
+    {
+      "key": "127:3:3:35",
+      "text": "The walkway doors seal behind the party. President Shinra appears on an upper platform high above them."
+    },
+    {
+      "key": "127:4:8:44",
+      "text": "A red armored Air Buster stomps onto the bridge behind them, cutting off their escape."
+    },
+    {
+      "key": "127:4:12:19",
+      "text": "Air Buster breaks apart in a chain of explosions. The blast tears through the bridge, leaving Cloud hanging from the broken edge."
+    },
+    {
+      "key": "127:8:3:0",
+      "text": "A Shinra helicopter descends beside the bridge and hovers behind President Shinra."
+    },
+    {
+      "key": "127:8:5:12",
+      "text": "President Shinra's helicopter rises from the bridge and carries him away."
+    },
+    {
+      "key": "132:2:6:34",
+      "text": "Cloud kneels at the machinery and begins arming the second reactor bomb."
+    },
+    {
+      "key": "132:2:7:83",
+      "text": "Cloud reaches toward the bomb. A red-white flash freezes him as a memory breaks through."
+    },
+    {
+      "key": "132:2:8:5",
+      "text": "The memory vanishes. Cloud clutches his head, then steadies himself as Tifa watches."
+    },
+    {
+      "key": "133:0:0:78",
+      "text": "A fireball bursts through the passage."
+    },
+    {
+      "key": "133:0:0:86",
+      "text": "Cloud leaps through the breach and lands in the street. Barret, Biggs, and Jessie follow one by one."
+    },
+    {
+      "key": "133:0:0:110",
+      "text": "Wedge tumbles out last, runs in a panicked circle, and pats at his smoking clothes."
+    },
+    {
+      "key": "133:0:0:160",
+      "text": "Biggs, Wedge, and Jessie nod to Barret, then split up and run in different directions."
+    },
+    {
+      "key": "133:0:0:175",
+      "text": "Barret starts after them. Cloud raises a hand and calls him back."
+    },
+    {
+      "key": "133:7:1:3",
+      "text": "Jessie's bomb detonates. Fire and smoke punch through the rubble, opening the way outside."
+    },
+    {
+      "key": "134:0:0:5",
+      "text": "The view sweeps past glowing LOVELESS billboards before settling on a debris-strewn Sector 8 street."
+    },
+    {
+      "key": "134:0:0:42",
+      "text": "Panicked pedestrians rush through the square. One knocks the flower girl down; she gets up, dusts herself off, and approaches Cloud."
+    },
+    {
+      "key": "134:2:5:0",
+      "text": "The flower girl smiles and places a flower in Cloud's hand."
+    },
+    {
+      "key": "136:0:0:50",
+      "text": "In a smoke-filled service tunnel, Jessie kneels beside a bomb fixed to the rubble blocking Avalanche's escape."
+    },
+    {
+      "key": "136:0:0:108",
+      "text": "Biggs and Wedge look back toward the ruined reactor. Barret stands apart in grim silence."
+    },
+    {
+      "key": "136:0:0:161",
+      "text": "At Jessie's warning, everyone turns away from the charge and braces for the blast."
+    },
+    {
+      "key": "137:0:3:401",
+      "text": "The soldiers rush him. Cloud vaults over the railing, drops onto the train roof, and lands in a crouch as it speeds into the tunnel."
+    },
+    {
+      "key": "137:0:3:452",
+      "text": "Cloud jumps onto the train and crouches. The train enters a lit tunnel. Empty tracks lead into the tunnel."
+    },
+    {
+      "key": "137:1:9:65",
+      "text": "A train whistles below. Soldiers pour in from both sides, closing a ring around Cloud above the tracks."
+    },
+    {
+      "key": "138:11:3:153",
+      "text": "The freight-car hatch slides open. Cloud drops inside, his face blackened with soot, as the others turn toward him."
+    },
+    {
+      "key": "138:11:8:9",
+      "text": "Cloud takes one last look around the freight car, then follows them through the hatch."
+    },
+    {
+      "key": "138:15:8:84",
+      "text": "Jessie shuts the roof hatch, notices the soot on Cloud's face, and steps close to gently wipe it away."
+    },
+    {
+      "key": "138:15:8:224",
+      "text": "Jessie crosses to the floor hatch and drops into the passenger car below. The others follow."
+    },
+    {
+      "key": "139:17:1:5",
+      "text": "A black train rushes past on elevated tracks. It winds around an enormous steel-braced pillar beneath the city's plate."
+    },
+    {
+      "key": "139:19:1:0",
+      "text": "The train car's lighting turns red as Shinra's security system begins locking the cars one by one."
+    },
+    {
+      "key": "139:31:11:60",
+      "text": "Biggs, Wedge, and Jessie hurry into the next car while Barret stalks down the aisle toward a Shinra employee."
+    },
+    {
+      "key": "139:31:13:21",
+      "text": "Barret slams a fist into the wall above the seated Shinra employee, making him jump, then springs back and aims his gun-arm at him."
+    },
+    {
+      "key": "139:31:17:23",
+      "text": "At the blocked end of the train, Barret forces open a side door. The maintenance tunnel races past outside."
+    },
+    {
+      "key": "140:20:7:33",
+      "text": "Cloud sprints to the open door and leaps into the tunnel."
+    },
+    {
+      "key": "140:21:8:20",
+      "text": "At the blocked end of the train, Barret forces open a side door. The tunnel races past outside."
+    },
+    {
+      "key": "140:21:8:98",
+      "text": "Barret launches himself from the speeding train and lands in the maintenance tunnel."
+    },
+    {
+      "key": "140:22:4:53",
+      "text": "Tifa jumps from the train after him."
+    },
+    {
+      "key": "141:13:6:22",
+      "text": "Cloud runs to the open door and dives from the train."
+    },
+    {
+      "key": "141:14:7:97",
+      "text": "Barret waits until the others are clear, then makes the final jump."
+    },
+    {
+      "key": "141:15:1:45",
+      "text": "Tifa takes a breath, then jumps from the speeding train into the tunnel."
+    },
+    {
+      "key": "142:6:0:59",
+      "text": "The train car turns red. Security alarms pulse as Shinra's scanners identify the group's forged passes."
+    },
+    {
+      "key": "142:17:10:32",
+      "text": "Cloud sprints to the open door and leaps into the tunnel."
+    },
+    {
+      "key": "142:18:7:20",
+      "text": "At the blocked end of the train, Barret forces open a side door. The tunnel races past outside."
+    },
+    {
+      "key": "142:18:7:110",
+      "text": "Barret launches himself from the speeding train and lands in the maintenance tunnel."
+    },
+    {
+      "key": "142:19:6:53",
+      "text": "Tifa jumps from the train after him."
+    },
+    {
+      "key": "142:22:2:75",
+      "text": "A man shoulders past Cloud and hurries toward the next car."
+    },
+    {
+      "key": "142:23:2:41",
+      "text": "A woman bumps into Cloud, then bolts toward the next car."
+    },
+    {
+      "key": "143:0:4:4",
+      "text": "The display changes to the train's spiral route around the pillar, with security checkpoints lighting up along the track."
+    },
+    {
+      "key": "143:5:1:5",
+      "text": "A black train rushes past on elevated tracks. It winds around an enormous steel-braced pillar beneath the city's plate."
+    },
+    {
+      "key": "143:13:6:28",
+      "text": "Jessie activates the wall monitor. A glowing green model of Midgar forms above it: the upper plate, the slums beneath, and the central support pillar."
+    },
+    {
+      "key": "146:1:0:51",
+      "text": "The train emerges from the tunnel and brakes beside the Sector 7 platform."
+    },
+    {
+      "key": "146:12:3:29",
+      "text": "Barret jumps down from the train. Biggs, Wedge, Jessie, and Cloud follow one by one."
+    },
+    {
+      "key": "146:12:3:97",
+      "text": "Avalanche gathers around Barret on the platform while the train waits behind them."
+    },
+    {
+      "key": "147:13:3:20",
+      "text": "Elmyra waits among families at the station as returning troops reunite with their wives and children. Her husband never appears."
+    },
+    {
+      "key": "147:13:10:9",
+      "text": "Wounded Ifalna collapses and dies on the station floor. Young Aeris remains beside her."
+    },
+    {
+      "key": "154:19:5:94",
+      "text": "Barret opens the concealed entrance beneath the pinball machine and climbs down into Avalanche's basement hideout."
+    },
+    {
+      "key": "154:19:7:135",
+      "text": "Barret grudgingly tosses Cloud his pay."
+    },
+    {
+      "key": "154:20:15:140",
+      "text": "As Cloud heads for the door, Tifa darts in front of him and blocks his way."
+    },
+    {
+      "key": "154:25:4:0",
+      "text": "Inside Seventh Heaven, Marlene spots Barret, runs across the bar, and throws her arms around him."
+    },
+    {
+      "key": "156:15:5:28",
+      "text": "High above the slums, Wedge falls from the Sector 7 pillar and crashes onto the ground near Cloud, badly injured."
+    },
+    {
+      "key": "160:0:0:36",
+      "text": "Reno drops onto the top of the Sector 7 support pillar."
+    },
+    {
+      "key": "160:1:3:84",
+      "text": "A helicopter lowers beside the pillar. Tseng is aboard with Aeris held captive."
+    },
+    {
+      "key": "160:1:3:187",
+      "text": "A circular platform surrounds the pillar. Explosions tear holes in the pillar. Fiery chunks fall away. Dust and debris surround the platform far below."
+    },
+    {
+      "key": "160:6:6:0",
+      "text": "Reno presses the plate-release control, activating the support pillar's time bomb."
+    },
+    {
+      "key": "160:8:11:19",
+      "text": "Tseng slaps Aeris across the face."
+    },
+    {
+      "key": "160:11:3:2",
+      "text": "Steel supports stretch beneath Midgar's plate. Explosions race up the pillar. Fiery debris rains down. A television turns to static. The room darkens. The huge plate plunges. Lights go out. People flee through an alley, debris billowing behind. Between two green towers, Sector 7 burns beneath clouds of smoke. President Shinra watches the destruction from above. The view rises along the green-lit Shinra tower."
+    },
+    {
+      "key": "181:3:8:46",
+      "text": "Together they leap from roof to roof toward the slums."
+    },
+    {
+      "key": "181:4:5:7",
+      "text": "Aeris follows Cloud across a broken gap in the roof."
+    },
+    {
+      "key": "181:7:0:35",
+      "text": "Cloud and Aeris emerge onto the church roof high above the Sector 5 slums."
+    },
+    {
+      "key": "182:1:1:20",
+      "text": "The church doors open. Reno, a red-haired Turk in a blue suit, enters with Shinra soldiers."
+    },
+    {
+      "key": "183:6:7:39",
+      "text": "Light reveals a ruined church. Cloud wakes in a bed of yellow flowers, with Aeris beside him."
+    },
+    {
+      "key": "184:2:6:31",
+      "text": "Cloud jumps onto the church's broken rafters and calls for Aeris to follow."
+    },
+    {
+      "key": "184:8:1:53",
+      "text": "The falling barrel strikes the soldier below and knocks him down."
+    },
+    {
+      "key": "184:8:1:166",
+      "text": "The falling barrel misses the soldier and crashes to the floor."
+    },
+    {
+      "key": "184:9:1:50",
+      "text": "The falling barrel strikes the soldier below and knocks him down."
+    },
+    {
+      "key": "184:9:1:208",
+      "text": "The falling barrel misses the soldier and crashes to the floor."
+    },
+    {
+      "key": "184:10:1:50",
+      "text": "The falling barrel strikes the soldier below and knocks him down."
+    },
+    {
+      "key": "184:10:1:127",
+      "text": "The falling barrel misses the soldier and crashes to the floor."
+    },
+    {
+      "key": "184:11:1:80",
+      "text": "The falling barrel misses the soldier and crashes to the floor."
+    },
+    {
+      "key": "188:0:0:70",
+      "text": "Aeris leads Cloud into her home, where her adoptive mother, Elmyra, comes to greet them."
+    },
+    {
+      "key": "189:11:3:4",
+      "text": "Years later, Tseng comes to Elmyra's house. Young Aeris stays close to Elmyra while he asks her to return to Shinra."
+    },
+    {
+      "key": "190:0:0:90",
+      "text": "The memory fades. Cloud wakes alone in Aeris's upstairs bedroom."
+    },
+    {
+      "key": "190:6:3:6",
+      "text": "Barret rushes upstairs and sweeps Marlene into a tight hug."
+    },
+    {
+      "key": "192:0:3:282",
+      "text": "In a derelict playground, Aeris sits atop the broken slide. Cloud climbs up beside her."
+    },
+    {
+      "key": "192:0:3:503",
+      "text": "Cloud and Aeris look toward the gate as Tifa rides past in a chocobo-drawn carriage."
+    },
+    {
+      "key": "192:0:3:525",
+      "text": "Tifa's carriage disappears through the gate. Cloud and Aeris climb down from the slide to follow."
+    },
+    {
+      "key": "193:0:0:129",
+      "text": "Barret runs through the wreckage beneath the fallen plate, desperately searching for Marlene and Avalanche."
+    },
+    {
+      "key": "193:2:12:120",
+      "text": "Overcome with grief, Barret raises his gun-arm and fires repeatedly into the air."
+    },
+    {
+      "key": "201:7:3:26",
+      "text": "Behind the curtain, Cloud changes into the dress and wig. He steps back out transformed for the disguise."
+    },
+    {
+      "key": "206:7:5:12",
+      "text": "At Cloud's suggestion that he dress as a woman, Aeris suddenly breaks into laughter. Cloud stares at her, baffled."
+    },
+    {
+      "key": "208:5:3:22",
+      "text": "Cloud throws off the dress and wig, revealing his uniform and sword."
+    },
+    {
+      "key": "210:7:4:0",
+      "text": "Don Corneo points to Cloud and chooses him."
+    },
+    {
+      "key": "210:7:5:13",
+      "text": "Don Corneo points to Aeris and chooses her."
+    },
+    {
+      "key": "210:7:6:13",
+      "text": "Don Corneo points to Tifa and chooses her."
+    },
+    {
+      "key": "211:5:10:31",
+      "text": "Cloud throws off the dress and wig, revealing his uniform and sword."
+    },
+    {
+      "key": "211:12:9:125",
+      "text": "Don Corneo presses a hidden switch. The floor opens beneath Cloud, Tifa, and Aeris."
+    },
+    {
+      "key": "216:10:1:160",
+      "text": "One of the Honeybee Inn women sits Cloud down and carefully applies his makeup."
+    },
+    {
+      "key": "220:8:1:73",
+      "text": "Cloud enters a tiled bath packed with muscular men. Mukki ushers him into the crowded tub."
+    },
+    {
+      "key": "220:9:1:40",
+      "text": "In a private room, Cloud finds a translucent double of himself crouched in the corner. The vision confronts him; Cloud clutches his head and collapses."
+    },
+    {
+      "key": "225:5:3:12",
+      "text": "Cloud, Tifa, and Barret climb a swaying cable through the wreckage toward the towering Shinra Building."
+    },
+    {
+      "key": "226:0:0:11",
+      "text": "At dawn, the party gathers at the broken highway's end, with open land stretching beyond Midgar."
+    },
+    {
+      "key": "234:36:4:0",
+      "text": "Tifa, Aeris, Red XIII and Barret turn. Cloud straddles a large black motorcycle. Tifa stands beside a turquoise truck. Cloud rides through shattered glass into the hall. He skids around the truck as the others board. The truck crashes through glass. Both vehicles descend to the lower level. Cloud speeds through a doorway, the truck following. Tifa drives, with Aeris beside her. They burst through glass onto the raised roadway. Motorcycle and truck speed away along the night highway."
+    },
+    {
+      "key": "236:11:5:0",
+      "text": "A title: Shinra Electric Power Company Motor Mobiles. A streamlined silver open-top car rotates beside columns of specifications. A brass three-wheeler turns, displaying exposed pipes, round headlights and red wheel rims. An enclosed vintage car rotates, with gold fittings, large lamps and curved exhausts. Its body vanishes, revealing the chassis. Labels: Packaging, Power Unit, Footwork. An engine glows green. Text: Mako Engine, produced by Shinra. A wheel and suspension diagram appears, labeled Shinra suspension system, S S wishbone. The Shinra emblem appears beside a model lineup: new model S five ten. A Japanese dealer list appears. Welcome to Shinra M M."
+    },
+    {
+      "key": "240:8:0:15",
+      "text": "A guard sits before surveillance monitors. One shows elevator doors on floor sixty."
+    },
+    {
+      "key": "254:0:0:23",
+      "text": "From the air duct, Cloud, Tifa, and Barret peer down at President Shinra and his executives gathered around a long conference table."
+    },
+    {
+      "key": "258:1:6:8",
+      "text": "Cloud wakes in the prison cell and finds its door standing open. Beyond it, a dark trail of blood smears the hallway floor."
+    },
+    {
+      "key": "259:1:3:184",
+      "text": "The camera reveals Jenova's headless, human-shaped body suspended behind glass. It twitches."
+    },
+    {
+      "key": "263:0:0:99",
+      "text": "In Hojo's laboratory, Aeris is sealed inside a glass containment chamber. A red, lion-like beast is held in the adjoining pod."
+    },
+    {
+      "key": "263:7:6:38",
+      "text": "A red beast bursts from the shattered chamber and lunges at Hojo, knocking him down."
+    },
+    {
+      "key": "267:0:0:33",
+      "text": "Rude and Shinra guards march the captured party into President Shinra's office. The President waits behind the circular conference table."
+    },
+    {
+      "key": "267:0:0:195",
+      "text": "President Shinra and his executives sit around a conference table high above Midgar as Reeve objects to the plan to destroy Sector 7."
+    },
+    {
+      "key": "267:0:0:286",
+      "text": "The party enters President Shinra's office and finds him dead at his desk, Sephiroth's sword driven through him."
+    },
+    {
+      "key": "267:0:0:340",
+      "text": "A helicopter rises outside the office windows. Rufus Shinra, a young man in a long white coat, stands on its open landing platform."
+    },
+    {
+      "key": "267:6:3:4",
+      "text": "Palmer emerges from hiding near the President's desk and recoils from the party."
+    },
+    {
+      "key": "269:1:1:0",
+      "text": "On Shinra's rooftop, Rufus stands alone across from Cloud, calm and motionless in his long white coat."
+    },
+    {
+      "key": "269:1:2:87",
+      "text": "Red banners hang over an industrial roadway. Road panels lift, exposing huge gears beneath a wall marked Junon. Gears and hydraulic pistons turn the massive cannon. The fortress cannon levels toward the sea."
+    },
+    {
+      "key": "276:2:1:52",
+      "text": "In a memory of Nibelheim, teenage Cloud sits in his childhood bedroom while his mother comes to speak with him."
+    },
+    {
+      "key": "277:4:1:0",
+      "text": "Inside a swaying Shinra truck, sixteen-year-old Cloud rides through heavy rain beside Sephiroth and two masked infantrymen."
+    },
+    {
+      "key": "279:2:1:4",
+      "text": "Cloud, Sephiroth, and two infantrymen arrive outside the misty mountain town of Nibelheim."
+    },
+    {
+      "key": "282:8:1:48",
+      "text": "Tifa arrives as their guide, wearing a wide-brimmed cowboy hat, boots, and a short skirt."
+    },
+    {
+      "key": "282:11:13:32",
+      "text": "The photographer snaps a picture of Tifa standing between Cloud and Sephiroth."
+    },
+    {
+      "key": "284:0:0:5",
+      "text": "Red-roofed timber houses surround a cobbled square with a round water tank on a wooden tower. A large dark mansion stands beyond the houses."
+    },
+    {
+      "key": "290:1:1:4",
+      "text": "Nibelheim is ablaze. Flames pour from the houses as injured villagers lie across the square."
+    },
+    {
+      "key": "292:1:1:22",
+      "text": "Sephiroth raises his head, green eyes fixed ahead, faintly smiling. He turns away, his long blade at his side. Silver hair flowing, he walks into the towering flames."
+    },
+    {
+      "key": "292:2:1:10",
+      "text": "Sephiroth raises his head, green eyes fixed ahead, faintly smiling. He turns away, his long blade at his side. Silver hair flowing, he walks into the towering flames."
+    },
+    {
+      "key": "294:0:0:4",
+      "text": "Seven years earlier, teenage Cloud waits with Tifa on Nibelheim's water tower beneath a sky crowded with stars."
+    },
+    {
+      "key": "294:6:1:0",
+      "text": "A bright shooting star streaks across the sky above them."
+    },
+    {
+      "key": "298:0:0:16",
+      "text": "A dim mansion hall has high stained walls and tall windows. Long corridors lead to adjoining rooms with old furniture."
+    },
+    {
+      "key": "303:0:0:26",
+      "text": "A rough stone passage leads into a brick chamber holding several purple-red coffins."
+    },
+    {
+      "key": "304:0:0:66",
+      "text": "In the mansion basement, Sephiroth sits alone at a circular library desk, reading research notes by lamplight."
+    },
+    {
+      "key": "308:0:0:28",
+      "text": "Tall bookcases crowd a narrow, dim passage. An open book lies among piles of books on the floor."
+    },
+    {
+      "key": "311:0:0:207",
+      "text": "Jagged black spires rise beneath an ochre sky. A reactor nestles between peaks. Suspension bridges span the gaps. Mist drifts across a barren stone canyon."
+    },
+    {
+      "key": "312:10:3:106",
+      "text": "A plank bridge twists above the canyon. Boards split. The bridge's center gives way. Broken planks hang against the cliff, shedding splinters into mist."
+    },
+    {
+      "key": "313:0:0:50",
+      "text": "Cloud, Sephiroth, Tifa, and one infantryman regroup on a rocky ledge below the broken bridge."
+    },
+    {
+      "key": "318:8:3:26",
+      "text": "The cavern opens around a luminous turquoise Mako spring, with glowing energy streaming through the rock."
+    },
+    {
+      "key": "322:0:0:444",
+      "text": "In the memory, Tifa kneels beside her injured father on the floor of the Nibelheim reactor."
+    },
+    {
+      "key": "322:0:0:446",
+      "text": "In the memory, Tifa kneels beside her injured father on the floor of the Nibelheim reactor."
+    },
+    {
+      "key": "322:6:0:100",
+      "text": "Tifa kneels beside her gravely injured father on the reactor floor."
+    },
+    {
+      "key": "322:6:3:104",
+      "text": "Tifa rises, seizes Sephiroth's sword, and runs deeper into the reactor."
+    },
+    {
+      "key": "323:5:15:27",
+      "text": "Cloud rushes to the injured Tifa and kneels beside her."
+    },
+    {
+      "key": "323:7:3:13",
+      "text": "Tifa raises Sephiroth's sword and charges at him."
+    },
+    {
+      "key": "323:7:4:0",
+      "text": "Sephiroth slashes Tifa and sends her tumbling down the reactor steps."
+    },
+    {
+      "key": "323:8:1:48",
+      "text": "Cloud peers through the pod's small window and recoils from a malformed human shape suspended inside."
+    },
+    {
+      "key": "323:9:7:236",
+      "text": "Green pods line a red-lit chamber. A monstrous face peers through a porthole. One pod vents steam. A thin blue-gray creature emerges, with a spiky head and long claws. Steam drifts around it as the view retreats behind girders."
+    },
+    {
+      "key": "327:0:0:290",
+      "text": "Sephiroth tears away the metal figure covering Jenova's chamber. Cloud confronts him beneath the exposed form."
+    },
+    {
+      "key": "332:4:0:85",
+      "text": "The flashback ends. Back at the Kalm inn, Cloud sits with the others, unable to remember how the confrontation ended."
+    },
+    {
+      "key": "332:5:3:238",
+      "text": "The upstairs room fades away as Cloud's story becomes a memory from five years earlier."
+    },
+    {
+      "key": "332:5:4:3",
+      "text": "The memory pauses. Back in the Kalm inn, Cloud's companions sit around him as he continues the story."
+    },
+    {
+      "key": "343:9:1:24",
+      "text": "Four yellow chocobos line up and perform a lively synchronized dance."
+    },
+    {
+      "key": "347:0:0:74",
+      "text": "Fireworks blossom above the Gold Saucer's golden towers. A gondola glides high above the glittering park. Colored sparks burst and trail across the dark sky."
+    },
+    {
+      "key": "347:0:0:125",
+      "text": "The Gold Saucer rises from clouds, golden platforms circled by green tracks. Searchlights sweep beneath bursts of pink, green, white and purple fireworks."
+    },
+    {
+      "key": "348:0:0:13",
+      "text": "A gigantic Midgar Zolom hangs impaled high on a dead tree, its body twisted around the trunk."
+    },
+    {
+      "key": "349:0:0:99",
+      "text": "In the mine, Rude blocks the passage while Elena and Tseng stand behind him in dark blue Turk suits."
+    },
+    {
+      "key": "356:11:11:260",
+      "text": "A plank bridge twists above the canyon. Boards split. The bridge's center gives way. Broken planks hang against the cliff, shedding splinters into mist."
+    },
+    {
+      "key": "359:0:0:79",
+      "text": "An industrial passage opens onto an orange sunset. A massive cannon looms outside. Bronze fortifications and red banners line the sea cliffs. The immense cannon projects from the fortress over dark water. The story continues automatically when the panorama ends."
+    },
+    {
+      "key": "361:5:1:50",
+      "text": "The soldiers run off, leaving Cloud behind with the captain."
+    },
+    {
+      "key": "361:14:9:93",
+      "text": "Heidegger swings his arms among the scattered soldiers, then advances on Cloud."
+    },
+    {
+      "key": "382:3:0:32",
+      "text": "The view pans down the ship to its open cargo ramp and the soldiers waiting on the dock."
+    },
+    {
+      "key": "382:19:11:34",
+      "text": "Heidegger advances with raised arms. The captain and nearby soldiers recoil."
+    },
+    {
+      "key": "384:0:3:73",
+      "text": "The huge platform rises to the upper deck."
+    },
+    {
+      "key": "384:0:3:201",
+      "text": "The huge platform lowers to the airfield."
+    },
+    {
+      "key": "385:0:0:136",
+      "text": "Cloud climbs a ladder up the metal tower. A huge gray airship towers above him, with broad wings and powerful engines. It hangs moored above the airfield, lights blinking against pink clouds."
+    },
+    {
+      "key": "387:17:3:17",
+      "text": "Cloud steps out in a blue Shinra uniform and helmet, carrying a rifle."
+    },
+    {
+      "key": "387:17:16:32",
+      "text": "Cloud twirls his rifle and finishes in a pose."
+    },
+    {
+      "key": "391:2:1:5",
+      "text": "A striped platform rises through the shaft to a green-lit landing."
+    },
+    {
+      "key": "391:2:2:19",
+      "text": "The platform leaves the green-lit landing and recedes into the shaft."
+    },
+    {
+      "key": "395:3:1:19",
+      "text": "The platform leaves the Caution sign behind, moving toward the foreground."
+    },
+    {
+      "key": "395:3:2:8",
+      "text": "The platform approaches the landing marked Caution. It settles amid billowing vapor."
+    },
+    {
+      "key": "399:0:0:171",
+      "text": "Steel supports stretch beneath Midgar's plate. Explosions race up the pillar. Fiery debris rains down. A television turns to static. The room darkens. The huge plate plunges. Lights go out. People flee through an alley, debris billowing behind. Between two green towers, Sector 7 burns beneath clouds of smoke. President Shinra watches the destruction from above. The view rises along the green-lit Shinra tower."
+    },
+    {
+      "key": "399:0:0:359",
+      "text": "Cloud hangs from the broken catwalk. Flames erupt. Barret crouches over Tifa. Cloud tumbles past enormous pipes and disappears into mist."
+    },
+    {
+      "key": "399:0:0:389",
+      "text": "A circular platform surrounds the pillar. Explosions tear holes in the pillar. Fiery chunks fall away. Dust and debris surround the platform far below."
+    },
+    {
+      "key": "400:0:3:5",
+      "text": "Sparks split the catwalk."
+    },
+    {
+      "key": "402:0:0:81",
+      "text": "A guard sits before surveillance monitors. One shows elevator doors on floor sixty."
+    },
+    {
+      "key": "402:3:13:133",
+      "text": "Jagged black spires rise beneath an ochre sky. A reactor nestles between peaks. Suspension bridges span the gaps. Mist drifts across a barren stone canyon."
+    },
+    {
+      "key": "411:13:3:190",
+      "text": "Tifa, Aeris, Red XIII and Barret turn. Cloud straddles a large black motorcycle. Tifa stands beside a turquoise truck. Cloud rides through shattered glass into the hall. He skids around the truck as the others board. The truck crashes through glass. Both vehicles descend to the lower level. Cloud speeds through a doorway, the truck following. Tifa drives, with Aeris beside her. They burst through glass onto the raised roadway. Motorcycle and truck speed away along the night highway."
+    },
+    {
+      "key": "416:0:3:5",
+      "text": "Misty crevices and bare cliffs pass below. The view approaches a metal reactor wedged between pointed rock walls."
+    },
+    {
+      "key": "428:5:0:142",
+      "text": "The party enters Lower Junon, a dim fishing village beneath the towering Shinra fortress."
+    },
+    {
+      "key": "429:2:0:117",
+      "text": "A flying sea creature snatches Priscilla from the shore and drags her toward the water."
+    },
+    {
+      "key": "434:1:0:9",
+      "text": "After the fight, Priscilla lies motionless on the wet beach while the party gathers around her."
+    },
+    {
+      "key": "436:14:1:135",
+      "text": "Red XIII sways awkwardly on two legs inside a sailor's uniform."
+    },
+    {
+      "key": "437:3:1:129",
+      "text": "Barret strides away from the bridge window and raises his fists."
+    },
+    {
+      "key": "440:15:5:29",
+      "text": "A red-uniformed crewman collapses and fades away."
+    },
+    {
+      "key": "440:15:5:93",
+      "text": "Sephiroth rises through the floor, silver hair trailing over his long black coat."
+    },
+    {
+      "key": "440:15:5:155",
+      "text": "Sephiroth flies past. Cloud falls amid green flashes."
+    },
+    {
+      "key": "440:15:5:299",
+      "text": "A severed arm lies on the deck between Cloud and his companions."
+    },
+    {
+      "key": "441:7:6:15",
+      "text": "The party gathers on a sunlit quay beside the cargo ship. A red seaplane floats nearby."
+    },
+    {
+      "key": "442:8:11:17",
+      "text": "Heidegger knocks two sailors off the dock into the water."
+    },
+    {
+      "key": "442:9:3:33",
+      "text": "A helicopter sweeps over the dock toward the helipad."
+    },
+    {
+      "key": "442:9:4:45",
+      "text": "The helicopter lifts off, leaving Heidegger on the dock."
+    },
+    {
+      "key": "449:5:9:0",
+      "text": "Cloud and his companions gather around Hojo on the beach."
+    },
+    {
+      "key": "449:12:14:149",
+      "text": "Hojo steps back and turns away from the group."
+    },
+    {
+      "key": "450:13:4:13",
+      "text": "A townsman punches Barret, knocking him down."
+    },
+    {
+      "key": "457:1:0:85",
+      "text": "A blue cable car approaches the rocky station. It docks. Propellers slow, and vapor jets beside it."
+    },
+    {
+      "key": "457:2:3:109",
+      "text": "A blue cable car's propellers spin. It lifts along cables into the golden sky."
+    },
+    {
+      "key": "457:2:4:16",
+      "text": "A blue cable car's propellers spin. It lifts along cables into the golden sky."
+    },
+    {
+      "key": "461:1:1:9",
+      "text": "Impacts chip the cliff face, scattering dust and rock."
+    },
+    {
+      "key": "462:3:1:14",
+      "text": "Timber crossbeams rush past through a deep passage."
+    },
+    {
+      "key": "463:0:0:66",
+      "text": "Cloud hangs below the tracks. Press OK, then hold Up to climb back."
+    },
+    {
+      "key": "464:9:5:151",
+      "text": "The railway bridge lowers into place."
+    },
+    {
+      "key": "469:3:0:34",
+      "text": "A flashback shows wooden houses along Corel's busy streets."
+    },
+    {
+      "key": "470:3:0:53",
+      "text": "Flames engulf Corel's wooden houses."
+    },
+    {
+      "key": "483:2:0:6",
+      "text": "Barret, Dyne, Scarlet and villagers gather in a small room lined with shelves."
+    },
+    {
+      "key": "484:0:0:30",
+      "text": "Event Square. The theatre's stage front rises ahead of a wide open floor. An attendant in uniform stands by the entrance and visitors wait in front of it."
+    },
+    {
+      "key": "486:0:0:14",
+      "text": "Speed Square. Steps lead up to the Shooting Coaster's entrance, with a screen mounted above the walkway. Visitors and families move about, and a member of staff walks around in a chocobo costume."
+    },
+    {
+      "key": "486:6:5:10",
+      "text": "A tall, heavily built man steps in front of Cloud."
+    },
+    {
+      "key": "486:6:5:464",
+      "text": "Dio walks away across the square and out of sight."
+    },
+    {
+      "key": "487:0:0:14",
+      "text": "The Shooting Coaster's boarding platform. Staff wait at the registration counter, ramps lead up to the ride car, and a control panel stands beside it."
+    },
+    {
+      "key": "488:0:0:173",
+      "text": "Round Square. A wooden gondola waits at the boarding platform beside a ticket booth shaped like a yellow moogle. Railings run along the platform and pulley wheels turn overhead."
+    },
+    {
+      "key": "489:0:0:0",
+      "text": "Inside a wooden gondola, with windows on both sides."
+    },
+    {
+      "key": "489:0:0:155",
+      "text": "A roller coaster races along looping tracks outlined with lights. Searchlights sweep across the park beneath a full moon."
+    },
+    {
+      "key": "489:0:0:210",
+      "text": "Brightly colored chocobos race past the wooden gondola's windows beneath sweeping searchlights."
+    },
+    {
+      "key": "489:0:0:288",
+      "text": "The view sweeps over round platforms filled with rides and colorful lights. It rises along a huge golden tower. A colossal golden statue of a muscular man in a winged helmet towers over the park."
+    },
+    {
+      "key": "489:0:0:345",
+      "text": "A roller coaster races along looping tracks outlined with lights. Searchlights sweep across the park beneath a full moon."
+    },
+    {
+      "key": "489:0:0:429",
+      "text": "Brightly colored chocobos race past the wooden gondola's windows beneath sweeping searchlights."
+    },
+    {
+      "key": "489:0:0:538",
+      "text": "Fireworks blossom above the Gold Saucer's golden towers. A gondola glides high above the glittering park. Colored sparks burst and trail across the dark sky."
+    },
+    {
+      "key": "489:0:0:612",
+      "text": "The view sweeps over round platforms filled with rides and colorful lights. It rises along a huge golden tower. A colossal golden statue of a muscular man in a winged helmet towers over the park."
+    },
+    {
+      "key": "489:0:0:686",
+      "text": "The Gold Saucer rises from clouds, golden platforms circled by green tracks. Searchlights sweep beneath bursts of pink, green, white and purple fireworks."
+    },
+    {
+      "key": "489:0:0:759",
+      "text": "The Gold Saucer rises from clouds, golden platforms circled by green tracks. Searchlights sweep beneath bursts of pink, green, white and purple fireworks."
+    },
+    {
+      "key": "489:0:0:832",
+      "text": "The Gold Saucer rises from clouds, golden platforms circled by green tracks. Searchlights sweep beneath bursts of pink, green, white and purple fireworks."
+    },
+    {
+      "key": "489:0:0:905",
+      "text": "The Gold Saucer rises from clouds, golden platforms circled by green tracks. Searchlights sweep beneath bursts of pink, green, white and purple fireworks."
+    },
+    {
+      "key": "490:0:0:0",
+      "text": "Inside a wooden gondola, with windows on both sides."
+    },
+    {
+      "key": "490:0:0:91",
+      "text": "The wooden gondola passes a dark mansion and crooked gravestones, surrounded by swirling fog and bats."
+    },
+    {
+      "key": "490:0:0:146",
+      "text": "Colorful balloons rise from an outdoor stage, drifting around the wooden gondola."
+    },
+    {
+      "key": "490:0:0:223",
+      "text": "The wooden gondola passes a dark mansion and crooked gravestones, surrounded by swirling fog and bats."
+    },
+    {
+      "key": "490:0:0:307",
+      "text": "Colorful balloons rise from an outdoor stage, drifting around the wooden gondola."
+    },
+    {
+      "key": "491:0:0:42",
+      "text": "Ghost Square. The Ghost Hotel stands ahead behind a gate, its doorway lit by lamps, with bats circling overhead. Other visitors wander the street outside."
+    },
+    {
+      "key": "492:0:0:19",
+      "text": "A red carpet and curling staircase fill a dark hall decorated with grinning monster faces. Skull-shaped lamps frame the doorways."
+    },
+    {
+      "key": "495:0:0:14",
+      "text": "Bottles and candles crowd a small counter beneath a red canopy. A fire glows beside hanging cages and monster-faced decorations."
+    },
+    {
+      "key": "496:0:0:190",
+      "text": "The cable car glides above the clouds toward the Gold Saucer. Huge golden platforms glow with lights, rides and towering attractions as the car approaches the neon entrance."
+    },
+    {
+      "key": "496:0:0:201",
+      "text": "Lamps light a dark tunnel. The car emerges through a giant monster's mouth. Colorful lanterns surround a Welcome sign."
+    },
+    {
+      "key": "496:13:5:21",
+      "text": "A cable car waits in a monster's mouth. It reverses into darkness as fireworks burst above."
+    },
+    {
+      "key": "497:0:0:638",
+      "text": "Seven round, brightly coloured tube entrances ring a circular floor painted with a huge smiling face."
+    },
+    {
+      "key": "497:0:0:644",
+      "text": "Barret walks in and looks around."
+    },
+    {
+      "key": "497:0:0:650",
+      "text": "Red XIII walks in and stops beside him."
+    },
+    {
+      "key": "497:0:0:656",
+      "text": "Tifa runs in and joins them."
+    },
+    {
+      "key": "497:0:0:665",
+      "text": "Yuffie joins the group on the terminal floor."
+    },
+    {
+      "key": "497:0:0:671",
+      "text": "Aeris hurries up to Cloud."
+    },
+    {
+      "key": "497:0:0:848",
+      "text": "Barret runs to one of the tubes and jumps in."
+    },
+    {
+      "key": "499:0:0:68",
+      "text": "A broad staircase with a purple carpet rises between rows of green tube entrances toward the arena."
+    },
+    {
+      "key": "499:0:0:103",
+      "text": "Cloud runs forward and kneels beside a fallen person at the foot of the stairs."
+    },
+    {
+      "key": "501:0:0:51",
+      "text": "Several people lie motionless across a black-and-white tiled floor, beside a purple carpet."
+    },
+    {
+      "key": "501:0:0:118",
+      "text": "Dio and large guards close in on the party."
+    },
+    {
+      "key": "502:0:0:49",
+      "text": "Cloud and his companions stand on a raised stone platform with a red circular floor design, surrounded by a glowing purple trench."
+    },
+    {
+      "key": "502:0:0:61",
+      "text": "A uniformed guard runs onto the platform."
+    },
+    {
+      "key": "502:0:0:67",
+      "text": "A second guard runs on and turns to face the group."
+    },
+    {
+      "key": "502:0:0:110",
+      "text": "A tall mechanical guard steps out onto the platform."
+    },
+    {
+      "key": "502:0:0:128",
+      "text": "A second mechanical guard leaps down onto the platform."
+    },
+    {
+      "key": "502:0:0:131",
+      "text": "A third leaps down on the other side."
+    },
+    {
+      "key": "502:0:0:152",
+      "text": "The mechanical guards close in on Cloud and his companions."
+    },
+    {
+      "key": "504:0:0:28",
+      "text": "A uniformed guard works a control, and the circular floor hatch opens onto a dark shaft."
+    },
+    {
+      "key": "504:0:0:48",
+      "text": "The mechanical guard leaps into the opening with Cloud held against it."
+    },
+    {
+      "key": "505:0:0:41",
+      "text": "Wonder Square. The way into the arcade building lies ahead. Visitors and families fill the square, with staff in mascot costumes among them."
+    },
+    {
+      "key": "505:0:0:81",
+      "text": "A small crowned cat riding a large white moogle approaches Cloud."
+    },
+    {
+      "key": "506:0:0:14",
+      "text": "The arcade's ground floor. The arm wrestling machine, the Wonder Catcher and the basketball hoop stand around the room, with the prize counter to one side and stairs up to the second floor."
+    },
+    {
+      "key": "506:1:8:113",
+      "text": "Cloud steps up to the Wonder Catcher and starts it."
+    },
+    {
+      "key": "506:1:8:127",
+      "text": "He takes hold of the controls and the cabinet lights flash."
+    },
+    {
+      "key": "506:1:8:140",
+      "text": "Cloud holds still, watching the machine work."
+    },
+    {
+      "key": "506:1:8:389",
+      "text": "Cloud lets go of the controls and steps back."
+    },
+    {
+      "key": "506:1:9:108",
+      "text": "Cloud steps up to the Wonder Catcher and starts it."
+    },
+    {
+      "key": "506:1:9:122",
+      "text": "He takes hold of the controls and the cabinet lights flash."
+    },
+    {
+      "key": "506:1:9:135",
+      "text": "Cloud holds still, watching the machine work."
+    },
+    {
+      "key": "506:1:9:384",
+      "text": "Cloud lets go of the controls and steps back."
+    },
+    {
+      "key": "507:0:0:14",
+      "text": "The arcade's upper floor. The Mog House, the 3D Battler platform and the G Bike machine stand around the room, along with the snowboard and submarine machines, and stairs lead back down."
+    },
+    {
+      "key": "508:6:0:43",
+      "text": "Mog steps out of his mushroom-shaped house."
+    },
+    {
+      "key": "508:6:0:188",
+      "text": "Mog flaps his wings, hops into the air and drops back to the ground."
+    },
+    {
+      "key": "508:6:0:199",
+      "text": "Mog flaps his wings, hops into the air and drops back to the ground."
+    },
+    {
+      "key": "508:6:0:263",
+      "text": "Mog hops onto a mushroom, then flies in a wide loop around his home."
+    },
+    {
+      "key": "508:6:0:284",
+      "text": "Mog lands and goes back inside. The house lights dim."
+    },
+    {
+      "key": "508:6:0:306",
+      "text": "A pink moogle approaches the house."
+    },
+    {
+      "key": "508:6:0:322",
+      "text": "She knocks at the door."
+    },
+    {
+      "key": "508:6:0:328",
+      "text": "Mog comes outside."
+    },
+    {
+      "key": "508:6:0:536",
+      "text": "Mog circles through the air while the pink moogle watches."
+    },
+    {
+      "key": "508:6:0:628",
+      "text": "Mog comes out of the house."
+    },
+    {
+      "key": "508:6:0:644",
+      "text": "The pink moogle comes out and stands beside him."
+    },
+    {
+      "key": "508:6:0:666",
+      "text": "Mog and Mag walk away together towards the edge of the clearing."
+    },
+    {
+      "key": "508:6:0:699",
+      "text": "Small moogles pour out of the house, hopping across the clearing one after another."
+    },
+    {
+      "key": "508:6:0:919",
+      "text": "The last one stops, looks back, then hurries after the others."
+    },
+    {
+      "key": "508:7:0:82",
+      "text": "Mog eats the nut."
+    },
+    {
+      "key": "509:0:0:24",
+      "text": "Chocobo Square. The way into the racetrack building lies ahead, under a lit sign, with a chocobo beside it."
+    },
+    {
+      "key": "511:0:0:175",
+      "text": "The chocobo racing ticket office. Attendants stand at the betting counter, a screen shows the track, and an odds sheet hangs nearby. Other customers watch and wait around the room."
+    },
+    {
+      "key": "525:9:8:14",
+      "text": "Red XIII comes back toward Cloud."
+    },
+    {
+      "key": "525:16:5:119",
+      "text": "Red XIII moves ahead toward the gate guard."
+    },
+    {
+      "key": "526:4:0:12",
+      "text": "A small bonfire burns on a raised stone terrace with reddish canyon walls. Wooden ladders and lit doorways surround the open space."
+    },
+    {
+      "key": "531:3:0:4",
+      "text": "Lamps light red rock walls as a tall wooden ladder rises through a shaft. Pipes and a gauge surround a heavy doorway."
+    },
+    {
+      "key": "531:15:1:105",
+      "text": "The sealed doorway opens."
+    },
+    {
+      "key": "540:1:0:0",
+      "text": "A domed observatory stands on a rocky summit, its telescope angled into a pink and purple sky beneath a crescent moon."
+    },
+    {
+      "key": "543:13:6:0",
+      "text": "A yellow comet crosses a star field marked with blue grid lines. Red orbital paths curve past a cracked, glowing rocky body. Planets circle along red paths against a distant galaxy. Rock fragments tumble toward a dark vortex ringed with violet light."
+    },
+    {
+      "key": "544:1:0:4",
+      "text": "Ladders connect cluttered wooden floors inside the observatory. Hanging plants, tables and machinery fill the rooms, lit by colored windows."
+    },
+    {
+      "key": "547:2:0:0",
+      "text": "Narrow stone paths and small bridges cross among rock columns above red-lit depths. Green patches mark the surrounding rock."
+    },
+    {
+      "key": "549:4:0:0",
+      "text": "A huge snarling face is carved into the far rock wall, its mouth open. A round stone platform sits in front, flanked by red-lit pools."
+    },
+    {
+      "key": "550:5:13:103",
+      "text": "Red XIII raises his head upward toward the stone figure above."
+    },
+    {
+      "key": "550:8:3:217",
+      "text": "Cloud and his companion leave Bugenhagen alone with Red XIII."
+    },
+    {
+      "key": "550:8:3:406",
+      "text": "Red XIII leaps from one rock ledge to another toward Seto."
+    },
+    {
+      "key": "550:10:9:0",
+      "text": "Bugenhagen spreads his arms wide while speaking to Red XIII."
+    },
+    {
+      "key": "550:11:3:17",
+      "text": "Clear droplets fall from the stone figure's eyes."
+    },
+    {
+      "key": "550:14:4:0",
+      "text": "Petrified Seto stands beneath an orange moon. Spears pierce his stone back above his lowered head."
+    },
+    {
+      "key": "567:12:13:640",
+      "text": "Impacts chip the cliff face, scattering dust and rock."
+    },
+    {
+      "key": "569:3:3:130",
+      "text": "The rocket rises slightly on fiery engines. Support arms fall away. The flames die. Smoke rolls across the forest. The rocket tips sideways and remains leaning against its framework. The rusted rocket now looms above village rooftops."
+    },
+    {
+      "key": "569:14:3:105",
+      "text": "Petrified Seto stands beneath an orange moon. Spears pierce his stone back above his lowered head."
+    },
+    {
+      "key": "637:2:9:239",
+      "text": "Trailing black smoke, the plane descends over the sea. It strikes the water in white spray. It remains afloat, trailing smoke."
+    },
+    {
+      "key": "639:0:0:23",
+      "text": "A gloved hand places a purple orb inside the crystal. It floats beside Sephiroth's motionless body. Blue tendrils coil around him and the orb."
+    },
+    {
+      "key": "639:0:0:35",
+      "text": "An airship turns away from a huge white column above the crater. Monstrous faces stir in darkness, their eyes glowing. Ice shifts. A gigantic claw grips the rim. An armored creature rises, red eyes glowing. The party watches from the airship's deck. A towering fanged beast stretches its arms, a pink core glowing in its chest. Blue rings flare around another armored creature. Tifa shields her face and falls onto the deck. Barret braces himself against the railing. A winged beast rises through swirling blue energy. Blue streaks shoot skyward as the airship escapes. The airship recedes into the starry sky."
+    },
+    {
+      "key": "641:0:0:80",
+      "text": "Cloud supports Aeris on her back, her hands folded across her chest. Head bowed, he gently lowers her into the blue water. She sinks through shafts of light, her loose hair drifting. Her arms float apart as she recedes into the depths."
+    },
+    {
+      "key": "643:1:3:29",
+      "text": "A yellow comet crosses a star field marked with blue grid lines. Red orbital paths curve past a cracked, glowing rocky body. Planets circle along red paths against a distant galaxy. Rock fragments tumble toward a dark vortex ringed with violet light."
+    },
+    {
+      "key": "643:3:3:79",
+      "text": "Dust rises beneath tangled roots. Rocks tumble onto the ledge. Sephiroth floats motionless inside a blue crystal."
+    },
+    {
+      "key": "647:0:0:229",
+      "text": "Aeris kneels in prayer, then opens her eyes. Cloud watches her, his expression serious. She lifts her head and smiles. Sephiroth plunges from above, his long sword pointed downward. The blade pierces Aeris from behind. Her head bows. Her eyes close. Sephiroth smiles faintly, then withdraws the blade. Aeris slumps. Her ribbon loosens, releasing a glowing pale green orb. The orb spins as it falls. It bounces down stone steps, then drops over the edge. It falls past towering platforms beneath a swirling column of light. The orb splashes into the water below."
+    },
+    {
+      "key": "695:1:3:19",
+      "text": "The North Gate stands open. A huge green reactor tower looms above, wreathed in vapor."
+    },
+    {
+      "key": "706:3:3:243",
+      "text": "Cloud jumps onto the train and crouches. The train enters a lit tunnel. Empty tracks lead into the tunnel."
+    },
+    {
+      "key": "706:3:3:266",
+      "text": "Blue arcs flicker across the reactor. An orange fireball erupts above Midgar. The circular city recedes below. The fireball shrinks into smoke."
+    },
+    {
+      "key": "706:3:3:285",
+      "text": "A black train rushes past on elevated tracks. It winds around an enormous steel-braced pillar beneath the city's plate."
+    },
+    {
+      "key": "707:1:1:427",
+      "text": "A fireball bursts through the passage."
+    },
+    {
+      "key": "708:2:3:21",
+      "text": "Cloud jumps onto the train and crouches. The train enters a lit tunnel. Empty tracks lead into the tunnel."
+    },
+    {
+      "key": "708:2:3:40",
+      "text": "A black train rushes past on elevated tracks. It winds around an enormous steel-braced pillar beneath the city's plate."
+    },
+    {
+      "key": "725:8:4:34",
+      "text": "An industrial passage opens onto an orange sunset. A massive cannon looms outside. Bronze fortifications and red banners line the sea cliffs. The immense cannon projects from the fortress over dark water."
+    },
+    {
+      "key": "726:4:5:2",
+      "text": "Cloud climbs a ladder up the metal tower. A huge gray airship towers above him, with broad wings and powerful engines. It hangs moored above the airfield, lights blinking against pink clouds."
+    },
+    {
+      "key": "727:5:5:2",
+      "text": "Timber crossbeams rush past through a deep passage."
+    },
+    {
+      "key": "729:4:0:104",
+      "text": "Green pods line a red-lit chamber. A monstrous face peers through a porthole. One pod vents steam. A thin blue-gray creature emerges, with a spiky head and long claws. Steam drifts around it as the view retreats behind girders."
+    },
+    {
+      "key": "730:11:0:1218",
+      "text": "Sephiroth raises his head, green eyes fixed ahead, faintly smiling. He turns away, his long blade at his side. Silver hair flowing, he walks into the towering flames."
+    },
+    {
+      "key": "730:11:3:90",
+      "text": "Green pods line a red-lit chamber. A monstrous face peers through a porthole. One pod vents steam. A thin blue-gray creature emerges, with a spiky head and long claws. Steam drifts around it as the view retreats behind girders."
+    },
+    {
+      "key": "742:13:4:0",
+      "text": "A pink propeller plane lifts from the grass, kicking up dust. It banks around the leaning rocket above the village. The plane sweeps close past the rocket's high framework. It swoops over rooftops, then passes overhead. Projectiles strike. The plane trails fire and smoke toward the coast."
+    },
+    {
+      "key": "763:0:0:714",
+      "text": "Sparks split the catwalk."
+    },
+    {
+      "key": "774:14:3:102",
+      "text": "A pink propeller plane lifts from the grass, kicking up dust. It banks around the leaning rocket above the village. The plane sweeps close past the rocket's high framework. It swoops over rooftops, then passes overhead. Projectiles strike. The plane trails fire and smoke toward the coast."
+    },
+    {
+      "key": "777:0:0:51",
+      "text": "A fireball bursts through the passage."
+    },
+    {
+      "key": "779:3:0:64",
+      "text": "A title: Shinra Electric Power Company Motor Mobiles. A streamlined silver open-top car rotates beside columns of specifications. A brass three-wheeler turns, displaying exposed pipes, round headlights and red wheel rims. An enclosed vintage car rotates, with gold fittings, large lamps and curved exhausts. Its body vanishes, revealing the chassis. Labels: Packaging, Power Unit, Footwork. An engine glows green. Text: Mako Engine, produced by Shinra. A wheel and suspension diagram appears, labeled Shinra suspension system, S S wishbone. The Shinra emblem appears beside a model lineup: new model S five ten. A Japanese dealer list appears. Welcome to Shinra M M."
+    }
+  ]
+}

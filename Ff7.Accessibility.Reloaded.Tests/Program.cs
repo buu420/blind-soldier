@@ -547,7 +547,65 @@ if (args.Contains("--costa-gold-navigation-only", StringComparer.OrdinalIgnoreCa
 if (args.Contains("--gongaga-navigation-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.GongagaNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
+    Ff7.Accessibility.Reloaded.Tests.CosmoCanyonNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
+    Ff7.Accessibility.Reloaded.Tests.CosmoNibelheimDescriptionTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.ContinuationDescriptionTests.RunCatalogAndNative();
+    Ff7.Accessibility.Reloaded.Tests.ContinuationFingerprintTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.ContinuationMovieOverlapTests.Run();
     Console.WriteLine("FFVII Gongaga navigation tests passed.");
+    return;
+}
+
+if (args.Contains("--continuation-descriptions-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.ContinuationDescriptionTests.RunCatalogAndNative();
+    Ff7.Accessibility.Reloaded.Tests.ContinuationFingerprintTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.ContinuationMovieOverlapTests.Run();
+    Console.WriteLine("FFVII continuation description catalog and native tests passed.");
+    Ff7.Accessibility.Reloaded.Tests.ContinuationDescriptionTests.RunPayloadReadiness();
+    return;
+}
+
+if (args.Contains("--field-identities", StringComparer.OrdinalIgnoreCase))
+{
+    var idArgs = args.SkipWhile(a => !a.Equals("--field-identities", StringComparison.OrdinalIgnoreCase))
+        .Skip(1).ToArray();
+    Ff7.Accessibility.Reloaded.Tests.FieldScriptIdentityProbe.Run(idArgs[0], idArgs[1]);
+    return;
+}
+
+if (args.Contains("--area-candidates", StringComparer.OrdinalIgnoreCase))
+{
+    var areaArgs = args.SkipWhile(a => !a.Equals("--area-candidates", StringComparison.OrdinalIgnoreCase))
+        .Skip(1).ToArray();
+    Ff7.Accessibility.Reloaded.Tests.AreaCandidateProbe.Run(areaArgs[0], areaArgs[1]);
+    return;
+}
+
+if (args.Contains("--field-script-dump", StringComparer.OrdinalIgnoreCase))
+{
+    var dumpArgs = args.SkipWhile(a => !a.Equals("--field-script-dump", StringComparison.OrdinalIgnoreCase))
+        .Skip(1).ToArray();
+    Ff7.Accessibility.Reloaded.Tests.FieldScriptDumpProbe.Run(dumpArgs[0], dumpArgs[1]);
+    return;
+}
+
+if (args.Contains("--description-inventory", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.DescriptionInventoryProbe.Run(
+        args.SkipWhile(a => !a.Equals("--description-inventory", StringComparison.OrdinalIgnoreCase))
+            .Skip(1).First());
+    return;
+}
+
+if (args.Contains("--cosmo-navigation-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.CosmoCanyonNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
+    Ff7.Accessibility.Reloaded.Tests.CosmoNibelheimDescriptionTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.ContinuationDescriptionTests.RunCatalogAndNative();
+    Ff7.Accessibility.Reloaded.Tests.ContinuationFingerprintTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.ContinuationMovieOverlapTests.Run();
+    Console.WriteLine("FFVII Cosmo Canyon navigation tests passed.");
     return;
 }
 
@@ -761,6 +819,11 @@ Ff7.Accessibility.Reloaded.Tests.JunonFieldNavigationTests.Run(
 CargoShipNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.CostaDelSolNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.GongagaNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
+Ff7.Accessibility.Reloaded.Tests.CosmoCanyonNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
+Ff7.Accessibility.Reloaded.Tests.CosmoNibelheimDescriptionTests.Run();
+Ff7.Accessibility.Reloaded.Tests.ContinuationDescriptionTests.RunCatalogAndNative();
+Ff7.Accessibility.Reloaded.Tests.ContinuationFingerprintTests.Run();
+Ff7.Accessibility.Reloaded.Tests.ContinuationMovieOverlapTests.Run();
 Ff7.Accessibility.Reloaded.Tests.HugeMateriaContactTests.Run(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.SubmarineMissionTests.Run();
 Ff7.Accessibility.Reloaded.Tests.Reactor5ButtonCueTests.Run();
@@ -16632,14 +16695,21 @@ static void AssertReachableFieldExitTargetProviderHidesBlockedGateways()
     var provider = new ReachableFieldExitTargetProvider(_ => nativeTargets, planner);
     var position = new FieldPositionSnapshot(1, 900, 0, 10, 10, 0, 0, 0);
 
+    // A native boundary is a door the game is holding shut, not a door that is not
+    // there. The Cosmo Canyon repair made it stay selectable so the player can pick it
+    // and be told it is locked, instead of it silently vanishing from the list; this
+    // assertion used to require the opposite and was never updated with it.
     var reachable = provider.ReadTargets(position);
-    AssertEqual(1, reachable.Count, "a live boundary should hide only the unreachable exit");
+    AssertEqual(2, reachable.Count, "a live boundary keeps the held exit selectable rather than hiding it");
     AssertEqual("gateway:900:0:899", reachable[0].StableId, "the reachable native exit should keep its identity");
-    AssertContains(provider.LastDiagnostic, "blocked=Exit 2");
+    AssertEqual("gateway:900:1:901", reachable[1].StableId, "and the held one keeps its identity too");
+    AssertContains(provider.LastDiagnostic, "shut by native boundary=Exit 2");
+    AssertContains(provider.LastDiagnostic, "blocked=none");
 
     memory[fieldGlobalObject + FieldBoundaryStateReader.BoundaryBitsOffset] = 0;
     reachable = provider.ReadTargets(position);
     AssertEqual(2, reachable.Count, "opening the boundary should expose both native exits");
+    AssertContains(provider.LastDiagnostic, "blocked=none");
 
     AssertEqual(
         0,

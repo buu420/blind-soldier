@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net8.0-windows</TargetFramework>
@@ -379,6 +379,7 @@
          by name. A missing clip is not a failure - that description falls back to the
          screen reader. -->
     <None Include="Assets\cutscene-voice\credits.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\cutscene-voice\provenance-*.txt" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Assets\cutscene-voice\*.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Assets\cutscene-voice\*.ogg" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>

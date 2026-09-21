@@ -1,4 +1,4 @@
-namespace Ff7.Accessibility.Reloaded;
+﻿namespace Ff7.Accessibility.Reloaded;
 
 public sealed class FieldCutsceneDescriptionTracker
 {
@@ -113,7 +113,130 @@ public static class FieldCutsceneDescriptionCatalog
         .. CreateGoldSaucerGondolaFilmDescriptions(),
         .. CreateReviewedFilmFallbackDescriptions(),
         .. CreateSetoVisualDescriptions(),
-        .. CreateGoldSaucerAreaDescriptions()
+        .. CreateCosmoThroughNibelheimActionDescriptions(),
+        .. FieldCutsceneContinuationDescriptions.CreateActionDescriptions(),
+        .. CreateAllAreaDescriptions()
+    ];
+
+    /// <summary>
+    /// Every area description there is, whatever part of the game it belongs to.
+    ///
+    /// <para>The cold-start tracker and the status command both need the description for
+    /// wherever the player happens to be, including on a save loaded straight into a room.
+    /// They used to be handed the Gold Saucer list by name, so a new area's description
+    /// existed in the catalog and still never reached a loaded save. Consumers take this
+    /// instead, and a new region is added in one place.</para>
+    /// </summary>
+    public static IReadOnlyList<FieldCutsceneDescriptionCue> CreateAllAreaDescriptions() =>
+    [
+        .. CreateGoldSaucerAreaDescriptions(),
+        .. CreateCosmoThroughNibelheimAreaDescriptions(),
+        .. FieldCutsceneContinuationDescriptions.CreateAreaDescriptions()
+    ];
+
+    /// <summary>
+    /// What Cosmo Canyon, the Cave of the Gi and Nibelheim look like on arrival.
+    ///
+    /// <para>Same rule as the Gold Saucer set: one description per arrival, driven by the
+    /// field's own MPNAM, which every field runs exactly once from its director entity on
+    /// every entry. Each text describes the installed background - the rock, the fixtures,
+    /// the light - and nothing that only happens once, because these fire on a later entry
+    /// too.</para>
+    ///
+    /// <para>The anchors were read out of both installed archives rather than guessed, and
+    /// nothing here describes a gesture the script does not actually perform.</para>
+    /// </summary>
+    public static IReadOnlyList<FieldCutsceneDescriptionCue> CreateCosmoThroughNibelheimAreaDescriptions() =>
+    [
+        // 526 cos_btm2, cosmo_fire. Root checked against native background or exact script action; unsupported animation details omitted.
+        new(526, 4, 0, 12,
+            "A small bonfire burns on a raised stone terrace with reddish canyon walls. "
+            + "Wooden ladders and lit doorways surround the open space.",
+            FieldOpcodeAddressResolver.OpcodeMapNameIndex),
+
+        // 531 cosin2, cosmo_gate_room. Root checked against native background or exact script action; unsupported animation details omitted.
+        new(531, 3, 0, 4,
+            "Lamps light red rock walls as a tall wooden ladder rises through a shaft. "
+            + "Pipes and a gauge surround a heavy doorway.",
+            FieldOpcodeAddressResolver.OpcodeMapNameIndex),
+
+        // 540 cos_top, cosmo_observatory_outside. Root checked against native background or exact script action; unsupported animation details omitted.
+        new(540, 1, 0, 0,
+            "A domed observatory stands on a rocky summit, its telescope angled into a pink "
+            + "and purple sky beneath a crescent moon.",
+            FieldOpcodeAddressResolver.OpcodeMapNameIndex),
+
+        // 544 bugin2, cosmo_research_inside. Root checked against native background or exact script action; unsupported animation details omitted.
+        new(544, 1, 0, 4,
+            "Ladders connect cluttered wooden floors inside the observatory. Hanging "
+            + "plants, tables and machinery fill the rooms, lit by colored windows.",
+            FieldOpcodeAddressResolver.OpcodeMapNameIndex),
+
+        // 547 gidun_2, gi_bridges. Root checked against native background or exact script action; unsupported animation details omitted.
+        new(547, 2, 0, 0,
+            "Narrow stone paths and small bridges cross among rock columns above red-lit "
+            + "depths. Green patches mark the surrounding rock.",
+            FieldOpcodeAddressResolver.OpcodeMapNameIndex),
+
+        // 549 gidun_3, gi_head. Root checked against native background or exact script action; unsupported animation details omitted.
+        new(549, 4, 0, 0,
+            "A huge snarling face is carved into the far rock wall, its mouth open. A round "
+            + "stone platform sits in front, flanked by red-lit pools.",
+            FieldOpcodeAddressResolver.OpcodeMapNameIndex),
+
+        // 284 nivl_3, nibelheim_arrival. Root checked against native background or exact script action; unsupported animation details omitted.
+        new(284, 0, 0, 5,
+            "Red-roofed timber houses surround a cobbled square with a round water tank on "
+            + "a wooden tower. A large dark mansion stands beyond the houses.",
+            FieldOpcodeAddressResolver.OpcodeMapNameIndex),
+
+        // 298 sinin1_2, mansion_hall. Root checked against native background or exact script action; unsupported animation details omitted.
+        new(298, 0, 0, 16,
+            "A dim mansion hall has high stained walls and tall windows. Long corridors "
+            + "lead to adjoining rooms with old furniture.",
+            FieldOpcodeAddressResolver.OpcodeMapNameIndex),
+
+        // 303 sininb2, mansion_coffins. Root checked against native background or exact script action; unsupported animation details omitted.
+        new(303, 0, 0, 26,
+            "A rough stone passage leads into a brick chamber holding several purple-red "
+            + "coffins.",
+            FieldOpcodeAddressResolver.OpcodeMapNameIndex),
+
+        // 308 sininb42, mansion_library. Root checked against native background or exact script action; unsupported animation details omitted.
+        new(308, 0, 0, 28,
+            "Tall bookcases crowd a narrow, dim passage. An open book lies among piles of "
+            + "books on the floor.",
+            FieldOpcodeAddressResolver.OpcodeMapNameIndex)
+    ];
+
+    /// <summary>
+    /// The three scripted moments in this batch, anchored on the native instruction that
+    /// performs them: Red XIII going ahead to the gate guard and coming back, and the
+    /// sealed doorway opening.
+    /// </summary>
+    public static IReadOnlyList<FieldCutsceneDescriptionCue> CreateCosmoThroughNibelheimActionDescriptions() =>
+    [
+        // 525 cos_btm, red_greets_guard. Root checked against native background or exact script action; unsupported animation details omitted.
+        new(525, 16, 5, 119,
+            "Red XIII moves ahead toward the gate guard.",
+            FieldOpcodeAddressResolver.OpcodeRequestIndex),
+
+        // 525 cos_btm, red_returns. Root checked against native background or exact script action; unsupported animation details omitted.
+        new(525, 9, 8, 14,
+            "Red XIII comes back toward Cloud.",
+            FieldOpcodeAddressResolver.OpcodeVisibilityIndex),
+
+        // 531 cosin2, gate_open. Root checked against native background or exact script action; unsupported animation details omitted.
+        new(531, 15, 1, 105,
+            "The sealed doorway opens.",
+            FieldOpcodeAddressResolver.OpcodeRequestEwIndex)
+    ];
+
+    /// <summary>Everything in this batch, areas and actions together.</summary>
+    public static IReadOnlyList<FieldCutsceneDescriptionCue> CreateCosmoThroughNibelheimDescriptions() =>
+    [
+        .. CreateCosmoThroughNibelheimAreaDescriptions(),
+        .. CreateCosmoThroughNibelheimActionDescriptions()
     ];
 
     /// <summary>

@@ -1,4 +1,4 @@
-namespace Ff7.Accessibility.Reloaded;
+﻿namespace Ff7.Accessibility.Reloaded;
 
 public sealed class ReachableFieldExitTargetProvider
 {
@@ -62,16 +62,28 @@ public sealed class ReachableFieldExitTargetProvider
 
         var reachable = new List<FieldNavigationTarget>(nativeTargets.Count);
         var blocked = new List<string>();
+        var shut = new List<string>();
         foreach (var target in nativeTargets)
         {
             if (routePlanner.TryBuildRoute(position, target, out _))
             {
                 reachable.Add(target);
+                continue;
             }
-            else
+
+            // A door the game is holding shut is not a door that is missing. Cosmo
+            // Canyon's observatory is locked for the length of Bugenhagen's lecture and
+            // opened afterwards; dropping it from the list left the player unable even to
+            // select it and be told so. It stays selectable, and selecting it explains the
+            // lock and waits - it is never described as a way out that is open now.
+            if (routePlanner is IFieldNavigationNativeBoundaryStatus { LastFailureWasNativeBoundary: true })
             {
-                blocked.Add(target.Label);
+                reachable.Add(target);
+                shut.Add(target.Label);
+                continue;
             }
+
+            blocked.Add(target.Label);
         }
 
         var now = utcNow();
@@ -82,7 +94,8 @@ public sealed class ReachableFieldExitTargetProvider
             lastReachableFieldId = position.FieldId;
             LastDiagnostic =
                 $"field={position.FieldId}, native={nativeTargets.Count}, reachable={reachable.Count}, " +
-                $"blocked={(blocked.Count == 0 ? "none" : string.Join(',', blocked))}";
+                $"blocked={(blocked.Count == 0 ? "none" : string.Join(',', blocked))}" +
+                (shut.Count == 0 ? string.Empty : $", shut by native boundary={string.Join(',', shut)}");
             return reachable;
         }
 

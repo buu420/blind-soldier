@@ -1,4 +1,4 @@
-# Blind Soldier
+﻿# Blind Soldier
 
 Blind Soldier is an accessibility mod for the original Windows PC version
 of **Final Fantasy VII**. It presents information that a sighted player would
@@ -76,20 +76,36 @@ alignment assists are available where listed; other actions remain under your co
 
 ### Descriptions and movies
 
-Recorded audio description ships for the opening movie and 99 other movie tracks,
-plus 618 short movie and cutscene action clips. All packaged narration uses
-Brice's approved voice. Coverage is limited to the included scenes; this does
-not mean every cutscene or optional event has been described.
-Field cutscene and area descriptions are written per field and are more
-complete in the areas that have been worked on than elsewhere; `K` reads the
-current area description again where one exists.
+Recorded audio description ships for the opening movie and 99 other movie
+tracks, unchanged since 0.5.11, plus 838 short clips covering cutscene actions
+and area arrivals. This release adds 220 of those clips, which cover 227 cues:
+218 area arrival descriptions and nine scripted-action cues, with seven texts
+shared between two cues each. All packaged narration uses Brice's approved
+voice.
+
+Coverage is limited to the included scenes; this does not mean every cutscene
+or optional event has been described. The new arrival descriptions say what a
+screen looks like when you enter it. They are not descriptions of moving
+characters: the remaining uncovered moments are mostly gestures and reactions
+the engine animates at runtime, and those still need reliable visual capture
+before anything is written about them. `K` reads the current area description
+again where one exists.
 
 ### Navigation and auto walk
 
 Field and world-map navigation, routes, auto walk and the progress indicator
-are described under [Navigation](#navigation). This release repairs two
-reproduced classes of stall and adds a spoken guard for the rest; see
-[Auto walk](#auto-walk).
+are described under [Navigation](#navigation). Auto walk's stall repairs and
+spoken guard arrived in 0.5.x and are unchanged; see [Auto walk](#auto-walk).
+
+This release changes two things. World-map routes now go around other
+locations' native entrances instead of through them, so travelling to a vehicle
+or a field no longer drops you into an unrelated town on the way; the entrance
+you actually selected is still allowed, and if no safe approach exists
+navigation says so rather than routing through somewhere else. And a field exit
+the game is deliberately holding shut - Cosmo Canyon's observatory during
+Bugenhagen's lecture is the reported case - now stays selectable and is
+explained as held, instead of disappearing from Exits as though it were not
+there. Nothing about that produces movement on its own.
 
 ### Known gaps
 
@@ -100,8 +116,14 @@ reproduced classes of stall and adds a spoken guard for the rest; see
 - Auto walk's improvements are proved by offline route and movement fixtures,
   not by play. Walking while **holding the Run button**, and a milder
   back-and-forth dither at some corners, still need testing and reports.
-- Description coverage is limited to the included movie and action cues; scenes
-  without authored descriptions still need work.
+- Description coverage is limited to the included movie, action and arrival
+  cues; scenes without authored descriptions still need work. In particular,
+  in-engine character animation - poses, gestures and reactions - is largely
+  undescribed, because an animation number in the field script is not evidence
+  of what it looks like.
+- The descriptions and navigation changes in 0.6.0 were verified against the
+  installed game's own data and by automated checks, not by playing through
+  them. They need reports from real sessions.
 - Optional exploration, side quests and missable content are far less covered
   than the required route.
 
@@ -128,10 +150,10 @@ instead of reading unverified game memory.
 Choose one download from the
 [Blind Soldier Releases page](https://github.com/buu420/blind-soldier/releases):
 
-- [Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.5.11/Blind-Soldier-Portable.zip)
+- [Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.6.0/Blind-Soldier-Portable.zip)
   is the complete dual-runtime package. Use it for Steam 2026 x64 or when one
   extracted package must support both x86 and x64 installations.
-- [Blind-Soldier-2013-x86-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.5.11/Blind-Soldier-2013-x86-Portable.zip)
+- [Blind-Soldier-2013-x86-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.6.0/Blind-Soldier-2013-x86-Portable.zip)
   is the smaller legacy-only package. Use it for the 2013 x86 game, including
   stock 7th Heaven/FFNx. It deliberately contains no Steam 2026 launcher or
   x64 files.
@@ -243,17 +265,17 @@ Visual Studio C++ Build Tools, and PowerShell, then run:
 ```powershell
 .\Build-BlindSoldierPortablePackage.ps1 `
   -OutputPath .\artifacts\Blind-Soldier-Portable.zip `
-  -Version 0.5.11
+  -Version 0.6.0
 .\Verify-BlindSoldierPortablePackage.ps1 `
   -ArchivePath .\artifacts\Blind-Soldier-Portable.zip `
-  -ExpectedVersion 0.5.11
+  -ExpectedVersion 0.6.0
 .\Build-BlindSoldier2013PortablePackage.ps1 `
   -SourceArchivePath .\artifacts\Blind-Soldier-Portable.zip `
   -OutputPath .\artifacts\Blind-Soldier-2013-x86-Portable.zip `
-  -Version 0.5.11
+  -Version 0.6.0
 .\Verify-BlindSoldier2013PortablePackage.ps1 `
   -ArchivePath .\artifacts\Blind-Soldier-2013-x86-Portable.zip `
-  -ExpectedVersion 0.5.11 `
+  -ExpectedVersion 0.6.0 `
   -ExpectedSourceArchivePath .\artifacts\Blind-Soldier-Portable.zip
 ```
 
@@ -463,6 +485,9 @@ directions. It only hides the native progress control for the current session.
   transition completes.
 - Press `I` once to stop and again to rebuild the route from your current
   position.
+- If an exit is announced as held shut, the game is keeping it closed for the
+  scene that is running. The target stays selected; wait for the scene to
+  finish and the route continues.
 - If the problem repeats, report the field or world-map location, selected
   category and target, whether you were walking or running, and what was spoken.
 

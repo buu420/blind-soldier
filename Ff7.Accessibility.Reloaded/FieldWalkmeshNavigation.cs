@@ -1,4 +1,4 @@
-namespace Ff7.Accessibility.Reloaded;
+﻿namespace Ff7.Accessibility.Reloaded;
 
 public readonly record struct FieldWalkmeshVertex(short X, short Y, short Z);
 
@@ -254,6 +254,17 @@ public interface IFieldNavigationRoutePlanner
     string LastDiagnostic { get; }
 }
 
+/// <summary>
+/// Optional status surface for planners that can tell a route the game is currently
+/// holding shut from a route that does not exist. Only the first is worth waiting for.
+/// </summary>
+public interface IFieldNavigationNativeBoundaryStatus
+{
+    bool LastFailureWasNativeBoundary { get; }
+
+    IReadOnlyList<int> LastBlockingBoundaryTriangles { get; }
+}
+
 public interface IFieldNavigationRouteRefreshPlanner
 {
     bool TryBuildRouteFromCurrentTriangle(
@@ -289,6 +300,7 @@ public interface IFieldNavigationAutomaticMovementPlanner
 
 public sealed class FieldWalkmeshRoutePlanner :
     IFieldNavigationRoutePlanner,
+    IFieldNavigationNativeBoundaryStatus,
     IFieldNavigationRouteRefreshPlanner,
     IFieldNavigationCorridorLookaheadPlanner,
     IFieldNavigationRouteReadStatus,
@@ -354,6 +366,76 @@ public sealed class FieldWalkmeshRoutePlanner :
     public string LastDiagnostic { get; private set; } = string.Empty;
 
     public bool LastReadWasCoherent { get; private set; } = true;
+
+    /// <summary>
+    /// Set by the last <see cref="TryBuildRoute"/> failure when the only thing in the way
+    /// was a native boundary the game is currently holding shut. The identical route
+    /// succeeds once those triangles are released, so the destination is worth keeping
+    /// rather than cancelling.
+    /// </summary>
+    public bool LastFailureWasNativeBoundary { get; private set; }
+
+    /// <summary>The boundary triangles that made that route impossible, for diagnostics.</summary>
+    public IReadOnlyList<int> LastBlockingBoundaryTriangles { get; private set; } = Array.Empty<int>();
+
+    /// <summary>
+    /// Re-runs the route with the native boundary ignored. Nothing routes through a lock:
+    /// the result is only ever used to classify the failure, never to return a plan.
+    /// </summary>
+    private void RecordNativeBoundaryFailure(
+        FieldWalkmesh walkmesh,
+        int playerTriangle,
+        FieldPositionSnapshot position,
+        FieldNavigationTarget target,
+        FieldBoundaryState boundaryState,
+        IReadOnlyList<FieldWalkmeshOffMeshLink> offMeshLinks)
+    {
+        var active = boundaryState.ActiveBoundaryTriangles;
+        if (active.Count == 0)
+        {
+            return;
+        }
+
+        var unlocked = target.TriggerLine is { } triggerLine &&
+                       TryBuildTriggerLineRoute(
+                           walkmesh,
+                           playerTriangle,
+                           position,
+                           triggerLine,
+                           _ => false,
+                           offMeshLinks,
+                           out _,
+                           out _,
+                           out _,
+                           out _,
+                           out _);
+        if (!unlocked)
+        {
+            unlocked = FieldWalkmeshPathfinder.TryBuildRoute(
+                walkmesh,
+                playerTriangle,
+                position.X,
+                position.Y,
+                position.Z,
+                target.X,
+                target.Y,
+                target.Z,
+                isTriangleBlocked: null,
+                offMeshLinks,
+                out _,
+                out _,
+                out _);
+        }
+
+        if (!unlocked)
+        {
+            return;
+        }
+
+        LastFailureWasNativeBoundary = true;
+        LastBlockingBoundaryTriangles = active;
+        LastDiagnostic += $", shut by native boundary triangles={string.Join(',', active)}";
+    }
 
     public bool IsAutomaticMovementClear(FieldPositionSnapshot position,
         FieldNavigationTarget target, FieldNavigationRouteWaypoint destination)
@@ -462,6 +544,8 @@ public sealed class FieldWalkmeshRoutePlanner :
     {
         plan = null!;
         LastReadWasCoherent = true;
+        LastFailureWasNativeBoundary = false;
+        LastBlockingBoundaryTriangles = Array.Empty<int>();
         if (position.FieldId != target.FieldId)
         {
             LastDiagnostic = $"field mismatch player={position.FieldId}, target={target.FieldId}";
@@ -775,6 +859,18 @@ public sealed class FieldWalkmeshRoutePlanner :
                   : string.Empty);
         if (!found)
         {
+            // Bugenhagen shuts the observatory door for the length of his lecture, and
+            // the research centre's upper door while he is walking the party in. Those
+            // are real native locks, so nothing here routes through one - but a door the
+            // game will open again is a different answer from a place with no way to it,
+            // and the difference is the only thing the player can act on.
+            RecordNativeBoundaryFailure(
+                result.Walkmesh,
+                playerTriangle,
+                position,
+                target,
+                boundaryState,
+                offMeshLinks);
             return false;
         }
 

@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
@@ -130,6 +130,22 @@ public sealed record WorldMapNavigationTarget(
         ArrivalTriangleIds.Contains(triangleId);
 
     public IReadOnlyList<WorldMapNativeLocationArrival> NativeLocationArrivals { get; init; } = [];
+
+    private static readonly IReadOnlySet<int> NoEntranceExemptions = new HashSet<int>();
+
+    /// <summary>
+    /// The native field entrances this destination licenses walking onto.
+    ///
+    /// <para>Only a place the player actually chose to enter. A location, or the story copy
+    /// of that same location, is the whole reason its trigger exists, so its own entrance
+    /// triangles are exempt. Everything else is empty: a Buggy parked in Gongaga's trigger
+    /// cell, a chocobo track laid across one, or a terrain area that overlaps one does not
+    /// make entering that town what the player asked for.</para>
+    /// </summary>
+    public IReadOnlySet<int> NativeEntranceExemptions =>
+        Kind is WorldMapTargetKind.Location or WorldMapTargetKind.Story
+            ? ArrivalTriangleIds
+            : NoEntranceExemptions;
 
     /// <summary>
     /// For a Story stop the trigger metadata cannot name, the condition the game
@@ -291,7 +307,8 @@ public sealed class WorldMapTargetCatalog
         WorldMapData map,
         IReadOnlyList<WorldMapNavigationTarget> locations,
         IReadOnlyList<WorldMapNavigationTarget> chocoboTracks,
-        IReadOnlyList<WorldMapUnresolvedLocation> unresolvedLocations)
+        IReadOnlyList<WorldMapUnresolvedLocation> unresolvedLocations,
+        IReadOnlySet<int> entranceTriangleIds)
     {
         this.map = map;
         triangleResolver = new WorldMapRoutePlanner(map);
@@ -300,9 +317,25 @@ public sealed class WorldMapTargetCatalog
         ChocoboTracks = chocoboTracks;
         UnresolvedLocations = unresolvedLocations;
         locationsByLabel = locations.ToDictionary(target => target.Label, StringComparer.OrdinalIgnoreCase);
+        EntranceTriangleIds = entranceTriangleIds;
     }
 
     public IReadOnlyList<WorldMapNavigationTarget> Locations { get; }
+
+    /// <summary>
+    /// Every triangle the native world script turns into a field entry.
+    ///
+    /// <para>These are the mapped location triggers only - the cells
+    /// world-map-location-triggers.json accounts for, matched on mesh X/Y and terrain
+    /// script id. Terrain script ids are not zones in themselves, so nothing is inferred
+    /// from a script id alone.</para>
+    ///
+    /// <para>Walking onto one of these enters its field. That is correct when the player
+    /// asked for that place and a defect otherwise: the 2026-09-21 session shows the party
+    /// walking to their parked Buggy through Gongaga's trigger at mesh (13,22) and being
+    /// dropped into the jungle over and over.</para>
+    /// </summary>
+    public IReadOnlySet<int> EntranceTriangleIds { get; }
 
     public IReadOnlyList<WorldMapNavigationTarget> ChocoboTracks { get; }
 
@@ -433,7 +466,20 @@ public sealed class WorldMapTargetCatalog
                 location.Reason))
             .OrderBy(location => location.LocationId)
             .ToArray();
-        return new WorldMapTargetCatalog(map, locations, tracks, unresolved);
+        // Every triangle the native handler would fire on, not only the ones that also
+        // offered a usable arrival point. A trigger triangle too thin to stand in the
+        // middle of still enters its field when the party walks across it, and (13,22)
+        // - Gongaga - has exactly that shape.
+        var entrances = triggerDocument.Locations
+            .Where(location => location.WorldMapType == map.WorldMapType)
+            .SelectMany(location => map.Triangles
+                .Where(triangle =>
+                    triangle.MeshX == location.MeshX &&
+                    triangle.MeshZ == location.MeshY &&
+                    triangle.TerrainScriptId == location.TerrainScriptId)
+                .Select(triangle => triangle.Id))
+            .ToHashSet();
+        return new WorldMapTargetCatalog(map, locations, tracks, unresolved, entrances);
     }
 
     public IReadOnlyList<WorldMapNavigationTarget> ReadTargets(
@@ -715,10 +761,14 @@ public sealed class WorldMapTargetCatalog
             }
         }
 
-        if (arrivals.Count == 0)
-        {
-            arrivals.Add(triangleId);
-        }
+        // A vehicle parked beside a town walks the party onto that town's entrance if the
+        // entrance triangle is offered as a way to reach it. The user's Buggy sat in
+        // Gongaga's trigger cell, so every approach zoned into the jungle.
+        //
+        // There is no last resort here. Entering a field the player did not ask for is not
+        // a way of reaching anything, so if the only ground beside this entity is a trigger
+        // the target keeps no arrival at all and routing to it fails truthfully.
+        arrivals.RemoveWhere(EntranceTriangleIds.Contains);
 
         return new WorldMapNavigationTarget(
             category,
