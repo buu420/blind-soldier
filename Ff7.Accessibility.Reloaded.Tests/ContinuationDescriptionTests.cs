@@ -105,9 +105,14 @@ internal static class ContinuationDescriptionTests
         Equal(0, allAreas.Count(cue => cue.Opcode != FieldOpcodeAddressResolver.OpcodeMapNameIndex),
             "the area surface holds arrival cues only");
 
+        // At least the old total plus this batch, not exactly it. A later batch adding
+        // its own cues is not a regression here, and pinning the total made this test
+        // fail for work it knows nothing about. What this batch owns is that none of its
+        // own cues went missing, which the per-cue check below proves one key at a time.
         var all = FieldCutsceneDescriptionCatalog.CreateEarlyGameDescriptions();
-        Equal(LegacyTotalCues + ExpectedAreas + ExpectedActions, all.Count,
-            "the whole catalog is the old total plus this batch");
+        Equal(true, all.Count >= LegacyTotalCues + ExpectedAreas + ExpectedActions,
+            $"the catalog must still hold the {LegacyTotalCues} older cues and this "
+            + $"batch's {ExpectedAreas + ExpectedActions}; found {all.Count}");
         foreach (var cue in FieldCutsceneContinuationDescriptions.CreateAll())
         {
             Equal(1, all.Count(other => other.Key == cue.Key),
@@ -426,9 +431,16 @@ internal static class ContinuationDescriptionTests
                 $"{Describe(cue)} recording {byText[cue.Text]} is not installed");
         }
 
-        Equal(BaselineRecordings + DistinctTexts, byText.Count,
-            "the manifest must be the baseline plus exactly this batch's distinct texts");
-        Console.WriteLine($"payload readiness: {DistinctTexts} continuation recordings installed.");
+        // Append-only. Every recording this batch needs is present and installed - proved
+        // one clip at a time above - and the manifest never shrank below the baseline plus
+        // this batch. A later batch staging its own clips raises this number and must not
+        // fail here; a batch that removed one would drop below the floor and would.
+        Equal(true, byText.Count >= BaselineRecordings + DistinctTexts,
+            $"the manifest must hold at least the {BaselineRecordings} baseline recordings " +
+            $"and this batch's {DistinctTexts}; found {byText.Count}");
+        Console.WriteLine(
+            $"payload readiness: {DistinctTexts} continuation recordings installed; " +
+            $"manifest holds {byText.Count}.");
     }
 
     private static string Describe(FieldCutsceneDescriptionCue cue) =>

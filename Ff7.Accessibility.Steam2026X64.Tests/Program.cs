@@ -283,16 +283,23 @@ if (args.Contains("--costa-gold-navigation-only", StringComparer.OrdinalIgnoreCa
 if (args.Contains("--continuation-descriptions-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.ContinuationDescriptionTests.RunCatalogAndNative();
+    Ff7.Accessibility.Reloaded.Tests.MotionActionDescriptionTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.MotionActionDescriptionTests.RunAgainstInstalledArchive();
     Console.WriteLine("Steam 2026 x64 continuation description catalog and native tests passed.");
     Ff7.Accessibility.Reloaded.Tests.ContinuationDescriptionTests.RunPayloadReadiness();
+    Ff7.Accessibility.Reloaded.Tests.MotionActionDescriptionTests.RunPayloadReadiness();
     return;
 }
 
 if (args.Contains("--cosmo-navigation-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.CosmoCanyonNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
+    Ff7.Accessibility.Reloaded.Tests.ObservatoryApproachNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
+    Ff7.Accessibility.Reloaded.Tests.CosmoObservatoryStoryTests.Run();
     Ff7.Accessibility.Reloaded.Tests.CosmoNibelheimDescriptionTests.Run();
     Ff7.Accessibility.Reloaded.Tests.ContinuationDescriptionTests.RunCatalogAndNative();
+    Ff7.Accessibility.Reloaded.Tests.MotionActionDescriptionTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.MotionActionDescriptionTests.RunAgainstInstalledArchive();
     Console.WriteLine("Steam 2026 x64 Cosmo Canyon navigation tests passed.");
     return;
 }
@@ -626,8 +633,12 @@ CargoShipNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.CostaDelSolNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.GongagaNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.CosmoCanyonNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
+Ff7.Accessibility.Reloaded.Tests.ObservatoryApproachNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
+Ff7.Accessibility.Reloaded.Tests.CosmoObservatoryStoryTests.Run();
 Ff7.Accessibility.Reloaded.Tests.CosmoNibelheimDescriptionTests.Run();
 Ff7.Accessibility.Reloaded.Tests.ContinuationDescriptionTests.RunCatalogAndNative();
+Ff7.Accessibility.Reloaded.Tests.MotionActionDescriptionTests.Run();
+Ff7.Accessibility.Reloaded.Tests.MotionActionDescriptionTests.RunAgainstInstalledArchive();
 Ff7.Accessibility.Reloaded.Tests.CorelJourneyDescriptionTests.Run();
 MountCorelNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.NorthCorelNavigationTests.Run(CreateInstalledFieldWalkmeshReader);

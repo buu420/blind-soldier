@@ -256,6 +256,11 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                 currentNavigationCadence,
                 probe?.GetFieldSummary(fieldId) ?? default),
             navigationProgressSink);
+
+        // Same native line state on this runtime: the observatory approach is only
+        // offered while the game actually has the opening line switched on.
+        controller.NativeLineIsEnabled = (_, entityId) =>
+            lineStateReader.TryRead(entityId, out var lineEnabled) ? lineEnabled : null;
         exitSpatial = Steam2026FieldExitSpatialCoordinator.Create(config, modDirectory, log);
         ladderSpatial = Steam2026FieldLadderSpatialCoordinator.Create(config, modDirectory, log);
         swingingBarTimingCuePlayer = config.EnableFieldSwingingBarTimingCue
@@ -789,21 +794,22 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                 if (action == FieldNavigationAction.ToggleBeacon && autoWalkRouteToggleQueued)
                 {
                     autoWalkRouteToggleQueued = false;
+                    // An approach can already have a beacon while its final destination
+                    // is still held. Preserve the keyboard walk request across both legs.
+                    if (controller.IsHoldingForNativeBoundary)
+                    {
+                        controller.RequestAutoWalkForHeldRoute();
+                    }
+
                     if (!controller.BeaconEnabled)
                     {
-                        // A shut door does not cancel the walk the player asked for: the
-                        // request moves onto the hold and is honoured when it opens.
-                        if (controller.IsHoldingForNativeBoundary)
-                        {
-                            controller.RequestAutoWalkForHeldRoute();
-                        }
-
                         pendingAutoWalkStart = false;
                     }
                 }
             }
 
-            if ((pendingAutoWalkStart || controller.TryConsumeHeldAutoWalkRequest()) &&
+            var heldAutoWalkStart = controller.TryConsumeHeldAutoWalkRequest();
+            if ((pendingAutoWalkStart || heldAutoWalkStart) &&
                 controller.BeaconEnabled &&
                 autoWalk.TryStart(NavigationAutoWalkDomain.Field, routeActive: true))
             {

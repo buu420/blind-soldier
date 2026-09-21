@@ -184,6 +184,10 @@ public static class EchoSCompatibilityManifest
             [607] = new("1D48E6FCF986E244595D0F551AD794320E066EC8518013D30FF64A529AFCA0BE", null), // kuro_4
             [609] = new("8836601BDC46CD9AE2AA81ACBE408A827B3B5A34F7B63620B75B5B72141C3A0B", null), // kuro_6
             [611] = new("4254BB2A9D8F4886705F120512F98E46D417DA6D62E7EF71CDF9640E31D679F0", null), // kuro_8
+            // Added with the footage-verified motion batch: the two Temple screens
+            // where Cait Sith falls. Same reader, identical in both installed archives.
+            [612] = new("B9E3AFCA6CC5A0F3E4FC49EF0B7E0EFBFAD60F84239C1A564A6BAFDCEF09B52F", null), // kuro_82, mural hall
+            [613] = new("66172EF931B54366D9CCE30084D202F2DC3B46622351672D4077D2C711DE9D49", null), // kuro_9, the altar
             [614] = new("2E6D8519C11261274C3113B8340E265238C2B6BC6FCADC8A3765CD7AB33FB180", null), // kuro_10
             [616] = new("5CB291AA8F998A0A8C497F61800FC24F942CD9E642FEF0BEF78B7F92A4873945", null), // kuro_12
             [617] = new("5680B581F0C381DE6AA281EBFF871EB945FB38508AB67F0C22CB743AEB0250E5", null), // bonevil

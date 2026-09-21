@@ -115,6 +115,7 @@ public static class FieldCutsceneDescriptionCatalog
         .. CreateSetoVisualDescriptions(),
         .. CreateCosmoThroughNibelheimActionDescriptions(),
         .. FieldCutsceneContinuationDescriptions.CreateActionDescriptions(),
+        .. FieldMotionActionDescriptions.CreateAll(),
         .. CreateAllAreaDescriptions()
     ];
 

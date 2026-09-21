@@ -263,6 +263,19 @@ public interface IFieldNavigationNativeBoundaryStatus
     bool LastFailureWasNativeBoundary { get; }
 
     IReadOnlyList<int> LastBlockingBoundaryTriangles { get; }
+
+    /// <summary>
+    /// Whether releasing this one triangle - and nothing else the field is holding shut -
+    /// is what would let a route to this target through.
+    ///
+    /// <para><see cref="LastBlockingBoundaryTriangles"/> is every lock the field currently
+    /// has on, not the ones in this route's way. Without this, a destination blocked by one
+    /// door would happily match a completely different door elsewhere in the room.</para>
+    /// </summary>
+    bool WouldRouteIfBoundaryReleased(
+        FieldPositionSnapshot position,
+        FieldNavigationTarget target,
+        int releasedTriangle);
 }
 
 public interface IFieldNavigationRouteRefreshPlanner
@@ -435,6 +448,83 @@ public sealed class FieldWalkmeshRoutePlanner :
         LastFailureWasNativeBoundary = true;
         LastBlockingBoundaryTriangles = active;
         LastDiagnostic += $", shut by native boundary triangles={string.Join(',', active)}";
+    }
+
+    /// <summary>
+    /// Re-runs the route with one boundary triangle treated as open and every other lock
+    /// left exactly as the game has it. Used only to decide which door is in this route's
+    /// way; it never returns a plan and nothing is ever walked through a lock because of it.
+    /// </summary>
+    public bool WouldRouteIfBoundaryReleased(
+        FieldPositionSnapshot position,
+        FieldNavigationTarget target,
+        int releasedTriangle)
+    {
+        if (position.FieldId != target.FieldId)
+        {
+            return false;
+        }
+
+        var result = reader.Read(position);
+        if (!result.IsUsable || result.Walkmesh is null)
+        {
+            return false;
+        }
+
+        if (!TryReadBoundaryState(position, result.Walkmesh, out var boundaryState, out _))
+        {
+            return false;
+        }
+
+        var playerTriangle = FieldWalkmeshPathfinder.ResolveTriangle(
+            result.Walkmesh, position.X, position.Y, position.Z, preferredTriangleIndex: -1);
+        if (playerTriangle < 0)
+        {
+            return false;
+        }
+
+        var offMeshLinks = ResolveOffMeshLinks(position.FieldId, result.Walkmesh);
+
+        bool Routes(Func<int, bool> blocked)
+        {
+            if (target.TriggerLine is { } triggerLine &&
+                TryBuildTriggerLineRoute(
+                    result.Walkmesh, playerTriangle, position, triggerLine, blocked,
+                    offMeshLinks, out _, out _, out _, out _, out _))
+            {
+                return true;
+            }
+
+            return FieldWalkmeshPathfinder.TryBuildRoute(
+                result.Walkmesh,
+                playerTriangle,
+                position.X,
+                position.Y,
+                position.Z,
+                target.X,
+                target.Y,
+                target.Z,
+                blocked,
+                offMeshLinks,
+                out _,
+                out _,
+                out _);
+        }
+
+        // The failure has to be this lock's before releasing it can mean anything. The
+        // planner fails for reasons that have nothing to do with boundaries - a party
+        // member standing in a doorway is the common one - and this probe does not model
+        // those, so with every lock still on it would route where the real plan did not.
+        // Attributing that to whichever door happens to be open-by-line would walk the
+        // party to an unrelated door. Same geometry, same links, locks as the game has
+        // them: if that already routes, the boundary is not what stopped us.
+        if (Routes(boundaryState.IsBoundaryEnabled))
+        {
+            return false;
+        }
+
+        return Routes(triangle =>
+            triangle != releasedTriangle && boundaryState.IsBoundaryEnabled(triangle));
     }
 
     public bool IsAutomaticMovementClear(FieldPositionSnapshot position,
@@ -3560,7 +3650,8 @@ public static class FieldWalkmeshPathfinder
         FieldNavigationRouteWaypoint start,
         FieldNavigationRouteWaypoint end,
         Func<int, bool>? isTriangleBlocked = null,
-        bool applyPortalInset = true)
+        bool applyPortalInset = true,
+        bool allowStartingEdgeCrossing = false)
     {
         const double intersectionEpsilon = 0.000001d;
         var triangles = walkmesh.Triangles;
@@ -3655,7 +3746,16 @@ public static class FieldWalkmeshPathfinder
                     continue;
                 }
 
-                if (segmentAmount <= currentAmount + intersectionEpsilon ||
+                // A rounded portal waypoint can lie exactly on the shared edge.
+                // If the requested direction leaves the starting triangle, its
+                // first crossing is at t=0. Keep it so the normal adjacency,
+                // inset and native-lock checks below can validate that crossing.
+                var crossesStartingEdge = allowStartingEdgeCrossing && transition == 0 &&
+                    Math.Abs(segmentAmount) <= intersectionEpsilon &&
+                    !ContainsPoint(triangle,
+                        start.X + directionX * 0.00001d,
+                        start.Y + directionY * 0.00001d);
+                if ((!crossesStartingEdge && segmentAmount <= currentAmount + intersectionEpsilon) ||
                     segmentAmount > 1d + intersectionEpsilon)
                 {
                     continue;
@@ -4397,6 +4497,4 @@ public static class FieldWalkmeshPathfinder
 
     private readonly record struct FunnelCorner(RoutePoint Point, int PortalIndex);
 }
-
-
 
