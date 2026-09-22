@@ -142,6 +142,10 @@
              Link="SharedTests\FieldAreaDescriptionSaveTrackerTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\FieldAutomaticMovementClearanceTests.cs"
              Link="SharedTests\FieldAutomaticMovementClearanceTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\NibelheimMansionExitTests.cs"
+             Link="SharedTests\NibelheimMansionExitTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\MansionSecretDoorExitFixture.cs"
+             Link="SharedTests\MansionSecretDoorExitFixture.cs" />
   </ItemGroup>
 
 </Project>

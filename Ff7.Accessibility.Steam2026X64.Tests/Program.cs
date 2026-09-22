@@ -216,6 +216,8 @@ if (args.Contains("--native-field-movement-only", StringComparer.OrdinalIgnoreCa
     FieldNavigationPrecisionTests.Run();
     FieldNavigationNativeProbeMovementTests.Run(CreateInstalledFieldWalkmeshReader);
     FieldAutomaticMovementClearanceTests.Run(CreateInstalledFieldWalkmeshReader);
+    Ff7.Accessibility.Reloaded.Tests.NibelheimMansionExitTests.Run(CreateInstalledFieldWalkmeshReader);
+    Steam2026MansionSecretDoorExitTests.Run(CreateInstalledFieldWalkmeshReader);
     Console.WriteLine("Native field movement probe tests passed.");
     return;
 }
@@ -260,6 +262,8 @@ if (args.Contains("--north-corel-repair-only", StringComparer.OrdinalIgnoreCase)
     FieldNavigationPrecisionTests.Run();
     FieldNavigationNativeProbeMovementTests.Run(CreateInstalledFieldWalkmeshReader);
     FieldAutomaticMovementClearanceTests.Run(CreateInstalledFieldWalkmeshReader);
+    Ff7.Accessibility.Reloaded.Tests.NibelheimMansionExitTests.Run(CreateInstalledFieldWalkmeshReader);
+    Steam2026MansionSecretDoorExitTests.Run(CreateInstalledFieldWalkmeshReader);
     NorthCorelRecoveryHeightTests.Run(CreateInstalledFieldWalkmeshReader);
     NorthCorelAlternateCorridorTests.Run(CreateInstalledFieldWalkmeshReader);
     NorthCorelNavigationReadoutTests.Run(CreateInstalledFieldWalkmeshReader);

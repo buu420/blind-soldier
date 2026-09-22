@@ -96,6 +96,13 @@ again where one exists.
 Field and world-map navigation, routes, auto walk and the progress indicator
 are described under [Navigation](#navigation).
 
+Version 0.6.4 repairs missing Shinra Mansion exits on x64 and restores
+navigation to the safe, piano, opened-chest clue and secret passage. Room
+descriptions are remembered per save across restarts, and auto walk keeps its
+target across battles. Cosmo Canyon routing and wall clearance while running
+also receive fixes. The full Vincent recruitment sequence still needs live
+testing.
+
 Version 0.6.3 reads the Shinra Mansion safe's visible dial number on both
 runtimes. Left/Right turns the dial and OK confirms a number. Speech updates
 while turning and when the dial stops; the countdown stays silent during the
@@ -164,10 +171,10 @@ instead of reading unverified game memory.
 Choose one download from the
 [Blind Soldier Releases page](https://github.com/buu420/blind-soldier/releases):
 
-- [Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.6.3/Blind-Soldier-Portable.zip)
+- [Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.6.4/Blind-Soldier-Portable.zip)
   is the complete dual-runtime package. Use it for Steam 2026 x64 or when one
   extracted package must support both x86 and x64 installations.
-- [Blind-Soldier-2013-x86-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.6.3/Blind-Soldier-2013-x86-Portable.zip)
+- [Blind-Soldier-2013-x86-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.6.4/Blind-Soldier-2013-x86-Portable.zip)
   is the smaller legacy-only package. Use it for the 2013 x86 game, including
   stock 7th Heaven/FFNx. It deliberately contains no Steam 2026 launcher or
   x64 files.
@@ -205,13 +212,12 @@ release does not ship a Windows system DLL.
 
 - To update or repair, close the game and extract the newer ZIP over the same
   game folder.
-- **Keep your settings when updating.** The ZIP ships a default
-  `Reloaded-II\Mods\ff7.accessibility.reloaded\Configuration\config.json`, and
-  extracting over an existing install replaces the one you have been using.
-  Copy that file somewhere safe first, extract the new ZIP, then copy your file
-  back. It holds your language choice, every feature toggle, the progress
-  interval, volumes and timing settings, so replacing it silently returns all
-  of them to their defaults.
+- **Keep your settings and room history when updating.** Copy the entire
+  `Reloaded-II\Mods\ff7.accessibility.reloaded\Configuration` folder somewhere
+  safe, extract the new ZIP, then restore your saved folder. The ZIP includes
+  default settings that can overwrite your language, feature toggles, volumes
+  and timing choices in `config.json`. The `room-descriptions.json` file stores
+  which rooms have already been described for each save.
 - To remove the mod, close the game and delete the files listed by
   `portable-manifest.json`, then restore any launcher or `.local\version.dll` you
   backed up before extraction.
@@ -279,17 +285,17 @@ Visual Studio C++ Build Tools, and PowerShell, then run:
 ```powershell
 .\Build-BlindSoldierPortablePackage.ps1 `
   -OutputPath .\artifacts\Blind-Soldier-Portable.zip `
-  -Version 0.6.3
+  -Version 0.6.4
 .\Verify-BlindSoldierPortablePackage.ps1 `
   -ArchivePath .\artifacts\Blind-Soldier-Portable.zip `
-  -ExpectedVersion 0.6.3
+  -ExpectedVersion 0.6.4
 .\Build-BlindSoldier2013PortablePackage.ps1 `
   -SourceArchivePath .\artifacts\Blind-Soldier-Portable.zip `
   -OutputPath .\artifacts\Blind-Soldier-2013-x86-Portable.zip `
-  -Version 0.6.3
+  -Version 0.6.4
 .\Verify-BlindSoldier2013PortablePackage.ps1 `
   -ArchivePath .\artifacts\Blind-Soldier-2013-x86-Portable.zip `
-  -ExpectedVersion 0.6.3 `
+  -ExpectedVersion 0.6.4 `
   -ExpectedSourceArchivePath .\artifacts\Blind-Soldier-Portable.zip
 ```
 

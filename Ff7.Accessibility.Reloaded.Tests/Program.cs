@@ -715,6 +715,13 @@ if (args.Contains("--guest-battle-only", StringComparer.OrdinalIgnoreCase))
     return;
 }
 
+if (args.Contains("--mansion-exits-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.NibelheimMansionExitTests.Run(CreateInstalledFieldWalkmeshReader);
+    Console.WriteLine("FFVII Nibelheim mansion exit tests passed.");
+    return;
+}
+
 if (args.Contains("--room-history-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.FieldAreaDescriptionHistoryTests.Run();
@@ -974,6 +981,7 @@ HighwayAutoSteeringModeTrackerTests.Run();
 HighwayAutoSteeringControllerTests.Run();
 NavigationAutoWalkControllerTests.Run(CreateInstalledFieldWalkmeshReader);
 FieldAutomaticMovementClearanceTests.Run(CreateInstalledFieldWalkmeshReader);
+Ff7.Accessibility.Reloaded.Tests.NibelheimMansionExitTests.Run(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.ModPostBattleAutoWalkTests.Run();
 Ff7.Accessibility.Reloaded.Tests.ControllerNavigationMenuTests.Run();
 Ff7.Accessibility.Reloaded.Tests.ControllerNavigationDomainOwnershipTests.Run();
