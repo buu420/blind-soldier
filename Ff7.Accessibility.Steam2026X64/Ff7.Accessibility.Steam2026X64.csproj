@@ -1015,6 +1015,10 @@
     <Compile Include="..\Ff7.Accessibility.Reloaded\DeferredZoneSpeechTracker.cs" Link="Shared\DeferredZoneSpeechTracker.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldCountdownSpeechCoordinator.cs" Link="Shared\FieldCountdownSpeechCoordinator.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\ShinraMansionSafeDialReadout.cs" Link="Shared\ShinraMansionSafeDialReadout.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldAreaDescriptionHistory.cs" Link="Shared\FieldAreaDescriptionHistory.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldAreaDescriptionHistoryGate.cs" Link="Shared\FieldAreaDescriptionHistoryGate.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldAreaDescriptionSaveTracker.cs" Link="Shared\FieldAreaDescriptionSaveTracker.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldAreaDescriptionSaveObserver.cs" Link="Shared\FieldAreaDescriptionSaveObserver.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldFootstepDistanceProbe.cs" Link="Shared\FieldFootstepDistanceProbe.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldFootstepTracker.cs" Link="Shared\FieldFootstepTracker.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldNavigationObjectReader.cs" Link="Shared\FieldNavigationObjectReader.cs" />

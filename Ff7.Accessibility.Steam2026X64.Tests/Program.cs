@@ -215,6 +215,7 @@ if (args.Contains("--native-field-movement-only", StringComparer.OrdinalIgnoreCa
 {
     FieldNavigationPrecisionTests.Run();
     FieldNavigationNativeProbeMovementTests.Run(CreateInstalledFieldWalkmeshReader);
+    FieldAutomaticMovementClearanceTests.Run(CreateInstalledFieldWalkmeshReader);
     Console.WriteLine("Native field movement probe tests passed.");
     return;
 }
@@ -258,6 +259,7 @@ if (args.Contains("--north-corel-repair-only", StringComparer.OrdinalIgnoreCase)
 {
     FieldNavigationPrecisionTests.Run();
     FieldNavigationNativeProbeMovementTests.Run(CreateInstalledFieldWalkmeshReader);
+    FieldAutomaticMovementClearanceTests.Run(CreateInstalledFieldWalkmeshReader);
     NorthCorelRecoveryHeightTests.Run(CreateInstalledFieldWalkmeshReader);
     NorthCorelAlternateCorridorTests.Run(CreateInstalledFieldWalkmeshReader);
     NorthCorelNavigationReadoutTests.Run(CreateInstalledFieldWalkmeshReader);
@@ -510,6 +512,14 @@ if (args.Contains("--field-countdown-only", StringComparer.OrdinalIgnoreCase))
     return;
 }
 
+if (args.Contains("--room-history-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.FieldAreaDescriptionHistoryTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.FieldAreaDescriptionSaveTrackerTests.Run();
+    Console.WriteLine("Steam 2026 x64 room description history tests passed.");
+    return;
+}
+
 if (args.Contains("--safe-dial-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.FieldActivityNumericWindowReadTests.Run();
@@ -611,6 +621,8 @@ HighwayEngagementSteeringTrackerTests.Run();
 Steam2026ResearchSpeechPolicyTests.Run();
 Steam2026ResearchAccessibilityOutputTests.Run();
 Steam2026ResearchObservationPumpTests.Run();
+Ff7.Accessibility.Reloaded.Tests.FieldAreaDescriptionHistoryTests.Run();
+Ff7.Accessibility.Reloaded.Tests.FieldAreaDescriptionSaveTrackerTests.Run();
 Ff7.Accessibility.Reloaded.Tests.FieldActivityNumericWindowReadTests.Run();
 Ff7.Accessibility.Reloaded.Tests.ShinraMansionSafeDialTests.Run();
 Ff7.Accessibility.Reloaded.Tests.ShinraMansionSafeDialTests.RunWithInstalledGameData();
