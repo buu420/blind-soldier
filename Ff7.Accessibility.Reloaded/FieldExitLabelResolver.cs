@@ -32,6 +32,11 @@ public sealed class FieldExitLabelResolver
 
     private string ResolveLabel(FieldNavigationTarget target, string currentMapName)
     {
+        if (GoldSaucerPlatformExitCatalog.ResolveLabel(target) is { } platformLabel)
+        {
+            return platformLabel;
+        }
+
         var exactLabel = target.StableId switch
         {
             "gateway:148:0:151" => "Exit to Sector 7 Slums, ground floor",

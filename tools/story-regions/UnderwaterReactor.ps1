@@ -44,7 +44,7 @@ $reactorApproach = @{ MinimumGameMoment = 1250; MaximumGameMoment = 1252; Priori
 $reactorDescent = @{ MinimumGameMoment = 1256; MaximumGameMoment = 1282; Priority = 0 }
 
 # --- Down through Junon --------------------------------------------------------------
-Add-Definition @reactorApproach -FieldId 428 -FieldName 'junonl2' -Kind Model -EntityId 18 `
+Add-Definition @reactorApproach -FieldId 428 -FieldName 'ujunon1' -Kind Model -EntityId 18 `
     -Label 'Talk to the guard at the lift' `
     -EntityName 'mihari' -ScriptType 'Talk'
 

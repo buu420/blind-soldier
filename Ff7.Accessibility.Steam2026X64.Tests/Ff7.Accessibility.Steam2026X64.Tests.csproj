@@ -79,6 +79,15 @@
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\CosmoCanyonNavigationCallerTests.cs" Link="SharedTests\CosmoCanyonNavigationCallerTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\ObservatoryApproachNavigationTests.cs" Link="SharedTests\ObservatoryApproachNavigationTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\CosmoObservatoryStoryTests.cs" Link="SharedTests\CosmoObservatoryStoryTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\MainStoryCoverageTests.cs" Link="SharedTests\MainStoryCoverageTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\StoryNativeBindingTests.cs" Link="SharedTests\StoryNativeBindingTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\NibelheimStoryTests.cs" Link="SharedTests\NibelheimStoryTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\RemainingStoryContinuityTests.cs" Link="SharedTests\RemainingStoryContinuityTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\TownInteractionCoverageTests.cs" Link="SharedTests\TownInteractionCoverageTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\ReportedNavigationRegressionTests.cs" Link="SharedTests\ReportedNavigationRegressionTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\GoldSaucerPlatformExitTests.cs" Link="SharedTests\GoldSaucerPlatformExitTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\GlacierSnowfieldNavigationTests.cs" Link="SharedTests\GlacierSnowfieldNavigationTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\GreatGlacierStoryTests.cs" Link="SharedTests\GreatGlacierStoryTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\CosmoNibelheimDescriptionTests.cs" Link="SharedTests\CosmoNibelheimDescriptionTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\ContinuationDescriptionTests.cs" Link="SharedTests\ContinuationDescriptionTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\MotionActionDescriptionTests.cs" Link="SharedTests\MotionActionDescriptionTests.cs" />

@@ -85,6 +85,8 @@ internal static class DualRuntimeSharedSourceTests
             .Concat(Directory.EnumerateFiles(legacyDirectory, "*StateReader.cs"))
             .Concat(Directory.EnumerateFiles(legacyDirectory, "*CueTracker.cs"))
             .Concat(Directory.EnumerateFiles(legacyDirectory, "*CuePlayer.cs"))
+            .Concat(Directory.EnumerateFiles(legacyDirectory, "*ObjectCatalog.cs"))
+            .Concat(Directory.EnumerateFiles(legacyDirectory, "*ExitCatalog.cs"))
             .Select(Path.GetFileName)
             .Where(name => name is not null)
             .Select(name => name!)

@@ -44,7 +44,8 @@ public readonly record struct FieldNavigationObjectDefinition(
     int MaximumGameMoment = -1,
     bool UsesTalkInteraction = false,
     string? ManualNavigationGuidance = null,
-    bool UsesPlayerCollisionRadius = false);
+    bool UsesPlayerCollisionRadius = false,
+    int? InteractionRadiusOverride = null);
 
 public static class FieldNavigationObjectCatalog
 {
@@ -54,7 +55,9 @@ public static class FieldNavigationObjectCatalog
         () =>
         [
             .. FullCatalog.Value.Definitions,
-            .. ShinraElevatorObjectCatalog.Create()
+            .. ShinraElevatorObjectCatalog.Create(),
+            .. NibelheimObjectCatalog.Create(),
+            .. TownInteractionObjectCatalog.Create()
         ]);
 
     public static IReadOnlyList<FieldNavigationObjectDefinition> CreateAllFields() =>
@@ -192,7 +195,9 @@ public sealed class FieldNavigationObjectReader
             int x;
             int y;
             int z;
-            var interactionRadius = DefaultInteractionRadius;
+            var interactionRadius = definition.InteractionRadiusOverride is > 0
+                ? definition.InteractionRadiusOverride.Value
+                : DefaultInteractionRadius;
             if (definition.TargetKind == FieldNavigationObjectTargetKind.Line)
             {
                 if (!isLineEnabled(definition.EntityId))

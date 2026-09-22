@@ -95,11 +95,16 @@ internal static class KalmRanchNavigationTests
             expectedZ: -1);
 
         memory.WriteByte(FieldNavigationObjectReader.AddressFieldBankBase + 0x100 + 131, 0x01);
-        AssertNoStoryTarget(
+        AssertStoryTarget(
             memory,
             fieldId: 331,
             gameMoment: 385,
-            "the Kalm inn objective must retire after the native PHS flag is set");
+            "Leave the inn",
+            expectedX: 335,
+            expectedY: -553,
+            expectedZ: -1);
+        AssertStoryTargetAbsent(memory, 331, 385, "Meet the party downstairs and receive the PHS",
+            "the completed PHS interaction must retire while the departure remains available");
     }
 
     private static void AssertChocoboRanchStoryProgression()
@@ -113,32 +118,33 @@ internal static class KalmRanchNavigationTests
             memory,
             fieldId: 343,
             gameMoment: 385,
-            "Enter the stable and buy the Chocobo Lure",
-            expectedX: 911,
-            expectedY: 1881,
-            expectedZ: 2);
+            "Leave the farm for the world map",
+            expectedX: -413,
+            expectedY: -374,
+            expectedZ: 51);
 
         memory.ConfigureVisibleModel(entityId: 5, modelId: 1, x: 130, y: -510, z: 0);
         AssertStoryTarget(
             memory,
             fieldId: 345,
             gameMoment: 385,
-            "Talk to Choco Billy and buy the Chocobo Lure",
-            expectedX: 130,
-            expectedY: -510,
+            "Leave the stable",
+            expectedX: 0,
+            expectedY: -1193,
             expectedZ: 0);
 
+        // Purchasing a lure is optional; test its native collected flag separately
+        // from Story's mandatory departure objective and priority selection.
+        var optional = new FieldStoryTargetReader(memory.ReadInt32, memory.ReadInt16, memory.ReadByte,
+            FieldStoryEventCatalog.CreateAllFields().Where(d => d.Label.EndsWith("(optional)", StringComparison.Ordinal)), _ => true);
+        AssertEqual(1, optional.ReadTargets(new(1, 345, 0, 0, 0, 0, 0, 0)).Count,
+            "Choco Billy's optional lure interaction before purchase");
         memory.WriteByte(ranchProgressAddress, 0x40);
-        AssertNoStoryTarget(
-            memory,
-            fieldId: 343,
-            gameMoment: 385,
-            "the Ranch objective must retire after the native Chocobo Lure flag is set");
-        AssertNoStoryTarget(
-            memory,
-            fieldId: 345,
-            gameMoment: 385,
-            "the stable objective must retire after the native Chocobo Lure flag is set");
+        AssertEqual(0, optional.ReadTargets(new(1, 343, 0, 0, 0, 0, 0, 0)).Count,
+            "the optional farm errand retires after the Chocobo Lure flag");
+        AssertEqual(0, optional.ReadTargets(new(1, 345, 0, 0, 0, 0, 0, 0)).Count,
+            "the optional purchase retires after the Chocobo Lure flag");
+        AssertStoryTarget(memory, 345, 385, "Leave the stable", 0, -1193, 0);
 
         memory.WriteByte(ranchProgressAddress, 0);
         AssertNoStoryTarget(

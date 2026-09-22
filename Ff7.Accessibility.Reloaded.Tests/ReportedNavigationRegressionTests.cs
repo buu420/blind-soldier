@@ -4,6 +4,8 @@ namespace Ff7.Accessibility.Reloaded.Tests;
 
 internal static class ReportedNavigationRegressionTests
 {
+    public static void RunArrivalHysteresisOnly() => RouteArrivalPauseUsesTheSameDistanceAsResumeHysteresis();
+
     public static void Run()
     {
         SelectionSummarySkipsAnAlreadyReachedOpeningWaypoint();
@@ -320,13 +322,27 @@ internal static class ReportedNavigationRegressionTests
             ladderState: mountedRight);
 
         var elbow = start with { X = 100 };
+        // blin63_t runs separate C2/LADER operations for its duct segments.
+        // Finish the first native climb before the player can take the turn;
+        // a still-mounted Right snapshot must retain its native input.
         controller.UpdateLiveTracking(
             elbow,
             noInput,
             transform,
             isSuppressed: false,
             arrivalDistanceUnits: 5,
-            ladderState: mountedRight);
+            ladderState: FieldLadderStateSnapshot.NotMounted);
+        controller.UpdateLiveTracking(
+            elbow,
+            noInput,
+            transform,
+            isSuppressed: false,
+            arrivalDistanceUnits: 5,
+            ladderState: mountedRight with
+            {
+                RequiredInput = FieldNavigationInput.Up,
+                Target = new FieldNavigationRouteWaypoint(100, 100, 0)
+            });
 
         Require(
             controller.TryResolveAutomaticInput(elbow, transform, 5, out var input) &&
@@ -403,7 +419,10 @@ internal static class ReportedNavigationRegressionTests
             ReadInt32,
             ReadInt16,
             ReadByte,
-            FieldStoryEventCatalog.CreateAllFields());
+            FieldStoryEventCatalog.CreateAllFields(),
+            // These fixtures vary progression flags with the native action lines
+            // enabled. LINE enable/disable behavior has its own reader tests.
+            _ => true);
     }
 
     private static BattleStateReader CreateBattleReader(Dictionary<int, byte> memory)

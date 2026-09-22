@@ -1008,7 +1008,10 @@ public sealed class FieldWalkmeshRoutePlanner :
         const int maximumTriangles = 32;
         const int maximumNodes = 640;
         const int maximumEdgeChecks = 16384;
-        const int maximumMilliseconds = 40;
+        // Native doorway replays need more than40ms during a cold/full run.
+        // Keep a short hard ceiling while allowing this last-resort search to
+        // finish instead of repeatedly stopping autowalk at the same doorway.
+        const int maximumMilliseconds = 80;
         if (nativeFixedPosition is { } fixedPosition &&
             (fixedPosition.X >> 12 != start.X || fixedPosition.Y >> 12 != start.Y || fixedPosition.Z >> 12 != start.Z))
             return false;
@@ -1021,6 +1024,7 @@ public sealed class FieldWalkmeshRoutePlanner :
         }
 
         var clock = System.Diagnostics.Stopwatch.StartNew();
+        var initialGcPause = GC.GetTotalPauseDuration();
         var playerRadius = obstacles.Where(obstacle => double.IsFinite(obstacle.PlayerCollisionRadius))
             .Select(obstacle => obstacle.PlayerCollisionRadius).DefaultIfEmpty(0d).Max();
         if (playerRadius <= 0d) return false;
@@ -1252,21 +1256,24 @@ public sealed class FieldWalkmeshRoutePlanner :
         }
         for (var index = firstOrdinaryIndex; index < path.Count - 1;)
         {
-            var selected = -1;
-            FieldWalkmeshSegmentTrace selectedTrace = default;
+            // The graph has already found a valid corridor. Keep its next edge
+            // when optional smoothing exhausts its budget; dropping the whole
+            // route here made a reachable doorway intermittently disappear.
+            var selected = index + 1;
+            if (!IsClear(nodes[path[index]], nodes[path[selected]], out var selectedTrace)) return false;
+            if (index == 0 && !HasExecutableEntry(path[selected])) return false;
             // Simplify only when the complete replacement leg passes both
             // native walkmesh tracing and every unchanged model probe.
-            for (var candidate = path.Count - 1; candidate > index; candidate--)
+            for (var candidate = path.Count - 1; candidate > selected; candidate--)
             {
                 if (++edgeChecks > maximumEdgeChecks || clock.ElapsedMilliseconds > maximumMilliseconds)
-                { diagnostic = $"alternate simplify budget, nodes={nodes.Count}, edges={edgeChecks}, ms={clock.Elapsed.TotalMilliseconds:0.0}"; return false; }
+                    break;
                 if (!IsClear(nodes[path[index]], nodes[path[candidate]], out var trace)) continue;
                 if (index == 0 && !HasExecutableEntry(path[candidate])) continue;
                 selected = candidate;
                 selectedTrace = trace;
                 break;
             }
-            if (selected < 0) return false;
             tracedTriangles.AddRange(selectedTrace.TraversedTriangles.Skip(1));
             routeSteps.Add(new FieldNavigationRouteStep(nodes[path[selected]].Point,
                 tracedTriangles.Count - 1, MustReach: selected < path.Count - 1,
@@ -1282,7 +1289,7 @@ public sealed class FieldWalkmeshRoutePlanner :
         steps = routeSteps;
         finalApproach = nodes[reachedGoal].Point;
         diagnostic = $"alternate native model corridor, nodes={nodes.Count}, edgeChecks={edgeChecks}, " +
-                     $"searchMs={clock.Elapsed.TotalMilliseconds:0.0}";
+                     $"seeded={seededNativeEntries}, expanded={visited.Count(value => value)}, gcMs={(GC.GetTotalPauseDuration() - initialGcPause).TotalMilliseconds:0.0}, searchMs={clock.Elapsed.TotalMilliseconds:0.0}";
         return true;
 
         bool HasExecutableEntry(int candidate)
@@ -4497,4 +4504,3 @@ public static class FieldWalkmeshPathfinder
 
     private readonly record struct FunnelCorner(RoutePoint Point, int PortalIndex);
 }
-

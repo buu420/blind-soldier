@@ -461,6 +461,7 @@ function Add-Definition {
         [int[]] $CompletionPlayerTriangles = @(),
         [int] $RequiredEnabledLineEntityId = -1,
         [switch] $KeepActiveOnArrival,
+        [string] $ManualNavigationGuidance = '',
         [switch] $UsesPlayerCollisionRadius,
         [switch] $UsesContactRange
     )
@@ -484,6 +485,9 @@ function Add-Definition {
     }
     if ($UsesContactRange) {
         $definition.usesContactRange = $true
+    }
+    if ($ManualNavigationGuidance) {
+        $definition.manualNavigationGuidance = $ManualNavigationGuidance
     }
     if ($null -ne $RequiredCondition) {
         $definition.requiredCondition = $RequiredCondition
@@ -1082,7 +1086,7 @@ Add-Definition -FieldId 132 -FieldName 'smkin_5' -Kind 'Location' -Label "Plant 
 # trigger lines are the native return gateways and activation lines, not
 # reversed descent targets. elevtr1 Bank 1 address 225 bit 0 identifies which
 # side of the elevator is currently accessible.
-Add-Definition -FieldId 132 -FieldName 'smkin_5' -Kind 'Location' -Label "Escape Reactor 5's core" -EntityId 6 -X -86 -Y -746 -Z -181 -TargetGameMoment 128 -MinimumGameMoment 127 -MaximumGameMoment 127 -Priority 0 -EntityName 'ln0' -ScriptType 'Move' -RequiredEnabledLineEntityId 6 -TriggerLine ([ordered]@{ startX = -30; startY = -727; startZ = -181; endX = -142; endY = -766; endZ = -181 })
+Add-Definition -FieldId 132 -FieldName 'smkin_5' -Kind 'Location' -Label "Escape Reactor 5's core" -EntityId 6 -X -87 -Y -1049 -Z -184 -TargetGameMoment 128 -MinimumGameMoment 127 -MaximumGameMoment 127 -Priority 0 -EntityName 'ln0' -ScriptType 'Move' -RequiredEnabledLineEntityId 6 -TriggerLine ([ordered]@{ startX = -27; startY = -1049; startZ = -184; endX = -147; endY = -1049; endZ = -184 })
 Add-Definition -FieldId 131 -FieldName 'smkin_4' -Kind 'Location' -Label 'Climb back toward the Reactor 5 elevator' -X 250 -Y 1255 -Z 862 -TargetGameMoment 128 -MinimumGameMoment 127 -MaximumGameMoment 127 -Priority 0 -ScriptType 'Gateway' -TriggerLine ([ordered]@{ startX = 208; startY = 1255; startZ = 854; endX = 291; endY = 1255; endZ = 869 })
 Add-Definition -FieldId 130 -FieldName 'smkin_3' -Kind 'Location' -Label 'Cross the upper piping back toward the elevator' -X -328 -Y 1921 -Z 2094 -TargetGameMoment 128 -MinimumGameMoment 127 -MaximumGameMoment 127 -Priority 0 -ScriptType 'Gateway' -TriggerLine ([ordered]@{ startX = -341; startY = 1955; startZ = 2082; endX = -316; endY = 1887; endZ = 2107 })
 Add-Definition -FieldId 129 -FieldName 'smkin_2' -Kind 'Location' -Label 'Return to the Reactor 5 elevator' -X -730 -Y 310 -Z 1571 -TargetGameMoment 128 -MinimumGameMoment 127 -MaximumGameMoment 127 -Priority 0 -ScriptType 'Gateway' -TriggerLine ([ordered]@{ startX = -694; startY = 273; startZ = 1571; endX = -767; endY = 347; endZ = 1571 })
@@ -1330,8 +1334,8 @@ Add-Definition -FieldId 188 -FieldName 'ealin_1' -Kind 'Location' -Label 'Go ups
 Add-Definition -FieldId 189 -FieldName 'ealin_12' -Kind 'Location' -Label 'Go upstairs to Barret and Marlene' -X 204 -Y 371 -Z 288 -TargetGameMoment 257 -MinimumGameMoment 248 -MaximumGameMoment 256 -Priority 0 -RequiredCondition (New-Condition 3 65 0x01 0x00) -ScriptType 'Gateway' -TriggerLine ([ordered]@{ startX = 188; startY = 332; startZ = 288; endX = 220; endY = 409; endZ = 288 })
 Add-Definition -FieldId 190 -FieldName 'ealin_2' -Kind 'Location' -Label 'Approach Barret and Marlene upstairs' -EntityId 10 -X 86 -Y 30 -Z 288 -TargetGameMoment 257 -MinimumGameMoment 248 -MaximumGameMoment 256 -Priority 0 -RequiredCondition (New-Condition 3 65 0x01 0x00) -CompletedCondition (New-Condition 3 65 0x01 0x01) -EntityName 'ev' -ScriptType 'Move' -RequiredEnabledLineEntityId 10 -TriggerLine ([ordered]@{ startX = 22; startY = 60; startZ = 288; endX = 150; endY = 0; endZ = 288 }) -KeepActiveOnArrival
 Add-Definition -FieldId 190 -FieldName 'ealin_2' -Kind 'Location' -Label 'Go downstairs after checking on Marlene' -X 83 -Y 442 -Z 69 -TargetGameMoment 257 -MinimumGameMoment 248 -MaximumGameMoment 256 -Priority 0 -RequiredCondition (New-Condition 3 65 0x01 0x01) -ScriptType 'Gateway' -TriggerLine ([ordered]@{ startX = 94; startY = 486; startZ = 54; endX = 72; endY = 398; endZ = 84 })
-Add-Definition -FieldId 188 -FieldName 'ealin_1' -Kind 'Location' -Label "Leave Aeris's house to plan her rescue" -EntityId 13 -X -170 -Y -138 -Z 0 -TargetGameMoment 257 -MinimumGameMoment 248 -MaximumGameMoment 256 -Priority 0 -RequiredCondition (New-Condition 3 65 0x01 0x01) -EntityName 'ev' -ScriptType 'Move' -RequiredEnabledLineEntityId 13 -TriggerLine ([ordered]@{ startX = -232; startY = -110; startZ = 0; endX = -109; endY = -166; endZ = 0 }) -KeepActiveOnArrival
-Add-Definition -FieldId 189 -FieldName 'ealin_12' -Kind 'Location' -Label "Leave Aeris's house to plan her rescue" -EntityId 13 -X -170 -Y -138 -Z 0 -TargetGameMoment 257 -MinimumGameMoment 248 -MaximumGameMoment 256 -Priority 0 -RequiredCondition (New-Condition 3 65 0x01 0x01) -EntityName 'ev' -ScriptType 'Move' -RequiredEnabledLineEntityId 13 -TriggerLine ([ordered]@{ startX = -232; startY = -110; startZ = 0; endX = -109; endY = -166; endZ = 0 }) -KeepActiveOnArrival
+Add-Definition -FieldId 188 -FieldName 'ealin_1' -Kind 'Location' -Label "Leave Aeris's house to plan her rescue" -EntityId 13 -X -170 -Y -138 -Z 0 -TargetGameMoment 257 -MinimumGameMoment 248 -MaximumGameMoment 256 -Priority 0 -RequiredCondition (New-Condition 3 65 0x01 0x01) -EntityName 'checkun' -ScriptType 'Move' -RequiredEnabledLineEntityId 13 -TriggerLine ([ordered]@{ startX = -232; startY = -110; startZ = 0; endX = -109; endY = -166; endZ = 0 }) -KeepActiveOnArrival
+Add-Definition -FieldId 189 -FieldName 'ealin_12' -Kind 'Location' -Label "Leave Aeris's house to plan her rescue" -EntityId 13 -X -170 -Y -138 -Z 0 -TargetGameMoment 257 -MinimumGameMoment 248 -MaximumGameMoment 256 -Priority 0 -RequiredCondition (New-Condition 3 65 0x01 0x01) -EntityName 'checkun' -ScriptType 'Move' -RequiredEnabledLineEntityId 13 -TriggerLine ([ordered]@{ startX = -232; startY = -110; startZ = 0; endX = -109; endY = -166; endZ = 0 }) -KeepActiveOnArrival
 
 # Return to Wall Market, buy the three visible batteries, and use the rope.
 # Bank 1 byte 165 bits 5-7 are set together by the native battery seller.
@@ -1474,7 +1478,7 @@ Add-Definition -FieldId 258 -FieldName 'blin67_2' -Kind 'Model' -Label 'Wake Tif
 Add-Definition -FieldId 258 -FieldName 'blin67_2' -Kind 'Model' -Label 'Talk to Tifa again and leave the cell' -EntityId 3 -TargetGameMoment 302 -MinimumGameMoment 296 -MaximumGameMoment 301 -Priority 0 -RequiredConditions @((New-Condition 5 16 0xFF 1), (New-Condition 5 21 0xFF 1)) -CompletedCondition (New-Condition 5 16 0xFF 2) -EntityName 'ti' -ScriptType 'Talk'
 Add-Definition -FieldId 258 -FieldName 'blin67_2' -Kind 'Model' -Label 'Talk to Barret after leaving the cell' -EntityId 4 -TargetGameMoment 302 -MinimumGameMoment 296 -MaximumGameMoment 301 -Priority 0 -RequiredCondition (New-Condition 5 16 0xFF 2) -CompletedCondition (New-Condition 5 20 0xFF 1) -EntityName 'ba' -ScriptType 'Talk'
 Add-Definition -FieldId 258 -FieldName 'blin67_2' -Kind 'Model' -Label 'Talk to Red XIII after leaving the cell' -EntityId 5 -TargetGameMoment 302 -MinimumGameMoment 296 -MaximumGameMoment 301 -Priority 0 -RequiredCondition (New-Condition 5 16 0xFF 2) -CompletedCondition (New-Condition 5 20 0xFF 1) -EntityName 'red' -ScriptType 'Talk'
-Add-Definition -FieldId 258 -FieldName 'blin67_2' -Kind 'Location' -Label 'Follow the blood trail out of the cell block' -EntityId 7 -X 412 -Y 690 -Z 0 -TargetGameMoment 302 -MinimumGameMoment 296 -MaximumGameMoment 301 -Priority 0 -RequiredCondition (New-Condition 5 20 0xFF 1) -CompletedCondition (New-Condition 5 20 0xFF 2) -EntityName 'ln2' -ScriptType 'Move' -RequiredEnabledLineEntityId 7 -TriggerLine ([ordered]@{ startX = 406; startY = 751; startZ = 0; endX = 418; endY = 628; endZ = 0 })
+Add-Definition -FieldId 258 -FieldName 'blin67_2' -Kind 'Location' -Label 'Follow the blood trail out of the cell block' -EntityId 9 -X 412 -Y 690 -Z 0 -TargetGameMoment 302 -MinimumGameMoment 296 -MaximumGameMoment 301 -Priority 0 -RequiredCondition (New-Condition 5 20 0xFF 1) -CompletedCondition (New-Condition 5 20 0xFF 2) -EntityName 'ln2' -ScriptType 'Move' -RequiredEnabledLineEntityId 9 -TriggerLine ([ordered]@{ startX = 406; startY = 751; startZ = 0; endX = 418; endY = 628; endZ = 0 })
 Add-Definition -FieldId 258 -FieldName 'blin67_2' -Kind 'Model' -Label 'Talk to Tifa and form the pursuit party' -EntityId 3 -TargetGameMoment 302 -MinimumGameMoment 296 -MaximumGameMoment 301 -Priority 0 -RequiredCondition (New-Condition 5 20 0xFF 2) -EntityName 'ti' -ScriptType 'Talk'
 Add-Definition -FieldId 258 -FieldName 'blin67_2' -Kind 'Model' -Label 'Talk to Aeris and form the pursuit party' -EntityId 2 -TargetGameMoment 302 -MinimumGameMoment 296 -MaximumGameMoment 301 -Priority 0 -RequiredCondition (New-Condition 5 20 0xFF 2) -EntityName 'ea' -ScriptType 'Talk'
 
@@ -1752,7 +1756,7 @@ Add-Definition -FieldId 258 -FieldName 'blin67_2' -Kind 'Location' -Label 'Use t
 # They use installed trigger geometry and native state gates, including stretches
 # that advance no GameMoment and therefore cannot be found by write extraction.
 $genericDefinitionCount = $definitions.Count
-foreach ($region in @('CostaDelSol', 'MountCorel', 'NorthCorel', 'GoldSaucer', 'CorelPrison', 'CosmoCanyon', 'IcicleInn', 'GaeasCliff', 'MountNibel', 'RocketTown', 'BoneVillage', 'GoldSaucerReturn', 'JunonEscape', 'Mideel', 'TempleOfTheAncients', 'CityOfTheAncients', 'WhirlwindMaze', 'JunonEscapeAndHighwind', 'MideelAndHugeMateria', 'UnderwaterReactor', 'RocketReturnAndAncients', 'MidgarRaid', 'NorthernCrater', 'EarlyContinuity', 'OptionalRoomReturns', 'WhirlwindTransit', 'SubmarineBoarding', 'InFieldTravel', 'ReviewedArrivals', 'NativeEntryDoors', 'TransitContinuity')) {
+foreach ($region in @('CostaDelSol', 'MountCorel', 'NorthCorel', 'GoldSaucer', 'CorelPrison', 'CosmoCanyon', 'IcicleInn', 'GreatGlacier', 'GaeasCliff', 'MountNibel', 'Nibelheim', 'RocketTown', 'BoneVillage', 'GoldSaucerReturn', 'JunonEscape', 'Mideel', 'TempleOfTheAncients', 'CityOfTheAncients', 'WhirlwindMaze', 'JunonEscapeAndHighwind', 'MideelAndHugeMateria', 'UnderwaterReactor', 'RocketReturnAndAncients', 'MidgarRaid', 'HighwindEndgame', 'NorthernCrater', 'EarlyContinuity', 'OptionalRoomReturns', 'WhirlwindTransit', 'SubmarineBoarding', 'InFieldTravel', 'ReviewedArrivals', 'NativeEntryDoors', 'TransitContinuity')) {
     . (Join-Path $scriptRoot "story-regions\$region.ps1")
 }
 
@@ -1874,7 +1878,7 @@ function Get-DefinitionKey($definition) {
            "$($definition.label):$($definition.priority):$($conditions -join '|'):$triangles"
 }
 
-$deduplicated = @($definitions |
+$filteredDefinitions = @($definitions |
     Where-Object {
         -not ($_.fieldId -eq 144 -and
               $_.targetGameMoment -eq 212 -and
@@ -1883,28 +1887,23 @@ $deduplicated = @($definitions |
               $_.entityId -eq 4 -and
               $_.targetGameMoment -eq 1180 -and
               $_.label -eq 'Talk to the story character')
-    } |
-    Group-Object { Get-DefinitionKey $_ } |
-    ForEach-Object { $_.Group[0] })
+    })
 
 # Fields that could not be read this run keep whatever the last generated catalog
 # already held for them, so an offline placeholder costs no coverage. If there is no
 # previous catalog to carry from, the loss is real and is reported as such.
-$carriedForward = 0
+$previousDefinitions = @()
 if ($unreadableFields.Count -gt 0 -and (Test-Path -LiteralPath $OutputPath)) {
-    try {
-        $previousDocument = Get-Content -LiteralPath $OutputPath -Raw | ConvertFrom-Json
-        foreach ($definition in $previousDocument.definitions) {
-            if ($unreadableFields.Contains([string]$definition.sourceFieldName)) {
-                $definitions.Add($definition)
-                $carriedForward++
-            }
-        }
-    }
-    catch {
-        Write-Warning "Could not carry forward rows for unreadable fields: $($_.Exception.Message)"
-    }
+    # A corrupt previous catalog must fail regeneration, not silently discard coverage.
+    $previousDocument = Get-Content -LiteralPath $OutputPath -Raw | ConvertFrom-Json
+    $previousDefinitions = @($previousDocument.definitions)
 }
+. (Join-Path $scriptRoot 'Complete-StoryCatalog.ps1')
+$finalized = Complete-StoryCatalog -Definitions $filteredDefinitions `
+    -PreviousDefinitions $previousDefinitions -UnreadableFields $unreadableFields.ToArray() `
+    -GetKey { param($row) Get-DefinitionKey $row }
+$deduplicated = @($finalized.Definitions)
+$carriedForward = $finalized.CarriedForward
 
 # Keep established J/L cycling order stable when the catalog is regenerated.
 # Existing definitions retain their prior positions; newly reviewed objectives
@@ -1958,6 +1957,28 @@ $document = [ordered]@{
 $outputDirectory = Split-Path -Parent $OutputPath
 New-Item -ItemType Directory -Force -Path $outputDirectory | Out-Null
 $document | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $OutputPath -Encoding UTF8
+if (-not $LedgerPath) {
+    $LedgerPath = [IO.Path]::ChangeExtension($OutputPath, '.coverage.json')
+}
+$ledger = [ordered]@{
+    schemaVersion = 1
+    evidenceLevel = 'Extraction inventory, not a playthrough or proof of route coverage. Automatic and unresolved writes remain unclassified.'
+    sourceCommit = $sourceCommit
+    definitions = $deduplicated.Count
+    scannedGameMomentWrites = $milestoneCount
+    navigableGameMomentWrites = $navigableMilestoneCount
+    automaticOrUnresolved = @($unresolved.ToArray())
+    unreadableFields = @($unreadableFields.ToArray())
+    suppliedFields = @($suppliedFields.ToArray())
+    carriedForwardUnverified = $carriedForward
+    rejectedUnreachable = @($finalized.RejectedUnreachable)
+}
+New-Item -ItemType Directory -Force -Path (Split-Path -Parent ([IO.Path]::GetFullPath($LedgerPath))) | Out-Null
+$ledger | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $LedgerPath -Encoding UTF8
+if ($finalized.RejectedUnreachable.Count -gt 0) {
+    Write-Warning "$($finalized.RejectedUnreachable.Count) unreachable Story rows rejected. Review rejectedUnreachable in $LedgerPath."
+}
+
 Write-Host "Generated $($deduplicated.Count) FFVII story objectives from $milestoneCount native GameMoment writes at $OutputPath"
 Write-Host "Navigable writes: $navigableMilestoneCount; automatic or unresolved writes: $($unresolved.Count)"
 if ($suppliedFields.Count -gt 0) {
@@ -1971,7 +1992,6 @@ if ($unreadableFields.Count -gt 0) {
     Write-Warning ("{0} field file(s) are offline with no supplement: {1}. {2} previously generated row(s) were carried forward UNVERIFIED for them." -f
         $unreadableFields.Count, ($unreadableFields -join ', '), $carriedForward)
 }
-
 
 
 

@@ -30,7 +30,7 @@ has been implemented and checked offline; those chapters still need playtesting.
 
 ### Story guidance
 
-The Story navigation category uses 1112 definitions tied to the game's progress
+The Story navigation category uses 1243 definitions tied to the game's progress
 state and field scripts, covering the opening through the
 ending: the Midgar chapters, Kalm, the marshes and Mythril Mine, Junon, the
 cargo ship, Costa del Sol, Mount Corel, North Corel, the Gold Saucer, Corel
@@ -78,8 +78,9 @@ alignment assists are available where listed; other actions remain under your co
 
 Recorded audio description ships for the opening movie and 99 other movie
 tracks, unchanged since 0.5.11, plus 846 short clips covering cutscene actions
-and area arrivals. This release adds eight action descriptions at the Cosmo
+and area arrivals. Version 0.6.1 added eight action descriptions at the Cosmo
 Canyon bonfire, Shinra Mansion, Rocket Town, and Temple of the Ancients.
+Version 0.6.2 preserves those recordings and adds no new narration.
 All packaged narration uses Brice's approved voice.
 
 Coverage is limited to the included scenes; this does not mean every cutscene
@@ -93,18 +94,27 @@ again where one exists.
 ### Navigation and auto walk
 
 Field and world-map navigation, routes, auto walk and the progress indicator
-are described under [Navigation](#navigation). Auto walk's stall repairs and
-spoken guard arrived in 0.5.x and are unchanged; see [Auto walk](#auto-walk).
+are described under [Navigation](#navigation).
 
-This release fixes the approach to the observatory doors in both directions,
-including the upstairs corner where auto walk could stop. Guidance approaches
-the game's door-opening trigger, retains your destination during the pause,
-and continues when the door opens. It also adds the first-visit **Talk to Red
-XIII** Story target inside the observatory. These changes apply to both game
-runtimes and were checked against both installed field archives.
+Version 0.6.2 repairs missing Story steps around Nibelheim, the return to Gold
+Saucer, the Temple, the Lifestream and late Highwind visits. It adds native
+state-dependent guidance through 26 Great Glacier fields to the northern
+snowfield, including the reused corridor screens. The optional ice-floe puzzle
+still requires its native puzzle controls.
 
-The world-map entrance avoidance and held-exit support introduced in 0.6.0
-remain included.
+The town pass adds 65 objects/interactions and 15 NPC labels. Gold Saucer's seven
+Terminal Floor platforms are available in Exits independently of Story priority.
+Availability still follows the game's native actor, line and progress state.
+
+Auto walk no longer alternates between arrived and resumed at an unchanged LINE
+interaction approach. North Corel's small-room fallback has enough bounded search
+time to find its tested doorway route and keeps a validated path when optional
+path shortening runs out of time. Existing observatory door handling and the
+first-visit Talk to Red XIII target remain included on both runtimes.
+
+The final checks read 702 native fields, replay 54 selected progression states
+in both runtimes against both installed archives, and test the added routes and
+interactions. These checks do not establish a complete live playthrough.
 
 ### Known gaps
 
@@ -120,9 +130,8 @@ remain included.
   in-engine character animation - poses, gestures and reactions - is largely
   undescribed, because an animation number in the field script is not evidence
   of what it looks like.
-- The descriptions and navigation changes in 0.6.1 were verified against the
-  installed game's own data and by automated checks, not by playing through
-  them. They need reports from real sessions.
+- The navigation changes in 0.6.2 were verified against the installed game's
+  own data and by automated checks. They still need reports from real sessions.
 - Optional exploration, side quests and missable content are far less covered
   than the required route.
 
@@ -149,10 +158,10 @@ instead of reading unverified game memory.
 Choose one download from the
 [Blind Soldier Releases page](https://github.com/buu420/blind-soldier/releases):
 
-- [Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.6.1/Blind-Soldier-Portable.zip)
+- [Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.6.2/Blind-Soldier-Portable.zip)
   is the complete dual-runtime package. Use it for Steam 2026 x64 or when one
   extracted package must support both x86 and x64 installations.
-- [Blind-Soldier-2013-x86-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.6.1/Blind-Soldier-2013-x86-Portable.zip)
+- [Blind-Soldier-2013-x86-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.6.2/Blind-Soldier-2013-x86-Portable.zip)
   is the smaller legacy-only package. Use it for the 2013 x86 game, including
   stock 7th Heaven/FFNx. It deliberately contains no Steam 2026 launcher or
   x64 files.
@@ -264,17 +273,17 @@ Visual Studio C++ Build Tools, and PowerShell, then run:
 ```powershell
 .\Build-BlindSoldierPortablePackage.ps1 `
   -OutputPath .\artifacts\Blind-Soldier-Portable.zip `
-  -Version 0.6.1
+  -Version 0.6.2
 .\Verify-BlindSoldierPortablePackage.ps1 `
   -ArchivePath .\artifacts\Blind-Soldier-Portable.zip `
-  -ExpectedVersion 0.6.1
+  -ExpectedVersion 0.6.2
 .\Build-BlindSoldier2013PortablePackage.ps1 `
   -SourceArchivePath .\artifacts\Blind-Soldier-Portable.zip `
   -OutputPath .\artifacts\Blind-Soldier-2013-x86-Portable.zip `
-  -Version 0.6.1
+  -Version 0.6.2
 .\Verify-BlindSoldier2013PortablePackage.ps1 `
   -ArchivePath .\artifacts\Blind-Soldier-2013-x86-Portable.zip `
-  -ExpectedVersion 0.6.1 `
+  -ExpectedVersion 0.6.2 `
   -ExpectedSourceArchivePath .\artifacts\Blind-Soldier-Portable.zip
 ```
 

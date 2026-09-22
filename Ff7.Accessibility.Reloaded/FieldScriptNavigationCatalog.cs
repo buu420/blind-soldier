@@ -406,6 +406,7 @@ public sealed class FieldScriptNavigationCatalog
                     RequiresAction = group.Any(transition => transition.RequiresAction)
                 })
                 .ToList();
+            exits.AddRange(GoldSaucerPlatformExitCatalog.ForField(fieldId));
             exits = exits
                 .DistinctBy(exit => exit.StableId)
                 .ToList();

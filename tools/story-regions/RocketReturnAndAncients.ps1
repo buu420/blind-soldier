@@ -121,14 +121,14 @@ Add-Definition @rocketEscape -FieldId 565 -FieldName 'rcktin3' -Kind Location -E
     -RequiredEnabledLineEntityId 5 `
     -TriggerLine ([ordered]@{ startX = -26; startY = 45; startZ = 0; endX = 37; endY = 45; endZ = 0 })
 
-Add-Definition -FieldId 72 -FieldName 'fship_22' -Kind Model -EntityId 16 -Priority 0 `
+Add-Definition -FieldId 72 -FieldName 'fship_25' -Kind Model -EntityId 16 -Priority 0 `
     -Label 'Talk to the pilot' `
     -MinimumGameMoment 1389 -MaximumGameMoment 1390 `
     -EntityName 'crew3' -ScriptType 'Talk'
 
 # --- Bugenhagen and the Capital -------------------------------------------------------------
 $bugenhagenAboard = New-Condition -Bank 3 -Address 188 -Mask 0x08 -Value 0x00
-# cosmo3's four stands are gated by four separate flags, and 566:14:4 shows what
+# bugin1b's four stands are gated by four separate flags, and 566:14:4 shows what
 # those flags are: it walks them in a fixed order and writes the first one that is
 # still clear, so they are storage slots filled in the order the Huge Materia were
 # brought in, not one flag per materia. Nothing in the field ties a stand to a
@@ -140,7 +140,7 @@ $fourthHugeMateriaSlot = New-Condition -Bank 13 -Address 82 -Mask 0x80 -Value 0x
 $keyNotYetFetched = New-Condition -Bank 13 -Address 82 -Mask 0x02 -Value 0x00
 $keyFetched = New-Condition -Bank 13 -Address 82 -Mask 0x02 -Value 0x02
 
-Add-Definition -FieldId 541 -FieldName 'cosmo2' -Kind Model -EntityId 11 -Priority 0 `
+Add-Definition -FieldId 541 -FieldName 'bugin1a' -Kind Model -EntityId 11 -Priority 0 `
     -Label 'Talk to Bugenhagen' `
     -MinimumGameMoment 1389 -MaximumGameMoment 1390 `
     -EntityName 'bugen' -ScriptType 'Talk'
@@ -149,25 +149,25 @@ Add-Definition -FieldId 541 -FieldName 'cosmo2' -Kind Model -EntityId 11 -Priori
 # their Contact script is entity script 2 and they have no Talk script at all, so
 # nothing here is pressed. Each stand is offered only while its own slot flag says a
 # materia is actually on it.
-Add-Definition -FieldId 542 -FieldName 'cosmo3' -Kind Model -EntityId 12 -Priority 0 `
+Add-Definition -FieldId 542 -FieldName 'bugin1b' -Kind Model -EntityId 12 -Priority 0 `
     -Label 'Go to the first stored materia' `
     -MinimumGameMoment 1391 -MaximumGameMoment 1391 `
     -RequiredConditions @($bugenhagenAboard, $firstHugeMateriaSlot) `
     -EntityName 'HUGEB' -ScriptType 'Contact' -UsesContactRange
 
-Add-Definition -FieldId 542 -FieldName 'cosmo3' -Kind Model -EntityId 11 -Priority 0 `
+Add-Definition -FieldId 542 -FieldName 'bugin1b' -Kind Model -EntityId 11 -Priority 0 `
     -Label 'Go to the second stored materia' `
     -MinimumGameMoment 1391 -MaximumGameMoment 1391 `
     -RequiredConditions @($bugenhagenAboard, $secondHugeMateriaSlot) `
     -EntityName 'HUGEA' -ScriptType 'Contact' -UsesContactRange
 
-Add-Definition -FieldId 542 -FieldName 'cosmo3' -Kind Model -EntityId 13 -Priority 0 `
+Add-Definition -FieldId 542 -FieldName 'bugin1b' -Kind Model -EntityId 13 -Priority 0 `
     -Label 'Go to the third stored materia' `
     -MinimumGameMoment 1391 -MaximumGameMoment 1391 `
     -RequiredConditions @($bugenhagenAboard, $thirdHugeMateriaSlot) `
     -EntityName 'HUGEC' -ScriptType 'Contact' -UsesContactRange
 
-Add-Definition -FieldId 542 -FieldName 'cosmo3' -Kind Model -EntityId 14 -Priority 0 `
+Add-Definition -FieldId 542 -FieldName 'bugin1b' -Kind Model -EntityId 14 -Priority 0 `
     -Label 'Go to the fourth stored materia' `
     -MinimumGameMoment 1391 -MaximumGameMoment 1391 `
     -RequiredConditions @($bugenhagenAboard, $fourthHugeMateriaSlot) `

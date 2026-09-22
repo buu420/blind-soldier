@@ -16,6 +16,7 @@ internal static class MainStoryCoverageTests
 {
     internal static void Run()
     {
+        StoryNativeBindingTests.Run();
         TheCorelPrisonRouteHasAStepAtEveryStage();
         DisabledGatewaysAreNeverOfferedAsPrisonExits();
         PrisonExitsCarryTheNativeLineContract();
@@ -819,7 +820,8 @@ internal static class MainStoryCoverageTests
                 label.StartsWith("Drop down", StringComparison.Ordinal)),
             "nothing offered there may be one of the hops that climbs back up a ledge");
 
-        var withoutTheExit = memory.StoryReader(disabledLineEntityId: 35);
+        // PC las0_6 includes down_8_d/e and down_9_d/e; m_jump is entity 40.
+        var withoutTheExit = memory.StoryReader(disabledLineEntityId: 40);
         Equal(false,
             Objectives(withoutTheExit, 749).Select(target => target.Label)
                 .Contains("Jump down to the crater floor"),
@@ -1100,8 +1102,6 @@ internal static class MainStoryCoverageTests
         }
     }
 }
-
-
 
 
 

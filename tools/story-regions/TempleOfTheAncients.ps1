@@ -1,4 +1,4 @@
-# Dot-sourced by Generate-FieldStoryEvents.ps1 after generic milestone extraction.
+﻿# Dot-sourced by Generate-FieldStoryEvents.ps1 after generic milestone extraction.
 #
 # The Temple of the Ancients, from arriving with the Keystone through the collapse and
 # the recovery at Gongaga. Almost none of it writes a GameMoment where the player is
@@ -128,3 +128,36 @@ Add-Definition -FieldId 518 -FieldName 'gongaga' -Kind Location -EntityId 11 `
     -TriggerLine ([ordered]@{ startX = -798; startY = -1333; startZ = 17; endX = -529; endY = -1386; endZ = 17 })
 
 Add-CuratedFields 600, 602, 604, 605, 606, 607, 610, 611, 612, 616, 518
+
+# --- The last room, and two rows that never stopped ------------------------------------
+#
+# Added after a second pass. 616's entity 16 is a field model with its own talk radius,
+# and its Talk tests for exactly 627 before it does anything; everything the chapter has
+# left runs from there. Extraction had produced a row for it, but took the name from the
+# first line of dialogue rather than from what is being walked to, so the catalog was
+# telling the player to talk to a party member in a room where the thing to approach is
+# the door. The reviewed row below replaces it: same entity, same trigger, a label that
+# says what the player does, and the one moment that Talk tests for. The model stays
+# visible after the scene, so a wider band would go on offering a conversation that
+# returns at its own byte 4 without doing anything.
+Add-Definition -FieldId 616 -FieldName 'kuro_12' -Kind Model -EntityId 16 `
+    -Label 'Go up to the door at the end of the room' `
+    -MinimumGameMoment 627 -MaximumGameMoment 627 -Priority 0 `
+    -EntityName 'boss' -ScriptType 'Talk'
+
+# 606's last line and 612's border2 were both extracted with no band at all, so each went
+# on being offered for the rest of the game in a room the chapter comes back to. 606's
+# line writes 612 and the party is only in that corridor for 609..611; 612's border2
+# writes 624 and stops doing anything at all once the counter reaches 627, which is the
+# branch at its byte 8.
+foreach ($templeUnboundedRow in $definitions) {
+    if ($templeUnboundedRow.minimumGameMoment -ge 0 -or $templeUnboundedRow.maximumGameMoment -ge 0) { continue }
+    if ($templeUnboundedRow.fieldId -eq 606 -and $templeUnboundedRow.targetGameMoment -eq 612) {
+        $templeUnboundedRow.minimumGameMoment = 609
+        $templeUnboundedRow.maximumGameMoment = 612
+    }
+    if ($templeUnboundedRow.fieldId -eq 612 -and $templeUnboundedRow.targetGameMoment -eq 624) {
+        $templeUnboundedRow.minimumGameMoment = 621
+        $templeUnboundedRow.maximumGameMoment = 626
+    }
+}

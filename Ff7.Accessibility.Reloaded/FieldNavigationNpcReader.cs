@@ -417,6 +417,28 @@ public sealed class FieldNavigationNpcReader
             [(586, 19)] = "Chekhov",
             [(586, 20)] = "Staniv",
 
+            // These native Talk handlers have no named dialogue heading. Their actual
+            // loaded models are the Temple keeper and hooded travellers respectively.
+            [(606, 31)] = "Temple spirit",
+            [(700, 12)] = "Cloaked figure",
+            [(709, 18)] = "Cloaked figure",
+            [(709, 19)] = "Cloaked figure",
+            [(183, 7)] = "Reno",
+            [(317, 21)] = "Large creature",
+
+            // The Lifestream's visible versions of Cloud have unheaded dialogue.
+            // Naming the actor from the loaded model avoids dropping those NPCs or
+            // calling them Tifa merely because she answers inside their Talk handler.
+            [(280, 3)] = "Cloud",
+            [(725, 2)] = "Cloud",
+            [(725, 3)] = "Cloud",
+            [(725, 6)] = "Cloud",
+            [(726, 2)] = "Cloud",
+            [(726, 4)] = "Cloud",
+            [(727, 3)] = "Cloud",
+            [(727, 4)] = "Cloud",
+            [(727, 5)] = "Cloud",
+
             // Shop, inn and hotel staff whose visible role is not in the mesh. Each was
             // read from the field's own Talk or counter script: the menu it opens, or the
             // line it greets the customer with.
