@@ -1018,6 +1018,8 @@
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldFootstepTracker.cs" Link="Shared\FieldFootstepTracker.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldNavigationObjectReader.cs" Link="Shared\FieldNavigationObjectReader.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\ShinraElevatorObjectCatalog.cs" Link="Shared\ShinraElevatorObjectCatalog.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\NibelheimObjectCatalog.cs" Link="Shared\NibelheimObjectCatalog.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\TownInteractionObjectCatalog.cs" Link="Shared\TownInteractionObjectCatalog.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldNavigationNpcReader.cs" Link="Shared\FieldNavigationNpcReader.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldNavigationDynamicObstacleReader.cs" Link="Shared\FieldNavigationDynamicObstacleReader.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldObjectProximityCueTracker.cs" Link="Shared\FieldObjectProximityCueTracker.cs" />
@@ -1045,6 +1047,7 @@
     <Compile Include="..\Ff7.Accessibility.Reloaded\Floor60SoldierTurnCueTracker.cs" Link="Shared\Floor60SoldierTurnCueTracker.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\ImmediateWaveCuePlayer.cs" Link="Shared\ImmediateWaveCuePlayer.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldScriptNavigationCatalog.cs" Link="Shared\FieldScriptNavigationCatalog.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\GoldSaucerPlatformExitCatalog.cs" Link="Shared\GoldSaucerPlatformExitCatalog.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldScriptNavigationTransitionTracker.cs" Link="Shared\FieldScriptNavigationTransitionTracker.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldNavigationSpeechPolicy.cs" Link="Shared\FieldNavigationSpeechPolicy.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldStoryTargetReader.cs" Link="Shared\FieldStoryTargetReader.cs" />

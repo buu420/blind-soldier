@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AuditRuntime Condition="'$(AuditRuntime)' == ''">x86</AuditRuntime>
+    <PlatformTarget>$(AuditRuntime)</PlatformTarget>
+    <OutputPath>bin\$(Configuration)\$(AuditRuntime)\</OutputPath>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(AuditRuntime)' == 'x86'">
+    <ProjectReference Include="..\..\Ff7.Accessibility.Reloaded\Ff7.Accessibility.Reloaded.csproj" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(AuditRuntime)' == 'x64'">
+    <ProjectReference Include="..\..\Ff7.Accessibility.Steam2026X64\Ff7.Accessibility.Steam2026X64.csproj" />
+  </ItemGroup>
+  <Target Name="ValidateAuditRuntime" BeforeTargets="PrepareForBuild"
+          Condition="'$(AuditRuntime)' != 'x86' and '$(AuditRuntime)' != 'x64'">
+    <Error Text="AuditRuntime must be x86 or x64." />
+  </Target>
+</Project>

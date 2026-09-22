@@ -29,10 +29,10 @@ internal static class NorthCorelEtherInteractionTests
             "the pot keeps the native LINE midpoint and height");
         Equal((15, 1, (byte)1), (definition.CollectedBank, definition.CollectedAddress, definition.CollectedMask),
             "the native collection gate remains unchanged");
-        var optedIn = FieldNavigationObjectCatalog.CreateAllFields()
-            .Where(item => item.UsesPlayerCollisionRadius).ToArray();
-        Equal(1, optedIn.Length, "only the native-reviewed Ether opts into this interaction geometry");
-        Equal((453, 3), (optedIn[0].FieldId, optedIn[0].EntityId), "the scope remains the North Corel pot");
+        Equal(true, definition.UsesPlayerCollisionRadius,
+            "the native-reviewed Ether keeps its player collision radius");
+        // Other reviewed handlers can opt in independently (for example the mansion's
+        // Go/OK lines). The unreviewed-line test below still protects the default range.
 
         void AssertBytes(int script, int offset, string expected)
         {

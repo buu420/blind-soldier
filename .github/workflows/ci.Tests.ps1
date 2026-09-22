@@ -70,4 +70,13 @@ Describe 'Blind Soldier merge-time CI contract' {
         $workflow = [IO.File]::ReadAllText($workflowPath)
         $workflow | Should Match 'FailedCount'
     }
+
+    It 'runs story state coverage in both shipping assemblies' {
+        $workflow = [IO.File]::ReadAllText($workflowPath)
+        foreach ($runtime in @('Reloaded', 'Steam2026X64')) {
+            $project = "Ff7.Accessibility.$runtime.Tests/Ff7.Accessibility.$runtime.Tests.csproj"
+            $workflow | Should Match ([regex]::Escape($project) + '[^\r\n]*--story-coverage-only')
+        }
+        $workflow | Should Match ([regex]::Escape('./tools/Complete-StoryCatalog.Tests.ps1'))
+    }
 }

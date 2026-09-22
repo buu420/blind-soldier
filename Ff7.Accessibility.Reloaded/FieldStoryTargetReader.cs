@@ -65,7 +65,8 @@ public readonly record struct FieldStoryEventDefinition(
     int[]? CompletionPlayerTriangles = null,
     int? RequiredEnabledLineEntityId = null,
     bool UsesPlayerCollisionRadius = false,
-    bool UsesContactRange = false);
+    bool UsesContactRange = false,
+    string? ManualNavigationGuidance = null);
 
 public static class FieldStoryEventCatalog
 {
@@ -337,6 +338,7 @@ public sealed class FieldStoryTargetReader
             RouteDetour: definition.RouteDetour,
             RouteDetours: definition.RouteDetours,
             CompletionTriangles: definition.CompletionPlayerTriangles,
+            ManualNavigationGuidance: definition.ManualNavigationGuidance,
             Activation:
                 definition.UsesContactRange
                     ? FieldNavigationActivation.Contact

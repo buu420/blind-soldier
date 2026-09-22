@@ -38,10 +38,10 @@ Add-Definition @craterDescent -FieldId 746 -FieldName 'las0_3' -Kind Location `
     -EntityName 'gateway0' -ScriptType 'Gateway' `
     -TriggerLine ([ordered]@{ startX = -976; startY = 577; startZ = 118; endX = -865; endY = 579; endZ = 118 })
 
-Add-Definition @craterDescent -FieldId 747 -FieldName 'las0_4' -Kind Location -EntityId 28 `
+Add-Definition @craterDescent -FieldId 747 -FieldName 'las0_4' -Kind Location -EntityId 32 `
     -Label 'Climb down the stepped wall' -X -654 -Y 552 -Z 954 `
     -EntityName 'mjump' -ScriptType '[OK]' -UsesPlayerCollisionRadius `
-    -RequiredEnabledLineEntityId 28 `
+    -RequiredEnabledLineEntityId 32 `
     -TriggerLine ([ordered]@{ startX = -714; startY = 607; startZ = 920; endX = -595; endY = 498; endZ = 988 })
 
 Add-Definition @craterDescent -FieldId 748 -FieldName 'las0_5' -Kind Location `
@@ -131,10 +131,10 @@ Add-Definition @craterDescent -FieldId 749 -FieldName 'las0_6' -Kind Location -E
     -TriggerLine ([ordered]@{ startX = 382; startY = 128; startZ = -278; endX = 382; endY = -20; endZ = -278 })
 
 # down_10 starts on the ledge at z -278 and puts the party down at z -485.
-Add-Definition @craterDescent -FieldId 749 -FieldName 'las0_6' -Kind Location -EntityId 33 `
+Add-Definition @craterDescent -FieldId 749 -FieldName 'las0_6' -Kind Location -EntityId 38 `
     -Label 'Jump down to the next ledge' -X -7 -Y 62 -Z -278 `
     -EntityName 'down_10' -ScriptType 'Move' -UsesPlayerCollisionRadius `
-    -RequiredEnabledLineEntityId 33 `
+    -RequiredEnabledLineEntityId 38 `
     -TriggerLine ([ordered]@{ startX = -7; startY = 98; startZ = -278; endX = -7; endY = 26; endZ = -278 })
 
 # down_6 starts on the ledge at z -485 and puts the party down at z -693.
@@ -153,33 +153,33 @@ Add-Definition @craterDescent -FieldId 749 -FieldName 'las0_6' -Kind Location -E
 
 # down_8 starts on the ledge at z -693 and puts the party down at z -902.
 Add-Definition @craterDescent -FieldId 749 -FieldName 'las0_6' -Kind Location -EntityId 29 `
-    -Label 'Jump down to the next ledge' -X 522 -Y 64 -Z -693 `
+    -Label 'Jump down to the next ledge' -X 500 -Y 64 -Z -693 `
     -EntityName 'down_8' -ScriptType 'Move' -UsesPlayerCollisionRadius `
     -RequiredEnabledLineEntityId 29 `
-    -TriggerLine ([ordered]@{ startX = 520; startY = 1; startZ = -693; endX = 523; endY = 126; endZ = -693 })
+    -TriggerLine ([ordered]@{ startX = 500; startY = 1; startZ = -693; endX = 500; endY = 126; endZ = -693 })
 
 # down_9 starts on the ledge at z -902 and puts the party down at z -1014.
-Add-Definition @craterDescent -FieldId 749 -FieldName 'las0_6' -Kind Location -EntityId 31 `
-    -Label 'Jump down to the next ledge' -X 28 -Y 55 -Z -902 `
+Add-Definition @craterDescent -FieldId 749 -FieldName 'las0_6' -Kind Location -EntityId 33 `
+    -Label 'Jump down to the next ledge' -X 5 -Y 55 -Z -902 `
     -EntityName 'down_9' -ScriptType 'Move' -UsesPlayerCollisionRadius `
-    -RequiredEnabledLineEntityId 31 `
-    -TriggerLine ([ordered]@{ startX = 34; startY = 119; startZ = -902; endX = 22; endY = -9; endZ = -902 })
+    -RequiredEnabledLineEntityId 33 `
+    -TriggerLine ([ordered]@{ startX = 5; startY = 119; startZ = -902; endX = 5; endY = -9; endZ = -902 })
 
 # m_jump starts on the ledge at z -1041 and is the one line here that leaves for 751.
-Add-Definition @craterDescent -FieldId 749 -FieldName 'las0_6' -Kind Location -EntityId 35 `
+Add-Definition @craterDescent -FieldId 749 -FieldName 'las0_6' -Kind Location -EntityId 40 `
     -Label 'Jump down to the crater floor' -X -72 -Y 55 -Z -1041 `
     -EntityName 'm_jump' -ScriptType 'Move' -UsesPlayerCollisionRadius `
-    -RequiredEnabledLineEntityId 35 `
+    -RequiredEnabledLineEntityId 40 `
     -TriggerLine ([ordered]@{ startX = -72; startY = 127; startZ = -1041; endX = -72; endY = -17; endZ = -1041 })
 
 # 751:5's Main waits on bank5[26], and the ladder is what sets it: climbing down is how
 # the party splitting begins. Nothing here chooses a side.
 Add-Definition @craterDescent -FieldId 751 -FieldName 'las0_8' -Kind Location -EntityId 15 `
-    -Label 'Climb down the ladder to gather the party' -X -2662 -Y -175 -Z 4822 `
+    -Label 'Climb down the ladder to gather the party' -X -2624 -Y -225 -Z 4822 `
     -RequiredCondition $splitPending `
     -EntityName 'lad_2_d' -ScriptType 'Go' -UsesPlayerCollisionRadius `
     -RequiredEnabledLineEntityId 15 `
-    -TriggerLine ([ordered]@{ startX = -2749; startY = -165; startZ = 4830; endX = -2575; endY = -186; endZ = 4814 })
+    -TriggerLine ([ordered]@{ startX = -2649; startY = -290; startZ = 4830; endX = -2600; endY = -160; endZ = 4814 })
 
 Add-Definition @craterDescent -FieldId 751 -FieldName 'las0_8' -Kind Location `
     -Label 'Follow the right-hand way down' -X -280 -Y 914 -Z 3947 `

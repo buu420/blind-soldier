@@ -66,6 +66,7 @@ internal static class NorthCorelAlternateCorridorTests
             var endpointRepresentative = Exit with { X = 23 };
             Check(planner.TryBuildRoute(CapturedStart, endpointRepresentative, out var route),
                 "Exactly replayed native input witnesses cross the doorway in this resident phase; " + planner.LastDiagnostic);
+            Console.WriteLine($"North Corel native witness, residentY={grandfatherY}: {planner.LastDiagnostic}");
             Check(route.TargetTriangle == original.TargetTriangle && route.TargetTriggerLine == Exit.TriggerLine &&
                   route.FinalApproach.Y == -217 && route.FinalApproach.Z == 0 &&
                   route.FinalApproach.X > -75 && route.FinalApproach.X < 23,

@@ -1218,7 +1218,10 @@ public sealed class FieldNavigationController
                         position,
                         target.Value,
                         resumeDistance,
-                        guidance: null))
+                        // LINE targets may have an authored representative point
+                        // away from the actual approach. Models must still use their
+                        // live position while route replanning waits for movement.
+                        guidance: target.Value.TriggerLine is null ? null : currentGuidance))
                 {
                     return null;
                 }

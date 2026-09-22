@@ -17,7 +17,7 @@
 #         The line switches off at 1100 or once Bank[15][177] bit 1 is set.
 #   1110  Both missions are open. Corel: mtcrl_2's event line, entity 17, only while
 #         Bank[15][144] bit 0 is clear - once the pursuit has happened it is over.
-#         Condor: fort_1's elder, entity 29, then gateway0 up to the lookout.
+#         Condor: convil_1's elder, entity 29, then gateway0 up to the lookout.
 #   ...   zcoal_2 is the train itself: four cars, each a battle line then a jump line,
 #         and each battle sets its own flag. The rows follow those flags rather than the
 #         counter, because the counter does not move at all up there.
@@ -77,12 +77,12 @@ foreach ($car in @(
        jx1 = 863; jy1 = 290;  jz1 = 158; jx2 = 758; jy2 = 290;  jz2 = 136; ordinal = 'first' },
     @{ battle = 8;  jump = 9;  bank = 15; address = 144; mask = 0x80
        bx1 = 863; by1 = 508;  bz1 = 156; bx2 = 755; by2 = 496;  bz2 = 139
-       jx1 = 863; jy1 = 545;  jz1 = 154; jx2 = 755; jy2 = 545;  jz2 = 138; ordinal = 'second' },
+       jx1 = 839; jy1 = 548;  jz1 = 154; jx2 = 766; jy2 = 574;  jz2 = 139; ordinal = 'second' },
     @{ battle = 10; jump = 11; bank = 15; address = 145; mask = 0x01
-       bx1 = 860; by1 = 760;  bz1 = 153; bx2 = 754; by2 = 748;  bz2 = 137
-       jx1 = 860; jy1 = 797;  jz1 = 152; jx2 = 754; jy2 = 797;  jz2 = 136; ordinal = 'third' },
+       bx1 = 861; by1 = 784;  bz1 = 164; bx2 = 758; by2 = 756;  bz2 = 138
+       jx1 = 834; jy1 = 800;  jz1 = 161; jx2 = 758; jy2 = 835;  jz2 = 133; ordinal = 'third' },
     @{ battle = 12; jump = 13; bank = 15; address = 145; mask = 0x02
-       bx1 = 856; by1 = 1043; bz1 = 151; bx2 = 754; by2 = 1031; bz2 = 136
+       bx1 = 858; by1 = 1019; bz1 = 161; bx2 = 754; by2 = 999;  bz2 = 137
        jx1 = 856; jy1 = 1080; jz1 = 150; jx2 = 754; jy2 = 1063; jz2 = 135; ordinal = 'fourth' })) {
 
     $fought = New-Condition -Bank $car.bank -Address $car.address -Mask $car.mask -Value $car.mask
@@ -90,7 +90,7 @@ foreach ($car in @(
 
     Add-Definition -FieldId 729 -FieldName 'zcoal_2' -Kind Location -EntityId $car.battle -Priority 0 `
         -Label "Take on the $($car.ordinal) carriage" `
-        -X ([int](($car.bx1 + $car.bx2) / 2)) -Y ([int](($car.by1 + $car.by2) / 2)) -Z $car.bz1 `
+        -X ([int](($car.bx1 + $car.bx2) / 2)) -Y ([int](($car.by1 + $car.by2) / 2)) -Z ([int](($car.bz1 + $car.bz2) / 2)) `
         -MinimumGameMoment 1110 -MaximumGameMoment 1115 `
         -RequiredCondition $unfought -CompletedCondition $fought `
         -EntityName "BTL" -ScriptType 'Move' -UsesPlayerCollisionRadius `
@@ -100,7 +100,7 @@ foreach ($car in @(
 
     Add-Definition -FieldId 729 -FieldName 'zcoal_2' -Kind Location -EntityId $car.jump -Priority 0 `
         -Label "Jump on past the $($car.ordinal) carriage" `
-        -X ([int](($car.jx1 + $car.jx2) / 2)) -Y ([int](($car.jy1 + $car.jy2) / 2)) -Z $car.jz1 `
+        -X ([int](($car.jx1 + $car.jx2) / 2)) -Y ([int](($car.jy1 + $car.jy2) / 2)) -Z ([int](($car.jz1 + $car.jz2) / 2)) `
         -MinimumGameMoment 1110 -MaximumGameMoment 1115 `
         -RequiredCondition $fought `
         -EntityName "jump" -ScriptType 'Move' -UsesPlayerCollisionRadius `
@@ -127,7 +127,7 @@ Add-Definition -FieldId 456 -FieldName 'ncoinn' -Kind Location -EntityId 2 -Prio
 
 # Missing the train is a finished mission, not a retry. From the town the way on is the
 # world map and whichever mission is still open.
-Add-Definition -FieldId 450 -FieldName 'ncorel1' -Kind Location -Priority 0 `
+Add-Definition -FieldId 450 -FieldName 'ncorel' -Kind Location -Priority 0 `
     -Label 'Leave North Corel' -X 777 -Y -531 -Z 0 `
     -MinimumGameMoment 1110 -MaximumGameMoment 1117 `
     -RequiredCondition $trainMissionDone `
@@ -135,20 +135,20 @@ Add-Definition -FieldId 450 -FieldName 'ncorel1' -Kind Location -Priority 0 `
     -TriggerLine ([ordered]@{ startX = 810; startY = -411; startZ = 0; endX = 745; endY = -652; endZ = 0 })
 
 # --- Fort Condor ---------------------------------------------------------------------------
-Add-Definition -FieldId 355 -FieldName 'fort_1' -Kind Model -EntityId 29 -Priority 0 `
+Add-Definition -FieldId 355 -FieldName 'convil_1' -Kind Model -EntityId 29 -Priority 0 `
     -Label 'Talk to the elder' `
     -MinimumGameMoment 1110 -MaximumGameMoment 1115 `
     -RequiredConditions @($fortNotJoined, $fortMissionOpen) `
     -EntityName 'jijii' -ScriptType 'Talk'
 
-Add-Definition -FieldId 355 -FieldName 'fort_1' -Kind Location -Priority 0 `
+Add-Definition -FieldId 355 -FieldName 'convil_1' -Kind Location -Priority 0 `
     -Label 'Climb to the top of the fort' -X -127 -Y 267 -Z 1376 `
     -MinimumGameMoment 1110 -MaximumGameMoment 1115 `
     -RequiredConditions @($fortJoined, $fortMissionOpen) `
     -EntityName 'gateway0' -ScriptType 'Gateway' `
     -TriggerLine ([ordered]@{ startX = -122; startY = 224; startZ = 1371; endX = -132; endY = 311; endZ = 1381 })
 
-Add-Definition -FieldId 356 -FieldName 'fort_2' -Kind Model -EntityId 22 -Priority 0 `
+Add-Definition -FieldId 356 -FieldName 'convil_2' -Kind Model -EntityId 22 -Priority 0 `
     -Label 'Talk to the lookout to set up the defence' `
     -MinimumGameMoment 1110 -MaximumGameMoment 1115 `
     -RequiredConditions @($fortJoined, $fortMissionOpen) `
@@ -156,14 +156,14 @@ Add-Definition -FieldId 356 -FieldName 'fort_2' -Kind Model -EntityId 22 -Priori
 
 # After the defence holds, the way back down is the ordinary lower gateway. The Phoenix
 # out on the exterior is optional and is not on the way.
-Add-Definition -FieldId 356 -FieldName 'fort_2' -Kind Location -Priority 0 `
+Add-Definition -FieldId 356 -FieldName 'convil_2' -Kind Location -Priority 0 `
     -Label 'Go back down to the elder' -X 175 -Y -66 -Z -115 `
     -MinimumGameMoment 1110 -MaximumGameMoment 1115 `
     -RequiredConditions @($fortDefenceWon, $fortMissionOpen) `
     -EntityName 'gateway0' -ScriptType 'Gateway' `
     -TriggerLine ([ordered]@{ startX = 150; startY = -98; startZ = -109; endX = 200; endY = -34; endZ = -122 })
 
-Add-Definition -FieldId 355 -FieldName 'fort_1' -Kind Model -EntityId 29 -Priority 0 `
+Add-Definition -FieldId 355 -FieldName 'convil_1' -Kind Model -EntityId 29 -Priority 0 `
     -Label 'Report to the elder' `
     -MinimumGameMoment 1110 -MaximumGameMoment 1115 `
     -RequiredConditions @($fortDefenceWon, $fortHandoffPending) `
@@ -172,14 +172,14 @@ Add-Definition -FieldId 355 -FieldName 'fort_1' -Kind Model -EntityId 29 -Priori
 
 # Losing is a finished mission too: the field drops the party into the lower chamber and
 # sets the same completion flag, and the way out is the ordinary door.
-Add-Definition -FieldId 354 -FieldName 'fort_3' -Kind Location -Priority 0 `
+Add-Definition -FieldId 354 -FieldName 'condor2' -Kind Location -Priority 0 `
     -Label 'Leave the fort' -X 1 -Y -346 -Z 0 `
     -MinimumGameMoment 1110 -MaximumGameMoment 1117 `
     -RequiredCondition $fortMissionDone `
     -EntityName 'gateway0' -ScriptType 'Gateway' `
     -TriggerLine ([ordered]@{ startX = -70; startY = -302; startZ = 0; endX = 73; endY = -390; endZ = 0 })
 
-Add-Definition -FieldId 353 -FieldName 'fort_4' -Kind Location -Priority 0 `
+Add-Definition -FieldId 353 -FieldName 'condor1' -Kind Location -Priority 0 `
     -Label 'Leave for the world map' -X 8 -Y -676 -Z 0 `
     -MinimumGameMoment 1110 -MaximumGameMoment 1117 `
     -RequiredCondition $fortMissionDone `
@@ -258,3 +258,25 @@ Add-Definition -FieldId 73 -FieldName 'fship_3' -Kind Location -EntityId 3 -Prio
     -TriggerLine ([ordered]@{ startX = -59; startY = -320; startZ = 0; endX = 67; endY = -320; endZ = 0 })
 
 Add-CuratedFields 712, 720, 725, 726, 727, 115, 73, 460, 729, 452, 456, 450, 355, 356, 354, 353
+
+# --- The illusion at the Nibelheim gate ------------------------------------------------
+#
+# Added after a second pass. zmind1's door1 writes 1124 and map jumps straight to 280,
+# where bunki's Main branches on the counter: below 1126 it runs drct Script 1, which
+# plays the arrival and hands control back, and from 1126 up it runs Script 2 instead,
+# which calls cloud's Script 5 and leaves by itself. So 1124 is the one moment in that
+# room where the player has to do something, and what they have to do is walk up to
+# Cloud - entity 3, which the field's own Init marks as Cloud with PC - and talk to him.
+# His Talk runs the whole confrontation and ends in zax's Script 4, which writes 1126.
+#
+# Extraction had produced a row for this, but with no band at all and with the name
+# taken from the first line of dialogue, which is Tifa's because Tifa is who the player
+# is. So the only Story row that room ever offered named the character the player was
+# already controlling, and went on offering it for the rest of the game. Same entity,
+# same trigger, corrected.
+Add-Definition -FieldId 280 -FieldName 'nivgate2' -Kind Model -EntityId 3 `
+    -Label 'Talk to Cloud' -TargetGameMoment 1126 `
+    -MinimumGameMoment 1124 -MaximumGameMoment 1125 -Priority 0 `
+    -EntityName 'cloud' -ScriptType 'Talk'
+
+Add-CuratedFields 280

@@ -67,6 +67,7 @@ jobs:
             './PrismAbiContract.Tests.ps1',
             './Run-DualRuntimeVerification.Tests.ps1',
             './Build-AccessibleLauncherBundle.Tests.ps1',
+            './tools/Complete-StoryCatalog.Tests.ps1',
             './.github/workflows/release.Tests.ps1',
             './.github/workflows/ci.Tests.ps1')) {
             Write-Host "=== $suite ==="
@@ -106,3 +107,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "x86 Prism ABI probe failed with exit code $LASTEXITCODE." }
           dotnet run --project Ff7.Accessibility.Steam2026X64.Tests/Ff7.Accessibility.Steam2026X64.Tests.csproj -c Release -- --prism-abi-probe-only
           if ($LASTEXITCODE -ne 0) { throw "x64 Prism ABI probe failed with exit code $LASTEXITCODE." }
+
+          # Exercise portable story states in each shipping assembly. Native replays also
+          # run when FF7_ACCESSIBILITY_DATA_ROOT is configured, and fail if it is unusable.
+          dotnet run --project Ff7.Accessibility.Reloaded.Tests/Ff7.Accessibility.Reloaded.Tests.csproj -c Release --no-build -- --story-coverage-only
+          if ($LASTEXITCODE -ne 0) { throw "x86 Story coverage failed with exit code $LASTEXITCODE." }
+          dotnet run --project Ff7.Accessibility.Steam2026X64.Tests/Ff7.Accessibility.Steam2026X64.Tests.csproj -c Release --no-build -- --story-coverage-only
+          if ($LASTEXITCODE -ne 0) { throw "x64 Story coverage failed with exit code $LASTEXITCODE." }

@@ -1363,7 +1363,8 @@ public sealed class Mod : IModV1, IModV2
                     ReadByte(FieldNavigationObjectReader.AddressFieldBankBase) |
                     (ReadByte(FieldNavigationObjectReader.AddressFieldBankBase + 1) << 8);
                 var enabledExits = result.Exits
-                    .Where(exit => fieldScriptLineStateReader.IsEnabled(exit.TriggerEntityId))
+                    .Where(exit => exit.TriggerEntityId < 0 ||
+                        fieldScriptLineStateReader.IsEnabled(exit.TriggerEntityId))
                     .ToArray();
                 return FieldScriptExitBranchPolicy.Resolve(
                     position.FieldId,

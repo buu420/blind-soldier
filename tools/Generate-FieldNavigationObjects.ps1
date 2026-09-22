@@ -118,6 +118,19 @@ function Add-Definition {
         [bool] $UsesPlayerCollisionRadius = $false
     )
 
+    # These Kujata object entity indices differ from the native PC archive.
+    # Bind the named models to their actual script-table indices.
+    # StoryCoverageAudit checks the names against each installed archive.
+    $nativeObjectEntities = @{
+        'las0_4:tre1' = 34; 'las0_4:tre2' = 35; 'las0_4:save' = 37
+        'las0_6:box_1' = 41; 'las0_6:box_2' = 42; 'las0_6:save' = 44
+        'las2_2:box_1' = 24; 'las2_2:box_2' = 25; 'las2_2:save' = 27
+    }
+    $nativeKey = "${FieldName}:${EntityName}"
+    if ($TargetKind -eq 'Model' -and $nativeObjectEntities.ContainsKey($nativeKey)) {
+        $EntityId = $nativeObjectEntities[$nativeKey]
+    }
+
     $definitions.Add([ordered]@{
         fieldId = $FieldId
         entityId = $EntityId

@@ -1,4 +1,4 @@
-﻿using Ff7.Accessibility.Runtime.Abstractions;
+using Ff7.Accessibility.Runtime.Abstractions;
 using Ff7.Accessibility.Reloaded;
 using Ff7.Accessibility.Steam2026X64;
 using Ff7.Accessibility.Steam2026X64.Runtime.Menus;
@@ -11,6 +11,38 @@ using System.Text.Json;
 if (args.Length == 1 && string.Equals(args[0], PrismAbiProbeTests.ProbeSwitch, StringComparison.Ordinal))
 {
     Environment.Exit(PrismAbiProbeTests.RunProbeChild());
+}
+
+if (args.Contains("--town-coverage-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.TownInteractionCoverageTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.TownInteractionCoverageTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.GoldSaucerPlatformExitTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.GoldSaucerPlatformExitTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.GlacierSnowfieldNavigationTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.GreatGlacierStoryTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.GreatGlacierStoryTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.ReportedNavigationRegressionTests.RunArrivalHysteresisOnly();
+    return;
+}
+
+if (args.Contains("--story-coverage-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.MainStoryCoverageTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.NibelheimStoryTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.NibelheimStoryTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.RemainingStoryContinuityTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.RemainingStoryContinuityTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.TownInteractionCoverageTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.TownInteractionCoverageTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.GoldSaucerPlatformExitTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.GoldSaucerPlatformExitTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.GlacierSnowfieldNavigationTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.GreatGlacierStoryTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.GreatGlacierStoryTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.ReportedNavigationRegressionTests.RunArrivalHysteresisOnly();
+    Console.WriteLine("Story coverage tests passed.");
+    return;
 }
 
 if (args.Contains("--prism-abi-probe-only", StringComparer.OrdinalIgnoreCase))
@@ -296,6 +328,19 @@ if (args.Contains("--cosmo-navigation-only", StringComparer.OrdinalIgnoreCase))
     Ff7.Accessibility.Reloaded.Tests.CosmoCanyonNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
     Ff7.Accessibility.Reloaded.Tests.ObservatoryApproachNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
     Ff7.Accessibility.Reloaded.Tests.CosmoObservatoryStoryTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.NibelheimStoryTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.NibelheimStoryTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.RemainingStoryContinuityTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.RemainingStoryContinuityTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.TownInteractionCoverageTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.TownInteractionCoverageTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.GoldSaucerPlatformExitTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.GoldSaucerPlatformExitTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.GlacierSnowfieldNavigationTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.GreatGlacierStoryTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.GreatGlacierStoryTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.ReportedNavigationRegressionTests.RunArrivalHysteresisOnly();
+    Ff7.Accessibility.Reloaded.Tests.MainStoryCoverageTests.Run();
     Ff7.Accessibility.Reloaded.Tests.CosmoNibelheimDescriptionTests.Run();
     Ff7.Accessibility.Reloaded.Tests.ContinuationDescriptionTests.RunCatalogAndNative();
     Ff7.Accessibility.Reloaded.Tests.MotionActionDescriptionTests.Run();
@@ -635,6 +680,19 @@ Ff7.Accessibility.Reloaded.Tests.GongagaNavigationTests.Run(CreateInstalledField
 Ff7.Accessibility.Reloaded.Tests.CosmoCanyonNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.ObservatoryApproachNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.CosmoObservatoryStoryTests.Run();
+Ff7.Accessibility.Reloaded.Tests.NibelheimStoryTests.Run();
+Ff7.Accessibility.Reloaded.Tests.NibelheimStoryTests.RunWithInstalledGameData();
+Ff7.Accessibility.Reloaded.Tests.RemainingStoryContinuityTests.Run();
+Ff7.Accessibility.Reloaded.Tests.RemainingStoryContinuityTests.RunWithInstalledGameData();
+Ff7.Accessibility.Reloaded.Tests.TownInteractionCoverageTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.TownInteractionCoverageTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.GoldSaucerPlatformExitTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.GoldSaucerPlatformExitTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.GlacierSnowfieldNavigationTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.GreatGlacierStoryTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.GreatGlacierStoryTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.ReportedNavigationRegressionTests.RunArrivalHysteresisOnly();
+Ff7.Accessibility.Reloaded.Tests.MainStoryCoverageTests.Run();
 Ff7.Accessibility.Reloaded.Tests.CosmoNibelheimDescriptionTests.Run();
 Ff7.Accessibility.Reloaded.Tests.ContinuationDescriptionTests.RunCatalogAndNative();
 Ff7.Accessibility.Reloaded.Tests.MotionActionDescriptionTests.Run();

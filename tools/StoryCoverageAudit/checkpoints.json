@@ -1,0 +1,1281 @@
+[
+  {
+    "id": "reported-town-523",
+    "fieldId": 284,
+    "moment": 523,
+    "expectedLabels": [
+      "Leave Nibelheim toward Mt. Nibel"
+    ],
+    "evidence": "User log (5), 2026-09-21 15:08:29Z: field284 GameMoment523 Story0; native nivl_3 gateway7 leads to mountain-side world location43."
+  },
+  {
+    "id": "reported-mansion-523",
+    "fieldId": 297,
+    "moment": 523,
+    "expectedLabels": [
+      "Leave the Shinra Mansion"
+    ],
+    "evidence": "User log (5), 2026-09-21 15:56:16Z: field297 GameMoment523 Story0; native sinin1_1 gateway0 returns to town."
+  },
+  {
+    "id": "mount-nibel-entry",
+    "fieldId": 311,
+    "moment": 523,
+    "expectedLabels": [
+      "Take this path further up the mountain"
+    ],
+    "evidence": "Native mtnvl2 gateway0 -> mtnvl3. MountNibel.ps1 records native gateway/entry-triangle evidence."
+  },
+  {
+    "id": "mount-nibel-creature",
+    "fieldId": 317,
+    "moment": 523,
+    "expectedLabels": [
+      "Deal with the creature blocking the way"
+    ],
+    "evidence": "nvdun1 mon21 Talk BATTLE595; victory sets bank1[232] bit5.",
+    "actors": [
+      {
+        "entityId": 21,
+        "x": 121,
+        "y": 200,
+        "z": 0
+      }
+    ],
+    "nativeAnchors": [
+      {
+        "entityId": 21,
+        "scriptId": 1,
+        "hex": "70"
+      }
+    ]
+  },
+  {
+    "id": "mount-nibel-creature-complete",
+    "fieldId": 317,
+    "moment": 523,
+    "expectedLabels": [
+      "Take the higher opening out of the cave"
+    ],
+    "evidence": "nvdun1 gateway3 lands on mtnvl4 triangle245, the component connected to the world exit.",
+    "state": [
+      {
+        "bank": 1,
+        "address": 232,
+        "value": 32
+      }
+    ],
+    "forbiddenLabels": [
+      "Deal with the creature blocking the way"
+    ]
+  },
+  {
+    "id": "mount-nibel-wrong-ledge",
+    "fieldId": 313,
+    "moment": 523,
+    "expectedLabels": [
+      "Go back into the cave; this ledge leads nowhere"
+    ],
+    "evidence": "mtnvl4 gateway1 is the return available from the isolated 186..194 component; native incoming gateway lands at189.",
+    "triangle": 189,
+    "forbiddenLabels": [
+      "Leave the mountain by the northern path"
+    ]
+  },
+  {
+    "id": "rocket-first-house",
+    "fieldId": 551,
+    "moment": 523,
+    "expectedLabels": [
+      "Go into the captain's house"
+    ],
+    "evidence": "rckt2 gateway1 -> rktsid558; backyard Director writes535, rocket conversation comes afterwards."
+  },
+  {
+    "id": "rocket-backyard",
+    "fieldId": 558,
+    "moment": 523,
+    "expectedLabels": [
+      "Press Confirm at the back door into the backyard"
+    ],
+    "evidence": "rktsid jump5 LINE and confirm script enter backyard552 before553.",
+    "enabledLines": [
+      5
+    ],
+    "nativeAnchors": [
+      {
+        "entityId": 5,
+        "scriptId": -1,
+        "hex": "D0E9FF820300003C0082030000"
+      }
+    ],
+    "expectedLine": {
+      "startX": -23,
+      "startY": 898,
+      "startZ": 0,
+      "endX": 60,
+      "endY": 898,
+      "endZ": 0
+    }
+  },
+  {
+    "id": "keystone-display",
+    "fieldId": 503,
+    "moment": 566,
+    "expectedLabels": [
+      "Look at the display case"
+    ],
+    "evidence": "clsin2_2 l1[OK] requests Dio while bank3[67] bit7 clear; Keystone model itself has no Talk.",
+    "enabledLines": [
+      6
+    ],
+    "nativeAnchors": [
+      {
+        "entityId": 6,
+        "scriptId": -1,
+        "hex": "D0E30623F50000F706A1F40000"
+      }
+    ],
+    "expectedLine": {
+      "startX": 1763,
+      "startY": -2781,
+      "startZ": 0,
+      "endX": 1783,
+      "endY": -2911,
+      "endZ": 0
+    }
+  },
+  {
+    "id": "keystone-retry",
+    "fieldId": 503,
+    "moment": 566,
+    "expectedLabels": [
+      "Talk to the showroom owner"
+    ],
+    "evidence": "Dio Talk retries challenge after declined initial offer, bank3[67] bit7 set.",
+    "state": [
+      {
+        "bank": 3,
+        "address": 67,
+        "value": 128
+      }
+    ],
+    "actors": [
+      {
+        "entityId": 5,
+        "x": 105,
+        "y": 200,
+        "z": 0
+      }
+    ],
+    "forbiddenLabels": [
+      "Look at the display case"
+    ]
+  },
+  {
+    "id": "keystone-after-challenge",
+    "fieldId": 503,
+    "moment": 583,
+    "expectedLabels": [
+      "Leave the showroom"
+    ],
+    "evidence": "All Dio Script4 reward branches converge on GameMoment583; showroom gateway0 exits."
+  },
+  {
+    "id": "temple-entry",
+    "fieldId": 600,
+    "moment": 604,
+    "expectedLabels": [
+      "Go in through the temple door"
+    ],
+    "evidence": "jtempl gateway0 into temple; native entry sequence with Keystone at604."
+  },
+  {
+    "id": "temple-altar",
+    "fieldId": 602,
+    "moment": 604,
+    "expectedLabels": [
+      "Stand at the altar and press Confirm to set the Keystone"
+    ],
+    "evidence": "jtmpin1 border1 Go requests Cloud6, gates exactly604 and MAPJUMPs to603.",
+    "enabledLines": [
+      6
+    ],
+    "nativeAnchors": [
+      {
+        "entityId": 6,
+        "scriptId": -1,
+        "hex": "D0D7FF180021003A00FDFF2100"
+      }
+    ],
+    "expectedLine": {
+      "startX": -41,
+      "startY": 24,
+      "startZ": 33,
+      "endX": 58,
+      "endY": -3,
+      "endZ": 33
+    }
+  },
+  {
+    "id": "ancients-before-rest",
+    "fieldId": 630,
+    "moment": 652,
+    "expectedLabels": [
+      "Take the eastern path into the houses"
+    ],
+    "evidence": "lost1 gateway1 east -> lost2 -> losinn rest; bank3[132] bit4 not set."
+  },
+  {
+    "id": "ancients-after-rest",
+    "fieldId": 630,
+    "moment": 664,
+    "expectedLabels": [
+      "Take the western path towards the blue building"
+    ],
+    "evidence": "Rest sets bank3[132] bit4 and664, enabling the underground route.",
+    "state": [
+      {
+        "bank": 3,
+        "address": 132,
+        "value": 16
+      }
+    ],
+    "forbiddenLabels": [
+      "Take the eastern path into the houses"
+    ]
+  },
+  {
+    "id": "black-materia-handoff",
+    "fieldId": 702,
+    "moment": 677,
+    "expectedLabels": [
+      "Give the Black Materia to Barret"
+    ],
+    "evidence": "trnad_1 ballet11 Talk requires not-in-party and bank1[133] bit2 clear.",
+    "actors": [
+      {
+        "entityId": 11,
+        "x": 111,
+        "y": 200,
+        "z": 0
+      },
+      {
+        "entityId": 12,
+        "x": 112,
+        "y": 200,
+        "z": 0
+      },
+      {
+        "entityId": 13,
+        "x": 113,
+        "y": 200,
+        "z": 0
+      }
+    ],
+    "state": [
+      {
+        "bank": 3,
+        "address": 9,
+        "value": 0
+      },
+      {
+        "bank": 3,
+        "address": 10,
+        "value": 2
+      },
+      {
+        "bank": 3,
+        "address": 11,
+        "value": 4
+      }
+    ],
+    "forbiddenLabels": [
+      "Give the Black Materia to Red XIII",
+      "Talk to Tifa to go on"
+    ]
+  },
+  {
+    "id": "black-materia-after-handoff",
+    "fieldId": 702,
+    "moment": 677,
+    "expectedLabels": [
+      "Talk to Tifa to go on"
+    ],
+    "evidence": "trnad_1 tifa12 Talk MAPJUMPs only after bank1[133] bit2.",
+    "actors": [
+      {
+        "entityId": 11,
+        "x": 111,
+        "y": 200,
+        "z": 0
+      },
+      {
+        "entityId": 12,
+        "x": 112,
+        "y": 200,
+        "z": 0
+      },
+      {
+        "entityId": 13,
+        "x": 113,
+        "y": 200,
+        "z": 0
+      }
+    ],
+    "state": [
+      {
+        "bank": 1,
+        "address": 133,
+        "value": 4
+      }
+    ],
+    "forbiddenLabels": [
+      "Give the Black Materia to Barret",
+      "Give the Black Materia to Red XIII"
+    ]
+  },
+  {
+    "id": "illusion-confrontation",
+    "fieldId": 293,
+    "moment": 677,
+    "expectedLabels": [
+      "Talk to Sephiroth"
+    ],
+    "evidence": "nivl_b22 cefirth10 Talk sets bank3[21] bit2 at230; Tifa waits.",
+    "actors": [
+      {
+        "entityId": 3,
+        "x": 103,
+        "y": 200,
+        "z": 0
+      },
+      {
+        "entityId": 10,
+        "x": 110,
+        "y": 200,
+        "z": 0
+      }
+    ],
+    "forbiddenLabels": [
+      "Answer Tifa"
+    ]
+  },
+  {
+    "id": "illusion-first-answer",
+    "fieldId": 293,
+    "moment": 677,
+    "expectedLabels": [
+      "Answer Tifa"
+    ],
+    "evidence": "nivl_b22 tifa3 Talk requires bit2, first response sets bit3.",
+    "actors": [
+      {
+        "entityId": 3,
+        "x": 103,
+        "y": 200,
+        "z": 0
+      },
+      {
+        "entityId": 10,
+        "x": 110,
+        "y": 200,
+        "z": 0
+      }
+    ],
+    "state": [
+      {
+        "bank": 3,
+        "address": 21,
+        "value": 4
+      }
+    ],
+    "forbiddenLabels": [
+      "Talk to Sephiroth",
+      "Answer Tifa again"
+    ]
+  },
+  {
+    "id": "illusion-second-answer",
+    "fieldId": 293,
+    "moment": 677,
+    "expectedLabels": [
+      "Answer Tifa again"
+    ],
+    "evidence": "nivl_b22 tifa3 Talk last exchange after bank3[21] bits2+3.",
+    "actors": [
+      {
+        "entityId": 3,
+        "x": 103,
+        "y": 200,
+        "z": 0
+      },
+      {
+        "entityId": 10,
+        "x": 110,
+        "y": 200,
+        "z": 0
+      }
+    ],
+    "state": [
+      {
+        "bank": 3,
+        "address": 21,
+        "value": 12
+      }
+    ],
+    "forbiddenLabels": [
+      "Talk to Sephiroth",
+      "Answer Tifa"
+    ]
+  },
+  {
+    "id": "mideel-arrival",
+    "fieldId": 712,
+    "moment": 1033,
+    "expectedLabels": [
+      "Walk along the street past the clinic"
+    ],
+    "evidence": "itown1a line01 Go1x starts clinic scene; bank15[177] bit1 remains clear.",
+    "enabledLines": [
+      11
+    ],
+    "nativeAnchors": [
+      {
+        "entityId": 11,
+        "scriptId": -1,
+        "hex": "D08BFEFEFD0000C000FEFD0000"
+      }
+    ],
+    "expectedLine": {
+      "startX": -373,
+      "startY": -514,
+      "startZ": 0,
+      "endX": 192,
+      "endY": -514,
+      "endZ": 0
+    }
+  },
+  {
+    "id": "condor-elder",
+    "fieldId": 355,
+    "moment": 1110,
+    "expectedLabels": [
+      "Talk to the elder"
+    ],
+    "evidence": "convil_1 jijii29 initial Talk, bank1[168] bits0..1 unset and mission incomplete.",
+    "actors": [
+      {
+        "entityId": 29,
+        "x": 129,
+        "y": 200,
+        "z": 0
+      }
+    ]
+  },
+  {
+    "id": "condor-joined",
+    "fieldId": 355,
+    "moment": 1110,
+    "expectedLabels": [
+      "Climb to the top of the fort"
+    ],
+    "evidence": "convil_1 gateway0 once bank1[168] bits0..1 set.",
+    "actors": [
+      {
+        "entityId": 29,
+        "x": 129,
+        "y": 200,
+        "z": 0
+      }
+    ],
+    "state": [
+      {
+        "bank": 1,
+        "address": 168,
+        "value": 3
+      }
+    ],
+    "forbiddenLabels": [
+      "Talk to the elder"
+    ]
+  },
+  {
+    "id": "condor-won-return",
+    "fieldId": 356,
+    "moment": 1110,
+    "expectedLabels": [
+      "Go back down to the elder"
+    ],
+    "evidence": "convil_2 gateway0 after defence bit6; reward possession does not gate completion.",
+    "state": [
+      {
+        "bank": 1,
+        "address": 168,
+        "value": 64
+      }
+    ]
+  },
+  {
+    "id": "condor-complete-or-lost",
+    "fieldId": 353,
+    "moment": 1116,
+    "expectedLabels": [
+      "Leave for the world map"
+    ],
+    "evidence": "condor1 gateway1 after bank13[82] bit5; also valid when defence was lost.",
+    "state": [
+      {
+        "bank": 13,
+        "address": 82,
+        "value": 32
+      }
+    ]
+  },
+  {
+    "id": "underwater-lift",
+    "fieldId": 395,
+    "moment": 1250,
+    "expectedLabels": [
+      "Press Confirm to take the lift up"
+    ],
+    "evidence": "junin7 border1 up direction while bank3[235] bit0 clear.",
+    "enabledLines": [
+      7
+    ],
+    "nativeAnchors": [
+      {
+        "entityId": 7,
+        "scriptId": -1,
+        "hex": "D09DFFF8FF0000D8FFC9FF0000"
+      }
+    ],
+    "expectedLine": {
+      "startX": -99,
+      "startY": -8,
+      "startZ": 0,
+      "endX": -40,
+      "endY": -55,
+      "endZ": 0
+    }
+  },
+  {
+    "id": "underwater-soldiers",
+    "fieldId": 390,
+    "moment": 1250,
+    "expectedLabels": [
+      "Follow the marching soldiers"
+    ],
+    "evidence": "junin3 border3 writes1253 before border2 becomes the next elevator.",
+    "enabledLines": [
+      6
+    ],
+    "nativeAnchors": [
+      {
+        "entityId": 6,
+        "scriptId": -1,
+        "hex": "D039FA500A1204DDFB630A1504"
+      }
+    ],
+    "expectedLine": {
+      "startX": -1479,
+      "startY": 2640,
+      "startZ": 1042,
+      "endX": -1059,
+      "endY": 2659,
+      "endZ": 1045
+    }
+  },
+  {
+    "id": "underwater-after-soldiers",
+    "fieldId": 390,
+    "moment": 1253,
+    "expectedLabels": [
+      "Take their elevator down"
+    ],
+    "evidence": "junin3 border2 enabled stage1253..1255.",
+    "enabledLines": [
+      5
+    ],
+    "nativeAnchors": [
+      {
+        "entityId": 5,
+        "scriptId": -1,
+        "hex": "D096F979045E0379F92A045E03"
+      }
+    ],
+    "forbiddenLabels": [
+      "Follow the marching soldiers"
+    ],
+    "expectedLine": {
+      "startX": -1642,
+      "startY": 1145,
+      "startZ": 862,
+      "endX": -1671,
+      "endY": 1066,
+      "endZ": 862
+    }
+  },
+  {
+    "id": "rocket-second-guards",
+    "fieldId": 561,
+    "moment": 1299,
+    "expectedLabels": [
+      "Go past the guards"
+    ],
+    "evidence": "rcktbas1 bat1 encounter sets bank3[133] bit1.",
+    "enabledLines": [
+      3,
+      4
+    ],
+    "nativeAnchors": [
+      {
+        "entityId": 4,
+        "scriptId": -1,
+        "hex": "D0EEF9D1150000C5F854160000"
+      }
+    ],
+    "forbiddenLabels": [
+      "Climb the ladder to the gantry"
+    ],
+    "expectedLine": {
+      "startX": -1554,
+      "startY": 5585,
+      "startZ": 0,
+      "endX": -1851,
+      "endY": 5716,
+      "endZ": 0
+    }
+  },
+  {
+    "id": "rocket-second-ladder",
+    "fieldId": 561,
+    "moment": 1299,
+    "expectedLabels": [
+      "Climb the ladder to the gantry"
+    ],
+    "evidence": "rcktbas1 ladd after guard completion bit1.",
+    "enabledLines": [
+      3,
+      4
+    ],
+    "state": [
+      {
+        "bank": 3,
+        "address": 133,
+        "value": 2
+      }
+    ],
+    "forbiddenLabels": [
+      "Go past the guards"
+    ]
+  },
+  {
+    "id": "rocket-second-door",
+    "fieldId": 564,
+    "moment": 1299,
+    "expectedLabels": [
+      "Press Confirm at the cockpit door"
+    ],
+    "evidence": "rcktin2 line1 opens cockpit while temporary bank5[16] clear.",
+    "enabledLines": [
+      2,
+      4
+    ],
+    "nativeAnchors": [
+      {
+        "entityId": 2,
+        "scriptId": -1,
+        "hex": "D0CCFF740100001C0074010000"
+      }
+    ],
+    "forbiddenLabels": [
+      "Go on through the open door"
+    ],
+    "expectedLine": {
+      "startX": -52,
+      "startY": 372,
+      "startZ": 0,
+      "endX": 28,
+      "endY": 372,
+      "endZ": 0
+    }
+  },
+  {
+    "id": "rocket-second-door-open",
+    "fieldId": 564,
+    "moment": 1299,
+    "expectedLabels": [
+      "Go on through the open door"
+    ],
+    "evidence": "rcktin2 line3 after temporary bank5[16] set.",
+    "enabledLines": [
+      2,
+      4
+    ],
+    "state": [
+      {
+        "bank": 5,
+        "address": 16,
+        "value": 1
+      }
+    ],
+    "forbiddenLabels": [
+      "Press Confirm at the cockpit door"
+    ]
+  },
+  {
+    "id": "midgar-raid-entry",
+    "fieldId": 731,
+    "moment": 1600,
+    "expectedLabels": [
+      "Go on down the street"
+    ],
+    "evidence": "md8_5 gateway0 leads down to the open manhole street."
+  },
+  {
+    "id": "midgar-open-manhole",
+    "fieldId": 732,
+    "moment": 1600,
+    "expectedLabels": [
+      "Climb down the open manhole"
+    ],
+    "evidence": "md8_6 lad_up14 LINE into raid passage.",
+    "enabledLines": [
+      14
+    ],
+    "nativeAnchors": [
+      {
+        "entityId": 14,
+        "scriptId": -1,
+        "hex": "D0D2FFA30100002600A3010000"
+      }
+    ],
+    "expectedLine": {
+      "startX": -46,
+      "startY": 419,
+      "startZ": 0,
+      "endX": 38,
+      "endY": 419,
+      "endZ": 0
+    }
+  },
+  {
+    "id": "crater-entry",
+    "fieldId": 744,
+    "moment": 1620,
+    "expectedLabels": [
+      "Climb down the ladder into the crater"
+    ],
+    "evidence": "las0_1 ladd5 LINE starts descent.",
+    "enabledLines": [
+      5
+    ],
+    "nativeAnchors": [
+      {
+        "entityId": 5,
+        "scriptId": -1,
+        "hex": "D05DFFA2FB15FC5AFF6EFB1CFC"
+      }
+    ],
+    "expectedLine": {
+      "startX": -163,
+      "startY": -1118,
+      "startZ": -1003,
+      "endX": -166,
+      "endY": -1170,
+      "endZ": -996
+    }
+  },
+  {
+    "id": "crater-before-split",
+    "fieldId": 751,
+    "moment": 1620,
+    "expectedLabels": [
+      "Climb down the ladder to gather the party"
+    ],
+    "evidence": "las0_8 lad_2_d triggers split before bank15[149] bit1.",
+    "enabledLines": [
+      15
+    ],
+    "nativeAnchors": [
+      {
+        "entityId": 15,
+        "scriptId": -1,
+        "hex": "D0A7F5DEFEDE12D8F560FFCE12"
+      }
+    ],
+    "forbiddenLabels": [
+      "Follow the right-hand way down",
+      "Follow the left-hand way down"
+    ],
+    "expectedLine": {
+      "startX": -2649,
+      "startY": -290,
+      "startZ": 4830,
+      "endX": -2600,
+      "endY": -160,
+      "endZ": 4814
+    }
+  },
+  {
+    "id": "crater-right-branch",
+    "fieldId": 751,
+    "moment": 1620,
+    "expectedLabels": [
+      "Follow the right-hand way down"
+    ],
+    "evidence": "las0_8 gateway1 after split, bank13[84]=1 chooses right; LINE17/18 block the unchosen branch.",
+    "state": [
+      {
+        "bank": 15,
+        "address": 149,
+        "value": 2
+      },
+      {
+        "bank": 13,
+        "address": 84,
+        "value": 1
+      }
+    ],
+    "forbiddenLabels": [
+      "Follow the left-hand way down",
+      "Climb down the ladder to gather the party"
+    ]
+  },
+  {
+    "id": "crater-left-branch",
+    "fieldId": 751,
+    "moment": 1620,
+    "expectedLabels": [
+      "Follow the left-hand way down"
+    ],
+    "evidence": "las0_8 gateway2 after split, bank13[84]=0 chooses left.",
+    "state": [
+      {
+        "bank": 15,
+        "address": 149,
+        "value": 2
+      },
+      {
+        "bank": 13,
+        "address": 84,
+        "value": 0
+      }
+    ],
+    "forbiddenLabels": [
+      "Follow the right-hand way down",
+      "Climb down the ladder to gather the party"
+    ]
+  },
+  {
+    "id": "gold-date-round-square-automatic",
+    "fieldId": 488,
+    "moment": 592,
+    "expectEmpty": true,
+    "actors": [
+      {
+        "entityId": 10,
+        "x": 0,
+        "y": 0,
+        "z": 0
+      }
+    ],
+    "forbiddenLabels": [
+      "Talk to the Round Square attendant"
+    ],
+    "evidence": "Native bigwheel dic Init/Main at295 tests GM592 then runs the partner/Cloud sequence and REQEW staff Script3 at367. Staff Talk instead offers the ordinary ride or the GM598 chase clue. Arrival is automatic, not a paid Talk interaction.",
+    "nativeAnchors": [
+      {
+        "entityId": 0,
+        "scriptId": 0,
+        "hex": "1620000050020045"
+      },
+      {
+        "entityId": 0,
+        "scriptId": 0,
+        "hex": "030A43"
+      }
+    ]
+  },
+  {
+    "id": "temple-last-door-627",
+    "fieldId": 616,
+    "moment": 627,
+    "expectedLabels": [
+      "Go up to the door at the end of the room"
+    ],
+    "actors": [
+      {
+        "entityId": 16,
+        "x": 0,
+        "y": 100,
+        "z": 0
+      }
+    ],
+    "evidence": "Native kuro_12 boss Talk at4 checks exactly GM627 before the door encounter; the loaded model is another_demon, not the party member heading its dialogue.",
+    "nativeAnchors": [
+      {
+        "entityId": 16,
+        "scriptId": 1,
+        "hex": "1620000073020065"
+      }
+    ]
+  },
+  {
+    "id": "temple-last-door-inactive-628",
+    "fieldId": 616,
+    "moment": 628,
+    "expectEmpty": true,
+    "actors": [
+      {
+        "entityId": 16,
+        "x": 0,
+        "y": 100,
+        "z": 0
+      }
+    ],
+    "evidence": "kuro_12 boss Talk checks equality to627, so the same visible actor must not remain a Story action at628.",
+    "nativeAnchors": [
+      {
+        "entityId": 16,
+        "scriptId": 1,
+        "hex": "1620000073020065"
+      }
+    ]
+  },
+  {
+    "id": "temple-last-door-inactive-629",
+    "fieldId": 616,
+    "moment": 629,
+    "expectEmpty": true,
+    "actors": [
+      {
+        "entityId": 16,
+        "x": 0,
+        "y": 100,
+        "z": 0
+      }
+    ],
+    "evidence": "kuro_12 boss Talk checks equality to627, so the same visible actor must not remain a Story action at629.",
+    "nativeAnchors": [
+      {
+        "entityId": 16,
+        "scriptId": 1,
+        "hex": "1620000073020065"
+      }
+    ]
+  },
+  {
+    "id": "flashback-library-leave-371",
+    "fieldId": 304,
+    "moment": 371,
+    "enabledLines": [
+      3
+    ],
+    "expectedLabels": [
+      "Leave Sephiroth to his research"
+    ],
+    "evidence": "Native sininb31 ln0 Go script5 checks GM371, writes372, then maps to307. It is not the entry trigger for370 or375.",
+    "nativeAnchors": [
+      {
+        "entityId": 3,
+        "scriptId": 5,
+        "hex": "1620000073010021"
+      },
+      {
+        "entityId": 3,
+        "scriptId": 5,
+        "hex": "8120007401"
+      }
+    ]
+  },
+  {
+    "id": "highwind-deck-approach-1566",
+    "fieldId": 74,
+    "moment": 1566,
+    "enabledLines": [
+      6
+    ],
+    "expectedLabels": [
+      "Go forward to the deck"
+    ],
+    "evidence": "fship_4 jump Move branches to field72 after1199; native LINE6 is the deck entrance.",
+    "nativeAnchors": [
+      {
+        "entityId": 6,
+        "scriptId": 2,
+        "hex": "16200000AF04030D"
+      },
+      {
+        "entityId": 6,
+        "scriptId": 2,
+        "hex": "6048008FFEB9F00E0064"
+      }
+    ]
+  },
+  {
+    "id": "highwind-deck-approach-1580",
+    "fieldId": 74,
+    "moment": 1580,
+    "enabledLines": [
+      6
+    ],
+    "expectedLabels": [
+      "Go forward to the deck"
+    ],
+    "evidence": "fship_4 jump Move branches to field72 after1199; native LINE6 is the deck entrance.",
+    "nativeAnchors": [
+      {
+        "entityId": 6,
+        "scriptId": 2,
+        "hex": "16200000AF04030D"
+      },
+      {
+        "entityId": 6,
+        "scriptId": 2,
+        "hex": "6048008FFEB9F00E0064"
+      }
+    ]
+  },
+  {
+    "id": "highwind-pilot-takeoff-1580",
+    "fieldId": 72,
+    "moment": 1580,
+    "expectedLabels": [
+      "Talk to the pilot to take off"
+    ],
+    "actors": [
+      {
+        "entityId": 16,
+        "x": 0,
+        "y": 100,
+        "z": 0
+      }
+    ],
+    "evidence": "crew3 Talk uses the1580 branch and offers a takeoff question before entering world field45.",
+    "nativeAnchors": [
+      {
+        "entityId": 16,
+        "scriptId": 1,
+        "hex": "162000002C060323"
+      },
+      {
+        "entityId": 16,
+        "scriptId": 1,
+        "hex": "602D0000000000000000"
+      }
+    ]
+  },
+  {
+    "id": "highwind-cait-report-automatic-1566",
+    "fieldId": 72,
+    "moment": 1566,
+    "expectEmpty": true,
+    "actors": [
+      {
+        "entityId": 11,
+        "x": 0,
+        "y": 100,
+        "z": 0
+      }
+    ],
+    "evidence": "fship_25 direct Script3 calls Cait Sith Talk with player control still held.",
+    "nativeAnchors": [
+      {
+        "entityId": 4,
+        "scriptId": 3,
+        "hex": "020BC1"
+      }
+    ]
+  },
+  {
+    "id": "highwind-final-corridor-automatic-1612",
+    "fieldId": 74,
+    "moment": 1612,
+    "enabledLines": [
+      6
+    ],
+    "expectEmpty": true,
+    "evidence": "fship_4 automatic event calls Cloud Script10; no player-directed corridor step remains.",
+    "nativeAnchors": [
+      {
+        "entityId": 2,
+        "scriptId": 4,
+        "hex": "030ACA"
+      }
+    ]
+  },
+  {
+    "id": "glacier-entry-677",
+    "fieldId": 658,
+    "moment": 677,
+    "state": [
+      {
+        "bank": 1,
+        "address": 184,
+        "value": 0
+      }
+    ],
+    "enabledLines": [
+      5
+    ],
+    "evidence": "Native hyou1 line01 LINE geometry and event dispatch; corridor bank1[184]=0. GreatGlacierStoryTests independently executes the selected native exit chain.",
+    "nativeAnchors": [
+      {
+        "entityId": 5,
+        "scriptId": 0,
+        "hex": "D09EFED40D0000A7FE400C0000"
+      }
+    ],
+    "expectedLabels": [
+      "Continue through the Great Glacier toward the northern snowfield"
+    ],
+    "expectedLine": {
+      "startX": -354,
+      "startY": 3540,
+      "startZ": 0,
+      "endX": -345,
+      "endY": 3136,
+      "endZ": 0
+    }
+  },
+  {
+    "id": "glacier-corridor-node51",
+    "fieldId": 670,
+    "moment": 677,
+    "state": [
+      {
+        "bank": 1,
+        "address": 184,
+        "value": 51
+      }
+    ],
+    "enabledLines": [
+      4
+    ],
+    "evidence": "Native move_s line00 LINE geometry and event dispatch; corridor bank1[184]=51. GreatGlacierStoryTests independently executes the selected native exit chain.",
+    "nativeAnchors": [
+      {
+        "entityId": 4,
+        "scriptId": 0,
+        "hex": "D0E9043F019D00AB048EFE9D00"
+      }
+    ],
+    "expectedLabels": [
+      "Continue through the Great Glacier toward the northern snowfield"
+    ],
+    "expectedLine": {
+      "startX": 1257,
+      "startY": 319,
+      "startZ": 157,
+      "endX": 1195,
+      "endY": -370,
+      "endZ": 157
+    }
+  },
+  {
+    "id": "glacier-return-node57",
+    "fieldId": 674,
+    "moment": 677,
+    "state": [
+      {
+        "bank": 1,
+        "address": 184,
+        "value": 57
+      }
+    ],
+    "enabledLines": [
+      4
+    ],
+    "evidence": "Native move_u line00 LINE geometry and event dispatch; corridor bank1[184]=57. GreatGlacierStoryTests independently executes the selected native exit chain.",
+    "nativeAnchors": [
+      {
+        "entityId": 4,
+        "scriptId": 0,
+        "hex": "D03503FC00BB0487032CFF4F04"
+      }
+    ],
+    "expectedLabels": [
+      "Continue through the Great Glacier toward the northern snowfield"
+    ],
+    "expectedLine": {
+      "startX": 821,
+      "startY": 252,
+      "startZ": 1211,
+      "endX": 903,
+      "endY": -212,
+      "endZ": 1103
+    }
+  },
+  {
+    "id": "glacier-unknown-node",
+    "fieldId": 670,
+    "moment": 677,
+    "state": [
+      {
+        "bank": 1,
+        "address": 184,
+        "value": 255
+      }
+    ],
+    "enabledLines": [
+      4
+    ],
+    "evidence": "Native move_s line00 LINE geometry and event dispatch; corridor bank1[184]=255. GreatGlacierStoryTests independently executes the selected native exit chain.",
+    "nativeAnchors": [
+      {
+        "entityId": 4,
+        "scriptId": 0,
+        "hex": "D0E9043F019D00AB048EFE9D00"
+      }
+    ],
+    "expectEmpty": true
+  },
+  {
+    "id": "glacier-disabled-line",
+    "fieldId": 658,
+    "moment": 677,
+    "state": [
+      {
+        "bank": 1,
+        "address": 184,
+        "value": 0
+      }
+    ],
+    "enabledLines": [],
+    "evidence": "Native hyou1 line01 LINE geometry and event dispatch; corridor bank1[184]=0. GreatGlacierStoryTests independently executes the selected native exit chain.",
+    "nativeAnchors": [
+      {
+        "entityId": 5,
+        "scriptId": 0,
+        "hex": "D09EFED40D0000A7FE400C0000"
+      }
+    ],
+    "expectEmpty": true
+  },
+  {
+    "id": "glacier-story-retired",
+    "fieldId": 658,
+    "moment": 770,
+    "state": [
+      {
+        "bank": 1,
+        "address": 184,
+        "value": 0
+      }
+    ],
+    "enabledLines": [
+      5
+    ],
+    "evidence": "Native hyou1 line01 LINE geometry and event dispatch; corridor bank1[184]=0. GreatGlacierStoryTests independently executes the selected native exit chain.",
+    "nativeAnchors": [
+      {
+        "entityId": 5,
+        "scriptId": 0,
+        "hex": "D09EFED40D0000A7FE400C0000"
+      }
+    ],
+    "expectEmpty": true
+  }
+]
