@@ -111,6 +111,75 @@ internal sealed class Steam2026ResearchSession : IDisposable
     /// returns null, which leaves the coordinator on its ordinary spoken-paragraph
     /// path rather than losing the description entirely.
     /// </summary>
+    /// <summary>
+    /// Watches the native save and Continue menus for the two events that say which save
+    /// this playthrough is. Deliberately independent of every speech option: which save a
+    /// player is on is not a speech feature, and their rooms are remembered either way.
+    /// </summary>
+    /// <summary>
+    /// Watches the native save and Continue menus for the two events that say which save
+    /// this playthrough is. Independent of every speech option; the order the readings are
+    /// handed over in belongs to the shared observer both runtimes use.
+    /// </summary>
+    private static void ObserveRoomDescriptionSaveIdentity(
+        FieldAreaDescriptionSaveTracker tracker,
+        SaveMenuStateReader? saveReader,
+        TitleLoadMenuDataReader? loadReader,
+        NativeSaveResultPopupReader? popupReader,
+        ILegacyAddressSpace? addressSpace,
+        bool hasSaveMenuOwnership,
+        ref bool playableModuleSeen)
+    {
+        // The module is read here rather than taken from a frame, so this can run before
+        // any description is delivered.
+        if (addressSpace?.TryReadByte((uint)FieldPositionReader.AddressCurrentModule, out var module) != true)
+        {
+            return;
+        }
+
+        NativeSaveResultPopup? popup = null;
+        if (popupReader?.TryRead(out var read) == true)
+        {
+            popup = read;
+        }
+
+        // Mode zero is legitimate only while the translated Save widget itself has
+        // ownership; without that the ordinary mode-gated read is the safe one.
+        SaveMenuStateSnapshot? save = null;
+        if (hasSaveMenuOwnership)
+        {
+            if (saveReader?.TryReadForActiveSaveWidget(out var owned, out _) == true)
+            {
+                save = owned;
+            }
+        }
+        else if (saveReader?.TryRead(out var ordinary, out _) == true)
+        {
+            save = ordinary;
+        }
+
+        int? readiness = null;
+        if (addressSpace.TryReadInt32((uint)TitleLoadMenuDataReader.AddressReadiness, out var value))
+        {
+            readiness = value;
+        }
+
+        TitleLoadMenuStateSnapshot? load = null;
+        if (loadReader?.TryRead(out var menu) == true)
+        {
+            load = menu;
+        }
+
+        FieldAreaDescriptionSaveObserver.Observe(
+            tracker,
+            module,
+            save,
+            popup,
+            readiness,
+            load,
+            ref playableModuleSeen);
+    }
+
     internal static IFieldMovieNarrationOutput? CreateFieldMovieNarrationOutput(
         AccessibilityConfig config,
         string modDirectory,
@@ -366,6 +435,21 @@ internal sealed class Steam2026ResearchSession : IDisposable
         Steam2026NativeMovieHookSet? movieHookSet = null;
         Steam2026FieldCutsceneHookSet? cutsceneHookSet = null;
         Steam2026FieldCutsceneDescriptionCoordinator? cutsceneDescriptions = null;
+
+        // One history, one tracker, one gate for the whole session. The history outlives
+        // the process; the tracker decides which native save it belongs to; the gate is
+        // the only thing the description path consults. Built here rather than with the
+        // field stack so a field rebuild cannot silently start a second history.
+        var roomDescriptionHistory = new FieldAreaDescriptionHistory(
+            Path.Combine(modDirectory, "Configuration", "room-descriptions.json"),
+            log);
+        var roomDescriptionGate = new FieldAreaDescriptionHistoryGate(roomDescriptionHistory);
+        var roomDescriptionSaves = new FieldAreaDescriptionSaveTracker(roomDescriptionHistory, log);
+        SaveMenuStateReader? roomDescriptionSaveReader = null;
+        TitleLoadMenuDataReader? roomDescriptionLoadReader = null;
+        NativeSaveResultPopupReader? roomDescriptionPopupReader = null;
+        ILegacyAddressSpace? roomDescriptionAddressSpace = null;
+        var roomDescriptionPlayableSeen = false;
         Steam2026FieldDialogueObservationReader? cutsceneDialogueProbe = null;
         Steam2026FieldZoneSpeechCoordinator? fieldZoneSpeechCoordinator = null;
         Steam2026FieldZoneTransitionCueCoordinator? fieldZoneTransitionCueCoordinator = null;
@@ -1011,7 +1095,15 @@ avigationield_zone_transition.wav"),
                         inGameMenuBridge = candidateMenuBridge;
                         titleLoadMenuBridge = candidateTitleLoadBridge;
                         nameEntryReader = candidateNameEntryReader;
+                        candidateCutsceneDescriptions.HistoryGate = roomDescriptionGate;
                         cutsceneDescriptions = candidateCutsceneDescriptions;
+
+                        // The save identity is read through the same translated address
+                        // space the rest of the field stack uses, and is rebuilt with it.
+                        roomDescriptionSaveReader = new SaveMenuStateReader(sharedFieldAddressSpace);
+                        roomDescriptionLoadReader = new TitleLoadMenuDataReader(sharedFieldAddressSpace);
+                        roomDescriptionPopupReader = new NativeSaveResultPopupReader(sharedFieldAddressSpace);
+                        roomDescriptionAddressSpace = sharedFieldAddressSpace;
                         cutsceneDialogueProbe = candidateCutsceneDialogueProbe;
                         fieldZoneSpeechCoordinator = candidateFieldZoneSpeechCoordinator;
 
@@ -1369,6 +1461,18 @@ avigationield_zone_transition.wav"),
                     // A field whose own entry anchor ran before this runtime attached
                     // would otherwise never be described at all.
                     cutsceneDescriptions.ObserveStableField(now);
+
+                    // Before any description is delivered, so a load that has just
+                    // succeeded has its history bound and a room this save already knows
+                    // is not described again on the way in.
+                    ObserveRoomDescriptionSaveIdentity(
+                        roomDescriptionSaves,
+                        roomDescriptionSaveReader,
+                        roomDescriptionLoadReader,
+                        roomDescriptionPopupReader,
+                        roomDescriptionAddressSpace,
+                        inGameMenuBridge?.HasSaveMenuOwnership == true,
+                        ref roomDescriptionPlayableSeen);
 
                     // A film that gave way to dialogue keeps being described: its
                     // remaining cues are spoken at the moments they belong to, once

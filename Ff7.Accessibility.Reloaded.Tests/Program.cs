@@ -271,6 +271,8 @@ if (args.Contains("--junon-minigames-only", StringComparer.OrdinalIgnoreCase))
 if (args.Contains("--auto-walk-only", StringComparer.OrdinalIgnoreCase))
 {
     NavigationAutoWalkControllerTests.Run(CreateInstalledFieldWalkmeshReader);
+    FieldAutomaticMovementClearanceTests.Run(CreateInstalledFieldWalkmeshReader);
+    Ff7.Accessibility.Reloaded.Tests.ModPostBattleAutoWalkTests.Run();
     AssertFieldCorridorLookaheadCreatesObstacleRecoverySideStep();
     AssertFieldCorridorLookaheadAvoidsLiveModelCollision();
     AssertFieldCorridorLookaheadBypassesLiveModelAtFarEndOfLongSegment();
@@ -713,6 +715,21 @@ if (args.Contains("--guest-battle-only", StringComparer.OrdinalIgnoreCase))
     return;
 }
 
+if (args.Contains("--mansion-exits-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.NibelheimMansionExitTests.Run(CreateInstalledFieldWalkmeshReader);
+    Console.WriteLine("FFVII Nibelheim mansion exit tests passed.");
+    return;
+}
+
+if (args.Contains("--room-history-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.FieldAreaDescriptionHistoryTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.FieldAreaDescriptionSaveTrackerTests.Run();
+    Console.WriteLine("FFVII room description history tests passed.");
+    return;
+}
+
 if (args.Contains("--safe-dial-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.FieldActivityNumericWindowReadTests.Run();
@@ -963,6 +980,9 @@ HighwayEngagementSteeringTrackerTests.Run();
 HighwayAutoSteeringModeTrackerTests.Run();
 HighwayAutoSteeringControllerTests.Run();
 NavigationAutoWalkControllerTests.Run(CreateInstalledFieldWalkmeshReader);
+FieldAutomaticMovementClearanceTests.Run(CreateInstalledFieldWalkmeshReader);
+Ff7.Accessibility.Reloaded.Tests.NibelheimMansionExitTests.Run(CreateInstalledFieldWalkmeshReader);
+Ff7.Accessibility.Reloaded.Tests.ModPostBattleAutoWalkTests.Run();
 Ff7.Accessibility.Reloaded.Tests.ControllerNavigationMenuTests.Run();
 Ff7.Accessibility.Reloaded.Tests.ControllerNavigationDomainOwnershipTests.Run();
 Ff7.Accessibility.Reloaded.Tests.ControllerNavigationAdapterTests.Run();
@@ -1216,6 +1236,8 @@ AssertFieldNavigationObjectCueClassifierUsesNativeCatalogMetadata();
 AssertFieldGatewayTargetReaderReadsEveryNativeGateway();
 AssertFieldGatewayTargetReaderRejectsInvalidState();
 AssertFieldActivityReadoutSpeaksTheNativeActivities();
+Ff7.Accessibility.Reloaded.Tests.FieldAreaDescriptionHistoryTests.Run();
+Ff7.Accessibility.Reloaded.Tests.FieldAreaDescriptionSaveTrackerTests.Run();
 Ff7.Accessibility.Reloaded.Tests.FieldActivityNumericWindowReadTests.Run();
 Ff7.Accessibility.Reloaded.Tests.ShinraMansionSafeDialTests.Run();
 Ff7.Accessibility.Reloaded.Tests.ShinraMansionSafeDialTests.RunWithInstalledGameData();

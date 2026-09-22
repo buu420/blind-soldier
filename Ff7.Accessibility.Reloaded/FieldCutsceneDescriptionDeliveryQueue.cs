@@ -27,7 +27,14 @@ public enum FieldCutsceneDeliveryOutcome
     /// The film this cue describes is already being described. Spent deliberately,
     /// unspoken, and without reserving a dialogue window.
     /// </summary>
-    AlreadyDescribed
+    AlreadyDescribed,
+
+    /// <summary>
+    /// A room this playthrough has already heard. The cue is spent so it cannot come
+    /// back, and nothing is said - so no dialogue window is reserved and nothing waits
+    /// behind it.
+    /// </summary>
+    Skipped
 }
 
 /// <summary>
@@ -48,7 +55,8 @@ public sealed class FieldCutsceneDescriptionDelivery(FieldCutsceneDescriptionDel
         Func<string, bool> trySpeak,
         Action<FieldCutsceneDescriptionCue> onDelivered,
         out FieldCutsceneDescriptionCue delivered,
-        Func<string?>? describeRunningFilm = null)
+        Func<string?>? describeRunningFilm = null,
+        Func<FieldCutsceneDescriptionCue, bool>? shouldOffer = null)
     {
         ArgumentNullException.ThrowIfNull(beginNarration);
         ArgumentNullException.ThrowIfNull(trySpeak);
@@ -58,6 +66,16 @@ public sealed class FieldCutsceneDescriptionDelivery(FieldCutsceneDescriptionDel
         if (!queue.TryPeek(fieldId, out var cue))
         {
             return FieldCutsceneDeliveryOutcome.Nothing;
+        }
+
+        // Asked before anything is started or reserved. A room the player has already
+        // heard in this playthrough leaves the queue without costing a narration track,
+        // a speech attempt or a dialogue reservation.
+        if (shouldOffer is not null && !shouldOffer(cue))
+        {
+            queue.CommitDelivered(cue);
+            delivered = cue;
+            return FieldCutsceneDeliveryOutcome.Skipped;
         }
 
         var narration = beginNarration(cue);

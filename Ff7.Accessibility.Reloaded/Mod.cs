@@ -243,6 +243,17 @@ public sealed class Mod : IModV1, IModV2
     private RenderedMenuTextSpeechTracker renderedMenuTextSpeechTracker = new(TimeSpan.FromMilliseconds(90));
     private TitleLoadMenuSpeechTracker? titleLoadMenuSpeechTracker;
     private TitleLoadMenuDataReader? titleLoadMenuDataReader;
+
+    /// <summary>
+    /// Which rooms this playthrough has already had described, and which native save it
+    /// belongs to. The history outlives the process; the tracker is what decides whose
+    /// history it is, and the gate is the only thing that consults it.
+    /// </summary>
+    private FieldAreaDescriptionHistory? fieldAreaDescriptionHistory;
+    private FieldAreaDescriptionSaveTracker? fieldAreaDescriptionSaveTracker;
+    private FieldAreaDescriptionHistoryGate fieldAreaDescriptionGate = new(null);
+    private NativeSaveResultPopupReader? nativeSaveResultPopupReader;
+    private bool fieldAreaDescriptionPlayableModuleSeen;
     private SaveMenuSpeechTracker saveMenuSpeechTracker = new(TimeSpan.Zero);
     private readonly ActiveMenuFrameSpeechCoordinator activeMenuFrameSpeechCoordinator = new();
     private readonly MateriaTutorialSpeechTracker materiaTutorialSpeechTracker = new();
@@ -1136,6 +1147,14 @@ public sealed class Mod : IModV1, IModV2
         mainMenuStateReader = new MainMenuStateReader(legacyAddressSpace);
         nameEntryStateReader = new NameEntryStateReader(legacyAddressSpace);
         saveMenuStateReader = new SaveMenuStateReader(legacyAddressSpace);
+        nativeSaveResultPopupReader = new NativeSaveResultPopupReader(legacyAddressSpace);
+        fieldAreaDescriptionHistory = new FieldAreaDescriptionHistory(
+            Path.Combine(modDirectory, "Configuration", "room-descriptions.json"),
+            Log);
+        fieldAreaDescriptionSaveTracker = new FieldAreaDescriptionSaveTracker(
+            fieldAreaDescriptionHistory,
+            Log);
+        fieldAreaDescriptionGate = new FieldAreaDescriptionHistoryGate(fieldAreaDescriptionHistory);
         flevelFieldTextResolver = gameRootDirectory is null
             ? null
             : new FlevelFieldTextResolver(gameRootDirectory, gameLanguage);
@@ -1622,6 +1641,7 @@ public sealed class Mod : IModV1, IModV2
                 TickJunonMinigameCues();
                 TickCondorBattleReader();
                 TickCondorMinigameProbe();
+                TickFieldAreaDescriptionSaveIdentity();
                 TickFieldActivityReadout();
                 TickShinraMansionSafeDialReadout();
                 TickSpeedSquareCoasterReadout();
@@ -3952,11 +3972,18 @@ public sealed class Mod : IModV1, IModV2
                     now)
                 ?? FieldMovieNarrationStartResult.NotDescribed,
             SpeakDescription,
-            candidate => ReserveDescriptionWindow(candidate.FieldId, candidate.Text, now),
+            candidate =>
+            {
+                // Only ever here: the cue has been narrated or spoken, so the room has
+                // genuinely been described to the player and may be spent.
+                fieldAreaDescriptionGate.NoteSpoken(candidate);
+                ReserveDescriptionWindow(candidate.FieldId, candidate.Text, now);
+            },
             out var delivered,
             () => FieldMovieNarrationTracker.TryDescribeRunningFilm(sample, out var paragraph)
                 ? paragraph
-                : null);
+                : null,
+            fieldAreaDescriptionGate.ShouldOffer);
 
         if (config.EnableFieldCutsceneDescriptionDiagnostics &&
             outcome is FieldCutsceneDeliveryOutcome.Narrated or FieldCutsceneDeliveryOutcome.Spoken)
@@ -6574,6 +6601,9 @@ public sealed class Mod : IModV1, IModV2
     /// pressed as the module changes must still reach the walk that is running, not
     /// only the one the adapter it arrived at knows about.</para>
     /// </summary>
+    /// <summary>
+    /// The player asked for auto walk off from the controller menu. A real stop.
+    /// </summary>
     private void StopEveryControllerAutoWalk()
     {
         pendingNavigationAutoWalkToggle = NavigationAutoWalkDomain.None;
@@ -6583,6 +6613,33 @@ public sealed class Mod : IModV1, IModV2
         }
 
         fieldAutoWalkConvergence.Reset();
+    }
+
+    /// <summary>
+    /// The party has gone somewhere auto walk cannot drive - a battle, the results, a
+    /// menu module, or the host losing focus - and the keys must come off at once.
+    ///
+    /// <para>Suspend, not stop. This used to call <see cref="NavigationAutoWalkController.Stop"/>,
+    /// which clears the controller's domain, and it is the unlogged stop behind the
+    /// reported "auto walk breaks after a battle": every random encounter switched auto
+    /// walk off without a word, because nothing on this path logs. Suspend releases the
+    /// same keys and keeps only the player's intent.</para>
+    ///
+    /// <para>Nothing here resumes anything. A route whose field or target changed while
+    /// the party was away is cancelled by the assistant on the next usable scan, which
+    /// clears the beacon and makes <see cref="UpdateFieldAutoWalk"/> stop the walk through
+    /// the ordinary path; an explicit stop is still immediate.</para>
+    /// </summary>
+    private void SuspendEveryControllerAutoWalk()
+    {
+        // A toggle queued before the excursion belongs to a domain that is no longer
+        // there, so it is dropped rather than carried into whatever comes back.
+        pendingNavigationAutoWalkToggle = NavigationAutoWalkDomain.None;
+        navigationAutoWalkController?.Suspend();
+
+        // The paused time is exempt, but the stall either side of it is banked, so an
+        // excursion cannot be a way of never being measured.
+        fieldAutoWalkConvergence.Suspend();
     }
 
     /// <summary>
@@ -6666,7 +6723,10 @@ public sealed class Mod : IModV1, IModV2
         if (domain == ControllerNavigationDomain.None || !isForeground)
         {
             capture.PublishUnavailable(domain, DateTime.UtcNow);
-            StopEveryControllerAutoWalk();
+            if (module == TitleMenuCursorReader.TitleModule)
+                StopEveryControllerAutoWalk();
+            else
+                SuspendEveryControllerAutoWalk();
             return;
         }
 
@@ -7219,6 +7279,68 @@ public sealed class Mod : IModV1, IModV2
 
         lastSuppressedFootstepKey = key;
         Log(message);
+    }
+
+    /// <summary>
+    /// Watches the native save and Continue menus for the two events that say which save
+    /// this playthrough is, and tells the room history about them.
+    ///
+    /// <para>Deliberately not part of <see cref="TickSaveMenuSpeech"/>: that one is gated
+    /// on the in-game menu speech option, and which save a player is on is not a speech
+    /// feature. A player with menu speech switched off still expects their rooms to be
+    /// remembered.</para>
+    /// </summary>
+    /// <summary>
+    /// Watches the native save and Continue menus for the two events that say which save
+    /// this playthrough is, and tells the room history about them.
+    ///
+    /// <para>Deliberately not part of <see cref="TickSaveMenuSpeech"/>: that one is gated
+    /// on the in-game menu speech option, and which save a player is on is not a speech
+    /// feature. The reads happen here; the order they are handed over in belongs to
+    /// <see cref="FieldAreaDescriptionSaveObserver"/>, which both runtimes share.</para>
+    /// </summary>
+    private void TickFieldAreaDescriptionSaveIdentity()
+    {
+        if (fieldAreaDescriptionSaveTracker is not { } tracker)
+        {
+            return;
+        }
+
+        var module = ReadByte(FieldPositionReader.AddressCurrentModule);
+
+        NativeSaveResultPopup? popup = null;
+        if (nativeSaveResultPopupReader?.TryRead(out var read) == true)
+        {
+            popup = read;
+        }
+
+        // The ordinary mode-gated read. The ownership-gated overload exists for the
+        // translated x64 widget, where mode zero is legitimate; accepting mode zero here
+        // would let an unrelated menu bind a save.
+        SaveMenuStateSnapshot? save = null;
+        if (SaveMenuSpeechTracker.IsSupportedHostModule(module) &&
+            saveMenuStateReader?.TryRead(out var snapshot, out _) == true)
+        {
+            save = snapshot;
+        }
+
+        int? readiness = titleLoadMenuDataReader is null
+            ? null
+            : ReadInt32(TitleLoadMenuDataReader.AddressReadiness);
+        TitleLoadMenuStateSnapshot? load = null;
+        if (titleLoadMenuDataReader?.TryRead(out var menu) == true)
+        {
+            load = menu;
+        }
+
+        FieldAreaDescriptionSaveObserver.Observe(
+            tracker,
+            module,
+            save,
+            popup,
+            readiness,
+            load,
+            ref fieldAreaDescriptionPlayableModuleSeen);
     }
 
     private void TickSaveMenuSpeech()

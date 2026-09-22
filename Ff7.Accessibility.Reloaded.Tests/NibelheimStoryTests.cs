@@ -71,6 +71,9 @@ internal static class NibelheimStoryTests
         EveryLineObjectUsesTheNativeActivationRadius();
         ADisabledLineHidesItsObject();
         AnEmptiedSafeStopsBeingOffered();
+        OpenedChestRemainsAvailableForItsInscription();
+        ThePassageDoorDisappearsAfterOpening();
+        TheSafeAndCoffinRemainAvailableBetweenQuestSteps();
         ACoffinThatHasBeenDealtWithStopsBeingOffered();
         TheReunionSceneIsNotOfferedAsAnInteraction();
     }
@@ -176,6 +179,9 @@ internal static class NibelheimStoryTests
         TheReunionRoomIsReachedByAnOrdinaryGateway();
         EveryAuthoredTargetRoutesFromItsNativeEntry();
         EveryOptionalObjectIsReachableFromItsNativeEntry();
+        VincentQuestInteractionsMatchInstalledScripts();
+        QuestRoutesRespectThePassageAndBasementLocks();
+        QuestInteractionsCanActuallyStartNavigation();
     }
 
     /// <summary>
@@ -274,9 +280,8 @@ internal static class NibelheimStoryTests
     }
 
     /// <summary>
-    /// The optional set, in the category the user asked for. All but the entrance-hall note
-    /// are native LINE handlers with no model, so neither NPCs nor the extracted chest rows
-    /// can carry them.
+    /// The optional set, in the category the user asked for. Most are native LINE handlers
+    /// with no model, and the opened chest needs a readable target after its item is gone.
     /// </summary>
     private static void TheOptionalThingsAreObjectsRatherThanStory()
     {
@@ -287,6 +292,8 @@ internal static class NibelheimStoryTests
                      (298, "Writing"),
                      (299, "Safe"),
                      (300, "Writing"),
+                     (300, "Floor beside the secret passage"),
+                     (300, "Secret passage door"),
                      (303, "Coffin"),
                      (305, "Left specimen"),
                      (305, "Right specimen"),
@@ -304,14 +311,15 @@ internal static class NibelheimStoryTests
         Equal(false, ObjectLabels(InnerRoom).Any(label => label.Contains("coffin", StringComparison.OrdinalIgnoreCase)),
             "field 310 has no coffin - its own entities are four document lines and the party");
 
-        // The safe and the piano hand control to the game's own timed input, so they say so.
+        // These are ordinary walkable interaction points. ManualNavigationGuidance is
+        // reserved for targets navigation cannot approach; setting it disables the beacon.
         foreach (var definition in NibelheimObjectCatalog.Create()
                      .Where(definition => definition.FieldId is 298 or 299 &&
                                           definition.EntityId is 10 or 9))
         {
-            Equal(true, !string.IsNullOrWhiteSpace(definition.ManualNavigationGuidance),
-                $"field {definition.FieldId} entity {definition.EntityId} must say what the " +
-                "player has to do themselves");
+            Equal(true, string.IsNullOrWhiteSpace(definition.ManualNavigationGuidance),
+                $"field {definition.FieldId} entity {definition.EntityId} must be " +
+                "navigable rather than marked manual-only");
         }
 
         // No label may give away a hint, a combination or a reward.
@@ -361,6 +369,138 @@ internal static class NibelheimStoryTests
             .Select(target => target.Label).ToArray();
         Equal(false, after.Any(label => label.Contains("Safe", StringComparison.Ordinal)),
             "and stops being offered once its own flag is set");
+    }
+
+    private static void OpenedChestRemainsAvailableForItsInscription()
+    {
+        var memory = PresentDay(529, MansionUpstairsLeft);
+        Equal(false, memory.ObjectReader().ReadTargets(At(MansionUpstairsLeft, 0, 0, 0))
+            .Any(target => target.Label == "Opened chest in the mansion upstairs room"),
+            "the inscription interaction must not duplicate the unopened treasure");
+        memory.SetBank15(35, 8);
+        var opened = memory.ObjectReader().ReadTargets(At(MansionUpstairsLeft, 0, 0, 0));
+        Equal(true, opened.Any(target => target.Label == "Opened chest in the mansion upstairs room"),
+            "collecting Enemy Launcher must leave its chest available for the native inscription");
+    }
+
+    private static void ThePassageDoorDisappearsAfterOpening()
+    {
+        var memory = PresentDay(529, MansionUpstairsRight);
+        memory.SetBank5(7, 1);
+        Equal(false, memory.ObjectReader().ReadTargets(At(MansionUpstairsRight, 0, 0, 0))
+            .Any(target => target.Label.StartsWith("Secret passage door", StringComparison.Ordinal)),
+            "an open passage must not keep asking the player to open it");
+    }
+
+    private static void TheSafeAndCoffinRemainAvailableBetweenQuestSteps()
+    {
+        var safe = PresentDay(529, MansionUpstairsLeft);
+        safe.SetBank1(232, 1);
+        Equal(true, safe.ObjectReader().ReadTargets(At(MansionUpstairsLeft, 0, 0, 0))
+            .Any(target => target.Label.StartsWith("Safe", StringComparison.Ordinal)),
+            "after Lost Number the safe must still lead to the uncollected basement key");
+        foreach (var conversationFlags in new[] { 0, 32, 96, 224 })
+        {
+            var memory = PresentDay(529, BasementCorridor);
+            memory.SetBank1(231, conversationFlags);
+            Equal(true, memory.ObjectReader().ReadTargets(At(BasementCorridor, 0, 0, 0))
+                .Any(target => target.Label.Contains("Coffin", StringComparison.Ordinal)),
+                $"coffin remains an interaction until recruitment, conversation bits {conversationFlags}");
+        }
+    }
+
+    private static void VincentQuestInteractionsMatchInstalledScripts()
+    {
+        var scripts = Scripts();
+        AssertOpcode(scripts.ReadScriptOpcodes(299, 7, 1), 4, [0x14, 0xF0, 0x23, 3, 10, 0x45],
+            "opened chest chooses its second interaction after its treasure flag");
+        AssertOpcode(scripts.ReadScriptOpcodes(299, 7, 1), 88, [0x40, 0, 0xB2],
+            "opened chest still displays its inscription");
+        foreach (var (entity, expected) in new (int, byte[])[]
+                 {
+                     (7, [0xD0, 0x57, 3, 0x92, 2, 0x53, 1, 0xBE, 3, 0x4D, 2, 0x53, 1]),
+                     (8, [0xD0, 0x46, 3, 0x48, 1, 0x53, 1, 0x16, 3, 0x48, 1, 0x53, 1]),
+                 })
+        {
+            var line = scripts.ReadScriptOpcodes(300, entity, 0).Single(op => op.Opcode == 0xD0);
+            AssertOpcode(scripts.ReadScriptOpcodes(300, entity, 0), entity == 7 ? 0 : 8, expected,
+                $"upstairs entity {entity} owns its native interaction line");
+            var row = NibelheimObjectCatalog.Create().Single(d => d.FieldId == 300 && d.EntityId == entity);
+            var bytes = line.Bytes.ToArray();
+            Equal((BitConverter.ToInt16(bytes, 1) + BitConverter.ToInt16(bytes, 7)) / 2, row.StaticX,
+                "interaction X is the native line midpoint");
+            Equal((BitConverter.ToInt16(bytes, 3) + BitConverter.ToInt16(bytes, 9)) / 2, row.StaticY,
+                "interaction Y is the native line midpoint");
+            Equal((BitConverter.ToInt16(bytes, 5) + BitConverter.ToInt16(bytes, 11)) / 2, row.StaticZ,
+                "interaction Z is the native line midpoint");
+        }
+        AssertOpcode(scripts.ReadScriptOpcodes(300, 7, 1), 6, [0x80, 0x50, 7, 1],
+            "the passage remembers being opened in Bank 5 address 7");
+        AssertOpcode(scripts.ReadScriptOpcodes(300, 7, 1), 10, [0x6D, 143, 0, 0], "door unlocks triangle 143");
+        AssertOpcode(scripts.ReadScriptOpcodes(300, 7, 1), 14, [0x6D, 67, 0, 0], "door unlocks triangle 67");
+        AssertOpcode(scripts.ReadScriptOpcodes(300, 7, 1), 18, [0x6D, 120, 0, 0], "door unlocks triangle 120");
+        AssertOpcode(scripts.ReadScriptOpcodes(299, 9, 4), 93, [0x82, 0x10, 232, 1],
+            "taking the key empties the safe");
+        AssertOpcode(scripts.ReadScriptOpcodes(303, 0, 0), 16, [0x14, 0x10, 232, 1, 10, 5],
+            "the coffin-room lock uses that same key-collected bit");
+        AssertOpcode(scripts.ReadScriptOpcodes(303, 0, 0), 22, [0x6D, 34, 0, 1],
+            "without the key triangle 34 stays locked");
+        AssertOpcode(scripts.ReadScriptOpcodes(303, 15, 4), 0, [0x14, 0xD0, 80, 2, 10, 29],
+            "the coffin interaction remains until Vincent has joined");
+        AssertOpcode(scripts.ReadScriptOpcodes(302, 11, 3), 46, [0x82, 0xD0, 80, 2],
+            "the passage back toward the stairs recruits Vincent and retires the coffin target");
+    }
+
+    private static void QuestRoutesRespectThePassageAndBasementLocks()
+    {
+        var upstairs = PresentDay(529, MansionUpstairsRight);
+        upstairs.SetLockedTriangles(143, 67, 120);
+        var planner = new FieldWalkmeshRoutePlanner(InstalledWalkmesh(MansionUpstairsRight), upstairs.BoundaryReader());
+        var start = new FieldPositionSnapshot(1, MansionUpstairsRight, 0, 354, 788, 277, 151, 0);
+        var door = upstairs.ObjectReader().ReadTargets(start)
+            .Single(target => target.Label.StartsWith("Secret passage door", StringComparison.Ordinal));
+        Equal(true, planner.TryBuildRoute(start, door, out var doorPlan),
+            "the door interaction must be reachable before the passage unlocks");
+        var dx = doorPlan.FinalApproach.X - door.X;
+        var dy = doorPlan.FinalApproach.Y - door.Y;
+        Equal(true, dx * dx + dy * dy < door.InteractionRadius * door.InteractionRadius,
+            "the locked-side approach must finish within the native door activation radius");
+        var passage = new FieldNavigationTarget(300, FieldNavigationCategory.Exits,
+            "Passage", 947, 665, 339);
+        Equal(false, planner.TryBuildRoute(start, passage, out _),
+            "navigation must not route through the closed panel");
+        upstairs.SetLockedTriangles();
+        Equal(true, planner.TryBuildRoute(start, passage, out _), "opening the panel makes its exit walkable");
+
+        var basement = PresentDay(529, BasementCorridor);
+        var entry = new FieldPositionSnapshot(1, BasementCorridor, 0, -55, -411, 0, 12, 0);
+        var coffin = basement.ObjectReader().ReadTargets(entry).Single(target => target.Label.Contains("Coffin"));
+        var basementPlanner = new FieldWalkmeshRoutePlanner(InstalledWalkmesh(BasementCorridor), basement.BoundaryReader());
+        basement.SetLockedTriangles(34);
+        Equal(false, basementPlanner.TryBuildRoute(entry, coffin, out _), "the key is required to enter the coffin room");
+        basement.SetLockedTriangles();
+        Equal(true, basementPlanner.TryBuildRoute(entry, coffin, out _), "with the key the coffin is reachable");
+    }
+
+    private static void QuestInteractionsCanActuallyStartNavigation()
+    {
+        foreach (var (field, fragment) in new[] { (299, "Safe"), (300, "Secret passage door"), (298, "Piano") })
+        {
+            var entry = NativeEntries.Single(row => row.Field == field).Entries[0];
+            var reader = InstalledWalkmesh(field);
+            var mesh = reader.Read(At(field, 0, 0, 0)).Walkmesh!;
+            var start = new FieldPositionSnapshot(1, field, 0, entry.X, entry.Y,
+                FloorHeight(mesh, entry.Triangle, entry.X, entry.Y), (ushort)entry.Triangle, 0);
+            var target = PresentDay(529, field).ObjectReader().ReadTargets(start)
+                .Single(row => row.Label.StartsWith(fragment, StringComparison.Ordinal));
+            var controller = new FieldNavigationController(new FieldNavigationTargetSource([target]),
+                new FieldWalkmeshRoutePlanner(reader));
+            for (var i = 0; i < 4 && controller.CurrentCategory != FieldNavigationCategory.Objects; i++)
+                controller.HandleAction(FieldNavigationAction.NextCategory, start);
+            var result = controller.HandleAction(FieldNavigationAction.ToggleBeacon, start);
+            Equal(true, controller.BeaconEnabled,
+                $"{fragment} must start real navigation instead of only speaking instructions: {result?.Speech}");
+        }
     }
 
     /// <summary>
@@ -516,7 +656,10 @@ internal static class NibelheimStoryTests
             var mesh = reader.Read(At(field, 0, 0, 0)).Walkmesh;
             Equal(true, mesh is not null, $"field {field}: the installed walkmesh must be readable");
             var planner = new FieldWalkmeshRoutePlanner(reader);
-            var objects = PresentDay(529, field).ObjectReader().ReadTargets(At(field, 0, 0, 0));
+            var memory = PresentDay(529, field);
+            // The treasure has already been collected when the chest inscription is used.
+            if (field == MansionUpstairsLeft) memory.SetBank15(35, 8);
+            var objects = memory.ObjectReader().ReadTargets(At(field, 0, 0, 0));
             Equal(true, objects.Count > 0, $"field {field}: the replay needs an object to route to");
 
             foreach (var (entryX, entryY, entryTriangle) in entriesByField[field])
@@ -759,8 +902,7 @@ internal static class NibelheimStoryTests
     }
 
     /// <summary>
-    /// The field and savemap state these rows are read from. The only model it needs is
-    /// sinin1_1's entity 6 note; everything else in the optional set is a LINE.
+    /// Field and savemap state for the LINE interactions, entrance note and opened chest.
     /// </summary>
     private sealed class NibelheimMemory
     {
@@ -780,6 +922,12 @@ internal static class NibelheimStoryTests
             // sinin1_1 entity 6 'let', CHAR 4, placed by its own Init at (-550,89,0).
             bytes[FieldNavigationObjectReader.AddressFieldModelIdArray + 6] = 4;
             SetModel(4, -550, 89, 0);
+            if (field == MansionUpstairsLeft)
+            {
+                bytes[FieldNavigationObjectReader.AddressFieldModelIdArray + 6] = 0xFF;
+                bytes[FieldNavigationObjectReader.AddressFieldModelIdArray + 7] = 4;
+                SetModel(4, -1037, 826, 452);
+            }
             SetModel(0, 0, 0, 0);
 
             // The player's own collision radius, which the native LINE test squares.
@@ -815,6 +963,27 @@ internal static class NibelheimStoryTests
         public void SetBank1(int address, int mask) =>
             bytes[FieldNavigationObjectReader.AddressFieldBankBase + address] =
                 (byte)(ReadByte(FieldNavigationObjectReader.AddressFieldBankBase + address) | mask);
+
+        public void SetBank15(int address, int mask)
+        {
+            var nativeAddress = FieldNavigationObjectReader.AddressFieldBankBase + 0x400 + address;
+            bytes[nativeAddress] = (byte)(ReadByte(nativeAddress) | mask);
+        }
+
+        public void SetBank5(int address, int value) =>
+            bytes[FieldNavigationObjectReader.AddressTemporaryFieldBankBase + address] = (byte)value;
+
+        public void SetLockedTriangles(params int[] triangles)
+        {
+            for (var i = 0; i < 64; i++) bytes[FieldState + FieldBoundaryStateReader.BoundaryBitsOffset + i] = 0;
+            foreach (var triangle in triangles)
+            {
+                var address = FieldState + FieldBoundaryStateReader.BoundaryBitsOffset + (triangle >> 3);
+                bytes[address] |= (byte)(1 << (triangle & 7));
+            }
+        }
+
+        public FieldBoundaryStateReader BoundaryReader() => new(ReadInt32, ReadByte, (_, _) => true);
 
         public FieldStoryTargetReader StoryReader() =>
             new(ReadInt32, ReadInt16, ReadByte, FieldStoryEventCatalog.CreateAllFields(), _ => LinesEnabled);

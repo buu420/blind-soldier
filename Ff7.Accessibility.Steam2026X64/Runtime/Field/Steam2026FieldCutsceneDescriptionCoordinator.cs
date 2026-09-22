@@ -12,6 +12,7 @@ internal sealed class Steam2026FieldCutsceneDescriptionCoordinator
 {
     private readonly object sync = new();
     private readonly ILegacyAddressSpace addressSpace;
+    private FieldAreaDescriptionHistoryGate historyGate = new(null);
     private readonly FieldCutsceneDescriptionTracker tracker;
     private readonly FieldCutsceneSpeechPriority speechPriority = new();
     private readonly Queue<FieldCutsceneDescriptionCue> pending = new();
@@ -161,6 +162,16 @@ internal sealed class Steam2026FieldCutsceneDescriptionCoordinator
     /// straight into one. It goes through the same queue, so it still waits behind
     /// native dialogue and still happens once per visit.
     /// </summary>
+    /// <summary>
+    /// The playthrough's room history. Set once by the host; until then nothing is gated,
+    /// which is what every field did before this existed.
+    /// </summary>
+    internal FieldAreaDescriptionHistoryGate HistoryGate
+    {
+        get { lock (sync) { return historyGate; } }
+        set { lock (sync) { historyGate = value ?? new FieldAreaDescriptionHistoryGate(null); } }
+    }
+
     internal void ObserveStableField(DateTime nowUtc)
     {
         if (nowUtc.Kind != DateTimeKind.Utc)
@@ -216,6 +227,16 @@ internal sealed class Steam2026FieldCutsceneDescriptionCoordinator
             }
 
             var cue = pending.Peek();
+
+            // A room this playthrough has already heard leaves the queue here, before
+            // anything is started or reserved, so it costs no narration track, no speech
+            // attempt and no dialogue window.
+            if (!historyGate.ShouldOffer(cue))
+            {
+                pending.Dequeue();
+                return false;
+            }
+
             if (module != FieldPositionReader.FieldModule
                 || fieldId != cue.FieldId)
             {
@@ -256,6 +277,7 @@ internal sealed class Steam2026FieldCutsceneDescriptionCoordinator
                 {
                     pending.Dequeue();
                     speechPriority.BeginNarration(cue.FieldId, cue.Text, nowUtc);
+                    historyGate.NoteSpoken(cue);
                     spokenCue = cue;
                     return true;
                 }
@@ -314,6 +336,7 @@ internal sealed class Steam2026FieldCutsceneDescriptionCoordinator
 
             pending.Dequeue();
             ReserveDescriptionWindow(cue.FieldId, cue.Text, clipDuration, nowUtc);
+            historyGate.NoteSpoken(cue);
             spokenCue = cue;
             return true;
         }

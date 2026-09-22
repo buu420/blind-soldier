@@ -411,7 +411,8 @@ internal sealed class Steam2026FailClosedFieldRoutePlanner :
     IFieldNavigationAutomaticMovementPlanner,
     IFieldNavigationCorridorLookaheadPlanner,
     IFieldNavigationRouteRefreshPlanner,
-    IFieldNavigationRouteReadStatus
+    IFieldNavigationRouteReadStatus,
+    IFieldNavigationNativeBoundaryStatus
 {
     private readonly IFieldNavigationRoutePlanner inner;
     private PreparedActionRoute? preparedActionRoute;
@@ -424,6 +425,61 @@ internal sealed class Steam2026FailClosedFieldRoutePlanner :
     public string LastDiagnostic { get; private set; } = "not read";
 
     public bool LastReadWasCoherent => !HadReadFailure;
+
+    /// <summary>
+    /// Whether the last route failure was the game holding a door shut rather than a door
+    /// that is not there.
+    ///
+    /// <para>This wrapper did not expose the status at all, so
+    /// <see cref="ReachableFieldExitTargetProvider"/> could not tell the two apart on this
+    /// runtime and dropped every locked door. The Shinra Mansion's second floor is the
+    /// reported case: sinin2_2's Director locks the secret panel's triangles, and the
+    /// staircase door behind it vanished from the Exits list on Steam 2026 while the legacy
+    /// host kept it and explained the lock.</para>
+    ///
+    /// <para>Fail closed: a read this wrapper could not trust is never reported as a lock,
+    /// because a door held open on the strength of an unreadable frame would stay in the
+    /// list forever. A replaying prepared route answers with the status captured when it
+    /// was prepared, so an action route keeps the same distinction.</para>
+    /// </summary>
+    public bool LastFailureWasNativeBoundary =>
+        !HadReadFailure &&
+        (preparedActionRoute is { } prepared
+            ? prepared.FailedOnNativeBoundary
+            : inner is IFieldNavigationNativeBoundaryStatus { LastFailureWasNativeBoundary: true });
+
+    public IReadOnlyList<int> LastBlockingBoundaryTriangles =>
+        !HadReadFailure && LastFailureWasNativeBoundary
+            ? preparedActionRoute is { } prepared
+                ? prepared.BlockingBoundaryTriangles
+                : InnerBlockingBoundaryTriangles()
+            : Array.Empty<int>();
+
+    public bool WouldRouteIfBoundaryReleased(
+        FieldPositionSnapshot position,
+        FieldNavigationTarget target,
+        int releasedTriangle) =>
+        TryReadOptionalCapability(
+            "boundary release probe",
+            inner is IFieldNavigationNativeBoundaryStatus boundary
+                ? () => boundary.WouldRouteIfBoundaryReleased(position, target, releasedTriangle)
+                : null);
+
+    private IReadOnlyList<int> InnerBlockingBoundaryTriangles()
+    {
+        try
+        {
+            return inner is IFieldNavigationNativeBoundaryStatus boundary
+                ? boundary.LastBlockingBoundaryTriangles
+                : Array.Empty<int>();
+        }
+        catch (Exception ex)
+        {
+            HadReadFailure = true;
+            LastDiagnostic = $"checked route boundary triangles read failed: {ex.Message}";
+            return Array.Empty<int>();
+        }
+    }
 
     internal bool HadReadFailure { get; private set; }
 
@@ -476,7 +532,9 @@ internal sealed class Steam2026FailClosedFieldRoutePlanner :
                 -1,
                 false,
                 false,
-                null);
+                null,
+                false,
+                Array.Empty<int>());
             return new Steam2026FieldRoutePreflight(true, false);
         }
 
@@ -502,6 +560,11 @@ internal sealed class Steam2026FailClosedFieldRoutePlanner :
             return new Steam2026FieldRoutePreflight(false, false);
         }
 
+        // The boundary status belongs to the build that just ran, so it is captured with
+        // it. Replaying the cached result later must not consult a status the inner
+        // planner has since overwritten for some other target.
+        var boundaryFailure = !built && inner is IFieldNavigationNativeBoundaryStatus
+            { LastFailureWasNativeBoundary: true };
         preparedActionRoute = new PreparedActionRoute(
             position,
             target,
@@ -509,7 +572,9 @@ internal sealed class Steam2026FailClosedFieldRoutePlanner :
             resolvedTriangle,
             true,
             built,
-            built ? plan : null);
+            built ? plan : null,
+            boundaryFailure,
+            boundaryFailure ? InnerBlockingBoundaryTriangles() : Array.Empty<int>());
         return new Steam2026FieldRoutePreflight(true, built);
     }
 
@@ -739,12 +804,14 @@ internal sealed class Steam2026FailClosedFieldRoutePlanner :
         int ResolvedTriangle,
         bool BuildAttempted,
         bool BuildResult,
-        FieldNavigationRoutePlan? Plan)
+        FieldNavigationRoutePlan? Plan,
+        bool FailedOnNativeBoundary,
+        IReadOnlyList<int> BlockingBoundaryTriangles)
     {
         internal static PreparedActionRoute Incoherent(
             FieldPositionSnapshot position,
             FieldNavigationTarget target) =>
-            new(position, target, false, -1, false, false, null);
+            new(position, target, false, -1, false, false, null, false, Array.Empty<int>());
 
         internal bool MatchesPosition(FieldPositionSnapshot position) => Position == position;
 

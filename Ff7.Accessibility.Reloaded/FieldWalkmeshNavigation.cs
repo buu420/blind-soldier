@@ -533,11 +533,8 @@ public sealed class FieldWalkmeshRoutePlanner :
         LastReadWasCoherent = true;
         LastDiagnostic = "automatic movement clearance";
         var obstacles = dynamicObstacleProvider?.Invoke(position, target);
-        if (obstacles is not { Count: > 0 })
-        {
-            return true;
-        }
-
+        // Empty NPC space still contains walkmesh walls and native door locks.
+        // Check those even when the dynamic reader has no models to report.
         var current = new FieldNavigationRouteWaypoint(position.X, position.Y, position.Z);
         if (FieldNavigationDynamicObstacleGeometry.IntersectsAny(current, destination, obstacles))
         {
@@ -766,7 +763,7 @@ public sealed class FieldWalkmeshRoutePlanner :
             usedInteractionApproach = true;
         }
 
-        var routeDetours = ResolveRouteDetours(target);
+        var routeDetours = ResolveRouteDetours(target, trianglePath);
         if (found && routeDetours.Count != 0)
         {
             if (TryBuildRouteViaDetours(
@@ -1550,16 +1547,30 @@ public sealed class FieldWalkmeshRoutePlanner :
     }
 
     private static IReadOnlyList<FieldNavigationRouteDetour> ResolveRouteDetours(
-        FieldNavigationTarget target)
+        FieldNavigationTarget target, IReadOnlyList<int> trianglePath)
     {
-        if (target.RouteDetours is { Count: > 0 })
+        IReadOnlyList<FieldNavigationRouteDetour> authored = target.RouteDetours is { Count: > 0 }
+            ? target.RouteDetours
+            : target.RouteDetour is { } routeDetour ? [routeDetour] : [];
+
+        // cos_btm's thin 0/1 connector repeatedly pins the player at triangle
+        // 314 while approaching the upper exits. The captured successful manual
+        // recovery takes triangle 9 around the wider side. Keep that checkpoint
+        // explicit so lookahead cannot cut straight back through the pinch point.
+        // Apply only to a route actually crossing this connector, in either
+        // direction; other floors and routes already past it are unaffected.
+        if (target.FieldId == 525 && trianglePath.Count > 2 &&
+            trianglePath[0] != 0 && trianglePath[^1] != 0 &&
+            Enumerable.Range(1, trianglePath.Count - 1).Any(index =>
+                (trianglePath[index - 1] == 0 && trianglePath[index] == 1) ||
+                (trianglePath[index - 1] == 1 && trianglePath[index] == 0)))
         {
-            return target.RouteDetours;
+            return [new FieldNavigationRouteDetour(
+                new FieldNavigationTriggerLine(-674, -584, -1468, -635, -584, -1468),
+                -772, -698, -1468), .. authored];
         }
 
-        return target.RouteDetour is { } routeDetour
-            ? [routeDetour]
-            : Array.Empty<FieldNavigationRouteDetour>();
+        return authored;
     }
 
     private static bool TryBuildRouteViaDetours(

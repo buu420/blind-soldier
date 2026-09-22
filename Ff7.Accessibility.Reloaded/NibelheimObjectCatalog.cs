@@ -3,9 +3,11 @@
 /// <summary>
 /// The optional things in present-day Nibelheim's Shinra Mansion.
 ///
-/// <para>All but the entrance-hall note are native <c>LINE</c> handlers with no model, so
+    /// <para>Most of these are native <c>LINE</c> handlers with no model, so
 /// neither the NPC reader - which needs a model id, an event record and a visibility byte -
-/// nor the extracted chest and materia rows can see them. That is why a session log reports
+    /// nor the extracted chest and materia rows can see them. The opened chest also remains
+    /// interactive after its treasure is collected, because its lid carries writing.
+    /// That is why a session log reports
 /// <c>npcs=0</c> in every mansion field while a sighted player can act on all of these.</para>
 ///
 /// <para>Each row carries its entity's own <c>LINE</c> midpoint. Every one of those handlers
@@ -64,9 +66,7 @@ public static class NibelheimObjectCatalog
             StaticY: 608,
             StaticZ: 0,
             MinimumGameMoment: PresentDayBegins,
-            UsesPlayerCollisionRadius: true,
-            ManualNavigationGuidance:
-                "Stand at the piano and press OK. Use the game controls to play the keys."),
+            UsesPlayerCollisionRadius: true),
 
         // sinin1_2 e14 'hint0'. Its Init declares the LINE only once the moment is past 385.
         new(
@@ -100,9 +100,60 @@ public static class NibelheimObjectCatalog
             StaticY: 1236,
             StaticZ: 452,
             MinimumGameMoment: PresentDayBegins,
-            UsesPlayerCollisionRadius: true,
-            ManualNavigationGuidance:
-                "Stand at the safe and press OK. Use the game controls to turn the dial."),
+            UsesPlayerCollisionRadius: true),
+
+        // sinin2_1 e7 'box0' Talk branches to MESSAGE 178 after Bank[15][35] bit 3
+        // (Enemy Launcher collected). Keep that readable chest after the item row disappears.
+        new(
+            299,
+            7,
+            FieldNavigationObjectKind.Named,
+            Label: "Opened chest in the mansion upstairs room",
+            RequiredBank: 15,
+            RequiredAddress: 35,
+            RequiredMask: 8,
+            RequiredValue: 8,
+            SourceFieldName: "sinin2_1",
+            SourceEntityName: "box0",
+            TargetKind: FieldNavigationObjectTargetKind.Model,
+            MinimumGameMoment: PresentDayBegins,
+            UsesTalkInteraction: true),
+
+        // sinin2_2 e7 'lin0' Talk unlocks triangles 143, 67 and 120 and opens the
+        // panel. A route directly to gateway 1 cannot cross those locked triangles yet.
+        new(
+            300,
+            7,
+            FieldNavigationObjectKind.Named,
+            Label: "Secret passage door in the mansion upstairs room",
+            RequiredBank: 5,
+            RequiredAddress: 7,
+            RequiredMask: 255,
+            RequiredValue: 0,
+            SourceFieldName: "sinin2_2",
+            SourceEntityName: "lin0",
+            TargetKind: FieldNavigationObjectTargetKind.Line,
+            StaticX: 906,
+            StaticY: 623,
+            StaticZ: 339,
+            MinimumGameMoment: PresentDayBegins,
+            UsesPlayerCollisionRadius: true),
+
+        // sinin2_2 e8 'fl0' Go: the search spot described by the note's third hint.
+        // It runs the native search scene; the separate hint2 row reads its writing.
+        new(
+            300,
+            8,
+            FieldNavigationObjectKind.Named,
+            Label: "Floor beside the secret passage",
+            SourceFieldName: "sinin2_2",
+            SourceEntityName: "fl0",
+            TargetKind: FieldNavigationObjectTargetKind.Line,
+            StaticX: 814,
+            StaticY: 328,
+            StaticZ: 339,
+            MinimumGameMoment: PresentDayBegins,
+            UsesPlayerCollisionRadius: true),
 
         // sinin2_2 e9 'hint2'. Same shape as hint0, in the other upstairs room.
         new(
