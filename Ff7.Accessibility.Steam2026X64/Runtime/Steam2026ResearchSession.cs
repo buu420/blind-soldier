@@ -644,6 +644,7 @@ internal sealed class Steam2026ResearchSession : IDisposable
                     fieldMessageHookSet = null;
                     pump?.ResetMessageIngress();
                     pump?.ResetCountdownSpeech();
+                    pump?.ResetSafeDialSpeech();
                     askCursorHookSet?.Dispose();
                     askCursorHookSet = null;
                     pump?.ResetAskCursorIngress();
@@ -689,7 +690,17 @@ internal sealed class Steam2026ResearchSession : IDisposable
                 {
                     try
                     {
-                        output.RepeatLast();
+                        // While the safe dial is on screen, asking again means asking
+                        // what the dial says now. Replaying the last delivered line
+                        // would hand back a number the dial has already turned past.
+                        if (pump?.SafeDialCurrentLine is { } safeDialLine)
+                        {
+                            output.Speak(safeDialLine, interrupt: true);
+                        }
+                        else
+                        {
+                            output.RepeatLast();
+                        }
                     }
                     catch (Exception ex)
                     {
@@ -1990,6 +2001,32 @@ avigationield_zone_transition.wav"),
                             now,
                             ref lastRuntimeFault,
                             ref lastRuntimeFaultLogUtc);
+                    }
+
+                    if (config.EnableSpeech
+                        && config.EnableFieldActivityReadout
+                        && isHostForeground
+                        && frame.Lifecycle.IsForeground
+                        && !frame.Lifecycle.IsShuttingDown
+                        && pump.TryGetPendingSafeDialSpeech(out var safeDialSpeech))
+                    {
+                        try
+                        {
+                            // Interrupting is the point. A number the dial has already
+                            // turned past must never finish playing over the one that
+                            // is on screen now.
+                            output.Speak(safeDialSpeech, interrupt: true);
+                            pump.AcknowledgeSafeDialSpeech(safeDialSpeech);
+                            log($"Native Steam 2026 safe dial: {safeDialSpeech}");
+                        }
+                        catch (Exception ex)
+                        {
+                            LogRuntimeFault(
+                                $"Native safe-dial speech will retry: {ex.Message}",
+                                now,
+                                ref lastRuntimeFault,
+                                ref lastRuntimeFaultLogUtc);
+                        }
                     }
 
                     if (config.EnableSpeech

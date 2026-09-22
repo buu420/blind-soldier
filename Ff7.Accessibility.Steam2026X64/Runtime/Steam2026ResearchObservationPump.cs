@@ -34,6 +34,17 @@ internal sealed class Steam2026ResearchObservationPump
     private bool inCondorBattle;
     private DateTime lastCondorBattleReadUtc = DateTime.MinValue;
     private readonly FieldCountdownSpeechCoordinator countdownSpeechCoordinator = new();
+
+    /// <summary>
+    /// The Shinra Mansion safe dial, read through the same translated address space as
+    /// everything else here. It gates itself on native numeric window 0 being a two
+    /// digit display in field 299, so it costs one window read per field frame and
+    /// answers nothing anywhere else.
+    /// </summary>
+    private readonly ShinraMansionSafeDialReadout safeDialReadout = new();
+    private readonly FieldActivityStateReader fieldActivityStateReader;
+    private readonly AccessibilityConfig config;
+    private string? pendingSafeDialSpeech;
     private readonly RootMainMenuRenderEvidenceTracker rootMainMenuRenderEvidenceTracker =
         new(TimeSpan.FromMilliseconds(300));
     private string? lastMainMenuStateKey;
@@ -52,6 +63,9 @@ internal sealed class Steam2026ResearchObservationPump
         Action<string>? log = null)
     {
         ArgumentNullException.ThrowIfNull(config);
+        // Held rather than copied, so a toggle the player changes mid-session is seen
+        // on the next frame exactly as the legacy runtime sees it.
+        this.config = config;
         this.log = log ?? (_ => { });
         lifecycleReader = new Steam2026LifecycleObservationReader(
             fingerprint,
@@ -73,6 +87,7 @@ internal sealed class Steam2026ResearchObservationPump
             memory as INativeMemoryWriter);
         dialogueReader = new Steam2026FieldDialogueObservationReader(translatedAddressSpace);
         countdownReader = new FieldCountdownReader(translatedAddressSpace);
+        fieldActivityStateReader = new FieldActivityStateReader(translatedAddressSpace);
         dialogueSpeechStabilityGate = new Steam2026FieldDialogueSpeechStabilityGate(
             fieldMessageStableWindow);
         fieldReader = new Steam2026FieldObservationReader(
@@ -322,6 +337,7 @@ internal sealed class Steam2026ResearchObservationPump
         CurrentFieldResearchSnapshot = null;
         ResetCondorBattle();
         countdownSpeechCoordinator.Reset();
+        ResetSafeDialSpeech();
         rootMainMenuRenderEvidenceTracker.Reset();
         lifecycleReader.BeginShutdown();
     }
@@ -358,6 +374,44 @@ internal sealed class Steam2026ResearchObservationPump
     internal void ResetCountdownSpeech() =>
         countdownSpeechCoordinator.Reset();
 
+    /// <summary>
+    /// The safe dial's number, when one has not been spoken yet and still describes
+    /// what the dial says. A line that has been overtaken, or whose value cannot
+    /// currently be vouched for, is dropped here rather than handed out late.
+    /// </summary>
+    internal bool TryGetPendingSafeDialSpeech(out string speech)
+    {
+        if (pendingSafeDialSpeech is { } pending && safeDialReadout.IsCurrentSpeech(pending))
+        {
+            speech = pending;
+            return true;
+        }
+
+        pendingSafeDialSpeech = null;
+        speech = string.Empty;
+        return false;
+    }
+
+    internal void AcknowledgeSafeDialSpeech(string speech)
+    {
+        if (string.Equals(pendingSafeDialSpeech, speech, StringComparison.Ordinal))
+        {
+            pendingSafeDialSpeech = null;
+        }
+    }
+
+    /// <summary>
+    /// What the dial says right now, for the repeat key. Null when it is not up, which
+    /// is when repeating the last thing said is the right answer instead.
+    /// </summary>
+    internal string? SafeDialCurrentLine => safeDialReadout.DescribeForRepeat();
+
+    internal void ResetSafeDialSpeech()
+    {
+        safeDialReadout.Reset();
+        pendingSafeDialSpeech = null;
+    }
+
     internal void ResetMenuIngress() => rootMainMenuRenderEvidenceTracker.Reset();
 
     internal void ObserveMenuIngress(TranslatedMenuIngressSnapshot snapshot)
@@ -386,9 +440,12 @@ internal sealed class Steam2026ResearchObservationPump
         if (!lifecycleReader.TryRead(out var lifecycle))
         {
             countdownSpeechCoordinator.Reset();
+            safeDialReadout.ObserveUnavailable();
+            pendingSafeDialSpeech = null;
             return false;
         }
 
+        ReadSafeDialUpdate(lifecycle.ModuleId);
         ReadCountdownUpdate(lifecycle.ModuleId);
         var menu = ReadMainMenuUpdate(lifecycle.ModuleId);
         var dialogue = ReadDialogueUpdate(lifecycle.ModuleId);
@@ -414,6 +471,69 @@ internal sealed class Steam2026ResearchObservationPump
         }
 
         countdownSpeechCoordinator.Observe(snapshot);
+
+        // The safe dial and this clock can be on screen together, and there is one
+        // voice. The dial takes the threshold in that case, unspoken.
+        _ = safeDialReadout.TrySuppressCountdown(countdownSpeechCoordinator);
+    }
+
+    /// <summary>
+    /// Whether the safe dial may look at anything this frame.
+    ///
+    /// <para>The same option that decides whether its numbers are spoken decides whether
+    /// it owns the clock and its own window. Those two came apart once: the pump took
+    /// both the moment the native window opened, while the session refused to speak
+    /// under the same configuration, so turning the readout off left the timer and the
+    /// dial's blank page silenced by a readout that was not running.</para>
+    /// </summary>
+    internal static bool ShouldObserveSafeDial(AccessibilityConfig config, int moduleId)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+        return config.EnableFieldActivityReadout && moduleId == FieldPositionReader.FieldModule;
+    }
+
+    private void ReadSafeDialUpdate(int moduleId)
+    {
+        if (!ShouldObserveSafeDial(config, moduleId))
+        {
+            // A readout the player has turned off owns nothing.
+            ResetSafeDialSpeech();
+            return;
+        }
+
+        // A coherent read that finds no numeric window ends the attempt; a read that
+        // failed or tore says nothing at all and leaves it standing. Collapsing the two
+        // handed the clock back mid-dial and re-announced the safe a frame later.
+        var cue = fieldActivityStateReader.TryReadNumericWindow(
+            ShinraMansionSafeDialReadout.FieldId,
+            ShinraMansionSafeDialReadout.DialWindowId,
+            out var dialWindow)
+            ? safeDialReadout.Observe(
+                ShinraMansionSafeDialReadout.FieldId,
+                dialWindow,
+                DateTime.UtcNow)
+            : safeDialReadout.ObserveUnavailable();
+
+        pendingSafeDialSpeech = RetainSafeDialSpeech(pendingSafeDialSpeech, cue, safeDialReadout);
+    }
+
+    /// <summary>
+    /// What is left waiting to be said after one dial sample.
+    ///
+    /// <para>A new line replaces whatever was waiting - the dial moves once per native
+    /// frame, so an older number is stale rather than queued. A line that was composed
+    /// and not delivered, because the host was not in the foreground or the speaker
+    /// refused the call, is kept only while it still describes the number on screen.
+    /// After a torn read nothing is current, so nothing is retried: a value that cannot
+    /// be vouched for now must not be spoken as though it could.</para>
+    /// </summary>
+    internal static string? RetainSafeDialSpeech(
+        string? pending,
+        ShinraMansionSafeDialCue cue,
+        ShinraMansionSafeDialReadout safeDial)
+    {
+        ArgumentNullException.ThrowIfNull(safeDial);
+        return safeDial.RetainSpeech(pending, cue);
     }
 
     private RuntimeDomainUpdate<FieldFrameObservation> ReadFieldUpdate(int moduleId)
@@ -625,9 +745,12 @@ internal sealed class Steam2026ResearchObservationPump
         }
 
         var stabilized = dialogueSpeechStabilityGate.Observe(rawUpdate, DateTime.UtcNow);
-        var filtered = SuppressClockWindowDialogue(
-            stabilized,
-            countdownSpeechCoordinator,
+        var filtered = SuppressSafeDialWindowDialogue(
+            SuppressClockWindowDialogue(
+                stabilized,
+                countdownSpeechCoordinator,
+                dialogueSpeechStabilityGate.AcknowledgeDelivery),
+            safeDialReadout,
             dialogueSpeechStabilityGate.AcknowledgeDelivery);
         LastDialoguePipelineDiagnostic =
             $"reader=({dialogueReader.LastDiagnostic}); raw={DescribeDialogueUpdate(rawUpdate)}; " +
@@ -646,6 +769,30 @@ internal sealed class Steam2026ResearchObservationPump
         if (update.Kind == RuntimeDomainUpdateKind.Present &&
             update.Value is { } page &&
             countdown.OwnsWindow(page.WindowId))
+        {
+            _ = acknowledge(page);
+            return RuntimeDomainUpdate<DialoguePageObservation>.Unchanged;
+        }
+
+        return update;
+    }
+
+    /// <summary>
+    /// The safe dial's own window carries a blank placeholder page that the native
+    /// message path re-posts every frame the dial is drawn. The dial owns that page
+    /// while it is up; the question that opens the safe and the Success and Fail pages
+    /// use the same window and are not numeric, so they stay ordinary dialogue.
+    /// </summary>
+    internal static RuntimeDomainUpdate<DialoguePageObservation> SuppressSafeDialWindowDialogue(
+        RuntimeDomainUpdate<DialoguePageObservation> update,
+        ShinraMansionSafeDialReadout safeDial,
+        Func<DialoguePageObservation, bool> acknowledge)
+    {
+        ArgumentNullException.ThrowIfNull(safeDial);
+        ArgumentNullException.ThrowIfNull(acknowledge);
+        if (update.Kind == RuntimeDomainUpdateKind.Present &&
+            update.Value is { } page &&
+            safeDial.OwnsWindow(page.WindowId))
         {
             _ = acknowledge(page);
             return RuntimeDomainUpdate<DialoguePageObservation>.Unchanged;

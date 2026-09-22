@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -195,6 +195,23 @@ public sealed class Mod : IModV1, IModV2
     private ImmediateWaveCuePlayer? reactor5ButtonCuePlayer;
     private string? fieldActivityCurrentLine;
     private bool fieldActivityOwnsInput;
+
+    /// <summary>
+    /// The Shinra Mansion safe dial. It owns nothing but native numeric window 0 in
+    /// field 299, and only while that window is actually a two digit display, so it
+    /// costs nothing anywhere else and needs no reader of its own.
+    /// </summary>
+    private readonly ShinraMansionSafeDialReadout shinraMansionSafeDialReadout = new();
+
+    /// <summary>
+    /// A dial number that was composed but not delivered. It is retried only while it
+    /// is still what the dial says; a number the dial has turned past is dropped rather
+    /// than spoken late. Without this, a speaker that refused one call swallowed the
+    /// settled number the player was waiting for, because the readout had already
+    /// counted it as said.
+    /// </summary>
+    private string? pendingSafeDialSpeech;
+    private DateTime lastSafeDialSpeechAttempt = DateTime.MinValue;
     private WonderSquareBasketballStateReader? wonderSquareBasketballReader;
     private WonderSquareBasketballReadout? wonderSquareBasketballReadout;
     private WonderSquareArmWrestlingStateReader? wonderSquareArmWrestlingReader;
@@ -537,6 +554,9 @@ public sealed class Mod : IModV1, IModV2
         }
 
         fieldCountdownSpeechCoordinator.Reset();
+        shinraMansionSafeDialReadout.Reset();
+        pendingSafeDialSpeech = null;
+        lastSafeDialSpeechAttempt = DateTime.MinValue;
         ffnxVoicePlaybackTracker.Reset();
         fieldNavigationGuidanceRepeatGate.Reset();
         saveMenuSpeechTracker.Reset();
@@ -586,6 +606,9 @@ public sealed class Mod : IModV1, IModV2
         try
         {
             fieldCountdownSpeechCoordinator.Reset();
+            shinraMansionSafeDialReadout.Reset();
+            pendingSafeDialSpeech = null;
+            lastSafeDialSpeechAttempt = DateTime.MinValue;
             ffnxVoicePlaybackTracker.Reset();
             saveMenuSpeechTracker.Reset();
             rootMainMenuRenderEvidenceTracker.Reset();
@@ -880,6 +903,9 @@ public sealed class Mod : IModV1, IModV2
             : null;
         fieldActivityCurrentLine = null;
         fieldActivityOwnsInput = false;
+        shinraMansionSafeDialReadout.Reset();
+        pendingSafeDialSpeech = null;
+        lastSafeDialSpeechAttempt = DateTime.MinValue;
         wonderSquareBasketballReader = new WonderSquareBasketballStateReader(legacyAddressSpace);
         wonderSquareBasketballReadout = new WonderSquareBasketballReadout();
         wonderSquareArmWrestlingReader = new WonderSquareArmWrestlingStateReader(legacyAddressSpace);
@@ -1597,6 +1623,7 @@ public sealed class Mod : IModV1, IModV2
                 TickCondorBattleReader();
                 TickCondorMinigameProbe();
                 TickFieldActivityReadout();
+                TickShinraMansionSafeDialReadout();
                 TickSpeedSquareCoasterReadout();
                 TickSpeedSquareCoasterTargets();
                 TickWonderSquareBasketballReadout();
@@ -2536,6 +2563,95 @@ public sealed class Mod : IModV1, IModV2
         if (cue.Speech is not null)
         {
             Speak(cue.Speech, false);
+        }
+    }
+
+    /// <summary>
+    /// Speaks the number the Shinra Mansion safe is showing while its dial is open.
+    ///
+    /// <para>The dial is native numeric window 0 in field 299, drawn by <c>disn</c> and
+    /// rewritten by the party leader's script on every frame a direction is held. What
+    /// is read is that window; the number each entry has to land on, the direction it
+    /// accepts and how many entries have been made are all in script banks, none of them
+    /// is on screen, and none of them is read.</para>
+    ///
+    /// <para>This runs after <see cref="TickFieldActivityReadout"/>, which clears the
+    /// activity line for a field it has nothing for, and before
+    /// <see cref="TickFieldCountdownSpeech"/>, which asks the dial whether the clock
+    /// beside it may speak.</para>
+    /// </summary>
+    private void TickShinraMansionSafeDialReadout()
+    {
+        if (!config.EnableFieldActivityReadout || fieldActivityStateReader is null)
+        {
+            // A readout the player has turned off owns nothing: not the clock, not the
+            // dial's window, and not the repeat key.
+            shinraMansionSafeDialReadout.Reset();
+            pendingSafeDialSpeech = null;
+            lastSafeDialSpeechAttempt = DateTime.MinValue;
+            return;
+        }
+
+        // No field read of its own is needed. The window read proves the loaded module
+        // and field id before it reports anything, so anywhere but the safe room this
+        // is one read that says "no dial".
+        //
+        // The two answers it can give are not the same thing. A coherent read that
+        // finds the window closed, another field loaded or another module running ends
+        // the attempt. A read that failed or tore says nothing at all, and ending the
+        // attempt on it would hand the clock back mid-dial and then announce the safe
+        // again from the top a frame later.
+        var cue = fieldActivityStateReader.TryReadNumericWindow(
+            ShinraMansionSafeDialReadout.FieldId,
+            ShinraMansionSafeDialReadout.DialWindowId,
+            out var dialWindow)
+            ? shinraMansionSafeDialReadout.Observe(
+                ShinraMansionSafeDialReadout.FieldId,
+                dialWindow,
+                DateTime.UtcNow)
+            : shinraMansionSafeDialReadout.ObserveUnavailable();
+        if (!cue.IsDialOnScreen)
+        {
+            pendingSafeDialSpeech = null;
+            return;
+        }
+
+        // The party is frozen at the safe for as long as the dial is up, so route
+        // guidance has nothing to add, and asking to hear the last thing again means
+        // asking what the dial says now. An unreadable sample reports unavailable
+        // instead of letting repeat fall back to a stale number.
+        fieldActivityOwnsInput = true;
+        fieldActivityCurrentLine = shinraMansionSafeDialReadout.DescribeForRepeat();
+
+        // The same rule the Steam 2026 pump keeps. A new line replaces whatever was
+        // waiting, because the dial moves once per native frame and an older number is
+        // stale rather than queued. A line that was composed and never delivered is
+        // held only while it still describes the number on screen; after a torn read
+        // nothing is current, so nothing is held.
+        pendingSafeDialSpeech = shinraMansionSafeDialReadout.RetainSpeech(pendingSafeDialSpeech, cue);
+
+        if (!config.EnableSpeech || pendingSafeDialSpeech is null)
+        {
+            // Muting speech does not acknowledge delivery. Keep only a current value
+            // so unmuting can deliver it even if the dial has stopped changing.
+            return;
+        }
+
+        // A retry goes at the readout's own cadence rather than on every pass of the
+        // monitor, so a speaker that keeps refusing cannot become one attempt per tick.
+        var now = DateTime.UtcNow;
+        if (cue.Speech is null &&
+            now - lastSafeDialSpeechAttempt < ShinraMansionSafeDialReadout.MovingSpeechInterval)
+        {
+            return;
+        }
+
+        // Interrupting is the point. A number the dial has already turned past must
+        // never finish playing over the one that is on screen now.
+        lastSafeDialSpeechAttempt = now;
+        if (Speak(pendingSafeDialSpeech, true))
+        {
+            pendingSafeDialSpeech = null;
         }
     }
 
@@ -4060,6 +4176,14 @@ public sealed class Mod : IModV1, IModV2
         }
 
         fieldCountdownSpeechCoordinator.Observe(snapshot);
+
+        // The safe dial and this clock can be on screen together, and there is one
+        // voice. The dial takes the threshold in that case, unspoken.
+        if (shinraMansionSafeDialReadout.TrySuppressCountdown(fieldCountdownSpeechCoordinator))
+        {
+            return;
+        }
+
         if (!fieldCountdownSpeechCoordinator.TryGetPending(out var announcement))
         {
             return;
@@ -4142,7 +4266,9 @@ public sealed class Mod : IModV1, IModV2
                 return;
             }
             var ordinaryVisibleWindows = visibleWindows
-                .Where(window => !fieldCountdownSpeechCoordinator.ShouldSuppressWindow(window))
+                .Where(window =>
+                    !fieldCountdownSpeechCoordinator.ShouldSuppressWindow(window) &&
+                    !shinraMansionSafeDialReadout.OwnsWindow(window.WindowId))
                 .ToArray();
             var openingMovieBlocked = DeferredZoneSpeechTracker.ShouldBlockForOpeningMovie(
                 fieldId,

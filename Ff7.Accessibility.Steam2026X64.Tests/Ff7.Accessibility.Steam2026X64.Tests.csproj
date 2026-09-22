@@ -132,6 +132,10 @@
              Link="SharedTests\NorthCorelNavigationReadoutTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\NorthCorelRecoveryHeightTests.cs"
              Link="SharedTests\NorthCorelRecoveryHeightTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\ShinraMansionSafeDialTests.cs"
+             Link="SharedTests\ShinraMansionSafeDialTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\FieldActivityNumericWindowReadTests.cs"
+             Link="SharedTests\FieldActivityNumericWindowReadTests.cs" />
   </ItemGroup>
 
 </Project>

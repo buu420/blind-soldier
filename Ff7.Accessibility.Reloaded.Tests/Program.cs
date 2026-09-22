@@ -41,6 +41,9 @@ if (args.Contains("--story-coverage-only", StringComparer.OrdinalIgnoreCase))
     Ff7.Accessibility.Reloaded.Tests.GreatGlacierStoryTests.Run();
     Ff7.Accessibility.Reloaded.Tests.GreatGlacierStoryTests.RunWithInstalledGameData();
     Ff7.Accessibility.Reloaded.Tests.ReportedNavigationRegressionTests.RunArrivalHysteresisOnly();
+    Ff7.Accessibility.Reloaded.Tests.FieldActivityNumericWindowReadTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.ShinraMansionSafeDialTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.ShinraMansionSafeDialTests.RunWithInstalledGameData();
     Console.WriteLine("Story coverage tests passed.");
     return;
 }
@@ -710,6 +713,15 @@ if (args.Contains("--guest-battle-only", StringComparer.OrdinalIgnoreCase))
     return;
 }
 
+if (args.Contains("--safe-dial-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.FieldActivityNumericWindowReadTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.ShinraMansionSafeDialTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.ShinraMansionSafeDialTests.RunWithInstalledGameData();
+    Console.WriteLine("FFVII Shinra Mansion safe dial tests passed.");
+    return;
+}
+
 var root = FindGameRoot();
 var sourceRoot = FindSourceRoot();
 var captures = Path.Combine(sourceRoot, "accessibility_prototype", "helper", "bin", "Debug", "net10.0-windows", "captures");
@@ -1204,6 +1216,9 @@ AssertFieldNavigationObjectCueClassifierUsesNativeCatalogMetadata();
 AssertFieldGatewayTargetReaderReadsEveryNativeGateway();
 AssertFieldGatewayTargetReaderRejectsInvalidState();
 AssertFieldActivityReadoutSpeaksTheNativeActivities();
+Ff7.Accessibility.Reloaded.Tests.FieldActivityNumericWindowReadTests.Run();
+Ff7.Accessibility.Reloaded.Tests.ShinraMansionSafeDialTests.Run();
+Ff7.Accessibility.Reloaded.Tests.ShinraMansionSafeDialTests.RunWithInstalledGameData();
 AssertFieldScriptNavigationCatalogReadsNativeTransitions();
 AssertFieldScriptNavigationCatalogIncludesActionActivatedFloor59Elevators();
 AssertWallClimbNavigationUsesNativeBranchAndCompositeLandings();
