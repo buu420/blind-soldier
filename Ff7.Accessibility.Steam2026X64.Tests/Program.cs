@@ -38,6 +38,10 @@ if (args.Contains("--story-coverage-only", StringComparer.OrdinalIgnoreCase))
     Ff7.Accessibility.Reloaded.Tests.GoldSaucerPlatformExitTests.Run();
     Ff7.Accessibility.Reloaded.Tests.GoldSaucerPlatformExitTests.RunWithInstalledGameData();
     Ff7.Accessibility.Reloaded.Tests.GlacierSnowfieldNavigationTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.FieldActivityNumericWindowReadTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.ShinraMansionSafeDialTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.ShinraMansionSafeDialTests.RunWithInstalledGameData();
+    Steam2026SafeDialSpeechTests.Run();
     Ff7.Accessibility.Reloaded.Tests.GreatGlacierStoryTests.Run();
     Ff7.Accessibility.Reloaded.Tests.GreatGlacierStoryTests.RunWithInstalledGameData();
     Ff7.Accessibility.Reloaded.Tests.ReportedNavigationRegressionTests.RunArrivalHysteresisOnly();
@@ -506,6 +510,16 @@ if (args.Contains("--field-countdown-only", StringComparer.OrdinalIgnoreCase))
     return;
 }
 
+if (args.Contains("--safe-dial-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.FieldActivityNumericWindowReadTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.ShinraMansionSafeDialTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.ShinraMansionSafeDialTests.RunWithInstalledGameData();
+    Steam2026SafeDialSpeechTests.Run();
+    Console.WriteLine("Steam 2026 x64 Shinra Mansion safe dial tests passed.");
+    return;
+}
+
 if (args.Contains("--system-menu-only", StringComparer.OrdinalIgnoreCase))
 {
     Steam2026SystemMenuSpeechTests.Run();
@@ -597,6 +611,10 @@ HighwayEngagementSteeringTrackerTests.Run();
 Steam2026ResearchSpeechPolicyTests.Run();
 Steam2026ResearchAccessibilityOutputTests.Run();
 Steam2026ResearchObservationPumpTests.Run();
+Ff7.Accessibility.Reloaded.Tests.FieldActivityNumericWindowReadTests.Run();
+Ff7.Accessibility.Reloaded.Tests.ShinraMansionSafeDialTests.Run();
+Ff7.Accessibility.Reloaded.Tests.ShinraMansionSafeDialTests.RunWithInstalledGameData();
+Steam2026SafeDialSpeechTests.Run();
 Steam2026FieldFootstepCoordinatorTests.Run();
 Steam2026FieldFootstepNavigationProbeTests.Run();
 Steam2026RenderedMenuSpeechTrackerTests.Run();

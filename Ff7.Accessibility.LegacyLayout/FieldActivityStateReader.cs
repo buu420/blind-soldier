@@ -141,10 +141,11 @@ public sealed class FieldActivityStateReader
 
     /// <summary>
     /// The native window records. WSPCL (0x36, handler 0061FD5C) writes the display
-    /// type at 0x00CFF5D3 + window * 0x30 and the digit limit at 0x00CFF5D5 + stride;
-    /// WNUMB (0x37, handler 0061FE26) writes the displayed signed value at
-    /// 0x00CFF5D8 + stride. A window is only on screen while its own state byte at
-    /// 0x00CC0961 + window is not the free value.
+    /// type at 0x00CFF5D3 + window * 0x30; WNUMB (0x37, handler 0061FE26) writes the
+    /// displayed signed value at 0x00CFF5D8 + stride and the digit count at
+    /// 0x00CFF5D5 + stride. The digit count belongs to WNUMB rather than to the opcode
+    /// that opens the window, which is what makes it usable as evidence about the
+    /// number on screen: the mansion safe's dial is always a two digit one.
     /// </summary>
     public const int AddressWindowDisplayType = 0x00CFF5D3;
     public const int AddressWindowDigitLimit = 0x00CFF5D5;
@@ -232,8 +233,29 @@ public sealed class FieldActivityStateReader
     /// numeric one. Reading the script bank instead would hand back the last
     /// temperature of a climb the party is no longer on.
     /// </summary>
-    public FieldActivityNumericWindow ReadNumericWindow(int fieldId, int windowId)
+    public FieldActivityNumericWindow ReadNumericWindow(int fieldId, int windowId) =>
+        TryReadNumericWindow(fieldId, windowId, out var window) ? window : default;
+
+    /// <summary>
+    /// The same read, with the one distinction <see cref="ReadNumericWindow"/> throws
+    /// away: whether the answer is known at all.
+    ///
+    /// <para>False means the read failed or two samples disagreed. Nothing is known, and
+    /// in particular it is not evidence that the window closed. True means the game was
+    /// read coherently, and <paramref name="window"/> then says whether a numeric window
+    /// is actually on screen - a closed window, a window of another display type, a
+    /// different loaded field and a different module are all coherent answers of "no".
+    /// </para>
+    ///
+    /// <para>A readout that carries an attempt across frames needs both halves. Treating
+    /// a torn read as a closed window ends the attempt, hands the voice back to whatever
+    /// else is speaking, and then announces the activity again from the top when the
+    /// next sample succeeds.</para>
+    /// </summary>
+    public bool TryReadNumericWindow(int fieldId, int windowId, out FieldActivityNumericWindow window)
     {
+        window = default;
+
         // Sampled twice with the field's own identity in the comparison, like every
         // other read here. Checking the field once at the start and then reading the
         // window is how a number from the room the party has just left gets spoken as
@@ -242,19 +264,35 @@ public sealed class FieldActivityStateReader
             !TryCaptureNumericWindow(fieldId, windowId, out var after) ||
             before != after)
         {
-            return default;
+            return false;
         }
 
-        return before.Window;
+        window = before.Window;
+        return true;
     }
 
     private bool TryCaptureNumericWindow(int fieldId, int windowId, out NumericWindowCapture capture)
     {
         capture = default;
-        if (windowId < 0 ||
-            !TryReadFieldIdentity(fieldId, out var scriptSection, out var entityCount))
+        if (windowId < 0)
+        {
+            // Not a window the game has. Coherently nothing, rather than a failed look.
+            capture = new NumericWindowCapture(false, 0, 0, FreeWindowState, default);
+            return true;
+        }
+
+        var identity = ReadFieldIdentity(fieldId, out var scriptSection, out var entityCount);
+        if (identity == FieldIdentity.Unreadable)
         {
             return false;
+        }
+
+        if (identity == FieldIdentity.Elsewhere)
+        {
+            // The party is somewhere else, read cleanly. Both samples agree on that, so
+            // this comes back as a coherent "no window" rather than as unreadable.
+            capture = new NumericWindowCapture(false, 0, 0, FreeWindowState, default);
+            return true;
         }
 
         var stride = (uint)(windowId * WindowRecordStride);
@@ -267,7 +305,7 @@ public sealed class FieldActivityStateReader
         {
             // Nobody owns it, so nothing is on screen. That is a fact about the room,
             // and it is reported as "no window" rather than as a temperature of zero.
-            capture = new NumericWindowCapture(scriptSection, entityCount, owner, default);
+            capture = new NumericWindowCapture(true, scriptSection, entityCount, owner, default);
             return true;
         }
 
@@ -279,6 +317,7 @@ public sealed class FieldActivityStateReader
         }
 
         capture = new NumericWindowCapture(
+            true,
             scriptSection,
             entityCount,
             owner,
@@ -529,16 +568,34 @@ public sealed class FieldActivityStateReader
         return true;
     }
 
-    private bool TryReadFieldIdentity(int fieldId, out uint scriptSection, out byte entityCount)
+    private bool TryReadFieldIdentity(int fieldId, out uint scriptSection, out byte entityCount) =>
+        ReadFieldIdentity(fieldId, out scriptSection, out entityCount) == FieldIdentity.Loaded;
+
+    /// <summary>
+    /// Which of the three things is true of the named field right now.
+    ///
+    /// <para>The distinction only matters to a reader that carries state between frames.
+    /// A pose or a script cursor is asked for again next frame either way, so
+    /// <see cref="TryReadFieldIdentity"/> collapses the first two exactly as it always
+    /// has. Something holding an open activity has to tell them apart: a module the
+    /// party has genuinely left ends that activity, and a byte that could not be read
+    /// says nothing about whether it ended.</para>
+    /// </summary>
+    private FieldIdentity ReadFieldIdentity(int fieldId, out uint scriptSection, out byte entityCount)
     {
         scriptSection = 0;
         entityCount = 0;
         if (!memory.TryReadByte((uint)FieldPositionReader.AddressCurrentModule, out var module) ||
-            !memory.TryReadUInt16((uint)FieldPositionReader.AddressFieldId, out var currentFieldId) ||
-            module != FieldPositionReader.FieldModule ||
-            currentFieldId != fieldId)
+            !memory.TryReadUInt16((uint)FieldPositionReader.AddressFieldId, out var currentFieldId))
         {
-            return false;
+            return FieldIdentity.Unreadable;
+        }
+
+        if (module != FieldPositionReader.FieldModule || currentFieldId != fieldId)
+        {
+            // Read cleanly, and it is somewhere else. That is a fact about the game,
+            // not a failure to look.
+            return FieldIdentity.Elsewhere;
         }
 
         if (!memory.TryReadUInt32(
@@ -549,13 +606,27 @@ public sealed class FieldActivityStateReader
             entityCount == 0)
         {
             scriptSection = 0;
-            return false;
+            entityCount = 0;
+            return FieldIdentity.Unreadable;
         }
 
-        return true;
+        return FieldIdentity.Loaded;
+    }
+
+    private enum FieldIdentity
+    {
+        /// <summary>A byte could not be read, or the loaded script section is nonsense.</summary>
+        Unreadable = 0,
+
+        /// <summary>Read cleanly: the field module is not running, or another field is.</summary>
+        Elsewhere = 1,
+
+        /// <summary>Read cleanly, and the named field is the loaded one.</summary>
+        Loaded = 2
     }
 
     private readonly record struct NumericWindowCapture(
+        bool IsFieldLoaded,
         uint ScriptSection,
         byte EntityCount,
         byte Owner,
