@@ -23,6 +23,15 @@ if (args.Contains("--town-coverage-only", StringComparer.OrdinalIgnoreCase))
     Ff7.Accessibility.Reloaded.Tests.GreatGlacierStoryTests.Run();
     Ff7.Accessibility.Reloaded.Tests.GreatGlacierStoryTests.RunWithInstalledGameData();
     Ff7.Accessibility.Reloaded.Tests.ReportedNavigationRegressionTests.RunArrivalHysteresisOnly();
+    Ff7.Accessibility.Reloaded.Tests.StoryProgressionGapTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.StoryProgressionGapTests.RunWithInstalledGameData(
+        CreateInstalledFieldWalkmeshReader,
+        CreateInstalledFieldScriptCatalog());
+    Ff7.Accessibility.Reloaded.Tests.RocketGantryLadderTests.Run(CreateInstalledFieldWalkmeshReader);
+    Ff7.Accessibility.Reloaded.Tests.CidHouseLiveModelRouteTests.Run(CreateInstalledFieldWalkmeshReader);
+    Ff7.Accessibility.Reloaded.Tests.NativeLandingArrivalTests.RunWithInstalledGameData(
+        CreateInstalledFieldWalkmeshReader,
+        CreateInstalledFieldScriptCatalog());
     return;
 }
 
@@ -217,6 +226,15 @@ if (args.Contains("--native-field-movement-only", StringComparer.OrdinalIgnoreCa
     FieldNavigationNativeProbeMovementTests.Run(CreateInstalledFieldWalkmeshReader);
     FieldAutomaticMovementClearanceTests.Run(CreateInstalledFieldWalkmeshReader);
     Ff7.Accessibility.Reloaded.Tests.NibelheimMansionExitTests.Run(CreateInstalledFieldWalkmeshReader);
+    Ff7.Accessibility.Reloaded.Tests.StoryProgressionGapTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.StoryProgressionGapTests.RunWithInstalledGameData(
+        CreateInstalledFieldWalkmeshReader,
+        CreateInstalledFieldScriptCatalog());
+    Ff7.Accessibility.Reloaded.Tests.RocketGantryLadderTests.Run(CreateInstalledFieldWalkmeshReader);
+    Ff7.Accessibility.Reloaded.Tests.CidHouseLiveModelRouteTests.Run(CreateInstalledFieldWalkmeshReader);
+    Ff7.Accessibility.Reloaded.Tests.NativeLandingArrivalTests.RunWithInstalledGameData(
+        CreateInstalledFieldWalkmeshReader,
+        CreateInstalledFieldScriptCatalog());
     Steam2026MansionSecretDoorExitTests.Run(CreateInstalledFieldWalkmeshReader);
     Console.WriteLine("Native field movement probe tests passed.");
     return;
@@ -263,6 +281,15 @@ if (args.Contains("--north-corel-repair-only", StringComparer.OrdinalIgnoreCase)
     FieldNavigationNativeProbeMovementTests.Run(CreateInstalledFieldWalkmeshReader);
     FieldAutomaticMovementClearanceTests.Run(CreateInstalledFieldWalkmeshReader);
     Ff7.Accessibility.Reloaded.Tests.NibelheimMansionExitTests.Run(CreateInstalledFieldWalkmeshReader);
+    Ff7.Accessibility.Reloaded.Tests.StoryProgressionGapTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.StoryProgressionGapTests.RunWithInstalledGameData(
+        CreateInstalledFieldWalkmeshReader,
+        CreateInstalledFieldScriptCatalog());
+    Ff7.Accessibility.Reloaded.Tests.RocketGantryLadderTests.Run(CreateInstalledFieldWalkmeshReader);
+    Ff7.Accessibility.Reloaded.Tests.CidHouseLiveModelRouteTests.Run(CreateInstalledFieldWalkmeshReader);
+    Ff7.Accessibility.Reloaded.Tests.NativeLandingArrivalTests.RunWithInstalledGameData(
+        CreateInstalledFieldWalkmeshReader,
+        CreateInstalledFieldScriptCatalog());
     Steam2026MansionSecretDoorExitTests.Run(CreateInstalledFieldWalkmeshReader);
     NorthCorelRecoveryHeightTests.Run(CreateInstalledFieldWalkmeshReader);
     NorthCorelAlternateCorridorTests.Run(CreateInstalledFieldWalkmeshReader);
@@ -2437,6 +2464,22 @@ static string FindAccessibilityPrototypeRoot()
     }
 
     throw new DirectoryNotFoundException("Could not locate the accessibility_prototype root.");
+}
+
+/// <summary>
+/// The installed script catalog, for the tests that replay a route from a native
+/// landing across a ladder or jump the field owns.
+/// </summary>
+static FieldScriptNavigationCatalog CreateInstalledFieldScriptCatalog()
+{
+    var gameRoot = Environment.GetEnvironmentVariable("FF7_ACCESSIBILITY_DATA_ROOT");
+    if (string.IsNullOrWhiteSpace(gameRoot) || !Directory.Exists(Path.Combine(gameRoot, "data")))
+    {
+        throw new DirectoryNotFoundException(
+            "FF7_ACCESSIBILITY_DATA_ROOT must identify the installed FFVII data root.");
+    }
+
+    return new FieldScriptNavigationCatalog(Path.GetFullPath(gameRoot));
 }
 
 static FieldWalkmeshReader CreateInstalledFieldWalkmeshReader(int fieldId)

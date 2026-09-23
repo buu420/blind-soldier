@@ -41,6 +41,15 @@ if (args.Contains("--story-coverage-only", StringComparer.OrdinalIgnoreCase))
     Ff7.Accessibility.Reloaded.Tests.GreatGlacierStoryTests.Run();
     Ff7.Accessibility.Reloaded.Tests.GreatGlacierStoryTests.RunWithInstalledGameData();
     Ff7.Accessibility.Reloaded.Tests.ReportedNavigationRegressionTests.RunArrivalHysteresisOnly();
+    Ff7.Accessibility.Reloaded.Tests.StoryProgressionGapTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.StoryProgressionGapTests.RunWithInstalledGameData(
+        CreateInstalledFieldWalkmeshReader,
+        new FieldScriptNavigationCatalog(FindGameRoot()));
+    Ff7.Accessibility.Reloaded.Tests.RocketGantryLadderTests.Run(CreateInstalledFieldWalkmeshReader);
+    Ff7.Accessibility.Reloaded.Tests.CidHouseLiveModelRouteTests.Run(CreateInstalledFieldWalkmeshReader);
+    Ff7.Accessibility.Reloaded.Tests.NativeLandingArrivalTests.RunWithInstalledGameData(
+        CreateInstalledFieldWalkmeshReader,
+        new FieldScriptNavigationCatalog(FindGameRoot()));
     Ff7.Accessibility.Reloaded.Tests.FieldActivityNumericWindowReadTests.Run();
     Ff7.Accessibility.Reloaded.Tests.ShinraMansionSafeDialTests.Run();
     Ff7.Accessibility.Reloaded.Tests.ShinraMansionSafeDialTests.RunWithInstalledGameData();
@@ -722,6 +731,21 @@ if (args.Contains("--mansion-exits-only", StringComparer.OrdinalIgnoreCase))
     return;
 }
 
+if (args.Contains("--story-progression-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.StoryProgressionGapTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.StoryProgressionGapTests.RunWithInstalledGameData(
+        CreateInstalledFieldWalkmeshReader,
+        new FieldScriptNavigationCatalog(FindGameRoot()));
+    Ff7.Accessibility.Reloaded.Tests.RocketGantryLadderTests.Run(CreateInstalledFieldWalkmeshReader);
+    Ff7.Accessibility.Reloaded.Tests.CidHouseLiveModelRouteTests.Run(CreateInstalledFieldWalkmeshReader);
+    Ff7.Accessibility.Reloaded.Tests.NativeLandingArrivalTests.RunWithInstalledGameData(
+        CreateInstalledFieldWalkmeshReader,
+        new FieldScriptNavigationCatalog(FindGameRoot()));
+    Console.WriteLine("FFVII story progression tests passed.");
+    return;
+}
+
 if (args.Contains("--room-history-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.FieldAreaDescriptionHistoryTests.Run();
@@ -982,6 +1006,15 @@ HighwayAutoSteeringControllerTests.Run();
 NavigationAutoWalkControllerTests.Run(CreateInstalledFieldWalkmeshReader);
 FieldAutomaticMovementClearanceTests.Run(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.NibelheimMansionExitTests.Run(CreateInstalledFieldWalkmeshReader);
+Ff7.Accessibility.Reloaded.Tests.StoryProgressionGapTests.Run();
+Ff7.Accessibility.Reloaded.Tests.StoryProgressionGapTests.RunWithInstalledGameData(
+    CreateInstalledFieldWalkmeshReader,
+    new FieldScriptNavigationCatalog(FindGameRoot()));
+Ff7.Accessibility.Reloaded.Tests.RocketGantryLadderTests.Run(CreateInstalledFieldWalkmeshReader);
+Ff7.Accessibility.Reloaded.Tests.CidHouseLiveModelRouteTests.Run(CreateInstalledFieldWalkmeshReader);
+Ff7.Accessibility.Reloaded.Tests.NativeLandingArrivalTests.RunWithInstalledGameData(
+    CreateInstalledFieldWalkmeshReader,
+    new FieldScriptNavigationCatalog(FindGameRoot()));
 Ff7.Accessibility.Reloaded.Tests.ModPostBattleAutoWalkTests.Run();
 Ff7.Accessibility.Reloaded.Tests.ControllerNavigationMenuTests.Run();
 Ff7.Accessibility.Reloaded.Tests.ControllerNavigationDomainOwnershipTests.Run();
@@ -19557,7 +19590,7 @@ static void AssertFieldNavigationControllerIgnoresMidClimbLadderStateFlicker()
             ladderState: FieldLadderStateSnapshot.NotMounted),
         "a transient not-mounted frame between native ladder endpoints must not complete or reset the route");
     AssertEqual(true, controller.BeaconEnabled, "mid-climb ladder flicker retains navigation");
-    AssertContains(controller.LastNavigationDiagnostic, "between endpoints");
+    AssertContains(controller.LastNavigationDiagnostic, "holding the climb until it settles");
     AssertNull(
         controller.UpdateLiveTracking(
             midpoint,

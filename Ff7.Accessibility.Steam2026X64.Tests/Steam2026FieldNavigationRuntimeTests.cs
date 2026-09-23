@@ -35,7 +35,8 @@ internal static class Steam2026FieldNavigationRuntimeTests
         RejectsTornNativeLadderStateAcrossOwnershipBookends();
         RejectsNativeLadderEventTablePointerSwapAcrossOwnershipBookends();
         AcceptsDoubleReadNativeLadderStateWithStableOwnership();
-        RejectsTornNativeNpcTargetsAcrossOwnershipBookends();
+        AcceptsAnActorWalkingBetweenNativeNpcConfirmations();
+        RejectsRealNativeNpcChangesAcrossOwnershipBookends();
         AcceptsDoubleReadNativeNpcTargetsWithStableOwnership();
         PlaysOnlyCoherentForegroundUnmountedLadders();
         PrioritizesTheObjectiveRouteLadderEntrance();
@@ -1770,46 +1771,122 @@ internal static class Steam2026FieldNavigationRuntimeTests
         Equal(FieldLadderStateSnapshot.NotMounted, state, "coherent ladder state");
     }
 
-    private static void RejectsTornNativeNpcTargetsAcrossOwnershipBookends()
+    /// <summary>
+    /// Field NPCs walk. A model a unit or two further along between the two
+    /// confirmations is the ordinary case, and throwing the whole list away for it left
+    /// Rocket Town's street reporting no NPCs in 213 of 541 samples with three people
+    /// standing in it. The later read is published, so what the player is given is where
+    /// everybody is now.
+    /// </summary>
+    private static void AcceptsAnActorWalkingBetweenNativeNpcConfirmations()
     {
-        var position = new FieldPositionSnapshot(
-            FieldPositionReader.FieldModule,
-            123,
-            0,
-            10,
-            20,
-            30,
-            1,
-            0);
-        var positions = new Queue<FieldPositionReadResult>(
-        [
-            FieldPositionReadResult.Valid(0x1000, position, "before"),
-            FieldPositionReadResult.Valid(0x1000, position with { X = 11 }, "middle"),
-            FieldPositionReadResult.Valid(0x1000, position with { X = 12 }, "after")
-        ]);
-        var candidate = new FieldNavigationTarget(
+        var position = NpcObservationPosition();
+        var positions = NpcObservationBookends();
+        var standing = new FieldNavigationTarget(
             123,
             FieldNavigationCategory.Npcs,
             "Jessie",
             100,
             200,
             0,
-            "npc:123:4");
-        var changed = candidate with { X = 101 };
-        var snapshots = new Queue<IReadOnlyList<FieldNavigationTarget>>(
-        [
-            [candidate],
-            [changed]
-        ]);
+            "npc:123:4",
+            TriggerEntityId: 4,
+            InteractionRadius: 240);
+        var walking = standing with { X = 101, Y = 207 };
+        var snapshots = new Queue<IReadOnlyList<FieldNavigationTarget>>([[standing], [walking]]);
         var reader = new Steam2026FieldNpcObservationReader(
             () => positions.Dequeue(),
             _ => snapshots.Dequeue(),
             () => 0x2000u);
 
-        Equal(
-            false,
-            reader.TryRead(position, out _),
-            "changing native NPC coordinates must fail closed");
+        Equal(true, reader.TryRead(position, out var targets),
+            $"a walking NPC is still the same NPC: {reader.LastDiagnostic}");
+        Equal(1, targets.Count, "and the list is published whole");
+        Equal(walking, targets[0], "with the position the later read gave");
+        Equal(true, reader.LastDiagnostic.Contains("moving=1", StringComparison.Ordinal),
+            $"and the movement is recorded: {reader.LastDiagnostic}");
+    }
+
+    /// <summary>
+    /// Everything that is not somebody walking still fails closed: a different cast, a
+    /// different name, a different reach, a different way of being interacted with, a
+    /// model that has been placed somewhere else outright, and memory that cannot be
+    /// read at all.
+    /// </summary>
+    private static void RejectsRealNativeNpcChangesAcrossOwnershipBookends()
+    {
+        var position = NpcObservationPosition();
+        var jessie = new FieldNavigationTarget(
+            123,
+            FieldNavigationCategory.Npcs,
+            "Jessie",
+            100,
+            200,
+            0,
+            "npc:123:4",
+            TriggerEntityId: 4,
+            InteractionRadius: 240);
+
+        var cases = new (string Label, FieldNavigationTarget[] Confirmation)[]
+        {
+            ("an actor leaving the list", []),
+            ("an actor joining the list", [jessie, jessie with { StableId = "npc:123:5", TriggerEntityId = 5 }]),
+            ("a different entity behind the row", [jessie with { StableId = "npc:123:5", TriggerEntityId = 5 }]),
+            ("a different name", [jessie with { Label = "Biggs" }]),
+            ("a different reach", [jessie with { InteractionRadius = 120 }]),
+            ("a different activation", [jessie with { Activation = FieldNavigationActivation.Contact }]),
+            ("a proxy line appearing", [jessie with { TriggerLine = new FieldNavigationTriggerLine(0, 0, 0, 8, 0, 0) }]),
+            ("a model placed somewhere else", [jessie with { X = 100 + 1024 }]),
+        };
+
+        foreach (var (label, confirmation) in cases)
+        {
+            var positions = NpcObservationBookends();
+            var snapshots = new Queue<IReadOnlyList<FieldNavigationTarget>>([[jessie], confirmation]);
+            var reader = new Steam2026FieldNpcObservationReader(
+                () => positions.Dequeue(),
+                _ => snapshots.Dequeue(),
+                () => 0x2000u);
+            Equal(false, reader.TryRead(position, out var targets), $"{label} must fail closed");
+            Equal(0, targets.Count, $"{label} publishes nothing");
+        }
+
+        // Ownership is unchanged as a category, but the event table moved under the read.
+        var swappedPositions = NpcObservationBookends();
+        var swappedTables = new Queue<uint?>([0x2000u, 0x2000u, 0x3000u]);
+        var swapped = new Steam2026FieldNpcObservationReader(
+            () => swappedPositions.Dequeue(),
+            _ => [jessie],
+            () => swappedTables.Dequeue());
+        Equal(false, swapped.TryRead(position, out _),
+            "an event table that moves between the bookends must fail closed");
+
+        // And memory that cannot be read at all.
+        var throwingPositions = NpcObservationBookends();
+        var throwing = new Steam2026FieldNpcObservationReader(
+            () => throwingPositions.Dequeue(),
+            _ => throw new InvalidOperationException("torn native read"),
+            () => 0x2000u);
+        Equal(false, throwing.TryRead(position, out _),
+            "an unreadable native table must fail closed");
+    }
+
+    private static FieldPositionSnapshot NpcObservationPosition() =>
+        new(FieldPositionReader.FieldModule, 123, 0, 10, 20, 30, 1, 0);
+
+    /// <summary>
+    /// The player is walking too, which is ownership-neutral: the bookends check the
+    /// module, the field, the player model and the model base, not where anybody is.
+    /// </summary>
+    private static Queue<FieldPositionReadResult> NpcObservationBookends()
+    {
+        var position = NpcObservationPosition();
+        return new Queue<FieldPositionReadResult>(
+        [
+            FieldPositionReadResult.Valid(0x1000, position, "before"),
+            FieldPositionReadResult.Valid(0x1000, position with { X = 11 }, "middle"),
+            FieldPositionReadResult.Valid(0x1000, position with { X = 12 }, "after")
+        ]);
     }
 
     private static void AcceptsDoubleReadNativeNpcTargetsWithStableOwnership()

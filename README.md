@@ -13,9 +13,9 @@ is not tied to one particular screen reader.
 > [!IMPORTANT]
 > This project is for the original Final Fantasy VII PC game, not Final
 > Fantasy VII Remake or Rebirth. It is a pre-release project under active
-> development. Live play has reached the first Gold Saucer visit and the Corel
-> Prison chocobo race. Accessibility support is implemented well beyond that
-> point, but it has not been validated by a complete playthrough. See
+> development. Tester logs now include progress through Rocket Town, including
+> navigation failures worked around manually. Support extends beyond that point,
+> but it has not been validated by a complete playthrough. See
 > [Coverage and testing status](#coverage-and-testing-status).
 
 ## Coverage and testing status
@@ -24,14 +24,16 @@ Blind Soldier is a pre-release project. This section separates what is
 **implemented** from what has been **played**, because those are not the same
 thing and only the second one finds the problems a real session finds.
 
-**Played by a person:** the story from the opening through the first Gold
-Saucer visit and the Corel Prison chocobo race. Story guidance for later chapters
-has been implemented and checked offline; those chapters still need playtesting.
+**Live evidence:** tester logs include the opening, the first Gold Saucer visit,
+Corel Prison, Cosmo Canyon, Nibelheim and Rocket Town. These are recorded sessions,
+including navigation failures and manual workarounds, rather than certification
+that every route in those chapters works. Later guidance has offline checks;
+a complete supported playthrough has not been recorded.
 
 ### Story guidance
 
-The Story navigation category uses 1243 definitions tied to the game's progress
-state and field scripts, covering the opening through the
+The Story navigation category uses objectives tied to the game's progress
+state and field scripts, from the opening through the
 ending: the Midgar chapters, Kalm, the marshes and Mythril Mine, Junon, the
 cargo ship, Costa del Sol, Mount Corel, North Corel, the Gold Saucer, Corel
 Prison, the buggy and Gongaga onward, the western continent, the Temple of the
@@ -96,6 +98,18 @@ again where one exists.
 Field and world-map navigation, routes, auto walk and the progress indicator
 are described under [Navigation](#navigation).
 
+Version 0.6.5 restores Rocket Town's first-visit Story objective, steadies
+rocket ladder tracking, and improves routes around NPCs in Cid's house. It adds
+missing later-story connections and side-room return steps, corrects the
+Highwind destination after Bugenhagen's return, and restores reachable Story
+steps on the Midgar wall climb. Moving NPCs no longer discard the whole x64
+NPC list when the scene's identity and activation state remain stable.
+
+The expanded audit checks 258 progression checkpoints across both runtimes and
+both installed game archives. Both full regression suites also passed against
+the packaged mod DLLs. These are offline checks; a complete live playthrough
+remains unverified.
+
 Version 0.6.4 repairs missing Shinra Mansion exits on x64 and restores
 navigation to the safe, piano, opened-chest clue and secret passage. Room
 descriptions are remembered per save across restarts, and auto walk keeps its
@@ -125,8 +139,8 @@ time to find its tested doorway route and keeps a validated path when optional
 path shortening runs out of time. Existing observatory door handling and the
 first-visit Talk to Red XIII target remain included on both runtimes.
 
-The final checks read 702 native fields, replay 54 selected progression states
-in both runtimes against both installed archives, and test the added routes and
+The 0.6.2 checks read 702 native fields, replayed 54 selected progression states
+in both runtimes against both installed archives, and tested the added routes and
 interactions. These checks do not establish a complete live playthrough.
 
 ### Known gaps
@@ -171,10 +185,10 @@ instead of reading unverified game memory.
 Choose one download from the
 [Blind Soldier Releases page](https://github.com/buu420/blind-soldier/releases):
 
-- [Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.6.4/Blind-Soldier-Portable.zip)
+- [Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.6.5/Blind-Soldier-Portable.zip)
   is the complete dual-runtime package. Use it for Steam 2026 x64 or when one
   extracted package must support both x86 and x64 installations.
-- [Blind-Soldier-2013-x86-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.6.4/Blind-Soldier-2013-x86-Portable.zip)
+- [Blind-Soldier-2013-x86-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.6.5/Blind-Soldier-2013-x86-Portable.zip)
   is the smaller legacy-only package. Use it for the 2013 x86 game, including
   stock 7th Heaven/FFNx. It deliberately contains no Steam 2026 launcher or
   x64 files.
@@ -285,17 +299,17 @@ Visual Studio C++ Build Tools, and PowerShell, then run:
 ```powershell
 .\Build-BlindSoldierPortablePackage.ps1 `
   -OutputPath .\artifacts\Blind-Soldier-Portable.zip `
-  -Version 0.6.4
+  -Version 0.6.5
 .\Verify-BlindSoldierPortablePackage.ps1 `
   -ArchivePath .\artifacts\Blind-Soldier-Portable.zip `
-  -ExpectedVersion 0.6.4
+  -ExpectedVersion 0.6.5
 .\Build-BlindSoldier2013PortablePackage.ps1 `
   -SourceArchivePath .\artifacts\Blind-Soldier-Portable.zip `
   -OutputPath .\artifacts\Blind-Soldier-2013-x86-Portable.zip `
-  -Version 0.6.4
+  -Version 0.6.5
 .\Verify-BlindSoldier2013PortablePackage.ps1 `
   -ArchivePath .\artifacts\Blind-Soldier-2013-x86-Portable.zip `
-  -ExpectedVersion 0.6.4 `
+  -ExpectedVersion 0.6.5 `
   -ExpectedSourceArchivePath .\artifacts\Blind-Soldier-Portable.zip
 ```
 

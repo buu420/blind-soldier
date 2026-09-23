@@ -10,9 +10,21 @@
 # into them as though they were rooms to walk would be sending them somewhere the story
 # has already taken them.
 #
+# Which town this is matters, and it is easy to get wrong. Rocket Town has two street
+# maps: rckt (557) and rckt2 (551). They share seven gateway lines, including the one
+# into the captain's house, so they look interchangeable from the gateway table alone.
+# They are not. Every side room's own exit script settles it:
+#
+#   rkt_i/line1 Go:  IFSW Bank[2][0] < 1308 -> MAPJUMP 557, else MAPJUMP 551
+#
+# and rkt_w, rktinn1, rktmin1 and rktmin2 all carry the same test. Below 1308 the town
+# is 557; 551 is the street of the Huge Materia visit. rckt is also the only one of the
+# two with Rufus, Heidegger and Shera loaded, and the only one with a gateway to the
+# rocket base at all - so the chapter below is not even walkable from 551.
+#
 # The route, from the installed scripts, gateway tables and walkmesh:
 #
-#   523  rckt2 g1 into the captain's house, 558. Its back door, entity 5, wants a fresh confirm
+#   523  rckt g2 into the captain's house, 558. Its back door, entity 5, wants a fresh confirm
 #        press and below 553 it enters the backyard 552, whose Director writes 535 and
 #        plays Shera's introduction.
 #   535  552 g0 back to 558; 558's line3, entity 8, out to the town 557; 557 g0 to the
@@ -57,9 +69,10 @@ $rocketNotExplained = New-Condition -Bank 3 -Address 130 -Mask 64 -Value 0
 $rocketLadderLedge = @(107, 131)
 
 # --- Arriving in the town ---------------------------------------------------------
-Add-Definition @rocketArrival -FieldId 551 -FieldName 'rckt2' -Kind Location `
+# The same line 551 carries as its gateway 1, on the street the game actually loads.
+Add-Definition @rocketArrival -FieldId 557 -FieldName 'rckt' -Kind Location `
     -Label "Go into the captain's house" -X 321 -Y 1361 -Z 0 `
-    -EntityName 'gateway1' -ScriptType 'Gateway' `
+    -EntityName 'gateway2' -ScriptType 'Gateway' `
     -TriggerLine ([ordered]@{ startX=292; startY=1373; startZ=0; endX=351; endY=1349; endZ=0 })
 
 Add-Definition @rocketArrival -FieldId 558 -FieldName 'rktsid' -Kind Location -EntityId 5 `
@@ -189,9 +202,50 @@ Add-Definition @rocketTinyBronco -FieldId 774 -FieldName 'rckt32' -Kind Location
     -EntityName 'gateway0' -ScriptType 'Gateway' `
     -TriggerLine ([ordered]@{ startX=-322; startY=692; startZ=-160; endX=619; endY=-82; endZ=-157 })
 
-# The shop, the inn and the two houses are ordinary town rooms with their own line1 out
-# to the street; none of them is on the route and none is claimed. The rocket interiors
-# past the cabin - 565, 566, 567, 568, 569 and the abort film in 103 - belong to the
-# flashback the house crossing runs and are deliberately left alone; they are walked by
-# the story, not by the player.
+# --- The rooms off the street -------------------------------------------------------
+# None of these is on the route, and none of them holds a step. What they held before
+# was nothing at all: a player who went looking for the captain's house in the item shop
+# was told the Story category was empty, and the 2026-09-22 capture has exactly that for
+# eleven minutes across rkt_i, rkt_w, rktmin1 and rktmin2.
+#
+# So each room carries the one thing that is true in it - the way back out to the street
+# the chapter is happening on - at a priority below every real step, so it can never be
+# offered in place of one. The trigger is the room's own line1 Go, whose MAPJUMP picks
+# 557 below Bank[2][0] 1308 and 551 above it; this band is entirely below 1308.
+$rocketSideRoom = @{ MinimumGameMoment = 523; MaximumGameMoment = 565; Priority = 1 }
+
+foreach ($sideRoom in @(
+    @{ id=553; name='rkt_w';    entity=7; label='Go back out to the town'; x=544;  y=248;  z=0;
+       line=@{ startX=541;  startY=219; startZ=0; endX=547;  endY=278; endZ=0 } },
+    @{ id=554; name='rkt_i';    entity=7; label='Go back out to the town'; x=2;    y=0;    z=0;
+       line=@{ startX=-40;  startY=1;   startZ=0; endX=44;   endY=-1;  endZ=0 } },
+    @{ id=555; name='rktinn1';  entity=6; label='Go back out to the town'; x=-277; y=-3;   z=0;
+       line=@{ startX=-335; startY=-3;  startZ=0; endX=-219; endY=-3;  endZ=0 } },
+    @{ id=559; name='rktmin1';  entity=4; label='Go back out to the town'; x=-31;  y=-41;  z=0;
+       line=@{ startX=-65;  startY=-41; startZ=0; endX=3;    endY=-41; endZ=0 } },
+    @{ id=560; name='rktmin2';  entity=5; label='Go back out to the town'; x=-530; y=96;   z=0;
+       line=@{ startX=-530; startY=57;  startZ=0; endX=-531; endY=136; endZ=0 } })) {
+    Add-Definition @rocketSideRoom -FieldId $sideRoom.id -FieldName $sideRoom.name `
+        -Kind Location -EntityId $sideRoom.entity -Label $sideRoom.label `
+        -X $sideRoom.x -Y $sideRoom.y -Z $sideRoom.z `
+        -EntityName 'line1' -ScriptType 'Go' -UsesPlayerCollisionRadius `
+        -RequiredEnabledLineEntityId $sideRoom.entity `
+        -TriggerLine $sideRoom.line
+}
+
+# The inn's bedroom is one further in and leaves by an ordinary gateway rather than a
+# line, so it names the room below it rather than the street.
+Add-Definition @rocketSideRoom -FieldId 556 -FieldName 'rktinn2' -Kind Location `
+    -Label 'Go back down to the inn' -X -307 -Y 659 -Z -87 `
+    -EntityName 'gateway0' -ScriptType 'Gateway' `
+    -TriggerLine ([ordered]@{ startX=-287; startY=619; startZ=-110; endX=-327; endY=700; endZ=-64 })
+
+# The rocket interiors past the cabin - 565, 566, 567, 568, 569 and the abort film in
+# 103 - belong to the flashback the house crossing runs and are deliberately left alone;
+# they are walked by the story, not by the player.
+#
+# 551 stays curated and stays empty. It is a real street, but not this one: nothing puts
+# the party on it below Bank[2][0] 1308, and the Huge Materia visit is its own chapter.
+# The side rooms are deliberately not curated: NativeEntryDoors.ps1 still owns their
+# other chapters, and the rows above win on priority wherever both are offered.
 Add-CuratedFields 551, 552, 557, 558, 561, 562, 564, 774

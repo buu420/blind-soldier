@@ -157,7 +157,7 @@ foreach (var checkpoint in requested)
         0, checkpoint.X, checkpoint.Y, checkpoint.Z, checkpoint.Triangle, 0);
     var actual = reader.ReadTargets(position).ToArray();
     var errors = new List<string>();
-    if (checkpoint.ExpectedLabels.Length == 0 && !checkpoint.ExpectEmpty)
+    if (checkpoint.ExpectedLabels.Length == 0 && checkpoint.ForbiddenLabels.Length == 0 && !checkpoint.ExpectEmpty)
         errors.Add("Checkpoint must independently name its expected target(s), or explicitly expect an empty state.");
     if (checkpoint.ExpectedLine is not null && checkpoint.ExpectedLabels.Length != 1)
         errors.Add("A checkpoint with ExpectedLine must name exactly one expected target.");
@@ -178,16 +178,75 @@ foreach (var checkpoint in requested)
                 (anchor.ScriptId < 0 || s.ScriptId == anchor.ScriptId) && s.Opcodes.Any(o =>
                     Convert.ToHexString(o.Bytes.ToArray()).StartsWith(anchor.Hex, StringComparison.OrdinalIgnoreCase))))
             errors.Add($"Native evidence changed: entity {anchor.EntityId}, script {anchor.ScriptId}, opcode {anchor.Hex}.");
+    var routeWitnesses = new List<object>();
+    if (checkpoint.ExpectedDestinationFieldIds.Length > 0 || checkpoint.RouteArrivalFromFieldId is not null)
+    {
+        if (checkpoint.ExpectedLabels.Length != 1 || checkpoint.ExpectedLine is null)
+            errors.Add("A native transition checkpoint must name one target and its independently recorded line.");
+        else if (source.TryReadField(checkpoint.FieldId, out var encoded))
+        {
+            var bytes = Ff7LzsDecoder.DecodeFieldFile(encoded);
+            var nav = native.ReadField(checkpoint.FieldId);
+            var destinations = NativeGateways(bytes).Where(g => g.Line == checkpoint.ExpectedLine)
+                .Select(g => g.Destination)
+                .Concat(nav.Exits.Where(e => e.TriggerLine == checkpoint.ExpectedLine)
+                    .SelectMany(e => e.DestinationFieldIds ?? []))
+                .ToHashSet();
+            foreach (var destination in checkpoint.ExpectedDestinationFieldIds)
+                if (!destinations.Contains(destination))
+                    errors.Add($"Native target no longer leads to expected field {destination}.");
+            if (checkpoint.RouteArrivalFromFieldId is { } from)
+            {
+                const int fieldPointer = 0x02000000;
+                int ReadInt(int address) => address == FieldWalkmeshReader.AddressFieldDataPtr ? fieldPointer :
+                    address >= fieldPointer && address <= fieldPointer + bytes.Length - 4
+                        ? BitConverter.ToInt32(bytes, address - fieldPointer) : 0;
+                short ReadShort(int address) => address >= fieldPointer && address <= fieldPointer + bytes.Length - 2
+                    ? BitConverter.ToInt16(bytes, address - fieldPointer) : (short)0;
+                var meshReader = new FieldWalkmeshReader(ReadInt, ReadShort);
+                var mesh = meshReader.Read(position).Walkmesh;
+                var entries = new HashSet<(int X, int Y, ushort Triangle)>();
+                if (source.TryReadField(from, out var incoming))
+                    foreach (var gateway in NativeGateways(Ff7LzsDecoder.DecodeFieldFile(incoming)))
+                        if (gateway.Destination == checkpoint.FieldId)
+                            entries.Add((gateway.X, gateway.Y, gateway.Triangle));
+                foreach (var op in native.ReadAllScriptOpcodes(from).SelectMany(s => s.Opcodes)
+                             .Where(o => o.Opcode == 0x60 && o.Bytes.Count == 10))
+                {
+                    var b = op.Bytes.ToArray();
+                    if (BitConverter.ToUInt16(b, 1) == checkpoint.FieldId)
+                        entries.Add((BitConverter.ToInt16(b, 3), BitConverter.ToInt16(b, 5), BitConverter.ToUInt16(b, 7)));
+                }
+                if (checkpoint.RouteArrivalTriangle is { } wantedTriangle)
+                    entries.RemoveWhere(e => e.Triangle != wantedTriangle);
+                if (entries.Count == 0) errors.Add($"No native arrival from field {from}.");
+                if (mesh is null) errors.Add("Native walkmesh unavailable for route replay.");
+                foreach (var entry in entries)
+                {
+                    if (mesh is null || entry.Triangle >= mesh.Triangles.Count)
+                    { errors.Add("Native arrival triangle outside walkmesh."); continue; }
+                    var start = new FieldPositionSnapshot(FieldPositionReader.FieldModule, checkpoint.FieldId, 0,
+                        entry.X, entry.Y, (int)Math.Round(mesh.Triangles[entry.Triangle].GetCentroid().Z), entry.Triangle, 0);
+                    var target = reader.ReadTargets(start).Where(t => t.Label == checkpoint.ExpectedLabels[0]).ToArray();
+                    var planner = new FieldWalkmeshRoutePlanner(meshReader, transitionProvider: _ => nav.Transitions);
+                    var passed = target.Length == 1 && planner.TryBuildRoute(start, target[0], out _);
+                    routeWitnesses.Add(new { from, entry.X, entry.Y, entry.Triangle, passed, planner.LastDiagnostic });
+                    if (!passed) errors.Add($"No route to the expected active target from native arrival {from}:{entry.Triangle}: {planner.LastDiagnostic}");
+                }
+            }
+        }
+        else errors.Add("Native field unavailable for transition replay.");
+    }
     failures.AddRange(errors.Select(e => $"Checkpoint {checkpoint.Id}: {e}"));
     checkpoints.Add(new { checkpoint.Id, checkpoint.FieldId, checkpoint.Moment,
-        checkpoint.Evidence, passed = errors.Count == 0, errors,
+        checkpoint.Evidence, passed = errors.Count == 0, errors, routeWitnesses,
         actual = actual.Select(t => new { t.Label, t.TriggerEntityId, t.X, t.Y, t.Z }) });
 }
 
 var report = new { schemaVersion = 1, runtime = Environment.Is64BitProcess ? "x64" : "x86",
     runtimeAssembly = typeof(FieldStoryEventCatalog).Assembly.GetName().Name,
     nativeRoot = Path.GetFullPath(args[0]),
-    evidenceLevel = "Native catalog inventory and explicitly specified Story state replay. Not a playthrough, route proof, or a claim of full chapter coverage.",
+    evidenceLevel = "Native catalog inventory, explicit Story state replay, and requested static route witnesses from native arrivals. Does not simulate script execution, moving actors, or a playthrough.",
     storyDefinitions = story.Count, objectDefinitions = objects.Count,
     fields, checkpoints, failures, manualInteractionReviewCandidates = reviews, geometryReviewCandidates = geometryReviews };
 var output = Path.GetFullPath(args[1]);
@@ -210,6 +269,19 @@ static FieldNavigationTriggerLine ReadLine(byte[] bytes, int offset) => new(
     BitConverter.ToInt16(bytes, offset + 4), BitConverter.ToInt16(bytes, offset + 6),
     BitConverter.ToInt16(bytes, offset + 8), BitConverter.ToInt16(bytes, offset + 10));
 
+static IEnumerable<(FieldNavigationTriggerLine Line, int Destination, int X, int Y, ushort Triangle)> NativeGateways(byte[] bytes)
+{
+    var section = BitConverter.ToInt32(bytes, 6 + 7 * 4) + 4;
+    for (var i = 0; i < 12; i++)
+    {
+        var at = section + 0x38 + i * 24;
+        var destination = BitConverter.ToInt16(bytes, at + 18);
+        if (destination >= 0)
+            yield return (ReadLine(bytes, at), destination, BitConverter.ToInt16(bytes, at + 12),
+                BitConverter.ToInt16(bytes, at + 14), BitConverter.ToUInt16(bytes, at + 16));
+    }
+}
+
 sealed class Checkpoint
 {
     public string Id { get; set; } = "";
@@ -228,6 +300,9 @@ sealed class Checkpoint
     public bool ExpectEmpty { get; set; }
     public NativeAnchor[] NativeAnchors { get; set; } = [];
     public FieldNavigationTriggerLine? ExpectedLine { get; set; }
+    public int[] ExpectedDestinationFieldIds { get; set; } = [];
+    public int? RouteArrivalFromFieldId { get; set; }
+    public ushort? RouteArrivalTriangle { get; set; }
 }
 sealed record StateByte(int Bank, int Address, byte Value);
 sealed record Actor(int EntityId, int X, int Y, int Z);

@@ -267,9 +267,13 @@ internal static class WorldMapTargetCatalogTests
         StoryLabels(catalog, 1199, ["Junon"]);
         StoryLabels(catalog, 1299, ["Rocket Town (North Side)"]);
         StoryLabels(catalog, 1389, ["Cosmo Canyon"]);
-        StoryLabels(catalog, 1392, ["Bone Village"]);
+        StoryLabels(catalog, 1390, ["Cosmo Canyon"]);
+        // bugin1a AD Script7 writes1391 before MAPJUMP74. The next walk to
+        // Bugenhagen is lost1->lost3->loslake1, not another Cosmo Canyon visit.
+        StoryLabels(catalog, 1391, ["Valley, City of Ancients entrance"]);
+        StoryLabels(catalog, 1392, ["Valley, City of Ancients entrance"]);
         StoryLabels(catalog, 1396, []);
-        StoryLabels(catalog, 1397, ["Bone Village"]);
+        StoryLabels(catalog, 1397, ["Valley, City of Ancients entrance"]);
         StoryLabels(catalog, 1400, []);
         // wm0.ev's Highwind Tick tests native point 14 below 1596 and enters field
         // 52 from it at 1580; only at 1596 does it switch to point 9, write 1598 and
@@ -488,7 +492,6 @@ internal static class WorldMapTargetCatalogTests
         }
     }
 }
-
 
 
 

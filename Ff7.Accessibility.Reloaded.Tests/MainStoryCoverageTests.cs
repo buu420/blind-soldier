@@ -388,13 +388,21 @@ internal static class MainStoryCoverageTests
     /// cannot be what finishes it, and the top of the base ladder is a two-triangle ledge
     /// joined to nothing, so a row that pointed at the town from up there would be asking
     /// for a walk across empty space.
+    ///
+    /// <para>This case used to ask field 551 for the arrival step, which is where the
+    /// catalog had put it and which is not the street the game loads: every Rocket Town
+    /// side room's exit script is <c>IFSW Bank[2][0] &lt; 1308 -&gt; MAPJUMP 557</c>, else
+    /// 551. The two fields share seven gateway lines, so asking the wrong one still
+    /// produced the right answer and the town stayed silent in play for thirty-three
+    /// minutes. <c>StoryProgressionGapTests</c> owns that ground now; what is left here
+    /// is the rest of the chapter.</para>
     /// </summary>
     private static void RocketTownFirstVisitFollowsTheYardNotTheRocket()
     {
         var memory = new StoryMemory();
         memory.SetGameMoment(523);
 
-        Equal(true, memory.StoryReader().ReadTargets(Position(551)).Any(target =>
+        Equal(true, memory.StoryReader().ReadTargets(Position(557)).Any(target =>
                 target.TriggerLine is { StartX: 292, StartY: 1373 }),
             "arriving in the town the step is the captain's yard");
 

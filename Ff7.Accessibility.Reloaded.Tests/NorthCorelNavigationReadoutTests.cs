@@ -105,8 +105,8 @@ internal static class NorthCorelNavigationReadoutTests
             $"a short opening corner falsely announced arrival: {speech}");
         Require(!speech.Contains("direction unavailable", StringComparison.OrdinalIgnoreCase),
             $"the computed direction was discarded: {speech}");
-        Equal("Exits, Exit to North Corel. up less than 1.", speech,
-            "a 19-unit opening at 60 units per count must not borrow the distance of later turns");
+        Equal("Exits, Exit to North Corel. up first, 14 to go by route.", speech,
+            "a short opening must distinguish its first direction from the remaining route distance");
     }
 
     private static void AssertFieldDeparture(

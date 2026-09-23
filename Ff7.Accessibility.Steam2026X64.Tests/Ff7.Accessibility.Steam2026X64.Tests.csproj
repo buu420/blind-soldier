@@ -146,6 +146,14 @@
              Link="SharedTests\NibelheimMansionExitTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\MansionSecretDoorExitFixture.cs"
              Link="SharedTests\MansionSecretDoorExitFixture.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\StoryProgressionGapTests.cs"
+             Link="SharedTests\StoryProgressionGapTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\CidHouseLiveModelRouteTests.cs"
+             Link="SharedTests\CidHouseLiveModelRouteTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\RocketGantryLadderTests.cs"
+             Link="SharedTests\RocketGantryLadderTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\NativeLandingArrivalTests.cs"
+             Link="SharedTests\NativeLandingArrivalTests.cs" />
   </ItemGroup>
 
 </Project>

@@ -263,9 +263,12 @@ public sealed class WorldMapTargetCatalog
         new(1118, 1198, ["Mideel"]),
         new(1199, 1298, ["Junon"]),
         new(1299, 1307, ["Rocket Town (North Side)"]),
-        new(1389, 1391, ["Cosmo Canyon"]),
-        new(1392, 1395, ["Bone Village"]),
-        new(1397, 1399, ["Bone Village"]),
+        // Bugenhagen's room writes1391 before returning the party to the Highwind
+        // (bugin1a AD Script7). The next destination is the Capital entrance58;
+        // routing back to Cosmo Canyon repeats the completed handoff.
+        new(1389, 1390, ["Cosmo Canyon"]),
+        new(1391, 1395, ["Valley, City of Ancients entrance"]),
+        new(1397, 1399, ["Valley, City of Ancients entrance"]),
         // Two different native triggers, not one Midgar stage. wm0.ev's Highwind Tick
         // (function 4302 at 20EF) flies the party over the crater first: below 1580 a
         // proximity test on native point 14 calls Highwind function 20, and at 1580 the
@@ -1330,6 +1333,5 @@ public sealed class WorldMapTargetCatalog
         double PlanarArea,
         IReadOnlyList<int> TriangleIds);
 }
-
 
 

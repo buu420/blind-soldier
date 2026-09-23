@@ -909,6 +909,35 @@ public sealed class FieldWalkmeshRoutePlanner :
                     dynamicModelDiagnostic = alternateDiagnostic;
                 }
 
+                // Cid's house at moment 550 is the case this exists for. Shera stands at
+                // (-363,205) and Palmer at (-288,146) with a SLIDR 48 body, and the funnel
+                // over the triangle route 27,26,24,22,20 collapses to one straight leg that
+                // goes through Palmer. A side-step bend cannot express the answer: the way
+                // out is a hundred units north before the room opens again. So plan again
+                // with the ground somebody is standing on closed, and build the corridor
+                // portal by portal so the funnel cannot straighten it back through them.
+                var aroundDiagnostic = string.Empty;
+                if (!usedDynamicModelDetour &&
+                    TryBuildRouteAroundLiveModels(
+                        result.Walkmesh, playerTriangle, position, finalApproach, target.TriggerLine,
+                        boundaryState.IsBoundaryEnabled, offMeshLinks, dynamicObstacles,
+                        out var aroundTriangles, out var aroundPortals, out var aroundTarget,
+                        out var aroundSteps, out aroundDiagnostic))
+                {
+                    trianglePath = aroundTriangles;
+                    portals = aroundPortals;
+                    targetTriangle = aroundTarget;
+                    stableWaypointsOverride = aroundSteps;
+                    usedDynamicModelDetour = true;
+                    dynamicModelDiagnostic = aroundDiagnostic;
+                }
+                else if (!string.IsNullOrEmpty(aroundDiagnostic))
+                {
+                    alternateDiagnostic = string.IsNullOrEmpty(alternateDiagnostic)
+                        ? aroundDiagnostic
+                        : $"{alternateDiagnostic}, {aroundDiagnostic}";
+                }
+
                 if (!usedDynamicModelDetour)
                 {
                     found = false;
@@ -974,6 +1003,396 @@ public sealed class FieldWalkmeshRoutePlanner :
             usesNativeProbeClearance);
         activeTarget = target;
         return true;
+    }
+
+    /// <summary>
+    /// Plan again with the ground somebody is standing on treated as closed.
+    ///
+    /// <para>A live model is a cylinder, and the triangle whose middle is inside one is
+    /// not a way through: the native movement check rejects every step that would put the
+    /// player's body there. Closing exactly those triangles and re-running the ordinary
+    /// search is what lets the search find the way round instead of insisting on the
+    /// shortest way, which is straight through them.</para>
+    ///
+    /// <para>The corridor is then built corner by corner rather than by the plain funnel,
+    /// because the funnel would straighten it back through the body it has just gone
+    /// round. Every leg of the answer clears every model by the same half-sum clearance
+    /// the refusal used <em>and</em> passes the native wall probes, so the body fits and
+    /// not only the centre line; nothing here relaxes a collision, and a corridor with one
+    /// blocked leg is not an answer.</para>
+    ///
+    /// <para>Cid's house at GameMoment 550 is the case this exists for. Palmer's
+    /// <c>SLIDR 48</c> body at (-288,146) seals exactly one triangle, 26, and with it
+    /// closed the search answers with the way round the room -
+    /// 27,34,42,45,61,60,63,62,84,85,89,88,92,93,94,96,37,23,25,24,22,20 - which is the
+    /// corridor a wall-aware step-wise witness walks in 113 short moves at every one of
+    /// the bracketed Shera widths.</para>
+    ///
+    /// <para>This runs only where the route was about to be refused, so a route that works
+    /// today never reaches it.</para>
+    /// </summary>
+    private static bool TryBuildRouteAroundLiveModels(
+        FieldWalkmesh walkmesh,
+        int playerTriangle,
+        FieldPositionSnapshot position,
+        FieldNavigationRouteWaypoint finalApproach,
+        FieldNavigationTriggerLine? activationLine,
+        Func<int, bool>? isTriangleBlocked,
+        IReadOnlyList<FieldWalkmeshOffMeshLink> offMeshLinks,
+        IReadOnlyList<FieldNavigationDynamicObstacle> obstacles,
+        out IReadOnlyList<int> trianglePath,
+        out IReadOnlyList<FieldNavigationRoutePortal> portals,
+        out int targetTriangle,
+        out IReadOnlyList<FieldNavigationRouteStep> stableWaypoints,
+        out string diagnostic)
+    {
+        trianglePath = Array.Empty<int>();
+        portals = Array.Empty<FieldNavigationRoutePortal>();
+        targetTriangle = -1;
+        stableWaypoints = Array.Empty<FieldNavigationRouteStep>();
+        diagnostic = string.Empty;
+        if (obstacles.Count == 0)
+        {
+            return false;
+        }
+
+        // The two ends of the journey are never closed. The player may already be
+        // standing inside somebody's cylinder - that is how a conversation ends - and a
+        // door with somebody loitering in it is still the door.
+        var approachTriangle = FieldWalkmeshPathfinder.ResolveTriangle(
+            walkmesh, finalApproach.X, finalApproach.Y, finalApproach.Z, preferredTriangleIndex: -1);
+        var occupied = new HashSet<int>();
+        for (var index = 0; index < walkmesh.Triangles.Count; index++)
+        {
+            if (index == playerTriangle || index == approachTriangle)
+            {
+                continue;
+            }
+
+            var centre = walkmesh.Triangles[index].GetCentroid();
+            foreach (var obstacle in obstacles)
+            {
+                if (!double.IsFinite(obstacle.ClearanceRadius) || obstacle.ClearanceRadius <= 0d)
+                {
+                    continue;
+                }
+
+                if (Math.Abs(obstacle.Z - centre.Z) >
+                    FieldNavigationDynamicObstacleGeometry.NativeMaximumVerticalSeparation)
+                {
+                    continue;
+                }
+
+                var offsetX = obstacle.X - centre.X;
+                var offsetY = obstacle.Y - centre.Y;
+                if (offsetX * offsetX + offsetY * offsetY <
+                    obstacle.ClearanceRadius * obstacle.ClearanceRadius)
+                {
+                    occupied.Add(index);
+                    break;
+                }
+            }
+        }
+
+        if (occupied.Count == 0)
+        {
+            // Nobody is standing on the ground itself, so closing triangles would change
+            // nothing and the refusal stands.
+            diagnostic = "no live model occupies a triangle";
+            return false;
+        }
+
+        bool IsClosed(int index) =>
+            isTriangleBlocked?.Invoke(index) == true || occupied.Contains(index);
+
+        if (!FieldWalkmeshPathfinder.TryBuildRoute(
+                walkmesh, playerTriangle, position.X, position.Y, position.Z,
+                finalApproach.X, finalApproach.Y, finalApproach.Z,
+                IsClosed, offMeshLinks,
+                out var occupiedAwareTriangles, out var occupiedAwarePortals, out var occupiedAwareTarget))
+        {
+            diagnostic = $"no route round {occupied.Count} occupied triangle(s)";
+            return false;
+        }
+
+        // The body that has to fit through every doorway on the way: the player's own
+        // collision width, which the obstacle reader already carries.
+        var playerRadius = obstacles
+            .Where(obstacle => double.IsFinite(obstacle.PlayerCollisionRadius))
+            .Select(obstacle => obstacle.PlayerCollisionRadius)
+            .DefaultIfEmpty(0d)
+            .Max();
+        if (playerRadius <= 0d)
+        {
+            diagnostic = "no player collision width to clear the walls with";
+            return false;
+        }
+
+        var start = new FieldNavigationRouteWaypoint(position.X, position.Y, position.Z);
+        var steps = BuildModelClearWaypoints(
+            walkmesh, playerTriangle, start, occupiedAwareTriangles, occupiedAwarePortals,
+            finalApproach, activationLine, playerRadius, isTriangleBlocked, IsClosed, obstacles);
+        if (steps.Count == 0)
+        {
+            diagnostic = "the way round is still blocked leg by leg";
+            return false;
+        }
+
+        trianglePath = occupiedAwareTriangles;
+        portals = occupiedAwarePortals;
+        targetTriangle = occupiedAwareTarget;
+        stableWaypoints = steps;
+        diagnostic =
+            $"live models occupy triangle(s) {string.Join(",", occupied.Order())}; " +
+            $"route round them in {steps.Count} clear leg(s)";
+        return true;
+    }
+
+    /// <summary>
+    /// The funnel, but a corner is only taken when the leg to it clears the live models
+    /// <em>and</em> passes the native wall probes. Where it does not, the corridor falls
+    /// back to the doorways themselves, which is how a player walks round somebody
+    /// standing in a room.
+    ///
+    /// <para>The wall check is the part that was missing. A leg whose centre line is
+    /// walkable can still be a leg the game will not walk: <c>FUN_00636C41</c> tests the
+    /// heading and its two forty-five-degree flanks a player radius ahead, and in a room
+    /// this size those probes leave the floor long before the centre does. Root's
+    /// clearance probe found every one of the five legs the first draft emitted failing
+    /// exactly that - <c>(-249,392)</c> to <c>(-38,375)</c> puts its start flank at
+    /// <c>(-226,366)</c>, which is off the walkmesh - while a step-wise witness with the
+    /// same probes applied shows a clear way round does exist. So the corner is only
+    /// taken when <see cref="AreNativeWallProbesClear"/> agrees.</para>
+    ///
+    /// <para>Doorways give several candidates rather than one. A single inset midpoint is
+    /// often the one point in a doorway whose flanks clip the jamb, and rejecting it
+    /// would reject the doorway.</para>
+    ///
+    /// <para>The last leg is the native activation, not the final approach. A trigger
+    /// line's approach point sits on the line itself, which in a small room is at or past
+    /// the floor edge, so the flanks of the leg reaching it are outside the walkmesh by
+    /// construction. <c>FUN_00637ABB</c> fires a Go handler when the player is strictly
+    /// inside their own <c>+0x72</c> radius of the line, so a corridor that ends on the
+    /// floor within that reach has arrived. The final approach is still preferred when it
+    /// is reachable; this only supplies the ending when it is not.</para>
+    ///
+    /// <para>Answers an empty list when neither is available. That is a real refusal: the
+    /// route along this triangle path cannot be walked while those bodies are where they
+    /// are.</para>
+    /// </summary>
+    private static IReadOnlyList<FieldNavigationRouteStep> BuildModelClearWaypoints(
+        FieldWalkmesh walkmesh,
+        int startTriangle,
+        FieldNavigationRouteWaypoint start,
+        IReadOnlyList<int> trianglePath,
+        IReadOnlyList<FieldNavigationRoutePortal> portals,
+        FieldNavigationRouteWaypoint finalApproach,
+        FieldNavigationTriggerLine? activationLine,
+        double playerRadius,
+        Func<int, bool>? isTriangleBlocked,
+        Func<int, bool>? isTriangleClosed,
+        IReadOnlyList<FieldNavigationDynamicObstacle> obstacles)
+    {
+        const int maximumCandidates = 512;
+        const int maximumMilliseconds = 60;
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+
+        // Candidates in route order, one group per triangle the corridor passes through.
+        // Doorway points alone are not enough: the one point in a doorway whose flanks
+        // both clear the jamb may not be its middle, and the corner that makes a leg work
+        // is often out in the room rather than in the door. Each group offers the
+        // triangle's own middle and points set back from each of its edges - the same
+        // shape of lattice the model corridor generator uses, restricted to this
+        // corridor's own triangles so the work stays finite.
+        var candidates = new List<(FieldNavigationRouteWaypoint Point, int PortalIndex, int Triangle)>(
+            Math.Min(maximumCandidates, trianglePath.Count * 19 + 1));
+        for (var pathIndex = 0; pathIndex < trianglePath.Count; pathIndex++)
+        {
+            var triangleIndex = trianglePath[pathIndex];
+            if ((uint)triangleIndex >= walkmesh.Triangles.Count ||
+                isTriangleClosed?.Invoke(triangleIndex) == true)
+            {
+                continue;
+            }
+
+            var triangle = walkmesh.Triangles[triangleIndex];
+            var centre = triangle.GetCentroid();
+            var portalIndex = Math.Min(pathIndex, portals.Count);
+            var group = new List<FieldNavigationRouteWaypoint>(19);
+            for (var edgeIndex = 0; edgeIndex < 3; edgeIndex++)
+            {
+                var edge = triangle.GetEdge(edgeIndex);
+                foreach (var crossing in new[] { 0.35d, 0.5d, 0.65d })
+                {
+                    var edgeX = edge.Start.X + (edge.End.X - (double)edge.Start.X) * crossing;
+                    var edgeY = edge.Start.Y + (edge.End.Y - (double)edge.Start.Y) * crossing;
+                    var edgeZ = edge.Start.Z + (edge.End.Z - (double)edge.Start.Z) * crossing;
+                    foreach (var inset in new[] { 0.3d, 0.6d })
+                    {
+                        group.Add(new FieldNavigationRouteWaypoint(
+                            (int)Math.Round(edgeX + (centre.X - edgeX) * inset),
+                            (int)Math.Round(edgeY + (centre.Y - edgeY) * inset),
+                            (int)Math.Round(edgeZ + (centre.Z - edgeZ) * inset)));
+                    }
+                }
+            }
+
+            // The middle goes last so the furthest-first scan reaches for it first.
+            group.Add(new FieldNavigationRouteWaypoint(
+                (int)Math.Round(centre.X), (int)Math.Round(centre.Y), (int)Math.Round(centre.Z)));
+            foreach (var point in group)
+            {
+                if (candidates.Count >= maximumCandidates)
+                {
+                    break;
+                }
+
+                candidates.Add((point, portalIndex, triangleIndex));
+            }
+        }
+
+        candidates.Add((finalApproach, portals.Count, -1));
+
+        var chosenSteps = new List<(FieldNavigationRouteWaypoint Point, int PortalIndex, bool IsFinalApproach)>();
+        var apex = start;
+        var apexTriangle = startTriangle;
+        var next = 0;
+        while (next < candidates.Count)
+        {
+            if (clock.ElapsedMilliseconds > maximumMilliseconds)
+            {
+                return Array.Empty<FieldNavigationRouteStep>();
+            }
+
+            var chosen = -1;
+            var chosenTriangle = apexTriangle;
+            for (var probe = candidates.Count - 1; probe >= next; probe--)
+            {
+                if (clock.ElapsedMilliseconds > maximumMilliseconds)
+                {
+                    return Array.Empty<FieldNavigationRouteStep>();
+                }
+
+                var candidate = candidates[probe];
+                if (candidate.Point == apex ||
+                    FieldNavigationDynamicObstacleGeometry.IntersectsAny(apex, candidate.Point, obstacles))
+                {
+                    continue;
+                }
+
+                var trace = FieldWalkmeshPathfinder.TraceWalkableSegment(
+                    walkmesh, apexTriangle, apex, candidate.Point, isTriangleClosed,
+                    applyPortalInset: false);
+                if (!trace.IsClear)
+                {
+                    continue;
+                }
+
+                // The body the player is actually pushing through the room. Walls are
+                // geometry, so the probes use the boundary locks rather than the ground
+                // closed for standing models; the models themselves were checked above.
+                if (!AreNativeWallProbesClear(
+                        walkmesh, apexTriangle, apex, candidate.Point, playerRadius, isTriangleBlocked))
+                {
+                    continue;
+                }
+
+                chosen = probe;
+                chosenTriangle = candidate.Triangle >= 0 ? candidate.Triangle : trace.EndTriangle;
+                break;
+            }
+
+            if (chosen < 0)
+            {
+                break;
+            }
+
+            var step = candidates[chosen];
+            chosenSteps.Add((step.Point, step.PortalIndex, chosen == candidates.Count - 1));
+            apex = step.Point;
+            apexTriangle = chosenTriangle;
+            next = chosen + 1;
+        }
+
+        if (chosenSteps.Count == 0)
+        {
+            return Array.Empty<FieldNavigationRouteStep>();
+        }
+
+        // Either the corridor reached the approach point, or its last corner is already
+        // inside the native activation reach of the line the target is.
+        var last = chosenSteps[^1];
+        if (!last.IsFinalApproach &&
+            !ActivatesNativeTriggerLine(last.Point, activationLine, playerRadius))
+        {
+            return Array.Empty<FieldNavigationRouteStep>();
+        }
+
+        var steps = new List<FieldNavigationRouteStep>(chosenSteps.Count);
+        for (var index = 0; index < chosenSteps.Count; index++)
+        {
+            var isLast = index == chosenSteps.Count - 1;
+            steps.Add(new FieldNavigationRouteStep(
+                chosenSteps[index].Point,
+                chosenSteps[index].PortalIndex,
+                MustReach: !isLast,
+                RequiresExplicitArrival: !isLast));
+        }
+
+        return steps;
+    }
+
+    /// <summary>
+    /// Whether standing here is somewhere the controller will accept as having arrived
+    /// at this line.
+    ///
+    /// <para>Two tests, both the ones already used elsewhere for a trigger-line approach.
+    /// Horizontally, the reach is the one the controller itself resolves - a row that
+    /// uses the player's collision radius carries it as an interaction radius of one less
+    /// - rather than the raw width, so a corridor cannot end at a distance the controller
+    /// would still be walking from. Vertically,
+    /// <see cref="CalculateVerticalDistanceToTriggerLine"/> against
+    /// <see cref="NativeInteractionVerticalRange"/>, because a planar test alone would
+    /// accept a point directly above or below the line on another floor of an overlapping
+    /// mesh.</para>
+    ///
+    /// <para>A target with no line has no such reach and must be walked to.</para>
+    /// </summary>
+    private static bool ActivatesNativeTriggerLine(
+        FieldNavigationRouteWaypoint point,
+        FieldNavigationTriggerLine? activationLine,
+        double playerRadius)
+    {
+        if (activationLine is not { } line || !double.IsFinite(playerRadius))
+        {
+            return false;
+        }
+
+        var reach = playerRadius - 1d;
+        if (reach <= 0d)
+        {
+            return false;
+        }
+
+        if (CalculateVerticalDistanceToTriggerLine(point, line) >= NativeInteractionVerticalRange)
+        {
+            return false;
+        }
+
+        var segmentX = line.EndX - (double)line.StartX;
+        var segmentY = line.EndY - (double)line.StartY;
+        var lengthSquared = segmentX * segmentX + segmentY * segmentY;
+        var amount = lengthSquared <= 0.000001d
+            ? 0d
+            : Math.Clamp(
+                ((point.X - line.StartX) * segmentX + (point.Y - line.StartY) * segmentY) / lengthSquared,
+                0d,
+                1d);
+        var closestX = line.StartX + segmentX * amount;
+        var closestY = line.StartY + segmentY * amount;
+        var offsetX = point.X - closestX;
+        var offsetY = point.Y - closestY;
+        return offsetX * offsetX + offsetY * offsetY <= reach * reach;
     }
 
     private readonly record struct ModelCorridorNode(FieldNavigationRouteWaypoint Point, int Triangle);
