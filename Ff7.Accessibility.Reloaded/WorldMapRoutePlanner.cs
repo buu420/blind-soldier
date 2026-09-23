@@ -34,8 +34,18 @@ public static class WorldMapTerrainPassability
             // Highwind travels above terrain. Landing eligibility is a target
             // concern and must not break an airborne route.
             3 => true,
-            // Tiny Bronco can use ordinary coast/river/shallow-water terrain.
-            5 => WalkingTerrain.Contains(terrainId) || terrainId is 4 or 5 or 6,
+            // The Tiny Bronco is a boat. River crossing, river and shallow water, and
+            // nothing else: across the whole 2026-09-23 session the party on foot occupied
+            // terrain 0, 11, 16 and 17 and never 4, 5 or 6, while the Bronco occupied 4, 5
+            // and 6 across 1677 samples and never anything else - including the minutes the
+            // mod spent steering it at inland Gongaga and the game refusing every step.
+            //
+            // It had been given all the walking terrain as well, so routes were planned
+            // over land it can never enter, 26 of 37 towns were announced as sailable, and
+            // auto walk drove it into a bank until the convergence guard gave up. Terrain 3
+            // stays out deliberately: it is 87,411 of the map's 142,586 triangles, and a
+            // boat that crosses the open sea is the progression the Highwind exists for.
+            5 => terrainId is 4 or 5 or 6,
             // Buggy adds the native river-crossing surface to walking land.
             6 => WalkingTerrain.Contains(terrainId) || terrainId == 4,
             // Submarine and red submarine own the underwater world.
@@ -333,9 +343,32 @@ public sealed class WorldMapRoutePlanner
             var triangle = map.Triangles[current.TriangleId];
             if (!WorldMapTerrainPassability.CanTraverse(state.PlayerModelId, state.WorldMapType, triangle.TerrainId) ||
                 (exemptEntrances is not null &&
-                 IsUnwantedEntrance(current.TriangleId, exemptEntrances, startTriangle)) ||
-                !TryClipSegment(triangle, state, end, out var first, out var last) ||
-                current.EnteredAt < first - 1e-7 || current.EnteredAt > last + 1e-7)
+                 IsUnwantedEntrance(current.TriangleId, exemptEntrances, startTriangle)))
+            {
+                continue;
+            }
+
+            double first;
+            double last;
+            if (exemptEntrances is not null &&
+                exemptEntrances.Contains(current.TriangleId) &&
+                HasNoPlanArea(triangle))
+            {
+                // A vertical face of the chosen destination's own trigger. It has no X/Z
+                // extent to clip the segment against, so the segment crosses it at the
+                // instant it reached it and leaves through the neighbour sharing that same
+                // line. The Weapon Seller's trigger is a box whose walls are exactly this,
+                // and the game enters field 79 when the party steps across one: 08:50:58,
+                // 08:51:07 and 08:52:27 in the 2026-09-23 log are each a step from just
+                // outside the wall going in, with the native walkmap reading script 7.
+                // Rejecting the face left auto walk sliding along the wall. Only the
+                // destination's own faces pass; a cliff, or another town's wall, still
+                // stops the segment.
+                first = current.EnteredAt;
+                last = current.EnteredAt;
+            }
+            else if (!TryClipSegment(triangle, state, end, out first, out last) ||
+                     current.EnteredAt < first - 1e-7 || current.EnteredAt > last + 1e-7)
             {
                 continue;
             }
@@ -368,6 +401,11 @@ public sealed class WorldMapRoutePlanner
 
         return false;
     }
+
+    /// <summary>A face standing exactly vertical: its three vertices are collinear in X/Z.</summary>
+    private static bool HasNoPlanArea(WorldMapTriangle triangle) =>
+        (long)(triangle.Vertex1.X - triangle.Vertex0.X) * (triangle.Vertex2.Z - triangle.Vertex0.Z) ==
+        (long)(triangle.Vertex2.X - triangle.Vertex0.X) * (triangle.Vertex1.Z - triangle.Vertex0.Z);
 
     private bool TryClipSegment(WorldMapTriangle triangle, WorldMapStateSnapshot start,
         WorldMapRouteWaypoint end, out double first, out double last)
@@ -629,6 +667,25 @@ public sealed class WorldMapRoutePlanner
         int targetTriangle)
     {
         var start = new WorldMapRouteWaypoint(state.X, state.Y, state.Z);
+
+        // Into a place through its own wall, the walk ends at the wall: the native entry
+        // fires on the step past the wall line (the 08:50:58 witness stood on it, at
+        // 129347,409,173056, and the next step entered field 79). The faces beyond are
+        // vertical in X/Z, and pulling the string through them stacks waypoints on the wall
+        // line at different heights - including through a corner edge that is a single
+        // point in plan - so auto walk paces along the wall and never steps in. Portals
+        // stop at the first such face; the final point is still the arrival inside.
+        var firstOwnWall = path
+            .Select((triangleId, index) => (triangleId, index))
+            .FirstOrDefault(step => step.index > 0 &&
+                                    target.NativeEntranceExemptions.Contains(step.triangleId) &&
+                                    HasNoPlanArea(map.Triangles[step.triangleId]))
+            .index;
+        if (firstOwnWall > 0)
+        {
+            path = path.Take(firstOwnWall + 1).ToArray();
+        }
+
         var unwrappedCentroids = BuildUnwrappedCentroids(path, start);
         var portals = new List<WorldMapRoutePortal>(Math.Max(0, path.Count - 1));
         for (var index = 0; index < path.Count - 1; index++)
@@ -653,6 +710,10 @@ public sealed class WorldMapRoutePlanner
             var firstPoint = Unwrap(first, referenceX, referenceZ);
             var secondPoint = Unwrap(second, referenceX, referenceZ);
             InsetPortal(ref firstPoint, ref secondPoint);
+            if (state.PlayerModelId == WorldMapBroncoLanding.BroncoModelId)
+            {
+                ClipPortalToBoatFootprint(ref firstPoint, ref secondPoint);
+            }
             portals.Add(OrientPortal(
                 firstPoint,
                 secondPoint,
@@ -682,7 +743,9 @@ public sealed class WorldMapRoutePlanner
             normalizedFinalPoint,
             finalReference.X,
             finalReference.Z);
-        var pulled = WorldMapFunnel.BuildStableWaypoints(start, portals, unwrappedFinalPoint);
+        var pulled = state.PlayerModelId == WorldMapBroncoLanding.BroncoModelId
+            ? BuildSailableWaypoints(start, portals, unwrappedFinalPoint)
+            : WorldMapFunnel.BuildStableWaypoints(start, portals, unwrappedFinalPoint);
         var normalized = pulled
             .Select(point => new WorldMapRouteWaypoint(
                 Normalize(point.X, map.WrapWidth),
@@ -750,6 +813,208 @@ public sealed class WorldMapRoutePlanner
         return firstSide >= 0d
             ? new WorldMapRoutePortal(first, second)
             : new WorldMapRoutePortal(second, first);
+    }
+
+    /// <summary>
+    /// The Tiny Bronco's waypoints: the middle of each portal's sailable stretch, joined by
+    /// straight lines only where the boat can sail them. A string pulled tight through the
+    /// portals is the shortest line for something with no size; for a boat 350 units
+    /// either way it cuts every bend across the bank. Each leg here is extended as far
+    /// down the corridor as a straight line keeps the boat's footprint on water, one
+    /// native frame of movement at a time.
+    /// </summary>
+    private IReadOnlyList<WorldMapRouteWaypoint> BuildSailableWaypoints(
+        WorldMapRouteWaypoint start,
+        IReadOnlyList<WorldMapRoutePortal> portals,
+        WorldMapRouteWaypoint finalApproach)
+    {
+        var points = portals
+            .Select(portal => new WorldMapRouteWaypoint(
+                (portal.Left.X + portal.Right.X) / 2,
+                (portal.Left.Y + portal.Right.Y) / 2,
+                (portal.Left.Z + portal.Right.Z) / 2))
+            .Append(finalApproach)
+            .ToList();
+        var waypoints = new List<WorldMapRouteWaypoint>();
+        var from = start;
+        var next = 0;
+        while (next < points.Count)
+        {
+            var reach = next;
+            while (reach + 1 < points.Count && IsSailable(from, points[reach + 1]))
+            {
+                reach++;
+            }
+
+            // Even the next portal may be out of straight-line reach round a tight bend;
+            // bend the leg through water the boat fits instead of across the bank.
+            if (reach == next && !IsSailable(from, points[reach]))
+            {
+                AddSailableBend(waypoints, from, points[reach], depth: 0);
+            }
+
+            waypoints.Add(points[reach]);
+            from = points[reach];
+            next = reach + 1;
+        }
+
+        return waypoints;
+    }
+
+    /// <summary>
+    /// Splits a leg the boat cannot sail straight: its middle is moved sideways to the
+    /// nearest point where the boat fits, and each half is split again if it still cannot be
+    /// sailed. Adds the intermediate points only; the caller adds the leg's end.
+    /// </summary>
+    private void AddSailableBend(
+        List<WorldMapRouteWaypoint> waypoints,
+        WorldMapRouteWaypoint from,
+        WorldMapRouteWaypoint to,
+        int depth)
+    {
+        const int maxDepth = 4;
+        const int searchStep = 32;
+        const int searchReach = 640;
+        if (depth >= maxDepth || IsSailable(from, to))
+        {
+            return;
+        }
+
+        var dx = to.X - (double)from.X;
+        var dz = to.Z - (double)from.Z;
+        var length = Math.Sqrt(dx * dx + dz * dz);
+        if (length < 2d * searchStep)
+        {
+            return;
+        }
+
+        var sideX = -dz / length;
+        var sideZ = dx / length;
+        var middleX = (from.X + to.X) / 2d;
+        var middleZ = (from.Z + to.Z) / 2d;
+        for (var offset = 0; offset <= searchReach; offset += searchStep)
+        {
+            foreach (var side in offset == 0 ? new[] { 0 } : new[] { offset, -offset })
+            {
+                var bend = new WorldMapRouteWaypoint(
+                    (int)Math.Round(middleX + sideX * side),
+                    (from.Y + to.Y) / 2,
+                    (int)Math.Round(middleZ + sideZ * side));
+                if (!WorldMapBroncoLanding.HasBoatFootprint(map, bend.X, bend.Z))
+                {
+                    continue;
+                }
+
+                AddSailableBend(waypoints, from, bend, depth + 1);
+                waypoints.Add(bend);
+                AddSailableBend(waypoints, bend, to, depth + 1);
+                return;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Whether the boat can sail a leg with room to spare: the line itself and the lines
+    /// <see cref="SailingLegMargin"/> either side of it. Eight directions cannot hold an
+    /// arbitrary heading, so the boat weaves about the leg; a leg with no room either side
+    /// is one it drifts off into the bank.
+    /// </summary>
+    private bool IsSailable(WorldMapRouteWaypoint from, WorldMapRouteWaypoint to)
+    {
+        const double frame = 60d;
+        var dx = to.X - (double)from.X;
+        var dz = to.Z - (double)from.Z;
+        var length = Math.Sqrt(dx * dx + dz * dz);
+        if (length < 1d)
+        {
+            return true;
+        }
+
+        var sideX = -dz / length * SailingLegMargin;
+        var sideZ = dx / length * SailingLegMargin;
+        var samples = (int)Math.Ceiling(length / frame);
+        for (var sample = 1; sample < samples; sample++)
+        {
+            var fraction = sample / (double)samples;
+            var x = from.X + dx * fraction;
+            var z = from.Z + dz * fraction;
+            foreach (var side in new[] { 0d, 1d, -1d })
+            {
+                if (!WorldMapBroncoLanding.HasBoatFootprint(
+                        map,
+                        (int)Math.Round(x + sideX * side),
+                        (int)Math.Round(z + sideZ * side)))
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    private const double SailingLegMargin = 48d;
+
+    /// <summary>
+    /// The part of a portal the Tiny Bronco can actually pass through. FUN_00751EFC moves
+    /// model 5 only where all five of its contact points - the centre and 350 units along
+    /// each axis - are on water, so a string pulled tight round a bend runs along the bank
+    /// where the boat cannot go; from the 08:42:12 boat the route to the seller's beach
+    /// did exactly that and wedged the boat where no fanned step was left. The portal is
+    /// narrowed to its longest stretch where the boat fits, or left alone if it has none.
+    /// </summary>
+    private void ClipPortalToBoatFootprint(
+        ref WorldMapRouteWaypoint first,
+        ref WorldMapRouteWaypoint second)
+    {
+        const double sampleSpacing = 32d;
+        var dx = second.X - (double)first.X;
+        var dy = second.Y - (double)first.Y;
+        var dz = second.Z - (double)first.Z;
+        var length = Math.Sqrt(dx * dx + dz * dz);
+        var samples = Math.Max(1, (int)Math.Ceiling(length / sampleSpacing));
+        int bestStart = -1, bestEnd = -1, runStart = -1;
+        for (var sample = 0; sample <= samples; sample++)
+        {
+            var fraction = sample / (double)samples;
+            var fits = WorldMapBroncoLanding.HasBoatFootprint(
+                map,
+                (int)Math.Round(first.X + dx * fraction),
+                (int)Math.Round(first.Z + dz * fraction));
+            if (fits && runStart < 0)
+            {
+                runStart = sample;
+            }
+
+            if (fits && (bestStart < 0 || sample - runStart > bestEnd - bestStart))
+            {
+                bestStart = runStart;
+                bestEnd = sample;
+            }
+
+            if (!fits)
+            {
+                runStart = -1;
+            }
+        }
+
+        if (bestStart < 0)
+        {
+            return;
+        }
+
+        var origin = first;
+        WorldMapRouteWaypoint At(int sample)
+        {
+            var fraction = sample / (double)samples;
+            return new WorldMapRouteWaypoint(
+                (int)Math.Round(origin.X + dx * fraction),
+                (int)Math.Round(origin.Y + dy * fraction),
+                (int)Math.Round(origin.Z + dz * fraction));
+        }
+
+        first = At(bestStart);
+        second = At(bestEnd);
     }
 
     private static void InsetPortal(

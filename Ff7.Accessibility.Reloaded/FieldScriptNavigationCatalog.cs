@@ -44,7 +44,16 @@ public readonly record struct FieldScriptNpcDefinition(
     IReadOnlyList<int> DialogIds,
     int? InteractionLineEntityId = null,
     FieldNavigationTriggerLine? InteractionLine = null,
-    string ModelResourceName = "");
+    string ModelResourceName = "")
+{
+    /// <summary>
+    /// Whether <see cref="InteractionLine"/> runs this entity's own Talk script (REQ of
+    /// script 1): the game's counter for talking to them, as opposed to a LINE that asks
+    /// them for something else. zz2's reward boxes request the seller's scripts 5 and 7;
+    /// the counters of fields 153, 376 (both receptionists), 443 and 503 request script 1.
+    /// </summary>
+    public bool InteractionLineRunsTalk { get; init; }
+}
 
 public readonly record struct FieldScriptWaitDefinition(
     int FieldId,
@@ -496,7 +505,10 @@ public sealed class FieldScriptNavigationCatalog
                 uniqueDialogIds,
                 interactionLine?.EntityId,
                 interactionLine?.Line,
-                ReadModelResourceName(group, modelResources)));
+                ReadModelResourceName(group, modelResources))
+            {
+                InteractionLineRunsTalk = interactionLine?.RunsTalk == true
+            });
         }
 
         return definitions;
@@ -732,7 +744,11 @@ public sealed class FieldScriptNavigationCatalog
 
                 if (chosen is null || lineGroup.Index < chosen.Value.EntityId)
                 {
-                    chosen = new NpcInteractionLineDefinition(lineGroup.Index, line.TriggerLine);
+                    chosen = new NpcInteractionLineDefinition(
+                        lineGroup.Index,
+                        line.TriggerLine,
+                        lineGroup.Scripts.Values.Any(lineScript =>
+                            RequestsEntityScript(lineScript, npcGroup.Index, TalkScript)));
                 }
 
                 break;
@@ -747,6 +763,17 @@ public sealed class FieldScriptNavigationCatalog
             opcode.Id is >= EntityRequestOpcode and <= EntityRequestSyncOpcode &&
             opcode.Bytes.Length >= 3 &&
             opcode.Bytes[1] == entityId);
+
+    /// <summary>
+    /// REQ, REQSW and REQEW name the entity in their first argument and pack the priority
+    /// over the script number in the second: <c>(priority &lt;&lt; 5) | script</c>.
+    /// </summary>
+    private static bool RequestsEntityScript(byte[] script, int entityId, int scriptId) =>
+        ReadOpcodes(script).Any(opcode =>
+            opcode.Id is >= EntityRequestOpcode and <= EntityRequestSyncOpcode &&
+            opcode.Bytes.Length >= 3 &&
+            opcode.Bytes[1] == entityId &&
+            (opcode.Bytes[2] & 0x1F) == scriptId);
 
     private static NpcInteractionLineDefinition? ReadNpcInteractionLine(
         IReadOnlyList<ScriptGroup> groups,
@@ -2112,7 +2139,8 @@ public sealed class FieldScriptNavigationCatalog
 
     private readonly record struct NpcInteractionLineDefinition(
         int EntityId,
-        FieldNavigationTriggerLine Line);
+        FieldNavigationTriggerLine Line,
+        bool RunsTalk = false);
 
     private enum ActionKind
     {

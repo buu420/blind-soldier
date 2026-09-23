@@ -5,7 +5,7 @@
   "scannedGameMomentWrites": 334,
   "navigableGameMomentWrites": 118,
   "unresolvedAutomaticOrIndirectWrites": 219,
-  "definitionCount": 1340,
+  "definitionCount": 1342,
   "definitions": [
     {
       "fieldId": 115,
@@ -42389,6 +42389,54 @@
         "startZ": 0,
         "endX": 126,
         "endY": -343,
+        "endZ": 0
+      }
+    },
+    {
+      "fieldId": 79,
+      "kind": "Model",
+      "label": "Ask the weapon seller about the Keystone",
+      "entityId": 4,
+      "x": 0,
+      "y": 0,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 566,
+      "maximumGameMoment": 608,
+      "priority": 0,
+      "sourceFieldName": "zz2",
+      "sourceEntityName": "m",
+      "sourceScriptType": "Talk",
+      "completesOnArrival": true,
+      "requiredCondition": {
+        "bank": 11,
+        "address": 132,
+        "mask": 1,
+        "value": 1
+      }
+    },
+    {
+      "fieldId": 79,
+      "kind": "Location",
+      "label": "Leave the weapon seller's house",
+      "entityId": -1,
+      "x": -69,
+      "y": -175,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 566,
+      "maximumGameMoment": -1,
+      "priority": 0,
+      "sourceFieldName": "zz2",
+      "sourceEntityName": "gateway0",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "triggerLine": {
+        "startX": -121,
+        "startY": -175,
+        "startZ": 0,
+        "endX": -17,
+        "endY": -175,
         "endZ": 0
       }
     }

@@ -84,6 +84,7 @@
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\NibelheimStoryTests.cs" Link="SharedTests\NibelheimStoryTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\RemainingStoryContinuityTests.cs" Link="SharedTests\RemainingStoryContinuityTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\TownInteractionCoverageTests.cs" Link="SharedTests\TownInteractionCoverageTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\WeaponSellerNavigationTests.cs" Link="SharedTests\WeaponSellerNavigationTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\ReportedNavigationRegressionTests.cs" Link="SharedTests\ReportedNavigationRegressionTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\GoldSaucerPlatformExitTests.cs" Link="SharedTests\GoldSaucerPlatformExitTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\GlacierSnowfieldNavigationTests.cs" Link="SharedTests\GlacierSnowfieldNavigationTests.cs" />
@@ -156,6 +157,14 @@
              Link="SharedTests\NativeLandingArrivalTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\TinyBroncoTransportationTests.cs"
              Link="SharedTests\TinyBroncoTransportationTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\WorldMapVehicleTerrainTests.cs"
+             Link="SharedTests\WorldMapVehicleTerrainTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\WorldMapOwnEntranceTests.cs"
+             Link="SharedTests\WorldMapOwnEntranceTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\WorldMapBroncoLandingTests.cs"
+             Link="SharedTests\WorldMapBroncoLandingTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\FieldNpcTalkCounterTests.cs"
+             Link="SharedTests\FieldNpcTalkCounterTests.cs" />
   </ItemGroup>
 
 </Project>

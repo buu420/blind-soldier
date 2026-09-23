@@ -1006,6 +1006,7 @@
     <Compile Include="..\Ff7.Accessibility.Reloaded\WorldMapNavigationController.cs" Link="Shared\WorldMapNavigationController.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\WorldMapVehicleObstacles.cs" Link="Shared\WorldMapVehicleObstacles.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\WorldMapVehicleShoreApproach.cs" Link="Shared\WorldMapVehicleShoreApproach.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\WorldMapBroncoLanding.cs" Link="Shared\WorldMapBroncoLanding.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldNavigationAutoWalkIntent.cs" Link="Shared\FieldNavigationAutoWalkIntent.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldCutsceneContinuationDescriptions.cs" Link="Shared\FieldCutsceneContinuationDescriptions.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldMotionActionDescriptions.cs" Link="Shared\FieldMotionActionDescriptions.cs" />

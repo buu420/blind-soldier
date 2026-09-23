@@ -617,6 +617,11 @@ internal static class WorldMapNavigationControllerTests
                 X = 87577,
                 Y = 1443,
                 Z = 170926,
+                // The walkmap under this position: canyon, triangle 106277, native script 0.
+                // StateAt copies the entrance's script 7, which the game only reports while
+                // the party is standing on the trigger, and arrival is now read from that
+                // native word rather than from where the mod resolves the party to be.
+                TerrainScriptId = 0,
                 CameraFront = camera,
                 ControlTransform = new FieldNavigationControlTransform(ScreenAxis(camera))
             };
