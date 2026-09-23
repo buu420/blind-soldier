@@ -232,6 +232,21 @@ public sealed class WorldMapNavigationController
                 : DescribeRouteTransition(resumed.Value, resumedAfterCombat);
         }
 
+        // A vehicle is a live entity, not a place, and this has to be asked before the
+        // model change below. Boarding a boat is a model change, and the party in the boat
+        // can trivially "reach" it, so replanning first is how navigation came to announce
+        // a route to the vehicle the player was sitting in.
+        if (activeTarget is { Kind: WorldMapTargetKind.Transportation } vehicle &&
+            !GetTargets(state).Any(candidate =>
+                string.Equals(candidate.StableId, vehicle.StableId, StringComparison.Ordinal)))
+        {
+            ResetRoute();
+            lastDiagnostic = $"{vehicle.Label} is no longer a parked entity in the native list";
+            return new WorldMapNavigationOutput(
+                $"{vehicle.Label} is no longer there. Navigation off.",
+                StopAutoWalk: true);
+        }
+
         if (state.PlayerModelId != activeModelId ||
             state.WorldMapType != activeMapType ||
             state.WorldProgress != activeWorldProgress)
@@ -259,6 +274,7 @@ public sealed class WorldMapNavigationController
         // target merely because it occupies the same category slot.
         var refreshed = GetTargets(state)
             .FirstOrDefault(candidate => string.Equals(candidate.StableId, target.StableId, StringComparison.Ordinal));
+
         if (refreshed is not null && refreshed != target)
         {
             target = refreshed;
@@ -271,7 +287,8 @@ public sealed class WorldMapNavigationController
             // disagree for a vehicle that has not moved at all. Comparing them announced a
             // fresh route on every observation, which is how the parked Buggy came to be
             // repeated several times a second.
-            if (!refreshed.ArrivalTriangleIds.Contains(activeRoute.TargetTriangleId))
+            if (!refreshed.ArrivalTriangleIds.Contains(activeRoute.TargetTriangleId) ||
+                HasMovedItsContactPoint(refreshed, activeRoute))
             {
                 var replanned = StartNavigation(refreshed, state, now, announceOn: false);
                 return replanned is null
@@ -470,7 +487,10 @@ public sealed class WorldMapNavigationController
             // into a town the player did not select.
             return planner.CanTraverseSegment(state, next, null, activeTarget?.NativeEntranceExemptions) &&
                 (state.PlayerModelId is not (0 or 1 or 2) || entityProvider is null ||
-                 !WorldMapVehicleObstacles.BlocksSegment(entityProvider().Where(WorldMapVehicleObstacles.IsParkedBuggy).ToArray(), state.PlayerModelId,
+                 !WorldMapVehicleObstacles.BlocksSegment(
+                     (activeTarget is { } selected ? ObstaclesOtherThan(selected) : entityProvider())
+                         .Where(WorldMapVehicleObstacles.IsParkedBuggy).ToArray(),
+                     state.PlayerModelId,
                      state.X, state.Z, next.X, next.Z, map.WrapWidth, map.WrapHeight));
         }
 
@@ -843,7 +863,42 @@ public sealed class WorldMapNavigationController
         }
 
         detourPlanner ??= new WorldMapVehicleDetourPlanner(map, planner);
-        return detourPlanner.Resolve(state, entityProvider(), target, goal, out aim);
+        return detourPlanner.Resolve(state, ObstaclesOtherThan(target), target, goal, out aim);
+    }
+
+    /// <summary>
+    /// Whether a vehicle has drifted far enough that the route's last step no longer lands
+    /// on it.
+    ///
+    /// <para>Triangle membership is too coarse for this. A vehicle's arrival triangles are
+    /// hundreds of units across and its boardable ground is one 256-unit cell of them, so
+    /// a boat can move well out of reach of the endpoint the route committed to while
+    /// every arrival triangle stays the same. Compare the endpoint itself.</para>
+    /// </summary>
+    private static bool HasMovedItsContactPoint(
+        WorldMapNavigationTarget refreshed,
+        WorldMapRoutePlan route) =>
+        refreshed.VehicleContactPoints.TryGetValue(route.TargetTriangleId, out var contact) &&
+        route.Waypoints.Count > 0 &&
+        (route.Waypoints[^1].X != contact.X || route.Waypoints[^1].Z != contact.Z);
+
+    /// <summary>
+    /// Everything parked on the map except the vehicle the player asked to walk to. Its
+    /// approach is a point inside its own footprint, because that is the only place the
+    /// game boards it from, so detouring around the destination would stop the party just
+    /// outside the one cell that makes it boardable. Every other vehicle still blocks.
+    /// </summary>
+    private IReadOnlyList<WorldMapEntitySnapshot> ObstaclesOtherThan(WorldMapNavigationTarget target)
+    {
+        var entities = entityProvider!();
+        return target.NativeVehicleContact is null
+            ? entities
+            : entities
+                .Where(entity => !string.Equals(
+                    $"world-entity:{entity.GuestPointer:X8}:{entity.ModelId}",
+                    target.StableId,
+                    StringComparison.Ordinal))
+                .ToArray();
     }
 
     private int ResolveAutomaticWaypoint(WorldMapStateSnapshot state, WorldMapRoutePlan route, int suggestedIndex)
@@ -974,6 +1029,24 @@ public sealed class WorldMapNavigationController
     private IReadOnlyList<WorldMapNavigationTarget> GetTargets(WorldMapStateSnapshot state)
     {
         var candidates = targetProvider(state, CurrentCategory) ?? Array.Empty<WorldMapNavigationTarget>();
+
+        // A place the party cannot walk to is not a destination, and offering one is how
+        // a route gets promised that can never start. The party's own vehicles are the
+        // exception: they are things the player owns and left somewhere, a sighted player
+        // can see them sitting there, and where they are is information in its own right.
+        //
+        // The user got off the Tiny Bronco on the far bank of the river it was moored in
+        // and Transportation went silent - the boat, and the Buggy parked on another
+        // continent, both vanished from the list rather than being reported as somewhere
+        // they could not currently walk. Selecting one that has no walking route says so:
+        // DescribeSelection falls through to "Route unavailable." and StartNavigation
+        // refuses without leaving a route running. Nothing here invents an arrival or a
+        // position, so this is the vehicle being reported, never a way of reaching it.
+        if (CurrentCategory == WorldMapNavigationCategory.Transportation)
+        {
+            return candidates.ToArray();
+        }
+
         return candidates
             .Where(target => planner.CanReach(state, target))
             .ToArray();

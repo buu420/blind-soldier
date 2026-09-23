@@ -154,6 +154,8 @@
              Link="SharedTests\RocketGantryLadderTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\NativeLandingArrivalTests.cs"
              Link="SharedTests\NativeLandingArrivalTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\TinyBroncoTransportationTests.cs"
+             Link="SharedTests\TinyBroncoTransportationTests.cs" />
   </ItemGroup>
 
 </Project>

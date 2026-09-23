@@ -112,6 +112,83 @@ public sealed record WorldMapNativeStoryArrival(
     }
 }
 
+/// <summary>
+/// The native collision that makes a parked vehicle boardable, from Ghidra
+/// <c>FUN_00762A21</c>: two 8x8 masks over 256-unit cells, centred on a 1024-unit offset,
+/// and contact when either participant's mask covers the other. <c>FUN_00762993</c> stores
+/// the entity that reports contact in <c>current + 4</c>, and <c>FUN_0076420A</c> reads
+/// that slot when Confirm is pressed. Nothing here presses anything: it is the condition
+/// under which the player's own Confirm would work.
+///
+/// <para>Internal, and it has to stay that way: it carries a guest entity pointer,
+/// and the trust surface the x64 runtime publishes does not expose native addresses.
+/// Both test assemblies see it through InternalsVisibleTo.</para>
+/// </summary>
+internal sealed record WorldMapNativeVehicleContact(
+    uint VehicleEntityPointer,
+    int VehicleModelId,
+    int VehicleX,
+    int VehicleZ,
+    int WrapWidth,
+    int WrapHeight)
+{
+    /// <summary>
+    /// Either the party is standing inside the mask, or the game has recorded that they
+    /// are touching this vehicle.
+    ///
+    /// <para>Both are needed. A dismount can leave the party inside a vehicle's footprint,
+    /// which the geometry test covers. Walking up to one never ends there: FUN_00762A21
+    /// refuses a step that collides and closes, so the approach is rolled back to just
+    /// outside the mask every frame. The witness is what the game recorded during those
+    /// refused steps.</para>
+    /// </summary>
+    public bool IsSatisfiedBy(WorldMapStateSnapshot state) =>
+        IsSomebodyElse(state) && (OccupiesNativeMask(state) || IsWitnessedBy(state));
+
+    /// <summary>
+    /// The party is not this vehicle. A remount puts them at its coordinates in its model,
+    /// which occupies the mask perfectly, so without this the moment the player boards a
+    /// boat the mod would announce that they had arrived at it.
+    /// </summary>
+    public bool IsSomebodyElse(WorldMapStateSnapshot state) =>
+        state.NativePlayerEntityPointer != VehicleEntityPointer &&
+        state.PlayerModelId != VehicleModelId;
+
+    public bool OccupiesNativeMask(WorldMapStateSnapshot state) =>
+        WorldMapVehicleObstacles.Blocks(
+            state.PlayerModelId,
+            state.X,
+            state.Z,
+            VehicleModelId,
+            VehicleX,
+            VehicleZ,
+            WrapWidth,
+            WrapHeight);
+
+    /// <summary>
+    /// Whether <c>player + 4</c> names this vehicle, credibly. The slot is dynamic and
+    /// nothing clears it for us, so a pointer alone only says the party touched something
+    /// once; it must name this entity, the party must not be that entity, and the vehicle
+    /// must be inside the 1024-unit window FUN_00762A21 checks before either mask. A stale
+    /// pointer from a collision elsewhere fails the last of those.
+    /// </summary>
+    public bool IsWitnessedBy(WorldMapStateSnapshot state) =>
+        VehicleEntityPointer != 0 &&
+        state.NativeContactEntityPointer == VehicleEntityPointer &&
+        IsSomebodyElse(state) &&
+        IsWithinNativeReach(state);
+
+    /// <summary>
+    /// The guard FUN_00762A21 applies before it indexes either mask: both axes inside
+    /// 1024 wrapped units.
+    /// </summary>
+    public bool IsWithinNativeReach(WorldMapStateSnapshot state) =>
+        Math.Abs(WorldMapTargetCatalog.WrappedDelta(state.X, VehicleX, WrapWidth))
+            < WorldMapVehicleObstacles.NativeReach &&
+        Math.Abs(WorldMapTargetCatalog.WrappedDelta(state.Z, VehicleZ, WrapHeight))
+            < WorldMapVehicleObstacles.NativeReach;
+}
+
 public sealed record WorldMapNavigationTarget(
     WorldMapNavigationCategory Category,
     WorldMapTargetKind Kind,
@@ -154,8 +231,29 @@ public sealed record WorldMapNavigationTarget(
     /// </summary>
     public WorldMapNativeStoryArrival? NativeStoryArrival { get; init; }
 
+    /// <summary>
+    /// For a parked vehicle, the native collision the game itself requires before it will
+    /// dispatch boarding. Standing in the arrival triangle is not enough: the triangles
+    /// here are large, and the far corner of one can be a thousand units from any point
+    /// the mask covers. Announcing arrival there would be announcing something the player
+    /// cannot then do.
+    /// </summary>
+    internal WorldMapNativeVehicleContact? NativeVehicleContact { get; init; }
+
+    /// <summary>
+    /// Per arrival triangle, the point in it nearest the vehicle that is in native
+    /// contact. The route ends on one of these rather than on a centroid.
+    /// </summary>
+    public IReadOnlyDictionary<int, WorldMapVertex> VehicleContactPoints { get; init; } =
+        new Dictionary<int, WorldMapVertex>();
+
     public bool HasArrived(WorldMapStateSnapshot state, int triangleId)
     {
+        if (NativeVehicleContact is { } vehicleContact)
+        {
+            return ArrivalTriangleIds.Contains(triangleId) && vehicleContact.IsSatisfiedBy(state);
+        }
+
         if (NativeStoryArrival is { } nativeArrival)
         {
             return nativeArrival.IsSatisfiedBy(state) && ArrivalTriangleIds.Contains(triangleId);
@@ -748,19 +846,50 @@ public sealed class WorldMapTargetCatalog
 
         var arrivals = new HashSet<int>();
         var triangle = map.Triangles[triangleId];
-        if (WorldMapTerrainPassability.CanTraverse(player.PlayerModelId, player.WorldMapType, triangle.TerrainId))
-        {
-            arrivals.Add(triangleId);
-        }
 
-        foreach (var neighbor in triangle.Neighbors)
+        // A vehicle whose native footprint was read out of the executable resolves its own
+        // approach: the ground the party can stand on and be in collision with it, which
+        // is the condition the game requires before Confirm will board. The neighbour ring
+        // below is not that. It offered the Tiny Bronco's far bank, where no position at
+        // all is inside the boat's mask, while leaving out the bank the party was standing
+        // on, because that one is two triangles away across the water the boat floats in.
+        var nativeFootprint =
+            category == WorldMapNavigationCategory.Transportation &&
+            WorldMapVehicleObstacles.TryGetNativeMask(entity.ModelId, out _) &&
+            WorldMapVehicleObstacles.TryGetNativeMask(player.PlayerModelId, out _);
+        var vehicleContacts = nativeFootprint && (entity.Flags & WorldMapVehicleObstacles.SkippedFlag) == 0
+            ? WorldMapVehicleShoreApproach.FindContactPoints(
+                map, player.PlayerModelId, entity.ModelId, entity.X, entity.Z)
+            : new Dictionary<int, WorldMapVertex>();
+        if (nativeFootprint)
         {
-            if (WorldMapTerrainPassability.CanTraverse(
-                    player.PlayerModelId,
-                    player.WorldMapType,
-                    map.Triangles[neighbor].TerrainId))
+            // Including when there is nothing: a boat out in open water, or one the native
+            // routine skips, has no ground that boards it, and an approach it cannot be
+            // boarded from is worse than none.
+            foreach (var contact in vehicleContacts.Keys)
             {
-                arrivals.Add(neighbor);
+                arrivals.Add(contact);
+            }
+        }
+        else
+        {
+            // No mask for one of the two models - the Highwind, the submarines, or a party
+            // leader nobody has measured. Inventing a footprint for those would be
+            // inventing an arrival, so they keep the ring they always had.
+            if (WorldMapTerrainPassability.CanTraverse(player.PlayerModelId, player.WorldMapType, triangle.TerrainId))
+            {
+                arrivals.Add(triangleId);
+            }
+
+            foreach (var neighbor in triangle.Neighbors)
+            {
+                if (WorldMapTerrainPassability.CanTraverse(
+                        player.PlayerModelId,
+                        player.WorldMapType,
+                        map.Triangles[neighbor].TerrainId))
+                {
+                    arrivals.Add(neighbor);
+                }
             }
         }
 
@@ -772,6 +901,9 @@ public sealed class WorldMapTargetCatalog
         // a way of reaching anything, so if the only ground beside this entity is a trigger
         // the target keeps no arrival at all and routing to it fails truthfully.
         arrivals.RemoveWhere(EntranceTriangleIds.Contains);
+        var contactPoints = vehicleContacts
+            .Where(contact => arrivals.Contains(contact.Key))
+            .ToDictionary(contact => contact.Key, contact => contact.Value);
 
         return new WorldMapNavigationTarget(
             category,
@@ -790,7 +922,15 @@ public sealed class WorldMapTargetCatalog
             category == WorldMapNavigationCategory.Story
                 ? $"world-story-entity:{entity.GuestPointer:X8}:{entity.ModelId}"
                 : $"world-entity:{entity.GuestPointer:X8}:{entity.ModelId}",
-            arrivals);
+            arrivals)
+        {
+            VehicleContactPoints = contactPoints,
+            NativeVehicleContact = contactPoints.Count > 0
+                ? new WorldMapNativeVehicleContact(
+                    entity.GuestPointer, entity.ModelId, entity.X, entity.Z,
+                    map.WrapWidth, map.WrapHeight)
+                : null
+        };
     }
 
     private IReadOnlyList<WorldMapNavigationTarget> ReadStoryTargets(int gameMoment, WorldMapStateSnapshot? state)

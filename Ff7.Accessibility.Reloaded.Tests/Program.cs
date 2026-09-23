@@ -438,6 +438,8 @@ if (args.Contains("--world-map-only", StringComparer.OrdinalIgnoreCase))
     Ff7.Accessibility.Reloaded.Tests.WorldMapTerrainAnnouncementTests.Run();
     Ff7.Accessibility.Reloaded.Tests.WorldMapEntranceProximityCueTests.Run();
     Ff7.Accessibility.Reloaded.Tests.WorldMapNavigationControllerTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.TinyBroncoTransportationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.TinyBroncoTransportationTests.RunWithInstalledGameData();
     Ff7.Accessibility.Reloaded.Tests.NavigationProgressControlTests.Run();
     AssertWorldEntranceCueUsesTheFullDirectionalSteamAudioRender();
     Console.WriteLine("FFVII shared world-map accessibility tests passed.");
@@ -1228,6 +1230,8 @@ Ff7.Accessibility.Reloaded.Tests.MidgarZolomAreaTrackerTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WorldMapTerrainAnnouncementTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WorldMapEntranceProximityCueTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WorldMapNavigationControllerTests.Run();
+Ff7.Accessibility.Reloaded.Tests.TinyBroncoTransportationTests.Run();
+Ff7.Accessibility.Reloaded.Tests.TinyBroncoTransportationTests.RunWithInstalledGameData();
 AssertFieldLadderStateReaderReadsNativeMountedState();
 AssertFieldLadderStateReaderCorrectsWallClimbPenultimateLadderToLeft();
 AssertFieldLadderStateReaderRejectsInvalidState();

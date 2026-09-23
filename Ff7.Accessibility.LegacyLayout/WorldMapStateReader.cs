@@ -17,6 +17,12 @@ public sealed class WorldMapStateReader
     public const int AddressWorldCameraFront = 0x00DFC484;
     public const int AddressGameMoment = 0x00DC08DC;
 
+    /// <summary>
+    /// The entity the native collision last reported contact with, written by
+    /// FUN_00762993 and read by FUN_0076420A when Confirm is pressed.
+    /// </summary>
+    public const int ContactEntityOffset = 0x04;
+
     public const int PositionXOffset = 0x0C;
     public const int PositionYOffset = 0x10;
     public const int PositionZOffset = 0x14;
@@ -90,6 +96,7 @@ public sealed class WorldMapStateReader
             false,
             0,
             0,
+            0,
             0);
         if (module != WorldModule)
         {
@@ -109,7 +116,8 @@ public sealed class WorldMapStateReader
             return false;
         }
 
-        if (!TryAdd(playerPointer, PositionXOffset, out var xAddress) ||
+        if (!TryAdd(playerPointer, ContactEntityOffset, out var contactAddress) ||
+            !TryAdd(playerPointer, PositionXOffset, out var xAddress) ||
             !TryAdd(playerPointer, PositionYOffset, out var yAddress) ||
             !TryAdd(playerPointer, PositionZOffset, out var zAddress) ||
             !TryAdd(playerPointer, FacingOffset, out var facingAddress) ||
@@ -123,7 +131,8 @@ public sealed class WorldMapStateReader
         }
 
         diagnostic = "world player entity read failed";
-        if (!memory.TryReadInt32(xAddress, out var x) ||
+        if (!memory.TryReadUInt32(contactAddress, out var contactEntity) ||
+            !memory.TryReadInt32(xAddress, out var x) ||
             !memory.TryReadInt32(yAddress, out var y) ||
             !memory.TryReadInt32(zAddress, out var z) ||
             !memory.TryReadInt16(facingAddress, out var facing) ||
@@ -151,7 +160,8 @@ public sealed class WorldMapStateReader
             HasChocoboTracks = hasChocoboTracks,
             Direction = direction,
             ModelId = modelId,
-            MovementSpeed = movementSpeed
+            MovementSpeed = movementSpeed,
+            ContactEntity = contactEntity
         };
         diagnostic = string.Empty;
         return true;
@@ -203,7 +213,8 @@ public sealed class WorldMapStateReader
         bool HasChocoboTracks,
         short Direction,
         byte ModelId,
-        byte MovementSpeed)
+        byte MovementSpeed,
+        uint ContactEntity)
     {
         public WorldMapStateSnapshot State => new(
             Module,
@@ -223,7 +234,9 @@ public sealed class WorldMapStateReader
             new FieldNavigationControlTransform(ToSignedControlDirection(CameraFront)))
         {
             HasChocoboTracks = HasChocoboTracks,
-            TerrainScriptId = TerrainScriptId
+            TerrainScriptId = TerrainScriptId,
+            NativePlayerEntityPointer = PlayerPointer,
+            NativeContactEntityPointer = ContactEntity
         };
     }
 }
@@ -250,6 +263,22 @@ public readonly record struct WorldMapStateSnapshot(
     public bool HasChocoboTracks { get; init; }
 
     public int TerrainScriptId { get; init; }
+
+    /// <summary>
+    /// The native world entity the party currently is, from
+    /// <see cref="WorldMapStateReader.AddressWorldPlayerEntityPointer"/>. Zero when the
+    /// host has not supplied one.
+    /// </summary>
+    public uint NativePlayerEntityPointer { get; init; }
+
+    /// <summary>
+    /// The native contact pointer at <c>player + 4</c>. FUN_00762993 stores the entity
+    /// FUN_00762A21 reported contact with, before the move is accepted or refused, and
+    /// FUN_0076420A reads it when Confirm is pressed. Dynamic, not topology: it survives
+    /// the step being rolled back and nothing here assumes the game clears it. Zero is no
+    /// witness.
+    /// </summary>
+    public uint NativeContactEntityPointer { get; init; }
 }
 
 public readonly record struct WorldMapStateReadResult(

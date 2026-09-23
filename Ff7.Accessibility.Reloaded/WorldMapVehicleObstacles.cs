@@ -33,9 +33,70 @@ public static class WorldMapVehicleObstacles
             [1] = [0x00, 0x00, 0x00, 0x18, 0x18, 0x00, 0x00, 0x00],
             [2] = [0x00, 0x00, 0x00, 0x18, 0x18, 0x00, 0x00, 0x00],
 
+            // Tiny Bronco: 00 18 3c 7e 7e 3c 18 00. Read out of the installed
+            // ff7_en.exe at 0096DDB0 + 5 * 8, the same way the Buggy's row was. A wider
+            // diamond than the Buggy, which is why the boat can be touched from a shore
+            // the party cannot walk onto the water from.
+            [5] = [0x00, 0x18, 0x3c, 0x7e, 0x7e, 0x3c, 0x18, 0x00],
+
             // Buggy: 00 00 18 3c 3c 18 00 00.
             [6] = [0x00, 0x00, 0x18, 0x3c, 0x3c, 0x18, 0x00, 0x00]
         };
+
+    /// <summary>The 8x8 mask the native routine reads for this model, when it has one.</summary>
+    public static bool TryGetNativeMask(int modelId, out IReadOnlyList<byte> mask)
+    {
+        if (NativeMasks.TryGetValue(modelId, out var bytes))
+        {
+            mask = bytes;
+            return true;
+        }
+
+        mask = Array.Empty<byte>();
+        return false;
+    }
+
+    /// <summary>
+    /// Where a party of <paramref name="selfModelId"/> can stand and be in contact with
+    /// <paramref name="otherModelId"/>, as the lower corner of each 256-unit cell measured
+    /// <em>from the other entity outward</em>.
+    ///
+    /// <para>The native grid is indexed by <c>other - self</c>, so a cell at native column
+    /// <c>c</c> is the party sitting at <c>-(c * 256 - 1024)</c> and below, which is the
+    /// mirrored index. Every mask read so far happens to be centrally symmetric, so the
+    /// two orderings cover the same ground; the mirror is applied anyway rather than
+    /// resting on that.</para>
+    /// </summary>
+    public static IReadOnlyList<(int MinX, int MinZ)> ContactCells(int selfModelId, int otherModelId)
+    {
+        if (!NativeMasks.TryGetValue(selfModelId, out var self) ||
+            !NativeMasks.TryGetValue(otherModelId, out var other))
+        {
+            return Array.Empty<(int, int)>();
+        }
+
+        var cells = new List<(int MinX, int MinZ)>();
+        for (var row = 0; row < MaskCells; row++)
+        {
+            for (var column = 0; column < MaskCells; column++)
+            {
+                if (((self[row] >> column) & 1) != 0 ||
+                    ((other[MaskCells - 1 - row] >> (MaskCells - 1 - column)) & 1) != 0)
+                {
+                    cells.Add((
+                        (MaskCells - 1 - column) * CellSize - MaskCentreOffset,
+                        (MaskCells - 1 - row) * CellSize - MaskCentreOffset));
+                }
+            }
+        }
+
+        return cells;
+    }
+
+    /// <summary>The width and height of one native mask cell, and the reach of the grid.</summary>
+    public const int NativeCellSize = CellSize;
+
+    public const int NativeReach = MaskCentreOffset;
 
     public static bool HasNativeMask(int modelId) => NativeMasks.ContainsKey(modelId);
 
