@@ -600,10 +600,23 @@ internal static class CosmoCanyonNavigationTests
 
         // A vehicle parked with nothing but trigger ground around it has no safe approach,
         // and saying so is the answer. Walking into a town to reach a car is not.
+        //
+        // "Around it" is now the native mask reach rather than the ring of neighbours: a
+        // vehicle's approach is resolved from FUN00762A21's own footprint, which extends
+        // 1024 units, so a triangle whose immediate neighbours are all triggers can still
+        // have ordinary ground inside boarding range. The case wants the vehicle that
+        // genuinely has none, so it asks the same question the builder now asks.
         var buried = map.Triangles.FirstOrDefault(triangle =>
-            catalog.EntranceTriangleIds.Contains(triangle.Id) &&
-            triangle.Neighbors.Count > 0 &&
-            triangle.Neighbors.All(catalog.EntranceTriangleIds.Contains));
+        {
+            if (!catalog.EntranceTriangleIds.Contains(triangle.Id))
+            {
+                return false;
+            }
+
+            var centre = triangle.Centroid;
+            var reach = WorldMapVehicleShoreApproach.FindContactPoints(map, 0, 6, centre.X, centre.Z);
+            return reach.Count > 0 && reach.Keys.All(catalog.EntranceTriangleIds.Contains);
+        });
         Equal(true, buried is not null, "the installed map must contain a fully enclosed trigger triangle");
         var sunkCentre = buried!.Centroid;
         var sunk = catalog

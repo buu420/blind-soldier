@@ -33,12 +33,53 @@ public sealed class WorldMapEntityReader
             return WorldMapEntityReadResult.Invalid(secondDiagnostic);
         }
 
-        if (!first.SequenceEqual(second))
+        if (!IsSameList(first, second))
         {
             return WorldMapEntityReadResult.Invalid("world entity list changed during read");
         }
 
-        return WorldMapEntityReadResult.Valid(first, $"native world entities={first.Count}");
+        // The later frame. Both describe the same list, so the fresher positions are the
+        // truthful ones and nothing here is ever a position the reader kept from before.
+        return WorldMapEntityReadResult.Valid(second, $"native world entities={second.Count}");
+    }
+
+    /// <summary>
+    /// Whether the two frames are the same list, rather than the same list standing still.
+    ///
+    /// <para>The guard catches the native list being rebuilt underneath the traversal:
+    /// reading half of one list and half of another is how a vehicle gets invented. It
+    /// used to compare whole snapshots, which made it a test of whether the world had
+    /// moved, and something always is. Every other scan then published nothing and the
+    /// parked vehicles disappeared from Transportation.</para>
+    ///
+    /// <para>So only identity and topology are compared: the chain, which node is the
+    /// player, and the model. Position, the walkmap terrain and region an entity is
+    /// standing on, and the animation flag at +0x51 are all per-frame state that a live
+    /// entity changes on its own, and none of them says the list was rebuilt.</para>
+    /// </summary>
+    private static bool IsSameList(
+        IReadOnlyList<WorldMapEntitySnapshot> first,
+        IReadOnlyList<WorldMapEntitySnapshot> second)
+    {
+        if (first.Count != second.Count)
+        {
+            return false;
+        }
+
+        for (var index = 0; index < first.Count; index++)
+        {
+            var before = first[index];
+            var after = second[index];
+            if (before.GuestPointer != after.GuestPointer ||
+                before.NextGuestPointer != after.NextGuestPointer ||
+                before.IsPlayer != after.IsPlayer ||
+                before.ModelId != after.ModelId)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private bool TryReadFrame(out IReadOnlyList<WorldMapEntitySnapshot> entities, out string diagnostic)

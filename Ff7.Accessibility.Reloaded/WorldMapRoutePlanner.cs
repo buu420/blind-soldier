@@ -664,14 +664,19 @@ public sealed class WorldMapRoutePlanner
             .Where(arrival => arrival.TriangleId == targetTriangle)
             .Select(arrival => (WorldMapNativeLocationArrival?)arrival)
             .FirstOrDefault();
-        var normalizedFinalPoint = nativeArrival is { } resolvedNativeArrival
-            ? new WorldMapRouteWaypoint(
-                resolvedNativeArrival.X,
-                resolvedNativeArrival.Y,
-                resolvedNativeArrival.Z)
-            : targetTriangle == target.TriangleId
-                ? new WorldMapRouteWaypoint(target.X, target.Y, target.Z)
-                : ToWaypoint(map.Triangles[targetTriangle].Centroid);
+        // A vehicle's arrival triangle can be a thousand units across, and the only part of
+        // it that boards the vehicle is the part inside the native mask. Ending on the
+        // centroid would stop the party somewhere Confirm does nothing.
+        var normalizedFinalPoint = target.VehicleContactPoints.TryGetValue(targetTriangle, out var contactPoint)
+            ? new WorldMapRouteWaypoint(contactPoint.X, contactPoint.Y, contactPoint.Z)
+            : nativeArrival is { } resolvedNativeArrival
+                ? new WorldMapRouteWaypoint(
+                    resolvedNativeArrival.X,
+                    resolvedNativeArrival.Y,
+                    resolvedNativeArrival.Z)
+                : targetTriangle == target.TriangleId
+                    ? new WorldMapRouteWaypoint(target.X, target.Y, target.Z)
+                    : ToWaypoint(map.Triangles[targetTriangle].Centroid);
         var finalReference = unwrappedCentroids.Count > 0 ? unwrappedCentroids[^1] : start;
         var unwrappedFinalPoint = Unwrap(
             normalizedFinalPoint,

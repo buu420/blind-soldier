@@ -57,7 +57,7 @@ internal static class WorldMapVehicleApproachReplayTests
             (x * Math.Sin(angle) + z * Math.Cos(angle)) * scale);
     }
 
-    private static WorldMapStateSnapshot MoveOnRawNativeTriangles(WorldMapData map,
+    internal static WorldMapStateSnapshot MoveOnRawNativeTriangles(WorldMapData map,
         WorldMapStateSnapshot state, ref int triangle, double dx, double dz)
     {
         var count = Math.Max(1, (int)Math.Ceiling(Math.Max(Math.Abs(dx), Math.Abs(dz))));

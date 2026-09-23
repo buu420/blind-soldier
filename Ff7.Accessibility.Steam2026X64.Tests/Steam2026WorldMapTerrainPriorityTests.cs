@@ -590,6 +590,7 @@ internal static class Steam2026WorldMapTerrainPriorityTests
         memory.WriteUInt16((uint)WorldMapStateReader.AddressGameMoment, 0);
         memory.WriteUInt32((uint)WorldMapStateReader.AddressWorldPlayerEntityPointer, player);
         memory.WriteInt32((uint)WorldMapStateReader.AddressWorldCameraFront, 0);
+        memory.WriteUInt32(player + WorldMapStateReader.ContactEntityOffset, 0);
         memory.WriteInt32(player + WorldMapStateReader.PositionXOffset, 174000);
         memory.WriteInt32(player + WorldMapStateReader.PositionYOffset, 0);
         memory.WriteInt32(player + WorldMapStateReader.PositionZOffset, 166000);

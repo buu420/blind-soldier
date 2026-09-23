@@ -22,6 +22,7 @@ internal static class WorldMapStateReaderTests
         WriteUInt16(bytes, WorldMapStateReader.AddressGameMoment, 341);
         WriteUInt32(bytes, WorldMapStateReader.AddressWorldPlayerEntityPointer, player);
         WriteInt32(bytes, WorldMapStateReader.AddressWorldCameraFront, 1024);
+        WriteUInt32(bytes, player + WorldMapStateReader.ContactEntityOffset, 0x0012_4000);
         WriteInt32(bytes, player + WorldMapStateReader.PositionXOffset, 181_000);
         WriteInt32(bytes, player + WorldMapStateReader.PositionYOffset, 700);
         WriteInt32(bytes, player + WorldMapStateReader.PositionZOffset, 113_000);
@@ -46,6 +47,10 @@ internal static class WorldMapStateReaderTests
         Equal(true, result.State.HasChocoboTracks, "native chocobo-track bit");
         Equal(0, result.State.PlayerModelId, "player model id");
         Equal(30, result.State.MovementSpeed, "movement speed");
+        Equal((uint)player, result.State.NativePlayerEntityPointer,
+            "the entity the party currently is");
+        Equal(0x0012_4000u, result.State.NativeContactEntityPointer,
+            "the native contact pointer at player + 4, which is what Confirm reads");
         Equal(341, result.State.GameMoment, "game moment");
         Equal(-64, result.State.ControlTransform.SignedControlDirection, "camera-front control transform");
     }
@@ -69,6 +74,7 @@ internal static class WorldMapStateReaderTests
     {
         const int player = 0x0012_3000;
         var bytes = CreateHeader(WorldMapStateReader.WorldModule, player);
+        WriteUInt32(bytes, player + WorldMapStateReader.ContactEntityOffset, 0);
         WriteInt32(bytes, player + WorldMapStateReader.PositionXOffset, 100);
         WriteInt32(bytes, player + WorldMapStateReader.PositionYOffset, 200);
         WriteInt32(bytes, player + WorldMapStateReader.PositionZOffset, 300);
@@ -88,6 +94,7 @@ internal static class WorldMapStateReaderTests
     {
         const int player = 0x0012_3000;
         var bytes = CreateHeader(WorldMapStateReader.WorldModule, player);
+        WriteUInt32(bytes, player + WorldMapStateReader.ContactEntityOffset, 0);
         WriteInt32(bytes, player + WorldMapStateReader.PositionXOffset, 100);
         WriteInt32(bytes, player + WorldMapStateReader.PositionYOffset, 200);
         WriteInt32(bytes, player + WorldMapStateReader.PositionZOffset, 300);
