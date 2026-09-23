@@ -42,6 +42,9 @@ public sealed class WorldMapNavigationController
 
     /// <summary>FUN_0074EA48 moves model 5 by 0x3C units a frame.</summary>
     private const double BroncoFrameStep = 60d;
+
+    /// <summary>FUN_0074EA48 moves the party on foot by 0x1E units a frame.</summary>
+    private const double WalkingFrameStep = 30d;
     private const int DefaultDistanceUnitsPerCount = 512;
     private const int OffRouteReplanDistanceCounts = 12;
     private static readonly TimeSpan OffRouteReplanDelay = TimeSpan.FromSeconds(5);
@@ -550,11 +553,16 @@ public sealed class WorldMapNavigationController
         }
         var dx = WorldMapTargetCatalog.WrappedDelta(state.X, waypoint.X, map.WrapWidth);
         var dz = WorldMapTargetCatalog.WrappedDelta(state.Z, waypoint.Z, map.WrapHeight);
-        if (state.PlayerModelId == WorldMapBroncoLanding.BroncoModelId)
+        if (state.PlayerModelId == WorldMapBroncoLanding.BroncoModelId ||
+            (WorldMapRoutePlanner.IsWalkingModel(state.PlayerModelId) &&
+             detourOutcome == WorldMapVehicleDetourPlanner.DetourOutcome.Clear))
         {
-            // The boat follows its leg rather than cutting at the corner ahead: each leg is
-            // the part of the river it was proved to fit.
-            (dx, dz) = ResolveBoatLegAim(
+            // The boat and the party follow their leg rather than cutting at the corner
+            // ahead: each leg is the part of the river, or of the pass, their footprint was
+            // proved to fit. Steering straight at a far corner on eight directions drifts off
+            // it - at 11:23:29's camera by 13 degrees, 300 units into the foot of a mountain
+            // on the last 4,200-unit leg to Wutai.
+            (dx, dz) = ResolveLegAim(
                 state,
                 waypointIndex > 0 ? route.Waypoints[waypointIndex - 1] : routeStart,
                 waypoint);
@@ -1170,7 +1178,8 @@ public sealed class WorldMapNavigationController
     /// 0, 1 and 2, and returns without entering unless one of those matches. Standing on
     /// the entrance triangle in the Buggy therefore satisfies the mod's arrival test while
     /// the game will not actually admit the party, and announcing "Arrived" there leaves a
-    /// blind player waiting at a door that never opens.</para>
+    /// blind player waiting at a door that never opens. Wutai's handler, 96C4, opens with
+    /// the same test.</para>
     ///
     /// <para>Only the rule proven from the installed script is recorded. Nothing here
     /// dismounts anybody or touches game state; the party is told what the game wants and
@@ -1182,7 +1191,12 @@ public sealed class WorldMapNavigationController
             // wm0.ev handler ADA4, IP 2D1C..2D36: push special 8, compare against 0, 1 and
             // 2, return unless one matches, then opcode 0x318 EnterField with native
             // destination 18 decimal and entry 0.
-            ["Cosmo Canyon"] = new HashSet<int> { 0, 1, 2 }
+            ["Cosmo Canyon"] = new HashSet<int> { 0, 1, 2 },
+            // wm0.ev handler 96C4, Wutai's own at mesh (4,10) script 7, IP 2DB3..2DC5: the
+            // same test of special 8 against 0, 1 and 2, jumping to the return at 2E06
+            // unless one matches; every other branch is opcode 0x318 EnterField with
+            // destination 23 and entry 0 or 1.
+            ["Wutai"] = new HashSet<int> { 0, 1, 2 }
         };
 
     /// <summary>
@@ -1279,8 +1293,8 @@ public sealed class WorldMapNavigationController
         while (index > 0 &&
                (!planner.CanTraverseSegment(
                     state, route.Waypoints[index], null, activeTarget?.NativeEntranceExemptions) ||
-                (!IsBoatSegmentClear(state, route.Waypoints[index]) &&
-                 !IsOnBoatLeg(state, route.Waypoints[index - 1], route.Waypoints[index]))))
+                (!IsFootprintSegmentClear(state, route.Waypoints[index]) &&
+                 !IsOnLeg(state, route.Waypoints[index - 1], route.Waypoints[index]))))
         {
             index--;
         }
@@ -1288,34 +1302,51 @@ public sealed class WorldMapNavigationController
     }
 
     /// <summary>
-    /// How near a boat leg counts as being on it. Each leg was proved sailable, with room
-    /// either side, when the route was planned; the boat weaves about it on eight
-    /// directions, and a line from wherever it has weaved to straight at the next corner
-    /// can clip the bank that the leg itself clears. Sending it back to the last corner
-    /// for that makes it circle there.
+    /// How near a leg counts as being on it: two native frames of movement. Each boat and
+    /// walking leg was planned where the footprint fits; the boat or the party weaves about
+    /// it on eight directions, and a line from wherever it has weaved to straight at the
+    /// next corner can clip the bank or the cliff that the leg itself clears. Sending it
+    /// back to the last corner for that makes it circle there. Further off than this it is
+    /// not weaving: on the way to Mount Corel at camera 3452 the party slid 118 units off a
+    /// 123-unit leg with the foot of the mountain between, and held as on the leg it was
+    /// steered into the mountain until auto walk gave up.
     /// </summary>
-    private const double BoatLegCorridor = 120d;
+    private const double BoatLegCorridor = 2 * BroncoFrameStep;
 
-    /// <summary>How far down its leg the boat aims, so that the weave closes on the leg.</summary>
-    private const double BoatLegLookahead = 240d;
+    private const double WalkingLegCorridor = 2 * WalkingFrameStep;
 
-    private bool IsOnBoatLeg(
+    /// <summary>
+    /// How far down its leg the boat or the party aims, so that the weave closes on the
+    /// leg: four native frames of its movement.
+    /// </summary>
+    private const double BoatLegLookahead = 4 * BroncoFrameStep;
+
+    private const double WalkingLegLookahead = 4 * WalkingFrameStep;
+
+    /// <summary>The boat and the party on foot follow legs planned for their footprint.</summary>
+    private static bool FollowsLegs(int playerModelId) =>
+        playerModelId == WorldMapBroncoLanding.BroncoModelId ||
+        WorldMapRoutePlanner.IsWalkingModel(playerModelId);
+
+    private bool IsOnLeg(
         WorldMapStateSnapshot state,
         WorldMapRouteWaypoint legStart,
         WorldMapRouteWaypoint legEnd)
     {
-        if (state.PlayerModelId != WorldMapBroncoLanding.BroncoModelId)
+        if (!FollowsLegs(state.PlayerModelId))
         {
             return false;
         }
 
         var (_, offset, _) = MeasureAlongLeg(state, legStart, legEnd);
-        return offset <= BoatLegCorridor;
+        return offset <= (state.PlayerModelId == WorldMapBroncoLanding.BroncoModelId
+            ? BoatLegCorridor
+            : WalkingLegCorridor);
     }
 
     /// <summary>
-    /// Where the boat is against a leg: how far along it, how far off it, and the leg's
-    /// own length, all in the leg's wrapped frame.
+    /// Where the boat or the party is against a leg: how far along it, how far off it, and
+    /// the leg's own length, all in the leg's wrapped frame.
     /// </summary>
     private (double Along, double Offset, double Length) MeasureAlongLeg(
         WorldMapStateSnapshot state,
@@ -1340,10 +1371,10 @@ public sealed class WorldMapNavigationController
     }
 
     /// <summary>
-    /// The offset from the boat to the point it should steer for on its current leg: a
-    /// little way down the leg from where the boat is level with it, never past its end.
+    /// The offset from the boat or the party to the point it should steer for on its current
+    /// leg: a little way down the leg from where it is level with it, never past its end.
     /// </summary>
-    private (int X, int Z) ResolveBoatLegAim(
+    private (int X, int Z) ResolveLegAim(
         WorldMapStateSnapshot state,
         WorldMapRouteWaypoint legStart,
         WorldMapRouteWaypoint legEnd)
@@ -1358,33 +1389,55 @@ public sealed class WorldMapNavigationController
             return ((int)Math.Round(lineX - boatX), (int)Math.Round(lineZ - boatZ));
         }
 
-        var aim = Math.Clamp(along + BoatLegLookahead, 0d, length);
+        var lookahead = state.PlayerModelId == WorldMapBroncoLanding.BroncoModelId
+            ? BoatLegLookahead
+            : WalkingLegLookahead;
+        var aim = Math.Clamp(along + lookahead, 0d, length);
         return ((int)Math.Round(lineX * aim / length - boatX), (int)Math.Round(lineZ * aim / length - boatZ));
     }
 
     /// <summary>
-    /// For the Tiny Bronco, whether the straight line to a waypoint keeps the boat's whole
-    /// footprint on water. Triangles alone say a line across a bend is water; FUN_00751EFC
-    /// says whether the boat, 350 units either way, can actually sail it. Aiming across a
-    /// bend it cannot round leaves every key that makes progress pressing into the bank.
-    /// Always clear for anybody else.
+    /// Whether the straight line to a waypoint keeps the whole footprint where it may go,
+    /// one native frame of movement at a time. Triangles alone say a line across a bend is
+    /// water, or a line past the foot of a cliff is grass; FUN_00751EFC says whether the
+    /// boat, 350 units either way, or the party, 200, can actually follow it. Aiming across
+    /// what they cannot round leaves every key that makes progress pressing into the bank or
+    /// the cliff. Always clear for anybody else.
+    ///
+    /// <para>The walking footprint is stricter than the game on the bridges, so where the
+    /// party already stands somewhere it says the party cannot, it is not asked at all and
+    /// the centre line alone decides, as it always did.</para>
     /// </summary>
-    private bool IsBoatSegmentClear(WorldMapStateSnapshot state, WorldMapRouteWaypoint waypoint)
+    private bool IsFootprintSegmentClear(WorldMapStateSnapshot state, WorldMapRouteWaypoint waypoint)
     {
-        if (state.PlayerModelId != WorldMapBroncoLanding.BroncoModelId)
+        Func<int, int, int, bool> fitsAt;
+        double frameStep;
+        if (state.PlayerModelId == WorldMapBroncoLanding.BroncoModelId)
+        {
+            fitsAt = (x, _, z) => WorldMapBroncoLanding.HasBoatFootprint(map, x, z);
+            frameStep = BroncoFrameStep;
+        }
+        else if (WorldMapRoutePlanner.IsWalkingModel(state.PlayerModelId) &&
+                 planner.HasWalkingFootprint(state, state.X, state.Y, state.Z))
+        {
+            fitsAt = (x, y, z) => planner.HasWalkingFootprint(state, x, y, z);
+            frameStep = WalkingFrameStep;
+        }
+        else
         {
             return true;
         }
 
         var dx = (double)WorldMapTargetCatalog.WrappedDelta(state.X, waypoint.X, map.WrapWidth);
+        var dy = waypoint.Y - (double)state.Y;
         var dz = (double)WorldMapTargetCatalog.WrappedDelta(state.Z, waypoint.Z, map.WrapHeight);
-        var samples = (int)Math.Ceiling(Math.Sqrt(dx * dx + dz * dz) / BroncoFrameStep);
+        var samples = (int)Math.Ceiling(Math.Sqrt(dx * dx + dz * dz) / frameStep);
         for (var sample = 1; sample <= samples; sample++)
         {
             var fraction = sample / (double)samples;
-            if (!WorldMapBroncoLanding.HasBoatFootprint(
-                    map,
+            if (!fitsAt(
                     state.X + (int)Math.Round(dx * fraction),
+                    state.Y + (int)Math.Round(dy * fraction),
                     state.Z + (int)Math.Round(dz * fraction)))
             {
                 return false;

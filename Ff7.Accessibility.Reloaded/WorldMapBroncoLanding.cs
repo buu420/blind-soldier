@@ -222,6 +222,51 @@ internal static class WorldMapBroncoLanding
     }
 
     /// <summary>
+    /// The native ground under a point for a model that walks: FUN_0074CC07 over the point's
+    /// own mesh cell, with FUN_0076085F's edge-inclusive test, keeping the surface nearest
+    /// the party's own height as it does for every model but 3 and 5 - on a bridge the deck,
+    /// not the gorge beneath it.
+    /// </summary>
+    public static bool TryFindSurfaceNear(
+        WorldMapData map,
+        int x,
+        int z,
+        int referenceHeight,
+        out WorldMapTriangle triangle)
+    {
+        ArgumentNullException.ThrowIfNull(map);
+        triangle = null!;
+        x = Normalize(x, map.WrapWidth);
+        z = Normalize(z, map.WrapHeight);
+        var index = SurfaceIndexes.GetValue(map, static built => new SurfaceIndex(built));
+        if (!index.Buckets.TryGetValue((x / SurfaceBucket, z / SurfaceBucket), out var candidates))
+        {
+            return false;
+        }
+
+        var meshX = x / WorldMapDataLoader.MeshSize;
+        var meshZ = z / WorldMapDataLoader.MeshSize;
+        var nearest = double.PositiveInfinity;
+        foreach (var id in candidates)
+        {
+            var candidate = map.Triangles[id];
+            if (candidate.MeshX != meshX || candidate.MeshZ != meshZ || !IsInsideNative(candidate, x, z))
+            {
+                continue;
+            }
+
+            var gap = Math.Abs(HeightAt(candidate, x, z) - referenceHeight);
+            if (gap < nearest)
+            {
+                nearest = gap;
+                triangle = candidate;
+            }
+        }
+
+        return triangle is not null;
+    }
+
+    /// <summary>
     /// Whether the boat as it is now would land the party on ground joined on foot to the
     /// destination, and keep doing so while its rotation settles.
     ///

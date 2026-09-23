@@ -10,6 +10,15 @@ public sealed class BattleStateReader
     public const int AddressVictoryOutcome = 0x009A89C0;
     public const int AddressCurrentActorSlot = 0x00DC3C7C;
     public const int AddressLimitActorSlot = 0x00DC3C80;
+    // FUN_006d8c75 assigns this byte from readyActor - 4 for menu 0x13.
+    public const int AddressManipulateEnemySlot = 0x00DC3C64;
+    public const short ManipulateMenuState = 0x13;
+    public const int AddressManipulateCursorRow = 0x00DC276C;
+    public const int AddressManipulateScrollRow = 0x00DC277C;
+    public const int AddressManipulateRecords = 0x009AC114;
+    public const int ManipulateEnemyRecordStride = 0x60;
+    public const int ManipulateActionRecordSize = 6;
+    public const int ManipulateActionCount = 3;
     public const int AddressMenuWindowStates = 0x00DC2068;
     public const byte ActiveWindowState = 2;
 
@@ -277,13 +286,13 @@ public sealed class BattleStateReader
             !TryReadMenuOwner(rendererState, out var ownerBefore) ||
             ownerBefore.Module != BattleModule ||
             ownerBefore.WindowState != ActiveWindowState ||
-            ownerBefore.PartySlot >= PartyActorCount)
+            !IsValidMenuActor(rendererState, ownerBefore.PartySlot))
         {
             return BattleMenuStateSnapshot.Invalid;
         }
 
         var partySlot = ownerBefore.PartySlot;
-        if (!TryReadActorCore(partySlot, false, out var actorCandidate))
+        if (!TryReadActorCore(partySlot, rendererState == ManipulateMenuState, out var actorCandidate))
         {
             return BattleMenuStateSnapshot.Invalid;
         }
@@ -325,8 +334,15 @@ public sealed class BattleStateReader
 
     private bool IsRootCommandMenuActiveCore() =>
         readByte(AddressCurrentModule) == BattleModule &&
-        readByte(AddressCurrentActorSlot) < PartyActorCount &&
-        readByte(AddressMenuWindowStates + 1) == ActiveWindowState;
+        ((readByte(AddressCurrentActorSlot) < PartyActorCount &&
+          readByte(AddressMenuWindowStates + 1) == ActiveWindowState) ||
+         (readByte(AddressMenuWindowStates + ManipulateMenuState) == ActiveWindowState &&
+          readByte(AddressManipulateEnemySlot) <= LastEnemyActorIndex - FirstEnemyActorIndex));
+
+    public static bool IsValidMenuActor(short rendererState, int actorIndex) =>
+        rendererState == ManipulateMenuState
+            ? actorIndex is >= FirstEnemyActorIndex and <= LastEnemyActorIndex
+            : actorIndex is >= 0 and < PartyActorCount;
 
     public BattleEncounterSnapshot ReadEncounter()
     {
@@ -1284,8 +1300,66 @@ public sealed class BattleStateReader
                 currentMp,
                 out selection),
             0x18 => TryReadLimitSelection(partySlot, out selection),
+            ManipulateMenuState => TryReadManipulateSelection(partySlot, out selection),
             _ => false
         };
+    }
+
+    private bool TryReadManipulateSelection(int actorIndex, out BattleMenuSelectionSnapshot selection)
+    {
+        selection = default;
+        // The legacy callback also needs a stable row/name bookend; the translated
+        // address-space reader additionally verifies the complete menu observation.
+        if (!TryReadManipulateSelectionCore(actorIndex, out var before) ||
+            !TryReadManipulateSelectionCore(actorIndex, out var after) || before != after)
+        {
+            return false;
+        }
+
+        selection = before;
+        return true;
+    }
+
+    private bool TryReadManipulateSelectionCore(int actorIndex, out BattleMenuSelectionSnapshot selection)
+    {
+        selection = default;
+        if (!IsValidMenuActor(ManipulateMenuState, actorIndex) ||
+            !TryReadInt32(AddressManipulateCursorRow, out var row) ||
+            !TryReadInt32(AddressManipulateScrollRow, out var scrollRow) ||
+            row is < 0 or >= ManipulateActionCount ||
+            scrollRow is < 0 or >= ManipulateActionCount ||
+            row + scrollRow >= ManipulateActionCount ||
+            !TryComputeAddress(AddressManipulateRecords,
+                actorIndex - FirstEnemyActorIndex, ManipulateEnemyRecordStride,
+                row + scrollRow, ManipulateActionRecordSize, out var record) ||
+            !TryReadByte(record, out var sceneAttackIndex) ||
+            !TryReadByte(record + 3, out var flags))
+        {
+            return false;
+        }
+
+        var available = (flags & 2) == 0;
+        if (sceneAttackIndex == byte.MaxValue)
+        {
+            if (available) return false;
+            selection = new(-1, "Empty slot", null, null, null, false, row + scrollRow);
+            return true;
+        }
+
+        // FUN_006e1f64 draws category 9 names from the loaded scene, not KERNEL
+        // spell names. FUN_006d8b1e submits that same scene-local action index.
+        if (sceneAttackIndex >= SceneAttackCount ||
+            !TryReadUInt16(AddressSceneAttackIds + sceneAttackIndex * SceneAttackIdSize, out var actionId) ||
+            actionId == ushort.MaxValue)
+        {
+            return false;
+        }
+
+        var name = ReadFixedText(AddressSceneAttackNames + sceneAttackIndex * SceneAttackNameLength,
+            SceneAttackNameLength);
+        if (string.IsNullOrWhiteSpace(name)) return false;
+        selection = new(actionId, name, null, null, null, available, row + scrollRow);
+        return true;
     }
 
     private bool TryReadLimitSelection(int partySlot, out BattleMenuSelectionSnapshot selection)
@@ -1588,15 +1662,24 @@ public sealed class BattleStateReader
     private bool TryReadMenuOwner(short rendererState, out BattleMenuOwner owner)
     {
         owner = default;
-        var actorSlotAddress = rendererState == 0x18
-            ? AddressLimitActorSlot
-            : AddressCurrentActorSlot;
+        var actorSlotAddress = rendererState switch
+        {
+            ManipulateMenuState => AddressManipulateEnemySlot,
+            0x18 => AddressLimitActorSlot,
+            _ => AddressCurrentActorSlot
+        };
         if (!TryComputeAddress(AddressMenuWindowStates, rendererState, 1, out var windowAddress) ||
             !TryReadByte(AddressCurrentModule, out var module) ||
             !TryReadByte(windowAddress, out var windowState) ||
             !TryReadByte(actorSlotAddress, out var partySlot))
         {
             return false;
+        }
+
+        if (rendererState == ManipulateMenuState)
+        {
+            if (partySlot > LastEnemyActorIndex - FirstEnemyActorIndex) return false;
+            partySlot += FirstEnemyActorIndex;
         }
 
         owner = new BattleMenuOwner(module, windowState, partySlot);
@@ -2437,6 +2520,7 @@ public readonly record struct BattleEnemyActionSnapshot(
 public readonly record struct BattleMenuStateSnapshot(
     bool IsValid,
     short RendererState,
+    // Historical name: this is the owning battle actor (4..9 for Manipulate).
     int PartySlot,
     BattleActorSnapshot Actor,
     BattleMenuSelectionSnapshot? Selection = null)

@@ -97,6 +97,14 @@ if (args.Contains("--field-planner-capabilities-only", StringComparer.OrdinalIgn
     return;
 }
 
+if (args.Contains("--battle-manipulate-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.BattleManipulateMenuTests.Run();
+    Steam2026BattleRendererIngressTests.RunManipulateOnly();
+    Console.WriteLine("Steam 2026 x64 battle Manipulate tests passed.");
+    return;
+}
+
 if (args.Contains("--battle-sense-only", StringComparer.OrdinalIgnoreCase))
 {
     Steam2026BattleSenseTests.Run();
@@ -203,6 +211,7 @@ if (args.Contains("--world-map-only", StringComparer.OrdinalIgnoreCase))
     Ff7.Accessibility.Reloaded.Tests.WorldMapOwnEntranceTests.RunWithInstalledGameData();
     Ff7.Accessibility.Reloaded.Tests.WorldMapBroncoLandingTests.Run();
     Ff7.Accessibility.Reloaded.Tests.WorldMapBroncoLandingTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.WorldMapWutaiNavigationTests.RunWithInstalledGameData();
     Ff7.Accessibility.Reloaded.Tests.WorldMapTargetCatalogTests.RunWithInstalledGameData();
     Ff7.Accessibility.Reloaded.Tests.WorldMapTerrainAnnouncementTests.Run();
     Ff7.Accessibility.Reloaded.Tests.NavigationProgressControlTests.Run();
@@ -685,6 +694,7 @@ Ff7.Accessibility.Reloaded.Tests.WorldMapVehicleTerrainTests.RunWithInstalledGam
 Ff7.Accessibility.Reloaded.Tests.WorldMapOwnEntranceTests.RunWithInstalledGameData();
 Ff7.Accessibility.Reloaded.Tests.WorldMapBroncoLandingTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WorldMapBroncoLandingTests.RunWithInstalledGameData();
+Ff7.Accessibility.Reloaded.Tests.WorldMapWutaiNavigationTests.RunWithInstalledGameData();
 Ff7.Accessibility.Reloaded.Tests.FieldNpcTalkCounterTests.RunWithInstalledGameData();
 Ff7.Accessibility.Reloaded.Tests.WorldMapTargetCatalogTests.RunWithInstalledGameData();
 Ff7.Accessibility.Reloaded.Tests.WorldMapTerrainAnnouncementTests.Run();
@@ -833,6 +843,7 @@ Steam2026FieldMovieNarrationAdapterTests.Run();
 Steam2026CutsceneVoiceAdapterTests.Run();
 Steam2026FieldDialogueObservationTests.Run(native, legacy);
 Steam2026FieldDialogueSpeechStabilityTests.Run();
+Ff7.Accessibility.Reloaded.Tests.BattleManipulateMenuTests.Run();
 Steam2026BattleObservationTests.Run(native, legacy);
 Steam2026BattleRendererIngressTests.Run(native, legacy);
 Steam2026BattleAccessibilityCoordinatorTests.Run(native);

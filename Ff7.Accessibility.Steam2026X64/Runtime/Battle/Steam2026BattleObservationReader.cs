@@ -106,7 +106,7 @@ public sealed class Steam2026BattleObservationReader
         snapshot = null!;
         if (!IsSupportedRendererState(rendererState) ||
             !TryCaptureBattleOwnership(rendererState, out var before) ||
-            !IsValidBattleOwnership(before) ||
+            !IsValidBattleOwnership(rendererState, before) ||
             !TryReadRawBattle(rendererState, before.TargetIsVisible, out var candidate) ||
             !TryCaptureBattleOwnership(rendererState, out var middle) ||
             before != middle ||
@@ -147,6 +147,7 @@ public sealed class Steam2026BattleObservationReader
             case 4:
             case 6:
             case 7:
+            case BattleStateReader.ManipulateMenuState:
             case 0x18:
                 abilityId = snapshot.Menu.Selection.EntryId;
                 break;
@@ -307,9 +308,9 @@ public sealed class Steam2026BattleObservationReader
             var candidate = battleReader.ReadMenuState(rendererState);
             if (!candidate.IsValid
                 || candidate.RendererState != rendererState
-                || candidate.PartySlot is < 0 or >= 3
+                || !BattleStateReader.IsValidMenuActor(rendererState, candidate.PartySlot)
                 || candidate.Actor.ActorIndex != candidate.PartySlot
-                || candidate.Actor.IsEnemy
+                || candidate.Actor.IsEnemy != (rendererState == BattleStateReader.ManipulateMenuState)
                 || string.IsNullOrWhiteSpace(candidate.Actor.Name)
                 || candidate.Selection is not { } selection
                 || string.IsNullOrWhiteSpace(selection.Name))
@@ -902,9 +903,15 @@ public sealed class Steam2026BattleObservationReader
         out BattleOwnershipSnapshot ownership)
     {
         ownership = default;
+        var actorSlotAddress = rendererState switch
+        {
+            BattleStateReader.ManipulateMenuState => BattleStateReader.AddressManipulateEnemySlot,
+            0x18 => BattleStateReader.AddressLimitActorSlot,
+            _ => BattleStateReader.AddressCurrentActorSlot
+        };
         if (!TryAdd((uint)BattleStateReader.AddressMenuWindowStates, rendererState, out var windowAddress) ||
             !addressSpace.TryReadByte((uint)BattleStateReader.AddressCurrentModule, out var module) ||
-            !addressSpace.TryReadByte((uint)BattleStateReader.AddressCurrentActorSlot, out var currentActor) ||
+            !addressSpace.TryReadByte((uint)actorSlotAddress, out var currentActor) ||
             !addressSpace.TryReadByte(windowAddress, out var windowState) ||
             !addressSpace.TryReadUInt16((uint)BattleStateReader.AddressBattleFormationId, out var formationId) ||
             !addressSpace.TryReadByte((uint)BattleStateReader.AddressBattleLayoutType, out var layoutType) ||
@@ -915,6 +922,12 @@ public sealed class Steam2026BattleObservationReader
             !addressSpace.TryReadByte((uint)BattleStateReader.AddressTargetFlags, out var targetFlags))
         {
             return false;
+        }
+
+        if (rendererState == BattleStateReader.ManipulateMenuState)
+        {
+            if (currentActor > 5) return false;
+            currentActor += 4;
         }
 
         ownership = new BattleOwnershipSnapshot(
@@ -931,10 +944,10 @@ public sealed class Steam2026BattleObservationReader
         return true;
     }
 
-    private static bool IsValidBattleOwnership(BattleOwnershipSnapshot ownership)
+    private static bool IsValidBattleOwnership(short rendererState, BattleOwnershipSnapshot ownership)
     {
         if (ownership.Module != BattleStateReader.BattleModule ||
-            ownership.CurrentActor >= 3 ||
+            !BattleStateReader.IsValidMenuActor(rendererState, ownership.CurrentActor) ||
             ownership.WindowState != BattleStateReader.ActiveWindowState ||
             ownership.FormationId >= 1024 ||
             ownership.LayoutType > 8 ||
@@ -1350,7 +1363,7 @@ public sealed class Steam2026BattleObservationReader
         left.Items.SequenceEqual(right.Items);
 
     private static bool IsSupportedRendererState(short rendererState) =>
-        rendererState is 1 or 2 or 3 or 4 or 5 or 6 or 7 or 0x18;
+        Steam2026BattleRendererState.IsSupported(rendererState);
 
     private static bool TryAdd(uint address, int offset, out uint result)
     {

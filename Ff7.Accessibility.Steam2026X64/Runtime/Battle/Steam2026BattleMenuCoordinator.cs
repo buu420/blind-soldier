@@ -171,7 +171,7 @@ internal sealed class Steam2026BattleMenuCoordinator
     {
         frame = null!;
         if (revision <= 0
-            || menu.PartySlot is < 0 or >= 3
+            || !BattleStateReader.IsValidMenuActor(menu.RendererState, menu.PartySlot)
             || !Steam2026BattleRendererState.IsSupported(menu.RendererState)
             || menu.Selection is not { } selection)
         {
@@ -191,6 +191,7 @@ internal sealed class Steam2026BattleMenuCoordinator
             case 4:
             case 6:
             case 7:
+            case BattleStateReader.ManipulateMenuState:
             case 0x18:
                 abilityId = selection.EntryId;
                 break;

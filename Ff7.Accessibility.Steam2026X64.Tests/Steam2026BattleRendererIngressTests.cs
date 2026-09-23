@@ -40,9 +40,103 @@ internal static class Steam2026BattleRendererIngressTests
         IngressContainsOriginalAndQueueFailures(supportedRuntime);
         BattleMenuWorkerStaysWithinTranslatedReadBudget(supportedRuntime);
         WorkerProducesFramesAndRetryableNativeMenuSpeech(supportedRuntime);
+        ManipulateIngressAndWorkerSpeakNativeEnemyActions(supportedRuntime);
         WorkerFailsClosedForUnsupportedUnreadableAndTornState(supportedRuntime);
         StaleWorkerReadDoesNotRearmUnchangedMenuSpeech(supportedRuntime);
         HookSetOwnsTheExactBattleCallbackCohort();
+    }
+
+    internal static void RunManipulateOnly() =>
+        ManipulateIngressAndWorkerSpeakNativeEnemyActions(new Steam2026FingerprintResult(
+            new RuntimeIdentity(Steam2026Fingerprint.SupportedRuntimeId,
+                @"C:\fixture\FFVII.exe", Steam2026Fingerprint.SupportedSha256, true, string.Empty),
+            true, "Exact supported fingerprint fixture."));
+
+    private static void ManipulateIngressAndWorkerSpeakNativeEnemyActions(
+        Steam2026FingerprintResult supportedRuntime)
+    {
+        const short state = 0x13;
+        BattleRendererIngressFixture CreateManipulateFixture()
+        {
+            var f = BattleRendererIngressFixture.Create();
+            f.WriteRendererState(state);
+            f.Battle.WriteByte(BattleStateReader.AddressCurrentActorSlot, 255);
+            f.Battle.WriteByte(BattleStateReader.AddressMenuWindowStates + 1, 0);
+            f.Battle.WriteByte(BattleStateReader.AddressMenuWindowStates + state, 2);
+            f.Battle.WriteInt32(BattleStateReader.AddressBattleMenuTextState, state);
+            f.Battle.WriteByte(0x00DC3C64, 0);
+            f.Battle.WriteInt32(0x00DC276C, 0);
+            f.Battle.WriteInt32(0x00DC277C, 0);
+            f.Battle.Write(0x009AC114, new byte[] { 7, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 255, 0, 0, 3, 0, 0 });
+            f.Battle.WriteUInt16(BattleStateReader.AddressSceneAttackIds + 7 * 2, 0x120);
+            f.Battle.WriteUInt16(BattleStateReader.AddressSceneAttackIds + 8 * 2, 0x145);
+            foreach (var (index, name) in new[] { (7, "Glasscutter"), (8, "Spaz Voice") })
+            {
+                var encoded = Enumerable.Repeat((byte)255, 32).ToArray();
+                for (var n = 0; n < name.Length; n++) encoded[n] = (byte)(name[n] - 0x20);
+                f.Battle.Write((uint)(BattleStateReader.AddressSceneAttackNames + index * 32), encoded);
+            }
+            f.Battle.WriteByte(BattleStateReader.AddressPersistentActorRecords + 4 * BattleStateReader.PersistentActorRecordSize, 0);
+            return f;
+        }
+
+        var fixture = CreateManipulateFixture();
+        var memory = new CountingNativeMemoryReader(fixture.Battle.Native);
+        var reader = new Steam2026BattleObservationReader(supportedRuntime,
+            BattleObservationFixture.ModuleBase, memory, CreateResolvers());
+        var coordinator = new Steam2026BattleMenuCoordinator(reader);
+        var queue = new BoundedNativeIngressQueue<Steam2026BattleRendererIngressSnapshot>(4);
+        var originalCalls = 0;
+        using var ingress = new Steam2026BattleRendererDetourIngressCoordinator(
+            CreateExactContract(fixture, supportedRuntime), () => originalCalls++, () => Timestamp, queue);
+        ingress.OnMenuRenderer();
+        Equal(1, originalCalls, "Manipulate callback preserves the original renderer");
+        Equal(true, queue.TryDequeue(out var capture), "Manipulate callback reaches the worker");
+        Equal(state, capture.RendererState, "Manipulate renderer identity");
+        memory.Reset();
+        var update = coordinator.Observe(capture);
+        Equal(RuntimeDomainUpdateKind.Present, update.Kind, "controlled-enemy battle frame");
+        Equal(true, memory.ReadOperations <= 200, $"Manipulate worker read budget: {memory.ReadOperations}");
+        Equal(true, memory.QueryOperations <= 140, $"Manipulate worker query budget: {memory.QueryOperations}");
+        Equal(4, update.Value!.ReadyActorId, "controlled enemy owns translated frame");
+        Equal(0x120, update.Value.AbilityId, "translated scene action id");
+        Equal(0, update.Value.Actors.Single().CurrentHp, "controlled enemy frame preserves hidden HP");
+        Equal(true, coordinator.TrySpeakPending(_ => true, out var spoken), "translated Manipulate speech");
+        Equal("Grunt. Glasscutter", spoken, "visible enemy action, without hidden stats");
+        Equal(true, reader.TryReadBattleFrame(1, state, out var fullFrame), "full translated observation accepts enemy-owned menu");
+        Equal(4, fullFrame.ReadyActorId, "full translated owner matches menu owner");
+
+        coordinator.Observe(CreateIngressSnapshot(2, state));
+        Equal(false, coordinator.TrySpeakPending(_ => true, out _), "unchanged enemy action stays silent");
+        fixture.Battle.WriteInt32(0x00DC276C, 1);
+        coordinator.Observe(CreateIngressSnapshot(3, state));
+        Equal(true, coordinator.TrySpeakPending(_ => true, out spoken), "translated next action speaks");
+        Equal("Spaz Voice", spoken, "translated next scene action name");
+
+        Equal(true, reader.TryReadBattleTrackerSnapshot(out var active), "enemy-root lifecycle snapshot");
+        Equal(true, active.RootCommandMenuActive, "Manipulate counts as an active command menu");
+        coordinator.ObserveRootCommandMenuActive(active.RootCommandMenuActive);
+        fixture.Battle.WriteByte(BattleStateReader.AddressMenuWindowStates + state, 0);
+        Equal(true, reader.TryReadBattleTrackerSnapshot(out var closed), "closed enemy-root lifecycle snapshot");
+        Equal(false, closed.RootCommandMenuActive, "closed Manipulate turn is inactive");
+        coordinator.ObserveRootCommandMenuActive(closed.RootCommandMenuActive);
+        fixture.Battle.WriteByte(BattleStateReader.AddressMenuWindowStates + state, 2);
+        coordinator.Observe(CreateIngressSnapshot(4, state));
+        Equal(true, coordinator.TrySpeakPending(_ => true, out spoken), "same action speaks on the next controlled-enemy turn");
+        Equal("Grunt. Spaz Voice", spoken, "next turn restores actor prefix");
+
+        var torn = CreateManipulateFixture();
+        var tearing = new TearingNativeMemoryReader(torn.Battle.Native,
+            torn.Battle.GetHostAddress(0x00DC276C), 2, () => torn.Battle.WriteInt32(0x00DC276C, 1));
+        var tornCoordinator = new Steam2026BattleMenuCoordinator(supportedRuntime,
+            BattleObservationFixture.ModuleBase, tearing, CreateResolvers());
+        Equal(RuntimeDomainUpdateKind.Unchanged, tornCoordinator.Observe(CreateIngressSnapshot(1, state)).Kind,
+            "torn translated Manipulate cursor is rejected");
+        Equal(false, tornCoordinator.TrySpeakPending(_ => true, out _), "torn cursor cannot queue incorrect speech");
+
+        fixture.Battle.UnmapGuestPage((uint)BattleStateReader.AddressSceneAttackNames);
+        coordinator.Observe(CreateIngressSnapshot(5, state));
+        Equal(false, coordinator.TrySpeakPending(_ => true, out _), "unmapped scene names stay silent");
     }
 
     private static void BattleMenuWorkerStaysWithinTranslatedReadBudget(

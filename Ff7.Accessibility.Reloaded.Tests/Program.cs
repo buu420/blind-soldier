@@ -157,6 +157,13 @@ if (args.Contains("--phs-only", StringComparer.OrdinalIgnoreCase))
     return;
 }
 
+if (args.Contains("--battle-manipulate-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.BattleManipulateMenuTests.Run();
+    Console.WriteLine("FFVII x86 battle Manipulate tests passed.");
+    return;
+}
+
 if (args.Contains("--battle-sense-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.BattleSenseSpeechTests.Run();
@@ -449,6 +456,7 @@ if (args.Contains("--world-map-only", StringComparer.OrdinalIgnoreCase))
     Ff7.Accessibility.Reloaded.Tests.WorldMapOwnEntranceTests.RunWithInstalledGameData();
     Ff7.Accessibility.Reloaded.Tests.WorldMapBroncoLandingTests.Run();
     Ff7.Accessibility.Reloaded.Tests.WorldMapBroncoLandingTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.WorldMapWutaiNavigationTests.RunWithInstalledGameData();
     Ff7.Accessibility.Reloaded.Tests.NavigationProgressControlTests.Run();
     AssertWorldEntranceCueUsesTheFullDirectionalSteamAudioRender();
     Console.WriteLine("FFVII shared world-map accessibility tests passed.");
@@ -1080,6 +1088,7 @@ AssertKernel2TextDatabaseMapsNativeLimitActions();
 AssertKernel2TextDatabaseReadsCommandNames();
 AssertKernel2TextDatabaseReadsMateriaNames();
 AssertKernel2TextDatabaseReadsInventoryObjectNames();
+Ff7.Accessibility.Reloaded.Tests.BattleManipulateMenuTests.Run();
 AssertBattleStateReaderRejectsOtherModulesAndInvalidActors();
 AssertBattleStateReaderReadsReadyActorAndLiveStats();
 AssertBattleStateReaderReadsGuestPartyCommands();
@@ -1252,6 +1261,7 @@ Ff7.Accessibility.Reloaded.Tests.WorldMapVehicleTerrainTests.RunWithInstalledGam
 Ff7.Accessibility.Reloaded.Tests.WorldMapOwnEntranceTests.RunWithInstalledGameData();
 Ff7.Accessibility.Reloaded.Tests.WorldMapBroncoLandingTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WorldMapBroncoLandingTests.RunWithInstalledGameData();
+Ff7.Accessibility.Reloaded.Tests.WorldMapWutaiNavigationTests.RunWithInstalledGameData();
 Ff7.Accessibility.Reloaded.Tests.FieldNpcTalkCounterTests.RunWithInstalledGameData();
 AssertFieldLadderStateReaderReadsNativeMountedState();
 AssertFieldLadderStateReaderCorrectsWallClimbPenultimateLadderToLeft();
