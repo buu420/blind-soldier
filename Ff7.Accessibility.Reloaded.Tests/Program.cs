@@ -42,14 +42,23 @@ if (args.Contains("--story-coverage-only", StringComparer.OrdinalIgnoreCase))
     Ff7.Accessibility.Reloaded.Tests.GreatGlacierStoryTests.RunWithInstalledGameData();
     Ff7.Accessibility.Reloaded.Tests.ReportedNavigationRegressionTests.RunArrivalHysteresisOnly();
     Ff7.Accessibility.Reloaded.Tests.StoryProgressionGapTests.Run();
-    Ff7.Accessibility.Reloaded.Tests.StoryProgressionGapTests.RunWithInstalledGameData(
-        CreateInstalledFieldWalkmeshReader,
-        new FieldScriptNavigationCatalog(FindGameRoot()));
-    Ff7.Accessibility.Reloaded.Tests.RocketGantryLadderTests.Run(CreateInstalledFieldWalkmeshReader);
-    Ff7.Accessibility.Reloaded.Tests.CidHouseLiveModelRouteTests.Run(CreateInstalledFieldWalkmeshReader);
-    Ff7.Accessibility.Reloaded.Tests.NativeLandingArrivalTests.RunWithInstalledGameData(
-        CreateInstalledFieldWalkmeshReader,
-        new FieldScriptNavigationCatalog(FindGameRoot()));
+    if (TryFindConfiguredGameRoot(out var storyCoverageGameRoot))
+    {
+        Ff7.Accessibility.Reloaded.Tests.StoryProgressionGapTests.RunWithInstalledGameData(
+            CreateInstalledFieldWalkmeshReader,
+            new FieldScriptNavigationCatalog(storyCoverageGameRoot));
+        Ff7.Accessibility.Reloaded.Tests.RocketGantryLadderTests.Run(CreateInstalledFieldWalkmeshReader);
+        Ff7.Accessibility.Reloaded.Tests.CidHouseLiveModelRouteTests.Run(CreateInstalledFieldWalkmeshReader);
+        Ff7.Accessibility.Reloaded.Tests.NativeLandingArrivalTests.RunWithInstalledGameData(
+            CreateInstalledFieldWalkmeshReader,
+            new FieldScriptNavigationCatalog(storyCoverageGameRoot));
+    }
+    else
+    {
+        Console.WriteLine(
+            "story progression: no FFVII runtime is configured, native cases not run");
+    }
+
     Ff7.Accessibility.Reloaded.Tests.FieldActivityNumericWindowReadTests.Run();
     Ff7.Accessibility.Reloaded.Tests.ShinraMansionSafeDialTests.Run();
     Ff7.Accessibility.Reloaded.Tests.ShinraMansionSafeDialTests.RunWithInstalledGameData();
@@ -29789,6 +29798,41 @@ static string FindGameRoot()
 
     throw new DirectoryNotFoundException(
         "Could not locate an FFVII runtime from the test path, FF7_ACCESSIBILITY_RUNTIME, or Reloaded-II AppConfig.json.");
+}
+
+// Story coverage runs on build machines that hold no licensed game data. A test that
+// takes its own game root can decide for itself and print "native cases not run"; these
+// native replays are handed a reader and a catalog the host builds first, so the host is
+// the only place the decision can be made.
+//
+// Skipping is only ever for the machine that has nothing. A root the caller actually
+// configured - FF7_ACCESSIBILITY_DATA_ROOT or FF7_ACCESSIBILITY_RUNTIME - is resolved the
+// ordinary way and still throws when it does not resolve, because a broken configuration
+// that silently runs nothing is how a suite stops covering what it claims to.
+static bool TryFindConfiguredGameRoot(out string gameRoot)
+{
+    var configured =
+        !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("FF7_ACCESSIBILITY_DATA_ROOT")) ||
+        !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("FF7_ACCESSIBILITY_RUNTIME"));
+    if (configured)
+    {
+        gameRoot = FindGameRoot();
+        return true;
+    }
+
+    try
+    {
+        // Nothing was configured, but a checkout sitting inside a game runtime still
+        // finds one. Keeping that path means a developer does not lose native coverage
+        // merely by not exporting anything.
+        gameRoot = FindGameRoot();
+        return true;
+    }
+    catch (DirectoryNotFoundException)
+    {
+        gameRoot = string.Empty;
+        return false;
+    }
 }
 
 static bool IsGameRuntime(string path)

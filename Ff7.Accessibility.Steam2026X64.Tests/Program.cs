@@ -54,6 +54,27 @@ if (args.Contains("--story-coverage-only", StringComparer.OrdinalIgnoreCase))
     Ff7.Accessibility.Reloaded.Tests.GreatGlacierStoryTests.Run();
     Ff7.Accessibility.Reloaded.Tests.GreatGlacierStoryTests.RunWithInstalledGameData();
     Ff7.Accessibility.Reloaded.Tests.ReportedNavigationRegressionTests.RunArrivalHysteresisOnly();
+    // The same story progression work the x86 host runs here. It was reachable on this
+    // runtime only through the town and native-movement suites, so the shared CI story
+    // gate covered it on one of the two runtimes this mod ships.
+    Ff7.Accessibility.Reloaded.Tests.StoryProgressionGapTests.Run();
+    if (HasInstalledGameData())
+    {
+        Ff7.Accessibility.Reloaded.Tests.StoryProgressionGapTests.RunWithInstalledGameData(
+            CreateInstalledFieldWalkmeshReader,
+            CreateInstalledFieldScriptCatalog());
+        Ff7.Accessibility.Reloaded.Tests.RocketGantryLadderTests.Run(CreateInstalledFieldWalkmeshReader);
+        Ff7.Accessibility.Reloaded.Tests.CidHouseLiveModelRouteTests.Run(CreateInstalledFieldWalkmeshReader);
+        Ff7.Accessibility.Reloaded.Tests.NativeLandingArrivalTests.RunWithInstalledGameData(
+            CreateInstalledFieldWalkmeshReader,
+            CreateInstalledFieldScriptCatalog());
+    }
+    else
+    {
+        Console.WriteLine(
+            "story progression: FF7_ACCESSIBILITY_DATA_ROOT is unset, native cases not run");
+    }
+
     Console.WriteLine("Story coverage tests passed.");
     return;
 }
@@ -2465,6 +2486,14 @@ static string FindAccessibilityPrototypeRoot()
 
     throw new DirectoryNotFoundException("Could not locate the accessibility_prototype root.");
 }
+
+// Whether this machine was given licensed game data at all. Only the story coverage
+// suite asks: it runs on build machines that have none, and the native replays it owns
+// are handed a reader and a catalog built before the test starts, so the test cannot
+// skip itself the way the ones that resolve their own root do. A root that is set but
+// unusable still reaches the two helpers below and still throws there.
+static bool HasInstalledGameData() =>
+    !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("FF7_ACCESSIBILITY_DATA_ROOT"));
 
 /// <summary>
 /// The installed script catalog, for the tests that replay a route from a native
