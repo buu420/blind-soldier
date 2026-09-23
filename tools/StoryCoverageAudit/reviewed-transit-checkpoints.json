@@ -1,0 +1,4814 @@
+[
+  {
+    "id": "reviewed-transit-625-652-0",
+    "fieldId": 625,
+    "moment": 652,
+    "expectedLabels": [
+      "Continue through Coral Valley"
+    ],
+    "evidence": "619 lin0 stops looping at 652 and maps625. sango1 gateway1 leads626; no automatic counter write.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": -515,
+      "startY": 2938,
+      "startZ": -27,
+      "endX": -395,
+      "endY": 2960,
+      "endZ": -27
+    },
+    "expectedDestinationFieldIds": [
+      626
+    ],
+    "routeArrivalFromFieldId": 619
+  },
+  {
+    "id": "reviewed-transit-626-652-1",
+    "fieldId": 626,
+    "moment": 652,
+    "expectedLabels": [
+      "Leave the valley toward the Forgotten Capital"
+    ],
+    "evidence": "sango2 gateway0 leads world57; the next world entrance is lost1. Ordinary playable corridor.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": -698,
+      "startY": -8963,
+      "startZ": 3554,
+      "endX": -808,
+      "endY": -9475,
+      "endZ": 3782
+    },
+    "expectedDestinationFieldIds": [
+      57
+    ],
+    "routeArrivalFromFieldId": 625
+  },
+  {
+    "id": "reviewed-transit-632-652-2",
+    "fieldId": 632,
+    "moment": 652,
+    "expectedLabels": [
+      "Return outside to the eastern houses"
+    ],
+    "evidence": "First visit: resting in losinn writes664. These side rooms do not advance the counter; return to lost1/lost2 and the sleeping house.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": 217,
+      "startY": 96,
+      "startZ": -102,
+      "endX": 221,
+      "endY": 171,
+      "endZ": -102
+    },
+    "expectedDestinationFieldIds": [
+      634
+    ],
+    "routeArrivalFromFieldId": 634
+  },
+  {
+    "id": "reviewed-transit-633-652-3",
+    "fieldId": 633,
+    "moment": 652,
+    "expectedLabels": [
+      "Return outside to the western path"
+    ],
+    "evidence": "First visit: resting in losinn writes664. These side rooms do not advance the counter; return to lost1/lost2 and the sleeping house.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": 43,
+      "startY": -352,
+      "startZ": 0,
+      "endX": 126,
+      "endY": -343,
+      "endZ": 0
+    },
+    "expectedDestinationFieldIds": [
+      635
+    ],
+    "routeArrivalFromFieldId": 635
+  },
+  {
+    "id": "reviewed-transit-635-652-4",
+    "fieldId": 635,
+    "moment": 652,
+    "expectedLabels": [
+      "Return to the crossroads"
+    ],
+    "evidence": "First visit: resting in losinn writes664. These side rooms do not advance the counter; return to lost1/lost2 and the sleeping house.",
+    "nativeAnchors": [
+      {
+        "entityId": 3,
+        "scriptId": 0,
+        "hex": "D0"
+      }
+    ],
+    "expectedLine": {
+      "startX": -5136,
+      "startY": 6169,
+      "startZ": 359,
+      "endX": -4990,
+      "endY": 6187,
+      "endZ": 359
+    },
+    "expectedDestinationFieldIds": [
+      630
+    ],
+    "enabledLines": [
+      3
+    ],
+    "routeArrivalFromFieldId": 633
+  },
+  {
+    "id": "reviewed-transit-640-652-5",
+    "fieldId": 640,
+    "moment": 652,
+    "expectedLabels": [
+      "Return to the crossroads"
+    ],
+    "evidence": "First visit: resting in losinn writes664. These side rooms do not advance the counter; return to lost1/lost2 and the sleeping house.",
+    "nativeAnchors": [
+      {
+        "entityId": 4,
+        "scriptId": 0,
+        "hex": "D0"
+      }
+    ],
+    "expectedLine": {
+      "startX": -9604,
+      "startY": 5681,
+      "startZ": 276,
+      "endX": -9574,
+      "endY": 5738,
+      "endZ": 276
+    },
+    "expectedDestinationFieldIds": [
+      630
+    ],
+    "enabledLines": [
+      4
+    ],
+    "routeArrivalFromFieldId": 641
+  },
+  {
+    "id": "reviewed-transit-641-652-6",
+    "fieldId": 641,
+    "moment": 652,
+    "expectedLabels": [
+      "Leave the blue building"
+    ],
+    "evidence": "First visit: resting in losinn writes664. These side rooms do not advance the counter; return to lost1/lost2 and the sleeping house.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": 215,
+      "startY": -1648,
+      "startZ": 33,
+      "endX": 306,
+      "endY": -1656,
+      "endZ": 33
+    },
+    "expectedDestinationFieldIds": [
+      640
+    ],
+    "routeArrivalFromFieldId": 631
+  },
+  {
+    "id": "reviewed-transit-632-664-7",
+    "fieldId": 632,
+    "moment": 664,
+    "expectedLabels": [
+      "Return outside to the eastern houses"
+    ],
+    "evidence": "After resting, return from optional rooms to lost1 and the blue building; bank3[132] bit4 is set by the rest.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": 217,
+      "startY": 96,
+      "startZ": -102,
+      "endX": 221,
+      "endY": 171,
+      "endZ": -102
+    },
+    "expectedDestinationFieldIds": [
+      634
+    ],
+    "routeArrivalFromFieldId": 634
+  },
+  {
+    "id": "reviewed-transit-633-664-8",
+    "fieldId": 633,
+    "moment": 664,
+    "expectedLabels": [
+      "Return outside to the western path"
+    ],
+    "evidence": "After resting, return from optional rooms to lost1 and the blue building; bank3[132] bit4 is set by the rest.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": 43,
+      "startY": -352,
+      "startZ": 0,
+      "endX": 126,
+      "endY": -343,
+      "endZ": 0
+    },
+    "expectedDestinationFieldIds": [
+      635
+    ],
+    "routeArrivalFromFieldId": 635
+  },
+  {
+    "id": "reviewed-transit-635-664-9",
+    "fieldId": 635,
+    "moment": 664,
+    "expectedLabels": [
+      "Return to the crossroads"
+    ],
+    "evidence": "After resting, return from optional rooms to lost1 and the blue building; bank3[132] bit4 is set by the rest.",
+    "nativeAnchors": [
+      {
+        "entityId": 3,
+        "scriptId": 0,
+        "hex": "D0"
+      }
+    ],
+    "expectedLine": {
+      "startX": -5136,
+      "startY": 6169,
+      "startZ": 359,
+      "endX": -4990,
+      "endY": 6187,
+      "endZ": 359
+    },
+    "expectedDestinationFieldIds": [
+      630
+    ],
+    "enabledLines": [
+      3
+    ],
+    "routeArrivalFromFieldId": 633
+  },
+  {
+    "id": "reviewed-transit-630-1392-10",
+    "fieldId": 630,
+    "moment": 1392,
+    "expectedLabels": [
+      "Take the western path to the lake"
+    ],
+    "evidence": "Bugenhagen waits in white1; at1396..1398 with the Key (13[82] bit1) the route returns to him.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": -4146,
+      "startY": 1422,
+      "startZ": 153,
+      "endX": -4782,
+      "endY": 1603,
+      "endZ": 145
+    },
+    "expectedDestinationFieldIds": [
+      635
+    ],
+    "routeArrivalFromFieldId": 635
+  },
+  {
+    "id": "reviewed-transit-635-1392-11",
+    "fieldId": 635,
+    "moment": 1392,
+    "expectedLabels": [
+      "Go down into the lake"
+    ],
+    "evidence": "lost3 jump2 maps637; the key branch proceeds to white1.",
+    "nativeAnchors": [
+      {
+        "entityId": 4,
+        "scriptId": 0,
+        "hex": "D0"
+      }
+    ],
+    "expectedLine": {
+      "startX": -2760,
+      "startY": 9852,
+      "startZ": 1052,
+      "endX": -2818,
+      "endY": 9705,
+      "endZ": 1052
+    },
+    "expectedDestinationFieldIds": [
+      637
+    ],
+    "enabledLines": [
+      4
+    ],
+    "routeArrivalFromFieldId": 633
+  },
+  {
+    "id": "reviewed-transit-630-1396-12",
+    "fieldId": 630,
+    "moment": 1396,
+    "expectedLabels": [
+      "Take the western path to the lake"
+    ],
+    "evidence": "Bugenhagen waits in white1; at1396..1398 with the Key (13[82] bit1) the route returns to him.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": -4146,
+      "startY": 1422,
+      "startZ": 153,
+      "endX": -4782,
+      "endY": 1603,
+      "endZ": 145
+    },
+    "expectedDestinationFieldIds": [
+      635
+    ],
+    "state": [
+      {
+        "bank": 13,
+        "address": 82,
+        "value": 2
+      }
+    ],
+    "routeArrivalFromFieldId": 635
+  },
+  {
+    "id": "reviewed-transit-635-1396-13",
+    "fieldId": 635,
+    "moment": 1396,
+    "expectedLabels": [
+      "Go down into the lake"
+    ],
+    "evidence": "lost3 jump2 maps637; the key branch proceeds to white1.",
+    "nativeAnchors": [
+      {
+        "entityId": 4,
+        "scriptId": 0,
+        "hex": "D0"
+      }
+    ],
+    "expectedLine": {
+      "startX": -2760,
+      "startY": 9852,
+      "startZ": 1052,
+      "endX": -2818,
+      "endY": 9705,
+      "endZ": 1052
+    },
+    "expectedDestinationFieldIds": [
+      637
+    ],
+    "enabledLines": [
+      4
+    ],
+    "state": [
+      {
+        "bank": 13,
+        "address": 82,
+        "value": 2
+      }
+    ],
+    "routeArrivalFromFieldId": 633
+  },
+  {
+    "id": "reviewed-transit-637-1396-14",
+    "fieldId": 637,
+    "moment": 1396,
+    "expectedLabels": [
+      "Return to Bugenhagen with the key"
+    ],
+    "evidence": "white1 Bugenhagen Talk accepts Key13[82] bit1 and starts1397..1399 automatic scene chain.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": 566,
+      "startY": -357,
+      "startZ": -267,
+      "endX": 565,
+      "endY": -265,
+      "endZ": -269
+    },
+    "expectedDestinationFieldIds": [
+      642
+    ],
+    "state": [
+      {
+        "bank": 13,
+        "address": 82,
+        "value": 2
+      }
+    ],
+    "routeArrivalFromFieldId": 642
+  },
+  {
+    "id": "reviewed-transit-637-1396-15",
+    "fieldId": 637,
+    "moment": 1396,
+    "expectedLabels": [
+      "Leave the lake to look for the key"
+    ],
+    "evidence": "white1 line11 sends the player back for the Key while13[82] bit1 is clear; no automatic transition in these return rooms.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": -1113,
+      "startY": -134,
+      "startZ": -266,
+      "endX": -1274,
+      "endY": 41,
+      "endZ": -266
+    },
+    "expectedDestinationFieldIds": [
+      635
+    ],
+    "state": [
+      {
+        "bank": 13,
+        "address": 82,
+        "value": 0
+      }
+    ],
+    "routeArrivalFromFieldId": 642
+  },
+  {
+    "id": "reviewed-transit-635-1396-16",
+    "fieldId": 635,
+    "moment": 1396,
+    "expectedLabels": [
+      "Return to the crossroads"
+    ],
+    "evidence": "white1 line11 sends the player back for the Key while13[82] bit1 is clear; no automatic transition in these return rooms.",
+    "nativeAnchors": [
+      {
+        "entityId": 3,
+        "scriptId": 0,
+        "hex": "D0"
+      }
+    ],
+    "expectedLine": {
+      "startX": -5136,
+      "startY": 6169,
+      "startZ": 359,
+      "endX": -4990,
+      "endY": 6187,
+      "endZ": 359
+    },
+    "expectedDestinationFieldIds": [
+      630
+    ],
+    "enabledLines": [
+      3
+    ],
+    "state": [
+      {
+        "bank": 13,
+        "address": 82,
+        "value": 0
+      }
+    ],
+    "routeArrivalFromFieldId": 633
+  },
+  {
+    "id": "reviewed-transit-630-1396-17",
+    "fieldId": 630,
+    "moment": 1396,
+    "expectedLabels": [
+      "Leave the capital to look for the key"
+    ],
+    "evidence": "white1 line11 sends the player back for the Key while13[82] bit1 is clear; no automatic transition in these return rooms.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": -815,
+      "startY": 628,
+      "startZ": 95,
+      "endX": -733,
+      "endY": 789,
+      "endZ": 94
+    },
+    "expectedDestinationFieldIds": [
+      58
+    ],
+    "state": [
+      {
+        "bank": 13,
+        "address": 82,
+        "value": 0
+      }
+    ],
+    "routeArrivalFromFieldId": 635
+  },
+  {
+    "id": "reviewed-transit-635-1566-18",
+    "fieldId": 635,
+    "moment": 1566,
+    "expectedLabels": [
+      "Return to the crossroads"
+    ],
+    "evidence": "blin70_4 writes1566 and maps637; after existing lake exit the walked path is635 jump1 then630 gateway0 toworld58.",
+    "nativeAnchors": [
+      {
+        "entityId": 3,
+        "scriptId": 0,
+        "hex": "D0"
+      }
+    ],
+    "expectedLine": {
+      "startX": -5136,
+      "startY": 6169,
+      "startZ": 359,
+      "endX": -4990,
+      "endY": 6187,
+      "endZ": 359
+    },
+    "expectedDestinationFieldIds": [
+      630
+    ],
+    "enabledLines": [
+      3
+    ],
+    "routeArrivalFromFieldId": 633
+  },
+  {
+    "id": "reviewed-transit-630-1566-19",
+    "fieldId": 630,
+    "moment": 1566,
+    "expectedLabels": [
+      "Leave the capital for the Highwind"
+    ],
+    "evidence": "blin70_4 writes1566 and maps637; after existing lake exit the walked path is635 jump1 then630 gateway0 toworld58.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": -815,
+      "startY": 628,
+      "startZ": 95,
+      "endX": -733,
+      "endY": 789,
+      "endZ": 94
+    },
+    "expectedDestinationFieldIds": [
+      58
+    ],
+    "routeArrivalFromFieldId": 635
+  },
+  {
+    "id": "reviewed-transit-74-1033-20",
+    "fieldId": 74,
+    "moment": 1033,
+    "expectedLabels": [
+      "Go forward to the cockpit"
+    ],
+    "evidence": "fship_3 gateway0 leads74 after party selection;74 jump takes field70 below1199, whose pilot can take off.",
+    "nativeAnchors": [
+      {
+        "entityId": 6,
+        "scriptId": 0,
+        "hex": "D0"
+      }
+    ],
+    "expectedLine": {
+      "startX": 1016,
+      "startY": -765,
+      "startZ": -401,
+      "endX": 978,
+      "endY": -876,
+      "endZ": -433
+    },
+    "expectedDestinationFieldIds": [
+      68,
+      70,
+      72
+    ],
+    "enabledLines": [
+      6
+    ],
+    "routeArrivalFromFieldId": 73
+  },
+  {
+    "id": "reviewed-transit-74-1250-21",
+    "fieldId": 74,
+    "moment": 1250,
+    "expectedLabels": [
+      "Go forward to the deck"
+    ],
+    "evidence": "74 jump uses field72 from1199 onward. These free-flight bands exclude the automatic end-of-disc departure at1612.",
+    "nativeAnchors": [
+      {
+        "entityId": 6,
+        "scriptId": 0,
+        "hex": "D0"
+      }
+    ],
+    "expectedLine": {
+      "startX": 1016,
+      "startY": -765,
+      "startZ": -401,
+      "endX": 978,
+      "endY": -876,
+      "endZ": -433
+    },
+    "expectedDestinationFieldIds": [
+      68,
+      70,
+      72
+    ],
+    "enabledLines": [
+      6
+    ],
+    "routeArrivalFromFieldId": 73
+  },
+  {
+    "id": "reviewed-transit-73-1250-22",
+    "fieldId": 73,
+    "moment": 1250,
+    "expectedLabels": [
+      "Return to the corridor"
+    ],
+    "evidence": "Operations room after1199 scene completes at1250; gateway0 leads74 and no further mandatory party scene runs in this band.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": -84,
+      "startY": -450,
+      "startZ": 0,
+      "endX": 80,
+      "endY": -450,
+      "endZ": 0
+    },
+    "expectedDestinationFieldIds": [
+      74
+    ],
+    "routeArrivalFromFieldId": 74
+  },
+  {
+    "id": "reviewed-transit-74-1389-23",
+    "fieldId": 74,
+    "moment": 1389,
+    "expectedLabels": [
+      "Go forward to the deck"
+    ],
+    "evidence": "74 jump uses field72 from1199 onward. These free-flight bands exclude the automatic end-of-disc departure at1612.",
+    "nativeAnchors": [
+      {
+        "entityId": 6,
+        "scriptId": 0,
+        "hex": "D0"
+      }
+    ],
+    "expectedLine": {
+      "startX": 1016,
+      "startY": -765,
+      "startZ": -401,
+      "endX": 978,
+      "endY": -876,
+      "endZ": -433
+    },
+    "expectedDestinationFieldIds": [
+      68,
+      70,
+      72
+    ],
+    "enabledLines": [
+      6
+    ],
+    "routeArrivalFromFieldId": 73
+  },
+  {
+    "id": "reviewed-transit-73-1389-24",
+    "fieldId": 73,
+    "moment": 1389,
+    "expectedLabels": [
+      "Return to the corridor"
+    ],
+    "evidence": "Operations room after1199 scene completes at1250; gateway0 leads74 and no further mandatory party scene runs in this band.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": -84,
+      "startY": -450,
+      "startZ": 0,
+      "endX": 80,
+      "endY": -450,
+      "endZ": 0
+    },
+    "expectedDestinationFieldIds": [
+      74
+    ],
+    "routeArrivalFromFieldId": 74
+  },
+  {
+    "id": "reviewed-transit-74-1582-25",
+    "fieldId": 74,
+    "moment": 1582,
+    "expectedLabels": [
+      "Go forward to the deck"
+    ],
+    "evidence": "74 jump uses field72 from1199 onward. These free-flight bands exclude the automatic end-of-disc departure at1612.",
+    "nativeAnchors": [
+      {
+        "entityId": 6,
+        "scriptId": 0,
+        "hex": "D0"
+      }
+    ],
+    "expectedLine": {
+      "startX": 1016,
+      "startY": -765,
+      "startZ": -401,
+      "endX": 978,
+      "endY": -876,
+      "endZ": -433
+    },
+    "expectedDestinationFieldIds": [
+      68,
+      70,
+      72
+    ],
+    "enabledLines": [
+      6
+    ],
+    "routeArrivalFromFieldId": 73
+  },
+  {
+    "id": "reviewed-transit-73-1582-26",
+    "fieldId": 73,
+    "moment": 1582,
+    "expectedLabels": [
+      "Return to the corridor"
+    ],
+    "evidence": "Operations room after1199 scene completes at1250; gateway0 leads74 and no further mandatory party scene runs in this band.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": -84,
+      "startY": -450,
+      "startZ": 0,
+      "endX": 80,
+      "endY": -450,
+      "endZ": 0
+    },
+    "expectedDestinationFieldIds": [
+      74
+    ],
+    "routeArrivalFromFieldId": 74
+  },
+  {
+    "id": "reviewed-transit-72-1250-27",
+    "fieldId": 72,
+    "moment": 1250,
+    "expectedLabels": [
+      "Talk to the pilot to take off"
+    ],
+    "evidence": "72 crew3 Talk has explicit mission-counter dialogue branches and MAPJUMP45 at446 when takeoff is confirmed; it is not an automatic scene.",
+    "nativeAnchors": [
+      {
+        "entityId": 16,
+        "scriptId": 1,
+        "hex": "602D00"
+      }
+    ],
+    "actors": [
+      {
+        "entityId": 16,
+        "x": -325,
+        "y": 223,
+        "z": -2
+      }
+    ]
+  },
+  {
+    "id": "reviewed-transit-72-1391-28",
+    "fieldId": 72,
+    "moment": 1391,
+    "expectedLabels": [
+      "Talk to the pilot to take off"
+    ],
+    "evidence": "72 crew3 Talk has explicit mission-counter dialogue branches and MAPJUMP45 at446 when takeoff is confirmed; it is not an automatic scene.",
+    "nativeAnchors": [
+      {
+        "entityId": 16,
+        "scriptId": 1,
+        "hex": "602D00"
+      }
+    ],
+    "actors": [
+      {
+        "entityId": 16,
+        "x": -325,
+        "y": 223,
+        "z": -2
+      }
+    ]
+  },
+  {
+    "id": "reviewed-transit-72-1582-29",
+    "fieldId": 72,
+    "moment": 1582,
+    "expectedLabels": [
+      "Talk to the pilot to take off"
+    ],
+    "evidence": "72 crew3 Talk has explicit mission-counter dialogue branches and MAPJUMP45 at446 when takeoff is confirmed; it is not an automatic scene.",
+    "nativeAnchors": [
+      {
+        "entityId": 16,
+        "scriptId": 1,
+        "hex": "602D00"
+      }
+    ],
+    "actors": [
+      {
+        "entityId": 16,
+        "x": -325,
+        "y": 223,
+        "z": -2
+      }
+    ]
+  },
+  {
+    "id": "reviewed-transit-386-1250-30",
+    "fieldId": 386,
+    "moment": 1250,
+    "expectedLabels": [
+      "Leave the lift hall for the main street"
+    ],
+    "evidence": "Junon reactor approach:428 guard ->395 ->391 ->386 ->360 ->361 ->390. Marching soldiers in390 write1253; existing elevator target then leads388.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": -896,
+      "startY": -818,
+      "startZ": 767,
+      "endX": -760,
+      "endY": -818,
+      "endZ": 767
+    },
+    "expectedDestinationFieldIds": [
+      360
+    ],
+    "routeArrivalFromFieldId": 391
+  },
+  {
+    "id": "reviewed-transit-387-1250-31",
+    "fieldId": 387,
+    "moment": 1250,
+    "expectedLabels": [
+      "Leave the locker room for the lift hall"
+    ],
+    "evidence": "Junon reactor approach:428 guard ->395 ->391 ->386 ->360 ->361 ->390. Marching soldiers in390 write1253; existing elevator target then leads388.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": -1269,
+      "startY": -688,
+      "startZ": 605,
+      "endX": -1272,
+      "endY": -615,
+      "endZ": 605
+    },
+    "expectedDestinationFieldIds": [
+      386
+    ],
+    "routeArrivalFromFieldId": 386
+  },
+  {
+    "id": "reviewed-transit-360-1250-32",
+    "fieldId": 360,
+    "moment": 1250,
+    "expectedLabels": [
+      "Follow the main street toward the reactor passage"
+    ],
+    "evidence": "Junon reactor approach:428 guard ->395 ->391 ->386 ->360 ->361 ->390. Marching soldiers in390 write1253; existing elevator target then leads388.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": -2306,
+      "startY": -1486,
+      "startZ": -7,
+      "endX": -2385,
+      "endY": -897,
+      "endZ": 0
+    },
+    "expectedDestinationFieldIds": [
+      361
+    ],
+    "routeArrivalFromFieldId": 386
+  },
+  {
+    "id": "reviewed-transit-361-1250-33",
+    "fieldId": 361,
+    "moment": 1250,
+    "expectedLabels": [
+      "Enter the passage with the marching soldiers"
+    ],
+    "evidence": "Junon reactor approach:428 guard ->395 ->391 ->386 ->360 ->361 ->390. Marching soldiers in390 write1253; existing elevator target then leads388.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": 4587,
+      "startY": -5157,
+      "startZ": -3407,
+      "endX": 4124,
+      "endY": -4748,
+      "endZ": -3407
+    },
+    "expectedDestinationFieldIds": [
+      390
+    ],
+    "routeArrivalFromFieldId": 360
+  },
+  {
+    "id": "reviewed-transit-371-1250-34",
+    "fieldId": 371,
+    "moment": 1250,
+    "expectedLabels": [
+      "Return to the reactor passage"
+    ],
+    "evidence": "Junon reactor approach:428 guard ->395 ->391 ->386 ->360 ->361 ->390. Marching soldiers in390 write1253; existing elevator target then leads388.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": 4935,
+      "startY": -132,
+      "startZ": -6,
+      "endX": 4912,
+      "endY": -782,
+      "endZ": -6
+    },
+    "expectedDestinationFieldIds": [
+      390
+    ],
+    "routeArrivalFromFieldId": 370
+  },
+  {
+    "id": "reviewed-transit-388-1253-35",
+    "fieldId": 388,
+    "moment": 1253,
+    "expectedLabels": [
+      "Leave the elevator at the submarine dock"
+    ],
+    "evidence": "388 Cloud Script3 runs the guard battle/ride and returns control. border1 maps392 when lastfield390;392 arrival writes1256.",
+    "nativeAnchors": [
+      {
+        "entityId": 6,
+        "scriptId": 0,
+        "hex": "D0"
+      }
+    ],
+    "expectedLine": {
+      "startX": -678,
+      "startY": -528,
+      "startZ": 605,
+      "endX": -689,
+      "endY": -468,
+      "endZ": 605
+    },
+    "expectedDestinationFieldIds": [
+      390,
+      392
+    ],
+    "enabledLines": [
+      6
+    ],
+    "routeArrivalFromFieldId": 390
+  },
+  {
+    "id": "reviewed-transit-393-1256-36",
+    "fieldId": 393,
+    "moment": 1256,
+    "expectedLabels": [
+      "Continue down the stairs"
+    ],
+    "evidence": "Reactor chain:392->393->394->391/395->417->418->419->420 switch->421->422->423->424 crane line->425 Carry Armor->426->427. Counter stays1256 until408 boarding writes1280.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": 215,
+      "startY": -488,
+      "startZ": 433,
+      "endX": 291,
+      "endY": -496,
+      "endZ": 432
+    },
+    "expectedDestinationFieldIds": [
+      394
+    ],
+    "routeArrivalFromFieldId": 392
+  },
+  {
+    "id": "reviewed-transit-417-1256-37",
+    "fieldId": 417,
+    "moment": 1256,
+    "expectedLabels": [
+      "Enter the underwater tunnel"
+    ],
+    "evidence": "Reactor chain:392->393->394->391/395->417->418->419->420 switch->421->422->423->424 crane line->425 Carry Armor->426->427. Counter stays1256 until408 boarding writes1280.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": -74,
+      "startY": 2358,
+      "startZ": 22,
+      "endX": 73,
+      "endY": 2355,
+      "endZ": 22
+    },
+    "expectedDestinationFieldIds": [
+      418
+    ],
+    "routeArrivalFromFieldId": 395
+  },
+  {
+    "id": "reviewed-transit-418-1256-38",
+    "fieldId": 418,
+    "moment": 1256,
+    "expectedLabels": [
+      "Follow the tunnel toward the reactor"
+    ],
+    "evidence": "Reactor chain:392->393->394->391/395->417->418->419->420 switch->421->422->423->424 crane line->425 Carry Armor->426->427. Counter stays1256 until408 boarding writes1280.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": 1079,
+      "startY": 1560,
+      "startZ": -742,
+      "endX": 860,
+      "endY": 838,
+      "endZ": -742
+    },
+    "expectedDestinationFieldIds": [
+      419
+    ],
+    "routeArrivalFromFieldId": 417
+  },
+  {
+    "id": "reviewed-transit-419-1256-39",
+    "fieldId": 419,
+    "moment": 1256,
+    "expectedLabels": [
+      "Enter the reactor lift"
+    ],
+    "evidence": "Reactor chain:392->393->394->391/395->417->418->419->420 switch->421->422->423->424 crane line->425 Carry Armor->426->427. Counter stays1256 until408 boarding writes1280.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": -104,
+      "startY": 403,
+      "startZ": -742,
+      "endX": 104,
+      "endY": 402,
+      "endZ": -742
+    },
+    "expectedDestinationFieldIds": [
+      420
+    ],
+    "routeArrivalFromFieldId": 418
+  },
+  {
+    "id": "reviewed-transit-421-1256-40",
+    "fieldId": 421,
+    "moment": 1256,
+    "expectedLabels": [
+      "Continue into the reactor"
+    ],
+    "evidence": "Reactor chain:392->393->394->391/395->417->418->419->420 switch->421->422->423->424 crane line->425 Carry Armor->426->427. Counter stays1256 until408 boarding writes1280.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": -2310,
+      "startY": -1980,
+      "startZ": 384,
+      "endX": -2437,
+      "endY": -1799,
+      "endZ": 384
+    },
+    "expectedDestinationFieldIds": [
+      422
+    ],
+    "routeArrivalFromFieldId": 420
+  },
+  {
+    "id": "reviewed-transit-422-1256-41",
+    "fieldId": 422,
+    "moment": 1256,
+    "expectedLabels": [
+      "Follow the reactor passage"
+    ],
+    "evidence": "Reactor chain:392->393->394->391/395->417->418->419->420 switch->421->422->423->424 crane line->425 Carry Armor->426->427. Counter stays1256 until408 boarding writes1280.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": 203,
+      "startY": 1239,
+      "startZ": 0,
+      "endX": 182,
+      "endY": 1101,
+      "endZ": 0
+    },
+    "expectedDestinationFieldIds": [
+      423
+    ],
+    "routeArrivalFromFieldId": 421
+  },
+  {
+    "id": "reviewed-transit-423-1256-42",
+    "fieldId": 423,
+    "moment": 1256,
+    "expectedLabels": [
+      "Continue toward the crane hall"
+    ],
+    "evidence": "Reactor chain:392->393->394->391/395->417->418->419->420 switch->421->422->423->424 crane line->425 Carry Armor->426->427. Counter stays1256 until408 boarding writes1280.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": -1563,
+      "startY": 4527,
+      "startZ": -273,
+      "endX": -1404,
+      "endY": 4527,
+      "endZ": -257
+    },
+    "expectedDestinationFieldIds": [
+      424
+    ],
+    "routeArrivalFromFieldId": 422
+  },
+  {
+    "id": "reviewed-transit-426-1256-43",
+    "fieldId": 426,
+    "moment": 1256,
+    "expectedLabels": [
+      "Continue past the crane to the submarine dock"
+    ],
+    "evidence": "Reactor chain:392->393->394->391/395->417->418->419->420 switch->421->422->423->424 crane line->425 Carry Armor->426->427. Counter stays1256 until408 boarding writes1280.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": 2044,
+      "startY": -1045,
+      "startZ": 7,
+      "endX": 2329,
+      "endY": -1766,
+      "endZ": 8
+    },
+    "expectedDestinationFieldIds": [
+      427
+    ],
+    "routeArrivalFromFieldId": 425
+  },
+  {
+    "id": "reviewed-transit-424-1256-44",
+    "fieldId": 424,
+    "moment": 1256,
+    "expectedLabels": [
+      "Enter the crane hall"
+    ],
+    "evidence": "semkin_4 jump14 MAPJUMP425 leads the Carry Armor trigger; when the battle is complete the native scene hands back in426.",
+    "nativeAnchors": [
+      {
+        "entityId": 14,
+        "scriptId": 0,
+        "hex": "D0"
+      }
+    ],
+    "expectedLine": {
+      "startX": 1017,
+      "startY": -190,
+      "startZ": 24,
+      "endX": 1017,
+      "endY": -290,
+      "endZ": 24
+    },
+    "expectedDestinationFieldIds": [
+      425
+    ],
+    "enabledLines": [
+      14
+    ],
+    "routeArrivalFromFieldId": 423
+  },
+  {
+    "id": "reviewed-transit-427-1256-45",
+    "fieldId": 427,
+    "moment": 1256,
+    "expectedLabels": [
+      "Approach the guards at the submarine"
+    ],
+    "evidence": "semkin_7 vs_ssol Move fights the dock guards, sets15[133] bit5 and maps408;408 boarding scene writes1280.",
+    "nativeAnchors": [
+      {
+        "entityId": 4,
+        "scriptId": 0,
+        "hex": "D0"
+      }
+    ],
+    "expectedLine": {
+      "startX": 2705,
+      "startY": 319,
+      "startZ": 233,
+      "endX": 2697,
+      "endY": 237,
+      "endZ": 233
+    },
+    "expectedDestinationFieldIds": [
+      408
+    ],
+    "enabledLines": [
+      4
+    ],
+    "routeArrivalFromFieldId": 426
+  },
+  {
+    "id": "reviewed-transit-450-1110-46",
+    "fieldId": 450,
+    "moment": 1110,
+    "expectedLabels": [
+      "Take the mountain path to the reactor"
+    ],
+    "evidence": "Corel pursuit: world14->458->459->460, or North Corel450->467->464->462->461->460. The native guard event in460 starts the pursuit only while15[144] bit0 is clear.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": 609,
+      "startY": 1897,
+      "startZ": 0,
+      "endX": 1196,
+      "endY": 1900,
+      "endZ": 0
+    },
+    "expectedDestinationFieldIds": [
+      467
+    ],
+    "state": [
+      {
+        "bank": 15,
+        "address": 144,
+        "value": 0
+      }
+    ],
+    "routeArrivalFromFieldId": 457
+  },
+  {
+    "id": "reviewed-transit-467-1110-47",
+    "fieldId": 467,
+    "moment": 1110,
+    "expectedLabels": [
+      "Cross the bridge toward the mountain"
+    ],
+    "evidence": "Corel pursuit: world14->458->459->460, or North Corel450->467->464->462->461->460. The native guard event in460 starts the pursuit only while15[144] bit0 is clear.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": -91,
+      "startY": 7088,
+      "startZ": 1125,
+      "endX": 89,
+      "endY": 7088,
+      "endZ": 1125
+    },
+    "expectedDestinationFieldIds": [
+      464
+    ],
+    "state": [
+      {
+        "bank": 15,
+        "address": 144,
+        "value": 0
+      }
+    ],
+    "routeArrivalFromFieldId": 450
+  },
+  {
+    "id": "reviewed-transit-464-1110-48",
+    "fieldId": 464,
+    "moment": 1110,
+    "expectedLabels": [
+      "Follow the tracks back toward the reactor"
+    ],
+    "evidence": "Corel pursuit: world14->458->459->460, or North Corel450->467->464->462->461->460. The native guard event in460 starts the pursuit only while15[144] bit0 is clear.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": -3096,
+      "startY": 917,
+      "startZ": 756,
+      "endX": -3321,
+      "endY": 1084,
+      "endZ": 756
+    },
+    "expectedDestinationFieldIds": [
+      462
+    ],
+    "state": [
+      {
+        "bank": 15,
+        "address": 144,
+        "value": 0
+      }
+    ],
+    "routeArrivalFromFieldId": 467
+  },
+  {
+    "id": "reviewed-transit-462-1110-49",
+    "fieldId": 462,
+    "moment": 1110,
+    "expectedLabels": [
+      "Continue toward the reactor"
+    ],
+    "evidence": "Corel pursuit: world14->458->459->460, or North Corel450->467->464->462->461->460. The native guard event in460 starts the pursuit only while15[144] bit0 is clear.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": -2412,
+      "startY": 20,
+      "startZ": 1271,
+      "endX": -2412,
+      "endY": -38,
+      "endZ": 1298
+    },
+    "expectedDestinationFieldIds": [
+      461
+    ],
+    "state": [
+      {
+        "bank": 15,
+        "address": 144,
+        "value": 0
+      }
+    ],
+    "routeArrivalFromFieldId": 464
+  },
+  {
+    "id": "reviewed-transit-461-1110-50",
+    "fieldId": 461,
+    "moment": 1110,
+    "expectedLabels": [
+      "Go on to the reactor"
+    ],
+    "evidence": "Corel pursuit: world14->458->459->460, or North Corel450->467->464->462->461->460. The native guard event in460 starts the pursuit only while15[144] bit0 is clear.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": -1209,
+      "startY": -129,
+      "startZ": 551,
+      "endX": -1458,
+      "endY": 127,
+      "endZ": 551
+    },
+    "expectedDestinationFieldIds": [
+      460
+    ],
+    "state": [
+      {
+        "bank": 15,
+        "address": 144,
+        "value": 0
+      }
+    ],
+    "routeArrivalFromFieldId": 462
+  },
+  {
+    "id": "reviewed-transit-458-1110-51",
+    "fieldId": 458,
+    "moment": 1110,
+    "expectedLabels": [
+      "Take the path up Mount Corel"
+    ],
+    "evidence": "Corel pursuit: world14->458->459->460, or North Corel450->467->464->462->461->460. The native guard event in460 starts the pursuit only while15[144] bit0 is clear.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": -62,
+      "startY": 1487,
+      "startZ": 545,
+      "endX": 17,
+      "endY": 1487,
+      "endZ": 546
+    },
+    "expectedDestinationFieldIds": [
+      459
+    ],
+    "state": [
+      {
+        "bank": 15,
+        "address": 144,
+        "value": 0
+      }
+    ],
+    "routeArrivalFromFieldId": 459
+  },
+  {
+    "id": "reviewed-transit-459-1110-52",
+    "fieldId": 459,
+    "moment": 1110,
+    "expectedLabels": [
+      "Continue to the reactor"
+    ],
+    "evidence": "Corel pursuit: world14->458->459->460, or North Corel450->467->464->462->461->460. The native guard event in460 starts the pursuit only while15[144] bit0 is clear.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": 5,
+      "startY": 2193,
+      "startZ": 504,
+      "endX": -12,
+      "endY": 2978,
+      "endZ": 589
+    },
+    "expectedDestinationFieldIds": [
+      460
+    ],
+    "state": [
+      {
+        "bank": 15,
+        "address": 144,
+        "value": 0
+      }
+    ],
+    "routeArrivalFromFieldId": 458
+  },
+  {
+    "id": "reviewed-transit-353-1110-53",
+    "fieldId": 353,
+    "moment": 1110,
+    "expectedLabels": [
+      "Enter Fort Condor"
+    ],
+    "evidence": "condor1 gateway0 enters354; the visible doorkeeper is offered first until he steps aside. Fort completion is13[82] bit5.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": -84,
+      "startY": 855,
+      "startZ": 0,
+      "endX": 88,
+      "endY": -89,
+      "endZ": 0
+    },
+    "expectedDestinationFieldIds": [
+      354
+    ],
+    "state": [
+      {
+        "bank": 13,
+        "address": 82,
+        "value": 0
+      }
+    ],
+    "routeArrivalFromFieldId": 354
+  },
+  {
+    "id": "reviewed-transit-354-1110-54",
+    "fieldId": 354,
+    "moment": 1110,
+    "expectedLabels": [
+      "Press Confirm at the ladder to enter the fort"
+    ],
+    "evidence": "condor2 line00 Go tests fresh Confirm (31200209) before requesting the native climb; jump Script3 maps355.",
+    "nativeAnchors": [
+      {
+        "entityId": 4,
+        "scriptId": 0,
+        "hex": "D0"
+      },
+      {
+        "entityId": 4,
+        "scriptId": 4,
+        "hex": "31200209"
+      }
+    ],
+    "expectedLine": {
+      "startX": -14,
+      "startY": 281,
+      "startZ": 0,
+      "endX": -4,
+      "endY": 204,
+      "endZ": 0
+    },
+    "expectedDestinationFieldIds": [
+      355
+    ],
+    "enabledLines": [
+      4
+    ],
+    "state": [
+      {
+        "bank": 13,
+        "address": 82,
+        "value": 0
+      }
+    ],
+    "routeArrivalFromFieldId": 353
+  },
+  {
+    "id": "reviewed-transit-355-1110-55",
+    "fieldId": 355,
+    "moment": 1110,
+    "expectedLabels": [
+      "Press Confirm at the ladder to leave the fort"
+    ],
+    "evidence": "convil_1 line01 Go tests fresh Confirm (31200210) before requesting ladder2 Script4 to map354. Mission completion13[82] bit5.",
+    "nativeAnchors": [
+      {
+        "entityId": 4,
+        "scriptId": 0,
+        "hex": "D0"
+      },
+      {
+        "entityId": 4,
+        "scriptId": 4,
+        "hex": "31200210"
+      }
+    ],
+    "expectedLine": {
+      "startX": -336,
+      "startY": 145,
+      "startZ": -174,
+      "endX": -388,
+      "endY": 14,
+      "endZ": -174
+    },
+    "expectedDestinationFieldIds": [
+      354
+    ],
+    "enabledLines": [
+      4
+    ],
+    "state": [
+      {
+        "bank": 13,
+        "address": 82,
+        "value": 32
+      }
+    ],
+    "routeArrivalFromFieldId": 356
+  },
+  {
+    "id": "reviewed-transit-353-1110-56",
+    "fieldId": 353,
+    "moment": 1110,
+    "expectedLabels": [
+      "Talk to the man at the fort entrance"
+    ],
+    "evidence": "condor1 ojisan is visible until the native admission conversation moves him aside and sets VISI0; native Talk handles the first-visit choice even during the Huge Materia chapter.",
+    "nativeAnchors": [
+      {
+        "entityId": 10,
+        "scriptId": 1,
+        "hex": "A400"
+      }
+    ],
+    "actors": [
+      {
+        "entityId": 10,
+        "x": -23,
+        "y": -327,
+        "z": 0
+      }
+    ],
+    "state": [
+      {
+        "bank": 13,
+        "address": 82,
+        "value": 0
+      }
+    ]
+  },
+  {
+    "id": "reviewed-transit-717-1033-57",
+    "fieldId": 717,
+    "moment": 1033,
+    "expectedLabels": [
+      "Leave the weapon shop"
+    ],
+    "evidence": "Mideel shops and houses have native out Go lines returning712, where the clinic approach/return is selected by the current story state.",
+    "nativeAnchors": [
+      {
+        "entityId": 13,
+        "scriptId": 0,
+        "hex": "D0"
+      }
+    ],
+    "expectedLine": {
+      "startX": -48,
+      "startY": -304,
+      "startZ": 0,
+      "endX": 120,
+      "endY": -304,
+      "endZ": 0
+    },
+    "expectedDestinationFieldIds": [
+      712
+    ],
+    "enabledLines": [
+      13
+    ],
+    "routeArrivalFromFieldId": 712
+  },
+  {
+    "id": "reviewed-transit-718-1033-58",
+    "fieldId": 718,
+    "moment": 1033,
+    "expectedLabels": [
+      "Leave the item shop"
+    ],
+    "evidence": "Mideel shops and houses have native out Go lines returning712, where the clinic approach/return is selected by the current story state.",
+    "nativeAnchors": [
+      {
+        "entityId": 12,
+        "scriptId": 0,
+        "hex": "D0"
+      }
+    ],
+    "expectedLine": {
+      "startX": -122,
+      "startY": -279,
+      "startZ": 0,
+      "endX": -30,
+      "endY": -279,
+      "endZ": 0
+    },
+    "expectedDestinationFieldIds": [
+      712
+    ],
+    "enabledLines": [
+      12
+    ],
+    "routeArrivalFromFieldId": 712
+  },
+  {
+    "id": "reviewed-transit-719-1033-59",
+    "fieldId": 719,
+    "moment": 1033,
+    "expectedLabels": [
+      "Leave the materia shop"
+    ],
+    "evidence": "Mideel shops and houses have native out Go lines returning712, where the clinic approach/return is selected by the current story state.",
+    "nativeAnchors": [
+      {
+        "entityId": 12,
+        "scriptId": 0,
+        "hex": "D0"
+      }
+    ],
+    "expectedLine": {
+      "startX": -60,
+      "startY": -300,
+      "startZ": 0,
+      "endX": 107,
+      "endY": -297,
+      "endZ": 0
+    },
+    "expectedDestinationFieldIds": [
+      712
+    ],
+    "enabledLines": [
+      12
+    ],
+    "routeArrivalFromFieldId": 712
+  },
+  {
+    "id": "reviewed-transit-721-1033-60",
+    "fieldId": 721,
+    "moment": 1033,
+    "expectedLabels": [
+      "Leave the house"
+    ],
+    "evidence": "Mideel shops and houses have native out Go lines returning712, where the clinic approach/return is selected by the current story state.",
+    "nativeAnchors": [
+      {
+        "entityId": 12,
+        "scriptId": 0,
+        "hex": "D0"
+      }
+    ],
+    "expectedLine": {
+      "startX": -83,
+      "startY": -247,
+      "startZ": 0,
+      "endX": -196,
+      "endY": -248,
+      "endZ": 0
+    },
+    "expectedDestinationFieldIds": [
+      712
+    ],
+    "enabledLines": [
+      12
+    ],
+    "routeArrivalFromFieldId": 712
+  },
+  {
+    "id": "reviewed-transit-722-1033-61",
+    "fieldId": 722,
+    "moment": 1033,
+    "expectedLabels": [
+      "Leave the house"
+    ],
+    "evidence": "Mideel shops and houses have native out Go lines returning712, where the clinic approach/return is selected by the current story state.",
+    "nativeAnchors": [
+      {
+        "entityId": 10,
+        "scriptId": 0,
+        "hex": "D0"
+      }
+    ],
+    "expectedLine": {
+      "startX": 26,
+      "startY": -251,
+      "startZ": 0,
+      "endX": -74,
+      "endY": -257,
+      "endZ": 0
+    },
+    "expectedDestinationFieldIds": [
+      712
+    ],
+    "enabledLines": [
+      10
+    ],
+    "routeArrivalFromFieldId": 712
+  },
+  {
+    "id": "reviewed-transit-605-613-62",
+    "fieldId": 605,
+    "moment": 613,
+    "expectedLabels": [
+      "Return to the temple maze"
+    ],
+    "evidence": "Temple optional treasure/service rooms do not advance the counter. Their native return doors rejoin604 or607; the current clock objective remainsVI before627 andXII afterward.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": 515,
+      "startY": -74,
+      "startZ": 0,
+      "endX": 525,
+      "endY": 78,
+      "endZ": 0
+    },
+    "expectedDestinationFieldIds": [
+      604
+    ],
+    "routeArrivalFromFieldId": 604
+  },
+  {
+    "id": "reviewed-transit-608-613-63",
+    "fieldId": 608,
+    "moment": 613,
+    "expectedLabels": [
+      "Return to the temple maze"
+    ],
+    "evidence": "Temple optional treasure/service rooms do not advance the counter. Their native return doors rejoin604 or607; the current clock objective remainsVI before627 andXII afterward.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": -124,
+      "startY": -698,
+      "startZ": 0,
+      "endX": 112,
+      "endY": -637,
+      "endZ": 0
+    },
+    "expectedDestinationFieldIds": [
+      604
+    ],
+    "routeArrivalFromFieldId": 604
+  },
+  {
+    "id": "reviewed-transit-614-613-64",
+    "fieldId": 614,
+    "moment": 613,
+    "expectedLabels": [
+      "Return to the clock room"
+    ],
+    "evidence": "Temple optional treasure/service rooms do not advance the counter. Their native return doors rejoin604 or607; the current clock objective remainsVI before627 andXII afterward.",
+    "nativeAnchors": [
+      {
+        "entityId": 4,
+        "scriptId": 0,
+        "hex": "D0"
+      }
+    ],
+    "expectedLine": {
+      "startX": -102,
+      "startY": 514,
+      "startZ": 0,
+      "endX": 98,
+      "endY": 514,
+      "endZ": 0
+    },
+    "expectedDestinationFieldIds": [
+      607
+    ],
+    "enabledLines": [
+      4
+    ],
+    "routeArrivalFromFieldId": 607
+  },
+  {
+    "id": "reviewed-transit-615-613-65",
+    "fieldId": 615,
+    "moment": 613,
+    "expectedLabels": [
+      "Return to the clock room"
+    ],
+    "evidence": "Temple optional treasure/service rooms do not advance the counter. Their native return doors rejoin604 or607; the current clock objective remainsVI before627 andXII afterward.",
+    "nativeAnchors": [
+      {
+        "entityId": 4,
+        "scriptId": 0,
+        "hex": "D0"
+      }
+    ],
+    "expectedLine": {
+      "startX": -100,
+      "startY": 508,
+      "startZ": 0,
+      "endX": 98,
+      "endY": 508,
+      "endZ": 0
+    },
+    "expectedDestinationFieldIds": [
+      607
+    ],
+    "enabledLines": [
+      4
+    ],
+    "routeArrivalFromFieldId": 607
+  },
+  {
+    "id": "reviewed-transit-609-613-66",
+    "fieldId": 609,
+    "moment": 613,
+    "expectedLabels": [
+      "Leave the treasure room"
+    ],
+    "evidence": "Temple optional treasure/service rooms do not advance the counter. Their native return doors rejoin604 or607; the current clock objective remainsVI before627 andXII afterward.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": 108,
+      "startY": -439,
+      "startZ": 0,
+      "endX": -52,
+      "endY": -548,
+      "endZ": 0
+    },
+    "expectedDestinationFieldIds": [
+      615
+    ],
+    "routeArrivalFromFieldId": 615
+  },
+  {
+    "id": "reviewed-transit-604-613-67",
+    "fieldId": 604,
+    "moment": 613,
+    "expectedLabels": [
+      "Go through to the clock room"
+    ],
+    "evidence": "Clock doorway V arrives on isolated maze triangle205. Its native connected component only returns through mapjump18; it cannot reach the rolling-corridor door.",
+    "nativeAnchors": [
+      {
+        "entityId": 18,
+        "scriptId": 0,
+        "hex": "D0"
+      }
+    ],
+    "expectedLine": {
+      "startX": 759,
+      "startY": 1741,
+      "startZ": 1100,
+      "endX": 597,
+      "endY": 1746,
+      "endZ": 1100
+    },
+    "expectedDestinationFieldIds": [
+      607
+    ],
+    "enabledLines": [
+      18
+    ],
+    "triangle": 200,
+    "routeArrivalFromFieldId": 607
+  },
+  {
+    "id": "reviewed-transit-604-613-68",
+    "fieldId": 604,
+    "moment": 613,
+    "expectedLabels": [
+      "Return through the rolling corridor toward the clock"
+    ],
+    "evidence": "The main maze component reaches606 gateway2, then606 gateway1 returns607. The clock doorway V balcony is a separate component and uses mapjump18 instead.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": 275,
+      "startY": 1088,
+      "startZ": 537,
+      "endX": 388,
+      "endY": 932,
+      "endZ": 537
+    },
+    "expectedDestinationFieldIds": [
+      606
+    ],
+    "routeArrivalFromFieldId": 605
+  },
+  {
+    "id": "reviewed-transit-606-627-69",
+    "fieldId": 606,
+    "moment": 627,
+    "expectedLabels": [
+      "Return to the clock room"
+    ],
+    "evidence": "After the mural agreement at627, optional maze/service detours still return through the rolling corridor to clock doorwayXII.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": 846,
+      "startY": 1335,
+      "startZ": -296,
+      "endX": 846,
+      "endY": 1491,
+      "endZ": -296
+    },
+    "expectedDestinationFieldIds": [
+      607
+    ],
+    "routeArrivalFromFieldId": 604
+  },
+  {
+    "id": "reviewed-transit-525-1389-70",
+    "fieldId": 525,
+    "moment": 1389,
+    "expectedLabels": [
+      "Enter the inn to reach Bugenhagen"
+    ],
+    "evidence": "cos_btm lower component reaches the upper terrace only through cosin1. Native529 g0 arrives328; g1 arrives340 on the separate terrace.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": -1201,
+      "startY": -893,
+      "startZ": -2141,
+      "endX": -1095,
+      "endY": -922,
+      "endZ": -2141
+    },
+    "expectedDestinationFieldIds": [
+      529
+    ],
+    "triangle": 16,
+    "routeArrivalTriangle": 328,
+    "routeArrivalFromFieldId": 529
+  },
+  {
+    "id": "reviewed-transit-525-1389-71",
+    "fieldId": 525,
+    "moment": 1389,
+    "expectedLabels": [
+      "Take the upper path to Bugenhagen"
+    ],
+    "evidence": "cos_btm upper component gateway3 maps531 attriangle77; first-visit guard/Red flags are irrelevant to this late visit.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": -536,
+      "startY": -468,
+      "startZ": -1468,
+      "endX": -452,
+      "endY": -541,
+      "endZ": -1468
+    },
+    "expectedDestinationFieldIds": [
+      531
+    ],
+    "triangle": 0,
+    "routeArrivalTriangle": 340,
+    "routeArrivalFromFieldId": 529
+  },
+  {
+    "id": "reviewed-transit-529-1389-72",
+    "fieldId": 529,
+    "moment": 1389,
+    "expectedLabels": [
+      "Leave the inn by the upper door"
+    ],
+    "evidence": "cosin1 gateway1 maps525 attriangle340, the observatory-side terrace.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": -323,
+      "startY": 137,
+      "startZ": 0,
+      "endX": -280,
+      "endY": 56,
+      "endZ": 0
+    },
+    "expectedDestinationFieldIds": [
+      525
+    ],
+    "routeArrivalFromFieldId": 525
+  },
+  {
+    "id": "reviewed-transit-530-1389-73",
+    "fieldId": 530,
+    "moment": 1389,
+    "expectedLabels": [
+      "Return downstairs to the inn"
+    ],
+    "evidence": "Optional inn room returns529; its upper door continues the approach.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": 272,
+      "startY": -269,
+      "startZ": 0,
+      "endX": 356,
+      "endY": -172,
+      "endZ": 0
+    },
+    "expectedDestinationFieldIds": [
+      529
+    ],
+    "routeArrivalFromFieldId": 529
+  },
+  {
+    "id": "reviewed-transit-531-1389-74",
+    "fieldId": 531,
+    "moment": 1389,
+    "expectedLabels": [
+      "Press Confirm at the ladder to Bugenhagen"
+    ],
+    "evidence": "cosin2 LINEL Go requires a fresh Confirm and calls the native climb to540. It must remain active on approach.",
+    "nativeAnchors": [
+      {
+        "entityId": 13,
+        "scriptId": 0,
+        "hex": "D0"
+      }
+    ],
+    "expectedLine": {
+      "startX": -224,
+      "startY": 164,
+      "startZ": -16,
+      "endX": -196,
+      "endY": 233,
+      "endZ": -9
+    },
+    "expectedDestinationFieldIds": [
+      540
+    ],
+    "enabledLines": [
+      13
+    ],
+    "routeArrivalFromFieldId": 525
+  },
+  {
+    "id": "reviewed-transit-540-1389-75",
+    "fieldId": 540,
+    "moment": 1389,
+    "expectedLabels": [
+      "Enter Bugenhagen's house"
+    ],
+    "evidence": "cos_top gateway0 enters544 attriangle1; the observation platform is not this entrance.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": -327,
+      "startY": -240,
+      "startZ": -544,
+      "endX": -251,
+      "endY": -325,
+      "endZ": -544
+    },
+    "expectedDestinationFieldIds": [
+      544
+    ],
+    "routeArrivalFromFieldId": 531
+  },
+  {
+    "id": "reviewed-transit-544-1389-76",
+    "fieldId": 544,
+    "moment": 1389,
+    "expectedLabels": [
+      "Go through to Bugenhagen's room"
+    ],
+    "evidence": "bugin2 gateway1 leads541; Bugenhagen Talk advances1391 and his native scene handles the subsequent Highwind handoff.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": 255,
+      "startY": -158,
+      "startZ": -624,
+      "endX": 196,
+      "endY": -220,
+      "endZ": -624
+    },
+    "expectedDestinationFieldIds": [
+      541
+    ],
+    "routeArrivalFromFieldId": 540
+  },
+  {
+    "id": "reviewed-transit-451-1110-77",
+    "fieldId": 451,
+    "moment": 1110,
+    "expectedLabels": [
+      "Leave North Corel after the train mission"
+    ],
+    "evidence": "ncorel2 is the damaged town variant after failing to stop the train. Mission completion15[145] bit5 still allows continuing to the remaining mission or Mideel.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": 810,
+      "startY": -411,
+      "startZ": 0,
+      "endX": 745,
+      "endY": -652,
+      "endZ": 0
+    },
+    "expectedDestinationFieldIds": [
+      15
+    ],
+    "state": [
+      {
+        "bank": 15,
+        "address": 145,
+        "value": 32
+      }
+    ],
+    "routeArrivalFromFieldId": 456
+  },
+  {
+    "id": "reviewed-transit-630-677-78",
+    "fieldId": 630,
+    "moment": 677,
+    "expectedLabels": [
+      "Return to the eastern path out of the city"
+    ],
+    "evidence": "After the burial, native losin2 hands back at677. Optional city detours must return through634 gateway2 toward Coral Valley cave and Icicle Inn.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": -3042,
+      "startY": 3029,
+      "startZ": 170,
+      "endX": -2849,
+      "endY": 2847,
+      "endZ": 152
+    },
+    "expectedDestinationFieldIds": [
+      634
+    ],
+    "routeArrivalFromFieldId": 635
+  },
+  {
+    "id": "reviewed-transit-635-677-79",
+    "fieldId": 635,
+    "moment": 677,
+    "expectedLabels": [
+      "Return to the eastern houses"
+    ],
+    "evidence": "After the burial, native losin2 hands back at677. Optional city detours must return through634 gateway2 toward Coral Valley cave and Icicle Inn. From either house633 arrival, use jump1 to630 then its eastern gateway1. The direct635 gateway0 has no route from these two components.",
+    "nativeAnchors": [
+      {
+        "entityId": 3,
+        "scriptId": 0,
+        "hex": "D0"
+      }
+    ],
+    "expectedLine": {
+      "startX": -5136,
+      "startY": 6169,
+      "startZ": 359,
+      "endX": -4990,
+      "endY": 6187,
+      "endZ": 359
+    },
+    "expectedDestinationFieldIds": [
+      630
+    ],
+    "enabledLines": [
+      3
+    ],
+    "routeArrivalFromFieldId": 633
+  },
+  {
+    "id": "reviewed-transit-636-677-80",
+    "fieldId": 636,
+    "moment": 677,
+    "expectedLabels": [
+      "Leave the sleeping house"
+    ],
+    "evidence": "After the burial, native losin2 hands back at677. Optional city detours must return through634 gateway2 toward Coral Valley cave and Icicle Inn.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": 189,
+      "startY": -513,
+      "startZ": 64,
+      "endX": 153,
+      "endY": -427,
+      "endZ": 64
+    },
+    "expectedDestinationFieldIds": [
+      634
+    ],
+    "routeArrivalFromFieldId": 634
+  },
+  {
+    "id": "reviewed-transit-631-677-81",
+    "fieldId": 631,
+    "moment": 677,
+    "expectedLabels": [
+      "Go back down from the upper chamber"
+    ],
+    "evidence": "After the burial, native losin2 hands back at677. Optional city detours must return through634 gateway2 toward Coral Valley cave and Icicle Inn.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": 376,
+      "startY": 8,
+      "startZ": -96,
+      "endX": 320,
+      "endY": -67,
+      "endZ": -97
+    },
+    "expectedDestinationFieldIds": [
+      641
+    ],
+    "routeArrivalFromFieldId": 641
+  },
+  {
+    "id": "reviewed-transit-641-677-82",
+    "fieldId": 641,
+    "moment": 677,
+    "expectedLabels": [
+      "Leave the blue building"
+    ],
+    "evidence": "After the burial, native losin2 hands back at677. Optional city detours must return through634 gateway2 toward Coral Valley cave and Icicle Inn.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": 215,
+      "startY": -1648,
+      "startZ": 33,
+      "endX": 306,
+      "endY": -1656,
+      "endZ": 33
+    },
+    "expectedDestinationFieldIds": [
+      640
+    ],
+    "routeArrivalFromFieldId": 631
+  },
+  {
+    "id": "reviewed-transit-640-677-83",
+    "fieldId": 640,
+    "moment": 677,
+    "expectedLabels": [
+      "Return to the crossroads"
+    ],
+    "evidence": "After the burial, native losin2 hands back at677. Optional city detours must return through634 gateway2 toward Coral Valley cave and Icicle Inn.",
+    "nativeAnchors": [
+      {
+        "entityId": 4,
+        "scriptId": 0,
+        "hex": "D0"
+      }
+    ],
+    "expectedLine": {
+      "startX": -9604,
+      "startY": 5681,
+      "startZ": 276,
+      "endX": -9574,
+      "endY": 5738,
+      "endZ": 276
+    },
+    "expectedDestinationFieldIds": [
+      630
+    ],
+    "enabledLines": [
+      4
+    ],
+    "routeArrivalFromFieldId": 641
+  },
+  {
+    "id": "reviewed-transit-633-677-84",
+    "fieldId": 633,
+    "moment": 677,
+    "expectedLabels": [
+      "Leave the western house"
+    ],
+    "evidence": "After the burial, native losin2 hands back at677. Optional city detours must return through634 gateway2 toward Coral Valley cave and Icicle Inn.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": 43,
+      "startY": -352,
+      "startZ": 0,
+      "endX": 126,
+      "endY": -343,
+      "endZ": 0
+    },
+    "expectedDestinationFieldIds": [
+      635
+    ],
+    "routeArrivalFromFieldId": 635
+  },
+  {
+    "id": "reviewed-transit-625-652-0-end",
+    "fieldId": 625,
+    "moment": 663,
+    "expectedLabels": [
+      "Continue through Coral Valley"
+    ],
+    "evidence": "619 lin0 stops looping at 652 and maps625. sango1 gateway1 leads626; no automatic counter write.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": -515,
+      "startY": 2938,
+      "startZ": -27,
+      "endX": -395,
+      "endY": 2960,
+      "endZ": -27
+    },
+    "expectedDestinationFieldIds": [
+      626
+    ]
+  },
+  {
+    "id": "reviewed-transit-626-652-1-end",
+    "fieldId": 626,
+    "moment": 663,
+    "expectedLabels": [
+      "Leave the valley toward the Forgotten Capital"
+    ],
+    "evidence": "sango2 gateway0 leads world57; the next world entrance is lost1. Ordinary playable corridor.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": -698,
+      "startY": -8963,
+      "startZ": 3554,
+      "endX": -808,
+      "endY": -9475,
+      "endZ": 3782
+    },
+    "expectedDestinationFieldIds": [
+      57
+    ]
+  },
+  {
+    "id": "reviewed-transit-632-652-2-end",
+    "fieldId": 632,
+    "moment": 663,
+    "expectedLabels": [
+      "Return outside to the eastern houses"
+    ],
+    "evidence": "First visit: resting in losinn writes664. These side rooms do not advance the counter; return to lost1/lost2 and the sleeping house.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": 217,
+      "startY": 96,
+      "startZ": -102,
+      "endX": 221,
+      "endY": 171,
+      "endZ": -102
+    },
+    "expectedDestinationFieldIds": [
+      634
+    ]
+  },
+  {
+    "id": "reviewed-transit-633-652-3-end",
+    "fieldId": 633,
+    "moment": 663,
+    "expectedLabels": [
+      "Return outside to the western path"
+    ],
+    "evidence": "First visit: resting in losinn writes664. These side rooms do not advance the counter; return to lost1/lost2 and the sleeping house.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": 43,
+      "startY": -352,
+      "startZ": 0,
+      "endX": 126,
+      "endY": -343,
+      "endZ": 0
+    },
+    "expectedDestinationFieldIds": [
+      635
+    ]
+  },
+  {
+    "id": "reviewed-transit-635-652-4-end",
+    "fieldId": 635,
+    "moment": 663,
+    "expectedLabels": [
+      "Return to the crossroads"
+    ],
+    "evidence": "First visit: resting in losinn writes664. These side rooms do not advance the counter; return to lost1/lost2 and the sleeping house.",
+    "nativeAnchors": [
+      {
+        "entityId": 3,
+        "scriptId": 0,
+        "hex": "D0"
+      }
+    ],
+    "expectedLine": {
+      "startX": -5136,
+      "startY": 6169,
+      "startZ": 359,
+      "endX": -4990,
+      "endY": 6187,
+      "endZ": 359
+    },
+    "expectedDestinationFieldIds": [
+      630
+    ],
+    "enabledLines": [
+      3
+    ]
+  },
+  {
+    "id": "reviewed-transit-640-652-5-end",
+    "fieldId": 640,
+    "moment": 663,
+    "expectedLabels": [
+      "Return to the crossroads"
+    ],
+    "evidence": "First visit: resting in losinn writes664. These side rooms do not advance the counter; return to lost1/lost2 and the sleeping house.",
+    "nativeAnchors": [
+      {
+        "entityId": 4,
+        "scriptId": 0,
+        "hex": "D0"
+      }
+    ],
+    "expectedLine": {
+      "startX": -9604,
+      "startY": 5681,
+      "startZ": 276,
+      "endX": -9574,
+      "endY": 5738,
+      "endZ": 276
+    },
+    "expectedDestinationFieldIds": [
+      630
+    ],
+    "enabledLines": [
+      4
+    ]
+  },
+  {
+    "id": "reviewed-transit-641-652-6-end",
+    "fieldId": 641,
+    "moment": 663,
+    "expectedLabels": [
+      "Leave the blue building"
+    ],
+    "evidence": "First visit: resting in losinn writes664. These side rooms do not advance the counter; return to lost1/lost2 and the sleeping house.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": 215,
+      "startY": -1648,
+      "startZ": 33,
+      "endX": 306,
+      "endY": -1656,
+      "endZ": 33
+    },
+    "expectedDestinationFieldIds": [
+      640
+    ]
+  },
+  {
+    "id": "reviewed-transit-632-664-7-end",
+    "fieldId": 632,
+    "moment": 672,
+    "expectedLabels": [
+      "Return outside to the eastern houses"
+    ],
+    "evidence": "After resting, return from optional rooms to lost1 and the blue building; bank3[132] bit4 is set by the rest.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": 217,
+      "startY": 96,
+      "startZ": -102,
+      "endX": 221,
+      "endY": 171,
+      "endZ": -102
+    },
+    "expectedDestinationFieldIds": [
+      634
+    ]
+  },
+  {
+    "id": "reviewed-transit-633-664-8-end",
+    "fieldId": 633,
+    "moment": 672,
+    "expectedLabels": [
+      "Return outside to the western path"
+    ],
+    "evidence": "After resting, return from optional rooms to lost1 and the blue building; bank3[132] bit4 is set by the rest.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": 43,
+      "startY": -352,
+      "startZ": 0,
+      "endX": 126,
+      "endY": -343,
+      "endZ": 0
+    },
+    "expectedDestinationFieldIds": [
+      635
+    ]
+  },
+  {
+    "id": "reviewed-transit-635-664-9-end",
+    "fieldId": 635,
+    "moment": 672,
+    "expectedLabels": [
+      "Return to the crossroads"
+    ],
+    "evidence": "After resting, return from optional rooms to lost1 and the blue building; bank3[132] bit4 is set by the rest.",
+    "nativeAnchors": [
+      {
+        "entityId": 3,
+        "scriptId": 0,
+        "hex": "D0"
+      }
+    ],
+    "expectedLine": {
+      "startX": -5136,
+      "startY": 6169,
+      "startZ": 359,
+      "endX": -4990,
+      "endY": 6187,
+      "endZ": 359
+    },
+    "expectedDestinationFieldIds": [
+      630
+    ],
+    "enabledLines": [
+      3
+    ]
+  },
+  {
+    "id": "reviewed-transit-630-1392-10-end",
+    "fieldId": 630,
+    "moment": 1395,
+    "expectedLabels": [
+      "Take the western path to the lake"
+    ],
+    "evidence": "Bugenhagen waits in white1; at1396..1398 with the Key (13[82] bit1) the route returns to him.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": -4146,
+      "startY": 1422,
+      "startZ": 153,
+      "endX": -4782,
+      "endY": 1603,
+      "endZ": 145
+    },
+    "expectedDestinationFieldIds": [
+      635
+    ]
+  },
+  {
+    "id": "reviewed-transit-635-1392-11-end",
+    "fieldId": 635,
+    "moment": 1395,
+    "expectedLabels": [
+      "Go down into the lake"
+    ],
+    "evidence": "lost3 jump2 maps637; the key branch proceeds to white1.",
+    "nativeAnchors": [
+      {
+        "entityId": 4,
+        "scriptId": 0,
+        "hex": "D0"
+      }
+    ],
+    "expectedLine": {
+      "startX": -2760,
+      "startY": 9852,
+      "startZ": 1052,
+      "endX": -2818,
+      "endY": 9705,
+      "endZ": 1052
+    },
+    "expectedDestinationFieldIds": [
+      637
+    ],
+    "enabledLines": [
+      4
+    ]
+  },
+  {
+    "id": "reviewed-transit-630-1396-12-end",
+    "fieldId": 630,
+    "moment": 1398,
+    "expectedLabels": [
+      "Take the western path to the lake"
+    ],
+    "evidence": "Bugenhagen waits in white1; at1396..1398 with the Key (13[82] bit1) the route returns to him.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": -4146,
+      "startY": 1422,
+      "startZ": 153,
+      "endX": -4782,
+      "endY": 1603,
+      "endZ": 145
+    },
+    "expectedDestinationFieldIds": [
+      635
+    ],
+    "state": [
+      {
+        "bank": 13,
+        "address": 82,
+        "value": 2
+      }
+    ]
+  },
+  {
+    "id": "reviewed-transit-635-1396-13-end",
+    "fieldId": 635,
+    "moment": 1398,
+    "expectedLabels": [
+      "Go down into the lake"
+    ],
+    "evidence": "lost3 jump2 maps637; the key branch proceeds to white1.",
+    "nativeAnchors": [
+      {
+        "entityId": 4,
+        "scriptId": 0,
+        "hex": "D0"
+      }
+    ],
+    "expectedLine": {
+      "startX": -2760,
+      "startY": 9852,
+      "startZ": 1052,
+      "endX": -2818,
+      "endY": 9705,
+      "endZ": 1052
+    },
+    "expectedDestinationFieldIds": [
+      637
+    ],
+    "enabledLines": [
+      4
+    ],
+    "state": [
+      {
+        "bank": 13,
+        "address": 82,
+        "value": 2
+      }
+    ]
+  },
+  {
+    "id": "reviewed-transit-637-1396-14-end",
+    "fieldId": 637,
+    "moment": 1398,
+    "expectedLabels": [
+      "Return to Bugenhagen with the key"
+    ],
+    "evidence": "white1 Bugenhagen Talk accepts Key13[82] bit1 and starts1397..1399 automatic scene chain.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": 566,
+      "startY": -357,
+      "startZ": -267,
+      "endX": 565,
+      "endY": -265,
+      "endZ": -269
+    },
+    "expectedDestinationFieldIds": [
+      642
+    ],
+    "state": [
+      {
+        "bank": 13,
+        "address": 82,
+        "value": 2
+      }
+    ]
+  },
+  {
+    "id": "reviewed-transit-637-1396-15-end",
+    "fieldId": 637,
+    "moment": 1398,
+    "expectedLabels": [
+      "Leave the lake to look for the key"
+    ],
+    "evidence": "white1 line11 sends the player back for the Key while13[82] bit1 is clear; no automatic transition in these return rooms.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": -1113,
+      "startY": -134,
+      "startZ": -266,
+      "endX": -1274,
+      "endY": 41,
+      "endZ": -266
+    },
+    "expectedDestinationFieldIds": [
+      635
+    ],
+    "state": [
+      {
+        "bank": 13,
+        "address": 82,
+        "value": 0
+      }
+    ]
+  },
+  {
+    "id": "reviewed-transit-635-1396-16-end",
+    "fieldId": 635,
+    "moment": 1398,
+    "expectedLabels": [
+      "Return to the crossroads"
+    ],
+    "evidence": "white1 line11 sends the player back for the Key while13[82] bit1 is clear; no automatic transition in these return rooms.",
+    "nativeAnchors": [
+      {
+        "entityId": 3,
+        "scriptId": 0,
+        "hex": "D0"
+      }
+    ],
+    "expectedLine": {
+      "startX": -5136,
+      "startY": 6169,
+      "startZ": 359,
+      "endX": -4990,
+      "endY": 6187,
+      "endZ": 359
+    },
+    "expectedDestinationFieldIds": [
+      630
+    ],
+    "enabledLines": [
+      3
+    ],
+    "state": [
+      {
+        "bank": 13,
+        "address": 82,
+        "value": 0
+      }
+    ]
+  },
+  {
+    "id": "reviewed-transit-630-1396-17-end",
+    "fieldId": 630,
+    "moment": 1398,
+    "expectedLabels": [
+      "Leave the capital to look for the key"
+    ],
+    "evidence": "white1 line11 sends the player back for the Key while13[82] bit1 is clear; no automatic transition in these return rooms.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": -815,
+      "startY": 628,
+      "startZ": 95,
+      "endX": -733,
+      "endY": 789,
+      "endZ": 94
+    },
+    "expectedDestinationFieldIds": [
+      58
+    ],
+    "state": [
+      {
+        "bank": 13,
+        "address": 82,
+        "value": 0
+      }
+    ]
+  },
+  {
+    "id": "reviewed-transit-635-1566-18-end",
+    "fieldId": 635,
+    "moment": 1567,
+    "expectedLabels": [
+      "Return to the crossroads"
+    ],
+    "evidence": "blin70_4 writes1566 and maps637; after existing lake exit the walked path is635 jump1 then630 gateway0 toworld58.",
+    "nativeAnchors": [
+      {
+        "entityId": 3,
+        "scriptId": 0,
+        "hex": "D0"
+      }
+    ],
+    "expectedLine": {
+      "startX": -5136,
+      "startY": 6169,
+      "startZ": 359,
+      "endX": -4990,
+      "endY": 6187,
+      "endZ": 359
+    },
+    "expectedDestinationFieldIds": [
+      630
+    ],
+    "enabledLines": [
+      3
+    ]
+  },
+  {
+    "id": "reviewed-transit-630-1566-19-end",
+    "fieldId": 630,
+    "moment": 1567,
+    "expectedLabels": [
+      "Leave the capital for the Highwind"
+    ],
+    "evidence": "blin70_4 writes1566 and maps637; after existing lake exit the walked path is635 jump1 then630 gateway0 toworld58.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": -815,
+      "startY": 628,
+      "startZ": 95,
+      "endX": -733,
+      "endY": 789,
+      "endZ": 94
+    },
+    "expectedDestinationFieldIds": [
+      58
+    ]
+  },
+  {
+    "id": "reviewed-transit-74-1033-20-end",
+    "fieldId": 74,
+    "moment": 1034,
+    "expectedLabels": [
+      "Go forward to the cockpit"
+    ],
+    "evidence": "fship_3 gateway0 leads74 after party selection;74 jump takes field70 below1199, whose pilot can take off.",
+    "nativeAnchors": [
+      {
+        "entityId": 6,
+        "scriptId": 0,
+        "hex": "D0"
+      }
+    ],
+    "expectedLine": {
+      "startX": 1016,
+      "startY": -765,
+      "startZ": -401,
+      "endX": 978,
+      "endY": -876,
+      "endZ": -433
+    },
+    "expectedDestinationFieldIds": [
+      68,
+      70,
+      72
+    ],
+    "enabledLines": [
+      6
+    ]
+  },
+  {
+    "id": "reviewed-transit-74-1250-21-end",
+    "fieldId": 74,
+    "moment": 1387,
+    "expectedLabels": [
+      "Go forward to the deck"
+    ],
+    "evidence": "74 jump uses field72 from1199 onward. These free-flight bands exclude the automatic end-of-disc departure at1612.",
+    "nativeAnchors": [
+      {
+        "entityId": 6,
+        "scriptId": 0,
+        "hex": "D0"
+      }
+    ],
+    "expectedLine": {
+      "startX": 1016,
+      "startY": -765,
+      "startZ": -401,
+      "endX": 978,
+      "endY": -876,
+      "endZ": -433
+    },
+    "expectedDestinationFieldIds": [
+      68,
+      70,
+      72
+    ],
+    "enabledLines": [
+      6
+    ]
+  },
+  {
+    "id": "reviewed-transit-73-1250-22-end",
+    "fieldId": 73,
+    "moment": 1387,
+    "expectedLabels": [
+      "Return to the corridor"
+    ],
+    "evidence": "Operations room after1199 scene completes at1250; gateway0 leads74 and no further mandatory party scene runs in this band.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": -84,
+      "startY": -450,
+      "startZ": 0,
+      "endX": 80,
+      "endY": -450,
+      "endZ": 0
+    },
+    "expectedDestinationFieldIds": [
+      74
+    ]
+  },
+  {
+    "id": "reviewed-transit-74-1389-23-end",
+    "fieldId": 74,
+    "moment": 1565,
+    "expectedLabels": [
+      "Go forward to the deck"
+    ],
+    "evidence": "74 jump uses field72 from1199 onward. These free-flight bands exclude the automatic end-of-disc departure at1612.",
+    "nativeAnchors": [
+      {
+        "entityId": 6,
+        "scriptId": 0,
+        "hex": "D0"
+      }
+    ],
+    "expectedLine": {
+      "startX": 1016,
+      "startY": -765,
+      "startZ": -401,
+      "endX": 978,
+      "endY": -876,
+      "endZ": -433
+    },
+    "expectedDestinationFieldIds": [
+      68,
+      70,
+      72
+    ],
+    "enabledLines": [
+      6
+    ]
+  },
+  {
+    "id": "reviewed-transit-73-1389-24-end",
+    "fieldId": 73,
+    "moment": 1565,
+    "expectedLabels": [
+      "Return to the corridor"
+    ],
+    "evidence": "Operations room after1199 scene completes at1250; gateway0 leads74 and no further mandatory party scene runs in this band.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": -84,
+      "startY": -450,
+      "startZ": 0,
+      "endX": 80,
+      "endY": -450,
+      "endZ": 0
+    },
+    "expectedDestinationFieldIds": [
+      74
+    ]
+  },
+  {
+    "id": "reviewed-transit-74-1582-25-end",
+    "fieldId": 74,
+    "moment": 1611,
+    "expectedLabels": [
+      "Go forward to the deck"
+    ],
+    "evidence": "74 jump uses field72 from1199 onward. These free-flight bands exclude the automatic end-of-disc departure at1612.",
+    "nativeAnchors": [
+      {
+        "entityId": 6,
+        "scriptId": 0,
+        "hex": "D0"
+      }
+    ],
+    "expectedLine": {
+      "startX": 1016,
+      "startY": -765,
+      "startZ": -401,
+      "endX": 978,
+      "endY": -876,
+      "endZ": -433
+    },
+    "expectedDestinationFieldIds": [
+      68,
+      70,
+      72
+    ],
+    "enabledLines": [
+      6
+    ]
+  },
+  {
+    "id": "reviewed-transit-73-1582-26-end",
+    "fieldId": 73,
+    "moment": 1611,
+    "expectedLabels": [
+      "Return to the corridor"
+    ],
+    "evidence": "Operations room after1199 scene completes at1250; gateway0 leads74 and no further mandatory party scene runs in this band.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": -84,
+      "startY": -450,
+      "startZ": 0,
+      "endX": 80,
+      "endY": -450,
+      "endZ": 0
+    },
+    "expectedDestinationFieldIds": [
+      74
+    ]
+  },
+  {
+    "id": "reviewed-transit-72-1250-27-end",
+    "fieldId": 72,
+    "moment": 1387,
+    "expectedLabels": [
+      "Talk to the pilot to take off"
+    ],
+    "evidence": "72 crew3 Talk has explicit mission-counter dialogue branches and MAPJUMP45 at446 when takeoff is confirmed; it is not an automatic scene.",
+    "nativeAnchors": [
+      {
+        "entityId": 16,
+        "scriptId": 1,
+        "hex": "602D00"
+      }
+    ],
+    "actors": [
+      {
+        "entityId": 16,
+        "x": -325,
+        "y": 223,
+        "z": -2
+      }
+    ]
+  },
+  {
+    "id": "reviewed-transit-72-1391-28-end",
+    "fieldId": 72,
+    "moment": 1565,
+    "expectedLabels": [
+      "Talk to the pilot to take off"
+    ],
+    "evidence": "72 crew3 Talk has explicit mission-counter dialogue branches and MAPJUMP45 at446 when takeoff is confirmed; it is not an automatic scene.",
+    "nativeAnchors": [
+      {
+        "entityId": 16,
+        "scriptId": 1,
+        "hex": "602D00"
+      }
+    ],
+    "actors": [
+      {
+        "entityId": 16,
+        "x": -325,
+        "y": 223,
+        "z": -2
+      }
+    ]
+  },
+  {
+    "id": "reviewed-transit-72-1582-29-end",
+    "fieldId": 72,
+    "moment": 1611,
+    "expectedLabels": [
+      "Talk to the pilot to take off"
+    ],
+    "evidence": "72 crew3 Talk has explicit mission-counter dialogue branches and MAPJUMP45 at446 when takeoff is confirmed; it is not an automatic scene.",
+    "nativeAnchors": [
+      {
+        "entityId": 16,
+        "scriptId": 1,
+        "hex": "602D00"
+      }
+    ],
+    "actors": [
+      {
+        "entityId": 16,
+        "x": -325,
+        "y": 223,
+        "z": -2
+      }
+    ]
+  },
+  {
+    "id": "reviewed-transit-386-1250-30-end",
+    "fieldId": 386,
+    "moment": 1255,
+    "expectedLabels": [
+      "Leave the lift hall for the main street"
+    ],
+    "evidence": "Junon reactor approach:428 guard ->395 ->391 ->386 ->360 ->361 ->390. Marching soldiers in390 write1253; existing elevator target then leads388.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": -896,
+      "startY": -818,
+      "startZ": 767,
+      "endX": -760,
+      "endY": -818,
+      "endZ": 767
+    },
+    "expectedDestinationFieldIds": [
+      360
+    ]
+  },
+  {
+    "id": "reviewed-transit-387-1250-31-end",
+    "fieldId": 387,
+    "moment": 1255,
+    "expectedLabels": [
+      "Leave the locker room for the lift hall"
+    ],
+    "evidence": "Junon reactor approach:428 guard ->395 ->391 ->386 ->360 ->361 ->390. Marching soldiers in390 write1253; existing elevator target then leads388.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": -1269,
+      "startY": -688,
+      "startZ": 605,
+      "endX": -1272,
+      "endY": -615,
+      "endZ": 605
+    },
+    "expectedDestinationFieldIds": [
+      386
+    ]
+  },
+  {
+    "id": "reviewed-transit-360-1250-32-end",
+    "fieldId": 360,
+    "moment": 1255,
+    "expectedLabels": [
+      "Follow the main street toward the reactor passage"
+    ],
+    "evidence": "Junon reactor approach:428 guard ->395 ->391 ->386 ->360 ->361 ->390. Marching soldiers in390 write1253; existing elevator target then leads388.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": -2306,
+      "startY": -1486,
+      "startZ": -7,
+      "endX": -2385,
+      "endY": -897,
+      "endZ": 0
+    },
+    "expectedDestinationFieldIds": [
+      361
+    ]
+  },
+  {
+    "id": "reviewed-transit-361-1250-33-end",
+    "fieldId": 361,
+    "moment": 1255,
+    "expectedLabels": [
+      "Enter the passage with the marching soldiers"
+    ],
+    "evidence": "Junon reactor approach:428 guard ->395 ->391 ->386 ->360 ->361 ->390. Marching soldiers in390 write1253; existing elevator target then leads388.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": 4587,
+      "startY": -5157,
+      "startZ": -3407,
+      "endX": 4124,
+      "endY": -4748,
+      "endZ": -3407
+    },
+    "expectedDestinationFieldIds": [
+      390
+    ]
+  },
+  {
+    "id": "reviewed-transit-371-1250-34-end",
+    "fieldId": 371,
+    "moment": 1255,
+    "expectedLabels": [
+      "Return to the reactor passage"
+    ],
+    "evidence": "Junon reactor approach:428 guard ->395 ->391 ->386 ->360 ->361 ->390. Marching soldiers in390 write1253; existing elevator target then leads388.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": 4935,
+      "startY": -132,
+      "startZ": -6,
+      "endX": 4912,
+      "endY": -782,
+      "endZ": -6
+    },
+    "expectedDestinationFieldIds": [
+      390
+    ]
+  },
+  {
+    "id": "reviewed-transit-388-1253-35-end",
+    "fieldId": 388,
+    "moment": 1255,
+    "expectedLabels": [
+      "Leave the elevator at the submarine dock"
+    ],
+    "evidence": "388 Cloud Script3 runs the guard battle/ride and returns control. border1 maps392 when lastfield390;392 arrival writes1256.",
+    "nativeAnchors": [
+      {
+        "entityId": 6,
+        "scriptId": 0,
+        "hex": "D0"
+      }
+    ],
+    "expectedLine": {
+      "startX": -678,
+      "startY": -528,
+      "startZ": 605,
+      "endX": -689,
+      "endY": -468,
+      "endZ": 605
+    },
+    "expectedDestinationFieldIds": [
+      390,
+      392
+    ],
+    "enabledLines": [
+      6
+    ]
+  },
+  {
+    "id": "reviewed-transit-393-1256-36-end",
+    "fieldId": 393,
+    "moment": 1279,
+    "expectedLabels": [
+      "Continue down the stairs"
+    ],
+    "evidence": "Reactor chain:392->393->394->391/395->417->418->419->420 switch->421->422->423->424 crane line->425 Carry Armor->426->427. Counter stays1256 until408 boarding writes1280.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": 215,
+      "startY": -488,
+      "startZ": 433,
+      "endX": 291,
+      "endY": -496,
+      "endZ": 432
+    },
+    "expectedDestinationFieldIds": [
+      394
+    ]
+  },
+  {
+    "id": "reviewed-transit-417-1256-37-end",
+    "fieldId": 417,
+    "moment": 1279,
+    "expectedLabels": [
+      "Enter the underwater tunnel"
+    ],
+    "evidence": "Reactor chain:392->393->394->391/395->417->418->419->420 switch->421->422->423->424 crane line->425 Carry Armor->426->427. Counter stays1256 until408 boarding writes1280.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": -74,
+      "startY": 2358,
+      "startZ": 22,
+      "endX": 73,
+      "endY": 2355,
+      "endZ": 22
+    },
+    "expectedDestinationFieldIds": [
+      418
+    ]
+  },
+  {
+    "id": "reviewed-transit-418-1256-38-end",
+    "fieldId": 418,
+    "moment": 1279,
+    "expectedLabels": [
+      "Follow the tunnel toward the reactor"
+    ],
+    "evidence": "Reactor chain:392->393->394->391/395->417->418->419->420 switch->421->422->423->424 crane line->425 Carry Armor->426->427. Counter stays1256 until408 boarding writes1280.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": 1079,
+      "startY": 1560,
+      "startZ": -742,
+      "endX": 860,
+      "endY": 838,
+      "endZ": -742
+    },
+    "expectedDestinationFieldIds": [
+      419
+    ]
+  },
+  {
+    "id": "reviewed-transit-419-1256-39-end",
+    "fieldId": 419,
+    "moment": 1279,
+    "expectedLabels": [
+      "Enter the reactor lift"
+    ],
+    "evidence": "Reactor chain:392->393->394->391/395->417->418->419->420 switch->421->422->423->424 crane line->425 Carry Armor->426->427. Counter stays1256 until408 boarding writes1280.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": -104,
+      "startY": 403,
+      "startZ": -742,
+      "endX": 104,
+      "endY": 402,
+      "endZ": -742
+    },
+    "expectedDestinationFieldIds": [
+      420
+    ]
+  },
+  {
+    "id": "reviewed-transit-421-1256-40-end",
+    "fieldId": 421,
+    "moment": 1279,
+    "expectedLabels": [
+      "Continue into the reactor"
+    ],
+    "evidence": "Reactor chain:392->393->394->391/395->417->418->419->420 switch->421->422->423->424 crane line->425 Carry Armor->426->427. Counter stays1256 until408 boarding writes1280.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": -2310,
+      "startY": -1980,
+      "startZ": 384,
+      "endX": -2437,
+      "endY": -1799,
+      "endZ": 384
+    },
+    "expectedDestinationFieldIds": [
+      422
+    ]
+  },
+  {
+    "id": "reviewed-transit-422-1256-41-end",
+    "fieldId": 422,
+    "moment": 1279,
+    "expectedLabels": [
+      "Follow the reactor passage"
+    ],
+    "evidence": "Reactor chain:392->393->394->391/395->417->418->419->420 switch->421->422->423->424 crane line->425 Carry Armor->426->427. Counter stays1256 until408 boarding writes1280.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": 203,
+      "startY": 1239,
+      "startZ": 0,
+      "endX": 182,
+      "endY": 1101,
+      "endZ": 0
+    },
+    "expectedDestinationFieldIds": [
+      423
+    ]
+  },
+  {
+    "id": "reviewed-transit-423-1256-42-end",
+    "fieldId": 423,
+    "moment": 1279,
+    "expectedLabels": [
+      "Continue toward the crane hall"
+    ],
+    "evidence": "Reactor chain:392->393->394->391/395->417->418->419->420 switch->421->422->423->424 crane line->425 Carry Armor->426->427. Counter stays1256 until408 boarding writes1280.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": -1563,
+      "startY": 4527,
+      "startZ": -273,
+      "endX": -1404,
+      "endY": 4527,
+      "endZ": -257
+    },
+    "expectedDestinationFieldIds": [
+      424
+    ]
+  },
+  {
+    "id": "reviewed-transit-426-1256-43-end",
+    "fieldId": 426,
+    "moment": 1279,
+    "expectedLabels": [
+      "Continue past the crane to the submarine dock"
+    ],
+    "evidence": "Reactor chain:392->393->394->391/395->417->418->419->420 switch->421->422->423->424 crane line->425 Carry Armor->426->427. Counter stays1256 until408 boarding writes1280.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": 2044,
+      "startY": -1045,
+      "startZ": 7,
+      "endX": 2329,
+      "endY": -1766,
+      "endZ": 8
+    },
+    "expectedDestinationFieldIds": [
+      427
+    ]
+  },
+  {
+    "id": "reviewed-transit-424-1256-44-end",
+    "fieldId": 424,
+    "moment": 1279,
+    "expectedLabels": [
+      "Enter the crane hall"
+    ],
+    "evidence": "semkin_4 jump14 MAPJUMP425 leads the Carry Armor trigger; when the battle is complete the native scene hands back in426.",
+    "nativeAnchors": [
+      {
+        "entityId": 14,
+        "scriptId": 0,
+        "hex": "D0"
+      }
+    ],
+    "expectedLine": {
+      "startX": 1017,
+      "startY": -190,
+      "startZ": 24,
+      "endX": 1017,
+      "endY": -290,
+      "endZ": 24
+    },
+    "expectedDestinationFieldIds": [
+      425
+    ],
+    "enabledLines": [
+      14
+    ]
+  },
+  {
+    "id": "reviewed-transit-427-1256-45-end",
+    "fieldId": 427,
+    "moment": 1279,
+    "expectedLabels": [
+      "Approach the guards at the submarine"
+    ],
+    "evidence": "semkin_7 vs_ssol Move fights the dock guards, sets15[133] bit5 and maps408;408 boarding scene writes1280.",
+    "nativeAnchors": [
+      {
+        "entityId": 4,
+        "scriptId": 0,
+        "hex": "D0"
+      }
+    ],
+    "expectedLine": {
+      "startX": 2705,
+      "startY": 319,
+      "startZ": 233,
+      "endX": 2697,
+      "endY": 237,
+      "endZ": 233
+    },
+    "expectedDestinationFieldIds": [
+      408
+    ],
+    "enabledLines": [
+      4
+    ]
+  },
+  {
+    "id": "reviewed-transit-450-1110-46-end",
+    "fieldId": 450,
+    "moment": 1115,
+    "expectedLabels": [
+      "Take the mountain path to the reactor"
+    ],
+    "evidence": "Corel pursuit: world14->458->459->460, or North Corel450->467->464->462->461->460. The native guard event in460 starts the pursuit only while15[144] bit0 is clear.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": 609,
+      "startY": 1897,
+      "startZ": 0,
+      "endX": 1196,
+      "endY": 1900,
+      "endZ": 0
+    },
+    "expectedDestinationFieldIds": [
+      467
+    ],
+    "state": [
+      {
+        "bank": 15,
+        "address": 144,
+        "value": 0
+      }
+    ]
+  },
+  {
+    "id": "reviewed-transit-467-1110-47-end",
+    "fieldId": 467,
+    "moment": 1115,
+    "expectedLabels": [
+      "Cross the bridge toward the mountain"
+    ],
+    "evidence": "Corel pursuit: world14->458->459->460, or North Corel450->467->464->462->461->460. The native guard event in460 starts the pursuit only while15[144] bit0 is clear.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": -91,
+      "startY": 7088,
+      "startZ": 1125,
+      "endX": 89,
+      "endY": 7088,
+      "endZ": 1125
+    },
+    "expectedDestinationFieldIds": [
+      464
+    ],
+    "state": [
+      {
+        "bank": 15,
+        "address": 144,
+        "value": 0
+      }
+    ]
+  },
+  {
+    "id": "reviewed-transit-464-1110-48-end",
+    "fieldId": 464,
+    "moment": 1115,
+    "expectedLabels": [
+      "Follow the tracks back toward the reactor"
+    ],
+    "evidence": "Corel pursuit: world14->458->459->460, or North Corel450->467->464->462->461->460. The native guard event in460 starts the pursuit only while15[144] bit0 is clear.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": -3096,
+      "startY": 917,
+      "startZ": 756,
+      "endX": -3321,
+      "endY": 1084,
+      "endZ": 756
+    },
+    "expectedDestinationFieldIds": [
+      462
+    ],
+    "state": [
+      {
+        "bank": 15,
+        "address": 144,
+        "value": 0
+      }
+    ]
+  },
+  {
+    "id": "reviewed-transit-462-1110-49-end",
+    "fieldId": 462,
+    "moment": 1115,
+    "expectedLabels": [
+      "Continue toward the reactor"
+    ],
+    "evidence": "Corel pursuit: world14->458->459->460, or North Corel450->467->464->462->461->460. The native guard event in460 starts the pursuit only while15[144] bit0 is clear.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": -2412,
+      "startY": 20,
+      "startZ": 1271,
+      "endX": -2412,
+      "endY": -38,
+      "endZ": 1298
+    },
+    "expectedDestinationFieldIds": [
+      461
+    ],
+    "state": [
+      {
+        "bank": 15,
+        "address": 144,
+        "value": 0
+      }
+    ]
+  },
+  {
+    "id": "reviewed-transit-461-1110-50-end",
+    "fieldId": 461,
+    "moment": 1115,
+    "expectedLabels": [
+      "Go on to the reactor"
+    ],
+    "evidence": "Corel pursuit: world14->458->459->460, or North Corel450->467->464->462->461->460. The native guard event in460 starts the pursuit only while15[144] bit0 is clear.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": -1209,
+      "startY": -129,
+      "startZ": 551,
+      "endX": -1458,
+      "endY": 127,
+      "endZ": 551
+    },
+    "expectedDestinationFieldIds": [
+      460
+    ],
+    "state": [
+      {
+        "bank": 15,
+        "address": 144,
+        "value": 0
+      }
+    ]
+  },
+  {
+    "id": "reviewed-transit-458-1110-51-end",
+    "fieldId": 458,
+    "moment": 1115,
+    "expectedLabels": [
+      "Take the path up Mount Corel"
+    ],
+    "evidence": "Corel pursuit: world14->458->459->460, or North Corel450->467->464->462->461->460. The native guard event in460 starts the pursuit only while15[144] bit0 is clear.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": -62,
+      "startY": 1487,
+      "startZ": 545,
+      "endX": 17,
+      "endY": 1487,
+      "endZ": 546
+    },
+    "expectedDestinationFieldIds": [
+      459
+    ],
+    "state": [
+      {
+        "bank": 15,
+        "address": 144,
+        "value": 0
+      }
+    ]
+  },
+  {
+    "id": "reviewed-transit-459-1110-52-end",
+    "fieldId": 459,
+    "moment": 1115,
+    "expectedLabels": [
+      "Continue to the reactor"
+    ],
+    "evidence": "Corel pursuit: world14->458->459->460, or North Corel450->467->464->462->461->460. The native guard event in460 starts the pursuit only while15[144] bit0 is clear.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": 5,
+      "startY": 2193,
+      "startZ": 504,
+      "endX": -12,
+      "endY": 2978,
+      "endZ": 589
+    },
+    "expectedDestinationFieldIds": [
+      460
+    ],
+    "state": [
+      {
+        "bank": 15,
+        "address": 144,
+        "value": 0
+      }
+    ]
+  },
+  {
+    "id": "reviewed-transit-353-1110-53-end",
+    "fieldId": 353,
+    "moment": 1115,
+    "expectedLabels": [
+      "Enter Fort Condor"
+    ],
+    "evidence": "condor1 gateway0 enters354; the visible doorkeeper is offered first until he steps aside. Fort completion is13[82] bit5.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": -84,
+      "startY": 855,
+      "startZ": 0,
+      "endX": 88,
+      "endY": -89,
+      "endZ": 0
+    },
+    "expectedDestinationFieldIds": [
+      354
+    ],
+    "state": [
+      {
+        "bank": 13,
+        "address": 82,
+        "value": 0
+      }
+    ]
+  },
+  {
+    "id": "reviewed-transit-354-1110-54-end",
+    "fieldId": 354,
+    "moment": 1115,
+    "expectedLabels": [
+      "Press Confirm at the ladder to enter the fort"
+    ],
+    "evidence": "condor2 line00 Go tests fresh Confirm (31200209) before requesting the native climb; jump Script3 maps355.",
+    "nativeAnchors": [
+      {
+        "entityId": 4,
+        "scriptId": 0,
+        "hex": "D0"
+      },
+      {
+        "entityId": 4,
+        "scriptId": 4,
+        "hex": "31200209"
+      }
+    ],
+    "expectedLine": {
+      "startX": -14,
+      "startY": 281,
+      "startZ": 0,
+      "endX": -4,
+      "endY": 204,
+      "endZ": 0
+    },
+    "expectedDestinationFieldIds": [
+      355
+    ],
+    "enabledLines": [
+      4
+    ],
+    "state": [
+      {
+        "bank": 13,
+        "address": 82,
+        "value": 0
+      }
+    ]
+  },
+  {
+    "id": "reviewed-transit-355-1110-55-end",
+    "fieldId": 355,
+    "moment": 1117,
+    "expectedLabels": [
+      "Press Confirm at the ladder to leave the fort"
+    ],
+    "evidence": "convil_1 line01 Go tests fresh Confirm (31200210) before requesting ladder2 Script4 to map354. Mission completion13[82] bit5.",
+    "nativeAnchors": [
+      {
+        "entityId": 4,
+        "scriptId": 0,
+        "hex": "D0"
+      },
+      {
+        "entityId": 4,
+        "scriptId": 4,
+        "hex": "31200210"
+      }
+    ],
+    "expectedLine": {
+      "startX": -336,
+      "startY": 145,
+      "startZ": -174,
+      "endX": -388,
+      "endY": 14,
+      "endZ": -174
+    },
+    "expectedDestinationFieldIds": [
+      354
+    ],
+    "enabledLines": [
+      4
+    ],
+    "state": [
+      {
+        "bank": 13,
+        "address": 82,
+        "value": 32
+      }
+    ]
+  },
+  {
+    "id": "reviewed-transit-353-1110-56-end",
+    "fieldId": 353,
+    "moment": 1115,
+    "expectedLabels": [
+      "Talk to the man at the fort entrance"
+    ],
+    "evidence": "condor1 ojisan is visible until the native admission conversation moves him aside and sets VISI0; native Talk handles the first-visit choice even during the Huge Materia chapter.",
+    "nativeAnchors": [
+      {
+        "entityId": 10,
+        "scriptId": 1,
+        "hex": "A400"
+      }
+    ],
+    "actors": [
+      {
+        "entityId": 10,
+        "x": -23,
+        "y": -327,
+        "z": 0
+      }
+    ],
+    "state": [
+      {
+        "bank": 13,
+        "address": 82,
+        "value": 0
+      }
+    ]
+  },
+  {
+    "id": "reviewed-transit-717-1033-57-end",
+    "fieldId": 717,
+    "moment": 1117,
+    "expectedLabels": [
+      "Leave the weapon shop"
+    ],
+    "evidence": "Mideel shops and houses have native out Go lines returning712, where the clinic approach/return is selected by the current story state.",
+    "nativeAnchors": [
+      {
+        "entityId": 13,
+        "scriptId": 0,
+        "hex": "D0"
+      }
+    ],
+    "expectedLine": {
+      "startX": -48,
+      "startY": -304,
+      "startZ": 0,
+      "endX": 120,
+      "endY": -304,
+      "endZ": 0
+    },
+    "expectedDestinationFieldIds": [
+      712
+    ],
+    "enabledLines": [
+      13
+    ]
+  },
+  {
+    "id": "reviewed-transit-718-1033-58-end",
+    "fieldId": 718,
+    "moment": 1117,
+    "expectedLabels": [
+      "Leave the item shop"
+    ],
+    "evidence": "Mideel shops and houses have native out Go lines returning712, where the clinic approach/return is selected by the current story state.",
+    "nativeAnchors": [
+      {
+        "entityId": 12,
+        "scriptId": 0,
+        "hex": "D0"
+      }
+    ],
+    "expectedLine": {
+      "startX": -122,
+      "startY": -279,
+      "startZ": 0,
+      "endX": -30,
+      "endY": -279,
+      "endZ": 0
+    },
+    "expectedDestinationFieldIds": [
+      712
+    ],
+    "enabledLines": [
+      12
+    ]
+  },
+  {
+    "id": "reviewed-transit-719-1033-59-end",
+    "fieldId": 719,
+    "moment": 1117,
+    "expectedLabels": [
+      "Leave the materia shop"
+    ],
+    "evidence": "Mideel shops and houses have native out Go lines returning712, where the clinic approach/return is selected by the current story state.",
+    "nativeAnchors": [
+      {
+        "entityId": 12,
+        "scriptId": 0,
+        "hex": "D0"
+      }
+    ],
+    "expectedLine": {
+      "startX": -60,
+      "startY": -300,
+      "startZ": 0,
+      "endX": 107,
+      "endY": -297,
+      "endZ": 0
+    },
+    "expectedDestinationFieldIds": [
+      712
+    ],
+    "enabledLines": [
+      12
+    ]
+  },
+  {
+    "id": "reviewed-transit-721-1033-60-end",
+    "fieldId": 721,
+    "moment": 1117,
+    "expectedLabels": [
+      "Leave the house"
+    ],
+    "evidence": "Mideel shops and houses have native out Go lines returning712, where the clinic approach/return is selected by the current story state.",
+    "nativeAnchors": [
+      {
+        "entityId": 12,
+        "scriptId": 0,
+        "hex": "D0"
+      }
+    ],
+    "expectedLine": {
+      "startX": -83,
+      "startY": -247,
+      "startZ": 0,
+      "endX": -196,
+      "endY": -248,
+      "endZ": 0
+    },
+    "expectedDestinationFieldIds": [
+      712
+    ],
+    "enabledLines": [
+      12
+    ]
+  },
+  {
+    "id": "reviewed-transit-722-1033-61-end",
+    "fieldId": 722,
+    "moment": 1117,
+    "expectedLabels": [
+      "Leave the house"
+    ],
+    "evidence": "Mideel shops and houses have native out Go lines returning712, where the clinic approach/return is selected by the current story state.",
+    "nativeAnchors": [
+      {
+        "entityId": 10,
+        "scriptId": 0,
+        "hex": "D0"
+      }
+    ],
+    "expectedLine": {
+      "startX": 26,
+      "startY": -251,
+      "startZ": 0,
+      "endX": -74,
+      "endY": -257,
+      "endZ": 0
+    },
+    "expectedDestinationFieldIds": [
+      712
+    ],
+    "enabledLines": [
+      10
+    ]
+  },
+  {
+    "id": "reviewed-transit-605-613-62-end",
+    "fieldId": 605,
+    "moment": 629,
+    "expectedLabels": [
+      "Return to the temple maze"
+    ],
+    "evidence": "Temple optional treasure/service rooms do not advance the counter. Their native return doors rejoin604 or607; the current clock objective remainsVI before627 andXII afterward.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": 515,
+      "startY": -74,
+      "startZ": 0,
+      "endX": 525,
+      "endY": 78,
+      "endZ": 0
+    },
+    "expectedDestinationFieldIds": [
+      604
+    ]
+  },
+  {
+    "id": "reviewed-transit-608-613-63-end",
+    "fieldId": 608,
+    "moment": 629,
+    "expectedLabels": [
+      "Return to the temple maze"
+    ],
+    "evidence": "Temple optional treasure/service rooms do not advance the counter. Their native return doors rejoin604 or607; the current clock objective remainsVI before627 andXII afterward.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": -124,
+      "startY": -698,
+      "startZ": 0,
+      "endX": 112,
+      "endY": -637,
+      "endZ": 0
+    },
+    "expectedDestinationFieldIds": [
+      604
+    ]
+  },
+  {
+    "id": "reviewed-transit-614-613-64-end",
+    "fieldId": 614,
+    "moment": 629,
+    "expectedLabels": [
+      "Return to the clock room"
+    ],
+    "evidence": "Temple optional treasure/service rooms do not advance the counter. Their native return doors rejoin604 or607; the current clock objective remainsVI before627 andXII afterward.",
+    "nativeAnchors": [
+      {
+        "entityId": 4,
+        "scriptId": 0,
+        "hex": "D0"
+      }
+    ],
+    "expectedLine": {
+      "startX": -102,
+      "startY": 514,
+      "startZ": 0,
+      "endX": 98,
+      "endY": 514,
+      "endZ": 0
+    },
+    "expectedDestinationFieldIds": [
+      607
+    ],
+    "enabledLines": [
+      4
+    ]
+  },
+  {
+    "id": "reviewed-transit-615-613-65-end",
+    "fieldId": 615,
+    "moment": 629,
+    "expectedLabels": [
+      "Return to the clock room"
+    ],
+    "evidence": "Temple optional treasure/service rooms do not advance the counter. Their native return doors rejoin604 or607; the current clock objective remainsVI before627 andXII afterward.",
+    "nativeAnchors": [
+      {
+        "entityId": 4,
+        "scriptId": 0,
+        "hex": "D0"
+      }
+    ],
+    "expectedLine": {
+      "startX": -100,
+      "startY": 508,
+      "startZ": 0,
+      "endX": 98,
+      "endY": 508,
+      "endZ": 0
+    },
+    "expectedDestinationFieldIds": [
+      607
+    ],
+    "enabledLines": [
+      4
+    ]
+  },
+  {
+    "id": "reviewed-transit-609-613-66-end",
+    "fieldId": 609,
+    "moment": 629,
+    "expectedLabels": [
+      "Leave the treasure room"
+    ],
+    "evidence": "Temple optional treasure/service rooms do not advance the counter. Their native return doors rejoin604 or607; the current clock objective remainsVI before627 andXII afterward.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": 108,
+      "startY": -439,
+      "startZ": 0,
+      "endX": -52,
+      "endY": -548,
+      "endZ": 0
+    },
+    "expectedDestinationFieldIds": [
+      615
+    ]
+  },
+  {
+    "id": "reviewed-transit-604-613-67-end",
+    "fieldId": 604,
+    "moment": 629,
+    "expectedLabels": [
+      "Go through to the clock room"
+    ],
+    "evidence": "Clock doorway V arrives on isolated maze triangle205. Its native connected component only returns through mapjump18; it cannot reach the rolling-corridor door.",
+    "nativeAnchors": [
+      {
+        "entityId": 18,
+        "scriptId": 0,
+        "hex": "D0"
+      }
+    ],
+    "expectedLine": {
+      "startX": 759,
+      "startY": 1741,
+      "startZ": 1100,
+      "endX": 597,
+      "endY": 1746,
+      "endZ": 1100
+    },
+    "expectedDestinationFieldIds": [
+      607
+    ],
+    "enabledLines": [
+      18
+    ],
+    "triangle": 200
+  },
+  {
+    "id": "reviewed-transit-604-613-68-end",
+    "fieldId": 604,
+    "moment": 629,
+    "expectedLabels": [
+      "Return through the rolling corridor toward the clock"
+    ],
+    "evidence": "The main maze component reaches606 gateway2, then606 gateway1 returns607. The clock doorway V balcony is a separate component and uses mapjump18 instead.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": 275,
+      "startY": 1088,
+      "startZ": 537,
+      "endX": 388,
+      "endY": 932,
+      "endZ": 537
+    },
+    "expectedDestinationFieldIds": [
+      606
+    ]
+  },
+  {
+    "id": "reviewed-transit-606-627-69-end",
+    "fieldId": 606,
+    "moment": 629,
+    "expectedLabels": [
+      "Return to the clock room"
+    ],
+    "evidence": "After the mural agreement at627, optional maze/service detours still return through the rolling corridor to clock doorwayXII.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": 846,
+      "startY": 1335,
+      "startZ": -296,
+      "endX": 846,
+      "endY": 1491,
+      "endZ": -296
+    },
+    "expectedDestinationFieldIds": [
+      607
+    ]
+  },
+  {
+    "id": "reviewed-transit-525-1389-70-end",
+    "fieldId": 525,
+    "moment": 1390,
+    "expectedLabels": [
+      "Enter the inn to reach Bugenhagen"
+    ],
+    "evidence": "cos_btm lower component reaches the upper terrace only through cosin1. Native529 g0 arrives328; g1 arrives340 on the separate terrace.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": -1201,
+      "startY": -893,
+      "startZ": -2141,
+      "endX": -1095,
+      "endY": -922,
+      "endZ": -2141
+    },
+    "expectedDestinationFieldIds": [
+      529
+    ],
+    "triangle": 16,
+    "routeArrivalTriangle": 328
+  },
+  {
+    "id": "reviewed-transit-525-1389-71-end",
+    "fieldId": 525,
+    "moment": 1390,
+    "expectedLabels": [
+      "Take the upper path to Bugenhagen"
+    ],
+    "evidence": "cos_btm upper component gateway3 maps531 attriangle77; first-visit guard/Red flags are irrelevant to this late visit.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": -536,
+      "startY": -468,
+      "startZ": -1468,
+      "endX": -452,
+      "endY": -541,
+      "endZ": -1468
+    },
+    "expectedDestinationFieldIds": [
+      531
+    ],
+    "triangle": 0,
+    "routeArrivalTriangle": 340
+  },
+  {
+    "id": "reviewed-transit-529-1389-72-end",
+    "fieldId": 529,
+    "moment": 1390,
+    "expectedLabels": [
+      "Leave the inn by the upper door"
+    ],
+    "evidence": "cosin1 gateway1 maps525 attriangle340, the observatory-side terrace.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": -323,
+      "startY": 137,
+      "startZ": 0,
+      "endX": -280,
+      "endY": 56,
+      "endZ": 0
+    },
+    "expectedDestinationFieldIds": [
+      525
+    ]
+  },
+  {
+    "id": "reviewed-transit-530-1389-73-end",
+    "fieldId": 530,
+    "moment": 1390,
+    "expectedLabels": [
+      "Return downstairs to the inn"
+    ],
+    "evidence": "Optional inn room returns529; its upper door continues the approach.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": 272,
+      "startY": -269,
+      "startZ": 0,
+      "endX": 356,
+      "endY": -172,
+      "endZ": 0
+    },
+    "expectedDestinationFieldIds": [
+      529
+    ]
+  },
+  {
+    "id": "reviewed-transit-531-1389-74-end",
+    "fieldId": 531,
+    "moment": 1390,
+    "expectedLabels": [
+      "Press Confirm at the ladder to Bugenhagen"
+    ],
+    "evidence": "cosin2 LINEL Go requires a fresh Confirm and calls the native climb to540. It must remain active on approach.",
+    "nativeAnchors": [
+      {
+        "entityId": 13,
+        "scriptId": 0,
+        "hex": "D0"
+      }
+    ],
+    "expectedLine": {
+      "startX": -224,
+      "startY": 164,
+      "startZ": -16,
+      "endX": -196,
+      "endY": 233,
+      "endZ": -9
+    },
+    "expectedDestinationFieldIds": [
+      540
+    ],
+    "enabledLines": [
+      13
+    ]
+  },
+  {
+    "id": "reviewed-transit-540-1389-75-end",
+    "fieldId": 540,
+    "moment": 1390,
+    "expectedLabels": [
+      "Enter Bugenhagen's house"
+    ],
+    "evidence": "cos_top gateway0 enters544 attriangle1; the observation platform is not this entrance.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": -327,
+      "startY": -240,
+      "startZ": -544,
+      "endX": -251,
+      "endY": -325,
+      "endZ": -544
+    },
+    "expectedDestinationFieldIds": [
+      544
+    ]
+  },
+  {
+    "id": "reviewed-transit-544-1389-76-end",
+    "fieldId": 544,
+    "moment": 1390,
+    "expectedLabels": [
+      "Go through to Bugenhagen's room"
+    ],
+    "evidence": "bugin2 gateway1 leads541; Bugenhagen Talk advances1391 and his native scene handles the subsequent Highwind handoff.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": 255,
+      "startY": -158,
+      "startZ": -624,
+      "endX": 196,
+      "endY": -220,
+      "endZ": -624
+    },
+    "expectedDestinationFieldIds": [
+      541
+    ]
+  },
+  {
+    "id": "reviewed-transit-451-1110-77-end",
+    "fieldId": 451,
+    "moment": 1117,
+    "expectedLabels": [
+      "Leave North Corel after the train mission"
+    ],
+    "evidence": "ncorel2 is the damaged town variant after failing to stop the train. Mission completion15[145] bit5 still allows continuing to the remaining mission or Mideel.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": 810,
+      "startY": -411,
+      "startZ": 0,
+      "endX": 745,
+      "endY": -652,
+      "endZ": 0
+    },
+    "expectedDestinationFieldIds": [
+      15
+    ],
+    "state": [
+      {
+        "bank": 15,
+        "address": 145,
+        "value": 32
+      }
+    ]
+  },
+  {
+    "id": "reviewed-transit-630-677-78-end",
+    "fieldId": 630,
+    "moment": 680,
+    "expectedLabels": [
+      "Return to the eastern path out of the city"
+    ],
+    "evidence": "After the burial, native losin2 hands back at677. Optional city detours must return through634 gateway2 toward Coral Valley cave and Icicle Inn.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": -3042,
+      "startY": 3029,
+      "startZ": 170,
+      "endX": -2849,
+      "endY": 2847,
+      "endZ": 152
+    },
+    "expectedDestinationFieldIds": [
+      634
+    ]
+  },
+  {
+    "id": "reviewed-transit-635-677-79-end",
+    "fieldId": 635,
+    "moment": 680,
+    "expectedLabels": [
+      "Return to the eastern houses"
+    ],
+    "evidence": "After the burial, native losin2 hands back at677. Optional city detours must return through634 gateway2 toward Coral Valley cave and Icicle Inn. From either house633 arrival, use jump1 to630 then its eastern gateway1. The direct635 gateway0 has no route from these two components.",
+    "nativeAnchors": [
+      {
+        "entityId": 3,
+        "scriptId": 0,
+        "hex": "D0"
+      }
+    ],
+    "expectedLine": {
+      "startX": -5136,
+      "startY": 6169,
+      "startZ": 359,
+      "endX": -4990,
+      "endY": 6187,
+      "endZ": 359
+    },
+    "expectedDestinationFieldIds": [
+      630
+    ],
+    "enabledLines": [
+      3
+    ]
+  },
+  {
+    "id": "reviewed-transit-636-677-80-end",
+    "fieldId": 636,
+    "moment": 680,
+    "expectedLabels": [
+      "Leave the sleeping house"
+    ],
+    "evidence": "After the burial, native losin2 hands back at677. Optional city detours must return through634 gateway2 toward Coral Valley cave and Icicle Inn.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": 189,
+      "startY": -513,
+      "startZ": 64,
+      "endX": 153,
+      "endY": -427,
+      "endZ": 64
+    },
+    "expectedDestinationFieldIds": [
+      634
+    ]
+  },
+  {
+    "id": "reviewed-transit-631-677-81-end",
+    "fieldId": 631,
+    "moment": 680,
+    "expectedLabels": [
+      "Go back down from the upper chamber"
+    ],
+    "evidence": "After the burial, native losin2 hands back at677. Optional city detours must return through634 gateway2 toward Coral Valley cave and Icicle Inn.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": 376,
+      "startY": 8,
+      "startZ": -96,
+      "endX": 320,
+      "endY": -67,
+      "endZ": -97
+    },
+    "expectedDestinationFieldIds": [
+      641
+    ]
+  },
+  {
+    "id": "reviewed-transit-641-677-82-end",
+    "fieldId": 641,
+    "moment": 680,
+    "expectedLabels": [
+      "Leave the blue building"
+    ],
+    "evidence": "After the burial, native losin2 hands back at677. Optional city detours must return through634 gateway2 toward Coral Valley cave and Icicle Inn.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": 215,
+      "startY": -1648,
+      "startZ": 33,
+      "endX": 306,
+      "endY": -1656,
+      "endZ": 33
+    },
+    "expectedDestinationFieldIds": [
+      640
+    ]
+  },
+  {
+    "id": "reviewed-transit-640-677-83-end",
+    "fieldId": 640,
+    "moment": 680,
+    "expectedLabels": [
+      "Return to the crossroads"
+    ],
+    "evidence": "After the burial, native losin2 hands back at677. Optional city detours must return through634 gateway2 toward Coral Valley cave and Icicle Inn.",
+    "nativeAnchors": [
+      {
+        "entityId": 4,
+        "scriptId": 0,
+        "hex": "D0"
+      }
+    ],
+    "expectedLine": {
+      "startX": -9604,
+      "startY": 5681,
+      "startZ": 276,
+      "endX": -9574,
+      "endY": 5738,
+      "endZ": 276
+    },
+    "expectedDestinationFieldIds": [
+      630
+    ],
+    "enabledLines": [
+      4
+    ]
+  },
+  {
+    "id": "reviewed-transit-633-677-84-end",
+    "fieldId": 633,
+    "moment": 680,
+    "expectedLabels": [
+      "Leave the western house"
+    ],
+    "evidence": "After the burial, native losin2 hands back at677. Optional city detours must return through634 gateway2 toward Coral Valley cave and Icicle Inn.",
+    "nativeAnchors": [],
+    "expectedLine": {
+      "startX": 43,
+      "startY": -352,
+      "startZ": 0,
+      "endX": 126,
+      "endY": -343,
+      "endZ": 0
+    },
+    "expectedDestinationFieldIds": [
+      635
+    ]
+  },
+  {
+    "id": "transit-outside-625-651",
+    "fieldId": 625,
+    "moment": 651,
+    "forbiddenLabels": [
+      "Continue through Coral Valley"
+    ],
+    "evidence": "Reviewed chapter boundary: this objective must not survive outside its native mission phase.",
+    "enabledLines": []
+  },
+  {
+    "id": "transit-outside-625-664",
+    "fieldId": 625,
+    "moment": 664,
+    "forbiddenLabels": [
+      "Continue through Coral Valley"
+    ],
+    "evidence": "Reviewed chapter boundary: this objective must not survive outside its native mission phase.",
+    "enabledLines": []
+  },
+  {
+    "id": "transit-outside-626-651",
+    "fieldId": 626,
+    "moment": 651,
+    "forbiddenLabels": [
+      "Leave the valley toward the Forgotten Capital"
+    ],
+    "evidence": "Reviewed chapter boundary: this objective must not survive outside its native mission phase.",
+    "enabledLines": []
+  },
+  {
+    "id": "transit-outside-626-664",
+    "fieldId": 626,
+    "moment": 664,
+    "forbiddenLabels": [
+      "Leave the valley toward the Forgotten Capital"
+    ],
+    "evidence": "Reviewed chapter boundary: this objective must not survive outside its native mission phase.",
+    "enabledLines": []
+  },
+  {
+    "id": "transit-outside-386-1249",
+    "fieldId": 386,
+    "moment": 1249,
+    "forbiddenLabels": [
+      "Leave the lift hall for the main street"
+    ],
+    "evidence": "Reviewed chapter boundary: this objective must not survive outside its native mission phase.",
+    "enabledLines": []
+  },
+  {
+    "id": "transit-outside-386-1256",
+    "fieldId": 386,
+    "moment": 1256,
+    "forbiddenLabels": [
+      "Leave the lift hall for the main street"
+    ],
+    "evidence": "Reviewed chapter boundary: this objective must not survive outside its native mission phase.",
+    "enabledLines": []
+  },
+  {
+    "id": "transit-outside-360-1249",
+    "fieldId": 360,
+    "moment": 1249,
+    "forbiddenLabels": [
+      "Follow the main street toward the reactor passage"
+    ],
+    "evidence": "Reviewed chapter boundary: this objective must not survive outside its native mission phase.",
+    "enabledLines": []
+  },
+  {
+    "id": "transit-outside-360-1256",
+    "fieldId": 360,
+    "moment": 1256,
+    "forbiddenLabels": [
+      "Follow the main street toward the reactor passage"
+    ],
+    "evidence": "Reviewed chapter boundary: this objective must not survive outside its native mission phase.",
+    "enabledLines": []
+  },
+  {
+    "id": "transit-outside-361-1249",
+    "fieldId": 361,
+    "moment": 1249,
+    "forbiddenLabels": [
+      "Enter the passage with the marching soldiers"
+    ],
+    "evidence": "Reviewed chapter boundary: this objective must not survive outside its native mission phase.",
+    "enabledLines": []
+  },
+  {
+    "id": "transit-outside-361-1256",
+    "fieldId": 361,
+    "moment": 1256,
+    "forbiddenLabels": [
+      "Enter the passage with the marching soldiers"
+    ],
+    "evidence": "Reviewed chapter boundary: this objective must not survive outside its native mission phase.",
+    "enabledLines": []
+  },
+  {
+    "id": "transit-outside-388-1252",
+    "fieldId": 388,
+    "moment": 1252,
+    "forbiddenLabels": [
+      "Leave the elevator at the submarine dock"
+    ],
+    "evidence": "Reviewed chapter boundary: this objective must not survive outside its native mission phase.",
+    "enabledLines": [
+      6
+    ]
+  },
+  {
+    "id": "transit-outside-388-1256",
+    "fieldId": 388,
+    "moment": 1256,
+    "forbiddenLabels": [
+      "Leave the elevator at the submarine dock"
+    ],
+    "evidence": "Reviewed chapter boundary: this objective must not survive outside its native mission phase.",
+    "enabledLines": [
+      6
+    ]
+  },
+  {
+    "id": "transit-outside-393-1255",
+    "fieldId": 393,
+    "moment": 1255,
+    "forbiddenLabels": [
+      "Continue down the stairs"
+    ],
+    "evidence": "Reviewed chapter boundary: this objective must not survive outside its native mission phase.",
+    "enabledLines": []
+  },
+  {
+    "id": "transit-outside-393-1280",
+    "fieldId": 393,
+    "moment": 1280,
+    "forbiddenLabels": [
+      "Continue down the stairs"
+    ],
+    "evidence": "Reviewed chapter boundary: this objective must not survive outside its native mission phase.",
+    "enabledLines": []
+  },
+  {
+    "id": "transit-outside-417-1255",
+    "fieldId": 417,
+    "moment": 1255,
+    "forbiddenLabels": [
+      "Enter the underwater tunnel"
+    ],
+    "evidence": "Reviewed chapter boundary: this objective must not survive outside its native mission phase.",
+    "enabledLines": []
+  },
+  {
+    "id": "transit-outside-417-1280",
+    "fieldId": 417,
+    "moment": 1280,
+    "forbiddenLabels": [
+      "Enter the underwater tunnel"
+    ],
+    "evidence": "Reviewed chapter boundary: this objective must not survive outside its native mission phase.",
+    "enabledLines": []
+  },
+  {
+    "id": "transit-outside-418-1255",
+    "fieldId": 418,
+    "moment": 1255,
+    "forbiddenLabels": [
+      "Follow the tunnel toward the reactor"
+    ],
+    "evidence": "Reviewed chapter boundary: this objective must not survive outside its native mission phase.",
+    "enabledLines": []
+  },
+  {
+    "id": "transit-outside-418-1280",
+    "fieldId": 418,
+    "moment": 1280,
+    "forbiddenLabels": [
+      "Follow the tunnel toward the reactor"
+    ],
+    "evidence": "Reviewed chapter boundary: this objective must not survive outside its native mission phase.",
+    "enabledLines": []
+  },
+  {
+    "id": "transit-outside-419-1255",
+    "fieldId": 419,
+    "moment": 1255,
+    "forbiddenLabels": [
+      "Enter the reactor lift"
+    ],
+    "evidence": "Reviewed chapter boundary: this objective must not survive outside its native mission phase.",
+    "enabledLines": []
+  },
+  {
+    "id": "transit-outside-419-1280",
+    "fieldId": 419,
+    "moment": 1280,
+    "forbiddenLabels": [
+      "Enter the reactor lift"
+    ],
+    "evidence": "Reviewed chapter boundary: this objective must not survive outside its native mission phase.",
+    "enabledLines": []
+  },
+  {
+    "id": "transit-outside-421-1255",
+    "fieldId": 421,
+    "moment": 1255,
+    "forbiddenLabels": [
+      "Continue into the reactor"
+    ],
+    "evidence": "Reviewed chapter boundary: this objective must not survive outside its native mission phase.",
+    "enabledLines": []
+  },
+  {
+    "id": "transit-outside-421-1280",
+    "fieldId": 421,
+    "moment": 1280,
+    "forbiddenLabels": [
+      "Continue into the reactor"
+    ],
+    "evidence": "Reviewed chapter boundary: this objective must not survive outside its native mission phase.",
+    "enabledLines": []
+  },
+  {
+    "id": "transit-outside-422-1255",
+    "fieldId": 422,
+    "moment": 1255,
+    "forbiddenLabels": [
+      "Follow the reactor passage"
+    ],
+    "evidence": "Reviewed chapter boundary: this objective must not survive outside its native mission phase.",
+    "enabledLines": []
+  },
+  {
+    "id": "transit-outside-422-1280",
+    "fieldId": 422,
+    "moment": 1280,
+    "forbiddenLabels": [
+      "Follow the reactor passage"
+    ],
+    "evidence": "Reviewed chapter boundary: this objective must not survive outside its native mission phase.",
+    "enabledLines": []
+  },
+  {
+    "id": "transit-outside-423-1255",
+    "fieldId": 423,
+    "moment": 1255,
+    "forbiddenLabels": [
+      "Continue toward the crane hall"
+    ],
+    "evidence": "Reviewed chapter boundary: this objective must not survive outside its native mission phase.",
+    "enabledLines": []
+  },
+  {
+    "id": "transit-outside-423-1280",
+    "fieldId": 423,
+    "moment": 1280,
+    "forbiddenLabels": [
+      "Continue toward the crane hall"
+    ],
+    "evidence": "Reviewed chapter boundary: this objective must not survive outside its native mission phase.",
+    "enabledLines": []
+  },
+  {
+    "id": "transit-outside-424-1255",
+    "fieldId": 424,
+    "moment": 1255,
+    "forbiddenLabels": [
+      "Enter the crane hall"
+    ],
+    "evidence": "Reviewed chapter boundary: this objective must not survive outside its native mission phase.",
+    "enabledLines": [
+      14
+    ]
+  },
+  {
+    "id": "transit-outside-424-1280",
+    "fieldId": 424,
+    "moment": 1280,
+    "forbiddenLabels": [
+      "Enter the crane hall"
+    ],
+    "evidence": "Reviewed chapter boundary: this objective must not survive outside its native mission phase.",
+    "enabledLines": [
+      14
+    ]
+  },
+  {
+    "id": "transit-outside-426-1255",
+    "fieldId": 426,
+    "moment": 1255,
+    "forbiddenLabels": [
+      "Continue past the crane to the submarine dock"
+    ],
+    "evidence": "Reviewed chapter boundary: this objective must not survive outside its native mission phase.",
+    "enabledLines": []
+  },
+  {
+    "id": "transit-outside-426-1280",
+    "fieldId": 426,
+    "moment": 1280,
+    "forbiddenLabels": [
+      "Continue past the crane to the submarine dock"
+    ],
+    "evidence": "Reviewed chapter boundary: this objective must not survive outside its native mission phase.",
+    "enabledLines": []
+  },
+  {
+    "id": "transit-outside-427-1255",
+    "fieldId": 427,
+    "moment": 1255,
+    "forbiddenLabels": [
+      "Approach the guards at the submarine"
+    ],
+    "evidence": "Reviewed chapter boundary: this objective must not survive outside its native mission phase.",
+    "enabledLines": [
+      4
+    ]
+  },
+  {
+    "id": "transit-outside-427-1280",
+    "fieldId": 427,
+    "moment": 1280,
+    "forbiddenLabels": [
+      "Approach the guards at the submarine"
+    ],
+    "evidence": "Reviewed chapter boundary: this objective must not survive outside its native mission phase.",
+    "enabledLines": [
+      4
+    ]
+  },
+  {
+    "id": "bugenhagen-world-handoff-1391",
+    "fieldId": 541,
+    "moment": 1391,
+    "expectEmpty": true,
+    "evidence": "Native bugin1a AD Script7 writes1391 then MAPJUMP74. World Story must move from Cosmo Canyon to the Capital at this write; the player is not asked to talk again.",
+    "nativeAnchors": [
+      {
+        "entityId": 12,
+        "scriptId": 7,
+        "hex": "8120006F05"
+      },
+      {
+        "entityId": 12,
+        "scriptId": 7,
+        "hex": "604A0000000000000000"
+      }
+    ]
+  }
+]

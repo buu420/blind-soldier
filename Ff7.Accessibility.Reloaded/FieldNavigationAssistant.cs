@@ -190,6 +190,13 @@ public sealed class FieldNavigationController
     private static readonly TimeSpan LadderMountPromptInterval =
         TimeSpan.FromMilliseconds(700);
 
+    // How long the native movement mode may leave 4/5 and still be the same climb. The
+    // gaps between the rocket gantry's own LADER calls are under a second; the real
+    // completion there is followed by three seconds of standing before the field
+    // changes, so this separates them without delaying a genuine dismount noticeably.
+    private static readonly TimeSpan LadderDismountSettleInterval =
+        TimeSpan.FromMilliseconds(1200);
+
     private static readonly FieldNavigationCategory[] CategoryOrder =
     {
         FieldNavigationCategory.Exits,
@@ -228,6 +235,8 @@ public sealed class FieldNavigationController
     private bool routeRefreshPending;
     private string ladderPromptActionId = string.Empty;
     private DateTime nextLadderPromptAt = DateTime.MinValue;
+    private DateTime lastLadderMountedAt = DateTime.MinValue;
+    private int ladderTraversalFieldId = -1;
     private FieldPositionSnapshot? positionRecoveryCandidate;
     private FieldPositionSnapshot? positionRecoveryAnchor;
     private FieldPositionSnapshot? lastAcceptedPosition;
@@ -729,6 +738,8 @@ public sealed class FieldNavigationController
         activeLadderExpectedLanding = default;
         activeLadderExpectedTriangle = -1;
         activeLadderHasExpectedLanding = false;
+        lastLadderMountedAt = DateTime.MinValue;
+        ladderTraversalFieldId = -1;
         routeStartsAfterMountedLadder = false;
         routeRefreshPending = false;
         positionRecoveryCandidate = null;
@@ -1093,6 +1104,8 @@ public sealed class FieldNavigationController
             if (ShouldAcceptMountedLadder(ladderState))
             {
                 velocityEstimator.Reset();
+                lastLadderMountedAt = observedAt;
+                ladderTraversalFieldId = position.FieldId;
                 return UpdateMountedLadder(position, target.Value, observation, controlTransform, ladderState, observedAt);
             }
 
@@ -1113,6 +1126,25 @@ public sealed class FieldNavigationController
         if (activeLadderState.IsMounted &&
             (completesFromLiveLanding || ladderState.IsUsable && !ladderState.IsMounted))
         {
+            // A long climb is not one native LADER call. The rocket gantry runs several
+            // back to back, and the event's movement mode at +0x63 leaves 4/5 for a frame
+            // or two between them; the 2026-09-22 capture has five "Ladder mounted" /
+            // "Ladder complete" pairs in seven seconds on one climb, and the Story target
+            // was dropped in one of those gaps with "no longer available. Navigation off."
+            //
+            // So a dismount only ends the traversal once it has held. Arriving at the
+            // landing still ends it at once, which is what a real completion looks like,
+            // and leaving the field clears the hold rather than carrying it.
+            if (!completesFromLiveLanding &&
+                ladderTraversalFieldId == position.FieldId &&
+                observedAt - lastLadderMountedAt < LadderDismountSettleInterval)
+            {
+                LastNavigationDiagnostic =
+                    "native ladder state dropped mid-traversal; holding the climb until it settles, " +
+                    $"position={position.X},{position.Y},{position.Z}, triangle={position.TriangleId}";
+                return null;
+            }
+
             if (pendingLadderAction is { } pending &&
                 activeLadderHasExpectedLanding &&
                 !IsAtLadderLanding(
@@ -2018,6 +2050,8 @@ public sealed class FieldNavigationController
         activeLadderExpectedLanding = default;
         activeLadderExpectedTriangle = -1;
         activeLadderHasExpectedLanding = false;
+        lastLadderMountedAt = DateTime.MinValue;
+        ladderTraversalFieldId = -1;
         routeStartsAfterMountedLadder = false;
         routeRefreshPending = false;
         interactionArrivalPaused = false;
@@ -2361,11 +2395,21 @@ public sealed class FieldNavigationController
                 if (guidance.RemainingDistance > ResolveArrivalDistance(target.Value, DefaultSelectionArrivalDistance) &&
                     string.Equals(spokenOffset, "at destination", StringComparison.Ordinal))
                 {
-                    // A short opening run can round to zero while later turns
-                    // remain. Preserve its direction and sub-count distance.
+                    // A short opening run can round to zero while the rest of the route
+                    // remains. It used to say "<direction> less than 1", which reads as
+                    // the distance to the destination rather than the length of the
+                    // first step. On the Rocket Town gantry that told a player "right
+                    // less than 1" for a target 1141 units and 31 portals away, and auto
+                    // walk then stopped three times for no meaningful progress. Say the
+                    // first turn and the distance still to walk, in the same counts every
+                    // other line uses.
+                    var remainingCounts = Math.Max(
+                        1,
+                        (int)Math.Round(
+                            guidance.RemainingDistance / ResolveSpokenDistanceUnits(target.Value.FieldId)));
                     spokenOffset = string.IsNullOrEmpty(spokenDirection)
-                        ? null
-                        : $"{spokenDirection} less than 1";
+                        ? $"{remainingCounts} to go by route"
+                        : $"{spokenDirection} first, {remainingCounts} to go by route";
                 }
             }
         }

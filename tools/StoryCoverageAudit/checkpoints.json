@@ -84,12 +84,30 @@
   },
   {
     "id": "rocket-first-house",
-    "fieldId": 551,
+    "fieldId": 557,
     "moment": 523,
     "expectedLabels": [
       "Go into the captain's house"
     ],
-    "evidence": "rckt2 gateway1 -> rktsid558; backyard Director writes535, rocket conversation comes afterwards."
+    "expectedLine": {
+      "startX": 292,
+      "startY": 1373,
+      "startZ": 0,
+      "endX": 351,
+      "endY": 1349,
+      "endZ": 0
+    },
+    "expectedDestinationFieldIds": [558],
+    "evidence": "User log (8), 2026-09-22: first visit is rckt557 at523, not rckt2/551. Native rckt gateway2 enters rktsid558; side-room scripts return557 below1308. Backyard Director writes535 before the rocket conversation."
+  },
+  {
+    "id": "rocket-first-house-not-later-town-variant",
+    "fieldId": 551,
+    "moment": 523,
+    "forbiddenLabels": [
+      "Go into the captain's house"
+    ],
+    "evidence": "The captured first visit and native side-room MAPJUMPs select557 below1308. Field551 is the later town variant and must not own the first-visit objective."
   },
   {
     "id": "rocket-backyard",

@@ -1361,8 +1361,29 @@ Add-Definition -FieldId 222 -FieldName 'mrkt4' -Kind 'Location' -Label 'Use the 
 # Background segment MAPJUMPs are not exposed as separate goals.
 Add-Definition -FieldId 223 -FieldName 'wcrimb_1' -Kind 'Location' -Label 'Place a battery in the first wall-climb socket' -EntityId 32 -X 304 -Y 724 -Z 1547 -TargetGameMoment 260 -MinimumGameMoment 257 -MaximumGameMoment 259 -Priority 0 -RequiredCondition (New-Condition 1 165 0xE0 0xE0) -CompletedCondition (New-Condition 1 165 0x02 0x02) -EntityName 'lined0' -ScriptType '[OK]' -RequiredEnabledLineEntityId 32 -TriggerLine ([ordered]@{ startX = 346; startY = 732; startZ = 1542; endX = 262; endY = 716; endZ = 1552 }) -KeepActiveOnArrival
 Add-Definition -FieldId 223 -FieldName 'wcrimb_1' -Kind 'Location' -Label 'Place a battery in the second wall-climb socket' -EntityId 25 -X -72 -Y 1034 -Z 2280 -TargetGameMoment 260 -MinimumGameMoment 257 -MaximumGameMoment 259 -Priority 0 -RequiredCondition (New-Condition 1 165 0x02 0x02) -CompletedCondition (New-Condition 1 165 0x04 0x04) -EntityName 'line82' -ScriptType '[OK]' -RequiredEnabledLineEntityId 25 -TriggerLine ([ordered]@{ startX = -25; startY = 997; startZ = 2249; endX = -118; endY = 1071; endZ = 2311 }) -KeepActiveOnArrival
-Add-Definition -FieldId 223 -FieldName 'wcrimb_1' -Kind 'Location' -Label 'Reach the swinging bar and press OK at the prompt' -X -369 -Y 1677 -Z 3290 -TargetGameMoment 260 -MinimumGameMoment 257 -MaximumGameMoment 259 -Priority 0 -RequiredCondition (New-Condition 1 165 0x06 0x06) -ExcludedPlayerTriangles @(36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 176, 177) -ScriptType 'Native triangle 13' -KeepActiveOnArrival
-Add-Definition -FieldId 223 -FieldName 'wcrimb_1' -Kind 'Location' -Label 'Climb the final ladder after landing from the swinging bar' -EntityId 10 -X 280 -Y 2042 -Z 3240 -TargetGameMoment 260 -MinimumGameMoment 257 -MaximumGameMoment 259 -Priority 0 -RequiredCondition (New-Condition 1 165 0x06 0x06) -RequiredPlayerTriangles @(36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 176, 177) -EntityName 'line03' -ScriptType 'Move' -RequiredEnabledLineEntityId 10 -TriggerLine ([ordered]@{ startX = 231; startY = 2040; startZ = 3235; endX = 328; endY = 2043; endZ = 3244 })
+# wcrimb_1 is one half of a wall the party climbs by alternating with wcrimb_2, and
+# its walkmesh has sixteen components. The arrivals on triangles0/1 and68/69
+# cannot reach the swinging bar. The0/1 ledge can rejoin the final-ladder approach;
+# the line02 components28,29,162..165 and68,69 first return through224 using the
+# explicit Story step below. Arrivals on triangles2 and111 can reach the bar.
+Add-Definition -FieldId 223 -FieldName 'wcrimb_1' -Kind 'Location' -Label 'Reach the swinging bar and press OK at the prompt' -X -369 -Y 1677 -Z 3290 -TargetGameMoment 260 -MinimumGameMoment 257 -MaximumGameMoment 259 -Priority 0 -RequiredCondition (New-Condition 1 165 0x06 0x06) -ExcludedPlayerTriangles @(0, 1, 28, 29, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 68, 69, 162, 163, 164, 165, 176, 177) -ScriptType 'Native triangle 13' -KeepActiveOnArrival
+Add-Definition -FieldId 223 -FieldName 'wcrimb_1' -Kind 'Location' -Label 'Climb the final ladder after landing from the swinging bar' -EntityId 10 -X 280 -Y 2042 -Z 3240 -TargetGameMoment 260 -MinimumGameMoment 257 -MaximumGameMoment 259 -Priority 0 -RequiredCondition (New-Condition 1 165 0x06 0x06) -RequiredPlayerTriangles @(0, 1, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 176, 177) -EntityName 'line03' -ScriptType 'Move' -RequiredEnabledLineEntityId 10 -TriggerLine ([ordered]@{ startX = 231; startY = 2040; startZ = 3235; endX = 328; endY = 2043; endZ = 3244 })
+
+# And what those two do instead, which is the same thing. line02, entity 9, is a
+# LINE at (-175,1461,3463)-(-106,1464,3457) on triangle 164, the c4 floor. Its Move
+# handler is IFUB Bank[5][36] === 0 then REQEW 03 21 c8 - entity 33, priority 6,
+# script 8 - and cloud's script 8 is LADER up to (-111,1554,3673) triangle 68, then
+# GETAI the triangle it ended on and, for mapinit's Bank[6][18]=68 or Bank[6][20]=69,
+# MAPJUMP 60 e0 00 dc ff 3e 03 5b 00 80: field 224, (-36,830), triangle 91.
+# Triangle 91 is in wallClimbOptionalReturnTriangles below, so the landing already
+# offers the left ladder back down to the swinging bar and the round trip closes.
+#
+# 68,69 is c9, the ledge field 224 MAPJUMPs onto, and its only way on is cloud's
+# script 4 back down to triangle 29 - the same c4 floor. One row covers both because
+# the planner walks that ladder, and it carries the battery gate and the band of the
+# bar it is heading back to.
+Add-Definition -FieldId 223 -FieldName 'wcrimb_1' -Kind 'Location' -Label 'Take the ladder across to the other wall and back toward the swinging bar' -EntityId 9 -X -141 -Y 1463 -Z 3460 -TargetGameMoment 260 -MinimumGameMoment 257 -MaximumGameMoment 259 -Priority 0 -RequiredCondition (New-Condition 1 165 0x06 0x06) -RequiredPlayerTriangles @(28, 29, 68, 69, 162, 163, 164, 165) -EntityName 'line02' -ScriptType 'Move' -RequiredEnabledLineEntityId 9 -TriggerLine ([ordered]@{ startX = -175; startY = 1461; startZ = 3463; endX = -106; endY = 1464; endZ = 3457 })
+
 # The optional Ether socket is a one-way detour from wcrimb_2's upper route.
 # The native return is the left LADER at entity 4, which briefly MAPJUMPs to
 # wcrimb_1 and lands directly on the connected swinging-bar approach. Do not
@@ -1759,6 +1780,8 @@ $genericDefinitionCount = $definitions.Count
 foreach ($region in @('CostaDelSol', 'MountCorel', 'NorthCorel', 'GoldSaucer', 'CorelPrison', 'CosmoCanyon', 'IcicleInn', 'GreatGlacier', 'GaeasCliff', 'MountNibel', 'Nibelheim', 'RocketTown', 'BoneVillage', 'GoldSaucerReturn', 'JunonEscape', 'Mideel', 'TempleOfTheAncients', 'CityOfTheAncients', 'WhirlwindMaze', 'JunonEscapeAndHighwind', 'MideelAndHugeMateria', 'UnderwaterReactor', 'RocketReturnAndAncients', 'MidgarRaid', 'HighwindEndgame', 'NorthernCrater', 'EarlyContinuity', 'OptionalRoomReturns', 'WhirlwindTransit', 'SubmarineBoarding', 'InFieldTravel', 'ReviewedArrivals', 'NativeEntryDoors', 'TransitContinuity')) {
     . (Join-Path $scriptRoot "story-regions\$region.ps1")
 }
+
+. (Join-Path $scriptRoot 'story-regions\ReviewedStoryTransit.ps1')
 
 # What Add-CuratedFields is for.
 #

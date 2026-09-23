@@ -71,9 +71,64 @@ Add-Definition @mountNibelPresentVisit -FieldId 313 -FieldName 'mtnvl4' -Kind Lo
     -EntityName 'gateway1' -ScriptType 'Gateway' `
     -TriggerLine ([ordered]@{ startX=991; startY=462; startZ=46; endX=902; endY=473; endZ=46 })
 
+# --- The cave loop, and the third ledge nothing named ------------------------------
+#
+# mtnvl4 is three separate pieces of walkmesh, not one. The installed field reads 271
+# triangles in three components with no path between them:
+#
+#   component 0, 221 triangles, holds gateway 0 only, which goes back into nvdun2
+#   component 1, 41 triangles, holds gateway 2 to nvdun1 and gateway 3 off the mountain
+#   component 2, 9 triangles (186..194), holds gateway 1 back to nvdun1
+#
+# The two rows above cover components 1 and 2. Component 0 - the largest piece of the
+# field - had nothing, and it is exactly where nvdun2's gateway 0 puts the party down,
+# at (984,804) on triangle 240. From there the world exit is not merely far; the route
+# planner finds no path to it at all, because there is none.
+#
+# The way on from that ledge is back through the caves: nvdun2 g1 to nvdun3, g0 to
+# nvdun4, g1 to mtnvl5, g0 to mtnvl6, g2 to nvdun1, and then the higher opening above.
+# None of those rooms is required - the Counter materia in them is optional - but a
+# player standing in one is not on the route and had no way to learn it. Each carries
+# the step that leads back toward nvdun1, from that room's own gateway table. No field
+# here disables a gateway; there is no MPJPO in any of them.
+$mountNibelCaveLoop = @{ MinimumGameMoment = 523; MaximumGameMoment = 534; Priority = 1 }
+
+Add-Definition @mountNibelCaveLoop -FieldId 313 -FieldName 'mtnvl4' -Kind Location `
+    -Label 'Go back into the cave' -X 912 -Y 740 -Z -210 `
+    -ExcludedPlayerTriangles ($mountNibelWorldLedge + $mountNibelWrongLedge) `
+    -EntityName 'gateway0' -ScriptType 'Gateway' `
+    -TriggerLine ([ordered]@{ startX=962; startY=746; startZ=-209; endX=863; endY=734; endZ=-211 })
+
+foreach ($caveStep in @(
+    @{ id=318; name='nvdun2'; gateway='gateway1'; label='Take this passage on through the cave';
+       x=-142; y=1788; z=-416;
+       line=@{ startX=-148; startY=1753; startZ=-416; endX=-137; endY=1824; endZ=-416 } },
+    @{ id=319; name='nvdun3'; gateway='gateway0'; label='Take this passage on through the cave';
+       x=-37; y=-1563; z=39;
+       line=@{ startX=0; startY=-1694; startZ=41; endX=-75; endY=-1432; endZ=38 } },
+    @{ id=321; name='nvdun4'; gateway='gateway1'; label='Take this passage out to the mountain path';
+       x=382; y=-405; z=-345;
+       line=@{ startX=322; startY=-403; startZ=-345; endX=443; endY=-407; endZ=-345 } },
+    @{ id=314; name='mtnvl5'; gateway='gateway0'; label='Follow the path on to the next opening';
+       x=-613; y=-563; z=-67;
+       line=@{ startX=-732; startY=-513; startZ=-75; endX=-495; endY=-613; endZ=-59 } },
+    @{ id=315; name='mtnvl6'; gateway='gateway2'; label='Go back into the pipe room';
+       x=696; y=954; z=82;
+       line=@{ startX=707; startY=1007; startZ=87; endX=686; endY=901; endZ=78 } })) {
+    Add-Definition @mountNibelCaveLoop -FieldId $caveStep.id -FieldName $caveStep.name `
+        -Kind Location -Label $caveStep.label -X $caveStep.x -Y $caveStep.y -Z $caveStep.z `
+        -EntityName $caveStep.gateway -ScriptType 'Gateway' `
+        -TriggerLine $caveStep.line
+}
+
 # nvdun1's ladders and pipe jumps are native LADER/JUMP runtimes with their own
 # activation - ladd1 refuses to come back down until ladu1's upward Go has set
 # Bank[1][232] bit 6 - and they are left to the field's own traversal handling rather
 # than described as separate objectives here.
+# The cave rooms are deliberately NOT curated. Curating a field tells
+# NativeEntryDoors.ps1 that this region owns every moment in it, and these five are
+# also walked in the Nibelheim flashback and again out of Mideel, where the entry-door
+# pass supplies rows this region says nothing about. Adding them here would have
+# silently withdrawn mtnvl5 at 363, mtnvl6 at 376 and mtnvl6 at 1182.
 Add-CuratedFields 311, 312, 313, 317
 

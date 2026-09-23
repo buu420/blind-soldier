@@ -49,16 +49,12 @@ Add-Definition -FieldId 315 -FieldName 'mtnvl6' -Kind Location `
     -TriggerLine ([ordered]@{ startX=-617; startY=-584; startZ=25; endX=-532; endY=-600; endZ=39 })
 
 # --- Rocket Town, first visit ----------------------------------------------------
-# cos_btm/LINEO writes 523 leaving Cosmo Canyon and the party crosses to Rocket Town
-# with the moment unchanged; rckt3/dir Main writes 535 on arriving at the rocket
-# itself. rktsid's jump is the only way up to it, and its [OK] leads to rckt3 or to
-# rckt32 depending on the scene, so the row names the climb rather than a destination.
-Add-Definition -FieldId 558 -FieldName 'rktsid' -Kind Location -EntityId 5 `
-    -Label 'Go up to the rocket to continue' -X 18 -Y 898 -Z 0 `
-    -MinimumGameMoment 523 -MaximumGameMoment 534 -TargetGameMoment 535 -Priority 50 `
-    -EntityName 'jump' -ScriptType '[OK]' -UsesPlayerCollisionRadius `
-    -RequiredEnabledLineEntityId 5 `
-    -TriggerLine ([ordered]@{ startX=-23; startY=898; startZ=0; endX=60; endY=898; endZ=0 })
+# There was a row here for rktsid's back door labelled "Go up to the rocket to
+# continue". It named the wrong place: below 553 that [OK] opens on rckt3, the backyard
+# behind the house, where Shera is introduced and the Director writes 535. The rocket
+# itself is four rooms further on, through the town and up the gantry. RocketTown.ps1
+# reviews the same trigger properly and calls it what it is, so this coarser row is
+# withdrawn rather than left to contradict it.
 
 # --- The Sleeping Forest ---------------------------------------------------------
 # slfrst_1/dir Main writes 638 on entry; slfrst_2/dir Main writes 652 the same way,
