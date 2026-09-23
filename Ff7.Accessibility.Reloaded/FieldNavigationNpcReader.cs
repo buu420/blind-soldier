@@ -17,6 +17,8 @@ public sealed class FieldNavigationNpcReader
     private static readonly IReadOnlyDictionary<(int FieldId, int EntityId), string>
         VerifiedLabels = new Dictionary<(int FieldId, int EntityId), string>
         {
+            [(79, 4)] = "Weapon seller",
+
             // tin_1: first passenger car. The beggar can give Cloud a
             // Phoenix Down during the Reactor 5 security countdown.
             [(139, 31)] = "Barret",
@@ -692,9 +694,20 @@ public sealed class FieldNavigationNpcReader
 
             var lineEntityId = definition.InteractionLineEntityId;
             var interactionLine = definition.InteractionLine;
+            // A conditional TLKON in Init does not make every interaction a counter.
+            // zz2 disables its seller only before GameMoment 566; its reward-box LINEs
+            // call the same actor for other exchanges. When his own Talk is live, use
+            // his current position. Empty Talk scripts still need their counter proxy,
+            // and so does a LINE that runs the NPC's own Talk: that LINE is the game's
+            // counter for talking to them, and the receptionists of field 376 and
+            // Yuffie in 443 stand 96 and 189 units from the floor their counter serves.
+            var hasLiveDialogue = definition.DialogIds.Count > 0 &&
+                !definition.InteractionLineRunsTalk &&
+                readByte(eventAddress + TalkDisabledOffset) == 0;
             var usesInteractionLine =
                 lineEntityId.HasValue &&
-                interactionLine.HasValue;
+                interactionLine.HasValue &&
+                !hasLiveDialogue;
             if (usesInteractionLine)
             {
                 if (isLineEnabled is null || !isLineEnabled(lineEntityId!.Value))
@@ -790,7 +803,10 @@ public sealed class FieldNavigationNpcReader
                     scripted.InteractionLineEntityId,
                 InteractionLine =
                     verified.InteractionLine ??
-                    scripted.InteractionLine
+                    scripted.InteractionLine,
+                // A reviewed manual proxy is how that NPC is talked to.
+                InteractionLineRunsTalk =
+                    verified.InteractionLine.HasValue || scripted.InteractionLineRunsTalk
             });
         }
 

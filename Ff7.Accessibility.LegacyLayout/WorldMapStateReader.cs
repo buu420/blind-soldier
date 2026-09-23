@@ -26,10 +26,31 @@ public sealed class WorldMapStateReader
     public const int PositionXOffset = 0x0C;
     public const int PositionYOffset = 0x10;
     public const int PositionZOffset = 0x14;
+
+    /// <summary>
+    /// The model's drawn rotation. FUN_0076420A eases it an eighth of the way to
+    /// <see cref="FacingOffset"/> every frame through FUN_00761C07.
+    /// </summary>
+    public const int ModelRotationOffset = 0x3C;
+
+    /// <summary>
+    /// The turn the ground follow adds while it slides the entity round an obstacle:
+    /// FUN_00751EFC hands FUN_00761DF5 the angle of the sample it accepted, and that eases
+    /// back towards zero once nothing is being slid round.
+    /// </summary>
+    public const int SlideRotationOffset = 0x3E;
+
     public const int FacingOffset = 0x40;
     public const int WalkmapTypeOffset = 0x4A;
     public const int DirectionOffset = 0x4C;
     public const int ModelIdOffset = 0x50;
+
+    /// <summary>
+    /// Entity flag byte. Bit 0x80 on the Tiny Bronco switches its get-off to a different
+    /// probe and terrain mask (FUN_00766417, FUN_0074CECA case 5).
+    /// </summary>
+    public const int EntityFlagsOffset = 0x51;
+
     public const int MovementSpeedOffset = 0x55;
 
     private readonly ILegacyAddressSpace memory;
@@ -62,7 +83,11 @@ public sealed class WorldMapStateReader
             $"player=0x{first.PlayerPointer:X8}, model={first.ModelId}, " +
             $"position={first.X},{first.Y},{first.Z}, terrain={first.TerrainId}, " +
             $"terrainScript={first.TerrainScriptId}, " +
-            $"region={first.RegionId}, camera={first.CameraFront}");
+            $"region={first.RegionId}, camera={first.CameraFront}" +
+            (first.HasModelRotation
+                ? $", facing={first.Facing}, rotation={first.ModelRotation}{first.SlideRotation:+0;-0;+0}, " +
+                  $"flags=0x{first.EntityFlags:X2}"
+                : string.Empty));
     }
 
     private bool TryReadFrame(out WorldMapFrame frame, out string diagnostic)
@@ -95,6 +120,10 @@ public sealed class WorldMapStateReader
             0,
             false,
             0,
+            0,
+            0,
+            0,
+            false,
             0,
             0,
             0);
@@ -144,6 +173,26 @@ public sealed class WorldMapStateReader
             return false;
         }
 
+        // Only the Tiny Bronco's landing prediction uses these, and it declines to predict
+        // without them, so an unreadable rotation costs that one feature rather than the
+        // whole world state every other feature depends on.
+        short modelRotation = 0;
+        short slideRotation = 0;
+        byte entityFlags = 0;
+        var hasModelRotation =
+            TryAdd(playerPointer, ModelRotationOffset, out var modelRotationAddress) &&
+            TryAdd(playerPointer, SlideRotationOffset, out var slideRotationAddress) &&
+            TryAdd(playerPointer, EntityFlagsOffset, out var flagsAddress) &&
+            memory.TryReadInt16(modelRotationAddress, out modelRotation) &&
+            memory.TryReadInt16(slideRotationAddress, out slideRotation) &&
+            memory.TryReadByte(flagsAddress, out entityFlags);
+        if (!hasModelRotation)
+        {
+            modelRotation = 0;
+            slideRotation = 0;
+            entityFlags = 0;
+        }
+
         var terrainId = walkmapType & 0x1F;
         var terrainScriptId = (walkmapType >> 5) & 0x07;
         var regionId = (walkmapType >> 9) & 0x1F;
@@ -161,7 +210,11 @@ public sealed class WorldMapStateReader
             Direction = direction,
             ModelId = modelId,
             MovementSpeed = movementSpeed,
-            ContactEntity = contactEntity
+            ContactEntity = contactEntity,
+            HasModelRotation = hasModelRotation,
+            ModelRotation = modelRotation,
+            SlideRotation = slideRotation,
+            EntityFlags = entityFlags
         };
         diagnostic = string.Empty;
         return true;
@@ -214,7 +267,11 @@ public sealed class WorldMapStateReader
         short Direction,
         byte ModelId,
         byte MovementSpeed,
-        uint ContactEntity)
+        uint ContactEntity,
+        bool HasModelRotation,
+        short ModelRotation,
+        short SlideRotation,
+        byte EntityFlags)
     {
         public WorldMapStateSnapshot State => new(
             Module,
@@ -236,7 +293,11 @@ public sealed class WorldMapStateReader
             HasChocoboTracks = HasChocoboTracks,
             TerrainScriptId = TerrainScriptId,
             NativePlayerEntityPointer = PlayerPointer,
-            NativeContactEntityPointer = ContactEntity
+            NativeContactEntityPointer = ContactEntity,
+            HasModelRotation = HasModelRotation,
+            ModelRotation = ModelRotation,
+            SlideRotation = SlideRotation,
+            EntityFlags = EntityFlags
         };
     }
 }
@@ -279,6 +340,23 @@ public readonly record struct WorldMapStateSnapshot(
     /// witness.
     /// </summary>
     public uint NativeContactEntityPointer { get; init; }
+
+    /// <summary>
+    /// Whether <see cref="ModelRotation"/>, <see cref="SlideRotation"/> and
+    /// <see cref="EntityFlags"/> were read from the live entity. A snapshot built any other
+    /// way has no rotation to predict a landing from, and must not be treated as facing
+    /// angle zero.
+    /// </summary>
+    public bool HasModelRotation { get; init; }
+
+    /// <summary>Entity +0x3C: the drawn rotation, eased towards <see cref="Facing"/>.</summary>
+    public short ModelRotation { get; init; }
+
+    /// <summary>Entity +0x3E: the extra turn left by sliding round an obstacle.</summary>
+    public short SlideRotation { get; init; }
+
+    /// <summary>Entity +0x51.</summary>
+    public byte EntityFlags { get; init; }
 }
 
 public readonly record struct WorldMapStateReadResult(

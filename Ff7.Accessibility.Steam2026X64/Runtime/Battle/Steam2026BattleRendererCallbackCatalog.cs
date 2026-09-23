@@ -18,7 +18,7 @@ internal enum TranslatedBattleRendererHostAbi
 internal static class Steam2026BattleRendererState
 {
     internal static bool IsSupported(short rendererState) =>
-        rendererState is 1 or 2 or 3 or 4 or 5 or 6 or 7 or 0x18;
+        rendererState is 1 or 2 or 3 or 4 or 5 or 6 or 7 or 0x13 or 0x18;
 
     internal static bool IsCapturable(short rendererState) =>
         IsSupported(rendererState) || rendererState == 0x1B;

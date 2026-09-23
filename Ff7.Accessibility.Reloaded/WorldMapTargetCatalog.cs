@@ -208,6 +208,14 @@ public sealed record WorldMapNavigationTarget(
 
     public IReadOnlyList<WorldMapNativeLocationArrival> NativeLocationArrivals { get; init; } = [];
 
+    /// <summary>
+    /// Every triangle of this destination's own native trigger: the mesh cell and terrain
+    /// script its handler is registered for. <see cref="ArrivalTriangleIds"/> is only the
+    /// part of it with a point the route can end on; this is all of it, including walls and
+    /// gables that are vertical in X/Z and so have no such point.
+    /// </summary>
+    public IReadOnlySet<int> NativeTriggerTriangleIds { get; init; } = new HashSet<int>();
+
     private static readonly IReadOnlySet<int> NoEntranceExemptions = new HashSet<int>();
 
     /// <summary>
@@ -218,10 +226,18 @@ public sealed record WorldMapNavigationTarget(
     /// triangles are exempt. Everything else is empty: a Buggy parked in Gongaga's trigger
     /// cell, a chocobo track laid across one, or a terrain area that overlaps one does not
     /// make entering that town what the player asked for.</para>
+    ///
+    /// <para>"Its own entrance" is the whole trigger, not the part of it the route can end
+    /// on. The Weapon Seller's trigger is a box: eight roof slopes that tile its footprint,
+    /// and twelve walls and gables that stand exactly vertical between them and the ground.
+    /// Only the roof slopes can hold an arrival point, so exempting only those left the
+    /// seller's own walls as somebody else's door, and every route from the ground has to
+    /// cross a wall to reach the roof - "no route that avoids another native field
+    /// entrance", from outside the seller's own house.</para>
     /// </summary>
     public IReadOnlySet<int> NativeEntranceExemptions =>
         Kind is WorldMapTargetKind.Location or WorldMapTargetKind.Story
-            ? ArrivalTriangleIds
+            ? NativeTriggerTriangleIds.Count > 0 ? NativeTriggerTriangleIds : ArrivalTriangleIds
             : NoEntranceExemptions;
 
     /// <summary>
@@ -264,10 +280,17 @@ public sealed record WorldMapNavigationTarget(
             return HasArrived(triangleId);
         }
 
+        // The native test, not the mod's resolution of where the party is. FUN_00765F61
+        // fires a location's handler when the terrain script under the party - the
+        // walkmap word the state reader takes from entity+0x4A - becomes that handler's
+        // script inside its mesh cell. That word is what changes at every recorded entry:
+        // the Weapon Seller's three in the 2026-09-23 log each read terrain 16 script 7 at
+        // the position the step started from, one sample before the field loaded. The
+        // position is the rolled-back one, outside the house or exactly on its wall, so
+        // requiring it to resolve onto an arrival triangle as well missed two of the three.
         var meshX = (int)Math.Floor(state.X / (double)WorldMapDataLoader.MeshSize);
         var meshZ = (int)Math.Floor(state.Z / (double)WorldMapDataLoader.MeshSize);
         return NativeLocationArrivals.Any(arrival =>
-            arrival.TriangleId == triangleId &&
             arrival.MeshX == meshX &&
             arrival.MeshZ == meshZ &&
             arrival.TerrainScriptId == state.TerrainScriptId);
@@ -501,11 +524,16 @@ public sealed class WorldMapTargetCatalog
                 continue;
             }
 
-            var triggerCandidates = map.Triangles
+            var nativeTrigger = map.Triangles
                 .Where(triangle =>
                     triangle.MeshX == mapping.MeshX &&
                     triangle.MeshZ == mapping.MeshY &&
                     triangle.TerrainScriptId == mapping.TerrainScriptId)
+                .Select(triangle => triangle.Id)
+                .ToHashSet();
+            var triggerCandidates = nativeTrigger
+                .Order()
+                .Select(id => map.Triangles[id])
                 .Select(triangle => TryFindStrictInteriorPoint(triangle, out var point)
                     ? new NativeLocationCandidate(triangle, point)
                     : (NativeLocationCandidate?)null)
@@ -554,7 +582,8 @@ public sealed class WorldMapTargetCatalog
                         candidate.Point.X,
                         candidate.Point.Y,
                         candidate.Point.Z))
-                    .ToArray()
+                    .ToArray(),
+                NativeTriggerTriangleIds = nativeTrigger
             });
         }
 

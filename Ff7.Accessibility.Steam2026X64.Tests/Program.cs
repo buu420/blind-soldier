@@ -17,6 +17,8 @@ if (args.Contains("--town-coverage-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.TownInteractionCoverageTests.Run();
     Ff7.Accessibility.Reloaded.Tests.TownInteractionCoverageTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.WeaponSellerNavigationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.WeaponSellerNavigationTests.RunWithInstalledGameData();
     Ff7.Accessibility.Reloaded.Tests.GoldSaucerPlatformExitTests.Run();
     Ff7.Accessibility.Reloaded.Tests.GoldSaucerPlatformExitTests.RunWithInstalledGameData();
     Ff7.Accessibility.Reloaded.Tests.GlacierSnowfieldNavigationTests.RunWithInstalledGameData();
@@ -44,6 +46,8 @@ if (args.Contains("--story-coverage-only", StringComparer.OrdinalIgnoreCase))
     Ff7.Accessibility.Reloaded.Tests.RemainingStoryContinuityTests.RunWithInstalledGameData();
     Ff7.Accessibility.Reloaded.Tests.TownInteractionCoverageTests.Run();
     Ff7.Accessibility.Reloaded.Tests.TownInteractionCoverageTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.WeaponSellerNavigationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.WeaponSellerNavigationTests.RunWithInstalledGameData();
     Ff7.Accessibility.Reloaded.Tests.GoldSaucerPlatformExitTests.Run();
     Ff7.Accessibility.Reloaded.Tests.GoldSaucerPlatformExitTests.RunWithInstalledGameData();
     Ff7.Accessibility.Reloaded.Tests.GlacierSnowfieldNavigationTests.RunWithInstalledGameData();
@@ -90,6 +94,14 @@ if (args.Contains("--field-planner-capabilities-only", StringComparer.OrdinalIgn
 {
     Steam2026FieldNavigationRuntimeTests.RunPlannerCapabilities();
     Console.WriteLine("Steam 2026 x64 field planner capability tests passed.");
+    return;
+}
+
+if (args.Contains("--battle-manipulate-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.BattleManipulateMenuTests.Run();
+    Steam2026BattleRendererIngressTests.RunManipulateOnly();
+    Console.WriteLine("Steam 2026 x64 battle Manipulate tests passed.");
     return;
 }
 
@@ -194,6 +206,12 @@ if (args.Contains("--world-map-only", StringComparer.OrdinalIgnoreCase))
     Ff7.Accessibility.Reloaded.Tests.WorldMapNavigationControllerTests.Run();
     Ff7.Accessibility.Reloaded.Tests.TinyBroncoTransportationTests.Run();
     Ff7.Accessibility.Reloaded.Tests.TinyBroncoTransportationTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.WorldMapVehicleTerrainTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.WorldMapVehicleTerrainTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.WorldMapOwnEntranceTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.WorldMapBroncoLandingTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.WorldMapBroncoLandingTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.WorldMapWutaiNavigationTests.RunWithInstalledGameData();
     Ff7.Accessibility.Reloaded.Tests.WorldMapTargetCatalogTests.RunWithInstalledGameData();
     Ff7.Accessibility.Reloaded.Tests.WorldMapTerrainAnnouncementTests.Run();
     Ff7.Accessibility.Reloaded.Tests.NavigationProgressControlTests.Run();
@@ -394,6 +412,8 @@ if (args.Contains("--cosmo-navigation-only", StringComparer.OrdinalIgnoreCase))
     Ff7.Accessibility.Reloaded.Tests.RemainingStoryContinuityTests.RunWithInstalledGameData();
     Ff7.Accessibility.Reloaded.Tests.TownInteractionCoverageTests.Run();
     Ff7.Accessibility.Reloaded.Tests.TownInteractionCoverageTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.WeaponSellerNavigationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.WeaponSellerNavigationTests.RunWithInstalledGameData();
     Ff7.Accessibility.Reloaded.Tests.GoldSaucerPlatformExitTests.Run();
     Ff7.Accessibility.Reloaded.Tests.GoldSaucerPlatformExitTests.RunWithInstalledGameData();
     Ff7.Accessibility.Reloaded.Tests.GlacierSnowfieldNavigationTests.RunWithInstalledGameData();
@@ -669,6 +689,13 @@ NavigationAutoWalkControllerTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WorldMapNavigationControllerTests.Run();
 Ff7.Accessibility.Reloaded.Tests.TinyBroncoTransportationTests.Run();
 Ff7.Accessibility.Reloaded.Tests.TinyBroncoTransportationTests.RunWithInstalledGameData();
+Ff7.Accessibility.Reloaded.Tests.WorldMapVehicleTerrainTests.Run();
+Ff7.Accessibility.Reloaded.Tests.WorldMapVehicleTerrainTests.RunWithInstalledGameData();
+Ff7.Accessibility.Reloaded.Tests.WorldMapOwnEntranceTests.RunWithInstalledGameData();
+Ff7.Accessibility.Reloaded.Tests.WorldMapBroncoLandingTests.Run();
+Ff7.Accessibility.Reloaded.Tests.WorldMapBroncoLandingTests.RunWithInstalledGameData();
+Ff7.Accessibility.Reloaded.Tests.WorldMapWutaiNavigationTests.RunWithInstalledGameData();
+Ff7.Accessibility.Reloaded.Tests.FieldNpcTalkCounterTests.RunWithInstalledGameData();
 Ff7.Accessibility.Reloaded.Tests.WorldMapTargetCatalogTests.RunWithInstalledGameData();
 Ff7.Accessibility.Reloaded.Tests.WorldMapTerrainAnnouncementTests.Run();
 Ff7.Accessibility.Reloaded.Tests.NavigationProgressControlTests.Run();
@@ -772,6 +799,8 @@ Ff7.Accessibility.Reloaded.Tests.RemainingStoryContinuityTests.Run();
 Ff7.Accessibility.Reloaded.Tests.RemainingStoryContinuityTests.RunWithInstalledGameData();
 Ff7.Accessibility.Reloaded.Tests.TownInteractionCoverageTests.Run();
     Ff7.Accessibility.Reloaded.Tests.TownInteractionCoverageTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.WeaponSellerNavigationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.WeaponSellerNavigationTests.RunWithInstalledGameData();
     Ff7.Accessibility.Reloaded.Tests.GoldSaucerPlatformExitTests.Run();
     Ff7.Accessibility.Reloaded.Tests.GoldSaucerPlatformExitTests.RunWithInstalledGameData();
     Ff7.Accessibility.Reloaded.Tests.GlacierSnowfieldNavigationTests.RunWithInstalledGameData();
@@ -814,6 +843,7 @@ Steam2026FieldMovieNarrationAdapterTests.Run();
 Steam2026CutsceneVoiceAdapterTests.Run();
 Steam2026FieldDialogueObservationTests.Run(native, legacy);
 Steam2026FieldDialogueSpeechStabilityTests.Run();
+Ff7.Accessibility.Reloaded.Tests.BattleManipulateMenuTests.Run();
 Steam2026BattleObservationTests.Run(native, legacy);
 Steam2026BattleRendererIngressTests.Run(native, legacy);
 Steam2026BattleAccessibilityCoordinatorTests.Run(native);

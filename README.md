@@ -13,7 +13,7 @@ is not tied to one particular screen reader.
 > [!IMPORTANT]
 > This project is for the original Final Fantasy VII PC game, not Final
 > Fantasy VII Remake or Rebirth. It is a pre-release project under active
-> development. Tester logs now include progress through Rocket Town, including
+> development. Tester logs now include travel toward Wutai, including
 > navigation failures worked around manually. Support extends beyond that point,
 > but it has not been validated by a complete playthrough. See
 > [Coverage and testing status](#coverage-and-testing-status).
@@ -25,7 +25,8 @@ Blind Soldier is a pre-release project. This section separates what is
 thing and only the second one finds the problems a real session finds.
 
 **Live evidence:** tester logs include the opening, the first Gold Saucer visit,
-Corel Prison, Cosmo Canyon, Nibelheim and Rocket Town. These are recorded sessions,
+Corel Prison, Cosmo Canyon, Nibelheim, Rocket Town, the weapon seller's house and
+the approach to Wutai. These are recorded sessions,
 including navigation failures and manual workarounds, rather than certification
 that every route in those chapters works. Later guidance has offline checks;
 a complete supported playthrough has not been recorded.
@@ -97,6 +98,12 @@ again where one exists.
 
 Field and world-map navigation, routes, auto walk and the progress indicator
 are described under [Navigation](#navigation).
+
+Version 0.6.7 corrects Wutai's pass and bridge approaches, improves walking around
+terrain corners, and reads the controlled enemy's action list after Manipulate.
+It also restores the weapon seller's conversation and optional interactions near
+Gongaga, and improves Tiny Bronco steering and shore landings. Both runtime suites
+and the logged-route replays passed; the fixes still need live gameplay testing.
 
 Version 0.6.6 keeps parked vehicles visible in Transportation after disembarking
 and fixes the Tiny Bronco shore approach. Auto walk now stops when the game
@@ -191,10 +198,10 @@ instead of reading unverified game memory.
 Choose one download from the
 [Blind Soldier Releases page](https://github.com/buu420/blind-soldier/releases):
 
-- [Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.6.6/Blind-Soldier-Portable.zip)
+- [Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.6.7/Blind-Soldier-Portable.zip)
   is the complete dual-runtime package. Use it for Steam 2026 x64 or when one
   extracted package must support both x86 and x64 installations.
-- [Blind-Soldier-2013-x86-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.6.6/Blind-Soldier-2013-x86-Portable.zip)
+- [Blind-Soldier-2013-x86-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.6.7/Blind-Soldier-2013-x86-Portable.zip)
   is the smaller legacy-only package. Use it for the 2013 x86 game, including
   stock 7th Heaven/FFNx. It deliberately contains no Steam 2026 launcher or
   x64 files.
@@ -305,17 +312,17 @@ Visual Studio C++ Build Tools, and PowerShell, then run:
 ```powershell
 .\Build-BlindSoldierPortablePackage.ps1 `
   -OutputPath .\artifacts\Blind-Soldier-Portable.zip `
-  -Version 0.6.6
+  -Version 0.6.7
 .\Verify-BlindSoldierPortablePackage.ps1 `
   -ArchivePath .\artifacts\Blind-Soldier-Portable.zip `
-  -ExpectedVersion 0.6.6
+  -ExpectedVersion 0.6.7
 .\Build-BlindSoldier2013PortablePackage.ps1 `
   -SourceArchivePath .\artifacts\Blind-Soldier-Portable.zip `
   -OutputPath .\artifacts\Blind-Soldier-2013-x86-Portable.zip `
-  -Version 0.6.6
+  -Version 0.6.7
 .\Verify-BlindSoldier2013PortablePackage.ps1 `
   -ArchivePath .\artifacts\Blind-Soldier-2013-x86-Portable.zip `
-  -ExpectedVersion 0.6.6 `
+  -ExpectedVersion 0.6.7 `
   -ExpectedSourceArchivePath .\artifacts\Blind-Soldier-Portable.zip
 ```
 

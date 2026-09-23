@@ -699,13 +699,15 @@ function Get-LineLocation {
 $dialogueTestRooms = @(
     'blackbg1', 'blackbg2', 'blackbg3', 'blackbg4', 'blackbg5', 'blackbg6', 'blackbg7',
     'blackbg8', 'blackbge', 'blackbgh', 'blackbgi', 'blackbgk', 'startmap',
-    'zz1', 'zz2', 'zz3', 'zz5', 'zz6', 'zz7', 'zz8'
+    'zz1', 'zz3', 'zz5', 'zz6', 'zz7', 'zz8'
 )
 $frozenFilmRooms = @('blackbg9', 'blackbgb', 'blackbgc', 'blackbgd', 'blackbgj', 'zz4')
 
 function Test-PlayableField {
     param([string] $Name)
 
+    # The world-map weapon seller is playable despite the legacy zz/debug grouping.
+    if ($Name -eq 'zz2') { return $true }
     if ($Name -in $dialogueTestRooms -or $Name -in $frozenFilmRooms) { return $false }
     if ($chapterByField.ContainsKey($Name) -and $chapterByField[$Name] -in @('Debug', 'Missing')) { return $false }
     return $true
@@ -1781,6 +1783,7 @@ foreach ($region in @('CostaDelSol', 'MountCorel', 'NorthCorel', 'GoldSaucer', '
     . (Join-Path $scriptRoot "story-regions\$region.ps1")
 }
 
+. (Join-Path $scriptRoot 'story-regions\WeaponSeller.ps1')
 . (Join-Path $scriptRoot 'story-regions\ReviewedStoryTransit.ps1')
 
 # What Add-CuratedFields is for.

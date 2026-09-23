@@ -39,6 +39,12 @@ public sealed class WorldMapNavigationController
 {
     private const double WaypointArrivalDistance = 480d;
     private const double AutomaticMovementProbeDistance = 120d;
+
+    /// <summary>FUN_0074EA48 moves model 5 by 0x3C units a frame.</summary>
+    private const double BroncoFrameStep = 60d;
+
+    /// <summary>FUN_0074EA48 moves the party on foot by 0x1E units a frame.</summary>
+    private const double WalkingFrameStep = 30d;
     private const int DefaultDistanceUnitsPerCount = 512;
     private const int OffRouteReplanDistanceCounts = 12;
     private static readonly TimeSpan OffRouteReplanDelay = TimeSpan.FromSeconds(5);
@@ -77,6 +83,44 @@ public sealed class WorldMapNavigationController
     private bool awaitingNativeEntry;
     private WorldMapRouteWaypoint nativeEntryHoldOrigin;
     private const double NativeEntryHoldRadius = 1024d;
+
+    // Aboard the Tiny Bronco, taking it to a shore landing for the active destination.
+    // Null for every other route.
+    private WorldMapBroncoLandingPlan? landingPlan;
+    private LandingPhase landingPhase;
+    private WorldMapRouteWaypoint landingSettlePosition;
+    private int landingSettleSamples;
+    private double landingClosestApproach = double.PositiveInfinity;
+    private int landingStalledSamples;
+    private bool landingOnRunIn;
+
+    /// <summary>
+    /// How far ahead along the run in the boat aims. Eight directions cannot hold an
+    /// arbitrary heading, so the boat weaves; aiming a little way down the line keeps the
+    /// weave on it rather than letting it drift into the bank.
+    /// </summary>
+    private const double LandingRunInLookahead = 480d;
+
+    /// <summary>How far along the run in the boat may notice it is already lined up.</summary>
+    private const double LandingLookoutDistance = 1200d;
+
+    /// <summary>
+    /// Samples without getting closer to the landing before the run in is over. The boat
+    /// covers about 60 units a frame (FUN_0074EA48, step 0x3C), so this is well under a
+    /// second of pressing against the shore.
+    /// </summary>
+    private const int LandingStallSamples = 12;
+
+    /// <summary>Driven this far from the landing spot, the approach is taken up again.</summary>
+    private const double LandingHoldRadius = 1600d;
+
+    private enum LandingPhase
+    {
+        Approaching,
+        Settling,
+        LinedUp,
+        NotLinedUp
+    }
     private int progressPercent;
     private int activeModelId = -1;
     private int activeMapType = -1;
@@ -279,6 +323,9 @@ public sealed class WorldMapNavigationController
         {
             target = refreshed;
             activeTarget = refreshed;
+            // A landing route ends on water beside the destination by design; its end is
+            // never one of the destination's own triangles, and replanning because of that
+            // would start the approach over on every sample.
             // Replan when the route no longer ends somewhere the target can be reached
             // from, not merely when the target's own centre triangle differs from the
             // triangle the route ends on. Those are different things: the catalog gives an
@@ -287,8 +334,9 @@ public sealed class WorldMapNavigationController
             // disagree for a vehicle that has not moved at all. Comparing them announced a
             // fresh route on every observation, which is how the parked Buggy came to be
             // repeated several times a second.
-            if (!refreshed.ArrivalTriangleIds.Contains(activeRoute.TargetTriangleId) ||
-                HasMovedItsContactPoint(refreshed, activeRoute))
+            if (landingPlan is null &&
+                (!refreshed.ArrivalTriangleIds.Contains(activeRoute.TargetTriangleId) ||
+                 HasMovedItsContactPoint(refreshed, activeRoute)))
             {
                 var replanned = StartNavigation(refreshed, state, now, announceOn: false);
                 return replanned is null
@@ -301,6 +349,18 @@ public sealed class WorldMapNavigationController
         {
             lastDiagnostic = planner.LastDiagnostic;
             return null;
+        }
+
+        if (landingPlan is { } landing)
+        {
+            var landingOutput = ObserveLanding(landing, target, state);
+            if (landingPhase != LandingPhase.Approaching)
+            {
+                // Stopped at the shore: nothing is being driven, so neither the
+                // convergence guard nor route guidance has anything to say.
+                autoWalkConvergence.Reset();
+                return landingOutput;
+            }
         }
 
         if (target.HasArrived(state, playerTriangle))
@@ -453,7 +513,30 @@ public sealed class WorldMapNavigationController
             return false;
         }
 
+        // At the landing spot the boat is held still: the landing is judged at rest, and
+        // getting off is the player's own Cancel. Nothing here presses it.
+        if (landingPlan is not null && landingPhase != LandingPhase.Approaching)
+        {
+            return false;
+        }
+
         waypointIndex = ResolveAutomaticWaypoint(state, route, waypointIndex);
+        if (landingPlan is { } runIn && (landingOnRunIn || waypointIndex >= route.Waypoints.Count - 1))
+        {
+            // The run in is the straight line from where it starts, through the spot, to
+            // the ground the landing puts the party on. FUN_0074EA48 turns the boat to the
+            // way it is driven and the get-off probes along that turn, so holding the boat
+            // to this line is what lines the probe up. Once on it the boat stays on it: the
+            // segment test that picks route waypoints would otherwise send a boat weaving a
+            // few units off the line back to where the run began. The step probe is not
+            // asked either - near the shore the way to the landing is land, which is the
+            // point, and FUN_00751EFC slides or holds the boat there.
+            landingOnRunIn = true;
+            var (aimX, aimZ) = ResolveRunInAim(runIn, state);
+            input = automaticDirection.ResolveStickDirection(-aimX, aimZ, state.ControlTransform).Input;
+            return input is >= FieldNavigationInput.Up and <= FieldNavigationInput.UpLeft;
+        }
+
         var waypoint = route.Waypoints[waypointIndex];
 
         // A vehicle the party parked themselves can physically refuse the approach. Walk
@@ -470,6 +553,21 @@ public sealed class WorldMapNavigationController
         }
         var dx = WorldMapTargetCatalog.WrappedDelta(state.X, waypoint.X, map.WrapWidth);
         var dz = WorldMapTargetCatalog.WrappedDelta(state.Z, waypoint.Z, map.WrapHeight);
+        if (state.PlayerModelId == WorldMapBroncoLanding.BroncoModelId ||
+            (WorldMapRoutePlanner.IsWalkingModel(state.PlayerModelId) &&
+             detourOutcome == WorldMapVehicleDetourPlanner.DetourOutcome.Clear))
+        {
+            // The boat and the party follow their leg rather than cutting at the corner
+            // ahead: each leg is the part of the river, or of the pass, their footprint was
+            // proved to fit. Steering straight at a far corner on eight directions drifts off
+            // it - at 11:23:29's camera by 13 degrees, 300 units into the foot of a mountain
+            // on the last 4,200-unit leg to Wutai.
+            (dx, dz) = ResolveLegAim(
+                state,
+                waypointIndex > 0 ? route.Waypoints[waypointIndex - 1] : routeStart,
+                waypoint);
+        }
+
         // Speech may smooth short legs and suppress sub-count diagonals. Native
         // movement must aim from the actual accepted position on every sample.
         input = automaticDirection.ResolveStickDirection(-dx, dz, state.ControlTransform).Input;
@@ -486,6 +584,16 @@ public sealed class WorldMapNavigationController
             // never route through must not be pressed either, or automatic walking zones
             // into a town the player did not select.
             return planner.CanTraverseSegment(state, next, null, activeTarget?.NativeEntranceExemptions) &&
+                // The boat moves only where its whole five-point footprint is on water
+                // (FUN_00751EFC, 350 units for model 5); pressing into a bank it cannot
+                // reach wedges it against the shore. Judged over one native frame of
+                // movement (0x3C), which is what the game accepts or refuses: in a tight
+                // bend the step that makes progress fits for a frame and not for two.
+                (state.PlayerModelId != WorldMapBroncoLanding.BroncoModelId ||
+                 WorldMapBroncoLanding.HasBoatFootprint(
+                     map,
+                     state.X + (int)Math.Round(x * Math.Min(probeDistance, BroncoFrameStep)),
+                     state.Z + (int)Math.Round(z * Math.Min(probeDistance, BroncoFrameStep)))) &&
                 (state.PlayerModelId is not (0 or 1 or 2) || entityProvider is null ||
                  !WorldMapVehicleObstacles.BlocksSegment(
                      (activeTarget is { } selected ? ObstaclesOtherThan(selected) : entityProvider())
@@ -629,11 +737,29 @@ public sealed class WorldMapNavigationController
             return new WorldMapNavigationOutput($"Arrived at {target.Label}. Navigation off.");
         }
 
+        WorldMapBroncoLandingPlan? landing = null;
         if (!planner.TryBuildRoute(state, target, out var route))
         {
-            ResetRoute();
-            lastDiagnostic = planner.LastDiagnostic;
-            return new WorldMapNavigationOutput($"Route unavailable to {target.Label}. Navigation off.");
+            var diagnostic = planner.LastDiagnostic;
+            if (!IsDestination(target) || state.PlayerModelId != WorldMapBroncoLanding.BroncoModelId)
+            {
+                ResetRoute();
+                lastDiagnostic = diagnostic;
+                return new WorldMapNavigationOutput($"Route unavailable to {target.Label}. Navigation off.");
+            }
+
+            // Aboard the Tiny Bronco no town can be sailed into: the boat is held to water
+            // and every entrance is on land. The way there is a shore where getting off
+            // puts the party on ground that leads to it.
+            if (!TryBuildLandingRoute(state, target, out landing, out route))
+            {
+                ResetRoute();
+                lastDiagnostic = $"{diagnostic}; no suitable Tiny Bronco landing route found for {target.Label}";
+                return new WorldMapNavigationOutput(
+                    $"Route unavailable to {target.Label} by Tiny Bronco. " +
+                    "No suitable landing route was found from here. Navigation off.",
+                    StopAutoWalk: true);
+            }
         }
 
         beaconEnabled = true;
@@ -656,13 +782,239 @@ public sealed class WorldMapNavigationController
         activeModelId = state.PlayerModelId;
         activeMapType = state.WorldMapType;
         activeWorldProgress = state.WorldProgress;
+        landingPlan = landing;
+        landingPhase = LandingPhase.Approaching;
+        landingSettleSamples = 0;
+        landingClosestApproach = double.PositiveInfinity;
+        landingStalledSamples = 0;
+        landingOnRunIn = false;
         lastGuidanceAt = now;
         _ = UpdateProgressAndWaypoint(state);
-        lastDiagnostic = planner.LastDiagnostic;
+        lastDiagnostic = landing is null
+            ? planner.LastDiagnostic
+            : $"Tiny Bronco landing for {target.Label}: spot {landing.Option.X},{landing.Option.Z} " +
+              $"rotation {landing.Option.Rotation}, ground {landing.Option.LandingX},{landing.Option.LandingZ} " +
+              $"triangle {landing.Option.LandingTriangleId}, boat {landing.BoatDistance:0}, " +
+              $"walk {landing.FootDistance:0}";
         var guidance = CreateGuidanceSpeech(state, includeTarget: true, includeProgress: false);
         lastGuidanceSignature = CreateGuidanceSignature(state);
         return new WorldMapNavigationOutput(
             announceOn ? $"Navigation on. {guidance}" : guidance);
+    }
+
+    /// <summary>
+    /// The boat's route to a landing: to the start of the straight run in, then along it
+    /// to the spot, so that it arrives facing the shore it is meant to land on.
+    /// </summary>
+    private bool TryBuildLandingRoute(
+        WorldMapStateSnapshot state,
+        WorldMapNavigationTarget target,
+        out WorldMapBroncoLandingPlan? landing,
+        out WorldMapRoutePlan route)
+    {
+        landing = null;
+        route = default!;
+        if (!WorldMapBroncoLanding.TryPlan(planner, map, state, target, out var plan) ||
+            !WorldMapBroncoLanding.TryFindSurface(map, plan.ApproachStart.X, plan.ApproachStart.Z, out var startTriangle))
+        {
+            return false;
+        }
+
+        var option = plan.Option;
+        var runStart = new WorldMapNavigationTarget(
+            target.Category,
+            WorldMapTargetKind.TerrainArea,
+            $"{target.Label} landing",
+            plan.ApproachStart.X,
+            plan.ApproachStart.Y,
+            plan.ApproachStart.Z,
+            startTriangle.Id,
+            startTriangle.RegionId,
+            $"{target.StableId}:tiny-bronco-landing",
+            new HashSet<int> { startTriangle.Id });
+        if (!planner.TryBuildRoute(state, runStart, out var toRunStart))
+        {
+            return false;
+        }
+
+        var spot = new WorldMapRouteWaypoint(option.X, option.Y, option.Z);
+        var last = toRunStart.Waypoints.Count > 0
+            ? toRunStart.Waypoints[^1]
+            : new WorldMapRouteWaypoint(state.X, state.Y, state.Z);
+        var runX = (double)WorldMapTargetCatalog.WrappedDelta(last.X, spot.X, map.WrapWidth);
+        var runZ = (double)WorldMapTargetCatalog.WrappedDelta(last.Z, spot.Z, map.WrapHeight);
+        var trianglePath = toRunStart.TrianglePath.Contains(option.WaterTriangleId)
+            ? toRunStart.TrianglePath
+            : toRunStart.TrianglePath.Append(option.WaterTriangleId).ToArray();
+        route = toRunStart with
+        {
+            TargetId = target.StableId,
+            TargetTriangleId = option.WaterTriangleId,
+            TrianglePath = trianglePath,
+            Waypoints = toRunStart.Waypoints.Append(spot).ToArray(),
+            TotalDistance = toRunStart.TotalDistance + Math.Sqrt(runX * runX + runZ * runZ)
+        };
+        landing = plan;
+        return true;
+    }
+
+    /// <summary>
+    /// The native get-off, judged each sample once the boat is at the landing spot. See
+    /// <see cref="WorldMapBroncoLanding"/>: nothing is promised until the boat is at rest
+    /// and every rotation it can still settle through lands on ground that leads to the
+    /// destination.
+    /// </summary>
+    private WorldMapNavigationOutput? ObserveLanding(
+        WorldMapBroncoLandingPlan landing,
+        WorldMapNavigationTarget target,
+        WorldMapStateSnapshot state)
+    {
+        var option = landing.Option;
+        var dx = (double)WorldMapTargetCatalog.WrappedDelta(state.X, option.X, map.WrapWidth);
+        var dz = (double)WorldMapTargetCatalog.WrappedDelta(state.Z, option.Z, map.WrapHeight);
+        var fromSpot = Math.Sqrt(dx * dx + dz * dz);
+        if (!state.HasModelRotation)
+        {
+            // A torn or unreadable rotation is no evidence either way.
+            return null;
+        }
+
+        var linedUp = WorldMapBroncoLanding.IsLinedUp(
+            map, planner, state, landing.DestinationFootComponents, out var ground);
+        switch (landingPhase)
+        {
+            case LandingPhase.Approaching:
+            {
+                var groundX = (double)WorldMapTargetCatalog.WrappedDelta(state.X, option.LandingX, map.WrapWidth);
+                var groundZ = (double)WorldMapTargetCatalog.WrappedDelta(state.Z, option.LandingZ, map.WrapHeight);
+                var fromGround = Math.Sqrt(groundX * groundX + groundZ * groundZ);
+                var onRunIn = landingOnRunIn;
+                var stopReason = string.Empty;
+                if (linedUp && fromSpot <= LandingLookoutDistance)
+                {
+                    stopReason = "lined up on the way in";
+                }
+                else if (onRunIn)
+                {
+                    // The run in has its own measure of progress - towards the landing, which
+                    // it does not reach - so the route's convergence guard stays out of it.
+                    autoWalkConvergence.Reset();
+                    if (fromGround < landingClosestApproach - 8d)
+                    {
+                        landingClosestApproach = fromGround;
+                        landingStalledSamples = 0;
+                    }
+                    else if (++landingStalledSamples >= LandingStallSamples)
+                    {
+                        stopReason = "can go no closer";
+                    }
+                }
+                else
+                {
+                    landingClosestApproach = double.PositiveInfinity;
+                    landingStalledSamples = 0;
+                }
+
+                if (stopReason.Length > 0)
+                {
+                    landingPhase = LandingPhase.Settling;
+                    landingSettlePosition = new(state.X, state.Y, state.Z);
+                    landingSettleSamples = 0;
+                    lastDiagnostic =
+                        $"stopping {fromSpot:0} from the landing spot for {target.Label}: {stopReason}";
+                }
+
+                return null;
+            }
+            case LandingPhase.Settling:
+            {
+                var settleX = (double)WorldMapTargetCatalog.WrappedDelta(landingSettlePosition.X, state.X, map.WrapWidth);
+                var settleZ = (double)WorldMapTargetCatalog.WrappedDelta(landingSettlePosition.Z, state.Z, map.WrapHeight);
+                var atRest = settleX * settleX + settleZ * settleZ <= 16d &&
+                             Math.Abs(RotationArc(state.ModelRotation + state.SlideRotation, state.Facing)) <= 24;
+                landingSettlePosition = new(state.X, state.Y, state.Z);
+                landingSettleSamples = atRest ? landingSettleSamples + 1 : 0;
+                if (landingSettleSamples < 2)
+                {
+                    return null;
+                }
+
+                landingPhase = linedUp ? LandingPhase.LinedUp : LandingPhase.NotLinedUp;
+                lastDiagnostic = linedUp
+                    ? $"lined up to land for {target.Label} on triangle {ground.Id}"
+                    : $"at rest {fromSpot:0} from the landing spot for {target.Label}, not lined up; " +
+                      $"rotation {state.ModelRotation}{state.SlideRotation:+0;-0;+0}, facing {state.Facing}";
+                return new WorldMapNavigationOutput(
+                    linedUp ? DescribeLandingHandoff(target) : DescribeNotLinedUp(target),
+                    StopAutoWalk: true);
+            }
+            case LandingPhase.LinedUp:
+                if (linedUp)
+                {
+                    return null;
+                }
+
+                landingPhase = LandingPhase.NotLinedUp;
+                lastDiagnostic = $"no longer lined up to land for {target.Label}";
+                return new WorldMapNavigationOutput($"No longer lined up to land for {target.Label}.");
+            default:
+                if (fromSpot > LandingHoldRadius)
+                {
+                    // Driven away: take the approach up again from wherever this is.
+                    landingPhase = LandingPhase.Approaching;
+                    landingClosestApproach = double.PositiveInfinity;
+                    landingStalledSamples = 0;
+                    landingOnRunIn = false;
+                    lastDiagnostic = $"left the landing spot for {target.Label}";
+                    return null;
+                }
+
+                if (!linedUp)
+                {
+                    return null;
+                }
+
+                landingPhase = LandingPhase.LinedUp;
+                lastDiagnostic = $"lined up to land for {target.Label} on triangle {ground.Id}";
+                return new WorldMapNavigationOutput(
+                    $"Lined up to land for {target.Label}. Press Cancel once to get off here.");
+        }
+    }
+
+    /// <summary>
+    /// The offset from the boat to the point it should steer for: a little way down the run
+    /// in from where the boat is level with it, and never past the landing itself.
+    /// </summary>
+    private (int X, int Z) ResolveRunInAim(WorldMapBroncoLandingPlan landing, WorldMapStateSnapshot state)
+    {
+        var start = landing.ApproachStart;
+        var lineX = (double)WorldMapTargetCatalog.WrappedDelta(start.X, landing.Option.LandingX, map.WrapWidth);
+        var lineZ = (double)WorldMapTargetCatalog.WrappedDelta(start.Z, landing.Option.LandingZ, map.WrapHeight);
+        var length = Math.Sqrt(lineX * lineX + lineZ * lineZ);
+        var boatX = (double)WorldMapTargetCatalog.WrappedDelta(start.X, state.X, map.WrapWidth);
+        var boatZ = (double)WorldMapTargetCatalog.WrappedDelta(start.Z, state.Z, map.WrapHeight);
+        if (length < 1d)
+        {
+            return ((int)Math.Round(lineX - boatX), (int)Math.Round(lineZ - boatZ));
+        }
+
+        var along = Math.Clamp((boatX * lineX + boatZ * lineZ) / length + LandingRunInLookahead, 0d, length);
+        return ((int)Math.Round(lineX * along / length - boatX), (int)Math.Round(lineZ * along / length - boatZ));
+    }
+
+    private static string DescribeLandingHandoff(WorldMapNavigationTarget target) =>
+        $"Landing for {target.Label}. Press Cancel once to get off the Tiny Bronco here, " +
+        "then continue on foot. Navigation stays on.";
+
+    private static string DescribeNotLinedUp(WorldMapNavigationTarget target) =>
+        $"At the landing for {target.Label}, but the Tiny Bronco is not lined up to land there. " +
+        "A landing is not confirmed from this angle. " +
+        "Navigation stays on, and you will hear when it is lined up.";
+
+    private static int RotationArc(int from, int to)
+    {
+        var arc = (to - from) % 4096;
+        return arc > 2048 ? arc - 4096 : arc < -2048 ? arc + 4096 : arc;
     }
 
     private WorldMapNavigationOutput DescribeSelection(WorldMapStateSnapshot state)
@@ -680,7 +1032,11 @@ public sealed class WorldMapNavigationController
                 $"{DisplayName(CurrentCategory)}, {target.Label} entrance. The way in is on foot, so leave the vehicle here.");
         }
 
-        if (planner.TryBuildRoute(state, target, out var preview) && preview.Waypoints.Count > 0)
+        var byLanding = false;
+        if ((planner.TryBuildRoute(state, target, out var preview) ||
+             (byLanding = IsReachedByLanding(target, state) &&
+                          TryBuildLandingRoute(state, target, out _, out preview))) &&
+            preview.Waypoints.Count > 0)
         {
             var routeStart = new WorldMapRouteWaypoint(state.X, state.Y, state.Z);
             var measurement = MeasurePolylineProgress(
@@ -698,12 +1054,16 @@ public sealed class WorldMapNavigationController
                 map.WrapHeight,
                 distanceUnitsPerCount).Speech;
             return new WorldMapNavigationOutput(
-                $"{DisplayName(CurrentCategory)}, {target.Label}. {direction}.");
+                byLanding
+                    ? $"{DisplayName(CurrentCategory)}, {target.Label}. {LandingRouteSummary}. {direction}."
+                    : $"{DisplayName(CurrentCategory)}, {target.Label}. {direction}.");
         }
 
         return new WorldMapNavigationOutput(
             $"{DisplayName(CurrentCategory)}, {target.Label}. Route unavailable.");
     }
+
+    private const string LandingRouteSummary = "By Tiny Bronco to a shore landing, then on foot";
 
     private string CreateGuidanceSpeech(
         WorldMapStateSnapshot state,
@@ -719,13 +1079,28 @@ public sealed class WorldMapNavigationController
             return DescribeNativeEntryHandoff(target);
         }
 
+        if (target is not null && landingPlan is not null)
+        {
+            switch (landingPhase)
+            {
+                case LandingPhase.LinedUp:
+                    return DescribeLandingHandoff(target);
+                case LandingPhase.NotLinedUp:
+                    return DescribeNotLinedUp(target);
+                case LandingPhase.Settling:
+                    return $"Stopping at the landing for {target.Label}.";
+            }
+        }
+
         if (target is null || route is null || route.Waypoints.Count == 0)
         {
             return includeTarget && target is not null ? target.Label : "nearby";
         }
 
         var direction = ResolveGuidanceRun(state, route).Speech;
-        var prefix = includeTarget ? $"{target.Label}. " : string.Empty;
+        var prefix = includeTarget
+            ? landingPlan is null ? $"{target.Label}. " : $"{target.Label}. {LandingRouteSummary}. "
+            : string.Empty;
         var progress = includeProgress ? $" Route progress {progressPercent} percent." : string.Empty;
         return $"{prefix}{direction}.{progress}".Trim();
     }
@@ -803,7 +1178,8 @@ public sealed class WorldMapNavigationController
     /// 0, 1 and 2, and returns without entering unless one of those matches. Standing on
     /// the entrance triangle in the Buggy therefore satisfies the mod's arrival test while
     /// the game will not actually admit the party, and announcing "Arrived" there leaves a
-    /// blind player waiting at a door that never opens.</para>
+    /// blind player waiting at a door that never opens. Wutai's handler, 96C4, opens with
+    /// the same test.</para>
     ///
     /// <para>Only the rule proven from the installed script is recorded. Nothing here
     /// dismounts anybody or touches game state; the party is told what the game wants and
@@ -815,7 +1191,12 @@ public sealed class WorldMapNavigationController
             // wm0.ev handler ADA4, IP 2D1C..2D36: push special 8, compare against 0, 1 and
             // 2, return unless one matches, then opcode 0x318 EnterField with native
             // destination 18 decimal and entry 0.
-            ["Cosmo Canyon"] = new HashSet<int> { 0, 1, 2 }
+            ["Cosmo Canyon"] = new HashSet<int> { 0, 1, 2 },
+            // wm0.ev handler 96C4, Wutai's own at mesh (4,10) script 7, IP 2DB3..2DC5: the
+            // same test of special 8 against 0, 1 and 2, jumping to the return at 2E06
+            // unless one matches; every other branch is opcode 0x318 EnterField with
+            // destination 23 and entry 0 or 1.
+            ["Wutai"] = new HashSet<int> { 0, 1, 2 }
         };
 
     /// <summary>
@@ -910,12 +1291,160 @@ public sealed class WorldMapNavigationController
         // built with belongs here: a null set turns the entrance check off, which would
         // let line-of-sight selection pick a waypoint the final step probe then refuses.
         while (index > 0 &&
-               !planner.CanTraverseSegment(
-                   state, route.Waypoints[index], null, activeTarget?.NativeEntranceExemptions))
+               (!planner.CanTraverseSegment(
+                    state, route.Waypoints[index], null, activeTarget?.NativeEntranceExemptions) ||
+                (!IsFootprintSegmentClear(state, route.Waypoints[index]) &&
+                 !IsOnLeg(state, route.Waypoints[index - 1], route.Waypoints[index]))))
         {
             index--;
         }
         return index;
+    }
+
+    /// <summary>
+    /// How near a leg counts as being on it: two native frames of movement. Each boat and
+    /// walking leg was planned where the footprint fits; the boat or the party weaves about
+    /// it on eight directions, and a line from wherever it has weaved to straight at the
+    /// next corner can clip the bank or the cliff that the leg itself clears. Sending it
+    /// back to the last corner for that makes it circle there. Further off than this it is
+    /// not weaving: on the way to Mount Corel at camera 3452 the party slid 118 units off a
+    /// 123-unit leg with the foot of the mountain between, and held as on the leg it was
+    /// steered into the mountain until auto walk gave up.
+    /// </summary>
+    private const double BoatLegCorridor = 2 * BroncoFrameStep;
+
+    private const double WalkingLegCorridor = 2 * WalkingFrameStep;
+
+    /// <summary>
+    /// How far down its leg the boat or the party aims, so that the weave closes on the
+    /// leg: four native frames of its movement.
+    /// </summary>
+    private const double BoatLegLookahead = 4 * BroncoFrameStep;
+
+    private const double WalkingLegLookahead = 4 * WalkingFrameStep;
+
+    /// <summary>The boat and the party on foot follow legs planned for their footprint.</summary>
+    private static bool FollowsLegs(int playerModelId) =>
+        playerModelId == WorldMapBroncoLanding.BroncoModelId ||
+        WorldMapRoutePlanner.IsWalkingModel(playerModelId);
+
+    private bool IsOnLeg(
+        WorldMapStateSnapshot state,
+        WorldMapRouteWaypoint legStart,
+        WorldMapRouteWaypoint legEnd)
+    {
+        if (!FollowsLegs(state.PlayerModelId))
+        {
+            return false;
+        }
+
+        var (_, offset, _) = MeasureAlongLeg(state, legStart, legEnd);
+        return offset <= (state.PlayerModelId == WorldMapBroncoLanding.BroncoModelId
+            ? BoatLegCorridor
+            : WalkingLegCorridor);
+    }
+
+    /// <summary>
+    /// Where the boat or the party is against a leg: how far along it, how far off it, and
+    /// the leg's own length, all in the leg's wrapped frame.
+    /// </summary>
+    private (double Along, double Offset, double Length) MeasureAlongLeg(
+        WorldMapStateSnapshot state,
+        WorldMapRouteWaypoint legStart,
+        WorldMapRouteWaypoint legEnd)
+    {
+        var lineX = (double)WorldMapTargetCatalog.WrappedDelta(legStart.X, legEnd.X, map.WrapWidth);
+        var lineZ = (double)WorldMapTargetCatalog.WrappedDelta(legStart.Z, legEnd.Z, map.WrapHeight);
+        var boatX = (double)WorldMapTargetCatalog.WrappedDelta(legStart.X, state.X, map.WrapWidth);
+        var boatZ = (double)WorldMapTargetCatalog.WrappedDelta(legStart.Z, state.Z, map.WrapHeight);
+        var length = Math.Sqrt(lineX * lineX + lineZ * lineZ);
+        if (length < 1d)
+        {
+            return (0d, Math.Sqrt(boatX * boatX + boatZ * boatZ), 0d);
+        }
+
+        var along = (boatX * lineX + boatZ * lineZ) / length;
+        var clamped = Math.Clamp(along, 0d, length);
+        var nearestX = lineX * clamped / length - boatX;
+        var nearestZ = lineZ * clamped / length - boatZ;
+        return (along, Math.Sqrt(nearestX * nearestX + nearestZ * nearestZ), length);
+    }
+
+    /// <summary>
+    /// The offset from the boat or the party to the point it should steer for on its current
+    /// leg: a little way down the leg from where it is level with it, never past its end.
+    /// </summary>
+    private (int X, int Z) ResolveLegAim(
+        WorldMapStateSnapshot state,
+        WorldMapRouteWaypoint legStart,
+        WorldMapRouteWaypoint legEnd)
+    {
+        var (along, _, length) = MeasureAlongLeg(state, legStart, legEnd);
+        var lineX = (double)WorldMapTargetCatalog.WrappedDelta(legStart.X, legEnd.X, map.WrapWidth);
+        var lineZ = (double)WorldMapTargetCatalog.WrappedDelta(legStart.Z, legEnd.Z, map.WrapHeight);
+        var boatX = (double)WorldMapTargetCatalog.WrappedDelta(legStart.X, state.X, map.WrapWidth);
+        var boatZ = (double)WorldMapTargetCatalog.WrappedDelta(legStart.Z, state.Z, map.WrapHeight);
+        if (length < 1d)
+        {
+            return ((int)Math.Round(lineX - boatX), (int)Math.Round(lineZ - boatZ));
+        }
+
+        var lookahead = state.PlayerModelId == WorldMapBroncoLanding.BroncoModelId
+            ? BoatLegLookahead
+            : WalkingLegLookahead;
+        var aim = Math.Clamp(along + lookahead, 0d, length);
+        return ((int)Math.Round(lineX * aim / length - boatX), (int)Math.Round(lineZ * aim / length - boatZ));
+    }
+
+    /// <summary>
+    /// Whether the straight line to a waypoint keeps the whole footprint where it may go,
+    /// one native frame of movement at a time. Triangles alone say a line across a bend is
+    /// water, or a line past the foot of a cliff is grass; FUN_00751EFC says whether the
+    /// boat, 350 units either way, or the party, 200, can actually follow it. Aiming across
+    /// what they cannot round leaves every key that makes progress pressing into the bank or
+    /// the cliff. Always clear for anybody else.
+    ///
+    /// <para>The walking footprint is stricter than the game on the bridges, so where the
+    /// party already stands somewhere it says the party cannot, it is not asked at all and
+    /// the centre line alone decides, as it always did.</para>
+    /// </summary>
+    private bool IsFootprintSegmentClear(WorldMapStateSnapshot state, WorldMapRouteWaypoint waypoint)
+    {
+        Func<int, int, int, bool> fitsAt;
+        double frameStep;
+        if (state.PlayerModelId == WorldMapBroncoLanding.BroncoModelId)
+        {
+            fitsAt = (x, _, z) => WorldMapBroncoLanding.HasBoatFootprint(map, x, z);
+            frameStep = BroncoFrameStep;
+        }
+        else if (WorldMapRoutePlanner.IsWalkingModel(state.PlayerModelId) &&
+                 planner.HasWalkingFootprint(state, state.X, state.Y, state.Z))
+        {
+            fitsAt = (x, y, z) => planner.HasWalkingFootprint(state, x, y, z);
+            frameStep = WalkingFrameStep;
+        }
+        else
+        {
+            return true;
+        }
+
+        var dx = (double)WorldMapTargetCatalog.WrappedDelta(state.X, waypoint.X, map.WrapWidth);
+        var dy = waypoint.Y - (double)state.Y;
+        var dz = (double)WorldMapTargetCatalog.WrappedDelta(state.Z, waypoint.Z, map.WrapHeight);
+        var samples = (int)Math.Ceiling(Math.Sqrt(dx * dx + dz * dz) / frameStep);
+        for (var sample = 1; sample <= samples; sample++)
+        {
+            var fraction = sample / (double)samples;
+            if (!fitsAt(
+                    state.X + (int)Math.Round(dx * fraction),
+                    state.Y + (int)Math.Round(dy * fraction),
+                    state.Z + (int)Math.Round(dz * fraction)))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     internal static WorldMapPolylineProgress MeasurePolylineProgress(
@@ -1047,10 +1576,31 @@ public sealed class WorldMapNavigationController
             return candidates.ToArray();
         }
 
+        // Aboard the Tiny Bronco a town is still a destination when the boat can take the
+        // party to a shore that leads to it on foot. Nothing about the place has changed -
+        // Gongaga is where it was - so dropping it because it cannot be sailed into would
+        // hide a trip the player can actually make.
         return candidates
-            .Where(target => planner.CanReach(state, target))
+            .Where(target =>
+                planner.CanReach(state, target) || IsReachedByLanding(target, state))
             .ToArray();
     }
+
+    private static bool IsDestination(WorldMapNavigationTarget target) =>
+        target.Kind is WorldMapTargetKind.Location or WorldMapTargetKind.Story;
+
+    /// <summary>
+    /// A destination the party can only reach from the Tiny Bronco by getting off at a
+    /// shore. The boat is held to water - FUN_0074CECA gives model 5 mask 0x70, terrain 4,
+    /// 5 and 6 - and field entrances are on land, so none is sailed into; the question is
+    /// whether a landing it can reach puts the party on ground joined to it on foot. The
+    /// landing rule itself is <see cref="WorldMapBroncoLanding"/>.
+    /// </summary>
+    private bool IsReachedByLanding(WorldMapNavigationTarget target, WorldMapStateSnapshot state) =>
+        IsDestination(target) &&
+        state.PlayerModelId == WorldMapBroncoLanding.BroncoModelId &&
+        !planner.CanReach(state, target) &&
+        WorldMapBroncoLanding.HasLanding(planner, map, state, target);
 
     private bool IsUsable(WorldMapStateSnapshot state) =>
         state.CurrentModule == WorldMapStateReader.WorldModule &&
@@ -1071,6 +1621,12 @@ public sealed class WorldMapNavigationController
         waypointIndex = 0;
         entryHandoffAnnounced = false;
         awaitingNativeEntry = false;
+        landingPlan = null;
+        landingPhase = LandingPhase.Approaching;
+        landingSettleSamples = 0;
+        landingClosestApproach = double.PositiveInfinity;
+        landingStalledSamples = 0;
+        landingOnRunIn = false;
         progressPercent = 0;
         activeModelId = -1;
         activeMapType = -1;

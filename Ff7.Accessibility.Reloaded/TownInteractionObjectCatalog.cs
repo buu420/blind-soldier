@@ -11,6 +11,13 @@ public static class TownInteractionObjectCatalog
 {
     private static readonly IReadOnlyList<FieldNavigationObjectDefinition> Definitions =
     [
+        // The seller grants a choice after accepting Mythril. Either native reward
+        // script clears the shared permission bit; do not reveal either box's contents.
+        Line(79, 5, "Small box upstairs", "zz2", "l1", -466, -87, 240) with
+        { MinimumGameMoment = 566, RequiredBank = 11, RequiredAddress = 132, RequiredMask = 0x10, RequiredValue = 0x10 },
+        Line(79, 6, "Large box downstairs", "zz2", "l2", 225, -24, 36) with
+        { MinimumGameMoment = 566, RequiredBank = 11, RequiredAddress = 132, RequiredMask = 0x10, RequiredValue = 0x10 },
+        Line(79, 7, "Bed", "zz2", "l3", 89, 87, 36) with { MinimumGameMoment = 566 },
         Line(151, 18, "Closed shop", "mds7", "item", -775, -595, 0),
         Line(151, 19, "AVALANCHE sign", "mds7", "tatekan", -781, -112, 0),
         Line(155, 10, "Television", "mds7pb_2", "TV", 91, 132, 0),

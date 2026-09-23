@@ -17,6 +17,8 @@ if (args.Contains("--town-coverage-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.TownInteractionCoverageTests.Run();
     Ff7.Accessibility.Reloaded.Tests.TownInteractionCoverageTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.WeaponSellerNavigationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.WeaponSellerNavigationTests.RunWithInstalledGameData();
     Ff7.Accessibility.Reloaded.Tests.GoldSaucerPlatformExitTests.Run();
     Ff7.Accessibility.Reloaded.Tests.GoldSaucerPlatformExitTests.RunWithInstalledGameData();
     Ff7.Accessibility.Reloaded.Tests.GlacierSnowfieldNavigationTests.RunWithInstalledGameData();
@@ -35,6 +37,8 @@ if (args.Contains("--story-coverage-only", StringComparer.OrdinalIgnoreCase))
     Ff7.Accessibility.Reloaded.Tests.RemainingStoryContinuityTests.RunWithInstalledGameData();
     Ff7.Accessibility.Reloaded.Tests.TownInteractionCoverageTests.Run();
     Ff7.Accessibility.Reloaded.Tests.TownInteractionCoverageTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.WeaponSellerNavigationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.WeaponSellerNavigationTests.RunWithInstalledGameData();
     Ff7.Accessibility.Reloaded.Tests.GoldSaucerPlatformExitTests.Run();
     Ff7.Accessibility.Reloaded.Tests.GoldSaucerPlatformExitTests.RunWithInstalledGameData();
     Ff7.Accessibility.Reloaded.Tests.GlacierSnowfieldNavigationTests.RunWithInstalledGameData();
@@ -150,6 +154,13 @@ if (args.Contains("--phs-only", StringComparer.OrdinalIgnoreCase))
 {
     PartyFormationSpeechTrackerTests.Run();
     Console.WriteLine("FFVII PHS / Form screen tests passed.");
+    return;
+}
+
+if (args.Contains("--battle-manipulate-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.BattleManipulateMenuTests.Run();
+    Console.WriteLine("FFVII x86 battle Manipulate tests passed.");
     return;
 }
 
@@ -440,6 +451,12 @@ if (args.Contains("--world-map-only", StringComparer.OrdinalIgnoreCase))
     Ff7.Accessibility.Reloaded.Tests.WorldMapNavigationControllerTests.Run();
     Ff7.Accessibility.Reloaded.Tests.TinyBroncoTransportationTests.Run();
     Ff7.Accessibility.Reloaded.Tests.TinyBroncoTransportationTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.WorldMapVehicleTerrainTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.WorldMapVehicleTerrainTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.WorldMapOwnEntranceTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.WorldMapBroncoLandingTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.WorldMapBroncoLandingTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.WorldMapWutaiNavigationTests.RunWithInstalledGameData();
     Ff7.Accessibility.Reloaded.Tests.NavigationProgressControlTests.Run();
     AssertWorldEntranceCueUsesTheFullDirectionalSteamAudioRender();
     Console.WriteLine("FFVII shared world-map accessibility tests passed.");
@@ -613,6 +630,8 @@ if (args.Contains("--gongaga-navigation-only", StringComparer.OrdinalIgnoreCase)
     Ff7.Accessibility.Reloaded.Tests.RemainingStoryContinuityTests.RunWithInstalledGameData();
     Ff7.Accessibility.Reloaded.Tests.TownInteractionCoverageTests.Run();
     Ff7.Accessibility.Reloaded.Tests.TownInteractionCoverageTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.WeaponSellerNavigationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.WeaponSellerNavigationTests.RunWithInstalledGameData();
     Ff7.Accessibility.Reloaded.Tests.GoldSaucerPlatformExitTests.Run();
     Ff7.Accessibility.Reloaded.Tests.GoldSaucerPlatformExitTests.RunWithInstalledGameData();
     Ff7.Accessibility.Reloaded.Tests.GlacierSnowfieldNavigationTests.RunWithInstalledGameData();
@@ -685,6 +704,8 @@ if (args.Contains("--cosmo-navigation-only", StringComparer.OrdinalIgnoreCase))
     Ff7.Accessibility.Reloaded.Tests.RemainingStoryContinuityTests.RunWithInstalledGameData();
     Ff7.Accessibility.Reloaded.Tests.TownInteractionCoverageTests.Run();
     Ff7.Accessibility.Reloaded.Tests.TownInteractionCoverageTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.WeaponSellerNavigationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.WeaponSellerNavigationTests.RunWithInstalledGameData();
     Ff7.Accessibility.Reloaded.Tests.GoldSaucerPlatformExitTests.Run();
     Ff7.Accessibility.Reloaded.Tests.GoldSaucerPlatformExitTests.RunWithInstalledGameData();
     Ff7.Accessibility.Reloaded.Tests.GlacierSnowfieldNavigationTests.RunWithInstalledGameData();
@@ -959,6 +980,8 @@ Ff7.Accessibility.Reloaded.Tests.RemainingStoryContinuityTests.Run();
 Ff7.Accessibility.Reloaded.Tests.RemainingStoryContinuityTests.RunWithInstalledGameData();
 Ff7.Accessibility.Reloaded.Tests.TownInteractionCoverageTests.Run();
     Ff7.Accessibility.Reloaded.Tests.TownInteractionCoverageTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.WeaponSellerNavigationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.WeaponSellerNavigationTests.RunWithInstalledGameData();
     Ff7.Accessibility.Reloaded.Tests.GoldSaucerPlatformExitTests.Run();
     Ff7.Accessibility.Reloaded.Tests.GoldSaucerPlatformExitTests.RunWithInstalledGameData();
     Ff7.Accessibility.Reloaded.Tests.GlacierSnowfieldNavigationTests.RunWithInstalledGameData();
@@ -1065,6 +1088,7 @@ AssertKernel2TextDatabaseMapsNativeLimitActions();
 AssertKernel2TextDatabaseReadsCommandNames();
 AssertKernel2TextDatabaseReadsMateriaNames();
 AssertKernel2TextDatabaseReadsInventoryObjectNames();
+Ff7.Accessibility.Reloaded.Tests.BattleManipulateMenuTests.Run();
 AssertBattleStateReaderRejectsOtherModulesAndInvalidActors();
 AssertBattleStateReaderReadsReadyActorAndLiveStats();
 AssertBattleStateReaderReadsGuestPartyCommands();
@@ -1232,6 +1256,13 @@ Ff7.Accessibility.Reloaded.Tests.WorldMapEntranceProximityCueTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WorldMapNavigationControllerTests.Run();
 Ff7.Accessibility.Reloaded.Tests.TinyBroncoTransportationTests.Run();
 Ff7.Accessibility.Reloaded.Tests.TinyBroncoTransportationTests.RunWithInstalledGameData();
+Ff7.Accessibility.Reloaded.Tests.WorldMapVehicleTerrainTests.Run();
+Ff7.Accessibility.Reloaded.Tests.WorldMapVehicleTerrainTests.RunWithInstalledGameData();
+Ff7.Accessibility.Reloaded.Tests.WorldMapOwnEntranceTests.RunWithInstalledGameData();
+Ff7.Accessibility.Reloaded.Tests.WorldMapBroncoLandingTests.Run();
+Ff7.Accessibility.Reloaded.Tests.WorldMapBroncoLandingTests.RunWithInstalledGameData();
+Ff7.Accessibility.Reloaded.Tests.WorldMapWutaiNavigationTests.RunWithInstalledGameData();
+Ff7.Accessibility.Reloaded.Tests.FieldNpcTalkCounterTests.RunWithInstalledGameData();
 AssertFieldLadderStateReaderReadsNativeMountedState();
 AssertFieldLadderStateReaderCorrectsWallClimbPenultimateLadderToLeft();
 AssertFieldLadderStateReaderRejectsInvalidState();

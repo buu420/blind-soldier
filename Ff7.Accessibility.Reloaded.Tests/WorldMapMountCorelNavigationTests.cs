@@ -39,19 +39,38 @@ internal static class WorldMapMountCorelNavigationTests
             "the captured approach retains a corner south of the native cliff instead of skipping both corners");
         Equal(true, controller.TryResolveAutomaticInput(approaching, out var input),
             "a native corner retains directional guidance");
-        // Native negative-camera rotation at3388 puts the current-to-corner
-        // direction between Up and Left. The tiny previous corner leg points
-        // Up alone and cannot stand in for the player's current position.
-        Equal(FieldNavigationInput.UpLeft, input,
-            "automatic movement aims from the accepted position around the cliff lip");
+        // The key is steered from the accepted position, not from the tiny previous corner
+        // leg, and has to take the party round the lip rather than into it: its native step
+        // is clear, the party's 200-unit footprint fits where it lands, and it closes on the
+        // corner. Which key that is depends on where the route rounds the lip - since
+        // walking routes keep the footprint's room it rounds the apex further out, and at
+        // camera 3388 that is Left rather than UpLeft.
+        AssertStepRoundsTheLip(planner, approaching, input, corner, "automatic movement");
 
         var manualController = new WorldMapNavigationController(map, planner, (_, _) => [target]);
         manualController.HandleAction(FieldNavigationAction.ToggleBeacon, start, now);
         manualController.Observe(approaching, now.AddSeconds(1), automaticWalkActive: false);
         Equal(true, manualController.TryResolveAutomaticInput(approaching, out var newlyEnabledInput),
             "enabling automatic movement guards the native corner without a previous automatic observation");
-        Equal(FieldNavigationInput.UpLeft, newlyEnabledInput,
+        Equal(input, newlyEnabledInput,
             "the first automatic key cannot inherit the smoothed manual shortcut");
+    }
+
+    private static void AssertStepRoundsTheLip(
+        WorldMapRoutePlanner planner,
+        WorldMapStateSnapshot state,
+        FieldNavigationInput input,
+        WorldMapRouteWaypoint corner,
+        string label)
+    {
+        var (stepX, stepZ) = NativeStep(input, state.CameraFront, 120);
+        var landing = new WorldMapRouteWaypoint(
+            state.X + (int)Math.Round(stepX), state.Y, state.Z + (int)Math.Round(stepZ));
+        Equal(true, planner.CanTraverseSegment(state, landing), $"{label}: {input} steps onto native ground");
+        Equal(true, planner.HasWalkingFootprint(state, landing.X, landing.Y, landing.Z),
+            $"{label}: {input} lands where the party's footprint fits, clear of the cliff");
+        Equal(true, stepX * (corner.X - state.X) + stepZ * (corner.Z - state.Z) > 0d,
+            $"{label}: {input} closes on the corner");
     }
 
     private static void ListsOneReachableMountainEntranceInEachApplicableCategory()
@@ -84,19 +103,26 @@ internal static class WorldMapMountCorelNavigationTests
         var state = State(129778, 1819, 132490, 0) with { TerrainId = 16 };
         controller.Observe(state, now.AddSeconds(1), automaticWalkActive: true);
         var waypoint = controller.Probe.Route!.Waypoints[controller.Probe.WaypointIndex];
-        Equal(new WorldMapRouteWaypoint(128000, 1790, 131981), waypoint, "the native later-bend corner is retained");
+        Equal(true, waypoint.X < state.X, "the retained corner is still the later bend to the west");
         Equal(true, planner.CanTraverseSegment(state, waypoint), "the oblique route itself remains native-clear");
-        var primary = new FieldNavigationMovementObserver().ResolveStickDirection(
-            state.X - waypoint.X, waypoint.Z - state.Z, state.ControlTransform).Input;
-        Equal(FieldNavigationInput.Left, primary, "the unguarded angular winner is Left");
         Equal(false, planner.CanTraverseSegment(state, new(state.X - 120, state.Y, state.Z)),
-            "the primary Left step hits the native boundary");
+            "the Left step hits the native boundary");
         Equal(true, planner.CanTraverseSegment(state, new(state.X - 90, state.Y, state.Z - 90)),
             "the three-quarter diagonal UpLeft step is clear");
         Equal(true, planner.CanTraverseSegment(state, new(state.X, state.Y, state.Z - 120)),
-            "Up is also a clear forward alternative but makes less progress toward the western corner");
-        Equal(true, controller.TryResolveAutomaticInput(state, out var input), "the blocked primary key retains a clear fallback");
-        Equal(FieldNavigationInput.UpLeft, input, "the closest clear forward fallback wins over the weaker Up alternative");
+            "Up is also a clear forward alternative");
+        // Where the route rounds this bend moved when walking routes began keeping the
+        // party's footprint clear, so the leg it follows from here no longer asks for Left
+        // first; what has to hold is that the key it presses is never the one the boundary
+        // refuses, and still closes on the bend.
+        Equal(true, controller.TryResolveAutomaticInput(state, out var input), "the bend retains a clear key");
+        Equal(false, input == FieldNavigationInput.Left, "the key pressed is never the refused Left");
+        var (stepX, stepZ) = NativeStep(input, state.CameraFront, 120);
+        Equal(true, planner.CanTraverseSegment(
+                state, new(state.X + (int)Math.Round(stepX), state.Y, state.Z + (int)Math.Round(stepZ))),
+            $"the {input} step is native-clear");
+        Equal(true, stepX * (waypoint.X - state.X) + stepZ * (waypoint.Z - state.Z) > 0d,
+            $"and {input} closes on the bend");
     }
 
     private static void ResolvesOverlappingNativeTracksAtThePlayersActualHeight()
@@ -109,8 +135,12 @@ internal static class WorldMapMountCorelNavigationTests
         var upper = State(118622, 2117, 135325, 0) with { TerrainId = 21, TerrainScriptId = 1 };
         Equal(true, planner.TryResolvePlayerTriangle(upper, out var upperTriangle), "upper track resolves");
         Equal(87972, upperTriangle, "accepted player height retains the upper native track");
-        Equal(true, planner.CanTraverseSegment(upper, new(118147, 1885, 135467)),
-            "the upper track can still see its forward corner");
+        // Terrain 21 is the side of the rail bridge, not ground anybody walks: FUN_0074CECA's
+        // walking mask 0x721B6F83 has no bit 21, and not one on-foot sample in the eleven
+        // session logs the user has sent stands on it - 427,493 lines, many repeated between
+        // downloads. The party crosses here on the deck, terrain 13, at 2605.
+        Equal(false, planner.CanTraverseSegment(upper, new(118147, 1885, 135467)),
+            "terrain 21 under the rail bridge is not walked on");
         Equal(true, planner.TryResolvePlayerTriangle(upper with { Y = 2070 }, out var lowerTriangle),
             "lower track resolves");
         Equal(87980, lowerTriangle, "lower player height selects the overlapping lower native track");
