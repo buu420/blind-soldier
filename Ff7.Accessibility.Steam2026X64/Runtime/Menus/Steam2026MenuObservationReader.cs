@@ -323,6 +323,9 @@ public sealed class Steam2026MenuObservationReader
     internal bool TryReadShopMenuOwnership(out bool ownsShop) =>
         shopReader.TryReadOwnership(out ownsShop);
 
+    internal bool TryReadShopBalanceVisibility(out bool balanceVisible) =>
+        shopReader.TryReadBalanceVisibility(out balanceVisible);
+
     internal bool TryReadShopMenu(out ShopMenuSnapshot snapshot) =>
         shopReader.TryRead(out snapshot);
 

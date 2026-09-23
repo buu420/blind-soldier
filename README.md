@@ -341,6 +341,7 @@ foreground. The normal game controls are unchanged.
 | Key | Action |
 | --- | --- |
 | `R` | Repeat the last message Blind Soldier spoke |
+| `G` | Read your current gil while a screen that shows it is open: the main menu, or a shop's buy list, buy quantity, materia sale list, or item sale quantity window |
 | `U` | Previous navigation category |
 | `O` | Next navigation category |
 | `J` | Previous target in the selected category |
@@ -356,6 +357,13 @@ foreground. The normal game controls are unchanged.
 Progress intervals are `5`, `10`, `15`, and `20` percent. `F6` and `F7` wrap
 around at either end. Key changes to progress settings last for the current
 game session; the installed configuration supplies the next launch's defaults.
+
+Opening the main menu announces your gil once, after the first menu item.
+Returning from a submenu does not repeat it. In shops, the screens that show
+your gil already include it in each item announcement. `G` reads the balance
+as it is at that moment, so it reflects a purchase or sale straight away. It
+stays silent where the game does not show your gil, such as fields, the world
+map, main-menu submenus, and a shop's Buy, Sell, and Exit choice.
 
 ### Controller navigation menu
 

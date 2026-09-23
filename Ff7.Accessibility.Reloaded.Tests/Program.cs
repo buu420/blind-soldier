@@ -207,6 +207,16 @@ if (args.Contains("--main-menu-ownership-only", StringComparer.OrdinalIgnoreCase
     return;
 }
 
+if (args.Contains("--menu-gil-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.MenuGilReadoutTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.LegacyMenuGilScreenTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.MainMenuOwnershipTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.Sector7MenuRegressionTests.Run();
+    Console.WriteLine("FFVII x86 menu gil readout tests passed.");
+    return;
+}
+
 if (args.Contains("--runtime-lease-only", StringComparer.OrdinalIgnoreCase))
 {
     BlindSoldierRuntimeLeaseTests.Run();
@@ -1642,6 +1652,8 @@ AssertActiveMenuFrameAnnouncesEmptyInventorySlots();
 AssertActiveMenuFrameUsesNativePartyAndEquipmentSelections();
 AssertActiveMenuFrameUsesNativeItemAndMagicTargets();
 Ff7.Accessibility.Reloaded.Tests.Sector7MenuRegressionTests.Run();
+Ff7.Accessibility.Reloaded.Tests.MenuGilReadoutTests.Run();
+Ff7.Accessibility.Reloaded.Tests.LegacyMenuGilScreenTests.Run();
 AssertActiveMenuFrameReadsMateriaSocketSelection();
 AssertActiveMenuFrameDeduplicatesMateriaByNativeSelectionIdentity();
 AssertActiveMenuFrameScopesRepeatSuppressionByWidget();

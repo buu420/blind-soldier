@@ -501,6 +501,7 @@ internal sealed class Steam2026ResearchSession : IDisposable
             TimeSpan.FromMilliseconds(
                 Math.Max(0, config.NativeSystemMenuHelpDelayMs)));
         var shopMenuSpeechTracker = new ShopMenuSpeechTracker();
+        var menuGilReadout = new Steam2026MenuGilReadout();
         var dialogueIngressSequencer = new Steam2026DialogueIngressSequencer();
         var battleOptions = CreateBattleOptions(config);
         var battleStatusHotkeyController = new BattleStatusHotkeyController();
@@ -710,6 +711,7 @@ internal sealed class Steam2026ResearchSession : IDisposable
                     nativeSystemMenuHookSet?.Dispose();
                     nativeSystemMenuHookSet = null;
                     shopMenuSpeechTracker.Reset();
+                    menuGilReadout.Reset();
                     inGameMenuBridge?.Reset();
                     titleLoadMenuBridge?.SetOwnership(false);
                     titleLoadMenuBridge?.ResetIngress();
@@ -795,6 +797,14 @@ internal sealed class Steam2026ResearchSession : IDisposable
                             ref lastRuntimeFaultLogUtc);
                     }
                 }
+
+                // Sampled with R for the same reason, and answered below once this
+                // iteration's frame and menu speech are known. A press made while
+                // no coherent frame could be read is dropped, never delayed.
+                var menuGilRepeatPressed =
+                    foregroundInput.ObserveRisingEdge(MenuGilReadoutController.VirtualKeyG);
+                RuntimeFrameObservation? menuGilFrame = null;
+                var menuGilSpeechDispatched = false;
 
                 foreach (var action in NavigationProgressHotkeyRouter.ReadActions(
                              foregroundInput.ObserveRisingEdge))
@@ -1616,6 +1626,7 @@ avigationield_zone_transition.wav"),
                 if (pump is not null && pump.TryReadFrame(out var frame))
                 {
                     lifecycle = frame.Lifecycle;
+                    menuGilFrame = frame;
                     try
                     {
                         var highwayIsForeground =
@@ -2082,6 +2093,13 @@ avigationield_zone_transition.wav"),
                                 Array.Empty<RuntimeEvent>(),
                                 null),
                             now);
+
+                        // The dispatcher speaks a changed root selection on exactly
+                        // these conditions; the opening balance must come after it.
+                        menuGilSpeechDispatched = config.EnableSpeech &&
+                            config.EnableRuntimeMenuSpeech &&
+                            frame.Lifecycle.IsForeground &&
+                            !frame.Lifecycle.IsShuttingDown;
                         if (dialogueAcknowledgement is not null &&
                             !pump.AcknowledgeDialogueSpeech(dialogueAcknowledgement))
                         {
@@ -2929,6 +2947,65 @@ avigationield_zone_transition.wav"),
                         shopMenuSpeechTracker.Reset();
                         LogRuntimeFault(
                             $"Shop menu speech will retry on the next native change: {ex.Message}",
+                            now,
+                            ref lastRuntimeFault,
+                            ref lastRuntimeFaultLogUtc);
+                    }
+                }
+
+                // After the main-menu and shop speech, so the balance follows this
+                // iteration's selection rather than being interrupted by it.
+                if (menuGilFrame is { Lifecycle.IsShuttingDown: false } gilFrame &&
+                    pump is { } gilPump)
+                {
+                    try
+                    {
+                        menuGilReadout.ObserveDispatchedMenu(
+                            gilFrame.Menu,
+                            menuGilSpeechDispatched);
+                        var gilModuleId = gilFrame.Lifecycle.ModuleId;
+                        var gilResult = menuGilReadout.Tick(
+                            menuGilRepeatPressed,
+                            gilPump.ReadMainMenuGilSessionOpen(),
+                            automaticAnnouncementAllowed: config.EnableSpeech &&
+                                config.EnableRuntimeMenuSpeech &&
+                                isHostForeground &&
+                                gilFrame.Lifecycle.IsForeground,
+                            () => gilPump.ReadVisibleMenuGilScreen(gilModuleId),
+                            () => gilPump.TryReadMenuGil(out var gil) ? gil : (uint?)null,
+                            (text, interrupt) =>
+                            {
+                                if (!config.EnableSpeech ||
+                                    !foregroundInput.IsCurrentProcessForeground())
+                                {
+                                    return false;
+                                }
+
+                                output.Speak(text, interrupt);
+                                return true;
+                            });
+                        switch (gilResult.Outcome)
+                        {
+                            case MenuGilReadoutOutcome.Announced:
+                                log($"Native Steam 2026 main menu gil: {gilResult.Text}");
+                                break;
+                            case MenuGilReadoutOutcome.Repeated:
+                                log($"Native Steam 2026 gil hotkey ({gilResult.Screen}): {gilResult.Text}");
+                                break;
+                            case MenuGilReadoutOutcome.RepeatNotVisible:
+                                log("Native Steam 2026 gil hotkey ignored: no native screen is showing the balance.");
+                                break;
+                            case MenuGilReadoutOutcome.ReadFailed:
+                                log(
+                                    $"Native Steam 2026 gil hotkey ({gilResult.Screen}): the balance " +
+                                    "was not read coherently; nothing was spoken.");
+                                break;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        LogRuntimeFault(
+                            $"Gil readout will retry: {ex.Message}",
                             now,
                             ref lastRuntimeFault,
                             ref lastRuntimeFaultLogUtc);

@@ -18,6 +18,8 @@
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\GoldSaucerFollowupTests.cs" Link="SharedTests\GoldSaucerFollowupTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\BattleManipulateMenuTests.cs"
              Link="SharedTests\BattleManipulateMenuTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\MenuGilReadoutTests.cs"
+             Link="SharedTests\MenuGilReadoutTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\NorthCorelNpcTests.cs"
              Link="SharedTests\NorthCorelNpcTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\CondorBattleInitializationTests.cs"

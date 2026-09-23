@@ -119,6 +119,15 @@ if (args.Contains("--main-menu-ownership-only", StringComparer.OrdinalIgnoreCase
     return;
 }
 
+if (args.Contains("--menu-gil-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.MenuGilReadoutTests.Run();
+    Steam2026MenuGilReadoutTests.Run();
+    Steam2026ResearchObservationPumpTests.Run();
+    Console.WriteLine("Steam 2026 x64 menu gil readout tests passed.");
+    return;
+}
+
 // The controller-ownership regressions on their own. They need no game data and no
 // hooking backend, so this is the switch to run while working on the capture.
 if (args.Contains("--controller-ownership-only", StringComparer.OrdinalIgnoreCase))
@@ -704,6 +713,8 @@ HighwayEngagementSteeringTrackerTests.Run();
 Steam2026ResearchSpeechPolicyTests.Run();
 Steam2026ResearchAccessibilityOutputTests.Run();
 Steam2026ResearchObservationPumpTests.Run();
+Ff7.Accessibility.Reloaded.Tests.MenuGilReadoutTests.Run();
+Steam2026MenuGilReadoutTests.Run();
 Ff7.Accessibility.Reloaded.Tests.FieldAreaDescriptionHistoryTests.Run();
 Ff7.Accessibility.Reloaded.Tests.FieldAreaDescriptionSaveTrackerTests.Run();
 Ff7.Accessibility.Reloaded.Tests.FieldActivityNumericWindowReadTests.Run();

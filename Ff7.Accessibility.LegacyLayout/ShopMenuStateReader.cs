@@ -76,6 +76,42 @@ public sealed class ShopMenuStateReader
         return true;
     }
 
+    /// <summary>
+    /// FUN_0071AAA3 draws the current balance only on the buy list (1), the
+    /// materia sale list (3), the buy quantity window (4) and the item sale
+    /// quantity window (5). The Buy/Sell/Exit choice, the item sale list and
+    /// the Items/Materia choice draw no balance.
+    /// </summary>
+    public bool TryReadBalanceVisibility(out bool balanceVisible)
+    {
+        balanceVisible = false;
+        if (!TryReadEnvelope(out var candidate) ||
+            !TryReadEnvelope(out var bookend) ||
+            candidate != bookend)
+        {
+            return false;
+        }
+
+        balanceVisible = candidate.IsShop && candidate.State is 1 or 3 or 4 or 5;
+        return true;
+    }
+
+    public bool TryReadVisibleBalance(out uint gil)
+    {
+        gil = 0;
+        if (!TryReadEnvelope(out var opening) ||
+            !opening.IsShop || opening.State is not (1 or 3 or 4 or 5) ||
+            !memory.TryReadUInt32((uint)AddressGil, out var candidate) ||
+            !memory.TryReadUInt32((uint)AddressGil, out var bookend) || candidate != bookend ||
+            !TryReadEnvelope(out var closing) || opening != closing)
+        {
+            return false;
+        }
+
+        gil = candidate;
+        return true;
+    }
+
     public bool TryRead(out ShopMenuSnapshot snapshot)
     {
         snapshot = default;
@@ -951,6 +987,7 @@ public sealed class ShopMenuStateReader
 public sealed class ShopMenuSpeechTracker
 {
     private string? lastKey;
+    private bool visibleBalanceAnnounced;
 
     public string? Poll(ShopMenuStateReader reader)
     {
@@ -966,8 +1003,37 @@ public sealed class ShopMenuSpeechTracker
             return null;
         }
 
-        if (!reader.TryRead(out var snapshot) ||
-            string.Equals(lastKey, snapshot.Key, StringComparison.Ordinal))
+        if (!reader.TryReadBalanceVisibility(out var balanceVisible))
+        {
+            return null;
+        }
+
+        if (!balanceVisible)
+        {
+            visibleBalanceAnnounced = false;
+        }
+
+        if (!reader.TryRead(out var snapshot))
+        {
+            // Empty or unreadable item rows must not hide a readable wallet.
+            // Normal purchase/sale lines already contain it, so this is only
+            // the first announcement while no such line can be produced.
+            if (balanceVisible && !visibleBalanceAnnounced &&
+                reader.TryReadVisibleBalance(out var gil))
+            {
+                visibleBalanceAnnounced = true;
+                return MenuGilReadoutController.Format(gil);
+            }
+
+            return null;
+        }
+
+        if (balanceVisible)
+        {
+            visibleBalanceAnnounced = true;
+        }
+
+        if (string.Equals(lastKey, snapshot.Key, StringComparison.Ordinal))
         {
             return null;
         }
@@ -976,5 +1042,9 @@ public sealed class ShopMenuSpeechTracker
         return snapshot.Speech;
     }
 
-    public void Reset() => lastKey = null;
+    public void Reset()
+    {
+        lastKey = null;
+        visibleBalanceAnnounced = false;
+    }
 }
