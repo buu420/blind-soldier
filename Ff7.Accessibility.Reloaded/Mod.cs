@@ -349,6 +349,9 @@ public sealed class Mod : IModV1, IModV2
     private MateriaMenuSelectionReader? materiaMenuSelectionReader;
     private ShopMenuStateReader? shopMenuStateReader;
     private readonly ShopMenuSpeechTracker shopMenuSpeechTracker = new();
+    private MenuGilStateReader? menuGilStateReader;
+    private QuitConfirmationStateReader? quitConfirmationStateReader;
+    private readonly MenuGilReadoutController menuGilReadoutController = new();
     private BattleHookAddressResolver? battleHookAddressResolver;
     private BattleStateReader? battleStateReader;
     private BattleResultsReader? battleResultsReader;
@@ -511,6 +514,9 @@ public sealed class Mod : IModV1, IModV2
     private readonly NavigationKeyPressTracker navigationKeyPressTracker = new();
     private readonly NavigationKeyPressTracker repeatLastSpeechKeyTracker = new();
     private readonly RepeatLastSpeechController repeatLastSpeechController = new();
+    private readonly NavigationKeyPressTracker menuGilKeyTracker = new();
+    private bool menuGilRepeatPending;
+    private bool mainMenuSelectionDelivered;
     private NavigationProgressController navigationProgressController = new(true, 5);
     private readonly ForegroundProcessGate foregroundProcessGate = new(
         GetForegroundWindow,
@@ -1145,6 +1151,8 @@ public sealed class Mod : IModV1, IModV2
         fieldMessageReader = new FieldMessageReader(legacyAddressSpace);
         fieldCountdownReader = new FieldCountdownReader(legacyAddressSpace);
         mainMenuStateReader = new MainMenuStateReader(legacyAddressSpace);
+        menuGilStateReader = new MenuGilStateReader(legacyAddressSpace);
+        quitConfirmationStateReader = new QuitConfirmationStateReader(legacyAddressSpace);
         nameEntryStateReader = new NameEntryStateReader(legacyAddressSpace);
         saveMenuStateReader = new SaveMenuStateReader(legacyAddressSpace);
         nativeSaveResultPopupReader = new NativeSaveResultPopupReader(legacyAddressSpace);
@@ -1333,7 +1341,7 @@ public sealed class Mod : IModV1, IModV2
                    before == after
                 ? (before & 0x01) == 0x01
                 : null;
-        });
+        }, new WutaiBellDoorStateReader(legacyAddressSpace).ReadDoorOpen);
         fieldNavigationNpcReader = new FieldNavigationNpcReader(
             ReadInt32,
             ReadInt16,
@@ -1624,6 +1632,7 @@ public sealed class Mod : IModV1, IModV2
 
                 TickExitShortcutDiagnostics();
                 TickRepeatLastSpeech();
+                SampleMenuGilHotkey();
                 TickNavigationProgressControls();
                 TickNavigationAutoWalkToggleInput();
                 TickDeferredFieldTextDraws();
@@ -1678,6 +1687,10 @@ public sealed class Mod : IModV1, IModV2
                 TickShopMenuSpeech();
                 TickInGameMenuSpeech();
                 TickRenderedMenuTextSpeech();
+
+                // Last, so the balance follows this pass's menu speech rather
+                // than being interrupted by it.
+                TickMenuGilReadout();
             }
             catch (Exception ex)
             {
@@ -1938,6 +1951,114 @@ public sealed class Mod : IModV1, IModV2
         {
             Log($"Repeat last speech hotkey error: {ex.Message}");
         }
+    }
+
+    // Sample on every pass, including while backgrounded. A fault later in the
+    // pass must not leave a press waiting for a different menu or restored focus.
+    private void SampleMenuGilHotkey()
+    {
+        menuGilRepeatPending = false;
+        try
+        {
+            menuGilRepeatPending = menuGilKeyTracker.Observe(
+                MenuGilReadoutController.VirtualKeyG,
+                (GetAsyncKeyState(MenuGilReadoutController.VirtualKeyG) & 0x8000) != 0,
+                foregroundProcessGate.IsCurrentProcessForeground());
+        }
+        catch (Exception ex)
+        {
+            Log($"Gil hotkey sampling error: {ex.Message}");
+        }
+    }
+
+    private void TickMenuGilReadout()
+    {
+        var now = DateTime.UtcNow;
+
+        var repeatPressed = menuGilRepeatPending;
+        menuGilRepeatPending = false;
+        if (menuGilStateReader is not { } reader)
+        {
+            return;
+        }
+
+        try
+        {
+            bool? sessionOpen = reader.TryReadMainMenuSessionOpen(out var open) ? open : null;
+            var result = menuGilReadoutController.Tick(
+                repeatPressed,
+                sessionOpen,
+                announceOpening: config.EnableSpeech &&
+                    config.EnableMainMenuReader &&
+                    config.SpeakMainMenuSelections &&
+                    mainMenuSelectionDelivered &&
+                    foregroundProcessGate.IsCurrentProcessForeground(),
+                () => ReadVisibleMenuGilScreen(now),
+                () => reader.TryReadGil(out var gil) ? gil : (uint?)null,
+                (text, interrupt) => foregroundProcessGate.IsCurrentProcessForeground() &&
+                    Speak(text, interrupt));
+            switch (result.Outcome)
+            {
+                case MenuGilReadoutOutcome.Announced:
+                    Log($"Main menu gil: {result.Text}");
+                    break;
+                case MenuGilReadoutOutcome.Repeated:
+                    Log($"Gil hotkey ({result.Screen}): {result.Text}");
+                    break;
+                case MenuGilReadoutOutcome.RepeatNotVisible:
+                    Log("Gil hotkey ignored: no native screen is showing the balance.");
+                    break;
+                case MenuGilReadoutOutcome.ReadFailed:
+                    Log($"Gil hotkey ({result.Screen}): the balance was not read coherently; nothing was spoken.");
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            Log($"Gil readout error: {ex.Message}");
+        }
+    }
+
+    private MenuGilScreen ReadVisibleMenuGilScreen(DateTime now)
+    {
+        if (!foregroundProcessGate.IsCurrentProcessForeground())
+        {
+            return MenuGilScreen.None;
+        }
+
+        var currentModule = ReadByte(FieldPositionReader.AddressCurrentModule);
+        var shopBalanceVisible = false;
+        var shopOwnershipRead = false;
+        var ownsShop = false;
+        if (currentModule == ShopMenuStateReader.ShopModule && shopMenuStateReader is not null)
+        {
+            shopBalanceVisible = shopMenuStateReader.TryReadBalanceVisibility(out var visible) &&
+                visible;
+            shopOwnershipRead = shopMenuStateReader.TryReadOwnership(out ownsShop);
+        }
+
+        MainMenuSnapshot? snapshot = null;
+        if (mainMenuStateReader?.TryReadSnapshot(out var root) == true)
+        {
+            snapshot = root;
+        }
+
+        if (ReadByte(FieldPositionReader.AddressCurrentModule) != currentModule)
+        {
+            return MenuGilScreen.None;
+        }
+
+        return MainMenuSpeechOwnership.ResolveGilScreen(
+            currentModule,
+            shopBalanceVisible,
+            shopOwnershipRead,
+            ownsShop,
+            saveMenuSpeechTracker.IsActive,
+            rootMainMenuRenderEvidenceTracker.IsActive(now) &&
+                menuGilStateReader?.TryReadMainMenuSessionOpen(out var sessionOpen) == true &&
+                sessionOpen,
+            snapshot,
+            quitConfirmationStateReader?.TryRead(out _) == true);
     }
 
     private static bool IsKeyActive(short state) =>
@@ -7479,9 +7600,9 @@ public sealed class Mod : IModV1, IModV2
             if (config.SpeakMainMenuSelections)
             {
                 var speech = mainMenuSpeechScheduler.Observe(selection.SpokenText, now);
-                if (speech is not null)
+                if (speech is not null && Speak(speech))
                 {
-                    Speak(speech);
+                    mainMenuSelectionDelivered = true;
                 }
             }
         }
@@ -7505,6 +7626,7 @@ public sealed class Mod : IModV1, IModV2
         }
 
         mainMenuSpeechScheduler.Observe(string.Empty, now);
+        mainMenuSelectionDelivered = false;
     }
 
     private unsafe void TickMenuWidgetDiagnostics()
@@ -12648,6 +12770,36 @@ internal static class MainMenuSpeechOwnership
 
         return rootMenuRecentlyRendered &&
             currentModule is FieldPositionReader.FieldModule or WorldMapStateReader.WorldModule;
+    }
+
+    /// <summary>
+    /// The screen that is drawing the balance, from one fresh set of native
+    /// reads. The root menu needs the same ownership its speech needs, plus the
+    /// settled root state, so an older render lease cannot vouch for a submenu.
+    /// </summary>
+    internal static MenuGilScreen ResolveGilScreen(
+        byte currentModule,
+        bool shopBalanceVisible,
+        bool shopOwnershipRead,
+        bool ownsShop,
+        bool saveMenuOwnsSpeech,
+        bool rootMenuRecentlyRendered,
+        MainMenuSnapshot? mainMenu,
+        bool quitConfirmationVisible)
+    {
+        var rootMenuOwned = CanRead(
+            currentModule,
+            shopOwnershipRead,
+            ownsShop,
+            saveMenuOwnsSpeech,
+            rootMenuRecentlyRendered);
+        return MenuGilStateReader.ResolveScreen(
+            currentModule == ShopMenuStateReader.ShopModule && shopBalanceVisible &&
+                shopOwnershipRead && ownsShop,
+            MenuGilStateReader.IsMainMenuBalanceVisible(
+                rootMenuOwned,
+                mainMenu,
+                quitConfirmationVisible));
     }
 }
 

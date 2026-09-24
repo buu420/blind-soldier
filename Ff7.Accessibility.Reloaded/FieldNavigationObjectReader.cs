@@ -45,7 +45,9 @@ public readonly record struct FieldNavigationObjectDefinition(
     bool UsesTalkInteraction = false,
     string? ManualNavigationGuidance = null,
     bool UsesPlayerCollisionRadius = false,
-    int? InteractionRadiusOverride = null);
+    int? InteractionRadiusOverride = null,
+    int[]? RequiredPlayerTriangles = null,
+    int[]? ExcludedPlayerTriangles = null);
 
 public static class FieldNavigationObjectCatalog
 {
@@ -187,7 +189,9 @@ public sealed class FieldNavigationObjectReader
         var modelStateRead = false;
         foreach (var definition in definitions)
         {
-            if (!MeetsRequiredState(definition) || IsCollected(definition))
+            if (!MeetsRequiredState(definition) ||
+                !MeetsPlayerTriangleConditions(definition, position.TriangleId) ||
+                IsCollected(definition))
             {
                 continue;
             }
@@ -336,6 +340,20 @@ public sealed class FieldNavigationObjectReader
         var value = readByte(address);
         return (value & collectedMask) == collectedMask;
     }
+
+    /// <summary>
+    /// A control with two faces is two objects, and each is only the one in front of the
+    /// party. uttmpin1's hanging scroll is the case: from the hall only its face is there to
+    /// see, and from the room behind it only its back - offering the far side would name a
+    /// room nobody has been shown, and it could not be reached through the scroll's lock.
+    /// </summary>
+    private static bool MeetsPlayerTriangleConditions(
+        FieldNavigationObjectDefinition definition,
+        ushort playerTriangle) =>
+        (definition.RequiredPlayerTriangles is not { Length: > 0 } required ||
+         required.Contains(playerTriangle)) &&
+        (definition.ExcludedPlayerTriangles is not { Length: > 0 } excluded ||
+         !excluded.Contains(playerTriangle));
 
     private bool MeetsRequiredState(FieldNavigationObjectDefinition definition)
     {

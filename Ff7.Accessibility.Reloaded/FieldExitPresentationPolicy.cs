@@ -9,11 +9,24 @@ public sealed class FieldExitPresentationPolicy
     private const string KalmWorldMapGatewayA = "gateway:335:9:2";
     private const string KalmWorldMapGatewayB = "gateway:335:10:2";
     private const string ChocoboFarmWorldMapGateway = "gateway:343:6:3";
-    private readonly Func<bool?> readKalmCompletion;
 
-    public FieldExitPresentationPolicy(Func<bool?> readKalmCompletion)
+    /// <summary>
+    /// uutai2 gateway 0, into the Hidden Room. Its passage is triangle 128, which the
+    /// field holds shut until the bell is rung; see <see cref="WutaiBellDoorStateReader"/>.
+    /// While it is shut the route planner can still reach the gateway's line from the bell
+    /// platform above it, so the exit is only published once the door is known to be open.
+    /// </summary>
+    private const string WutaiHiddenRoomGateway = "gateway:587:0:591";
+
+    private readonly Func<bool?> readKalmCompletion;
+    private readonly Func<bool?>? readWutaiBellDoorOpen;
+
+    public FieldExitPresentationPolicy(
+        Func<bool?> readKalmCompletion,
+        Func<bool?>? readWutaiBellDoorOpen = null)
     {
         this.readKalmCompletion = readKalmCompletion ?? throw new ArgumentNullException(nameof(readKalmCompletion));
+        this.readWutaiBellDoorOpen = readWutaiBellDoorOpen;
     }
 
     public IReadOnlyList<FieldNavigationTarget> Apply(IReadOnlyList<FieldNavigationTarget> targets)
@@ -25,10 +38,23 @@ public sealed class FieldExitPresentationPolicy
 
         var hasKalmBoundary = targets.Any(IsKalmWorldMapGateway);
         var kalmComplete = hasKalmBoundary ? TryReadKalmCompletion() : null;
+        var hasHiddenRoomGateway = targets.Any(target => target.StableId == WutaiHiddenRoomGateway);
+        var hiddenRoomOpen = hasHiddenRoomGateway ? TryReadWutaiBellDoorOpen() : null;
         var visible = new List<FieldNavigationTarget>(targets.Count);
         var addedWorldMapExit = false;
         foreach (var target in targets)
         {
+            if (target.StableId == WutaiHiddenRoomGateway)
+            {
+                // Unknown is not open. A door nobody can confirm is not offered.
+                if (hiddenRoomOpen == true)
+                {
+                    visible.Add(target);
+                }
+
+                continue;
+            }
+
             if (IsChocoboFarmWorldMapGateway(target))
             {
                 if (target.StableId == ChocoboFarmWorldMapGateway)
@@ -135,6 +161,23 @@ public sealed class FieldExitPresentationPolicy
         try
         {
             return readKalmCompletion();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private bool? TryReadWutaiBellDoorOpen()
+    {
+        if (readWutaiBellDoorOpen is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return readWutaiBellDoorOpen();
         }
         catch
         {

@@ -463,7 +463,8 @@ function Add-Definition {
         [switch] $KeepActiveOnArrival,
         [string] $ManualNavigationGuidance = '',
         [switch] $UsesPlayerCollisionRadius,
-        [switch] $UsesContactRange
+        [switch] $UsesContactRange,
+        [switch] $UsesHiddenTalkTarget
     )
 
     $definition = [ordered]@{
@@ -526,6 +527,14 @@ function Add-Definition {
             throw 'Native player collision radius requires a Location with a trigger line.'
         }
         $definition.usesPlayerCollisionRadius = $true
+    }
+    if ($UsesHiddenTalkTarget) {
+        # Only a Talk can be made with an entity that is not drawn, and only where the
+        # native script is built on it: see story-regions/Wutai.ps1.
+        if ($Kind -ne 'Model' -or $ScriptType -ne 'Talk') {
+            throw 'A hidden Talk target must be a Model row with a Talk script.'
+        }
+        $definition.usesHiddenTalkTarget = $true
     }
     $definitions.Add($definition)
 }
@@ -1779,7 +1788,7 @@ Add-Definition -FieldId 258 -FieldName 'blin67_2' -Kind 'Location' -Label 'Use t
 # They use installed trigger geometry and native state gates, including stretches
 # that advance no GameMoment and therefore cannot be found by write extraction.
 $genericDefinitionCount = $definitions.Count
-foreach ($region in @('CostaDelSol', 'MountCorel', 'NorthCorel', 'GoldSaucer', 'CorelPrison', 'CosmoCanyon', 'IcicleInn', 'GreatGlacier', 'GaeasCliff', 'MountNibel', 'Nibelheim', 'RocketTown', 'BoneVillage', 'GoldSaucerReturn', 'JunonEscape', 'Mideel', 'TempleOfTheAncients', 'CityOfTheAncients', 'WhirlwindMaze', 'JunonEscapeAndHighwind', 'MideelAndHugeMateria', 'UnderwaterReactor', 'RocketReturnAndAncients', 'MidgarRaid', 'HighwindEndgame', 'NorthernCrater', 'EarlyContinuity', 'OptionalRoomReturns', 'WhirlwindTransit', 'SubmarineBoarding', 'InFieldTravel', 'ReviewedArrivals', 'NativeEntryDoors', 'TransitContinuity')) {
+foreach ($region in @('CostaDelSol', 'MountCorel', 'NorthCorel', 'GoldSaucer', 'CorelPrison', 'CosmoCanyon', 'IcicleInn', 'GreatGlacier', 'GaeasCliff', 'MountNibel', 'Nibelheim', 'RocketTown', 'BoneVillage', 'GoldSaucerReturn', 'JunonEscape', 'Mideel', 'TempleOfTheAncients', 'CityOfTheAncients', 'WhirlwindMaze', 'JunonEscapeAndHighwind', 'MideelAndHugeMateria', 'UnderwaterReactor', 'RocketReturnAndAncients', 'MidgarRaid', 'HighwindEndgame', 'NorthernCrater', 'EarlyContinuity', 'OptionalRoomReturns', 'WhirlwindTransit', 'SubmarineBoarding', 'InFieldTravel', 'ReviewedArrivals', 'NativeEntryDoors', 'TransitContinuity', 'Wutai')) {
     . (Join-Path $scriptRoot "story-regions\$region.ps1")
 }
 

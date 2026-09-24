@@ -1295,5 +1295,839 @@
       }
     ],
     "expectEmpty": true
+  },
+  {
+    "id": "wutai-bar-first",
+    "fieldId": 579,
+    "moment": 640,
+    "state": [
+      {
+        "bank": 3,
+        "address": 207,
+        "value": 32
+      },
+      {
+        "bank": 3,
+        "address": 189,
+        "value": 32
+      }
+    ],
+    "expectedLabels": [
+      "Go into Turtle's Paradise"
+    ],
+    "expectedLine": {
+      "startX": -1409,
+      "startY": -477,
+      "startZ": 46,
+      "endX": -1409,
+      "endY": -378,
+      "endZ": 46
+    },
+    "expectedDestinationFieldIds": [
+      580
+    ],
+    "routeArrivalFromFieldId": 576,
+    "evidence": "User log (11), 2026-09-23: field576 Story0 while the chest said direction unavailable, and no visit to field580 was logged. Native uutai1/AD Script 3 sets bank3[189] bit5 on arrival; utapb/AD Script 3, requested by Reno's or Rude's Talk while bank3[189] bit1 is clear, is the first step.",
+    "nativeAnchors": [
+      {
+        "entityId": 19,
+        "scriptId": 3,
+        "hex": "8230BD05"
+      }
+    ]
+  },
+  {
+    "id": "wutai-turks-start-bar-scene",
+    "fieldId": 580,
+    "moment": 640,
+    "state": [
+      {
+        "bank": 3,
+        "address": 207,
+        "value": 32
+      },
+      {
+        "bank": 3,
+        "address": 189,
+        "value": 32
+      }
+    ],
+    "actors": [
+      {
+        "entityId": 15,
+        "x": -7,
+        "y": -55,
+        "z": 30
+      },
+      {
+        "entityId": 14,
+        "x": 89,
+        "y": -231,
+        "z": 30
+      },
+      {
+        "entityId": 13,
+        "x": -13,
+        "y": -140,
+        "z": 30
+      }
+    ],
+    "enabledLines": [
+      9
+    ],
+    "expectedLabels": [
+      "Talk to Reno",
+      "Talk to Rude"
+    ],
+    "forbiddenLabels": [
+      "Leave Turtle's Paradise"
+    ],
+    "evidence": "utapb RENO 15 and LUDE 14 Talk test bank3[189] bit1 and REQ AD Script 3, which sets it. IRENA 13 Talk does nothing before it.",
+    "nativeAnchors": [
+      {
+        "entityId": 15,
+        "scriptId": 1,
+        "hex": "1430BD0206"
+      },
+      {
+        "entityId": 15,
+        "scriptId": 1,
+        "hex": "010AC3"
+      },
+      {
+        "entityId": 14,
+        "scriptId": 1,
+        "hex": "010AC3"
+      },
+      {
+        "entityId": 10,
+        "scriptId": 3,
+        "hex": "8230BD01"
+      }
+    ]
+  },
+  {
+    "id": "wutai-chest-after-bar",
+    "fieldId": 576,
+    "moment": 640,
+    "state": [
+      {
+        "bank": 3,
+        "address": 207,
+        "value": 32
+      },
+      {
+        "bank": 3,
+        "address": 189,
+        "value": 34
+      }
+    ],
+    "actors": [
+      {
+        "entityId": 7,
+        "x": 198,
+        "y": 163,
+        "z": 0
+      }
+    ],
+    "enabledLines": [
+      8
+    ],
+    "expectedLabels": [
+      "Open the treasure chest"
+    ],
+    "forbiddenLabels": [
+      "Leave the Item Store"
+    ],
+    "evidence": "uta_im TAKARA Talk returns until bank3[189] bit1, writes bank1[59] bit1, then Yuffie's theft sets bank3[190] bit0. OYAJI2 Init stands at (146,158) in front of the chest until the same bank3[189] bit1.",
+    "nativeAnchors": [
+      {
+        "entityId": 7,
+        "scriptId": 1,
+        "hex": "1430BD0206"
+      },
+      {
+        "entityId": 7,
+        "scriptId": 1,
+        "hex": "82103B01"
+      },
+      {
+        "entityId": 7,
+        "scriptId": 1,
+        "hex": "8230BE00"
+      },
+      {
+        "entityId": 6,
+        "scriptId": 0,
+        "hex": "1430BD0206"
+      }
+    ]
+  },
+  {
+    "id": "wutai-shop-after-theft",
+    "fieldId": 576,
+    "moment": 640,
+    "state": [
+      {
+        "bank": 3,
+        "address": 207,
+        "value": 32
+      },
+      {
+        "bank": 3,
+        "address": 189,
+        "value": 34
+      },
+      {
+        "bank": 3,
+        "address": 190,
+        "value": 1
+      },
+      {
+        "bank": 1,
+        "address": 59,
+        "value": 2
+      }
+    ],
+    "actors": [
+      {
+        "entityId": 7,
+        "x": 198,
+        "y": 163,
+        "z": 0
+      }
+    ],
+    "enabledLines": [
+      8
+    ],
+    "expectedLabels": [
+      "Leave the Item Store"
+    ],
+    "forbiddenLabels": [
+      "Open the treasure chest"
+    ],
+    "expectedLine": {
+      "startX": -85,
+      "startY": -171,
+      "startZ": 0,
+      "endX": 1,
+      "endY": -174,
+      "endZ": 0
+    },
+    "expectedDestinationFieldIds": [
+      579
+    ],
+    "routeArrivalFromFieldId": 579,
+    "evidence": "After the theft the next step is outside: uta_im LINEJ 8 Go 1x map-jumps to uutai1.",
+    "nativeAnchors": [
+      {
+        "entityId": 8,
+        "scriptId": 5,
+        "hex": "604302F8FAB1042C00"
+      }
+    ]
+  },
+  {
+    "id": "wutai-folding-screen",
+    "fieldId": 578,
+    "moment": 640,
+    "state": [
+      {
+        "bank": 3,
+        "address": 207,
+        "value": 32
+      },
+      {
+        "bank": 3,
+        "address": 189,
+        "value": 34
+      },
+      {
+        "bank": 3,
+        "address": 190,
+        "value": 1
+      },
+      {
+        "bank": 1,
+        "address": 59,
+        "value": 2
+      }
+    ],
+    "enabledLines": [
+      16,
+      17,
+      18
+    ],
+    "expectedLabels": [
+      "Check behind the folding screen",
+      "Check behind the folding screen from the other side"
+    ],
+    "forbiddenLabels": [
+      "Leave the Old Man's House"
+    ],
+    "evidence": "utmin2 BYOBU 16 and BYOBUB 17 stay enabled only while bank3[190] bit0 is set and bit1 clear; either Go with Confirm runs YUFI Script 3, which sets bit1.",
+    "nativeAnchors": [
+      {
+        "entityId": 16,
+        "scriptId": 0,
+        "hex": "1430BE0106"
+      },
+      {
+        "entityId": 16,
+        "scriptId": 4,
+        "hex": "3120"
+      },
+      {
+        "entityId": 17,
+        "scriptId": 4,
+        "hex": "3120"
+      },
+      {
+        "entityId": 10,
+        "scriptId": 3,
+        "hex": "8230BE01"
+      }
+    ]
+  },
+  {
+    "id": "wutai-shaking-pot",
+    "fieldId": 579,
+    "moment": 640,
+    "state": [
+      {
+        "bank": 3,
+        "address": 207,
+        "value": 32
+      },
+      {
+        "bank": 3,
+        "address": 189,
+        "value": 34
+      },
+      {
+        "bank": 3,
+        "address": 190,
+        "value": 3
+      },
+      {
+        "bank": 1,
+        "address": 59,
+        "value": 2
+      }
+    ],
+    "actors": [
+      {
+        "entityId": 16,
+        "x": -1175,
+        "y": -776,
+        "z": 0
+      }
+    ],
+    "expectedLabels": [
+      "Check the shaking pot"
+    ],
+    "forbiddenLabels": [
+      "Go into the Old Man's House"
+    ],
+    "evidence": "uutai1 AD2 requests YUFI Script 4 while bank3[190] bit1 is set and bank3[189] bit2 clear: XYZI (-1175,-776) triangle 214, TLKON on, TALKR 180, no VISI. Her Talk is the only caller of the capture; AD Script 5 sets bank3[189] bit2. The Story row reads TLKON instead of visibility for this entity only.",
+    "nativeAnchors": [
+      {
+        "entityId": 20,
+        "scriptId": 0,
+        "hex": "0310C4"
+      },
+      {
+        "entityId": 16,
+        "scriptId": 4,
+        "hex": "A5000069FBF8FC0000D600"
+      },
+      {
+        "entityId": 16,
+        "scriptId": 4,
+        "hex": "C500B4"
+      },
+      {
+        "entityId": 19,
+        "scriptId": 5,
+        "hex": "8230BD02"
+      }
+    ]
+  },
+  {
+    "id": "wutai-follow-yuffie",
+    "fieldId": 581,
+    "moment": 640,
+    "state": [
+      {
+        "bank": 3,
+        "address": 207,
+        "value": 32
+      },
+      {
+        "bank": 3,
+        "address": 189,
+        "value": 46
+      },
+      {
+        "bank": 3,
+        "address": 190,
+        "value": 7
+      },
+      {
+        "bank": 1,
+        "address": 59,
+        "value": 2
+      }
+    ],
+    "expectedLabels": [
+      "Go into the back room"
+    ],
+    "expectedLine": {
+      "startX": 351,
+      "startY": -228,
+      "startZ": -33,
+      "endX": 306,
+      "endY": -298,
+      "endZ": -5
+    },
+    "expectedDestinationFieldIds": [
+      582
+    ],
+    "routeArrivalFromFieldId": 580,
+    "evidence": "yufy1 YUFI Script 4 says Follow me and sets bank3[190] bit2; AD holds triangle 1, the way to town, until bank3[189] bit0. The bar's second scene map-jumps here.",
+    "nativeAnchors": [
+      {
+        "entityId": 7,
+        "scriptId": 4,
+        "hex": "8230BE02"
+      },
+      {
+        "entityId": 10,
+        "scriptId": 0,
+        "hex": "6D010001"
+      }
+    ]
+  },
+  {
+    "id": "wutai-levers",
+    "fieldId": 582,
+    "moment": 640,
+    "state": [
+      {
+        "bank": 3,
+        "address": 207,
+        "value": 32
+      },
+      {
+        "bank": 3,
+        "address": 189,
+        "value": 46
+      },
+      {
+        "bank": 3,
+        "address": 190,
+        "value": 15
+      },
+      {
+        "bank": 1,
+        "address": 59,
+        "value": 2
+      },
+      {
+        "bank": 5,
+        "address": 0,
+        "value": 1
+      }
+    ],
+    "actors": [
+      {
+        "entityId": 7,
+        "x": 68,
+        "y": -243,
+        "z": -25
+      }
+    ],
+    "enabledLines": [
+      11
+    ],
+    "expectedLabels": [
+      "Use the levers"
+    ],
+    "forbiddenLabels": [
+      "Talk to Yuffie",
+      "Go back to the front room"
+    ],
+    "evidence": "yufy2 YUFI Talk requests AD Script 3 while bank5[0] is 0; her Script 7 sets it and switches SWITCH 11 on. Either answer at SWITCH sets bank3[190] bit4 and drops the cage.",
+    "nativeAnchors": [
+      {
+        "entityId": 7,
+        "scriptId": 1,
+        "hex": "1450000000"
+      },
+      {
+        "entityId": 7,
+        "scriptId": 7,
+        "hex": "80500001"
+      },
+      {
+        "entityId": 7,
+        "scriptId": 7,
+        "hex": "030BC7"
+      },
+      {
+        "entityId": 11,
+        "scriptId": 1,
+        "hex": "8230BE04"
+      }
+    ]
+  },
+  {
+    "id": "wutai-bell",
+    "fieldId": 587,
+    "moment": 640,
+    "state": [
+      {
+        "bank": 3,
+        "address": 207,
+        "value": 32
+      },
+      {
+        "bank": 3,
+        "address": 189,
+        "value": 47
+      },
+      {
+        "bank": 3,
+        "address": 190,
+        "value": 143
+      },
+      {
+        "bank": 1,
+        "address": 59,
+        "value": 2
+      }
+    ],
+    "enabledLines": [
+      17
+    ],
+    "expectedLabels": [
+      "Ring the bell"
+    ],
+    "forbiddenLabels": [
+      "Go back into town",
+      "Go through the open door"
+    ],
+    "evidence": "uutai2 AD holds triangle 114 before bank3[189] bit0 and triangle 128 after it unless bank5[3] is 1. KANE, rung with Confirm on triangle 138/139/140/86, releases 128 and sets bank5[3].",
+    "nativeAnchors": [
+      {
+        "entityId": 11,
+        "scriptId": 0,
+        "hex": "6D720001"
+      },
+      {
+        "entityId": 11,
+        "scriptId": 0,
+        "hex": "6D800001"
+      },
+      {
+        "entityId": 14,
+        "scriptId": 0,
+        "hex": "1450030000"
+      },
+      {
+        "entityId": 14,
+        "scriptId": 0,
+        "hex": "6D800000"
+      }
+    ]
+  },
+  {
+    "id": "wutai-open-door",
+    "fieldId": 587,
+    "moment": 640,
+    "state": [
+      {
+        "bank": 3,
+        "address": 207,
+        "value": 32
+      },
+      {
+        "bank": 3,
+        "address": 189,
+        "value": 47
+      },
+      {
+        "bank": 3,
+        "address": 190,
+        "value": 143
+      },
+      {
+        "bank": 1,
+        "address": 59,
+        "value": 2
+      },
+      {
+        "bank": 5,
+        "address": 3,
+        "value": 1
+      }
+    ],
+    "enabledLines": [
+      17
+    ],
+    "expectedLabels": [
+      "Go through the open door"
+    ],
+    "expectedLine": {
+      "startX": -865,
+      "startY": -4998,
+      "startZ": -72,
+      "endX": -778,
+      "endY": -4998,
+      "endZ": -76
+    },
+    "expectedDestinationFieldIds": [
+      591
+    ],
+    "routeArrivalFromFieldId": 591,
+    "evidence": "uutai2 gateway0 enters the Hidden Room once the bell has released triangle 128.",
+    "nativeAnchors": [
+      {
+        "entityId": 14,
+        "scriptId": 0,
+        "hex": "80500301"
+      }
+    ]
+  },
+  {
+    "id": "wutai-after-corneo",
+    "fieldId": 591,
+    "moment": 640,
+    "state": [
+      {
+        "bank": 3,
+        "address": 207,
+        "value": 32
+      },
+      {
+        "bank": 3,
+        "address": 189,
+        "value": 47
+      },
+      {
+        "bank": 3,
+        "address": 190,
+        "value": 143
+      },
+      {
+        "bank": 3,
+        "address": 191,
+        "value": 1
+      },
+      {
+        "bank": 1,
+        "address": 59,
+        "value": 2
+      }
+    ],
+    "expectedLabels": [
+      "Go after Corneo"
+    ],
+    "expectedLine": {
+      "startX": 251,
+      "startY": 475,
+      "startZ": 207,
+      "endX": 251,
+      "endY": 395,
+      "endZ": 207
+    },
+    "expectedDestinationFieldIds": [
+      590
+    ],
+    "routeArrivalFromFieldId": 587,
+    "evidence": "uttmpin4 AD sets bank3[191] bit0 as Corneo runs to (280,446), beside gateway0; uttmpin3 AD fights battle 622 on arrival and sets bit1.",
+    "nativeAnchors": [
+      {
+        "entityId": 7,
+        "scriptId": 0,
+        "hex": "8230BF00"
+      }
+    ]
+  },
+  {
+    "id": "wutai-reno",
+    "fieldId": 587,
+    "moment": 640,
+    "state": [
+      {
+        "bank": 3,
+        "address": 207,
+        "value": 32
+      },
+      {
+        "bank": 3,
+        "address": 189,
+        "value": 47
+      },
+      {
+        "bank": 3,
+        "address": 190,
+        "value": 143
+      },
+      {
+        "bank": 3,
+        "address": 191,
+        "value": 11
+      },
+      {
+        "bank": 1,
+        "address": 59,
+        "value": 2
+      }
+    ],
+    "actors": [
+      {
+        "entityId": 12,
+        "x": 553,
+        "y": -5260,
+        "z": 0
+      }
+    ],
+    "enabledLines": [
+      17
+    ],
+    "expectedLabels": [
+      "Talk to Reno"
+    ],
+    "forbiddenLabels": [
+      "Go back into town"
+    ],
+    "evidence": "uutai2 RENO shows while bank3[191] bit1 is set and bit2 clear; his Talk sets bank3[191] bit2 and bank13[80] bit5.",
+    "nativeAnchors": [
+      {
+        "entityId": 12,
+        "scriptId": 1,
+        "hex": "8230BF02"
+      },
+      {
+        "entityId": 12,
+        "scriptId": 1,
+        "hex": "82D05005"
+      }
+    ]
+  },
+  {
+    "id": "wutai-dachao",
+    "fieldId": 579,
+    "moment": 640,
+    "state": [
+      {
+        "bank": 3,
+        "address": 207,
+        "value": 32
+      },
+      {
+        "bank": 3,
+        "address": 189,
+        "value": 47
+      },
+      {
+        "bank": 3,
+        "address": 190,
+        "value": 143
+      },
+      {
+        "bank": 3,
+        "address": 191,
+        "value": 15
+      },
+      {
+        "bank": 13,
+        "address": 80,
+        "value": 32
+      },
+      {
+        "bank": 1,
+        "address": 59,
+        "value": 2
+      }
+    ],
+    "expectedLabels": [
+      "Go to the Da-chao Statue"
+    ],
+    "expectedLine": {
+      "startX": -1131,
+      "startY": 3748,
+      "startZ": 1,
+      "endX": -1027,
+      "endY": 3574,
+      "endZ": 1
+    },
+    "expectedDestinationFieldIds": [
+      592
+    ],
+    "routeArrivalFromFieldId": 587,
+    "evidence": "Reno's clue; datiao_6 plays the rescue on arrival while bank13[80] bit5 is set and bit6 clear, and map-jumps into yufy1, whose Director returns the Materia.",
+    "nativeAnchors": [
+      {
+        "entityId": 19,
+        "scriptId": 0,
+        "hex": "6DAA0001"
+      }
+    ]
+  },
+  {
+    "id": "wutai-quest-complete",
+    "fieldId": 579,
+    "moment": 640,
+    "state": [
+      {
+        "bank": 3,
+        "address": 207,
+        "value": 96
+      },
+      {
+        "bank": 3,
+        "address": 189,
+        "value": 63
+      },
+      {
+        "bank": 3,
+        "address": 190,
+        "value": 143
+      },
+      {
+        "bank": 3,
+        "address": 191,
+        "value": 15
+      },
+      {
+        "bank": 13,
+        "address": 80,
+        "value": 96
+      },
+      {
+        "bank": 1,
+        "address": 59,
+        "value": 2
+      }
+    ],
+    "actors": [
+      {
+        "entityId": 16,
+        "x": -1175,
+        "y": -776,
+        "z": 0
+      }
+    ],
+    "expectEmpty": true,
+    "evidence": "yufy1 AD Script 4 sets bank3[189] bit4 and bank3[207] bit6 when the Materia is returned; no Wutai row survives it.",
+    "nativeAnchors": [
+      {
+        "entityId": 19,
+        "scriptId": 0,
+        "hex": "6DAA0001"
+      }
+    ]
   }
 ]

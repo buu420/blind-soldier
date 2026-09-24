@@ -5,7 +5,7 @@
   "scannedGameMomentWrites": 334,
   "navigableGameMomentWrites": 118,
   "unresolvedAutomaticOrIndirectWrites": 219,
-  "definitionCount": 1342,
+  "definitionCount": 1387,
   "definitions": [
     {
       "fieldId": 115,
@@ -42437,6 +42437,1881 @@
         "startZ": 0,
         "endX": -17,
         "endY": -175,
+        "endZ": 0
+      }
+    },
+    {
+      "fieldId": 579,
+      "kind": "Location",
+      "label": "Go into Turtle's Paradise",
+      "entityId": -1,
+      "x": -1409,
+      "y": -427,
+      "z": 46,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 0,
+      "sourceFieldName": "uutai1",
+      "sourceEntityName": "gateway2",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 207,
+          "mask": 96,
+          "value": 32
+        },
+        {
+          "bank": 3,
+          "address": 189,
+          "mask": 2,
+          "value": 0
+        }
+      ],
+      "triggerLine": {
+        "startX": -1409,
+        "startY": -477,
+        "startZ": 46,
+        "endX": -1409,
+        "endY": -378,
+        "endZ": 46
+      }
+    },
+    {
+      "fieldId": 579,
+      "kind": "Location",
+      "label": "Go into the Item Store",
+      "entityId": -1,
+      "x": -1297,
+      "y": 1332,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 0,
+      "sourceFieldName": "uutai1",
+      "sourceEntityName": "gateway4",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 207,
+          "mask": 96,
+          "value": 32
+        },
+        {
+          "bank": 3,
+          "address": 189,
+          "mask": 2,
+          "value": 2
+        },
+        {
+          "bank": 3,
+          "address": 190,
+          "mask": 1,
+          "value": 0
+        }
+      ],
+      "triggerLine": {
+        "startX": -1340,
+        "startY": 1328,
+        "startZ": 0,
+        "endX": -1255,
+        "endY": 1337,
+        "endZ": 0
+      }
+    },
+    {
+      "fieldId": 579,
+      "kind": "Location",
+      "label": "Go into the Old Man's House",
+      "entityId": -1,
+      "x": 1177,
+      "y": 886,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 0,
+      "sourceFieldName": "uutai1",
+      "sourceEntityName": "gateway0",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 207,
+          "mask": 96,
+          "value": 32
+        },
+        {
+          "bank": 3,
+          "address": 190,
+          "mask": 1,
+          "value": 1
+        },
+        {
+          "bank": 3,
+          "address": 190,
+          "mask": 2,
+          "value": 0
+        }
+      ],
+      "triggerLine": {
+        "startX": 1142,
+        "startY": 921,
+        "startZ": 0,
+        "endX": 1212,
+        "endY": 852,
+        "endZ": 0
+      }
+    },
+    {
+      "fieldId": 579,
+      "kind": "Model",
+      "label": "Check the shaking pot",
+      "entityId": 16,
+      "x": 0,
+      "y": 0,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 0,
+      "sourceFieldName": "uutai1",
+      "sourceEntityName": "YUFI",
+      "sourceScriptType": "Talk",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 207,
+          "mask": 96,
+          "value": 32
+        },
+        {
+          "bank": 3,
+          "address": 190,
+          "mask": 2,
+          "value": 2
+        },
+        {
+          "bank": 3,
+          "address": 189,
+          "mask": 4,
+          "value": 0
+        }
+      ],
+      "completedCondition": {
+        "bank": 3,
+        "address": 189,
+        "mask": 4,
+        "value": 4
+      },
+      "usesHiddenTalkTarget": true
+    },
+    {
+      "fieldId": 579,
+      "kind": "Location",
+      "label": "Go back into Yuffie's House",
+      "entityId": -1,
+      "x": 452,
+      "y": 2518,
+      "z": 416,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 0,
+      "sourceFieldName": "uutai1",
+      "sourceEntityName": "gateway5",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 207,
+          "mask": 96,
+          "value": 32
+        },
+        {
+          "bank": 3,
+          "address": 189,
+          "mask": 4,
+          "value": 4
+        },
+        {
+          "bank": 3,
+          "address": 189,
+          "mask": 1,
+          "value": 0
+        }
+      ],
+      "triggerLine": {
+        "startX": 444,
+        "startY": 2478,
+        "startZ": 416,
+        "endX": 460,
+        "endY": 2559,
+        "endZ": 416
+      }
+    },
+    {
+      "fieldId": 579,
+      "kind": "Location",
+      "label": "Go to the Pagoda",
+      "entityId": -1,
+      "x": -3801,
+      "y": 2192,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 0,
+      "sourceFieldName": "uutai1",
+      "sourceEntityName": "gateway7",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 207,
+          "mask": 96,
+          "value": 32
+        },
+        {
+          "bank": 3,
+          "address": 189,
+          "mask": 1,
+          "value": 1
+        },
+        {
+          "bank": 3,
+          "address": 191,
+          "mask": 4,
+          "value": 0
+        }
+      ],
+      "triggerLine": {
+        "startX": -3873,
+        "startY": 2167,
+        "startZ": 0,
+        "endX": -3730,
+        "endY": 2218,
+        "endZ": 0
+      }
+    },
+    {
+      "fieldId": 579,
+      "kind": "Location",
+      "label": "Go to the Da-chao Statue",
+      "entityId": -1,
+      "x": -1079,
+      "y": 3661,
+      "z": 1,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 0,
+      "sourceFieldName": "uutai1",
+      "sourceEntityName": "gateway6",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 207,
+          "mask": 96,
+          "value": 32
+        },
+        {
+          "bank": 13,
+          "address": 80,
+          "mask": 96,
+          "value": 32
+        }
+      ],
+      "triggerLine": {
+        "startX": -1131,
+        "startY": 3748,
+        "startZ": 1,
+        "endX": -1027,
+        "endY": 3574,
+        "endZ": 1
+      }
+    },
+    {
+      "fieldId": 580,
+      "kind": "Model",
+      "label": "Talk to Reno",
+      "entityId": 15,
+      "x": 0,
+      "y": 0,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 0,
+      "sourceFieldName": "utapb",
+      "sourceEntityName": "RENO",
+      "sourceScriptType": "Talk",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 207,
+          "mask": 96,
+          "value": 32
+        },
+        {
+          "bank": 3,
+          "address": 189,
+          "mask": 2,
+          "value": 0
+        }
+      ],
+      "completedCondition": {
+        "bank": 3,
+        "address": 189,
+        "mask": 2,
+        "value": 2
+      }
+    },
+    {
+      "fieldId": 580,
+      "kind": "Model",
+      "label": "Talk to Rude",
+      "entityId": 14,
+      "x": 0,
+      "y": 0,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 0,
+      "sourceFieldName": "utapb",
+      "sourceEntityName": "LUDE",
+      "sourceScriptType": "Talk",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 207,
+          "mask": 96,
+          "value": 32
+        },
+        {
+          "bank": 3,
+          "address": 189,
+          "mask": 2,
+          "value": 0
+        }
+      ],
+      "completedCondition": {
+        "bank": 3,
+        "address": 189,
+        "mask": 2,
+        "value": 2
+      }
+    },
+    {
+      "fieldId": 580,
+      "kind": "Location",
+      "label": "Leave Turtle's Paradise",
+      "entityId": 9,
+      "x": -1,
+      "y": -529,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 50,
+      "sourceFieldName": "utapb",
+      "sourceEntityName": "LINEJ",
+      "sourceScriptType": "Go 1x",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 207,
+          "mask": 96,
+          "value": 32
+        }
+      ],
+      "triggerLine": {
+        "startX": -77,
+        "startY": -529,
+        "startZ": 0,
+        "endX": 75,
+        "endY": -529,
+        "endZ": 0
+      },
+      "requiredEnabledLineEntityId": 9,
+      "usesPlayerCollisionRadius": true
+    },
+    {
+      "fieldId": 576,
+      "kind": "Model",
+      "label": "Open the treasure chest",
+      "entityId": 7,
+      "x": 0,
+      "y": 0,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 0,
+      "sourceFieldName": "uta_im",
+      "sourceEntityName": "TAKARA",
+      "sourceScriptType": "Talk",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 207,
+          "mask": 96,
+          "value": 32
+        },
+        {
+          "bank": 3,
+          "address": 189,
+          "mask": 2,
+          "value": 2
+        },
+        {
+          "bank": 3,
+          "address": 190,
+          "mask": 1,
+          "value": 0
+        }
+      ],
+      "completedCondition": {
+        "bank": 1,
+        "address": 59,
+        "mask": 2,
+        "value": 2
+      }
+    },
+    {
+      "fieldId": 576,
+      "kind": "Location",
+      "label": "Leave the Item Store",
+      "entityId": 8,
+      "x": -42,
+      "y": -172,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 50,
+      "sourceFieldName": "uta_im",
+      "sourceEntityName": "LINEJ",
+      "sourceScriptType": "Go 1x",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 207,
+          "mask": 96,
+          "value": 32
+        }
+      ],
+      "triggerLine": {
+        "startX": -85,
+        "startY": -171,
+        "startZ": 0,
+        "endX": 1,
+        "endY": -174,
+        "endZ": 0
+      },
+      "requiredEnabledLineEntityId": 8,
+      "usesPlayerCollisionRadius": true
+    },
+    {
+      "fieldId": 578,
+      "kind": "Location",
+      "label": "Check behind the folding screen",
+      "entityId": 16,
+      "x": -86,
+      "y": -113,
+      "z": 10,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 0,
+      "sourceFieldName": "utmin2",
+      "sourceEntityName": "BYOBU",
+      "sourceScriptType": "Go",
+      "completesOnArrival": false,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 207,
+          "mask": 96,
+          "value": 32
+        },
+        {
+          "bank": 3,
+          "address": 190,
+          "mask": 1,
+          "value": 1
+        },
+        {
+          "bank": 3,
+          "address": 190,
+          "mask": 2,
+          "value": 0
+        }
+      ],
+      "completedCondition": {
+        "bank": 3,
+        "address": 190,
+        "mask": 2,
+        "value": 2
+      },
+      "triggerLine": {
+        "startX": -82,
+        "startY": -190,
+        "startZ": 10,
+        "endX": -91,
+        "endY": -37,
+        "endZ": 10
+      },
+      "requiredEnabledLineEntityId": 16,
+      "usesPlayerCollisionRadius": true
+    },
+    {
+      "fieldId": 578,
+      "kind": "Location",
+      "label": "Check behind the folding screen from the other side",
+      "entityId": 17,
+      "x": -171,
+      "y": 28,
+      "z": 10,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 0,
+      "sourceFieldName": "utmin2",
+      "sourceEntityName": "BYOBUB",
+      "sourceScriptType": "Go",
+      "completesOnArrival": false,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 207,
+          "mask": 96,
+          "value": 32
+        },
+        {
+          "bank": 3,
+          "address": 190,
+          "mask": 1,
+          "value": 1
+        },
+        {
+          "bank": 3,
+          "address": 190,
+          "mask": 2,
+          "value": 0
+        }
+      ],
+      "completedCondition": {
+        "bank": 3,
+        "address": 190,
+        "mask": 2,
+        "value": 2
+      },
+      "triggerLine": {
+        "startX": -202,
+        "startY": 21,
+        "startZ": 10,
+        "endX": -140,
+        "endY": 36,
+        "endZ": 10
+      },
+      "requiredEnabledLineEntityId": 17,
+      "usesPlayerCollisionRadius": true
+    },
+    {
+      "fieldId": 578,
+      "kind": "Location",
+      "label": "Leave the Old Man's House",
+      "entityId": 18,
+      "x": 0,
+      "y": -275,
+      "z": -1,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 50,
+      "sourceFieldName": "utmin2",
+      "sourceEntityName": "LINEJ",
+      "sourceScriptType": "Go 1x",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 207,
+          "mask": 96,
+          "value": 32
+        }
+      ],
+      "triggerLine": {
+        "startX": -50,
+        "startY": -275,
+        "startZ": -1,
+        "endX": 50,
+        "endY": -275,
+        "endZ": -1
+      },
+      "requiredEnabledLineEntityId": 18,
+      "usesPlayerCollisionRadius": true
+    },
+    {
+      "fieldId": 581,
+      "kind": "Location",
+      "label": "Go into the back room",
+      "entityId": -1,
+      "x": 328,
+      "y": -263,
+      "z": -19,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 0,
+      "sourceFieldName": "yufy1",
+      "sourceEntityName": "gateway0",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 207,
+          "mask": 96,
+          "value": 32
+        },
+        {
+          "bank": 3,
+          "address": 190,
+          "mask": 4,
+          "value": 4
+        },
+        {
+          "bank": 3,
+          "address": 189,
+          "mask": 1,
+          "value": 0
+        }
+      ],
+      "triggerLine": {
+        "startX": 351,
+        "startY": -228,
+        "startZ": -33,
+        "endX": 306,
+        "endY": -298,
+        "endZ": -5
+      }
+    },
+    {
+      "fieldId": 581,
+      "kind": "Location",
+      "label": "Leave Yuffie's House",
+      "entityId": 12,
+      "x": 5,
+      "y": -391,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 50,
+      "sourceFieldName": "yufy1",
+      "sourceEntityName": "LINEJ",
+      "sourceScriptType": "Go 1x",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 207,
+          "mask": 96,
+          "value": 32
+        },
+        {
+          "bank": 3,
+          "address": 189,
+          "mask": 1,
+          "value": 1
+        }
+      ],
+      "triggerLine": {
+        "startX": -43,
+        "startY": -391,
+        "startZ": 0,
+        "endX": 53,
+        "endY": -391,
+        "endZ": 0
+      },
+      "requiredEnabledLineEntityId": 12,
+      "usesPlayerCollisionRadius": true
+    },
+    {
+      "fieldId": 582,
+      "kind": "Model",
+      "label": "Talk to Yuffie",
+      "entityId": 7,
+      "x": 0,
+      "y": 0,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 0,
+      "sourceFieldName": "yufy2",
+      "sourceEntityName": "YUFI",
+      "sourceScriptType": "Talk",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 207,
+          "mask": 96,
+          "value": 32
+        },
+        {
+          "bank": 3,
+          "address": 189,
+          "mask": 1,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 190,
+          "mask": 16,
+          "value": 0
+        },
+        {
+          "bank": 5,
+          "address": 0,
+          "mask": 255,
+          "value": 0
+        }
+      ]
+    },
+    {
+      "fieldId": 582,
+      "kind": "Location",
+      "label": "Use the levers",
+      "entityId": 11,
+      "x": 114,
+      "y": 207,
+      "z": -25,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 0,
+      "sourceFieldName": "yufy2",
+      "sourceEntityName": "SWITCH",
+      "sourceScriptType": "[OK]",
+      "completesOnArrival": false,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 207,
+          "mask": 96,
+          "value": 32
+        },
+        {
+          "bank": 3,
+          "address": 189,
+          "mask": 1,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 190,
+          "mask": 16,
+          "value": 0
+        }
+      ],
+      "completedCondition": {
+        "bank": 3,
+        "address": 190,
+        "mask": 16,
+        "value": 16
+      },
+      "triggerLine": {
+        "startX": 50,
+        "startY": 207,
+        "startZ": -25,
+        "endX": 178,
+        "endY": 207,
+        "endZ": -25
+      },
+      "requiredEnabledLineEntityId": 11,
+      "usesPlayerCollisionRadius": true
+    },
+    {
+      "fieldId": 582,
+      "kind": "Location",
+      "label": "Use the levers again to raise the cage",
+      "entityId": 11,
+      "x": 114,
+      "y": 207,
+      "z": -25,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 0,
+      "sourceFieldName": "yufy2",
+      "sourceEntityName": "SWITCH",
+      "sourceScriptType": "[OK]",
+      "completesOnArrival": false,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 207,
+          "mask": 96,
+          "value": 32
+        },
+        {
+          "bank": 3,
+          "address": 190,
+          "mask": 16,
+          "value": 16
+        }
+      ],
+      "completedCondition": {
+        "bank": 3,
+        "address": 190,
+        "mask": 16,
+        "value": 0
+      },
+      "triggerLine": {
+        "startX": 50,
+        "startY": 207,
+        "startZ": -25,
+        "endX": 178,
+        "endY": 207,
+        "endZ": -25
+      },
+      "requiredEnabledLineEntityId": 11,
+      "usesPlayerCollisionRadius": true
+    },
+    {
+      "fieldId": 582,
+      "kind": "Location",
+      "label": "Go back to the front room",
+      "entityId": -1,
+      "x": -232,
+      "y": -584,
+      "z": 180,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 50,
+      "sourceFieldName": "yufy2",
+      "sourceEntityName": "gateway0",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 207,
+          "mask": 96,
+          "value": 32
+        },
+        {
+          "bank": 3,
+          "address": 189,
+          "mask": 1,
+          "value": 1
+        },
+        {
+          "bank": 3,
+          "address": 190,
+          "mask": 16,
+          "value": 0
+        }
+      ],
+      "triggerLine": {
+        "startX": -198,
+        "startY": -622,
+        "startZ": 180,
+        "endX": -266,
+        "endY": -546,
+        "endZ": 180
+      }
+    },
+    {
+      "fieldId": 587,
+      "kind": "Location",
+      "label": "Ring the bell",
+      "entityId": 14,
+      "x": -623,
+      "y": -4862,
+      "z": 127,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 0,
+      "sourceFieldName": "uutai2",
+      "sourceEntityName": "KANE",
+      "sourceScriptType": "Main",
+      "completesOnArrival": false,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 207,
+          "mask": 96,
+          "value": 32
+        },
+        {
+          "bank": 3,
+          "address": 189,
+          "mask": 1,
+          "value": 1
+        },
+        {
+          "bank": 3,
+          "address": 191,
+          "mask": 2,
+          "value": 0
+        },
+        {
+          "bank": 5,
+          "address": 3,
+          "mask": 255,
+          "value": 0
+        }
+      ],
+      "completedCondition": {
+        "bank": 5,
+        "address": 3,
+        "mask": 255,
+        "value": 1
+      },
+      "completionPlayerTriangles": [
+        138,
+        139,
+        140,
+        86
+      ]
+    },
+    {
+      "fieldId": 587,
+      "kind": "Location",
+      "label": "Go through the open door",
+      "entityId": -1,
+      "x": -821,
+      "y": -4998,
+      "z": -74,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 0,
+      "sourceFieldName": "uutai2",
+      "sourceEntityName": "gateway0",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 207,
+          "mask": 96,
+          "value": 32
+        },
+        {
+          "bank": 3,
+          "address": 189,
+          "mask": 1,
+          "value": 1
+        },
+        {
+          "bank": 3,
+          "address": 191,
+          "mask": 2,
+          "value": 0
+        },
+        {
+          "bank": 5,
+          "address": 3,
+          "mask": 255,
+          "value": 1
+        }
+      ],
+      "triggerLine": {
+        "startX": -865,
+        "startY": -4998,
+        "startZ": -72,
+        "endX": -778,
+        "endY": -4998,
+        "endZ": -76
+      }
+    },
+    {
+      "fieldId": 587,
+      "kind": "Model",
+      "label": "Talk to Reno",
+      "entityId": 12,
+      "x": 0,
+      "y": 0,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 0,
+      "sourceFieldName": "uutai2",
+      "sourceEntityName": "RENO",
+      "sourceScriptType": "Talk",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 207,
+          "mask": 96,
+          "value": 32
+        },
+        {
+          "bank": 3,
+          "address": 191,
+          "mask": 2,
+          "value": 2
+        },
+        {
+          "bank": 3,
+          "address": 191,
+          "mask": 4,
+          "value": 0
+        }
+      ],
+      "completedCondition": {
+        "bank": 3,
+        "address": 191,
+        "mask": 4,
+        "value": 4
+      }
+    },
+    {
+      "fieldId": 587,
+      "kind": "Location",
+      "label": "Go back into town",
+      "entityId": 17,
+      "x": 596,
+      "y": -5436,
+      "z": -56,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 50,
+      "sourceFieldName": "uutai2",
+      "sourceEntityName": "LINEJ",
+      "sourceScriptType": "Go 1x",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 207,
+          "mask": 96,
+          "value": 32
+        }
+      ],
+      "triggerLine": {
+        "startX": 656,
+        "startY": -5369,
+        "startZ": -35,
+        "endX": 536,
+        "endY": -5503,
+        "endZ": -77
+      },
+      "requiredEnabledLineEntityId": 17,
+      "usesPlayerCollisionRadius": true
+    },
+    {
+      "fieldId": 591,
+      "kind": "Location",
+      "label": "Go after Corneo",
+      "entityId": -1,
+      "x": 251,
+      "y": 435,
+      "z": 207,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 0,
+      "sourceFieldName": "uttmpin4",
+      "sourceEntityName": "gateway0",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 207,
+          "mask": 96,
+          "value": 32
+        },
+        {
+          "bank": 3,
+          "address": 191,
+          "mask": 1,
+          "value": 1
+        },
+        {
+          "bank": 3,
+          "address": 191,
+          "mask": 2,
+          "value": 0
+        }
+      ],
+      "triggerLine": {
+        "startX": 251,
+        "startY": 475,
+        "startZ": 207,
+        "endX": 251,
+        "endY": 395,
+        "endZ": 207
+      }
+    },
+    {
+      "fieldId": 591,
+      "kind": "Location",
+      "label": "Go back out to the Pagoda",
+      "entityId": -1,
+      "x": 8,
+      "y": -566,
+      "z": 8,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 50,
+      "sourceFieldName": "uttmpin4",
+      "sourceEntityName": "gateway1",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 207,
+          "mask": 96,
+          "value": 32
+        }
+      ],
+      "triggerLine": {
+        "startX": -52,
+        "startY": -566,
+        "startZ": 8,
+        "endX": 68,
+        "endY": -566,
+        "endZ": 8
+      }
+    },
+    {
+      "fieldId": 590,
+      "kind": "Location",
+      "label": "Go back to the Hidden Room",
+      "entityId": -1,
+      "x": -140,
+      "y": 426,
+      "z": 28,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 0,
+      "sourceFieldName": "uttmpin3",
+      "sourceEntityName": "gateway1",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 207,
+          "mask": 96,
+          "value": 32
+        },
+        {
+          "bank": 3,
+          "address": 191,
+          "mask": 2,
+          "value": 2
+        },
+        {
+          "bank": 3,
+          "address": 191,
+          "mask": 4,
+          "value": 0
+        }
+      ],
+      "triggerLine": {
+        "startX": -164,
+        "startY": 426,
+        "startZ": 28,
+        "endX": -116,
+        "endY": 426,
+        "endZ": 28
+      },
+      "requiredPlayerTriangles": [
+        21,
+        23,
+        24,
+        25,
+        32,
+        33
+      ]
+    },
+    {
+      "fieldId": 590,
+      "kind": "Location",
+      "label": "Go back out through the house",
+      "entityId": -1,
+      "x": 5,
+      "y": -371,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 0,
+      "sourceFieldName": "uttmpin3",
+      "sourceEntityName": "gateway0",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 207,
+          "mask": 96,
+          "value": 32
+        },
+        {
+          "bank": 3,
+          "address": 191,
+          "mask": 2,
+          "value": 2
+        },
+        {
+          "bank": 3,
+          "address": 191,
+          "mask": 4,
+          "value": 0
+        }
+      ],
+      "triggerLine": {
+        "startX": -56,
+        "startY": -369,
+        "startZ": 0,
+        "endX": 66,
+        "endY": -373,
+        "endZ": 0
+      },
+      "excludedPlayerTriangles": [
+        21,
+        23,
+        24,
+        25,
+        32,
+        33
+      ]
+    },
+    {
+      "fieldId": 589,
+      "kind": "Location",
+      "label": "Go back toward the Pagoda",
+      "entityId": -1,
+      "x": -4376,
+      "y": -525,
+      "z": 1123,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 0,
+      "sourceFieldName": "uttmpin2",
+      "sourceEntityName": "gateway0",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 207,
+          "mask": 96,
+          "value": 32
+        },
+        {
+          "bank": 3,
+          "address": 191,
+          "mask": 2,
+          "value": 2
+        },
+        {
+          "bank": 3,
+          "address": 191,
+          "mask": 4,
+          "value": 0
+        }
+      ],
+      "triggerLine": {
+        "startX": -4462,
+        "startY": -639,
+        "startZ": 1123,
+        "endX": -4291,
+        "endY": -412,
+        "endZ": 1123
+      },
+      "requiredPlayerTriangles": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        53,
+        54,
+        55,
+        56,
+        57,
+        58,
+        109,
+        110,
+        111,
+        114,
+        117,
+        118
+      ]
+    },
+    {
+      "fieldId": 588,
+      "kind": "Location",
+      "label": "Go back out to the Pagoda",
+      "entityId": -1,
+      "x": 119,
+      "y": -837,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 0,
+      "sourceFieldName": "uttmpin1",
+      "sourceEntityName": "gateway0",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 207,
+          "mask": 96,
+          "value": 32
+        },
+        {
+          "bank": 3,
+          "address": 191,
+          "mask": 2,
+          "value": 2
+        },
+        {
+          "bank": 3,
+          "address": 191,
+          "mask": 4,
+          "value": 0
+        }
+      ],
+      "triggerLine": {
+        "startX": 49,
+        "startY": -879,
+        "startZ": 0,
+        "endX": 189,
+        "endY": -795,
+        "endZ": 0
+      },
+      "excludedPlayerTriangles": [
+        94,
+        95,
+        96,
+        97
+      ]
+    },
+    {
+      "fieldId": 592,
+      "kind": "Location",
+      "label": "Climb Da-chao",
+      "entityId": -1,
+      "x": -8,
+      "y": -261,
+      "z": -570,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 0,
+      "sourceFieldName": "datiao_1",
+      "sourceEntityName": "gateway1",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 207,
+          "mask": 96,
+          "value": 32
+        },
+        {
+          "bank": 13,
+          "address": 80,
+          "mask": 96,
+          "value": 32
+        }
+      ],
+      "triggerLine": {
+        "startX": -61,
+        "startY": -263,
+        "startZ": -560,
+        "endX": 44,
+        "endY": -259,
+        "endZ": -580
+      }
+    },
+    {
+      "fieldId": 593,
+      "kind": "Location",
+      "label": "Keep climbing Da-chao",
+      "entityId": -1,
+      "x": -377,
+      "y": 48,
+      "z": 101,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 0,
+      "sourceFieldName": "datiao_2",
+      "sourceEntityName": "gateway2",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 207,
+          "mask": 96,
+          "value": 32
+        },
+        {
+          "bank": 13,
+          "address": 80,
+          "mask": 96,
+          "value": 32
+        }
+      ],
+      "triggerLine": {
+        "startX": -371,
+        "startY": 96,
+        "startZ": 108,
+        "endX": -383,
+        "endY": 0,
+        "endZ": 94
+      }
+    },
+    {
+      "fieldId": 596,
+      "kind": "Location",
+      "label": "Keep climbing Da-chao",
+      "entityId": -1,
+      "x": -154,
+      "y": -349,
+      "z": -234,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 0,
+      "sourceFieldName": "datiao_5",
+      "sourceEntityName": "gateway3",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 207,
+          "mask": 96,
+          "value": 32
+        },
+        {
+          "bank": 13,
+          "address": 80,
+          "mask": 96,
+          "value": 32
+        }
+      ],
+      "triggerLine": {
+        "startX": -195,
+        "startY": -380,
+        "startZ": -237,
+        "endX": -113,
+        "endY": -318,
+        "endZ": -231
+      }
+    },
+    {
+      "fieldId": 575,
+      "kind": "Location",
+      "label": "Leave the shop",
+      "entityId": 7,
+      "x": 0,
+      "y": -153,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 50,
+      "sourceFieldName": "uta_wa",
+      "sourceEntityName": "LINEJ",
+      "sourceScriptType": "Go 1x",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 207,
+          "mask": 96,
+          "value": 32
+        }
+      ],
+      "triggerLine": {
+        "startX": -64,
+        "startY": -153,
+        "startZ": 0,
+        "endX": 64,
+        "endY": -153,
+        "endZ": 0
+      },
+      "requiredEnabledLineEntityId": 7,
+      "usesPlayerCollisionRadius": true
+    },
+    {
+      "fieldId": 577,
+      "kind": "Location",
+      "label": "Leave the Cat's House",
+      "entityId": 5,
+      "x": 0,
+      "y": -159,
+      "z": -7,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 50,
+      "sourceFieldName": "utmin1",
+      "sourceEntityName": "LINEJ",
+      "sourceScriptType": "Go 1x",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 207,
+          "mask": 96,
+          "value": 32
+        }
+      ],
+      "triggerLine": {
+        "startX": -48,
+        "startY": -159,
+        "startZ": -7,
+        "endX": 48,
+        "endY": -159,
+        "endZ": -7
+      },
+      "requiredEnabledLineEntityId": 5,
+      "usesPlayerCollisionRadius": true
+    },
+    {
+      "fieldId": 585,
+      "kind": "Location",
+      "label": "Go back to the Cat's House",
+      "entityId": -1,
+      "x": 0,
+      "y": -364,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 50,
+      "sourceFieldName": "hideway3",
+      "sourceEntityName": "gateway0",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 207,
+          "mask": 96,
+          "value": 32
+        }
+      ],
+      "triggerLine": {
+        "startX": 52,
+        "startY": -364,
+        "startZ": 0,
+        "endX": -52,
+        "endY": -364,
+        "endZ": 0
+      }
+    },
+    {
+      "fieldId": 592,
+      "kind": "Location",
+      "label": "Go back down to town",
+      "entityId": 5,
+      "x": -4,
+      "y": -1314,
+      "z": -1733,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 50,
+      "sourceFieldName": "datiao_1",
+      "sourceEntityName": "jump",
+      "sourceScriptType": "Move",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 207,
+          "mask": 96,
+          "value": 32
+        }
+      ],
+      "triggerLine": {
+        "startX": -117,
+        "startY": -1293,
+        "startZ": -1724,
+        "endX": 108,
+        "endY": -1336,
+        "endZ": -1743
+      },
+      "requiredEnabledLineEntityId": 5
+    },
+    {
+      "fieldId": 593,
+      "kind": "Location",
+      "label": "Go back down",
+      "entityId": -1,
+      "x": -14,
+      "y": -298,
+      "z": -651,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 50,
+      "sourceFieldName": "datiao_2",
+      "sourceEntityName": "gateway0",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 207,
+          "mask": 96,
+          "value": 32
+        }
+      ],
+      "triggerLine": {
+        "startX": -69,
+        "startY": -297,
+        "startZ": -635,
+        "endX": 41,
+        "endY": -299,
+        "endZ": -668
+      }
+    },
+    {
+      "fieldId": 594,
+      "kind": "Location",
+      "label": "Go back the way you came",
+      "entityId": -1,
+      "x": -529,
+      "y": 84,
+      "z": -312,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 50,
+      "sourceFieldName": "datiao_3",
+      "sourceEntityName": "gateway0",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 207,
+          "mask": 96,
+          "value": 32
+        }
+      ],
+      "triggerLine": {
+        "startX": -558,
+        "startY": 150,
+        "startZ": -286,
+        "endX": -500,
+        "endY": 18,
+        "endZ": -338
+      }
+    },
+    {
+      "fieldId": 595,
+      "kind": "Location",
+      "label": "Go back the way you came",
+      "entityId": -1,
+      "x": 366,
+      "y": -14,
+      "z": -320,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 50,
+      "sourceFieldName": "datiao_4",
+      "sourceEntityName": "gateway0",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 207,
+          "mask": 96,
+          "value": 32
+        }
+      ],
+      "triggerLine": {
+        "startX": 413,
+        "startY": 26,
+        "startZ": -338,
+        "endX": 320,
+        "endY": -54,
+        "endZ": -302
+      }
+    },
+    {
+      "fieldId": 596,
+      "kind": "Location",
+      "label": "Go back down",
+      "entityId": -1,
+      "x": -151,
+      "y": 148,
+      "z": 134,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 50,
+      "sourceFieldName": "datiao_5",
+      "sourceEntityName": "gateway0",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 207,
+          "mask": 96,
+          "value": 32
+        }
+      ],
+      "triggerLine": {
+        "startX": -127,
+        "startY": 209,
+        "startZ": 142,
+        "endX": -175,
+        "endY": 87,
+        "endZ": 126
+      }
+    },
+    {
+      "fieldId": 597,
+      "kind": "Location",
+      "label": "Go back down",
+      "entityId": -1,
+      "x": -391,
+      "y": -224,
+      "z": -98,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 50,
+      "sourceFieldName": "datiao_6",
+      "sourceEntityName": "gateway0",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 207,
+          "mask": 96,
+          "value": 32
+        }
+      ],
+      "triggerLine": {
+        "startX": -382,
+        "startY": -283,
+        "startZ": -155,
+        "endX": -401,
+        "endY": -165,
+        "endZ": -41
+      }
+    },
+    {
+      "fieldId": 598,
+      "kind": "Location",
+      "label": "Go back the way you came",
+      "entityId": -1,
+      "x": -650,
+      "y": 424,
+      "z": 335,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 50,
+      "sourceFieldName": "datiao_7",
+      "sourceEntityName": "gateway0",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 207,
+          "mask": 96,
+          "value": 32
+        }
+      ],
+      "triggerLine": {
+        "startX": -598,
+        "startY": 483,
+        "startZ": 364,
+        "endX": -702,
+        "endY": 365,
+        "endZ": 307
+      }
+    },
+    {
+      "fieldId": 599,
+      "kind": "Location",
+      "label": "Go back the way you came",
+      "entityId": -1,
+      "x": -265,
+      "y": -1140,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 50,
+      "sourceFieldName": "datiao_8",
+      "sourceEntityName": "gateway0",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 207,
+          "mask": 96,
+          "value": 32
+        }
+      ],
+      "triggerLine": {
+        "startX": -308,
+        "startY": -1094,
+        "startZ": 0,
+        "endX": -222,
+        "endY": -1187,
         "endZ": 0
       }
     }

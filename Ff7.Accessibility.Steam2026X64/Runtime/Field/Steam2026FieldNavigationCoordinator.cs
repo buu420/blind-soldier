@@ -212,7 +212,9 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         exitLabelResolver = new FieldExitLabelResolver(
             fieldId => mapNames.Read(fieldId),
             mapNameReader.Read);
-        exitPresentationPolicy = new FieldExitPresentationPolicy(ReadKalmTownComplete);
+        exitPresentationPolicy = new FieldExitPresentationPolicy(
+            ReadKalmTownComplete,
+            new WutaiBellDoorStateReader(addressSpace).ReadDoorOpen);
         storyReader = new FieldStoryTargetReader(
             ReadInt32,
             ReadInt16,

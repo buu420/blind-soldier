@@ -9,6 +9,10 @@ namespace Ff7.Accessibility.Reloaded;
 /// </summary>
 public static class TownInteractionObjectCatalog
 {
+    /// <summary>uttmpin1's room behind the hanging scroll, as JIKU's own locks leave it.</summary>
+    /// <remarks>Declared before the table that uses it: static initialisers run in order.</remarks>
+    private static readonly int[] BehindTheHangingScroll = [94, 95, 96, 97];
+
     private static readonly IReadOnlyList<FieldNavigationObjectDefinition> Definitions =
     [
         // The seller grants a choice after accepting Mythril. Either native reward
@@ -81,14 +85,29 @@ public static class TownInteractionObjectCatalog
         Model(623, 9, "Insect", "anfrst_4", "bat3"),
         Model(623, 10, "Frog", "anfrst_4", "fro0"),
         Model(623, 16, "Beehive", "anfrst_4", "hanak"),
+        // uutai2/AD holds triangle 114, the only way up to the bell, until Yuffie's escape
+        // from the cage sets Bank[3][189] bit 0, and it never lets go before that.
         new(587, 14, FieldNavigationObjectKind.Named, Label: "Bell",
             SourceFieldName: "uutai2", SourceEntityName: "KANE",
             TargetKind: FieldNavigationObjectTargetKind.Location,
-            StaticX: -623, StaticY: -4862, StaticZ: 127, InteractionRadiusOverride: 12),
+            StaticX: -623, StaticY: -4862, StaticZ: 127, InteractionRadiusOverride: 12,
+            RequiredBank: 3, RequiredAddress: 189, RequiredMask: 0x01, RequiredValue: 0x01),
         new(588, 14, FieldNavigationObjectKind.Named, Label: "Hanging scroll",
             SourceFieldName: "uttmpin1", SourceEntityName: "JIKU",
             TargetKind: FieldNavigationObjectTargetKind.Location,
-            StaticX: -305, StaticY: -65, StaticZ: 0, InteractionRadiusOverride: 12),
+            StaticX: -305, StaticY: -65, StaticZ: 0, InteractionRadiusOverride: 12,
+            ExcludedPlayerTriangles: BehindTheHangingScroll),
+        // The same scroll from the room behind it. Coming back from hideway1, JIKU's Init
+        // holds triangle 22, so triangles 94 to 97 are all there is and the front of the
+        // scroll cannot be reached. Its reverse handler turns the scroll only from
+        // triangle 95 and only while the leader's X is greater than -619; this point and
+        // its whole arrival disc lie inside both. Each face is offered only from its own
+        // side, so the hall never names a room behind the scroll.
+        new(588, 14, FieldNavigationObjectKind.Named, Label: "Hanging scroll, other side",
+            SourceFieldName: "uttmpin1", SourceEntityName: "JIKU",
+            TargetKind: FieldNavigationObjectTargetKind.Location,
+            StaticX: -440, StaticY: -44, StaticZ: 0, InteractionRadiusOverride: 12,
+            RequiredPlayerTriangles: BehindTheHangingScroll),
     ];
 
     public static IReadOnlyList<FieldNavigationObjectDefinition> Create() => Definitions;

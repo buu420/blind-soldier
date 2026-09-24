@@ -18,6 +18,8 @@
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\GoldSaucerFollowupTests.cs" Link="SharedTests\GoldSaucerFollowupTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\BattleManipulateMenuTests.cs"
              Link="SharedTests\BattleManipulateMenuTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\MenuGilReadoutTests.cs"
+             Link="SharedTests\MenuGilReadoutTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\NorthCorelNpcTests.cs"
              Link="SharedTests\NorthCorelNpcTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\CondorBattleInitializationTests.cs"
@@ -81,6 +83,8 @@
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\CosmoCanyonNavigationCallerTests.cs" Link="SharedTests\CosmoCanyonNavigationCallerTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\ObservatoryApproachNavigationTests.cs" Link="SharedTests\ObservatoryApproachNavigationTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\CosmoObservatoryStoryTests.cs" Link="SharedTests\CosmoObservatoryStoryTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\WutaiMateriaQuestTests.cs" Link="SharedTests\WutaiMateriaQuestTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\WutaiHiddenRoomExitTests.cs" Link="SharedTests\WutaiHiddenRoomExitTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\MainStoryCoverageTests.cs" Link="SharedTests\MainStoryCoverageTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\StoryNativeBindingTests.cs" Link="SharedTests\StoryNativeBindingTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\NibelheimStoryTests.cs" Link="SharedTests\NibelheimStoryTests.cs" />

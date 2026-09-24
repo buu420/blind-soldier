@@ -41,6 +41,11 @@ Prison, the buggy and Gongaga onward, the western continent, the Temple of the
 Ancients, the northern journey, the Junon escape, the Highwind and the Huge
 Materia, the return to Midgar, and the Northern Crater.
 
+Wutai's optional Materia quest has Story steps from Turtle's Paradise through
+recovering the Materia, with return guidance in the related town rooms and Da-chao
+paths. In Godo's optional rooms, use Objects for the doors and hanging scroll, and
+Exits to travel between rooms.
+
 A definition tells Blind Soldier where the next required interaction or
 destination is for the progress state you are actually in. It is not a
 walkthrough and it does not make story or party choices for you.
@@ -98,6 +103,13 @@ again where one exists.
 
 Field and world-map navigation, routes, auto walk and the progress indicator
 are described under [Navigation](#navigation).
+
+Version 0.6.8 adds Story guidance through Wutai's materia-recovery quest, including
+the pub conversation required before the shop chest. It corrects the shaking-pot
+interaction, bell and hidden-room availability, and the return through the hanging
+scroll. Gil is announced in the main menu and shop screens that display it; `G`
+repeats the visible balance. Both runtime suites and native route checks passed;
+the quest still needs a live playthrough.
 
 Version 0.6.7 corrects Wutai's pass and bridge approaches, improves walking around
 terrain corners, and reads the controlled enemy's action list after Manipulate.
@@ -198,10 +210,10 @@ instead of reading unverified game memory.
 Choose one download from the
 [Blind Soldier Releases page](https://github.com/buu420/blind-soldier/releases):
 
-- [Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.6.7/Blind-Soldier-Portable.zip)
+- [Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.6.8/Blind-Soldier-Portable.zip)
   is the complete dual-runtime package. Use it for Steam 2026 x64 or when one
   extracted package must support both x86 and x64 installations.
-- [Blind-Soldier-2013-x86-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.6.7/Blind-Soldier-2013-x86-Portable.zip)
+- [Blind-Soldier-2013-x86-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.6.8/Blind-Soldier-2013-x86-Portable.zip)
   is the smaller legacy-only package. Use it for the 2013 x86 game, including
   stock 7th Heaven/FFNx. It deliberately contains no Steam 2026 launcher or
   x64 files.
@@ -312,17 +324,17 @@ Visual Studio C++ Build Tools, and PowerShell, then run:
 ```powershell
 .\Build-BlindSoldierPortablePackage.ps1 `
   -OutputPath .\artifacts\Blind-Soldier-Portable.zip `
-  -Version 0.6.7
+  -Version 0.6.8
 .\Verify-BlindSoldierPortablePackage.ps1 `
   -ArchivePath .\artifacts\Blind-Soldier-Portable.zip `
-  -ExpectedVersion 0.6.7
+  -ExpectedVersion 0.6.8
 .\Build-BlindSoldier2013PortablePackage.ps1 `
   -SourceArchivePath .\artifacts\Blind-Soldier-Portable.zip `
   -OutputPath .\artifacts\Blind-Soldier-2013-x86-Portable.zip `
-  -Version 0.6.7
+  -Version 0.6.8
 .\Verify-BlindSoldier2013PortablePackage.ps1 `
   -ArchivePath .\artifacts\Blind-Soldier-2013-x86-Portable.zip `
-  -ExpectedVersion 0.6.7 `
+  -ExpectedVersion 0.6.8 `
   -ExpectedSourceArchivePath .\artifacts\Blind-Soldier-Portable.zip
 ```
 
@@ -341,6 +353,7 @@ foreground. The normal game controls are unchanged.
 | Key | Action |
 | --- | --- |
 | `R` | Repeat the last message Blind Soldier spoke |
+| `G` | Read your current gil while a screen that shows it is open: the main menu, or a shop's buy list, buy quantity, materia sale list, or item sale quantity window |
 | `U` | Previous navigation category |
 | `O` | Next navigation category |
 | `J` | Previous target in the selected category |
@@ -356,6 +369,13 @@ foreground. The normal game controls are unchanged.
 Progress intervals are `5`, `10`, `15`, and `20` percent. `F6` and `F7` wrap
 around at either end. Key changes to progress settings last for the current
 game session; the installed configuration supplies the next launch's defaults.
+
+Opening the main menu announces your gil once, after the first menu item.
+Returning from a submenu does not repeat it. In shops, the screens that show
+your gil already include it in each item announcement. `G` reads the balance
+as it is at that moment, so it reflects a purchase or sale straight away. It
+stays silent where the game does not show your gil, such as fields, the world
+map, main-menu submenus, and a shop's Buy, Sell, and Exit choice.
 
 ### Controller navigation menu
 

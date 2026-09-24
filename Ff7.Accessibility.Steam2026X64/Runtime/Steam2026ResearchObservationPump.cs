@@ -47,6 +47,7 @@ internal sealed class Steam2026ResearchObservationPump
     private string? pendingSafeDialSpeech;
     private readonly RootMainMenuRenderEvidenceTracker rootMainMenuRenderEvidenceTracker =
         new(TimeSpan.FromMilliseconds(300));
+    private readonly MenuGilStateReader menuGilReader;
     private string? lastMainMenuStateKey;
     private int mainMenuRevision;
 
@@ -86,6 +87,7 @@ internal sealed class Steam2026ResearchObservationPump
             memory,
             memory as INativeMemoryWriter);
         dialogueReader = new Steam2026FieldDialogueObservationReader(translatedAddressSpace);
+        menuGilReader = new MenuGilStateReader(translatedAddressSpace);
         countdownReader = new FieldCountdownReader(translatedAddressSpace);
         fieldActivityStateReader = new FieldActivityStateReader(translatedAddressSpace);
         dialogueSpeechStabilityGate = new Steam2026FieldDialogueSpeechStabilityGate(
@@ -681,6 +683,71 @@ internal sealed class Steam2026ResearchObservationPump
         lastStateKey = null;
         return RuntimeDomainUpdate<MenuFrameObservation>.Closed;
     }
+
+    /// <summary>
+    /// Which native screen is drawing the balance right now, read fresh. The
+    /// root menu must also hold the same render-based ownership its speech uses.
+    /// </summary>
+    internal MenuGilScreen ReadVisibleMenuGilScreen(int moduleId)
+    {
+        if (!lifecycleReader.TryRead(out var currentLifecycle) ||
+            currentLifecycle.IsShuttingDown || !currentLifecycle.IsForeground ||
+            currentLifecycle.ModuleId != moduleId)
+        {
+            return MenuGilScreen.None;
+        }
+
+        var shopBalanceVisible = false;
+        var shopOwnershipRead = false;
+        var ownsShop = false;
+        if (moduleId == ShopMenuStateReader.ShopModule)
+        {
+            shopBalanceVisible = menuReader.TryReadShopBalanceVisibility(out var visible) &&
+                visible;
+            shopOwnershipRead = menuReader.TryReadShopMenuOwnership(out ownsShop);
+        }
+
+        MainMenuSnapshot? snapshot = menuReader.TryReadMainMenu(out var root)
+            ? root.State
+            : null;
+        return ResolveMenuGilScreen(
+            moduleId,
+            shopBalanceVisible,
+            shopOwnershipRead,
+            ownsShop,
+            rootMainMenuRenderEvidenceTracker.IsActive(DateTime.UtcNow) &&
+                ReadMainMenuGilSessionOpen() == true,
+            snapshot,
+            menuReader.TryReadQuitConfirmation(out _));
+    }
+
+    internal static MenuGilScreen ResolveMenuGilScreen(
+        int moduleId,
+        bool shopBalanceVisible,
+        bool shopOwnershipRead,
+        bool ownsShop,
+        bool rootMenuRecentlyRendered,
+        MainMenuSnapshot? mainMenu,
+        bool quitConfirmationVisible)
+    {
+        var rootMenuOwned = HasMainMenuOwnership(
+            moduleId,
+            shopOwnershipRead,
+            ownsShop,
+            rootMenuRecentlyRendered);
+        return MenuGilStateReader.ResolveScreen(
+            moduleId == ShopMenuStateReader.ShopModule && shopBalanceVisible &&
+                shopOwnershipRead && ownsShop,
+            MenuGilStateReader.IsMainMenuBalanceVisible(
+                rootMenuOwned,
+                mainMenu,
+                quitConfirmationVisible));
+    }
+
+    internal bool TryReadMenuGil(out uint gil) => menuGilReader.TryReadGil(out gil);
+
+    internal bool? ReadMainMenuGilSessionOpen() =>
+        menuGilReader.TryReadMainMenuSessionOpen(out var open) ? open : null;
 
     private static bool HasMainMenuOwnership(
         int moduleId,

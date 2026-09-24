@@ -39,6 +39,9 @@ public static class TownInteractionCoverageTests
 
         memory = new Memory();
         var bell = TownInteractionObjectCatalog.Create().Single(d => d.FieldId == 587);
+        Check(memory.Reader(bell).ReadTargets(memory.Position(587)).Count == 0,
+            "the bell is not offered while uutai2's AD still holds triangle 114 before the trap");
+        memory.SetRequiredState(bell);
         var target = memory.Reader(bell).ReadTargets(memory.Position(587)).Single();
         Check(target.InteractionRadius == 12 && target.Category == FieldNavigationCategory.Objects,
             "bell approach stays inside its activation triangle and remains optional");
@@ -94,10 +97,24 @@ public static class TownInteractionCoverageTests
                 else
                 {
                     Check(entity.Any(s => s.ScriptId == 0 && s.Opcodes.Any(o => o.Opcode == 0x31)), "background control polls Confirm");
-                    var triangle = row.FieldId == 587 ? 138 : 53;
+                    // The bell, the front of the hanging scroll, and its back: JIKU's
+                    // reverse turn is polled on triangle 95 behind a leader-X guard.
+                    var triangle = (row.FieldId, row.StaticX) switch
+                    {
+                        (587, _) => 138,
+                        (588, -440) => 95,
+                        _ => 53
+                    };
                     Check(entity.SelectMany(s => s.Opcodes).Any(o => o.Opcode == 0x16 && o.Bytes.Count == 8 &&
                         o.Bytes[1] == 0x60 && o.Bytes[6] == 0 &&
                         BitConverter.ToUInt16(o.Bytes.ToArray(), 4) == triangle), "native script tests the authored activation triangle");
+                    if (triangle == 95)
+                    {
+                        var guard = entity.SelectMany(s => s.Opcodes).Single(o => o.Opcode == 0x16 && o.Bytes.Count == 8 &&
+                            o.Bytes[1] == 0x60 && BitConverter.ToUInt16(o.Bytes.ToArray(), 2) == 2 && o.Bytes[6] == 2);
+                        Check(row.StaticX - row.InteractionRadiusOverride > BitConverter.ToInt16(guard.Bytes.ToArray(), 4),
+                            "reverse scroll arrival stays inside the native leader-X guard");
+                    }
                     var source = new FlevelDataSource(root);
                     Check(source.TryReadField(row.FieldId, out var encoded), "background control field can be decoded");
                     var data = Ff7LzsDecoder.DecodeFieldFile(encoded);
@@ -130,7 +147,12 @@ public static class TownInteractionCoverageTests
             var memory = new Memory();
             memory.Bytes[FieldNavigationObjectReader.AddressFieldModelIdArray + row.EntityId] = 1;
             memory.Bytes[Memory.Events + FieldNavigationObjectReader.FieldEventDataStride + FieldNavigationObjectReader.VisibilityOffset] = 1;
-            var position = memory.Position(row.FieldId) with { X = -2000 };
+            memory.SetRequiredState(row);
+            var position = memory.Position(row.FieldId) with
+            {
+                X = -2000,
+                TriangleId = (ushort)(row.RequiredPlayerTriangles is { Length: > 0 } triangles ? triangles[0] : 0)
+            };
             var target = memory.Reader(row).ReadTargets(position).Single();
             var controller = new FieldNavigationController(new FieldNavigationTargetSource([target]), new ApproachPlanner());
             var transform = new FieldNavigationControlTransform(0);
@@ -171,6 +193,21 @@ public static class TownInteractionCoverageTests
         {
             Bytes[FieldNavigationObjectReader.AddressFieldBankBase] = (byte)moment;
             Bytes[FieldNavigationObjectReader.AddressFieldBankBase + 1] = (byte)(moment >> 8);
+        }
+
+        /// <summary>Writes the one native byte a row is gated on, as its own script leaves it.</summary>
+        public void SetRequiredState(FieldNavigationObjectDefinition row)
+        {
+            if (row.RequiredMask == 0) return;
+            var address = row.RequiredBank switch
+            {
+                1 => FieldNavigationObjectReader.AddressFieldBankBase + row.RequiredAddress,
+                3 => FieldNavigationObjectReader.AddressFieldBankBase + 0x100 + row.RequiredAddress,
+                5 => FieldNavigationObjectReader.AddressTemporaryFieldBankBase + row.RequiredAddress,
+                11 => FieldNavigationObjectReader.AddressFieldBankBase + 0x200 + row.RequiredAddress,
+                _ => throw new InvalidOperationException($"unmodelled required bank {row.RequiredBank}")
+            };
+            Bytes[address] = (byte)((ReadByte(address) & ~row.RequiredMask) | row.RequiredValue);
         }
         public byte ReadByte(int a) => Bytes.GetValueOrDefault(a);
         public int ReadInt32(int a) => a == FieldNavigationObjectReader.AddressFieldEventDataPtr ? Events : 0;

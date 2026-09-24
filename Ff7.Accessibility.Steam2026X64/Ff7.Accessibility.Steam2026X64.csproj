@@ -1061,6 +1061,7 @@
     <Compile Include="..\Ff7.Accessibility.Reloaded\ReachableFieldExitTargetProvider.cs" Link="Shared\ReachableFieldExitTargetProvider.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldExitLabelResolver.cs" Link="Shared\FieldExitLabelResolver.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldExitPresentationPolicy.cs" Link="Shared\FieldExitPresentationPolicy.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\WutaiBellDoorStateReader.cs" Link="Shared\WutaiBellDoorStateReader.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldAreaDescriptionColdStartTracker.cs" Link="Shared\FieldAreaDescriptionColdStartTracker.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldAreaDescriptionStatus.cs" Link="Shared\FieldAreaDescriptionStatus.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldMapNameCatalog.cs" Link="Shared\FieldMapNameCatalog.cs" />
