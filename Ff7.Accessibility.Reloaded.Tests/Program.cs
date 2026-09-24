@@ -37,6 +37,8 @@ if (args.Contains("--story-coverage-only", StringComparer.OrdinalIgnoreCase))
     Ff7.Accessibility.Reloaded.Tests.RemainingStoryContinuityTests.RunWithInstalledGameData();
     Ff7.Accessibility.Reloaded.Tests.TownInteractionCoverageTests.Run();
     Ff7.Accessibility.Reloaded.Tests.TownInteractionCoverageTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.WutaiMateriaQuestTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.WutaiMateriaQuestTests.RunWithInstalledGameData();
     Ff7.Accessibility.Reloaded.Tests.WeaponSellerNavigationTests.Run();
     Ff7.Accessibility.Reloaded.Tests.WeaponSellerNavigationTests.RunWithInstalledGameData();
     Ff7.Accessibility.Reloaded.Tests.GoldSaucerPlatformExitTests.Run();
@@ -204,6 +206,18 @@ if (args.Contains("--main-menu-ownership-only", StringComparer.OrdinalIgnoreCase
 {
     Ff7.Accessibility.Reloaded.Tests.MainMenuOwnershipTests.Run();
     Console.WriteLine("FFVII x86 main-menu ownership tests passed.");
+    return;
+}
+
+if (args.Contains("--wutai-quest-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.WutaiMateriaQuestTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.WutaiMateriaQuestTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.WutaiHiddenRoomExitTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.WutaiHiddenRoomExitTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.TownInteractionCoverageTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.TownInteractionCoverageTests.RunWithInstalledGameData();
+    Console.WriteLine("FFVII x86 Wutai materia quest tests passed.");
     return;
 }
 
@@ -984,6 +998,10 @@ Ff7.Accessibility.Reloaded.Tests.GongagaNavigationTests.Run(CreateInstalledField
 Ff7.Accessibility.Reloaded.Tests.CosmoCanyonNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.ObservatoryApproachNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.CosmoObservatoryStoryTests.Run();
+Ff7.Accessibility.Reloaded.Tests.WutaiMateriaQuestTests.Run();
+Ff7.Accessibility.Reloaded.Tests.WutaiMateriaQuestTests.RunWithInstalledGameData();
+Ff7.Accessibility.Reloaded.Tests.WutaiHiddenRoomExitTests.Run();
+Ff7.Accessibility.Reloaded.Tests.WutaiHiddenRoomExitTests.RunWithInstalledGameData();
 Ff7.Accessibility.Reloaded.Tests.NibelheimStoryTests.Run();
 Ff7.Accessibility.Reloaded.Tests.NibelheimStoryTests.RunWithInstalledGameData();
 Ff7.Accessibility.Reloaded.Tests.RemainingStoryContinuityTests.Run();

@@ -441,12 +441,51 @@ foreach ($file in Get-ChildItem -LiteralPath $fieldJsonRoot -Filter '*.json') {
             }
         }
 
+        $requiredBank = -1
+        $requiredAddress = -1
+        $requiredMask = 0
+        $requiredValue = 0
+        $cueKindOverride = ''
+        if ($fieldName -eq 'uta_im' -and $entity.entityId -eq 7) {
+            # Wutai's Item Store chest is a step of the materia-recovery quest, not an
+            # ordinary treasure. Its Talk returns at once until the Turtle's Paradise
+            # scene has set Bank[3][189] bit 1, and until then the shopkeeper's own
+            # Init stands her between the counter and the chest. The Talk writes two
+            # bits: Bank[1][59] bit 1 is the chest's own, and Bank[3][190] bit 0 is
+            # Yuffie's theft that follows. She takes the Materia before the player can
+            # keep it, so the chest is named for what a sighted player sees rather than
+            # for the Materia inside it.
+            $theftWrites = @($operations |
+                Where-Object { $_.op -eq 'BITON' } |
+                ForEach-Object { "BITON:$($_.bd):$($_.d):$($_.bit)" })
+            foreach ($expectedWrite in @('BITON:1:59:1', 'BITON:3:190:0')) {
+                if ($expectedWrite -notin $theftWrites) {
+                    throw "Native Wutai chest drift for ${fieldName}:$($entity.entityId): expected $expectedWrite, found $($theftWrites -join ', ')"
+                }
+            }
+            $kind = 'Named'
+            $nativeId = -1
+            $quantity = 1
+            $label = 'Treasure chest'
+            $collectedBank = 1
+            $collectedAddress = 59
+            $collectedMask = 0x02
+            $requiredBank = 3
+            $requiredAddress = 189
+            $requiredMask = 0x02
+            $requiredValue = 0x02
+            $cueKindOverride = 'Chest'
+        }
+
         Add-Definition `
             -FieldId $fieldIds[$fieldName] -FieldName $fieldName -EntityId $entity.entityId `
             -EntityName $entity.entityName -ModelResource $modelResource -Kind $kind `
             -NativeId $nativeId -Label $label -Quantity $quantity `
             -CollectedBank $collectedBank -CollectedAddress $collectedAddress `
-            -CollectedMask $collectedMask -MinimumGameMoment $minimumGameMoment `
+            -CollectedMask $collectedMask -RequiredBank $requiredBank `
+            -RequiredAddress $requiredAddress -RequiredMask $requiredMask `
+            -RequiredValue $requiredValue -CueKindOverride $cueKindOverride `
+            -MinimumGameMoment $minimumGameMoment `
             -MaximumGameMoment $maximumGameMoment -UsesTalkInteraction $true
     }
 

@@ -66,7 +66,8 @@ public readonly record struct FieldStoryEventDefinition(
     int? RequiredEnabledLineEntityId = null,
     bool UsesPlayerCollisionRadius = false,
     bool UsesContactRange = false,
-    string? ManualNavigationGuidance = null);
+    string? ManualNavigationGuidance = null,
+    bool UsesHiddenTalkTarget = false);
 
 public static class FieldStoryEventCatalog
 {
@@ -276,7 +277,19 @@ public sealed class FieldStoryTargetReader
         }
 
         var eventAddress = eventTable + modelId * FieldNavigationObjectReader.FieldEventDataStride;
-        if (readByte(eventAddress + FieldNavigationObjectReader.VisibilityOffset) == 0)
+        if (definition.UsesHiddenTalkTarget)
+        {
+            // One step is a Talk with an entity that is not drawn. Wutai's shaking pot is
+            // uutai1/YUFI placed by XYZI with TLKON on, TALKR 180 and no VISI, and her Talk
+            // is the only caller of the capture - whose own VISI 1 is what first shows her.
+            // The script cannot work unless the game accepts that Talk while she is hidden,
+            // so this row asks only what TLKON says: whether she can be talked to now.
+            if (readByte(eventAddress + FieldNavigationNpcReader.TalkDisabledOffset) != 0)
+            {
+                return null;
+            }
+        }
+        else if (readByte(eventAddress + FieldNavigationObjectReader.VisibilityOffset) == 0)
         {
             return null;
         }

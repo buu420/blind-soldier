@@ -1341,7 +1341,7 @@ public sealed class Mod : IModV1, IModV2
                    before == after
                 ? (before & 0x01) == 0x01
                 : null;
-        });
+        }, new WutaiBellDoorStateReader(legacyAddressSpace).ReadDoorOpen);
         fieldNavigationNpcReader = new FieldNavigationNpcReader(
             ReadInt32,
             ReadInt16,
