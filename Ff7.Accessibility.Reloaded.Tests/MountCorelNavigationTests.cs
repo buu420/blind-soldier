@@ -12,6 +12,138 @@ internal static class MountCorelNavigationTests
         SameFieldTrackWrapRetainsTheSwitchObjective(createWalkmeshReader);
         OptionalCaveAndReturnUseReachableNativeGateways(createWalkmeshReader);
         NativeApproachAndLongBridgeRoutesReachTheirActualExits(createWalkmeshReader);
+        CorelPursuitReturnTakesTheGatewayOnThePartysOwnTrack(createWalkmeshReader);
+    }
+
+    /// <summary>
+    /// The Corel pursuit's way back through mtcrl_6 (game moments 1110..1115, Cid leading). The
+    /// field has a gateway to 462 on each of its two tracks, and after the first visit nothing
+    /// leads from the lower track up to the upper one: border5's and border6's Mains switch their
+    /// LINEs off from 427, and border5's event was the only way up (Cid's jump, handed back to
+    /// Cloud, which the catalog does not count as the player's). So every native arrival is sent
+    /// to the gateway on its own track, and the lower one is open because the first visit's
+    /// bridge switch set 3[222] bit5, without which AD locks 140 and 6.
+    /// </summary>
+    private static void CorelPursuitReturnTakesTheGatewayOnThePartysOwnTrack(
+        Func<int, FieldWalkmeshReader> createWalkmeshReader)
+    {
+        var scripts = Scripts();
+        byte[] fromMoment427 = [0x16, 0x20, 0, 0, 0xAB, 0x01, 0x04, 0x05];
+        foreach (var line in new[] { 10, 11 })
+        {
+            AssertOpcode(scripts, 464, line, 0, 14, fromMoment427, $"border{line - 5}'s Main tests 2[0] >= 427");
+            AssertOpcode(scripts, 464, line, 0, 22, [0xD1, 0], $"border{line - 5}'s Main then switches its LINE off");
+        }
+
+        AssertOpcode(scripts, 464, 4, 0, 19, [0x14, 0x30, 0xDE, 0x05, 0x0A, 0x0C], "AD tests 3[222] bit5 clear");
+        AssertOpcode(scripts, 464, 4, 0, 25, [0x6D, 0x8C, 0x00, 0x01], "and locks triangle 140");
+        AssertOpcode(scripts, 464, 4, 0, 29, [0x6D, 0x06, 0x00, 0x01], "and triangle 6");
+        AssertOpcode(scripts, 464, 22, 0, 2, [0xA0, 0x08], "entity 22 is Cid's model");
+        // border6's own drops (Aeris's and Tifa's copies, first visit only) stay published and
+        // the live LINE state retires them; border5 publishes nothing at all.
+        Equal(false, scripts.ReadField(464).Transitions.Any(transition => transition.SourceEntityId == 10),
+            "Cid's jump from border5 is not published as a way up");
+
+        var upperLine = new FieldNavigationTriggerLine(-3096, 917, 756, -3321, 1084, 756);
+        var lowerLine = new FieldNavigationTriggerLine(-2220, 264, 358, -1991, 97, 358);
+        var gateways = NativeGateways(464);
+        Equal(true, gateways.Contains((upperLine, 462)) && gateways.Contains((lowerLine, 462)),
+            "mtcrl_6's trigger table has a gateway to 462 on each track");
+
+        var memory = new MountMemory(464, lowered: true);
+        memory.SetGameMoment(1110);
+        var reader = memory.StoryReader();
+        var mesh = createWalkmeshReader(464);
+        var planner = CidLeading(mesh, scripts, memory);
+        foreach (var (x, y, triangle, line, from) in new[]
+                 {
+                     (4467, -3301, (ushort)74, lowerLine, "467 (North Corel)"),
+                     (1950, -1640, (ushort)115, lowerLine, "465 (the miner's cave)"),
+                     (-1911, 143, (ushort)151, lowerLine, "462's lower gateway"),
+                     (-3053, 976, (ushort)138, upperLine, "462's upper gateway")
+                 })
+        {
+            var arrival = Arrival(mesh, 464, x, y, triangle);
+            var target = Single(reader, arrival);
+            Equal("Follow the tracks back toward the reactor", target.Label, $"from {from}: the pursuit's way back");
+            Equal(line, target.TriggerLine!.Value, $"from {from}: the gateway on the party's own track");
+            Equal(true, planner.TryBuildRoute(arrival, target, out var route),
+                $"from {from}: Cid reaches it: {planner.LastDiagnostic}");
+            Equal(line, route.TargetTriggerLine, $"from {from}: the route ends on that gateway's line");
+            Equal(true, route.Portals.Where(portal => portal.TransitionKind is not null).All(portal =>
+                    scripts.ReadField(464).Transitions.Any(transition => transition.StableId == portal.TransitionId &&
+                        (transition.MoverEntityIds is null || transition.MoverEntityIds.Contains(22)))),
+                $"from {from}: every link the route rides is one that moves Cid");
+        }
+
+        memory.SetGameMoment(1115);
+        Equal(lowerLine, Single(reader, Arrival(mesh, 464, 4467, -3301, 74)).TriggerLine!.Value,
+            "the lower track keeps its own gateway to the end of the window");
+        Equal(upperLine, Single(reader, Arrival(mesh, 464, -3053, 976, 138)).TriggerLine!.Value,
+            "and so does the upper track");
+
+        // Nothing manufactures a way up: from the North Corel side the upper gateway is not a
+        // route, and the lower one needs the bridge down, since AD otherwise holds 140 and 6.
+        var fromNorthCorel = Arrival(mesh, 464, 4467, -3301, 74);
+        var upperGateway = new FieldNavigationTarget(464, FieldNavigationCategory.Story, "upper gateway", -3208, 1000, 756,
+            TriggerLine: upperLine);
+        var lowerGateway = new FieldNavigationTarget(464, FieldNavigationCategory.Story, "lower gateway", -2106, 181, 358,
+            TriggerLine: lowerLine);
+        Equal(false, planner.TryBuildRoute(fromNorthCorel, upperGateway, out _),
+            "the lower track has no way up to the upper gateway");
+        memory.SetLowered(false);
+        Equal(false, planner.TryBuildRoute(fromNorthCorel, lowerGateway, out _),
+            "with the bridge raised, 140 and 6 hold the North Corel side apart from gateway1");
+        Equal(true, planner.TryBuildRoute(Arrival(mesh, 464, -1911, 143, 151), lowerGateway, out _),
+            $"while the junction beside gateway1 still reaches it: {planner.LastDiagnostic}");
+    }
+
+    /// <summary>
+    /// The live runtime with Cid leading: his model (PC 8) is the controlled one, the leader is
+    /// character 8, and the LINEs switched off from 427 (border5 and border6) are off.
+    /// </summary>
+    private static FieldWalkmeshRoutePlanner CidLeading(FieldWalkmeshReader mesh,
+        FieldScriptNavigationCatalog scripts, MountMemory memory) => new(mesh,
+            new FieldBoundaryStateReader(memory.ReadInt32, memory.ReadByte, (_, _) => true),
+            field => new FieldScriptNavigationTransitionTracker(TimeSpan.Zero, () => DateTime.UtcNow)
+                .Resolve(
+                    field,
+                    scripts.ReadField(field).Transitions,
+                    transition => field != 464 || transition.SourceEntityId is not (10 or 11),
+                    entity => scripts.ReadScriptOpcodes(field, entity, 0)
+                        .Any(opcode => Convert.ToHexString(opcode.Bytes.ToArray()) == "A008"),
+                    () => 8)
+                .ToArray());
+
+    private static FieldPositionSnapshot Arrival(FieldWalkmeshReader mesh, int field, int x, int y, ushort triangle)
+    {
+        var walkmesh = mesh.Read(Position(field)).Walkmesh
+            ?? throw new InvalidOperationException($"field{field} walkmesh must be readable");
+        return Position(field, x, y, (int)Math.Round(walkmesh.Triangles[triangle].GetCentroid().Z), triangle);
+    }
+
+    /// <summary>A field's gateway lines and destinations, from its own trigger table.</summary>
+    private static HashSet<(FieldNavigationTriggerLine Line, int Destination)> NativeGateways(int field)
+    {
+        var source = new FlevelDataSource(Environment.GetEnvironmentVariable("FF7_ACCESSIBILITY_DATA_ROOT")!);
+        Equal(true, source.TryReadField(field, out var encoded), $"field{field} is in the archive");
+        var bytes = Ff7LzsDecoder.DecodeFieldFile(encoded);
+        var section = BitConverter.ToInt32(bytes, 6 + 7 * 4) + 4;
+        var gateways = new HashSet<(FieldNavigationTriggerLine, int)>();
+        for (var index = 0; index < 12; index++)
+        {
+            var at = section + 0x38 + index * 24;
+            var destination = BitConverter.ToInt16(bytes, at + 18);
+            if (destination >= 0)
+            {
+                gateways.Add((new FieldNavigationTriggerLine(
+                    BitConverter.ToInt16(bytes, at), BitConverter.ToInt16(bytes, at + 2), BitConverter.ToInt16(bytes, at + 4),
+                    BitConverter.ToInt16(bytes, at + 6), BitConverter.ToInt16(bytes, at + 8), BitConverter.ToInt16(bytes, at + 10)),
+                    destination));
+            }
+        }
+
+        return gateways;
     }
 
     internal static void NativeCheeringAnimationCannotBecomeThePlayersTrackJump(
@@ -31,6 +163,10 @@ internal static class MountCorelNavigationTests
         Equal(false, navigation.Transitions.Any(transition =>
                 transition.StableId == "jump:464:12:17:5:207"),
             "an NPC cheering animation must not send Cloud from the upper track onto the lower track");
+        Equal(true, navigation.Transitions
+                .Where(transition => transition.StableId.EndsWith(":17:5:207", StringComparison.Ordinal))
+                .All(transition => transition.MoverEntityIds is [17]),
+            "Aeris's cheering jump is only ever Aeris's own movement, never Cloud's");
         Equal(true, navigation.Transitions.Any(transition =>
                 transition.StableId == "ladder:464:6:16:3:322" &&
                 transition.RequiredInput == FieldNavigationInput.Up),
@@ -137,8 +273,14 @@ internal static class MountCorelNavigationTests
         var planner = Planner(createWalkmeshReader(464), scripts, memory);
         Equal(true, planner.TryBuildRoute(start, target, out var initial),
             $"the native upper corridor reaches the switch: {planner.LastDiagnostic}");
-        Equal(false, initial.Portals.Any(portal => portal.TransitionKind is not null),
-            "the upper corridor must not depend on a fabricated jump action");
+        // The one traversal the corridor may use is the wrap itself: Cloud's own copy of
+        // border9's party routine (entity 16, script 5, the XYZI asserted above) moves his
+        // model onto the other upper track. Nothing another character's copy does is his.
+        Equal(true, initial.Portals
+                .Where(portal => portal.TransitionKind is not null)
+                .All(portal => portal.TransitionId == "jump:464:12:16:5:247"),
+            "the upper corridor must not depend on a fabricated jump action: " + string.Join(", ",
+                initial.Portals.Where(portal => portal.TransitionKind is not null).Select(portal => portal.TransitionId)));
 
         var controller = new FieldNavigationController(new FieldNavigationTargetSource([target]), planner);
         var transform = new FieldNavigationControlTransform(0);
@@ -263,10 +405,32 @@ internal static class MountCorelNavigationTests
     private static FieldWalkmeshRoutePlanner Planner(FieldWalkmeshReader mesh,
         FieldScriptNavigationCatalog scripts, MountMemory memory) => new(mesh,
             new FieldBoundaryStateReader(memory.ReadInt32, memory.ReadByte, (_, _) => true),
-            field => scripts.ReadField(field).Transitions
+            field => new FieldScriptNavigationTransitionTracker(TimeSpan.Zero, () => DateTime.UtcNow)
+                .Resolve(
+                    field,
+                    scripts.ReadField(field).Transitions,
+                    _ => true,
+                    // The live runtime offers a character's own traversal only while that
+                    // character's model is the controlled one; on Mount Corel that is Cloud's,
+                    // the entity PC binds to character 0.
+                    entity => IsBoundToCloud(scripts, field, entity))
                 // mtcrl_9/border2 Main explicitly executes LINON0. The live
                 // runtime already filters disabled LINEs; reproduce that state.
                 .Where(transition => field != 467 || transition.SourceEntityId != 4).ToArray());
+
+    private static readonly Dictionary<(int Field, int Entity), bool> CloudBindings = [];
+
+    private static bool IsBoundToCloud(FieldScriptNavigationCatalog scripts, int field, int entity)
+    {
+        if (!CloudBindings.TryGetValue((field, entity), out var bound))
+        {
+            bound = scripts.ReadScriptOpcodes(field, entity, 0)
+                .Any(opcode => Convert.ToHexString(opcode.Bytes.ToArray()) == "A000");
+            CloudBindings[(field, entity)] = bound;
+        }
+
+        return bound;
+    }
 
     private static void NativeApproachAndLongBridgeRoutesReachTheirActualExits(
         Func<int, FieldWalkmeshReader> createWalkmeshReader)

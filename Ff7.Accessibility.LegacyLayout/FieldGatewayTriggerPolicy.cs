@@ -36,6 +36,12 @@ namespace Ff7.Accessibility.Reloaded;
 /// <para>Scripted exits are untouched. <c>MPJPO</c> only stops the static gateway table;
 /// a LINE whose script performs a MAPJUMP still works, which is exactly how the prison and
 /// the Highwind cockpit are left.</para>
+///
+/// <para>FieldGatewayTargetReader now also reads MPJPO's switch itself (script context
+/// +0x36), which covers the fields that turn their doors off for a scene and on again, and
+/// offers no gateway at all when the switch cannot be read. This list stays as the reviewed,
+/// data-derived statement of the fields whose Director disables every gateway at Init; its
+/// tests keep that statement checked against the installed scripts.</para>
 /// </summary>
 public static class FieldGatewayTriggerPolicy
 {

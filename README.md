@@ -104,6 +104,15 @@ again where one exists.
 Field and world-map navigation, routes, auto walk and the progress indicator
 are described under [Navigation](#navigation).
 
+Version 0.6.9 repairs shared script parsing, movement ownership and live exit
+conditions across both runtimes. It discovers more scripted paths and
+contact-based NPCs, keeps auto walk stopped after contact dialogue, and corrects
+additional Story and interaction steps in Cosmo Canyon, Gold Saucer, Junon,
+Fort Condor, Lucrecia's cave and the later Corel pursuit. All 702 mapped fields
+were audited and all 280 Story checkpoints passed; live playthroughs and some
+optional-object approaches still need verification. See the
+[release notes](docs/releases/v0.6.9.md) for the scope and remaining limits.
+
 Version 0.6.8 adds Story guidance through Wutai's materia-recovery quest, including
 the pub conversation required before the shop chest. It corrects the shaking-pot
 interaction, bell and hidden-room availability, and the return through the hanging
@@ -210,10 +219,10 @@ instead of reading unverified game memory.
 Choose one download from the
 [Blind Soldier Releases page](https://github.com/buu420/blind-soldier/releases):
 
-- [Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.6.8/Blind-Soldier-Portable.zip)
+- [Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.6.9/Blind-Soldier-Portable.zip)
   is the complete dual-runtime package. Use it for Steam 2026 x64 or when one
   extracted package must support both x86 and x64 installations.
-- [Blind-Soldier-2013-x86-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.6.8/Blind-Soldier-2013-x86-Portable.zip)
+- [Blind-Soldier-2013-x86-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.6.9/Blind-Soldier-2013-x86-Portable.zip)
   is the smaller legacy-only package. Use it for the 2013 x86 game, including
   stock 7th Heaven/FFNx. It deliberately contains no Steam 2026 launcher or
   x64 files.
@@ -324,17 +333,17 @@ Visual Studio C++ Build Tools, and PowerShell, then run:
 ```powershell
 .\Build-BlindSoldierPortablePackage.ps1 `
   -OutputPath .\artifacts\Blind-Soldier-Portable.zip `
-  -Version 0.6.8
+  -Version 0.6.9
 .\Verify-BlindSoldierPortablePackage.ps1 `
   -ArchivePath .\artifacts\Blind-Soldier-Portable.zip `
-  -ExpectedVersion 0.6.8
+  -ExpectedVersion 0.6.9
 .\Build-BlindSoldier2013PortablePackage.ps1 `
   -SourceArchivePath .\artifacts\Blind-Soldier-Portable.zip `
   -OutputPath .\artifacts\Blind-Soldier-2013-x86-Portable.zip `
-  -Version 0.6.8
+  -Version 0.6.9
 .\Verify-BlindSoldier2013PortablePackage.ps1 `
   -ArchivePath .\artifacts\Blind-Soldier-2013-x86-Portable.zip `
-  -ExpectedVersion 0.6.8 `
+  -ExpectedVersion 0.6.9 `
   -ExpectedSourceArchivePath .\artifacts\Blind-Soldier-Portable.zip
 ```
 

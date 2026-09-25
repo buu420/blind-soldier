@@ -11,6 +11,29 @@ public sealed class FieldNavigationNpcReader
     public const int CollisionRadiusOffset = 0x72;
     public const int TalkRadiusOffset = 0x74;
 
+    // 00637724 skips a model whose byte here is nonzero, so nothing can walk into it. SOLID
+    // sets it, and PC sets it for the companions it hides.
+    public const int CollisionDisabledOffset = 0x5F;
+
+    // The longest native field step: 00636C41 moves Sine * speed / 256 in 20.12 fixed point,
+    // and 2048 is the fastest speed the verified movement accepts - eight units.
+    private const int NativeMaximumStep = 8;
+
+    /// <summary>
+    /// How far from a model's centre the party is when walking at it touches it.
+    ///
+    /// <para>The touch is not measured at the party's centre. 00636C41 tests each step at
+    /// three probes, the party's own collision width ahead of the next position along the
+    /// heading and forty-five degrees either side, and 00637724 touches a model when a probe
+    /// lands closer to it than half the sum of the two widths (unsigned, +0x72). Walking
+    /// straight at it, the forward probe gets there with the centre one width plus that
+    /// half-sum away, and the step that does it is refused, so the party stops between that
+    /// and one step further out. A centre inside the half-sum is never reached by walking,
+    /// and from there every probe lands beyond the model.</para>
+    /// </summary>
+    public static int ContactReach(int playerWidth, int modelWidth) =>
+        playerWidth + (playerWidth + modelWidth) / 2 + NativeMaximumStep;
+
     private static readonly IReadOnlyList<FieldNavigationTarget> EmptyTargets =
         Array.Empty<FieldNavigationTarget>();
 
@@ -689,6 +712,39 @@ public sealed class FieldNavigationNpcReader
             var eventAddress = eventTable + modelId * FieldNavigationObjectReader.FieldEventDataStride;
             if (readByte(eventAddress + FieldNavigationObjectReader.VisibilityOffset) == 0)
             {
+                continue;
+            }
+
+            if (definition.ContactOnly)
+            {
+                // Walked into, not talked to. The collision routine (00637724) never reads the
+                // Talk flag and skips a model whose collision is off. The reach is where the
+                // movement probes touch it (ContactReach); the height band and the approach are
+                // the route's, as for any Contact target.
+                if (readByte(eventAddress + CollisionDisabledOffset) != 0)
+                {
+                    continue;
+                }
+
+                var contactLabel = ResolveLabel(definition);
+                if (contactLabel.Length == 0)
+                {
+                    continue;
+                }
+
+                targets.Add(new FieldNavigationTarget(
+                    definition.FieldId,
+                    FieldNavigationCategory.Npcs,
+                    contactLabel,
+                    FromModelFixedPoint(readInt32(eventAddress + FieldNavigationObjectReader.PositionXOffset)),
+                    FromModelFixedPoint(readInt32(eventAddress + FieldNavigationObjectReader.PositionYOffset)),
+                    FromModelFixedPoint(readInt32(eventAddress + FieldNavigationObjectReader.PositionZOffset)),
+                    $"npc:{definition.FieldId}:{definition.EntityId}",
+                    TriggerEntityId: definition.EntityId,
+                    InteractionRadius: ContactReach(
+                        (ushort)readInt16(playerEventAddress + CollisionRadiusOffset),
+                        (ushort)readInt16(eventAddress + CollisionRadiusOffset)),
+                    Activation: FieldNavigationActivation.Contact));
                 continue;
             }
 

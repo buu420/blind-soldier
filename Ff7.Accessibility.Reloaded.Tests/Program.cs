@@ -13,6 +13,23 @@ if (args.Length == 1 && string.Equals(args[0], PrismAbiProbeTests.ProbeSwitch, S
     Environment.Exit(PrismAbiProbeTests.RunProbeChild());
 }
 
+if (args.Contains("--field-execution-report", StringComparer.OrdinalIgnoreCase))
+{
+    Environment.Exit(Ff7.Accessibility.Reloaded.Tests.FieldScriptExecutionModelTests.Report());
+}
+
+if (args.Contains("--field-execution-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.FieldScriptExecutionModelTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.FieldScriptExecutionInstalledTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.FieldGatewayLiveSwitchTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.FieldContactNpcTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.FieldContactNpcTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.FieldTriangleExitTests.RunWithInstalledGameData(CreateInstalledFieldWalkmeshReader);
+    Console.WriteLine("FFVII x86 field execution model tests passed.");
+    return;
+}
+
 if (args.Contains("--town-coverage-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.TownInteractionCoverageTests.Run();
@@ -170,6 +187,15 @@ if (args.Contains("--battle-sense-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.BattleSenseSpeechTests.Run();
     Console.WriteLine("FFVII x86 battle Sense tests passed.");
+    return;
+}
+
+if (args.Contains("--mount-corel-only", StringComparer.OrdinalIgnoreCase))
+{
+    MountCorelNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
+    Ff7.Accessibility.Reloaded.Tests.NorthCorelNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
+    NorthCorelEtherInteractionTests.Run(CreateInstalledFieldWalkmeshReader);
+    Console.WriteLine("FFVII Mount Corel and North Corel navigation tests passed.");
     return;
 }
 
@@ -1002,6 +1028,10 @@ Ff7.Accessibility.Reloaded.Tests.WutaiMateriaQuestTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WutaiMateriaQuestTests.RunWithInstalledGameData();
 Ff7.Accessibility.Reloaded.Tests.WutaiHiddenRoomExitTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WutaiHiddenRoomExitTests.RunWithInstalledGameData();
+Ff7.Accessibility.Reloaded.Tests.FieldScriptExecutionModelTests.Run();
+Ff7.Accessibility.Reloaded.Tests.FieldScriptExecutionInstalledTests.RunWithInstalledGameData();
+Ff7.Accessibility.Reloaded.Tests.LucreciaCaveObjectTests.Run();
+Ff7.Accessibility.Reloaded.Tests.LucreciaCaveObjectTests.RunWithInstalledGameData();
 Ff7.Accessibility.Reloaded.Tests.NibelheimStoryTests.Run();
 Ff7.Accessibility.Reloaded.Tests.NibelheimStoryTests.RunWithInstalledGameData();
 Ff7.Accessibility.Reloaded.Tests.RemainingStoryContinuityTests.Run();
@@ -1382,6 +1412,11 @@ AssertFieldScriptLineStateReaderUsesNativeLinonState();
 AssertFieldScriptNavigationTransitionTrackerBridgesNativeLineFlicker();
 AssertFieldBoundaryStateReaderReadsNativeIdlckBits();
 AssertNativeFieldExitTargetProviderWaitsForStableSnapshotAndKeepsEveryExit();
+AssertMpjpoSwitchesGatewaysOffButKeepsScriptedExits();
+Ff7.Accessibility.Reloaded.Tests.FieldGatewayLiveSwitchTests.Run();
+Ff7.Accessibility.Reloaded.Tests.FieldContactNpcTests.Run();
+Ff7.Accessibility.Reloaded.Tests.FieldContactNpcTests.RunWithInstalledGameData();
+Ff7.Accessibility.Reloaded.Tests.FieldTriangleExitTests.RunWithInstalledGameData(CreateInstalledFieldWalkmeshReader);
 AssertReachableFieldExitTargetProviderHidesBlockedGateways();
 AssertFieldStoryReaderFollowsNativeReactorDoorOrder();
 AssertFieldStoryReaderUsesNextNativeMilestone();
@@ -16823,6 +16858,51 @@ static void AssertFieldBoundaryStateReaderReadsNativeIdlckBits()
     AssertEqual(false, invalid.IsUsable, "non-field modules must not expose stale boundary state");
 }
 
+// MPJPO (0061A4D4) only stops the movement handler checking the gateway table (00636C41);
+// LINE scripts are still run, so a scripted exit stays while the doors are off.
+static void AssertMpjpoSwitchesGatewaysOffButKeepsScriptedExits()
+{
+    var memory = new Dictionary<int, byte>();
+    const int triggerHeader = 0x02430000;
+    WriteFieldGatewayOwnership(memory, 119, triggerHeader);
+    InitializeGatewayTable(memory, triggerHeader);
+    WriteFieldGateway(memory, triggerHeader, 0, 0, 0, 0, 10, 0, 0, 118);
+    memory[0x00CC0D88 + FieldGatewayTargetReader.GatewaysDisabledOffset] = 1;
+
+    var now = new DateTime(2026, 9, 24, 0, 0, 0, DateTimeKind.Utc);
+    var provider = new NativeFieldExitTargetProvider(
+        new FieldGatewayTargetReader(new DictionaryLegacyAddressSpace(memory)),
+        _ =>
+        [
+            new FieldNavigationTarget(
+                119,
+                FieldNavigationCategory.Exits,
+                "Scripted exit",
+                300,
+                0,
+                0,
+                "script-exit:119:10:121",
+                DestinationFieldIds: [121])
+        ],
+        TimeSpan.Zero,
+        TimeSpan.Zero,
+        () => now);
+    var position = new FieldPositionSnapshot(1, 119, 0, 0, 0, 0, 0, 0);
+    _ = provider.ReadTargets(position);
+    now = now.AddMilliseconds(10);
+    var exits = provider.ReadTargets(position);
+    AssertEqual("script-exit:119:10:121", string.Join(",", exits.Select(exit => exit.StableId)),
+        "with MPJPO's switch on, the gateway is not offered and the scripted exit still is");
+    AssertContains(provider.LastDiagnostic, "MPJPO has switched the gateways off");
+
+    memory[0x00CC0D88 + FieldGatewayTargetReader.GatewaysDisabledOffset] = 0;
+    _ = provider.ReadTargets(position);
+    now = now.AddMilliseconds(10);
+    exits = provider.ReadTargets(position);
+    AssertEqual("gateway:119:0:118,script-exit:119:10:121", string.Join(",", exits.Select(exit => exit.StableId).Order(StringComparer.Ordinal)),
+        "switched back on, the gateway is offered again beside the scripted exit");
+}
+
 static void AssertNativeFieldExitTargetProviderWaitsForStableSnapshotAndKeepsEveryExit()
 {
     var memory = new Dictionary<int, byte>();
@@ -16999,6 +17079,11 @@ static void WriteFieldGatewayOwnership(
         memory,
         FieldNavigationControlReader.AddressFieldTriggersPtr,
         unchecked((uint)triggerHeader));
+    // The field's script context (00CC0D88 in the legacy image) with MPJPO's gateway switch,
+    // +0x36, at zero: the movement handler is checking the gateways.
+    const int scriptContext = 0x00CC0D88;
+    WriteUInt32(memory, FieldGatewayTargetReader.AddressScriptContextPointer, scriptContext);
+    memory[scriptContext + FieldGatewayTargetReader.GatewaysDisabledOffset] = 0;
 }
 
 static void InitializeGatewayTable(Dictionary<int, byte> memory, int triggerHeader)

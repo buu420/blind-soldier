@@ -44,6 +44,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
     private readonly Steam2026FieldNpcObservationReader npcObservationReader;
     private readonly FieldScriptNavigationCatalog scriptCatalog;
     private readonly FieldScriptLineStateReader lineStateReader;
+    private readonly FieldControlledEntityReader controlledEntityReader;
     private readonly FieldScriptNavigationTransitionTracker transitionTracker = new();
     private readonly Steam2026FailClosedFieldRoutePlanner routePlanner;
     private readonly ReachableFieldExitTargetProvider reachableExitProvider;
@@ -168,6 +169,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             ReadInt16,
             ReadByte);
         lineStateReader = new FieldScriptLineStateReader(addressSpace);
+        controlledEntityReader = new FieldControlledEntityReader(addressSpace);
         squatMinigameCueCoordinator = new SquatMinigameCueCoordinator(
             new SquatMinigameStateReader(addressSpace));
         junonMinigameCueCoordinator = new JunonMinigameCueCoordinator(
@@ -261,6 +263,8 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
 
         // Same native line state on this runtime: the observatory approach is only
         // offered while the game actually has the opening line switched on.
+        // A Contact is reached when the game starts the target's Contact script.
+        controller.ContactStarted = new FieldContactActivationReader(addressSpace).HasStarted;
         controller.NativeLineIsEnabled = (_, entityId) =>
             lineStateReader.TryRead(entityId, out var lineEnabled) ? lineEnabled : null;
         exitSpatial = Steam2026FieldExitSpatialCoordinator.Create(config, modDirectory, log);
@@ -1964,10 +1968,13 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         {
             var enabledScriptExits = scriptField.Exits.Where(exit =>
                 exit.TriggerEntityId < 0 || lineStateReader.IsEnabled(exit.TriggerEntityId)).ToArray();
+            // A destination whose MAPJUMP the field's own live flags keep from running is not a
+            // way out yet (the same guards the legacy runtime applies).
+            var guardedScriptExits = FieldScriptExitGuards.Apply(enabledScriptExits, scriptField.ExitGuards, addressSpace);
             targets.AddRange(Steam2026FieldScriptExitPolicy.Filter(
                 position.FieldId,
                 gameMoment,
-                enabledScriptExits));
+                guardedScriptExits));
         }
 
         return exitPresentationPolicy.Apply(
@@ -2029,7 +2036,9 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             var transitions = transitionTracker.Resolve(
                 fieldId,
                 field.Transitions,
-                transition => lineStateReader.IsEnabled(transition.SourceEntityId));
+                transition => lineStateReader.IsEnabled(transition.SourceEntityId),
+                controlledEntityReader.IsControlled,
+                controlledEntityReader.ReadPartyLeaderCharacter);
             diagnostic = $"live={transitions.Count}";
             return transitions;
         }

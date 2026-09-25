@@ -7,6 +7,17 @@ namespace Ff7.Accessibility.Reloaded;
 /// Reads the fixed FFVII field-gateway table from a failure-aware guest address
 /// space. Gateway destinations are metadata; the only raw visible label is
 /// <c>Exit</c> until a separate authoritative name resolver supplies a label.
+///
+/// <para>Whether the game honours the table at all is read live too. MPJPO (0061A4D4) writes
+/// its operand to script context +0x36, and the movement handler (00636C41) checks the
+/// gateways (00637EBA) only while that byte is zero, so a field can switch its doors off for
+/// a scene and on again. While it is nonzero no gateway is offered. The script context pointer
+/// and the switch are part of the same ownership bookends as the table, so another context, or
+/// the switch changing, during the read is a torn read. A switch that cannot be read makes the
+/// whole read unusable: a gateway is only offered when the game is known to be checking it,
+/// and nothing is claimed about one that is not known either way. LINE scripts are checked by
+/// the movement handler separately and are not affected (their exits come from the script
+/// catalog).</para>
 /// </summary>
 public sealed class FieldGatewayTargetReader
 {
@@ -14,6 +25,8 @@ public sealed class FieldGatewayTargetReader
     public const int GatewaysOffset = 0x38;
     public const int GatewayStride = 0x18;
     public const int DestinationFieldOffset = 0x12;
+    public const int AddressScriptContextPointer = 0x00CBF9D8;
+    public const int GatewaysDisabledOffset = 0x36;
 
     private const int GatewayTableByteCount = GatewayCount * GatewayStride;
     private const int SecondExitLineVertexOffset = 0x06;
@@ -88,9 +101,9 @@ public sealed class FieldGatewayTargetReader
         out string diagnostic)
     {
         frame = default;
-        if (!TryReadOwnership(out var before))
+        if (!TryReadOwnership(out var before, out var failure))
         {
-            diagnostic = $"field={position.FieldId}, gateway ownership read failed";
+            diagnostic = $"field={position.FieldId}, gateway ownership read failed: {failure}";
             return false;
         }
 
@@ -113,9 +126,9 @@ public sealed class FieldGatewayTargetReader
             return false;
         }
 
-        if (!TryReadOwnership(out var after))
+        if (!TryReadOwnership(out var after, out failure))
         {
-            diagnostic = $"field={position.FieldId}, gateway ownership bookend read failed";
+            diagnostic = $"field={position.FieldId}, gateway ownership bookend read failed: {failure}";
             return false;
         }
 
@@ -130,7 +143,7 @@ public sealed class FieldGatewayTargetReader
         return true;
     }
 
-    private bool TryReadOwnership(out FieldGatewayOwnership ownership)
+    private bool TryReadOwnership(out FieldGatewayOwnership ownership, out string failure)
     {
         ownership = default;
         if (!addressSpace.TryReadByte((uint)FieldPositionReader.AddressCurrentModule, out var module) ||
@@ -139,10 +152,26 @@ public sealed class FieldGatewayTargetReader
                 (uint)FieldNavigationControlReader.AddressFieldTriggersPtr,
                 out var triggerPointer))
         {
+            failure = "field state unreadable";
             return false;
         }
 
-        ownership = new FieldGatewayOwnership(module, fieldId, triggerPointer);
+        if (!addressSpace.TryReadUInt32((uint)AddressScriptContextPointer, out var context) ||
+            context == 0 ||
+            context > uint.MaxValue - GatewaysDisabledOffset)
+        {
+            failure = "script context unreadable";
+            return false;
+        }
+
+        if (!addressSpace.TryReadByte(context + GatewaysDisabledOffset, out var gatewaysDisabled))
+        {
+            failure = "gateway switch unreadable";
+            return false;
+        }
+
+        ownership = new FieldGatewayOwnership(module, fieldId, triggerPointer, context, gatewaysDisabled);
+        failure = string.Empty;
         return true;
     }
 
@@ -180,6 +209,15 @@ public sealed class FieldGatewayTargetReader
             LastDiagnostic =
                 $"field={position.FieldId}, trigger=0x{frame.Ownership.TriggerPointer:X8}, count=0, " +
                 "destinations=none; this field disables every gateway trigger";
+            return EmptyTargets;
+        }
+
+        if (frame.Ownership.GatewaysDisabled != 0)
+        {
+            LastDiagnostic =
+                $"field={position.FieldId}, trigger=0x{frame.Ownership.TriggerPointer:X8}, count=0, " +
+                $"destinations=none; MPJPO has switched the gateways off " +
+                $"(script context 0x{frame.Ownership.ScriptContext:X8} +0x36 = {frame.Ownership.GatewaysDisabled})";
             return EmptyTargets;
         }
 
@@ -257,7 +295,11 @@ public sealed class FieldGatewayTargetReader
     private readonly record struct FieldGatewayOwnership(
         byte Module,
         ushort FieldId,
-        uint TriggerPointer);
+        uint TriggerPointer,
+        // The script context the switch was read from (the pointer at 0x00CBF9D8).
+        uint ScriptContext,
+        // MPJPO's switch at script context +0x36: 0 while the gateways work.
+        byte GatewaysDisabled);
 
     private readonly record struct FieldGatewayFrame(
         FieldGatewayOwnership Ownership,

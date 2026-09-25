@@ -85,7 +85,11 @@ $directModelPickupSpecs = @(
     [pscustomobject]@{ FieldName = 'mtcrl_5'; EntityId = 5; ScriptType = 'Script 3'; ExpectedPickup = 'STITM:298:1'; CollectedBank = 15; CollectedAddress = 115; CollectedMask = 0x04; ManualNavigationGuidance = 'To reach this item, hold Right and repeatedly press OK during the fall. From here, press OK, then hold Up to climb back. Auto walk is unavailable for this item.' },
     [pscustomobject]@{ FieldName = 'mtcrl_5'; EntityId = 6; ScriptType = 'Script 3'; ExpectedPickup = 'STITM:196:1'; CollectedBank = 15; CollectedAddress = 115; CollectedMask = 0x08; ManualNavigationGuidance = 'To reach this item, hold Left and repeatedly press OK during the fall. From here, press OK, then hold Up to climb back. Auto walk is unavailable for this item.' },
     [pscustomobject]@{ FieldName = 'junmin2'; EntityId = 16; ScriptType = 'Talk'; ExpectedPickup = 'STITM:95:1'; ExpectedModelResource = 'junmin2shinra_guard.char'; ExpectedCollectedWrite = 'BITON:15:118:4'; CollectedBank = 15; CollectedAddress = 118; CollectedMask = 0x10 },
-    [pscustomobject]@{ FieldName = 'junmin5'; EntityId = 9; ScriptType = 'Talk'; ExpectedPickup = 'STITM:95:1'; ExpectedModelResource = 'junmin5shinra_guard.char'; ExpectedCollectedWrite = 'BITON:15:118:6'; CollectedBank = 15; CollectedAddress = 118; CollectedMask = 0x40 }
+    [pscustomobject]@{ FieldName = 'junmin5'; EntityId = 9; ScriptType = 'Talk'; ExpectedPickup = 'STITM:95:1'; ExpectedModelResource = 'junmin5shinra_guard.char'; ExpectedCollectedWrite = 'BITON:15:118:6'; CollectedBank = 15; CollectedAddress = 118; CollectedMask = 0x40 },
+    # Lucrecia's cave: one visible weapon model whose Talk awards both rewards, then hides it.
+    # Init shows it and enables Talk only once its native conditions hold (game moment 1197,
+    # Vincent in the party, bank1[51] bit4 clear), and the runtime gates on that live state.
+    [pscustomobject]@{ FieldName = 'zz4'; EntityId = 12; ScriptType = 'Talk'; ExpectedPickups = @('STITM:254:1', 'STITM:93:1'); Label = 'Death Penalty and Chaos'; ExpectedModelResource = 'zz4weapon_vinsen_w.char'; ExpectedCollectedWrite = 'BITON:1:51:4'; CollectedBank = 1; CollectedAddress = 51; CollectedMask = 0x10 }
 )
 
 function Add-Definition {
@@ -292,15 +296,19 @@ foreach ($file in Get-ChildItem -LiteralPath $fieldJsonRoot -Filter '*.json') {
                 Where-Object { $_.scriptType -eq $directSpec.ScriptType } |
                 Select-Object -First 1
             $pickups = @($pickupScript.ops | Where-Object { $_.op -in @('STITM', 'SMTRA') })
-            if ($null -eq $pickupScript -or $pickups.Count -ne 1) {
+            $expectedPickups = @(if ($directSpec.ExpectedPickups) { $directSpec.ExpectedPickups } else { $directSpec.ExpectedPickup })
+            if ($null -eq $pickupScript -or $pickups.Count -ne $expectedPickups.Count) {
                 throw "Missing direct model pickup script for ${fieldName}:$($entity.entityId)"
             }
 
             $pickup = $pickups[0]
             $quantity = if ($pickup.op -eq 'STITM') { [Math]::Max(1, [int]$pickup.a) } else { 1 }
-            $actualPickup = "$($pickup.op):$($pickup.t):$quantity"
-            if ($actualPickup -ne $directSpec.ExpectedPickup) {
-                throw "Native direct model pickup drift for ${fieldName}:$($entity.entityId): expected $($directSpec.ExpectedPickup), found $actualPickup"
+            $actualPickups = @($pickups | ForEach-Object {
+                $pickupQuantity = if ($_.op -eq 'STITM') { [Math]::Max(1, [int]$_.a) } else { 1 }
+                "$($_.op):$($_.t):$pickupQuantity"
+            })
+            if (($actualPickups -join ',') -ne ($expectedPickups -join ',')) {
+                throw "Native direct model pickup drift for ${fieldName}:$($entity.entityId): expected $($expectedPickups -join ','), found $($actualPickups -join ',')"
             }
             if ($directSpec.ExpectedModelResource -and
                 $modelResource -ne $directSpec.ExpectedModelResource) {
@@ -313,6 +321,19 @@ foreach ($file in Get-ChildItem -LiteralPath $fieldJsonRoot -Filter '*.json') {
                 if ($directSpec.ExpectedCollectedWrite -notin $collectedWrites) {
                     throw "Native direct model collection drift for ${fieldName}:$($entity.entityId): expected $($directSpec.ExpectedCollectedWrite), found $($collectedWrites -join ', ')"
                 }
+            }
+
+            if ($expectedPickups.Count -gt 1) {
+                # One visible object that awards several rewards is one target, named for
+                # everything the game says it received, not several overlapping inventory targets.
+                Add-Definition `
+                    -FieldId $fieldIds[$fieldName] -FieldName $fieldName -EntityId $entity.entityId `
+                    -EntityName $entity.entityName -ModelResource $modelResource `
+                    -Kind 'Named' -NativeId -1 -Label $directSpec.Label -Quantity 1 `
+                    -CollectedBank $directSpec.CollectedBank -CollectedAddress $directSpec.CollectedAddress `
+                    -CollectedMask $directSpec.CollectedMask -UsesTalkInteraction ($directSpec.ScriptType -eq 'Talk') `
+                    -ManualNavigationGuidance $directSpec.ManualNavigationGuidance
+                continue
             }
 
             Add-Definition `

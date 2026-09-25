@@ -822,5 +822,8 @@ internal sealed class FieldObservationFixture
 
         Write((uint)FieldBoundaryStateReader.AddressFieldGlobalObjectPtr, BitConverter.GetBytes(FieldGlobalPointer));
         Write(FieldGlobalPointer + FieldBoundaryStateReader.BoundaryBitsOffset, [0x05, 0x80]);
+        // The same object is the script context: MPJPO's gateway switch at +0x36 is off (0),
+        // so the movement handler is checking the gateways.
+        Write(FieldGlobalPointer + FieldGatewayTargetReader.GatewaysDisabledOffset, [0x00]);
     }
 }

@@ -1355,6 +1355,7 @@ public sealed class Mod : IModV1, IModV2
             fieldNavigationObjects.Select(definition => (definition.FieldId, definition.EntityId)),
             fieldScriptLineStateReader.IsEnabled);
         var fieldScriptNavigationTransitionTracker = new FieldScriptNavigationTransitionTracker();
+        var fieldControlledEntityReader = new FieldControlledEntityReader(legacyAddressSpace);
         var fieldStoryEvents = FieldStoryEventCatalog.CreateAllFields();
         fieldStoryTargetReader = new FieldStoryTargetReader(
             ReadInt32,
@@ -1388,7 +1389,9 @@ public sealed class Mod : IModV1, IModV2
                 fieldId,
                 result.Transitions,
                 fieldScriptLineStateReader.IsEnabled,
-                walkmesh);
+                walkmesh,
+                fieldControlledEntityReader.IsControlled,
+                fieldControlledEntityReader.ReadPartyLeaderCharacter);
         }
 
         fieldNavigationTransitionProvider = ReadNavigationTransitions;
@@ -1419,10 +1422,13 @@ public sealed class Mod : IModV1, IModV2
                     .Where(exit => exit.TriggerEntityId < 0 ||
                         fieldScriptLineStateReader.IsEnabled(exit.TriggerEntityId))
                     .ToArray();
+                // A destination whose MAPJUMP the field's own live flags keep from running is
+                // not a way out yet.
+                var guardedExits = FieldScriptExitGuards.Apply(enabledExits, result.ExitGuards, legacyAddressSpace);
                 return FieldScriptExitBranchPolicy.Resolve(
                     position.FieldId,
                     gameMoment,
-                    enabledExits);
+                    guardedExits);
             },
             labelResolver: fieldExitLabelResolver,
             presentationPolicy: fieldExitPresentationPolicy);
@@ -1490,6 +1496,8 @@ public sealed class Mod : IModV1, IModV2
         // game switches those lines on and off. Reading the live state is what keeps the
         // approach from walking the party to a trigger that is currently dead; a state
         // that cannot be read is not a promise either, so it answers null.
+        // A Contact is reached when the game starts the target's Contact script.
+        fieldNavigationController.ContactStarted = new FieldContactActivationReader(legacyAddressSpace).HasStarted;
         fieldNavigationController.NativeLineIsEnabled = (_, entityId) =>
             fieldScriptLineStateReader is { } lines && lines.TryRead(entityId, out var enabled)
                 ? enabled

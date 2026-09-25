@@ -35,6 +35,7 @@ AssertFieldAudibleCueOwnershipReaderReleasesClosedStaleMessageCount();
 AssertFieldBoundaryReaderChecksNestedPointerAndBookends();
 AssertFieldNavigationControlReaderChecksNestedPointerAndBookends();
 FieldGatewayTargetReaderTests.Run();
+Ff7.Accessibility.Reloaded.Tests.FieldGatewayLiveSwitchTests.Run();
 FieldOpcodeDialogueOwnershipTests.Run();
 FieldDialogueScriptLayoutTests.Run();
 FieldLineBufferSnapshotTests.Run();

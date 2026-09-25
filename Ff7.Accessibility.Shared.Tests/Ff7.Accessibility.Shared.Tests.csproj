@@ -11,4 +11,9 @@
   <ItemGroup>
     <ProjectReference Include="..\Ff7.Accessibility.LegacyLayout\Ff7.Accessibility.LegacyLayout.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <!-- MPJPO's live gateway switch: the same cases both test hosts run. -->
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\FieldGatewayLiveSwitchTests.cs" Link="SharedReaderTests\FieldGatewayLiveSwitchTests.cs" />
+  </ItemGroup>
 </Project>

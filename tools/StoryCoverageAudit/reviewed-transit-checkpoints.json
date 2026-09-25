@@ -1259,8 +1259,74 @@
     "expectedLabels": [
       "Follow the tracks back toward the reactor"
     ],
-    "evidence": "Corel pursuit: world14->458->459->460, or North Corel450->467->464->462->461->460. The native guard event in460 starts the pursuit only while15[144] bit0 is clear.",
-    "nativeAnchors": [],
+    "evidence": "Corel pursuit: world14->458->459->460, or North Corel450->467->464->462->461->460. The native guard event in460 starts the pursuit only while15[144] bit0 is clear. Corrected 2026-09-25: arriving from 467 (4467,-3301, triangle 74) the party is on the lower track, so the way back is gateway1 (-2220,264,358)-(-1991,97,358) to 462; the upper gateway0 cannot be reached from here. mtcrl_6 has a gateway to 462 on each of its two walkmesh tracks (MountCorel.ps1 mountUpperTrackTriangles/mountLowerTrackTriangles). After the first visit nothing leads from the lower track up to the upper one: border5 and border6 switch their LINEs off from 427 (16200000AB010405, D100), and border5's event was the only way up. AD's Main locks 140 and 6 while 3[222] bit5 is clear (1430DE050A0C, 6D8C0001, 6D060001); the disc-one bridge switch sets it (border4 BITON 3[222] bit5), and nothing clears it.",
+    "nativeAnchors": [
+      {
+        "entityId": 10,
+        "scriptId": 0,
+        "hex": "16200000AB010405"
+      },
+      {
+        "entityId": 11,
+        "scriptId": 0,
+        "hex": "16200000AB010405"
+      },
+      {
+        "entityId": 4,
+        "scriptId": 0,
+        "hex": "1430DE050A0C"
+      }
+    ],
+    "expectedLine": {
+      "startX": -2220,
+      "startY": 264,
+      "startZ": 358,
+      "endX": -1991,
+      "endY": 97,
+      "endZ": 358
+    },
+    "expectedDestinationFieldIds": [
+      462
+    ],
+    "state": [
+      {
+        "bank": 15,
+        "address": 144,
+        "value": 0
+      },
+      {
+        "bank": 3,
+        "address": 222,
+        "value": 32
+      }
+    ],
+    "routeArrivalFromFieldId": 467
+  },
+  {
+    "id": "reviewed-transit-464-1110-48-upper",
+    "fieldId": 464,
+    "moment": 1110,
+    "expectedLabels": [
+      "Follow the tracks back toward the reactor"
+    ],
+    "evidence": "Corel pursuit, arriving on the upper track from 462's upper gateway (-3053,976, triangle 138): the way back to 462 is that track's gateway0 (-3096,917,756)-(-3321,1084,756). mtcrl_6 has a gateway to 462 on each of its two walkmesh tracks (MountCorel.ps1 mountUpperTrackTriangles/mountLowerTrackTriangles). After the first visit nothing leads from the lower track up to the upper one: border5 and border6 switch their LINEs off from 427 (16200000AB010405, D100), and border5's event was the only way up. AD's Main locks 140 and 6 while 3[222] bit5 is clear (1430DE050A0C, 6D8C0001, 6D060001); the disc-one bridge switch sets it (border4 BITON 3[222] bit5), and nothing clears it.",
+    "nativeAnchors": [
+      {
+        "entityId": 10,
+        "scriptId": 0,
+        "hex": "16200000AB010405"
+      },
+      {
+        "entityId": 11,
+        "scriptId": 0,
+        "hex": "16200000AB010405"
+      },
+      {
+        "entityId": 4,
+        "scriptId": 0,
+        "hex": "1430DE050A0C"
+      }
+    ],
     "expectedLine": {
       "startX": -3096,
       "startY": 917,
@@ -1277,9 +1343,117 @@
         "bank": 15,
         "address": 144,
         "value": 0
+      },
+      {
+        "bank": 3,
+        "address": 222,
+        "value": 32
       }
     ],
-    "routeArrivalFromFieldId": 467
+    "triangle": 138,
+    "routeArrivalFromFieldId": 462,
+    "routeArrivalTriangle": 138
+  },
+  {
+    "id": "reviewed-transit-464-1110-48-lower-junction",
+    "fieldId": 464,
+    "moment": 1110,
+    "expectedLabels": [
+      "Follow the tracks back toward the reactor"
+    ],
+    "evidence": "Corel pursuit, arriving on the lower track from 462's lower gateway (-1911,143, triangle 151): the way back to 462 is gateway1 (-2220,264,358)-(-1991,97,358) beside it. mtcrl_6 has a gateway to 462 on each of its two walkmesh tracks (MountCorel.ps1 mountUpperTrackTriangles/mountLowerTrackTriangles). After the first visit nothing leads from the lower track up to the upper one: border5 and border6 switch their LINEs off from 427 (16200000AB010405, D100), and border5's event was the only way up. AD's Main locks 140 and 6 while 3[222] bit5 is clear (1430DE050A0C, 6D8C0001, 6D060001); the disc-one bridge switch sets it (border4 BITON 3[222] bit5), and nothing clears it.",
+    "nativeAnchors": [
+      {
+        "entityId": 10,
+        "scriptId": 0,
+        "hex": "16200000AB010405"
+      },
+      {
+        "entityId": 11,
+        "scriptId": 0,
+        "hex": "16200000AB010405"
+      },
+      {
+        "entityId": 4,
+        "scriptId": 0,
+        "hex": "1430DE050A0C"
+      }
+    ],
+    "expectedLine": {
+      "startX": -2220,
+      "startY": 264,
+      "startZ": 358,
+      "endX": -1991,
+      "endY": 97,
+      "endZ": 358
+    },
+    "expectedDestinationFieldIds": [
+      462
+    ],
+    "state": [
+      {
+        "bank": 15,
+        "address": 144,
+        "value": 0
+      },
+      {
+        "bank": 3,
+        "address": 222,
+        "value": 32
+      }
+    ],
+    "routeArrivalFromFieldId": 462,
+    "routeArrivalTriangle": 151
+  },
+  {
+    "id": "reviewed-transit-464-1110-48-cave",
+    "fieldId": 464,
+    "moment": 1110,
+    "expectedLabels": [
+      "Follow the tracks back toward the reactor"
+    ],
+    "evidence": "Corel pursuit, coming out of the miner's cave (465 gateway0 lands at 1950,-1640, triangle 115) onto the lower track: the way back to 462 is gateway1. mtcrl_6 has a gateway to 462 on each of its two walkmesh tracks (MountCorel.ps1 mountUpperTrackTriangles/mountLowerTrackTriangles). After the first visit nothing leads from the lower track up to the upper one: border5 and border6 switch their LINEs off from 427 (16200000AB010405, D100), and border5's event was the only way up. AD's Main locks 140 and 6 while 3[222] bit5 is clear (1430DE050A0C, 6D8C0001, 6D060001); the disc-one bridge switch sets it (border4 BITON 3[222] bit5), and nothing clears it.",
+    "nativeAnchors": [
+      {
+        "entityId": 10,
+        "scriptId": 0,
+        "hex": "16200000AB010405"
+      },
+      {
+        "entityId": 11,
+        "scriptId": 0,
+        "hex": "16200000AB010405"
+      },
+      {
+        "entityId": 4,
+        "scriptId": 0,
+        "hex": "1430DE050A0C"
+      }
+    ],
+    "expectedLine": {
+      "startX": -2220,
+      "startY": 264,
+      "startZ": 358,
+      "endX": -1991,
+      "endY": 97,
+      "endZ": 358
+    },
+    "expectedDestinationFieldIds": [
+      462
+    ],
+    "state": [
+      {
+        "bank": 15,
+        "address": 144,
+        "value": 0
+      },
+      {
+        "bank": 3,
+        "address": 222,
+        "value": 32
+      }
+    ],
+    "routeArrivalFromFieldId": 465
   },
   {
     "id": "reviewed-transit-462-1110-49",
@@ -3485,8 +3659,73 @@
     "expectedLabels": [
       "Follow the tracks back toward the reactor"
     ],
-    "evidence": "Corel pursuit: world14->458->459->460, or North Corel450->467->464->462->461->460. The native guard event in460 starts the pursuit only while15[144] bit0 is clear.",
-    "nativeAnchors": [],
+    "evidence": "Corel pursuit: world14->458->459->460, or North Corel450->467->464->462->461->460. The native guard event in460 starts the pursuit only while15[144] bit0 is clear. Corrected 2026-09-25: triangle 0 is on the lower track, whose way back is gateway1. mtcrl_6 has a gateway to 462 on each of its two walkmesh tracks (MountCorel.ps1 mountUpperTrackTriangles/mountLowerTrackTriangles). After the first visit nothing leads from the lower track up to the upper one: border5 and border6 switch their LINEs off from 427 (16200000AB010405, D100), and border5's event was the only way up. AD's Main locks 140 and 6 while 3[222] bit5 is clear (1430DE050A0C, 6D8C0001, 6D060001); the disc-one bridge switch sets it (border4 BITON 3[222] bit5), and nothing clears it.",
+    "nativeAnchors": [
+      {
+        "entityId": 10,
+        "scriptId": 0,
+        "hex": "16200000AB010405"
+      },
+      {
+        "entityId": 11,
+        "scriptId": 0,
+        "hex": "16200000AB010405"
+      },
+      {
+        "entityId": 4,
+        "scriptId": 0,
+        "hex": "1430DE050A0C"
+      }
+    ],
+    "expectedLine": {
+      "startX": -2220,
+      "startY": 264,
+      "startZ": 358,
+      "endX": -1991,
+      "endY": 97,
+      "endZ": 358
+    },
+    "expectedDestinationFieldIds": [
+      462
+    ],
+    "state": [
+      {
+        "bank": 15,
+        "address": 144,
+        "value": 0
+      },
+      {
+        "bank": 3,
+        "address": 222,
+        "value": 32
+      }
+    ]
+  },
+  {
+    "id": "reviewed-transit-464-1110-48-end-upper",
+    "fieldId": 464,
+    "moment": 1115,
+    "expectedLabels": [
+      "Follow the tracks back toward the reactor"
+    ],
+    "evidence": "Last moment of the pursuit window, standing on the upper track (triangle 138): the way back to 462 is gateway0. mtcrl_6 has a gateway to 462 on each of its two walkmesh tracks (MountCorel.ps1 mountUpperTrackTriangles/mountLowerTrackTriangles). After the first visit nothing leads from the lower track up to the upper one: border5 and border6 switch their LINEs off from 427 (16200000AB010405, D100), and border5's event was the only way up. AD's Main locks 140 and 6 while 3[222] bit5 is clear (1430DE050A0C, 6D8C0001, 6D060001); the disc-one bridge switch sets it (border4 BITON 3[222] bit5), and nothing clears it.",
+    "nativeAnchors": [
+      {
+        "entityId": 10,
+        "scriptId": 0,
+        "hex": "16200000AB010405"
+      },
+      {
+        "entityId": 11,
+        "scriptId": 0,
+        "hex": "16200000AB010405"
+      },
+      {
+        "entityId": 4,
+        "scriptId": 0,
+        "hex": "1430DE050A0C"
+      }
+    ],
     "expectedLine": {
       "startX": -3096,
       "startY": 917,
@@ -3503,8 +3742,14 @@
         "bank": 15,
         "address": 144,
         "value": 0
+      },
+      {
+        "bank": 3,
+        "address": 222,
+        "value": 32
       }
-    ]
+    ],
+    "triangle": 138
   },
   {
     "id": "reviewed-transit-462-1110-49-end",
