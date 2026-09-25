@@ -420,6 +420,14 @@ if (args.Contains("--corel-descriptions-only", StringComparer.OrdinalIgnoreCase)
     return;
 }
 
+if (args.Contains("--field-puzzles-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.FieldPuzzleStoryTests.Run(CreateInstalledFieldWalkmeshReader);
+    Steam2026FieldActivityRuntimeTests.Run();
+    Console.WriteLine("Steam 2026 x64 Pagoda, Cait Sith chase, Temple clock and field activity tests passed.");
+    return;
+}
+
 if (args.Contains("--costa-gold-navigation-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.CostaDelSolNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
@@ -868,6 +876,8 @@ Ff7.Accessibility.Reloaded.Tests.MotionActionDescriptionTests.Run();
 Ff7.Accessibility.Reloaded.Tests.MotionActionDescriptionTests.RunAgainstInstalledArchive();
 Ff7.Accessibility.Reloaded.Tests.CorelJourneyDescriptionTests.Run();
 MountCorelNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
+Ff7.Accessibility.Reloaded.Tests.FieldPuzzleStoryTests.Run(CreateInstalledFieldWalkmeshReader);
+Steam2026FieldActivityRuntimeTests.Run();
 Ff7.Accessibility.Reloaded.Tests.NorthCorelNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
 NorthCorelEtherInteractionTests.Run(CreateInstalledFieldWalkmeshReader);
 GoldSaucerFollowupTests.Run(Environment.GetEnvironmentVariable("FF7_ACCESSIBILITY_DATA_ROOT"));

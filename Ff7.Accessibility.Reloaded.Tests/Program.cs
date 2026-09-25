@@ -784,6 +784,13 @@ if (args.Contains("--mount-corel-navigation-only", StringComparer.OrdinalIgnoreC
     return;
 }
 
+if (args.Contains("--field-puzzles-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.FieldPuzzleStoryTests.Run(CreateInstalledFieldWalkmeshReader);
+    Console.WriteLine("FFVII x86 Pagoda, Cait Sith chase and Temple clock tests passed.");
+    return;
+}
+
 if (args.Contains("--cargo-navigation-only", StringComparer.OrdinalIgnoreCase))
 {
     CargoShipNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
@@ -1057,6 +1064,7 @@ Ff7.Accessibility.Reloaded.Tests.SubmarineMissionTests.Run();
 Ff7.Accessibility.Reloaded.Tests.Reactor5ButtonCueTests.Run();
 Ff7.Accessibility.Reloaded.Tests.CorelJourneyDescriptionTests.Run();
 MountCorelNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
+Ff7.Accessibility.Reloaded.Tests.FieldPuzzleStoryTests.Run(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.NorthCorelNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
 NorthCorelEtherInteractionTests.Run(CreateInstalledFieldWalkmeshReader);
 GoldSaucerFollowupTests.Run(Environment.GetEnvironmentVariable("FF7_ACCESSIBILITY_DATA_ROOT"));
@@ -14712,13 +14720,16 @@ static void AssertFieldActivityReadoutSpeaksTheNativeActivities()
         IReadOnlyList<FieldActivityModelReading>? models = null,
         IReadOnlyDictionary<int, FieldActivityWaitState>? waits = null,
         Func<int, bool>? lineEnabled = null,
-        Func<int, bool>? boundaryEnabled = null) =>
+        Func<int, bool>? boundaryEnabled = null,
+        // No triangle unless a case names one: the clock says where the party stands only
+        // when its triangle is one of the room's own parts (FieldPuzzleStoryTests covers it).
+        int playerTriangle = -1) =>
         new(
             fieldId,
             playerX,
             playerY,
             playerZ,
-            0,
+            playerTriangle,
             controlled,
             gameMoment,
             new FieldNavigationControlTransform(controlDirection),

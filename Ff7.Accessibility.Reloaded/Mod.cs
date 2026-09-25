@@ -389,6 +389,8 @@ public sealed class Mod : IModV1, IModV2
     private NativeFieldNavigationProgressBar? fieldNavigationProgressBar;
     private IntervalFieldNavigationProgressSink? fieldNavigationProgressSink;
     private WorldMapStateReader? worldMapStateReader;
+    private WorldMapDialogueReader? worldMapDialogueReader;
+    private readonly WorldMapDialogueTracker worldMapDialogueTracker = new();
     private WorldMapEntityReader? worldMapEntityReader;
     private MidgarZolomStateReader? midgarZolomStateReader;
     private readonly MidgarZolomCrossingTracker midgarZolomCrossingTracker = new();
@@ -2811,59 +2813,6 @@ public sealed class Mod : IModV1, IModV2
     /// </summary>
     private FieldActivityObservation ReadFieldActivityObservation(FieldPositionSnapshot position)
     {
-        var fieldId = position.FieldId;
-        var models = new List<FieldActivityModelReading>();
-        foreach (var entityId in FieldActivityReadout.ObservedEntities(fieldId))
-        {
-            models.Add(fieldActivityStateReader!.ReadModel(fieldId, entityId));
-        }
-
-        var waits = new Dictionary<int, FieldActivityWaitState>();
-        foreach (var entityId in FieldActivityReadout.ObservedWaitEntities(fieldId))
-        {
-            waits[entityId] = fieldActivityStateReader!.ReadWaitState(
-                fieldId,
-                entityId,
-                FieldActivityReadout.WaitAnchors(fieldId, entityId));
-        }
-
-        Func<int, bool>? isLineEnabled = null;
-        if (fieldScriptLineStateReader is not null &&
-            FieldActivityReadout.ObservedLineEntities(fieldId).Count > 0)
-        {
-            var enabled = new Dictionary<int, bool>();
-            var readable = true;
-            foreach (var entityId in FieldActivityReadout.ObservedLineEntities(fieldId))
-            {
-                if (!fieldScriptLineStateReader.TryRead(entityId, out var state))
-                {
-                    readable = false;
-                    break;
-                }
-
-                enabled[entityId] = state;
-            }
-
-            if (readable)
-            {
-                isLineEnabled = entityId => enabled.TryGetValue(entityId, out var state) && state;
-            }
-        }
-
-        Func<int, bool>? isBoundaryEnabled = null;
-        if (fieldActivityBoundaryStateReader is not null &&
-            FieldActivityReadout.ObservedBoundaryTriangles(fieldId).Count > 0)
-        {
-            var boundary = fieldActivityBoundaryStateReader.Read(
-                position,
-                FieldBoundaryStateReader.MaximumTriangleCount);
-            if (boundary.IsUsable)
-            {
-                var state = boundary.State;
-                isBoundaryEnabled = triangle => state.IsBoundaryEnabled(triangle);
-            }
-        }
-
         var controlResult = fieldNavigationControlReader?.Read(position)
             ?? new FieldNavigationControlReadResult(false, default, "control reader is not initialized");
 
@@ -2875,37 +2824,16 @@ public sealed class Mod : IModV1, IModV2
             fieldAudibleCueState.UserControl == 0 &&
             fieldAudibleCueState.MovieActive == 0;
 
-        // The cliff draws its body temperature in a native numeric window, whose value
-        // is stored apart from the text a window carries; a reader that only sees
-        // strings gets the word "Degrees" and never the number in front of it.
-        var numericWindowId = FieldActivityReadout.ObservedNumericWindow(fieldId);
-        var numericWindow = numericWindowId >= 0
-            ? fieldActivityStateReader!.ReadNumericWindow(fieldId, numericWindowId)
-            : default;
-
-        Func<int, int>? readTemporaryByte = FieldActivityReadout.NeedsTemporaryBank(fieldId)
-            ? index => ReadByte(FieldNavigationObjectReader.AddressTemporaryFieldBankBase + index)
-            : null;
-
-        return new FieldActivityObservation(
-            fieldId,
-            position.X,
-            position.Y,
-            position.Z,
-            position.TriangleId,
+        return FieldActivityObservationBuilder.Build(
+            position,
+            fieldActivityStateReader!,
+            fieldScriptLineStateReader,
+            fieldActivityBoundaryStateReader,
+            controlResult,
             isControlled,
             ReadFieldActivityGameMoment(),
-            controlResult.Transform,
-            controlResult.IsUsable,
-            models,
-            waits,
-            isLineEnabled,
-            isBoundaryEnabled,
-            ReadFieldActivityPillarGate())
-        {
-            NumericWindow = numericWindow,
-            ReadTemporaryByte = readTemporaryByte
-        };
+            ReadFieldActivityPillarGate(),
+            index => ReadByte(FieldNavigationObjectReader.AddressTemporaryFieldBankBase + index));
     }
 
     private int ReadFieldActivityGameMoment() =>
@@ -5266,6 +5194,7 @@ public sealed class Mod : IModV1, IModV2
     {
         worldMapRuntimes.Clear();
         worldMapStateReader = new WorldMapStateReader(legacyAddressSpace);
+        worldMapDialogueReader = new WorldMapDialogueReader(legacyAddressSpace);
         worldMapEntityReader = new WorldMapEntityReader(legacyAddressSpace);
         midgarZolomStateReader = new MidgarZolomStateReader(legacyAddressSpace);
         midgarZolomCrossingTracker.Reset();
@@ -5448,6 +5377,25 @@ public sealed class Mod : IModV1, IModV2
 
             worldMapWasActive = true;
             var isForeground = foregroundProcessGate.IsCurrentProcessForeground();
+            if (worldMapDialogueReader?.TryRead(out var dialogue) == true)
+            {
+                if (isForeground && config.EnableSpeech && config.EnableRuntimeDialogueSpeech &&
+                    worldMapDialogueTracker.Observe(dialogue) is { } text)
+                {
+                    Speak(text, interrupt: true);
+                    Log($"World dialogue: {text}");
+                }
+                if (dialogue.IsBlockingMovement)
+                {
+                    PublishControllerNavigationUnavailable();
+                    battleStatusLimitKeyFrameRouter.DiscardNavigationPress(WorldMapStateReader.WorldModule);
+                    DiscardNavigationAutoWalkToggle(NavigationAutoWalkDomain.WorldMap);
+                    foreach (var context in worldMapRuntimes.Values) context.Navigation.PauseForNativeControl();
+                    SuspendNavigationAutoWalk(NavigationAutoWalkDomain.WorldMap);
+                    worldMapEntranceCuePlayer?.StopAll();
+                    return;
+                }
+            }
             var stateResult = worldMapStateReader?.Read()
                 ?? WorldMapStateReadResult.Invalid(default, "world state reader is not initialized");
             if (config.EnableWorldMapNavigationDiagnostics &&
@@ -5833,6 +5781,7 @@ public sealed class Mod : IModV1, IModV2
 
     private void ResetWorldMapAccessibility(string diagnostic)
     {
+        worldMapDialogueTracker.Reset();
         foreach (var runtime in worldMapRuntimes.Values)
         {
             runtime.UpdateEntities(Array.Empty<WorldMapEntitySnapshot>());

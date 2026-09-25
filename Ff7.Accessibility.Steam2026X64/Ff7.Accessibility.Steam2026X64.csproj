@@ -1017,6 +1017,8 @@
     <Compile Include="..\Ff7.Accessibility.Reloaded\DeferredZoneSpeechTracker.cs" Link="Shared\DeferredZoneSpeechTracker.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldCountdownSpeechCoordinator.cs" Link="Shared\FieldCountdownSpeechCoordinator.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\ShinraMansionSafeDialReadout.cs" Link="Shared\ShinraMansionSafeDialReadout.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldActivityReadout.cs" Link="Shared\FieldActivityReadout.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldActivityObservationBuilder.cs" Link="Shared\FieldActivityObservationBuilder.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldAreaDescriptionHistory.cs" Link="Shared\FieldAreaDescriptionHistory.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldAreaDescriptionHistoryGate.cs" Link="Shared\FieldAreaDescriptionHistoryGate.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldAreaDescriptionSaveTracker.cs" Link="Shared\FieldAreaDescriptionSaveTracker.cs" />

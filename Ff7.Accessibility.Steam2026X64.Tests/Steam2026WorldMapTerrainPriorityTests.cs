@@ -19,6 +19,54 @@ internal static class Steam2026WorldMapTerrainPriorityTests
         TheX64WorldEntranceCueUsesTheFullDirectionalSteamAudioRender();
         TheX64HostRepeatsADirectionalCueTowardJunonsNativeEntrance();
         ControllerBumpersCycleWorldCategoriesAndKeepSpeechPriority();
+        AVisibleWorldWarningSpeaksAndReleasesMovement();
+    }
+
+    private static void AVisibleWorldWarningSpeaksAndReleasesMovement()
+    {
+        const string warning = "Not even a Chocobo could make it across.";
+        var spoken = new List<string>();
+        var memory = SeedWorldMemory(terrainId: 0);
+        var sink = new AcceptingKeyboardSink();
+        using var autoWalk = new NavigationAutoWalkController(sink);
+        using var coordinator = CreateCoordinator(memory, new MutableInput(), autoWalk,
+            (text, _) => spoken.Add(text));
+        Equal(true, autoWalk.TryStart(NavigationAutoWalkDomain.WorldMap, routeActive: true),
+            "a world walk is active before the scripted warning");
+        Equal(true, autoWalk.Drive(FieldNavigationInput.Right, canMove: true, routeActive: true).Success,
+            "a direction is held before the script takes control");
+        Equal(true, sink.Sent.Any(transition => transition.IsKeyDown), "the fixture drove a real input transition");
+        sink.Sent.Clear();
+
+        // The native pushback takes control before its message opens.
+        memory.WriteInt32(WorldMapDialogueReader.ControlAddress, 0);
+        Observe(coordinator, Epoch);
+        Equal(true, sink.Sent.Any(transition => !transition.IsKeyDown),
+            "the real x64 coordinator releases movement as soon as the script owns control");
+        Equal(true, autoWalk.IsEnabledFor(NavigationAutoWalkDomain.WorldMap),
+            "suspending for the native script retains the walk intent");
+
+        memory.WriteUInt16(WorldMapDialogueReader.WindowStateAddress, 6);
+        memory.WriteByte((uint)FieldMessageReader.AddressFieldWindowStates, 0);
+        memory.WriteUInt32(WorldMapDialogueReader.TextPointerAddress, 0x01234000);
+        for (var index = 0; index < 256; index++)
+        {
+            memory.WriteByte(WorldMapDialogueReader.TextBufferAddress + (uint)index,
+                index < warning.Length ? warning[index] - 32 : 0xFF);
+        }
+        Observe(coordinator, Epoch.AddMilliseconds(250));
+        Observe(coordinator, Epoch.AddMilliseconds(500));
+        Equal(1, spoken.Count(text => text == warning), "a completed visible warning is spoken once");
+
+        memory.WriteUInt16(WorldMapDialogueReader.WindowStateAddress, 0);
+        memory.WriteByte((uint)FieldMessageReader.AddressFieldWindowStates, 0xFF);
+        memory.WriteInt32(WorldMapDialogueReader.ControlAddress, 1);
+        Observe(coordinator, Epoch.AddMilliseconds(750));
+        memory.WriteUInt16(WorldMapDialogueReader.WindowStateAddress, 6);
+        memory.WriteByte((uint)FieldMessageReader.AddressFieldWindowStates, 0);
+        memory.WriteInt32(WorldMapDialogueReader.ControlAddress, 0);
+        Observe(coordinator, Epoch.AddMilliseconds(1000));
+        Equal(2, spoken.Count(text => text == warning), "a later warning window is announced again");
     }
 
     private static void ControllerBumpersCycleWorldCategoriesAndKeepSpeechPriority()
@@ -585,6 +633,13 @@ internal static class Steam2026WorldMapTerrainPriorityTests
         const uint player = 0x01000000;
         var memory = new MutableWorldMemory();
         memory.WriteByte((uint)WorldMapStateReader.AddressCurrentModule, WorldMapStateReader.WorldModule);
+        memory.WriteInt32(WorldMapDialogueReader.ControlAddress, 1);
+        for (var window = 0; window < 4; window++)
+        {
+            memory.WriteUInt16(WorldMapDialogueReader.WindowStateAddress + (uint)(window * 0x30), 0);
+            memory.WriteByte((uint)FieldMessageReader.AddressFieldWindowStates + (uint)window, 0xFF);
+            memory.WriteUInt32(WorldMapDialogueReader.TextPointerAddress + (uint)(window * 4), 0);
+        }
         memory.WriteInt32((uint)WorldMapStateReader.AddressWorldMapType, 0);
         memory.WriteInt32((uint)WorldMapStateReader.AddressWorldProgress, 0);
         memory.WriteUInt16((uint)WorldMapStateReader.AddressGameMoment, 0);
@@ -690,8 +745,13 @@ internal static class Steam2026WorldMapTerrainPriorityTests
 
     private sealed class AcceptingKeyboardSink : IHighwayKeyboardInputSink
     {
-        public HighwayKeyboardSendResult Send(IReadOnlyList<HighwayKeyboardTransition> transitions) =>
-            new(transitions.Count, 0);
+        internal List<HighwayKeyboardTransition> Sent { get; } = [];
+
+        public HighwayKeyboardSendResult Send(IReadOnlyList<HighwayKeyboardTransition> transitions)
+        {
+            Sent.AddRange(transitions);
+            return new(transitions.Count, 0);
+        }
     }
 
     private sealed class MutableWorldMemory : ILegacyAddressSpace

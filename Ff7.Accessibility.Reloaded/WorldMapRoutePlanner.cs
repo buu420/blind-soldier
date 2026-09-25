@@ -60,10 +60,20 @@ public static class WorldMapTerrainPassability
             // Model 4 is the live caught Chocobo used immediately after a
             // Chocobo battle; model 19 is the alternate ridden form. A
             // Chocobo's color/capability is stored separately, so both retain
-            // ordinary walking terrain until that native capability is read.
-            4 or 19 => WalkingTerrain.Contains(terrainId),
-            // Cloud, Tifa, and Cid are the controllable walking models.
-            0 or 1 or 2 => WalkingTerrain.Contains(terrainId),
+            // ordinary walking terrain until that native capability is read. The wild
+            // Chocobo's function440F also repels it from quicksand; function530F does
+            // that for an ordinary bred Chocobo (the capability flag is clear).
+            4 or 19 => WalkingTerrain.Contains(terrainId) &&
+                       !(worldMapType == 0 && terrainId == 28),
+            // Cloud, Tifa, and Cid can physically step on the Gold Saucer desert
+            // border, but wm0.ev's eight script-3 handlers on terrain28 call their
+            // functions400F/410F/420F: disable control, push the party back and wait
+            // for the quicksand warning. It is not a route across the desert. Keeping
+            // this in the shared routing profile also guards reachability, landing
+            // choices, shortcuts and automatic steps; the Buggy and flight keep their
+            // own native access. See the installed-data North Corel walking replay.
+            0 or 1 or 2 => WalkingTerrain.Contains(terrainId) &&
+                          !(worldMapType == 0 && terrainId == 28),
             _ => false
         };
     }

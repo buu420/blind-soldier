@@ -2233,5 +2233,426 @@
         "hex": "16200000F0030384"
       }
     ]
+  },
+  {
+    "id": "temple-clock-first-visit",
+    "fieldId": 607,
+    "moment": 618,
+    "x": -555,
+    "y": 308,
+    "triangle": 26,
+    "state": [
+      {
+        "bank": 3,
+        "address": 226,
+        "value": 2
+      },
+      {
+        "bank": 3,
+        "address": 228,
+        "value": 10
+      }
+    ],
+    "expectedLabels": [
+      "Set the clock hands to make a way to doorway six"
+    ],
+    "forbiddenLabels": [
+      "Cross to doorway six"
+    ],
+    "evidence": "kuro_4 IDdr (e8) script 1 locks all 24 bridge triangles; long (e21) script 3 unlocks the pair for 4[226]w and short (e22) script 6 the pair for 4[228]w, 85/48 for six. The first visit's Init sets the long hand to two and the short hand to ten; 606's gateway1 lands the party on doorway ten's side (triangle 26), so doorway six has no bridge. User log 2026-09-24 22:02-22:06: Story said 'Cross to doorway six. direction unavailable'.",
+    "nativeAnchors": [
+      {
+        "entityId": 0,
+        "scriptId": 0,
+        "hex": "8140E20200"
+      },
+      {
+        "entityId": 0,
+        "scriptId": 0,
+        "hex": "8140E40A00"
+      },
+      {
+        "entityId": 22,
+        "scriptId": 6,
+        "hex": "1640E40006000004"
+      }
+    ]
+  },
+  {
+    "id": "temple-clock-long-hand-on-six",
+    "fieldId": 607,
+    "moment": 618,
+    "x": -555,
+    "y": 308,
+    "triangle": 26,
+    "state": [
+      {
+        "bank": 3,
+        "address": 226,
+        "value": 6
+      },
+      {
+        "bank": 3,
+        "address": 228,
+        "value": 10
+      }
+    ],
+    "expectedLabels": [
+      "Cross to doorway six"
+    ],
+    "expectedLine": {
+      "startX": -87,
+      "startY": -716,
+      "startZ": 0,
+      "endX": 85,
+      "endY": -716,
+      "endZ": 0
+    },
+    "expectedDestinationFieldIds": [
+      610
+    ],
+    "routeArrivalFromFieldId": 606,
+    "evidence": "kuro_4 IDdr (e8) script 1 locks all 24 bridge triangles; long (e21) script 3 unlocks the pair for 4[226]w and short (e22) script 6 the pair for 4[228]w, 85/48 for six. Move it myself (longdr script 1: OK adds an hour) from two to six leaves the short hand on ten, so doorway ten's bridge and doorway six's are both there.",
+    "nativeAnchors": [
+      {
+        "entityId": 21,
+        "scriptId": 3,
+        "hex": "1640E20006000007"
+      },
+      {
+        "entityId": 8,
+        "scriptId": 8,
+        "hex": "6D550000"
+      },
+      {
+        "entityId": 5,
+        "scriptId": 1,
+        "hex": "8640E20100"
+      }
+    ]
+  },
+  {
+    "id": "temple-clock-turned-back-past-twelve",
+    "fieldId": 607,
+    "moment": 618,
+    "x": -555,
+    "y": 308,
+    "triangle": 26,
+    "state": [
+      {
+        "bank": 3,
+        "address": 226,
+        "value": 6
+      },
+      {
+        "bank": 3,
+        "address": 228,
+        "value": 9
+      }
+    ],
+    "expectedLabels": [
+      "Set the clock hands to make a way to doorway six"
+    ],
+    "forbiddenLabels": [
+      "Cross to doorway six"
+    ],
+    "evidence": "kuro_4 IDdr (e8) script 1 locks all 24 bridge triangles; long (e21) script 3 unlocks the pair for 4[226]w and short (e22) script 6 the pair for 4[228]w, 85/48 for six. Go back in time past twelve carries the short hand from ten to nine (longdr script 1, MENU branch requests short script 5), so the party at doorway ten has no bridge off its own side even with the long hand on six.",
+    "nativeAnchors": [
+      {
+        "entityId": 5,
+        "scriptId": 1,
+        "hex": "0216C5"
+      }
+    ]
+  },
+  {
+    "id": "pagoda-gorky",
+    "fieldId": 586,
+    "moment": 700,
+    "x": 8,
+    "y": -356,
+    "triangle": 16,
+    "state": [
+      {
+        "bank": 15,
+        "address": 138,
+        "value": 0
+      },
+      {
+        "bank": 15,
+        "address": 139,
+        "value": 0
+      },
+      {
+        "bank": 3,
+        "address": 9,
+        "value": 5
+      }
+    ],
+    "actors": [
+      {
+        "entityId": 17,
+        "x": 30,
+        "y": 315,
+        "z": 20
+      }
+    ],
+    "expectedLabels": [
+      "Talk to Gorky (optional)"
+    ],
+    "evidence": "tower5 goriki (e17) Talk: IFPRTYQ 5, ASK 106, battle 623; a win sets 15[139] bit 0. User log 2026-09-24 14:49.",
+    "nativeAnchors": [
+      {
+        "entityId": 17,
+        "scriptId": 1,
+        "hex": "CB05"
+      }
+    ]
+  },
+  {
+    "id": "pagoda-stairs-after-shake",
+    "fieldId": 586,
+    "moment": 700,
+    "enabledLines": [
+      14,
+      15
+    ],
+    "x": -215,
+    "y": 312,
+    "triangle": 15,
+    "state": [
+      {
+        "bank": 15,
+        "address": 138,
+        "value": 1
+      },
+      {
+        "bank": 15,
+        "address": 139,
+        "value": 3
+      },
+      {
+        "bank": 3,
+        "address": 9,
+        "value": 5
+      }
+    ],
+    "expectedLabels": [
+      "Climb the stairs to the third floor (optional)",
+      "Go back down to the first floor (optional)"
+    ],
+    "forbiddenLabels": [
+      "Talk to Shake (optional)"
+    ],
+    "evidence": "tower5 init (e4) unlocks triangle 29 on floor k only while 15[139] bit k is set; jump_u (e14) Move adds one to 15[138] and map jumps into 586 at (-215,312), jump_d (e15) takes one off. User log 2026-09-24 14:54-15:13: no way up was offered after Shake.",
+    "nativeAnchors": [
+      {
+        "entityId": 14,
+        "scriptId": 2,
+        "hex": "950F8A"
+      },
+      {
+        "entityId": 15,
+        "scriptId": 2,
+        "hex": "970F8A"
+      },
+      {
+        "entityId": 4,
+        "scriptId": 0,
+        "hex": "6D1D0000"
+      }
+    ]
+  },
+  {
+    "id": "pagoda-without-yuffie",
+    "fieldId": 586,
+    "moment": 700,
+    "x": 8,
+    "y": -356,
+    "triangle": 16,
+    "state": [
+      {
+        "bank": 15,
+        "address": 138,
+        "value": 0
+      }
+    ],
+    "actors": [
+      {
+        "entityId": 17,
+        "x": 30,
+        "y": 315,
+        "z": 20
+      }
+    ],
+    "expectedLabels": [
+      "Leave the Pagoda (optional)"
+    ],
+    "forbiddenLabels": [
+      "Talk to Gorky (optional)"
+    ],
+    "evidence": "Every opponent's Talk fights only with Yuffie (character 5) in the party; without her the ground floor's exit line sends the party out.",
+    "nativeAnchors": [
+      {
+        "entityId": 16,
+        "scriptId": 2,
+        "hex": "CB0514"
+      }
+    ]
+  },
+  {
+    "id": "chase-terminal-floor",
+    "fieldId": 497,
+    "moment": 598,
+    "x": 6,
+    "y": 34,
+    "triangle": 13,
+    "expectedLabels": [
+      "Follow Cait Sith to the Battle Square platform"
+    ],
+    "evidence": "gldgate cait (e8) script 7 jumps him to (473,597) triangle 43, the Battle Square tube's own landing, and hides him. User log 2026-09-24 20:01-20:12: Story said none in every Square.",
+    "nativeAnchors": [
+      {
+        "entityId": 8,
+        "scriptId": 7,
+        "hex": "C00000D90155022B00"
+      }
+    ]
+  },
+  {
+    "id": "chase-battle-square",
+    "fieldId": 499,
+    "moment": 598,
+    "expectedLabels": [
+      "Follow Cait Sith to the Speed Square"
+    ],
+    "expectedLine": {
+      "startX": -477,
+      "startY": -2539,
+      "startZ": -1139,
+      "endX": -503,
+      "endY": -2469,
+      "endZ": -1139
+    },
+    "expectedDestinationFieldIds": [
+      486
+    ],
+    "routeArrivalFromFieldId": 497,
+    "evidence": "coloss cait (e7) Main runs him to (-487,-2507) at 598 and hides him: gateway1, the tube to jet (486).",
+    "nativeAnchors": [
+      {
+        "entityId": 7,
+        "scriptId": 0,
+        "hex": "A80019FE35F6"
+      }
+    ]
+  },
+  {
+    "id": "chase-speed-square",
+    "fieldId": 486,
+    "moment": 598,
+    "expectedLabels": [
+      "Follow Cait Sith to the Wonder Square"
+    ],
+    "expectedLine": {
+      "startX": 467,
+      "startY": -1320,
+      "startZ": -54,
+      "endX": 370,
+      "endY": -1378,
+      "endZ": -54
+    },
+    "expectedDestinationFieldIds": [
+      505
+    ],
+    "routeArrivalFromFieldId": 499,
+    "evidence": "jet cait (e4) Main runs him to (408,-1355): gateway5, the tube to games (505).",
+    "nativeAnchors": [
+      {
+        "entityId": 4,
+        "scriptId": 0,
+        "hex": "A8009801B5FA"
+      }
+    ]
+  },
+  {
+    "id": "chase-wonder-square",
+    "fieldId": 505,
+    "moment": 598,
+    "enabledLines": [
+      22
+    ],
+    "expectedLabels": [
+      "Follow Cait Sith to the Chocobo Square"
+    ],
+    "expectedLine": {
+      "startX": -195,
+      "startY": -369,
+      "startZ": 0,
+      "endX": -201,
+      "endY": -317,
+      "endZ": 0
+    },
+    "expectedDestinationFieldIds": [
+      509
+    ],
+    "routeArrivalFromFieldId": 486,
+    "evidence": "games cait (e7) script 1 jumps him to (-273,-351) triangle 86, where cloud script 4 puts the party for jp7 (5[8] = 7) before map jumping to chorace (509).",
+    "nativeAnchors": [
+      {
+        "entityId": 7,
+        "scriptId": 1,
+        "hex": "C00000EFFEA1FE5600"
+      },
+      {
+        "entityId": 22,
+        "scriptId": 2,
+        "hex": "80500807"
+      }
+    ]
+  },
+  {
+    "id": "chase-chocobo-square",
+    "fieldId": 509,
+    "moment": 598,
+    "expectedLabels": [
+      "Follow Cait Sith into the Ticket Office"
+    ],
+    "expectedLine": {
+      "startX": -175,
+      "startY": -875,
+      "startZ": -85,
+      "endX": 53,
+      "endY": -886,
+      "endZ": -85
+    },
+    "expectedDestinationFieldIds": [
+      511
+    ],
+    "routeArrivalFromFieldId": 505,
+    "evidence": "chorace cait (e8) script 15, run by the Director at 598, takes him to (-68,-1087) in front of gateway0 (crcin_1, 511).",
+    "nativeAnchors": [
+      {
+        "entityId": 8,
+        "scriptId": 15,
+        "hex": "A800BCFFC1FB"
+      }
+    ]
+  },
+  {
+    "id": "chase-over-by-the-morning",
+    "fieldId": 499,
+    "moment": 601,
+    "forbiddenLabels": [
+      "Follow Cait Sith to the Speed Square"
+    ],
+    "evidence": "chorace2 writes 601 once crcin_1's lines have cornered him; the trail ends there.",
+    "nativeAnchors": [
+      {
+        "entityId": 7,
+        "scriptId": 0,
+        "hex": "A80019FE35F6"
+      }
+    ]
   }
 ]

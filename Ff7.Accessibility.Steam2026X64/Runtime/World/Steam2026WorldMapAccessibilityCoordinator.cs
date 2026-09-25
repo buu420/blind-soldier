@@ -18,6 +18,8 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
     private readonly AccessibilityConfig config;
     private readonly Steam2026ForegroundInputAdapter foregroundInput;
     private readonly WorldMapStateReader stateReader;
+    private readonly WorldMapDialogueReader dialogueReader;
+    private readonly WorldMapDialogueTracker dialogueTracker = new();
     private readonly WorldMapEntityReader entityReader;
     private readonly MidgarZolomStateReader midgarZolomStateReader;
     private readonly MidgarZolomCrossingTracker midgarZolomCrossingTracker = new();
@@ -104,6 +106,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         this.config = config ?? throw new ArgumentNullException(nameof(config));
         ArgumentNullException.ThrowIfNull(addressSpace);
         this.foregroundInput = foregroundInput ?? throw new ArgumentNullException(nameof(foregroundInput));
+        dialogueReader = new WorldMapDialogueReader(addressSpace);
         ArgumentException.ThrowIfNullOrWhiteSpace(gameWorkingDirectory);
         ArgumentException.ThrowIfNullOrWhiteSpace(modDirectory);
         this.speak = speak ?? throw new ArgumentNullException(nameof(speak));
@@ -329,6 +332,23 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
 
         nextScanUtc = nowUtc + TimeSpan.FromMilliseconds(
             Math.Max(30, config.WorldMapScanIntervalMs));
+        if (dialogueReader.TryRead(out var dialogue))
+        {
+            if (isForeground && config.EnableSpeech && config.EnableRuntimeDialogueSpeech &&
+                dialogueTracker.Observe(dialogue) is { } text)
+            {
+                speak(text, true);
+                log($"Native Steam 2026 world dialogue: {text}");
+            }
+            if (dialogue.IsBlockingMovement)
+            {
+                PublishControllerUnavailable(nowUtc);
+                foreach (var context in runtimes.Values) context.Navigation.PauseForNativeControl();
+                autoWalk.Suspend();
+                entranceCuePlayer?.StopAll();
+                return;
+            }
+        }
         var stateResult = stateReader.Read();
         LogDiagnostic("state", stateResult.Diagnostic, ref lastStateDiagnostic);
         if (!stateResult.IsUsable ||
@@ -481,6 +501,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
 
     internal void Reset(string diagnostic, DateTime? nowUtc = null)
     {
+        dialogueTracker.Reset();
         PublishControllerUnavailable(nowUtc ?? DateTime.UtcNow);
         foreach (var runtime in runtimes.Values)
         {

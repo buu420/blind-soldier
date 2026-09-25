@@ -646,6 +646,14 @@ public sealed class WorldMapNavigationController
             : diagnostic;
     }
 
+    public void PauseForNativeControl()
+    {
+        autoWalkConvergence.Reset();
+        offRouteSince = DateTime.MinValue;
+        lastGuidanceAt = DateTime.MinValue;
+        lastDiagnostic = "native world script or dialogue owns movement";
+    }
+
     public void PauseForCombat(string diagnostic)
     {
         if (!beaconEnabled || combatPaused)

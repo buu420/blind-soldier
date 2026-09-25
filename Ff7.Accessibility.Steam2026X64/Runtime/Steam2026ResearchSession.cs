@@ -783,6 +783,13 @@ internal sealed class Steam2026ResearchSession : IDisposable
                         {
                             output.Speak(safeDialLine, interrupt: true);
                         }
+                        else if (fieldNavigationCoordinator?.FieldActivityCurrentLine is { } activityLine)
+                        {
+                            // The same rule for every native activity: with the Temple
+                            // clock in front of them, asking again means asking where
+                            // its hands and bridges are now.
+                            output.Speak(activityLine, interrupt: true);
+                        }
                         else
                         {
                             output.RepeatLast();

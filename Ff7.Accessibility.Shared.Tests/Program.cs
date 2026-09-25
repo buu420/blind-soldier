@@ -1,6 +1,7 @@
 using Ff7.Accessibility.LegacyLayout;
 using Ff7.Accessibility.Reloaded;
 
+WorldMapDialogueTests.Run();
 AssertTypedReadsAreExplicitLittleEndian();
 AssertTypedReadFailuresRemainFailures();
 AssertContractExposesGuestAddressesWithoutHostPointers();

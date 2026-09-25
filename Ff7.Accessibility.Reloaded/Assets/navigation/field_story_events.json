@@ -5,7 +5,7 @@
   "scannedGameMomentWrites": 334,
   "navigableGameMomentWrites": 118,
   "unresolvedAutomaticOrIndirectWrites": 219,
-  "definitionCount": 1390,
+  "definitionCount": 1440,
   "definitions": [
     {
       "fieldId": 115,
@@ -27238,31 +27238,6 @@
     {
       "fieldId": 607,
       "kind": "Location",
-      "label": "Cross to doorway six",
-      "entityId": -1,
-      "x": -1,
-      "y": -716,
-      "z": 0,
-      "targetGameMoment": -1,
-      "minimumGameMoment": 613,
-      "maximumGameMoment": 626,
-      "priority": 0,
-      "sourceFieldName": "kuro_4",
-      "sourceEntityName": "gateway1",
-      "sourceScriptType": "Gateway",
-      "completesOnArrival": true,
-      "triggerLine": {
-        "startX": -87,
-        "startY": -716,
-        "startZ": 0,
-        "endX": 85,
-        "endY": -716,
-        "endZ": 0
-      }
-    },
-    {
-      "fieldId": 607,
-      "kind": "Location",
       "label": "Cross to doorway twelve",
       "entityId": -1,
       "x": -1,
@@ -44700,6 +44675,2603 @@
         327,
         328
       ]
+    },
+    {
+      "fieldId": 499,
+      "kind": "Location",
+      "label": "Follow Cait Sith to the Speed Square",
+      "entityId": -1,
+      "x": -490,
+      "y": -2504,
+      "z": -1139,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 598,
+      "maximumGameMoment": 600,
+      "priority": 0,
+      "sourceFieldName": "coloss",
+      "sourceEntityName": "gateway1",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredCondition": {
+        "bank": 3,
+        "address": 69,
+        "mask": 1,
+        "value": 0
+      },
+      "triggerLine": {
+        "startX": -477,
+        "startY": -2539,
+        "startZ": -1139,
+        "endX": -503,
+        "endY": -2469,
+        "endZ": -1139
+      }
+    },
+    {
+      "fieldId": 486,
+      "kind": "Location",
+      "label": "Follow Cait Sith to the Wonder Square",
+      "entityId": -1,
+      "x": 418,
+      "y": -1349,
+      "z": -54,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 598,
+      "maximumGameMoment": 600,
+      "priority": 0,
+      "sourceFieldName": "jet",
+      "sourceEntityName": "gateway5",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredCondition": {
+        "bank": 3,
+        "address": 69,
+        "mask": 1,
+        "value": 0
+      },
+      "triggerLine": {
+        "startX": 467,
+        "startY": -1320,
+        "startZ": -54,
+        "endX": 370,
+        "endY": -1378,
+        "endZ": -54
+      }
+    },
+    {
+      "fieldId": 509,
+      "kind": "Location",
+      "label": "Follow Cait Sith into the Ticket Office",
+      "entityId": -1,
+      "x": -61,
+      "y": -880,
+      "z": -85,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 598,
+      "maximumGameMoment": 600,
+      "priority": 0,
+      "sourceFieldName": "chorace",
+      "sourceEntityName": "gateway0",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredCondition": {
+        "bank": 3,
+        "address": 69,
+        "mask": 1,
+        "value": 0
+      },
+      "triggerLine": {
+        "startX": -175,
+        "startY": -875,
+        "startZ": -85,
+        "endX": 53,
+        "endY": -886,
+        "endZ": -85
+      }
+    },
+    {
+      "fieldId": 484,
+      "kind": "Location",
+      "label": "Go back to the Terminal Floor",
+      "entityId": -1,
+      "x": 2189,
+      "y": -3173,
+      "z": 256,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 598,
+      "maximumGameMoment": 600,
+      "priority": 0,
+      "sourceFieldName": "astage_a",
+      "sourceEntityName": "gateway0",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredCondition": {
+        "bank": 3,
+        "address": 69,
+        "mask": 1,
+        "value": 0
+      },
+      "triggerLine": {
+        "startX": 2322,
+        "startY": -3158,
+        "startZ": 256,
+        "endX": 2057,
+        "endY": -3189,
+        "endZ": 256
+      }
+    },
+    {
+      "fieldId": 488,
+      "kind": "Location",
+      "label": "Go back to the Terminal Floor",
+      "entityId": -1,
+      "x": 231,
+      "y": -312,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 598,
+      "maximumGameMoment": 600,
+      "priority": 0,
+      "sourceFieldName": "bigwheel",
+      "sourceEntityName": "gateway0",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredCondition": {
+        "bank": 3,
+        "address": 69,
+        "mask": 1,
+        "value": 0
+      },
+      "triggerLine": {
+        "startX": 84,
+        "startY": -445,
+        "startZ": 0,
+        "endX": 379,
+        "endY": -179,
+        "endZ": 0
+      }
+    },
+    {
+      "fieldId": 497,
+      "kind": "Location",
+      "label": "Follow Cait Sith to the Battle Square platform",
+      "entityId": -1,
+      "x": 427,
+      "y": 479,
+      "z": 18,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 598,
+      "maximumGameMoment": 600,
+      "priority": 0,
+      "sourceFieldName": "gldgate",
+      "sourceEntityName": "chekun",
+      "sourceScriptType": "Main",
+      "completesOnArrival": true,
+      "requiredCondition": {
+        "bank": 3,
+        "address": 69,
+        "mask": 1,
+        "value": 0
+      },
+      "completionPlayerTriangles": [
+        26,
+        27
+      ]
+    },
+    {
+      "fieldId": 505,
+      "kind": "Location",
+      "label": "Follow Cait Sith to the Chocobo Square",
+      "entityId": 22,
+      "x": -198,
+      "y": -343,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 598,
+      "maximumGameMoment": 600,
+      "priority": 0,
+      "sourceFieldName": "games",
+      "sourceEntityName": "jp7",
+      "sourceScriptType": "Contact",
+      "completesOnArrival": true,
+      "requiredCondition": {
+        "bank": 3,
+        "address": 69,
+        "mask": 1,
+        "value": 0
+      },
+      "triggerLine": {
+        "startX": -195,
+        "startY": -369,
+        "startZ": 0,
+        "endX": -201,
+        "endY": -317,
+        "endZ": 0
+      },
+      "requiredEnabledLineEntityId": 22
+    },
+    {
+      "fieldId": 491,
+      "kind": "Location",
+      "label": "Go back to the Terminal Floor tube and press Confirm",
+      "entityId": 4,
+      "x": 218,
+      "y": 225,
+      "z": -94,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 598,
+      "maximumGameMoment": 600,
+      "priority": 0,
+      "sourceFieldName": "ghotel",
+      "sourceEntityName": "jpl",
+      "sourceScriptType": "[OK]",
+      "completesOnArrival": false,
+      "requiredCondition": {
+        "bank": 3,
+        "address": 69,
+        "mask": 1,
+        "value": 0
+      },
+      "triggerLine": {
+        "startX": 208,
+        "startY": 449,
+        "startZ": -93,
+        "endX": 228,
+        "endY": 1,
+        "endZ": -96
+      },
+      "requiredEnabledLineEntityId": 4,
+      "usesPlayerCollisionRadius": true
+    },
+    {
+      "fieldId": 607,
+      "kind": "Location",
+      "label": "Cross to doorway six",
+      "entityId": -1,
+      "x": -1,
+      "y": -716,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 613,
+      "maximumGameMoment": 626,
+      "priority": 0,
+      "sourceFieldName": "kuro_4",
+      "sourceEntityName": "gateway1",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 227,
+          "mask": 255,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 229,
+          "mask": 255,
+          "value": 0
+        }
+      ],
+      "triggerLine": {
+        "startX": -87,
+        "startY": -716,
+        "startZ": 0,
+        "endX": 85,
+        "endY": -716,
+        "endZ": 0
+      },
+      "requiredPlayerTriangles": [
+        44,
+        45,
+        46,
+        47,
+        48,
+        49
+      ]
+    },
+    {
+      "fieldId": 607,
+      "kind": "Location",
+      "label": "Cross to doorway six",
+      "entityId": -1,
+      "x": -1,
+      "y": -716,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 613,
+      "maximumGameMoment": 626,
+      "priority": 0,
+      "sourceFieldName": "kuro_4",
+      "sourceEntityName": "gateway1",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 227,
+          "mask": 255,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 229,
+          "mask": 255,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 226,
+          "mask": 255,
+          "value": 6
+        }
+      ],
+      "triggerLine": {
+        "startX": -87,
+        "startY": -716,
+        "startZ": 0,
+        "endX": 85,
+        "endY": -716,
+        "endZ": 0
+      },
+      "requiredPlayerTriangles": [
+        80,
+        82,
+        83,
+        84,
+        86,
+        87,
+        88,
+        90,
+        91,
+        92,
+        94,
+        95,
+        96,
+        97,
+        98,
+        99,
+        100,
+        101,
+        102,
+        103,
+        104,
+        105,
+        106,
+        107,
+        126,
+        127,
+        128,
+        129,
+        130,
+        131,
+        93,
+        78,
+        79,
+        89,
+        72,
+        73,
+        85,
+        74,
+        75,
+        81,
+        76,
+        77
+      ]
+    },
+    {
+      "fieldId": 607,
+      "kind": "Location",
+      "label": "Cross to doorway six",
+      "entityId": -1,
+      "x": -1,
+      "y": -716,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 613,
+      "maximumGameMoment": 626,
+      "priority": 0,
+      "sourceFieldName": "kuro_4",
+      "sourceEntityName": "gateway1",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 227,
+          "mask": 255,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 229,
+          "mask": 255,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 228,
+          "mask": 255,
+          "value": 6
+        },
+        {
+          "bank": 3,
+          "address": 226,
+          "mask": 255,
+          "value": 0,
+          "minimumValue": 0,
+          "maximumValue": 5
+        }
+      ],
+      "triggerLine": {
+        "startX": -87,
+        "startY": -716,
+        "startZ": 0,
+        "endX": 85,
+        "endY": -716,
+        "endZ": 0
+      },
+      "requiredPlayerTriangles": [
+        80,
+        82,
+        83,
+        84,
+        86,
+        87,
+        88,
+        90,
+        91,
+        92,
+        94,
+        95,
+        96,
+        97,
+        98,
+        99,
+        100,
+        101,
+        102,
+        103,
+        104,
+        105,
+        106,
+        107,
+        126,
+        127,
+        128,
+        129,
+        130,
+        131,
+        93,
+        78,
+        79,
+        89,
+        72,
+        73,
+        85,
+        74,
+        75,
+        81,
+        76,
+        77
+      ]
+    },
+    {
+      "fieldId": 607,
+      "kind": "Location",
+      "label": "Cross to doorway six",
+      "entityId": -1,
+      "x": -1,
+      "y": -716,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 613,
+      "maximumGameMoment": 626,
+      "priority": 0,
+      "sourceFieldName": "kuro_4",
+      "sourceEntityName": "gateway1",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 227,
+          "mask": 255,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 229,
+          "mask": 255,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 228,
+          "mask": 255,
+          "value": 6
+        },
+        {
+          "bank": 3,
+          "address": 226,
+          "mask": 255,
+          "value": 0,
+          "minimumValue": 7,
+          "maximumValue": 12
+        }
+      ],
+      "triggerLine": {
+        "startX": -87,
+        "startY": -716,
+        "startZ": 0,
+        "endX": 85,
+        "endY": -716,
+        "endZ": 0
+      },
+      "requiredPlayerTriangles": [
+        80,
+        82,
+        83,
+        84,
+        86,
+        87,
+        88,
+        90,
+        91,
+        92,
+        94,
+        95,
+        96,
+        97,
+        98,
+        99,
+        100,
+        101,
+        102,
+        103,
+        104,
+        105,
+        106,
+        107,
+        126,
+        127,
+        128,
+        129,
+        130,
+        131,
+        93,
+        78,
+        79,
+        89,
+        72,
+        73,
+        85,
+        74,
+        75,
+        81,
+        76,
+        77
+      ]
+    },
+    {
+      "fieldId": 607,
+      "kind": "Location",
+      "label": "Cross to doorway six",
+      "entityId": -1,
+      "x": -1,
+      "y": -716,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 613,
+      "maximumGameMoment": 626,
+      "priority": 0,
+      "sourceFieldName": "kuro_4",
+      "sourceEntityName": "gateway1",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 227,
+          "mask": 255,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 229,
+          "mask": 255,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 226,
+          "mask": 255,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 228,
+          "mask": 255,
+          "value": 6
+        }
+      ],
+      "triggerLine": {
+        "startX": -87,
+        "startY": -716,
+        "startZ": 0,
+        "endX": 85,
+        "endY": -716,
+        "endZ": 0
+      },
+      "requiredPlayerTriangles": [
+        2,
+        3,
+        16,
+        17,
+        18,
+        19
+      ]
+    },
+    {
+      "fieldId": 607,
+      "kind": "Location",
+      "label": "Cross to doorway six",
+      "entityId": -1,
+      "x": -1,
+      "y": -716,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 613,
+      "maximumGameMoment": 626,
+      "priority": 0,
+      "sourceFieldName": "kuro_4",
+      "sourceEntityName": "gateway1",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 227,
+          "mask": 255,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 229,
+          "mask": 255,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 226,
+          "mask": 255,
+          "value": 6
+        },
+        {
+          "bank": 3,
+          "address": 228,
+          "mask": 255,
+          "value": 0
+        }
+      ],
+      "triggerLine": {
+        "startX": -87,
+        "startY": -716,
+        "startZ": 0,
+        "endX": 85,
+        "endY": -716,
+        "endZ": 0
+      },
+      "requiredPlayerTriangles": [
+        2,
+        3,
+        16,
+        17,
+        18,
+        19
+      ]
+    },
+    {
+      "fieldId": 607,
+      "kind": "Location",
+      "label": "Cross to doorway six",
+      "entityId": -1,
+      "x": -1,
+      "y": -716,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 613,
+      "maximumGameMoment": 626,
+      "priority": 0,
+      "sourceFieldName": "kuro_4",
+      "sourceEntityName": "gateway1",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 227,
+          "mask": 255,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 229,
+          "mask": 255,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 226,
+          "mask": 255,
+          "value": 12
+        },
+        {
+          "bank": 3,
+          "address": 228,
+          "mask": 255,
+          "value": 6
+        }
+      ],
+      "triggerLine": {
+        "startX": -87,
+        "startY": -716,
+        "startZ": 0,
+        "endX": 85,
+        "endY": -716,
+        "endZ": 0
+      },
+      "requiredPlayerTriangles": [
+        2,
+        3,
+        16,
+        17,
+        18,
+        19
+      ]
+    },
+    {
+      "fieldId": 607,
+      "kind": "Location",
+      "label": "Cross to doorway six",
+      "entityId": -1,
+      "x": -1,
+      "y": -716,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 613,
+      "maximumGameMoment": 626,
+      "priority": 0,
+      "sourceFieldName": "kuro_4",
+      "sourceEntityName": "gateway1",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 227,
+          "mask": 255,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 229,
+          "mask": 255,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 226,
+          "mask": 255,
+          "value": 6
+        },
+        {
+          "bank": 3,
+          "address": 228,
+          "mask": 255,
+          "value": 12
+        }
+      ],
+      "triggerLine": {
+        "startX": -87,
+        "startY": -716,
+        "startZ": 0,
+        "endX": 85,
+        "endY": -716,
+        "endZ": 0
+      },
+      "requiredPlayerTriangles": [
+        2,
+        3,
+        16,
+        17,
+        18,
+        19
+      ]
+    },
+    {
+      "fieldId": 607,
+      "kind": "Location",
+      "label": "Cross to doorway six",
+      "entityId": -1,
+      "x": -1,
+      "y": -716,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 613,
+      "maximumGameMoment": 626,
+      "priority": 0,
+      "sourceFieldName": "kuro_4",
+      "sourceEntityName": "gateway1",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 227,
+          "mask": 255,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 229,
+          "mask": 255,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 226,
+          "mask": 255,
+          "value": 1
+        },
+        {
+          "bank": 3,
+          "address": 228,
+          "mask": 255,
+          "value": 6
+        }
+      ],
+      "triggerLine": {
+        "startX": -87,
+        "startY": -716,
+        "startZ": 0,
+        "endX": 85,
+        "endY": -716,
+        "endZ": 0
+      },
+      "requiredPlayerTriangles": [
+        4,
+        5,
+        8,
+        9,
+        12,
+        13
+      ]
+    },
+    {
+      "fieldId": 607,
+      "kind": "Location",
+      "label": "Cross to doorway six",
+      "entityId": -1,
+      "x": -1,
+      "y": -716,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 613,
+      "maximumGameMoment": 626,
+      "priority": 0,
+      "sourceFieldName": "kuro_4",
+      "sourceEntityName": "gateway1",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 227,
+          "mask": 255,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 229,
+          "mask": 255,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 226,
+          "mask": 255,
+          "value": 6
+        },
+        {
+          "bank": 3,
+          "address": 228,
+          "mask": 255,
+          "value": 1
+        }
+      ],
+      "triggerLine": {
+        "startX": -87,
+        "startY": -716,
+        "startZ": 0,
+        "endX": 85,
+        "endY": -716,
+        "endZ": 0
+      },
+      "requiredPlayerTriangles": [
+        4,
+        5,
+        8,
+        9,
+        12,
+        13
+      ]
+    },
+    {
+      "fieldId": 607,
+      "kind": "Location",
+      "label": "Cross to doorway six",
+      "entityId": -1,
+      "x": -1,
+      "y": -716,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 613,
+      "maximumGameMoment": 626,
+      "priority": 0,
+      "sourceFieldName": "kuro_4",
+      "sourceEntityName": "gateway1",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 227,
+          "mask": 255,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 229,
+          "mask": 255,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 226,
+          "mask": 255,
+          "value": 2
+        },
+        {
+          "bank": 3,
+          "address": 228,
+          "mask": 255,
+          "value": 6
+        }
+      ],
+      "triggerLine": {
+        "startX": -87,
+        "startY": -716,
+        "startZ": 0,
+        "endX": 85,
+        "endY": -716,
+        "endZ": 0
+      },
+      "requiredPlayerTriangles": [
+        0,
+        1,
+        68,
+        69,
+        70,
+        71
+      ]
+    },
+    {
+      "fieldId": 607,
+      "kind": "Location",
+      "label": "Cross to doorway six",
+      "entityId": -1,
+      "x": -1,
+      "y": -716,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 613,
+      "maximumGameMoment": 626,
+      "priority": 0,
+      "sourceFieldName": "kuro_4",
+      "sourceEntityName": "gateway1",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 227,
+          "mask": 255,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 229,
+          "mask": 255,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 226,
+          "mask": 255,
+          "value": 6
+        },
+        {
+          "bank": 3,
+          "address": 228,
+          "mask": 255,
+          "value": 2
+        }
+      ],
+      "triggerLine": {
+        "startX": -87,
+        "startY": -716,
+        "startZ": 0,
+        "endX": 85,
+        "endY": -716,
+        "endZ": 0
+      },
+      "requiredPlayerTriangles": [
+        0,
+        1,
+        68,
+        69,
+        70,
+        71
+      ]
+    },
+    {
+      "fieldId": 607,
+      "kind": "Location",
+      "label": "Cross to doorway six",
+      "entityId": -1,
+      "x": -1,
+      "y": -716,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 613,
+      "maximumGameMoment": 626,
+      "priority": 0,
+      "sourceFieldName": "kuro_4",
+      "sourceEntityName": "gateway1",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 227,
+          "mask": 255,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 229,
+          "mask": 255,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 226,
+          "mask": 255,
+          "value": 3
+        },
+        {
+          "bank": 3,
+          "address": 228,
+          "mask": 255,
+          "value": 6
+        }
+      ],
+      "triggerLine": {
+        "startX": -87,
+        "startY": -716,
+        "startZ": 0,
+        "endX": 85,
+        "endY": -716,
+        "endZ": 0
+      },
+      "requiredPlayerTriangles": [
+        62,
+        63,
+        64,
+        65,
+        66,
+        67
+      ]
+    },
+    {
+      "fieldId": 607,
+      "kind": "Location",
+      "label": "Cross to doorway six",
+      "entityId": -1,
+      "x": -1,
+      "y": -716,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 613,
+      "maximumGameMoment": 626,
+      "priority": 0,
+      "sourceFieldName": "kuro_4",
+      "sourceEntityName": "gateway1",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 227,
+          "mask": 255,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 229,
+          "mask": 255,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 226,
+          "mask": 255,
+          "value": 6
+        },
+        {
+          "bank": 3,
+          "address": 228,
+          "mask": 255,
+          "value": 3
+        }
+      ],
+      "triggerLine": {
+        "startX": -87,
+        "startY": -716,
+        "startZ": 0,
+        "endX": 85,
+        "endY": -716,
+        "endZ": 0
+      },
+      "requiredPlayerTriangles": [
+        62,
+        63,
+        64,
+        65,
+        66,
+        67
+      ]
+    },
+    {
+      "fieldId": 607,
+      "kind": "Location",
+      "label": "Cross to doorway six",
+      "entityId": -1,
+      "x": -1,
+      "y": -716,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 613,
+      "maximumGameMoment": 626,
+      "priority": 0,
+      "sourceFieldName": "kuro_4",
+      "sourceEntityName": "gateway1",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 227,
+          "mask": 255,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 229,
+          "mask": 255,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 226,
+          "mask": 255,
+          "value": 4
+        },
+        {
+          "bank": 3,
+          "address": 228,
+          "mask": 255,
+          "value": 6
+        }
+      ],
+      "triggerLine": {
+        "startX": -87,
+        "startY": -716,
+        "startZ": 0,
+        "endX": 85,
+        "endY": -716,
+        "endZ": 0
+      },
+      "requiredPlayerTriangles": [
+        56,
+        57,
+        58,
+        59,
+        60,
+        61
+      ]
+    },
+    {
+      "fieldId": 607,
+      "kind": "Location",
+      "label": "Cross to doorway six",
+      "entityId": -1,
+      "x": -1,
+      "y": -716,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 613,
+      "maximumGameMoment": 626,
+      "priority": 0,
+      "sourceFieldName": "kuro_4",
+      "sourceEntityName": "gateway1",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 227,
+          "mask": 255,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 229,
+          "mask": 255,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 226,
+          "mask": 255,
+          "value": 6
+        },
+        {
+          "bank": 3,
+          "address": 228,
+          "mask": 255,
+          "value": 4
+        }
+      ],
+      "triggerLine": {
+        "startX": -87,
+        "startY": -716,
+        "startZ": 0,
+        "endX": 85,
+        "endY": -716,
+        "endZ": 0
+      },
+      "requiredPlayerTriangles": [
+        56,
+        57,
+        58,
+        59,
+        60,
+        61
+      ]
+    },
+    {
+      "fieldId": 607,
+      "kind": "Location",
+      "label": "Cross to doorway six",
+      "entityId": -1,
+      "x": -1,
+      "y": -716,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 613,
+      "maximumGameMoment": 626,
+      "priority": 0,
+      "sourceFieldName": "kuro_4",
+      "sourceEntityName": "gateway1",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 227,
+          "mask": 255,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 229,
+          "mask": 255,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 226,
+          "mask": 255,
+          "value": 5
+        },
+        {
+          "bank": 3,
+          "address": 228,
+          "mask": 255,
+          "value": 6
+        }
+      ],
+      "triggerLine": {
+        "startX": -87,
+        "startY": -716,
+        "startZ": 0,
+        "endX": 85,
+        "endY": -716,
+        "endZ": 0
+      },
+      "requiredPlayerTriangles": [
+        50,
+        51,
+        52,
+        53,
+        54,
+        55
+      ]
+    },
+    {
+      "fieldId": 607,
+      "kind": "Location",
+      "label": "Cross to doorway six",
+      "entityId": -1,
+      "x": -1,
+      "y": -716,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 613,
+      "maximumGameMoment": 626,
+      "priority": 0,
+      "sourceFieldName": "kuro_4",
+      "sourceEntityName": "gateway1",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 227,
+          "mask": 255,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 229,
+          "mask": 255,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 226,
+          "mask": 255,
+          "value": 6
+        },
+        {
+          "bank": 3,
+          "address": 228,
+          "mask": 255,
+          "value": 5
+        }
+      ],
+      "triggerLine": {
+        "startX": -87,
+        "startY": -716,
+        "startZ": 0,
+        "endX": 85,
+        "endY": -716,
+        "endZ": 0
+      },
+      "requiredPlayerTriangles": [
+        50,
+        51,
+        52,
+        53,
+        54,
+        55
+      ]
+    },
+    {
+      "fieldId": 607,
+      "kind": "Location",
+      "label": "Cross to doorway six",
+      "entityId": -1,
+      "x": -1,
+      "y": -716,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 613,
+      "maximumGameMoment": 626,
+      "priority": 0,
+      "sourceFieldName": "kuro_4",
+      "sourceEntityName": "gateway1",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 227,
+          "mask": 255,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 229,
+          "mask": 255,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 226,
+          "mask": 255,
+          "value": 7
+        },
+        {
+          "bank": 3,
+          "address": 228,
+          "mask": 255,
+          "value": 6
+        }
+      ],
+      "triggerLine": {
+        "startX": -87,
+        "startY": -716,
+        "startZ": 0,
+        "endX": 85,
+        "endY": -716,
+        "endZ": 0
+      },
+      "requiredPlayerTriangles": [
+        38,
+        39,
+        40,
+        41,
+        42,
+        43
+      ]
+    },
+    {
+      "fieldId": 607,
+      "kind": "Location",
+      "label": "Cross to doorway six",
+      "entityId": -1,
+      "x": -1,
+      "y": -716,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 613,
+      "maximumGameMoment": 626,
+      "priority": 0,
+      "sourceFieldName": "kuro_4",
+      "sourceEntityName": "gateway1",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 227,
+          "mask": 255,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 229,
+          "mask": 255,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 226,
+          "mask": 255,
+          "value": 6
+        },
+        {
+          "bank": 3,
+          "address": 228,
+          "mask": 255,
+          "value": 7
+        }
+      ],
+      "triggerLine": {
+        "startX": -87,
+        "startY": -716,
+        "startZ": 0,
+        "endX": 85,
+        "endY": -716,
+        "endZ": 0
+      },
+      "requiredPlayerTriangles": [
+        38,
+        39,
+        40,
+        41,
+        42,
+        43
+      ]
+    },
+    {
+      "fieldId": 607,
+      "kind": "Location",
+      "label": "Cross to doorway six",
+      "entityId": -1,
+      "x": -1,
+      "y": -716,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 613,
+      "maximumGameMoment": 626,
+      "priority": 0,
+      "sourceFieldName": "kuro_4",
+      "sourceEntityName": "gateway1",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 227,
+          "mask": 255,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 229,
+          "mask": 255,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 226,
+          "mask": 255,
+          "value": 8
+        },
+        {
+          "bank": 3,
+          "address": 228,
+          "mask": 255,
+          "value": 6
+        }
+      ],
+      "triggerLine": {
+        "startX": -87,
+        "startY": -716,
+        "startZ": 0,
+        "endX": 85,
+        "endY": -716,
+        "endZ": 0
+      },
+      "requiredPlayerTriangles": [
+        32,
+        33,
+        34,
+        35,
+        36,
+        37
+      ]
+    },
+    {
+      "fieldId": 607,
+      "kind": "Location",
+      "label": "Cross to doorway six",
+      "entityId": -1,
+      "x": -1,
+      "y": -716,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 613,
+      "maximumGameMoment": 626,
+      "priority": 0,
+      "sourceFieldName": "kuro_4",
+      "sourceEntityName": "gateway1",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 227,
+          "mask": 255,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 229,
+          "mask": 255,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 226,
+          "mask": 255,
+          "value": 6
+        },
+        {
+          "bank": 3,
+          "address": 228,
+          "mask": 255,
+          "value": 8
+        }
+      ],
+      "triggerLine": {
+        "startX": -87,
+        "startY": -716,
+        "startZ": 0,
+        "endX": 85,
+        "endY": -716,
+        "endZ": 0
+      },
+      "requiredPlayerTriangles": [
+        32,
+        33,
+        34,
+        35,
+        36,
+        37
+      ]
+    },
+    {
+      "fieldId": 607,
+      "kind": "Location",
+      "label": "Cross to doorway six",
+      "entityId": -1,
+      "x": -1,
+      "y": -716,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 613,
+      "maximumGameMoment": 626,
+      "priority": 0,
+      "sourceFieldName": "kuro_4",
+      "sourceEntityName": "gateway1",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 227,
+          "mask": 255,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 229,
+          "mask": 255,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 226,
+          "mask": 255,
+          "value": 9
+        },
+        {
+          "bank": 3,
+          "address": 228,
+          "mask": 255,
+          "value": 6
+        }
+      ],
+      "triggerLine": {
+        "startX": -87,
+        "startY": -716,
+        "startZ": 0,
+        "endX": 85,
+        "endY": -716,
+        "endZ": 0
+      },
+      "requiredPlayerTriangles": [
+        14,
+        15,
+        28,
+        29,
+        30,
+        31
+      ]
+    },
+    {
+      "fieldId": 607,
+      "kind": "Location",
+      "label": "Cross to doorway six",
+      "entityId": -1,
+      "x": -1,
+      "y": -716,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 613,
+      "maximumGameMoment": 626,
+      "priority": 0,
+      "sourceFieldName": "kuro_4",
+      "sourceEntityName": "gateway1",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 227,
+          "mask": 255,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 229,
+          "mask": 255,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 226,
+          "mask": 255,
+          "value": 6
+        },
+        {
+          "bank": 3,
+          "address": 228,
+          "mask": 255,
+          "value": 9
+        }
+      ],
+      "triggerLine": {
+        "startX": -87,
+        "startY": -716,
+        "startZ": 0,
+        "endX": 85,
+        "endY": -716,
+        "endZ": 0
+      },
+      "requiredPlayerTriangles": [
+        14,
+        15,
+        28,
+        29,
+        30,
+        31
+      ]
+    },
+    {
+      "fieldId": 607,
+      "kind": "Location",
+      "label": "Cross to doorway six",
+      "entityId": -1,
+      "x": -1,
+      "y": -716,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 613,
+      "maximumGameMoment": 626,
+      "priority": 0,
+      "sourceFieldName": "kuro_4",
+      "sourceEntityName": "gateway1",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 227,
+          "mask": 255,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 229,
+          "mask": 255,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 226,
+          "mask": 255,
+          "value": 10
+        },
+        {
+          "bank": 3,
+          "address": 228,
+          "mask": 255,
+          "value": 6
+        }
+      ],
+      "triggerLine": {
+        "startX": -87,
+        "startY": -716,
+        "startZ": 0,
+        "endX": 85,
+        "endY": -716,
+        "endZ": 0
+      },
+      "requiredPlayerTriangles": [
+        10,
+        11,
+        24,
+        25,
+        26,
+        27
+      ]
+    },
+    {
+      "fieldId": 607,
+      "kind": "Location",
+      "label": "Cross to doorway six",
+      "entityId": -1,
+      "x": -1,
+      "y": -716,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 613,
+      "maximumGameMoment": 626,
+      "priority": 0,
+      "sourceFieldName": "kuro_4",
+      "sourceEntityName": "gateway1",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 227,
+          "mask": 255,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 229,
+          "mask": 255,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 226,
+          "mask": 255,
+          "value": 6
+        },
+        {
+          "bank": 3,
+          "address": 228,
+          "mask": 255,
+          "value": 10
+        }
+      ],
+      "triggerLine": {
+        "startX": -87,
+        "startY": -716,
+        "startZ": 0,
+        "endX": 85,
+        "endY": -716,
+        "endZ": 0
+      },
+      "requiredPlayerTriangles": [
+        10,
+        11,
+        24,
+        25,
+        26,
+        27
+      ]
+    },
+    {
+      "fieldId": 607,
+      "kind": "Location",
+      "label": "Cross to doorway six",
+      "entityId": -1,
+      "x": -1,
+      "y": -716,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 613,
+      "maximumGameMoment": 626,
+      "priority": 0,
+      "sourceFieldName": "kuro_4",
+      "sourceEntityName": "gateway1",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 227,
+          "mask": 255,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 229,
+          "mask": 255,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 226,
+          "mask": 255,
+          "value": 11
+        },
+        {
+          "bank": 3,
+          "address": 228,
+          "mask": 255,
+          "value": 6
+        }
+      ],
+      "triggerLine": {
+        "startX": -87,
+        "startY": -716,
+        "startZ": 0,
+        "endX": 85,
+        "endY": -716,
+        "endZ": 0
+      },
+      "requiredPlayerTriangles": [
+        6,
+        7,
+        20,
+        21,
+        22,
+        23
+      ]
+    },
+    {
+      "fieldId": 607,
+      "kind": "Location",
+      "label": "Cross to doorway six",
+      "entityId": -1,
+      "x": -1,
+      "y": -716,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 613,
+      "maximumGameMoment": 626,
+      "priority": 0,
+      "sourceFieldName": "kuro_4",
+      "sourceEntityName": "gateway1",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 227,
+          "mask": 255,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 229,
+          "mask": 255,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 226,
+          "mask": 255,
+          "value": 6
+        },
+        {
+          "bank": 3,
+          "address": 228,
+          "mask": 255,
+          "value": 11
+        }
+      ],
+      "triggerLine": {
+        "startX": -87,
+        "startY": -716,
+        "startZ": 0,
+        "endX": 85,
+        "endY": -716,
+        "endZ": 0
+      },
+      "requiredPlayerTriangles": [
+        6,
+        7,
+        20,
+        21,
+        22,
+        23
+      ]
+    },
+    {
+      "fieldId": 607,
+      "kind": "Location",
+      "label": "Set the clock hands to make a way to doorway six",
+      "entityId": -1,
+      "x": -1,
+      "y": -716,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 613,
+      "maximumGameMoment": 626,
+      "priority": 1,
+      "sourceFieldName": "kuro_4",
+      "sourceEntityName": "gateway1",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "manualNavigationGuidance": "The hands are bridges: each joins the middle of the clock to the doorway it points at. From the middle, doorway six needs one hand at six; from another doorway, one hand at that doorway and the other at six. When you come in, the Time Guardian lets you set the clock: choose Move it myself, then Speed up time or Go back in time turns the long hand one hour, and the short hand moves an hour whenever the long hand passes twelve. Choose Proceed now! when done. To set it again, go back out the way you came in and come back.",
+      "triggerLine": {
+        "startX": -87,
+        "startY": -716,
+        "startZ": 0,
+        "endX": 85,
+        "endY": -716,
+        "endZ": 0
+      }
+    },
+    {
+      "fieldId": 586,
+      "kind": "Model",
+      "label": "Talk to Gorky (optional)",
+      "entityId": 17,
+      "x": 0,
+      "y": 0,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 1,
+      "sourceFieldName": "tower5",
+      "sourceEntityName": "goriki",
+      "sourceScriptType": "Talk",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 15,
+          "address": 138,
+          "mask": 255,
+          "value": 0
+        },
+        {
+          "bank": 15,
+          "address": 139,
+          "mask": 1,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 9,
+          "mask": 0,
+          "value": 0,
+          "partyMemberId": 5,
+          "requirePartyMember": true
+        }
+      ],
+      "completedCondition": {
+        "bank": 15,
+        "address": 139,
+        "mask": 1,
+        "value": 1
+      }
+    },
+    {
+      "fieldId": 586,
+      "kind": "Location",
+      "label": "Climb the stairs to the second floor (optional)",
+      "entityId": 14,
+      "x": 103,
+      "y": 486,
+      "z": 99,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 1,
+      "sourceFieldName": "tower5",
+      "sourceEntityName": "jump_u",
+      "sourceScriptType": "Move",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 15,
+          "address": 138,
+          "mask": 255,
+          "value": 0
+        },
+        {
+          "bank": 15,
+          "address": 139,
+          "mask": 1,
+          "value": 1
+        },
+        {
+          "bank": 15,
+          "address": 139,
+          "mask": 16,
+          "value": 0
+        }
+      ],
+      "triggerLine": {
+        "startX": 82,
+        "startY": 547,
+        "startZ": 116,
+        "endX": 125,
+        "endY": 426,
+        "endZ": 83
+      },
+      "requiredEnabledLineEntityId": 14
+    },
+    {
+      "fieldId": 586,
+      "kind": "Model",
+      "label": "Talk to Shake (optional)",
+      "entityId": 18,
+      "x": 0,
+      "y": 0,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 1,
+      "sourceFieldName": "tower5",
+      "sourceEntityName": "shake",
+      "sourceScriptType": "Talk",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 15,
+          "address": 138,
+          "mask": 255,
+          "value": 1
+        },
+        {
+          "bank": 15,
+          "address": 139,
+          "mask": 2,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 9,
+          "mask": 0,
+          "value": 0,
+          "partyMemberId": 5,
+          "requirePartyMember": true
+        }
+      ],
+      "completedCondition": {
+        "bank": 15,
+        "address": 139,
+        "mask": 2,
+        "value": 2
+      }
+    },
+    {
+      "fieldId": 586,
+      "kind": "Location",
+      "label": "Climb the stairs to the third floor (optional)",
+      "entityId": 14,
+      "x": 103,
+      "y": 486,
+      "z": 99,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 1,
+      "sourceFieldName": "tower5",
+      "sourceEntityName": "jump_u",
+      "sourceScriptType": "Move",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 15,
+          "address": 138,
+          "mask": 255,
+          "value": 1
+        },
+        {
+          "bank": 15,
+          "address": 139,
+          "mask": 2,
+          "value": 2
+        },
+        {
+          "bank": 15,
+          "address": 139,
+          "mask": 16,
+          "value": 0
+        }
+      ],
+      "triggerLine": {
+        "startX": 82,
+        "startY": 547,
+        "startZ": 116,
+        "endX": 125,
+        "endY": 426,
+        "endZ": 83
+      },
+      "requiredEnabledLineEntityId": 14
+    },
+    {
+      "fieldId": 586,
+      "kind": "Location",
+      "label": "Go back down to the first floor (optional)",
+      "entityId": 15,
+      "x": -127,
+      "y": 487,
+      "z": -18,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 1,
+      "sourceFieldName": "tower5",
+      "sourceEntityName": "jump_d",
+      "sourceScriptType": "Move",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 15,
+          "address": 138,
+          "mask": 255,
+          "value": 1
+        }
+      ],
+      "triggerLine": {
+        "startX": -137,
+        "startY": 430,
+        "startZ": -18,
+        "endX": -118,
+        "endY": 544,
+        "endZ": -18
+      },
+      "requiredEnabledLineEntityId": 15
+    },
+    {
+      "fieldId": 586,
+      "kind": "Model",
+      "label": "Talk to Chekhov (optional)",
+      "entityId": 19,
+      "x": 0,
+      "y": 0,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 1,
+      "sourceFieldName": "tower5",
+      "sourceEntityName": "tiehofu",
+      "sourceScriptType": "Talk",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 15,
+          "address": 138,
+          "mask": 255,
+          "value": 2
+        },
+        {
+          "bank": 15,
+          "address": 139,
+          "mask": 4,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 9,
+          "mask": 0,
+          "value": 0,
+          "partyMemberId": 5,
+          "requirePartyMember": true
+        }
+      ],
+      "completedCondition": {
+        "bank": 15,
+        "address": 139,
+        "mask": 4,
+        "value": 4
+      }
+    },
+    {
+      "fieldId": 586,
+      "kind": "Location",
+      "label": "Climb the stairs to the fourth floor (optional)",
+      "entityId": 14,
+      "x": 103,
+      "y": 486,
+      "z": 99,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 1,
+      "sourceFieldName": "tower5",
+      "sourceEntityName": "jump_u",
+      "sourceScriptType": "Move",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 15,
+          "address": 138,
+          "mask": 255,
+          "value": 2
+        },
+        {
+          "bank": 15,
+          "address": 139,
+          "mask": 4,
+          "value": 4
+        },
+        {
+          "bank": 15,
+          "address": 139,
+          "mask": 16,
+          "value": 0
+        }
+      ],
+      "triggerLine": {
+        "startX": 82,
+        "startY": 547,
+        "startZ": 116,
+        "endX": 125,
+        "endY": 426,
+        "endZ": 83
+      },
+      "requiredEnabledLineEntityId": 14
+    },
+    {
+      "fieldId": 586,
+      "kind": "Location",
+      "label": "Go back down to the second floor (optional)",
+      "entityId": 15,
+      "x": -127,
+      "y": 487,
+      "z": -18,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 1,
+      "sourceFieldName": "tower5",
+      "sourceEntityName": "jump_d",
+      "sourceScriptType": "Move",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 15,
+          "address": 138,
+          "mask": 255,
+          "value": 2
+        }
+      ],
+      "triggerLine": {
+        "startX": -137,
+        "startY": 430,
+        "startZ": -18,
+        "endX": -118,
+        "endY": 544,
+        "endZ": -18
+      },
+      "requiredEnabledLineEntityId": 15
+    },
+    {
+      "fieldId": 586,
+      "kind": "Model",
+      "label": "Talk to Staniv (optional)",
+      "entityId": 20,
+      "x": 0,
+      "y": 0,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 1,
+      "sourceFieldName": "tower5",
+      "sourceEntityName": "sutanif",
+      "sourceScriptType": "Talk",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 15,
+          "address": 138,
+          "mask": 255,
+          "value": 3
+        },
+        {
+          "bank": 15,
+          "address": 139,
+          "mask": 8,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 9,
+          "mask": 0,
+          "value": 0,
+          "partyMemberId": 5,
+          "requirePartyMember": true
+        }
+      ],
+      "completedCondition": {
+        "bank": 15,
+        "address": 139,
+        "mask": 8,
+        "value": 8
+      }
+    },
+    {
+      "fieldId": 586,
+      "kind": "Location",
+      "label": "Climb the stairs to the fifth floor (optional)",
+      "entityId": 14,
+      "x": 103,
+      "y": 486,
+      "z": 99,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 1,
+      "sourceFieldName": "tower5",
+      "sourceEntityName": "jump_u",
+      "sourceScriptType": "Move",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 15,
+          "address": 138,
+          "mask": 255,
+          "value": 3
+        },
+        {
+          "bank": 15,
+          "address": 139,
+          "mask": 8,
+          "value": 8
+        },
+        {
+          "bank": 15,
+          "address": 139,
+          "mask": 16,
+          "value": 0
+        }
+      ],
+      "triggerLine": {
+        "startX": 82,
+        "startY": 547,
+        "startZ": 116,
+        "endX": 125,
+        "endY": 426,
+        "endZ": 83
+      },
+      "requiredEnabledLineEntityId": 14
+    },
+    {
+      "fieldId": 586,
+      "kind": "Location",
+      "label": "Go back down to the third floor (optional)",
+      "entityId": 15,
+      "x": -127,
+      "y": 487,
+      "z": -18,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 1,
+      "sourceFieldName": "tower5",
+      "sourceEntityName": "jump_d",
+      "sourceScriptType": "Move",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 15,
+          "address": 138,
+          "mask": 255,
+          "value": 3
+        }
+      ],
+      "triggerLine": {
+        "startX": -137,
+        "startY": 430,
+        "startZ": -18,
+        "endX": -118,
+        "endY": 544,
+        "endZ": -18
+      },
+      "requiredEnabledLineEntityId": 15
+    },
+    {
+      "fieldId": 586,
+      "kind": "Model",
+      "label": "Talk to Godo (optional)",
+      "entityId": 21,
+      "x": 0,
+      "y": 0,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 1,
+      "sourceFieldName": "tower5",
+      "sourceEntityName": "godoh",
+      "sourceScriptType": "Talk",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 15,
+          "address": 138,
+          "mask": 255,
+          "value": 4
+        },
+        {
+          "bank": 15,
+          "address": 139,
+          "mask": 16,
+          "value": 0
+        },
+        {
+          "bank": 3,
+          "address": 9,
+          "mask": 0,
+          "value": 0,
+          "partyMemberId": 5,
+          "requirePartyMember": true
+        }
+      ],
+      "completedCondition": {
+        "bank": 15,
+        "address": 139,
+        "mask": 16,
+        "value": 16
+      }
+    },
+    {
+      "fieldId": 586,
+      "kind": "Location",
+      "label": "Go back down to the fourth floor (optional)",
+      "entityId": 15,
+      "x": -127,
+      "y": 487,
+      "z": -18,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 1,
+      "sourceFieldName": "tower5",
+      "sourceEntityName": "jump_d",
+      "sourceScriptType": "Move",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 15,
+          "address": 138,
+          "mask": 255,
+          "value": 4
+        }
+      ],
+      "triggerLine": {
+        "startX": -137,
+        "startY": 430,
+        "startZ": -18,
+        "endX": -118,
+        "endY": 544,
+        "endZ": -18
+      },
+      "requiredEnabledLineEntityId": 15
+    },
+    {
+      "fieldId": 586,
+      "kind": "Location",
+      "label": "Leave the Pagoda (optional)",
+      "entityId": -1,
+      "x": 3,
+      "y": -400,
+      "z": 20,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 50,
+      "sourceFieldName": "tower5",
+      "sourceEntityName": "gateway0",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 15,
+          "address": 138,
+          "mask": 255,
+          "value": 0
+        }
+      ],
+      "triggerLine": {
+        "startX": -94,
+        "startY": -401,
+        "startZ": 20,
+        "endX": 101,
+        "endY": -399,
+        "endZ": 20
+      }
     }
   ]
 }
