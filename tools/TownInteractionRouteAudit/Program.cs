@@ -1,10 +1,13 @@
 using System.Text.Json;
+using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using Ff7.Accessibility.Reloaded;
 if (args.Length != 2) return 2;
 var source = new FlevelDataSource(args[0]);
 var catalog = new FieldScriptNavigationCatalog(args[0]);
 var wanted = TownInteractionObjectCatalog.Create().Select(d => d.FieldId).ToHashSet();
 var entries = new Dictionary<int, HashSet<(int X, int Y, int Triangle)>>();
+var entryOrigins = new Dictionary<(int Field, int X, int Y, int Triangle), HashSet<string>>();
 var data = new Dictionary<int, byte[]>();
 foreach (var f in source.FieldNames.Keys)
 {
@@ -12,10 +15,10 @@ foreach (var f in source.FieldNames.Keys)
     var b = Ff7LzsDecoder.DecodeFieldFile(encoded);
     if (wanted.Contains(f)) data[f] = b;
     var t = BitConverter.ToInt32(b, 6 + 7 * 4) + 4;
-    for (var i = 0; i < 12; i++) { var at = t + 0x38 + i * 24; Add(BitConverter.ToInt16(b, at + 18), BitConverter.ToInt16(b, at + 12), BitConverter.ToInt16(b, at + 14), BitConverter.ToUInt16(b, at + 16)); }
+    for (var i = 0; i < 12; i++) { var at = t + 0x38 + i * 24; Add(BitConverter.ToInt16(b, at + 18), BitConverter.ToInt16(b, at + 12), BitConverter.ToInt16(b, at + 14), BitConverter.ToUInt16(b, at + 16), $"field {f} gateway {i}"); }
     foreach (var op in catalog.ReadAllScriptOpcodes(f).SelectMany(s => s.Opcodes).Where(o => o.Opcode == 0x60 && o.Bytes.Count == 10))
     {
-        var a = op.Bytes.ToArray(); Add(BitConverter.ToUInt16(a, 1), BitConverter.ToInt16(a, 3), BitConverter.ToInt16(a, 5), BitConverter.ToUInt16(a, 7));
+        var a = op.Bytes.ToArray(); Add(BitConverter.ToUInt16(a, 1), BitConverter.ToInt16(a, 3), BitConverter.ToInt16(a, 5), BitConverter.ToUInt16(a, 7), $"field {f} entity {op.EntityId} script {op.ScriptId}");
     }
 }
 var puzzleLandingsOnly = new List<string>();
@@ -26,7 +29,11 @@ foreach (var group in TownInteractionObjectCatalog.Create().GroupBy(d => d.Field
     int Int(int a) => a == FieldWalkmeshReader.AddressFieldDataPtr ? ptr : a >= ptr && a + 4 <= ptr + b.Length ? BitConverter.ToInt32(b, a - ptr) : 0;
     short Short(int a) => a >= ptr && a + 2 <= ptr + b.Length ? BitConverter.ToInt16(b, a - ptr) : (short)0;
     var reader = new FieldWalkmeshReader(Int, Short); var mesh = reader.Read(new(1, f, 0, 0, 0, 0, 0, 0)).Walkmesh!;
-    var nav = catalog.ReadField(f); var planner = new FieldWalkmeshRoutePlanner(reader, transitionProvider: _ => nav.Transitions);
+    var nav = catalog.ReadField(f);
+    // Production resolves polled traversal source heights before planning. Keep that
+    // geometry step while explicitly assuming every LINE and possible mover is available.
+    var transitions = new FieldScriptNavigationTransitionTracker().ResolveForNavigation(f, nav.Transitions, _ => true, mesh);
+    var planner = new FieldWalkmeshRoutePlanner(reader, transitionProvider: _ => transitions);
     foreach (var row in group)
     {
         var x = row.StaticX; var y = row.StaticY; var z = row.StaticZ;
@@ -54,7 +61,7 @@ foreach (var group in TownInteractionObjectCatalog.Create().GroupBy(d => d.Field
             var start = new FieldPositionSnapshot(1, f, 0, entry.X, entry.Y, height, (ushort)entry.Triangle, 0);
             var ok = planner.TryBuildRoute(start, target, out var plan); long d2 = -1;
             if (ok) { long dx = plan.FinalApproach.X - x, dy = plan.FinalApproach.Y - y; d2 = dx * dx + dy * dy; ok = d2 < (long)radius * radius; }
-            attempted.Add(new { entry = new[] { entry.X, entry.Y, entry.Triangle }, ok, d2, diagnostic = planner.LastDiagnostic }); routes++;
+            attempted.Add(new { entry = new[] { entry.X, entry.Y, entry.Triangle }, origins = entryOrigins[(f, entry.X, entry.Y, entry.Triangle)].Order().ToArray(), ok, d2, diagnostic = planner.LastDiagnostic }); routes++;
             if (ok) passed++;
         }
         if (passed == 0 && f is 620 or 623 && row.EntityId == 16)
@@ -82,8 +89,24 @@ foreach (var group in TownInteractionObjectCatalog.Create().GroupBy(d => d.Field
         results.Add(new { f, row.EntityId, row.Label, point = new[] { x, y, z }, radius, passed, attempted });
     }
 }
-File.WriteAllText(args[1], JsonSerializer.Serialize(new { evidence = "Static native walkmesh replay with script transitions. Does not simulate live IDLCK, actors or gameplay input. puzzleLandingsOnly targets require the native puzzle jump before the tested approach; they are not routes from field entrances.", objects = success + failed.Count, routes, success, puzzleLandingsOnly, failed, results }, new JsonSerializerOptions { WriteIndented = true }));
-Console.WriteLine($"Native optional-object routes: {success}/{success + failed.Count} targets have a reachable native arrival state; {routes} routes attempted.");
+var runtimeAssembly = typeof(FieldScriptNavigationCatalog).Assembly;
+File.WriteAllText(args[1], JsonSerializer.Serialize(new {
+    runtime = RuntimeInformation.ProcessArchitecture.ToString().ToLowerInvariant(),
+    runtimeAssembly = runtimeAssembly.GetName().Name,
+    runtimeAssemblySha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(runtimeAssembly.Location))),
+    archive = Path.GetFullPath(args[0]),
+    evidence = "Static native walkmesh replay with possible script transitions and production source-height resolution. Assumes every LINE and possible mover is available; does not simulate live IDLCK, actor ownership, gateway state or gameplay input. A successful route proves geometry for that arrival and assumed transitions only, not availability in a live save. puzzleLandingsOnly targets require the native puzzle jump before the tested approach; they are not routes from field entrances.",
+    objects = success + failed.Count, uniqueObjects = TownInteractionObjectCatalog.Create().Select(row => (row.FieldId, row.EntityId)).Distinct().Count(), routes, success, puzzleLandingsOnly, failed, results
+}, new JsonSerializerOptions { WriteIndented = true }));
+Console.WriteLine($"Optional-object geometry: {success}/{success + failed.Count} definitions have at least one successful approach; {routes} routes attempted. This does not certify every arrival or live state.");
 foreach (var f in failed) Console.WriteLine(f);
 return failed.Count == 0 ? 0 : 1;
-void Add(int f, int x, int y, int tri) { if (!wanted.Contains(f)) return; if (!entries.TryGetValue(f, out var set)) entries[f] = set = []; set.Add((x, y, tri)); }
+void Add(int f, int x, int y, int tri, string origin)
+{
+    if (!wanted.Contains(f)) return;
+    if (!entries.TryGetValue(f, out var set)) entries[f] = set = [];
+    set.Add((x, y, tri));
+    var key = (f, x, y, tri);
+    if (!entryOrigins.TryGetValue(key, out var origins)) entryOrigins[key] = origins = [];
+    origins.Add(origin);
+}

@@ -1054,7 +1054,11 @@
     <Compile Include="..\Ff7.Accessibility.Reloaded\Floor60SoldierTurnCueTracker.cs" Link="Shared\Floor60SoldierTurnCueTracker.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\ImmediateWaveCuePlayer.cs" Link="Shared\ImmediateWaveCuePlayer.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldScriptNavigationCatalog.cs" Link="Shared\FieldScriptNavigationCatalog.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldScriptProgram.cs" Link="Shared\FieldScriptProgram.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldScriptExitGuards.cs" Link="Shared\FieldScriptExitGuards.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\GoldSaucerPlatformExitCatalog.cs" Link="Shared\GoldSaucerPlatformExitCatalog.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldTriangleExitCatalog.cs" Link="Shared\FieldTriangleExitCatalog.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldContactActivationReader.cs" Link="Shared\FieldContactActivationReader.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldScriptNavigationTransitionTracker.cs" Link="Shared\FieldScriptNavigationTransitionTracker.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldNavigationSpeechPolicy.cs" Link="Shared\FieldNavigationSpeechPolicy.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldStoryTargetReader.cs" Link="Shared\FieldStoryTargetReader.cs" />

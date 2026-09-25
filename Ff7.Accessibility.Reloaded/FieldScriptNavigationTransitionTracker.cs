@@ -42,22 +42,44 @@ public sealed class FieldScriptNavigationTransitionTracker
         int fieldId,
         IReadOnlyList<FieldScriptNavigationTransition> transitions,
         Func<int, bool> isLineEnabled,
-        FieldWalkmesh? walkmesh)
+        FieldWalkmesh? walkmesh,
+        Func<int, bool?>? isControlledEntity = null,
+        Func<int?>? partyLeaderCharacter = null)
     {
         ArgumentNullException.ThrowIfNull(isLineEnabled);
         var available = Resolve(
             fieldId,
             transitions,
-            transition => isLineEnabled(transition.SourceEntityId));
+            transition => isLineEnabled(transition.SourceEntityId),
+            isControlledEntity,
+            partyLeaderCharacter);
         return walkmesh is null
             ? available
             : FieldWalkmeshRoutePlanner.AnchorTransitionSourceHeights(available, walkmesh);
     }
 
+    /// <param name="isControlledEntity">
+    /// Whether an entity's model is the one the player moves, or null when that cannot be
+    /// read. A traversal that moves particular entities' models (its
+    /// <see cref="FieldScriptNavigationTransition.MoverEntityIds"/>) is offered only while the
+    /// reader positively says one of them is controlled: an unreadable or torn answer is not a
+    /// verified route, so it hides the traversal until the next read. A traversal with no movers
+    /// is the player's whoever is controlled and is always offered. Every runtime passes its live
+    /// reader; leaving this out (offline listings and tests) filters nothing.
+    /// </param>
+    /// <param name="partyLeaderCharacter">
+    /// The character in party slot 0 (0x00DC09E5), or null when it cannot be read. A traversal
+    /// with <see cref="FieldScriptNavigationTransition.Conditions"/> is offered only while one of
+    /// them holds as a whole - its model positively controlled and its leader positively leading,
+    /// together: controlled Cloud does not stand in for leading Tifa. Left out, nothing is
+    /// filtered on the leader.
+    /// </param>
     public IReadOnlyList<FieldScriptNavigationTransition> Resolve(
         int fieldId,
         IReadOnlyList<FieldScriptNavigationTransition> transitions,
-        Func<FieldScriptNavigationTransition, bool> isEnabled)
+        Func<FieldScriptNavigationTransition, bool> isEnabled,
+        Func<int, bool?>? isControlledEntity = null,
+        Func<int?>? partyLeaderCharacter = null)
     {
         if (currentFieldId != fieldId)
         {
@@ -72,6 +94,8 @@ public sealed class FieldScriptNavigationTransitionTracker
         }
 
         var now = utcNow();
+        // Read once, the first time a traversal needs it, and shared by every traversal.
+        (bool Read, int? Character) leader = (false, null);
         var currentIds = new HashSet<string>(StringComparer.Ordinal);
         var available = new List<FieldScriptNavigationTransition>(transitions.Count);
         foreach (var transition in transitions)
@@ -82,6 +106,16 @@ public sealed class FieldScriptNavigationTransitionTracker
             }
 
             currentIds.Add(transition.StableId);
+
+            // A traversal a character's own copy of a routine makes moves that character's
+            // model, and is the player's only while that model is the one being moved:
+            // Mount Corel's border9 lands Aeris somewhere other than everyone else, and
+            // offering her landing while Cloud leads describes a place he is never sent. The
+            // same holds for a ladder the field polls for, which moves whoever leads.
+            if (!IsThePlayers(transition, isControlledEntity, partyLeaderCharacter, ref leader))
+            {
+                continue;
+            }
 
             // A traversal the field polls for has no LINE behind it, and asking whether
             // its line is switched on is asking about something that does not exist. The
@@ -120,5 +154,63 @@ public sealed class FieldScriptNavigationTransitionTracker
         }
 
         return available.Count == 0 ? Array.Empty<FieldScriptNavigationTransition>() : available;
+    }
+
+    private static bool IsThePlayers(
+        FieldScriptNavigationTransition transition,
+        Func<int, bool?>? isControlledEntity,
+        Func<int?>? partyLeaderCharacter,
+        ref (bool Read, int? Character) leader)
+    {
+        if (transition.Conditions is not { Count: > 0 } conditions)
+        {
+            return MovesTheControlledModel(transition, isControlledEntity);
+        }
+
+        foreach (var condition in conditions)
+        {
+            if (condition.ControlledEntityId is { } entity && isControlledEntity is not null &&
+                isControlledEntity(entity) != true)
+            {
+                continue;
+            }
+
+            if (condition.LeaderCharacterIds is { Count: > 0 } leaders && partyLeaderCharacter is not null)
+            {
+                if (!leader.Read)
+                {
+                    leader = (true, partyLeaderCharacter());
+                }
+
+                if (leader.Character is not { } character || !leaders.Contains(character))
+                {
+                    continue;
+                }
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool MovesTheControlledModel(
+        FieldScriptNavigationTransition transition,
+        Func<int, bool?>? isControlledEntity)
+    {
+        if (transition.MoverEntityIds is not { Count: > 0 } movers || isControlledEntity is null)
+        {
+            return true;
+        }
+
+        foreach (var mover in movers)
+        {
+            if (isControlledEntity(mover) == true)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

@@ -1794,6 +1794,7 @@ foreach ($region in @('CostaDelSol', 'MountCorel', 'NorthCorel', 'GoldSaucer', '
 
 . (Join-Path $scriptRoot 'story-regions\WeaponSeller.ps1')
 . (Join-Path $scriptRoot 'story-regions\ReviewedStoryTransit.ps1')
+. (Join-Path $scriptRoot 'story-regions\JunonDolphinReturn.ps1')
 
 # What Add-CuratedFields is for.
 #

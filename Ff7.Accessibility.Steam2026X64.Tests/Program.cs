@@ -13,6 +13,23 @@ if (args.Length == 1 && string.Equals(args[0], PrismAbiProbeTests.ProbeSwitch, S
     Environment.Exit(PrismAbiProbeTests.RunProbeChild());
 }
 
+if (args.Contains("--field-execution-report", StringComparer.OrdinalIgnoreCase))
+{
+    Environment.Exit(Ff7.Accessibility.Reloaded.Tests.FieldScriptExecutionModelTests.Report());
+}
+
+if (args.Contains("--field-execution-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.FieldScriptExecutionModelTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.FieldScriptExecutionInstalledTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.FieldGatewayLiveSwitchTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.FieldContactNpcTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.FieldContactNpcTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.FieldTriangleExitTests.RunWithInstalledGameData(CreateInstalledFieldWalkmeshReader);
+    Console.WriteLine("Steam 2026 x64 field execution model tests passed.");
+    return;
+}
+
 if (args.Contains("--town-coverage-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.TownInteractionCoverageTests.Run();
@@ -822,6 +839,14 @@ Ff7.Accessibility.Reloaded.Tests.WutaiMateriaQuestTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WutaiMateriaQuestTests.RunWithInstalledGameData();
 Ff7.Accessibility.Reloaded.Tests.WutaiHiddenRoomExitTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WutaiHiddenRoomExitTests.RunWithInstalledGameData();
+Ff7.Accessibility.Reloaded.Tests.FieldScriptExecutionModelTests.Run();
+Ff7.Accessibility.Reloaded.Tests.FieldScriptExecutionInstalledTests.RunWithInstalledGameData();
+Ff7.Accessibility.Reloaded.Tests.LucreciaCaveObjectTests.Run();
+Ff7.Accessibility.Reloaded.Tests.LucreciaCaveObjectTests.RunWithInstalledGameData();
+Ff7.Accessibility.Reloaded.Tests.FieldGatewayLiveSwitchTests.Run();
+Ff7.Accessibility.Reloaded.Tests.FieldContactNpcTests.Run();
+Ff7.Accessibility.Reloaded.Tests.FieldContactNpcTests.RunWithInstalledGameData();
+Ff7.Accessibility.Reloaded.Tests.FieldTriangleExitTests.RunWithInstalledGameData(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.NibelheimStoryTests.Run();
 Ff7.Accessibility.Reloaded.Tests.NibelheimStoryTests.RunWithInstalledGameData();
 Ff7.Accessibility.Reloaded.Tests.RemainingStoryContinuityTests.Run();

@@ -33,6 +33,13 @@ public static class TownInteractionObjectCatalog
         Line(336, 4, "Door", "elmin2_1", "door", 104, 172, 10) with { RequiredBank = 5, RequiredAddress = 7, RequiredMask = 255 },
         Line(337, 5, "Locked chest", "elmin2_2", "box", -47, 119, 0),
         Line(492, 13, "Turtle's Paradise flyer", "ghotin_1", "TIRASI", -514, 478, 0),
+        // gldgate's information counter. al's [OK] (LINE script 1) returns at game moments 439
+        // and 598 (16200000B7010002, 1620000056020002) and otherwise MAPJUMPs to gldinfo, the
+        // Info Board screen that describes the squares - a screen, not a way on, so it is an
+        // Object here and not an exit. Offered at every other moment.
+        Line(497, 14, "Information counter", "gldgate", "al", 127, 552, 0) with { MaximumGameMoment = 438 },
+        Line(497, 14, "Information counter", "gldgate", "al", 127, 552, 0) with { MinimumGameMoment = 440, MaximumGameMoment = 597 },
+        Line(497, 14, "Information counter", "gldgate", "al", 127, 552, 0) with { MinimumGameMoment = 599 },
         Line(493, 11, "Turtle's Paradise flyer", "ghotin_4", "TIRASI", -514, 478, 0),
         Line(503, 7, "Star Cup display", "clsin2_2", "l2", 1556, -2622, 0),
         Line(503, 8, "Weekend Clock display", "clsin2_2", "l3", 1714, -2622, 0),

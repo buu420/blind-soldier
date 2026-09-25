@@ -2129,5 +2129,109 @@
         "hex": "6DAA0001"
       }
     ]
+  },
+  {
+    "id": "junon-dolphin-return-first",
+    "fieldId": 429,
+    "moment": 469,
+    "expectedLabels": [
+      "Stand at the water's edge and press Switch to call the dolphin (optional)"
+    ],
+    "evidence": "ujunon2 ad (entity 3) Main, installed archive: IFSW 2[0] < 1008 and 2[0] >= 469 wrap GETAI 6[6] = cloud's triangle, IFKEYON [SWITCH] (0x80), IFSW 6[6] == 25, ASK dialog 32 'Jump up to the cargo ship on the dolphin?' and on Yes (IFUB 5[8] == 2) MAPJUMP 38. Nothing else in the field says where the whistle works on a return visit.",
+    "nativeAnchors": [
+      {
+        "entityId": 3,
+        "scriptId": 0,
+        "hex": "16200000F0030384"
+      },
+      {
+        "entityId": 3,
+        "scriptId": 0,
+        "hex": "16200000D501047C"
+      },
+      {
+        "entityId": 3,
+        "scriptId": 0,
+        "hex": "B9060506"
+      },
+      {
+        "entityId": 3,
+        "scriptId": 0,
+        "hex": "31800072"
+      },
+      {
+        "entityId": 3,
+        "scriptId": 0,
+        "hex": "1660060019000062"
+      },
+      {
+        "entityId": 3,
+        "scriptId": 0,
+        "hex": "48050020020308"
+      },
+      {
+        "entityId": 3,
+        "scriptId": 0,
+        "hex": "145008020020"
+      },
+      {
+        "entityId": 3,
+        "scriptId": 0,
+        "hex": "60260000000000000000"
+      }
+    ]
+  },
+  {
+    "id": "junon-dolphin-return-last",
+    "fieldId": 429,
+    "moment": 1007,
+    "expectedLabels": [
+      "Stand at the water's edge and press Switch to call the dolphin (optional)"
+    ],
+    "evidence": "ujunon2 ad Main: IFSW 2[0] < 1008 (16200000F0030384) still holds at 1007, so the whistle poll runs.",
+    "nativeAnchors": [
+      {
+        "entityId": 3,
+        "scriptId": 0,
+        "hex": "16200000F0030384"
+      },
+      {
+        "entityId": 3,
+        "scriptId": 0,
+        "hex": "1660060019000062"
+      }
+    ]
+  },
+  {
+    "id": "junon-dolphin-first-visit-is-priscillas",
+    "fieldId": 429,
+    "moment": 405,
+    "forbiddenLabels": [
+      "Stand at the water's edge and press Switch to call the dolphin (optional)"
+    ],
+    "evidence": "ujunon2 ad Main skips its poll below 469 (16200000D501047C); on the first visit the ride is offered by Priscilla's Talk (e12 script 1 -> e3 script 6, ASK dialog 26), which the first-visit rows cover.",
+    "nativeAnchors": [
+      {
+        "entityId": 3,
+        "scriptId": 0,
+        "hex": "16200000D501047C"
+      }
+    ]
+  },
+  {
+    "id": "junon-dolphin-gone-at-1008",
+    "fieldId": 429,
+    "moment": 1008,
+    "forbiddenLabels": [
+      "Stand at the water's edge and press Switch to call the dolphin (optional)"
+    ],
+    "evidence": "ujunon2 ad Main skips its whole poll from 1008 on (IFSW 2[0] < 1008, 16200000F0030384).",
+    "nativeAnchors": [
+      {
+        "entityId": 3,
+        "scriptId": 0,
+        "hex": "16200000F0030384"
+      }
+    ]
   }
 ]

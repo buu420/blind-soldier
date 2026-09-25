@@ -23,6 +23,8 @@ internal static class JunonFieldNavigationTests
         EmptyCountMaskCannotAuthorizeAStoryObjective();
         FirstVisitJunonFollowsNativeStateSequence();
         LaterJunonObjectiveDoesNotLeakIntoFirstVisit();
+        ReturningDolphinIsOfferedOnlyWhileAdPollsTheWhistle();
+        TheDolphinRouteEndsOnTriangle25AtAnyArrivalDistance();
         SoldierCollectiblesPublishUntilTheirNativeBitsAreSet();
         StoryCatalogContainsNoStaleWhiteBackgroundDuplicate();
     }
@@ -1043,6 +1045,130 @@ internal static class JunonFieldNavigationTests
             "Continue toward the dock",
             targets.Single().Label,
             "the first-visit Junon intersection target");
+    }
+
+    private const string DolphinLabel = "Stand at the water's edge and press Switch to call the dolphin (optional)";
+
+    /// <summary>
+    /// ujunon2's ad polls the whistle only while 469 &lt;= 2[0] &lt; 1008 (IFSW 16200000D501047C and
+    /// 16200000F0030384). Before that the ride is the first visit's, Priscilla's to offer; from
+    /// 1008 the poll is skipped. The installed bytes are checked in FieldTriangleExitTests.
+    /// </summary>
+    private static void ReturningDolphinIsOfferedOnlyWhileAdPollsTheWhistle()
+    {
+        foreach (var moment in new[] { 469, 700, 1007 })
+        {
+            var dolphin = DolphinTargets(moment);
+            Equal(1, dolphin.Length, $"moment {moment}: the returning dolphin is offered");
+            var target = dolphin[0];
+            Equal(FieldNavigationCategory.Story, target.Category, $"moment {moment}: dolphin category");
+            Equal(true, target.CompletesOnArrival, $"moment {moment}: the dolphin row is finished by getting there");
+            Equal(true, target.CompletionTriangles is [25], $"moment {moment}: it is finished on triangle 25 and nowhere else");
+            Equal((-553, 566, -10), (target.X, target.Y, target.Z), $"moment {moment}: it aims at triangle 25's centroid");
+            Equal(-1, target.TriggerEntityId, $"moment {moment}: there is no model or LINE to walk to");
+            Equal(true, target.TriggerLine is null, $"moment {moment}: or line to cross");
+            Equal(FieldNavigationActivation.Default, target.Activation, $"moment {moment}: nothing is walked into or talked to");
+        }
+
+        foreach (var moment in new[] { 400, 405, 468, 1008, 1100 })
+        {
+            Equal(0, DolphinTargets(moment).Length, $"moment {moment}: ad does not poll the whistle");
+        }
+    }
+
+    /// <summary>
+    /// The dolphin comes only to triangle 25, a thin one: from its centroid the edge towards
+    /// triangle 20 is 78.8 units away, inside the default 80-unit arrival distance, and on the
+    /// installed walkmesh (-632,577) is on triangle 20, 79.8 units from the row's point. A route
+    /// finished by distance would stop there, one step short of where [SWITCH] works. It has to
+    /// go on there - at the default distance and at a wider one a player has set - and it is
+    /// finished anywhere on 25, even at the far corner (-640,400), 187 units out. Nothing is
+    /// pressed for the player.
+    /// </summary>
+    private static void TheDolphinRouteEndsOnTriangle25AtAnyArrivalDistance()
+    {
+        var target = DolphinTargets(469).Single();
+        foreach (var arrivalDistance in new[] { 80, 256 })
+        {
+            foreach (var (x, y, z, triangle, where) in new[]
+                     {
+                         (-632, 577, -2, (ushort)20, "on triangle 20 beside the edge"),
+                         (-598, 759, -2, (ushort)26, "at triangle 26's centroid, 198 units away")
+                     })
+            {
+                var outside = TrackDolphin(target, new FieldPositionSnapshot(FieldPositionReader.FieldModule, 429, 0, x, y, z, triangle, 0), arrivalDistance);
+                Equal(true, outside.BeaconStillOn, $"distance {arrivalDistance}, {where}: the route goes on ('{outside.Speech}')");
+                Equal(false, outside.Speech.Contains("reached", StringComparison.Ordinal),
+                    $"distance {arrivalDistance}, {where}: nothing says the whistle spot is reached");
+                Equal(true, outside.AutoWalkMoves, $"distance {arrivalDistance}, {where}: auto walk keeps going onto 25");
+            }
+
+            var onIt = TrackDolphin(target, new FieldPositionSnapshot(FieldPositionReader.FieldModule, 429, 0, -640, 400, -10, 25, 0), arrivalDistance);
+            Equal($"{DolphinLabel} reached. Navigation off.", onIt.Speech, $"distance {arrivalDistance}: anywhere on 25 is the whistle spot");
+            Equal(false, onIt.BeaconStillOn, $"distance {arrivalDistance}: and the route is over");
+            Equal(false, onIt.AutoWalkMoves, $"distance {arrivalDistance}: auto walk stops there");
+        }
+    }
+
+    private static FieldNavigationTarget[] DolphinTargets(int gameMoment)
+    {
+        var memory = new NativeMemory();
+        memory.SetField(429);
+        memory.SetGameMoment(gameMoment);
+        return CreateStoryReader(memory).ReadTargets(Position(429)).Where(target => target.Label == DolphinLabel).ToArray();
+    }
+
+    private static (string Speech, bool BeaconStillOn, bool AutoWalkMoves) TrackDolphin(
+        FieldNavigationTarget target,
+        FieldPositionSnapshot position,
+        int arrivalDistance)
+    {
+        var controller = new FieldNavigationController(
+            new FieldNavigationTargetSource(
+                Array.Empty<FieldNavigationTarget>(),
+                storyTargetProvider: _ => [target]),
+            new StraightRoutePlanner());
+        _ = controller.HandleAction(FieldNavigationAction.NextCategory, position);
+        _ = controller.HandleAction(FieldNavigationAction.ToggleBeacon, position, new FieldNavigationControlTransform(0));
+        Equal(true, controller.BeaconEnabled, "the dolphin route is active");
+        var update = controller.UpdateLiveTracking(
+            position,
+            new FieldNavigationInputSnapshot(0, FieldNavigationInput.None),
+            new FieldNavigationControlTransform(0),
+            isSuppressed: false,
+            arrivalDistanceUnits: arrivalDistance);
+        var moves = controller.TryResolveAutomaticInput(position, new FieldNavigationControlTransform(0), arrivalDistance, out var input) &&
+                    input != FieldNavigationInput.None;
+        return (update?.Speech ?? "", controller.BeaconEnabled, moves);
+    }
+
+    private sealed class StraightRoutePlanner : IFieldNavigationRoutePlanner
+    {
+        public string LastDiagnostic => "straight dolphin test route";
+
+        public bool TryResolvePlayerTriangle(FieldPositionSnapshot position, out int triangle)
+        {
+            triangle = position.TriangleId;
+            return true;
+        }
+
+        public bool TryBuildRoute(FieldPositionSnapshot position, FieldNavigationTarget target, out FieldNavigationRoutePlan plan)
+        {
+            plan = new FieldNavigationRoutePlan(
+                position.FieldId,
+                $"{target.FieldId}:{target.StableId}",
+                [position.TriangleId],
+                [],
+                new FieldNavigationRouteWaypoint(target.X, target.Y, target.Z),
+                position.TriangleId);
+            return position.FieldId == target.FieldId;
+        }
+
+        public bool TryGetNextWaypoint(FieldPositionSnapshot position, FieldNavigationTarget target, out FieldNavigationRouteWaypoint waypoint)
+        {
+            waypoint = new FieldNavigationRouteWaypoint(target.X, target.Y, target.Z);
+            return position.FieldId == target.FieldId;
+        }
     }
 
     private static void SoldierCollectiblesPublishUntilTheirNativeBitsAreSet()

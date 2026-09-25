@@ -5,10 +5,14 @@ namespace Ff7.Accessibility.Reloaded.Tests;
 /// <summary>
 /// Cosmo Canyon's storage room, cosmo3 (field 542), is reached by walking into a Huge
 /// Materia rather than by pressing anything: entity script 2 is its Contact script and
-/// there is no Talk script on those entities at all. FUN_00637724 accepts the touch only
-/// while the squared horizontal distance is below the square of half the sum of the two
-/// collision widths and the height difference is strictly inside (-127, 128), which is a
-/// much smaller and differently shaped reach than Talk's player-radius-plus-talk-radius.
+/// there is no Talk script on those entities at all. The touch is tested at the movement
+/// probes, not at the party's centre: 00636C41 checks each step the player's collision
+/// width ahead of the next position, along the heading and forty-five degrees either side,
+/// and FUN_00637724 touches a model when a probe lands closer to it than half the sum of the
+/// two collision widths and the height difference is strictly inside (-127, 128). That is a
+/// differently shaped reach from Talk's player-radius-plus-talk-radius around the centre
+/// (00636284), and a longer one: the party is stopped by the touch one width plus the
+/// half-sum from the stand, and never gets its centre inside the half-sum by walking.
 /// These cases run the installed placements through the real reader, the installed
 /// walkmesh planner and the live navigation controller, so the reach is proved end to
 /// end rather than asserted as arithmetic in the reader.
@@ -23,11 +27,14 @@ internal static class HugeMateriaContactTests
     private const string SecondStandLabel = "Go to the second stored materia";
 
     // The measured native widths in that room: the party leader is 34 wide and the
-    // materia on its stand is 1, so Contact accepts (34 + 1) / 2 = 17 and Talk would
-    // have accepted 34.
+    // materia on its stand is 1, so a probe touches inside (34 + 1) / 2 = 17 of the stand.
+    // The forward probe is 34 ahead of the next position, so walking at the stand touches it
+    // with the party's centre 34 + 17 = 51 away plus the step being taken, at most 8: the
+    // reach is 59. Talk would have accepted 34 around the centre.
     private const short PlayerCollisionWidth = 34;
     private const short MateriaCollisionWidth = 1;
-    private const int ContactReach = 17;
+    private const int ProbeTouchRadius = 17;
+    private const int ContactReach = 59;
     private const int TalkReachIfItHadBeenTalk = 34;
 
     internal static void Run(Func<int, FieldWalkmeshReader> createWalkmeshReader)
@@ -103,11 +110,15 @@ internal static class HugeMateriaContactTests
         Equal(
             ContactReach,
             target.InteractionRadius,
-            "Contact reach is half the sum of the two collision widths");
+            "Contact reach is where the forward probe of a step touches the stand");
+        Equal(
+            PlayerCollisionWidth + ProbeTouchRadius + 8,
+            target.InteractionRadius,
+            "one width ahead, inside the half-sum, one native step out");
         Equal(
             false,
             target.InteractionRadius == TalkReachIfItHadBeenTalk,
-            "Talk's reach would have been twice as far and is not what this row uses");
+            "Talk's reach is a different test and is not what this row uses");
         return target;
     }
 
@@ -139,55 +150,78 @@ internal static class HugeMateriaContactTests
     private static void ArrivalUsesContactShapeAndNeverAsksForAButton(
         FieldNavigationTarget target)
     {
-        // Standing 16 units away, inside Contact reach.
-        var touching = PositionNear(target, offsetX: 16, offsetZ: 0);
-        var speech = TrackedSpeech(target, touching);
+        // Standing 52 units away and facing the stand, the next step's forward probe lands
+        // 52 - 8 - 34 = 10 from it, inside the 17 that touches. Nothing has touched yet, so
+        // the route says the stand is walked into and goes on guiding - auto walk included.
+        var touching = PositionNear(target, offsetX: 52, offsetZ: 0);
+        var approach = Track(target, touching, contactStarted: false);
         Equal(
             true,
-            speech.Contains("Walk into it", StringComparison.Ordinal),
-            $"a Contact target has to say what actually triggers it, got '{speech}'");
+            approach.Speech.Contains("Walk into it", StringComparison.Ordinal),
+            $"a Contact target has to say what actually triggers it, got '{approach.Speech}'");
         Equal(
             false,
-            speech.Contains("Interact here", StringComparison.Ordinal),
-            $"a Contact target must not fall back to the generic interaction prompt, got '{speech}'");
+            approach.Speech.Contains("Interact here", StringComparison.Ordinal),
+            $"a Contact target must not fall back to the generic interaction prompt, got '{approach.Speech}'");
         Equal(
             false,
-            speech.Contains("Confirm", StringComparison.OrdinalIgnoreCase),
-            $"nothing is pressed at a Contact, got '{speech}'");
+            approach.Speech.Contains("Confirm", StringComparison.OrdinalIgnoreCase),
+            $"nothing is pressed at a Contact, got '{approach.Speech}'");
+        Equal(true, approach.BeaconStillOn, "the route goes on until the stand is touched");
+        Equal(true, approach.AutoWalkMoves, "auto walk keeps walking into the stand");
 
-        // 25 units away is outside Contact reach and well inside what Talk would have
-        // accepted. Stopping here would leave the player standing beside a materia that
-        // never reacts.
+        // The party's centre is the same on the step before the bump and on the bump, so only
+        // the stand's Contact script starting (priority 1, script 2) finishes the route.
+        var touched = Track(target, touching, contactStarted: true);
+        Equal(
+            true,
+            touched.Speech.Contains("reached", StringComparison.Ordinal) && !touched.BeaconStillOn,
+            $"the route ends when the game has started the stand's Contact, got '{touched.Speech}'");
+        Equal(false, touched.AutoWalkMoves, "and auto walk stops there, so it is not walked into again");
+
+        // 60 units away even the longest step leaves the forward probe 18 from the stand,
+        // outside the 17 that touches: no hint yet.
         Equal(
             "",
-            TrackedSpeech(target, PositionNear(target, offsetX: 25, offsetZ: 0)),
-            "Talk's reach must not release the route short of the native Contact reach");
+            Track(target, PositionNear(target, offsetX: 60, offsetZ: 0), contactStarted: false).Speech,
+            "the stand is not announced as touched short of where the probes touch");
 
         // The height band is its own test and is not symmetric.
         Equal(
             "",
-            TrackedSpeech(target, PositionNear(target, offsetX: 8, offsetZ: 200)),
+            Track(target, PositionNear(target, offsetX: 52, offsetZ: 200), contactStarted: false).Speech,
             "a stand 200 units below the party is out of the native Contact band");
         Equal(
             "",
-            TrackedSpeech(target, PositionNear(target, offsetX: 8, offsetZ: -127)),
+            Track(target, PositionNear(target, offsetX: 52, offsetZ: -127), contactStarted: false).Speech,
             "the lower bound of the native Contact band is exclusive");
         Equal(
             true,
-            TrackedSpeech(target, PositionNear(target, offsetX: 8, offsetZ: -126))
+            Track(target, PositionNear(target, offsetX: 52, offsetZ: -126), contactStarted: false).Speech
                 .Contains("Walk into it", StringComparison.Ordinal),
             "one unit inside the lower bound is a touch the game accepts");
+
+        // A Contact script some other script starts while the party is across the room is not
+        // this approach arriving.
+        Equal(
+            true,
+            Track(target, PositionNear(target, offsetX: 400, offsetZ: 0), contactStarted: true).BeaconStillOn,
+            "a Contact started far from the party does not finish the route");
     }
 
-    private static string TrackedSpeech(
+    private static (string Speech, bool BeaconStillOn, bool AutoWalkMoves) Track(
         FieldNavigationTarget target,
-        FieldPositionSnapshot position)
+        FieldPositionSnapshot position,
+        bool contactStarted)
     {
         var controller = new FieldNavigationController(
             new FieldNavigationTargetSource(
                 Array.Empty<FieldNavigationTarget>(),
                 storyTargetProvider: _ => [target]),
-            new StraightRoutePlanner());
+            new StraightRoutePlanner())
+        {
+            ContactStarted = started => started.StableId == target.StableId && contactStarted
+        };
         _ = controller.HandleAction(FieldNavigationAction.NextCategory, position);
         _ = controller.HandleAction(
             FieldNavigationAction.ToggleBeacon,
@@ -200,7 +234,9 @@ internal static class HugeMateriaContactTests
             new FieldNavigationControlTransform(0),
             isSuppressed: false,
             arrivalDistanceUnits: 80);
-        return update?.Speech ?? "";
+        var moves = controller.TryResolveAutomaticInput(position, new FieldNavigationControlTransform(0), 80, out var input) &&
+                    input != FieldNavigationInput.None;
+        return (update?.Speech ?? "", controller.BeaconEnabled, moves);
     }
 
     private static FieldPositionSnapshot PositionNear(

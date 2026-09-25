@@ -359,12 +359,28 @@ Add-Definition -FieldId 467 -FieldName 'mtcrl_9' -Kind Location -Priority 0 `
     -EntityName 'gateway0' -ScriptType 'Gateway'
 
 # Corel pursuit: world14->458->459->460, or North Corel450->467->464->462->461->460. The native guard event in460 starts the pursuit only while15[144] bit0 is clear.
+# mtcrl_6 has a gateway to 462 on each of its two tracks, which MountCorel.ps1 lists as
+# $mountUpperTrackTriangles and $mountLowerTrackTriangles, and the way back is the one on
+# the party's own track. Nothing takes the lower track up to the upper one after the first
+# visit: border5's and border6's Mains switch their LINEs off from 427 (16200000AB010405,
+# D100), and border5's event was the only way up (and was not the player's: Cid's jump,
+# handed back to Cloud). Arriving from 467 (triangle 74), 465 (115) or 462's lower gateway
+# (151), that is gateway1; AD's Main locks 140 and 6 while 3[222] bit5 is clear (1430DE050A0C,
+# 6D8C0001, 6D060001), and the disc-one bridge switch, the way on to North Corel, sets it.
+# From 462's upper gateway (138) it is gateway0.
 Add-Definition -FieldId 464 -FieldName 'mtcrl_6' -Kind Location -Priority 0 `
     -Label 'Follow the tracks back toward the reactor' -MinimumGameMoment 1110 -MaximumGameMoment 1115 `
     -X -3208 -Y 1000 -Z 756 `
     -TriggerLine ([ordered]@{ startX = -3096; startY = 917; startZ = 756; endX = -3321; endY = 1084; endZ = 756 }) `
-    -RequiredConditions @((New-Condition 15 144 1 0)) `
+    -RequiredConditions @((New-Condition 15 144 1 0)) -RequiredPlayerTriangles $mountUpperTrackTriangles `
     -EntityName 'gateway0' -ScriptType 'Gateway'
+
+Add-Definition -FieldId 464 -FieldName 'mtcrl_6' -Kind Location -Priority 0 `
+    -Label 'Follow the tracks back toward the reactor' -MinimumGameMoment 1110 -MaximumGameMoment 1115 `
+    -X -2106 -Y 181 -Z 358 `
+    -TriggerLine ([ordered]@{ startX = -2220; startY = 264; startZ = 358; endX = -1991; endY = 97; endZ = 358 }) `
+    -RequiredConditions @((New-Condition 15 144 1 0)) -RequiredPlayerTriangles $mountLowerTrackTriangles `
+    -EntityName 'gateway1' -ScriptType 'Gateway'
 
 # Corel pursuit: world14->458->459->460, or North Corel450->467->464->462->461->460. The native guard event in460 starts the pursuit only while15[144] bit0 is clear.
 Add-Definition -FieldId 462 -FieldName 'mtcrl_4' -Kind Location -Priority 0 `

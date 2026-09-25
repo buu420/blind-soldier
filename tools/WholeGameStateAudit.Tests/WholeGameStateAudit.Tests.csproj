@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Tests for tools/WholeGameStateAudit. Synthetic fields are assembled in memory, so the
+    decoder, control flow, guards, calls and the comparison with the shipping catalog are
+    tested without game data. The installed-data checks run only when an archive is given
+    and skip otherwise; they never write anything.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PlatformTarget>x86</PlatformTarget>
+    <RootNamespace>WholeGameStateAudit.Tests</RootNamespace>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\WholeGameStateAudit\WholeGameStateAudit.csproj" />
+  </ItemGroup>
+</Project>

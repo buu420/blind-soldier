@@ -4,6 +4,7 @@ using Ff7.Accessibility.Reloaded;
 internal static class FieldGatewayTargetReaderTests
 {
     private const uint TriggerPointer = 0x00060000;
+    private const uint ScriptContext = 0x00CC0D88;
     private static readonly uint GatewayTable =
         TriggerPointer + FieldGatewayTargetReader.GatewaysOffset;
 
@@ -117,6 +118,8 @@ internal static class FieldGatewayTargetReaderTests
         memory.Write((uint)FieldPositionReader.AddressCurrentModule, [FieldPositionReader.FieldModule]);
         WriteUInt16(memory, (uint)FieldPositionReader.AddressFieldId, 117);
         WriteUInt32(memory, (uint)FieldNavigationControlReader.AddressFieldTriggersPtr, triggerPointer);
+        WriteUInt32(memory, (uint)FieldGatewayTargetReader.AddressScriptContextPointer, ScriptContext);
+        memory.Write(ScriptContext + FieldGatewayTargetReader.GatewaysDisabledOffset, [0]);
 
         if (triggerPointer <= uint.MaxValue - FieldGatewayTargetReader.GatewaysOffset -
             FieldGatewayTargetReader.GatewayCount * FieldGatewayTargetReader.GatewayStride)

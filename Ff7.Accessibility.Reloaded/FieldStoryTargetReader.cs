@@ -302,18 +302,26 @@ public sealed class FieldStoryTargetReader
 
         // Contact is not Talk at a different distance; it is a different test.
         //
-        // FUN_00637724 walks the models, requires the logical height difference to be
-        // strictly inside (-127, 128), and then compares the squared horizontal distance
-        // against the square of half the sum of the two collision radii at +0x72 - the
-        // player's and the model's. Talk is the player's collision radius plus the
-        // model's own talk radius at +0x74, which is a larger and quite differently
-        // shaped reach. Getting this wrong at Cosmo Canyon's storage stands would put
-        // the thing the player has to walk into at a distance the game will not accept.
-        // Those four stands are storage slots that 566:14:4 fills in the order the
-        // materia were brought in, so none of them is a fixed colour or a fixed mission.
+        // Talk (00636284) takes the model the party faces within ninety degrees whose centre
+        // is nearer than the player's collision radius plus the model's own talk radius at
+        // +0x74. Contact is the movement probes instead: 00636C41 tests each step the
+        // player's collision width ahead, along the heading and forty-five degrees either
+        // side, and FUN_00637724 touches a model - never one whose collision is off - when a
+        // probe lands inside half the sum of the two widths at +0x72 and the height
+        // difference is strictly inside (-127, 128). FieldNavigationNpcReader.ContactReach is
+        // where that puts the party's centre. Those four stands are storage slots that
+        // 566:14:4 fills in the order the materia were brought in, so none of them is a
+        // fixed colour or a fixed mission.
+        if (definition.UsesContactRange &&
+            readByte(eventAddress + FieldNavigationNpcReader.CollisionDisabledOffset) != 0)
+        {
+            return null;
+        }
+
         var interactionRadius = definition.UsesContactRange
-            ? (playerCollisionRadius +
-                Math.Max(0, (int)readInt16(eventAddress + ModelCollisionRadiusOffset))) / 2
+            ? FieldNavigationNpcReader.ContactReach(
+                (ushort)readInt16(playerEventAddress + ModelCollisionRadiusOffset),
+                (ushort)readInt16(eventAddress + ModelCollisionRadiusOffset))
             : playerCollisionRadius + Math.Max(
                 0,
                 (int)readInt16(eventAddress + ModelTalkRadiusOffset));

@@ -412,11 +412,25 @@ Add-Definition @cosmoSealedDoorWindow -FieldId 531 -FieldName 'cosin2' -Kind Loc
     -EntityName 'gateway4' -ScriptType 'Gateway' `
     -TriggerLine ([ordered]@{ startX=-64; startY=707; startZ=-1; endX=51; endY=560; endZ=-1 })
 
+# Bugenhagen waits at the top of the stairwell. When the leader steps on triangle 54, AD8's
+# Main (game moment below 514, 3[170] bit 5 clear) has him appear (BUGEN Script 3), which
+# sets 3[170] bit 5 and locks triangle 51, the way down. Init shows him, solid, only while
+# that bit is set. His Talk is a bare RET; walking into him runs his Contact, which says
+# "Good. Then we shall proceed.", sends him on down, clears bit 5 and unlocks triangle 51.
+# So while he waits he is the room's step, walked into, and the way down comes after.
+$cosmoBugenhagenWaiting = New-Condition -Bank 3 -Address 170 -Mask 32 -Value 32
+$cosmoBugenhagenGoneOn = New-Condition -Bank 3 -Address 170 -Mask 32 -Value 0
+Add-Definition @cosmoSealedDoorWindow -FieldId 534 -FieldName 'cosin5' -Kind Model -EntityId 5 `
+    -Label 'Walk into Bugenhagen to go on down together' `
+    -RequiredCondition $cosmoBugenhagenWaiting `
+    -EntityName 'BUGEN' -ScriptType 'Contact' -UsesContactRange
+
 # cosin5's own descent is seven pairs of ladders that no LINE triggers, so the route to
 # this exit is handled by the traversal catalog's polled-ladder reading rather than by
-# a row for each rung. This is the room's one objective.
+# a row for each rung. It is offered while Bugenhagen is not waiting at the top.
 Add-Definition @cosmoSealedDoorWindow -FieldId 534 -FieldName 'cosin5' -Kind Location -EntityId 14 `
     -Label 'Go on into the cave at the bottom' -X -23 -Y 968 -Z -2337 `
+    -RequiredCondition $cosmoBugenhagenGoneOn `
     -EntityName 'LINEJ' -ScriptType 'Go 1x' -UsesPlayerCollisionRadius `
     -RequiredEnabledLineEntityId 14 `
     -TriggerLine ([ordered]@{ startX=-68; startY=978; startZ=-2337; endX=22; endY=959; endZ=-2337 })

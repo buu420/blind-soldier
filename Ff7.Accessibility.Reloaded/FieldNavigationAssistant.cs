@@ -498,6 +498,27 @@ public sealed class FieldNavigationController
     /// </summary>
     public Func<int, int, bool?>? NativeLineIsEnabled { get; set; }
 
+    /// <summary>
+    /// Whether the game has started a Contact target's Contact script (script 2 at priority 1
+    /// for its entity). Both runtimes supply this from the shared
+    /// <c>FieldContactActivationReader</c>. A Contact is only ever reached through it: without
+    /// it the route goes on guiding into the target rather than stopping at a guess.
+    /// </summary>
+    public Func<FieldNavigationTarget, bool>? ContactStarted { get; set; }
+
+    // How far from the target a started Contact may be seen and still be this approach's: the
+    // step being taken plus whatever the script's first frames move the party.
+    private const int ContactStartedSlack = 64;
+
+    // Whether this approach has said, once, that its Contact target is walked into.
+    private bool contactHintSpoken;
+
+    // Whether the Contact target's own script was seen running while navigation was
+    // suppressed. Its dialogue is usually what suppresses navigation, so the whole script can
+    // start and return without the route ever listening; the route then finishes, silently
+    // until the game hands the party back.
+    private bool contactStartedWhileSuppressed;
+
     /// <summary>The triangles the last boundary failure named, in the order it named them.</summary>
     private IReadOnlyList<int> LastBlockingBoundaryTriangles =>
         routePlanner is IFieldNavigationNativeBoundaryStatus status
@@ -755,6 +776,8 @@ public sealed class FieldNavigationController
         beaconCompletesOnFieldTransition = false;
         interactionArrivalPaused = false;
         interactionArrivalDistance = 0;
+        contactHintSpoken = false;
+        contactStartedWhileSuppressed = false;
         ResetLadderMountPrompt();
         routeTracker?.Reset();
         movementObserver.Reset();
@@ -1006,7 +1029,18 @@ public sealed class FieldNavigationController
                 isSuppressed: true);
             BeginPositionRecovery(suppressedObservation.Diagnostic);
             LastNavigationDiagnostic = suppressedObservation.Diagnostic;
+            NoteContactStartedWhileSuppressed(position, arrivalDistanceUnits);
             return null;
+        }
+
+        // The encounter happened while the game had the party. Now that it has handed it back,
+        // the route is finished: nothing more to walk into.
+        if (contactStartedWhileSuppressed)
+        {
+            return CompleteNavigation(
+                $"{beaconTargetLabel} reached. Navigation off.",
+                $"{beaconCategory} arrival, Contact started while navigation was suppressed",
+                completed: true);
         }
 
         if (!TryCompletePositionRecovery(position, observedAt))
@@ -1228,7 +1262,11 @@ public sealed class FieldNavigationController
                 arrivalDistanceUnits,
                 currentGuidance,
                 forCompletion: true);
-        var canCompleteOnArrival = CanCompleteOnArrival(target.Value);
+        // A Contact is finished by its own script starting, in any list: the encounter is
+        // then under way and the party is the game's until it ends, so there is nothing to
+        // pause for and nothing to walk into again.
+        var isContact = target.Value.Activation == FieldNavigationActivation.Contact;
+        var canCompleteOnArrival = isContact || CanCompleteOnArrival(target.Value);
         if (pendingLadderAction is null &&
             canCompleteOnArrival &&
             isAtCompletionPoint)
@@ -1237,6 +1275,19 @@ public sealed class FieldNavigationController
                 $"{beaconTargetLabel} reached. Navigation off.",
                 $"{beaconCategory} arrival",
                 completed: true);
+        }
+
+        // Nothing is pressed at a Contact. Once the party is where its next steps touch the
+        // target, say so, once, and keep guiding - auto walk included - into it.
+        if (isContact &&
+            pendingLadderAction is null &&
+            !contactHintSpoken &&
+            !beaconIsBoundaryApproach &&
+            IsWithinContactReach(position, target.Value, ResolveArrivalDistance(target.Value, arrivalDistanceUnits)))
+        {
+            contactHintSpoken = true;
+            LastNavigationDiagnostic = $"{LastNavigationDiagnostic}, contact reach entered";
+            return new FieldNavigationActionResult($"{beaconTargetLabel} ahead. Walk into it.");
         }
 
         if (pendingLadderAction is null &&
@@ -1524,6 +1575,13 @@ public sealed class FieldNavigationController
             // Stopped at an interaction point on purpose. Auto walk must not press it, so
             // standing here is the route working, not failing.
             LastAutomaticInputHold = FieldAutoWalkHoldReason.PlayerAction;
+            return false;
+        }
+
+        if (contactStartedWhileSuppressed)
+        {
+            // The Contact already ran; walking on would bump the target again.
+            LastAutomaticInputHold = FieldAutoWalkHoldReason.Arrived;
             return false;
         }
 
@@ -2056,6 +2114,8 @@ public sealed class FieldNavigationController
         routeRefreshPending = false;
         interactionArrivalPaused = false;
         interactionArrivalDistance = 0;
+        contactHintSpoken = false;
+        contactStartedWhileSuppressed = false;
         lastAcceptedPosition = null;
         ResetLadderMountPrompt();
         movementObserver.Reset();
@@ -2770,7 +2830,7 @@ public sealed class FieldNavigationController
         return closestIndex;
     }
 
-    private static bool IsWithinArrivalDistance(
+    private bool IsWithinArrivalDistance(
         FieldPositionSnapshot position,
         FieldNavigationTarget target,
         int arrivalDistanceUnits,
@@ -2788,22 +2848,16 @@ public sealed class FieldNavigationController
         }
 
         var threshold = ResolveArrivalDistance(target, arrivalDistanceUnits, forCompletion);
-        // Contact is measured on the party's own position, not on what is left of the
-        // route. FUN_00637724 compares the squared horizontal distance on its own
-        // against the square of half the sum of the two collision widths and tests the
-        // height separately against a band of its own, so a materia standing a hundred
-        // units up on its stand is within reach even though the walk to it is long. It
-        // is also strictly less than, not within: standing exactly on the boundary is a
-        // touch the game refuses.
+        // A Contact is reached when the game has started its script, never at a distance. The
+        // step whose probe touches the target is refused (00636C41), so the party's centre is
+        // the same just before the bump and just after it, and any radius either stops the
+        // route before the touch or never sees it. The reach (FieldNavigationNpcReader.
+        // ContactReach, measured horizontally with the height band apart) only keeps a Contact
+        // script something else started from counting from across the room.
         if (target.Activation == FieldNavigationActivation.Contact)
         {
-            var contactX = target.X - position.X;
-            var contactY = target.Y - position.Y;
-            return contactX * (double)contactX + contactY * (double)contactY <
-                       threshold * (double)threshold &&
-                   FieldWalkmeshRoutePlanner.IsWithinActivationVerticalRange(
-                       target,
-                       target.Z - position.Z);
+            return IsWithinContactReach(position, target, threshold + ContactStartedSlack) &&
+                   ContactStarted?.Invoke(target) == true;
         }
 
         if (guidance is not null)
@@ -2821,21 +2875,51 @@ public sealed class FieldNavigationController
         var dx = target.X - position.X;
         var dy = target.Y - position.Y;
         var dz = target.Z - position.Z;
-
-        // Contact is not a sphere. FUN_00637724 compares the squared horizontal
-        // distance on its own against the square of half the sum of the two collision
-        // widths, and tests the height separately against its own band. Measuring it
-        // as a sphere would refuse the Huge Materia from a step above it while the
-        // game itself would have accepted the touch.
-        if (target.Activation == FieldNavigationActivation.Contact)
-        {
-            return dx * (double)dx + dy * (double)dy <= threshold * (double)threshold &&
-                   FieldWalkmeshRoutePlanner.IsWithinActivationVerticalRange(target, dz);
-        }
-
         return dx * (double)dx +
                dy * (double)dy +
                dz * (double)dz <= threshold * (double)threshold;
+    }
+
+    /// <summary>
+    /// While navigation is suppressed, whether the beacon's Contact target has had its script
+    /// started. Nothing is said here - the game owns the speech - and nothing else is changed.
+    /// </summary>
+    private void NoteContactStartedWhileSuppressed(FieldPositionSnapshot position, int arrivalDistanceUnits)
+    {
+        if (contactStartedWhileSuppressed ||
+            !BeaconEnabled ||
+            ContactStarted is null ||
+            !FieldPositionReader.IsUsable(position) ||
+            position.FieldId != beaconFieldId)
+        {
+            return;
+        }
+
+        var target = GetBeaconTarget(position) ?? beaconLockedTarget;
+        if (target is not { Activation: FieldNavigationActivation.Contact } contact ||
+            !string.Equals(GetTargetId(contact), beaconTargetId, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        if (IsWithinContactReach(position, contact, ResolveArrivalDistance(contact, arrivalDistanceUnits) + ContactStartedSlack) &&
+            ContactStarted(contact))
+        {
+            contactStartedWhileSuppressed = true;
+            LastNavigationDiagnostic = $"{LastNavigationDiagnostic}, Contact started while suppressed";
+        }
+    }
+
+    // Contact is not a sphere. FUN_00637724 compares the squared horizontal distance of the
+    // movement probes on its own, and tests the height separately against its own band, so a
+    // materia standing a hundred units up on its stand is within reach even though the walk to
+    // it is long. Strictly less than, not within.
+    private static bool IsWithinContactReach(FieldPositionSnapshot position, FieldNavigationTarget target, int reach)
+    {
+        var contactX = target.X - position.X;
+        var contactY = target.Y - position.Y;
+        return contactX * (double)contactX + contactY * (double)contactY < reach * (double)reach &&
+               FieldWalkmeshRoutePlanner.IsWithinActivationVerticalRange(target, target.Z - position.Z);
     }
 
     // A native gateway or an arrival-completing script line is a traversal even when the

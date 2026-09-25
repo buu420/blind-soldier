@@ -164,6 +164,28 @@ public sealed class FieldScriptControllerReader
         return true;
     }
 
+    /// <summary>
+    /// The entity's current priority (0x00CC0B30[entity]) and the script running at it
+    /// (0x00CBF9E8[entity * 8 + priority]), from two agreeing captures. Outside the named field
+    /// the priority reads as 0xFF. False on an unreadable or torn frame.
+    /// </summary>
+    public bool TryReadRunningScript(int fieldId, int entityId, out int priority, out int scriptId)
+    {
+        priority = byte.MaxValue;
+        scriptId = byte.MaxValue;
+        if (entityId < 0 ||
+            !TryCapture(fieldId, entityId, 0, out var before) ||
+            !TryCapture(fieldId, entityId, 0, out var after) ||
+            before != after)
+        {
+            return false;
+        }
+
+        priority = before.Priority;
+        scriptId = before.RunningScriptId;
+        return true;
+    }
+
     private bool TryCapture(
         int fieldId,
         int entityId,

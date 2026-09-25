@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Whole-game field-script state and interaction audit. It decodes every field script
+    with its own decoder and control-flow model, and only uses the shipping assembly for
+    archive access and for the comparison against the shipping readers. Outputs are
+    derived game data and must be written outside the repository.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PlatformTarget>x86</PlatformTarget>
+    <RootNamespace>WholeGameStateAudit</RootNamespace>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Ff7.Accessibility.Reloaded\Ff7.Accessibility.Reloaded.csproj" />
+    <InternalsVisibleTo Include="WholeGameStateAudit.Tests" />
+  </ItemGroup>
+</Project>

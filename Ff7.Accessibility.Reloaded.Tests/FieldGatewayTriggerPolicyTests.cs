@@ -265,12 +265,13 @@ internal static class FieldGatewayTriggerPolicyTests
     }
 
     /// <summary>
-    /// One gateway in the table, so the only thing deciding whether it is offered is the
-    /// policy.
+    /// One gateway in the table, with MPJPO's live switch on (script context +0x36 = 0), so the
+    /// only thing deciding whether it is offered is the policy.
     /// </summary>
     private sealed class GatewayMemory(int fieldId) : ILegacyAddressSpace
     {
         private const uint TriggerPointer = 0x00200000;
+        private const uint ScriptContext = 0x00CC0D88;
 
         public bool TryRead(uint address, Span<byte> destination)
         {
@@ -278,6 +279,18 @@ internal static class FieldGatewayTriggerPolicyTests
             if (address == (uint)FieldPositionReader.AddressCurrentModule && destination.Length >= 1)
             {
                 destination[0] = FieldPositionReader.FieldModule;
+                return true;
+            }
+
+            if (address == (uint)FieldGatewayTargetReader.AddressScriptContextPointer && destination.Length >= 4)
+            {
+                BitConverter.TryWriteBytes(destination, ScriptContext);
+                return true;
+            }
+
+            if (address == ScriptContext + FieldGatewayTargetReader.GatewaysDisabledOffset && destination.Length >= 1)
+            {
+                destination[0] = 0;
                 return true;
             }
 

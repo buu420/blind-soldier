@@ -20,6 +20,29 @@ internal static class Steam2026FieldNavigationObservationTests
         RejectsTranslatedPageRemapping(supported);
         RejectsTornAndInconsistentSnapshots(supported);
         KeepsNavigationResearchSurfaceImmutableAndCapabilityNeutral(supported);
+        FollowsTheLiveMpjpoGatewaySwitch(supported);
+    }
+
+    /// <summary>
+    /// MPJPO (0061A4D4) sets script context +0x36, and the translated movement handler reads the
+    /// same guest byte before checking gateways. Switched off, the snapshot is still usable and
+    /// carries no gateway. (An unreadable switch is covered byte by byte in
+    /// FieldGatewayLiveSwitchTests; here it shares a guest page with the boundary bits.)
+    /// </summary>
+    private static void FollowsTheLiveMpjpoGatewaySwitch(Steam2026FingerprintResult supported)
+    {
+        var fixture = CreatePopulatedNavigationFixture();
+        var switchAddress = FieldObservationFixture.FieldGlobalPointer + FieldGatewayTargetReader.GatewaysDisabledOffset;
+        var reader = new Steam2026FieldNavigationObservationReader(supported, FieldObservationFixture.ModuleBase, fixture.Native);
+        var counts = new List<int>();
+        foreach (byte disabled in new byte[] { 0, 1, 0 })
+        {
+            fixture.Write(switchAddress, [disabled]);
+            Equal(true, reader.TryReadSnapshot(16, out var snapshot), $"navigation snapshot with MPJPO switch {disabled}");
+            counts.Add(snapshot.Gateways.Count);
+        }
+
+        SequenceEqual([2, 0, 2], counts, "gateways follow MPJPO 0->1->0 on the translated runtime");
     }
 
     private static void ReadsEquivalentCoherentPointerFreeNavigationSnapshots(
