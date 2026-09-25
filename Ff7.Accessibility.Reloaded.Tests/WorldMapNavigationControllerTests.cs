@@ -16,6 +16,7 @@ internal static class WorldMapNavigationControllerTests
         CorrectsBackTowardACrossedCommittedWaypoint();
         StopsNearTargetHuntingInsteadOfOscillatingForever();
         StopsAutomaticWalkingThatCannotConvergeWithoutDroppingNavigation();
+        NativeDialogueDoesNotConsumeTheAutomaticMovementTimeout();
         AllowsAutomaticWalkingThatKeepsMakingProgress();
         KeepsTheRouteAcrossNearbyWalkableTriangleDrift();
         DoesNotReannounceAParkedVehicleThatHasNotMoved();
@@ -302,6 +303,25 @@ internal static class WorldMapNavigationControllerTests
             "spoken navigation stays on so the player can continue manually");
         Equal(true, controller.TryResolveAutomaticInput(state, out _),
             "the route remains available after only automatic movement stops");
+    }
+
+    private static void NativeDialogueDoesNotConsumeTheAutomaticMovementTimeout()
+    {
+        var (map, catalog, planner) = Load();
+        var state = StateAt(map, catalog.Locations.Single(target => target.Label == "Kalm"));
+        var destination = catalog.Locations.Single(target => target.Label == "Chocobo Farm");
+        var controller = new WorldMapNavigationController(map, planner, (_, _) => [destination]);
+        var now = new DateTime(2026, 9, 25, 14, 0, 0, DateTimeKind.Utc);
+        controller.HandleAction(FieldNavigationAction.ToggleBeacon, state, now);
+        for (var sample = 0; sample <= 8; sample++)
+            controller.Observe(state, now.AddMilliseconds(sample * 500), automaticWalkActive: true);
+        controller.PauseForNativeControl();
+        var resumed = controller.Observe(state, now.AddMilliseconds(5500), automaticWalkActive: true);
+        Equal(false, resumed?.StopAutoWalk == true,
+            "time spent in a short native dialogue is not failed automatic movement");
+        Equal(true, controller.BeaconEnabled, "the requested destination survives a native dialogue");
+        Equal(true, controller.TryResolveAutomaticInput(state, out _),
+            "automatic movement is available again when the host restores control");
     }
 
     private static void StopsNearTargetHuntingInsteadOfOscillatingForever()

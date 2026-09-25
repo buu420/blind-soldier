@@ -63,6 +63,16 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
     private readonly Floor60GuardTimingStateReader floor60GuardTimingStateReader;
     private readonly ImmediateWaveCuePlayer? floor60ActionCuePlayer;
     private readonly NavigationBeaconPlayer? floor60StatueBeaconPlayer;
+
+    // The same field activity readout the Reloaded runtime has always run - the Temple
+    // clock's hands and bridges, the rolling corridor, the chase chamber, the pillars,
+    // the altar, the dig, the Corel handcar, the cliff, the wind and the Junon rooms.
+    // This runtime never built its observation, so none of those rooms spoke here.
+    private readonly FieldActivityStateReader fieldActivityStateReader;
+    private readonly FieldActivityReadout fieldActivityReadout = new();
+    private readonly ImmediateWaveCuePlayer? fieldActivityButtonCuePlayer;
+    private bool fieldActivityOwnsInput;
+    private string? fieldActivityCurrentLine;
     private readonly Steam2026FieldNavigationPendingActionBuffer pendingActions = new();
     private readonly NavigationAutoWalkController autoWalk;
 
@@ -302,6 +312,17 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                 "Native Steam 2026 floor 60 guard action cue",
                 log)
             : null;
+        fieldActivityStateReader = new FieldActivityStateReader(addressSpace);
+        fieldActivityButtonCuePlayer = config.EnableFieldActivityReadout
+            ? new ImmediateWaveCuePlayer(
+                ResolveConfiguredPath(
+                    modDirectory,
+                    config.FieldActivityButtonReadyCueSoundPath,
+                    ArcadeCueAssets.FieldActivityButtonReady),
+                config.FieldActivityCueVolumePercent,
+                "Native Steam 2026 field activity button-ready cue",
+                log)
+            : null;
         log(
             "Native Steam 2026 field navigation initialized from checked translated " +
             "position/control/walkmesh/boundary/gateway state; keys=U,O,J,L,K,I,P auto walk; " +
@@ -340,7 +361,20 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             $"arrival={Math.Max(0, config.Floor60StatueArrivalDistanceUnits)}, " +
             $"reactionLeadMs={Math.Max(0, config.Floor60GuardReactionLeadMilliseconds)}, " +
             $"reactionLeadTicks={Floor60SoldierTurnCueTracker.ReactionLeadMillisecondsToTicks(config.Floor60GuardReactionLeadMilliseconds)}.");
+        log(
+            $"Native Steam 2026 field activity readout initialized: " +
+            $"enabled={config.EnableFieldActivityReadout}, " +
+            $"buttonCue={fieldActivityButtonCuePlayer is not null}, " +
+            $"clockField={FieldActivityReadout.ClockRoomFieldId}, " +
+            $"clockBridges={string.Join(',', FieldActivityReadout.ObservedBoundaryTriangles(FieldActivityReadout.ClockRoomFieldId))}.");
     }
+
+    /// <summary>
+    /// What the current field activity is showing, for the repeat key, or null when this
+    /// field has none. Asking again with a clock in front of the player means asking
+    /// where its hands are now, not hearing the last line of dialogue again.
+    /// </summary>
+    internal string? FieldActivityCurrentLine => fieldActivityCurrentLine;
 
     /// <summary>
     /// Tells the capture what the world looks like and does whatever it queued.
@@ -438,6 +472,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         ObserveSquatMinigameCue(frame, nowUtc);
         ObserveJunonMinigameCues(frame, nowUtc);
         ObserveFloor60SoldierTurnCue(frame, nowUtc);
+        ObserveFieldActivity(frame, nowUtc);
         var navigationEnabled = config.EnableFieldNavigationAssistant;
         var ownershipDisposition = ResolveOwnershipDisposition(
             navigationEnabled,
@@ -451,7 +486,8 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             config.EnableSquatMinigamePrompts ||
             config.EnableJunonMinigamePrompts ||
             config.EnableJunonParadeAlignmentAssist ||
-            config.EnableFloor60SoldierTurnCue);
+            config.EnableFloor60SoldierTurnCue ||
+            config.EnableFieldActivityReadout);
         if (observedActions.Count != 0)
         {
             LogInputDiagnostic(
@@ -582,7 +618,9 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                 }
 
                 pendingActions.Clear();
-                var navigationSuppressed = IsNavigationSuppressed(
+                // A native activity that has stopped for a button owns what the player
+                // does next, as it does on the Reloaded runtime.
+                var navigationSuppressed = fieldActivityOwnsInput || IsNavigationSuppressed(
                     cue,
                     ladder,
                     isLadderStateCoherent);
@@ -750,6 +788,24 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                 return;
             }
 
+            if (fieldActivityOwnsInput)
+            {
+                // A native activity that has stopped for a button owns what the player
+                // does next. Reading out a walk to somewhere else over the top of it
+                // would be telling them to leave a scene that is not going to continue
+                // without them, so this frame's navigation presses and any auto walk
+                // start are dropped, as the Reloaded runtime drops them; the selected
+                // route itself is kept for when the scene moves on.
+                if (pendingActions.Count != 0)
+                {
+                    LogInputDiagnostic($"discarded={pendingActions.Count}, field activity owns input");
+                }
+
+                pendingActions.Clear();
+                pendingAutoWalkStart = false;
+                autoWalkRouteToggleQueued = false;
+            }
+
             var coherence = resolvedCoherence;
             if (FieldNavigationAutoWalkIntent.ShouldQueueAutoWalkToggle(
                     pendingAutoWalkStart,
@@ -833,10 +889,11 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                 frame.Lifecycle.ModuleId == FieldPositionReader.FieldModule,
                 frame.Lifecycle.IsForeground && foregroundInput.IsCurrentProcessForeground());
 
-            var canUpdateLiveTracking = Steam2026FieldNavigationActionGate.CanUpdateLiveTracking(
-                controller.CurrentCategory,
-                controller.BeaconEnabled,
-                coherence with { Route = coherence.Route && !routePlanner.HadReadFailure });
+            var canUpdateLiveTracking = !fieldActivityOwnsInput &&
+                Steam2026FieldNavigationActionGate.CanUpdateLiveTracking(
+                    controller.CurrentCategory,
+                    controller.BeaconEnabled,
+                    coherence with { Route = coherence.Route && !routePlanner.HadReadFailure });
             if (canUpdateLiveTracking)
             {
                 var liveSpeech = controller.UpdateLiveTracking(
@@ -858,10 +915,11 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             UpdateAutoWalk(
                 position, control, canMove: canUpdateLiveTracking, nowUtc, input.Direction);
 
-            var canCreateGuidance = Steam2026FieldNavigationActionGate.CanUpdateLiveTracking(
-                controller.CurrentCategory,
-                controller.BeaconEnabled,
-                coherence with { Route = coherence.Route && !routePlanner.HadReadFailure });
+            var canCreateGuidance = !fieldActivityOwnsInput &&
+                Steam2026FieldNavigationActionGate.CanUpdateLiveTracking(
+                    controller.CurrentCategory,
+                    controller.BeaconEnabled,
+                    coherence with { Route = coherence.Route && !routePlanner.HadReadFailure });
             if (canCreateGuidance && FieldNavigationSpeechPolicy.IsDue(
                     nowUtc,
                     lastNavigationSpeechUtc,
@@ -1083,6 +1141,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         junonParadeClaimsFieldInput = false;
         floor60SoldierTurnCueTracker.Reset();
         floor60StatueBeaconPlayer?.StopAll();
+        ResetFieldActivity();
         currentObjects = NoTargets;
         currentStory = NoTargets;
         currentNpcs = NoTargets;
@@ -1129,6 +1188,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         junonParadeClaimsFieldInput = false;
         floor60SoldierTurnCueTracker.Reset();
         floor60StatueBeaconPlayer?.StopAll();
+        ResetFieldActivity();
         nextScanUtc = DateTime.MinValue;
         lastNavigationSpeechUtc = DateTime.MinValue;
         guidanceRepeatGate.Reset();
@@ -1173,6 +1233,8 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         floor60ActionCuePlayer?.Dispose();
         floor60StatueBeaconPlayer?.Dispose();
         floor60SoldierTurnCueTracker.Reset();
+        fieldActivityButtonCuePlayer?.Dispose();
+        ResetFieldActivity();
         currentObjects = NoTargets;
         currentStory = NoTargets;
         currentNpcs = NoTargets;
@@ -1383,6 +1445,123 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         swingingBarTimingCuePlayer?.Play(reason);
         Speak("Jump now.", interrupt: true, nowUtc, "native swinging-bar timing");
     }
+
+    /// <summary>
+    /// The field activity readout, fed from this runtime's checked translated reads.
+    ///
+    /// <para>What is said is decided entirely by the shared readout: a new situation once,
+    /// an unanswered wait again on a slow beat, a moving hazard no faster than a listener
+    /// can follow, and nothing the screen does not show. This is only the plumbing. It
+    /// runs whether or not the party has control, because the clock's own controls are
+    /// worked while the field holds the party still.</para>
+    /// </summary>
+    private void ObserveFieldActivity(
+        RuntimeFrameObservation frame,
+        DateTime nowUtc)
+    {
+        if (!config.EnableFieldActivityReadout ||
+            frame.Lifecycle.IsShuttingDown ||
+            !frame.Lifecycle.IsForeground ||
+            frame.Lifecycle.ModuleId != FieldPositionReader.FieldModule ||
+            !foregroundInput.IsCurrentProcessForeground())
+        {
+            ResetFieldActivity();
+            return;
+        }
+
+        // Most rooms have no activity, so the loaded field is looked at before anything
+        // else is read. A torn sample says nothing about the room: whatever was being
+        // shown stays as it was until a coherent one arrives.
+        if (!addressSpace.TryReadUInt16((uint)FieldPositionReader.AddressFieldId, out var loadedField))
+        {
+            return;
+        }
+
+        if (!FieldActivityReadout.HasActivity(loadedField))
+        {
+            ResetFieldActivity();
+            return;
+        }
+
+        var positionResult = positionReader.ReadNavigation();
+        if (!positionResult.IsUsable || positionResult.Position.FieldId != loadedField)
+        {
+            return;
+        }
+
+        var position = positionResult.Position;
+        var fieldId = position.FieldId;
+
+        // The player has control when the field says so and nothing scripted is moving
+        // them; an unreadable state is not control.
+        var isControlled =
+            cueReader.TryRead(out var cue) &&
+            cue.Module == FieldPositionReader.FieldModule &&
+            cue.UserControl == 0 &&
+            cue.MovieActive == 0;
+        var gameMoment = addressSpace.TryReadUInt16(
+            (uint)FieldNavigationObjectReader.AddressFieldBankBase,
+            out var moment)
+            ? moment
+            : -1;
+
+        // Bank[5] is read once, whole, when this room needs it. A byte that could not be
+        // read must not become a zero: a zero is "the wind has dropped" in one room.
+        byte[]? temporaryBank = null;
+        if (FieldActivityReadout.NeedsTemporaryBank(fieldId) ||
+            fieldId == FieldActivityReadout.PillarApproachFieldId)
+        {
+            var bank = new byte[TemporaryFieldBankLength];
+            if (addressSpace.TryRead((uint)FieldNavigationObjectReader.AddressTemporaryFieldBankBase, bank))
+            {
+                temporaryBank = bank;
+            }
+        }
+
+        var observation = FieldActivityObservationBuilder.Build(
+            position,
+            fieldActivityStateReader,
+            lineStateReader,
+            boundaryStateReader,
+            controlReader.Read(position),
+            isControlled,
+            gameMoment,
+            temporaryBank is { } gate ? gate[FieldActivityPillarGateIndex] : -1,
+            temporaryBank is { } snapshot
+                ? index => (uint)index < (uint)snapshot.Length ? snapshot[index] : -1
+                : null);
+        var activity = fieldActivityReadout.Observe(observation, nowUtc);
+        fieldActivityOwnsInput = activity.IsPending;
+        fieldActivityCurrentLine = fieldActivityReadout.Describe(observation);
+
+        if (activity.PlayButtonReadyCue &&
+            fieldActivityButtonCuePlayer?.Play($"field={fieldId} activity button ready") != true)
+        {
+            // A missing asset or a device that will not open must not swallow the fact
+            // that the game has stopped for the player. The spoken line still carries it.
+            log("Native Steam 2026 field activity button-ready cue could not be played.");
+        }
+
+        if (activity.Speech is { } speech)
+        {
+            Speak(speech, interrupt: false, nowUtc, $"native field activity {fieldId}");
+        }
+    }
+
+    private void ResetFieldActivity()
+    {
+        fieldActivityReadout.Reset();
+        fieldActivityOwnsInput = false;
+        fieldActivityCurrentLine = null;
+    }
+
+    /// <summary>Bank[5] is the field's 256 temporary bytes.</summary>
+    private const int TemporaryFieldBankLength = 256;
+
+    /// <summary>
+    /// Bank[5][9], which every pillar's Go script in ancnt1 tests before it will jump.
+    /// </summary>
+    private const int FieldActivityPillarGateIndex = 9;
 
     private void ObserveSquatMinigameCue(
         RuntimeFrameObservation frame,

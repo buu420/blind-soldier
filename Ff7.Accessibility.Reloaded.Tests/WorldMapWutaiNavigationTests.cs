@@ -61,7 +61,73 @@ internal static class WorldMapWutaiNavigationTests
         AFaceStandingOnTheBridgeheadDoesNotHideTheWayOn(map, catalog);
         ThePartyIsWalkedIntoWutaiFromEveryLoggedStart(map, catalog);
         WutaiIsEnteredOnFootOnly(map, catalog);
+        WalksAroundCorelQuicksandFromTheLoggedLandingAndStalls(map, catalog);
         Console.WriteLine("world map Wutai navigation tests passed with installed game data.");
+    }
+
+    internal static void RunNorthCorelWithInstalledGameData()
+    {
+        if (!TryLoadInstalledWorld(out var map, out var catalog))
+            throw new InvalidOperationException("North Corel regression requires installed world data.");
+        WalksAroundCorelQuicksandFromTheLoggedLandingAndStalls(map, catalog);
+    }
+
+    private static void WalksAroundCorelQuicksandFromTheLoggedLandingAndStalls(
+        WorldMapData map, WorldMapTargetCatalog catalog)
+    {
+        // wm0.ev terrain handlers A720/A730/A950/A960/A970/AB90/ABA0/ABB0 call the
+        // current model's function15. Cloud/Tifa/Cid's 400F/410F/420F disable control,
+        // push the party off the desert border, and wait for the quicksand dialogue.
+        // The geometry alone permits the crossing. A route through it never completes.
+        var border = map.Triangles.Where(t => t.TerrainId == 28).ToArray();
+        Equal(124, border.Length, "installed overworld quicksand border count");
+        var cells = new HashSet<(int, int)> { (14,17), (15,17), (13,18), (14,18),
+            (15,18), (13,19), (14,19), (15,19) };
+        Equal(true, border.All(t => t.TerrainScriptId == 3 && cells.Contains((t.MeshX,t.MeshZ))),
+            "every terrain28 triangle is backed by a native quicksand handler");
+        var corel = catalog.Locations.Single(t => t.Label == "North Corel");
+        var starts = new[] { (132730,152,165599), (124387,225,159307),
+            (123973,272,159636), (126495,216,158327), (125852,431,145305) };
+        foreach (var (x,y,z) in starts)
+        foreach (var camera in new[] { 0, 800, 1776, 2864, 3696 })
+        {
+            var runtime = CreateShippedRuntime(map,catalog);
+            var walker = new NativeWalker(map,x,y,z,camera);
+            var state = walker.Snapshot() with { GameMoment = 566 };
+            var now = new DateTime(2026,9,24,15,20,43,DateTimeKind.Utc);
+            var label = $"North Corel from {x},{y},{z} camera {camera}";
+            Equal(true, runtime.Planner.TryBuildRoute(state,corel,out var route),
+                $"{label}: the route remains available");
+            Equal(false, route.TrianglePath.Any(id => map.Triangles[id].TerrainId == 28),
+                $"{label}: route must not cross a quicksand script that repels the party");
+            // The live Story category, not a custom provider or manually guarded planner.
+            while (runtime.Navigation.CurrentCategory != WorldMapNavigationCategory.Story)
+                runtime.Navigation.HandleAction(FieldNavigationAction.NextCategory,state,now);
+            Equal(true, (runtime.Navigation.HandleAction(FieldNavigationAction.ToggleBeacon,state,now)?.Speech ?? "")
+                .Contains("North Corel",StringComparison.Ordinal), $"{label}: native story target starts");
+            var arrived = false;
+            for (var frame=0;frame<12000;frame++)
+            {
+                var output=runtime.Navigation.Observe(state,now.AddMilliseconds(frame*33),automaticWalkActive:true);
+                if ((output?.Speech ?? "").Contains("Arrived at North Corel",StringComparison.Ordinal))
+                { arrived=true; break; }
+                Equal(false, output?.StopAutoWalk == true,
+                    $"{label}: automatic walk stopped at {state.X},{state.Y},{state.Z}: {output?.Speech}");
+                var hasInput=runtime.Navigation.TryResolveAutomaticInput(state,out var input);
+                walker.Frame(hasInput ? input : FieldNavigationInput.None);
+                state=walker.Snapshot() with { GameMoment=566 };
+                Equal(false, state.TerrainId==28,
+                    $"{label}: directional movement entered the native quicksand trigger");
+            }
+            Equal(true,arrived,$"{label}: reaches North Corel through its actual entrance");
+        }
+        foreach(var leader in new[]{0,1,2,4,19})
+            Equal(false,WorldMapTerrainPassability.CanTraverse(leader,0,28),
+                $"ordinary walking profile {leader} cannot cross the quicksand script");
+        foreach(var vehicle in new[]{3,6})
+            Equal(true,WorldMapTerrainPassability.CanTraverse(vehicle,0,28),
+                $"model{vehicle} keeps its existing native desert access");
+        Console.WriteLine("North Corel quicksand regression: 25 complete walking replays passed.");
     }
 
     /// <summary>

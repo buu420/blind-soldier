@@ -81,10 +81,82 @@ Add-Definition @templeAfterVision -FieldId 606 -FieldName 'kuro_3' -Kind Locatio
     -EntityName 'gateway1' -ScriptType 'Gateway' `
     -TriggerLine ([ordered]@{ startX = 846; startY = 1335; startZ = -296; endX = 846; endY = 1491; endZ = -296 })
 
-Add-Definition @templeAfterVision -FieldId 607 -FieldName 'kuro_4' -Kind Location `
-    -Label 'Cross to doorway six' -X -1 -Y -716 -Z 0 `
+# Doorway six is there only while the clock's hands make a way to it. IDdr, entity 8,
+# locks all twenty-four bridge triangles; the long hand's scripts (entity 21) unlock the
+# pair for the hour in 4[226]w and the short hand's script 6 (entity 22) the pair for the
+# hour in 4[228]w - IFSW 4[226]w == 6 or IFSW 4[228]w == 6 is what opens 85 and 48. Both
+# words stay in 0..12 (the scripts add 12 below zero, reduce above twelve, and treat 0
+# and 12 alike as twelve), so their high bytes are zero.
+#
+# A bridge joins the middle of the clock to one doorway, and every way into this room
+# puts the party on a doorway's own side: 606 at the tenth (triangle 26), 604's mapjump
+# at the fifth, 614 and 615 at whichever doorway they were entered by, 610 at the sixth.
+# So where the party stands decides what it needs, and the rows ask for exactly that:
+# on doorway six's own side nothing; in the middle a hand on six; on another doorway's
+# side a hand on that doorway and the other on six. The parts below are the installed
+# walkmesh's own components. Each bridge is three triangles and IDdr's pair locks the inner
+# and outer ones: with only the inner ends shut, a doorway's side is its platform and the
+# outer two; with all twenty-four shut, the middle is thirty triangles, and the twelve inner
+# ends belong to it. On the first visit the Init sets the long hand to two and the short
+# hand to ten, and a party at the tenth doorway with the long hand turned to six has its
+# way; one that turns the long hand back past twelve carries the short hand to nine and
+# does not - which is why a single "hand on six" row would still point across a bridge
+# that is not there.
+#
+# Otherwise the row is how to make the way. longdr Script 1 is "Move it myself": OK and
+# MENU move the long hand one hour, and it carries the short hand an hour when it passes
+# twelve. The Time Guardian's session (face Script 3) runs only from the director's Main
+# on entering, so once "Proceed now!" is chosen the clock is set again only by going back
+# out the way the party came in - whose bridge, if it was crossed, stays open - and
+# coming back. Nothing is pressed or chosen for the player, and after the mural (627)
+# the Init sets twelve and six itself and runs no session, so doorway twelve's row needs
+# none of this.
+$clockLongHighClear = New-Condition -Bank 3 -Address 227 -Mask 0xFF -Value 0
+$clockShortHighClear = New-Condition -Bank 3 -Address 229 -Mask 0xFF -Value 0
+$clockDoorSix = [ordered]@{ startX = -87; startY = -716; startZ = 0; endX = 85; endY = -716; endZ = 0 }
+$clockMiddle = @(80, 82, 83, 84, 86, 87, 88, 90, 91, 92, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103,
+    104, 105, 106, 107, 126, 127, 128, 129, 130, 131,
+    93, 78, 79, 89, 72, 73, 85, 74, 75, 81, 76, 77)
+$clockDoorSides = @(
+    @(2, 3, 16, 17, 18, 19), @(4, 5, 8, 9, 12, 13), @(0, 1, 68, 69, 70, 71), @(62, 63, 64, 65, 66, 67),
+    @(56, 57, 58, 59, 60, 61), @(50, 51, 52, 53, 54, 55), @(44, 45, 46, 47, 48, 49), @(38, 39, 40, 41, 42, 43),
+    @(32, 33, 34, 35, 36, 37), @(14, 15, 28, 29, 30, 31), @(10, 11, 24, 25, 26, 27), @(6, 7, 20, 21, 22, 23))
+
+function New-ClockHand {
+    param([int] $Address, [int[]] $Hours)
+    if ($Hours.Count -eq 1) { return New-Condition -Bank 3 -Address $Address -Mask 0xFF -Value $Hours[0] }
+    return New-Condition -Bank 3 -Address $Address -Mask 0xFF -Value 0 -MinimumValue $Hours[0] -MaximumValue $Hours[-1]
+}
+
+function Add-ClockDoorSixRow {
+    param([int[]] $Triangles, [object[]] $Hands)
+    $conditions = @($clockLongHighClear, $clockShortHighClear) + $Hands
+    Add-Definition @templeAfterVision -FieldId 607 -FieldName 'kuro_4' -Kind Location `
+        -Label 'Cross to doorway six' -X -1 -Y -716 -Z 0 `
+        -RequiredConditions $conditions -RequiredPlayerTriangles $Triangles `
+        -EntityName 'gateway1' -ScriptType 'Gateway' `
+        -TriggerLine $clockDoorSix
+}
+
+Add-ClockDoorSixRow $clockDoorSides[6] @()
+Add-ClockDoorSixRow $clockMiddle @((New-ClockHand 226 @(6)))
+Add-ClockDoorSixRow $clockMiddle @((New-ClockHand 228 @(6)), (New-ClockHand 226 @(0, 1, 2, 3, 4, 5)))
+Add-ClockDoorSixRow $clockMiddle @((New-ClockHand 228 @(6)), (New-ClockHand 226 @(7, 8, 9, 10, 11, 12)))
+for ($clockHour = 0; $clockHour -lt 12; $clockHour++) {
+    if ($clockHour -eq 6) { continue }
+    $spellings = if ($clockHour -eq 0) { @(0, 12) } else { @($clockHour) }
+    foreach ($spelling in $spellings) {
+        Add-ClockDoorSixRow $clockDoorSides[$clockHour] @((New-ClockHand 226 @($spelling)), (New-ClockHand 228 @(6)))
+        Add-ClockDoorSixRow $clockDoorSides[$clockHour] @((New-ClockHand 226 @(6)), (New-ClockHand 228 @($spelling)))
+    }
+}
+
+Add-Definition -FieldId 607 -FieldName 'kuro_4' -Kind Location `
+    -Label 'Set the clock hands to make a way to doorway six' -X -1 -Y -716 -Z 0 `
+    -MinimumGameMoment 613 -MaximumGameMoment 626 -Priority 1 `
     -EntityName 'gateway1' -ScriptType 'Gateway' `
-    -TriggerLine ([ordered]@{ startX = -87; startY = -716; startZ = 0; endX = 85; endY = -716; endZ = 0 })
+    -ManualNavigationGuidance 'The hands are bridges: each joins the middle of the clock to the doorway it points at. From the middle, doorway six needs one hand at six; from another doorway, one hand at that doorway and the other at six. When you come in, the Time Guardian lets you set the clock: choose Move it myself, then Speed up time or Go back in time turns the long hand one hour, and the short hand moves an hour whenever the long hand passes twelve. Choose Proceed now! when done. To set it again, go back out the way you came in and come back.' `
+    -TriggerLine $clockDoorSix
 
 # The doorway out of the chase chamber, once the guard has been caught. Above 626 this
 # same line goes back to 612 instead, so the row ends where the native test changes.

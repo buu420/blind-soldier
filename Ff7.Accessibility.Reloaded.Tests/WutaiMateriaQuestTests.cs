@@ -47,6 +47,19 @@ internal static class WutaiMateriaQuestTests
 
     private static readonly int[] WutaiFields = Enumerable.Range(575, 25).ToArray();
 
+    /// <summary>tower5, the Pagoda's five floors, and the optional steps story-regions/WutaiPagoda.ps1 gives it.</summary>
+    private const int GodosPagoda = 586;
+    private static readonly HashSet<string> PagodaChallengeLabels =
+    [
+        "Talk to Gorky (optional)", "Talk to Shake (optional)", "Talk to Chekhov (optional)",
+        "Talk to Staniv (optional)", "Talk to Godo (optional)",
+        "Climb the stairs to the second floor (optional)", "Climb the stairs to the third floor (optional)",
+        "Climb the stairs to the fourth floor (optional)", "Climb the stairs to the fifth floor (optional)",
+        "Go back down to the first floor (optional)", "Go back down to the second floor (optional)",
+        "Go back down to the third floor (optional)", "Go back down to the fourth floor (optional)",
+        "Leave the Pagoda (optional)"
+    ];
+
     public static void Run()
     {
         TheChestWaitsForTheBarScene();
@@ -363,7 +376,12 @@ internal static class WutaiMateriaQuestTests
         Labels(memory, YuffiesHouse, [], "the house is shut before the pot", memory.Story(12));
     }
 
-    /// <summary>Not started, or finished: no Wutai field offers a quest step.</summary>
+    /// <summary>
+    /// Not started, or finished: no Wutai field offers a quest step. Godo's Pagoda (586) is
+    /// the one room with a quest of its own - Yuffie's five fights, which are fought after
+    /// this one - so it may offer those optional steps and nothing else
+    /// (FieldPuzzleStoryTests covers them).
+    /// </summary>
     private static void NothingIsOfferedOutsideTheQuest()
     {
         foreach (var phase in new[] { QuestPhase.NotStarted, QuestPhase.Complete })
@@ -377,8 +395,15 @@ internal static class WutaiMateriaQuestTests
                 memory.Actor(12, 553, -5260, 0);
                 memory.Actor(7, 68, -243, -25);
                 var reader = memory.Story(5, 7, 8, 9, 11, 12, 16, 17, 18);
-                Equal(0, reader.ReadTargets(memory.At(field)).Count,
-                    $"{phase}: field {field} offers nothing");
+                var offered = reader.ReadTargets(memory.At(field));
+                if (field == GodosPagoda)
+                {
+                    Equal(true, offered.All(target => PagodaChallengeLabels.Contains(target.Label)),
+                        $"{phase}: the Pagoda offers only its own optional fights and stairs");
+                    continue;
+                }
+
+                Equal(0, offered.Count, $"{phase}: field {field} offers nothing");
             }
         }
 
@@ -552,7 +577,13 @@ internal static class WutaiMateriaQuestTests
             ["598:Go back the way you came"] = 596,
             ["599:Go back the way you came"] = 596,
         };
-        var rows = FieldStoryEventCatalog.CreateAllFields().Where(r => WutaiFields.Contains(r.FieldId)).ToArray();
+        // The Pagoda's own challenge rows are checked against its lines and map jumps in
+        // FieldPuzzleStoryTests; every other Wutai row belongs to the Materia quest.
+        var rows = FieldStoryEventCatalog.CreateAllFields()
+            .Where(r => WutaiFields.Contains(r.FieldId) && r.FieldId != GodosPagoda).ToArray();
+        Equal(true, FieldStoryEventCatalog.CreateAllFields().Where(r => r.FieldId == GodosPagoda)
+                .All(r => PagodaChallengeLabels.Contains(r.Label)),
+            "the Pagoda holds only its own challenge rows");
         foreach (var row in rows.Where(r => r.TriggerLine is not null))
         {
             var key = $"{row.FieldId}:{row.Label}";

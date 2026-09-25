@@ -224,6 +224,19 @@ public sealed class FieldNavigationController
     private readonly Dictionary<string, string> selectedTargetIds = new(StringComparer.Ordinal);
     private FieldNavigationTarget? beaconLockedTarget;
     private FieldNavigationRouteGuidance? currentGuidance;
+
+    /// <summary>
+    /// How far along the route the party last was from the crossing of a target that is
+    /// finished by crossing it. Position recovery drops the live guidance when a field reloads,
+    /// so the last measured distance is kept apart from it.
+    /// </summary>
+    private double lastCrossingRemainingDistance = double.PositiveInfinity;
+
+    /// <summary>
+    /// Near enough to a crossing that a target disappearing there was removed by the crossing
+    /// itself: a little more than one scan of running between two samples.
+    /// </summary>
+    private const double CrossingRemovalSlackUnits = 96d;
     private FieldNavigationRouteAction? pendingLadderAction;
     private FieldNavigationRouteAction? lastCompletedLadderAction;
     private FieldLadderStateSnapshot activeLadderState;
@@ -778,6 +791,7 @@ public sealed class FieldNavigationController
         interactionArrivalDistance = 0;
         contactHintSpoken = false;
         contactStartedWhileSuppressed = false;
+        lastCrossingRemainingDistance = double.PositiveInfinity;
         ResetLadderMountPrompt();
         routeTracker?.Reset();
         movementObserver.Reset();
@@ -1076,6 +1090,20 @@ public sealed class FieldNavigationController
                     "native target removed after interaction arrival",
                     completed: true);
             }
+            else if (beaconLockedTarget is { } crossedTarget &&
+                     IsPagodaFloorCrossing(crossedTarget) &&
+                     lastCrossingRemainingDistance <= CrossingRemovalSlackUnits)
+            {
+                // A crossing target that goes away with the party standing at its line was
+                // removed by being crossed. Godo's Pagoda's stairs are the case that needs it:
+                // each floor's stairs exist only while the floor byte names that floor, the
+                // stairs' own Move script changes the byte and then reloads the same field,
+                // and the reload can hide the last sample on the line.
+                completion = CompleteNavigation(
+                    $"{beaconTargetLabel} reached. Navigation off.",
+                    $"{beaconCategory} crossing, target removed as it was crossed",
+                    completed: true);
+            }
             else if (beaconCategory == FieldNavigationCategory.Exits)
             {
                 completion = CompleteNavigation(
@@ -1242,6 +1270,10 @@ public sealed class FieldNavigationController
         }
 
         UpdateRouteProgress(position, target.Value, observation, observedAt);
+        if (IsPagodaFloorCrossing(target.Value) && currentGuidance is { } crossingGuidance)
+        {
+            lastCrossingRemainingDistance = crossingGuidance.RemainingDistance;
+        }
 
         var routeAction = CreateRouteActionSpeech(position, observedAt);
         if (routeAction is not null)
@@ -2938,6 +2970,13 @@ public sealed class FieldNavigationController
         (target.TriggerLine is not null ||
          target.DestinationFieldIds is { Count: > 0 } ||
          target.CompletionTriangles is { Count: > 0 });
+
+    // Only these verified stairs change their floor byte before reloading the same map.
+    // An ordinary doorway disappearing nearby may have been closed by a script; that is
+    // not evidence that the party crossed it.
+    private static bool IsPagodaFloorCrossing(FieldNavigationTarget target) =>
+        target.FieldId == 586 && target.TriggerEntityId is 14 or 15 &&
+        target.TriggerLine is not null && CompletesByCrossing(target);
 
     private static int ResolveArrivalDistance(
         FieldNavigationTarget target,

@@ -131,6 +131,78 @@ foreach ($exit in @(
         -TriggerLine $exit.line
 }
 
+# The chase itself, from the Terminal Floor to that corridor. Until now nothing covered
+# it, so every Square said nothing for as long as the chase lasted. What is offered is
+# the way Cait Sith is actually seen to go, square by square, and nothing else:
+#
+#   497  gldgate's cait, entity 8, is shown for the scene at 595 and its Script 7 jumps
+#        him to (473,597), triangle 43, and hides him - the spot cloud's own Init uses
+#        for arriving back out of the Battle Square tube. He is seen going into the
+#        Battle Square's tube, whose pad is chekun's triangles 26 and 27.
+#   499  coloss's cait, entity 7, is placed at 598 and its Main runs him to
+#        (-487,-2507) and hides him: gateway1, the tube to the Speed Square (486).
+#   486  jet's cait, entity 4, runs to (408,-1355): gateway5, the tube to the Wonder
+#        Square (505).
+#   505  games's cait, entity 7, jumps to (-273,-351), triangle 86, which is where the
+#        field's own tube code puts the party for jp7 (entity 22, 5[8] = 7) before it map
+#        jumps to the Chocobo Square (509).
+#   509  chorace's cait, entity 8: the Director's Main runs his Script 15 at 598, which
+#        takes him to (-68,-1087) and hides him in front of gateway0, the Ticket Office
+#        (511), where the corridor above corners him.
+#
+# Each of those sightings is shown only inside its own window of the three-minute
+# STTIM clock 497's Main starts at 598 (1[21] and 1[22]), and no chase field ever puts
+# that clock on screen, so neither the clock nor whether a sighting is still to come is
+# read here: a player who is slower than a sighted one is shown the same trail, not a
+# different one. None of it gates the ending - only crcin_1 does. The three Squares Cait
+# never goes through (Event, Round and the Ghost Hotel) are offered their way back to the
+# Terminal Floor, where the trail starts.
+foreach ($goldChaseStep in @(
+    @{ field = 499; name = 'coloss'; gateway = 'gateway1'; label = 'Follow Cait Sith to the Speed Square';
+       line = [ordered]@{ startX = -477; startY = -2539; startZ = -1139; endX = -503; endY = -2469; endZ = -1139 } },
+    @{ field = 486; name = 'jet'; gateway = 'gateway5'; label = 'Follow Cait Sith to the Wonder Square';
+       line = [ordered]@{ startX = 467; startY = -1320; startZ = -54; endX = 370; endY = -1378; endZ = -54 } },
+    @{ field = 509; name = 'chorace'; gateway = 'gateway0'; label = 'Follow Cait Sith into the Ticket Office';
+       line = [ordered]@{ startX = -175; startY = -875; startZ = -85; endX = 53; endY = -886; endZ = -85 } },
+    @{ field = 484; name = 'astage_a'; gateway = 'gateway0'; label = 'Go back to the Terminal Floor';
+       line = [ordered]@{ startX = 2322; startY = -3158; startZ = 256; endX = 2057; endY = -3189; endZ = 256 } },
+    @{ field = 488; name = 'bigwheel'; gateway = 'gateway0'; label = 'Go back to the Terminal Floor';
+       line = [ordered]@{ startX = 84; startY = -445; startZ = 0; endX = 379; endY = -179; endZ = 0 } })) {
+    $line = $goldChaseStep.line
+    Add-Definition @goldChase -FieldId $goldChaseStep.field -FieldName $goldChaseStep.name -Kind Location `
+        -Label $goldChaseStep.label `
+        -X ([int][Math]::Truncate(($line.startX + $line.endX) / 2)) `
+        -Y ([int][Math]::Truncate(($line.startY + $line.endY) / 2)) `
+        -Z ([int][Math]::Truncate(($line.startZ + $line.endZ) / 2)) `
+        -RequiredCondition $goldChaseRunning `
+        -EntityName $goldChaseStep.gateway -ScriptType 'Gateway' `
+        -TriggerLine $line
+}
+
+Add-Definition @goldChase -FieldId 497 -FieldName 'gldgate' -Kind Location `
+    -Label 'Follow Cait Sith to the Battle Square platform' -X 427 -Y 479 -Z 18 `
+    -RequiredCondition $goldChaseRunning `
+    -CompletionPlayerTriangles @(26, 27) `
+    -EntityName 'chekun' -ScriptType 'Main'
+
+# The Wonder Square's tubes are LINEs whose contact sets 5[8] and hands over to cloud
+# Script 4, like the jp3 row GoldSaucer.ps1 offers at 442; jp7 is selector 7, the
+# Chocobo Square.
+Add-Definition @goldChase -FieldId 505 -FieldName 'games' -Kind Location -EntityId 22 `
+    -Label 'Follow Cait Sith to the Chocobo Square' -X -198 -Y -343 -Z 0 `
+    -RequiredCondition $goldChaseRunning `
+    -EntityName 'jp7' -ScriptType 'Contact' -RequiredEnabledLineEntityId 22 `
+    -TriggerLine ([ordered]@{ startX = -195; startY = -369; startZ = 0; endX = -201; endY = -317; endZ = 0 })
+
+# The Ghost Hotel's tubes are [OK] LINEs: jpl, entity 4, sets 5[2] = 1 and its Go waits
+# for a fresh OK before cloud Script 3 map jumps to the Terminal Floor.
+Add-Definition @goldChase -FieldId 491 -FieldName 'ghotel' -Kind Location -EntityId 4 `
+    -Label 'Go back to the Terminal Floor tube and press Confirm' -X 218 -Y 225 -Z -94 `
+    -RequiredCondition $goldChaseRunning `
+    -EntityName 'jpl' -ScriptType '[OK]' -UsesPlayerCollisionRadius -KeepActiveOnArrival `
+    -RequiredEnabledLineEntityId 4 `
+    -TriggerLine ([ordered]@{ startX = 208; startY = 449; startZ = -93; endX = 228; endY = 1; endZ = -96 })
+
 # The arena itself, the party room's optional conversations and the date evening's own
 # squares are not claimed here. Neither is anything about which companion the evening
 # is spent with: all four remain reachable and nothing in these rows prefers one.

@@ -113,6 +113,10 @@ public readonly record struct FieldActivityObservation(
 /// it is on an hour, the bridge is claimed only if the native IDLCK state agrees:
 /// entity 8's script 1 locks all twenty-four bridge triangles and each hour's own
 /// script unlocks its pair, so an unlocked pair is a bridge that is actually there.
+/// The short hand opens the pair for its own hour too (entity 22's script 6), so its
+/// bridge is said the same way whenever it stands on a different hour. Where the party
+/// stands - the middle, or which doorway's side - is said first, from the walkmesh's
+/// own components, because it decides which bridges lead anywhere.
 /// The controls are ordinary dialogue in native windows 3, 2 and 4 and are left to the
 /// dialogue readout.
 /// </description></item>
@@ -173,6 +177,54 @@ public sealed class FieldActivityReadout
 
     private static readonly string[] Numerals =
         ["twelve", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven"];
+
+    /// <summary>
+    /// The installed walkmesh's own parts of the clock, as the Story rows for doorway six use
+    /// them (story-regions/TempleOfTheAncients.ps1). Each bridge is three triangles, and IDdr's
+    /// pair locks its inner and outer ones. With all twenty-four shut the middle is one
+    /// component of thirty triangles; with the twelve inner ends it is where a party stands
+    /// between bridges. With only the inner ends shut each doorway's side is six triangles: its
+    /// platform of four and the outer two of its bridge. Every way into the room lands on one
+    /// of the sides. The other eighteen triangles are a separate part of the walkmesh that no
+    /// way in reaches, and are left unnamed.
+    /// </summary>
+    private static readonly HashSet<int> ClockMiddleTriangles =
+    [
+        80, 82, 83, 84, 86, 87, 88, 90, 91, 92, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103,
+        104, 105, 106, 107, 126, 127, 128, 129, 130, 131,
+        93, 78, 79, 89, 72, 73, 85, 74, 75, 81, 76, 77
+    ];
+
+    private static readonly int[][] ClockDoorwaySides =
+    [
+        [2, 3, 16, 17, 18, 19], [4, 5, 8, 9, 12, 13], [0, 1, 68, 69, 70, 71], [62, 63, 64, 65, 66, 67],
+        [56, 57, 58, 59, 60, 61], [50, 51, 52, 53, 54, 55], [44, 45, 46, 47, 48, 49], [38, 39, 40, 41, 42, 43],
+        [32, 33, 34, 35, 36, 37], [14, 15, 28, 29, 30, 31], [10, 11, 24, 25, 26, 27], [6, 7, 20, 21, 22, 23]
+    ];
+
+    /// <summary>The hour of the doorway whose side a triangle is on, -1 for the middle, -2 for neither.</summary>
+    internal static int ClockPlace(int triangle)
+    {
+        if (ClockMiddleTriangles.Contains(triangle))
+        {
+            return -1;
+        }
+
+        for (var hour = 0; hour < ClockDoorwaySides.Length; hour++)
+        {
+            if (Array.IndexOf(ClockDoorwaySides[hour], triangle) >= 0)
+            {
+                return hour;
+            }
+        }
+
+        return -2;
+    }
+
+    /// <summary>The middle's and each doorway's triangles, for tests that check them against the walkmesh.</summary>
+    internal static IReadOnlyCollection<int> ClockMiddle => ClockMiddleTriangles;
+
+    internal static IReadOnlyList<int> ClockDoorwaySide(int hour) => ClockDoorwaySides[hour];
 
     /// <summary>Distances are said in hundreds; a boulder does not move in units.</summary>
     private const int DistanceBucket = 100;
@@ -665,28 +717,58 @@ public sealed class FieldActivityReadout
         AppendHand(observation, ClockShortHandEntityId, "short hand", parts);
         AppendHand(observation, ClockSecondHandEntityId, "second hand", parts);
 
-        var text = string.Join(", ", parts) + ".";
+        // Which bridges are any use depends on where the party stands, and a sighted player
+        // sees that as plainly as the hands: say it first. A triangle that is neither the
+        // middle nor a doorway's side is not given a place.
+        var place = ClockPlace(observation.PlayerTriangle);
+        var where = place switch
+        {
+            -1 => "You are in the middle of the clock. ",
+            >= 0 => $"You are by doorway {Numerals[place]}. ",
+            _ => string.Empty
+        };
+        var text = where + string.Join(", ", parts) + ".";
         var hour = AlignedHour(bearing);
         // The second hand never stops, so it is carried in the words but kept out of
         // the key: a clock that spoke every time its second hand moved would be a clock
-        // nothing else could be heard over.
-        var key = $"607:{DescribeBearing(bearing, moving: false)}";
+        // nothing else could be heard over. Where the party stands is part of the key, so
+        // walking from a doorway onto the middle is said, at the same cadence as the hands.
+        var key = $"607:{place}:{DescribeBearing(bearing, moving: false)}";
         if (hour >= 0)
         {
             // Only the field's own lock state may say a bridge is there. The hand
             // arriving and the bridge opening are two different things.
             var open = IsBridgeOpen(observation, hour);
             key += $":{open?.ToString() ?? "unknown"}";
-            text += open switch
+            text += DescribeBridge(hour, open);
+        }
+
+        // The short hand is a bridge as well. Its own script 6 unlocks the pair for the
+        // hour Bank[4][228] names, after entity 8 has locked all twenty-four, in the same
+        // way the long hand's scripts unlock the pair for its hour - so on the first
+        // visit the short hand at ten is the way in from the corridor, and after the
+        // mural it is the short hand at six that joins doorway six to the middle.
+        var shortHand = Find(observation, ClockShortHandEntityId);
+        if (shortHand.Status == FieldActivityReadStatus.Visible)
+        {
+            var shortHour = AlignedHour(shortHand.Model.Direction);
+            if (shortHour >= 0 && shortHour != hour)
             {
-                true => $" The bridge to doorway {Numerals[hour]} is open.",
-                false => $" The bridge to doorway {Numerals[hour]} is not open.",
-                _ => string.Empty
-            };
+                var shortOpen = IsBridgeOpen(observation, shortHour);
+                key += $":short{shortHour}:{shortOpen?.ToString() ?? "unknown"}";
+                text += DescribeBridge(shortHour, shortOpen);
+            }
         }
 
         return new Report(key, key, text, IsPending: false);
     }
+
+    private static string DescribeBridge(int hour, bool? open) => open switch
+    {
+        true => $" The bridge to doorway {Numerals[hour]} is open.",
+        false => $" The bridge to doorway {Numerals[hour]} is not open.",
+        _ => string.Empty
+    };
 
     private void AppendHand(
         FieldActivityObservation observation,

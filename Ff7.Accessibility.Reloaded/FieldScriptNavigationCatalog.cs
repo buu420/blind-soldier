@@ -356,6 +356,13 @@ public sealed class FieldScriptNavigationCatalog
                     continue;
                 }
 
+                // A line that moves is not a place. Its LINE opcode only says where it
+                // starts; everything the field does with it after that is somewhere else.
+                if (IsMovingHazardLine(fieldId, group))
+                {
+                    continue;
+                }
+
                 var actions = new List<NavigationAction>();
                 // A LINE entity's script 1 is its native [OK] handler. Treating those as
                 // exits would invent doorways that need a button press, which is why they
@@ -486,6 +493,39 @@ public sealed class FieldScriptNavigationCatalog
                         CompletesOnArrival: destinations.All(destination => destination != fieldId),
                         DestinationFieldIds: destinations,
                         TriggerLine: line.TriggerLine));
+                }
+                else if (destinations.Length == 1 &&
+                         SameFieldStaircaseFloors(fieldId, group) is { } floors)
+                {
+                    // A verified staircase is the one self-only line that is a way somewhere
+                    // for the player. It gets one exit per floor it serves, each offered only
+                    // while the floor byte says the party is on that floor, so the exit being
+                    // walked to is gone the moment its own Move script changes that byte - an
+                    // automatic route cannot carry on up the next floor after the reload, which
+                    // keeps the field id. Arriving completes it on the crossing itself.
+                    foreach (var floor in floors)
+                    {
+                        var exitId = $"script-exit:{fieldId}:{group.Index}:{fieldId}:floor{floor}";
+                        exitGuards[exitId] =
+                        [
+                            new FieldScriptExitGuard(
+                                fieldId,
+                                [[new FieldScriptGuardTest(
+                                    PagodaFloorBlock, PagodaFloorAddress, false, false, 0, floor, true)]])
+                        ];
+                        exits.Add(new FieldNavigationTarget(
+                            fieldId,
+                            FieldNavigationCategory.Exits,
+                            "Scripted exit",
+                            line.MidpointX,
+                            line.MidpointY,
+                            line.MidpointZ,
+                            exitId,
+                            TriggerEntityId: group.Index,
+                            CompletesOnArrival: true,
+                            DestinationFieldIds: [fieldId],
+                            TriggerLine: line.TriggerLine));
+                    }
                 }
             }
 
@@ -3444,6 +3484,56 @@ public sealed class FieldScriptNavigationCatalog
             (opcode.Id is 0x30 or 0x31) &&
             opcode.Bytes.Length >= 3 &&
             (BitConverter.ToUInt16(opcode.Bytes, 1) & 0x20) != 0);
+
+    private const byte SetLineOpcode = 0xD3;
+    private const int PagodaFloorBlock = 15;
+    private const byte PagodaFloorAddress = 138;
+
+    /// <summary>
+    /// Godo's Pagoda (tower5, 586) keeps all five floors in one field. jump_u (entity 14) and
+    /// jump_d (entity 15) are LINEs whose Move adds or takes one off 15[138], the floor, and
+    /// map jumps back into 586, so the next floor is the same field reloaded. The rule above
+    /// never publishes a self-only line and that stays true everywhere else - the Shinra
+    /// stairwell, the floor 60 resets, the desert's wander; these two are named here and
+    /// checked against their own floor opcodes (<c>950F8A</c> INC and <c>970F8A</c> DEC
+    /// 15[138]) so no other archive inherits them. The stairs up serve floors 0 to 3 and the
+    /// stairs down floors 1 to 4. Whether a floor's stairs are open is init's live IDLCK
+    /// state (triangle 29 up, 27 down), which route planning already honours.
+    /// </summary>
+    private static int[]? SameFieldStaircaseFloors(int fieldId, ScriptGroup group)
+    {
+        var (floors, floorOpcode) = (fieldId, group.Index) switch
+        {
+            (586, 14) => (new[] { 0, 1, 2, 3 }, (byte)0x95),
+            (586, 15) => (new[] { 1, 2, 3, 4 }, (byte)0x97),
+            _ => ((int[]?)null, (byte)0)
+        };
+        if (floors is null)
+        {
+            return null;
+        }
+
+        var changesTheFloor = Enumerable.Range(1, LastLineEventScript).Any(slot =>
+            group.Script(slot).Any(instruction =>
+                instruction.Id == floorOpcode &&
+                instruction.Bytes.Length >= 3 &&
+                instruction.Bytes[1] == PagodaFloorBlock &&
+                instruction.Bytes[2] == PagodaFloorAddress));
+        return changesTheFloor ? floors : null;
+    }
+
+    /// <summary>
+    /// kuro_4's second hand (607, entity 18, <c>line10</c>). Its Main sets the line again every
+    /// frame from 6[35..41] (SLINE), which e19's Main turns with SIN and COS of a running angle,
+    /// and its script 5 runs cloud's script 5: the party is thrown off the clock, placed at
+    /// triangle 46 and map jumped out to kuro_5 (608). The LINE opcode is only where the hand starts, so
+    /// neither an exit there nor the throw's intermediate placement is a place or a way anywhere;
+    /// offering them sends the party to stand where the sweeping hand will be. The field
+    /// activity readout says where the hand is instead.
+    /// </summary>
+    private static bool IsMovingHazardLine(int fieldId, ScriptGroup group) =>
+        (fieldId, group.Index) is (607, 18) &&
+        group.Script(0).Any(instruction => instruction.Id == SetLineOpcode);
 
     private static bool TryReadLine(IReadOnlyList<FieldScriptInstruction> script, out LineDefinition line)
     {

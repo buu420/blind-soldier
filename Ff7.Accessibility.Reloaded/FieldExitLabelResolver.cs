@@ -173,6 +173,17 @@ public sealed class FieldExitLabelResolver
             // world map or the jungle is chosen by bank 3 address 132 bit 6, so the label
             // names neither.
             "script-exit:518:11:17,514" => "Leave Gongaga; press Confirm",
+            // Godo's Pagoda keeps its five floors in one field, so the destination's map name
+            // is this room's own. Each staircase exit is one floor's (FieldScriptNavigationCatalog
+            // offers it only on that floor), and the label says where it goes.
+            "script-exit:586:14:586:floor0" => "Stairs up to the second floor",
+            "script-exit:586:14:586:floor1" => "Stairs up to the third floor",
+            "script-exit:586:14:586:floor2" => "Stairs up to the fourth floor",
+            "script-exit:586:14:586:floor3" => "Stairs up to the fifth floor",
+            "script-exit:586:15:586:floor1" => "Stairs down to the first floor",
+            "script-exit:586:15:586:floor2" => "Stairs down to the second floor",
+            "script-exit:586:15:586:floor3" => "Stairs down to the third floor",
+            "script-exit:586:15:586:floor4" => "Stairs down to the fourth floor",
             _ => null
         };
         if (exactLabel is not null)
