@@ -1,0 +1,406 @@
+{
+  "schema": 1,
+  "purpose": "Native-script dispositions for findings from the all-arrivals collector. These explain evidence; they do not remove failed attempts or certify a live playthrough.",
+  "reviews": [
+    {
+      "fields": [175, 82, 84, 85, 211],
+      "entities": [],
+      "status": "native-interaction-arrival",
+      "note": "A valid final waypoint alone did not prevent autowalk stopping short. Counter conversations and background LINE objects now use the leader's native collision radius and the engine's fixed-point 3D segment projection. Both production Object hosts supply live segment coordinates. Controller replays at configured arrival80 and400 check the actual stop, including the end of a long crystal line; disabled, collected and missing-radius targets are withheld. Corneo's non-crossing bedside Story interaction is reviewed separately from the rug crossing."
+    },
+    {
+      "fields": [471, 749],
+      "entities": [1],
+      "status": "controlled-actor-witness",
+      "note": "Raw discovered counter aliases can refer to Cloud's requested movement scripts. The production NPC reader excludes the model controlled by the player. These static leader-position witnesses do not establish an ordinary live NPC conversation; they are retained as conditional evidence instead of normalized into a pass."
+    },
+    {
+      "fields": [
+        175
+      ],
+      "entities": [
+        4,
+        5,
+        7
+      ],
+      "status": "confirmed-fix",
+      "note": "The sleeping boy and later adult use the enabled BLINE beside the bed. The child has a normal Talk script too, but its model position on the bed cannot be approached from the floor; prefer the bedside line only while it is live. Once that line is disabled at moments236-1007, keep his standing Talk and reward. Actual-reader native route and hidden/disabled regressions cover all three states. The old sitting-model coordinate remains a raw possible-state witness, not a valid direct approach."
+    },
+    {
+      "fields": [
+        358
+      ],
+      "entities": [
+        15
+      ],
+      "status": "non-walking-visible-model",
+      "note": "The visible perched condor has a high XYZI at triangle19 and an empty Talk handler. Its departure comes from requested scripts during the hatchling scene; its initial visible model position is not a floor-level conversation or a route to the Phoenix reward. Keep it distinct from the separate nest/scene progression."
+    },
+    {
+      "fields": [
+        151,
+        313,
+        460,
+        540,
+        749
+      ],
+      "entities": [],
+      "status": "native-detour-witness",
+      "note": "Disconnected Story approaches have native return paths through the weapon-shop building148, mountain cave317, Corel track461, observatory544, or crater cave750. These are separate static detour witnesses, never erased direct-route failures. The controller checks each next field's actual available exits. The crater start on749 triangle43 requires four transfers through750; the bounded chain now finds it."
+    },
+    {
+      "fields": [
+        173,
+        190,
+        253,
+        299
+      ],
+      "entities": [],
+      "status": "entry-animation-candidate",
+      "note": "The rooftop arrival uses173 director5's requests to jump the party down before UC restores control;190's bed arrival runs the wake-up requests;253 requests the vent-entry actor placement;299's flashback actor climbs from the temporary bedroom placement and sets moment373 before control returns. Raw entrance failures are retained until complete control-return fixtures cover each case."
+    },
+    {
+      "fields": [
+        181,
+        276,
+        641
+      ],
+      "entities": [],
+      "status": "incompatible-story-state",
+      "note": "181's upper church placement belongs to the moment155 automatic scene that transfers out through171.276's arrival from Aeris's bedroom is the moment167 dream, whereas its leave-house Story row is523-534.641's arrival from649 runs the moment673 movie and transfers onward; its ordinary Story rows cover652-672 or677-680. These raw scene entries cannot certify or disprove those later ordinary walking rows."
+    },
+    {
+      "fields": [
+        223,
+        224
+      ],
+      "entities": [
+        25,
+        32
+      ],
+      "status": "puzzle-completion-gates",
+      "note": "The battery rows already test native collection bits1[165]2/4 and live line availability. Upper arrivals occur after these steps; completed batteries must not be presented there. The optional intermediate landing has a separate return-ladder Story row and a native detour through224. Keep phase and completion conditions when judging its failed direct approaches."
+    },
+    {
+      "fields": [
+        82,
+        84,
+        85
+      ],
+      "entities": [
+        4,
+        5,
+        6,
+        7
+      ],
+      "status": "confirmed-fix",
+      "note": "The three background materia crystals had no Objects entries. One named crystal per room now follows the native enabled e4 line and collection bits1[49]0/2/3. A separate regression reaches its native interaction from all 292 entrance-floor triangles and checks disabled/collected/missing-radius states. The collector retains no-native-arrivals because their entrance is on the world map."
+    },
+    {
+      "fields": [
+        546,
+        547
+      ],
+      "entities": [
+        22,
+        23,
+        24,
+        21
+      ],
+      "status": "confirmed-fix",
+      "note": "Added Effect is on a separate ledge. The native route leaves the lower cave for 547 and returns through its other exit. The controller now preserves the selected target through that approach; live locks still apply."
+    },
+    {
+      "fields": [
+        210,
+        211
+      ],
+      "entities": [
+        12,
+        16,
+        18
+      ],
+      "status": "confirmed-fix",
+      "note": "Cloud's selected branch needs BLINE's OK interaction beside the bed. Corneo's own Talk script is empty. The rug remains disabled until the conversation; other selected-party branches enable it after their automatic scenes."
+    },
+    {
+      "fields": [
+        542,
+        439
+      ],
+      "entities": [],
+      "status": "confirmed-fix",
+      "note": "A failed trigger-line route cleared the final approach to zero before a successful point fallback. Restore the actual target. Native observatory and cargo-room gateway regressions reproduce the old endpoint."
+    },
+    {
+      "fields": [
+        144,
+        145,
+        174
+      ],
+      "entities": [
+        16,
+        20,
+        7
+      ],
+      "status": "confirmed-fix",
+      "note": "The two Train Graveyard barrels and slum television use native Talk handlers and enlarged Talk ranges. Their object rows used the default pickup range instead, which could not reach across the intervening geometry."
+    },
+    {
+      "fields": [
+        378
+      ],
+      "entities": [
+        2,
+        5,
+        6,
+        7,
+        8
+      ],
+      "status": "reviewed-entry-script",
+      "note": "The arrival at triangle45 is followed by director-requested actor script4, jumping to triangle33 before enabling control. All four possible player actors share that landing. The collector preserves the raw arrival and tests the reviewed control-return position separately."
+    },
+    {
+      "fields": [
+        729
+      ],
+      "entities": [
+        3
+      ],
+      "status": "reviewed-entry-script",
+      "note": "Cid's Main script jumps from the incoming transfer point onto carriage triangle0 before enabling control. Raw MAPJUMP triangle82 is not a controllable walking start."
+    },
+    {
+      "fields": [
+        170
+      ],
+      "entities": [
+        4
+      ],
+      "status": "actor-moves-before-interaction",
+      "note": "At moment335 Tifa's initial elevated placement is followed by a Main-script jump to triangle15. A route to the earlier XYZI position is not evidence about the later live NPC target."
+    },
+    {
+      "fields": [
+        212
+      ],
+      "entities": [
+        1,
+        2,
+        3
+      ],
+      "status": "actor-moves-before-interaction",
+      "note": "Cloud, Aeris and Tifa share an elevated initial position before the sewer fall. Their Main scripts jump to floor triangles20,19,16. The initial coordinates are not their talk positions after the drop."
+    },
+    {
+      "fields": [
+        197
+      ],
+      "entities": [
+        10
+      ],
+      "status": "activity-state-required",
+      "note": "The gym actor begins outside the entrance-floor Talk range. His dialogue requires activity flag5[10], and an activity script jumps him to triangle143. Initial placement alone cannot certify a live conversation."
+    },
+    {
+      "fields": [
+        430
+      ],
+      "entities": [
+        5
+      ],
+      "status": "manual-activity-required",
+      "note": "The Upper Junon pole is on the dolphin's successful landing level. The water-level entrance cannot walk onto it; dolphin activity state is required first."
+    },
+    {
+      "fields": [
+        442
+      ],
+      "entities": [
+        2,
+        6
+      ],
+      "status": "cinematic-not-controlled-field",
+      "note": "del12 has no PartyCharacter entity; producer Main disables control for the harbor cinematic. Its LINE's geometric failure is not a controllable town-exit failure."
+    },
+    {
+      "fields": [
+        443
+      ],
+      "entities": [
+        17
+      ],
+      "status": "actor-state-required",
+      "note": "The town NPC has alternative placements controlled by Yuffie's availability/party and the local event flag. The collector retains all placements, including states not offered by the live reader."
+    },
+    {
+      "fields": [
+        463
+      ],
+      "entities": [
+        5,
+        6
+      ],
+      "status": "existing-manual-guidance",
+      "note": "Wizard Staff and Star Pendant are falling-track activity rewards. Existing native-state tests retain visibility/collection and explain the left/right controls; selecting them must not attempt ordinary autowalk."
+    },
+    {
+      "fields": [
+        580
+      ],
+      "entities": [
+        11
+      ],
+      "status": "moving-interaction-window",
+      "note": "The Turtle's Paradise owner alternates MOVE positions behind the counter. His initial XYZI is outside Talk range; the counterward MOVE position is closer. Static initialization alone does not describe his live approach window."
+    },
+    {
+      "fields": [
+        620,
+        623
+      ],
+      "entities": [
+        7,
+        8,
+        9,
+        10,
+        16
+      ],
+      "status": "puzzle-state-required",
+      "note": "Forest creatures have hidden/carried reset positions, and hives require player jump landings. Preserve those failed witnesses; a route after a solved puzzle is not proof of a route from the entrance."
+    },
+    {
+      "fields": [
+        691
+      ],
+      "entities": [
+        10
+      ],
+      "status": "post-interaction-placement",
+      "note": "One unreachable ice-boulder position is written by its interaction script after moving it away. Treat the initial push state and completed state separately."
+    },
+    {
+      "fields": [
+        727
+      ],
+      "entities": [
+        0,
+        6,
+        7
+      ],
+      "status": "actor-moves-before-interaction",
+      "note": "At moment1130 director Main calls entity6 script3 before restoring control; that calls the child's script3, jumping to triangle85. The earlier floating-child XYZI is not the playable talk target."
+    },
+    {
+      "fields": [
+        762
+      ],
+      "entities": [
+        5,
+        26,
+        27
+      ],
+      "status": "confirmed-fix",
+      "note": "Mega All has empty Talk and Contact scripts. The award comes from script3 during the jump activity. Two take-off targets now use the actual live player collision range, retain the collection flag, and describe the manual OK timing. Actual-reader endpoints are checked from both native arrivals; the mod does not press OK or award the materia."
+    },
+    {
+      "fields": [
+        213,
+        252,
+        764
+      ],
+      "entities": [
+        0,
+        1,
+        2
+      ],
+      "status": "reviewed-entry-script",
+      "note": "The final sewer, bathroom return from the vent, and both upper Northern Crater arrivals trigger compulsory jumps before control returns. The collector now checks the independently traced control-return triangles and pins the native jump and director instructions while retaining the raw transfers."
+    },
+    {
+      "fields": [
+        335,
+        340
+      ],
+      "entities": [
+        7,
+        4
+      ],
+      "status": "non-walking-view",
+      "note": "The Kalm tower view sets 3[131] bit5, disables control, and transfers to elm triangle121. elm Main handles OK, Menu or Cancel to clear the flag and return to the tower. This arrival is a viewpoint, not a controllable town entrance."
+    },
+    {
+      "fields": [
+        604,
+        607
+      ],
+      "entities": [
+        13,
+        18
+      ],
+      "status": "incompatible-story-state",
+      "note": "The disconnected maze balcony is reached from clock doorway V. Its existing moment613-629 Story row requires that balcony component and points back to the clock. The failed rolling-corridor row is moment609-611, before the clock can be reached. Its geometry from that later entrance is not an available-state failure."
+    },
+    {
+      "fields": [
+        164,
+        361,
+        371,
+        408,
+        415,
+        505,
+        608
+      ],
+      "entities": [],
+      "status": "entry-animation-candidate",
+      "note": "Native directors or actor Main scripts perform entry climbs, jumps or scene movement before ordinary navigation. Their raw transfers remain candidates in the collector until each complete state-specific return-to-control position is represented; no blanket geometry pass is assigned."
+    },
+    {
+      "fields": [
+        441
+      ],
+      "entities": [
+        16,
+        17
+      ],
+      "status": "ship-actor-state-unresolved",
+      "note": "Alternate ship-side placements are outside the town entrance component and its native Talk range; other placements are reachable. Scripts move the actors and gate their presence. Retain these as state-review candidates rather than inventing a path or hiding visible actors."
+    },
+    {
+      "fields": [
+        620
+      ],
+      "entities": [
+        0,
+        4,
+        5,
+        6,
+        35
+      ],
+      "status": "reviewed-entry-script",
+      "note": "The elevated gateway from621 lands on triangle25. The director polls the leader triangle, disables control and waits for leader script25. All three possible controlled actors jump to28 then29 before UC restores control. The collector pins this sequence and retains the raw arrival; from triangle29 the Minerva Band is reachable. Ground arrivals still require the forest puzzle and never receive this normalization."
+    },
+    {
+      "fields": [
+        764
+      ],
+      "entities": [
+        0,
+        2
+      ],
+      "status": "one-way-incoming-ledges",
+      "note": "The upper gateways from755 and759 are incoming drop ledges. Native director calls Cloud scripts3/4 to jump down to16/108; no return jump climbs those two ledges. Raw gateway reachability therefore remains failed. The controllable return route uses the separate lower exit to762, consistent with the guide returning through the previously traveled branch. This does not normalize the upper gateways or declare their direct approaches valid."
+    },
+    {
+      "fields": [
+        515
+      ],
+      "entities": [
+        1,
+        11
+      ],
+      "status": "confirmed-fix",
+      "note": "The jungle Turks have empty own Talk scripts; line1 Move aliases its OK handler and starts their scene. The visible Reno model now supplies a Reno and Rude NPC target at that line, with hidden and disabled-line negatives. Actual-reader routes are checked from every arrival. At exactly moment598 the line remains but Reno is hidden, so this NPC target is conservatively not offered."
+    }
+  ]
+}

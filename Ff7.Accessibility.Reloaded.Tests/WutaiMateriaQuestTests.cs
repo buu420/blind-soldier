@@ -177,8 +177,8 @@ internal static class WutaiMateriaQuestTests
         Equal(2, screens.Count, "both sides of the folding screen can be checked");
         Equal(true, screens.All(t => !t.CompletesOnArrival && t.TriggerLine is not null),
             "the screen is a Confirm on its LINE, not a crossing");
-        Equal(true, screens.All(t => t.InteractionRadius == 29),
-            "and it is reached inside the player's own collision radius");
+        Equal(true, screens.All(t => (t.LineActivationRadius, t.InteractionRadius) == (30, 0)),
+            "and it is reached on the touch of its LINE, within the player's own collision radius");
         Equal(0, memory.Story(18).ReadTargets(memory.At(OldMansHouse))
                 .Count(t => t.Label.StartsWith("Check behind", StringComparison.Ordinal)),
             "a screen whose LINE is off is not offered");

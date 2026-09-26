@@ -528,7 +528,13 @@ public sealed class FieldNavigationNpcReader
             // reached from the LINE in front of them, the same way the reviewed shop
             // and inn counters work.
             [(518, 15)] = "Tifa",
-            [(518, 16)] = "Aerith"
+            [(518, 16)] = "Aerith",
+
+            // gonjun2: Reno and Rude wait on the jungle path (Elena further off). Their own
+            // Talk is a bare RET; walking onto line1 - its Move is an alias of its [OK] - starts
+            // the scene before 2[0] 598 while 3[129] bit 3 is clear, and Reno's Init hides him
+            // once either is not so.
+            [(515, 11)] = "Reno and Rude"
         };
 
     private static readonly IReadOnlyDictionary<
@@ -538,6 +544,12 @@ public sealed class FieldNavigationNpcReader
             (int FieldId, int EntityId),
             (int LineEntityId, FieldNavigationTriggerLine Line)>
         {
+            // min51_2: BLINE supplies the bedside dialogue. The child later stands
+            // on the floor and offers his own Talk/reward while BLINE is disabled.
+            // The adult who replaces him has an empty Talk and always needs BLINE.
+            [(175, 4)] = (7, new(17, -150, -167, 11, -24, -167)),
+            [(175, 5)] = (7, new(17, -150, -167, 11, -24, -167)),
+
             // mktinn: the visible innkeeper delegates the action-key counter
             // interaction to line00/event rather than its empty Talk script.
             [(199, 17)] = (
@@ -579,7 +591,10 @@ public sealed class FieldNavigationNpcReader
             // 4, which asks Tifa for her own script 3. line2 is taken as the one side
             // per visible companion, as the other reviewed two-sided counters are.
             [(518, 16)] = (8, new(-111, -284, 17, -69, -74, 17)),
-            [(518, 15)] = (9, new(321, 559, 17, 173, 800, 17))
+            [(518, 15)] = (9, new(321, 559, 17, 173, 800, 17)),
+
+            // gonjun2: line1 (215,-585)-(354,-410), the Turks' scene; see VerifiedLabels.
+            [(515, 11)] = (1, new(215, -585, -24, 354, -410, -24))
         };
 
     /// <summary>
@@ -757,16 +772,22 @@ public sealed class FieldNavigationNpcReader
             // and so does a LINE that runs the NPC's own Talk: that LINE is the game's
             // counter for talking to them, and the receptionists of field 376 and
             // Yuffie in 443 stand 96 and 189 units from the floor their counter serves.
+            var prefersEnabledBedsideLine = IsConditionalBedsideProxy(definition) &&
+                lineEntityId is { } bedsideLine && isLineEnabled?.Invoke(bedsideLine) == true;
             var hasLiveDialogue = definition.DialogIds.Count > 0 &&
                 !definition.InteractionLineRunsTalk &&
-                readByte(eventAddress + TalkDisabledOffset) == 0;
+                readByte(eventAddress + TalkDisabledOffset) == 0 && !prefersEnabledBedsideLine;
             var usesInteractionLine =
                 lineEntityId.HasValue &&
                 interactionLine.HasValue &&
                 !hasLiveDialogue;
             if (usesInteractionLine)
             {
-                if (isLineEnabled is null || !isLineEnabled(lineEntityId!.Value))
+                // The counter works only while the leader touches its line (00637ABB), inside the
+                // leader's own collision radius. Without a leader model in the table or a radius
+                // it can be reached with, the counter cannot be walked to, and is not offered.
+                if (isLineEnabled is null || !isLineEnabled(lineEntityId!.Value) ||
+                    position.ModelIndex < 0 || position.ModelIndex >= modelCount || playerCollisionRadius <= 1)
                 {
                     continue;
                 }
@@ -803,7 +824,8 @@ public sealed class FieldNavigationNpcReader
                 InteractionRadius: usesInteractionLine
                     ? 0
                     : playerCollisionRadius + Math.Max(0, (int)readInt16(eventAddress + TalkRadiusOffset)),
-                TriggerLine: usesInteractionLine ? interactionLine : null));
+                TriggerLine: usesInteractionLine ? interactionLine : null,
+                LineActivationRadius: usesInteractionLine ? playerCollisionRadius : 0));
         }
 
         return targets.Count == 0 ? EmptyTargets : targets;
@@ -862,7 +884,7 @@ public sealed class FieldNavigationNpcReader
                     scripted.InteractionLine,
                 // A reviewed manual proxy is how that NPC is talked to.
                 InteractionLineRunsTalk =
-                    verified.InteractionLine.HasValue || scripted.InteractionLineRunsTalk
+                    verified.InteractionLine.HasValue && !IsConditionalBedsideProxy(verified) || scripted.InteractionLineRunsTalk
             });
         }
 
@@ -882,6 +904,9 @@ public sealed class FieldNavigationNpcReader
 
         return merged;
     }
+
+    private static bool IsConditionalBedsideProxy(FieldScriptNpcDefinition definition) =>
+        definition.FieldId == 175 && definition.EntityId == 5;
 
     private string ResolveLabel(FieldScriptNpcDefinition definition)
     {

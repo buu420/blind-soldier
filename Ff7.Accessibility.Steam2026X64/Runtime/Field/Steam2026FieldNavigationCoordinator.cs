@@ -277,6 +277,19 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         controller.ContactStarted = new FieldContactActivationReader(addressSpace).HasStarted;
         controller.NativeLineIsEnabled = (_, entityId) =>
             lineStateReader.TryRead(entityId, out var lineEnabled) ? lineEnabled : null;
+        // The same way round a walkmesh the field does not join up as the Reloaded runtime:
+        // out through one exit and back in by another, from the installed field data.
+        var crossFieldApproach = new FieldCrossFieldApproachResolver(
+            scriptCatalog,
+            new FlevelDataSource(gameRootDirectory, language),
+            routePlanner,
+            position => walkmeshReader.Read(position).Walkmesh);
+        controller.CrossFieldApproach = (position, goal, exits) =>
+        {
+            var plan = crossFieldApproach.Resolve(position, goal, exits);
+            log($"Native Steam 2026 field cross-field approach: {crossFieldApproach.LastDiagnostic}");
+            return plan;
+        };
         exitSpatial = Steam2026FieldExitSpatialCoordinator.Create(config, modDirectory, log);
         ladderSpatial = Steam2026FieldLadderSpatialCoordinator.Create(config, modDirectory, log);
         swingingBarTimingCuePlayer = config.EnableFieldSwingingBarTimingCue
@@ -417,6 +430,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                     }
 
                     autoWalkConvergence.Reset();
+                    controller.NoteAutoWalkStarted();
                     return true;
                 },
                 StopEveryControllerAutoWalk,
@@ -448,6 +462,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         autoWalkConvergence.Reset();
         pendingAutoWalkStart = false;
         autoWalkRouteToggleQueued = false;
+        controller.NoteAutoWalkStopped();
     }
 
     internal void Observe(RuntimeFrameObservation frame, DateTime nowUtc)
@@ -526,6 +541,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         if (autoWalkToggleRequested && autoWalk.IsEnabledFor(NavigationAutoWalkDomain.Field))
         {
             _ = autoWalk.Stop();
+            controller.NoteAutoWalkStopped();
 
             // The key press, not the next scan. This coordinator only samples on its own
             // cadence, so an off and on inside one scan interval would otherwise never be
@@ -545,6 +561,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             observedActions.Any(action => action != FieldNavigationAction.RepeatTarget))
         {
             _ = autoWalk.Stop();
+            controller.NoteAutoWalkStopped();
             autoWalkConvergence.Reset();
             Speak("Auto walk off.", interrupt: true, nowUtc, "navigation selection changed");
         }
@@ -876,6 +893,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                 autoWalk.TryStart(NavigationAutoWalkDomain.Field, routeActive: true))
             {
                 autoWalkConvergence.Reset();
+                controller.NoteAutoWalkStarted();
                 pendingAutoWalkStart = false;
                 autoWalkRouteToggleQueued = false;
                 Speak("Auto walk on.", interrupt: true, nowUtc, "P toggle");
@@ -1372,6 +1390,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             return;
         }
 
+        controller.NoteAutoWalkStopped();
         pendingAutoWalkStart = false;
         autoWalkRouteToggleQueued = false;
         Speak(

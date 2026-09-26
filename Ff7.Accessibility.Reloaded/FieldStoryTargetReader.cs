@@ -236,12 +236,22 @@ public sealed class FieldStoryTargetReader
                 // this switch is the one to use when the reach is not the point.
                 var playerTable = readInt32(FieldNavigationObjectReader.AddressFieldEventDataPtr);
                 var count = readByte(FieldPositionReader.AddressFieldNumModels);
-                if (definition.TriggerLine is null || playerTable == 0 || position.ModelIndex >= count)
+                if (definition.TriggerLine is null || playerTable == 0 || position.ModelIndex < 0 || position.ModelIndex >= count)
                     return null;
                 var playerAddress = playerTable + position.ModelIndex * FieldNavigationObjectReader.FieldEventDataStride;
                 var radius = (int)readInt16(playerAddress + ModelCollisionRadiusOffset);
                 if (radius <= 1)
                     return null;
+
+                // A step the line does on touch - [OK], Go, Go 1x or Move - rather than one that
+                // completes by crossing it: reached when the engine's own test says the leader is
+                // on the line (FieldNativeLineContact), not at a radius round its middle nor at the
+                // player's arrival distance. A crossing keeps its crossing rule.
+                if (!definition.CompletesOnArrival)
+                {
+                    return CreateTarget(definition, definition.X, definition.Y, definition.Z) with { LineActivationRadius = radius };
+                }
+
                 return CreateTarget(definition, definition.X, definition.Y, definition.Z, radius - 1);
             }
             return CreateTarget(definition, definition.X, definition.Y, definition.Z);

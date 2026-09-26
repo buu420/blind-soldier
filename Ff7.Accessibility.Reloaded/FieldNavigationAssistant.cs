@@ -492,7 +492,212 @@ public sealed class FieldNavigationController
     public void Reset()
     {
         CancelHeldBoundaryTarget();
+        CancelCrossFieldApproach();
         ResetCore(deactivateProgress: true);
+    }
+
+    /// <summary>
+    /// Finds the way to a target on a part of this field its walkmesh does not join to where
+    /// the party stands, through one of this field's exits and back in by another (see
+    /// <see cref="FieldCrossFieldApproachResolver"/>). It is given the exits the player is
+    /// offered now. Null, or a null answer, leaves such a target "Route unavailable".
+    /// </summary>
+    public Func<FieldPositionSnapshot, FieldNavigationTarget, IReadOnlyList<FieldNavigationTarget>,
+        FieldNavigationCrossFieldApproach?>? CrossFieldApproach { get; set; }
+
+    /// <summary>
+    /// How long a leg of a cross-field approach waits, after the field it starts in has come up,
+    /// for its exit or target to be offered. The Steam runtime holds a new field's exits back
+    /// while they settle, and a model's target appears only once its model is placed.
+    /// </summary>
+    public static readonly TimeSpan CrossFieldLegWait = TimeSpan.FromSeconds(5);
+
+    // The target a cross-field approach is for, its plan, and where it has got to: the leg
+    // being walked (crossFieldWalking) or waiting to start; a leg index equal to the plan's
+    // leg count is the target itself, back in its own field.
+    private FieldNavigationTarget? crossFieldGoal;
+    private FieldNavigationCrossFieldApproach? crossFieldPlan;
+    private int crossFieldLeg;
+    private bool crossFieldWalking;
+    private DateTime crossFieldLegPendingSince;
+    private bool crossFieldAutoWalk;
+
+    /// <summary>The target a cross-field approach is walking the player to, if any.</summary>
+    public string CrossFieldGoalLabel => crossFieldGoal?.Label ?? string.Empty;
+
+    /// <summary>
+    /// Records that the player is being walked, so each later leg of a cross-field approach is
+    /// walked too (through <see cref="TryConsumeHeldAutoWalkRequest"/>). Ignored when there is
+    /// no such approach.
+    /// </summary>
+    public void NoteAutoWalkStarted()
+    {
+        if (crossFieldPlan is not null)
+        {
+            crossFieldAutoWalk = true;
+        }
+    }
+
+    /// <summary>
+    /// Records that the player turned auto walk off - P, the controller menu, a selection
+    /// change, or the walk giving up - while spoken navigation may carry on. Later legs of a
+    /// cross-field approach then start spoken only; crossing a doorway by hand must not switch
+    /// the walk back on. A suspension (battle, focus, a scene owning the field) is not a stop
+    /// and must not call this.
+    /// </summary>
+    public void NoteAutoWalkStopped()
+    {
+        crossFieldAutoWalk = false;
+        if (pendingBoundaryTarget is null)
+        {
+            // A leg that has just started may still hold its request for the host to take.
+            heldAutoWalkRequested = false;
+        }
+    }
+
+    private void CancelCrossFieldApproach()
+    {
+        crossFieldGoal = null;
+        crossFieldPlan = null;
+        crossFieldLeg = 0;
+        crossFieldWalking = false;
+        crossFieldLegPendingSince = default;
+        crossFieldAutoWalk = false;
+    }
+
+    private FieldNavigationActionResult? TryStartCrossFieldApproach(
+        FieldNavigationTarget goal,
+        FieldPositionSnapshot position,
+        FieldNavigationControlTransform? controlTransform,
+        FieldLadderStateSnapshot ladderState)
+    {
+        if (CrossFieldApproach is null)
+        {
+            return null;
+        }
+
+        var exits = source.GetTargets(position, FieldNavigationCategory.Exits);
+        if (CrossFieldApproach(ResolveRoutePlanningPosition(position, ladderState), goal, exits) is not { } plan ||
+            exits.FirstOrDefault(exit => string.Equals(exit.StableId, plan.OutboundExitStableId, StringComparison.Ordinal))
+                is not { StableId.Length: > 0 } outbound ||
+            !TryLockBeacon(outbound, position, ladderState))
+        {
+            return null;
+        }
+
+        // TryLockBeacon resets, which clears the approach; the target asked for is still the
+        // target, only the leg being walked is the way out.
+        crossFieldGoal = goal;
+        crossFieldPlan = plan;
+        crossFieldLeg = 0;
+        crossFieldWalking = true;
+        var guidance = controlTransform is null
+            ? null
+            : CreateSpokenGuidance(position, controlTransform.Value, arrivalDistanceUnits: 0);
+        LastNavigationDiagnostic = $"{LastNavigationDiagnostic}, cross-field approach to {GetTargetId(goal)}: {plan}";
+        return new FieldNavigationActionResult(
+            $"{goal.Label} is reached from here only by going out through {outbound.Label} and back in " +
+            "by another way. Navigation on." +
+            (guidance is null ? $" {outbound.Label}." : $" {outbound.Label}. {guidance.Value.Speech}."));
+    }
+
+    /// <summary>
+    /// Starts the next leg of a cross-field approach once the field it starts in is up: the
+    /// way back in from the next field, then the target itself. A leg whose exit or target is
+    /// not offered within <see cref="CrossFieldLegWait"/>, or is not routable, ends the approach
+    /// with the ordinary message; arriving anywhere else ends it silently.
+    /// </summary>
+    private FieldNavigationActionResult? TryContinueCrossFieldApproach(
+        FieldPositionSnapshot position,
+        FieldNavigationControlTransform controlTransform,
+        FieldLadderStateSnapshot ladderState,
+        DateTime observedAt)
+    {
+        if (crossFieldPlan is not { } plan || crossFieldGoal is not { } goal ||
+            !FieldPositionReader.IsUsable(position))
+        {
+            return null;
+        }
+
+        // A leg that finished on its crossing (its exit went away as it was crossed) switched
+        // navigation off before the field changed, so the change is seen here instead.
+        if (crossFieldWalking && crossFieldLeg < plan.Legs.Count &&
+            position.FieldId == plan.Legs[crossFieldLeg].DestinationFieldId)
+        {
+            crossFieldLeg++;
+            crossFieldWalking = false;
+            crossFieldLegPendingSince = default;
+        }
+
+        var legIndex = crossFieldLeg;
+        var toGoal = legIndex >= plan.Legs.Count;
+        var expectedField = toGoal ? plan.OriginFieldId : plan.Legs[legIndex].FieldId;
+        if (crossFieldWalking)
+        {
+            // Still walking a leg (navigation was switched off by the crossing rule and the
+            // field has not changed yet); anywhere unexpected ends the approach.
+            if (position.FieldId != plan.Legs[legIndex].FieldId)
+            {
+                CancelCrossFieldApproach();
+            }
+
+            return null;
+        }
+
+        if (position.FieldId != expectedField)
+        {
+            CancelCrossFieldApproach();
+            return null;
+        }
+
+        var now = observedAt == default ? DateTime.UtcNow : observedAt;
+        if (crossFieldLegPendingSince == default)
+        {
+            crossFieldLegPendingSince = now;
+        }
+
+        var goalId = GetTargetId(goal);
+        var leg = source.GetTargets(position, toGoal ? goal.Category : FieldNavigationCategory.Exits)
+            .Cast<FieldNavigationTarget?>()
+            .FirstOrDefault(candidate => toGoal
+                ? string.Equals(GetTargetId(candidate!.Value), goalId, StringComparison.Ordinal)
+                : string.Equals(candidate!.Value.StableId, plan.Legs[legIndex].ExitStableId, StringComparison.Ordinal));
+        var autoWalk = crossFieldAutoWalk;
+        var pendingSince = crossFieldLegPendingSince;
+        if (leg is null || !TryLockBeacon(leg.Value, position, ladderState))
+        {
+            if (now - pendingSince < CrossFieldLegWait)
+            {
+                // TryLockBeacon resets; keep waiting for the leg.
+                crossFieldGoal = goal;
+                crossFieldPlan = plan;
+                crossFieldLeg = legIndex;
+                crossFieldWalking = false;
+                crossFieldLegPendingSince = pendingSince;
+                crossFieldAutoWalk = autoWalk;
+                return null;
+            }
+
+            CancelCrossFieldApproach();
+            return new FieldNavigationActionResult($"Route unavailable to {goal.Label}. Navigation off.");
+        }
+
+        if (!toGoal)
+        {
+            crossFieldGoal = goal;
+            crossFieldPlan = plan;
+            crossFieldLeg = legIndex;
+            crossFieldWalking = true;
+            crossFieldAutoWalk = autoWalk;
+        }
+
+        // The player asked to be walked, so this leg walks too.
+        heldAutoWalkRequested = autoWalk;
+        var guidance = CreateSpokenGuidance(position, controlTransform, arrivalDistanceUnits: 0);
+        var speech = toGoal
+            ? $"Navigation on. {goal.Label}."
+            : $"{goal.Label}: now through {leg.Value.Label}. Navigation on.";
+        return new FieldNavigationActionResult(guidance is null ? speech : $"{speech} {guidance.Value.Speech}.");
     }
 
     /// <summary>
@@ -764,6 +969,7 @@ public sealed class FieldNavigationController
     {
         BeaconEnabled = false;
         beaconLockedTarget = null;
+        crossingRouteTriangles = [];
         currentGuidance = null;
         pendingLadderAction = null;
         lastCompletedLadderAction = null;
@@ -920,6 +1126,11 @@ public sealed class FieldNavigationController
                     }
 
                     CancelHeldBoundaryTarget();
+                    if (TryStartCrossFieldApproach(target.Value, position, controlTransform, ladderState) is { } across)
+                    {
+                        return across;
+                    }
+
                     return new FieldNavigationActionResult(
                         $"Route unavailable to {target.Value.Label}. Navigation off.");
                 }
@@ -951,9 +1162,20 @@ public sealed class FieldNavigationController
         {
             // Not while the game owns the speech. Bugenhagen's door opens mid-line, and
             // announcing over voiced dialogue is its own defect; the hold simply waits.
-            return isSuppressed
-                ? null
-                : TryStartHeldBoundaryRoute(position, controlTransform, ladderState);
+            if (isSuppressed)
+            {
+                // An entry climb or scene holding the party is not time spent waiting for the
+                // next leg: the wait starts again once the player has the field back.
+                if (crossFieldPlan is not null)
+                {
+                    crossFieldLegPendingSince = default;
+                }
+
+                return null;
+            }
+
+            return TryStartHeldBoundaryRoute(position, controlTransform, ladderState) ??
+                   TryContinueCrossFieldApproach(position, controlTransform, ladderState, observedAt);
         }
 
         // Walking to the line that opens a held door is a leg, not the destination. Each
@@ -1009,6 +1231,11 @@ public sealed class FieldNavigationController
             var reason = reached
                 ? $"matching field transition to {position.FieldId}"
                 : $"native target field changed to {position.FieldId}";
+            // A cross-field approach goes on only through the exit its leg was walking to and
+            // into the field that leg leads to; anywhere else ends it.
+            var crossFieldGoesOn = reached && crossFieldPlan is { } crossPlan && crossFieldWalking &&
+                crossFieldLeg < crossPlan.Legs.Count &&
+                position.FieldId == crossPlan.Legs[crossFieldLeg].DestinationFieldId;
             ClearSelectionsForField(departedFieldId);
             if (reached)
             {
@@ -1018,6 +1245,18 @@ public sealed class FieldNavigationController
             else
             {
                 Reset();
+            }
+
+            if (crossFieldGoesOn)
+            {
+                crossFieldLeg++;
+                crossFieldWalking = false;
+                crossFieldLegPendingSince = default;
+                reason += $", cross-field approach to {crossFieldGoal?.Label} continues";
+            }
+            else
+            {
+                CancelCrossFieldApproach();
             }
 
             LastNavigationDiagnostic = $"navigation completion, target field changed, reason={reason}";
@@ -1326,6 +1565,23 @@ public sealed class FieldNavigationController
             !canCompleteOnArrival &&
             !CompletesByCrossing(target.Value))
         {
+            if (interactionArrivalPaused && IsLineActivation(target.Value))
+            {
+                if (!HasLeftActivationLine(target.Value, position))
+                {
+                    return null;
+                }
+
+                interactionArrivalPaused = false;
+                interactionArrivalDistance = 0;
+                var resumedLineGuidance = CreateSpokenGuidance(position, controlTransform, arrivalDistanceUnits);
+                LastNavigationDiagnostic = $"{LastNavigationDiagnostic}, left the activation line, navigation resumed";
+                return new FieldNavigationActionResult(
+                    resumedLineGuidance is null
+                        ? "Navigation resumed."
+                        : $"Navigation resumed. {resumedLineGuidance.Value.Speech}.");
+            }
+
             if (interactionArrivalPaused)
             {
                 var resumeDistance = ResolveInteractionArrivalResumeDistance();
@@ -2643,6 +2899,10 @@ public sealed class FieldNavigationController
 
         BeaconEnabled = true;
         beaconLockedTarget = target;
+        crossingSelectionDistance = Distance2D(position.X, position.Y, target.X, target.Y);
+        crossingRouteTriangles = target.ApproachCrossingLine is null
+            ? []
+            : routeTracker.CurrentProbeSnapshot?.TrianglePath.ToHashSet() ?? [];
         beaconCategory = target.Category;
         beaconFieldId = target.FieldId;
         beaconTargetId = GetTargetId(target);
@@ -2754,7 +3014,60 @@ public sealed class FieldNavigationController
             return approach;
         }
 
+        // A point past a crossing line is offered by where the player stands, so it goes away
+        // as the walk crosses the line (or leaves the triangles it was offered from). The locked
+        // point is kept, and only while the walk is on its way to it: once it has arrived, its
+        // going is the ordinary completion.
+        if (!interactionArrivalPaused &&
+            beaconLockedTarget is { ApproachCrossingLine: { } crossingLine } crossing &&
+            string.Equals(GetTargetId(crossing), beaconTargetId, StringComparison.Ordinal) &&
+            IsInsideCrossingApproach(crossing, crossingLine, position))
+        {
+            return crossing;
+        }
+
         return null;
+    }
+
+    // How far past the band the crossed side still counts as approaching, and how much further
+    // than at the start the near side may be.
+    private const double CrossingApproachSlackUnits = 8d;
+
+    private double crossingSelectionDistance;
+    private HashSet<int> crossingRouteTriangles = [];
+
+    /// <summary>
+    /// Whether the player is still on the way to a crossing target: on its own side of the line
+    /// no further from the line than the target and its radius; or on the other side (or on the
+    /// line) standing on the route planned to it (when it was chosen, or as replanned since), or
+    /// no further from it than when it was chosen. Walking on past it, or off its route away from
+    /// it, is not an approach, and the target then goes as any other would.
+    /// </summary>
+    private bool IsInsideCrossingApproach(FieldNavigationTarget target, FieldNavigationTriggerLine line, FieldPositionSnapshot position)
+    {
+        var targetSide = FieldNavigationObjectReader.SideOf(line, target.X, target.Y);
+        var playerSide = FieldNavigationObjectReader.SideOf(line, position.X, position.Y);
+        if (targetSide != 0 && playerSide == targetSide)
+        {
+            return DistanceToLine(line, position.X, position.Y) <=
+                   DistanceToLine(line, target.X, target.Y) + Math.Max(1, target.InteractionRadius) + CrossingApproachSlackUnits;
+        }
+
+        return crossingRouteTriangles.Contains(position.TriangleId) ||
+               routeTracker?.CurrentProbeSnapshot?.TrianglePath.Contains(position.TriangleId) == true ||
+               Distance2D(position.X, position.Y, target.X, target.Y) <= crossingSelectionDistance + CrossingApproachSlackUnits;
+    }
+
+    private static double Distance2D(int ax, int ay, int bx, int by) =>
+        Math.Sqrt((double)(ax - bx) * (ax - bx) + (double)(ay - by) * (ay - by));
+
+    private static double DistanceToLine(FieldNavigationTriggerLine line, int x, int y)
+    {
+        double vx = line.EndX - line.StartX, vy = line.EndY - line.StartY;
+        var lengthSquared = vx * vx + vy * vy;
+        var t = lengthSquared == 0 ? 0 : Math.Clamp(((x - line.StartX) * vx + (y - line.StartY) * vy) / lengthSquared, 0, 1);
+        double dx = x - (line.StartX + t * vx), dy = y - (line.StartY + t * vy);
+        return Math.Sqrt(dx * dx + dy * dy);
     }
 
     private int[] ResolveDestinationFieldIds(
@@ -2879,6 +3192,16 @@ public sealed class FieldNavigationController
             return completionTriangles.Contains(position.TriangleId);
         }
 
+        // A LINE the game activates by touch is reached when the engine's own test says the
+        // leader is on it (FieldNativeLineContact, 00637ABB with 00637879): inside the leader's
+        // collision radius of the segment, in three dimensions. The player's arrival distance is
+        // no part of that - 80 units from a counter is not at it - and neither is the route's
+        // remaining length.
+        if (IsLineActivation(target) && target.TriggerLine is { } activationLine)
+        {
+            return FieldNativeLineContact.Touches(activationLine, position, target.LineActivationRadius);
+        }
+
         var threshold = ResolveArrivalDistance(target, arrivalDistanceUnits, forCompletion);
         // A Contact is reached when the game has started its script, never at a distance. The
         // step whose probe touches the target is refused (00636C41), so the party's centre is
@@ -2978,11 +3301,37 @@ public sealed class FieldNavigationController
         target.FieldId == 586 && target.TriggerEntityId is 14 or 15 &&
         target.TriggerLine is not null && CompletesByCrossing(target);
 
+    /// <summary>
+    /// A target reached by touching its LINE rather than by standing near a point: an Object or
+    /// NPC counter with its live segment and the leader's collision radius. Crossing exits and
+    /// Story steps that complete on arrival keep their own crossing rule.
+    /// </summary>
+    private static bool IsLineActivation(FieldNavigationTarget target) =>
+        target is { LineActivationRadius: > 0, TriggerLine: not null } &&
+        target.Category != FieldNavigationCategory.Exits &&
+        !CompletesByCrossing(target);
+
+    // After pausing on such a line, the walk has left it once the leader is this far off it:
+    // the radius and the same hysteresis as a proximity pause.
+    private static bool HasLeftActivationLine(FieldNavigationTarget target, FieldPositionSnapshot position)
+    {
+        var line = target.TriggerLine!.Value;
+        var leave = target.LineActivationRadius + Math.Max(32, target.LineActivationRadius / 2);
+        var (x, y, z) = FieldNativeLineContact.NativeCoordinates(position);
+        var distance = FieldNativeLineContact.DistanceSquared(line, x, y, z);
+        return distance < 0 || distance >= (long)leave * leave;
+    }
+
     private static int ResolveArrivalDistance(
         FieldNavigationTarget target,
         int configuredDistance,
         bool forCompletion = false)
     {
+        if (IsLineActivation(target))
+        {
+            return target.LineActivationRadius;
+        }
+
         if (forCompletion && CompletesByCrossing(target))
         {
             return ExitCrossingArrivalDistance;

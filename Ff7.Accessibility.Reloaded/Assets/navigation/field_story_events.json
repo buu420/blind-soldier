@@ -5,7 +5,7 @@
   "scannedGameMomentWrites": 334,
   "navigableGameMomentWrites": 118,
   "unresolvedAutomaticOrIndirectWrites": 219,
-  "definitionCount": 1440,
+  "definitionCount": 1441,
   "definitions": [
     {
       "fieldId": 115,
@@ -2214,7 +2214,8 @@
         "endX": 274,
         "endY": 48,
         "endZ": 0
-      }
+      },
+      "requiredEnabledLineEntityId": 14
     },
     {
       "fieldId": 154,
@@ -2438,7 +2439,8 @@
         "endX": 49,
         "endY": -96,
         "endZ": 0
-      }
+      },
+      "requiredEnabledLineEntityId": 17
     },
     {
       "fieldId": 154,
@@ -5506,7 +5508,7 @@
       "priority": 0,
       "sourceFieldName": "mkt_s1",
       "sourceEntityName": "line01",
-      "sourceScriptType": "[OK]",
+      "sourceScriptType": "Move",
       "completesOnArrival": true,
       "requiredCondition": {
         "bank": 1,
@@ -5527,7 +5529,8 @@
         "endX": -52,
         "endY": 167,
         "endZ": 0
-      }
+      },
+      "requiredEnabledLineEntityId": 3
     },
     {
       "fieldId": 201,
@@ -6683,7 +6686,8 @@
         "endX": 76,
         "endY": -41,
         "endZ": -237
-      }
+      },
+      "requiredEnabledLineEntityId": 16
     },
     {
       "fieldId": 212,
@@ -47272,6 +47276,39 @@
         "endY": -399,
         "endZ": 20
       }
+    },
+    {
+      "fieldId": 211,
+      "kind": "Location",
+      "label": "Go to Corneo's bedside and press OK to talk to him",
+      "entityId": 18,
+      "x": 128,
+      "y": 288,
+      "z": -237,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 197,
+      "maximumGameMoment": 197,
+      "priority": 0,
+      "sourceFieldName": "colne_6",
+      "sourceEntityName": "BLINE",
+      "sourceScriptType": "[OK]",
+      "completesOnArrival": false,
+      "requiredCondition": {
+        "bank": 3,
+        "address": 162,
+        "mask": 16,
+        "value": 16
+      },
+      "triggerLine": {
+        "startX": 128,
+        "startY": 368,
+        "startZ": -237,
+        "endX": 128,
+        "endY": 207,
+        "endZ": -237
+      },
+      "requiredEnabledLineEntityId": 18,
+      "usesPlayerCollisionRadius": true
     }
   ]
 }

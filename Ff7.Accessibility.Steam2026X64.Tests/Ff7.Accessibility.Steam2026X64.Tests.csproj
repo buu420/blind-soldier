@@ -140,6 +140,16 @@
              Link="SharedTests\MountCorelNavigationTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\FieldPuzzleStoryTests.cs"
              Link="SharedTests\FieldPuzzleStoryTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\GuideRouteRegressionTests.cs"
+             Link="SharedTests\GuideRouteRegressionTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\FieldNavigationTriggerFallbackTests.cs"
+             Link="SharedTests\FieldNavigationTriggerFallbackTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\FieldEntryPlacementSafetyTests.cs"
+             Link="SharedTests\FieldEntryPlacementSafetyTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\MateriaCaveNavigationTests.cs"
+             Link="SharedTests\MateriaCaveNavigationTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\Sector5BedroomNpcTests.cs"
+             Link="SharedTests\Sector5BedroomNpcTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\MountCorelRouteRepairTests.cs"
              Link="SharedTests\MountCorelRouteRepairTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\NorthCorelAlternateCorridorTests.cs"

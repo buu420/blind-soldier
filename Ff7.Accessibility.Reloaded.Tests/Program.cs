@@ -784,6 +784,18 @@ if (args.Contains("--mount-corel-navigation-only", StringComparer.OrdinalIgnoreC
     return;
 }
 
+if (args.Contains("--guide-routes-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.GuideRouteRegressionTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.FieldNavigationTriggerFallbackTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.FieldEntryPlacementSafetyTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.MateriaCaveNavigationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.Sector5BedroomNpcTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.CrossFieldAutoWalkStopWiringTests.Run();
+    Console.WriteLine("FFVII x86 guide route regression tests passed.");
+    return;
+}
+
 if (args.Contains("--field-puzzles-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.FieldPuzzleStoryTests.Run(CreateInstalledFieldWalkmeshReader);
@@ -1065,6 +1077,12 @@ Ff7.Accessibility.Reloaded.Tests.Reactor5ButtonCueTests.Run();
 Ff7.Accessibility.Reloaded.Tests.CorelJourneyDescriptionTests.Run();
 MountCorelNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.FieldPuzzleStoryTests.Run(CreateInstalledFieldWalkmeshReader);
+Ff7.Accessibility.Reloaded.Tests.GuideRouteRegressionTests.Run();
+Ff7.Accessibility.Reloaded.Tests.FieldNavigationTriggerFallbackTests.Run();
+Ff7.Accessibility.Reloaded.Tests.FieldEntryPlacementSafetyTests.Run();
+Ff7.Accessibility.Reloaded.Tests.MateriaCaveNavigationTests.Run();
+Ff7.Accessibility.Reloaded.Tests.Sector5BedroomNpcTests.Run();
+Ff7.Accessibility.Reloaded.Tests.CrossFieldAutoWalkStopWiringTests.Run();
 Ff7.Accessibility.Reloaded.Tests.NorthCorelNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
 NorthCorelEtherInteractionTests.Run(CreateInstalledFieldWalkmeshReader);
 GoldSaucerFollowupTests.Run(Environment.GetEnvironmentVariable("FF7_ACCESSIBILITY_DATA_ROOT"));
@@ -9652,11 +9670,17 @@ static void AssertFieldNavigationObjectCatalogCoversTheFullGame()
         definition.SourceFieldName == "mkt_ia" &&
         definition.NativeId == 159 &&
         definition.MinimumGameMoment == 999), "catalog should include the late-game Premium Heart console");
-    AssertEqual(true, definitions.Any(definition =>
+    // Mega All floats over las3_3's middle rock with an empty Talk and Contact; it is caught
+    // in the jump from l21 or l22, so those take-off lines are its targets, not the model.
+    AssertEqual(2, definitions.Count(definition =>
         definition.SourceFieldName == "las3_3" &&
-        definition.EntityId == 5 &&
-        definition.Kind == FieldNavigationObjectKind.Materia &&
-        definition.NativeId == 12), "catalog should include the contact-triggered Mega All Materia");
+        definition.EntityId is 26 or 27 &&
+        definition.TargetKind == FieldNavigationObjectTargetKind.Line &&
+        definition.CueKindOverride == FieldObjectCueKind.Materia &&
+        definition.CollectedBank == 1 && definition.CollectedAddress == 50 && definition.CollectedMask == 0x10),
+        "catalog should include Mega All Materia at both of its take-off lines");
+    AssertEqual(false, definitions.Any(definition => definition.SourceFieldName == "las3_3" && definition.EntityId == 5),
+        "Mega All's floating model is not a place to walk to");
     AssertEqual(true, definitions.Any(definition =>
         definition.SourceFieldName == "mtcrl_5" &&
         definition.EntityId == 5 &&
@@ -16003,6 +16027,9 @@ static void AssertFieldNavigationNpcReaderUsesNativeInteractionLineProxy()
     memory[FieldNavigationObjectReader.AddressFieldModelIdArray + entityId] = npcModelId;
     memory[npcEvent + FieldNavigationObjectReader.VisibilityOffset] = 1;
     memory[npcEvent + FieldNavigationNpcReader.TalkDisabledOffset] = 1;
+    // The leader (model 0) carries the collision radius field init gives it (0060BCFA): the
+    // counter is used by touching its LINE inside that radius, so without it there is none.
+    memory[eventTable + FieldNavigationNpcReader.CollisionRadiusOffset] = 30;
 
     var reader = new FieldNavigationNpcReader(
         ReadInt32Value,
@@ -16019,6 +16046,11 @@ static void AssertFieldNavigationNpcReaderUsesNativeInteractionLineProxy()
     AssertEqual(-49, target.Y, "line-proxy NPC should route to the native counter midpoint y");
     AssertEqual(line, target.TriggerLine, "line-proxy NPC should route to the exact counter segment");
     AssertEqual(lineEntityId, target.TriggerEntityId, "line-proxy NPC should retain the native interactive entity");
+    AssertEqual(30, target.LineActivationRadius, "line-proxy NPC is reached on the touch within the leader's radius");
+
+    memory[eventTable + FieldNavigationNpcReader.CollisionRadiusOffset] = 0;
+    AssertEqual(0, reader.ReadTargets(position).Count, "a counter the leader has no radius to touch is not offered");
+    memory[eventTable + FieldNavigationNpcReader.CollisionRadiusOffset] = 30;
 
     lineEnabled = false;
     AssertEqual(
@@ -16434,6 +16466,9 @@ static void AssertFieldNavigationNpcReaderCoversSector5Town()
             testCase.EntityId] = npcModelId;
         memory[npcEvent + FieldNavigationObjectReader.VisibilityOffset] = 1;
         memory[npcEvent + FieldNavigationNpcReader.TalkDisabledOffset] = 0;
+        // The leader's collision radius from field init (0060BCFA): a reviewed counter is reached
+        // by touching its LINE inside it, and is not offered without it.
+        memory[eventTable + FieldNavigationNpcReader.CollisionRadiusOffset] = 30;
 
         IReadOnlyList<FieldScriptNpcDefinition> definitions = testCase.HasScriptDialog
             ? [new FieldScriptNpcDefinition(testCase.FieldId, testCase.EntityId, "internal", [1])]
@@ -16443,7 +16478,10 @@ static void AssertFieldNavigationNpcReaderCoversSector5Town()
             ReadInt16Value,
             ReadByte,
             (_, _) => ["Ordinary dialogue", "without a speaker heading."],
-            _ => definitions);
+            _ => definitions,
+            // Reviewed counters are reached by their LINE (175's adult by BLINE7, on from moment
+            // 1008 while he is shown), so the live line state is part of the reader's input.
+            isLineEnabled: _ => true);
         var target = reader.ReadTargets(
             new FieldPositionSnapshot(
                 1,
@@ -16556,6 +16594,8 @@ static void AssertFieldNavigationNpcReaderCoversWallMarket()
             testCase.EntityId] = npcModelId;
         memory[npcEvent + FieldNavigationObjectReader.VisibilityOffset] = 1;
         memory[npcEvent + FieldNavigationNpcReader.TalkDisabledOffset] = 0;
+        // The leader's collision radius from field init (0060BCFA), as in the Sector 5 cases.
+        memory[eventTable + FieldNavigationNpcReader.CollisionRadiusOffset] = 30;
 
         IReadOnlyList<FieldScriptNpcDefinition> definitions = testCase.HasScriptDialog
             ? [new FieldScriptNpcDefinition(testCase.FieldId, testCase.EntityId, "internal", [1])]

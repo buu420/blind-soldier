@@ -24,8 +24,10 @@ internal static class NativeLineStoryArrivalTests
         {
             radius = nativeRadius;
             var target = reader.ReadTargets(position).Single();
-            Equal(nativeRadius - 1, target.InteractionRadius,
-                "Go proximity must stop strictly inside the current native player collision radius");
+            // 00637ABB: on while the leader touches the LINE strictly inside its radius, so the
+            // step is reached on that touch, not at a circle round the line's middle.
+            Equal(((int)nativeRadius, 0), (target.LineActivationRadius, target.InteractionRadius),
+                "Go proximity must stop on the touch within the current native player collision radius");
             Equal(false, target.CompletesOnArrival, "the native interaction remains active until its own state changes");
         }
         foreach (var invalidRadius in new short[] { -1, 0, 1 })
