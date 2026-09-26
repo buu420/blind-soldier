@@ -18,6 +18,14 @@ public readonly record struct FieldActivityCue(
     bool IsPending)
 {
     public bool IsEmpty => Speech is null && !PlayButtonReadyCue;
+
+    /// <summary>
+    /// A newer line of this kind makes an older one worthless: it is a reading of something
+    /// that keeps changing, and an older reading still playing or still waiting to be said
+    /// would describe what is no longer on screen. Only the Temple clock sets this; the host
+    /// hands such a line to <see cref="FieldActivityLatestLineDelivery"/> instead of queueing it.
+    /// </summary>
+    public bool ReplacesEarlierLine { get; init; }
 }
 
 /// <summary>
@@ -109,7 +117,11 @@ public readonly record struct FieldActivityObservation(
 /// <b>607 kuro_4, the clock.</b> <c>long</c> 21, <c>short</c> 22 and <c>second</c> 23
 /// are the hands; entity 21's script 10 gives the bearing of each hour - 128 for
 /// twelve, 106, 86, 64, 42, 22, 0 for six, 234, 214, 192, 170, 150 - a full turn in 256
-/// units. A hand between two of those is turning, and no bridge is claimed for it. When
+/// units. On its own the clock says only whether the two hands the player sets are moving
+/// and the time they show - "Moving, ten thirty." or "Stopped, ten thirty.", the short hand
+/// the hour and the long hand's numeral times five the minutes - and each reading replaces
+/// the one before (<see cref="FieldActivityCue.ReplacesEarlierLine"/>). Everything else is
+/// the repeat's. A hand between two of those is turning, and no bridge is claimed for it. When
 /// it is on an hour, the bridge is claimed only if the native IDLCK state agrees:
 /// entity 8's script 1 locks all twenty-four bridge triangles and each hour's own
 /// script unlocks its pair, so an unlocked pair is a bridge that is actually there.
@@ -253,20 +265,58 @@ public sealed class FieldActivityReadout
     /// <summary>A wait the player has not answered is said again this often.</summary>
     public static readonly TimeSpan PendingRepeatInterval = TimeSpan.FromSeconds(8);
 
+    /// <summary>
+    /// How long both of the clock's own hands must show the same bearing before the clock is
+    /// stopped. A TURNGEN moves a hand once per native update (FUN_006342c6), so a host that
+    /// samples faster than the game sees the same bearing twice mid-turn; and between two held
+    /// steps the hand rests on a numeral for a few updates of script. Both are far shorter
+    /// than this.
+    /// </summary>
+    public static readonly TimeSpan ClockSettleTime = TimeSpan.FromMilliseconds(350);
+
+    /// <summary>
+    /// While the hands keep moving, a new reading of the time at most this often. Each reading
+    /// replaces the last one rather than queueing behind it, so this is a pace a listener can
+    /// follow, not a limit on how stale speech may get.
+    /// </summary>
+    public static readonly TimeSpan ClockMovingSpeechInterval = TimeSpan.FromMilliseconds(1500);
+
+    /// <summary>
+    /// A hand that has changed within this time is still turning. One that has sat on its
+    /// numeral for longer is only settling, and the time it has stopped on is at most the rest
+    /// of <see cref="ClockSettleTime"/> away; a moving reading then would only be cut off by it.
+    /// Between two held steps the hand rests for a couple of native updates, far less than this.
+    /// </summary>
+    public static readonly TimeSpan ClockTurningTime = TimeSpan.FromMilliseconds(150);
+
     private string? lastKey;
     private string? lastDetailKey;
     private DateTime lastSpokenAt = DateTime.MinValue;
-    private int lastLongHandBearing = -1;
     private int lastChairAnimation = -1;
+
+    // The clock's own state. Only Observe writes it; Describe and IsWaitingForInput read it.
+    private ClockHandMotion clockLongHand = ClockHandMotion.Unseen;
+    private ClockHandMotion clockShortHand = ClockHandMotion.Unseen;
+    private ClockMotion clockMotion = ClockMotion.Unknown;
+    private string? clockLastSpoken;
+    private DateTime clockLastSpokenAt = DateTime.MinValue;
+    private string? clockCurrentLine;
 
     public void Reset()
     {
         lastKey = null;
         lastDetailKey = null;
         lastSpokenAt = DateTime.MinValue;
-        lastLongHandBearing = -1;
         lastChairAnimation = -1;
+        ResetClock();
     }
+
+    /// <summary>
+    /// What the clock would say on its own for the latest observation: "Moving, ..." or
+    /// "Stopped, ..." and the time the hands show, or null when no clock is being read. The host
+    /// delivers this rather than an older line it could not say at the time.
+    /// </summary>
+    public string? CurrentReplaceableLine => clockCurrentLine;
 
     public FieldActivityCue Observe(FieldActivityObservation observation) =>
         Observe(observation, DateTime.UtcNow);
@@ -279,6 +329,15 @@ public sealed class FieldActivityReadout
     /// </summary>
     public FieldActivityCue Observe(FieldActivityObservation observation, DateTime now)
     {
+        // The clock keeps its own time: it says whether the hands are moving and what time
+        // they show, and a newer reading replaces an older one. Nothing below applies to it,
+        // and nothing about it applies to any other room.
+        if (observation.FieldId == ClockRoomFieldId)
+        {
+            return ObserveClock(observation, now);
+        }
+
+        ResetClock();
         var report = Compose(observation);
         if (report is null)
         {
@@ -696,30 +755,237 @@ public sealed class FieldActivityReadout
     }
 
     // --- 607, the clock --------------------------------------------------------------
+
+    /// <summary>
+    /// What is known about the two hands the player sets. A single look proves where the hands
+    /// are, not that they are at rest: a spin carries the long hand through every numeral, so a
+    /// look that happens to land on one says nothing about whether it is still going.
+    /// </summary>
+    private enum ClockMotion
+    {
+        /// <summary>Not watched for long enough to know: after entering, a reset or a torn look.</summary>
+        Unknown,
+
+        /// <summary>A hand was seen to change within the settle time, or is between numerals.</summary>
+        Moving,
+
+        /// <summary>Both hands were watched on their numerals, unchanged, for the whole settle time.</summary>
+        Stopped
+    }
+
+    /// <summary>
+    /// One of the two hands the player sets: its last rendered bearing, since when it has shown
+    /// it, and whether that was a change seen happening or only the first look at the hand.
+    /// </summary>
+    private readonly record struct ClockHandMotion(int Bearing, DateTime Since, bool SeenToChange)
+    {
+        public static ClockHandMotion Unseen => new(-1, DateTime.MinValue, false);
+
+        public ClockHandMotion Observe(int bearing, DateTime now) =>
+            Bearing == bearing ? this
+            // The first look at a hand starts the watch. It is not a movement, and it is not
+            // yet rest either.
+            : Bearing < 0 ? new ClockHandMotion(bearing, now, false)
+            : new ClockHandMotion(bearing, now, true);
+
+        public bool ChangedWithin(TimeSpan span, DateTime now) => SeenToChange && now - Since < span;
+
+        public bool UnchangedFor(TimeSpan span, DateTime now) => Bearing >= 0 && now - Since >= span;
+    }
+
+    private void ResetClock()
+    {
+        clockLongHand = ClockHandMotion.Unseen;
+        clockShortHand = ClockHandMotion.Unseen;
+        clockMotion = ClockMotion.Unknown;
+        clockLastSpoken = null;
+        clockLastSpokenAt = DateTime.MinValue;
+        clockCurrentLine = null;
+    }
+
+    /// <summary>
+    /// The clock on its own says only whether the hands are moving and what time they show:
+    /// "Moving, ten thirty." or "Stopped, ten thirty.". The short hand gives the hour and the
+    /// long hand the minutes, its numeral times five, read from the rendered bearings. That
+    /// is what is on the clock face, not the script's hour words and not where a spin will
+    /// stop. A hand between numerals is read the way a clock is read - the numeral it has
+    /// passed - and the time is then only "about" that.
+    ///
+    /// <para>Movement is said as it starts when the clock has been quiet, the time again at
+    /// most every <see cref="ClockMovingSpeechInterval"/> while the hands go on moving, and the
+    /// time they come to rest on at once, when both have been watched unchanged for
+    /// <see cref="ClockSettleTime"/>. Until the hands have been watched that long - on entering,
+    /// after a reset, after a torn look - nothing is claimed: a hand on a numeral may be one
+    /// a spin is passing through. The second hand never stops and is not one of the hands the
+    /// player sets, so it is never a reason to speak. Where the party stands, the bridges and
+    /// the second hand are the repeat's (<see cref="Describe"/>).</para>
+    /// </summary>
+    private FieldActivityCue ObserveClock(FieldActivityObservation observation, DateTime now)
+    {
+        // Whatever the rest of the readout last said belongs to another room.
+        lastKey = null;
+        lastDetailKey = null;
+
+        var longHand = Find(observation, ClockLongHandEntityId);
+        var shortHand = Find(observation, ClockShortHandEntityId);
+        if (longHand.Status == FieldActivityReadStatus.Unreadable ||
+            shortHand.Status == FieldActivityReadStatus.Unreadable)
+        {
+            // A torn look is not a clock showing the time it showed before. Forget the
+            // motion so the next readable look is read afresh.
+            const string unreadable = "Cannot read the clock hands.";
+            var alreadySaid = clockLastSpoken == unreadable;
+            ResetClock();
+            clockCurrentLine = unreadable;
+            // Remembered so it is said once; not a reading the next one must wait behind, so
+            // the pace of moving readings starts over.
+            clockLastSpoken = unreadable;
+            return new FieldActivityCue(alreadySaid ? null : unreadable, false, false) { ReplacesEarlierLine = true };
+        }
+
+        if (longHand.Status != FieldActivityReadStatus.Visible ||
+            shortHand.Status != FieldActivityReadStatus.Visible)
+        {
+            // Hands that are not shown are no clock to read.
+            ResetClock();
+            return new FieldActivityCue(null, false, false) { ReplacesEarlierLine = true };
+        }
+
+        var longBearing = longHand.Model.Direction;
+        var shortBearing = shortHand.Model.Direction;
+        clockLongHand = clockLongHand.Observe(longBearing, now);
+        clockShortHand = clockShortHand.Observe(shortBearing, now);
+        var motion = ClockMotionNow(longBearing, shortBearing, now);
+        var wasStopped = clockMotion == ClockMotion.Stopped;
+        clockMotion = motion;
+        if (motion == ClockMotion.Unknown)
+        {
+            // Still watching: there is nothing yet the clock can honestly say on its own.
+            clockCurrentLine = null;
+            return new FieldActivityCue(null, false, false) { ReplacesEarlierLine = true };
+        }
+
+        var line = ClockLine(longBearing, shortBearing, motion);
+        clockCurrentLine = line;
+
+        // Coming to rest - or being first watched at rest - is said at once. A moving reading
+        // (the first one included) waits until the clock has been quiet for the moving
+        // interval: from rest that is at once, but during a run of quick presses it never cuts
+        // off the time the last press came to rest on. It is said only while a hand is really
+        // turning, not while one is settling on its numeral with the stop a moment away.
+        var speak = motion == ClockMotion.Stopped
+            ? !wasStopped || !string.Equals(line, clockLastSpoken, StringComparison.Ordinal)
+            : !string.Equals(line, clockLastSpoken, StringComparison.Ordinal) &&
+              now - clockLastSpokenAt >= ClockMovingSpeechInterval &&
+              IsClockTurning(longBearing, shortBearing, now);
+        if (!speak)
+        {
+            return new FieldActivityCue(null, false, false) { ReplacesEarlierLine = true };
+        }
+
+        clockLastSpoken = line;
+        clockLastSpokenAt = now;
+        return new FieldActivityCue(line, false, false) { ReplacesEarlierLine = true };
+    }
+
+    /// <summary>
+    /// What is known of the hands the player sets. Moving: either is between numerals - every
+    /// turn in kuro_4's scripts ends on a numeral's own bearing, so a hand between two is one
+    /// that is turning - or either was seen to change within the settle time. Stopped: both are
+    /// on numerals and have been watched unchanged for the settle time. Anything else is not yet
+    /// known. The second hand is not one of them.
+    /// </summary>
+    private ClockMotion ClockMotionNow(int longBearing, int shortBearing, DateTime now)
+    {
+        if (AlignedHour(longBearing) < 0 ||
+            AlignedHour(shortBearing) < 0 ||
+            clockLongHand.ChangedWithin(ClockSettleTime, now) ||
+            clockShortHand.ChangedWithin(ClockSettleTime, now))
+        {
+            return ClockMotion.Moving;
+        }
+
+        return clockLongHand.UnchangedFor(ClockSettleTime, now) && clockShortHand.UnchangedFor(ClockSettleTime, now)
+            ? ClockMotion.Stopped
+            : ClockMotion.Unknown;
+    }
+
+    /// <summary>Whether a hand is actually turning now, rather than settling on its numeral.</summary>
+    private bool IsClockTurning(int longBearing, int shortBearing, DateTime now) =>
+        AlignedHour(longBearing) < 0 ||
+        AlignedHour(shortBearing) < 0 ||
+        clockLongHand.ChangedWithin(ClockTurningTime, now) ||
+        clockShortHand.ChangedWithin(ClockTurningTime, now);
+
+    private static string ClockLine(int longBearing, int shortBearing, ClockMotion motion)
+    {
+        var exact = AlignedHour(longBearing) >= 0 && AlignedHour(shortBearing) >= 0;
+        var time = ClockTime(longBearing, shortBearing);
+        return motion switch
+        {
+            ClockMotion.Moving => exact ? $"Moving, {time}." : $"Moving, about {time}.",
+            ClockMotion.Stopped => $"Stopped, {time}.",
+            // Where the hands are, with no claim about whether they are still going.
+            _ => char.ToUpperInvariant(time[0]) + time[1..] + "."
+        };
+    }
+
+    /// <summary>
+    /// The time the hands show: the short hand's numeral is the hour, the long hand's numeral
+    /// times five the minutes. A hand between two numerals counts as the one it has passed in
+    /// clock order, the way a clock face is read.
+    /// </summary>
+    internal static string ClockTime(int longBearing, int shortBearing) =>
+        $"{Numerals[ReadNumeral(shortBearing)]} {MinuteWords[ReadNumeral(longBearing)]}";
+
+    private static int ReadNumeral(int bearing)
+    {
+        var aligned = AlignedHour(bearing);
+        return aligned >= 0 ? aligned : SurroundingHours(bearing).Before;
+    }
+
+    private static readonly string[] MinuteWords =
+    [
+        "o'clock", "oh five", "ten", "fifteen", "twenty", "twenty-five",
+        "thirty", "thirty-five", "forty", "forty-five", "fifty", "fifty-five"
+    ];
+
+    /// <summary>
+    /// Everything a sighted player can see of the clock, for the repeat: whether the hands
+    /// move and the time, where the party stands, all three hands and which bridges are
+    /// really there. Reading it changes nothing.
+    /// </summary>
     private Report? ComposeClock(FieldActivityObservation observation)
     {
         var longHand = Find(observation, ClockLongHandEntityId);
-        if (longHand.Status == FieldActivityReadStatus.Unreadable)
+        var shortHand = Find(observation, ClockShortHandEntityId);
+        if (longHand.Status == FieldActivityReadStatus.Unreadable ||
+            shortHand.Status == FieldActivityReadStatus.Unreadable)
         {
             return new Report("607:unreadable", "607:unreadable", "Cannot read the clock hands.", IsPending: false);
         }
 
-        if (longHand.Status != FieldActivityReadStatus.Visible)
+        if (longHand.Status != FieldActivityReadStatus.Visible ||
+            shortHand.Status != FieldActivityReadStatus.Visible)
         {
             return null;
         }
 
         var bearing = longHand.Model.Direction;
-        var wasMoving = lastLongHandBearing >= 0 && lastLongHandBearing != bearing;
-        lastLongHandBearing = bearing;
-
-        var parts = new List<string> { "Long hand " + DescribeBearing(bearing, wasMoving) };
-        AppendHand(observation, ClockShortHandEntityId, "short hand", parts);
+        var shortBearing = shortHand.Model.Direction;
+        // As the last observation found the hands; a hand off its numeral is turning whatever
+        // was last observed. Not yet watched long enough, the repeat gives the time alone.
+        var motion = AlignedHour(bearing) < 0 || AlignedHour(shortBearing) < 0 ? ClockMotion.Moving : clockMotion;
+        var parts = new List<string>
+        {
+            "Long hand " + DescribeBearing(bearing),
+            "short hand " + DescribeBearing(shortBearing)
+        };
         AppendHand(observation, ClockSecondHandEntityId, "second hand", parts);
 
         // Which bridges are any use depends on where the party stands, and a sighted player
-        // sees that as plainly as the hands: say it first. A triangle that is neither the
-        // middle nor a doorway's side is not given a place.
+        // sees that as plainly as the hands. A triangle that is neither the middle nor a
+        // doorway's side is not given a place.
         var place = ClockPlace(observation.PlayerTriangle);
         var where = place switch
         {
@@ -727,13 +993,9 @@ public sealed class FieldActivityReadout
             >= 0 => $"You are by doorway {Numerals[place]}. ",
             _ => string.Empty
         };
-        var text = where + string.Join(", ", parts) + ".";
+        var text = ClockLine(bearing, shortBearing, motion) + " " + where + string.Join(", ", parts) + ".";
         var hour = AlignedHour(bearing);
-        // The second hand never stops, so it is carried in the words but kept out of
-        // the key: a clock that spoke every time its second hand moved would be a clock
-        // nothing else could be heard over. Where the party stands is part of the key, so
-        // walking from a doorway onto the middle is said, at the same cadence as the hands.
-        var key = $"607:{place}:{DescribeBearing(bearing, moving: false)}";
+        var key = $"607:{place}:{DescribeBearing(bearing)}";
         if (hour >= 0)
         {
             // Only the field's own lock state may say a bridge is there. The hand
@@ -748,16 +1010,12 @@ public sealed class FieldActivityReadout
         // way the long hand's scripts unlock the pair for its hour - so on the first
         // visit the short hand at ten is the way in from the corridor, and after the
         // mural it is the short hand at six that joins doorway six to the middle.
-        var shortHand = Find(observation, ClockShortHandEntityId);
-        if (shortHand.Status == FieldActivityReadStatus.Visible)
+        var shortHour = AlignedHour(shortBearing);
+        if (shortHour >= 0 && shortHour != hour)
         {
-            var shortHour = AlignedHour(shortHand.Model.Direction);
-            if (shortHour >= 0 && shortHour != hour)
-            {
-                var shortOpen = IsBridgeOpen(observation, shortHour);
-                key += $":short{shortHour}:{shortOpen?.ToString() ?? "unknown"}";
-                text += DescribeBridge(shortHour, shortOpen);
-            }
+            var shortOpen = IsBridgeOpen(observation, shortHour);
+            key += $":short{shortHour}:{shortOpen?.ToString() ?? "unknown"}";
+            text += DescribeBridge(shortHour, shortOpen);
         }
 
         return new Report(key, key, text, IsPending: false);
@@ -770,7 +1028,7 @@ public sealed class FieldActivityReadout
         _ => string.Empty
     };
 
-    private void AppendHand(
+    private static void AppendHand(
         FieldActivityObservation observation,
         int entityId,
         string name,
@@ -779,11 +1037,11 @@ public sealed class FieldActivityReadout
         var reading = Find(observation, entityId);
         if (reading.Status == FieldActivityReadStatus.Visible)
         {
-            parts.Add($"{name} {DescribeBearing(reading.Model.Direction, moving: false)}");
+            parts.Add($"{name} {DescribeBearing(reading.Model.Direction)}");
         }
     }
 
-    private static string DescribeBearing(int bearing, bool moving)
+    private static string DescribeBearing(int bearing)
     {
         var hour = AlignedHour(bearing);
         if (hour >= 0)
@@ -792,8 +1050,7 @@ public sealed class FieldActivityReadout
         }
 
         var (before, after) = SurroundingHours(bearing);
-        var between = $"between {Numerals[before]} and {Numerals[after]}";
-        return moving ? between + ", turning" : between;
+        return $"between {Numerals[before]} and {Numerals[after]}";
     }
 
     /// <summary>

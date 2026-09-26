@@ -12,6 +12,12 @@ internal sealed class Steam2026ResearchAccessibilityOutput : IAccessibilityOutpu
     private readonly RepeatLastSpeechController repeatLastSpeechController = new();
     private int disposed;
 
+    /// <summary>
+    /// Raised after Prism has taken a line, with the words it took. The field coordinator
+    /// listens so the Temple clock's next reading waits for dialogue instead of cutting it off.
+    /// </summary>
+    internal event Action<string>? SpeechDelivered;
+
     internal Steam2026ResearchAccessibilityOutput(
         PrismNativeSpeaker speaker,
         Action<string> log)
@@ -115,6 +121,7 @@ internal sealed class Steam2026ResearchAccessibilityOutput : IAccessibilityOutpu
 
         repeatLastSpeechController.RememberDelivered(localizedText);
         log($"Speak: {localizedText}");
+        SpeechDelivered?.Invoke(localizedText);
     }
 
     internal bool RepeatLast() =>
@@ -126,6 +133,7 @@ internal sealed class Steam2026ResearchAccessibilityOutput : IAccessibilityOutpu
             }
 
             log($"Repeat last speech: {text}");
+            SpeechDelivered?.Invoke(text);
             return true;
         });
 

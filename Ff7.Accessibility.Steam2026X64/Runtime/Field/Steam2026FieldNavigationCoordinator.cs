@@ -73,6 +73,11 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
     private readonly ImmediateWaveCuePlayer? fieldActivityButtonCuePlayer;
     private bool fieldActivityOwnsInput;
     private string? fieldActivityCurrentLine;
+
+    // The Temple clock's newest reading, owed until it is said: a newer reading replaces it,
+    // it waits for other speech to finish, and a refused one is kept only while current.
+    private readonly FieldActivityLatestLineDelivery fieldActivityLatestLine = new();
+    private readonly Func<bool?> isSpeechPlaying;
     private readonly Steam2026FieldNavigationPendingActionBuffer pendingActions = new();
     private readonly NavigationAutoWalkController autoWalk;
 
@@ -131,8 +136,11 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         Ff7GameLanguageContext? languageContext = null,
         NavigationAutoWalkController? autoWalk = null,
         Func<ControllerNavigationCapture?>? controllerCapture = null,
-        Steam2026NativeDirectionalInputSink? directionalInput = null)
+        Steam2026NativeDirectionalInputSink? directionalInput = null,
+        Func<bool?>? isSpeechPlaying = null)
     {
+        // The screen reader's own word on whether it is still speaking; null where it cannot say.
+        this.isSpeechPlaying = isSpeechPlaying ?? (static () => null);
         // Never a Win32 sink, even when no sink is supplied: an unattached one refuses
         // presses with a diagnostic the player hears, which is the honest outcome on a
         // host whose keyboard-state overlay is missing.
@@ -1553,6 +1561,21 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         fieldActivityOwnsInput = activity.IsPending;
         fieldActivityCurrentLine = fieldActivityReadout.Describe(observation);
 
+        // The clock's readings replace one another: only the newest is owed, it is said with
+        // interruption once other speech has finished, and it is dropped once nothing is
+        // current. Every other activity keeps its own queued delivery below.
+        // Spoken only while speech is on and the game still has focus at that moment; a muted
+        // reading stays owed as the current one and is not counted as said.
+        FieldActivityClockHost.Deliver(
+            activity,
+            fieldActivityReadout,
+            fieldActivityLatestLine,
+            nowUtc,
+            foregroundInput.IsCurrentProcessForeground,
+            () => config.EnableSpeech,
+            text => TrySpeakLatestActivityLine(text, nowUtc, fieldId),
+            isSpeechPlaying);
+
         if (activity.PlayButtonReadyCue &&
             fieldActivityButtonCuePlayer?.Play($"field={fieldId} activity button ready") != true)
         {
@@ -1561,15 +1584,41 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             log("Native Steam 2026 field activity button-ready cue could not be played.");
         }
 
-        if (activity.Speech is { } speech)
+        if (activity.Speech is { } speech && !activity.ReplacesEarlierLine)
         {
             Speak(speech, interrupt: false, nowUtc, $"native field activity {fieldId}");
         }
     }
 
+    /// <summary>
+    /// Says the clock's newest reading with interruption. This runtime's speaker throws when
+    /// Prism refuses a line; a refusal is not delivery, so the line stays owed.
+    /// </summary>
+    private bool TrySpeakLatestActivityLine(string text, DateTime nowUtc, int fieldId)
+    {
+        try
+        {
+            Speak(text, interrupt: true, nowUtc, $"native field activity {fieldId}");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            log($"Native Steam 2026 field activity {fieldId} line was not delivered: {ex.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Something other than the clock's own reading was just spoken - dialogue, the repeat key,
+    /// anything else. The clock's next reading waits for it instead of cutting it off.
+    /// </summary>
+    internal void NoteSpeechDelivered(string text, DateTime nowUtc) =>
+        fieldActivityLatestLine.NoteOtherSpeech(text, nowUtc);
+
     private void ResetFieldActivity()
     {
         fieldActivityReadout.Reset();
+        fieldActivityLatestLine.Reset();
         fieldActivityOwnsInput = false;
         fieldActivityCurrentLine = null;
     }

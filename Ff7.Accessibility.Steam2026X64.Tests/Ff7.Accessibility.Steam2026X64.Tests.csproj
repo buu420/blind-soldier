@@ -140,6 +140,10 @@
              Link="SharedTests\MountCorelNavigationTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\FieldPuzzleStoryTests.cs"
              Link="SharedTests\FieldPuzzleStoryTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\TempleClockSpeechTests.cs"
+             Link="SharedTests\TempleClockSpeechTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\TempleClockDeliveryTests.cs"
+             Link="SharedTests\TempleClockDeliveryTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\GuideRouteRegressionTests.cs"
              Link="SharedTests\GuideRouteRegressionTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\FieldNavigationTriggerFallbackTests.cs"

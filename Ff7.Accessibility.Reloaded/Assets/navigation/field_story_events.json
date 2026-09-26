@@ -46689,7 +46689,7 @@
       "sourceEntityName": "gateway1",
       "sourceScriptType": "Gateway",
       "completesOnArrival": true,
-      "manualNavigationGuidance": "The hands are bridges: each joins the middle of the clock to the doorway it points at. From the middle, doorway six needs one hand at six; from another doorway, one hand at that doorway and the other at six. When you come in, the Time Guardian lets you set the clock: choose Move it myself, then Speed up time or Go back in time turns the long hand one hour, and the short hand moves an hour whenever the long hand passes twelve. Choose Proceed now! when done. To set it again, go back out the way you came in and come back.",
+      "manualNavigationGuidance": "The hands are bridges: each joins the middle of the clock to the doorway it points at. From the middle, doorway six needs one hand at six; from another doorway, one hand at that doorway and the other at six. When you come in, the Time Guardian lets you set the clock: choose Move it myself, then Speed up time or Go back in time turns the long hand one numeral, five minutes, and the short hand moves one hour whenever the long hand passes twelve. Choose Proceed now! when done. To set it again, go back out the way you came in and come back.",
       "triggerLine": {
         "startX": -87,
         "startY": -716,
