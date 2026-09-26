@@ -801,6 +801,7 @@ if (args.Contains("--field-puzzles-only", StringComparer.OrdinalIgnoreCase))
     Ff7.Accessibility.Reloaded.Tests.FieldPuzzleStoryTests.Run(CreateInstalledFieldWalkmeshReader);
     Ff7.Accessibility.Reloaded.Tests.TempleClockSpeechTests.Run();
     Ff7.Accessibility.Reloaded.Tests.TempleClockDeliveryTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.ChaseAndExcavationTests.Run(CreateInstalledFieldWalkmeshReader);
     Console.WriteLine("FFVII x86 Pagoda, Cait Sith chase and Temple clock tests passed.");
     return;
 }
@@ -1081,6 +1082,7 @@ MountCorelNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.FieldPuzzleStoryTests.Run(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.TempleClockSpeechTests.Run();
 Ff7.Accessibility.Reloaded.Tests.TempleClockDeliveryTests.Run();
+Ff7.Accessibility.Reloaded.Tests.ChaseAndExcavationTests.Run(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.GuideRouteRegressionTests.Run();
 Ff7.Accessibility.Reloaded.Tests.FieldNavigationTriggerFallbackTests.Run();
 Ff7.Accessibility.Reloaded.Tests.FieldEntryPlacementSafetyTests.Run();
@@ -14780,45 +14782,52 @@ static void AssertFieldActivityReadoutSpeaksTheNativeActivities()
         FieldActivityReadout.ObservedEntities(772).Contains(6),
         "the buried target is never observed");
 
+    // How far the dig has got is bonevil2's own Bank[5][12], never a count of visible models:
+    // an unplaced digger stands visible at his Init spot (the tester's 2026-09-26 log heard
+    // "5 of 5 diggers placed" before any had been). ChaseAndExcavationTests covers the phases,
+    // the placements and the lines of sight; these keep the old cases' intent.
     AssertEqual(
-        "1 of 5 diggers placed: one ahead at 400, facing away.",
-        new FieldActivityReadout().Observe(Look(772, models: new[]
+        "Cannot read the dig.",
+        new FieldActivityReadout().Describe(Look(772, models: new[]
         {
             Seen(14, 0, -400, 0), Hidden(15), Hidden(16), Hidden(17), Hidden(18)
-        }), epoch).Speech,
-        "the dig reports how many of the five are placed and where they are");
+        })),
+        "without the phase byte the dig is not guessed from the models");
     AssertEqual(
-        "No diggers placed yet, 5 to place.",
+        null,
         new FieldActivityReadout().Observe(Look(772, models: new[]
         {
             Hidden(14), Hidden(15), Hidden(16), Hidden(17), Hidden(18)
-        }), epoch).Speech,
-        "an empty dig is reported as a phase, not as an error");
+        }) with { ReadTemporaryByte = address => address == 12 ? 7 : 0 }, epoch).Speech,
+        "arriving at the dig says nothing over the game's own instructions");
     AssertEqual(
         "Cannot read the diggers.",
-        new FieldActivityReadout().Observe(Look(772, models: new[]
+        new FieldActivityReadout().Describe(Look(772, models: new[]
         {
             Torn(14), Torn(15), Torn(16), Torn(17), Torn(18)
-        }), epoch).Speech,
+        }) with { ReadTemporaryByte = address => address == 12 ? 7 : 0 }),
         "a failed read never becomes an empty dig");
 
     // Facing goes through the same control transform as position: turning the room
     // turns both. With control 0 a model at bearing 0 faces away; at control 64 the
-    // same bearing reads as a side.
+    // same bearing reads as a side. It is given once the blast has turned the diggers.
     AssertEqual(
-        "1 of 5 diggers placed: one to the right at 400, facing right.",
-        new FieldActivityReadout().Observe(Look(772, controlDirection: 64, models: new[]
+        "Choose the dig point: stand where the diggers' lines of sight meet and press Switch. " +
+            "Digger 1 to the right at 400 on the lower level, facing right; you are behind him. " +
+            "You are in line with no digger. You are on the lower level.",
+        new FieldActivityReadout().Describe(Look(772, controlDirection: 64, models: new[]
         {
             Seen(14, 0, -400, 0), Hidden(15), Hidden(16), Hidden(17), Hidden(18)
-        }), epoch).Speech,
+        }) with { ReadTemporaryByte = address => address == 12 ? 1 : 0 }),
         "a worker's facing is turned through the field transform, not assumed");
     AssertEqual(
-        "1 of 5 diggers placed: one somewhere in the room at 400, " +
-            "facing a direction that cannot be read.",
-        new FieldActivityReadout().Observe(Look(772, transformUsable: false, models: new[]
+        "Choose the dig point: stand where the diggers' lines of sight meet and press Switch. " +
+            "Digger 1 somewhere in the room at 400 on the lower level, facing a direction that cannot be read; " +
+            "you are behind him. You are in line with no digger. You are on the lower level.",
+        new FieldActivityReadout().Describe(Look(772, transformUsable: false, models: new[]
         {
             Seen(14, 0, -400, 0), Hidden(15), Hidden(16), Hidden(17), Hidden(18)
-        }), epoch).Speech,
+        }) with { ReadTemporaryByte = address => address == 12 ? 1 : 0 }),
         "without a readable transform no orientation is guessed");
 
     // --- a wait is a place in a script, not the whole script -------------------------
@@ -15007,32 +15016,34 @@ static void AssertFieldActivityReadoutSpeaksTheNativeActivities()
     AssertEqual(-1, FieldActivityReadout.AlignedHour(117), "a bearing between two hours is on neither");
 
     // --- crossings and pillars belong to a place, not to a pair of coordinates --------
+    // The chase says what changes as it is seen (ChaseAndExcavationTests); a guard out of sight
+    // is no longer announced every few seconds, so these keep only the crossings' own rules.
     AssertEqual(
-        "At a crossing. Press Confirm to jump across.",
+        "At the ledge. Press Confirm to jump down to the middle floor.",
         new FieldActivityReadout().Observe(
             Look(610, playerX: -581, playerY: 200, playerZ: 370, models: new[] { Hidden(27) }), epoch).Speech,
-        "standing on the upper crossing names its Confirm");
+        "standing on the upper crossing names its Confirm and where it goes");
     AssertEqual(
-        "No doorway has the guard in it.",
+        null,
         new FieldActivityReadout().Observe(
             Look(610, playerX: -581, playerY: 200, playerZ: -10, models: new[] { Hidden(27) }), epoch).Speech,
         "the same coordinates on the other floor are not that crossing");
     AssertEqual(
-        "No doorway has the guard in it.",
+        null,
         new FieldActivityReadout().Observe(
             Look(610, playerX: -581, playerY: 200, playerZ: 370, lineEnabled: _ => false,
                 models: new[] { Hidden(27) }), epoch).Speech,
         "a crossing whose line the field has switched off is not offered");
     AssertEqual(
-        "No doorway has the guard in it.",
+        null,
         new FieldActivityReadout().Observe(
             Look(610, playerX: -581, playerY: 200, playerZ: 370, controlled: false,
                 models: new[] { Hidden(27) }), epoch).Speech,
         "no button is named while the party is being moved for them");
     AssertEqual(
-        "Cannot see where the guard is.",
-        new FieldActivityReadout().Observe(
-            Look(610, models: new[] { Torn(27) }), epoch).Speech,
+        true,
+        new FieldActivityReadout().Describe(Look(610, models: new[] { Torn(27) }))!
+            .Contains("Cannot see where the guard is.", StringComparison.Ordinal),
         "a guard who could not be read is not a guard who is not there");
 
     // st1's own Go script: Left from 667, Right only from 673.

@@ -437,6 +437,7 @@ if (args.Contains("--field-puzzles-only", StringComparer.OrdinalIgnoreCase))
     Ff7.Accessibility.Reloaded.Tests.FieldPuzzleStoryTests.Run(CreateInstalledFieldWalkmeshReader);
     Ff7.Accessibility.Reloaded.Tests.TempleClockSpeechTests.Run();
     Ff7.Accessibility.Reloaded.Tests.TempleClockDeliveryTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.ChaseAndExcavationTests.Run(CreateInstalledFieldWalkmeshReader);
     Steam2026FieldActivityRuntimeTests.Run();
     Console.WriteLine("Steam 2026 x64 Pagoda, Cait Sith chase, Temple clock and field activity tests passed.");
     return;
@@ -893,6 +894,7 @@ MountCorelNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.FieldPuzzleStoryTests.Run(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.TempleClockSpeechTests.Run();
 Ff7.Accessibility.Reloaded.Tests.TempleClockDeliveryTests.Run();
+Ff7.Accessibility.Reloaded.Tests.ChaseAndExcavationTests.Run(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.GuideRouteRegressionTests.Run();
 Ff7.Accessibility.Reloaded.Tests.FieldNavigationTriggerFallbackTests.Run();
 Ff7.Accessibility.Reloaded.Tests.FieldEntryPlacementSafetyTests.Run();
