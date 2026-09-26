@@ -62,7 +62,9 @@ public sealed class Steam2026FieldObjectObservationReader
             resolveItemName,
             resolveMateriaName,
             allDefinitions,
-            lineStateReader.IsEnabled);
+            lineStateReader.IsEnabled,
+            // Each Line object's live segment, so it is reached on the engine's own touch test.
+            readLiveLine: entity => lineStateReader.TryReadSegment(entity, out var segment) ? segment : null);
         navigationFieldsWithModelDefinitions = allDefinitions
             .Where(definition => definition.TargetKind == FieldNavigationObjectTargetKind.Model)
             .Select(definition => definition.FieldId)

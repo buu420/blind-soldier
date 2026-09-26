@@ -1323,7 +1323,9 @@ public sealed class Mod : IModV1, IModV2
             resolveMateriaName,
             fieldNavigationObjects,
             fieldScriptLineStateReader.IsEnabled,
-            ResolveFieldNavigationObjectCollectedMask);
+            ResolveFieldNavigationObjectCollectedMask,
+            // Each Line object's live segment, so it is reached on the engine's own touch test.
+            entity => fieldScriptLineStateReader.TryReadSegment(entity, out var segment) ? segment : null);
         fieldGatewayTargetReader = new FieldGatewayTargetReader(legacyAddressSpace);
         fieldScriptNavigationCatalog = gameRootDirectory is null
             ? null
@@ -1504,6 +1506,26 @@ public sealed class Mod : IModV1, IModV2
             fieldScriptLineStateReader is { } lines && lines.TryRead(entityId, out var enabled)
                 ? enabled
                 : null;
+        // A target on a part of the field its walkmesh does not join to where the party stands
+        // (the Added Effect Materia's ledge in gidun_1) is reached out through one of the
+        // field's exits and back in by another. The installed field data says which, and the
+        // live walkmesh and locks say whether each end of it is walkable.
+        if (fieldScriptNavigationCatalog is { } crossFieldCatalog && gameRootDirectory is { } crossFieldRoot)
+        {
+            var crossFieldApproach = new FieldCrossFieldApproachResolver(
+                crossFieldCatalog,
+                gameLanguage is null
+                    ? new FlevelDataSource(crossFieldRoot)
+                    : new FlevelDataSource(crossFieldRoot, gameLanguage),
+                fieldExitReachabilityPlanner,
+                position => fieldWalkmeshReader.Read(position).Walkmesh);
+            fieldNavigationController.CrossFieldApproach = (position, goal, exits) =>
+            {
+                var plan = crossFieldApproach.Resolve(position, goal, exits);
+                Log($"Field navigation cross-field approach: {crossFieldApproach.LastDiagnostic}");
+                return plan;
+            };
+        }
         Log(
             $"Field exits initialized from all {FieldGatewayTargetReader.GatewayCount} native trigger gateway records " +
             "plus live-enabled, line-triggered MAPJUMP scripts " +
@@ -6648,6 +6670,7 @@ public sealed class Mod : IModV1, IModV2
                     }
 
                     fieldAutoWalkConvergence.Reset();
+                    fieldNavigationController?.NoteAutoWalkStarted();
                     return true;
                 },
                 StopEveryControllerAutoWalk,
@@ -6691,6 +6714,7 @@ public sealed class Mod : IModV1, IModV2
         }
 
         fieldAutoWalkConvergence.Reset();
+        fieldNavigationController?.NoteAutoWalkStopped();
     }
 
     /// <summary>
@@ -6886,6 +6910,7 @@ public sealed class Mod : IModV1, IModV2
                 routeActive: true) == true)
         {
             fieldAutoWalkConvergence.Reset();
+            fieldNavigationController?.NoteAutoWalkStarted();
             Log("Field navigation auto walk started for the selected target.");
             Speak("Auto walk on.", interrupt: true);
         }
@@ -7132,6 +7157,8 @@ public sealed class Mod : IModV1, IModV2
             // auto walk off and straight back on gets a new walk, and a new walk starts
             // with its own five seconds.
             fieldAutoWalkConvergence.Reset();
+            // A stop, never a suspension: later legs of a cross-field approach stay spoken.
+            fieldNavigationController?.NoteAutoWalkStopped();
         }
 
         lastNavigationAutoWalkFailure = string.Empty;

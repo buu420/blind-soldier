@@ -47,7 +47,15 @@ public readonly record struct FieldNavigationObjectDefinition(
     bool UsesPlayerCollisionRadius = false,
     int? InteractionRadiusOverride = null,
     int[]? RequiredPlayerTriangles = null,
-    int[]? ExcludedPlayerTriangles = null);
+    int[]? ExcludedPlayerTriangles = null,
+    // Offered only while the player stands on one side of this line: the sign of its cross
+    // product with the player's position (1 or -1). A spot that works only once a line has been
+    // crossed is offered as a point beyond it from each side, so the walk there crosses it.
+    FieldNavigationTriggerLine? PlayerSideLine = null,
+    int PlayerSide = 0,
+    // The line a Location spot has to be walked across to work; given to the target so its
+    // approach survives the player's side changing (see FieldNavigationTarget).
+    FieldNavigationTriggerLine? CrossingLine = null);
 
 public static class FieldNavigationObjectCatalog
 {
@@ -59,7 +67,8 @@ public static class FieldNavigationObjectCatalog
             .. FullCatalog.Value.Definitions,
             .. ShinraElevatorObjectCatalog.Create(),
             .. NibelheimObjectCatalog.Create(),
-            .. TownInteractionObjectCatalog.Create()
+            .. TownInteractionObjectCatalog.Create(),
+            .. MateriaCaveObjectCatalog.Create()
         ]);
 
     public static IReadOnlyList<FieldNavigationObjectDefinition> CreateAllFields() =>
@@ -151,6 +160,7 @@ public sealed class FieldNavigationObjectReader
     private readonly Func<int, string?> resolveMateriaName;
     private readonly Func<int, bool> isLineEnabled;
     private readonly Func<FieldNavigationObjectDefinition, byte> resolveCollectedMask;
+    private readonly Func<int, FieldNavigationTriggerLine?>? readLiveLine;
     private readonly IReadOnlyDictionary<int, IReadOnlyList<FieldNavigationObjectDefinition>> definitionsByField;
 
     public FieldNavigationObjectReader(
@@ -160,8 +170,14 @@ public sealed class FieldNavigationObjectReader
         Func<int, string?> resolveMateriaName,
         IEnumerable<FieldNavigationObjectDefinition> definitions,
         Func<int, bool>? isLineEnabled = null,
-        Func<FieldNavigationObjectDefinition, byte>? resolveCollectedMask = null)
+        Func<FieldNavigationObjectDefinition, byte>? resolveCollectedMask = null,
+        Func<int, FieldNavigationTriggerLine?>? readLiveLine = null)
     {
+        // A host that can read each LINE's live segment (FieldScriptLineStateReader.TryReadSegment)
+        // gives a Line object its segment and the leader's collision radius, and the controller
+        // then counts it reached only on the engine's own touch test. Without it a Line object is
+        // the point at its static midpoint, as before.
+        this.readLiveLine = readLiveLine;
         this.readInt32 = readInt32;
         this.readByte = readByte;
         this.resolveItemName = resolveItemName;
@@ -191,6 +207,7 @@ public sealed class FieldNavigationObjectReader
         {
             if (!MeetsRequiredState(definition) ||
                 !MeetsPlayerTriangleConditions(definition, position.TriangleId) ||
+                !MeetsPlayerSide(definition, position) ||
                 IsCollected(definition))
             {
                 continue;
@@ -199,6 +216,8 @@ public sealed class FieldNavigationObjectReader
             int x;
             int y;
             int z;
+            FieldNavigationTriggerLine? liveLine = null;
+            var lineActivationRadius = 0;
             var interactionRadius = definition.InteractionRadiusOverride is > 0
                 ? definition.InteractionRadiusOverride.Value
                 : DefaultInteractionRadius;
@@ -209,7 +228,19 @@ public sealed class FieldNavigationObjectReader
                     continue;
                 }
 
-                if (definition.UsesPlayerCollisionRadius)
+                if (readLiveLine is not null)
+                {
+                    if (readLiveLine(definition.EntityId) is not { } segment ||
+                        TryReadPlayerCollisionRadius(position, ref eventTable, ref modelCount, ref modelStateRead) is not { } collision)
+                    {
+                        continue;
+                    }
+
+                    liveLine = segment;
+                    lineActivationRadius = collision;
+                    interactionRadius = 0;
+                }
+                else if (definition.UsesPlayerCollisionRadius)
                 {
                     if (!modelStateRead)
                     {
@@ -313,7 +344,10 @@ public sealed class FieldNavigationObjectReader
                         : -1,
                 CompletesOnArrival: definition.Kind == FieldNavigationObjectKind.SavePoint,
                 InteractionRadius: interactionRadius,
-                ManualNavigationGuidance: definition.ManualNavigationGuidance));
+                ManualNavigationGuidance: definition.ManualNavigationGuidance,
+                TriggerLine: liveLine,
+                ApproachCrossingLine: CrossingLineOf(definition),
+                LineActivationRadius: lineActivationRadius));
         }
 
         return targets.Count == 0 ? EmptyTargets : targets;
@@ -347,6 +381,47 @@ public sealed class FieldNavigationObjectReader
     /// see, and from the room behind it only its back - offering the far side would name a
     /// room nobody has been shown, and it could not be reached through the scroll's lock.
     /// </summary>
+    // The leader's collision radius (event +0x72), checked against the model table; null when
+    // the event table, the leader's model or the radius is missing.
+    private int? TryReadPlayerCollisionRadius(FieldPositionSnapshot position, ref int eventTable, ref byte modelCount, ref bool modelStateRead)
+    {
+        if (!modelStateRead)
+        {
+            eventTable = readInt32(AddressFieldEventDataPtr);
+            modelCount = readByte(FieldPositionReader.AddressFieldNumModels);
+            modelStateRead = true;
+        }
+
+        if (eventTable == 0 || position.ModelIndex < 0 || position.ModelIndex >= modelCount)
+        {
+            return null;
+        }
+
+        var radius = unchecked((short)ReadUInt16(eventTable + position.ModelIndex * FieldEventDataStride + FieldNavigationNpcReader.CollisionRadiusOffset));
+        return radius > 1 ? radius : null;
+    }
+
+    // Only a Location whose one live condition is where the player stands: nothing collected,
+    // required or line-enabled can take it away, so its going is only the side or triangle.
+    private static FieldNavigationTriggerLine? CrossingLineOf(FieldNavigationObjectDefinition definition) =>
+        definition.CrossingLine is { } line &&
+        definition.TargetKind == FieldNavigationObjectTargetKind.Location &&
+        definition.CollectedBank < 0 && definition.RequiredBank < 0 &&
+        definition.MinimumGameMoment < 0 && definition.MaximumGameMoment < 0
+            ? line
+            : null;
+
+    /// <summary>Which side of <paramref name="line"/> (x, y) is on: 1, -1, or 0 on it.</summary>
+    public static int SideOf(FieldNavigationTriggerLine line, int x, int y)
+    {
+        var cross = (long)(line.EndX - line.StartX) * (y - line.StartY) - (long)(line.EndY - line.StartY) * (x - line.StartX);
+        return Math.Sign(cross);
+    }
+
+    private static bool MeetsPlayerSide(FieldNavigationObjectDefinition definition, FieldPositionSnapshot position) =>
+        definition.PlayerSideLine is not { } line ||
+        (definition.PlayerSide != 0 && SideOf(line, position.X, position.Y) == definition.PlayerSide);
+
     private static bool MeetsPlayerTriangleConditions(
         FieldNavigationObjectDefinition definition,
         ushort playerTriangle) =>

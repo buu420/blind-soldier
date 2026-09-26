@@ -420,6 +420,18 @@ if (args.Contains("--corel-descriptions-only", StringComparer.OrdinalIgnoreCase)
     return;
 }
 
+if (args.Contains("--guide-routes-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.GuideRouteRegressionTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.FieldNavigationTriggerFallbackTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.FieldEntryPlacementSafetyTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.MateriaCaveNavigationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.Sector5BedroomNpcTests.Run();
+    Steam2026CrossFieldAutoWalkStopTests.Run();
+    Console.WriteLine("Steam 2026 x64 guide route regression tests passed.");
+    return;
+}
+
 if (args.Contains("--field-puzzles-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.FieldPuzzleStoryTests.Run(CreateInstalledFieldWalkmeshReader);
@@ -877,6 +889,12 @@ Ff7.Accessibility.Reloaded.Tests.MotionActionDescriptionTests.RunAgainstInstalle
 Ff7.Accessibility.Reloaded.Tests.CorelJourneyDescriptionTests.Run();
 MountCorelNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.FieldPuzzleStoryTests.Run(CreateInstalledFieldWalkmeshReader);
+Ff7.Accessibility.Reloaded.Tests.GuideRouteRegressionTests.Run();
+Ff7.Accessibility.Reloaded.Tests.FieldNavigationTriggerFallbackTests.Run();
+Ff7.Accessibility.Reloaded.Tests.FieldEntryPlacementSafetyTests.Run();
+Ff7.Accessibility.Reloaded.Tests.MateriaCaveNavigationTests.Run();
+Ff7.Accessibility.Reloaded.Tests.Sector5BedroomNpcTests.Run();
+Steam2026CrossFieldAutoWalkStopTests.Run();
 Steam2026FieldActivityRuntimeTests.Run();
 Ff7.Accessibility.Reloaded.Tests.NorthCorelNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
 NorthCorelEtherInteractionTests.Run(CreateInstalledFieldWalkmeshReader);

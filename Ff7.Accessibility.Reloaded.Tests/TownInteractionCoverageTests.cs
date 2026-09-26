@@ -94,6 +94,15 @@ public static class TownInteractionCoverageTests
                 }
                 else if (row.TargetKind == FieldNavigationObjectTargetKind.Model)
                     Check(entity.Any(s => s.ScriptId == 0 && s.Opcodes.Any(o => o.Opcode == 0xA1)), "model door loads CHAR");
+                else if (row.FieldId is >= 620 and <= 623)
+                {
+                    // The Ancient Forest's crossed throwing spots and ujp0's triangle jumps are
+                    // not Confirm polls; GuideRouteRegressionTests checks each against its zone
+                    // line, key, gate and the walk the reader's target gives.
+                    Check(row.PlayerSideLine is not null || row.RequiredPlayerTriangles is { Length: > 0 } ||
+                          row.Label!.StartsWith("Jump ", StringComparison.Ordinal),
+                        $"forest location {row.FieldId}/{row.EntityId} is a take-off, or tied to a side or to triangles");
+                }
                 else
                 {
                     Check(entity.Any(s => s.ScriptId == 0 && s.Opcodes.Any(o => o.Opcode == 0x31)), "background control polls Confirm");
@@ -153,6 +162,20 @@ public static class TownInteractionCoverageTests
                 X = -2000,
                 TriangleId = (ushort)(row.RequiredPlayerTriangles is { Length: > 0 } triangles ? triangles[0] : 0)
             };
+            if (row.PlayerSideLine is { } side)
+            {
+                // A spot past a zone line is offered from one side of it: stand 200 units off
+                // its middle on that side.
+                double vx = side.EndX - side.StartX, vy = side.EndY - side.StartY;
+                var length = Math.Sqrt(vx * vx + vy * vy);
+                var (nx, ny) = (-vy / length, vx / length);
+                var sign = FieldNavigationObjectReader.SideOf(side, (int)((side.StartX + side.EndX) / 2 + nx * 200), (int)((side.StartY + side.EndY) / 2 + ny * 200)) == row.PlayerSide ? 1 : -1;
+                position = position with
+                {
+                    X = (int)((side.StartX + side.EndX) / 2 + sign * nx * 200),
+                    Y = (int)((side.StartY + side.EndY) / 2 + sign * ny * 200)
+                };
+            }
             var target = memory.Reader(row).ReadTargets(position).Single();
             var controller = new FieldNavigationController(new FieldNavigationTargetSource([target]), new ApproachPlanner());
             var transform = new FieldNavigationControlTransform(0);

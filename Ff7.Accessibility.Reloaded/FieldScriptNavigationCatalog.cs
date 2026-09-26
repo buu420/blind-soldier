@@ -420,7 +420,8 @@ public sealed class FieldScriptNavigationCatalog
                              .Concat(okHandlerActions)
                              .Where(action => action.Kind is ActionKind.Ladder or ActionKind.Jump))
                 {
-                    if (IsMountCorelNpcCheeringJump(fieldId, group.Index, action, groups))
+                    if (IsMountCorelNpcCheeringJump(fieldId, group.Index, action, groups) ||
+                        IsAncientForestConditionalJump(fieldId, group, action, groups))
                     {
                         continue;
                     }
@@ -2308,6 +2309,11 @@ public sealed class FieldScriptNavigationCatalog
         /// <summary>Whether a value can change without this walk seeing the write.</summary>
         public bool IsVolatile(BankByteAddress address)
         {
+            if (IsJumpSelector(address))
+            {
+                return false;
+            }
+
             if (!volatility.TryGetValue(address, out var result))
             {
                 result = (Program.WritersByByte().TryGetValue(new FieldBankByte(address.Bank, address.Index), out var writers) &&
@@ -2320,6 +2326,203 @@ public sealed class FieldScriptNavigationCatalog
         }
 
         private bool IsConcurrent(int offset) => Program.IsConcurrent(offset);
+
+        private HashSet<BankByteAddress>? claimedSelectors;
+
+        /// <summary>
+        /// A temporary byte the field uses as a claimed selector: two or more LINE events do
+        /// nothing but test it is 0, write their own number, wait on a request (REQEW or PRQEW)
+        /// and write 0 again, and nothing else that can run beside them writes it except to clear it. The
+        /// Northern Crater's jump fields are built this way: las3_1 (760) with 5[3], las3_3 (762)
+        /// with 5[2], each line's Move handing the leader's script 3 the number of its jump.
+        /// While a line holds the byte, no other line can take it and a clear only follows the
+        /// holder's own request, so the number decides what the request does. Without this the
+        /// byte was counted as written concurrently (dic's Main clears it once on entry), and
+        /// every line was read as every jump - in 762 including the one out to 761.
+        /// </summary>
+        private bool IsJumpSelector(BankByteAddress address) =>
+            (claimedSelectors ??= FindClaimedSelectors()).Contains(address);
+
+        private HashSet<BankByteAddress> FindClaimedSelectors()
+        {
+            var claims = new Dictionary<BankByteAddress, int>();
+            var claimWrites = new HashSet<int>();
+            foreach (var group in groups)
+            {
+                if (!group.Script(0).Any(instruction => instruction.Id == 0xD0))
+                {
+                    continue;
+                }
+
+                for (var slot = 1; slot <= LastLineEventScript; slot++)
+                {
+                    if (!group.HasSlot(slot))
+                    {
+                        continue;
+                    }
+
+                    var script = group.Script(slot);
+                    // 760's l15 first takes control away (UC 1, MENU2 1), then claims the same way.
+                    if (script.Count >= 6 && script[0] is { Id: 0x33 } && script[1] is { Id: 0x4A })
+                    {
+                        script = script.Skip(2).ToArray();
+                    }
+
+                    if (script.Count < 4 || script[0] is not { Id: 0x14 } test || test.Bytes.Length < 6 ||
+                        (test.Bytes[1] & 0x0F) != 0 || test.Bytes[3] != 0 || test.Bytes[4] != 0)
+                    {
+                        continue;
+                    }
+
+                    var key = new BankByteAddress(FieldBankByte.BlockOf(test.Bytes[1] >> 4), test.Bytes[2]);
+                    bool Sets(FieldScriptInstruction instruction, bool zero) =>
+                        instruction.Id == SetByteOpcode && instruction.Bytes.Length >= 4 &&
+                        (instruction.Bytes[1] & 0x0F) == 0 &&
+                        FieldBankByte.BlockOf(instruction.Bytes[1] >> 4) == key.Bank &&
+                        instruction.Bytes[2] == key.Index &&
+                        (instruction.Bytes[3] == 0) == zero;
+                    if (key.Bank != 5 || !Sets(script[1], zero: false) || script[2].Id is not (0x03 or 0x06) ||
+                        !Sets(script[3], zero: true) ||
+                        test.Offset + ByteComparisonOperandIndex + test.Bytes[5] <= script[3].Offset)
+                    {
+                        continue;
+                    }
+
+                    claims[key] = claims.GetValueOrDefault(key) + 1;
+                    claimWrites.Add(script[1].Offset);
+                    claimWrites.Add(script[3].Offset);
+                }
+            }
+
+            var selectors = new HashSet<BankByteAddress>();
+            foreach (var (key, count) in claims)
+            {
+                if (count >= 2 && OnlyClears(key, claimWrites))
+                {
+                    selectors.Add(key);
+                }
+            }
+
+            return selectors;
+        }
+
+        // Whether every write of the byte outside the claims leaves the claims alone: what only
+        // Init runs (762's dic Init sets 5[2] to 1 on the way in from 761, before any line can
+        // test it), and a clear proven to be that holder's own release (IsHoldersRelease). Any
+        // other writer that can run beside the lines - a clear included - could empty the byte
+        // while a line's request is still reading it, so the byte is not a selector.
+        private bool OnlyClears(BankByteAddress key, HashSet<int> claimWrites)
+        {
+            foreach (var group in groups)
+            {
+                for (var slot = 0; slot < 32; slot++)
+                {
+                    if (!group.HasSlot(slot))
+                    {
+                        continue;
+                    }
+
+                    foreach (var instruction in group.Script(slot))
+                    {
+                        FieldScriptProgram.Writes(instruction, scratch, out var unknown);
+                        var writes = unknown ||
+                                     scratch.Any(written => written.Block == key.Bank && written.Address == key.Index) ||
+                                     FieldScriptProgram.UnnamedWriteBlocks(instruction).Contains(key.Bank);
+                        if (!writes || claimWrites.Contains(instruction.Offset) || !IsConcurrent(instruction.Offset))
+                        {
+                            continue;
+                        }
+
+                        if (!IsLiteralSet(instruction, key, zero: true) || !IsHoldersRelease(group, instruction, key))
+                        {
+                            return false;
+                        }
+                    }
+                }
+            }
+
+            return true;
+        }
+
+        private static bool IsLiteralSet(FieldScriptInstruction instruction, BankByteAddress key, bool zero) =>
+            instruction.Id == SetByteOpcode && instruction.Bytes.Length >= 4 &&
+            (instruction.Bytes[1] & 0x0F) == 0 &&
+            FieldBankByte.BlockOf(instruction.Bytes[1] >> 4) == key.Bank &&
+            instruction.Bytes[2] == key.Index &&
+            (instruction.Bytes[3] == 0) == zero;
+
+        /// <summary>
+        /// Whether a clear of the selector in an entity's Main only ever releases what that
+        /// entity's own Init claimed. 760, 761 and 762's dic all do it the same way: Init tests
+        /// the field the party came from (IFSW on 6[0], which Init's LSTMP wrote) and sets the
+        /// selector to its entry number; Main makes the identical test, waits on the entry jump
+        /// and clears it; Main then returns. While Init's number is there no line can claim (each
+        /// tests it is 0), and a Main that returns runs once, so the clear cannot land during a
+        /// line's claim. The proof: the clear is in Main, Main has no backward jump, the nearest
+        /// test enclosing the clear matches an Init test byte for byte (all but its jump) whose
+        /// body sets the selector to a non-zero literal, and nothing that can run beside the
+        /// lines writes the tested value.
+        /// </summary>
+        private bool IsHoldersRelease(ScriptGroup group, FieldScriptInstruction clear, BankByteAddress key)
+        {
+            var returns = Program.InitReturns(group.Index);
+            if (returns.Count != 1)
+            {
+                return false;
+            }
+
+            var mainStart = returns[0] + 1;
+            var main = Program.Reach(mainStart);
+            if (!main.Any(instruction => instruction.Offset == clear.Offset) ||
+                main.Any(instruction => instruction.Id is 0x12 or 0x13))
+            {
+                return false;
+            }
+
+            var guard = main
+                .Where(instruction => instruction.Offset < clear.Offset &&
+                                      FieldScriptProgram.FalseTarget(instruction) is { } end && clear.Offset < end)
+                .OrderByDescending(instruction => instruction.Offset)
+                .FirstOrDefault();
+            if (guard.Bytes is null || guard.Id is not (0x14 or 0x16) || !IsTestOfSettledValue(guard))
+            {
+                return false;
+            }
+
+            var init = Program.SlotReach(group.Index, 0).Where(instruction => instruction.Offset < mainStart).ToArray();
+            return init.Any(test =>
+                test.Id == guard.Id &&
+                test.Bytes.Length == guard.Bytes.Length &&
+                test.Bytes.AsSpan(0, test.Bytes.Length - 1).SequenceEqual(guard.Bytes.AsSpan(0, guard.Bytes.Length - 1)) &&
+                FieldScriptProgram.FalseTarget(test) is { } end &&
+                init.Any(instruction => instruction.Offset > test.Offset && instruction.Offset < end &&
+                                        IsLiteralSet(instruction, key, zero: false)));
+        }
+
+        // Whether the value an IFUB or IFSW reads is written only where nothing runs beside the
+        // lines (Init), and its other operand is a literal.
+        private bool IsTestOfSettledValue(FieldScriptInstruction test)
+        {
+            var bytes = test.Bytes;
+            if ((bytes[1] & 0x0F) != 0)
+            {
+                return false;
+            }
+
+            var bank = bytes[1] >> 4;
+            var block = FieldBankByte.BlockOf(bank);
+            if (block == 0)
+            {
+                return false;
+            }
+
+            var address = bytes[2];
+            var read = test.Id == 0x16 && FieldBankByte.IsWordBank(bank) ? new[] { address, address + 1 } : new[] { (int)address };
+            var writers = Program.WritersByByte();
+            return read.All(at =>
+                       !writers.TryGetValue(new FieldBankByte(block, at), out var offsets) || offsets.All(offset => !IsConcurrent(offset))) &&
+                   !Program.UnnamedWriters(block).Any(IsConcurrent);
+        }
 
         /// <summary>Applies an instruction's writes to the values the walk has folded.</summary>
         public void ApplyWrites(FieldScriptInstruction instruction, Dictionary<BankByteAddress, byte> constants)
@@ -3484,6 +3687,74 @@ public sealed class FieldScriptNavigationCatalog
             (opcode.Id is 0x30 or 0x31) &&
             opcode.Bytes.Length >= 3 &&
             (BitConverter.ToUInt16(opcode.Bytes, 1) & 0x20) != 0);
+
+    private static readonly HashSet<int> AncientForestFields = [620, 622, 623];
+
+    /// <summary>
+    /// The Ancient Forest's jumps that are not a way across. A route edge is taken as the walk
+    /// onto a line, and these need more than that:
+    /// <list type="bullet">
+    /// <item>A stamen or rock jump runs only while a direction key is held on the line (IFKEY or
+    /// IFKEYON, 0x1000-0x8000) and, for most, while the next pitcher plant's director byte in
+    /// the temporary block says the plant is closed. A route cannot hold that key or read that
+    /// byte, and must not press the key for the player, so the take-off is an Object that says
+    /// which key instead.</item>
+    /// <item>A Mutant Flytrap's line runs the leader's script 20 to 23 (620), 11 or 12 (622), 16
+    /// or 17 (623): HPd on each member, then a JUMP back out - a bite, not a bridge.</item>
+    /// </list>
+    /// Keyless walk-on jumps (620 treejp0, 622 bleftl and bleftr, 623 kabujp0 and kabujp1) stay
+    /// route edges. Only these three fields are read this way.
+    /// </summary>
+    private static bool IsAncientForestConditionalJump(
+        int fieldId,
+        ScriptGroup line,
+        NavigationAction action,
+        IReadOnlyList<ScriptGroup> groups)
+    {
+        if (!AncientForestFields.Contains(fieldId) || action.Kind != ActionKind.Jump ||
+            action.SourceGroup < 0 || action.SourceGroup >= groups.Count)
+        {
+            return false;
+        }
+
+        if (groups[action.SourceGroup].Script(action.SourceScript).Any(instruction => instruction.Id == HpDownOpcode))
+        {
+            return true;
+        }
+
+        for (var slot = 1; slot <= LastLineEventScript; slot++)
+        {
+            if (!line.HasSlot(slot))
+            {
+                continue;
+            }
+
+            var guarded = false;
+            foreach (var instruction in line.Script(slot))
+            {
+                var bytes = instruction.Bytes;
+                if (instruction.Id is KeyHeldOpcode or KeyPressedOpcode && bytes.Length >= 3 &&
+                    (BitConverter.ToUInt16(bytes, 1) & DirectionKeyMask) != 0)
+                {
+                    guarded = true;
+                }
+                else if (instruction.Id is 0x14 or 0x15 && bytes.Length >= 3 && FieldBankByte.BlockOf(bytes[1] >> 4) == 5)
+                {
+                    guarded = true;
+                }
+                else if (instruction.Id is 0x04 or 0x05 or 0x06 && bytes.Length >= 3 && bytes[1] == LeaderPartySlot &&
+                         (bytes[2] & NativeScriptNumberMask) == action.SourceScript && guarded)
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private const byte HpDownOpcode = 0x4F;
+    private const ushort DirectionKeyMask = 0xF000;
 
     private const byte SetLineOpcode = 0xD3;
     private const int PagodaFloorBlock = 15;

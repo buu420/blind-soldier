@@ -17,6 +17,7 @@ internal static class Steam2026FieldObjectObservationTests
         ReadsStableAuthoritativeModelTargets();
         ReadsEveryPersistentAndTemporaryBank();
         RequiresCheckedLineStateForStaticPickups();
+        NavigationLineTargetsCarryTheirLiveSegment();
         RejectsUnreadableRequiredDomains();
         RejectsTornRawEvidenceEvenWhenTargetsWouldMatch();
         PublishesImmutablePointerFreeObservations();
@@ -263,6 +264,54 @@ internal static class Steam2026FieldObjectObservationTests
             _ => null);
         Equal(false, reader.TryReadSnapshot(out snapshot), "torn checked LINE state fails closed");
         Equal<Steam2026FieldObjectResearchSnapshot?>(null, snapshot, "torn LINE publishes no partial snapshot");
+    }
+
+    /// <summary>
+    /// The production path the coordinator uses (TryReadNavigationTargets over the shared object
+    /// reader): a Line object is given its live segment, read checked from the line table
+    /// (0x00CC1F70 + index * 0x18, six words ahead of the enabled byte), and the leader's own
+    /// collision radius (event +0x72), and is not offered when the line is off, its segment cannot
+    /// be read, or the radius is missing.
+    /// </summary>
+    private static void NavigationLineTargetsCarryTheirLiveSegment()
+    {
+        var memory = CreateBaseMemory();
+        WriteGameMoment(memory, 1008);
+        WriteLineState(memory, entityId: 35, lineIndex: 7, enabled: true);
+        var segmentAddress = (uint)(FieldScriptLineStateReader.AddressFieldLineSegments + 7 * FieldScriptLineStateReader.LineStateStride);
+        foreach (var (offset, value) in new[] { (0, 40), (2, 830), (4, 0), (6, 204), (8, 830), (10, 0) })
+        {
+            memory.WriteUInt16(segmentAddress + (uint)offset, unchecked((ushort)(short)value));
+        }
+
+        var definition = new FieldNavigationObjectDefinition(
+            FieldId, EntityId: 35, Kind: FieldNavigationObjectKind.Item, NativeId: 241,
+            TargetKind: FieldNavigationObjectTargetKind.Line, StaticX: 122, StaticY: 830, StaticZ: 0,
+            CueKindOverride: FieldObjectCueKind.Item, MinimumGameMoment: 1008);
+        var reader = CreateReader(memory, [definition], itemId => itemId == 241 ? "HP Shout" : null, _ => null);
+        Equal(true, reader.TryReadSnapshot(out var snapshot), "snapshot for the player position");
+        var position = snapshot!.Position;
+        var collisionAddress = EventTable + (uint)position.ModelIndex * FieldNavigationObjectReader.FieldEventDataStride +
+            FieldNavigationNpcReader.CollisionRadiusOffset;
+        memory.WriteUInt16(collisionAddress, 30);
+
+        Equal(true, reader.TryReadNavigationTargets(position, out var targets), "checked navigation targets");
+        var target = targets.Single();
+        Equal(new FieldNavigationTriggerLine(40, 830, 0, 204, 830, 0), target.TriggerLine, "the live segment");
+        Equal((30, 0), (target.LineActivationRadius, target.InteractionRadius), "the leader's radius, and no point radius");
+
+        WriteLineState(memory, entityId: 35, lineIndex: 7, enabled: false);
+        Equal(true, reader.TryReadNavigationTargets(position, out targets) && targets.Count == 0, "a line that is off is not offered");
+        WriteLineState(memory, entityId: 35, lineIndex: 7, enabled: true);
+        memory.RemoveRange(segmentAddress, 12);
+        Equal(true, reader.TryReadNavigationTargets(position, out targets) && targets.Count == 0, "an unreadable segment is not offered");
+        foreach (var (offset, value) in new[] { (0, 40), (2, 830), (4, 0), (6, 204), (8, 830), (10, 0) })
+        {
+            memory.WriteUInt16(segmentAddress + (uint)offset, unchecked((ushort)(short)value));
+        }
+
+        memory.WriteUInt16(collisionAddress, 0);
+        Equal(true, reader.TryReadNavigationTargets(position, out targets) && targets.Count == 0, "without the leader's radius it is not offered");
     }
 
     private static void RejectsUnreadableRequiredDomains()

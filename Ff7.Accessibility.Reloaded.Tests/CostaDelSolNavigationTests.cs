@@ -661,10 +661,12 @@ internal static class CostaDelSolNavigationTests
             memory.EnabledLines.Add(entity);
             var target = Required(reader.ReadTargets(Position(443)), label);
             Equal(line, target.TriggerLine!.Value, "shop approach must use the native IFKEYON counter segment");
-            Equal(31, target.InteractionRadius, "counter must stop inside the strict native player-radius32 threshold");
+            // 00637ABB: the counter is on while the leader touches the LINE, strictly inside its
+            // own radius (32 here), so the step is reached on that touch, not a circle round a point.
+            Equal((32, 0), (target.LineActivationRadius, target.InteractionRadius), "counter must stop on the strict native player-radius32 touch");
             Equal(false, target.CompletesOnArrival, "counter must pause for the player's manual OK, not cross or complete");
             memory.SetPlayerCollisionRadius(12);
-            Equal(11, Required(reader.ReadTargets(Position(443)), label).InteractionRadius,
+            Equal(12, Required(reader.ReadTargets(Position(443)), label).LineActivationRadius,
                 "counter radius must follow native state, not a fixed configured distance");
             memory.SetPlayerCollisionRadius(0);
             Equal(false, reader.ReadTargets(Position(443)).Any(candidate => candidate.Label == label),

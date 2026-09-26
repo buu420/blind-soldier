@@ -1,0 +1,688 @@
+{
+  "schema": 1,
+  "source": "https://www.supercheats.com/guides/final-fantasy-vii",
+  "sourceAuthor": "Absolute Steve",
+  "scope": "The 43 chronological walkthrough chapters in the author's web conversion. Original review notes, not a copy of the guide. Field ranges include alternate scene states. A chapter mapping is an audit scope, never proof that every live route works. Separate minigame mechanics, world movement and automatic cutscenes from walkable field interactions.",
+  "chapters": [
+    {
+      "order": 2,
+      "fields": "116-125,133-143,146",
+      "checkpoints": [
+        "Station and reactor approach",
+        "Biggs and Jessie doors",
+        "Elevator and ladders",
+        "Restore and potion pickups",
+        "Reactor activation and boss",
+        "Free Jessie and return to the station"
+      ],
+      "title": "The Reactor #1 raid",
+      "url": "https://www.supercheats.com/guides/final-fantasy-vii/the-reactor-1-raid",
+      "review": "Read in full; original route checklist recorded. Live route certification is separate."
+    },
+    {
+      "order": 3,
+      "fields": "148-156",
+      "checkpoints": [
+        "Enter the bar and meet the party",
+        "Basement meeting and overnight transition",
+        "Tutorial rewards and save point",
+        "Town shops and inn",
+        "Board the departure train"
+      ],
+      "title": "Sector 7: At the hideout",
+      "url": "https://www.supercheats.com/guides/final-fantasy-vii/sector-7-at-the-hideout",
+      "review": "Read in full; original route checklist recorded. Live route certification is separate."
+    },
+    {
+      "order": 4,
+      "fields": "126-132,139-143,161-169",
+      "checkpoints": [
+        "Timed train car exits and passenger rewards",
+        "Track access and ventilation route",
+        "Reactor pipes and ladders",
+        "Switch timing panel",
+        "Bomb activation and escape",
+        "Air Buster approach"
+      ],
+      "title": "The second raid: Reactor #5",
+      "url": "https://www.supercheats.com/guides/final-fantasy-vii/the-second-raid-reactor-5",
+      "review": "Read in full; original route checklist recorded. Live route certification is separate."
+    },
+    {
+      "order": 5,
+      "fields": "170-194",
+      "checkpoints": [
+        "Church escape and barrel choices",
+        "Slum NPCs and flyer",
+        "House drawer and garden pickups",
+        "Visit Aeris's house",
+        "Leave after resting without waking Aeris",
+        "Cross the broken road"
+      ],
+      "title": "Meeting Aeris the flower girl",
+      "url": "https://www.supercheats.com/guides/final-fantasy-vii/meeting-aeris-the-flower-girl",
+      "review": "Read in full; original route checklist recorded. Live route certification is separate."
+    },
+    {
+      "order": 6,
+      "fields": "194-211,214-222",
+      "checkpoints": [
+        "Dress shop and the dressmaker",
+        "Gym wig challenge",
+        "Restaurant coupon and pharmacy",
+        "Materia shop purchase and tiara",
+        "Member card and Honeybee branches",
+        "Change clothes and enter Corneo's mansion",
+        "All three selection branches",
+        "Talk beside Don's bed and reach the trapdoor",
+        "Mansion room treasures"
+      ],
+      "title": "Crossdressing at Wall Market",
+      "url": "https://www.supercheats.com/guides/final-fantasy-vii/crossdressing-at-wall-market",
+      "review": "Read in full; original route checklist recorded. Live route certification is separate."
+    },
+    {
+      "order": 7,
+      "fields": "213,144-146,156-160",
+      "checkpoints": [
+        "Wake both companions and defeat Aps",
+        "Sewer paths and Steal Materia",
+        "Train roofs and ground level",
+        "Barrel rewards",
+        "Move both blocking trains",
+        "Climb the pillar and speak to the party",
+        "Reno and the escape wire"
+      ],
+      "title": "Sewers, Train Graveyard, and Pillar Assault",
+      "url": "https://www.supercheats.com/guides/final-fantasy-vii/sewers-train-graveyard-pillar-assault",
+      "review": "Read in full; original route checklist recorded. Live route certification is separate."
+    },
+    {
+      "order": 8,
+      "fields": "171-177,187-190,193-224,147",
+      "checkpoints": [
+        "Collect Sense and return to Elmyra",
+        "Child's drawer reward",
+        "Rejoin Barret",
+        "Buy batteries and free Kotch",
+        "Climb the wall and use all battery sockets",
+        "Cross the swinging cable"
+      ],
+      "title": "Back in the slums",
+      "url": "https://www.supercheats.com/guides/final-fantasy-vii/back-in-the-slums",
+      "review": "Read in full; original route checklist recorded. Live route certification is separate."
+    },
+    {
+      "order": 9,
+      "fields": "225-269",
+      "checkpoints": [
+        "Both lobby and stair approaches",
+        "Elevator and 60th floor guards",
+        "Obtain the 61st floor keycard",
+        "Domino and the library clues",
+        "63rd floor doors ducts and coupons",
+        "64th floor lockers and rest",
+        "65th floor model pieces",
+        "Toilet vent and conference",
+        "Hojo and specimen fight",
+        "Prison release and blood trail",
+        "President's office and Rufus",
+        "Regroup and reach the escape vehicles"
+      ],
+      "title": "Raiding Shinra HQ!",
+      "url": "https://www.supercheats.com/guides/final-fantasy-vii/raiding-shinra-hq",
+      "review": "Read in full; original route checklist recorded. Live route certification is separate."
+    },
+    {
+      "order": 10,
+      "fields": "270-342",
+      "checkpoints": [
+        "Kalm inn and party meeting",
+        "Town gifts shops and cabinet reward",
+        "Flashback mountain and reactor",
+        "Visit the houses and piano",
+        "Mansion and basement",
+        "Rejoin the party and receive PHS"
+      ],
+      "title": "Flashback at Kalm Town",
+      "url": "https://www.supercheats.com/guides/final-fantasy-vii/flashback-at-kalm-town",
+      "review": "Read in full; original route checklist recorded. Live route certification is separate."
+    },
+    {
+      "order": 11,
+      "fields": "343-358",
+      "checkpoints": [
+        "Ranch greeting and Choco Mog",
+        "Speak to the ranch shopkeeper",
+        "Chocobo marsh route",
+        "Mine ladders vines and treasures",
+        "Turks and mine exit",
+        "Fort Condor elder and lookout",
+        "Optional Yuffie recruitment after the forest encounter"
+      ],
+      "title": "Chocobo Ranch, the Marshes, and the Mythril Mines",
+      "url": "https://www.supercheats.com/guides/final-fantasy-vii/chocobo-ranch-the-marshes-mythril-mines",
+      "review": "Read in full; original route checklist recorded. Live route certification is separate."
+    },
+    {
+      "order": 12,
+      "fields": "359-435",
+      "checkpoints": [
+        "Reach the beach and Priscilla",
+        "CPR and overnight progression",
+        "Dolphin launch and pole",
+        "Locker room and parade registration",
+        "Join the parade formation",
+        "Shops tutorial rooms and Enemy Skill",
+        "Reach send-off practice and dock",
+        "Board the cargo ship"
+      ],
+      "title": "Harbor, Junon Harbor",
+      "url": "https://www.supercheats.com/guides/final-fantasy-vii/harbor-junon-harbor",
+      "review": "Read in full; original route checklist recorded. Live route certification is separate."
+    },
+    {
+      "order": 13,
+      "fields": "436-449",
+      "checkpoints": [
+        "Cargo hold pickups and party conversations",
+        "Find Barret and answer the alarm",
+        "Reach Jenova and collect Ifrit",
+        "Leave the ship",
+        "Costa basement and shops",
+        "Visit Hojo at the beach",
+        "Exit town toward Corel"
+      ],
+      "title": "To sunny places!",
+      "url": "https://www.supercheats.com/guides/final-fantasy-vii/to-sunny-places",
+      "review": "Read in full; original route checklist recorded. Live route certification is separate."
+    },
+    {
+      "order": 14,
+      "fields": "450-470",
+      "checkpoints": [
+        "Mountain entrance and track junctions",
+        "Both falling-track rewards",
+        "Upper and lower tracks",
+        "Bridge switch and bird nest",
+        "Hidden track stash",
+        "North Corel homes and Ether",
+        "Reach the ropeway station"
+      ],
+      "title": "Mount Corel",
+      "url": "https://www.supercheats.com/guides/final-fantasy-vii/mount-corel",
+      "review": "Read in full; original route checklist recorded. Live route certification is separate."
+    },
+    {
+      "order": 15,
+      "fields": "450-513",
+      "checkpoints": [
+        "Buy admission and select a companion",
+        "Recruit Cait Sith",
+        "Find Dio and the attractions",
+        "Turtle flyer",
+        "Battle Square incident",
+        "Prison settlement and Coates",
+        "Barret conversation and Dyne route",
+        "Esther registration and Ramuh",
+        "Race retries and departure with the buggy"
+      ],
+      "title": "The Gold Saucer, and the prison",
+      "url": "https://www.supercheats.com/guides/final-fantasy-vii/the-gold-saucer-and-the-prison",
+      "review": "Read in full; original route checklist recorded. Live route certification is separate."
+    },
+    {
+      "order": 16,
+      "fields": "78-79,343-358,359-435,436-449",
+      "checkpoints": [
+        "Costa and Junon ferry while using the buggy",
+        "Junon taxi and dolphin return",
+        "Sleeping man's cave rewards",
+        "Return to Fort Condor",
+        "World terrain and enemy-skill destinations"
+      ],
+      "title": "Optional: Fun with the Buggy",
+      "url": "https://www.supercheats.com/guides/final-fantasy-vii/optional-fun-with-the-buggy",
+      "review": "Read in full; original route checklist recorded. Live route certification is separate."
+    },
+    {
+      "order": 17,
+      "fields": "514-524",
+      "checkpoints": [
+        "Jungle junctions and Turk encounter",
+        "Reactor and Titan",
+        "Zack's parents and party follow-up",
+        "Village shops and chests",
+        "Deathblow pickup",
+        "Leave town through the jungle"
+      ],
+      "title": "Gongaga Village",
+      "url": "https://www.supercheats.com/guides/final-fantasy-vii/gongaga-village",
+      "review": "Read in full; original route checklist recorded. Live route certification is separate."
+    },
+    {
+      "order": 18,
+      "fields": "525-550",
+      "checkpoints": [
+        "Town entrance and separated party",
+        "Observatory approach lecture and return",
+        "Fire circle and cave entrance",
+        "Gi cave switches and ropes",
+        "Added Effect approach through the adjoining cave",
+        "Oil floor and treasure routes",
+        "Web passages and boss",
+        "Gravity and Seto",
+        "Return to town and leave"
+      ],
+      "title": "Cosmo Canyon & Cave of the Gi",
+      "url": "https://www.supercheats.com/guides/final-fantasy-vii/cosmo-canyon-cave-of-the-gi",
+      "review": "Read in full; original route checklist recorded. Live route certification is separate."
+    },
+    {
+      "order": 19,
+      "fields": "270-310",
+      "checkpoints": [
+        "Town NPC gifts and piano",
+        "Mansion ground-floor chests",
+        "Safe clues and number entry",
+        "Lost Number Odin and basement key",
+        "Hidden upper-floor passage",
+        "Basement Sephiroth and Destruct",
+        "Vincent's coffin conversation and recruitment",
+        "Return through all mansion exits"
+      ],
+      "title": "Nibelheim & Shinra Mansion",
+      "url": "https://www.supercheats.com/guides/final-fantasy-vii/nibelheim-shinra-mansion",
+      "review": "Read in full; original route checklist recorded. Live route certification is separate."
+    },
+    {
+      "order": 20,
+      "fields": "311-327",
+      "checkpoints": [
+        "Mountain peaks and weapon pickups",
+        "Lower the long ladder",
+        "Pipes to Powersoul and All",
+        "Cave loop and Elixir",
+        "Elemental and Sniper CR",
+        "Materia Keeper and Counter",
+        "Exit toward Rocket Town"
+      ],
+      "title": "Mount Nibel",
+      "url": "https://www.supercheats.com/guides/final-fantasy-vii/mount-nibel",
+      "review": "Read in full; original route checklist recorded. Live route certification is separate."
+    },
+    {
+      "order": 21,
+      "fields": "551-570",
+      "checkpoints": [
+        "Town houses shops and gifts",
+        "Shera and the Tiny Bronco yard",
+        "Climb the rocket and meet Cid",
+        "Return to Cid's house",
+        "Rufus visit and Palmer",
+        "Reach the departing Tiny Bronco"
+      ],
+      "title": "Rocket Town",
+      "url": "https://www.supercheats.com/guides/final-fantasy-vii/rocket-town",
+      "review": "Read in full; original route checklist recorded. Live route certification is separate."
+    },
+    {
+      "order": 22,
+      "fields": "78-79,353-358,617-619",
+      "checkpoints": [
+        "Bronco coastal approach and disembarkation",
+        "Bone Village vendor",
+        "Kjata access in the forest",
+        "Weapon seller and Mythril boxes",
+        "Fort Condor return",
+        "Wutai landing beach"
+      ],
+      "title": "Optional things with the Tiny Bronco",
+      "url": "https://www.supercheats.com/guides/final-fantasy-vii/optional-things-with-the-tiny-bronco",
+      "review": "Read in full; original route checklist recorded. Live route certification is separate."
+    },
+    {
+      "order": 23,
+      "fields": "575-599",
+      "checkpoints": [
+        "Materia theft and town approach",
+        "Turks in the bar and Godo's house",
+        "Shop MP Absorb trigger",
+        "Search behind the screen and in the pot",
+        "Yuffie's trap levers",
+        "Turtle flyer",
+        "Temple bell and hidden room",
+        "Da Chao rescue and Rapps",
+        "HP Absorb and returned materia",
+        "Return to the unlocked shops"
+      ],
+      "title": "Wutai Sidequest",
+      "url": "https://www.supercheats.com/guides/final-fantasy-vii/wutai-sidequest",
+      "review": "Read in full; original route checklist recorded. Live route certification is separate."
+    },
+    {
+      "order": 24,
+      "fields": "586-587",
+      "checkpoints": [
+        "Enter the pagoda with Yuffie",
+        "Talk to each of the five fighters",
+        "Stairs between every floor",
+        "Return and retry after defeat",
+        "Godo and the final rewards"
+      ],
+      "title": "The Wutai Pagoda",
+      "url": "https://www.supercheats.com/guides/final-fantasy-vii/the-wutai-pagoda",
+      "review": "Read in full; original route checklist recorded. Live route certification is separate."
+    },
+    {
+      "order": 25,
+      "fields": "484-513",
+      "checkpoints": [
+        "Dio and the Keystone",
+        "Closed ropeway and hotel",
+        "All date partner branches",
+        "Follow Cait Sith between squares",
+        "Chocobo Square handoff",
+        "Hotel Elixir and morning party",
+        "Leave Gold Saucer"
+      ],
+      "title": "The Keystone and the Date",
+      "url": "https://www.supercheats.com/guides/final-fantasy-vii/the-keystone-and-the-date",
+      "review": "Read in full; original route checklist recorded. Live route certification is separate."
+    },
+    {
+      "order": 26,
+      "fields": "600-616,775",
+      "checkpoints": [
+        "Tseng and temple altar",
+        "Maze stairs vines and treasures",
+        "Ancient spirit shops saves and healing",
+        "Rolling boulders and Morph",
+        "Clock options and every doorway",
+        "Door-six pursuit puzzle and Work Glove",
+        "Mural room and Red Dragon",
+        "Bahamut and temple model",
+        "Demon Gate and return to Gongaga"
+      ],
+      "title": "The Temple of the Ancients",
+      "url": "https://www.supercheats.com/guides/final-fantasy-vii/the-temple-of-the-ancients",
+      "review": "Read in full; original route checklist recorded. Live route certification is separate."
+    },
+    {
+      "order": 27,
+      "fields": "617-619,625-645",
+      "checkpoints": [
+        "Bone Village excavation and Lunar Harp",
+        "Sleeping Forest and Kjata",
+        "Coral Valley Water Ring",
+        "City side paths and treasures",
+        "Rest and collect Enemy Skill",
+        "Comet and lower altar",
+        "Aeris scene and exit"
+      ],
+      "title": "Bone Village, The Sleeping Forest & City of the Ancients",
+      "url": "https://www.supercheats.com/guides/final-fantasy-vii/bone-village-the-sleeping-forest-and-city-of-the-ancients",
+      "review": "Read in full; original route checklist recorded. Live route certification is separate."
+    },
+    {
+      "order": 28,
+      "fields": "646-657",
+      "checkpoints": [
+        "Valley cracks ladders and chests",
+        "Icicle village and research playback",
+        "Glacier map",
+        "Elena encounter",
+        "Borrow the snowboard",
+        "Leave down the slope"
+      ],
+      "title": "Coral Valley Cave & Icicle Inn",
+      "url": "https://www.supercheats.com/guides/final-fantasy-vii/coral-valley-cave-and-icicle-inn",
+      "review": "Read in full; original route checklist recorded. Live route certification is separate."
+    },
+    {
+      "order": 29,
+      "fields": "658-688",
+      "checkpoints": [
+        "All glacier entrances and connected areas",
+        "Lake ice crossing and cave reward",
+        "Hot spring touch",
+        "Added Cut All and Elixir",
+        "Snowfield landmarks and markers",
+        "Snow woman's cave and Alexander",
+        "Reach the climber's cabin"
+      ],
+      "title": "The Great Glacier",
+      "url": "https://www.supercheats.com/guides/final-fantasy-vii/the-great-glacier",
+      "review": "Read in full; original route checklist recorded. Live route certification is separate."
+    },
+    {
+      "order": 30,
+      "fields": "686-699",
+      "checkpoints": [
+        "Climb and warm up at ledges",
+        "First cave loops and treasures",
+        "Push the boulder",
+        "Icicle battles and lower passage",
+        "Healing pool and save",
+        "Schizo and mountain exit"
+      ],
+      "title": "Gaea's Cliffs",
+      "url": "https://www.supercheats.com/guides/final-fantasy-vii/gaeas-cliffs",
+      "review": "Read in full; original route checklist recorded. Live route certification is separate."
+    },
+    {
+      "order": 31,
+      "fields": "700-711",
+      "checkpoints": [
+        "Wind crossings",
+        "Neo Bahamut and cloaked NPC gifts",
+        "Kaiser Knuckle",
+        "Jenova fight and Black Materia choice",
+        "Tifa and the next crossing",
+        "MP Turbo and Poison Ring",
+        "Continue through the memory scenes"
+      ],
+      "title": "Whirlwind Maze",
+      "url": "https://www.supercheats.com/guides/final-fantasy-vii/whirlwind-maze",
+      "review": "Read in full; original route checklist recorded. Live route certification is separate."
+    },
+    {
+      "order": 32,
+      "fields": "66-76,359-435",
+      "checkpoints": [
+        "Barret's escape and Yuffie",
+        "Tifa's dropped key and gas controls",
+        "Cannon escape",
+        "Highwind bridge and pilot",
+        "Operations room and party selection"
+      ],
+      "title": "Escape from Junon",
+      "url": "https://www.supercheats.com/guides/final-fantasy-vii/escape-from-junon",
+      "review": "Read in full; original route checklist recorded. Live route certification is separate."
+    },
+    {
+      "order": 33,
+      "fields": "66-80,270-310,343-358,525-570",
+      "checkpoints": [
+        "Highwind access and destinations",
+        "Tifa's piano return",
+        "Previously locked shop rooms",
+        "Ranch Chocobo Lure",
+        "Chocobo Sage and green chocobo",
+        "Fort Condor return"
+      ],
+      "title": "Flying High: Optional things with the Highwind",
+      "url": "https://www.supercheats.com/guides/final-fantasy-vii/flying-high-optional-things-with-the-highwind",
+      "review": "Read in full; original route checklist recorded. Live route certification is separate."
+    },
+    {
+      "order": 34,
+      "fields": "712-722",
+      "checkpoints": [
+        "All Mideel shops and the roaming customer",
+        "White chocobo and Contain",
+        "Shop door key and Curse Ring",
+        "Dog and clinic",
+        "Choose Cid and return to operations",
+        "Town Elixir"
+      ],
+      "title": "Mideel",
+      "url": "https://www.supercheats.com/guides/final-fantasy-vii/mideel",
+      "review": "Read in full; original route checklist recorded. Live route certification is separate."
+    },
+    {
+      "order": 35,
+      "fields": "353-358,450-470,728-730",
+      "checkpoints": [
+        "North Corel reactor",
+        "Board the moving train",
+        "All four carriage battles and jumps",
+        "Engine controls and stopping attempt",
+        "Ultima and Catastrophe",
+        "Fort Condor strategy registration",
+        "Roof Phoenix and elder's Huge Materia"
+      ],
+      "title": "The Huge Materia: Corel and Fort Condor",
+      "url": "https://www.supercheats.com/guides/final-fantasy-vii/the-huge-materia-corel-and-fort-condor",
+      "review": "Read in full; original route checklist recorded. Live route certification is separate."
+    },
+    {
+      "order": 36,
+      "fields": "171-222,270-310,484-513,617-619,712-727,115,781",
+      "checkpoints": [
+        "Return to the clinic and Ultimate Weapon",
+        "Lifestream memory interactions",
+        "Surviving shop inventory",
+        "Excavate the Midgar key",
+        "Premium Heart and Sneak Glove",
+        "Piano Final Heaven",
+        "Gold Saucer return"
+      ],
+      "title": "Cloud at Mideel More optional things",
+      "url": "https://www.supercheats.com/guides/final-fantasy-vii/cloud-at-mideel",
+      "review": "Read in full; original route checklist recorded. Live route certification is separate."
+    },
+    {
+      "order": 37,
+      "fields": "359-435",
+      "checkpoints": [
+        "Junon gate and elevator chain",
+        "Underwater reactor and Carry Armor",
+        "Scimitar and Leviathan Scales",
+        "Submarine crew and instruction choices",
+        "Both submarine outcomes",
+        "Airport follow-up"
+      ],
+      "title": "The Underwater Reactor",
+      "url": "https://www.supercheats.com/guides/final-fantasy-vii/the-underwater-reactor",
+      "review": "Read in full; original route checklist recorded. Live route certification is separate."
+    },
+    {
+      "order": 38,
+      "fields": "81,88-91,592-599",
+      "checkpoints": [
+        "Enter and leave the Gelnika",
+        "Cargo hold weapon armor and limit pickups",
+        "Turks and Hades",
+        "Find the red submarine and Key of the Ancients",
+        "Lucrecia's cave and return reward",
+        "Da Chao fire passages with Leviathan Scales"
+      ],
+      "title": "The Gelnika and more",
+      "url": "https://www.supercheats.com/guides/final-fantasy-vii/the-gelnika-and-more",
+      "review": "Read in full; original route checklist recorded. Live route certification is separate."
+    },
+    {
+      "order": 39,
+      "fields": "551-570,774",
+      "checkpoints": [
+        "Return to the rocket",
+        "Rude and cockpit",
+        "Huge Materia code controls",
+        "Escape pod and Shera",
+        "Old man's Venus Gospel reward"
+      ],
+      "title": "A Space Odyssey 1997",
+      "url": "https://www.supercheats.com/guides/final-fantasy-vii/a-space-odyssey-1997",
+      "review": "Read in full; original route checklist recorded. Live route certification is separate."
+    },
+    {
+      "order": 40,
+      "fields": "525-545,630-645",
+      "checkpoints": [
+        "Bugenhagen and the Huge Materia display",
+        "Bahamut Zero availability",
+        "Return to the capital crystal",
+        "Diamond Weapon approach",
+        "Crater view and Midgar return"
+      ],
+      "title": "The Key to the Ancients Diamond Weapon",
+      "url": "https://www.supercheats.com/guides/final-fantasy-vii/the-key-to-the-ancients-diamond-weapon",
+      "review": "Read in full; original route checklist recorded. Live route certification is separate."
+    },
+    {
+      "order": 41,
+      "fields": "225-269,731-742,778-779",
+      "checkpoints": [
+        "Midgar scaffold and all side chests",
+        "Collapsing platform and ladder levels",
+        "Duct and subway access",
+        "South tunnel W-Item",
+        "Turks and junction choices",
+        "Optional Shinra HQ return loot",
+        "Missing Score with Barret",
+        "Hojo stairs"
+      ],
+      "title": "Stopping Midgar's Cannon!",
+      "url": "https://www.supercheats.com/guides/final-fantasy-vii/stopping-Midgars-cannon",
+      "review": "Read in full; original route checklist recorded. Live route certification is separate."
+    },
+    {
+      "order": 42,
+      "fields": "744-768,777",
+      "checkpoints": [
+        "Crater entrance and all descending ledges",
+        "Branch selection and party splits",
+        "Every upper and lower treasure route",
+        "Swamp and cave loops",
+        "Mega All during the moving jump",
+        "Return paths before the final descent",
+        "Party reward conversations",
+        "Save Crystal placement"
+      ],
+      "title": "The Northern Crater",
+      "url": "https://www.supercheats.com/guides/final-fantasy-vii/the-northern-crater",
+      "review": "Read in full; original route checklist recorded. Live route certification is separate."
+    },
+    {
+      "order": 43,
+      "fields": "78-85,270-310,484-513,541-545,620-624",
+      "checkpoints": [
+        "Ancient Forest insect frog and hive puzzles",
+        "Bugenhagen's return and Limited Moon",
+        "Zack's mansion memory",
+        "Gold Saucer special battles",
+        "Kalm traveler's three trades",
+        "Optional Weapons and chocobo destinations"
+      ],
+      "title": "Doing the last optional things",
+      "url": "https://www.supercheats.com/guides/final-fantasy-vii/doing-the-last-optional-things",
+      "review": "Read in full; original route checklist recorded. Live route certification is separate."
+    },
+    {
+      "order": 44,
+      "fields": "763-768,777",
+      "checkpoints": [
+        "Final party selection",
+        "Descent over the stepping stones",
+        "Jenova Synthesis",
+        "Final party configuration",
+        "Bizarro and Safer Sephiroth",
+        "Last duel and ending"
+      ],
+      "title": "The Final Fights of this Fantasy",
+      "url": "https://www.supercheats.com/guides/final-fantasy-vii/the-final-fights-of-this-fantasy",
+      "review": "Read in full; original route checklist recorded. Live route certification is separate."
+    }
+  ]
+}

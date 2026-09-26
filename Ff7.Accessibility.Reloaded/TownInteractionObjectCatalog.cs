@@ -13,6 +13,19 @@ public static class TownInteractionObjectCatalog
     /// <remarks>Declared before the table that uses it: static initialisers run in order.</remarks>
     private static readonly int[] BehindTheHangingScroll = [94, 95, 96, 97];
 
+    // The Ancient Forest's crossed zone lines, from their LINE opcodes; declared before the
+    // table that uses them.
+    private static readonly FieldNavigationTriggerLine Big0Throw = new(121, -321, -12, 92, -692, -10);
+    private static readonly FieldNavigationTriggerLine Big1Throw = new(1311, -7, -12, 1225, -365, -12);
+    private static readonly FieldNavigationTriggerLine Bdl10 = new(617, -120, 202, 610, -372, 159);
+    private static readonly FieldNavigationTriggerLine Rk0Right = new(-1795, -155, 91, -1772, -354, 67);
+    private static readonly FieldNavigationTriggerLine HollowLine = new(-610, -266, 0, -475, -265, 0);
+    private static readonly FieldNavigationTriggerLine Rk1Right = new(31, 121, 57, 36, -213, 32);
+    private static readonly FieldNavigationTriggerLine Rk2Left = new(488, 144, 56, 411, -110, 40);
+    private static readonly FieldNavigationTriggerLine Rk3Right = new(1044, -206, 58, 1070, -388, 46);
+    private static readonly FieldNavigationTriggerLine BigT0 = new(266, -545, 27, 682, -593, 24);
+    private static readonly FieldNavigationTriggerLine BigT1 = new(860, -293, 36, 682, -593, 24);
+
     private static readonly IReadOnlyList<FieldNavigationObjectDefinition> Definitions =
     [
         // The seller grants a choice after accepting Mythril. Either native reward
@@ -92,6 +105,79 @@ public static class TownInteractionObjectCatalog
         Model(623, 9, "Insect", "anfrst_4", "bat3"),
         Model(623, 10, "Frog", "anfrst_4", "fro0"),
         Model(623, 16, "Beehive", "anfrst_4", "hanak"),
+        // Where a carried insect, frog or beehive goes when the player presses OK (bpd's Main:
+        // IFKEYON OK while 5[9] names what is carried): each creature's script 3 (or 4) reads the
+        // zone the leader stands in, 5[20] in anfrst_1, 5[19] in anfrst_3 and 5[22] in anfrst_4,
+        // which these lines write. The plants are background layers (utubo, bigmou) with no model,
+        // so without these a player hears the creatures and not what they are thrown at. Which
+        // creature, which plant and in what order is left to the player.
+        //
+        // A line that writes its zone on touch (Go 1x, Move) is offered as the line itself, inside
+        // the player's own collision range. One that writes it only when crossed (its slot 3,
+        // 00637ABB's crossing flag) is offered as a point just past it, from the side the walk
+        // there has to cross it from; the other side is offered only where a walk from there was
+        // proven to cross it and stop short of the line beyond that resets the zone.
+        Line(620, 18, Pitcher, "anfrst_1", "ltrock", -635, 1, 334),   // 3: utubo_1
+        Line(620, 20, Pitcher, "anfrst_1", "rrklf", 892, 66, 122),    // 5: utubo_2
+        Line(620, 22, Pitcher, "anfrst_1", "rrkrt", 975, 77, 117),    // 6: utubo_3
+        Line(622, 14, Pitcher, "anfrst_3", "bdl9", -56, -155, 228),   // 2: utubo_1
+        Crossed(620, 29, Flytrap, "anfrst_1", "big0thw", 95, -506, -9, Big0Throw, 1),          // 7: beehive to bigmou1
+        Crossed(620, 29, Flytrap, "anfrst_1", "big0thw", 118, -507, -12, Big0Throw, -1),
+        Crossed(620, 31, Flytrap, "anfrst_1", "bg1thw", 1280, -189, 5, Big1Throw, -1),         // 8: beehive to bigmou2
+        Crossed(620, 31, Flytrap, "anfrst_1", "bg1thw", 1256, -183, -6, Big1Throw, 1),
+        Crossed(622, 15, Pitcher, "anfrst_3", "bdl10", 602, -246, 185, Bdl10, 1),                // 6: utubo_3
+        Crossed(623, 18, Pitcher, "anfrst_4", "rk0rt", -1772, -253, 80, Rk0Right, -1),           // 2: utubo_1
+        Crossed(623, 18, Pitcher, "anfrst_4", "rk0rt", -1795, -256, 79, Rk0Right, 0, [206, 207, 208]),
+        Crossed(623, 20, Hollow, "anfrst_4", "frhol0", -543, -254, 8, HollowLine, -1),           // 5: frog from the tree
+        Crossed(623, 20, Hollow, "anfrst_4", "frhol0", -542, -277, 0, HollowLine, 0, [155, 156, 157, 158, 159, 160]),
+        Crossed(623, 23, Pitcher, "anfrst_4", "rk1rt", 45, -46, 49, Rk1Right, -1),               // 6: utubo_3
+        Crossed(623, 23, Pitcher, "anfrst_4", "rk1rt", 22, -46, 47, Rk1Right, 1),
+        Crossed(623, 25, PitcherOtherSide, "anfrst_4", "rk2lt", 438, 20, 49, Rk2Left, 1),       // 8: joins 6
+        Crossed(623, 25, PitcherOtherSide, "anfrst_4", "rk2lt", 461, 14, 49, Rk2Left, 0, [133]),
+        Crossed(623, 29, Pitcher, "anfrst_4", "rk3rt", 1069, -295, 45, Rk3Right, -1),            // 9: utubo_4
+        Crossed(623, 35, Flytrap, "anfrst_4", "bigt0", 475, -557, 30, BigT0, -1, excluded: [94, 95]), // 13: beehive to bigmou
+        Crossed(623, 35, Flytrap, "anfrst_4", "bigt0", 473, -581, 28, BigT0, 1),
+        Crossed(623, 36, Flytrap, "anfrst_4", "bigt1", 761, -437, 32, BigT1, 1),
+        Crossed(623, 36, Flytrap, "anfrst_4", "bigt1", 781, -449, 31, BigT1, -1),
+        // ujp0 writes zone 3 while the leader stands on utubo_1's top (t0, t1): a throw from there
+        // goes to utubo_2.
+        Here(623, 2, Pitcher, "anfrst_4", -1584, -207, 187, [0, 1]),
+
+        // The forest's jumps the player makes: a line or a triangle the leader stands on, a key
+        // held (IFKEY) or pressed (IFKEYON), and for most the next pitcher plant closed (its
+        // director's byte is 1 from the bite until it opens). Each is offered only while its own
+        // gate holds and says which key; nothing is jumped for the player.
+        TakeOff(620, 19, OntoPlant("Right"), "anfrst_1", "ltrkjp", -666, 1, 334, 17),
+        TakeOff(620, 21, OntoPlant("Left"), "anfrst_1", "rrklfjp", 937, 59, 122, 18),
+        TakeOff(620, 23, OntoPlant("Right"), "anfrst_1", "rrkrtjp", 932, 63, 122, 19),
+        TakeOff(620, 24, "Jump from here: hold Down", "anfrst_1", "hakjp", 281, -247, 526, 60),
+        TakeOff(620, 33, "Jump from here: press Down", "anfrst_1", "lfrkjp0", -677, 10, 334, null),
+        TakeOff(622, 20, "Jump onto the closed pitcher plant: from here, walk on holding Right", "anfrst_3", "jp0", 0, -126, 243, 16),
+        TakeOff(622, 21, "Jump onto the closed pitcher plant: from here, walk on holding Left", "anfrst_3", "jp1", 620, -246, 187, 18),
+        TakeOff(623, 19, OntoPlant("Right"), "anfrst_4", "rk0jp0", -1736, -236, 84, 18),
+        TakeOff(623, 24, OntoPlant("Right"), "anfrst_4", "rk1rtjp", 67, 10, 56, 20),
+        TakeOff(623, 27, OntoPlant("Left"), "anfrst_4", "rk2rtjp", 432, 7, 48, 20),
+        TakeOff(623, 30, OntoPlant("Right"), "anfrst_4", "rk3rtjp", 1081, -285, 48, 21),
+        TakeOff(623, 34, "Jump from here: hold Down", "anfrst_4", "hakjp", 886, -99, 331, null),
+        Polled(620, 3, "Jump from here: hold Left or Right", "anfrst_1", -484, -153, 410, [8], null),
+        Polled(620, 3, OntoPlant("Left"), "anfrst_1", -361, -131, 345, [9, 10], 17),
+        Polled(620, 3, "Jump from here: hold Right", "anfrst_1", -361, -131, 345, [9, 10], null),
+        Polled(620, 3, "Jump from here: hold Right", "anfrst_1", 732, -152, 267, [19, 20], null),
+        Polled(620, 3, "Jump from here: hold Left", "anfrst_1", 1079, 41, 252, [21, 22], null),
+        Polled(622, 2, "Jump from here: hold Left", "anfrst_3", 186, -108, 269, [14, 2], null),
+        Polled(622, 2, OntoPlant("Right"), "anfrst_3", 186, -108, 269, [14, 2], 17),
+        Polled(622, 2, OntoPlant("Left"), "anfrst_3", 310, -145, 364, [29, 25], 16),
+        Polled(622, 2, OntoPlant("Right"), "anfrst_3", 310, -145, 364, [29, 25], 18),
+        Polled(622, 2, OntoPlant("Left"), "anfrst_3", 448, -195, 309, [26, 27], 17),
+        Polled(622, 2, "Jump from here: hold Right", "anfrst_3", 448, -195, 309, [26, 27], null),
+        Polled(623, 2, "Jump from here: hold Left", "anfrst_4", -1584, -207, 187, [0, 1], null),
+        Polled(623, 2, OntoPlant("Right"), "anfrst_4", -1584, -207, 187, [0, 1], 19),
+        Polled(623, 2, OntoPlant("Left"), "anfrst_4", -1446, -196, 261, [2, 3], 18),
+        Polled(623, 2, "Jump from here: hold Right", "anfrst_4", -1446, -196, 261, [2, 3], null),
+        Polled(623, 2, "Jump from here: hold Left or Right", "anfrst_4", 260, 34, 168, [34, 35], null),
+        Polled(623, 2, "Jump from here: hold Left or Up", "anfrst_4", 1199, -305, 203, [44, 45], null),
+        Polled(623, 2, OntoPlant("Right"), "anfrst_4", 1096, -173, 302, [42, 43], 21),
+        Polled(623, 2, "Jump from here: hold Left", "anfrst_4", 1096, -173, 302, [42, 43], null),
         // uutai2/AD holds triangle 114, the only way up to the bell, until Yuffie's escape
         // from the cage sets Bank[3][189] bit 0, and it never lets go before that.
         new(587, 14, FieldNavigationObjectKind.Named, Label: "Bell",
@@ -118,6 +204,59 @@ public static class TownInteractionObjectCatalog
     ];
 
     public static IReadOnlyList<FieldNavigationObjectDefinition> Create() => Definitions;
+
+    private const string Pitcher = "Pitcher plant, throwing spot: press OK to throw";
+    private const string PitcherOtherSide = "Pitcher plant, other side, throwing spot: press OK to throw";
+    private const string Hollow = "Hollow tree, throwing spot: press OK to throw";
+    private const string Flytrap = "Mutant Flytrap, throwing spot: press OK to throw";
+
+    private static string OntoPlant(string key) => $"Jump onto the closed pitcher plant: hold {key} from here";
+
+    // A spot past a line that writes its zone only when crossed, at the walkmesh's own height
+    // under it (arrival is measured in three dimensions), offered from the side of
+    // `side` (or, with no line, only on the listed triangles, the ones a walk was proven from).
+    private static FieldNavigationObjectDefinition Crossed(
+        int field, int entity, string label, string fieldName, string entityName, int x, int y, int z,
+        FieldNavigationTriggerLine line, int sign, int[]? triangles = null, int[]? excluded = null) =>
+        new(field, entity, FieldNavigationObjectKind.Named, Label: label,
+            SourceFieldName: fieldName, SourceEntityName: entityName,
+            TargetKind: FieldNavigationObjectTargetKind.Location, StaticX: x, StaticY: y, StaticZ: z,
+            InteractionRadiusOverride: CrossedSpotRadius, RequiredPlayerTriangles: triangles, ExcludedPlayerTriangles: excluded,
+            PlayerSideLine: sign == 0 ? null : line, PlayerSide: sign, CrossingLine: line);
+
+    // Something the leader can do while standing on the listed triangles.
+    private static FieldNavigationObjectDefinition Here(
+        int field, int entity, string label, string fieldName, int x, int y, int z, int[] triangles) =>
+        new(field, entity, FieldNavigationObjectKind.Named, Label: label,
+            SourceFieldName: fieldName, SourceEntityName: "ujp0",
+            TargetKind: FieldNavigationObjectTargetKind.Location, StaticX: x, StaticY: y, StaticZ: z,
+            InteractionRadiusOverride: StandingHereRadius, RequiredPlayerTriangles: triangles);
+
+    // A take-off: a point on the side of the line the jump is made from, 16 units outside the
+    // player's collision range of it (46 in these fields), so the walk there never touches the
+    // line with a key held and the jump stays the player's. The next plant's byte (temporary
+    // block) is the gate where the jump has one.
+    private static FieldNavigationObjectDefinition TakeOff(
+        int field, int entity, string label, string fieldName, string entityName, int x, int y, int z, int? gate) =>
+        Gated(new FieldNavigationObjectDefinition(field, entity, FieldNavigationObjectKind.Named, Label: label,
+            SourceFieldName: fieldName, SourceEntityName: entityName,
+            TargetKind: FieldNavigationObjectTargetKind.Location, StaticX: x, StaticY: y, StaticZ: z,
+            InteractionRadiusOverride: TakeOffRadius), gate);
+
+    private const int TakeOffRadius = 8;
+
+    // A jump ujp0 makes for a key held while the leader stands on one of its triangles.
+    private static FieldNavigationObjectDefinition Polled(
+        int field, int entity, string label, string fieldName, int x, int y, int z, int[] triangles, int? gate) =>
+        Gated(Here(field, entity, label, fieldName, x, y, z, triangles), gate);
+
+    private static FieldNavigationObjectDefinition Gated(FieldNavigationObjectDefinition definition, int? gate) =>
+        gate is not { } address
+            ? definition
+            : definition with { RequiredBank = 5, RequiredAddress = address, RequiredMask = 0xFF, RequiredValue = 1 };
+
+    private const int CrossedSpotRadius = 8;
+    private const int StandingHereRadius = 64;
 
     private static FieldNavigationObjectDefinition Line(
         int field, int entity, string label, string fieldName, string entityName, int x, int y, int z) =>

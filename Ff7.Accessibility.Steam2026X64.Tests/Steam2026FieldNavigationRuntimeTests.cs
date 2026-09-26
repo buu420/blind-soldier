@@ -279,7 +279,7 @@ internal static class Steam2026FieldNavigationRuntimeTests
             [0, 0]);
         fixture.Write(
             (uint)FieldNavigationObjectReader.AddressFieldEventDataPtr,
-            BitConverter.GetBytes(0u));
+            BitConverter.GetBytes(0x00090000u));
         fixture.Write(
             (uint)FieldNavigationObjectReader.AddressFieldBankBase,
             BitConverter.GetBytes((ushort)0));
@@ -292,6 +292,22 @@ internal static class Steam2026FieldNavigationRuntimeTests
             FieldScriptLineStateReader.AddressFieldLineStates +
                 targetLineIndex * FieldScriptLineStateReader.LineStateStride,
             1);
+        // A live line has its segment in the line table, and a live field its event table with the
+        // leader's collision radius (+0x72); the waypoint's Line object is reached on the touch.
+        var segment = new byte[12];
+        foreach (var (offset, value) in new[] { (0, 10), (2, -50), (4, 300), (6, 30), (8, -50), (10, 300) })
+        {
+            BinaryPrimitives.WriteInt16LittleEndian(segment.AsSpan(offset, 2), (short)value);
+        }
+
+        fixture.Write(
+            (uint)(FieldScriptLineStateReader.AddressFieldLineSegments + targetLineIndex * FieldScriptLineStateReader.LineStateStride),
+            segment);
+        const uint eventTable = 0x00090000;
+        fixture.Write(eventTable, new byte[2 * FieldNavigationObjectReader.FieldEventDataStride]);
+        fixture.Write(
+            eventTable + FieldNavigationObjectReader.FieldEventDataStride + FieldNavigationNpcReader.CollisionRadiusOffset,
+            BitConverter.GetBytes((ushort)30));
         fixture.Write(
             (uint)FieldNavigationInputReader.AddressCurrentKeyInput,
             BitConverter.GetBytes(0u));

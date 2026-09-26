@@ -706,6 +706,11 @@ public sealed class FieldWalkmeshRoutePlanner :
         usedTriggerLineApproach = found;
         if (!found)
         {
+            // TryBuildTriggerLineRoute clears its out waypoint when it fails.
+            // Restore the intended point before the ordinary walkmesh fallback;
+            // otherwise a successful route ends at (0,0,0). Native gateways in
+            // bugin1b and shpin_2 exercise this path.
+            finalApproach = new FieldNavigationRouteWaypoint(target.X, target.Y, target.Z);
             found = FieldWalkmeshPathfinder.TryBuildRoute(
                 result.Walkmesh,
                 playerTriangle,

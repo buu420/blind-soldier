@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AuditRuntime Condition="'$(AuditRuntime)' == ''">x86</AuditRuntime>
+    <PlatformTarget>$(AuditRuntime)</PlatformTarget>
+  </PropertyGroup>
+  <!-- Read a specified shipping package without rebuilding or silently rebinding it. -->
+  <ItemGroup>
+    <Compile Include="..\..\Ff7.Accessibility.Reloaded.Tests\FieldNavigationTriggerFallbackTests.cs" Link="Tests\FieldNavigationTriggerFallbackTests.cs" />
+    <Reference Include="Ff7.Accessibility.Core"><HintPath>$(AuditRuntimeDirectory)\Ff7.Accessibility.Core.dll</HintPath></Reference>
+    <Reference Include="Ff7.Accessibility.LegacyLayout"><HintPath>$(AuditRuntimeDirectory)\Ff7.Accessibility.LegacyLayout.dll</HintPath></Reference>
+    <Reference Include="Ff7.Accessibility.Runtime.Abstractions"><HintPath>$(AuditRuntimeDirectory)\Ff7.Accessibility.Runtime.Abstractions.dll</HintPath></Reference>
+  </ItemGroup>
+  <ItemGroup Condition="'$(AuditRuntime)' == 'x86'">
+    <Reference Include="Ff7.Accessibility.Reloaded"><HintPath>$(AuditRuntimeDirectory)\Ff7.Accessibility.Reloaded.dll</HintPath></Reference>
+  </ItemGroup>
+  <ItemGroup Condition="'$(AuditRuntime)' == 'x64'">
+    <Reference Include="Ff7.Accessibility.Steam2026X64"><HintPath>$(AuditRuntimeDirectory)\Ff7.Accessibility.Steam2026X64.dll</HintPath></Reference>
+  </ItemGroup>
+  <Target Name="ValidateAuditInputs" BeforeTargets="PrepareForBuild">
+    <Error Condition="'$(AuditRuntime)' != 'x86' and '$(AuditRuntime)' != 'x64'" Text="AuditRuntime must be x86 or x64." />
+    <Error Condition="!Exists('$(AuditRuntimeDirectory)\Ff7.Accessibility.LegacyLayout.dll')" Text="AuditRuntimeDirectory must identify the shipping runtime DLL directory." />
+  </Target>
+</Project>

@@ -274,7 +274,9 @@ foreach ($file in Get-ChildItem -LiteralPath $fieldJsonRoot -Filter '*.json') {
 
         $modelResource = [string]$field.model.modelLoaders[$modelId].name
         if (($fieldName -eq 'bonevil' -and $entity.entityName -eq 'box1') -or
-            ($fieldName -eq 'kuro_6' -and $entity.entityName -eq 'box')) {
+            ($fieldName -eq 'kuro_6' -and $entity.entityName -eq 'box') -or
+            ($fieldName -eq 'las3_3' -and $entity.entityName -eq 'mat') -or
+            ($fieldName -eq 'anfrst_1' -and $entity.entityName -eq 'box1')) {
             continue
         }
 
@@ -584,15 +586,40 @@ Add-Definition -FieldId 184 -FieldName 'chrin_2' -EntityId 11 -EntityName 'bar4'
 
 # These Train Graveyard pickups deliberately use std_man1 rather than a
 # fieldbg_* prop even though their Talk scripts award visible items. Preserve
-# them explicitly so the model-resource filter cannot hide them.
-Add-Definition -FieldId 144 -FieldName 'mds7st1' -EntityId 16 -EntityName 'doram' -ModelResource 'mds7st1std_man1.char' -Kind 'Item' -NativeId 1 -CollectedBank 1 -CollectedAddress 36 -CollectedMask 0x01
-Add-Definition -FieldId 145 -FieldName 'mds7st2' -EntityId 20 -EntityName 'doram' -ModelResource 'mds7st2std_man1.char' -Kind 'Item' -NativeId 3 -CollectedBank 1 -CollectedAddress 36 -CollectedMask 0x08
+# them explicitly so the model-resource filter cannot hide them. They are Talk
+# pickups (TLKON, TALKR 120): each stands on its own two-triangle island of the
+# walkmesh, 51 to 57 units from the floor, so only the native talk range reaches
+# it and the fixed object radius did not.
+Add-Definition -FieldId 144 -FieldName 'mds7st1' -EntityId 16 -EntityName 'doram' -ModelResource 'mds7st1std_man1.char' -Kind 'Item' -NativeId 1 -CollectedBank 1 -CollectedAddress 36 -CollectedMask 0x01 -UsesTalkInteraction $true
+Add-Definition -FieldId 145 -FieldName 'mds7st2' -EntityId 20 -EntityName 'doram' -ModelResource 'mds7st2std_man1.char' -Kind 'Item' -NativeId 3 -CollectedBank 1 -CollectedAddress 36 -CollectedMask 0x08 -UsesTalkInteraction $true
 Add-Definition -FieldId 224 -FieldName 'wcrimb_2' -EntityId 11 -EntityName 'line90' -ModelResource '' -Kind 'Named' -Label 'Optional battery socket' -TargetKind 'Line' -StaticX -260 -StaticY 972 -StaticZ 2588 -CollectedBank 1 -CollectedAddress 165 -CollectedMask 0x10 -RequiredBank 1 -RequiredAddress 165 -RequiredMask 0x80 -RequiredValue 0x80
+
+# las3_3's Mega All floats over the middle rock of the crater's jumps: its Talk and Contact
+# are empty, and it is caught only in the air. Walking onto l21 or l22 (the two take-off
+# ledges) sets the jump selector 5[2] to 0x15 or 0x16 and has cloud's script 3 JUMP to that rock
+# (952,-439) t186; on landing, while 1[50] bit 4 is clear, it tests for a fresh OK press once
+# (IFKEYON 0x0220) and, if there is one, runs mat's script 3, which awards it (SMTRA 12) and sets the bit. So the target
+# is each take-off line, and the label says what to press; the floating model is not a place
+# to walk to, and nothing here presses anything. Each line's Move runs as soon as the leader is
+# inside its own collision range (00637ABB), so the target is kept inside that range and the jump
+# starts on arrival; only the OK press is the player's.
+Add-Definition -FieldId 762 -FieldName 'las3_3' -EntityId 26 -EntityName 'l21' -ModelResource '' -Kind 'Named' -Label 'Mega All Materia, caught mid-jump: stepping onto this take-off jumps you to the middle rock; press OK repeatedly until you land there (take-off 1 of 2)' -TargetKind 'Line' -StaticX 1075 -StaticY -431 -StaticZ -1341 -CollectedBank 1 -CollectedAddress 50 -CollectedMask 0x10 -CueKindOverride 'Materia' -UsesPlayerCollisionRadius $true
+Add-Definition -FieldId 762 -FieldName 'las3_3' -EntityId 27 -EntityName 'l22' -ModelResource '' -Kind 'Named' -Label 'Mega All Materia, caught mid-jump: stepping onto this take-off jumps you to the middle rock; press OK repeatedly until you land there (take-off 2 of 2)' -TargetKind 'Line' -StaticX 760 -StaticY -554 -StaticZ -1289 -CollectedBank 1 -CollectedAddress 50 -CollectedMask 0x10 -CueKindOverride 'Materia' -UsesPlayerCollisionRadius $true
+
+# anfrst_1's Slash-All (box1, e36) lies in the first Mutant Flytrap's mouth, between its lines
+# big0lt (e25) and big0rt (e26). While 5[51] is 0 - it starts so on every entry, and only the
+# beehive's script 3 sets it - either line runs the leader's script 20 or 21: control off, 1000
+# HP off each member, the flytrap's bite, and a JUMP back out to t102 or t142. So the materia is
+# offered either way, but walked to only once the flytrap has shut.
+Add-Definition -FieldId 620 -FieldName 'anfrst_1' -EntityId 36 -EntityName 'box1' -ModelResource 'anfrst_1fieldbg_mtra7.char' -Kind 'Materia' -NativeId 14 -CollectedBank 15 -CollectedAddress 37 -CollectedMask 0x10 -RequiredBank 5 -RequiredAddress 51 -RequiredMask 0xFF -RequiredValue 0x01 -UsesTalkInteraction $true
+Add-Definition -FieldId 620 -FieldName 'anfrst_1' -EntityId 36 -EntityName 'box1' -ModelResource 'anfrst_1fieldbg_mtra7.char' -Kind 'Materia' -NativeId 14 -CollectedBank 15 -CollectedAddress 37 -CollectedMask 0x10 -RequiredBank 5 -RequiredAddress 51 -RequiredMask 0xFF -RequiredValue 0x00 -UsesTalkInteraction $true -ManualNavigationGuidance 'It lies in the Mutant Flytrap''s mouth. While the flytrap is open, stepping in makes it bite the party, which costs HP and throws you back out, so auto walk is unavailable until it has shut.'
 
 # Sector 5's town contains several visible, actionable fixtures that are not
 # inventory pickups. Keep their native model or LINE identity so they follow
 # visibility/LINON state instead of becoming unconditional static landmarks.
-Add-Definition -FieldId 174 -FieldName 'min51_1' -EntityId 7 -EntityName 'TV' -ModelResource '5min1_1midgal_avaman.char' -Kind 'Named' -Label 'Television'
+# The television is used by talking to it (TLKON, TALKR 120); it stands 77 units off
+# the floor's walkmesh, so it needs the native talk range too.
+Add-Definition -FieldId 174 -FieldName 'min51_1' -EntityId 7 -EntityName 'TV' -ModelResource '5min1_1midgal_avaman.char' -Kind 'Named' -Label 'Television' -UsesTalkInteraction $true
 Add-Definition -FieldId 175 -FieldName 'min51_2' -EntityId 6 -EntityName 'CLINE' -ModelResource '' -Kind 'Named' -Label 'Dresser with hidden drawer' -TargetKind 'Line' -StaticX 3 -StaticY 132 -StaticZ -168
 Add-Definition -FieldId 175 -FieldName 'min51_2' -EntityId 8 -EntityName 'TIRASI' -ModelResource '' -Kind 'Named' -Label "Turtle's Paradise flyer No. 1" -TargetKind 'Line' -StaticX -138 -StaticY 146 -StaticZ -169
 Add-Definition -FieldId 180 -FieldName 'mds5_m' -EntityId 8 -EntityName 'LINEB' -ModelResource '' -Kind 'Named' -Label 'Freezer' -TargetKind 'Line' -StaticX 119 -StaticY 66 -StaticZ -106

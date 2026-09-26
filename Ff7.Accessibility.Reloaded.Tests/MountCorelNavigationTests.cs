@@ -350,8 +350,10 @@ internal static class MountCorelNavigationTests
     {
         var memory = new MountMemory(464);
         var target = Single(memory.StoryReader(), Position(464, 0, 0, 0, 138));
-        Equal(39, target.InteractionRadius,
-            "the switch interaction stays strictly inside the live player's radius40");
+        // border4's Go 1x runs while the leader touches its LINE (00637ABB), strictly inside the
+        // live radius 40: 60 west of the middle is 51 off the line, 38 west is 32 off.
+        Equal((40, 0), (target.LineActivationRadius, target.InteractionRadius),
+            "the switch interaction is reached on the touch within the live player's radius40");
         var position = Position(464, target.X - 60, target.Y, target.Z, 138);
         var controller = new FieldNavigationController(new FieldNavigationTargetSource([target]), new StraightPlanner());
         var transform = new FieldNavigationControlTransform(0);
