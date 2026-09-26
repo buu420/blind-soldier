@@ -197,6 +197,13 @@ public sealed class Mod : IModV1, IModV2
     private bool fieldActivityOwnsInput;
 
     /// <summary>
+    /// The Temple clock's newest reading, owed until it is said. A newer reading replaces it,
+    /// it waits for other speech to finish rather than cutting it off, and a speaker that
+    /// refuses it keeps it only while it is still current.
+    /// </summary>
+    private readonly FieldActivityLatestLineDelivery fieldActivityLatestLine = new();
+
+    /// <summary>
     /// The Shinra Mansion safe dial. It owns nothing but native numeric window 0 in
     /// field 299, and only while that window is actually a two digit display, so it
     /// costs nothing anywhere else and needs no reader of its own.
@@ -1976,7 +1983,14 @@ public sealed class Mod : IModV1, IModV2
                     // what the player is asking for with a clock in front of them.
                     var spoken = fieldActivityCurrentLine ?? text;
                     Log($"Repeat last speech: {spoken}");
-                    return config.EnableSpeech && speaker?.Speak(spoken, interrupt: true) == true;
+                    var repeated = config.EnableSpeech && speaker?.Speak(spoken, interrupt: true) == true;
+                    if (repeated)
+                    {
+                        // The clock's next reading waits for the repeat rather than cutting it off.
+                        fieldActivityLatestLine.NoteOtherSpeech(spoken, DateTime.UtcNow);
+                    }
+
+                    return repeated;
                 });
         }
         catch (Exception ex)
@@ -2709,6 +2723,7 @@ public sealed class Mod : IModV1, IModV2
             fieldActivityReadout is null ||
             fieldPositionReader is null)
         {
+            fieldActivityLatestLine.Reset();
             return;
         }
 
@@ -2716,13 +2731,40 @@ public sealed class Mod : IModV1, IModV2
         if (!result.IsUsable || !FieldActivityReadout.HasActivity(result.Position.FieldId))
         {
             fieldActivityReadout.Reset();
+            fieldActivityLatestLine.Reset();
+            return;
+        }
+
+        // The clock, and only the clock, is watched and spoken only while the game has focus;
+        // losing focus forgets its motion and any owed reading. Every other activity runs as
+        // it always has.
+        if (!FieldActivityClockHost.MayObserve(
+                result.Position.FieldId,
+                foregroundProcessGate.IsCurrentProcessForeground(),
+                fieldActivityReadout,
+                fieldActivityLatestLine))
+        {
             return;
         }
 
         var observation = ReadFieldActivityObservation(result.Position);
-        var cue = fieldActivityReadout.Observe(observation, DateTime.UtcNow);
+        var now = DateTime.UtcNow;
+        var cue = fieldActivityReadout.Observe(observation, now);
         fieldActivityOwnsInput = cue.IsPending;
         fieldActivityCurrentLine = fieldActivityReadout.Describe(observation);
+
+        // The clock's readings replace one another: only the newest is owed, it is said with
+        // interruption once other speech has finished, and it is dropped once nothing is
+        // current. Every other activity keeps its own queued delivery below.
+        FieldActivityClockHost.Deliver(
+            cue,
+            fieldActivityReadout,
+            fieldActivityLatestLine,
+            now,
+            foregroundProcessGate.IsCurrentProcessForeground,
+            () => config.EnableSpeech,
+            TrySpeakFieldActivityLatestLine,
+            IsScreenReaderSpeaking);
 
         if (cue.PlayButtonReadyCue &&
             fieldActivityButtonCuePlayer?.Play("field activity button ready") != true)
@@ -2733,11 +2775,38 @@ public sealed class Mod : IModV1, IModV2
             Log("Field activity button-ready cue could not be played.");
         }
 
-        if (cue.Speech is not null)
+        if (cue.Speech is not null && !cue.ReplacesEarlierLine)
         {
             Speak(cue.Speech, false);
         }
     }
+
+    /// <summary>
+    /// Says the clock's newest reading, interrupting an older reading still playing. Muted
+    /// speech or a refusing speaker is not delivery, and is not logged as speech on every
+    /// retry.
+    /// </summary>
+    private bool TrySpeakFieldActivityLatestLine(string text)
+    {
+        if (!config.EnableSpeech || speaker is null)
+        {
+            return false;
+        }
+
+        var localizedText = localizer.Localize(text);
+        if (!speaker.Speak(localizedText, interrupt: true))
+        {
+            return false;
+        }
+
+        Log($"Speak: {localizedText}");
+        repeatLastSpeechController.RememberDelivered(localizedText);
+        return true;
+    }
+
+    /// <summary>The screen reader's own word on whether it is still speaking, or null when it cannot say.</summary>
+    private bool? IsScreenReaderSpeaking() =>
+        speaker is not null && speaker.TryIsSpeaking(out var speaking) ? speaking : null;
 
     /// <summary>
     /// Speaks the number the Shinra Mansion safe is showing while its dial is open.
@@ -10925,6 +10994,8 @@ public sealed class Mod : IModV1, IModV2
         if (delivered)
         {
             repeatLastSpeechController.RememberDelivered(localizedText);
+            // Dialogue and everything else said here is not cut off by the clock's next reading.
+            fieldActivityLatestLine.NoteOtherSpeech(localizedText, DateTime.UtcNow);
         }
 
         return delivered;

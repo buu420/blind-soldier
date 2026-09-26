@@ -104,7 +104,8 @@ Add-Definition @templeAfterVision -FieldId 606 -FieldName 'kuro_3' -Kind Locatio
 # that is not there.
 #
 # Otherwise the row is how to make the way. longdr Script 1 is "Move it myself": OK and
-# MENU move the long hand one hour, and it carries the short hand an hour when it passes
+# MENU move the long hand one numeral (five minutes on the clock face), and it carries the
+# short hand an hour when it passes
 # twelve. The Time Guardian's session (face Script 3) runs only from the director's Main
 # on entering, so once "Proceed now!" is chosen the clock is set again only by going back
 # out the way the party came in - whose bridge, if it was crossed, stays open - and
@@ -155,7 +156,7 @@ Add-Definition -FieldId 607 -FieldName 'kuro_4' -Kind Location `
     -Label 'Set the clock hands to make a way to doorway six' -X -1 -Y -716 -Z 0 `
     -MinimumGameMoment 613 -MaximumGameMoment 626 -Priority 1 `
     -EntityName 'gateway1' -ScriptType 'Gateway' `
-    -ManualNavigationGuidance 'The hands are bridges: each joins the middle of the clock to the doorway it points at. From the middle, doorway six needs one hand at six; from another doorway, one hand at that doorway and the other at six. When you come in, the Time Guardian lets you set the clock: choose Move it myself, then Speed up time or Go back in time turns the long hand one hour, and the short hand moves an hour whenever the long hand passes twelve. Choose Proceed now! when done. To set it again, go back out the way you came in and come back.' `
+    -ManualNavigationGuidance 'The hands are bridges: each joins the middle of the clock to the doorway it points at. From the middle, doorway six needs one hand at six; from another doorway, one hand at that doorway and the other at six. When you come in, the Time Guardian lets you set the clock: choose Move it myself, then Speed up time or Go back in time turns the long hand one numeral, five minutes, and the short hand moves one hour whenever the long hand passes twelve. Choose Proceed now! when done. To set it again, go back out the way you came in and come back.' `
     -TriggerLine $clockDoorSix
 
 # The doorway out of the chase chamber, once the guard has been caught. Above 626 this

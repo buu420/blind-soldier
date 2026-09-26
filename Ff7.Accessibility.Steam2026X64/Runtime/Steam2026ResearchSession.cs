@@ -575,6 +575,11 @@ internal sealed class Steam2026ResearchSession : IDisposable
         // late lifecycle call cannot reach a disposed speaker.
         Volatile.Write(ref lifecycleOutput, output);
 
+        // Whatever is spoken, the field coordinator hears of it, so the Temple clock's next
+        // reading waits for dialogue and the repeat key rather than cutting them off. The
+        // coordinator is looked up when the line is spoken; it is replaced on every attach.
+        output.SpeechDelivered += text => fieldNavigationCoordinator?.NoteSpeechDelivered(text, DateTime.UtcNow);
+
         // The same seventeen-cue schedule the legacy runtime speaks over the opening
         // movie. Both guards are load-bearing rather than tidiness: this runtime's
         // Speak throws when Prism refuses a line, where the legacy host's returns
@@ -973,7 +978,8 @@ internal sealed class Steam2026ResearchSession : IDisposable
                                 // Late-bound: SDL loads when the host first looks
                                 // for a pad, often after this coordinator exists.
                                 controllerCapture: () => controllerCaptureHook?.Capture,
-                                directionalInput: directionalInput);
+                                directionalInput: directionalInput,
+                                isSpeechPlaying: () => output.TryIsSpeaking(out var speaking) ? speaking : null);
                         }
                         catch (Exception ex)
                         {

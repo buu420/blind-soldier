@@ -799,6 +799,8 @@ if (args.Contains("--guide-routes-only", StringComparer.OrdinalIgnoreCase))
 if (args.Contains("--field-puzzles-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.FieldPuzzleStoryTests.Run(CreateInstalledFieldWalkmeshReader);
+    Ff7.Accessibility.Reloaded.Tests.TempleClockSpeechTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.TempleClockDeliveryTests.Run();
     Console.WriteLine("FFVII x86 Pagoda, Cait Sith chase and Temple clock tests passed.");
     return;
 }
@@ -1077,6 +1079,8 @@ Ff7.Accessibility.Reloaded.Tests.Reactor5ButtonCueTests.Run();
 Ff7.Accessibility.Reloaded.Tests.CorelJourneyDescriptionTests.Run();
 MountCorelNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.FieldPuzzleStoryTests.Run(CreateInstalledFieldWalkmeshReader);
+Ff7.Accessibility.Reloaded.Tests.TempleClockSpeechTests.Run();
+Ff7.Accessibility.Reloaded.Tests.TempleClockDeliveryTests.Run();
 Ff7.Accessibility.Reloaded.Tests.GuideRouteRegressionTests.Run();
 Ff7.Accessibility.Reloaded.Tests.FieldNavigationTriggerFallbackTests.Run();
 Ff7.Accessibility.Reloaded.Tests.FieldEntryPlacementSafetyTests.Run();
@@ -14907,43 +14911,60 @@ static void AssertFieldActivityReadoutSpeaksTheNativeActivities()
         "a corridor that could not be read is never called clear");
 
     // --- the clock only claims a bridge the field actually has ------------------------
-    var betweenHours = new FieldActivityReadout().Observe(
-        Look(607, models: new[] { Seen(21, 0, 0, 117) }), epoch).Speech;
-    AssertEqual(false, betweenHours!.Contains("bridge"), "a turning hand claims no bridge");
+    // On its own the clock says whether its hands move and the time they show; which
+    // bridges are there is the repeat's, and only the native lock state may claim one.
+    var betweenHours = new FieldActivityReadout().Describe(
+        Look(607, models: new[] { Seen(21, 0, 0, 117), Seen(22, 0, 0, 170) }, boundaryEnabled: _ => false))!;
     AssertEqual(
-        "Long hand between twelve and one.",
+        "Moving, about ten o'clock. Long hand between twelve and one, short hand at ten. The bridge to doorway ten is open.",
         betweenHours,
-        "a hand between two hours is reported as being between them");
+        "a hand between two hours is between them, claims no bridge, and gives only an approximate time");
     AssertEqual(
-        "Long hand at six. The bridge to doorway six is open.",
-        new FieldActivityReadout().Observe(
-            Look(607, models: new[] { Seen(21, 0, 0, 0) }, boundaryEnabled: _ => false), epoch).Speech,
+        "Ten thirty. Long hand at six, short hand at ten. The bridge to doorway six is open. The bridge to doorway ten is open.",
+        new FieldActivityReadout().Describe(
+            Look(607, models: new[] { Seen(21, 0, 0, 0), Seen(22, 0, 0, 170) }, boundaryEnabled: _ => false)),
         "an hour whose own pair is unlocked is a bridge that is there");
     AssertEqual(
-        "Long hand at six. The bridge to doorway six is not open.",
-        new FieldActivityReadout().Observe(
-            Look(607, models: new[] { Seen(21, 0, 0, 0) }, boundaryEnabled: triangle => triangle is 85 or 48),
-            epoch).Speech,
+        "Ten thirty. Long hand at six, short hand at ten. The bridge to doorway six is not open. The bridge to doorway ten is open.",
+        new FieldActivityReadout().Describe(
+            Look(607, models: new[] { Seen(21, 0, 0, 0), Seen(22, 0, 0, 170) }, boundaryEnabled: triangle => triangle is 85 or 48)),
         "an hour whose own pair is still locked is not a bridge");
     AssertEqual(
-        "Long hand at six.",
-        new FieldActivityReadout().Observe(
-            Look(607, models: new[] { Seen(21, 0, 0, 0) }), epoch).Speech,
-        "with no readable lock state the clock says where the hand is and nothing more");
-    // The second hand never stops. It is worth carrying in the line, and worth nothing
+        "Ten thirty. Long hand at six, short hand at ten.",
+        new FieldActivityReadout().Describe(
+            Look(607, models: new[] { Seen(21, 0, 0, 0), Seen(22, 0, 0, 170) })),
+        "with no readable lock state the clock says where the hands are and nothing more");
+    // A readout that has not yet watched the hands still gives the time alone (above); on its
+    // own it says nothing until they have been watched still, and then only the time.
+    var watchedClock = new FieldActivityReadout();
+    AssertEqual(
+        null,
+        watchedClock.Observe(
+            Look(607, models: new[] { Seen(21, 0, 0, 0), Seen(22, 0, 0, 170) }, boundaryEnabled: _ => false), epoch).Speech,
+        "one look at the hands is not yet a stop");
+    AssertEqual(
+        "Stopped, ten thirty.",
+        watchedClock.Observe(
+            Look(607, models: new[] { Seen(21, 0, 0, 0), Seen(22, 0, 0, 170) }, boundaryEnabled: _ => false),
+            epoch.AddSeconds(0.4)).Speech,
+        "on its own the clock says only the time, never the bridges");
+    // The second hand never stops. It is worth carrying in the repeat, and worth nothing
     // as a reason to speak: a clock that talked every time it moved would bury the room.
     var ticking = new FieldActivityReadout();
+    _ = ticking.Observe(
+        Look(607, models: new[] { Seen(21, 0, 0, 0), Seen(22, 0, 0, 170), Seen(23, 0, 0, 0) }), epoch);
     var firstClock = ticking.Observe(
-        Look(607, models: new[] { Seen(21, 0, 0, 0), Seen(23, 0, 0, 0) }), epoch);
+        Look(607, models: new[] { Seen(21, 0, 0, 0), Seen(22, 0, 0, 170), Seen(23, 0, 0, 3) }), epoch.AddSeconds(0.4));
+    AssertEqual("Stopped, ten thirty.", firstClock.Speech, "the clock says its time when it has something to say");
     AssertEqual(
-        "Long hand at six, second hand at six.",
-        firstClock.Speech,
-        "the clock says both hands when it has something to say");
+        "Stopped, ten thirty. Long hand at six, short hand at ten, second hand at six.",
+        ticking.Describe(Look(607, models: new[] { Seen(21, 0, 0, 0), Seen(22, 0, 0, 170), Seen(23, 0, 0, 0) })),
+        "the repeat carries the second hand");
     var ticks = 0;
     for (var tick = 1; tick <= 40; tick++)
     {
         if (ticking.Observe(
-                Look(607, models: new[] { Seen(21, 0, 0, 0), Seen(23, 0, 0, (tick * 6) % 256) }),
+                Look(607, models: new[] { Seen(21, 0, 0, 0), Seen(22, 0, 0, 170), Seen(23, 0, 0, (tick * 6) % 256) }),
                 epoch.AddSeconds(tick)).Speech is not null)
         {
             ticks++;
@@ -14952,16 +14973,26 @@ static void AssertFieldActivityReadoutSpeaksTheNativeActivities()
 
     AssertEqual(0, ticks, "forty seconds of a moving second hand say nothing on their own");
     AssertEqual(
-        "Long hand at five, second hand at six.",
+        "Moving, ten twenty-five.",
         ticking.Observe(
-            Look(607, models: new[] { Seen(21, 0, 0, 22), Seen(23, 0, 0, 0) }),
+            Look(607, models: new[] { Seen(21, 0, 0, 22), Seen(22, 0, 0, 170), Seen(23, 0, 0, 0) }),
             epoch.AddSeconds(41)).Speech,
         "the long hand reaching a new hour is still news");
+    AssertEqual(
+        "Stopped, ten twenty-five.",
+        ticking.Observe(
+            Look(607, models: new[] { Seen(21, 0, 0, 22), Seen(22, 0, 0, 170), Seen(23, 0, 0, 6) }),
+            epoch.AddSeconds(41.5)).Speech,
+        "and so is it coming to rest there");
 
     AssertEqual(
         "Cannot read the clock hands.",
-        new FieldActivityReadout().Observe(Look(607, models: new[] { Torn(21) }), epoch).Speech,
+        new FieldActivityReadout().Observe(Look(607, models: new[] { Torn(21), Seen(22, 0, 0, 170) }), epoch).Speech,
         "an unreadable hand is not a bearing");
+    AssertEqual(
+        "Cannot read the clock hands.",
+        new FieldActivityReadout().Observe(Look(607, models: new[] { Seen(21, 0, 0, 0) }), epoch).Speech,
+        "nor is a hand that was not read at all");
 
     // The hour table is entity 21's own script 10.
     foreach (var (hour, bearing) in new[]

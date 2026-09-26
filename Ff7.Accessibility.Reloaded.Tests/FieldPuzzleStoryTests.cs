@@ -105,69 +105,82 @@ internal static class FieldPuzzleStoryTests
                 new Dictionary<int, FieldActivityWaitState>(), _ => true, locked, 0);
 
         // The first visit as the Init leaves it: long hand on two (bearing 86), short hand on
-        // ten (170), and only those two pairs unlocked by the hands' own scripts.
-        var firstVisit = new FieldActivityReadout().Observe(
-            Clock(triangle => triangle is not (79 or 0 or 76 or 10), Hand(21, 86), Hand(22, 170)), epoch).Speech;
+        // ten (170), and only those two pairs unlocked by the hands' own scripts. On its own
+        // the clock says the time; the repeat says the hands and both bridges.
+        var firstVisit = Clock(triangle => triangle is not (79 or 0 or 76 or 10), Hand(21, 86), Hand(22, 170));
+        var entering = new FieldActivityReadout();
+        Equal(null, entering.Observe(firstVisit, epoch).Speech, "one look proves where the hands are, not that they are at rest");
+        Equal("Stopped, ten ten.", entering.Observe(firstVisit, epoch.AddSeconds(0.4)).Speech,
+            "watched still, the clock on its own says the time the hands show");
+        // A readout that has not watched the hands gives the time alone, neither moving nor stopped.
         Equal(
-            "Long hand at two, short hand at ten. The bridge to doorway two is open. The bridge to doorway ten is open.",
-            firstVisit,
+            "Ten ten. Long hand at two, short hand at ten. The bridge to doorway two is open. The bridge to doorway ten is open.",
+            new FieldActivityReadout().Describe(firstVisit),
             "the short hand's bridge is said as well as the long hand's");
         Equal(
-            "Long hand at six, short hand at ten. The bridge to doorway six is open. The bridge to doorway ten is not open.",
-            new FieldActivityReadout().Observe(
-                Clock(triangle => triangle is not (85 or 48), Hand(21, 0), Hand(22, 170)), epoch).Speech,
+            "Ten thirty. Long hand at six, short hand at ten. The bridge to doorway six is open. The bridge to doorway ten is not open.",
+            new FieldActivityReadout().Describe(Clock(triangle => triangle is not (85 or 48), Hand(21, 0), Hand(22, 170))),
             "a short hand whose pair is still locked is not a bridge");
         Equal(
-            "Long hand at six, short hand at six. The bridge to doorway six is open.",
-            new FieldActivityReadout().Observe(Clock(_ => false, Hand(21, 0), Hand(22, 0)), epoch).Speech,
+            "Six thirty. Long hand at six, short hand at six. The bridge to doorway six is open.",
+            new FieldActivityReadout().Describe(Clock(_ => false, Hand(21, 0), Hand(22, 0))),
             "two hands on one hour are one bridge, said once");
         Equal(
-            "Long hand at six, short hand between ten and eleven. The bridge to doorway six is open.",
-            new FieldActivityReadout().Observe(Clock(_ => false, Hand(21, 0), Hand(22, 160)), epoch).Speech,
-            "a turning short hand claims no bridge");
+            "Moving, about ten thirty. Long hand at six, short hand between ten and eleven. The bridge to doorway six is open.",
+            new FieldActivityReadout().Describe(Clock(_ => false, Hand(21, 0), Hand(22, 160))),
+            "a turning short hand claims no bridge, and the time it shows is only about");
 
-        // A new short-hand bridge is news even when the long hand has not moved.
+        // The short hand reaching another hour is movement and then a new time.
         var readout = new FieldActivityReadout();
         _ = readout.Observe(Clock(_ => false, Hand(21, 0), Hand(22, 170)), epoch);
+        Equal("Moving, nine thirty.", readout.Observe(Clock(_ => false, Hand(21, 0), Hand(22, 192)), epoch.AddSeconds(3)).Speech,
+            "the short hand arriving on nine has only just moved");
+        Equal("Stopped, nine thirty.", readout.Observe(Clock(_ => false, Hand(21, 0), Hand(22, 192)), epoch.AddSeconds(3.4)).Speech,
+            "and is at rest once it has stayed there");
         Equal(
-            "Long hand at six, short hand at nine. The bridge to doorway six is open. The bridge to doorway nine is open.",
-            readout.Observe(Clock(_ => false, Hand(21, 0), Hand(22, 192)), epoch.AddSeconds(3)).Speech,
-            "the short hand reaching another hour is spoken");
+            "Stopped, nine thirty. Long hand at six, short hand at nine. The bridge to doorway six is open. The bridge to doorway nine is open.",
+            readout.Describe(Clock(_ => false, Hand(21, 0), Hand(22, 192))),
+            "the repeat names the short hand's new bridge");
     }
 
     /// <summary>
-    /// Which bridges are any use depends on where the party stands, so the readout and its
-    /// repeat say that first: the doorway whose side the party is on, or the middle. Every way
-    /// in lands on a doorway's side. A triangle that is neither is given no place rather than
-    /// a guessed one, and walking from one place to another is said at the clock's own cadence.
+    /// Which bridges are any use depends on where the party stands, so the repeat says that
+    /// first: the doorway whose side the party is on, or the middle. Every way in lands on a
+    /// doorway's side. A triangle that is neither is given no place rather than a guessed one.
+    /// What the clock says on its own is only its time, wherever the party stands.
     /// </summary>
     private static void ClockReadoutSaysWhereThePartyStands()
     {
         var epoch = new DateTime(2026, 9, 25, 12, 0, 0, DateTimeKind.Utc);
+        // Not yet watched, the repeat gives the time alone; the clock on its own says it once
+        // the hands have been watched still.
+        const string time = "Ten thirty.";
         foreach (var arrival in ClockArrivals)
         {
-            var expected = $"You are by doorway {ClockNumeralNames[arrival.Door % 12]}. {SixAndTen}";
-            Equal(expected, new FieldActivityReadout().Observe(ClockAt(arrival.Triangle), epoch).Speech, $"{arrival.From}: the readout");
-            Equal(expected, new FieldActivityReadout().Describe(ClockAt(arrival.Triangle)), $"{arrival.From}: the repeat");
+            var watched = new FieldActivityReadout();
+            _ = watched.Observe(ClockAt(arrival.Triangle), epoch);
+            Equal("Stopped, ten thirty.", watched.Observe(ClockAt(arrival.Triangle), epoch.AddSeconds(0.4)).Speech,
+                $"{arrival.From}: the readout");
+            Equal($"{time} You are by doorway {ClockNumeralNames[arrival.Door % 12]}. {SixAndTen}",
+                new FieldActivityReadout().Describe(ClockAt(arrival.Triangle)), $"{arrival.From}: the repeat");
         }
 
-        Equal($"You are in the middle of the clock. {SixAndTen}", new FieldActivityReadout().Describe(ClockAt(131)), "the middle");
-        Equal($"You are in the middle of the clock. {SixAndTen}", new FieldActivityReadout().Describe(ClockAt(76)),
+        Equal($"{time} You are in the middle of the clock. {SixAndTen}", new FieldActivityReadout().Describe(ClockAt(131)), "the middle");
+        Equal($"{time} You are in the middle of the clock. {SixAndTen}", new FieldActivityReadout().Describe(ClockAt(76)),
             "the inner end of the tenth bridge belongs to the middle");
-        Equal($"You are by doorway ten. {SixAndTen}", new FieldActivityReadout().Describe(ClockAt(11)),
+        Equal($"{time} You are by doorway ten. {SixAndTen}", new FieldActivityReadout().Describe(ClockAt(11)),
             "the rest of the tenth bridge belongs to its doorway");
         foreach (var unknown in new[] { 110, 125, 132, 500, -1 })
         {
-            Equal(SixAndTen, new FieldActivityReadout().Describe(ClockAt(unknown)), $"triangle {unknown} is given no place");
+            Equal($"{time} {SixAndTen}", new FieldActivityReadout().Describe(ClockAt(unknown)), $"triangle {unknown} is given no place");
         }
 
         var readout = new FieldActivityReadout();
-        Equal($"You are by doorway ten. {SixAndTen}", readout.Observe(ClockAt(26), epoch).Speech, "in from the corridor");
-        Equal(null, readout.Observe(ClockAt(131), epoch.AddSeconds(1)).Speech, "a new place waits for the cadence");
-        Equal($"You are in the middle of the clock. {SixAndTen}", readout.Observe(ClockAt(131), epoch.AddSeconds(3)).Speech,
-            "and is then said");
-        Equal(null, readout.Observe(ClockAt(130), epoch.AddSeconds(6)).Speech, "walking about the middle is not news");
-        Equal($"You are in the middle of the clock. {SixAndTen}", readout.Describe(ClockAt(130)), "though the repeat still says it");
+        _ = readout.Observe(ClockAt(26), epoch);
+        Equal("Stopped, ten thirty.", readout.Observe(ClockAt(26), epoch.AddSeconds(0.4)).Speech, "in from the corridor");
+        Equal(null, readout.Observe(ClockAt(131), epoch.AddSeconds(3)).Speech, "walking onto the middle is not said on its own");
+        Equal($"Stopped, ten thirty. You are in the middle of the clock. {SixAndTen}", readout.Describe(ClockAt(131)),
+            "though the repeat says it");
     }
 
     private static void ClockStoryAsksForTheWayThePartyHas()
@@ -306,7 +319,7 @@ internal static class FieldPuzzleStoryTests
         for (var triangle = 0; triangle < walkmesh.Triangles.Count; triangle++)
         {
             var place = places.GetValueOrDefault(triangle, string.Empty);
-            Equal(place + SixAndTen, new FieldActivityReadout().Describe(ClockAt(triangle)), $"triangle {triangle}");
+            Equal("Ten thirty. " + place + SixAndTen, new FieldActivityReadout().Describe(ClockAt(triangle)), $"triangle {triangle}");
             if (place.Length == 0)
             {
                 Equal(false, walkableAtAll.Contains(triangle), $"triangle {triangle}, given no place, is walkable from no way in");
