@@ -612,6 +612,14 @@ if (args.Contains("--north-corel-repair-only", StringComparer.OrdinalIgnoreCase)
     return;
 }
 
+if (args.Contains("--world-house-autowalk-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.WorldMapMovementOwnershipTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.WorldMapHouseAutoWalkTests.Run();
+    Console.WriteLine("World map house auto walk tests passed.");
+    return;
+}
+
 if (args.Contains("--world-mount-corel-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.WorldMapMountCorelNavigationTests.Run();
@@ -637,6 +645,13 @@ if (args.Contains("--manual-field-objects-only", StringComparer.OrdinalIgnoreCas
 {
     FieldManualObjectGuidanceTests.Run();
     Console.WriteLine("Manual field object guidance tests passed.");
+    return;
+}
+
+if (args.Contains("--field-gateway-body-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.FieldGatewayBodyClearanceTests.Run(CreateInstalledFieldWalkmeshReader);
+    Console.WriteLine("Field gateway body clearance tests passed.");
     return;
 }
 
@@ -1104,6 +1119,9 @@ Ff7.Accessibility.Reloaded.Tests.FieldMovieNarrationQueueSeamTests.Run();
 Ff7.Accessibility.Reloaded.Tests.GoldSaucerDescriptionTests.Run();
 Ff7.Accessibility.Reloaded.Tests.GoldSaucerMinigameTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WorldMapMountCorelNavigationTests.Run();
+Ff7.Accessibility.Reloaded.Tests.WorldMapMovementOwnershipTests.Run();
+Ff7.Accessibility.Reloaded.Tests.FieldGatewayBodyClearanceTests.Run(CreateInstalledFieldWalkmeshReader);
+Ff7.Accessibility.Reloaded.Tests.WorldMapHouseAutoWalkTests.Run();
 FieldNavigationPrecisionTests.Run();
 FieldNavigationNativeProbeMovementTests.Run(CreateInstalledFieldWalkmeshReader);
 NorthCorelRecoveryHeightTests.Run(CreateInstalledFieldWalkmeshReader);
@@ -14780,7 +14798,7 @@ static void AssertFieldActivityReadoutSpeaksTheNativeActivities()
     AssertEqual(
         false,
         FieldActivityReadout.ObservedEntities(772).Contains(6),
-        "the buried target is never observed");
+        "the readout does not observe the buried target; the dig spot is a navigation object");
 
     // How far the dig has got is bonevil2's own Bank[5][12], never a count of visible models:
     // an unplaced digger stands visible at his Init spot (the tester's 2026-09-26 log heard
@@ -14814,7 +14832,7 @@ static void AssertFieldActivityReadoutSpeaksTheNativeActivities()
     AssertEqual(
         "Choose the dig point: stand where the diggers' lines of sight meet and press Switch. " +
             "Digger 1 to the right at 400 on the lower level, facing right; you are behind him. " +
-            "You are in line with no digger. You are on the lower level.",
+            "You are in line with no digger. You are on the lower level. The dig spot is in Objects.",
         new FieldActivityReadout().Describe(Look(772, controlDirection: 64, models: new[]
         {
             Seen(14, 0, -400, 0), Hidden(15), Hidden(16), Hidden(17), Hidden(18)
@@ -14823,7 +14841,7 @@ static void AssertFieldActivityReadoutSpeaksTheNativeActivities()
     AssertEqual(
         "Choose the dig point: stand where the diggers' lines of sight meet and press Switch. " +
             "Digger 1 somewhere in the room at 400 on the lower level, facing a direction that cannot be read; " +
-            "you are behind him. You are in line with no digger. You are on the lower level.",
+            "you are behind him. You are in line with no digger. You are on the lower level. The dig spot is in Objects.",
         new FieldActivityReadout().Describe(Look(772, transformUsable: false, models: new[]
         {
             Seen(14, 0, -400, 0), Hidden(15), Hidden(16), Hidden(17), Hidden(18)

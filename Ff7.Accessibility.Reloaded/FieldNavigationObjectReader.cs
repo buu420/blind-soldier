@@ -363,6 +363,14 @@ public sealed class FieldNavigationObjectReader
                 LineActivationRadius: lineActivationRadius));
         }
 
+        // Bone Village's dig spot is where the game has buried what the diggers look for, not a
+        // definition: which one it is, and whether it can be named yet, is live state.
+        if (position.FieldId == BoneVillageDigSpot.FieldId &&
+            BoneVillageDigSpot.Read(readInt32, readByte) is { } digSpot)
+        {
+            targets.Add(digSpot);
+        }
+
         return targets.Count == 0 ? EmptyTargets : targets;
     }
 

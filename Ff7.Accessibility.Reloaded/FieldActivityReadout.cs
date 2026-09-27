@@ -147,9 +147,10 @@ public readonly record struct FieldActivityObservation(
 /// 2 for the blast, 1 for choosing the dig point. The diggers are entities 14 to 18; one still
 /// at his Init spot is waiting, however visible, and one anywhere else has been placed. What is
 /// said on its own is a digger placed and, after the blast, the party walking onto a digger's
-/// line of sight; the repeat gives the phase, the control and each digger, with his facing once
-/// the blast has turned them. What is buried - luna, entity 6, and the boxes 7 to 13 - is never
-/// observed.
+/// line of sight. The repeat gives the phase, the control and each digger, with his facing once
+/// the blast has turned them, and says where the dig spot is offered. What is buried - luna,
+/// entity 6, and the boxes 7 to 13 - is not observed here. The one the diggers are sent to is a
+/// navigation object, BoneVillageDigSpot, offered at the user's request.
 /// </description></item>
 /// <item><description>
 /// <b>646 ancnt1, the pillars.</b> st1 to st5 - entities 12 to 16 - jump on a direction
@@ -1402,8 +1403,9 @@ public sealed class FieldActivityReadout
     /// the game moving on to the blast and then the search, and - once the blast has turned the
     /// diggers - the party walking onto or off a digger's line of sight. None of it is a wait: the
     /// game's own windows ask for Switch, and this never takes the player's input. What is buried
-    /// (luna, entity 6, and the boxes 7..13) is never read; neither is which item the foreman was
-    /// asked for (Bank[1][235]).
+    /// (luna, entity 6, and the boxes 7..13), and which item the foreman was asked for
+    /// (Bank[1][235]), are not read here. The dig spot the user asked for is BoneVillageDigSpot's,
+    /// in Objects.
     /// </summary>
     private string? TrackExcavation(FieldActivityObservation observation, DateTime now)
     {
@@ -1593,6 +1595,8 @@ public sealed class FieldActivityReadout
     /// The repeat: the phase as the game has it, what to press, every placed digger with his
     /// level, and the party's own level. Once the blast has turned them, which way each faces and
     /// where his line of sight passes the party - from where he stands and faces, and nothing else.
+    /// Last, where the dig spot is offered: the Lunar Harp's is in Objects from the start, and any
+    /// other treasure's only after the blast has chosen it (BoneVillageDigSpot).
     /// </summary>
     private static Report? ComposeExcavation(FieldActivityObservation observation)
     {
@@ -1620,18 +1624,22 @@ public sealed class FieldActivityReadout
         var list = string.Join(", ", placed.Select(Where));
         var count = placed.Count == 1 ? "1 digger placed" : $"{placed.Count} diggers placed";
         var you = $" You are on the {ExcavationLevel(observation.PlayerZ)}.";
+        const string spotBeforeBlast = " The dig spot is in Objects: the Lunar Harp's from the start, any other treasure's after the blast.";
+        const string spotChosen = " The dig spot is in Objects.";
         var text = phase switch
         {
             >= 3 => $"Placing diggers: {(placed.Count == 0 ? "none placed," : $"{placed.Count} placed: {list};")} up to {phase - 2} more. " +
-                    sending + "Stand where you want a digger and press Switch, then choose Order a search, 100 gil, or Done to set off the blast." + you,
-            2 => "Blast: press Switch to set off the bomb. " + (placed.Count == 0 ? "No diggers placed." : $"{count}: {list}.") + you,
-            1 when placed.Count == 0 => "Choose the dig point and press Switch. No digger was placed to show it." + you,
+                    sending + "Stand where you want a digger and press Switch, then choose Order a search, 100 gil, or Done to set off the blast." + you +
+                    spotBeforeBlast,
+            2 => "Blast: press Switch to set off the bomb. " + (placed.Count == 0 ? "No diggers placed." : $"{count}: {list}.") + you +
+                 spotBeforeBlast,
+            1 when placed.Count == 0 => "Choose the dig point and press Switch. No digger was placed to show it." + you + spotChosen,
             1 => "Choose the dig point: stand where the diggers' lines of sight meet and press Switch. " +
                  string.Join(" ", placed.Select(digger => Capitalise(Where(digger)) +
                      $", facing {DescribeFacing(observation, digger.Model.Direction)}; {DescribeSight(observation, digger.Model)}.")) +
                  " You are in line with " + (DiggersInSight(observation).ToArray() is { Length: > 0 } inSight
                      ? (inSight.Length == 1 ? $"digger {inSight[0]}." : $"diggers {JoinNumbers(inSight)}.")
-                     : "no digger.") + you,
+                     : "no digger.") + you + spotChosen,
             _ => "The dig is under way."
         };
         var ladder = ComposeExcavationLadder(observation);
@@ -2040,8 +2048,8 @@ public sealed class FieldActivityReadout
     public static readonly int[] RollingCorridorBoulderEntityIds = [26, 27, 28];
 
     /// <summary>
-    /// bonevil2's five placed diggers. Entity 6 is the buried target and is absent on
-    /// purpose: it is not something a sighted player can see.
+    /// bonevil2's five placed diggers. Entity 6 and the boxes are what is buried, and are not
+    /// observed here; the dig spot the user asked for is BoneVillageDigSpot's.
     /// </summary>
     public static readonly int[] ExcavationWorkerEntityIds = [14, 15, 16, 17, 18];
 

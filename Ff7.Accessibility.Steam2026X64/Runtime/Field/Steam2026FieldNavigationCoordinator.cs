@@ -220,7 +220,8 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                 walkmeshReader,
                 boundaryStateReader,
                 ReadLiveTransitions,
-                dynamicObstacleReader.Read));
+                dynamicObstacleReader.Read,
+                dynamicObstacleReader.ReadPlayerCollisionRadius));
         reachableExitProvider = new ReachableFieldExitTargetProvider(
             _ => currentExits,
             routePlanner);

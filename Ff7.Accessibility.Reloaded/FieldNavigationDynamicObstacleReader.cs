@@ -235,6 +235,32 @@ public sealed class FieldNavigationDynamicObstacleReader
         return obstacles.Count == 0 ? Empty : obstacles;
     }
 
+    /// <summary>
+    /// The leader's own collision radius, the native <c>+0x72</c> of its event entry, read
+    /// directly - so a room with nobody else in it still knows how wide the party is. Zero
+    /// when the field is not readable or the value is not a usable size.
+    /// </summary>
+    public double ReadPlayerCollisionRadius(FieldPositionSnapshot position)
+    {
+        if (!FieldPositionReader.IsUsable(position))
+        {
+            return 0d;
+        }
+
+        var eventTable = readInt32(FieldNavigationObjectReader.AddressFieldEventDataPtr);
+        var modelCount = readByte(FieldPositionReader.AddressFieldNumModels);
+        if (eventTable == 0 || position.ModelIndex < 0 || position.ModelIndex >= modelCount)
+        {
+            return 0d;
+        }
+
+        var radius = readInt16(
+            eventTable +
+            position.ModelIndex * FieldNavigationObjectReader.FieldEventDataStride +
+            FieldNavigationNpcReader.CollisionRadiusOffset);
+        return radius > 0 ? radius : 0d;
+    }
+
     private int ResolveTargetModel(
         FieldNavigationTarget? target,
         int modelCount)

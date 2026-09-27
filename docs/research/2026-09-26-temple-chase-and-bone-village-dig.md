@@ -92,7 +92,39 @@ The phase is the field's own Bank[5][12]:
   - After the blast it also gives which way each digger faces and where his line of sight passes you, for example "his line of sight passes 100 ahead of you". This is worked out only from where he stands and faces.
   - R is available while the game's instruction windows are open.
 - **Targets:** the ladders and placed diggers are ordinary targets, so navigation and auto walk go to them, through the ladder when a digger is on the other level. The ladder's own OK is left to you.
-- **Never read or announced:** the buried item's models (luna and box0..box6) and which item the foreman was asked for.
+- **Dig spot (added 2026-09-27, at the user's request):** see "The dig spot shortcut" below. Apart from that one object, the readout still does not observe the buried models.
+
+### The dig spot shortcut (2026-09-27)
+The user asked for the spot where the treasure is buried to be a navigation target, for any treasure search. A sighted player sees only the diggers' lines of sight meeting there, so this goes beyond the screen on purpose. It replaces the earlier rule that buried targets are never read.
+
+- **What decides the prize:**
+  - The final choice (phase 1) is keyc script 3. On Switch it compares the party's walkmesh triangle, exactly, with the triangles the buried models stored at Init: Bank[6][16], [18] .. [28], for luna and box0..box5. It sets Bank[1][234] to 1..7.
+  - Distance plays no part. box6's slot, Bank[6][30], is never compared.
+  - Anywhere else gives the junk roll: a Potion half the time, otherwise nothing.
+  - The foreman's request (Bank[1][235]) only decides where the diggers look.
+- **When it is offered:** one object, "Dig spot: …", in Objects.
+  - **Lunar Harp (request 1):** from arrival (phase 7) to the final choice (phase 1), while Bank[1][231] bit 3 (harp received) is clear. The diggers can only turn to luna, and luna's triangle is stored at Init.
+  - **Good or normal treasure (requests 2 and 3):** only at the final choice. The box is picked by Bank[5][15], a byte rolled at the blast; before that, no roll is guessed. Good treasure is box0 below 80, box1 below 160, box2 otherwise. Normal treasure is box3 below 60, box4 below 120, box5 below 180, box6 otherwise.
+  - **Consistency checks:** the stored triangle, the model's own triangle (event +0x78) and its Init placement must all agree. The phase, request, roll and harp flag must read the same before and after the read. Otherwise nothing is offered.
+- **Its name:** what bonevil's box1 Talk would give now, checking the same gates the script checks.
+
+  | Spot | While not yet taken | After that |
+  |---|---|---|
+  | luna | Lunar Harp | — |
+  | box0 | Buntline | Phoenix Materia from game moment 1620 until taken, otherwise "no treasure left" |
+  | box1 | Megalixir | "small chance of Bahamut ZERO Materia" (10 in 256) from 1620 until taken, otherwise "no treasure left" |
+  | box2 | Mop | W-Item Materia from 1620 until taken, otherwise "no treasure left" |
+  | box3–box5 | Key to Sector 5 after moment 1195 | box3 "chance of an Elixir"; box4 "Ether, or a small chance of Turbo Ether"; box5 "chance of an Ether" |
+  | box6 | — | "chance of a Potion", since it has no result of its own |
+
+- **Reaching it:**
+  - Ordinary navigation and auto walk take you there, climbing the ladder with your own OK.
+  - Navigation ends only when the party stands on the spot's own triangle, so it never stops one triangle short within a proximity radius.
+  - You still press Switch, pay for the diggers, set off the blast and make the final choice. Nothing is written to the game.
+- **Repeat key:**
+  - Before the blast, R ends with "The dig spot is in Objects: the Lunar Harp's from the start, any other treasure's after the blast."
+  - After the blast it ends with "The dig spot is in Objects."
+- **Limits:** chances are the roll the payout makes when you open the box. They are named as chances and never predicted.
 
 ## Limits
 - **Waiting spot:** a digger deliberately sent to the exact spot where diggers wait cannot be told from one who is waiting. The field keeps no record of who was hired, only where each model stands.

@@ -17,7 +17,8 @@ namespace Ff7.Accessibility.Reloaded.Tests;
 /// <para>bonevil2: the phase is Bank[5][12], 7 at Init, one step down per digger ordered, 2 for
 /// the blast and 1 for choosing the dig point. The diggers are entities 14..18, each placed
 /// where the party stands; an unplaced one stands at its Init spot (-427, -5). luna (6) and the
-/// boxes (7..13) are what is buried, and are never read.</para>
+/// boxes (7..13) are what is buried. The readout does not observe them; the one the diggers are
+/// sent to is the dig spot in Objects, at the user's request (BoneVillageDigSpotTests).</para>
 /// </summary>
 internal static class ChaseAndExcavationTests
 {
@@ -32,7 +33,7 @@ internal static class ChaseAndExcavationTests
         ExcavationSaysEachDiggerPlaced();
         ExcavationLinesOfSightOnlyAfterTheBlast();
         ExcavationUnreadableSightDoesNotInventMovement();
-        ExcavationNeverReadsTheBuriedModels();
+        ExcavationReadoutDoesNotObserveTheBuriedModels();
         ExcavationDiggerTargetsAreOnlyThePlacedOnes();
         ExcavationWaitsForADiggerToArrive();
         ExcavationDoesNotRepeatAfterATornLook();
@@ -41,6 +42,7 @@ internal static class ChaseAndExcavationTests
         ExcavationWaitsForTheGameToFinishSendingHim();
         ExcavationSettleIncludesHeight();
         ExcavationLadderSaysConfirm();
+        BoneVillageDigSpotTests.Run(createWalkmeshReader, DataRoot);
         if (DataRoot is null || createWalkmeshReader is null)
         {
             return;
@@ -429,18 +431,18 @@ internal static class ChaseAndExcavationTests
             "on arrival the game's own window already names the control; nothing is repeated");
         Equal(
             "Placing diggers: none placed, up to 5 more. Stand where you want a digger and press Switch, " +
-            "then choose Order a search, 100 gil, or Done to set off the blast. You are on the lower level.",
+            "then choose Order a search, 100 gil, or Done to set off the blast. You are on the lower level. The dig spot is in Objects: the Lunar Harp's from the start, any other treasure's after the blast.",
             readout.Describe(waiting),
             "the repeat says the phase and the control");
         Equal(
             "Blast: press Switch to set off the bomb. 2 diggers placed: digger 1 ahead at 400 on the lower level, " +
-            "digger 2 behind at 200 on the lower level. You are on the lower level.",
+            "digger 2 behind at 200 on the lower level. You are on the lower level. The dig spot is in Objects: the Lunar Harp's from the start, any other treasure's after the blast.",
             new FieldActivityReadout().Describe(Dig(2, Diggers((14, 0, -400, -40, 0), (15, 0, 200, -40, 0)))),
             "the blast phase");
         Equal(
             "Choose the dig point: stand where the diggers' lines of sight meet and press Switch. " +
             // Exactly beside him: his line starts where he stands, 400 ahead, and runs sideways.
-            "Digger 1 ahead at 400 on the lower level, facing right; his line of sight passes 400 ahead of you. You are in line with no digger. You are on the lower level.",
+            "Digger 1 ahead at 400 on the lower level, facing right; his line of sight passes 400 ahead of you. You are in line with no digger. You are on the lower level. The dig spot is in Objects.",
             new FieldActivityReadout().Describe(Dig(1, Diggers((14, 0, -400, -40, 192)))),
             "after the blast, each digger's facing");
         Equal("The dig is under way.", new FieldActivityReadout().Describe(Dig(0, Diggers())), "after the choice");
@@ -544,7 +546,7 @@ internal static class ChaseAndExcavationTests
         Equal(null, readout.Observe(Dig(7, Diggers((14, 170, 514, 331, 0))), Epoch.AddSeconds(4)).Speech, "however long he stands there");
         Equal(
             "Placing diggers: none placed, up to 5 more. Digger 1 is on his way. Stand where you want a digger and press Switch, " +
-            "then choose Order a search, 100 gil, or Done to set off the blast. You are on the lower level.",
+            "then choose Order a search, 100 gil, or Done to set off the blast. You are on the lower level. The dig spot is in Objects: the Lunar Harp's from the start, any other treasure's after the blast.",
             readout.Describe(Dig(7, Diggers((14, 170, 514, 331, 0)))),
             "the repeat does not count him placed, and says he is on his way");
         Equal(null, readout.Observe(Dig(7, Diggers((14, 104, 566, 331, 0))), Epoch.AddSeconds(4.3)).Speech,
@@ -656,7 +658,7 @@ internal static class ChaseAndExcavationTests
         Equal(
             "Placing diggers: 2 placed: digger 1 ahead at 400 on the lower level, digger 2 behind at 200 on the upper level; up to 3 more. " +
             "Stand where you want a digger and press Switch, then choose Order a search, 100 gil, or Done to set off the blast. " +
-            "You are on the lower level.",
+            "You are on the lower level. The dig spot is in Objects: the Lunar Harp's from the start, any other treasure's after the blast.",
             readout.Describe(Dig(5, placed)),
             "both levels named");
         // Digger 1 at (-300, 0) facing +x (64): his line of sight runs along y = 0. With control
@@ -665,29 +667,31 @@ internal static class ChaseAndExcavationTests
         Equal(
             "Choose the dig point: stand where the diggers' lines of sight meet and press Switch. " +
             "Digger 1 to the right at 300 on the lower level, facing left; his line of sight passes 100 ahead of you. " +
-            "You are in line with no digger. You are on the lower level.",
+            "You are in line with no digger. You are on the lower level. The dig spot is in Objects.",
             readout.Describe(Dig(1, looking, playerX: 0, playerY: 100)),
             "where the line passes, from where he stands and faces");
         Equal(
             "Choose the dig point: stand where the diggers' lines of sight meet and press Switch. " +
             "Digger 1 to the right at 300 on the lower level, facing left; you are on his line of sight. " +
-            "You are in line with digger 1. You are on the lower level.",
+            "You are in line with digger 1. You are on the lower level. The dig spot is in Objects.",
             readout.Describe(Dig(1, looking, playerX: 0, playerY: 10)),
             "on the line");
         Equal(
             "Choose the dig point: stand where the diggers' lines of sight meet and press Switch. " +
             "Digger 1 to the left at 300 on the lower level, facing left; you are behind him. " +
-            "You are in line with no digger. You are on the lower level.",
+            "You are in line with no digger. You are on the lower level. The dig spot is in Objects.",
             readout.Describe(Dig(1, looking, playerX: -600, playerY: 0)),
             "behind him his line of sight is nowhere near");
     }
 
-    private static void ExcavationNeverReadsTheBuriedModels()
+    private static void ExcavationReadoutDoesNotObserveTheBuriedModels()
     {
         Equal("14,15,16,17,18", string.Join(",", FieldActivityReadout.ObservedEntities(772)), "only the diggers are observed");
         Equal(true, FieldActivityReadout.NeedsTemporaryBank(772), "the phase byte is read");
         var definitions = FieldNavigationObjectCatalog.CreateAllFields().Where(d => d.FieldId == 772).ToArray();
-        Equal(false, definitions.Any(d => d.EntityId is >= 6 and <= 13), "luna and the boxes are never objects");
+        // The buried models are no definitions: the one the diggers are sent to is offered, live,
+        // as the dig spot (BoneVillageDigSpotTests).
+        Equal(false, definitions.Any(d => d.EntityId is >= 6 and <= 13), "luna and the boxes are no object definitions");
     }
 
     /// <summary>A digger standing at the Init spot is waiting, not placed, and is not a target.</summary>

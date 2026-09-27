@@ -13,6 +13,51 @@ public sealed record WorldMapDialogueSnapshot(bool PlayerHasControl, IReadOnlyLi
 }
 
 /// <summary>
+/// Who owns world movement, read on its own so that a torn or unreadable window never hides
+/// it. The native control flag DE6B5C is cleared by FUN_0074D438 whenever a world script,
+/// a window or the party menu takes control (0074EA48's menu branch calls 0074D438(0,1)).
+/// The main-menu session flag DC12F0 is set by FUN_006CB56A when a menu session starts and
+/// cleared only once the closing slide has finished (phase DC1298 back to -1), so the party
+/// menu and every submenu, closing included, hold the party still.
+/// </summary>
+public readonly record struct WorldMapMovementOwnership(bool PlayerHasControl, bool MainMenuSession)
+{
+    public bool IsBlockingMovement => !PlayerHasControl || MainMenuSession;
+}
+
+/// <summary>
+/// Whether world movement belongs to something else this sample. Window text is only for
+/// speech; a window that is up still blocks when it can be read.
+/// </summary>
+public static class WorldMapMovementGate
+{
+    /// <summary>
+    /// The whole sample pauses: the game says a script, a window or the party menu owns
+    /// movement, or a readable window is up. The route is kept; nothing is reset.
+    /// </summary>
+    public static bool ShouldPauseSample(
+        bool ownershipRead,
+        WorldMapMovementOwnership ownership,
+        bool dialogueRead,
+        WorldMapDialogueSnapshot? dialogue) =>
+        (ownershipRead && ownership.IsBlockingMovement) ||
+        (dialogueRead && dialogue is { IsBlockingMovement: true });
+
+    /// <summary>
+    /// Automatic walking is held - released, and its stall clock stopped - whenever the
+    /// sample pauses, and also when ownership could not be read at all: movement fails
+    /// closed, while the rest of the sample (a failed state read's own quiet period, for
+    /// one) carries on as it always did.
+    /// </summary>
+    public static bool ShouldHold(
+        bool ownershipRead,
+        WorldMapMovementOwnership ownership,
+        bool dialogueRead,
+        WorldMapDialogueSnapshot? dialogue) =>
+        !ownershipRead || ShouldPauseSample(ownershipRead, ownership, dialogueRead, dialogue);
+}
+
+/// <summary>
 /// FUN_00769836 gives each world window a rendered buffer at E3B220, and
 /// FUN_00769C02 appends the visible characters. CFF5E4 is the window state;
 /// DE6B5C is the control flag maintained by FUN_0074D438. These guest addresses
@@ -51,6 +96,63 @@ public sealed class WorldMapDialogueReader(ILegacyAddressSpace memory)
         if (!TryCapture(out var afterControl, out var after) || afterControl != control ||
             !before.SequenceEqual(after)) return false;
         snapshot = new(control, windows);
+        return true;
+    }
+
+    /// <summary>
+    /// The control flag and the main-menu session, read twice and agreeing, independently of
+    /// the windows. False when either read fails, the world module is not current, or the two
+    /// reads disagree.
+    /// </summary>
+    public bool TryReadMovementOwnership(out WorldMapMovementOwnership ownership)
+    {
+        ownership = default;
+        if (!TryReadOwnershipOnce(out var first) ||
+            !TryReadOwnershipOnce(out var second) ||
+            first != second)
+        {
+            return false;
+        }
+
+        ownership = first;
+        return true;
+    }
+
+    /// <summary>
+    /// The native world input mask FUN_0074EA48 moves the party by: FUN_007186B9 returns the
+    /// 32-bit DAT_009A85D4 (the x64 build reads the same translated guest address). Direction
+    /// bits: Up 0x1000, Right 0x2000, Down 0x4000, Left 0x8000. For diagnostics only - two
+    /// agreeing reads, and false (unknown) otherwise; nothing is pressed from it.
+    /// </summary>
+    public const uint NativeWorldInputAddress = 0x009A85D4;
+
+    public bool TryReadNativeWorldInput(out uint mask)
+    {
+        mask = 0;
+        if (!memory.TryReadUInt32(NativeWorldInputAddress, out var first) ||
+            !memory.TryReadUInt32(NativeWorldInputAddress, out var second) ||
+            first != second)
+        {
+            return false;
+        }
+
+        mask = first;
+        return true;
+    }
+
+    private bool TryReadOwnershipOnce(out WorldMapMovementOwnership ownership)
+    {
+        ownership = default;
+        if (!memory.TryReadByte((uint)WorldMapStateReader.AddressCurrentModule, out var module) ||
+            module != WorldMapStateReader.WorldModule ||
+            !memory.TryReadInt32(ControlAddress, out var nativeControl) || nativeControl is not (0 or 1) ||
+            !memory.TryReadInt32((uint)MenuGilStateReader.AddressMainMenuSession, out var session) ||
+            !memory.TryReadInt32((uint)MenuGilStateReader.AddressMainMenuPhase, out _))
+        {
+            return false;
+        }
+
+        ownership = new WorldMapMovementOwnership(nativeControl != 0, session != 0);
         return true;
     }
 

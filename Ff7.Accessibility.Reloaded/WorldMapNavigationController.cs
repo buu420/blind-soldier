@@ -45,6 +45,24 @@ public sealed class WorldMapNavigationController
 
     /// <summary>FUN_0074EA48 moves the party on foot by 0x1E units a frame.</summary>
     private const double WalkingFrameStep = 30d;
+
+    /// <summary>FUN_0074EA48: the Buggy moves 0x2D a frame, and is held by the same footprint.</summary>
+    private const double BuggyFrameStep = 45d;
+
+    /// <summary>
+    /// Models FUN_00751EFC holds to the 200-unit ground footprint that this controller
+    /// steers by: the party on foot and the Buggy. The boat has its own 350-unit rule above;
+    /// flying, the submarine and the chocobos are not steered by it.
+    /// </summary>
+    private static bool UsesGroundFootprint(int modelId) => WorldMapRoutePlanner.UsesGroundFootprint(modelId);
+
+    private const int WorldMapBuggyModelId = WorldMapRoutePlanner.BuggyModelId;
+
+    private static double GroundFrameStep(int modelId) =>
+        modelId == WorldMapBuggyModelId ? BuggyFrameStep : WalkingFrameStep;
+
+    /// <summary>The native frame of the model automatic movement is steering right now.</summary>
+    private double groundFrameStep = WalkingFrameStep;
     private const int DefaultDistanceUnitsPerCount = 512;
     private const int OffRouteReplanDistanceCounts = 12;
     private static readonly TimeSpan OffRouteReplanDelay = TimeSpan.FromSeconds(5);
@@ -520,7 +538,64 @@ public sealed class WorldMapNavigationController
             return false;
         }
 
+        // Where the route says the party is heading, before a straight line that is not clear
+        // sends automatic movement back to an earlier corner.
+        // How far the party moves between samples while this is driving it: a host sample
+        // can span several native frames, and the slot walk plans in those steps.
+        var sampleMoved = Math.Sqrt(
+            Math.Pow(WorldMapTargetCatalog.WrappedDelta(lastAutomaticPosition.X, state.X, map.WrapWidth), 2) +
+            Math.Pow(WorldMapTargetCatalog.WrappedDelta(lastAutomaticPosition.Z, state.Z, map.WrapHeight), 2));
+        groundFrameStep = GroundFrameStep(state.PlayerModelId);
+        if (hasLastAutomaticPosition && sampleMoved <= 6 * groundFrameStep)
+        {
+            observedSampleStep = Math.Max(observedSampleStep * 0.9d, sampleMoved);
+        }
+
+        // The game's own answer to the last key: the same key, under the same camera, pressed
+        // for two samples running from the same spot without moving the party at all, was
+        // refused here. What is remembered is the world direction it pushed in, not the raw
+        // key: after the camera turns, the same key points somewhere else and may well be the
+        // way out.
+        if (hasLastAutomaticPosition && state.X == lastAutomaticPosition.X && state.Z == lastAutomaticPosition.Z &&
+            lastAutomaticKey is >= FieldNavigationInput.Up and <= FieldNavigationInput.UpLeft)
+        {
+            if (lastAutomaticKey == refusalCountingKey &&
+                Math.Abs(CameraTurn(lastAutomaticCamera, refusalCountingCamera)) <= RefusalCameraTolerance)
+            {
+                unmovedSamples++;
+            }
+            else
+            {
+                refusalCountingKey = lastAutomaticKey;
+                refusalCountingCamera = lastAutomaticCamera;
+                unmovedSamples = 1;
+            }
+
+            if (unmovedSamples >= 2)
+            {
+                var heading = WorldHeading(lastAutomaticKey, lastAutomaticCamera);
+                if (!refusedHeadingsHere.Contains(heading))
+                {
+                    refusedHeadingsHere.Add(heading);
+                }
+            }
+        }
+        else
+        {
+            unmovedSamples = 0;
+            refusalCountingKey = FieldNavigationInput.None;
+            refusedHeadingsHere.Clear();
+        }
+
+        lastAutomaticPosition = new WorldMapRouteWaypoint(state.X, state.Y, state.Z);
+        hasLastAutomaticPosition = true;
+        var measuredWaypoint = Math.Clamp(
+            Math.Max(waypointIndex, MeasurePolylineProgress(routeStart, route.Waypoints, state, map.WrapWidth, map.WrapHeight)
+                .NextWaypointIndex),
+            0,
+            route.Waypoints.Count - 1);
         waypointIndex = ResolveAutomaticWaypoint(state, route, waypointIndex);
+        var steppedBack = waypointIndex < measuredWaypoint;
         if (landingPlan is { } runIn && (landingOnRunIn || waypointIndex >= route.Waypoints.Count - 1))
         {
             // The run in is the straight line from where it starts, through the spot, to
@@ -534,6 +609,8 @@ public sealed class WorldMapNavigationController
             landingOnRunIn = true;
             var (aimX, aimZ) = ResolveRunInAim(runIn, state);
             input = automaticDirection.ResolveStickDirection(-aimX, aimZ, state.ControlTransform).Input;
+            lastAutomaticKey = input;
+            lastAutomaticCamera = state.CameraFront;
             return input is >= FieldNavigationInput.Up and <= FieldNavigationInput.UpLeft;
         }
 
@@ -554,7 +631,7 @@ public sealed class WorldMapNavigationController
         var dx = WorldMapTargetCatalog.WrappedDelta(state.X, waypoint.X, map.WrapWidth);
         var dz = WorldMapTargetCatalog.WrappedDelta(state.Z, waypoint.Z, map.WrapHeight);
         if (state.PlayerModelId == WorldMapBroncoLanding.BroncoModelId ||
-            (WorldMapRoutePlanner.IsWalkingModel(state.PlayerModelId) &&
+            (WorldMapRoutePlanner.UsesGroundFootprint(state.PlayerModelId) &&
              detourOutcome == WorldMapVehicleDetourPlanner.DetourOutcome.Clear))
         {
             // The boat and the party follow their leg rather than cutting at the corner
@@ -574,7 +651,14 @@ public sealed class WorldMapNavigationController
         var probeDistance = detourOutcome == WorldMapVehicleDetourPlanner.DetourOutcome.Detour
             ? AutomaticMovementProbeDistance
             : Math.Min(AutomaticMovementProbeDistance, Math.Sqrt(dx * (double)dx + dz * (double)dz));
-        bool IsClear(FieldNavigationInput candidate)
+        // Not on the way to a vehicle: the last step there is into the vehicle's own mask,
+        // which the game refuses while it records the contact that boards it.
+        var footprintHere = UsesGroundFootprint(state.PlayerModelId) &&
+            activeTarget.NativeVehicleContact is null &&
+            activeTarget.VehicleContactPoints.Count == 0 &&
+            !IsOnBridge(state, state.X, state.Z) &&
+            planner.HasWalkingFootprint(state, state.X, state.Y, state.Z);
+        bool IsCentreClear(FieldNavigationInput candidate)
         {
             var (x, z) = PredictNativeMovement(candidate, state.CameraFront);
             var next = new WorldMapRouteWaypoint(
@@ -602,11 +686,36 @@ public sealed class WorldMapNavigationController
                      state.X, state.Z, next.X, next.Z, map.WrapWidth, map.WrapHeight));
         }
 
-        // A clear oblique route can quantize to a cardinal key that hits a
-        // cliff. Keep the closest forward key with a clear native short step.
-        if (input is >= FieldNavigationInput.Up and <= FieldNavigationInput.UpLeft && !IsClear(input))
+        // The party on foot is refused by the same routine as the boat: FUN_00751EFC moves
+        // models 0, 1 and 2 only where the centre and the points 200 units along each axis
+        // (007530B3) stand on walking ground. A key whose next native frame (0x1E) lands
+        // where that does not fit is pressed into a refusal - the 2026-09-26 Old Man's House
+        // stall, held for five seconds a door's width from the trigger. A whole frame is
+        // judged even when the aim is nearer than that, because the game moves a whole frame.
+        // Where the party already stands somewhere the footprint says it cannot (the
+        // bridges), it is not asked.
+        bool FitsWalkingFrame(FieldNavigationInput candidate)
         {
-            input = Enum.GetValues<FieldNavigationInput>()
+            if (!footprintHere)
+            {
+                return true;
+            }
+
+            var (x, z) = NativeWalkingFrame(candidate, state.CameraFront, groundFrameStep);
+            var landingX = state.X + x;
+            var landingZ = state.Z + z;
+            return IsOnBridge(state, landingX, landingZ) ||
+                   planner.HasWalkingFootprint(state, landingX, state.Y, landingZ);
+        }
+
+        // A key the game has just refused here is not pressed again here: whatever this
+        // model says, holding it again is the five-second stall.
+        bool IsClear(FieldNavigationInput candidate) =>
+            !(footprintHere && IsRefusedHere(candidate, state.CameraFront)) &&
+            IsCentreClear(candidate) && FitsWalkingFrame(candidate);
+
+        FieldNavigationInput ClosestForward(Func<FieldNavigationInput, bool> clear) =>
+            Enum.GetValues<FieldNavigationInput>()
                 .Where(candidate => candidate is >= FieldNavigationInput.Up and <= FieldNavigationInput.UpLeft)
                 .Select(candidate => (Input: candidate, World: PredictNativeMovement(candidate, state.CameraFront)))
                 .Select(candidate => (candidate.Input, Progress:
@@ -615,9 +724,632 @@ public sealed class WorldMapNavigationController
                 .Where(candidate => candidate.Progress > 0d)
                 .OrderByDescending(candidate => candidate.Progress)
                 .Select(candidate => candidate.Input)
-                .FirstOrDefault(IsClear);
+                .FirstOrDefault(clear);
+
+        // A clear oblique route can quantize to a cardinal key that hits a
+        // cliff. Keep the closest forward key with a clear native short step.
+        var aimed = input;
+        var hasAim = aimed is >= FieldNavigationInput.Up and <= FieldNavigationInput.UpLeft;
+        if (hasAim && !IsClear(input))
+        {
+            input = ClosestForward(IsClear);
         }
+
+        // On foot, where the footprint leaves only a slot (the Old Man's House door is one
+        // row about 30 units wide between two mountain faces) neither the corner ahead nor the
+        // one behind has a clear straight line: aiming at them either presses no key or turns
+        // the party back and forth between the two every sample. A short walk through steps
+        // the game itself would accept is found once and then followed, so that holding a key
+        // for several native frames between observations cannot turn it round.
+        if (hasAim && footprintHere && landingPlan is null &&
+            detourOutcome == WorldMapVehicleDetourPlanner.DetourOutcome.Clear)
+        {
+            if (slotPath.Count > 0 && !ReferenceEquals(slotRoute, route))
+            {
+                ClearSlotPath();
+                slotModeEntry = double.NaN;
+            }
+
+            // Once the plain aim has failed here, keep walking by search until the party is
+            // a whole search horizon further along than where it began. Handing back sooner
+            // lets the corner aim step off the route again, and the next search bring it
+            // straight back: the Costa replay did that at 120 units a sample.
+            var needsSearch = steppedBack || input is not (>= FieldNavigationInput.Up and <= FieldNavigationInput.UpLeft);
+            if (!double.IsNaN(slotModeEntry) &&
+                SlotPotential(state, route) <= slotModeEntry - WalkingSlotSearchFrames * groundFrameStep)
+            {
+                slotModeEntry = double.NaN;
+                ClearSlotPath();
+            }
+
+            if (needsSearch && double.IsNaN(slotModeEntry))
+            {
+                slotModeEntry = SlotPotential(state, route);
+            }
+
+            // A walk that is finished or left behind is replaced at once while searching,
+            // rather than handing this sample back to the corner aim.
+            for (var attempt = 0; attempt < 2; attempt++)
+            {
+                if (slotPath.Count == 0 && !double.IsNaN(slotModeEntry))
+                {
+                    SearchWalkingSlot(state, route);
+                    if (slotPath.Count == 0)
+                    {
+                        slotModeEntry = double.NaN;
+                    }
+                }
+
+                if (slotPath.Count == 0)
+                {
+                    break;
+                }
+
+                if (TryFollowSlotPath(state, IsClear, out var slotInput))
+                {
+                    input = slotInput;
+                    lastAutomaticKey = input;
+                    lastAutomaticCamera = state.CameraFront;
+                    return true;
+                }
+
+                ClearSlotPath();
+            }
+        }
+        else
+        {
+            ClearSlotPath();
+            slotModeEntry = double.NaN;
+        }
+
+        // The footprint is how routes keep their room, never a reason to refuse one: it is
+        // stricter than the game in places (the bridges; the edge of a boarding shore). When
+        // no key both fits it and closes, keep the centre-line choice the controller always
+        // made rather than stopping.
+        if (hasAim && input is not (>= FieldNavigationInput.Up and <= FieldNavigationInput.UpLeft))
+        {
+            bool CentreClearAndNotRefused(FieldNavigationInput candidate) =>
+                !(footprintHere && IsRefusedHere(candidate, state.CameraFront)) && IsCentreClear(candidate);
+            input = CentreClearAndNotRefused(aimed) ? aimed : ClosestForward(CentreClearAndNotRefused);
+        }
+
+        lastAutomaticKey = input;
+        lastAutomaticCamera = state.CameraFront;
         return input is >= FieldNavigationInput.Up and <= FieldNavigationInput.UpLeft;
+    }
+
+    private WorldMapRouteWaypoint paceLastPosition;
+    private int paceLastCamera;
+    private bool paceHasLast;
+    private string paceLastSignature = string.Empty;
+
+    /// <summary>
+    /// One line for the host log about what automatic walking pressed, what the engine's own
+    /// input mask held, and how the party moved - or null when nothing worth a line has
+    /// changed.
+    ///
+    /// <para><c>native</c> is the world input mask the engine moved by (DAT_009A85D4, read by
+    /// the host), or unknown. <c>motionEstimate</c> is only an estimate from displacement: the
+    /// key whose FUN_0074EA48 direction under the previous sample's camera matches the
+    /// movement since then, named only when the party moved and one key matches closely
+    /// ("none" or "unmatched" otherwise). Sliding and camera turns can make it differ from the
+    /// key the engine saw, which is why both are given. A line is written when the command,
+    /// the native mask, the estimate or the slot walk changes - never for position alone.</para>
+    /// </summary>
+    public string? DescribeAutomaticPace(
+        WorldMapStateSnapshot state,
+        bool hasDirection,
+        FieldNavigationInput commanded,
+        uint? nativeInputMask = null)
+    {
+        var motionEstimate = "none";
+        var step = 0d;
+        if (paceHasLast)
+        {
+            var dx = (double)WorldMapTargetCatalog.WrappedDelta(paceLastPosition.X, state.X, map.WrapWidth);
+            var dz = (double)WorldMapTargetCatalog.WrappedDelta(paceLastPosition.Z, state.Z, map.WrapHeight);
+            step = Math.Sqrt(dx * dx + dz * dz);
+            if (step >= 4d)
+            {
+                var best = Enum.GetValues<FieldNavigationInput>()
+                    .Where(candidate => candidate is >= FieldNavigationInput.Up and <= FieldNavigationInput.UpLeft)
+                    .Select(candidate => (Input: candidate, World: PredictNativeMovement(candidate, paceLastCamera)))
+                    .Select(candidate => (candidate.Input, Match:
+                        (candidate.World.X * dx + candidate.World.Z * dz) /
+                        (Math.Sqrt(candidate.World.X * candidate.World.X + candidate.World.Z * candidate.World.Z) * step)))
+                    .OrderByDescending(candidate => candidate.Match)
+                    .First();
+                motionEstimate = best.Match >= 0.92d ? best.Input.ToString() : "unmatched";
+            }
+        }
+
+        paceLastPosition = new WorldMapRouteWaypoint(state.X, state.Y, state.Z);
+        paceLastCamera = state.CameraFront;
+        paceHasLast = true;
+        var command = hasDirection ? commanded.ToString() : "None";
+        var slot = slotPath.Count > 0 ? "slot" : "route";
+        var native = nativeInputMask is { } mask ? DescribeNativeInput(mask) : "unknown";
+        var signature = $"{command}|{native}|{motionEstimate}|{slot}";
+        if (string.Equals(signature, paceLastSignature, StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        paceLastSignature = signature;
+        return $"commanded={command}, native={native}, motionEstimate={motionEstimate}, step={step:0}, position={state.X},{state.Y},{state.Z}, " +
+               $"camera={state.CameraFront}, model={state.PlayerModelId}, waypoint={waypointIndex}, " +
+               (slotPath.Count > 0 ? SlotDiagnostic : "following the route");
+    }
+
+    /// <summary>The native mask's direction bits as a key name, with the raw direction bits.</summary>
+    private static string DescribeNativeInput(uint mask)
+    {
+        var up = (mask & 0x1000u) != 0;
+        var right = (mask & 0x2000u) != 0;
+        var down = (mask & 0x4000u) != 0;
+        var left = (mask & 0x8000u) != 0;
+        var name = (up, right, down, left) switch
+        {
+            (false, false, false, false) => "none",
+            (true, false, false, false) => "Up",
+            (true, true, false, false) => "UpRight",
+            (false, true, false, false) => "Right",
+            (false, true, true, false) => "DownRight",
+            (false, false, true, false) => "Down",
+            (false, false, true, true) => "DownLeft",
+            (false, false, false, true) => "Left",
+            (true, false, false, true) => "UpLeft",
+            _ => "conflicting"
+        };
+        return $"{name}(0x{mask & 0xF000u:X4})";
+    }
+
+    /// <summary>How many native frames ahead the slot search looks: 360 units on foot.</summary>
+    private const int WalkingSlotSearchFrames = 12;
+
+    /// <summary>A bound on the positions the slot search visits, whatever the ground.</summary>
+    private const int WalkingSlotSearchNodes = 400;
+
+    /// <summary>How near a corner of the slot walk counts as reached: half a native frame.</summary>
+    private double SlotCornerReach => 0.5 * groundFrameStep;
+
+    /// <summary>Further off the slot walk than this, the party is not following it.</summary>
+    private double SlotPathCorridor => 3 * groundFrameStep;
+
+    private readonly List<WorldMapRouteWaypoint> slotPath = new();
+    private double slotModeEntry = double.NaN;
+    private WorldMapRouteWaypoint lastAutomaticPosition;
+    private FieldNavigationInput lastAutomaticKey;
+    private int lastAutomaticCamera;
+    private FieldNavigationInput refusalCountingKey;
+    private int refusalCountingCamera;
+    private int unmovedSamples;
+
+    /// <summary>World directions (4096ths of a turn) the game refused from the current spot.</summary>
+    private readonly List<int> refusedHeadingsHere = new();
+
+    /// <summary>How far the camera may turn and the same key still count as the same push.</summary>
+    private const int RefusalCameraTolerance = 64;
+
+    /// <summary>How near a refused world direction a key's push has to be to count as it.</summary>
+    private const int RefusedHeadingTolerance = 160;
+
+    private static int CameraTurn(int from, int to) => ((to - from) % 4096 + 6144) % 4096 - 2048;
+
+    /// <summary>The world direction a key pushes the party in under a camera, in 4096ths.</summary>
+    private int WorldHeading(FieldNavigationInput key, int camera)
+    {
+        var (x, z) = NativeWalkingFrame(key, camera, groundFrameStep);
+        return ((int)Math.Round(Math.Atan2(x, -z) * 4096d / (2d * Math.PI)) % 4096 + 4096) % 4096;
+    }
+
+    private bool IsRefusedHere(FieldNavigationInput key, int camera)
+    {
+        if (refusedHeadingsHere.Count == 0)
+        {
+            return false;
+        }
+
+        var heading = WorldHeading(key, camera);
+        return refusedHeadingsHere.Any(refused => Math.Abs(CameraTurn(refused, heading)) <= RefusedHeadingTolerance);
+    }
+
+    /// <summary>
+    /// Forgets what automatic walking learned from the party's recent movement: the previous
+    /// command and position, refused directions, the committed slot walk and search mode, the
+    /// per-sample cadence and the pace sample. Called whenever something else owns movement
+    /// (a world script, a window, the party menu, focus, combat) - keys are released then, so
+    /// the first sample afterwards must not read a deliberately released key as a wall. The
+    /// selected destination and its route are kept.
+    /// </summary>
+    private void ResetAutomaticLearning()
+    {
+        ClearSlotPath();
+        slotModeEntry = double.NaN;
+        hasLastAutomaticPosition = false;
+        observedSampleStep = 0d;
+        lastAutomaticKey = FieldNavigationInput.None;
+        refusalCountingKey = FieldNavigationInput.None;
+        unmovedSamples = 0;
+        refusedHeadingsHere.Clear();
+        paceHasLast = false;
+    }
+    private bool hasLastAutomaticPosition;
+    private double observedSampleStep;
+    private WorldMapRoutePlan? slotRoute;
+    private WorldMapRouteWaypoint slotPathStart;
+    private WorldMapRouteWaypoint slotLastObserved;
+    private double slotObservedStep;
+    private int slotPlannedHold = 1;
+    private int slotCorner;
+
+    /// <summary>
+    /// The Corel and Wutai bridges and their bridgeheads. The footprint model is stricter than
+    /// the game there - the 2026-09-23 log has the party pacing the Wutai Bridge nearer its
+    /// edge than 200 units - so it is neither a reason to avoid a key nor a way across.
+    /// </summary>
+    private static bool IsBridgeTerrain(int terrainId) => terrainId is 13 or 14 or 29;
+
+    private bool IsOnBridge(WorldMapStateSnapshot state, int x, int z) =>
+        planner.TryResolvePlayerTriangle(state with { X = x, Z = z }, out var triangle) &&
+        IsBridgeTerrain(map.Triangles[triangle].TerrainId);
+
+    /// <summary>What the slot walk is doing, for the diagnostics; empty when it is not in use.</summary>
+    internal string SlotDiagnostic => slotPath.Count == 0
+        ? string.Empty
+        : $"slot walk corner {slotCorner + 1}/{slotPath.Count} at {slotPath[slotCorner].X},{slotPath[slotCorner].Z}";
+
+    /// <summary>
+    /// What is left of the route from here, in plan: its remaining length plus the distance off
+    /// it. Heights are left out on purpose. A leg's height is the straight line between its
+    /// corners, not the ground, so on a climb (the Mount Corel foot, 665 to 1109 over one leg)
+    /// the ground a step reaches can look far off a route it is standing on.
+    /// </summary>
+    private double SlotPotential(WorldMapStateSnapshot at, WorldMapRoutePlan route)
+    {
+        if (!ReferenceEquals(flatSlotRoute, route))
+        {
+            flatSlotRoute = route;
+            flatSlotWaypoints = route.Waypoints.Select(waypoint => waypoint with { Y = 0 }).ToArray();
+            flatSlotStart = routeStart with { Y = 0 };
+            var total = 0d;
+            var previous = flatSlotStart;
+            foreach (var waypoint in flatSlotWaypoints)
+            {
+                total += Math.Sqrt(
+                    Math.Pow(WorldMapTargetCatalog.WrappedDelta(previous.X, waypoint.X, map.WrapWidth), 2) +
+                    Math.Pow(WorldMapTargetCatalog.WrappedDelta(previous.Z, waypoint.Z, map.WrapHeight), 2));
+                previous = waypoint;
+            }
+
+            flatSlotLength = total;
+        }
+
+        var measurement = MeasurePolylineProgress(flatSlotStart, flatSlotWaypoints, at with { Y = 0 }, map.WrapWidth, map.WrapHeight);
+        return flatSlotLength * (1d - measurement.Fraction) + measurement.DistanceFromRoute;
+    }
+
+    private WorldMapRoutePlan? flatSlotRoute;
+    private IReadOnlyList<WorldMapRouteWaypoint> flatSlotWaypoints = Array.Empty<WorldMapRouteWaypoint>();
+    private WorldMapRouteWaypoint flatSlotStart;
+    private double flatSlotLength;
+
+    private void ClearSlotPath()
+    {
+        slotPath.Clear();
+        slotRoute = null;
+        slotCorner = 0;
+    }
+
+    /// <summary>
+    /// The key towards the next corner of the committed slot walk, or false when the walk is
+    /// finished, left behind, or no longer has a step the game would accept.
+    ///
+    /// <para>The walk was planned in the steps the party actually takes per host sample, so
+    /// its corners are reachable one sample at a time. A corner is reached when the party
+    /// stands on it, has gone past it along its leg, or walked over it since the previous
+    /// sample - eight directions held for several frames can straddle a point sideways. The
+    /// aim never looks past the corner: a planned walk can turn back on itself (out of a
+    /// pocket and round), and aiming beyond a turn like that turned the party round.</para>
+    /// </summary>
+    private bool TryFollowSlotPath(
+        WorldMapStateSnapshot state,
+        Func<FieldNavigationInput, bool> isClear,
+        out FieldNavigationInput input)
+    {
+        input = FieldNavigationInput.None;
+        var previous = slotLastObserved;
+        var moved = Math.Sqrt(
+            Math.Pow(WorldMapTargetCatalog.WrappedDelta(previous.X, state.X, map.WrapWidth), 2) +
+            Math.Pow(WorldMapTargetCatalog.WrappedDelta(previous.Z, state.Z, map.WrapHeight), 2));
+        slotObservedStep = Math.Max(slotObservedStep, moved);
+        slotLastObserved = new WorldMapRouteWaypoint(state.X, state.Y, state.Z);
+        var corridor = Math.Max(SlotPathCorridor, 1.5 * slotObservedStep);
+        var here = new WorldMapRouteWaypoint(state.X, state.Y, state.Z);
+        while (slotCorner < slotPath.Count)
+        {
+            var from = slotCorner == 0 ? slotPathStart : slotPath[slotCorner - 1];
+            var corner = slotPath[slotCorner];
+            var (along, offset, length) = MeasureAlongLeg(state, from, corner);
+            if (offset > corridor)
+            {
+                return false;
+            }
+
+            var distance = Math.Sqrt(
+                Math.Pow(WorldMapTargetCatalog.WrappedDelta(state.X, corner.X, map.WrapWidth), 2) +
+                Math.Pow(WorldMapTargetCatalog.WrappedDelta(state.Z, corner.Z, map.WrapHeight), 2));
+            var (_, crossed, _) = MeasureAlongLeg(state with { X = corner.X, Z = corner.Z }, previous, here);
+            if (distance > SlotCornerReach && along < length && crossed > groundFrameStep)
+            {
+                break;
+            }
+
+            slotCorner++;
+        }
+
+        if (slotCorner >= slotPath.Count)
+        {
+            return false;
+        }
+
+        // Planned for shorter samples than the party is now taking: plan again.
+        if (SampleHold() > slotPlannedHold)
+        {
+            return false;
+        }
+
+        var aim = slotPath[slotCorner];
+        var dx = WorldMapTargetCatalog.WrappedDelta(state.X, aim.X, map.WrapWidth);
+        var dz = WorldMapTargetCatalog.WrappedDelta(state.Z, aim.Z, map.WrapHeight);
+        var reach = Math.Max(1d, Math.Sqrt(dx * (double)dx + dz * (double)dz));
+        var hold = SampleHold();
+
+        // A key held for a whole sample must end nearer the corner than the party is now;
+        // one that carries it past and further away turns into a walk back and forth.
+        bool EndsNearer(FieldNavigationInput candidate)
+        {
+            var (stepX, stepZ) = NativeWalkingFrame(candidate, state.CameraFront, groundFrameStep);
+            var endX = dx - stepX * hold;
+            var endZ = dz - stepZ * hold;
+            return endX * (double)endX + endZ * (double)endZ < reach * reach;
+        }
+
+        // Only a key that heads for the corner - within 67.5 degrees, one direction either
+        // side. When the party stands a few units off the planned walk, the step that fitted
+        // there may not fit here; sidestepping instead walked it back and forth, so the walk
+        // is given up and planned again from where the party really is.
+        input = Enum.GetValues<FieldNavigationInput>()
+            .Where(candidate => candidate is >= FieldNavigationInput.Up and <= FieldNavigationInput.UpLeft)
+            .Select(candidate => (Input: candidate, World: PredictNativeMovement(candidate, state.CameraFront)))
+            .Select(candidate => (candidate.Input, Progress:
+                (candidate.World.X * dx + candidate.World.Z * dz) /
+                (Math.Sqrt(candidate.World.X * candidate.World.X + candidate.World.Z * candidate.World.Z) * reach)))
+            .Where(candidate => candidate.Progress >= 0.38d)
+            .OrderByDescending(candidate => candidate.Progress)
+            .Select(candidate => candidate.Input)
+            .FirstOrDefault(candidate => EndsNearer(candidate) && isClear(candidate));
+        return input is >= FieldNavigationInput.Up and <= FieldNavigationInput.UpLeft;
+    }
+
+    /// <summary>How many native frames a host sample has been holding a key for, one to six.</summary>
+    private int SampleHold() => Math.Clamp((int)Math.Round(observedSampleStep / groundFrameStep), 1, 6);
+
+    /// <summary>
+    /// Finds and commits the best short walk the game would accept, or leaves none when
+    /// nothing within reach gets the party a frame further along the route.
+    ///
+    /// <para>Every step is one native frame (0x1E) in one of the eight directions under the
+    /// current camera, and is kept only if the centre line stays on ground the route may use,
+    /// it never stands on another place's entrance, the whole FUN_00751EFC footprint fits
+    /// where it lands, and no parked Buggy refuses it. A walk is scored by how much of the
+    /// route is left from where it ends - the remaining length plus the distance off the line
+    /// - so no single corner has to be chosen, which is what flip-flopped. Reaching the
+    /// destination's own arrival ground beats everything. The search is bounded in frames
+    /// and positions, so it answers in the same observation, and it gives up rather than
+    /// pretend.</para>
+    /// </summary>
+    private void SearchWalkingSlot(WorldMapStateSnapshot state, WorldMapRoutePlan route)
+    {
+        ClearSlotPath();
+        if (!planner.TryResolvePlayerTriangle(state, out var originTriangle))
+        {
+            return;
+        }
+
+        var exemptions = activeTarget?.NativeEntranceExemptions;
+        var buggies = entityProvider is not null
+            ? (activeTarget is { } selected ? ObstaclesOtherThan(selected) : entityProvider())
+                .Where(WorldMapVehicleObstacles.IsParkedBuggy).ToArray()
+            : Array.Empty<WorldMapEntitySnapshot>();
+        var keys = Enum.GetValues<FieldNavigationInput>()
+            .Where(candidate => candidate is >= FieldNavigationInput.Up and <= FieldNavigationInput.UpLeft)
+            .Select(candidate => (Input: candidate, World: PredictNativeMovement(candidate, state.CameraFront)))
+            .ToArray();
+
+        double Remaining(WorldMapStateSnapshot at, int triangle)
+        {
+            if (activeTarget is { } destination && destination.ArrivalTriangleIds.Contains(triangle))
+            {
+                return double.NegativeInfinity;
+            }
+
+            return SlotPotential(at, route);
+        }
+
+        // Faces are resolved once per point: resolving is the expensive part of every step.
+        var faces = new Dictionary<(int, int), int>();
+        bool Resolve(int x, int z, out int face)
+        {
+            if (faces.TryGetValue((x, z), out face))
+            {
+                return face >= 0;
+            }
+
+            if (!planner.TryResolvePlayerTriangle(state with { X = x, Z = z }, out face))
+            {
+                face = -1;
+            }
+
+            faces[(x, z)] = face;
+            return face >= 0;
+        }
+
+        // Still inside the face it was on, in plan: nothing to resolve. Overlapping levels are
+        // resolved at the party's height by the planner; a frame this short stays on its level.
+        bool InsideFace(int face, int x, int z)
+        {
+            var triangle = map.Triangles[face];
+            var (a, b, c) = (triangle.Vertex0, triangle.Vertex1, triangle.Vertex2);
+            var denominator = (b.Z - c.Z) * (double)(a.X - c.X) + (c.X - b.X) * (double)(a.Z - c.Z);
+            if (Math.Abs(denominator) < 1e-6)
+            {
+                return false;
+            }
+
+            var wa = ((b.Z - c.Z) * (double)(x - c.X) + (c.X - b.X) * (double)(z - c.Z)) / denominator;
+            var wb = ((c.Z - a.Z) * (double)(x - c.X) + (a.X - c.X) * (double)(z - c.Z)) / denominator;
+            return wa > 1e-9 && wb > 1e-9 && 1d - wa - wb > 1e-9;
+        }
+
+        var hold = SampleHold();
+        var nodes = new List<(int X, int Z, int Parent, FieldNavigationInput Key)> { (state.X, state.Z, -1, FieldNavigationInput.None) };
+        var nodeFaces = new List<int> { originTriangle };
+        var visited = new HashSet<(int, int)> { (state.X / 10, state.Z / 10) };
+        var best = Remaining(state, originTriangle) - groundFrameStep;
+        var bestNode = -1;
+        var frontier = new List<int> { 0 };
+        for (var depth = 0; depth < Math.Max(3, WalkingSlotSearchFrames / hold) && frontier.Count > 0 && nodes.Count < WalkingSlotSearchNodes; depth++)
+        {
+            var next = new List<int>();
+            foreach (var index in frontier)
+            {
+                var node = nodes[index];
+                foreach (var (key, world) in keys)
+                {
+                    if (nodes.Count >= WalkingSlotSearchNodes)
+                    {
+                        break;
+                    }
+
+                    // The key held for one host sample: as many native frames as the party
+                    // has been moving per sample, each accepted only where the game would
+                    // accept it, and stopping at the first it would refuse.
+                    var (x, z) = (node.X, node.Z);
+                    var face = nodeFaces[index];
+                    var triangle = -1;
+                    var (stepX, stepZ) = NativeWalkingFrame(key, state.CameraFront, groundFrameStep);
+                    for (var frame = 0; frame < hold; frame++)
+                    {
+                        var nextX = x + stepX;
+                        var nextZ = z + stepZ;
+                        // Cheapest first. A frame that stays inside one face enters nothing new,
+                        // so only a frame that changes face walks the centre line.
+                        var nextTriangle = face;
+                        if (!planner.HasWalkingFootprint(state, nextX, state.Y, nextZ) ||
+                            (!InsideFace(face, nextX, nextZ) && !Resolve(nextX, nextZ, out nextTriangle)) ||
+                            planner.IsUnwantedEntrance(nextTriangle, exemptions, originTriangle) ||
+                            IsBridgeTerrain(map.Triangles[nextTriangle].TerrainId) ||
+                            (nextTriangle != face &&
+                             !planner.CanTraverseSegment(state with { X = x, Z = z }, new WorldMapRouteWaypoint(nextX, state.Y, nextZ), null, exemptions)) ||
+                            (buggies.Length > 0 &&
+                             WorldMapVehicleObstacles.BlocksSegment(
+                                 buggies, state.PlayerModelId, x, z, nextX, nextZ, map.WrapWidth, map.WrapHeight)))
+                        {
+                            break;
+                        }
+
+                        (x, z, triangle, face) = (nextX, nextZ, nextTriangle, nextTriangle);
+                        if (activeTarget is { } goal && goal.ArrivalTriangleIds.Contains(triangle))
+                        {
+                            break;
+                        }
+                    }
+
+                    var at = state with { X = x, Z = z };
+                    if (triangle < 0 || !visited.Add((x / 10, z / 10)))
+                    {
+                        continue;
+                    }
+
+                    nodes.Add((x, z, index, key));
+                    nodeFaces.Add(triangle);
+                    var remaining = Remaining(at, triangle);
+                    if (remaining < best)
+                    {
+                        best = remaining;
+                        bestNode = nodes.Count - 1;
+                    }
+
+                    next.Add(nodes.Count - 1);
+                }
+
+                if (bestNode >= 0 && double.IsNegativeInfinity(best))
+                {
+                    break;
+                }
+            }
+
+            if (bestNode >= 0 && double.IsNegativeInfinity(best))
+            {
+                break;
+            }
+
+            frontier = next;
+        }
+
+        if (bestNode < 0)
+        {
+            return;
+        }
+
+        // The walk as corners: where its direction changes, and where it ends.
+        var chain = new List<(int X, int Z, FieldNavigationInput Key)>();
+        for (var index = bestNode; index > 0; index = nodes[index].Parent)
+        {
+            chain.Add((nodes[index].X, nodes[index].Z, nodes[index].Key));
+        }
+
+        chain.Reverse();
+        for (var index = 0; index < chain.Count; index++)
+        {
+            if (index == chain.Count - 1 || chain[index + 1].Key != chain[index].Key)
+            {
+                slotPath.Add(new WorldMapRouteWaypoint(chain[index].X, state.Y, chain[index].Z));
+            }
+        }
+
+        slotRoute = route;
+        slotPlannedHold = hold;
+        slotPathStart = new WorldMapRouteWaypoint(state.X, state.Y, state.Z);
+        slotLastObserved = slotPathStart;
+        slotObservedStep = 0d;
+        slotCorner = 0;
+    }
+
+    /// <summary>
+    /// One native walking frame for a key, as FUN_0074EA48 builds it: 0x1E on an axis, and on
+    /// a diagonal each axis as <c>(axis * 3) &gt;&gt; 2</c> (an arithmetic shift, so +22 and -23),
+    /// turned by a Y rotation of the negative camera angle (006628DE) applied in 4096ths and
+    /// shifted down by 12 (00662ECC). The Old Man's House slot is about 30 units wide, so the
+    /// unit or two a rounded floating vector differs by decides whether the game accepts it.
+    /// </summary>
+    private static (int X, int Z) NativeWalkingFrame(FieldNavigationInput input, int cameraFront, double frameStep)
+    {
+        var stick = FieldNavigationMovementObserver.ToStickDirection(input);
+        var step = (int)frameStep;
+        var x = Math.Sign(stick.X) * step;
+        var z = Math.Sign(stick.Y) * step;
+        if (x != 0 && z != 0)
+        {
+            x = (x * 3) >> 2;
+            z = (z * 3) >> 2;
+        }
+
+        var angle = cameraFront * Math.PI * 2d / 4096d;
+        var cos = (int)Math.Round(Math.Cos(angle) * 4096d);
+        var sin = (int)Math.Round(Math.Sin(angle) * 4096d);
+        return ((cos * x - sin * z) >> 12, (sin * x + cos * z) >> 12);
     }
 
     private static (double X, double Z) PredictNativeMovement(FieldNavigationInput input, int cameraFront)
@@ -648,6 +1380,7 @@ public sealed class WorldMapNavigationController
 
     public void PauseForNativeControl()
     {
+        ResetAutomaticLearning();
         autoWalkConvergence.Reset();
         offRouteSince = DateTime.MinValue;
         lastGuidanceAt = DateTime.MinValue;
@@ -662,6 +1395,7 @@ public sealed class WorldMapNavigationController
         }
 
         combatPaused = true;
+        ResetAutomaticLearning();
         autoWalkConvergence.Reset();
         progressSink?.Deactivate();
         lastDiagnostic = string.IsNullOrWhiteSpace(diagnostic)
@@ -1204,7 +1938,14 @@ public sealed class WorldMapNavigationController
             // same test of special 8 against 0, 1 and 2, jumping to the return at 2E06
             // unless one matches; every other branch is opcode 0x318 EnterField with
             // destination 23 and entry 0 or 1.
-            ["Wutai"] = new HashSet<int> { 0, 1, 2 }
+            ["Wutai"] = new HashSet<int> { 0, 1, 2 },
+            // wm0.ev handler A584, table slot 116, mesh (24,16) script 7, entry IP 2C12: push
+            // special 8 and compare it with 0, 1 and 2 (2C13..2C23), skip to the return at
+            // 2C2C unless one matched (2C24), otherwise EnterField 9 entry 0 (2C26..2C2B).
+            // The same bytes in both installed archives (wm0.ev payload SHA256 a020dace...).
+            // The 2026-09-26 Buggy stood on this trigger, nothing loaded, and navigation
+            // still said it had arrived.
+            ["Old Man's House (Mythril)"] = new HashSet<int> { 0, 1, 2 }
         };
 
     /// <summary>
@@ -1334,7 +2075,7 @@ public sealed class WorldMapNavigationController
     /// <summary>The boat and the party on foot follow legs planned for their footprint.</summary>
     private static bool FollowsLegs(int playerModelId) =>
         playerModelId == WorldMapBroncoLanding.BroncoModelId ||
-        WorldMapRoutePlanner.IsWalkingModel(playerModelId);
+        WorldMapRoutePlanner.UsesGroundFootprint(playerModelId);
 
     private bool IsOnLeg(
         WorldMapStateSnapshot state,
@@ -1349,7 +2090,7 @@ public sealed class WorldMapNavigationController
         var (_, offset, _) = MeasureAlongLeg(state, legStart, legEnd);
         return offset <= (state.PlayerModelId == WorldMapBroncoLanding.BroncoModelId
             ? BoatLegCorridor
-            : WalkingLegCorridor);
+            : 2 * GroundFrameStep(state.PlayerModelId));
     }
 
     /// <summary>
@@ -1399,7 +2140,7 @@ public sealed class WorldMapNavigationController
 
         var lookahead = state.PlayerModelId == WorldMapBroncoLanding.BroncoModelId
             ? BoatLegLookahead
-            : WalkingLegLookahead;
+            : 4 * GroundFrameStep(state.PlayerModelId);
         var aim = Math.Clamp(along + lookahead, 0d, length);
         return ((int)Math.Round(lineX * aim / length - boatX), (int)Math.Round(lineZ * aim / length - boatZ));
     }
@@ -1425,11 +2166,11 @@ public sealed class WorldMapNavigationController
             fitsAt = (x, _, z) => WorldMapBroncoLanding.HasBoatFootprint(map, x, z);
             frameStep = BroncoFrameStep;
         }
-        else if (WorldMapRoutePlanner.IsWalkingModel(state.PlayerModelId) &&
+        else if (WorldMapRoutePlanner.UsesGroundFootprint(state.PlayerModelId) &&
                  planner.HasWalkingFootprint(state, state.X, state.Y, state.Z))
         {
             fitsAt = (x, y, z) => planner.HasWalkingFootprint(state, x, y, z);
-            frameStep = WalkingFrameStep;
+            frameStep = GroundFrameStep(state.PlayerModelId);
         }
         else
         {
@@ -1645,6 +2386,8 @@ public sealed class WorldMapNavigationController
         autoWalkConvergence.Reset();
         detourPlanner?.Invalidate();
         measuringLocalDetour = false;
+        ResetAutomaticLearning();
+        paceLastSignature = string.Empty;
     }
 
     private static string DisplayName(WorldMapNavigationCategory category) => category switch

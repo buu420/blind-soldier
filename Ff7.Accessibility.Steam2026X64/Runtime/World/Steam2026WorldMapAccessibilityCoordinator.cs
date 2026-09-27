@@ -317,6 +317,22 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
             log("Native Steam 2026 world-map auto walk stopped because the selection changed.");
         }
 
+        // Movement ownership is checked on every frame, before the scan throttle and before
+        // any failed read can return: lost focus, a world script, a window or the party menu
+        // - or an ownership read that cannot be taken - releases held keys and makes
+        // automatic walking forget its movement learning and stall time. The route is kept;
+        // speech stays on the throttled scan below.
+        if (!isForeground ||
+            !dialogueReader.TryReadMovementOwnership(out var frameOwnership) ||
+            frameOwnership.IsBlockingMovement)
+        {
+            autoWalk.Suspend();
+            foreach (var context in runtimes.Values)
+            {
+                context.Navigation.PauseForNativeControl();
+            }
+        }
+
         // A toggle-off is consumed above after speaking. Keep its original edge
         // through this throttle so the terrain tracker sees that higher-priority
         // speech and waits for a quiet interval instead of talking over it.
@@ -332,22 +348,24 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
 
         nextScanUtc = nowUtc + TimeSpan.FromMilliseconds(
             Math.Max(30, config.WorldMapScanIntervalMs));
-        if (dialogueReader.TryRead(out var dialogue))
+        // Ownership is read on its own: a torn window must neither hide that a world script
+        // or the party menu has taken control nor let automatic walking run.
+        var ownershipRead = dialogueReader.TryReadMovementOwnership(out var ownership);
+        var dialogueRead = dialogueReader.TryRead(out var dialogue);
+        if (dialogueRead && isForeground && config.EnableSpeech && config.EnableRuntimeDialogueSpeech &&
+            dialogueTracker.Observe(dialogue) is { } text)
         {
-            if (isForeground && config.EnableSpeech && config.EnableRuntimeDialogueSpeech &&
-                dialogueTracker.Observe(dialogue) is { } text)
-            {
-                speak(text, true);
-                log($"Native Steam 2026 world dialogue: {text}");
-            }
-            if (dialogue.IsBlockingMovement)
-            {
-                PublishControllerUnavailable(nowUtc);
-                foreach (var context in runtimes.Values) context.Navigation.PauseForNativeControl();
-                autoWalk.Suspend();
-                entranceCuePlayer?.StopAll();
-                return;
-            }
+            speak(text, true);
+            log($"Native Steam 2026 world dialogue: {text}");
+        }
+        var holdAutoWalk = !ownershipRead;
+        if (WorldMapMovementGate.ShouldPauseSample(ownershipRead, ownership, dialogueRead, dialogueRead ? dialogue : null))
+        {
+            PublishControllerUnavailable(nowUtc);
+            foreach (var context in runtimes.Values) context.Navigation.PauseForNativeControl();
+            autoWalk.Suspend();
+            entranceCuePlayer?.StopAll();
+            return;
         }
         var stateResult = stateReader.Read();
         LogDiagnostic("state", stateResult.Diagnostic, ref lastStateDiagnostic);
@@ -447,13 +465,15 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
 
         // The route keeps running while the menu is open; it just stops narrating
         // itself, so recurring directions cannot talk over the item being read.
+        // Automatic walking is held while the menu is open, so its stall clock is too.
         var routeObservation = runtime.Navigation.Observe(
             state,
             nowUtc,
-            autoWalk.IsEnabledFor(NavigationAutoWalkDomain.WorldMap));
-        if (controllerMenuIsOpen)
+            !controllerMenuIsOpen && !holdAutoWalk && autoWalk.IsEnabledFor(NavigationAutoWalkDomain.WorldMap));
+        if (controllerMenuIsOpen || holdAutoWalk)
         {
             autoWalk.Suspend();
+            runtime.Navigation.PauseForNativeControl();
         }
         else
         {
@@ -885,6 +905,15 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         }
 
         var hasDirection = runtime.Navigation.TryResolveAutomaticInput(state, out var direction);
+        if (runtime.Navigation.DescribeAutomaticPace(
+                state,
+                hasDirection,
+                direction,
+                dialogueReader.TryReadNativeWorldInput(out var nativeInput) ? nativeInput : null) is { } pace)
+        {
+            log($"Native Steam 2026 world-map auto walk pace: {pace}");
+        }
+
         var result = autoWalk.Drive(
             hasDirection ? direction : FieldNavigationInput.None,
             canMove: hasDirection,

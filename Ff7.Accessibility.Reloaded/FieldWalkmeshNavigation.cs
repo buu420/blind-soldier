@@ -368,13 +368,17 @@ public sealed class FieldWalkmeshRoutePlanner :
         Func<
             FieldPositionSnapshot,
             FieldNavigationTarget?,
-            IReadOnlyList<FieldNavigationDynamicObstacle>>? dynamicObstacleProvider = null)
+            IReadOnlyList<FieldNavigationDynamicObstacle>>? dynamicObstacleProvider = null,
+        Func<FieldPositionSnapshot, double>? playerCollisionRadiusProvider = null)
     {
         this.reader = reader;
         this.boundaryStateReader = boundaryStateReader;
         this.transitionProvider = transitionProvider;
         this.dynamicObstacleProvider = dynamicObstacleProvider;
+        this.playerCollisionRadiusProvider = playerCollisionRadiusProvider;
     }
+
+    private readonly Func<FieldPositionSnapshot, double>? playerCollisionRadiusProvider;
 
     public string LastDiagnostic { get; private set; } = string.Empty;
 
@@ -702,7 +706,8 @@ public sealed class FieldWalkmeshRoutePlanner :
                         out portals,
                         out targetTriangle,
                         out finalApproach,
-                        out triggerLineDistance);
+                        out triggerLineDistance,
+                        ResolvePlayerBodyRadius(position, target));
         usedTriggerLineApproach = found;
         if (!found)
         {
@@ -2475,7 +2480,8 @@ public sealed class FieldWalkmeshRoutePlanner :
         out IReadOnlyList<FieldNavigationRoutePortal> bestPortals,
         out int bestTargetTriangle,
         out FieldNavigationRouteWaypoint bestApproach,
-        out double bestTriggerLineDistance)
+        out double bestTriggerLineDistance,
+        double bodyRadius = 0d)
     {
         bestTrianglePath = Array.Empty<int>();
         bestPortals = Array.Empty<FieldNavigationRoutePortal>();
@@ -2558,12 +2564,250 @@ public sealed class FieldWalkmeshRoutePlanner :
             bestApproach = approach;
         }
 
+        // The point of the line nearest the player can be one no body reaches: under Junon
+        // (428) the gateway to field 7 ends at 633,888, three units from the closed edge of
+        // triangle 127, and a body of the leader's native radius (30) slid along that wall
+        // without ever crossing the line. Where the chosen point does not leave the body room,
+        // take the nearest point of the same real line that does. A line with no such point -
+        // one lying on the walkmesh boundary itself - keeps the point it always had.
+        if (found && bodyRadius > 0d)
+        {
+            var closedEdges = CollectClosedEdges(walkmesh, isTriangleBlocked);
+            var chosenRoom = DistanceToEdges(closedEdges, bestApproach.X, bestApproach.Y, bestApproach.Z);
+            if (chosenRoom < bodyRadius + 1d &&
+                TryFindBodyClearTriggerLineApproach(
+                    walkmesh, playerTriangle, position, triggerLine, isTriangleBlocked, offMeshLinks,
+                    closedEdges, bodyRadius, chosenRoom,
+                    out var clearPath, out var clearPortals, out var clearTarget, out var clearApproach))
+            {
+                bestTrianglePath = clearPath;
+                bestPortals = clearPortals;
+                bestTargetTriangle = clearTarget;
+                bestApproach = clearApproach;
+                bestTriggerLineDistanceSquared = CalculateSquaredDistanceToTriggerLine(clearApproach, triggerLine);
+            }
+        }
+
         if (found)
         {
             bestTriggerLineDistance = Math.Sqrt(bestTriggerLineDistanceSquared);
         }
 
         return found;
+    }
+
+    /// <summary>How far apart the body-clear search samples the trigger line.</summary>
+    private const double TriggerLineBodySampleStep = 8d;
+
+    /// <summary>How many of the nearest body-clear samples are routed before one is chosen.</summary>
+    private const int TriggerLineBodyCandidates = 12;
+
+    /// <summary>How much more room than the chosen point a narrower-than-body doorway point must have.</summary>
+    private const double TriggerLineBodyRoomGain = 8d;
+
+    /// <summary>
+    /// The nearest point of the real trigger line, on walkable floor at the line's own
+    /// height, that a body of the given radius can stand on - at least that far from every
+    /// closed or blocked walkmesh edge - with a route to it. Among the nearest few by
+    /// straight distance, the one with the shortest route.
+    ///
+    /// <para>A doorway the line spans exactly can be narrower than the body with room to
+    /// spare: the Junon street Barracks line (370) is about 84 long between its jambs and the
+    /// leader's radius there is 41. Then the roomiest point of the line is taken, but only
+    /// when it has clearly more room (<see cref="TriggerLineBodyRoomGain"/>) than the point
+    /// already chosen; a line lying on the walkmesh boundary has no room anywhere and keeps
+    /// the point it always had.</para>
+    /// </summary>
+    private static bool TryFindBodyClearTriggerLineApproach(
+        FieldWalkmesh walkmesh,
+        int playerTriangle,
+        FieldPositionSnapshot position,
+        FieldNavigationTriggerLine triggerLine,
+        Func<int, bool>? isTriangleBlocked,
+        IReadOnlyList<FieldWalkmeshOffMeshLink> offMeshLinks,
+        IReadOnlyList<(double AX, double AY, double AZ, double BX, double BY, double BZ)> closedEdges,
+        double bodyRadius,
+        double chosenRoom,
+        out IReadOnlyList<int> trianglePath,
+        out IReadOnlyList<FieldNavigationRoutePortal> portals,
+        out int targetTriangle,
+        out FieldNavigationRouteWaypoint approach)
+    {
+        trianglePath = Array.Empty<int>();
+        portals = Array.Empty<FieldNavigationRoutePortal>();
+        targetTriangle = -1;
+        approach = default;
+        var lineX = (double)triggerLine.EndX - triggerLine.StartX;
+        var lineY = (double)triggerLine.EndY - triggerLine.StartY;
+        var length = Math.Sqrt(lineX * lineX + lineY * lineY);
+        var samples = Math.Max(1, (int)Math.Ceiling(length / TriggerLineBodySampleStep));
+        var candidates = new List<(FieldNavigationRouteWaypoint Point, double Straight, double Room)>();
+        for (var sample = 0; sample <= samples; sample++)
+        {
+            var amount = sample / (double)samples;
+            var x = (int)Math.Round(triggerLine.StartX + lineX * amount);
+            var y = (int)Math.Round(triggerLine.StartY + lineY * amount);
+            for (var triangleIndex = 0; triangleIndex < walkmesh.Triangles.Count; triangleIndex++)
+            {
+                var triangle = walkmesh.Triangles[triangleIndex];
+                if (isTriangleBlocked?.Invoke(triangleIndex) == true || !ContainsInPlan(triangle, x, y))
+                {
+                    continue;
+                }
+
+                var point = new FieldNavigationRouteWaypoint(x, y, (int)Math.Round(InterpolateTriangleZ(triangle, x, y)));
+                if (CalculateVerticalDistanceToTriggerLine(point, triggerLine) >= NativeInteractionVerticalRange)
+                {
+                    continue;
+                }
+
+                // Room on this floor: walls of a floor above or below are not beside it.
+                var room = DistanceToEdges(closedEdges, x, y, point.Z);
+                if (room < chosenRoom + TriggerLineBodyRoomGain)
+                {
+                    continue;
+                }
+
+                var dx = x - (double)position.X;
+                var dy = y - (double)position.Y;
+                candidates.Add((point, Math.Sqrt(dx * dx + dy * dy), room));
+            }
+        }
+
+        // Points the whole body fits at, nearest first; failing any, the roomiest first.
+        var clear = candidates.Where(candidate => candidate.Room >= bodyRadius + 1d).ToArray();
+        var ordered = clear.Length > 0
+            ? clear.OrderBy(candidate => candidate.Straight)
+            : candidates.OrderByDescending(candidate => candidate.Room).ThenBy(candidate => candidate.Straight);
+        var bestRoute = double.PositiveInfinity;
+        foreach (var (point, _, _) in ordered.Take(TriggerLineBodyCandidates))
+        {
+            if (!FieldWalkmeshPathfinder.TryBuildRoute(
+                    walkmesh, playerTriangle, position.X, position.Y, position.Z,
+                    point.X, point.Y, point.Z, isTriangleBlocked, offMeshLinks,
+                    out var path, out var routePortals, out var resolved) ||
+                Math.Abs(InterpolateTriangleZ(walkmesh.Triangles[resolved], point.X, point.Y) - point.Z) >=
+                NativeInteractionVerticalRange)
+            {
+                continue;
+            }
+
+            var routeDistance = CalculateRouteDistance(position, routePortals, point);
+            if (routeDistance >= bestRoute)
+            {
+                continue;
+            }
+
+            bestRoute = routeDistance;
+            trianglePath = path;
+            portals = routePortals;
+            targetTriangle = resolved;
+            approach = point;
+            if (clear.Length == 0)
+            {
+                // No point fits the whole body: the roomiest one that routes is the answer.
+                break;
+            }
+        }
+
+        return targetTriangle >= 0;
+    }
+
+    /// <summary>Every walkmesh edge a body cannot cross: no neighbour, or a neighbour the game holds shut.</summary>
+    /// <summary>
+    /// How near in height a closed edge has to be to bound the floor a point stands on: the
+    /// native model-collision band (127). A wall of a floor stacked above or below the gateway
+    /// is hundreds of units away in height and is not beside it.
+    /// </summary>
+    private const double ClearanceVerticalBand = FieldNavigationDynamicObstacleGeometry.NativeMaximumVerticalSeparation;
+
+    private static IReadOnlyList<(double AX, double AY, double AZ, double BX, double BY, double BZ)> CollectClosedEdges(
+        FieldWalkmesh walkmesh,
+        Func<int, bool>? isTriangleBlocked)
+    {
+        var edges = new List<(double, double, double, double, double, double)>();
+        for (var index = 0; index < walkmesh.Triangles.Count; index++)
+        {
+            if (isTriangleBlocked?.Invoke(index) == true)
+            {
+                continue;
+            }
+
+            var triangle = walkmesh.Triangles[index];
+            for (var edge = 0; edge < 3; edge++)
+            {
+                var neighbour = triangle.GetAdjacentTriangle(edge);
+                if (neighbour >= 0 && isTriangleBlocked?.Invoke(neighbour) != true)
+                {
+                    continue;
+                }
+
+                var (a, b) = triangle.GetEdge(edge);
+                edges.Add((a.X, a.Y, a.Z, b.X, b.Y, b.Z));
+            }
+        }
+
+        return edges;
+    }
+
+    /// <summary>The plan distance to the nearest closed edge on the same floor as a point at height z.</summary>
+    private static double DistanceToEdges(
+        IReadOnlyList<(double AX, double AY, double AZ, double BX, double BY, double BZ)> edges,
+        double x,
+        double y,
+        double z)
+    {
+        var best = double.PositiveInfinity;
+        foreach (var (ax, ay, az, bx, by, bz) in edges)
+        {
+            var dx = bx - ax;
+            var dy = by - ay;
+            var lengthSquared = dx * dx + dy * dy;
+            var t = lengthSquared <= 0d ? 0d : Math.Clamp(((x - ax) * dx + (y - ay) * dy) / lengthSquared, 0d, 1d);
+            if (Math.Abs(az + (bz - az) * t - z) > ClearanceVerticalBand)
+            {
+                continue;
+            }
+
+            var px = ax + dx * t - x;
+            var py = ay + dy * t - y;
+            best = Math.Min(best, Math.Sqrt(px * px + py * py));
+        }
+
+        return best;
+    }
+
+    private static bool ContainsInPlan(FieldWalkmeshTriangle triangle, int x, int y)
+    {
+        var (a, b, c) = (triangle.Vertex0, triangle.Vertex1, triangle.Vertex2);
+        var denominator = (b.Y - c.Y) * (double)(a.X - c.X) + (c.X - b.X) * (double)(a.Y - c.Y);
+        if (Math.Abs(denominator) < 1e-9)
+        {
+            return false;
+        }
+
+        var wa = ((b.Y - c.Y) * (double)(x - c.X) + (c.X - b.X) * (double)(y - c.Y)) / denominator;
+        var wb = ((c.Y - a.Y) * (double)(x - c.X) + (a.X - c.X) * (double)(y - c.Y)) / denominator;
+        return wa >= -1e-9 && wb >= -1e-9 && 1d - wa - wb >= -1e-9;
+    }
+
+    /// <summary>
+    /// The leader's own collision radius, the native <c>+0x72</c>: from the host's reader of
+    /// the player's event data when there is one, otherwise from the obstacle reader that
+    /// already carries it (only when some other model survives its filters).
+    /// </summary>
+    private double ResolvePlayerBodyRadius(FieldPositionSnapshot position, FieldNavigationTarget target)
+    {
+        if (playerCollisionRadiusProvider?.Invoke(position) is { } radius && double.IsFinite(radius) && radius > 0d)
+        {
+            return radius;
+        }
+
+        return (dynamicObstacleProvider?.Invoke(position, target) ?? Array.Empty<FieldNavigationDynamicObstacle>())
+            .Where(obstacle => double.IsFinite(obstacle.PlayerCollisionRadius))
+            .Select(obstacle => obstacle.PlayerCollisionRadius)
+            .DefaultIfEmpty(0d)
+            .Max();
     }
 
     private static double CalculateVerticalDistanceToTriggerLine(

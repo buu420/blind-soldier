@@ -20,6 +20,7 @@ internal static class Steam2026WorldMapTerrainPriorityTests
         TheX64HostRepeatsADirectionalCueTowardJunonsNativeEntrance();
         ControllerBumpersCycleWorldCategoriesAndKeepSpeechPriority();
         AVisibleWorldWarningSpeaksAndReleasesMovement();
+        LostControlReleasesMovementBeforeTheScanThrottle();
     }
 
     private static void AVisibleWorldWarningSpeaksAndReleasesMovement()
@@ -563,6 +564,36 @@ internal static class Steam2026WorldMapTerrainPriorityTests
         Equal("Junon", played[1].Cue.TargetLabel, "x64 repeated cue remains on Junon's native arrival");
     }
 
+    /// <summary>
+    /// The movement gate runs on every frame, not only on the throttled scan (200 ms here):
+    /// a world script or the party menu taking control releases a held direction on the very
+    /// next frame, and so does an ownership read that cannot be taken.
+    /// </summary>
+    private static void LostControlReleasesMovementBeforeTheScanThrottle()
+    {
+        foreach (var takeOwnership in new Action<MutableWorldMemory>[]
+                 {
+                     memory => memory.WriteInt32(WorldMapDialogueReader.ControlAddress, 0),
+                     memory => memory.WriteInt32((uint)MenuGilStateReader.AddressMainMenuSession, 1)
+                 })
+        {
+            var memory = SeedWorldMemory(terrainId: 0);
+            var sink = new AcceptingKeyboardSink();
+            using var autoWalk = new NavigationAutoWalkController(sink);
+            using var coordinator = CreateCoordinator(memory, new MutableInput(), autoWalk, (_, _) => { });
+            Observe(coordinator, Epoch);
+            Equal(true, autoWalk.TryStart(NavigationAutoWalkDomain.WorldMap, routeActive: true), "a world walk is active");
+            Equal(true, autoWalk.Drive(FieldNavigationInput.Right, canMove: true, routeActive: true).Success,
+                "a direction is held");
+            sink.Sent.Clear();
+            takeOwnership(memory);
+            Observe(coordinator, Epoch.AddMilliseconds(20));
+            Equal(true, sink.Sent.Any(transition => !transition.IsKeyDown),
+                "the held direction is released on the next frame, inside the scan throttle");
+            Equal(true, autoWalk.IsEnabledFor(NavigationAutoWalkDomain.WorldMap), "the walk intent is kept");
+        }
+    }
+
     private static Steam2026WorldMapAccessibilityCoordinator CreateCoordinator(
         MutableWorldMemory memory,
         MutableInput input,
@@ -634,6 +665,10 @@ internal static class Steam2026WorldMapTerrainPriorityTests
         var memory = new MutableWorldMemory();
         memory.WriteByte((uint)WorldMapStateReader.AddressCurrentModule, WorldMapStateReader.WorldModule);
         memory.WriteInt32(WorldMapDialogueReader.ControlAddress, 1);
+        // The coordinator now reads world-movement ownership on its own, including the party
+        // menu's session flag and slide phase: no menu session, closed.
+        memory.WriteInt32((uint)MenuGilStateReader.AddressMainMenuSession, 0);
+        memory.WriteInt32((uint)MenuGilStateReader.AddressMainMenuPhase, -1);
         for (var window = 0; window < 4; window++)
         {
             memory.WriteUInt16(WorldMapDialogueReader.WindowStateAddress + (uint)(window * 0x30), 0);
