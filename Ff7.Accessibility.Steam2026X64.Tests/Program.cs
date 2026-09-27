@@ -382,6 +382,14 @@ if (args.Contains("--north-corel-repair-only", StringComparer.OrdinalIgnoreCase)
     return;
 }
 
+if (args.Contains("--world-house-autowalk-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.WorldMapMovementOwnershipTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.WorldMapHouseAutoWalkTests.Run();
+    Console.WriteLine("World map house auto walk tests passed.");
+    return;
+}
+
 if (args.Contains("--world-mount-corel-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.WorldMapMountCorelNavigationTests.Run();
@@ -403,6 +411,13 @@ if (args.Contains("--manual-field-objects-only", StringComparer.OrdinalIgnoreCas
 {
     FieldManualObjectGuidanceTests.Run();
     Console.WriteLine("Manual field object guidance tests passed.");
+    return;
+}
+
+if (args.Contains("--field-gateway-body-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.FieldGatewayBodyClearanceTests.Run(CreateInstalledFieldWalkmeshReader);
+    Console.WriteLine("Field gateway body clearance tests passed.");
     return;
 }
 
@@ -913,6 +928,9 @@ Ff7.Accessibility.Reloaded.Tests.ReviewedFilmNarrationTests.RunWithInstalledGame
 Ff7.Accessibility.Reloaded.Tests.GoldSaucerDescriptionTests.Run();
 Ff7.Accessibility.Reloaded.Tests.GoldSaucerMinigameTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WorldMapMountCorelNavigationTests.Run();
+Ff7.Accessibility.Reloaded.Tests.WorldMapMovementOwnershipTests.Run();
+Ff7.Accessibility.Reloaded.Tests.FieldGatewayBodyClearanceTests.Run(CreateInstalledFieldWalkmeshReader);
+Ff7.Accessibility.Reloaded.Tests.WorldMapHouseAutoWalkTests.Run();
 FieldNavigationPrecisionTests.Run();
 FieldNavigationNativeProbeMovementTests.Run(CreateInstalledFieldWalkmeshReader);
 NorthCorelRecoveryHeightTests.Run(CreateInstalledFieldWalkmeshReader);

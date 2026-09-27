@@ -756,10 +756,10 @@ public sealed class WorldMapRoutePlanner
                 BoatFrameStep,
                 SailingLegMargin,
                 MinimumBendOffset: 0)
-            : IsWalkingModel(state.PlayerModelId)
+            : UsesGroundFootprint(state.PlayerModelId)
                 ? new FootprintRule(
                     (x, y, z) => HasWalkingFootprint(state, x, y, z),
-                    WalkingFrameStep,
+                    state.PlayerModelId == BuggyModelId ? BuggyFrameStep : WalkingFrameStep,
                     LegMargin: 0d,
                     MinimumBendOffset: BendSearchStep)
                 : null;
@@ -793,7 +793,7 @@ public sealed class WorldMapRoutePlanner
                     ref firstPoint,
                     ref secondPoint,
                     clip.FitsAt,
-                    IsWalkingModel(state.PlayerModelId) ? WalkingCornerClearance : 0d);
+                    UsesGroundFootprint(state.PlayerModelId) ? WalkingCornerClearance : 0d);
             }
             portals.Add(OrientPortal(
                 firstPoint,
@@ -826,7 +826,7 @@ public sealed class WorldMapRoutePlanner
             finalReference.Z);
         var pulled = footprint is not { } legs
             ? WorldMapFunnel.BuildStableWaypoints(start, portals, unwrappedFinalPoint)
-            : IsWalkingModel(state.PlayerModelId)
+            : UsesGroundFootprint(state.PlayerModelId)
                 ? BuildWalkingWaypoints(start, portals, unwrappedFinalPoint, legs)
                 : BuildFootprintWaypoints(start, portals, unwrappedFinalPoint, legs);
         var normalized = pulled
@@ -923,6 +923,20 @@ public sealed class WorldMapRoutePlanner
 
     /// <summary>Cloud, Tifa and Cid: the models that walk the world map.</summary>
     internal static bool IsWalkingModel(int playerModelId) => playerModelId is 0 or 1 or 2;
+
+    /// <summary>FUN_0074EA48: the Buggy moves 0x2D a frame.</summary>
+    private const double BuggyFrameStep = 0x2D;
+
+    internal const int BuggyModelId = 6;
+
+    /// <summary>
+    /// The models FUN_00751EFC holds to the 200-unit ground footprint (007530B3 uses 350 only
+    /// for the boat): the party on foot and the Buggy. Their routes keep the footprint's room
+    /// the same way; the Buggy's own ground is still its own terrain rule. Flying, the
+    /// submarine and the chocobos are left as they were.
+    /// </summary>
+    internal static bool UsesGroundFootprint(int playerModelId) =>
+        IsWalkingModel(playerModelId) || playerModelId == BuggyModelId;
 
     /// <summary>
     /// The Tiny Bronco's waypoints: the middle of each portal's sailable stretch, joined by

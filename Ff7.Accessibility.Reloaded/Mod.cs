@@ -1411,7 +1411,8 @@ public sealed class Mod : IModV1, IModV2
             fieldWalkmeshReader,
             fieldBoundaryStateReader,
             transitionProvider: ReadNavigationTransitions,
-            dynamicObstacleProvider: fieldDynamicObstacleReader.Read);
+            dynamicObstacleProvider: fieldDynamicObstacleReader.Read,
+            playerCollisionRadiusProvider: fieldDynamicObstacleReader.ReadPlayerCollisionRadius);
         var fieldExitReachabilityPlanner = new FieldWalkmeshRoutePlanner(
             fieldWalkmeshReader,
             fieldBoundaryStateReader,
@@ -5415,6 +5416,13 @@ public sealed class Mod : IModV1, IModV2
             lastWorldMapProgressControlSpeechRevision = progressControlRevision;
         }
 
+        // Movement ownership is checked on every tick, before the scan throttle and before any
+        // failed read can return: when a world script, a window, the party menu or lost focus
+        // owns movement - or it cannot be read - held keys are released and automatic walking
+        // forgets its movement learning and stall time at once. The route is kept, and speech
+        // stays on the throttled scan below.
+        ReleaseWorldMovementIfOwnedElsewhere();
+
         if (now - lastWorldMapScanAt < TimeSpan.FromMilliseconds(Math.Max(30, config.WorldMapScanIntervalMs)) &&
             !battleStatusLimitKeyFrameRouter.HasNavigationPress(
                 WorldMapStateReader.WorldModule) &&
@@ -5468,15 +5476,21 @@ public sealed class Mod : IModV1, IModV2
 
             worldMapWasActive = true;
             var isForeground = foregroundProcessGate.IsCurrentProcessForeground();
-            if (worldMapDialogueReader?.TryRead(out var dialogue) == true)
+            var holdWorldAutoWalk = false;
+            if (worldMapDialogueReader is { } dialogueReader)
             {
-                if (isForeground && config.EnableSpeech && config.EnableRuntimeDialogueSpeech &&
+                // Ownership is read on its own: a torn window must neither hide that a world
+                // script or the party menu has taken control nor let automatic walking run.
+                var ownershipRead = dialogueReader.TryReadMovementOwnership(out var ownership);
+                var dialogueRead = dialogueReader.TryRead(out var dialogue);
+                if (dialogueRead && isForeground && config.EnableSpeech && config.EnableRuntimeDialogueSpeech &&
                     worldMapDialogueTracker.Observe(dialogue) is { } text)
                 {
                     Speak(text, interrupt: true);
                     Log($"World dialogue: {text}");
                 }
-                if (dialogue.IsBlockingMovement)
+                holdWorldAutoWalk = !ownershipRead;
+                if (WorldMapMovementGate.ShouldPauseSample(ownershipRead, ownership, dialogueRead, dialogueRead ? dialogue : null))
                 {
                     PublishControllerNavigationUnavailable();
                     battleStatusLimitKeyFrameRouter.DiscardNavigationPress(WorldMapStateReader.WorldModule);
@@ -5631,9 +5645,12 @@ public sealed class Mod : IModV1, IModV2
             // While the menu is open the player is reading a list. Routine route
             // directions arriving every few seconds would talk over the item they are
             // trying to hear, so the route keeps running and stops narrating itself.
+            // Automatic walking is held while the menu is open, so its stall clock is too:
+            // time spent reading the list is not a walk that failed to get closer.
             var worldRouteObservation = runtime.Navigation.Observe(
                 state,
                 now,
+                !controllerMenuIsOpen && !holdWorldAutoWalk &&
                 navigationAutoWalkController?.IsEnabledFor(
                     NavigationAutoWalkDomain.WorldMap) == true);
             if (!controllerMenuIsOpen)
@@ -5641,10 +5658,13 @@ public sealed class Mod : IModV1, IModV2
                 higherPrioritySpeech |= ProcessWorldMapNavigationOutput(worldRouteObservation);
             }
 
-            if (controllerMenuIsOpen)
+            if (controllerMenuIsOpen || holdWorldAutoWalk)
             {
-                // Held still while the player reads the list, without losing the route.
+                // Held still while the player reads the list, or while it cannot be told who
+                // owns movement, without losing the route - and what automatic walking learned
+                // from the party not moving meanwhile is not a wall.
                 navigationAutoWalkController?.Suspend();
+                runtime.Navigation.PauseForNativeControl();
             }
             else
             {
@@ -7183,6 +7203,16 @@ public sealed class Mod : IModV1, IModV2
         }
 
         var hasDirection = runtime.Navigation.TryResolveAutomaticInput(state, out var direction);
+        if (config.EnableWorldMapNavigationDiagnostics &&
+            runtime.Navigation.DescribeAutomaticPace(
+                state,
+                hasDirection,
+                direction,
+                worldMapDialogueReader?.TryReadNativeWorldInput(out var nativeInput) == true ? nativeInput : null) is { } pace)
+        {
+            Log($"World-map auto walk pace: {pace}");
+        }
+
         var result = navigationAutoWalkController.Drive(
             hasDirection ? direction : FieldNavigationInput.None,
             canMove: hasDirection,
@@ -7238,6 +7268,34 @@ public sealed class Mod : IModV1, IModV2
         }
 
         return true;
+    }
+
+    /// <summary>
+    /// The cheap per-tick part of the world movement gate. Only on the world module; reads the
+    /// control flag and menu session, and the foreground gate.
+    /// </summary>
+    private void ReleaseWorldMovementIfOwnedElsewhere()
+    {
+        if (worldMapDialogueReader is not { } ownershipReader ||
+            ReadByte(WorldMapStateReader.AddressCurrentModule) != WorldMapStateReader.WorldModule)
+        {
+            return;
+        }
+
+        var ownedElsewhere =
+            !ownershipReader.TryReadMovementOwnership(out var ownership) ||
+            ownership.IsBlockingMovement ||
+            !foregroundProcessGate.IsCurrentProcessForeground();
+        if (!ownedElsewhere)
+        {
+            return;
+        }
+
+        SuspendNavigationAutoWalk(NavigationAutoWalkDomain.WorldMap);
+        foreach (var context in worldMapRuntimes.Values)
+        {
+            context.Navigation.PauseForNativeControl();
+        }
     }
 
     private void SuspendNavigationAutoWalk(NavigationAutoWalkDomain domain)

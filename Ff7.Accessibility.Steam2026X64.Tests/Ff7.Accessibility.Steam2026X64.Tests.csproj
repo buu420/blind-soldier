@@ -114,6 +114,12 @@
              Link="SharedTests\WorldMapNavigationControllerTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\WorldMapMountCorelNavigationTests.cs"
              Link="SharedTests\WorldMapMountCorelNavigationTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\WorldMapHouseAutoWalkTests.cs"
+             Link="SharedTests\WorldMapHouseAutoWalkTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\WorldMapMovementOwnershipTests.cs"
+             Link="SharedTests\WorldMapMovementOwnershipTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\FieldGatewayBodyClearanceTests.cs"
+             Link="SharedTests\FieldGatewayBodyClearanceTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\WorldMapTargetCatalogTests.cs"
              Link="SharedTests\WorldMapTargetCatalogTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\WorldMapTerrainAnnouncementTests.cs"
@@ -146,6 +152,8 @@
              Link="SharedTests\TempleClockDeliveryTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\ChaseAndExcavationTests.cs"
              Link="SharedTests\ChaseAndExcavationTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\BoneVillageDigSpotTests.cs"
+             Link="SharedTests\BoneVillageDigSpotTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\GuideRouteRegressionTests.cs"
              Link="SharedTests\GuideRouteRegressionTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\FieldNavigationTriggerFallbackTests.cs"
