@@ -187,7 +187,8 @@ public readonly record struct FieldWalkmeshOffMeshLink(
     string StableId,
     FieldNavigationTransitionKind? TransitionKind,
     FieldNavigationInput RequiredInput = FieldNavigationInput.None,
-    bool RequiresAction = false);
+    bool RequiresAction = false,
+    FieldScriptNavigationChoice? RequiredChoice = null);
 
 public readonly record struct FieldNavigationRouteStep(
     FieldNavigationRouteWaypoint Waypoint,
@@ -205,7 +206,8 @@ public readonly record struct FieldNavigationRoutePortal(
     string TransitionId = "",
     FieldNavigationInput RequiredInput = FieldNavigationInput.None,
     FieldNavigationRouteWaypoint? TransitionExit = null,
-    bool RequiresAction = false)
+    bool RequiresAction = false,
+    FieldScriptNavigationChoice? RequiredChoice = null)
 {
     public FieldNavigationRouteWaypoint Midpoint => new(
         (Left.X + Right.X) / 2,
@@ -221,7 +223,8 @@ public readonly record struct FieldNavigationRouteAction(
     FieldNavigationRouteWaypoint Destination = default,
     int DestinationTriangle = -1,
     bool RequiresAction = false,
-    int PortalIndex = -1);
+    int PortalIndex = -1,
+    FieldScriptNavigationChoice? RequiredChoice = null);
 
 public sealed record FieldNavigationRoutePlan(
     int FieldId,
@@ -3236,7 +3239,88 @@ public sealed class FieldWalkmeshRoutePlanner :
             return true;
         }
 
+        // Only a body that was actually checked gets here: without a readable radius the
+        // search above is the legacy one, unchanged. Everything near the closest point faces
+        // a wall within a body's width - Bone Village's foreman sits in a tent on a walkmesh
+        // island, and every point of the ground in front of it that the inset reaches looks
+        // straight into the tent's edge - so the rest of the triangle is tried, nearest the
+        // target first, under the same reach, height and native wall probe.
+        if (canBodyStand is not null &&
+            TryCreateInteriorInteractionApproach(triangle, triangleIndex, target, canBodyStand, out approach, out approachToTargetDistance))
+        {
+            return true;
+        }
+
         approachToTargetDistance = 0d;
+        return false;
+    }
+
+    /// <summary>
+    /// The interior points of a triangle an interaction approach may use when none near its
+    /// closest point does: a fixed barycentric lattice (sixths, every weight at least one
+    /// sixth, so no point lies on an edge), plus the centroid. Bounded, and deterministic.
+    /// </summary>
+    private static readonly (double A, double B, double C)[] InteriorInteractionWeights = CreateInteriorInteractionWeights();
+
+    private static (double A, double B, double C)[] CreateInteriorInteractionWeights()
+    {
+        var weights = new List<(double, double, double)>();
+        for (var a = 1; a <= 4; a++)
+        {
+            for (var b = 1; a + b <= 5; b++)
+            {
+                weights.Add((a / 6d, b / 6d, (6 - a - b) / 6d));
+            }
+        }
+
+        weights.Add((1 / 3d, 1 / 3d, 1 / 3d));
+        return weights.ToArray();
+    }
+
+    private static bool TryCreateInteriorInteractionApproach(
+        FieldWalkmeshTriangle triangle,
+        int triangleIndex,
+        FieldNavigationTarget target,
+        Func<int, FieldNavigationRouteWaypoint, bool> canBodyStand,
+        out FieldNavigationRouteWaypoint approach,
+        out double approachToTargetDistance)
+    {
+        approach = default;
+        approachToTargetDistance = 0d;
+        var candidates = InteriorInteractionWeights
+            .Select(weight =>
+            {
+                var x = (int)Math.Round(
+                    weight.A * triangle.Vertex0.X + weight.B * triangle.Vertex1.X + weight.C * triangle.Vertex2.X);
+                var y = (int)Math.Round(
+                    weight.A * triangle.Vertex0.Y + weight.B * triangle.Vertex1.Y + weight.C * triangle.Vertex2.Y);
+                var dx = target.X - x;
+                var dy = target.Y - y;
+                return (X: x, Y: y, Distance: Math.Sqrt((dx * (double)dx) + (dy * (double)dy)));
+            })
+            .Where(candidate => candidate.Distance < target.InteractionRadius - InteractionRangeEpsilon)
+            .OrderBy(candidate => candidate.Distance)
+            .ThenBy(candidate => candidate.X)
+            .ThenBy(candidate => candidate.Y);
+        foreach (var candidate in candidates)
+        {
+            var z = (int)Math.Round(InterpolateTriangleZ(triangle, candidate.X, candidate.Y));
+            if (!IsWithinActivationVerticalRange(target, target.Z - z))
+            {
+                continue;
+            }
+
+            var waypoint = new FieldNavigationRouteWaypoint(candidate.X, candidate.Y, z);
+            if (!canBodyStand(triangleIndex, waypoint))
+            {
+                continue;
+            }
+
+            approach = waypoint;
+            approachToTargetDistance = candidate.Distance;
+            return true;
+        }
+
         return false;
     }
 
@@ -3544,7 +3628,8 @@ public sealed class FieldWalkmeshRoutePlanner :
                 transition.StableId,
                 transition.Kind,
                 transition.RequiredInput,
-                transition.RequiresAction));
+                transition.RequiresAction,
+                transition.RequiredChoice));
         }
 
         return links;
@@ -3976,7 +4061,8 @@ public static class FieldWalkmeshPathfinder
                     offMeshLinks[linkIndex].StableId,
                     offMeshLinks[linkIndex].RequiredInput,
                     TransitionExit: offMeshLinks[linkIndex].Exit,
-                    RequiresAction: offMeshLinks[linkIndex].RequiresAction);
+                    RequiresAction: offMeshLinks[linkIndex].RequiresAction,
+                    RequiredChoice: offMeshLinks[linkIndex].RequiredChoice);
                 continue;
             }
 

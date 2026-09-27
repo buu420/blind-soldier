@@ -43,6 +43,8 @@ internal static class ChaseAndExcavationTests
         ExcavationSettleIncludesHeight();
         ExcavationLadderSaysConfirm();
         BoneVillageDigSpotTests.Run(createWalkmeshReader, DataRoot);
+        BoneVillageForemanTests.Run(createWalkmeshReader, DataRoot);
+        CorelValleyCaveTests.Run(createWalkmeshReader, DataRoot);
         if (DataRoot is null || createWalkmeshReader is null)
         {
             return;

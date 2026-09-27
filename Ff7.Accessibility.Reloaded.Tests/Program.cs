@@ -289,6 +289,7 @@ if (args.Contains("--reactor-ladder-only", StringComparer.OrdinalIgnoreCase))
     AssertFieldNavigationTracksStableLiveTargetAndStopsWhenItDisappears();
     AssertFieldNavigationCorrectsRouteAgainstMountedLadder();
     AssertFieldLadderProximityCueTrackerPrioritizesActiveRouteLadder();
+    AssertFieldLadderProximityCueTrackerPulsesEachEntranceOnce();
     AssertFieldLadderMountCueTrackerRequiresTheActiveEntrance();
     AssertAccessibilityConfigMigratesLegacyLadderCueDefaults();
     AssertLadderCueConfigDefaultsEnabled();
@@ -1510,6 +1511,7 @@ AssertFieldExitProximityCueTrackerStopsPassedExitAfterClimbingAway();
 AssertFieldExitProximitySpatializerTracksMovementAroundExit();
 AssertFieldLadderProximityCueTrackerUsesAllNativeLadders();
 AssertFieldLadderProximityCueTrackerPrioritizesActiveRouteLadder();
+AssertFieldLadderProximityCueTrackerPulsesEachEntranceOnce();
 AssertFieldLadderMountCueTrackerRequiresTheActiveEntrance();
 AssertFieldNavigationTargetsCoverOpeningCategories();
 AssertFieldWalkmeshReaderReadsNativePcSection();
@@ -10868,6 +10870,37 @@ static void AssertFieldLadderProximityCueTrackerPrioritizesActiveRouteLadder()
             now.AddMilliseconds(700),
             prioritizedTransitionId: routeLadder.StableId).Count,
         "route-priority ladder cue should continue until the caller observes a mount");
+}
+
+// Corel Valley Cave (628 sandun_1): one vine LINE runs a routine that can end on more than one
+// triangle, so the catalog lists one traversal per ending - all from the same LINE, the same
+// place. The tester heard each vine three to five times at once. A physical entrance pulses
+// once; the route's own ladder keeps its identity so the mount cue can still step in.
+static void AssertFieldLadderProximityCueTrackerPulsesEachEntranceOnce()
+{
+    var now = new DateTime(2026, 9, 27, 9, 38, 51, DateTimeKind.Utc);
+    var position = new FieldPositionSnapshot(1, 628, 0, 237, -330, -435, 131, 0);
+    var tracker = new FieldLadderProximityCueTracker(80, 400, TimeSpan.FromMilliseconds(1600));
+    var toBottom = new FieldScriptNavigationTransition(
+        628, FieldNavigationTransitionKind.Ladder, 5, 237, -363, -435, 162, -309, -878, 171,
+        "ladder:628:5:1:4:171", FieldNavigationInput.Down);
+    var sameVineA = toBottom with { TargetX = 278, TargetY = -360, TargetZ = null, TargetTriangle = 131, StableId = "ladder:628:5:1:4:131" };
+    var sameVineB = toBottom with { TargetX = 21, TargetY = -261, TargetZ = null, TargetTriangle = 134, StableId = "ladder:628:5:1:4:134" };
+    var otherVine = toBottom with { SourceEntityId = 6, SourceX = 43, SourceY = -289, SourceZ = -505, StableId = "ladder:628:6:1:4:171" };
+
+    var cues = tracker.Update(position, [toBottom, sameVineA, sameVineB, otherVine], now);
+    AssertEqual(2, cues.Count, "one pulse per vine, not one per ending of its routine");
+    AssertEqual(1, cues.Count(cue => cue.Transition.SourceEntityId == 5), "the vine by the party pulses once");
+    AssertEqual(1, cues.Count(cue => cue.Transition.SourceEntityId == 6), "and the other vine once");
+    AssertEqual(0, tracker.Update(position, [toBottom, sameVineA, sameVineB, otherVine], now.AddMilliseconds(800)).Count,
+        "the entrance keeps one repeat interval, whichever ending is listed first");
+    AssertEqual(2, tracker.Update(position, [sameVineB, sameVineA, toBottom, otherVine], now.AddMilliseconds(1600)).Count,
+        "and pulses again once, however the list is ordered");
+
+    var route = new FieldLadderProximityCueTracker(80, 400, TimeSpan.FromMilliseconds(700));
+    var prioritized = route.Update(position, [toBottom, sameVineA, sameVineB, otherVine], now, prioritizedTransitionId: sameVineB.StableId);
+    AssertEqual(1, prioritized.Count, "an active route pulses only its own ladder");
+    AssertEqual(sameVineB.StableId, prioritized[0].TargetKey, "and keeps the route transition's identity for the mount cue");
 }
 
 static void AssertFieldLadderMountCueTrackerRequiresTheActiveEntrance()
