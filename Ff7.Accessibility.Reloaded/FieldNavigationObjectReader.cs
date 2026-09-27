@@ -55,7 +55,11 @@ public readonly record struct FieldNavigationObjectDefinition(
     int PlayerSide = 0,
     // The line a Location spot has to be walked across to work; given to the target so its
     // approach survives the player's side changing (see FieldNavigationTarget).
-    FieldNavigationTriggerLine? CrossingLine = null);
+    FieldNavigationTriggerLine? CrossingLine = null,
+    // A Model object whose model is still standing where its Init placed it ([x, y]) is not
+    // offered: it has not yet gone where it matters. Bone Village's diggers wait there, all
+    // visible, until each is sent to where the party stands.
+    int[]? WaitingSpot = null);
 
 public static class FieldNavigationObjectCatalog
 {
@@ -68,7 +72,8 @@ public static class FieldNavigationObjectCatalog
             .. ShinraElevatorObjectCatalog.Create(),
             .. NibelheimObjectCatalog.Create(),
             .. TownInteractionObjectCatalog.Create(),
-            .. MateriaCaveObjectCatalog.Create()
+            .. MateriaCaveObjectCatalog.Create(),
+            .. BoneVillageDigObjectCatalog.Create()
         ]);
 
     public static IReadOnlyList<FieldNavigationObjectDefinition> CreateAllFields() =>
@@ -151,6 +156,9 @@ public sealed class FieldNavigationObjectReader
     public const int PositionYOffset = 0x10;
     public const int PositionZOffset = 0x14;
     public const int VisibilityOffset = 0x62;
+
+    /// <summary>How near its waiting spot a model still counts as waiting there.</summary>
+    public const int WaitingSpotReach = 48;
 
     private static readonly IReadOnlyList<FieldNavigationTarget> EmptyTargets = Array.Empty<FieldNavigationTarget>();
 
@@ -321,6 +329,11 @@ public sealed class FieldNavigationObjectReader
                 x = FromModelFixedPoint(readInt32(eventAddress + PositionXOffset));
                 y = FromModelFixedPoint(readInt32(eventAddress + PositionYOffset));
                 z = FromModelFixedPoint(readInt32(eventAddress + PositionZOffset));
+                if (definition.WaitingSpot is [var waitingX, var waitingY] &&
+                    Math.Abs(x - waitingX) + Math.Abs(y - waitingY) <= WaitingSpotReach)
+                {
+                    continue;
+                }
             }
 
             var label = ResolveLabel(definition);

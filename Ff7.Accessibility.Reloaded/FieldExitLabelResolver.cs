@@ -32,6 +32,11 @@ public sealed class FieldExitLabelResolver
 
     private string ResolveLabel(FieldNavigationTarget target, string currentMapName)
     {
+        if (TempleChaseLayout.ResolveLabel(target) is { } chaseLabel)
+        {
+            return chaseLabel;
+        }
+
         if (GoldSaucerPlatformExitCatalog.ResolveLabel(target) is { } platformLabel)
         {
             return platformLabel;

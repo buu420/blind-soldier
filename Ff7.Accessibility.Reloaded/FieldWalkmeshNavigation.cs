@@ -2527,6 +2527,18 @@ public sealed class FieldWalkmeshRoutePlanner :
                 continue;
             }
 
+            // The pathfinder resolves the approach point again, and its planar containment
+            // pass takes any triangle under the point whatever its height. An approach that
+            // rounds onto the edge of its own triangle then belongs to the floor above or
+            // below: in kuro_7 (610) middle floor door 4's LINE (z -44) came out on upper
+            // triangle 111 (z 323), and the route stopped on the wrong floor. A route has to
+            // end where the line can actually be reached.
+            if (Math.Abs(InterpolateTriangleZ(walkmesh.Triangles[resolvedTargetTriangle], x, y) - approach.Z) >=
+                NativeInteractionVerticalRange)
+            {
+                continue;
+            }
+
             var routeDistance = CalculateRouteDistance(position, portals, approach);
             var triggerLineDistanceSquared =
                 CalculateSquaredDistanceToTriggerLine(approach, triggerLine);

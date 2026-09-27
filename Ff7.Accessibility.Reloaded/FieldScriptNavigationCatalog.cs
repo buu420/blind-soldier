@@ -349,12 +349,17 @@ public sealed class FieldScriptNavigationCatalog
             // starts, so every line shares one, and a routine several lines ask for is walked
             // once.
             var walk = new NavigationWalk(groups, walkLimits, fieldId);
+            // Each LINE as the field's own script 0 has it, for the catalogues that publish a
+            // field's in-room doorways only where the installed line is the one they recorded.
+            var nativeLines = new Dictionary<int, FieldNavigationTriggerLine>();
             foreach (var group in groups)
             {
                 if (!TryReadLine(group.Script(0), out var line))
                 {
                     continue;
                 }
+
+                nativeLines[group.Index] = line.TriggerLine;
 
                 // A line that moves is not a place. Its LINE opcode only says where it
                 // starts; everything the field does with it after that is somewhere else.
@@ -551,6 +556,7 @@ public sealed class FieldScriptNavigationCatalog
                 })
                 .ToList();
             exits.AddRange(GoldSaucerPlatformExitCatalog.ForField(fieldId));
+            exits.AddRange(TempleChaseLayout.ExitsFor(fieldId, nativeLines));
             exits.AddRange(FieldTriangleExitCatalog.ForField(fieldId));
             exits = exits
                 .DistinctBy(exit => exit.StableId)

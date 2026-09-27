@@ -133,17 +133,23 @@ public readonly record struct FieldActivityObservation(
 /// dialogue readout.
 /// </description></item>
 /// <item><description>
-/// <b>610 kuro_7, the chase.</b> <c>keyman</c> 27 places itself in a doorway and turns
-/// itself visible, then hides again; only where it visibly is gets said. jump1 and
-/// jump2 - entities 16 and 17 - are Confirm crossings at two different heights, 370 and
-/// about -10, so height is part of deciding which one the party is standing on.
+/// <b>610 kuro_7, the chase.</b> <c>keyman</c> 27 comes out of a doorway, runs, sometimes
+/// jumps down a floor, and goes into another. What is said is what is seen, as it happens: the
+/// door he comes out of and goes into, his drop to a lower floor, and the door the party comes
+/// out of after going through one (TempleChaseLayout has the doors, floors and mouths). The door
+/// he will come out of next (Bank[5][18]) is the puzzle and is never read. jump1 and jump2 -
+/// entities 16 and 17 - are Confirm ledges at two different heights, 370 and about -10, so height
+/// is part of deciding which one the party is standing on.
 /// </description></item>
 /// <item><description>
-/// <b>772 bonevil2, the excavation.</b> The dig is its own field, reached from
-/// bonevil's foreman; the five placed diggers are entities 14 to 18, each placed by its
-/// own script 5. Entity 6 is the buried target and is never observed. How many of the
-/// five are placed is the phase, and it is read from the models rather than from any
-/// counter.
+/// <b>772 bonevil2, the excavation.</b> The dig is its own field, reached from bonevil's
+/// foreman. Its phase is the field's own Bank[5][12]: 7 down to 3 while diggers are ordered,
+/// 2 for the blast, 1 for choosing the dig point. The diggers are entities 14 to 18; one still
+/// at his Init spot is waiting, however visible, and one anywhere else has been placed. What is
+/// said on its own is a digger placed and, after the blast, the party walking onto a digger's
+/// line of sight; the repeat gives the phase, the control and each digger, with his facing once
+/// the blast has turned them. What is buried - luna, entity 6, and the boxes 7 to 13 - is never
+/// observed.
 /// </description></item>
 /// <item><description>
 /// <b>646 ancnt1, the pillars.</b> st1 to st5 - entities 12 to 16 - jump on a direction
@@ -304,11 +310,18 @@ public sealed class FieldActivityReadout
 
     public void Reset()
     {
+        ResetShared();
+        ResetClock();
+        ResetChase();
+        ResetExcavation();
+    }
+
+    private void ResetShared()
+    {
         lastKey = null;
         lastDetailKey = null;
         lastSpokenAt = DateTime.MinValue;
         lastChairAnimation = -1;
-        ResetClock();
     }
 
     /// <summary>
@@ -338,10 +351,45 @@ public sealed class FieldActivityReadout
         }
 
         ResetClock();
-        var report = Compose(observation);
+
+        // The chase and the dig say what changes as it is seen - the guard coming out of a door,
+        // a digger taking his place - rather than a periodic description of the room. Their
+        // trackers see only visible models and the field's own phase byte; the repeat composes
+        // everything else fresh.
+        var events = observation.FieldId == ChaseChamberFieldId ? TrackChase(observation) : null;
+        if (observation.FieldId != ChaseChamberFieldId)
+        {
+            ResetChase();
+        }
+
+        if (observation.FieldId == ExcavationFieldId)
+        {
+            events = TrackExcavation(observation, now);
+        }
+        else
+        {
+            ResetExcavation();
+        }
+
+        var cue = ObserveReport(ComposeAutomatic(observation), now);
+        return events is null
+            ? cue
+            : cue with { Speech = cue.Speech is null ? events : events + " " + cue.Speech };
+    }
+
+    /// <summary>What is said on its own: for most rooms the same as the repeat; for the chase and the dig only their prompts.</summary>
+    private Report? ComposeAutomatic(FieldActivityObservation observation) => observation.FieldId switch
+    {
+        ChaseChamberFieldId => ComposeChaseLedge(observation),
+        ExcavationFieldId => ComposeExcavationLadder(observation),
+        _ => Compose(observation)
+    };
+
+    private FieldActivityCue ObserveReport(Report? report, DateTime now)
+    {
         if (report is null)
         {
-            Reset();
+            ResetShared();
             return default;
         }
 
@@ -1123,75 +1171,501 @@ public sealed class FieldActivityReadout
     }
 
     // --- 610, the chase ---------------------------------------------------------------
-    private Report? ComposeChase(FieldActivityObservation observation)
+
+    // Only Observe writes these; the repeat reads nothing but the observation.
+    private bool? chaseGuardVisible;
+    private int chaseGuardX;
+    private int chaseGuardY;
+    private int chaseGuardZ;
+    private (int X, int Y, int Z)? chasePlayer;
+
+    private void ResetChase()
+    {
+        chaseGuardVisible = null;
+        chasePlayer = null;
+    }
+
+    /// <summary>
+    /// What changed in the chase since the last look, as a sighted player sees it: the guard
+    /// coming out of a doorway, dropping to a lower floor, going into a doorway (keyman's
+    /// placeObject, makeObjectJump and visibility, read from his model), and the party coming out
+    /// of a door (cloud scripts 6..14 place it at another door's mouth). Where the guard will come
+    /// out next (Bank[5][18]) is the puzzle and is not read.
+    /// </summary>
+    private string? TrackChase(FieldActivityObservation observation)
+    {
+        var events = new List<string>();
+        var guard = Find(observation, ChaseGuardEntityId);
+        switch (guard.Status)
+        {
+            case FieldActivityReadStatus.Visible:
+            {
+                var model = guard.Model;
+                var place = TempleChaseLayout.PlaceAt(model.X, model.Y, model.Z);
+                var floor = TempleChaseLayout.FloorOf(model.Z);
+                if (chaseGuardVisible == false)
+                {
+                    events.Add(place is null
+                        ? $"The guard appeared on the {TempleChaseLayout.FloorName(floor)}."
+                        : $"The guard came out of {place}.");
+                }
+                else if (chaseGuardVisible is null)
+                {
+                    events.Add(place is null
+                        ? $"The guard is on the {TempleChaseLayout.FloorName(floor)}."
+                        : $"The guard is at {place}.");
+                }
+                else if (floor != TempleChaseLayout.FloorOf(chaseGuardZ))
+                {
+                    events.Add(floor > TempleChaseLayout.FloorOf(chaseGuardZ)
+                        ? $"The guard dropped to the {TempleChaseLayout.FloorName(floor)}."
+                        : $"The guard went up to the {TempleChaseLayout.FloorName(floor)}.");
+                }
+
+                chaseGuardVisible = true;
+                (chaseGuardX, chaseGuardY, chaseGuardZ) = (model.X, model.Y, model.Z);
+                break;
+            }
+
+            case FieldActivityReadStatus.Hidden:
+                if (chaseGuardVisible == true)
+                {
+                    var lastPlace = TempleChaseLayout.PlaceAt(chaseGuardX, chaseGuardY, chaseGuardZ);
+                    events.Add(lastPlace is null
+                        ? $"The guard went out of sight on the {TempleChaseLayout.FloorName(TempleChaseLayout.FloorOf(chaseGuardZ))}."
+                        : $"The guard went into {lastPlace}.");
+                }
+
+                chaseGuardVisible = false;
+                break;
+
+            default:
+                // A torn look is no appearance or disappearance; start again from the next one.
+                chaseGuardVisible = null;
+                break;
+        }
+
+        var player = (observation.PlayerX, observation.PlayerY, observation.PlayerZ);
+        if (chasePlayer is { } last)
+        {
+            var dx = player.PlayerX - last.X;
+            var dy = player.PlayerY - last.Y;
+            var moved = Math.Sqrt((double)dx * dx + (double)dy * dy);
+            var floor = TempleChaseLayout.FloorOf(player.PlayerZ);
+            var floorChanged = floor != TempleChaseLayout.FloorOf(last.Z);
+            if (moved > ChaseTeleportDistance || floorChanged)
+            {
+                if (TempleChaseLayout.DoorAt(player.PlayerX, player.PlayerY, player.PlayerZ) is { } door)
+                {
+                    events.Add($"You came out of {TempleChaseLayout.DoorName(door)}.");
+                }
+                else if (floorChanged)
+                {
+                    events.Add($"You are on the {TempleChaseLayout.FloorName(floor)}.");
+                }
+            }
+        }
+
+        chasePlayer = (player.PlayerX, player.PlayerY, player.PlayerZ);
+        return events.Count == 0 ? null : string.Join(" ", events);
+    }
+
+    /// <summary>
+    /// Further than the party can walk between two looks: the door scripts' placeObject moves it
+    /// from one door's line to another door's mouth, at least 300 units away.
+    /// </summary>
+    private const int ChaseTeleportDistance = 250;
+
+    /// <summary>
+    /// jump1 and jump2 jump on a fresh Confirm on their own lines (Go: keyPressedJustPressed 0x20).
+    /// A ledge is somewhere the party may jump from, not a wait the field is stopped in, so it is
+    /// said once as the party steps onto it and never owns the player's input: both hosts stand
+    /// navigation and auto walk down for a pending activity, and the party has to be free to
+    /// pick another target and walk on.
+    /// </summary>
+    private static Report? ComposeChaseLedge(FieldActivityObservation observation)
     {
         foreach (var crossing in ChaseCrossings)
         {
             if (IsStandingOn(observation, crossing))
             {
+                var ledge = TempleChaseLayout.Ledges.Single(ledge => ledge.EntityId == crossing.EntityId);
                 return new Report(
-                    $"610:crossing:{crossing.EntityId}",
-                    $"610:crossing:{crossing.EntityId}",
-                    "At a crossing. Press Confirm to jump across.",
-                    IsPending: true);
+                    $"610:ledge:{crossing.EntityId}",
+                    $"610:ledge:{crossing.EntityId}",
+                    $"At the ledge. Press Confirm to jump down to the {TempleChaseLayout.FloorName(ledge.To)}.",
+                    IsPending: false,
+                    IsImmediate: true);
             }
         }
 
-        var guard = Find(observation, ChaseGuardEntityId);
-        return guard.Status switch
-        {
-            FieldActivityReadStatus.Visible => Guard(guard),
-            FieldActivityReadStatus.Hidden =>
-                new Report("610:hidden", "610:hidden", "No doorway has the guard in it.", IsPending: false),
-            _ => new Report("610:unreadable", "610:unreadable", "Cannot see where the guard is.", IsPending: false)
-        };
+        return null;
+    }
 
-        Report Guard(FieldActivityModelReading reading)
+    /// <summary>The repeat: the ledge prompt if on one, where the party is, and where the guard is seen.</summary>
+    private static Report? ComposeChase(FieldActivityObservation observation)
+    {
+        var ledge = ComposeChaseLedge(observation);
+        var floor = TempleChaseLayout.FloorOf(observation.PlayerZ);
+        var place = TempleChaseLayout.PlaceAt(observation.PlayerX, observation.PlayerY, observation.PlayerZ);
+        var text = $"You are on the {TempleChaseLayout.FloorName(floor)}" + (place is null ? "." : $", at {place}.");
+        var guard = Find(observation, ChaseGuardEntityId);
+        text += guard.Status switch
         {
-            var bearing = DescribeRelative(observation, reading.Model);
-            var text = $"The guard is in the doorway {bearing}, " +
-                $"{Bucket(Distance(observation, reading.Model))} away.";
-            return new Report($"610:guard:{bearing}", $"610:guard:{text}", text, IsPending: false);
+            FieldActivityReadStatus.Visible => GuardText(guard.Model),
+            FieldActivityReadStatus.Hidden => " The guard is not in sight.",
+            _ => " Cannot see where the guard is."
+        };
+        text += " Doors are numbered from the left on each floor; the Exits list has every door and ledge.";
+        return ledge is { } prompt
+            ? prompt with { Text = prompt.Text + " " + text }
+            : new Report("610:repeat", "610:repeat", text, IsPending: false);
+
+        static string GuardText(FieldActivityModelState model)
+        {
+            var guardFloor = TempleChaseLayout.FloorName(TempleChaseLayout.FloorOf(model.Z));
+            return TempleChaseLayout.PlaceAt(model.X, model.Y, model.Z) is { } guardPlace
+                ? $" The guard is on the {guardFloor}, at {guardPlace}."
+                : $" The guard is on the {guardFloor}.";
         }
     }
 
     // --- 772, the excavation ------------------------------------------------------------
-    private Report? ComposeExcavation(FieldActivityObservation observation)
+
+    /// <summary>
+    /// Bank[5][12], bonevil2's own phase: 7 at Init and one step down for each digger ordered
+    /// (keyc script 3, phases 7..3, whether or not he could be paid for), 2 for the blast (also set
+    /// by choosing Done), 1 for choosing the dig point, and below that the dig itself.
+    /// </summary>
+    public const int ExcavationPhaseAddress = 12;
+
+    /// <summary>
+    /// Where every digger stands until he is sent (his Init placeObject, triangle 49). A digger
+    /// who is still there is waiting, not placed, however visible he is. One the party sends to
+    /// that very spot cannot be told from one who is waiting: nothing in the field records who
+    /// has been hired, only where each model stands.
+    /// </summary>
+    public const int ExcavationWaitingX = -427;
+    public const int ExcavationWaitingY = -5;
+    public const int ExcavationWaitingReach = 48;
+
+    /// <summary>
+    /// How long a digger has to stay put - x, y and z - away from the waiting spot to be placed.
+    /// His script 3 walks him there, climbs the ladder when the party is up top (climbLadder:
+    /// only z changes) and ends with a jump; a digger still on his way is not yet where the party
+    /// sent him.
+    /// </summary>
+    public static readonly TimeSpan ExcavationSettleTime = TimeSpan.FromMilliseconds(500);
+
+    /// <summary>
+    /// keyc script 3 in phase p (7..3) sends digger entity 21 - p: it runs his script 3 with
+    /// entityExecuteSync, which returns only when he has jumped to where the party stood, and
+    /// only then takes the phase down. So a digger is only sent once the phase is below the one
+    /// that sends him - and phases 2 and below send nobody. This is not a count of placed diggers
+    /// from the phase (that was the old mistake): with too little gil keyc takes the phase down
+    /// without sending anyone, so each digger also has to be standing away from the waiting spot.
+    /// </summary>
+    private static bool IsExcavationRequestDone(int entityId, int phase) =>
+        phase is >= 0 and <= 7 && entityId < 21 - phase;
+
+    /// <summary>The digger keyc is sending right now, or 0: entity 21 - phase while hiring.</summary>
+    private static int ExcavationDiggerBeingSent(int phase) =>
+        phase is >= 3 and <= 7 ? 21 - phase : 0;
+
+    /// <summary>
+    /// How close to a digger's line of sight the party has to be to be on it. The dig point is
+    /// chosen by standing on a triangle, and a digger's facing byte is a 1/256 turn.
+    /// </summary>
+    private const int ExcavationSightReach = 32;
+
+    /// <summary>The upper level is at about z 330 and the lower one below z 0; the ladder joins them.</summary>
+    private const int ExcavationUpperLevelZ = 150;
+
+    // Only Observe writes these; the repeat reads nothing but the observation.
+    private readonly Dictionary<int, (int X, int Y, int Z, DateTime Since)> excavationSeen = [];
+    private readonly HashSet<int> excavationAnnounced = [];
+    private bool excavationStarted;
+    private int excavationPhase = -1;
+    private HashSet<int> excavationSight = [];
+
+    private void ResetExcavation()
     {
-        var placed = new List<string>();
-        var unreadable = 0;
-        foreach (var entityId in ExcavationWorkerEntityIds)
+        excavationSeen.Clear();
+        excavationAnnounced.Clear();
+        excavationStarted = false;
+        excavationPhase = -1;
+        excavationSight = [];
+    }
+
+    /// <summary>
+    /// What changes at the dig, as a sighted player sees it: a digger arriving where he was sent,
+    /// the game moving on to the blast and then the search, and - once the blast has turned the
+    /// diggers - the party walking onto or off a digger's line of sight. None of it is a wait: the
+    /// game's own windows ask for Switch, and this never takes the player's input. What is buried
+    /// (luna, entity 6, and the boxes 7..13) is never read; neither is which item the foreman was
+    /// asked for (Bank[1][235]).
+    /// </summary>
+    private string? TrackExcavation(FieldActivityObservation observation, DateTime now)
+    {
+        var events = new List<string>();
+        var arrived = new List<int>();
+        var phase = ReadExcavationPhase(observation);
+        foreach (var entity in ExcavationWorkerEntityIds)
         {
-            var reading = Find(observation, entityId);
-            switch (reading.Status)
+            var reading = Find(observation, entity);
+            if (reading.Status != FieldActivityReadStatus.Visible)
             {
-                case FieldActivityReadStatus.Unreadable:
-                    unreadable++;
-                    break;
-                case FieldActivityReadStatus.Visible:
-                    placed.Add(
-                        $"one {DescribeRelative(observation, reading.Model)} at " +
-                        $"{Bucket(Distance(observation, reading.Model))}, " +
-                        $"facing {DescribeFacing(observation, reading.Model.Direction)}");
-                    break;
+                // A torn or hidden look says nothing about where he is; keep what was seen.
+                continue;
+            }
+
+            var (x, y, z) = (reading.Model.X, reading.Model.Y, reading.Model.Z);
+            if (IsWaiting(reading.Model))
+            {
+                excavationSeen.Remove(entity);
+                excavationAnnounced.Remove(entity);
+                continue;
+            }
+
+            var moved = !excavationSeen.TryGetValue(entity, out var seen) ||
+                        Math.Abs(seen.X - x) + Math.Abs(seen.Y - y) + Math.Abs(seen.Z - z) > 4;
+            if (moved)
+            {
+                excavationSeen[entity] = (x, y, z, now);
+            }
+
+            if (!IsExcavationRequestDone(entity, phase))
+            {
+                // keyc is still sending him (or the phase cannot be read): on his way, not placed.
+                continue;
+            }
+
+            if (!excavationStarted)
+            {
+                // Already out when the room was first seen: placed before, not news now.
+                excavationAnnounced.Add(entity);
+                continue;
+            }
+
+            if (!moved && !excavationAnnounced.Contains(entity) && now - seen.Since >= ExcavationSettleTime)
+            {
+                excavationAnnounced.Add(entity);
+                arrived.Add(DiggerNumber(entity));
             }
         }
 
-        if (unreadable > 0 && placed.Count == 0)
+        if (arrived.Count > 0)
+        {
+            arrived.Sort();
+            events.Add(arrived.Count == 1 ? $"Digger {arrived[0]} placed." : $"Diggers {JoinNumbers(arrived)} placed.");
+        }
+
+        if (excavationStarted && phase != excavationPhase && phase >= 0 && excavationPhase >= 0)
+        {
+            var cue = (from: excavationPhase, to: phase) switch
+            {
+                ( >= 3, 2) => "Blast next.",
+                (2, 1) => "The diggers have turned towards the dig point.",
+                (1, <= 0) => "The dig is under way.",
+                _ => null
+            };
+            if (cue is not null)
+            {
+                events.Add(cue);
+            }
+        }
+
+        // A failed look is not movement. Keep the last coherent sightlines until both
+        // the phase and workers can be read, so recovery cannot invent an out/in pair.
+        var canObserveSight = phase is >= 0 and <= 7 &&
+                              (phase != 1 || ExcavationWorkerEntityIds.All(entity =>
+                                  Find(observation, entity).Status != FieldActivityReadStatus.Unreadable));
+        var sight = canObserveSight
+            ? phase == 1 ? DiggersInSight(observation).ToHashSet() : []
+            : excavationSight;
+        if (canObserveSight && excavationStarted && phase == 1 && excavationPhase == 1)
+        {
+            var entered = sight.Where(number => !excavationSight.Contains(number)).Order().ToArray();
+            var left = excavationSight.Where(number => !sight.Contains(number)).Order().ToArray();
+            if (entered.Length > 0)
+            {
+                // Every line the party now stands on, not only the new one: where two meet is
+                // what the search is for.
+                var all = sight.Order().ToArray();
+                events.Add(all.Length == 1 ? $"In line with digger {all[0]}." : $"In line with diggers {JoinNumbers(all)}.");
+            }
+
+            if (left.Length > 0)
+            {
+                events.Add(left.Length == 1 ? $"Out of line with digger {left[0]}." : $"Out of line with diggers {JoinNumbers(left)}.");
+            }
+        }
+
+        excavationSight = sight;
+        if (phase is >= 0 and <= 7)
+        {
+            excavationPhase = phase;
+        }
+
+        excavationStarted = true;
+        return events.Count == 0 ? null : string.Join(" ", events);
+    }
+
+    private static bool IsWaiting(FieldActivityModelState model) =>
+        Math.Abs(model.X - ExcavationWaitingX) + Math.Abs(model.Y - ExcavationWaitingY) <= ExcavationWaitingReach;
+
+    private static int ReadExcavationPhase(FieldActivityObservation observation) =>
+        observation.ReadTemporaryByte is { } read ? read(ExcavationPhaseAddress) : -1;
+
+    private static int DiggerNumber(int entityId) => entityId - ExcavationWorkerEntityIds[0] + 1;
+
+    private static string JoinNumbers(IReadOnlyList<int> numbers) =>
+        numbers.Count == 1
+            ? numbers[0].ToString(System.Globalization.CultureInfo.InvariantCulture)
+            : string.Join(", ", numbers.Take(numbers.Count - 1)) + " and " + numbers[^1];
+
+    private static string ExcavationLevel(int z) => z > ExcavationUpperLevelZ ? "upper level" : "lower level";
+
+    /// <summary>
+    /// The diggers the party has placed: ones keyc has finished sending, standing somewhere other
+    /// than where they wait.
+    /// </summary>
+    private static IReadOnlyList<FieldActivityModelReading> PlacedDiggers(FieldActivityObservation observation)
+    {
+        var phase = ReadExcavationPhase(observation);
+        return ExcavationWorkerEntityIds
+            .Select(entity => Find(observation, entity))
+            .Where(reading => reading.Status == FieldActivityReadStatus.Visible && !IsWaiting(reading.Model) &&
+                              IsExcavationRequestDone(reading.EntityId, phase))
+            .ToArray();
+    }
+
+    /// <summary>
+    /// ladu (entity 19, up top) and ladd (entity 20, below) climb on a fresh OK on their own LINEs
+    /// (Move: keyPressedJustPressed 0x20). A route to the ladder ends on it, so the ladder names
+    /// the press - said once as the party steps on, and never owning the player's input.
+    /// </summary>
+    private static Report? ComposeExcavationLadder(FieldActivityObservation observation)
+    {
+        foreach (var ladder in ExcavationLadders)
+        {
+            if (IsStandingOn(observation, ladder))
+            {
+                return new Report(
+                    $"772:ladder:{ladder.EntityId}",
+                    $"772:ladder:{ladder.EntityId}",
+                    $"At the ladder. Press Confirm to climb {ladder.Forward}.",
+                    IsPending: false,
+                    IsImmediate: true);
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>A digger's line of sight: where he stands, and the way his facing byte points, (sin, -cos) of its turn.</summary>
+    private static (double Along, double Across, double ClosestX, double ClosestY) SightOf(
+        FieldActivityObservation observation, FieldActivityModelState digger)
+    {
+        var angle = digger.Direction * 2d * Math.PI / DirectionUnitsPerTurn;
+        var ux = Math.Sin(angle);
+        var uy = -Math.Cos(angle);
+        var rx = observation.PlayerX - digger.X;
+        var ry = observation.PlayerY - digger.Y;
+        var along = rx * ux + ry * uy;
+        return (along, Math.Abs(rx * uy - ry * ux), digger.X + ux * along, digger.Y + uy * along);
+    }
+
+    /// <summary>The placed diggers whose line of sight the party stands on: ahead of him, within <see cref="ExcavationSightReach"/> of it.</summary>
+    private static IEnumerable<int> DiggersInSight(FieldActivityObservation observation)
+    {
+        foreach (var digger in PlacedDiggers(observation))
+        {
+            var sight = SightOf(observation, digger.Model);
+            if (sight.Along > 0 && sight.Across <= ExcavationSightReach)
+            {
+                yield return DiggerNumber(digger.EntityId);
+            }
+        }
+    }
+
+    /// <summary>
+    /// The repeat: the phase as the game has it, what to press, every placed digger with his
+    /// level, and the party's own level. Once the blast has turned them, which way each faces and
+    /// where his line of sight passes the party - from where he stands and faces, and nothing else.
+    /// </summary>
+    private static Report? ComposeExcavation(FieldActivityObservation observation)
+    {
+        var phase = ReadExcavationPhase(observation);
+        if (phase < 0 || phase > 7)
+        {
+            return new Report("772:unreadable", "772:unreadable", "Cannot read the dig.", IsPending: false);
+        }
+
+        var readings = ExcavationWorkerEntityIds.Select(entity => Find(observation, entity)).ToArray();
+        if (readings.All(reading => reading.Status == FieldActivityReadStatus.Unreadable))
         {
             return new Report("772:unreadable", "772:unreadable", "Cannot read the diggers.", IsPending: false);
         }
 
-        var total = ExcavationWorkerEntityIds.Length;
-        var text = placed.Count == 0
-            ? $"No diggers placed yet, {total} to place."
-            : $"{placed.Count} of {total} diggers placed: " + string.Join("; ", placed) + ".";
-        if (unreadable > 0)
+        var placed = PlacedDiggers(observation);
+        var sending = ExcavationDiggerBeingSent(phase) is var entity and > 0 &&
+                      Find(observation, entity) is { Status: FieldActivityReadStatus.Visible } reading && !IsWaiting(reading.Model)
+            ? $"Digger {DiggerNumber(entity)} is on his way. "
+            : string.Empty;
+        string Where(FieldActivityModelReading digger) =>
+            $"digger {DiggerNumber(digger.EntityId)} {DescribeRelative(observation, digger.Model)} at " +
+            Bucket(Distance(observation, digger.Model)).ToString(System.Globalization.CultureInfo.InvariantCulture) +
+            $" on the {ExcavationLevel(digger.Model.Z)}";
+        var list = string.Join(", ", placed.Select(Where));
+        var count = placed.Count == 1 ? "1 digger placed" : $"{placed.Count} diggers placed";
+        var you = $" You are on the {ExcavationLevel(observation.PlayerZ)}.";
+        var text = phase switch
         {
-            text += $" {unreadable} could not be read.";
+            >= 3 => $"Placing diggers: {(placed.Count == 0 ? "none placed," : $"{placed.Count} placed: {list};")} up to {phase - 2} more. " +
+                    sending + "Stand where you want a digger and press Switch, then choose Order a search, 100 gil, or Done to set off the blast." + you,
+            2 => "Blast: press Switch to set off the bomb. " + (placed.Count == 0 ? "No diggers placed." : $"{count}: {list}.") + you,
+            1 when placed.Count == 0 => "Choose the dig point and press Switch. No digger was placed to show it." + you,
+            1 => "Choose the dig point: stand where the diggers' lines of sight meet and press Switch. " +
+                 string.Join(" ", placed.Select(digger => Capitalise(Where(digger)) +
+                     $", facing {DescribeFacing(observation, digger.Model.Direction)}; {DescribeSight(observation, digger.Model)}.")) +
+                 " You are in line with " + (DiggersInSight(observation).ToArray() is { Length: > 0 } inSight
+                     ? (inSight.Length == 1 ? $"digger {inSight[0]}." : $"diggers {JoinNumbers(inSight)}.")
+                     : "no digger.") + you,
+            _ => "The dig is under way."
+        };
+        var ladder = ComposeExcavationLadder(observation);
+        return ladder is { } prompt
+            ? prompt with { Text = prompt.Text + " " + text }
+            : new Report($"772:{phase}", $"772:{phase}", text, IsPending: false);
+
+        static string Capitalise(string text) => char.ToUpperInvariant(text[0]) + text[1..];
+    }
+
+    /// <summary>Where a digger's line of sight passes the party, as the party would walk to reach it.</summary>
+    private static string DescribeSight(FieldActivityObservation observation, FieldActivityModelState digger)
+    {
+        var sight = SightOf(observation, digger);
+        if (sight.Along <= 0)
+        {
+            return "you are behind him";
         }
 
-        return new Report($"772:{placed.Count}:{unreadable}", $"772:{text}", text, IsPending: false);
+        if (sight.Across <= ExcavationSightReach)
+        {
+            return "you are on his line of sight";
+        }
+
+        var distance = (int)Math.Round(sight.Across / 50d, MidpointRounding.AwayFromZero) * 50;
+        if (!observation.IsTransformUsable)
+        {
+            return $"his line of sight passes {distance} from you";
+        }
+
+        var stick = observation.Transform.TransformWorldVector(
+            (int)Math.Round(sight.ClosestX - observation.PlayerX),
+            (int)Math.Round(sight.ClosestY - observation.PlayerY));
+        return $"his line of sight passes {distance} {DescribeStick(stick.X, stick.Y)} of you";
     }
 
     // --- 646, the pillars ----------------------------------------------------------------
@@ -1474,6 +1948,16 @@ public sealed class FieldActivityReadout
     ];
 
     /// <summary>
+    /// bonevil2's ladder, from its own <c>LINE</c> opcodes: ladu at the top, ladd at the foot
+    /// (its ends are at z -85 and -91). Forward is where each one climbs to.
+    /// </summary>
+    private static readonly TriggerLeg[] ExcavationLadders =
+    [
+        new(19, 127, 512, 213, 516, 331, "down to the lower level", "down to the lower level", 0, 0),
+        new(20, 174, 359, 262, 398, -88, "up to the upper level", "up to the upper level", 0, 0)
+    ];
+
+    /// <summary>
     /// The three cliff fields that draw a body temperature. gaia_1's ad script 3 makes
     /// numeric window 1 with display type 2 and a two-digit limit; gaia_2 and gaia_31 do
     /// the same. Warming is <c>atatame</c> entity 4 script 3's fresh Square, which only
@@ -1673,12 +2157,13 @@ public sealed class FieldActivityReadout
     public static bool NeedsTemporaryBank(int fieldId) =>
         fieldId is CliffLowerFieldId or CliffMiddleFieldId or CliffUpperFieldId
             or WindFirstFieldId or WindSecondFieldId or WindThirdFieldId
-            or CorelPursuitFieldId;
+            or CorelPursuitFieldId or ExcavationFieldId;
 
     /// <summary>The trigger entities whose LINON state this field's readout depends on.</summary>
     public static IReadOnlyList<int> ObservedLineEntities(int fieldId) => fieldId switch
     {
         ChaseChamberFieldId => [ChaseCrossings[0].EntityId, ChaseCrossings[1].EntityId],
+        ExcavationFieldId => [ExcavationLadders[0].EntityId, ExcavationLadders[1].EntityId],
         PillarApproachFieldId => [12, 13, 14, 15, 16],
         _ => Array.Empty<int>()
     };

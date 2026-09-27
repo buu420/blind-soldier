@@ -1020,6 +1020,8 @@
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldActivityReadout.cs" Link="Shared\FieldActivityReadout.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldActivityLatestLineDelivery.cs" Link="Shared\FieldActivityLatestLineDelivery.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldActivityClockHost.cs" Link="Shared\FieldActivityClockHost.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\TempleChaseLayout.cs" Link="Shared\TempleChaseLayout.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\BoneVillageDigObjectCatalog.cs" Link="Shared\BoneVillageDigObjectCatalog.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldActivityObservationBuilder.cs" Link="Shared\FieldActivityObservationBuilder.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldCrossFieldApproachResolver.cs" Link="Shared\FieldCrossFieldApproachResolver.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldAreaDescriptionHistory.cs" Link="Shared\FieldAreaDescriptionHistory.cs" />
