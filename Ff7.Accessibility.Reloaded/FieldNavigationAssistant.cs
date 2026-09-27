@@ -1712,14 +1712,23 @@ public sealed class FieldNavigationController
             FieldNavigationInput.Left => "left",
             _ => null
         };
+        var climb = action.RequiresAction
+            ? direction is null
+                ? "Ladder. Press action to climb"
+                : $"Ladder. Press action to mount, then climb {direction}"
+            : direction is null
+                ? "Climb the ladder"
+                : $"Climb {direction}";
+
+        // A climb whose routine asks which way (Corel Valley Cave's "right / left" at a vine's
+        // junction, Gaea's Cliff's "which way?" before it) lands on the route's ledge only for
+        // the route's answer. The game's own window asks, before or after the climb, and the
+        // player answers it. Saying the answer here, once, as the climb begins, is what a
+        // sighted player gets from seeing where the route goes.
         return new FieldNavigationActionResult(
-            action.RequiresAction
-                ? direction is null
-                    ? "Ladder. Press action to climb."
-                    : $"Ladder. Press action to mount, then climb {direction}."
-                : direction is null
-                    ? "Climb the ladder."
-                    : $"Climb {direction}.");
+            action.RequiredChoice is { Text: { Length: > 0 } answer }
+                ? $"{climb}. Answer {answer}."
+                : $"{climb}.");
     }
 
     public FieldNavigationActionResult? CreateSpokenGuidance(

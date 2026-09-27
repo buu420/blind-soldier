@@ -121,6 +121,12 @@ public sealed class ControllerNavigationDispatcher
 
         while (capture.Announcements.TryDequeue(out var announcement))
         {
+            if (announcement.StartsWith("Navigation menu closed", StringComparison.Ordinal) &&
+                capture.LastCloseCause.Length > 0)
+            {
+                log?.Invoke($"Controller navigation menu closed by the capture: {capture.LastCloseCause}");
+            }
+
             spoke |= Say(announcement);
         }
 

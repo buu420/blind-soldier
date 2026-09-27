@@ -39,7 +39,19 @@ public readonly record struct FieldScriptNavigationTransition(
     // the routine to go this way. A party-slot request runs slot 0's own copy, so a member's
     // copy moves the player only while that member both leads and is controlled; a routine that
     // tests who leads goes one way per leader. Null when nothing is required.
-    IReadOnlyList<FieldScriptNavigationCondition>? Conditions = null);
+    IReadOnlyList<FieldScriptNavigationCondition>? Conditions = null,
+    // The answer the routine's own question needs for it to go this way: a vine that asks
+    // "right / left" at its junction lands on one ledge or the other by what the player picks.
+    // Null when nothing is asked on the way. The player answers the game's own window.
+    FieldScriptNavigationChoice? RequiredChoice = null);
+
+/// <summary>
+/// The answers a routine's own ASKs need: the last one's dialog and the line whose number the
+/// script tests (ASK stores the line picked, from its first choice to its last), the text of
+/// every answer in order ("up, then right") where the field's message table has them all, and
+/// how many answers there are.
+/// </summary>
+public readonly record struct FieldScriptNavigationChoice(int DialogId, int Line, string? Text, int Answers = 1);
 
 /// <summary>
 /// One way a traversal is the player's: <paramref name="ControlledEntityId"/>'s model is the
@@ -348,7 +360,7 @@ public sealed class FieldScriptNavigationCatalog
             // What a walk may assume about the field's values does not depend on where it
             // starts, so every line shares one, and a routine several lines ask for is walked
             // once.
-            var walk = new NavigationWalk(groups, walkLimits, fieldId);
+            var walk = new NavigationWalk(groups, walkLimits, fieldId, section);
             // Each LINE as the field's own script 0 has it, for the catalogues that publish a
             // field's in-room doorways only where the installed line is the one they recorded.
             var nativeLines = new Dictionary<int, FieldNavigationTriggerLine>();
@@ -462,7 +474,8 @@ public sealed class FieldScriptNavigationCatalog
                             action.RequiredInput),
                         action.RequiresActionActivation,
                         MoverEntityIds: MoverEntities(action.LeaderMask),
-                        Conditions: conditions));
+                        Conditions: conditions,
+                        RequiredChoice: RequiredChoiceOf(action.Choice, walk)));
                 }
 
                 var destinations = actions
@@ -1314,7 +1327,7 @@ public sealed class FieldScriptNavigationCatalog
                          groups,
                          group.Index,
                          scriptIndex,
-                         initialConstants,
+                         leaderSlot ? WithSlotZeroCopy(initialConstants) : initialConstants,
                          callStack,
                          walk,
                          control,
@@ -1358,7 +1371,7 @@ public sealed class FieldScriptNavigationCatalog
                     };
                 }
                 variant = variant with { Actions = LandingActions(variant.Actions) };
-                var key = $"{variant.End}#{(leaderSlot ? 0 : partyMask)}#{variant.Control}:{variant.PartyChanged}#{DescribeVariant(variant, own)}";
+                var key = $"{variant.End}#{(leaderSlot ? 0 : partyMask)}#{variant.Control}:{variant.PartyChanged}#{DescribeVariant(variant, own, group.Index)}";
                 variants[key] = variants.TryGetValue(key, out var existing)
                     ? (existing.Path with
                         {
@@ -1388,14 +1401,21 @@ public sealed class FieldScriptNavigationCatalog
 
     // A member's way through, in terms that do not depend on which member it is: its own
     // movements are "self", anything it asks another entity to do keeps that entity.
-    private static string DescribeVariant(NavigationExecutionPath path, ulong self) =>
+    // A member's own MAPJUMP is described as its own too, as its own movements are: every
+    // character's copy of cos_top's ladder climbs to 122 and leaves for 531 from its own code,
+    // and once the walk knows the landing (PXYZI) that is the only way through. Told apart by
+    // whose code it sits in, the three copies stopped being one traversal with three leaders.
+    private static string DescribeVariant(NavigationExecutionPath path, ulong self, int ownGroup) =>
         string.Join(
             ";",
             path.Actions.Select(action =>
                 $"{action.Kind}:{action.SourceScript}:{action.X}:{action.Y}:{action.Z}:" +
                 $"{action.Triangle}:{action.DestinationField}:{action.RequiredInput}:" +
-                $"{action.RequiresActionActivation}:{action.IsPlacement}:{action.MovesSlotZero}:" +
-                (self != 0 && action.LeaderMask == self ? "self" : $"{action.SourceGroup}:{action.LeaderMask}")));
+                $"{action.RequiresActionActivation}:{action.IsPlacement}:{action.MovesSlotZero}:{action.Choice}:" +
+                (self != 0 && action.LeaderMask == self ||
+                 action.Kind == ActionKind.MapJump && action.SourceGroup == ownGroup
+                    ? "self"
+                    : $"{action.SourceGroup}:{action.LeaderMask}")));
 
     /// <summary>
     /// The ways through a script, merged as they are found: two with the same landing actions
@@ -1837,6 +1857,23 @@ public sealed class FieldScriptNavigationCatalog
             }
 
             var nextOffset = opcode.Next;
+
+            // Where this model has just landed stays known only across instructions that
+            // cannot move it: freezing the player, locking the menu, a partial animation, and
+            // the tests and jumps between them. A request is none of those - whatever it asks
+            // for can move the model - and it can also write the answer an ASK left, so both
+            // are forgotten there.
+            if (opcode.Id is not (UserControlOpcode or MenuAccessOpcode or PartialAnimationOpcode or PartyMemberPositionOpcode
+                    or >= 0x10 and <= 0x19))
+            {
+                ForgetLanding(cursor.Constants);
+            }
+
+            if (opcode.Id is >= EntityRequestOpcode and <= PartyMemberRequestSyncOpcode)
+            {
+                ForgetQuestion(cursor.Constants);
+            }
+
             if (opcode.Id == ReturnOpcode)
             {
                 results.Add(cursor.End(PathEnd.Returned));
@@ -1874,7 +1911,7 @@ public sealed class FieldScriptNavigationCatalog
                     groups,
                     calleeEntity,
                     calleeSlot,
-                    waits ? cursor.Constants : walk.WithoutLaterWrites(cursor.Constants, groupIndex, nextOffset),
+                    WithoutWalkState(waits ? cursor.Constants : walk.WithoutLaterWrites(cursor.Constants, groupIndex, nextOffset)),
                     nestedCallStack,
                     walk,
                     cursor.Control,
@@ -1908,7 +1945,7 @@ public sealed class FieldScriptNavigationCatalog
                     groups,
                     memberScript,
                     opcode.Bytes[1] == LeaderPartySlot,
-                    waits ? cursor.Constants : walk.WithoutLaterWrites(cursor.Constants, groupIndex, nextOffset),
+                    WithoutWalkState(waits ? cursor.Constants : walk.WithoutLaterWrites(cursor.Constants, groupIndex, nextOffset)),
                     nestedCallStack,
                     walk,
                     cursor.Control,
@@ -1982,7 +2019,8 @@ public sealed class FieldScriptNavigationCatalog
                         BitConverter.ToInt16(opcode.Bytes, 3),
                         BitConverter.ToInt16(opcode.Bytes, 5),
                         BitConverter.ToInt16(opcode.Bytes, 7),
-                        BitConverter.ToUInt16(opcode.Bytes, 9)) with { LeaderMask = placedOwner });
+                        BitConverter.ToUInt16(opcode.Bytes, 9)) with { LeaderMask = placedOwner, Choice = ChoiceOf(cursor.Constants) });
+                    RememberLanding(cursor.Constants, BitConverter.ToUInt16(opcode.Bytes, 9));
                     break;
                 case 0xC0 when HasConstantMovementArguments(opcode.Bytes) && MovementOwner(cursor) is { } jumpOwner:
                     cursor.AddAction(NavigationAction.Jump(
@@ -1990,7 +2028,8 @@ public sealed class FieldScriptNavigationCatalog
                         script,
                         BitConverter.ToInt16(opcode.Bytes, 3),
                         BitConverter.ToInt16(opcode.Bytes, 5),
-                        BitConverter.ToUInt16(opcode.Bytes, 7)) with { LeaderMask = jumpOwner });
+                        BitConverter.ToUInt16(opcode.Bytes, 7)) with { LeaderMask = jumpOwner, Choice = ChoiceOf(cursor.Constants) });
+                    RememberLanding(cursor.Constants, BitConverter.ToUInt16(opcode.Bytes, 7));
                     break;
                 case 0xC2 when HasConstantMovementArguments(opcode.Bytes) && MovementOwner(cursor) is { } ladderOwner:
                     cursor.AddAction(NavigationAction.Ladder(
@@ -2000,7 +2039,8 @@ public sealed class FieldScriptNavigationCatalog
                         BitConverter.ToInt16(opcode.Bytes, 5),
                         BitConverter.ToInt16(opcode.Bytes, 7),
                         BitConverter.ToUInt16(opcode.Bytes, 9),
-                        ResolveLadderInput(opcode.Bytes[11])) with { LeaderMask = ladderOwner });
+                        ResolveLadderInput(opcode.Bytes[11])) with { LeaderMask = ladderOwner, Choice = ChoiceOf(cursor.Constants) });
+                    RememberLanding(cursor.Constants, BitConverter.ToUInt16(opcode.Bytes, 9));
                     break;
             }
 
@@ -2024,8 +2064,12 @@ public sealed class FieldScriptNavigationCatalog
             }
 
             // A test is decided only by a value the walk can trust; anything else forks.
-            var holds = ResolveCondition(opcode, cursor.Constants);
+            var holds = ResolveCondition(opcode, cursor.Constants) ??
+                        ResolveLandingComparison(opcode, cursor.Constants, walk);
+            ForgetOverwrittenQuestion(opcode, cursor.Constants);
             walk.ApplyWrites(opcode, cursor.Constants);
+            ObserveLandingRead(opcode, cursor.Constants, walk, groupIndex);
+            ObserveQuestion(opcode, cursor.Constants);
             program.Successors(opcode, successors);
             if (holds is { } known && FieldScriptProgram.FalseTarget(opcode) is { } falseTarget)
             {
@@ -2046,6 +2090,31 @@ public sealed class FieldScriptNavigationCatalog
             {
                 // Every way on leaves the code.
                 results.Add(cursor.End(PathEnd.Invalid));
+                continue;
+            }
+
+            // A test of the answer an ASK just stored: each side goes on knowing it, and a
+            // side no answer the window offers can reach is no way through at all.
+            if (AnswerTest(opcode, cursor.Constants) is { } answer &&
+                FieldScriptProgram.FalseTarget(opcode) is { } answerFalseTarget &&
+                successors.Contains(answerFalseTarget) && successors.Contains(nextOffset))
+            {
+                if (answer.Fails is { } failing)
+                {
+                    pending.Push(cursor.Fork(answerFalseTarget, failing));
+                }
+
+                if (answer.Holds is { } holding)
+                {
+                    cursor.Constants.Clear();
+                    foreach (var (key, value) in holding)
+                    {
+                        cursor.Constants[key] = value;
+                    }
+
+                    pending.Push(cursor.Advance(nextOffset));
+                }
+
                 continue;
             }
 
@@ -2140,8 +2209,8 @@ public sealed class FieldScriptNavigationCatalog
 
                 pending.Push(caller.Fork(
                     next,
-                    new Dictionary<BankByteAddress, byte>(waits ? calledPath.Constants : caller.Constants),
-                    calledPath.Actions,
+                    waits ? AdoptCalleeValues(caller.Constants, calledPath.Constants) : new Dictionary<BankByteAddress, byte>(caller.Constants),
+                    AfterCallersAnswers(calledPath.Actions, ChoiceOf(caller.Constants)),
                     mask,
                     control,
                     partyChanged));
@@ -2294,12 +2363,207 @@ public sealed class FieldScriptNavigationCatalog
         private readonly Dictionary<int, (HashSet<BankByteAddress> Bytes, HashSet<int> Blocks)> partyWrites = new();
         private readonly List<FieldBankByte> scratch = [];
 
-        public NavigationWalk(IReadOnlyList<ScriptGroup> groups, NavigationLimits limits, int fieldId)
+        public NavigationWalk(IReadOnlyList<ScriptGroup> groups, NavigationLimits limits, int fieldId, byte[]? section = null)
         {
             this.groups = groups;
+            this.section = section;
             Program = groups[0].Program;
             Limits = limits;
             FieldId = fieldId;
+        }
+
+        private readonly byte[]? section;
+        private Dictionary<int, int>? provenInitWords;
+
+        /// <summary>
+        /// Temporary-bank words (block 5, by byte address) that hold one known value from the
+        /// end of Init for as long as the field is loaded, and so for every event the walk
+        /// follows: set by exactly one SETWORD of an immediate that an entity's Init reaches on
+        /// its straight run from its entry (no test or jump before it), and written by nothing
+        /// else - no other instruction names either byte and none writes block 5 at a computed
+        /// address. Anything else that runs the same SETWORD again stores the same value. The temporary bank is
+        /// cleared when a field loads, and every Init runs to its RET before any Main or
+        /// event (0060C683), so nothing can read the word before it is set. Anything short of
+        /// that proof is simply not listed.
+        /// </summary>
+        public IReadOnlyDictionary<int, int> ProvenInitWords => provenInitWords ??= FindProvenInitWords();
+
+        private Dictionary<int, int> FindProvenInitWords()
+        {
+            var proven = new Dictionary<int, int>();
+            if (Program.UnnamedWriters(TemporaryBlock).Count != 0)
+            {
+                return proven;
+            }
+
+            var writers = Program.WritersByByte();
+            var successors = new List<int>(2);
+            for (var entity = 0; entity < groups.Count; entity++)
+            {
+                if (Program.Pointer(entity, 0) is not { } offset)
+                {
+                    continue;
+                }
+
+                while (Program.TryGetInstruction(offset, out var instruction) && instruction.Id != ReturnOpcode)
+                {
+                    if (instruction.Id == SetWordOpcode && instruction.Bytes.Length >= 5 &&
+                        (instruction.Bytes[1] & 0x0F) == 0 &&
+                        FieldBankByte.IsWordBank(instruction.Bytes[1] >> 4) &&
+                        FieldBankByte.BlockOf(instruction.Bytes[1] >> 4) == TemporaryBlock)
+                    {
+                        var address = instruction.Bytes[2];
+                        if (writers.TryGetValue(new FieldBankByte(TemporaryBlock, address), out var low) &&
+                            writers.TryGetValue(new FieldBankByte(TemporaryBlock, address + 1), out var high) &&
+                            low.Count == 1 && high.Count == 1 &&
+                            low[0] == instruction.Offset && high[0] == instruction.Offset)
+                        {
+                            proven[address] = instruction.Bytes[3] | (instruction.Bytes[4] << 8);
+                        }
+                    }
+
+                    // Only the straight run from Init's entry is certain to have run.
+                    Program.Successors(instruction, successors);
+                    if (successors.Count != 1 || successors[0] != instruction.Next)
+                    {
+                        break;
+                    }
+
+                    offset = instruction.Next;
+                }
+            }
+
+            return proven;
+        }
+
+        private readonly Dictionary<(int Entity, BankByteAddress Byte), bool> ownRequestWrites = new();
+
+        /// <summary>
+        /// Whether every instruction that can write <paramref name="key"/> is in a requested
+        /// script (slots 1 and up, never Init or Main) that cannot run beside the one being
+        /// walked, and no computed write reaches its block. Such a script runs only when it is
+        /// asked for, and an entity runs what it is asked one at a time; a party character's
+        /// copy of a script runs beside this one only if something asks for that copy another
+        /// way than as party slot 0 (only one character is slot 0): a REQ naming it, or a PREQ
+        /// naming slot 1 or 2 with that script number. Sandun_1 gives Cloud, Tifa and Cid each
+        /// a copy of every climb, all asked for through PREQ slot 0. The general volatility
+        /// check counts every script asked for without waiting as concurrent, which includes
+        /// the very routine being walked.
+        /// </summary>
+        public bool IsWrittenOnlyByOwnRequests(int entity, BankByteAddress key)
+        {
+            if (ownRequestWrites.TryGetValue((entity, key), out var cached))
+            {
+                return cached;
+            }
+
+            var result = false;
+            if (Program.UnnamedWriters(key.Bank).Count == 0 &&
+                Program.WritersByByte().TryGetValue(new FieldBankByte(key.Bank, key.Index), out var writers))
+            {
+                var family = Program.IsPartyCharacter(entity)
+                    ? Enumerable.Range(0, groups.Count).Where(Program.IsPartyCharacter).ToArray()
+                    : [entity];
+                var requests = OtherWayRequests();
+                result = writers.All(writer => family.Any(member => IsSerializedWriter(member, writer)));
+
+                bool IsSerializedWriter(int member, int writer)
+                {
+                    if (Program.InitAndMainReach(member).Any(instruction => instruction.Offset == writer))
+                    {
+                        return false;
+                    }
+
+                    var found = false;
+                    foreach (var (pointer, slots) in Program.DistinctEntries(member))
+                    {
+                        if (slots.Contains(0) || Program.Reach(pointer).All(instruction => instruction.Offset != writer))
+                        {
+                            continue;
+                        }
+
+                        found = true;
+                        if (slots.Any(slot => requests.OtherSlots.Contains(slot) ||
+                                              (member != entity && requests.Direct.Contains((member, slot)))))
+                        {
+                            return false;
+                        }
+                    }
+
+                    return found;
+                }
+            }
+
+            ownRequestWrites[(entity, key)] = result;
+            return result;
+        }
+
+        private (HashSet<int> OtherSlots, HashSet<(int Entity, int Slot)> Direct)? otherWayRequests;
+
+        // Every script some live code asks for other than as party slot 0: by party slot 1 or 2
+        // (any character's copy of that number), and by entity (that entity's own).
+        private (HashSet<int> OtherSlots, HashSet<(int Entity, int Slot)> Direct) OtherWayRequests()
+        {
+            if (otherWayRequests is { } known)
+            {
+                return known;
+            }
+
+            var otherSlots = new HashSet<int>();
+            var direct = new HashSet<(int Entity, int Slot)>();
+            foreach (var instruction in Program.LiveInstructions())
+            {
+                if (instruction.Bytes.Length < 3)
+                {
+                    continue;
+                }
+
+                if (instruction.Id is >= EntityRequestOpcode and <= EntityRequestWaitOpcode)
+                {
+                    direct.Add((instruction.Bytes[1], instruction.Bytes[2] & 0x1F));
+                }
+                else if (instruction.Id is >= PartyMemberRequestOpcode and <= PartyMemberRequestSyncOpcode &&
+                         instruction.Bytes[1] != LeaderPartySlot)
+                {
+                    otherSlots.Add(instruction.Bytes[2] & 0x1F);
+                }
+            }
+
+            otherWayRequests = (otherSlots, direct);
+            return (otherSlots, direct);
+        }
+
+        /// <summary>The text of one line of a field message, or null when it cannot be read.</summary>
+        public string? ChoiceText(int dialog, int line)
+        {
+            if (section is null || section.Length < 6 || dialog < 0 || line < 0)
+            {
+                return null;
+            }
+
+            var table = BitConverter.ToUInt16(section, 4);
+            if (table + 2 > section.Length || dialog >= BitConverter.ToUInt16(section, table) ||
+                table + 2 + dialog * 2 + 2 > section.Length)
+            {
+                return null;
+            }
+
+            var start = table + BitConverter.ToUInt16(section, table + 2 + dialog * 2);
+            if (start >= section.Length)
+            {
+                return null;
+            }
+
+            // ASK numbers the lines of the window it asks in: the message's last page, the one
+            // the answers are on (tunnel_2's dialog 14 asks on its second page, choices 1 to 3).
+            var pages = Ff7EncodedTextDecoder.DecodePages(section.AsSpan(start));
+            if (pages.Count == 0 || line >= pages[^1].Lines.Count)
+            {
+                return null;
+            }
+
+            var text = pages[^1].Lines[line].Text.Replace("{CHOICE}", string.Empty, StringComparison.Ordinal).Trim();
+            return text.Length > 0 ? text : null;
         }
 
         public FieldScriptProgram Program { get; }
@@ -2822,7 +3086,8 @@ public sealed class FieldScriptNavigationCatalog
                 X = finalMovement.X,
                 Y = finalMovement.Y,
                 Z = finalMovement.Z,
-                Triangle = finalMovement.Triangle
+                Triangle = finalMovement.Triangle,
+                Choice = finalMovement.Choice
             }
             : finalMovement;
         return
@@ -2830,6 +3095,362 @@ public sealed class FieldScriptNavigationCatalog
             collapsedMovement,
             .. actions.Where(action => action.Kind == ActionKind.MapJump)
         ];
+    }
+
+    // State a walk keeps about itself, beside the bank values, so it forks, widens at join
+    // points and tells ways through apart exactly as they do. Blocks below zero are never
+    // bank blocks, and none of it is handed to a script the walk asks for.
+    private const int TemporaryBlock = 5;
+    private const int LandingState = -2;
+    private const int SlotZeroCopyState = -5;
+    private const int FoldedPositionState = -1;
+    private const int QuestionState = -3;
+    private const int AnswerState = -4;
+    private const int AnswerCountState = -6;
+    private const int MaximumAnswers = 4;
+    private const byte SetWordOpcode = 0x81;
+    private const byte UserControlOpcode = 0x33;
+    private const byte MenuAccessOpcode = 0x4A;
+    private const byte PartialAnimationOpcode = 0xBC;
+    private const byte AskOpcode = 0x48;
+
+    private static Dictionary<BankByteAddress, byte> WithSlotZeroCopy(IReadOnlyDictionary<BankByteAddress, byte> constants) =>
+        new(constants) { [new BankByteAddress(SlotZeroCopyState, 0)] = 1 };
+
+    private static Dictionary<BankByteAddress, byte> WithoutWalkState(IReadOnlyDictionary<BankByteAddress, byte> constants) =>
+        constants.Where(entry => entry.Key.Bank >= 0).ToDictionary(entry => entry.Key, entry => entry.Value);
+
+    // After a request it waited for, the caller knows the bank as the callee left it, and still
+    // only what it knew about itself.
+    private static Dictionary<BankByteAddress, byte> AdoptCalleeValues(
+        IReadOnlyDictionary<BankByteAddress, byte> caller,
+        IReadOnlyDictionary<BankByteAddress, byte> callee)
+    {
+        var adopted = WithoutWalkState(callee);
+        foreach (var (key, value) in caller)
+        {
+            if (key.Bank < 0 && key.Bank != LandingState)
+            {
+                adopted[key] = value;
+            }
+        }
+
+        return adopted;
+    }
+
+    private static void RememberLanding(Dictionary<BankByteAddress, byte> constants, int triangle)
+    {
+        constants[new BankByteAddress(LandingState, 0)] = (byte)triangle;
+        constants[new BankByteAddress(LandingState, 1)] = (byte)(triangle >> 8);
+    }
+
+    private static void ForgetLanding(Dictionary<BankByteAddress, byte> constants)
+    {
+        constants.Remove(new BankByteAddress(LandingState, 0));
+        constants.Remove(new BankByteAddress(LandingState, 1));
+    }
+
+    /// <summary>
+    /// PXYZI of party slot 0 (0x75) straight after the running model's own LADER, JUMP or XYZI
+    /// has landed it, while the walk is that model's copy of a slot-0 request: the leader is
+    /// that model, so the triangle it stores is the one the landing named. Only a temporary
+    /// word no concurrent code writes is folded; anything else stays unknown.
+    /// </summary>
+    private static void ObserveLandingRead(
+        FieldScriptInstruction opcode,
+        Dictionary<BankByteAddress, byte> constants,
+        NavigationWalk walk,
+        int owner)
+    {
+        if (opcode.Id != PartyMemberPositionOpcode || opcode.Bytes.Length < 8)
+        {
+            return;
+        }
+
+        var bank = opcode.Bytes[2] & 0x0F;
+        var address = opcode.Bytes[7];
+        var low = new BankByteAddress(TemporaryBlock, address);
+        var high = new BankByteAddress(TemporaryBlock, address + 1);
+        constants.Remove(new BankByteAddress(FoldedPositionState, address));
+        if (opcode.Bytes[3] != LeaderPartySlot ||
+            !FieldBankByte.IsWordBank(bank) || FieldBankByte.BlockOf(bank) != TemporaryBlock ||
+            !constants.ContainsKey(new BankByteAddress(SlotZeroCopyState, 0)) ||
+            !constants.TryGetValue(new BankByteAddress(LandingState, 0), out var landedLow) ||
+            !constants.TryGetValue(new BankByteAddress(LandingState, 1), out var landedHigh) ||
+            !walk.IsWrittenOnlyByOwnRequests(owner, low) || !walk.IsWrittenOnlyByOwnRequests(owner, high))
+        {
+            return;
+        }
+
+        constants[low] = landedLow;
+        constants[high] = landedHigh;
+        constants[new BankByteAddress(FoldedPositionState, address)] = 1;
+    }
+
+    /// <summary>
+    /// IFSW/IFUW (0x16..0x19) comparing a folded landing triangle with an immediate or with a
+    /// word Init proves (<see cref="NavigationWalk.ProvenInitWords"/>). Nothing else is decided
+    /// here: a comparison with no folded landing on one side forks as it always did.
+    /// </summary>
+    private static bool? ResolveLandingComparison(
+        FieldScriptInstruction opcode,
+        IReadOnlyDictionary<BankByteAddress, byte> constants,
+        NavigationWalk walk)
+    {
+        if (opcode.Id is not (0x16 or 0x17 or 0x18 or 0x19) || opcode.Bytes.Length < 7)
+        {
+            return null;
+        }
+
+        var signed = opcode.Id is 0x16 or 0x17;
+        var leftBank = opcode.Bytes[1] >> 4;
+        var rightBank = opcode.Bytes[1] & 0x0F;
+        var leftAddress = BitConverter.ToUInt16(opcode.Bytes, 2);
+        var rightAddress = BitConverter.ToUInt16(opcode.Bytes, 4);
+        var leftFolded = IsFolded(leftBank, leftAddress);
+        var rightFolded = IsFolded(rightBank, rightAddress);
+        if (!leftFolded && !rightFolded ||
+            Value(leftBank, leftAddress, leftFolded) is not { } left ||
+            Value(rightBank, rightAddress, rightFolded) is not { } right)
+        {
+            return null;
+        }
+
+        return opcode.Bytes[6] switch
+        {
+            0 => left == right,
+            1 => left != right,
+            2 => left > right,
+            3 => left < right,
+            4 => left >= right,
+            5 => left <= right,
+            _ => null
+        };
+
+        bool IsFolded(int bank, int address) =>
+            bank != 0 && FieldBankByte.IsWordBank(bank) && FieldBankByte.BlockOf(bank) == TemporaryBlock &&
+            constants.ContainsKey(new BankByteAddress(FoldedPositionState, address));
+
+        int? Value(int bank, int address, bool folded)
+        {
+            if (bank == 0)
+            {
+                return signed ? (short)address : address;
+            }
+
+            if (!FieldBankByte.IsWordBank(bank) || FieldBankByte.BlockOf(bank) != TemporaryBlock)
+            {
+                return null;
+            }
+
+            int word;
+            if (folded)
+            {
+                if (!constants.TryGetValue(new BankByteAddress(TemporaryBlock, address), out var low) ||
+                    !constants.TryGetValue(new BankByteAddress(TemporaryBlock, address + 1), out var high))
+                {
+                    return null;
+                }
+
+                word = low | (high << 8);
+            }
+            else if (walk.ProvenInitWords.TryGetValue(address, out var proven))
+            {
+                word = proven;
+            }
+            else
+            {
+                return null;
+            }
+
+            return signed ? (short)word : word;
+        }
+    }
+
+    /// <summary>
+    /// ASK (0x48) into a temporary byte: which dialog, the lines it offers and where the answer
+    /// goes, until something else writes that byte. A window of more than eight lines is not
+    /// followed.
+    /// </summary>
+    private static void ObserveQuestion(FieldScriptInstruction opcode, Dictionary<BankByteAddress, byte> constants)
+    {
+        if (opcode.Id != AskOpcode || opcode.Bytes.Length < 7)
+        {
+            return;
+        }
+
+        ForgetQuestion(constants);
+        var first = opcode.Bytes[4];
+        var last = opcode.Bytes[5];
+        if (FieldBankByte.BlockOf(opcode.Bytes[1] & 0x0F) != TemporaryBlock || first > last || last > 7)
+        {
+            return;
+        }
+
+        constants[new BankByteAddress(QuestionState, 0)] = opcode.Bytes[6];
+        constants[new BankByteAddress(QuestionState, 1)] = opcode.Bytes[3];
+        constants[new BankByteAddress(QuestionState, 2)] = first;
+        constants[new BankByteAddress(QuestionState, 3)] = last;
+        constants[new BankByteAddress(QuestionState, 4)] = 0;
+    }
+
+    private static void ForgetQuestion(Dictionary<BankByteAddress, byte> constants)
+    {
+        for (var index = 0; index <= 4; index++)
+        {
+            constants.Remove(new BankByteAddress(QuestionState, index));
+        }
+    }
+
+    private static void ForgetOverwrittenQuestion(FieldScriptInstruction opcode, Dictionary<BankByteAddress, byte> constants)
+    {
+        if (opcode.Id == AskOpcode ||
+            !constants.TryGetValue(new BankByteAddress(QuestionState, 0), out var address))
+        {
+            return;
+        }
+
+        var written = new List<FieldBankByte>();
+        FieldScriptProgram.Writes(opcode, written, out var unknown);
+        if (unknown || written.Any(key => key.Block == TemporaryBlock && key.Address == address) ||
+            FieldScriptProgram.UnnamedWriteBlocks(opcode).Contains(TemporaryBlock))
+        {
+            ForgetQuestion(constants);
+        }
+    }
+
+    private readonly record struct AnswerSides(
+        Dictionary<BankByteAddress, byte>? Holds,
+        Dictionary<BankByteAddress, byte>? Fails);
+
+    /// <summary>
+    /// IFUB/IFUBL (0x14, 0x15) of the answer byte against an immediate with = or !=, while the
+    /// answer is not yet known on this way through. The side where it equals the value knows
+    /// the answer and carries it as the one the route needs; the other side remembers the
+    /// value is ruled out, and is dropped once every line the window offers has been.
+    /// </summary>
+    private static AnswerSides? AnswerTest(FieldScriptInstruction opcode, IReadOnlyDictionary<BankByteAddress, byte> constants)
+    {
+        if (opcode.Id is not (0x14 or 0x15) || opcode.Bytes.Length < 6 ||
+            (opcode.Bytes[1] & 0x0F) != 0 ||
+            FieldBankByte.BlockOf(opcode.Bytes[1] >> 4) != TemporaryBlock ||
+            !constants.TryGetValue(new BankByteAddress(QuestionState, 0), out var address) ||
+            opcode.Bytes[2] != address ||
+            constants.ContainsKey(new BankByteAddress(TemporaryBlock, address)) ||
+            opcode.Bytes[4] is not (0 or 1))
+        {
+            return null;
+        }
+
+        // Two ways through that met at a join point keep only what they agree on, so a
+        // question can arrive with part of what the walk knew about it gone. Then it is not
+        // known at all, and the test forks as any other.
+        if (!constants.TryGetValue(new BankByteAddress(QuestionState, 1), out var dialog) ||
+            !constants.TryGetValue(new BankByteAddress(QuestionState, 2), out var first) ||
+            !constants.TryGetValue(new BankByteAddress(QuestionState, 3), out var last) ||
+            !constants.TryGetValue(new BankByteAddress(QuestionState, 4), out var excluded))
+        {
+            return null;
+        }
+        var value = opcode.Bytes[3];
+        var offered = value >= first && value <= last && (excluded & (1 << value)) == 0;
+
+        Dictionary<BankByteAddress, byte>? equal = null;
+        if (offered)
+        {
+            // Answers accumulate in order: a vine can ask "up / down" and then, at the
+            // junction it climbs to, "right / left".
+            var count = constants.TryGetValue(new BankByteAddress(AnswerCountState, 0), out var answered) ? answered : (byte)0;
+            if (count >= MaximumAnswers)
+            {
+                return null;
+            }
+
+            equal = new Dictionary<BankByteAddress, byte>(constants)
+            {
+                [new BankByteAddress(TemporaryBlock, address)] = value,
+                [new BankByteAddress(AnswerState, count * 2)] = dialog,
+                [new BankByteAddress(AnswerState, count * 2 + 1)] = value,
+                [new BankByteAddress(AnswerCountState, 0)] = (byte)(count + 1)
+            };
+        }
+
+        var remaining = offered ? excluded | (1 << value) : excluded;
+        Dictionary<BankByteAddress, byte>? different = null;
+        var any = false;
+        for (var line = first; line <= last; line++)
+        {
+            any |= (remaining & (1 << line)) == 0;
+        }
+
+        if (any)
+        {
+            different = new Dictionary<BankByteAddress, byte>(constants)
+            {
+                [new BankByteAddress(QuestionState, 4)] = (byte)remaining
+            };
+        }
+
+        return opcode.Bytes[4] == 0
+            ? new AnswerSides(equal, different)
+            : new AnswerSides(different, equal);
+    }
+
+    // What a requested script moves after the caller has asked its question is moved on the
+    // caller's answers: gaia_2's ladders ask "which way?" in the LINE and climb in the script
+    // the answer requests.
+    private static IReadOnlyList<NavigationAction> AfterCallersAnswers(IReadOnlyList<NavigationAction> actions, string? callerAnswers) =>
+        callerAnswers is null
+            ? actions
+            : actions
+                .Select(action => action.Kind == ActionKind.MapJump
+                    ? action
+                    : action with { Choice = action.Choice is { } own ? $"{callerAnswers}|{own}" : callerAnswers })
+                .ToArray();
+
+    // Every answer given so far on this way through, in order, as "dialog:line|dialog:line".
+    private static string? ChoiceOf(IReadOnlyDictionary<BankByteAddress, byte> constants)
+    {
+        if (!constants.TryGetValue(new BankByteAddress(AnswerCountState, 0), out var count) || count == 0)
+        {
+            return null;
+        }
+
+        // Answers a join point did not agree on are not known answers; nothing is claimed.
+        var answers = new List<string>(count);
+        for (var index = 0; index < count; index++)
+        {
+            if (!constants.TryGetValue(new BankByteAddress(AnswerState, index * 2), out var dialog) ||
+                !constants.TryGetValue(new BankByteAddress(AnswerState, index * 2 + 1), out var line))
+            {
+                return null;
+            }
+
+            answers.Add($"{dialog}:{line}");
+        }
+
+        return string.Join("|", answers);
+    }
+
+    private static FieldScriptNavigationChoice? RequiredChoiceOf(string? answers, NavigationWalk walk)
+    {
+        if (answers is null)
+        {
+            return null;
+        }
+
+        var parsed = answers.Split('|')
+            .Select(answer => answer.Split(':'))
+            .Select(parts => (Dialog: int.Parse(parts[0], System.Globalization.CultureInfo.InvariantCulture),
+                Line: int.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture)))
+            .ToArray();
+        var texts = parsed.Select(answer => walk.ChoiceText(answer.Dialog, answer.Line)).ToArray();
+        var last = parsed[^1];
+        return new FieldScriptNavigationChoice(
+            last.Dialog,
+            last.Line,
+            texts.All(text => text is not null) ? string.Join(", then ", texts) : null,
+            parsed.Length);
     }
 
     /// <summary>
@@ -4121,6 +4742,7 @@ public sealed class FieldScriptNavigationCatalog
             value = Mix(value ^ (uint)action.DestinationField) ^ Mix(value + (uint)action.RequiredInput);
             value = Mix(value ^ (action.RequiresActionActivation ? 1UL : 0UL) ^ (action.IsPlacement ? 2UL : 0UL));
             value = Mix(value ^ action.LeaderMask ^ (action.MovesSlotZero ? 1UL << 63 : 0) ^ ((ulong)(uint)action.At << 20));
+            value = Mix(value ^ (action.Choice is { } choice ? (ulong)(uint)StringComparer.Ordinal.GetHashCode(choice) ^ (1UL << 50) : 0));
             return Mix((hash * 0x100000001B3UL) ^ value);
         }
 
@@ -4205,7 +4827,10 @@ public sealed class FieldScriptNavigationCatalog
         // is the player's only while that same member leads.
         bool MovesSlotZero = false,
         // Where a MAPJUMP sits, so its live guard can be read from its script; -1 otherwise.
-        int At = -1)
+        int At = -1,
+        // The answers to the routine's own ASKs this movement came after, in order, as
+        // "dialog:line|dialog:line".
+        string? Choice = null)
     {
         public static NavigationAction Ladder(
             int group,

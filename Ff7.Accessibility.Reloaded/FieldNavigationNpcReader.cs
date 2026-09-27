@@ -42,6 +42,11 @@ public sealed class FieldNavigationNpcReader
         {
             [(79, 4)] = "Weapon seller",
 
+            // bonevil: the man seated in the tent's doorway. His own Talk offers the
+            // excavation (dialogs 49 and 50) and sends the party to the dig (772); he has
+            // no field entity name, and the story step already calls him the foreman.
+            [(617, 4)] = "Excavation foreman",
+
             // tin_1: first passenger car. The beggar can give Cloud a
             // Phoenix Down during the Reactor 5 security countdown.
             [(139, 31)] = "Barret",

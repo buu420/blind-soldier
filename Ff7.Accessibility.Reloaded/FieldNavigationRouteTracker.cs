@@ -773,7 +773,8 @@ public sealed class FieldNavigationRouteTracker
                 portal.TransitionExit ?? portal.Midpoint,
                 portal.ToTriangle,
                 portal.RequiresAction,
-                index);
+                index,
+                portal.RequiredChoice);
         }
 
         return null;

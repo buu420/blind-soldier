@@ -63,6 +63,30 @@ internal sealed class SyntheticScriptCode
         return this;
     }
 
+    /// <summary>IFSW (0x16) or IFUW (0x18) of one variable against another.</summary>
+    public SyntheticScriptCode IfWordVariable(bool signed, int bank1, int left, int bank2, int right, int op, string elseLabel)
+    {
+        var start = bytes.Count;
+        Raw(signed ? 0x16 : 0x18, (bank1 << 4) | bank2, left & 0xFF, left >> 8, right & 0xFF, right >> 8, op, 0);
+        fixups.Add((start, start + 7, false, false, elseLabel));
+        return this;
+    }
+
+    /// <summary>SETWORD (0x81) of an immediate.</summary>
+    public SyntheticScriptCode SetWord(int bank, int address, int value) =>
+        Raw(0x81, bank << 4, address, value & 0xFF, (value >> 8) & 0xFF);
+
+    /// <summary>UC (0x33): 1 freezes the player, 0 frees them.</summary>
+    public SyntheticScriptCode Uc(int frozen) => Raw(0x33, frozen);
+
+    /// <summary>PXYZI (0x75): a party member's X, Y, Z and triangle into one bank's words.</summary>
+    public SyntheticScriptCode PartyPosition(int partySlot, int bank, int x, int y, int z, int triangle) =>
+        Raw(0x75, (bank << 4) | bank, (bank << 4) | bank, partySlot, x, y, z, triangle);
+
+    /// <summary>ASK (0x48) into Bank[5][<paramref name="address"/>], window 0.</summary>
+    public SyntheticScriptCode Ask(int dialog, int firstChoice, int lastChoice, int address) =>
+        Raw(0x48, 0x05, 0, dialog, firstChoice, lastChoice, address);
+
     public SyntheticScriptCode IfKey(int mask, string elseLabel)
     {
         var start = bytes.Count;

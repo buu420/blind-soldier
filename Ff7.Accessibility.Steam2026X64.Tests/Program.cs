@@ -397,6 +397,13 @@ if (args.Contains("--world-mount-corel-only", StringComparer.OrdinalIgnoreCase))
     return;
 }
 
+if (args.Contains("--corel-cave-only", StringComparer.OrdinalIgnoreCase))
+{
+    Steam2026CorelCaveControllerTests.Run();
+    Console.WriteLine("Corel Valley Cave controller tests passed.");
+    return;
+}
+
 if (args.Contains("--mount-corel-repair-only", StringComparer.OrdinalIgnoreCase))
 {
     MountCorelRouteRepairTests.Run(CreateInstalledFieldWalkmeshReader);
@@ -910,6 +917,7 @@ Ff7.Accessibility.Reloaded.Tests.FieldPuzzleStoryTests.Run(CreateInstalledFieldW
 Ff7.Accessibility.Reloaded.Tests.TempleClockSpeechTests.Run();
 Ff7.Accessibility.Reloaded.Tests.TempleClockDeliveryTests.Run();
 Ff7.Accessibility.Reloaded.Tests.ChaseAndExcavationTests.Run(CreateInstalledFieldWalkmeshReader);
+Steam2026CorelCaveControllerTests.Run();
 Ff7.Accessibility.Reloaded.Tests.GuideRouteRegressionTests.Run();
 Ff7.Accessibility.Reloaded.Tests.FieldNavigationTriggerFallbackTests.Run();
 Ff7.Accessibility.Reloaded.Tests.FieldEntryPlacementSafetyTests.Run();
@@ -3699,6 +3707,15 @@ sealed class DirectGuestMemory : ILegacyAddressSpace
         for (var index = 0; index < values.Count; index++)
         {
             bytes[checked(address + (uint)index)] = values[index];
+        }
+    }
+
+    /// <summary>Makes bytes unreadable again, as an unmapped page is.</summary>
+    public void Forget(uint address, int length)
+    {
+        for (var index = 0; index < length; index++)
+        {
+            bytes.Remove(checked(address + (uint)index));
         }
     }
 

@@ -102,6 +102,13 @@ public sealed class ControllerNavigationCapture : IGameInputSuppressor
 
     public string LastRefusal => menu.LastRefusal;
 
+    /// <summary>
+    /// Why the menu last closed on its own (not by the player's button), for diagnostics:
+    /// which of focus, module, busy, freshness or the pad itself failed, and how old the
+    /// context was. Never spoken.
+    /// </summary>
+    public string LastCloseCause { get; private set; } = string.Empty;
+
     public long ObservedPolls => Interlocked.Read(ref observedPolls);
 
     public ControllerNavigationGeneration Generation
@@ -239,6 +246,14 @@ public sealed class ControllerNavigationCapture : IGameInputSuppressor
             // that a newly published context had just cleared.
             generationId = current.Id;
             Commands.Enqueue(result.Command, generationId);
+            if (result.Command == ControllerNavigationCommand.Closed && result.Announcement is not null)
+            {
+                var age = current.StampUtc == DateTime.MinValue ? double.NaN : (nowUtc - current.StampUtc).TotalMilliseconds;
+                LastCloseCause =
+                    $"domain={current.Domain}, generation={current.Id}, contextAge={age:0} ms (limit {ContextFreshness.TotalMilliseconds:0}), " +
+                    $"fresh={fresh}, foreground={foreground}, module={current.ModuleSupportsNavigation}, busy={current.GameIsBusy}, " +
+                    $"connected={raw.IsConnected}";
+            }
         }
 
         if (result.Announcement is not null)

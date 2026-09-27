@@ -36,6 +36,7 @@ public sealed class FieldLadderProximityCueTracker
 
         var activeKeys = new HashSet<string>(StringComparer.Ordinal);
         var cues = new List<FieldLadderProximityCue>();
+        var hasPriority = !string.IsNullOrWhiteSpace(prioritizedTransitionId);
         foreach (var transition in transitions.Where(transition =>
                      transition.FieldId == position.FieldId &&
                      transition.Kind == FieldNavigationTransitionKind.Ladder &&
@@ -51,14 +52,24 @@ public sealed class FieldLadderProximityCueTracker
                 continue;
             }
 
-            activeKeys.Add(transition.StableId);
-            if (nextPulseByTarget.TryGetValue(transition.StableId, out var nextPulse) && now < nextPulse)
+            // One pulse per physical entrance. A LINE whose routine can end on more than one
+            // triangle is listed once per ending, all from the same place (Corel Valley
+            // Cave's vines are three to seven each), and each pulsing on its own made one
+            // vine sound several times at once. The route's own ladder keeps its identity,
+            // which the mount cue compares against.
+            var key = hasPriority ? transition.StableId : EntranceKey(transition);
+            if (!activeKeys.Add(key))
             {
                 continue;
             }
 
-            nextPulseByTarget[transition.StableId] = now + pulseInterval;
-            cues.Add(new FieldLadderProximityCue(transition, gain, transition.StableId));
+            if (nextPulseByTarget.TryGetValue(key, out var nextPulse) && now < nextPulse)
+            {
+                continue;
+            }
+
+            nextPulseByTarget[key] = now + pulseInterval;
+            cues.Add(new FieldLadderProximityCue(transition, gain, key));
         }
 
         foreach (var staleKey in nextPulseByTarget.Keys.Where(key => !activeKeys.Contains(key)).ToArray())
@@ -70,6 +81,11 @@ public sealed class FieldLadderProximityCueTracker
     }
 
     public void Reset() => nextPulseByTarget.Clear();
+
+    /// <summary>Where a traversal is entered: its field, its LINE entity and that line's position.</summary>
+    public static string EntranceKey(FieldScriptNavigationTransition transition) =>
+        $"entrance:{transition.FieldId}:{transition.SourceEntityId}:" +
+        $"{transition.SourceX}:{transition.SourceY}:{transition.SourceZ}:{transition.SourceTriangle}";
 
     private float CalculateGain(
         FieldPositionSnapshot position,

@@ -118,6 +118,18 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
     private FieldNavigationControlTransform? controllerControl;
     private FieldLadderStateSnapshot controllerLadder;
     private DateTime controllerNowUtc;
+
+    // The wall clock the controller capture measures freshness against. The worker's own
+    // clock is taken once at the top of an iteration, before every other coordinator runs.
+    private readonly Func<DateTime> utcClock;
+
+    // The field the last controller context was published for, while it said the field was
+    // navigable; -1 once a tick has said otherwise. Refreshing it keeps the context as fresh
+    // as the worker is, whether or not this tick scans.
+    private int navigableControllerField = -1;
+    private DateTime lastObserveWallUtc = DateTime.MinValue;
+    private DateTime lastSlowWorkerLogUtc = DateTime.MinValue;
+    private TimeSpan lastScanDuration;
     private bool controllerMenuIsOpen;
     private bool junonParadeClaimsFieldInput;
     private int disposed;
@@ -137,8 +149,10 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         NavigationAutoWalkController? autoWalk = null,
         Func<ControllerNavigationCapture?>? controllerCapture = null,
         Steam2026NativeDirectionalInputSink? directionalInput = null,
-        Func<bool?>? isSpeechPlaying = null)
+        Func<bool?>? isSpeechPlaying = null,
+        Func<DateTime>? utcClock = null)
     {
+        this.utcClock = utcClock ?? (static () => DateTime.UtcNow);
         // The screen reader's own word on whether it is still speaking; null where it cannot say.
         this.isSpeechPlaying = isSpeechPlaying ?? (static () => null);
         // Never a Win32 sink, even when no sink is supplied: an unattached one refuses
@@ -415,15 +429,22 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             return;
         }
 
+        // Stamped when it is published, as the legacy host's is. The worker's clock is as old
+        // as everything the iteration ran before the field, and a context stamped with it can
+        // reach the capture's freshness limit while it is still the newest there is: in Corel
+        // Valley Cave every R3 was answered with "Navigation menu closed." and nothing after it.
+        var publishedAt = utcClock();
+        var navigable = moduleSupportsNavigation && config.EnableFieldNavigationAssistant;
         capture.PublishContext(
             ControllerNavigationDomain.Field,
             isForeground,
-            moduleSupportsNavigation && config.EnableFieldNavigationAssistant,
+            navigable,
             gameIsBusy: false,
-            controllerNowUtc,
+            publishedAt,
             // The field is the identity: a selection made in one room must not be
             // applied in the next.
             identity: controllerPosition.FieldId);
+        navigableControllerField = navigable && isForeground ? controllerPosition.FieldId : -1;
 
         controllerNavigation ??= new ControllerNavigationDispatcher(
             new ControllerNavigationServices(
@@ -449,9 +470,111 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             speech => { Speak(speech, interrupt: true, controllerNowUtc, "controller"); return true; },
             log);
 
-        _ = controllerNavigation.Drain(capture, ControllerNavigationDomain.Field, controllerNowUtc);
+        _ = controllerNavigation.Drain(capture, ControllerNavigationDomain.Field, publishedAt);
         controllerMenuIsOpen = capture.IsOpen;
     }
+
+    /// <summary>
+    /// Keeps the last navigable context fresh on a tick that does not scan, the way the legacy
+    /// host's module floor does: only for the same field, only while the frame still says the
+    /// field module and the window still has the focus, never after a tick that said the field
+    /// was not navigable, and only once this tick's own checked read of native ownership says
+    /// nobody else has the pad - the field's control lock, its message windows and its film.
+    /// When that read says somebody does, or cannot be made, the field is published busy at
+    /// once: the capture closes the menu on its next poll and that poll's buttons already go to
+    /// the game, instead of a stale "navigable" standing until it ages out.
+    /// </summary>
+    private void RefreshControllerContext(RuntimeFrameObservation frame)
+    {
+        if (navigableControllerField < 0 || controllerCapture() is not { } capture)
+        {
+            return;
+        }
+
+        if (frame.Lifecycle.ModuleId != FieldPositionReader.FieldModule ||
+            !frame.Lifecycle.IsForeground ||
+            !foregroundInput.IsCurrentProcessForeground())
+        {
+            // The module and focus have their own publishers and closes.
+            navigableControllerField = -1;
+            return;
+        }
+
+        if (!addressSpace.TryReadUInt16((uint)FieldPositionReader.AddressFieldId, out var fieldId))
+        {
+            PublishControllerBusy(capture, navigableControllerField);
+            return;
+        }
+
+        if (fieldId != navigableControllerField)
+        {
+            // Another field: its own scan publishes its own generation.
+            navigableControllerField = -1;
+            return;
+        }
+
+        if (!cueReader.TryRead(out var cue) ||
+            cue.Module != FieldPositionReader.FieldModule ||
+            cue.IsSuppressed)
+        {
+            PublishControllerBusy(capture, fieldId);
+            return;
+        }
+
+        capture.PublishContext(
+            ControllerNavigationDomain.Field,
+            isHostForeground: true,
+            moduleSupportsNavigation: true,
+            gameIsBusy: false,
+            utcClock(),
+            identity: fieldId);
+    }
+
+    /// <summary>
+    /// The game owns the pad now (a native window, a control lock, a film) or its state cannot
+    /// be read: says so to the capture at once, for this field, and stops renewing.
+    /// </summary>
+    private void PublishControllerBusy(ControllerNavigationCapture? capture, int fieldId)
+    {
+        navigableControllerField = -1;
+        if (capture is null || fieldId < 0)
+        {
+            return;
+        }
+
+        capture.PublishContext(
+            ControllerNavigationDomain.Field,
+            isHostForeground: true,
+            moduleSupportsNavigation: true,
+            gameIsBusy: true,
+            utcClock(),
+            identity: fieldId);
+    }
+
+    /// <summary>
+    /// Says, now and then, when the worker comes round too slowly for the controller menu:
+    /// the time since the last field tick, how late in its iteration this one runs, and how
+    /// long the last scan took. The capture closes the menu once a context is 750 ms old.
+    /// </summary>
+    private void NoteWorkerPace(DateTime iterationUtc)
+    {
+        var wall = utcClock();
+        var sinceLast = lastObserveWallUtc == DateTime.MinValue ? TimeSpan.Zero : wall - lastObserveWallUtc;
+        var late = wall - iterationUtc;
+        lastObserveWallUtc = wall;
+        if ((sinceLast >= SlowWorkerThreshold || late >= SlowWorkerThreshold / 2 || lastScanDuration >= SlowWorkerThreshold / 2) &&
+            config.EnableFieldNavigationDiagnostics &&
+            wall - lastSlowWorkerLogUtc >= TimeSpan.FromSeconds(5))
+        {
+            lastSlowWorkerLogUtc = wall;
+            log(
+                $"Native Steam 2026 field navigation worker slow: sinceLastTick={sinceLast.TotalMilliseconds:0} ms, " +
+                $"lateInIteration={late.TotalMilliseconds:0} ms, lastScan={lastScanDuration.TotalMilliseconds:0} ms, " +
+                $"controllerFreshness={ControllerNavigationCapture.ContextFreshness.TotalMilliseconds:0} ms.");
+        }
+    }
+
+    private static readonly TimeSpan SlowWorkerThreshold = TimeSpan.FromMilliseconds(500);
 
     /// <summary>
     /// Ends the automatic walk whatever domain owns it, and clears the keyboard
@@ -532,8 +655,12 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             return;
         }
 
+        NoteWorkerPace(nowUtc);
+        RefreshControllerContext(frame);
+
         if (junonParadeClaimsFieldInput)
         {
+            navigableControllerField = -1;
             pendingActions.Clear();
             pendingAutoWalkStart = false;
             autoWalkRouteToggleQueued = false;
@@ -591,6 +718,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
 
         nextScanUtc = nowUtc + TimeSpan.FromMilliseconds(
             Math.Max(30, config.FieldNavigationScanIntervalMs));
+        var scanStartedAt = utcClock();
         try
         {
             if (!TryReadCoherentBaseNavigation(
@@ -615,6 +743,9 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                     false,
                     nowUtc);
                 LogReadFailure($"base state unavailable: {baseDiagnostic}", nowUtc);
+                PublishControllerBusy(
+                    navigableControllerField >= 0 ? controllerCapture() : null,
+                    navigableControllerField);
                 autoWalk.Suspend();
                 autoWalkConvergence.Suspend();
                 return;
@@ -625,6 +756,20 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                 : FieldFootstepCadence.Walk;
             if (cue.IsSuppressed)
             {
+                // A native window or scene owns the pad: the context this runtime last
+                // published is not renewed. Where it owns the player's input too, the field
+                // is said to be busy at once; a native ladder climb, which navigation goes on
+                // guiding (IsNavigationSuppressed), is left to age out as before.
+                var ownedByTheGame = fieldActivityOwnsInput || IsNavigationSuppressed(cue, ladder, isLadderStateCoherent);
+                if (ownedByTheGame)
+                {
+                    PublishControllerBusy(controllerCapture(), position.FieldId);
+                }
+                else
+                {
+                    navigableControllerField = -1;
+                }
+
                 exitPublicationGate.Reset();
                 exitSpatial.Observe(position, control, NoTargets, true, true, true, nowUtc);
                 ladderSpatial.Observe(
@@ -975,6 +1120,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         }
         catch (Exception ex)
         {
+            navigableControllerField = -1;
             autoWalk.Suspend();
             autoWalkConvergence.Suspend();
             exitSpatial.Observe(default, default, NoTargets, true, false, false, nowUtc);
@@ -988,6 +1134,10 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                 false,
                 nowUtc);
             LogReadFailure(ex.Message, nowUtc);
+        }
+        finally
+        {
+            lastScanDuration = utcClock() - scanStartedAt;
         }
     }
 
@@ -1153,6 +1303,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         // selections were about a place the player is no longer in.
         controllerCapture()?.RequestClose(ControllerNavigationDomain.Field);
         controllerMenuIsOpen = false;
+        navigableControllerField = -1;
         controller.Reset();
         autoWalk.Reset();
         autoWalkConvergence.Reset();
@@ -1199,6 +1350,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         // through the gap can act when it comes back.
         controllerCapture()?.RequestClose(ControllerNavigationDomain.Field);
         controllerMenuIsOpen = false;
+        navigableControllerField = -1;
         pendingActions.Clear();
         autoWalk.Suspend();
         autoWalkConvergence.Suspend();
