@@ -360,7 +360,10 @@ public sealed class FieldNavigationObjectReader
                 ManualNavigationGuidance: definition.ManualNavigationGuidance,
                 TriggerLine: liveLine,
                 ApproachCrossingLine: CrossingLineOf(definition),
-                LineActivationRadius: lineActivationRadius));
+                LineActivationRadius: lineActivationRadius,
+                Activation: definition.TargetKind == FieldNavigationObjectTargetKind.Model && definition.UsesTalkInteraction
+                    ? FieldNavigationActivation.Talk
+                    : FieldNavigationActivation.Default));
         }
 
         // Bone Village's dig spot is where the game has buried what the diggers look for, not a

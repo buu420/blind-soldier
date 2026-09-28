@@ -760,11 +760,13 @@ public sealed class FieldNavigationController
         // The boundary names every lock the field has on, not the one in this route's way.
         // Only the door whose release is what lets this route through is the right one to
         // walk to; a destination blocked by a different door must not be sent here.
+        // Cid's house holds its kitchen door with two locks one script releases together, so
+        // the question is always asked of the row's whole group, never of one triangle.
         if (routePlanner is not IFieldNavigationNativeBoundaryStatus boundary ||
-            !FieldNativeDoorOpeningLines.TryFindForGoal(
+            !FieldNativeDoorOpeningLines.TryFindGroupForGoal(
                 held.FieldId,
                 LastBlockingBoundaryTriangles,
-                triangle => boundary.WouldRouteIfBoundaryReleased(position, held, triangle),
+                group => group.Count > 0 && boundary.WouldRouteIfBoundaryGroupReleased(position, held, group),
                 out var opening))
         {
             return false;
@@ -968,6 +970,7 @@ public sealed class FieldNavigationController
     private void ResetCore(bool deactivateProgress)
     {
         BeaconEnabled = false;
+        automaticWalkDriving = false;
         beaconLockedTarget = null;
         crossingRouteTriangles = [];
         currentGuidance = null;
@@ -1909,6 +1912,27 @@ public sealed class FieldNavigationController
         }
 
         ObserveAutomaticPace(position);
+
+        // In talking range on the approach but not facing the target: the one move left is the
+        // one a player makes - press toward them. Native movement turns the leader even where
+        // the counter refuses the step, and nothing is confirmed or pressed on their behalf.
+        if (IsInTalkRangeOnTheApproach(position, target.Value, ResolveArrivalDistance(target.Value, arrivalDistanceUnits)) &&
+            !FacesTalkTarget(position, target.Value))
+        {
+            var turn = movementObserver.ResolveStickDirection(
+                target.Value.X - position.X,
+                target.Value.Y - position.Y,
+                controlTransform).Input;
+            if (IsDirectionalInput(turn))
+            {
+                input = turn;
+                automaticWalkDriving = true;
+                LastAutomaticInputHold = FieldAutoWalkHoldReason.None;
+                LastNavigationDiagnostic = $"{LastNavigationDiagnostic}, turning to face {target.Value.Label} to talk";
+                return true;
+            }
+        }
+
         var waypoint = ResolveGuidanceWaypoint(currentGuidance.Value);
         var recommendation = movementObserver.ResolveStickDirection(
             waypoint.X - position.X,
@@ -1940,18 +1964,33 @@ public sealed class FieldNavigationController
                     : nativePlanner.IsAutomaticMovementClear(position, target.Value, candidateDestination);
             }
 
+            // Where the leader's body can be judged, a move the native step refuses is not
+            // clear just because its centre line is; see FieldNavigationBodyClearance. It is a
+            // preference and never a veto: with nothing the body can make, the centre-line
+            // choice stands as it always did, and the native slide does what it can.
+            bool? BodyClear(FieldNavigationInput candidate, double probeDistance)
+            {
+                if (currentGuidance.Value.UsesNativeProbeClearance)
+                {
+                    return true;
+                }
+
+                var (x, y) = FieldNavigationMovementObserver.PredictWorldDirection(candidate, controlTransform);
+                return nativePlanner.IsBodyMovementClear(position, target.Value, new FieldNavigationRouteWaypoint(
+                    position.X + (int)Math.Round(x * probeDistance),
+                    position.Y + (int)Math.Round(y * probeDistance), position.Z));
+            }
+
             // A clear diagonal route can round to a blocked cardinal input.
             // Keep the closest forward input whose native movement probes clear.
             var recommended = input;
             FieldNavigationInput ChooseClear(double probeDistance)
             {
-                if (IsClear(recommended, probeDistance))
-                {
-                    return recommended;
-                }
-
-                return Enum.GetValues<FieldNavigationInput>()
+                // Lazily, in the old order: the recommended input first, the others only when
+                // it is not taken, so the common case asks the planner exactly what it did.
+                var candidates = Enum.GetValues<FieldNavigationInput>()
                     .Where(IsDirectionalInput)
+                    .Where(candidate => candidate != recommended)
                     .Select(candidate => (Input: candidate,
                         World: FieldNavigationMovementObserver.PredictWorldDirection(candidate, controlTransform)))
                     .Select(candidate => (candidate.Input,
@@ -1959,7 +1998,27 @@ public sealed class FieldNavigationController
                     .Where(candidate => candidate.Progress > 0d)
                     .OrderByDescending(candidate => candidate.Progress)
                     .Select(candidate => candidate.Input)
-                    .FirstOrDefault(candidate => IsClear(candidate, probeDistance));
+                    .Prepend(recommended);
+                var firstClear = FieldNavigationInput.None;
+                foreach (var candidate in candidates)
+                {
+                    if (!IsDirectionalInput(candidate) || !IsClear(candidate, probeDistance))
+                    {
+                        continue;
+                    }
+
+                    if (BodyClear(candidate, probeDistance) != false)
+                    {
+                        return candidate;
+                    }
+
+                    if (!IsDirectionalInput(firstClear))
+                    {
+                        firstClear = candidate;
+                    }
+                }
+
+                return firstClear;
             }
 
             // Only when the party is actually stuck. A direction that is clear for the
@@ -1988,6 +2047,7 @@ public sealed class FieldNavigationController
 
         if (IsDirectionalInput(input))
         {
+            automaticWalkDriving = true;
             LastAutomaticInputHold = FieldAutoWalkHoldReason.None;
             return true;
         }
@@ -3010,6 +3070,20 @@ public sealed class FieldNavigationController
             }
         }
 
+        // A target finished by standing on its own triangles is being completed, not lost, when
+        // the party is on them. The mansion basement's coffin-room door is offered by the side
+        // the leader is on, so the way in stops being offered on the very sample the party
+        // enters the room; without this the walk through it ended as "no longer reachable".
+        // Only the selected target, only on its own completion triangles: never a different
+        // or newly offered one, and never by distance.
+        if (!interactionArrivalPaused &&
+            beaconLockedTarget is { CompletionTriangles: { Count: > 0 } completion } completing &&
+            string.Equals(GetTargetId(completing), beaconTargetId, StringComparison.Ordinal) &&
+            completion.Contains(position.TriangleId))
+        {
+            return completing;
+        }
+
         // The walk to a door-opening line is a leg the mod created, so it is not in the
         // native target list and never will be. Resolving it here rather than at one call
         // site is what makes the rest of the assistant see it: guidance, progress and -
@@ -3065,6 +3139,65 @@ public sealed class FieldNavigationController
         return crossingRouteTriangles.Contains(position.TriangleId) ||
                routeTracker?.CurrentProbeSnapshot?.TrianglePath.Contains(position.TriangleId) == true ||
                Distance2D(position.X, position.Y, target.X, target.Y) <= crossingSelectionDistance + CrossingApproachSlackUnits;
+    }
+
+    /// <summary>
+    /// A Talk target is reached where the game lets the party talk: strictly inside the
+    /// target's own reach in a straight line, within the activation height band - and, so a
+    /// wall between them never counts, on the last triangle of the route planned to the approach.
+    ///
+    /// <para>The route's remaining length is the approach leg plus the approach's own distance to
+    /// the target. Where the only legal ground is a thin band at the edge of reach - the
+    /// Nibelheim innkeeper's counter leaves about four units - that sum exceeds the reach
+    /// everywhere except within a few units of the approach point itself, and a party running
+    /// 16 to 32 units a sample swung across it without ever arriving, standing all the while
+    /// where it could talk. The reach is the target's, unwidened.</para>
+    /// </summary>
+    private bool IsInsideTalkReachOnTheApproach(FieldPositionSnapshot position, FieldNavigationTarget target, int threshold) =>
+        IsInTalkRangeOnTheApproach(position, target, threshold) &&
+        (!automaticWalkDriving || FacesTalkTarget(position, target));
+
+    /// <summary>
+    /// The native Talk test (00636284) also wants the leader facing the target within 64 of
+    /// the 256 direction units, strictly: 00636284 starts its best error at 0x40 and
+    /// accepts only a smaller value. 006392BB copies the event's +0x38 direction
+    /// unchanged to the model's +0x1C byte read by FieldPositionReader.
+    /// The convention is heading h moves by (sin h, -cos h).
+    /// </summary>
+    private const int NativeTalkFacingTolerance = 64;
+
+    private static bool FacesTalkTarget(FieldPositionSnapshot position, FieldNavigationTarget target)
+    {
+        var toTarget = (int)Math.Round(
+            Math.Atan2(target.X - (double)position.X, -(target.Y - (double)position.Y)) * 128d / Math.PI) & 255;
+        var difference = Math.Abs(toTarget - position.Direction) & 255;
+        return Math.Min(difference, 256 - difference) < NativeTalkFacingTolerance;
+    }
+
+    /// <summary>
+    /// Automatic walking produced the last input: the party is being walked, so arriving has to
+    /// leave it where the player can press OK at once, facing included. Plain navigation, where
+    /// the player moves the party themselves, keeps its position-only arrival.
+    /// </summary>
+    private bool automaticWalkDriving;
+
+    private bool IsInTalkRangeOnTheApproach(FieldPositionSnapshot position, FieldNavigationTarget target, int threshold)
+    {
+        if (target.InteractionRadius <= 0 || threshold != target.InteractionRadius ||
+            (target.Activation != FieldNavigationActivation.Talk && target.Category != FieldNavigationCategory.Npcs) ||
+            target.TriggerLine is not null || target.Activation == FieldNavigationActivation.Contact ||
+            target.ApproachCrossingLine is not null ||
+            target.CompletionTriangles is { Count: > 0 } ||
+            routeTracker?.CurrentProbeSnapshot?.TrianglePath is not { Count: > 0 } path ||
+            position.TriangleId != path[^1] ||
+            !FieldWalkmeshRoutePlanner.IsWithinActivationVerticalRange(target, target.Z - position.Z))
+        {
+            return false;
+        }
+
+        var dx = target.X - (double)position.X;
+        var dy = target.Y - (double)position.Y;
+        return dx * dx + dy * dy < target.InteractionRadius * (double)target.InteractionRadius;
     }
 
     private static double Distance2D(int ax, int ay, int bx, int by) =>
@@ -3226,7 +3359,18 @@ public sealed class FieldNavigationController
 
         if (guidance is not null)
         {
-            return guidance.Value.RemainingDistance <= threshold;
+            // Reaching the exact planned waypoint must not bypass facing either.
+            // The old route-length branch can already succeed there before the
+            // alternative straight-line Talk-range branch gets a chance to run.
+            if (automaticWalkDriving &&
+                IsInTalkRangeOnTheApproach(position, target, threshold) &&
+                !FacesTalkTarget(position, target))
+            {
+                return false;
+            }
+
+            return guidance.Value.RemainingDistance <= threshold ||
+                   IsInsideTalkReachOnTheApproach(position, target, threshold);
         }
 
         if (threshold == 0)

@@ -108,3 +108,11 @@ Any unexpected unavailable story field requires investigation.
 `--dump-field <root> <id> <output.json>` is a private geometry inspection aid.
 Reports and dumps contain derived data from the licensed game and belong in a
 private research directory. Do not commit raw guide text or extracted game data.
+
+## Current guide-state audit
+
+`guide-chapters.json` records checkpoints as free text; they are not bound to catalog
+rows or tests, and "Read in full" is not an implementation check. The current per-chapter
+evidence (read status, native-interaction binding counts, dispositions of every unbound
+interaction, repairs, and what is not proven) is `guide-state-audit-2026-09-28.md`.
+Regressions for its repairs are in `Ff7.Accessibility.Reloaded.Tests/GuideRevisitInteractionTests.cs`.

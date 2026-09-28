@@ -323,6 +323,34 @@ if (args.Contains("--field-navigation-precision-only", StringComparer.OrdinalIgn
     return;
 }
 
+if (args.Contains("--innkeeper-counter-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.InnkeeperCounterApproachTests.Run(
+        CreateInstalledFieldWalkmeshReader,
+        planner => new Steam2026FailClosedFieldRoutePlanner(planner),
+        "steam2026-x64");
+    Console.WriteLine("Steam 2026 x64 innkeeper counter approach tests passed.");
+    return;
+}
+
+if (args.Contains("--body-clearance-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.FieldBodyClearanceRouteTests.Run(
+        CreateInstalledFieldWalkmeshReader,
+        planner => new Steam2026FailClosedFieldRoutePlanner(planner),
+        "steam2026-x64");
+    Ff7.Accessibility.Reloaded.Tests.FieldRoomDoorExitTests.Run(
+        CreateInstalledFieldWalkmeshReader,
+        planner => new Steam2026FailClosedFieldRoutePlanner(planner),
+        "steam2026-x64");
+    Ff7.Accessibility.Reloaded.Tests.CidHouseDoorApproachTests.Run(
+        CreateInstalledFieldWalkmeshReader,
+        planner => new Steam2026FailClosedFieldRoutePlanner(planner),
+        "steam2026-x64");
+    Console.WriteLine("Steam 2026 x64 field body clearance route tests passed.");
+    return;
+}
+
 if (args.Contains("--native-field-movement-only", StringComparer.OrdinalIgnoreCase))
 {
     FieldNavigationPrecisionTests.Run();
@@ -914,6 +942,8 @@ Ff7.Accessibility.Reloaded.Tests.FieldGatewayLiveSwitchTests.Run();
 Ff7.Accessibility.Reloaded.Tests.FieldContactNpcTests.Run();
 Ff7.Accessibility.Reloaded.Tests.FieldContactNpcTests.RunWithInstalledGameData();
 Ff7.Accessibility.Reloaded.Tests.FieldTriangleExitTests.RunWithInstalledGameData(CreateInstalledFieldWalkmeshReader);
+Ff7.Accessibility.Reloaded.Tests.GuideRevisitInteractionTests.Run();
+Ff7.Accessibility.Reloaded.Tests.GuideRevisitInteractionTests.RunWithInstalledGameData();
 Ff7.Accessibility.Reloaded.Tests.NibelheimStoryTests.Run();
 Ff7.Accessibility.Reloaded.Tests.NibelheimStoryTests.RunWithInstalledGameData();
 Ff7.Accessibility.Reloaded.Tests.RemainingStoryContinuityTests.Run();
@@ -964,6 +994,22 @@ Ff7.Accessibility.Reloaded.Tests.GoldSaucerMinigameTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WorldMapMountCorelNavigationTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WorldMapMovementOwnershipTests.Run();
 Ff7.Accessibility.Reloaded.Tests.FieldGatewayBodyClearanceTests.Run(CreateInstalledFieldWalkmeshReader);
+Ff7.Accessibility.Reloaded.Tests.FieldBodyClearanceRouteTests.Run(
+    CreateInstalledFieldWalkmeshReader,
+    planner => new Steam2026FailClosedFieldRoutePlanner(planner),
+    "steam2026-x64");
+Ff7.Accessibility.Reloaded.Tests.FieldRoomDoorExitTests.Run(
+    CreateInstalledFieldWalkmeshReader,
+    planner => new Steam2026FailClosedFieldRoutePlanner(planner),
+    "steam2026-x64");
+Ff7.Accessibility.Reloaded.Tests.CidHouseDoorApproachTests.Run(
+    CreateInstalledFieldWalkmeshReader,
+    planner => new Steam2026FailClosedFieldRoutePlanner(planner),
+    "steam2026-x64");
+Ff7.Accessibility.Reloaded.Tests.InnkeeperCounterApproachTests.Run(
+    CreateInstalledFieldWalkmeshReader,
+    planner => new Steam2026FailClosedFieldRoutePlanner(planner),
+    "steam2026-x64");
 Ff7.Accessibility.Reloaded.Tests.WorldMapHouseAutoWalkTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WorldMapHouseParkingTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WorldMapEntranceProximityCueTests.Run();

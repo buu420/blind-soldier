@@ -21,7 +21,10 @@ internal static class NativeObjectWitnesses
             CompletesOnArrival: definition.Kind == FieldNavigationObjectKind.SavePoint,
             InteractionRadius: radius, ManualNavigationGuidance: definition.ManualNavigationGuidance,
             ApproachCrossingLine: (FieldNavigationTriggerLine?)CrossingMethod.Invoke(null, [definition]),
-            TriggerLine: liveLine, LineActivationRadius: lineActivationRadius);
+            TriggerLine: liveLine, LineActivationRadius: lineActivationRadius,
+            Activation: definition.TargetKind == FieldNavigationObjectTargetKind.Model && definition.UsesTalkInteraction
+                ? FieldNavigationActivation.Talk
+                : FieldNavigationActivation.Default);
 
     internal static void TestReaderContract()
     {

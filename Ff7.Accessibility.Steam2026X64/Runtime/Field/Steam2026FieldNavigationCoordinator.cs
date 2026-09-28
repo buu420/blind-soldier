@@ -2383,11 +2383,15 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                 return false;
             }
 
-            currentExits = exitPublicationGate.Observe(
-                position.FieldId,
-                position.ModelIndex,
-                candidateExits,
-                nowUtc);
+            // The in-field room doors join after the publication gate, as on the legacy
+            // runtime: which side of the door the leader is on must not unsettle the gate.
+            currentExits = FieldRoomDoorExitCatalog.Append(
+                exitPublicationGate.Observe(
+                    position.FieldId,
+                    position.ModelIndex,
+                    candidateExits,
+                    nowUtc),
+                position);
             diagnostic =
                 $"native={currentExits.Count}, candidates={candidateExits.Count}, " +
                 $"gateways={snapshot.Gateways.Count}, gameMoment={gameMomentBefore}, " +

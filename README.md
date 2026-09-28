@@ -104,6 +104,14 @@ again where one exists.
 Field and world-map navigation, routes, auto walk and the progress indicator
 are described under [Navigation](#navigation).
 
+Version 0.7.7 adds the coffin-room entrance and return path to the Shinra Mansion
+Exits list, improves autowalk around narrow gaps and NPC counters, and repairs
+Cid's house door approach. A review of all 43 chronological guide chapters adds
+or corrects optional interactions throughout the game. Both runtimes passed
+automated checks; a complete live playthrough remains unverified.
+See the [release notes](docs/releases/v0.7.7.md) and
+[guide audit](tools/GuideRouteAudit/guide-state-audit-2026-09-28.md).
+
 Version 0.7.6 adds Icicle Inn's video player, story snowboarding cues, Glacier map
 and ice-floe feedback, clearer Glacier exits, and snowfield destinations. It also
 adds Key Items speech and Limit level/gauge information, repairs x64 battle
@@ -269,10 +277,10 @@ instead of reading unverified game memory.
 Choose one download from the
 [Blind Soldier Releases page](https://github.com/buu420/blind-soldier/releases):
 
-- [Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.7.6/Blind-Soldier-Portable.zip)
+- [Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.7.7/Blind-Soldier-Portable.zip)
   is the complete dual-runtime package. Use it for Steam 2026 x64 or when one
   extracted package must support both x86 and x64 installations.
-- [Blind-Soldier-2013-x86-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.7.6/Blind-Soldier-2013-x86-Portable.zip)
+- [Blind-Soldier-2013-x86-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.7.7/Blind-Soldier-2013-x86-Portable.zip)
   is the smaller legacy-only package. Use it for the 2013 x86 game, including
   stock 7th Heaven/FFNx. It deliberately contains no Steam 2026 launcher or
   x64 files.
@@ -383,17 +391,17 @@ Visual Studio C++ Build Tools, and PowerShell, then run:
 ```powershell
 .\Build-BlindSoldierPortablePackage.ps1 `
   -OutputPath .\artifacts\Blind-Soldier-Portable.zip `
-  -Version 0.7.6
+  -Version 0.7.7
 .\Verify-BlindSoldierPortablePackage.ps1 `
   -ArchivePath .\artifacts\Blind-Soldier-Portable.zip `
-  -ExpectedVersion 0.7.6
+  -ExpectedVersion 0.7.7
 .\Build-BlindSoldier2013PortablePackage.ps1 `
   -SourceArchivePath .\artifacts\Blind-Soldier-Portable.zip `
   -OutputPath .\artifacts\Blind-Soldier-2013-x86-Portable.zip `
-  -Version 0.7.6
+  -Version 0.7.7
 .\Verify-BlindSoldier2013PortablePackage.ps1 `
   -ArchivePath .\artifacts\Blind-Soldier-2013-x86-Portable.zip `
-  -ExpectedVersion 0.7.6 `
+  -ExpectedVersion 0.7.7 `
   -ExpectedSourceArchivePath .\artifacts\Blind-Soldier-Portable.zip
 ```
 

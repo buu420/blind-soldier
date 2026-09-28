@@ -1452,8 +1452,12 @@ public sealed class Mod : IModV1, IModV2
             },
             labelResolver: fieldExitLabelResolver,
             presentationPolicy: fieldExitPresentationPolicy);
+        // Doors between two rooms of one walkmesh (the mansion basement's coffin room) have
+        // no gateway or LINE of their own; the side the leader is on decides which way the
+        // door leads. They join after the settled native list, so walking from one side to
+        // the other never unsettles - and empties - the other exits under an active walk.
         reachableFieldExitTargetProvider = new ReachableFieldExitTargetProvider(
-            position => nativeFieldExitTargetProvider.ReadTargets(position),
+            position => FieldRoomDoorExitCatalog.Append(nativeFieldExitTargetProvider.ReadTargets(position), position),
             fieldExitReachabilityPlanner);
         fieldExitProximityCueTracker = new FieldExitProximityCueTracker(
             config.FieldExitCueInnerRangeUnits,
@@ -6151,7 +6155,8 @@ public sealed class Mod : IModV1, IModV2
                     ? $"field={result.Position.FieldId}: none"
                     : $"field={result.Position.FieldId}: " + string.Join(
                         ", ",
-                        npcs.Select(target => $"{target.Label}@({target.X},{target.Y},{target.Z})"));
+                        npcs.Select(target => $"{target.Label}@({target.X},{target.Y},{target.Z})" +
+                            $"[entity={target.TriggerEntityId}, reach={target.InteractionRadius}, lineRadius={target.LineActivationRadius}]"));
                 if (!string.Equals(npcsDiagnostic, lastFieldNavigationNpcsDiagnostic, StringComparison.Ordinal))
                 {
                     lastFieldNavigationNpcsDiagnostic = npcsDiagnostic;

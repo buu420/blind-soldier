@@ -102,6 +102,7 @@
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\GoldSaucerPlatformExitTests.cs" Link="SharedTests\GoldSaucerPlatformExitTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\GlacierSnowfieldNavigationTests.cs" Link="SharedTests\GlacierSnowfieldNavigationTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\GreatGlacierStoryTests.cs" Link="SharedTests\GreatGlacierStoryTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\GuideRevisitInteractionTests.cs" Link="SharedTests\GuideRevisitInteractionTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\SnowboardAccessibilityTests.cs" Link="SharedTests\SnowboardAccessibilityTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\GreatGlacierIceFloeTests.cs" Link="SharedTests\GreatGlacierIceFloeTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\GreatGlacierOptionalContentTests.cs" Link="SharedTests\GreatGlacierOptionalContentTests.cs" />
@@ -131,6 +132,14 @@
              Link="SharedTests\WorldMapMovementOwnershipTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\FieldGatewayBodyClearanceTests.cs"
              Link="SharedTests\FieldGatewayBodyClearanceTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\FieldBodyClearanceRouteTests.cs"
+             Link="SharedTests\FieldBodyClearanceRouteTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\FieldRoomDoorExitTests.cs"
+             Link="SharedTests\FieldRoomDoorExitTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\CidHouseDoorApproachTests.cs"
+             Link="SharedTests\CidHouseDoorApproachTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\InnkeeperCounterApproachTests.cs"
+             Link="SharedTests\InnkeeperCounterApproachTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\WorldMapTargetCatalogTests.cs"
              Link="SharedTests\WorldMapTargetCatalogTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\WorldMapTerrainAnnouncementTests.cs"
