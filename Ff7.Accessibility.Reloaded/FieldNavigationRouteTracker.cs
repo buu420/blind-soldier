@@ -1077,6 +1077,20 @@ public sealed class FieldNavigationRouteTracker
                 break;
             }
 
+            // A body-aware plan's corners stand a body radius off the wall, so being near one
+            // says nothing about which side of it the party is on - and a held heading skips
+            // the check above. nvmin1_1 from the logged 386,293 start: 13 units short of the
+            // 34|30 corner, the next step was round the wall vertex 61,351 and every forward
+            // input ran into it. The same rule, whatever the lookahead: keep the corner until
+            // its portal is passed or the next leg is walkable from where the party is.
+            if (plan.UsesBodyClearance && isNativePortalCorner &&
+                portalIndex < step.RequiredPortalIndex &&
+                planner is IFieldNavigationAutomaticMovementPlanner continuationPlanner &&
+                !continuationPlanner.IsAutomaticMovementClear(position, target, stableWaypoints[waypointIndex + 1].Waypoint))
+            {
+                break;
+            }
+
             var stepTolerance = step.IsNativeEntryStep ? 2d : step.MustReach
                 ? MinimumWaypointArrivalDistance
                 : waypointTolerance;

@@ -109,7 +109,8 @@ public static class FieldNavigationCorridorLookahead
         FieldNavigationRouteHeading heading,
         Func<int, bool>? isTriangleBlocked,
         IReadOnlyList<FieldNavigationDynamicObstacle>? dynamicObstacles,
-        out FieldNavigationCorridorObservation observation)
+        out FieldNavigationCorridorObservation observation,
+        Func<FieldNavigationRouteWaypoint, bool?>? isBodyLegWalkable = null)
     {
         observation = default;
         if (resolvedTriangle < 0 ||
@@ -273,7 +274,8 @@ public static class FieldNavigationCorridorLookahead
                 heading,
                 isTriangleBlocked,
                 dynamicObstacles,
-                out observation))
+                out observation,
+                isBodyLegWalkable))
         {
             return true;
         }
@@ -1021,7 +1023,8 @@ public static class FieldNavigationCorridorLookahead
         FieldNavigationRouteHeading heading,
         Func<int, bool>? isTriangleBlocked,
         IReadOnlyList<FieldNavigationDynamicObstacle>? dynamicObstacles,
-        out FieldNavigationCorridorObservation observation)
+        out FieldNavigationCorridorObservation observation,
+        Func<FieldNavigationRouteWaypoint, bool?>? isBodyLegWalkable = null)
     {
         observation = default;
         var movementLength = Math.Sqrt(
@@ -1087,6 +1090,16 @@ public static class FieldNavigationCorridorLookahead
                     current,
                     candidate,
                     dynamicObstacles))
+            {
+                continue;
+            }
+
+            // A held heading is an arbitrary point along the way the party is going, not a
+            // route step, so its centre line being clear says nothing about the body. The
+            // sininb42 report held one into the wall beside the locked triangle 18 at
+            // radius 120 while its centre line stayed clear. Where the native step can
+            // judge it, the body has to make the whole leg; unknown keeps the old answer.
+            if (isBodyLegWalkable?.Invoke(candidate) == false)
             {
                 continue;
             }

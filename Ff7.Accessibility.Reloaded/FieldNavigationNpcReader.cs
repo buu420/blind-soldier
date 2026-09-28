@@ -539,7 +539,16 @@ public sealed class FieldNavigationNpcReader
             // Talk is a bare RET; walking onto line1 - its Move is an alias of its [OK] - starts
             // the scene before 2[0] 598 while 3[129] bit 3 is clear, and Reno's Init hides him
             // once either is not so.
-            [(515, 11)] = "Reno and Rude"
+            [(515, 11)] = "Reno and Rude",
+
+            // del2: woman2 stands behind the tourist-information counter (her own Talk is
+            // empty); border3 runs her greeting and "the Costa del Sol tourist information
+            // guide" questions (dialogs 1..12).
+            [(443, 15)] = "Tourist guide",
+
+            // games_2: m3 (std_man6) rides the bike prop and has no Talk of his own; the
+            // bi LINE beside him is his line (dialog 30).
+            [(507, 6)] = "Man"
         };
 
     private static readonly IReadOnlyDictionary<
@@ -599,7 +608,20 @@ public sealed class FieldNavigationNpcReader
             [(518, 15)] = (9, new(321, 559, 17, 173, 800, 17)),
 
             // gonjun2: line1 (215,-585)-(354,-410), the Turks' scene; see VerifiedLabels.
-            [(515, 11)] = (1, new(215, -585, -24, 354, -410, -24))
+            [(515, 11)] = (1, new(215, -585, -24, 354, -410, -24)),
+
+            // Counters reviewed in the full-guide text audit. Each LINE is the only way the
+            // game lets the player address that model: mds5_w's man has Talk switched off
+            // by his Init (LINEC repeats his dialogs 4/5), the child's Talk is empty (LINEB),
+            // del2's tourist guide and games_2's bike rider have empty Talk scripts, and their
+            // lines are border3 and bi. Live LINE enable still gates each one (mds5_w's switch
+            // off at moments 173..184, LINEB from 236), and model visibility gates the person.
+            // (mds7_w1's border4 is not repeated here: oyaji2's own Talk has TalkRange 200 and
+            // runs the same script, so he is already reached across his counter.)
+            [(178, 5)] = (9, new(-60, -78, -153, 21, -162, -153)),
+            [(178, 6)] = (8, new(-41, 0, -153, -42, -47, -153)),
+            [(443, 15)] = (7, new(-1021, -117, -127, -890, -102, -95)),
+            [(507, 6)] = (25, new(59, 325, 0, 33, 212, 0))
         };
 
     /// <summary>

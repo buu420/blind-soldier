@@ -13,13 +13,22 @@
 /// </param>
 /// <param name="Line">The <c>LINE</c> the releasing script is attached to.</param>
 /// <param name="Evidence">The native instructions this row was read from.</param>
+/// <param name="ReleasedTriangles">
+/// Every triangle the one releasing script unlocks, when it is more than
+/// <paramref name="LockedTriangle"/>. A door the game holds shut with two locks opens only when
+/// both clear, so whether walking to its line helps a route is asked of the whole group.
+/// </param>
 public readonly record struct FieldNativeDoorOpeningLine(
     int FieldId,
     int LockedTriangle,
     int LineEntityId,
     FieldNavigationTriggerLine Line,
-    string Evidence)
+    string Evidence,
+    IReadOnlyList<int>? ReleasedTriangles = null)
 {
+    /// <summary>The triangles the opening line's script releases together.</summary>
+    public IReadOnlyList<int> Releases => ReleasedTriangles is { Count: > 0 } group ? group : [LockedTriangle];
+
     /// <summary>Where to stand to cross the line: its far endpoint.</summary>
     public int ApproachX => Line.EndX;
 
@@ -74,15 +83,26 @@ public static class FieldNativeDoorOpeningLines
         // so the walk is a request to open the door and never a promise that it did.
         new(544, 38, 19, new FieldNavigationTriggerLine(186, -117, -624, 118, -174, -624),
             "e18 DOOR Init IDLCK 38 lock; e19 LINEW Init LINE + gated LINON 0, Go 1x IDLCK 38 unlock, s8 LINON 1"),
+
+        // 558 rktsid, Cid's house. Entity 4 init's main locks triangles 102 and 106
+        // (6D660001, 6D6A0001) on every load. Entity 9 door1 declares LINE (38,196,0)-(44,267,0);
+        // its slot 1 (OK) and slot 2 (Move, an alias of the same code at 2374) run
+        // IFUB 5[13] == 0, INC 5[13], IDLCK 102 unlock, IDLCK 106 unlock, then the door
+        // animation and sound. The temporary bank is zeroed by every field load, so the first
+        // walk onto the line after entering opens it. 102 joins 107 to 106 and 106 joins 102 to
+        // 88: neither alone opens the way into the kitchen, where Shera stands on triangle 49
+        // for moments 566..999. Both archives carry the same script.
+        new(558, 102, 9, new FieldNavigationTriggerLine(38, 196, 0, 44, 267, 0),
+            "e4 main IDLCK 102/106 lock; e9 door1 LINE, s1 OK = s2 Move: 5[13]==0 -> INC, IDLCK 102 and 106 unlock",
+            [102, 106]),
     ];
 
     /// <summary>
     /// The line that releases this lock, if walking onto one is what releases it.
     ///
-    /// <para>A lock with no row here is one the game opens by itself - Red XIII's own
-    /// triangles 23 and 18 in 544 are released by his script 10 when he leaves, and
-    /// cos_top's triangle 76 is never released at all - and those keep the existing
-    /// behaviour of being held silently until they clear.</para>
+    /// <para>A lock with no reviewed row keeps the existing hold behavior. Such locks may
+    /// open during a scene, require another interaction, or stay shut permanently; absence
+    /// from this table does not establish which of those applies.</para>
     /// </summary>
     public static bool TryFind(int fieldId, int lockedTriangle, out FieldNativeDoorOpeningLine opening)
     {
@@ -116,10 +136,34 @@ public static class FieldNativeDoorOpeningLines
         out FieldNativeDoorOpeningLine opening)
     {
         ArgumentNullException.ThrowIfNull(releasingThisWouldRoute);
-        for (var index = 0; index < blockedTriangles.Count; index++)
+        return TryFindGroupForGoal(fieldId, blockedTriangles,
+            group => group.Count == 1 && releasingThisWouldRoute(group[0]), out opening);
+    }
+
+    /// <summary>
+    /// <see cref="TryFindForGoal"/> for doors whose script releases more than one triangle:
+    /// <paramref name="releasingThisWouldRoute"/> is asked about every triangle the row's
+    /// script releases at once, restricted to those still held shut in the current observation.
+    /// <paramref name="rows"/> replaces the installed table, for tests.
+    /// </summary>
+    public static bool TryFindGroupForGoal(
+        int fieldId,
+        IReadOnlyList<int> blockedTriangles,
+        Func<IReadOnlyList<int>, bool> releasingThisWouldRoute,
+        out FieldNativeDoorOpeningLine opening,
+        IReadOnlyList<FieldNativeDoorOpeningLine>? rows = null)
+    {
+        ArgumentNullException.ThrowIfNull(releasingThisWouldRoute);
+        foreach (var candidate in rows ?? Known)
         {
-            if (TryFind(fieldId, blockedTriangles[index], out var candidate) &&
-                releasingThisWouldRoute(candidate.LockedTriangle))
+            if (candidate.FieldId != fieldId || !candidate.Releases.Any(blockedTriangles.Contains))
+            {
+                continue;
+            }
+
+            // Only the part of the group the game has on now; a released one needs no help.
+            var group = candidate.Releases.Where(blockedTriangles.Contains).ToArray();
+            if (releasingThisWouldRoute(group))
             {
                 opening = candidate;
                 return true;

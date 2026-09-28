@@ -465,6 +465,16 @@ internal sealed class Steam2026FailClosedFieldRoutePlanner :
                 ? () => boundary.WouldRouteIfBoundaryReleased(position, target, releasedTriangle)
                 : null);
 
+    public bool WouldRouteIfBoundaryGroupReleased(
+        FieldPositionSnapshot position,
+        FieldNavigationTarget target,
+        IReadOnlyList<int> releasedTriangles) =>
+        TryReadOptionalCapability(
+            "boundary group release probe",
+            inner is IFieldNavigationNativeBoundaryStatus boundary
+                ? () => boundary.WouldRouteIfBoundaryGroupReleased(position, target, releasedTriangles)
+                : null);
+
     private IReadOnlyList<int> InnerBlockingBoundaryTriangles()
     {
         try
@@ -698,6 +708,34 @@ internal sealed class Steam2026FailClosedFieldRoutePlanner :
         TryReadOptionalCapability("native automatic movement", inner is IFieldNavigationAutomaticMovementPlanner movement
             ? () => movement.IsNativeProbeAutomaticMovementClear(position, target, destination, requestedHeading)
             : null);
+
+    /// <summary>
+    /// The body check is only ever a preference among moves already clear on the centre line,
+    /// so an unavailable or failed read answers unknown and the old choice stands. A read that
+    /// throws still marks this observation failed, as every other capability does.
+    /// </summary>
+    public bool? IsBodyMovementClear(
+        FieldPositionSnapshot position,
+        FieldNavigationTarget target,
+        FieldNavigationRouteWaypoint destination)
+    {
+        if (HadReadFailure || preparedActionRoute is not null ||
+            inner is not IFieldNavigationAutomaticMovementPlanner movement)
+        {
+            return null;
+        }
+
+        try
+        {
+            return movement.IsBodyMovementClear(position, target, destination);
+        }
+        catch (Exception ex)
+        {
+            HadReadFailure = true;
+            LastDiagnostic = $"checked route body movement failed: {ex.Message}";
+            return null;
+        }
+    }
 
     public bool TryObserveCorridor(
         FieldPositionSnapshot position,

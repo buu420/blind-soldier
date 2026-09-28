@@ -92,7 +92,8 @@ internal sealed class Steam2026FieldNpcObservationReader
             LastDiagnostic =
                 $"field={expectedPosition.FieldId}, playerModel={expectedPosition.ModelIndex}, " +
                 $"native={targets.Count}" +
-                (moved > 0 ? $", moving={moved}" : string.Empty);
+                (moved > 0 ? $", moving={moved}" : string.Empty) +
+                $", nativeReach={string.Join(';', targets.Select(target => $"{target.TriggerEntityId}:{target.InteractionRadius}/{target.LineActivationRadius}"))}";
             return true;
         }
         catch (Exception ex)

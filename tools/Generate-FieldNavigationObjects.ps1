@@ -734,10 +734,99 @@ Add-Definition -FieldId 247 -FieldName 'blin64' -EntityId 38 -EntityName 'LINEW'
 Add-Definition -FieldId 247 -FieldName 'blin64' -EntityId 39 -EntityName 'VLINE' -ModelResource '' -Kind 'Named' -Label 'Shinra Gym vending machine' -TargetKind 'Line' -StaticX -438 -StaticY -184 -StaticZ 0 -MaximumGameMoment 1007
 Add-Definition -FieldId 247 -FieldName 'blin64' -EntityId 40 -EntityName 'MACHINE' -ModelResource '' -Kind 'Named' -Label 'Exercise machine' -TargetKind 'Line' -StaticX -380 -StaticY -687 -StaticZ 0
 
-# During Cloud's Nibelheim flashback the piano is an optional but meaningful
-# interaction: playing it now is required for a later reward. It is a native
-# LINE rather than a field model, so expose the line midpoint as a location.
-Add-Definition -FieldId 287 -FieldName 'niv_ti2' -EntityId 17 -EntityName 'piano' -ModelResource '' -Kind 'Named' -Label "Tifa's piano" -TargetKind 'Location' -StaticX -237 -StaticY -249 -StaticZ 0 -MinimumGameMoment 344 -MaximumGameMoment 384
+# Tifa's piano is niv_ti2's entity 17 LINE (-237,-140,0)-(-238,-359,0), defined by
+# its Init on every visit and never switched off (the field has no LINON). Its OK
+# handler plays in the flashback (moment < 384), asks dialog 33 on every later
+# visit, and holds the Disc 2 rewards: Elemental materia (moment >= 796, 3[9] == 2,
+# Tifa leading) and Final Heaven (moment >= 796, Tifa in the party, the melody
+# played). Those are the game's own decisions; the piano itself stays reachable.
+# It is reached on the engine's own LINE touch, inside the leader's radius.
+Add-Definition -FieldId 287 -FieldName 'niv_ti2' -EntityId 17 -EntityName 'piano' -ModelResource '' -Kind 'Named' -Label "Tifa's piano" -TargetKind 'Line' -StaticX -237 -StaticY -249 -StaticZ 0 -UsesPlayerCollisionRadius $true
+
+# Wonder Square's machines (games_2). Each is a model-less LINE whose Init defines it
+# unconditionally and never switches it off, so the NPC reader (which needs a model)
+# never publishes them. Their OK handler shows the machine's own card (dialogs 3 and
+# 24..28: 3D Battler, G Bike, Snow Game, Submarine Game, Fortune Telling, Mog House)
+# and asks "Try it". The first-visit Story rows cover five of them for moments
+# 440..444; these Objects take over afterwards. The Snow Game plays only from moment
+# 790: before that its OK shows a customer's line instead (dialogs 32/33). The Submarine
+# Game's own script has no gate, but customer m6 (entity 9) stands solid on its LINE and
+# calls it out of order until moment 1299 (Init IFUW 2[0] >= 1299, dialog 31).
+Add-Definition -FieldId 507 -FieldName 'games_2' -EntityId 10 -EntityName 'kakul1' -ModelResource '' -Kind 'Named' -Label '3D Battler' -TargetKind 'Line' -StaticX -166 -StaticY -144 -StaticZ 32 -MinimumGameMoment 445 -UsesPlayerCollisionRadius $true
+Add-Definition -FieldId 507 -FieldName 'games_2' -EntityId 11 -EntityName 'kakul2' -ModelResource '' -Kind 'Named' -Label '3D Battler, other side' -TargetKind 'Line' -StaticX -110 -StaticY -201 -StaticZ 32 -MinimumGameMoment 445 -UsesPlayerCollisionRadius $true
+Add-Definition -FieldId 507 -FieldName 'games_2' -EntityId 18 -EntityName 'mogu' -ModelResource '' -Kind 'Named' -Label 'Mog House' -TargetKind 'Line' -StaticX 3 -StaticY -252 -StaticZ 0 -MinimumGameMoment 445 -UsesPlayerCollisionRadius $true
+Add-Definition -FieldId 507 -FieldName 'games_2' -EntityId 19 -EntityName 'bikeg' -ModelResource '' -Kind 'Named' -Label 'G Bike' -TargetKind 'Line' -StaticX 241 -StaticY 174 -StaticZ 0 -MinimumGameMoment 445 -UsesPlayerCollisionRadius $true
+Add-Definition -FieldId 507 -FieldName 'games_2' -EntityId 20 -EntityName 'bikeg2' -ModelResource '' -Kind 'Named' -Label 'G Bike, second machine' -TargetKind 'Line' -StaticX 149 -StaticY 145 -StaticZ 0 -UsesPlayerCollisionRadius $true
+Add-Definition -FieldId 507 -FieldName 'games_2' -EntityId 21 -EntityName 'snowb' -ModelResource '' -Kind 'Named' -Label 'Snow Game' -TargetKind 'Line' -StaticX -55 -StaticY 278 -StaticZ 0 -MinimumGameMoment 790 -UsesPlayerCollisionRadius $true
+Add-Definition -FieldId 507 -FieldName 'games_2' -EntityId 22 -EntityName 'snowb2' -ModelResource '' -Kind 'Named' -Label 'Snow Game, second machine' -TargetKind 'Line' -StaticX -176 -StaticY 177 -StaticZ 0 -MinimumGameMoment 790 -UsesPlayerCollisionRadius $true
+Add-Definition -FieldId 507 -FieldName 'games_2' -EntityId 23 -EntityName 'subm' -ModelResource '' -Kind 'Named' -Label 'Submarine Game' -TargetKind 'Line' -StaticX -337 -StaticY 42 -StaticZ 21 -MinimumGameMoment 1299 -UsesPlayerCollisionRadius $true
+Add-Definition -FieldId 507 -FieldName 'games_2' -EntityId 24 -EntityName 'la' -ModelResource '' -Kind 'Named' -Label 'Fortune Telling' -TargetKind 'Line' -StaticX 299 -StaticY 153 -StaticZ 0 -MinimumGameMoment 445 -UsesPlayerCollisionRadius $true
+
+# The Battle Square's two prize windows (coloin1 lent1/lent2): model-less LINEs defined
+# on every visit. Their OK says "You currently have battle points" (dialog 14) and,
+# with points, offers the exchange (dialog 15) and the prize list for the moment.
+Add-Definition -FieldId 500 -FieldName 'coloin1' -EntityId 18 -EntityName 'lent1' -ModelResource '' -Kind 'Named' -Label 'Battle points exchange counter' -TargetKind 'Line' -StaticX 273 -StaticY -3289 -StaticZ -152 -UsesPlayerCollisionRadius $true
+Add-Definition -FieldId 500 -FieldName 'coloin1' -EntityId 19 -EntityName 'lent2' -ModelResource '' -Kind 'Named' -Label 'Battle points exchange counter, second window' -TargetKind 'Line' -StaticX -244 -StaticY -3283 -StaticZ -152 -UsesPlayerCollisionRadius $true
+
+# The rocket's control panel beside the Huge Materia (rcktin4 consl, model-less LINE).
+# Its OK asks "There is the control panel. Try and operate it?" (dialog 166) until the
+# attempt sets bank 3 byte 134 bit 5; Cid's hints and the passcode are the game's own.
+Add-Definition -FieldId 566 -FieldName 'rcktin4' -EntityId 7 -EntityName 'consl' -ModelResource '' -Kind 'Named' -Label 'Control panel' -TargetKind 'Line' -StaticX -1 -StaticY -120 -StaticZ 0 -CollectedBank 3 -CollectedAddress 134 -CollectedMask 0x20 -UsesPlayerCollisionRadius $true
+
+# Mideel's weapon-shop back door (itown_w line02) and the spot on the street where the
+# old key is stuck (itown1a oldkey, entity 17). Entity 18 shares that LINE: its GoOnce
+# (s5) plays the clink sound (SOUND 0x011D) when the leader first steps on it, the audible
+# cue that there is something to examine; entity 17's OK does the examining. Both LINEs
+# run the leading party member's own scripts, so the NPC reader only knows them as the
+# counter of a party model it never offers. The door answers on every visit: locked
+# (dialogs 9/10, setting 15[178] bit 0), the key choice once held, then the owner.
+# Before the door has been tried, the street spot only describes the stuck key
+# (dialogs 32/34); after it, the key comes out (15[177] bit 6), and both entities' Init
+# switch the LINE off from then on. Those outcomes stay the game's own.
+Add-Definition -FieldId 717 -FieldName 'itown_w' -EntityId 12 -EntityName 'line02' -ModelResource '' -Kind 'Named' -Label 'Weapon shop back door' -TargetKind 'Line' -StaticX 109 -StaticY 192 -StaticZ 0 -UsesPlayerCollisionRadius $true
+Add-Definition -FieldId 712 -FieldName 'itown1a' -EntityId 17 -EntityName 'oldkey' -ModelResource '' -Kind 'Named' -Label 'Something to examine' -TargetKind 'Line' -StaticX -941 -StaticY -818 -StaticZ 390 -CollectedBank 15 -CollectedAddress 177 -CollectedMask 0x40 -UsesPlayerCollisionRadius $true
+
+# The Honey Bee Inn's room doors (onna_4). border5/border6 are occupied rooms: OK asks
+# "Take a listen / Take a peek" (dialog 18), and peeking plays onna_5. border7/border8
+# are free rooms: OK offers to take the room and opens its door (IDLCK 28/19 released).
+# Their Init switches the free-room LINEs off once a room has been chosen.
+Add-Definition -FieldId 218 -FieldName 'onna_4' -EntityId 17 -EntityName 'border5' -ModelResource '' -Kind 'Named' -Label 'Occupied room door, 1 of 2' -TargetKind 'Line' -StaticX 261 -StaticY 138 -StaticZ 26 -UsesPlayerCollisionRadius $true
+Add-Definition -FieldId 218 -FieldName 'onna_4' -EntityId 18 -EntityName 'border6' -ModelResource '' -Kind 'Named' -Label 'Occupied room door, 2 of 2' -TargetKind 'Line' -StaticX 261 -StaticY -145 -StaticZ 26 -UsesPlayerCollisionRadius $true
+Add-Definition -FieldId 218 -FieldName 'onna_4' -EntityId 19 -EntityName 'border7' -ModelResource '' -Kind 'Named' -Label 'Free room door, 1 of 2' -TargetKind 'Line' -StaticX -260 -StaticY 149 -StaticZ 26 -UsesPlayerCollisionRadius $true
+Add-Definition -FieldId 218 -FieldName 'onna_4' -EntityId 20 -EntityName 'border8' -ModelResource '' -Kind 'Named' -Label 'Free room door, 2 of 2' -TargetKind 'Line' -StaticX -269 -StaticY -151 -StaticZ 26 -UsesPlayerCollisionRadius $true
+
+# Shop counters whose buy menu (MENU 8) opens only from a model-less counter LINE and
+# neither from the shopkeeper's own Talk nor through any NPC row's counter. In the Under
+# Junon weapon store (ujun_w) the shopkeeper's Talk is only "Hmm, what?" (dialog 1); the
+# counter wswelcm opens shop 18 and is attached to no shopkeeper. The logged 2026-09-26
+# visit talked to him four times, found no objects and left without the shop. Costa del
+# Sol's second stall (del2 border2) opens the materia shop through its owner's script 3,
+# which his Talk never runs. Elsewhere the shopkeeper's Talk opens the shop (Sector 7,
+# Costa's souvenir stall, Mideel) or an NPC row already carries the counter (Icicle Inn's
+# welcom1, North Corel), so those are not repeated here.
+Add-Definition -FieldId 432 -FieldName 'ujun_w' -EntityId 2 -EntityName 'wswelcm' -ModelResource '' -Kind 'Named' -Label 'Weapon shop counter' -TargetKind 'Line' -StaticX 138 -StaticY 343 -StaticZ 0 -UsesPlayerCollisionRadius $true
+Add-Definition -FieldId 443 -FieldName 'del2' -EntityId 6 -EntityName 'border2' -ModelResource '' -Kind 'Named' -Label 'Materia shop counter' -TargetKind 'Line' -StaticX 662 -StaticY 1849 -StaticZ 0 -UsesPlayerCollisionRadius $true
+
+# Examinable LINEs from the full-guide text audit. Each has no model, so no NPC row can
+# carry it; each gives the player a native response on OK. Live LINE enable gates them,
+# and the game's own conditions decide what is said.
+#   niv_ti2 tansu: during the flashback (moment < 384) the drawer in Tifa's room answers
+#     once (dialogs 3..5, ASK "It's true / Just kidding", sets 3[19] bit 5); control is
+#     the player's. The guide: "go into her room on the left.. and check the drawer".
+#   cosin2 LINES1: from moment 514, "It seems like the only one that can open it is
+#     Bugenhagen" at the sealed door (the Story row's "sealed door").
+#   gaiin_7 cure1..3: three sides of one spot; each restores HP/MP (opcode 0x3E, dialog 2
+#     "HP/MP restored!"). The guide: "head back to heal up/save". One side is offered.
+#   losin3 line1/line2 and losinn line3: the Forgotten City spots where Cloud hears the
+#     Ancients (dialogs 12..26, flags 3[131] bit 7, 3[132] bits 0/1); OK only while the
+#     leader faces them. losin3's two LINEs are two faces of one spot; one is offered.
+#   zz1 l1: the sleeping man's cave; OK there makes him mutter (dialog 2).
+Add-Definition -FieldId 287 -FieldName 'niv_ti2' -EntityId 5 -EntityName 'tansu' -ModelResource '' -Kind 'Named' -Label "Drawer in Tifa's room" -TargetKind 'Line' -StaticX -99 -StaticY 213 -StaticZ 0 -CollectedBank 3 -CollectedAddress 19 -CollectedMask 0x20 -MaximumGameMoment 383 -UsesPlayerCollisionRadius $true
+Add-Definition -FieldId 531 -FieldName 'cosin2' -EntityId 16 -EntityName 'LINES1' -ModelResource '' -Kind 'Named' -Label 'Sealed door' -TargetKind 'Line' -StaticX -97 -StaticY 349 -StaticZ -1 -MinimumGameMoment 514 -UsesPlayerCollisionRadius $true
+Add-Definition -FieldId 699 -FieldName 'gaiin_7' -EntityId 5 -EntityName 'cure3' -ModelResource '' -Kind 'Named' -Label 'Healing spot' -TargetKind 'Line' -StaticX 48 -StaticY 166 -StaticZ 0 -UsesPlayerCollisionRadius $true
+Add-Definition -FieldId 633 -FieldName 'losin3' -EntityId 3 -EntityName 'line1' -ModelResource '' -Kind 'Named' -Label 'Something to examine' -TargetKind 'Line' -StaticX 57 -StaticY 266 -StaticZ 0 -UsesPlayerCollisionRadius $true
+Add-Definition -FieldId 636 -FieldName 'losinn' -EntityId 6 -EntityName 'line3' -ModelResource '' -Kind 'Named' -Label 'Something to examine' -TargetKind 'Line' -StaticX 224 -StaticY -387 -StaticZ 67 -UsesPlayerCollisionRadius $true
+Add-Definition -FieldId 78 -FieldName 'zz1' -EntityId 5 -EntityName 'l1' -ModelResource '' -Kind 'Named' -Label 'Something to examine' -TargetKind 'Line' -StaticX 41 -StaticY 499 -StaticZ -12 -UsesPlayerCollisionRadius $true
 
 # Bone Village reuses one chest entity for the current excavation reward.
 # Bank 1 address 234 contains reward slots 1 through 9 and returns to zero when inactive.

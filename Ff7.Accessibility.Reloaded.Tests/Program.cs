@@ -671,6 +671,22 @@ if (args.Contains("--manual-field-objects-only", StringComparer.OrdinalIgnoreCas
     return;
 }
 
+if (args.Contains("--innkeeper-counter-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.InnkeeperCounterApproachTests.Run(CreateInstalledFieldWalkmeshReader);
+    Console.WriteLine("Innkeeper counter approach tests passed.");
+    return;
+}
+
+if (args.Contains("--body-clearance-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.FieldBodyClearanceRouteTests.Run(CreateInstalledFieldWalkmeshReader);
+    Ff7.Accessibility.Reloaded.Tests.FieldRoomDoorExitTests.Run(CreateInstalledFieldWalkmeshReader);
+    Ff7.Accessibility.Reloaded.Tests.CidHouseDoorApproachTests.Run(CreateInstalledFieldWalkmeshReader);
+    Console.WriteLine("Field body clearance route tests passed.");
+    return;
+}
+
 if (args.Contains("--field-gateway-body-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.FieldGatewayBodyClearanceTests.Run(CreateInstalledFieldWalkmeshReader);
@@ -1092,6 +1108,8 @@ Ff7.Accessibility.Reloaded.Tests.FieldScriptExecutionModelTests.Run();
 Ff7.Accessibility.Reloaded.Tests.FieldScriptExecutionInstalledTests.RunWithInstalledGameData();
 Ff7.Accessibility.Reloaded.Tests.LucreciaCaveObjectTests.Run();
 Ff7.Accessibility.Reloaded.Tests.LucreciaCaveObjectTests.RunWithInstalledGameData();
+Ff7.Accessibility.Reloaded.Tests.GuideRevisitInteractionTests.Run();
+Ff7.Accessibility.Reloaded.Tests.GuideRevisitInteractionTests.RunWithInstalledGameData();
 Ff7.Accessibility.Reloaded.Tests.NibelheimStoryTests.Run();
 Ff7.Accessibility.Reloaded.Tests.NibelheimStoryTests.RunWithInstalledGameData();
 Ff7.Accessibility.Reloaded.Tests.RemainingStoryContinuityTests.Run();
@@ -1144,6 +1162,10 @@ Ff7.Accessibility.Reloaded.Tests.GoldSaucerMinigameTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WorldMapMountCorelNavigationTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WorldMapMovementOwnershipTests.Run();
 Ff7.Accessibility.Reloaded.Tests.FieldGatewayBodyClearanceTests.Run(CreateInstalledFieldWalkmeshReader);
+Ff7.Accessibility.Reloaded.Tests.FieldBodyClearanceRouteTests.Run(CreateInstalledFieldWalkmeshReader);
+Ff7.Accessibility.Reloaded.Tests.FieldRoomDoorExitTests.Run(CreateInstalledFieldWalkmeshReader);
+Ff7.Accessibility.Reloaded.Tests.CidHouseDoorApproachTests.Run(CreateInstalledFieldWalkmeshReader);
+Ff7.Accessibility.Reloaded.Tests.InnkeeperCounterApproachTests.Run(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.WorldMapHouseAutoWalkTests.Run();
 FieldNavigationPrecisionTests.Run();
 FieldNavigationNativeProbeMovementTests.Run(CreateInstalledFieldWalkmeshReader);

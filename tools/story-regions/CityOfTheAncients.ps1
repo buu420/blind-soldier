@@ -122,4 +122,32 @@ Add-Definition @ancientsDeparture -FieldId 629 -FieldName 'sandun_2' -Kind Locat
     -EntityName 'gateway1' -ScriptType 'Gateway' `
     -TriggerLine ([ordered]@{ startX = -137; startY = 851; startZ = 29; endX = -29; endY = 851; endZ = 32 })
 
+# The rest itself. Generic extraction already placed the four losinn LINEs that write 664
+# (each asks dialog 41, "Here's a bed. Get some rest?", and Yes sets Bank[3][132] bit 4
+# and the counter to 664), but under the generic "Continue on from here", which does not
+# say that the step is to lie down. Only the labels change here: position, trigger line,
+# the LINE-enabled binding, target moment and priority stay exactly as extracted.
+#   line8 (entity 11): Move, no button. Walking over it by the stairs asks once per visit
+#                      (temp 5[3]).
+#   line5, line6, line7 (entities 8, 9, 10): the beds. Each asks only on OK while the
+#                      leader faces it (temp 5[0] within the bed's own range).
+$ancientsRestLabels = @{
+    'line8' = 'Walk up to the beds; the game asks whether to rest'
+    'line5' = 'Rest in a bed: face it and press OK (bed 1 of 3)'
+    'line6' = 'Rest in a bed: face it and press OK (bed 2 of 3)'
+    'line7' = 'Rest in a bed: face it and press OK (bed 3 of 3)'
+}
+$ancientsRestRelabelled = 0
+foreach ($definition in $definitions) {
+    if ($definition.fieldId -eq 636 -and $definition.label -eq 'Continue on from here' -and
+        $definition.targetGameMoment -eq 664 -and
+        $ancientsRestLabels.ContainsKey([string]$definition.sourceEntityName)) {
+        $definition.label = $ancientsRestLabels[[string]$definition.sourceEntityName]
+        $ancientsRestRelabelled++
+    }
+}
+if ($ancientsRestRelabelled -ne 4) {
+    throw "Expected the four extracted losinn rest rows, found $ancientsRestRelabelled."
+}
+
 Add-CuratedFields 630, 631, 632, 634, 636, 640, 641, 645, 646, 647, 627, 628, 629

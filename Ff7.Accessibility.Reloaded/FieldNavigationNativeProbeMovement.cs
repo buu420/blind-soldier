@@ -98,8 +98,23 @@ public static class FieldNavigationNativeProbeMovement
         int playerCollisionRadius, IReadOnlyList<FieldNavigationDynamicObstacle> obstacles,
         Func<int, bool>? isTriangleBlocked = null, bool lineRetryActive = false)
     {
+        if (!IsSupportedWalkmesh(walkmesh))
+            return new FieldNavigationNativeMovementStepResult(false, false, state, requestedHeading, 0);
+        return StepOnSupportedWalkmesh(walkmesh, state, requestedHeading, movementSpeed, playerCollisionRadius,
+            obstacles, isTriangleBlocked, lineRetryActive);
+    }
+
+    /// <summary>
+    /// <see cref="Step"/> for a caller that has already proved the whole mesh supported,
+    /// so a search of many steps does not re-verify every triangle on each one.
+    /// </summary>
+    internal static FieldNavigationNativeMovementStepResult StepOnSupportedWalkmesh(FieldWalkmesh walkmesh,
+        FieldNavigationNativeMovementState state, byte requestedHeading, ushort movementSpeed,
+        int playerCollisionRadius, IReadOnlyList<FieldNavigationDynamicObstacle> obstacles,
+        Func<int, bool>? isTriangleBlocked = null, bool lineRetryActive = false)
+    {
         var unsupported = new FieldNavigationNativeMovementStepResult(false, false, state, requestedHeading, 0);
-        if (!IsSupportedWalkmesh(walkmesh) || (uint)state.TriangleId >= walkmesh.Triangles.Count ||
+        if ((uint)state.TriangleId >= walkmesh.Triangles.Count ||
             movementSpeed == 0 || movementSpeed > MaximumMovementSpeed ||
             playerCollisionRadius <= 0 || playerCollisionRadius > ushort.MaxValue ||
             obstacles is null || !AreNativeModelsUsable(obstacles, playerCollisionRadius)) return unsupported;

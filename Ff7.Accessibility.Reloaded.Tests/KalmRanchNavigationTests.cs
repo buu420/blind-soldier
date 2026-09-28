@@ -523,15 +523,18 @@ internal static class KalmRanchNavigationTests
             definition.Label == "Tifa's piano");
 
         AssertEqual(287, piano.FieldId, "Tifa piano field");
+        // niv_ti2 entity 17 is a LINE its Init defines on every visit; the flashback is only
+        // the first time it is played. GuideRevisitInteractionTests covers the later visits.
         AssertEqual(
-            FieldNavigationObjectTargetKind.Location,
+            FieldNavigationObjectTargetKind.Line,
             piano.TargetKind,
             "Tifa piano target kind");
+        AssertEqual(true, piano.UsesPlayerCollisionRadius, "Tifa piano is touched inside the leader's radius");
         AssertEqual(-237, piano.StaticX, "Tifa piano x");
         AssertEqual(-249, piano.StaticY, "Tifa piano y");
         AssertEqual(0, piano.StaticZ, "Tifa piano z");
-        AssertEqual(344, piano.MinimumGameMoment, "Tifa piano minimum moment");
-        AssertEqual(384, piano.MaximumGameMoment, "Tifa piano maximum moment");
+        AssertEqual(-1, piano.MinimumGameMoment, "Tifa piano has no minimum moment");
+        AssertEqual(-1, piano.MaximumGameMoment, "Tifa piano stays after the flashback");
     }
 
     private static void AssertNibelheimFlashbackNpcLabels()

@@ -236,7 +236,8 @@ public sealed record FieldNavigationRoutePlan(
     double FinalApproachToTargetDistance = 0d,
     FieldNavigationTriggerLine? TargetTriggerLine = null,
     IReadOnlyList<FieldNavigationRouteStep>? StableWaypointsOverride = null,
-    bool UsesNativeProbeClearance = false);
+    bool UsesNativeProbeClearance = false,
+    bool UsesBodyClearance = false);
 
 public interface IFieldNavigationRoutePlanner
 {
@@ -279,6 +280,18 @@ public interface IFieldNavigationNativeBoundaryStatus
         FieldPositionSnapshot position,
         FieldNavigationTarget target,
         int releasedTriangle);
+
+    /// <summary>
+    /// <see cref="WouldRouteIfBoundaryReleased"/> for triangles one native script releases
+    /// together. A planner that cannot answer for a group answers no, so nothing is walked to
+    /// a door on a guess.
+    /// </summary>
+    bool WouldRouteIfBoundaryGroupReleased(
+        FieldPositionSnapshot position,
+        FieldNavigationTarget target,
+        IReadOnlyList<int> releasedTriangles) =>
+        releasedTriangles.Count == 1 &&
+        WouldRouteIfBoundaryReleased(position, target, releasedTriangles[0]);
 }
 
 public interface IFieldNavigationRouteRefreshPlanner
@@ -312,6 +325,13 @@ public interface IFieldNavigationAutomaticMovementPlanner
     bool IsNativeProbeAutomaticMovementClear(FieldPositionSnapshot position,
         FieldNavigationTarget target, FieldNavigationRouteWaypoint destination, byte? requestedHeading = null) =>
         IsNativeProbeMovementClear(position, target, destination);
+
+    /// <summary>
+    /// Whether the leader's body makes native progress along this move at walking and running
+    /// speed. Null where it cannot be judged: no known radius, or a slope within reach.
+    /// </summary>
+    bool? IsBodyMovementClear(FieldPositionSnapshot position,
+        FieldNavigationTarget target, FieldNavigationRouteWaypoint destination) => null;
 }
 
 public sealed class FieldWalkmeshRoutePlanner :
@@ -465,9 +485,15 @@ public sealed class FieldWalkmeshRoutePlanner :
     public bool WouldRouteIfBoundaryReleased(
         FieldPositionSnapshot position,
         FieldNavigationTarget target,
-        int releasedTriangle)
+        int releasedTriangle) =>
+        WouldRouteIfBoundaryGroupReleased(position, target, [releasedTriangle]);
+
+    public bool WouldRouteIfBoundaryGroupReleased(
+        FieldPositionSnapshot position,
+        FieldNavigationTarget target,
+        IReadOnlyList<int> releasedTriangles)
     {
-        if (position.FieldId != target.FieldId)
+        if (releasedTriangles.Count == 0 || position.FieldId != target.FieldId)
         {
             return false;
         }
@@ -531,7 +557,7 @@ public sealed class FieldWalkmeshRoutePlanner :
         }
 
         return Routes(triangle =>
-            triangle != releasedTriangle && boundaryState.IsBoundaryEnabled(triangle));
+            !releasedTriangles.Contains(triangle) && boundaryState.IsBoundaryEnabled(triangle));
     }
 
     public bool IsAutomaticMovementClear(FieldPositionSnapshot position,
@@ -560,8 +586,29 @@ public sealed class FieldWalkmeshRoutePlanner :
 
         var triangle = FieldWalkmeshPathfinder.ResolveTriangle(result.Walkmesh,
             position.X, position.Y, position.Z, preferredTriangleIndex: -1);
+        var body = ResolveBodyClearance(position, result.Walkmesh, boundaries);
+        var walkmesh = body is not null && RouteUsesBodyGeometry(target) ? body.Walkmesh : result.Walkmesh;
         return triangle >= 0 && FieldWalkmeshPathfinder.TraceWalkableSegment(
-            result.Walkmesh, triangle, current, destination, boundaries.IsBoundaryEnabled).IsClear;
+            walkmesh, triangle, current, destination, boundaries.IsBoundaryEnabled).IsClear;
+    }
+
+    public bool? IsBodyMovementClear(FieldPositionSnapshot position,
+        FieldNavigationTarget target, FieldNavigationRouteWaypoint destination)
+    {
+        var result = reader.Read(position);
+        if (!result.IsUsable || result.Walkmesh is null ||
+            !TryReadBoundaryState(position, result.Walkmesh, out var boundaries, out _))
+        {
+            return null;
+        }
+
+        var triangle = FieldWalkmeshPathfinder.ResolveTriangle(result.Walkmesh,
+            position.X, position.Y, position.Z, preferredTriangleIndex: -1);
+        var body = ResolveBodyClearance(position, result.Walkmesh, boundaries);
+        return triangle < 0 || body is null || !RouteUsesBodyGeometry(target)
+            ? null
+            : body.IsLegWalkable(new(position.X, position.Y, position.Z), position.NativeFixedPosition, triangle,
+                destination);
     }
 
     public bool IsNativeProbeMovementClear(FieldPositionSnapshot position,
@@ -570,8 +617,7 @@ public sealed class FieldWalkmeshRoutePlanner :
         LastReadWasCoherent = true;
         LastDiagnostic = "native straight movement clearance";
         var obstacles = dynamicObstacleProvider?.Invoke(position, target) ?? Array.Empty<FieldNavigationDynamicObstacle>();
-        var radius = obstacles.Where(obstacle => double.IsFinite(obstacle.PlayerCollisionRadius))
-            .Select(obstacle => obstacle.PlayerCollisionRadius).DefaultIfEmpty(0d).Max();
+        var radius = ResolvePlayerBodyRadius(position, target);
         if (radius <= 0d) return false;
         var current = new FieldNavigationRouteWaypoint(position.X, position.Y, position.Z);
         if (FieldNavigationDynamicObstacleGeometry.IntersectsAny(current, destination, obstacles)) return false;
@@ -592,8 +638,7 @@ public sealed class FieldWalkmeshRoutePlanner :
         LastReadWasCoherent = true;
         LastDiagnostic = "native immediate movement clearance";
         var obstacles = dynamicObstacleProvider?.Invoke(position, target) ?? Array.Empty<FieldNavigationDynamicObstacle>();
-        var radius = obstacles.Where(obstacle => double.IsFinite(obstacle.PlayerCollisionRadius))
-            .Select(obstacle => obstacle.PlayerCollisionRadius).DefaultIfEmpty(0d).Max();
+        var radius = ResolvePlayerBodyRadius(position, target);
         var result = reader.Read(position);
         if (!result.IsUsable || result.Walkmesh is null)
         { LastReadWasCoherent = false; LastDiagnostic = result.Diagnostic; return false; }
@@ -661,8 +706,198 @@ public sealed class FieldWalkmeshRoutePlanner :
             return false;
         }
 
+        // A portal the leader's body cannot cross is a wall to the game. Measure the portals
+        // the route would use, close the ones the body cannot cross and plan again, until the
+        // route uses none. If that leaves no way at all, keep the centre-line route the planner
+        // has always offered and say so, rather than lose the destination.
+        var buildClock = System.Diagnostics.Stopwatch.StartNew();
+        var body = ResolveBodyClearance(position, result.Walkmesh, boundaryState);
+        if (body is null)
+        {
+            return TryBuildRouteOn(position, target, result, boundaryState, boundaryDiagnostic, out plan);
+        }
+
+        // Every replan shares one deadline: the budget is for the whole build, not per attempt.
+        for (var attempt = 0; attempt < MaximumBodyClearanceReplans; attempt++)
+        {
+            if (!TryBuildRouteOn(position, target, FieldWalkmeshReadResult.Valid(body.Walkmesh, result.Diagnostic),
+                    boundaryState, boundaryDiagnostic, out plan))
+            {
+                break;
+            }
+
+            var closedNow = body.MeasurePortals(
+                plan.Portals.Where(portal => portal.TransitionKind is null)
+                    .Select(portal => (portal.FromTriangle, portal.ToTriangle)),
+                BodyClearanceBudget,
+                buildClock);
+            if (closedNow == 0)
+            {
+                plan = plan with
+                {
+                    UsesBodyClearance = true,
+                    Portals = plan.StableWaypointsOverride is null
+                        ? InsetPortalCornersForBody(body, plan.Portals, boundaryState.IsBoundaryEnabled)
+                        : plan.Portals
+                };
+                RecordRouteGeometry(target, usesBody: true);
+                LastDiagnostic += $", {body.Diagnostic}, build {buildClock.Elapsed.TotalMilliseconds:0.0} ms";
+                return true;
+            }
+        }
+
+        LastFailureWasNativeBoundary = false;
+        LastBlockingBoundaryTriangles = Array.Empty<int>();
+        if (TryBuildRouteOn(position, target, result, boundaryState, boundaryDiagnostic, out plan))
+        {
+            RecordRouteGeometry(target, usesBody: false);
+            LastDiagnostic += $", {body.Diagnostic}, no route the body can walk: centre-line route kept";
+            return true;
+        }
+
+        LastDiagnostic += $", {body.Diagnostic}";
+        return false;
+    }
+
+    /// <summary>
+    /// The funnel's corners, moved off the walls by the body's own radius.
+    ///
+    /// <para>The funnel turns at portal endpoints, and where an endpoint is a wall vertex the
+    /// body can never stand on it: the native flank probes keep the centre a radius away. The
+    /// tracker then holds that corner as the next step and the party slides back and forth
+    /// against the wall beside it. sininb42 is the case: at radius 120 the visible step
+    /// (347,1501) is a wall vertex, and the replay alternates UpLeft and DownLeft 24 units
+    /// short of it for as long as it runs. Each endpoint on a closed edge (the mesh's own,
+    /// a closed body portal, or a native lock) moves along its portal by the radius, and a
+    /// portal no wider than the body is crossed at its middle. Nothing moves off the portal,
+    /// so the route still crosses every portal it did.</para>
+    /// </summary>
+    private static IReadOnlyList<FieldNavigationRoutePortal> InsetPortalCornersForBody(
+        FieldNavigationBodyClearance body,
+        IReadOnlyList<FieldNavigationRoutePortal> portals,
+        Func<int, bool> isTriangleBlocked)
+    {
+        var walkmesh = body.Walkmesh;
+        var radius = body.Radius;
+        if (portals.Count == 0 || radius <= 0)
+        {
+            return portals;
+        }
+
+        // Keyed by the vertex itself, height included: a wall on a floor stacked above or
+        // below is not beside this portal.
+        var wallVertices = new HashSet<(int X, int Y, int Z)>();
+        foreach (var triangle in walkmesh.Triangles)
+        {
+            for (var edge = 0; edge < 3; edge++)
+            {
+                var neighbour = triangle.GetAdjacentTriangle(edge);
+                if (neighbour >= 0 && neighbour < walkmesh.Triangles.Count && !isTriangleBlocked(neighbour))
+                {
+                    continue;
+                }
+
+                var (a, b) = triangle.GetEdge(edge);
+                wallVertices.Add((a.X, a.Y, a.Z));
+                wallVertices.Add((b.X, b.Y, b.Z));
+            }
+        }
+
+        var inset = new FieldNavigationRoutePortal[portals.Count];
+        for (var index = 0; index < portals.Count; index++)
+        {
+            var portal = portals[index];
+            inset[index] = portal;
+            // Only where the oracle is exact. A sloped face, a staircase or anything beside
+            // one keeps the portal the planner gave it, as the body analysis leaves it unknown.
+            if (portal.TransitionKind is not null || portal.RequiresAction ||
+                (uint)portal.FromTriangle >= (uint)walkmesh.Triangles.Count ||
+                !body.IsPortalExactlyModelled(portal.FromTriangle, portal.ToTriangle))
+            {
+                continue;
+            }
+
+            // The planner's portals are already moved in from the raw edge by a fixed amount
+            // that knows nothing of the body; measure from the raw edge the portal lies on.
+            var from = walkmesh.Triangles[portal.FromTriangle];
+            var edgeIndex = -1;
+            for (var edge = 0; edge < 3; edge++)
+            {
+                if (from.GetAdjacentTriangle(edge) == portal.ToTriangle)
+                {
+                    edgeIndex = edge;
+                }
+            }
+
+            if (edgeIndex < 0)
+            {
+                continue;
+            }
+
+            var (start, end) = from.GetEdge(edgeIndex);
+            double Distance(FieldNavigationRouteWaypoint point, FieldWalkmeshVertex vertex) =>
+                Math.Sqrt((point.X - vertex.X) * (double)(point.X - vertex.X) + (point.Y - vertex.Y) * (double)(point.Y - vertex.Y));
+            var (leftVertex, rightVertex) = Distance(portal.Left, start) + Distance(portal.Right, end) <=
+                                            Distance(portal.Left, end) + Distance(portal.Right, start)
+                ? (start, end)
+                : (end, start);
+            var dx = rightVertex.X - (double)leftVertex.X;
+            var dy = rightVertex.Y - (double)leftVertex.Y;
+            var length = Math.Sqrt(dx * dx + dy * dy);
+            if (length < 1d)
+            {
+                continue;
+            }
+
+            var leftInset = Distance(portal.Left, leftVertex);
+            var rightInset = Distance(portal.Right, rightVertex);
+            if (wallVertices.Contains((leftVertex.X, leftVertex.Y, leftVertex.Z)))
+            {
+                leftInset = Math.Max(leftInset, radius);
+            }
+
+            if (wallVertices.Contains((rightVertex.X, rightVertex.Y, rightVertex.Z)))
+            {
+                rightInset = Math.Max(rightInset, radius);
+            }
+
+            if (leftInset + rightInset > length)
+            {
+                // No wider than the body: crossed at its middle, where it has the most room.
+                leftInset = length / 2d;
+                rightInset = length / 2d;
+            }
+
+            FieldNavigationRouteWaypoint At(double fromLeft) => new(
+                (int)Math.Round(leftVertex.X + dx * fromLeft / length),
+                (int)Math.Round(leftVertex.Y + dy * fromLeft / length),
+                (int)Math.Round(leftVertex.Z + (rightVertex.Z - (double)leftVertex.Z) * fromLeft / length));
+            inset[index] = portal with { Left = At(leftInset), Right = At(length - rightInset) };
+        }
+
+        return inset;
+    }
+
+    /// <summary>Route searches one build may repeat while closing portals it finds impassable.</summary>
+    private const int MaximumBodyClearanceReplans = 8;
+
+    /// <summary>
+    /// Native search one build may spend. Portals it does not reach are measured by the next
+    /// build instead, so the exit and object polls never pay for a whole field at once.
+    /// </summary>
+    private static readonly TimeSpan BodyClearanceBudget = TimeSpan.FromMilliseconds(40);
+
+    private bool TryBuildRouteOn(
+        FieldPositionSnapshot position,
+        FieldNavigationTarget target,
+        FieldWalkmeshReadResult result,
+        FieldBoundaryState boundaryState,
+        string boundaryDiagnostic,
+        out FieldNavigationRoutePlan plan)
+    {
+        plan = null!;
         var playerTriangle = FieldWalkmeshPathfinder.ResolveTriangle(
-            result.Walkmesh,
+            result.Walkmesh!,
             position.X,
             position.Y,
             position.Z,
@@ -735,18 +970,16 @@ public sealed class FieldWalkmeshRoutePlanner :
                 out targetTriangle);
         }
 
-        // The player's own collision radius, which the obstacle reader already carries.
-        // Without it there is nothing to check a body against, and the search behaves as it
-        // always has. Only the interaction fallback needs it, so an ordinary route that has
-        // already been built never pays for the obstacle read.
+        // The player's own collision radius: the leader's +0x72 read directly where the host
+        // provides it, otherwise the one another live model carries. A room with only the
+        // target in it (the obstacle reader leaves the target out) still has a body to check.
+        // Without either there is nothing to check a body against, and the search behaves as
+        // it always has. Only the interaction fallback needs it, so an ordinary route that has
+        // already been built never pays for the read.
         var interactionBodyRadius = !found && target.InteractionRadius > 0
-            ? (dynamicObstacleProvider?.Invoke(position, target)
-                    ?? Array.Empty<FieldNavigationDynamicObstacle>())
-                .Where(obstacle => double.IsFinite(obstacle.PlayerCollisionRadius))
-                .Select(obstacle => obstacle.PlayerCollisionRadius)
-                .DefaultIfEmpty(0d)
-                .Max()
+            ? ResolvePlayerBodyRadius(position, target)
             : 0d;
+        var interactionBudget = new InteractionSearchBudget();
         if (!found &&
             target.InteractionRadius > 0 &&
             TryBuildInteractionRangeRoute(
@@ -766,6 +999,7 @@ public sealed class FieldWalkmeshRoutePlanner :
                         waypoint,
                         interactionBodyRadius,
                         boundaryState.IsBoundaryEnabled),
+                interactionBudget,
                 out trianglePath,
                 out portals,
                 out targetTriangle,
@@ -986,6 +1220,16 @@ public sealed class FieldWalkmeshRoutePlanner :
               (dynamicModelRouteBlocked
                   ? $", {dynamicModelDiagnostic}"
                   : string.Empty);
+        if (!found && interactionBudget.Exhausted)
+        {
+            // The approach search stopped at its budget, not at the end of the ground it had
+            // to search. That proves nothing about the game's locks, so it is not reported as
+            // one: a held "the way is shut" for a door the search never needed is exactly the
+            // innkeeper report.
+            LastDiagnostic += ", interaction approach search budget exhausted (not a native lock)";
+            return false;
+        }
+
         if (!found)
         {
             // Bugenhagen shuts the observatory door for the length of his lecture, and
@@ -2389,8 +2633,13 @@ public sealed class FieldWalkmeshRoutePlanner :
             return false;
         }
 
+        // The plan's own mesh: a route planned round a portal the body cannot cross must
+        // not be looked ahead straight back through it.
+        var body = ResolveBodyClearance(position, result.Walkmesh, boundaryState);
+        var corridorWalkmesh = plan.UsesBodyClearance && body is not null ? body.Walkmesh : result.Walkmesh;
+
         var resolvedTriangle = FieldWalkmeshPathfinder.ResolveTriangle(
-            result.Walkmesh,
+            corridorWalkmesh,
             position.X,
             position.Y,
             position.Z,
@@ -2424,7 +2673,7 @@ public sealed class FieldWalkmeshRoutePlanner :
             var radius = dynamicObstacles?.Where(obstacle => double.IsFinite(obstacle.PlayerCollisionRadius))
                 .Select(obstacle => obstacle.PlayerCollisionRadius).DefaultIfEmpty(0d).Max() ?? 0d;
             var clear = radius > 0d && !FieldNavigationDynamicObstacleGeometry.IntersectsAny(current, waypoint, dynamicObstacles) &&
-                        AreNativeWallProbesClear(result.Walkmesh, resolvedTriangle, current, waypoint,
+                        AreNativeWallProbesClear(corridorWalkmesh, resolvedTriangle, current, waypoint,
                             radius, boundaryState.IsBoundaryEnabled);
             observation = new FieldNavigationCorridorObservation(
                 resolvedTriangle, waypoint, index,
@@ -2433,7 +2682,7 @@ public sealed class FieldWalkmeshRoutePlanner :
             return true;
         }
         var found = FieldNavigationCorridorLookahead.TryResolve(
-            result.Walkmesh,
+            corridorWalkmesh,
             resolvedTriangle,
             position,
             plan,
@@ -2443,7 +2692,34 @@ public sealed class FieldWalkmeshRoutePlanner :
             heading,
             boundaryState.IsBoundaryEnabled,
             dynamicObstacles,
-            out observation);
+            out observation,
+            body is null
+                ? null
+                : point => body.IsLegWalkable(
+                    new FieldNavigationRouteWaypoint(position.X, position.Y, position.Z),
+                    position.NativeFixedPosition, resolvedTriangle, point));
+        // A body-aware route whose next corner the party can no longer walk straight to has
+        // gone stale under it: a held heading carried the party along a wall away from the
+        // funnel it was built on. nvmin1_1 from the logged 386,293 start is the case - along
+        // y 293 to 130,293, from where the old corner 40,419 lies behind the wall vertex
+        // 61,351 while a funnel from there turns at 87,365 first. Build the funnel again from
+        // where the party is. A new plan starts at its first step, so this cannot repeat
+        // until the party has moved on along it.
+        if (found && plan.UsesBodyClearance && waypointIndex > 0 &&
+            observation.Mode == FieldNavigationLookaheadMode.RequiredCorner &&
+            (uint)waypointIndex < (uint)stableWaypoints.Count &&
+            !FieldWalkmeshPathfinder.TraceWalkableSegment(corridorWalkmesh, resolvedTriangle,
+                new FieldNavigationRouteWaypoint(position.X, position.Y, position.Z),
+                stableWaypoints[waypointIndex].Waypoint, boundaryState.IsBoundaryEnabled).IsClear)
+        {
+            observation = observation with
+            {
+                Mode = FieldNavigationLookaheadMode.ReplanRequired,
+                ConfirmsRoute = false,
+                Diagnostic = observation.Diagnostic + ", body route: next corner not walkable from here, replanning"
+            };
+        }
+
         if (found && observation.Mode == FieldNavigationLookaheadMode.ObstacleRecovery && stableWaypoints.Count > 0)
         {
             var rejoin = stableWaypoints[Math.Clamp(observation.StableWaypointIndex, 0, stableWaypoints.Count - 1)].Waypoint;
@@ -2451,7 +2727,7 @@ public sealed class FieldWalkmeshRoutePlanner :
             // observations before the tracker splices or retains their bends,
             // using the same native-floor and collision checks as initial plans.
             var retainedRecovery = heading.RecoveryWaypoint == observation.Waypoint;
-            found = TryProjectRecoveryBends(result.Walkmesh, resolvedTriangle,
+            found = TryProjectRecoveryBends(corridorWalkmesh, resolvedTriangle,
                 new(position.X, position.Y, position.Z), observation.Waypoint,
                 observation.RecoveryContinuation, rejoin, boundaryState.IsBoundaryEnabled,
                 dynamicObstacles ?? Array.Empty<FieldNavigationDynamicObstacle>(), out var projected,
@@ -2794,6 +3070,79 @@ public sealed class FieldWalkmeshRoutePlanner :
         return wa >= -1e-9 && wb >= -1e-9 && 1d - wa - wb >= -1e-9;
     }
 
+    private FieldNavigationBodyClearance? bodyClearance;
+    private bool bodyClearanceResolved;
+    private (int Field, int Radius, int Fingerprint, int Boundaries, int Triangles) bodyClearanceKey;
+
+    /// <summary>
+    /// Which geometry each target's last route was planned on: true for the body-aware mesh,
+    /// false where that left no way and the centre-line route was kept. Immediate movement and
+    /// the body preference follow the route's own answer, so a fallback route is never steered
+    /// against the walls it was planned without.
+    /// </summary>
+    private readonly Dictionary<string, bool> bodyGeometryByTarget = new(StringComparer.Ordinal);
+
+    private bool RouteUsesBodyGeometry(FieldNavigationTarget target) =>
+        bodyGeometryByTarget.TryGetValue(GetTargetId(target), out var usesBody) && usesBody;
+
+    private void RecordRouteGeometry(FieldNavigationTarget target, bool usesBody)
+    {
+        if (bodyGeometryByTarget.Count >= 256)
+        {
+            bodyGeometryByTarget.Clear();
+        }
+
+        bodyGeometryByTarget[GetTargetId(target)] = usesBody;
+    }
+
+    /// <summary>How many times a walkmesh has been prepared for body clearance, for tests.</summary>
+    internal int BodyClearancePreparations { get; private set; }
+
+    /// <summary>What the last body clearance measurement found, for diagnostics and tests.</summary>
+    internal FieldNavigationBodyClearance? LastBodyClearance => bodyClearance;
+
+    /// <summary>
+    /// The body clearance of this walkmesh for the leader's own radius and the locks the game
+    /// has on now. Only a planner told the leader's radius measures anything; the exit
+    /// reachability planner, which is not, keeps the centre-line answers it always gave.
+    ///
+    /// <para>Measured once per field layout, radius and lock set, and reused: the exit and
+    /// object lists ask for routes on every poll. Any change to the geometry, the radius or a
+    /// native lock is a different key, so a door the game opens is seen at once.</para>
+    /// </summary>
+    private FieldNavigationBodyClearance? ResolveBodyClearance(
+        FieldPositionSnapshot position, FieldWalkmesh walkmesh, FieldBoundaryState boundaries)
+    {
+        if (playerCollisionRadiusProvider?.Invoke(position) is not { } radius ||
+            !double.IsFinite(radius) || radius < 1d || radius != Math.Truncate(radius))
+        {
+            return null;
+        }
+
+        var fingerprint = new HashCode();
+        foreach (var triangle in walkmesh.Triangles)
+        {
+            fingerprint.Add(triangle);
+        }
+
+        var key = (position.FieldId, (int)radius, fingerprint.ToHashCode(), boundaries.GetHashCode(),
+            walkmesh.Triangles.Count);
+        // A mesh the oracle has nothing to say about is remembered as such too, so it is not
+        // prepared again on every poll.
+        if (bodyClearanceResolved && bodyClearanceKey == key)
+        {
+            return bodyClearance;
+        }
+
+        var blocked = boundaries.ActiveBoundaryTriangles.ToHashSet();
+        bodyClearance = FieldNavigationBodyClearance.Create(walkmesh, radius, blocked);
+        BodyClearancePreparations++;
+        bodyClearanceKey = key;
+        bodyClearanceResolved = true;
+        bodyGeometryByTarget.Clear();
+        return bodyClearance;
+    }
+
     /// <summary>
     /// The leader's own collision radius, the native <c>+0x72</c>: from the host's reader of
     /// the player's event data when there is one, otherwise from the obstacle reader that
@@ -3098,6 +3447,7 @@ public sealed class FieldWalkmeshRoutePlanner :
         IReadOnlyList<FieldWalkmeshOffMeshLink> offMeshLinks,
         double bodyRadius,
         Func<int, FieldNavigationRouteWaypoint, bool>? canBodyStand,
+        InteractionSearchBudget budget,
         out IReadOnlyList<int> bestTrianglePath,
         out IReadOnlyList<FieldNavigationRoutePortal> bestPortals,
         out int bestTargetTriangle,
@@ -3123,6 +3473,7 @@ public sealed class FieldWalkmeshRoutePlanner :
                     target,
                     bodyRadius,
                     canBodyStand,
+                    budget,
                     out var approach,
                     out var approachToTargetDistance))
             {
@@ -3190,6 +3541,7 @@ public sealed class FieldWalkmeshRoutePlanner :
         FieldNavigationTarget target,
         double bodyRadius,
         Func<int, FieldNavigationRouteWaypoint, bool>? canBodyStand,
+        InteractionSearchBudget budget,
         out FieldNavigationRouteWaypoint approach,
         out double approachToTargetDistance)
     {
@@ -3251,7 +3603,170 @@ public sealed class FieldWalkmeshRoutePlanner :
             return true;
         }
 
+        if (canBodyStand is not null &&
+            TryCreateReachBandInteractionApproach(triangle, triangleIndex, target, canBodyStand, budget, out approach, out approachToTargetDistance))
+        {
+            return true;
+        }
+
         approachToTargetDistance = 0d;
+        return false;
+    }
+
+    /// <summary>
+    /// Spacing of the reach-band lattice. Not a proof: a band of legal ground narrower than
+    /// this, or falling between lattice points, is still missed.
+    /// </summary>
+    private const int ReachBandSpacing = 2;
+
+    /// <summary>
+    /// Everything one interaction search may spend on its last-resort reach bands, across all
+    /// the triangles it tries. Native reaches run far past the innkeeper's 110 - the installed
+    /// baseline has 440 in sininb42 and 1140 in field 727, a disc of a million lattice points -
+    /// so the points are counted before any is made, and the body checks and the time are
+    /// shared by every triangle rather than granted to each.
+    /// </summary>
+    internal sealed class InteractionSearchBudget
+    {
+        internal const int MaximumLatticePoints = 20000;
+        internal const int MaximumBodyChecks = 2400;
+        internal static readonly TimeSpan MaximumTime = TimeSpan.FromMilliseconds(20);
+        private readonly System.Diagnostics.Stopwatch clock = System.Diagnostics.Stopwatch.StartNew();
+
+        internal int LatticePointsLeft { get; private set; } = MaximumLatticePoints;
+
+        internal int BodyChecksLeft { get; private set; } = MaximumBodyChecks;
+
+        /// <summary>Some reach band was not searched in full; a failure proves nothing.</summary>
+        internal bool Exhausted { get; private set; }
+
+        internal bool TryTakeLatticePoints(long count)
+        {
+            if (count > LatticePointsLeft || clock.Elapsed >= MaximumTime)
+            {
+                Exhausted = true;
+                return false;
+            }
+
+            LatticePointsLeft -= (int)count;
+            return true;
+        }
+
+        internal bool TryTakeBodyCheck()
+        {
+            if (BodyChecksLeft <= 0 || clock.Elapsed >= MaximumTime)
+            {
+                Exhausted = true;
+                return false;
+            }
+
+            BodyChecksLeft--;
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// The last resort for one triangle: every lattice point of the part of it inside reach,
+    /// nearest the target first, under the same reach, height and native body check.
+    ///
+    /// <para>The insets and the interior lattice above are sparse, and a counter can leave a
+    /// band only a few units deep between where the body fits and where the target is still in
+    /// reach. The Nibelheim innkeeper (nivinn_1, 273) is the reported case: she stands at
+    /// (-5,-232) behind the counter whose front is triangle 11's closed edge at y about -308,
+    /// the native Talk reach is 110 (player +0x72 30 plus her talk radius 80, both field
+    /// init's defaults), and a 30-unit body facing her fits only at y -338 or lower - so the
+    /// whole of the legal ground is y -338 to about -342. Neither the insets nor the sixths
+    /// land in it, the route was refused, and the refusal was reported as the shut door 56 on
+    /// the far side of the room.</para>
+    ///
+    /// <para>Bounded by one <see cref="InteractionSearchBudget"/> for the whole search: the
+    /// lattice points are counted and paid for before any is made, and every body check and the
+    /// elapsed time come out of the same budget. A band the budget does not cover is left
+    /// unsearched and the search reports itself exhausted - never as a lock. Nothing is relaxed:
+    /// the reach is the target's own, and every answer passes the unchanged
+    /// <see cref="CanBodyStandAtApproach"/>.</para>
+    /// </summary>
+    private static bool TryCreateReachBandInteractionApproach(
+        FieldWalkmeshTriangle triangle,
+        int triangleIndex,
+        FieldNavigationTarget target,
+        Func<int, FieldNavigationRouteWaypoint, bool> canBodyStand,
+        InteractionSearchBudget budget,
+        out FieldNavigationRouteWaypoint approach,
+        out double approachToTargetDistance)
+    {
+        approach = default;
+        approachToTargetDistance = 0d;
+        var reach = target.InteractionRadius - InteractionRangeEpsilon;
+        if (reach <= 0d)
+        {
+            return false;
+        }
+
+        var (a, b, c) = (triangle.Vertex0, triangle.Vertex1, triangle.Vertex2);
+        var minX = Math.Max(Math.Min(a.X, Math.Min(b.X, c.X)), (int)Math.Floor(target.X - reach));
+        var maxX = Math.Min(Math.Max(a.X, Math.Max(b.X, c.X)), (int)Math.Ceiling(target.X + reach));
+        var minY = Math.Max(Math.Min(a.Y, Math.Min(b.Y, c.Y)), (int)Math.Floor(target.Y - reach));
+        var maxY = Math.Min(Math.Max(a.Y, Math.Max(b.Y, c.Y)), (int)Math.Ceiling(target.Y + reach));
+        if (minX > maxX || minY > maxY)
+        {
+            return false;
+        }
+
+        // The lattice is anchored to even coordinates, so neighbouring triangles sample the
+        // same points and the answer does not depend on where a triangle happens to start.
+        minX = (int)Math.Floor(minX / (double)ReachBandSpacing) * ReachBandSpacing;
+        minY = (int)Math.Floor(minY / (double)ReachBandSpacing) * ReachBandSpacing;
+        var lattice = ((long)(maxX - minX) / ReachBandSpacing + 1) * ((long)(maxY - minY) / ReachBandSpacing + 1);
+        if (!budget.TryTakeLatticePoints(lattice))
+        {
+            return false;
+        }
+
+        var candidates = new List<(int X, int Y, double Distance)>();
+        for (var x = minX; x <= maxX; x += ReachBandSpacing)
+        {
+            for (var y = minY; y <= maxY; y += ReachBandSpacing)
+            {
+                var dx = target.X - x;
+                var dy = target.Y - y;
+                var distance = Math.Sqrt((dx * (double)dx) + (dy * (double)dy));
+                if (distance < reach && ContainsPoint2D(triangle, x, y))
+                {
+                    candidates.Add((x, y, distance));
+                }
+            }
+        }
+
+        candidates.Sort((left, right) =>
+        {
+            var byDistance = left.Distance.CompareTo(right.Distance);
+            return byDistance != 0 ? byDistance : left.X != right.X ? left.X.CompareTo(right.X) : left.Y.CompareTo(right.Y);
+        });
+        foreach (var candidate in candidates)
+        {
+            var z = (int)Math.Round(InterpolateTriangleZ(triangle, candidate.X, candidate.Y));
+            if (!IsWithinActivationVerticalRange(target, target.Z - z))
+            {
+                continue;
+            }
+
+            if (!budget.TryTakeBodyCheck())
+            {
+                return false;
+            }
+
+            var waypoint = new FieldNavigationRouteWaypoint(candidate.X, candidate.Y, z);
+            if (!canBodyStand(triangleIndex, waypoint))
+            {
+                continue;
+            }
+
+            approach = waypoint;
+            approachToTargetDistance = candidate.Distance;
+            return true;
+        }
+
         return false;
     }
 
