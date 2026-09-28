@@ -8,17 +8,23 @@ public sealed class BattleSenseSpeechCoordinator
     private readonly Func<int, BattleRuntimeTextResolution?> resolveBattleText;
     private readonly Func<int, BattleSenseObservation?> readSenseResult;
     private readonly Func<int, string?> resolveElementName;
-    private readonly BattleMessageSpeechTracker messageTracker = new(_ => null);
+    private readonly BattleMessageSpeechTracker messageTracker;
     private int activeBuffer = -1;
     private SuppressionStage suppressionStage;
     private BattleSenseObservation? activeSense;
     private int weaknessIndex;
 
+    /// <param name="activationClock">
+    /// The time of the native activation being observed; the wall clock when omitted.
+    /// A blinking message (the "LIMIT BREAK" banner) is spoken once per blink sequence.
+    /// </param>
     public BattleSenseSpeechCoordinator(
         Func<int, BattleRuntimeTextResolution?> resolveBattleText,
         Func<int, BattleSenseObservation?> readSenseResult,
-        Func<int, string?> resolveElementName)
+        Func<int, string?> resolveElementName,
+        Func<DateTime>? activationClock = null)
     {
+        messageTracker = new BattleMessageSpeechTracker(_ => null, activationClock ?? (() => DateTime.UtcNow));
         this.resolveBattleText = resolveBattleText ?? throw new ArgumentNullException(nameof(resolveBattleText));
         this.readSenseResult = readSenseResult ?? throw new ArgumentNullException(nameof(readSenseResult));
         this.resolveElementName = resolveElementName ?? throw new ArgumentNullException(nameof(resolveElementName));

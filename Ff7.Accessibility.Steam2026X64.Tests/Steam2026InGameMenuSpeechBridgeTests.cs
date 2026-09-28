@@ -16,6 +16,7 @@ internal static class Steam2026InGameMenuSpeechBridgeTests
         ReadsItemCommandWithoutRenderedCursor();
         ReadsItemArrangeWithoutRenderedCursor();
         ReadsLimitLevelConfirmationFromNativeRow();
+        SpeaksTheLimitHeaderFromTheTranslatedGuest();
         ReadsNativeOrderRowsAndPendingSwap();
         ReadsScriptedReformPartySelection();
         ReadsNormalPhsPartySelection();
@@ -238,6 +239,40 @@ internal static class Steam2026InGameMenuSpeechBridgeTests
             rows: 2,
             widgetIdentity: 0x00DCA278);
         Equal("Yes", bridge.Poll(now.AddMilliseconds(16)), "translated Limit confirmation reads Yes");
+    }
+
+    /// <summary>
+    /// The translated Limit screen: the header's character comes from the screen's own slot
+    /// (DAT_00dca3c8) and its level from that character's record, read through the same
+    /// guest address space the other menu reads use. Said on entry and on a level change.
+    /// </summary>
+    private static void SpeaksTheLimitHeaderFromTheTranslatedGuest()
+    {
+        var memory = new Memory();
+        memory.WriteInt32(LimitMenuHeaderReader.AddressLimitScreenPartySlot, 1);
+        memory.Write((uint)(SavemapPartyReader.AddressSavemap + SavemapPartyReader.PartyMembersOffset), [0, 3, 1]);
+        var aeris = SavemapPartyReader.AddressSavemap + SavemapPartyReader.CharactersOffset + 3 * SavemapPartyReader.CharacterSize;
+        memory.WriteByte((uint)aeris, 3);
+        memory.Write((uint)(aeris + SavemapPartyReader.CharacterNameOffset),
+            [0x21, 0x45, 0x52, 0x49, 0x53, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]);
+        memory.WriteByte((uint)(aeris + SavemapPartyReader.LimitLevelOffset), 1);
+        memory.WriteByte((uint)(aeris + SavemapPartyReader.LimitGaugeOffset), 255);
+
+        var bridge = new Steam2026InGameMenuSpeechBridge(CreateMenuReader(memory), TimeSpan.Zero);
+        var now = UtcNow();
+        var sequence = 0L;
+        ObserveWidget(bridge, ref sequence, now, "Limit command", MenuWidgetKind.LimitCommand,
+            first: 0, cursor: 0, columns: 2, rows: 1, widgetIdentity: 0x00DCA1D0);
+        Equal("Limit level 1. Limit gauge full. Set", bridge.Poll(now), "translated Limit screen says Aeris's current level on entry");
+
+        ObserveWidget(bridge, ref sequence, now.AddMilliseconds(200), "Limit command", MenuWidgetKind.LimitCommand,
+            first: 1, cursor: 0, columns: 2, rows: 1, widgetIdentity: 0x00DCA1D0);
+        Equal("Check", bridge.Poll(now.AddMilliseconds(200)), "and not again on a cursor move");
+
+        memory.WriteByte((uint)(aeris + SavemapPartyReader.LimitLevelOffset), 2);
+        ObserveWidget(bridge, ref sequence, now.AddMilliseconds(400), "Limit command", MenuWidgetKind.LimitCommand,
+            first: 0, cursor: 0, columns: 2, rows: 1, widgetIdentity: 0x00DCA1D0);
+        Equal("Limit level 2. Limit gauge full. Set", bridge.Poll(now.AddMilliseconds(400)), "a changed level is said");
     }
 
     private static void AddLimitConfirmationText(

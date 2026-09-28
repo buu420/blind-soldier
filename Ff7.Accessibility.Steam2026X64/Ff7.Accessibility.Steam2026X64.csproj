@@ -27,6 +27,10 @@
 
   <ItemGroup>
     <Compile Include="..\Ff7.Accessibility.Reloaded\BlindSoldierRuntimeLease.cs" Link="Shared\BlindSoldierRuntimeLease.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\SnowboardStateReader.cs" Link="Shared\SnowboardStateReader.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\SnowboardReadout.cs" Link="Shared\SnowboardReadout.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\GreatGlacierIceFloe.cs" Link="Shared\GreatGlacierIceFloe.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\GreatGlacierMapScreen.cs" Link="Shared\GreatGlacierMapScreen.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\RootMainMenuRenderEvidenceTracker.cs" Link="Shared\RootMainMenuRenderEvidenceTracker.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\ActiveMenuFrameSpeechCoordinator.cs" Link="Shared\ActiveMenuFrameSpeechCoordinator.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\PartyTargetMenuSelectionFormatter.cs" Link="Shared\PartyTargetMenuSelectionFormatter.cs" />

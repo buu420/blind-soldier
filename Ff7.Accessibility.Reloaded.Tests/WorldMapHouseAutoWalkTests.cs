@@ -34,9 +34,9 @@ internal static class WorldMapHouseAutoWalkTests
     /// Buggy) and the terrain FUN_0074CECA lets it onto (0x721B6F83 on foot, 0x331B6F13 for
     /// the Buggy in ordinary travel). Both are held by the same 200-unit footprint.
     /// </summary>
-    private readonly record struct Mover(int Model, int Step, uint Mask);
+    internal readonly record struct Mover(int Model, int Step, uint Mask);
 
-    private static readonly Mover OnFoot = new(0, 30, 0x721B6F83u);
+    internal static readonly Mover OnFoot = new(0, 30, 0x721B6F83u);
     private static readonly Mover Buggy = new(6, 45, 0x331B6F13u);
     private const int FootprintReach = 200;
 
@@ -65,6 +65,7 @@ internal static class WorldMapHouseAutoWalkTests
         var (map, catalog) = Load();
         var target = catalog.Locations.Single(candidate => candidate.Label == House);
         TheBuggyOnTheHouseTriggerIsNotAnArrival(map, target);
+        TheParkedBuggyLeavesAnOnFootApproach(map, catalog, target);
         TheBuggyDrivesOutOfTheLoggedStalls(map, catalog);
         InputTimes.Clear();
         var failures = new List<string>();
@@ -93,6 +94,23 @@ internal static class WorldMapHouseAutoWalkTests
         }
 
         Console.WriteLine($"PASS Old Man's House native auto walk: {runs} approaches entered the trigger. {DescribeTimes()}.");
+    }
+
+    private static void TheParkedBuggyLeavesAnOnFootApproach(
+        WorldMapData map, WorldMapTargetCatalog catalog, WorldMapNavigationTarget target)
+    {
+        var parked = new WorldMapEntitySnapshot(0x00E3A108, 0, false, 200_400, 1_800, 133_500, 0, 2, 6, 0);
+        var failures = new List<string>();
+        foreach (var frames in new[] { 1, 3, 5 })
+        foreach (var camera in Cameras)
+        {
+            var result = Walk(map, target, OnFoot, (200_100, 1_800, 133_500), camera, frames, (0, false),
+                state => IsOnHouseTrigger(map, state), 2400, [parked], catalog.EntranceTriangleIds);
+            if (result is not null) failures.Add(result);
+        }
+        if (failures.Count > 0)
+            throw new InvalidOperationException("House approaches beside the parked Buggy failed:\n" + string.Join("\n", failures));
+        Console.WriteLine("PASS 24 house approaches with the Buggy parked clear, including native vehicle collision and initial overlap escape.");
     }
 
     /// <summary>
@@ -170,7 +188,7 @@ internal static class WorldMapHouseAutoWalkTests
     }
 
     /// <summary>Null when the walk succeeded; otherwise why not.</summary>
-    private static string? Walk(
+    internal static string? Walk(
         WorldMapData map,
         WorldMapNavigationTarget target,
         Mover mover,
@@ -179,10 +197,15 @@ internal static class WorldMapHouseAutoWalkTests
         int framesPerObservation,
         (int Rate, bool TurnsWhenRefused) cameraFollow,
         Func<WorldMapStateSnapshot, bool> succeeded,
-        int frameLimit)
+        int frameLimit,
+        IReadOnlyList<WorldMapEntitySnapshot>? vehicles = null,
+        IReadOnlySet<int>? entrances = null,
+        bool vehiclesRefuse = true)
     {
         var planner = new WorldMapRoutePlanner(map);
-        var controller = new WorldMapNavigationController(map, planner, (_, _) => [target]);
+        if (entrances is not null) planner.EntranceTriangleIds = entrances;
+        var controller = new WorldMapNavigationController(map, planner, (_, _) => [target],
+            entityProvider: vehicles is null ? null : () => vehicles);
         var state = State(start.X, start.Y, start.Z, camera) with { PlayerModelId = mover.Model };
         var now = new DateTime(2026, 9, 26, 20, 47, 0, DateTimeKind.Utc);
         controller.HandleAction(FieldNavigationAction.ToggleBeacon, state, now);
@@ -225,7 +248,7 @@ internal static class WorldMapHouseAutoWalkTests
             Trim(recent);
             for (var step = 0; step < framesPerObservation; step++)
             {
-                var (moved, next) = NativeFrame(map, mover, state, input, cameraFollow);
+                var (moved, next) = NativeFrame(map, mover, state, input, cameraFollow, vehiclesRefuse ? vehicles : null);
                 if (!moved)
                 {
                     // A refused frame does not move the party. Standing on the trigger is
@@ -276,8 +299,9 @@ internal static class WorldMapHouseAutoWalkTests
     /// camera, 30 units, accepted only where the whole footprint fits. The camera then turns
     /// towards the heading, as the world camera follows the party.
     /// </summary>
-    private static (bool Moved, WorldMapStateSnapshot Next) NativeFrame(
-        WorldMapData map, Mover mover, WorldMapStateSnapshot state, FieldNavigationInput input, (int Rate, bool TurnsWhenRefused) cameraFollow)
+    internal static (bool Moved, WorldMapStateSnapshot Next) NativeFrame(
+        WorldMapData map, Mover mover, WorldMapStateSnapshot state, FieldNavigationInput input,
+        (int Rate, bool TurnsWhenRefused) cameraFollow, IReadOnlyList<WorldMapEntitySnapshot>? vehicles = null)
     {
         var (dx, dz) = NativeVector(input, state.CameraFront, mover.Step);
         var turned = TurnCamera(state, dx, dz, cameraFollow.Rate);
@@ -285,7 +309,8 @@ internal static class WorldMapHouseAutoWalkTests
         var z = state.Z + dz;
         // 007530B3 resolves all five contact points against the model's current height
         // (f_28 = the model position's y), not the height the step would reach.
-        if (!TrySurface(map, x, z, state.Y, out var ground) || !FootprintFits(map, mover, x, state.Y, z))
+        if (!TrySurface(map, x, z, state.Y, out var ground) || !FootprintFits(map, mover, x, state.Y, z) ||
+            VehicleRefusesFrame(state, x, z, vehicles))
         {
             return (false, cameraFollow.TurnsWhenRefused ? turned : state);
         }
@@ -298,6 +323,28 @@ internal static class WorldMapHouseAutoWalkTests
             TerrainId = ground.TerrainId,
             TerrainScriptId = ground.TerrainScriptId
         });
+    }
+
+    // Independent endpoint test from 00762A21/00762993. The native routine allows
+    // overlapping steps whose Manhattan separation does not shrink (return 2),
+    // which is necessary immediately after dismounting. These local fixtures do
+    // not cross a world seam and only contain the verified model-6 parked car.
+    private static bool VehicleRefusesFrame(WorldMapStateSnapshot from, int x, int z,
+        IReadOnlyList<WorldMapEntitySnapshot>? vehicles)
+    {
+        if (vehicles is null || from.PlayerModelId is not (0 or 1 or 2)) return false;
+        byte[] person = [0, 0, 0, 0x18, 0x18, 0, 0, 0];
+        byte[] buggy = [0, 0, 0x18, 0x3c, 0x3c, 0x18, 0, 0];
+        foreach (var car in vehicles)
+        {
+            if (car.ModelId != 6 || car.IsPlayer || (car.Flags & 0x80) != 0) continue;
+            var dx = car.X - x; var dz = car.Z - z;
+            if (Math.Abs(dx) >= 1024 || Math.Abs(dz) >= 1024) continue;
+            var column = (dx + 1024) >> 8; var row = (dz + 1024) >> 8;
+            var overlaps = ((person[row] >> column) & 1) != 0 || ((buggy[7 - row] >> (7 - column)) & 1) != 0;
+            if (overlaps && Math.Abs(dx) + Math.Abs(dz) < Math.Abs(car.X - from.X) + Math.Abs(car.Z - from.Z)) return true;
+        }
+        return false;
     }
 
     private static WorldMapStateSnapshot TurnCamera(WorldMapStateSnapshot state, int dx, int dz, int rate)
@@ -350,7 +397,7 @@ internal static class WorldMapHouseAutoWalkTests
     private static bool Allows(Mover mover, int terrain) =>
         terrain is >= 0 and < 32 && ((mover.Mask >> terrain) & 1u) != 0;
 
-    private static bool IsOnHouseTrigger(WorldMapData map, WorldMapStateSnapshot state) =>
+    internal static bool IsOnHouseTrigger(WorldMapData map, WorldMapStateSnapshot state) =>
         IsHouseTrigger(map, state.X, state.Y, state.Z);
 
     /// <summary>A script-7 face in mesh (24,16), where handler 0xA584 is registered.</summary>
@@ -407,7 +454,7 @@ internal static class WorldMapHouseAutoWalkTests
 
     private static readonly Dictionary<WorldMapData, Dictionary<(int, int), WorldMapTriangle[]>> Cells = [];
 
-    private static WorldMapStateSnapshot State(int x, int y, int z, int camera) =>
+    internal static WorldMapStateSnapshot State(int x, int y, int z, int camera) =>
         new(3, 0, 0, 415, x, y, z, 0, 0, 0, 2, 0, 30, camera, new FieldNavigationControlTransform(ControlDirection(camera)));
 
     private static int ControlDirection(int camera)
@@ -417,7 +464,7 @@ internal static class WorldMapHouseAutoWalkTests
         return direction < -128 ? direction + 256 : direction;
     }
 
-    private static (WorldMapData Map, WorldMapTargetCatalog Catalog) Load()
+    internal static (WorldMapData Map, WorldMapTargetCatalog Catalog) Load()
     {
         var dataRoot = Environment.GetEnvironmentVariable("FF7_ACCESSIBILITY_DATA_ROOT") ??
             @"C:\Games\Final Fantasy VII\workingdir";

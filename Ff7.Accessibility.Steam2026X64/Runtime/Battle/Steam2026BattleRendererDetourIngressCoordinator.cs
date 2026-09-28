@@ -102,6 +102,7 @@ internal sealed class Steam2026BattleRendererDetourIngressCoordinator : IDisposa
     private long observationEpoch;
     private int stopped;
     private int fatalIngressFailure;
+    private int queueOverflow;
     private int tifaSlotCaptureArmed;
 
     internal Steam2026BattleRendererDetourIngressCoordinator(
@@ -152,6 +153,32 @@ internal sealed class Steam2026BattleRendererDetourIngressCoordinator : IDisposa
     }
 
     internal bool IsFatallyDegraded => Volatile.Read(ref fatalIngressFailure) != 0;
+
+    /// <summary>
+    /// The capture queue filled because the worker fell behind (a long load, a
+    /// stalled host, a burst of Limit-break callbacks). Unlike an exception, a
+    /// full queue says nothing about the hooks: producers publish nothing until
+    /// the worker has discarded the whole incomplete batch, then capture resumes.
+    /// Previously a full queue could retire the cohort for the session. The
+    /// 2026-09-27 log proves retirement, but does not record its exact cause.
+    /// </summary>
+    internal bool HasQueueOverflow => Volatile.Read(ref queueOverflow) != 0;
+
+    // Managed consumer only. The owner resets its battle trackers before consuming
+    // later captures, so frames from before and after the gap are never combined.
+    internal bool RecoverQueueOverflow(Action discardPending)
+    {
+        ArgumentNullException.ThrowIfNull(discardPending);
+        if (Volatile.Read(ref queueOverflow) == 0)
+        {
+            return false;
+        }
+
+        discardPending();
+        ResetObservationState();
+        Volatile.Write(ref queueOverflow, 0);
+        return true;
+    }
 
     internal void OnMenuRenderer() =>
         OnCallback(Steam2026BattleRendererCallbackKind.MenuRenderer, rendererOriginal, rendererGate);
@@ -222,6 +249,7 @@ internal sealed class Steam2026BattleRendererDetourIngressCoordinator : IDisposa
             canPublish = ownsObservation
                          && Volatile.Read(ref stopped) == 0
                          && !IsFatallyDegraded
+                         && Volatile.Read(ref queueOverflow) == 0
                           && TryPrepareObservation(
                               kind,
                               out guestValue,
@@ -409,6 +437,7 @@ internal sealed class Steam2026BattleRendererDetourIngressCoordinator : IDisposa
         long entryEpoch) =>
         Volatile.Read(ref stopped) == 0
         && !IsFatallyDegraded
+        && Volatile.Read(ref queueOverflow) == 0
         && entryEpoch == Volatile.Read(ref observationEpoch)
         && IsCurrentIdentity(kind);
 
@@ -512,10 +541,20 @@ internal sealed class Steam2026BattleRendererDetourIngressCoordinator : IDisposa
             {
                 return true;
             }
+
+            // A refused item is either a full ring, which the worker recovers
+            // (RecoverQueueOverflow), or a poisoned one, which never accepts again:
+            // treating that as overflow would recover and refill it forever.
+            if (captureQueue is not INativeIngressQueueHealth { IsUnusable: true })
+            {
+                Volatile.Write(ref queueOverflow, 1);
+                ResetObservationState();
+                return false;
+            }
         }
         catch
         {
-            // Queue failures become permanent degradation below.
+            // A queue that throws is broken: permanent degradation below.
         }
 
         MarkFatalIngressFailure();

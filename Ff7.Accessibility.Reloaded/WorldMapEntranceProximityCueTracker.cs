@@ -50,8 +50,9 @@ public sealed class WorldMapEntranceProximityCueTracker
     private readonly int innerRange;
     private readonly int outerRange;
     private readonly TimeSpan pulseInterval;
+    private readonly Dictionary<int, IReadOnlyList<EntrancePoint>> entrancesByModel = new();
 
-    private string activeArrivalKey = string.Empty;
+    private string activeTargetKey = string.Empty;
     private DateTime nextPulseAt = DateTime.MinValue;
 
     public WorldMapEntranceProximityCueTracker(
@@ -84,25 +85,18 @@ public sealed class WorldMapEntranceProximityCueTracker
             return null;
         }
 
-        var candidate = locations
-            .Where(target =>
-                target.Kind == WorldMapTargetKind.Location &&
-                target.NativeLocationArrivals.Count > 0)
-            .SelectMany(target => target.NativeLocationArrivals.Select(arrival =>
+        var candidate = GetEntrancePoints(state.PlayerModelId)
+            .Where(point => point.ComponentId == playerComponent)
+            .Select(point =>
             {
-                var component = planner.GetComponentId(
-                    state.PlayerModelId,
-                    state.WorldMapType,
-                    arrival.TriangleId);
                 var distanceSquared = WorldMapTargetCatalog.WrappedDistanceSquared(
                     map,
                     state.X,
                     state.Z,
-                    arrival.X,
-                    arrival.Z);
-                return new EntranceCandidate(target, arrival, component, distanceSquared);
-            }))
-            .Where(value => value.ComponentId == playerComponent)
+                    point.Arrival.X,
+                    point.Arrival.Z);
+                return new EntranceCandidate(point.Target, point.Arrival, distanceSquared);
+            })
             .Where(value => value.DistanceSquared < outerRange * (double)outerRange)
             .OrderBy(value => value.DistanceSquared)
             .ThenBy(value => value.Target.StableId, StringComparer.Ordinal)
@@ -116,10 +110,12 @@ public sealed class WorldMapEntranceProximityCueTracker
         }
 
         HasAudibleTarget = true;
-        var key = $"{candidate.Target.StableId}:{candidate.Arrival.TriangleId}";
-        if (!string.Equals(activeArrivalKey, key, StringComparison.Ordinal))
+        // A building can contain many script faces. Moving between their nearest
+        // boundary edges must not restart the sound on every navigation poll.
+        var key = candidate.Target.StableId;
+        if (!string.Equals(activeTargetKey, key, StringComparison.Ordinal))
         {
-            activeArrivalKey = key;
+            activeTargetKey = key;
             nextPulseAt = DateTime.MinValue;
         }
 
@@ -140,9 +136,74 @@ public sealed class WorldMapEntranceProximityCueTracker
     public void Reset()
     {
         HasAudibleTarget = false;
-        activeArrivalKey = string.Empty;
+        activeTargetKey = string.Empty;
         nextPulseAt = DateTime.MinValue;
     }
+
+    private IReadOnlyList<EntrancePoint> GetEntrancePoints(int playerModelId)
+    {
+        if (entrancesByModel.TryGetValue(playerModelId, out var cached)) return cached;
+
+        var points = new List<EntrancePoint>();
+        foreach (var target in locations.Where(target => target.Kind == WorldMapTargetKind.Location))
+        {
+            // Older/synthetic catalogs can supply only a point. Keep that contract;
+            // the installed catalog supplies the complete native trigger membership.
+            if (target.NativeTriggerTriangleIds.Count == 0)
+            {
+                foreach (var arrival in target.NativeLocationArrivals)
+                {
+                    var component = planner.GetComponentId(playerModelId, map.WorldMapType, arrival.TriangleId);
+                    if (component >= 0) points.Add(new(target, arrival, component));
+                }
+                continue;
+            }
+
+            // Native location scripts also cover walls and roofs. A sound belongs at
+            // the boundary where traversable ground enters the trigger, not at the
+            // nearest face centroid merely connected to that ground in the graph.
+            // Include thin trigger faces: Junon's door is one of these and has no
+            // strict interior arrival point, but its ground boundary is a real entry.
+            foreach (var triangleId in target.NativeTriggerTriangleIds.Order())
+            {
+                var component = planner.GetComponentId(playerModelId, map.WorldMapType, triangleId);
+                if (component < 0) continue;
+                var triangle = map.Triangles[triangleId];
+                foreach (var neighborId in triangle.Neighbors)
+                {
+                    if (target.NativeTriggerTriangleIds.Contains(neighborId) ||
+                        planner.GetComponentId(playerModelId, map.WorldMapType, neighborId) != component)
+                        continue;
+
+                    var neighbor = map.Triangles[neighborId];
+                    foreach (var edge in triangle.Edges)
+                    {
+                        if (!neighbor.Edges.Any(other =>
+                            SameVertex(edge.Start, other.Start) && SameVertex(edge.End, other.End) ||
+                            SameVertex(edge.Start, other.End) && SameVertex(edge.End, other.Start)))
+                            continue;
+
+                        var x = edge.Start.X + WorldMapTargetCatalog.WrappedDelta(edge.Start.X, edge.End.X, map.WrapWidth) / 2;
+                        var z = edge.Start.Z + WorldMapTargetCatalog.WrappedDelta(edge.Start.Z, edge.End.Z, map.WrapHeight) / 2;
+                        var arrival = new WorldMapNativeLocationArrival(triangleId, triangle.MeshX, triangle.MeshZ,
+                            triangle.TerrainScriptId, Wrap(x, map.WrapWidth), (edge.Start.Y + edge.End.Y) / 2,
+                            Wrap(z, map.WrapHeight));
+                        points.Add(new(target, arrival, component));
+                    }
+                }
+            }
+        }
+
+        entrancesByModel[playerModelId] = points;
+        return points;
+    }
+
+    private bool SameVertex(WorldMapVertex first, WorldMapVertex second) =>
+        WorldMapTargetCatalog.WrappedDelta(first.X, second.X, map.WrapWidth) == 0 &&
+        first.Y == second.Y &&
+        WorldMapTargetCatalog.WrappedDelta(first.Z, second.Z, map.WrapHeight) == 0;
+
+    private static int Wrap(int value, int extent) => extent > 0 ? (value % extent + extent) % extent : value;
 
     private float CalculateGain(double distance)
     {
@@ -159,9 +220,13 @@ public sealed class WorldMapEntranceProximityCueTracker
         return (float)((outerRange - distance) / (outerRange - innerRange));
     }
 
+    private sealed record EntrancePoint(
+        WorldMapNavigationTarget Target,
+        WorldMapNativeLocationArrival Arrival,
+        int ComponentId);
+
     private sealed record EntranceCandidate(
         WorldMapNavigationTarget Target,
         WorldMapNativeLocationArrival Arrival,
-        int ComponentId,
         double DistanceSquared);
 }

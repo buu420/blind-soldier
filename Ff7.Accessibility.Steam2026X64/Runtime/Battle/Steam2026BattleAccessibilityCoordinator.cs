@@ -51,6 +51,7 @@ internal sealed class Steam2026BattleAccessibilityCoordinator
     private readonly BattleEnemyActionSpeechTracker enemyActionTracker = new();
     private readonly BattleTargetSpeechTracker targetTracker = new();
     private readonly BattleSenseSpeechCoordinator senseSpeechCoordinator;
+    private DateTime currentTextActivationUtc;
     private readonly BattleDamageSpeechTracker damageTracker = new();
     private readonly BattleStatusSpeechTracker statusTracker = new();
     private readonly BattleResultsSpeechTracker resultsTracker = new();
@@ -90,7 +91,10 @@ internal sealed class Steam2026BattleAccessibilityCoordinator
             actorIndex => reader.TryReadSenseResult(actorIndex, out var result)
                 ? result
                 : null,
-            reader.ResolveElementName);
+            reader.ResolveElementName,
+            // Batches reach the worker late and together; the native callback's own
+            // capture time is what separates a blink from a new message.
+            () => currentTextActivationUtc == default ? DateTime.UtcNow : currentTextActivationUtc);
         this.options = options;
     }
 
@@ -216,6 +220,7 @@ internal sealed class Steam2026BattleAccessibilityCoordinator
         {
             case Steam2026BattleRendererCallbackKind.TextActivation
                 when module == BattleStateReader.BattleModule && options.Message:
+                currentTextActivationUtc = ingress.TimestampUtc;
                 senseSpeechCoordinator.ObserveActiveBuffer(ingress.TextBufferIndex);
                 QueueSingle(
                     Steam2026BattleSpeechDomain.Message,

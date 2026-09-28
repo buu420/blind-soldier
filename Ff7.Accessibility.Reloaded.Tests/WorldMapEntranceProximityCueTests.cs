@@ -13,6 +13,85 @@ internal static class WorldMapEntranceProximityCueTests
         RepeatsAtTheFieldExitCadenceAndGetsLouderTowardTheEntrance();
         UsesTheWrappedCameraRelativeDirectionForSpatialAudio();
         UsesJunonsNativeScriptSevenEntranceFromTheShippedCatalog();
+        UsesTheMythrilHouseDoorFromEveryLoggedApproach();
+        MovingAroundTheHouseDoesNotRestartThePulse();
+        PreservesCuesAcrossTheInstalledLocationCatalog();
+    }
+
+    private static void PreservesCuesAcrossTheInstalledLocationCatalog()
+    {
+        var (map, catalog) = LoadShippedWorldMap();
+        var planner = new WorldMapRoutePlanner(map);
+        var checkedLocations = new HashSet<string>(StringComparer.Ordinal);
+        var cases = 0;
+        foreach (var model in Enumerable.Range(0, 26))
+        foreach (var target in catalog.Locations)
+        {
+            // This is the previous cue's eligibility rule. Verify that replacing
+            // centroids with ground boundaries doesn't silently lose other towns.
+            var eligible = target.NativeLocationArrivals.Where(arrival =>
+                planner.GetComponentId(model, map.WorldMapType, arrival.TriangleId) >= 0).ToArray();
+            if (eligible.Length == 0) continue;
+            var arrival = eligible[0];
+            var triangle = map.Triangles[arrival.TriangleId];
+            var state = CreateState(arrival.X, arrival.Z, triangle.TerrainId, triangle.RegionId & 31) with
+            {
+                Y = arrival.Y, PlayerModelId = model, TerrainScriptId = triangle.TerrainScriptId
+            };
+            var tracker = new WorldMapEntranceProximityCueTracker(map, planner, [target],
+                512, 4_096, TimeSpan.FromMilliseconds(3_200));
+            var cue = tracker.Update(state, Start);
+            Equal(true, cue.HasValue, $"native entrance cue retained for {target.Label}, model {model}");
+            Equal(true, target.NativeTriggerTriangleIds.Contains(cue!.Value.Arrival.TriangleId),
+                $"cue remains on {target.Label}'s own native entrance");
+            checkedLocations.Add(target.StableId);
+            cases++;
+        }
+        Equal(catalog.Locations.Count, checkedLocations.Count, "every catalogued location was exercised");
+        Console.WriteLine($"PASS world entrance cues: {cases} reachable location/model cases across {checkedLocations.Count} locations.");
+    }
+
+    private static void UsesTheMythrilHouseDoorFromEveryLoggedApproach()
+    {
+        var (map, catalog) = LoadShippedWorldMap();
+        var house = catalog.Locations.Single(target => target.Label == "Old Man's House (Mythril)");
+        foreach (var (x, y, z) in new[]
+        {
+            (199_607, 1_779, 133_899), (200_268, 2_000, 133_605),
+            (199_851, 2_000, 131_476), (199_498, 1_768, 133_447),
+            (199_141, 1_750, 133_518)
+        })
+        {
+            var tracker = new WorldMapEntranceProximityCueTracker(map, new WorldMapRoutePlanner(map),
+                [house], 512, 4_096, TimeSpan.FromMilliseconds(3_200));
+            var state = CreateState(x, z, terrainId: 0, regionId: 2) with { Y = y };
+            var cue = tracker.Update(state, Start)
+                ?? throw new InvalidOperationException($"the house entrance should be audible from {x},{z}");
+
+            // The installed map has twelve trigger faces, but only the edge between
+            // 95011 and walkable ground 94998 is a door. The other exposed edges meet
+            // impassable terrain. A reachable roof face is not an entrance cue.
+            Equal(95_011, cue.Arrival.TriangleId, $"door triangle from {x},{z}");
+            Equal(1_740, cue.Arrival.Y, "door height, rather than the roof");
+            Equal(true, cue.Arrival.Z is >= 133_334 and <= 133_706, "cue lies along the doorway");
+            var edgeError = Math.Abs(6 * (cue.Arrival.X - 198_992) + cue.Arrival.Z - 133_334);
+            Equal(true, edgeError <= 3, "cue lies on the exposed door edge");
+        }
+    }
+
+    private static void MovingAroundTheHouseDoesNotRestartThePulse()
+    {
+        var (map, catalog) = LoadShippedWorldMap();
+        var house = catalog.Locations.Single(target => target.Label == "Old Man's House (Mythril)");
+        var tracker = new WorldMapEntranceProximityCueTracker(map, new WorldMapRoutePlanner(map),
+            [house], 512, 4_096, TimeSpan.FromMilliseconds(3_200));
+        var south = CreateState(199_607, 133_899, 0, 2) with { Y = 1_779 };
+        var north = CreateState(199_498, 133_447, 0, 2) with { Y = 1_768 };
+        Equal(true, tracker.Update(south, Start).HasValue, "first house pulse");
+        Equal(null, tracker.Update(north, Start.AddMilliseconds(100)),
+            "walking around the same building must not trigger an early pulse");
+        Equal(true, tracker.Update(north, Start.AddMilliseconds(3_200)).HasValue,
+            "the house still pulses at its regular interval");
     }
 
     private static void UsesTheNearestReachableNativeEntranceInsteadOfTheDisplayMarker()
@@ -187,7 +266,7 @@ internal static class WorldMapEntranceProximityCueTests
 
         Equal("Junon", cue.Target.Label, "Junon is selected at its entrance");
         Equal(7, cue.Arrival.TerrainScriptId, "Junon uses its native script-seven trigger");
-        Equal(true, junon.ArrivalTriangleIds.Contains(cue.Arrival.TriangleId),
+        Equal(true, junon.NativeTriggerTriangleIds.Contains(cue.Arrival.TriangleId),
             "cue points at a native Junon trigger triangle");
     }
 

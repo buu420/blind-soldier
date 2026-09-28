@@ -606,6 +606,16 @@ Add-Definition -FieldId 224 -FieldName 'wcrimb_2' -EntityId 11 -EntityName 'line
 Add-Definition -FieldId 762 -FieldName 'las3_3' -EntityId 26 -EntityName 'l21' -ModelResource '' -Kind 'Named' -Label 'Mega All Materia, caught mid-jump: stepping onto this take-off jumps you to the middle rock; press OK repeatedly until you land there (take-off 1 of 2)' -TargetKind 'Line' -StaticX 1075 -StaticY -431 -StaticZ -1341 -CollectedBank 1 -CollectedAddress 50 -CollectedMask 0x10 -CueKindOverride 'Materia' -UsesPlayerCollisionRadius $true
 Add-Definition -FieldId 762 -FieldName 'las3_3' -EntityId 27 -EntityName 'l22' -ModelResource '' -Kind 'Named' -Label 'Mega All Materia, caught mid-jump: stepping onto this take-off jumps you to the middle rock; press OK repeatedly until you land there (take-off 2 of 2)' -TargetKind 'Line' -StaticX 760 -StaticY -554 -StaticZ -1289 -CollectedBank 1 -CollectedAddress 50 -CollectedMask 0x10 -CueKindOverride 'Materia' -UsesPlayerCollisionRadius $true
 
+# The Great Glacier's optional stops that are LINEs, not models (GreatGlacierOptionalContentTests).
+# hyou10's hot spring: line80..83 run event script 3 from their Move slot once per visit, which asks
+# dialog 54; "Touch it" runs Cloud's script 4, dialog 55 and bank 1 byte 199 bit 0, the flag Snow
+# tests in hyou13_2 before she fights. The lines are switched off after the question, so the target
+# goes with them until the next visit. hyou5_2's crossing starts: line50a (south shore) and line50b
+# (north shore) run Cloud's crossing script 3 from their GoOnce slot on entering range.
+Add-Definition -FieldId 680 -FieldName 'hyou10' -EntityId 20 -EntityName 'line80' -ModelResource '' -Kind 'Named' -Label 'Hot spring' -TargetKind 'Line' -StaticX -395 -StaticY 109 -StaticZ 99 -CollectedBank 1 -CollectedAddress 199 -CollectedMask 0x01 -UsesPlayerCollisionRadius $true
+Add-Definition -FieldId 665 -FieldName 'hyou5_2' -EntityId 21 -EntityName 'line50a' -ModelResource '' -Kind 'Named' -Label 'Ice floes, start the crossing from the south shore' -TargetKind 'Line' -StaticX 137 -StaticY -696 -StaticZ 31 -UsesPlayerCollisionRadius $true
+Add-Definition -FieldId 665 -FieldName 'hyou5_2' -EntityId 22 -EntityName 'line50b' -ModelResource '' -Kind 'Named' -Label 'Ice floes, start the crossing from the north shore' -TargetKind 'Line' -StaticX 192 -StaticY 246 -StaticZ 28 -UsesPlayerCollisionRadius $true
+
 # anfrst_1's Slash-All (box1, e36) lies in the first Mutant Flytrap's mouth, between its lines
 # big0lt (e25) and big0rt (e26). While 5[51] is 0 - it starts so on every entry, and only the
 # beehive's script 3 sets it - either line runs the leader's script 20 or 21: control off, 1000

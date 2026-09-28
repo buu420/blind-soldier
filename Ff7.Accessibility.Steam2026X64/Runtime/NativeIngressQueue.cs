@@ -21,11 +21,20 @@ internal interface ISequencedNativeIngressQueue<T> : INativeIngressQueue<T>
 }
 
 /// <summary>
+/// A queue that can tell "full for now" from "broken for good". Both refuse an item by
+/// returning false; only the second is <see cref="IsUnusable"/>, and it never recovers.
+/// </summary>
+internal interface INativeIngressQueueHealth
+{
+    bool IsUnusable { get; }
+}
+
+/// <summary>
 /// Fixed-capacity, preallocated native-ingress ring. Producers reserve one
 /// slot with atomic operations; overflow is reported without locks, waits,
 /// replacement, or dropping an already-queued observation.
 /// </summary>
-internal sealed class BoundedNativeIngressQueue<T> : ISequencedNativeIngressQueue<T>
+internal sealed class BoundedNativeIngressQueue<T> : ISequencedNativeIngressQueue<T>, INativeIngressQueueHealth
 {
     private readonly Slot[] slots;
     private readonly int capacity;
@@ -48,6 +57,13 @@ internal sealed class BoundedNativeIngressQueue<T> : ISequencedNativeIngressQueu
             slots[index].Sequence = index;
         }
     }
+
+    /// <summary>
+    /// A slot's sequence disagreed with its reservation, or a sequence assignment threw: the
+    /// ring is poisoned and every later enqueue is refused. Unlike a full ring, draining it
+    /// does not help.
+    /// </summary>
+    public bool IsUnusable => Volatile.Read(ref unusable) != 0;
 
     public bool TryEnqueue(T item) => TryEnqueueCore(item, assignSequence: null);
 

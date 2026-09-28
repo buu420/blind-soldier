@@ -238,6 +238,13 @@ public sealed class Steam2026MenuObservationReader
     /// Names a PHS reserve-grid cell. That grid is drawn as portraits, so this
     /// read is the only thing standing between the player and silence there.
     /// </summary>
+    /// <summary>
+    /// The Limit screen header's character and current Limit level (FUN_00703344),
+    /// read through the translated guest address space. Callers gate on a Limit widget.
+    /// </summary>
+    internal bool TryReadLimitMenuHeader(out LimitMenuHeaderSnapshot header) =>
+        new LimitMenuHeaderReader(addressSpace).TryRead(out header);
+
     public string? TryReadPhsRosterName(int gridIndex)
     {
         var candidate = phsRosterReader.TryResolve(gridIndex);

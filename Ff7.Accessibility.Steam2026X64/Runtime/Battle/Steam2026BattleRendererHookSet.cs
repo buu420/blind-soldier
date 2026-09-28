@@ -147,6 +147,21 @@ internal sealed class Steam2026BattleRendererHookSet : IDisposable
     internal bool TryDequeue(out Steam2026BattleRendererIngressSnapshot snapshot) =>
         captureQueue.TryDequeue(out snapshot);
 
+    /// <summary>
+    /// When the capture queue filled, discards everything still queued, clears the
+    /// overflow and resumes capture. True when that happened: the caller must reset
+    /// its battle trackers before speaking anything captured afterwards.
+    /// </summary>
+    internal bool RecoverQueueOverflow() => coordinator?.RecoverQueueOverflow(() =>
+    {
+        while (captureQueue.TryDequeue(out _)) { }
+    }) == true;
+
+    /// <summary>Why <see cref="IsFatallyDegraded"/> became true, for the host log.</summary>
+    internal string DegradationReason => coordinator?.IsFatallyDegraded == true
+        ? "a native original or the observation queue threw an exception, or the queue became unusable"
+        : "mapped callback identities did not recover after consecutive failed health checks";
+
     public void Dispose()
     {
         if (Interlocked.Exchange(ref disposed, 1) != 0)

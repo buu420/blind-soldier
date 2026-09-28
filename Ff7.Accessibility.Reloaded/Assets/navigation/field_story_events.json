@@ -36540,7 +36540,7 @@
       "sourceEntityName": "line00",
       "sourceScriptType": "Move/Go",
       "completesOnArrival": true,
-      "manualNavigationGuidance": "Use the ice-floe puzzle controls to return to the lake shore. From the shore, use Exits to return to the main glacier route.",
+      "manualNavigationGuidance": "From the south shore, walk to the south exit to rejoin the glacier route. From the north shore, cross the lake first: choose Ice floes, start the crossing from the north shore in Objects, agree to cross, then face a direction and press OK to jump. The floes around you are announced.",
       "triggerLine": {
         "startX": -153,
         "startY": -923,

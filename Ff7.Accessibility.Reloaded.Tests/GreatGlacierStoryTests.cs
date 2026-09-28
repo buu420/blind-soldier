@@ -34,6 +34,9 @@ internal static class GreatGlacierStoryTests
         foreach (var f in Enumerable.Range(670, 6))
             Check(new Memory(255).Reader().ReadTargets(new(1, f, 0, 0, 0, 0, 0, 0)).Count == 0,
                 "an unknown corridor state is not guessed");
+        GreatGlacierIceFloeTests.Run();
+        GreatGlacierOptionalContentTests.Run();
+        GreatGlacierExitLabelTests.Run();
     }
 
     public static void RunWithInstalledGameData()
@@ -110,6 +113,9 @@ internal static class GreatGlacierStoryTests
             Check(field is >= 61 and <= 64, $"glacier route ends at unrelated field {field}");
         }
         Console.WriteLine($"Great Glacier: {rows.Length} native exit chains enter the snowfield; {routes} walkable arrivals checked, {puzzleArrivals} optional ice-floe arrivals require the game puzzle controls.");
+        GreatGlacierIceFloeTests.RunWithInstalledGameData();
+        GreatGlacierOptionalContentTests.RunWithInstalledGameData();
+        GreatGlacierExitLabelTests.RunWithInstalledGameData();
     }
 
     private sealed record Jump(int Field, int X, int Y, int Triangle);

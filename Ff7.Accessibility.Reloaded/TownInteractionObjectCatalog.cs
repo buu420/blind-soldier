@@ -78,6 +78,7 @@ public static class TownInteractionObjectCatalog
         Line(588, 15, "Resting room", "uttmpin1", "LINEQ", -79, 91, 0),
         Line(589, 17, "Revolving door", "uttmpin2", "LINEA", -4361, -115, 1123),
         Line(589, 18, "Revolving door, other side", "uttmpin2", "LINEB", -4219, -110, 1123),
+        Line(657, 18, "Video player", "snmayor", "video", -161, 1041, 302),
         Line(657, 19, "Window", "snmayor", "tenmado", -246, 972, 302),
         Model(588, 16, "Sliding door, left panel", "uttmpin1", "D3"),
         Model(588, 17, "Sliding door, right panel", "uttmpin1", "D4"),

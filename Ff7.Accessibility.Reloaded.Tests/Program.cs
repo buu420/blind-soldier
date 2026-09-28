@@ -18,6 +18,28 @@ if (args.Contains("--field-execution-report", StringComparer.OrdinalIgnoreCase))
     Environment.Exit(Ff7.Accessibility.Reloaded.Tests.FieldScriptExecutionModelTests.Report());
 }
 
+if (args.Contains("--glacier-speech-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.SnowboardAccessibilityTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.SnowboardAccessibilityTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.KeyItemsMenuSpeechTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.BattleMessageFlickerTests.Run();
+    return;
+}
+
+if (args.Contains("--world-entrance-cues-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.WorldMapEntranceProximityCueTests.Run();
+    Console.WriteLine("World entrance proximity cue tests passed.");
+    return;
+}
+
+if (args.Contains("--house-parking-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.WorldMapHouseParkingTests.Run();
+    return;
+}
+
 if (args.Contains("--field-execution-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.FieldScriptExecutionModelTests.Run();
@@ -1362,6 +1384,7 @@ Ff7.Accessibility.Reloaded.Tests.MidgarZolomCrossingTrackerTests.Run();
 Ff7.Accessibility.Reloaded.Tests.MidgarZolomAreaTrackerTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WorldMapTerrainAnnouncementTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WorldMapEntranceProximityCueTests.Run();
+Ff7.Accessibility.Reloaded.Tests.WorldMapHouseParkingTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WorldMapNavigationControllerTests.Run();
 Ff7.Accessibility.Reloaded.Tests.TinyBroncoTransportationTests.Run();
 Ff7.Accessibility.Reloaded.Tests.TinyBroncoTransportationTests.RunWithInstalledGameData();
@@ -1872,6 +1895,10 @@ AssertLegacyX86FingerprintAcceptsOnlyKnownExecutable();
 AssertReloadedMetadataNamesEveryValidatedHost();
 AssertLegacyX86CapabilitiesMapEveryRequiredSubsystem();
 AssertLegacyX86CapabilityValidationFailsClosedOnMissingSignal();
+Ff7.Accessibility.Reloaded.Tests.SnowboardAccessibilityTests.Run();
+Ff7.Accessibility.Reloaded.Tests.SnowboardAccessibilityTests.RunWithInstalledGameData();
+Ff7.Accessibility.Reloaded.Tests.KeyItemsMenuSpeechTests.Run();
+Ff7.Accessibility.Reloaded.Tests.BattleMessageFlickerTests.Run();
 Ff7.Accessibility.Reloaded.Tests.MainStoryCoverageTests.Run();
 
 Console.WriteLine("Reloaded accessibility tests passed.");

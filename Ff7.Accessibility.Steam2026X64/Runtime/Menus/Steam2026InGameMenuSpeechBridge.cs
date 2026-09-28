@@ -39,6 +39,7 @@ internal sealed class Steam2026InGameMenuSpeechBridge
     // Assigned after the constructor chain has already built the first trackers,
     // so PartyFormationSpeechTracker reads it through a deferred lambda.
     private Func<int, string?> readPhsRosterName = _ => null;
+    private Func<LimitMenuHeaderSnapshot?> readLimitHeader = () => null;
     private readonly TimeSpan settleTime;
     private ActiveMenuFrameSpeechCoordinator activeMenu = null!;
     private StaticMenuCursorSpeechTracker staticMenu = null!;
@@ -101,6 +102,10 @@ internal sealed class Steam2026InGameMenuSpeechBridge
                 ? selection
                 : null;
         readPhsRosterName = menuReader.TryReadPhsRosterName;
+        readLimitHeader = () =>
+            menuReader.TryReadLimitMenuHeader(out var header)
+                ? header
+                : null;
     }
 
     internal Steam2026InGameMenuSpeechBridge(
@@ -619,8 +624,18 @@ internal sealed class Steam2026InGameMenuSpeechBridge
         NativeMenuSelection? nativeSelection = null;
         MagicMenuSpellSnapshot? spell = null;
         NativeEmptyMenuSlotSnapshot? emptySlot = null;
+        LimitMenuHeaderSnapshot? limitHeader = null;
         try
         {
+            // The Limit screen's header is drawn with each of its own widgets.
+            if (widget.Kind is MenuWidgetKind.LimitCommand or
+                MenuWidgetKind.LimitLevel or
+                MenuWidgetKind.LimitMoveList or
+                MenuWidgetKind.LimitConfirmation)
+            {
+                limitHeader = readLimitHeader();
+            }
+
             if (widget.Kind == MenuWidgetKind.ItemList &&
                 TryGetInventorySlot(widget, out var inventorySlot))
             {
@@ -715,7 +730,8 @@ internal sealed class Steam2026InGameMenuSpeechBridge
             inventoryItem,
             nativeSelection,
             spell,
-            emptySlot);
+            emptySlot,
+            limitHeader);
     }
 
     private static bool TryResolveUniqueWidget(
