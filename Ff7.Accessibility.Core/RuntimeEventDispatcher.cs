@@ -13,6 +13,7 @@ public sealed class RuntimeEventDispatcher
     private string? lastMenuSelectionKey;
     private string? lastDialoguePageKey;
     private string? lastDialogueChoiceKey;
+    private string? lastDialogueChoicePageKey;
 
     public RuntimeEventDispatcher(
         AccessibilityConfig config,
@@ -232,6 +233,7 @@ public sealed class RuntimeEventDispatcher
         var pageWasDelivered =
             hasPageSpeech &&
             string.Equals(pageKey, lastDialoguePageKey, StringComparison.Ordinal);
+        var pageSpokenNow = false;
         if (!string.Equals(pageKey, lastDialoguePageKey, StringComparison.Ordinal))
         {
             var hasSpeaker = !string.IsNullOrWhiteSpace(page.Speaker);
@@ -247,6 +249,7 @@ public sealed class RuntimeEventDispatcher
 
             lastDialoguePageKey = pageKey;
             pageWasDelivered = hasPageSpeech;
+            pageSpokenNow = hasPageSpeech;
         }
 
         var seenIndices = new HashSet<int>();
@@ -293,7 +296,21 @@ public sealed class RuntimeEventDispatcher
         }
 
         var speech = selection.Enabled ? selection.Text : $"{selection.Text} unavailable";
-        output.Speak(speech, interrupt: true);
+        var choicePageKey = string.Join('\u001f', page.WindowId, page.PageRevision);
+        if (!string.Equals(choicePageKey, lastDialogueChoicePageKey, StringComparison.Ordinal))
+        {
+            // The list's first spoken option also says it is one of several.
+            var position = page.Choices
+                .Select(choice => choice.Index)
+                .OrderBy(index => index)
+                .ToList()
+                .IndexOf(selection.Index) + 1;
+            speech = DialogueChoiceSpeech.FormatOpening(speech, position, page.Choices.Length);
+            lastDialogueChoicePageKey = choicePageKey;
+        }
+
+        // A question just spoken is not cut off by its own highlighted option.
+        output.Speak(speech, interrupt: !pageSpokenNow);
         lastDialogueChoiceKey = choiceKey;
         return page;
     }
@@ -308,5 +325,6 @@ public sealed class RuntimeEventDispatcher
     {
         lastDialoguePageKey = null;
         lastDialogueChoiceKey = null;
+        lastDialogueChoicePageKey = null;
     }
 }

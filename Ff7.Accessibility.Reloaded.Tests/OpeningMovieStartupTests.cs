@@ -54,6 +54,9 @@ internal static class OpeningMovieStartupTests
         AWaitingStartIsNotDoubled();
         RestartingAfterAStopPreparesAgain();
         NaturalEndOfTrackReleasesTheDevice();
+        PausingRetainsTheDeviceAndResumesAtItsPosition();
+        StoppingAPausedTrackCannotResurrectIt();
+        PauseFailureDoesNotCountAsCompletion();
 
         MeasureRealStartupCost();
     }
@@ -590,6 +593,57 @@ internal static class OpeningMovieStartupTests
         Equal(true, host.Devices[1].Playing, "which plays");
     }
 
+    private static void PausingRetainsTheDeviceAndResumesAtItsPosition()
+    {
+        var host = new Host();
+        host.Player.Start("battle cue");
+        var device = host.Devices.Single();
+        Equal(true, host.Player.SetPaused(true), "a running cue can pause");
+        Equal(false, device.Playing, "pause stops audible playback");
+        Equal(true, host.Player.IsPlaying, "pause retains ownership of the voice");
+        Equal(false, host.Player.CompletedNormally, "pause is not completion");
+        Equal(true, host.Player.SetPaused(true), "repeated pause is accepted");
+        Equal(1, device.PauseCount, "repeated polls do not pause twice");
+        Equal(true, host.Player.SetPaused(false), "a paused cue can resume");
+        Equal(true, device.Playing, "resume restores playback");
+        Equal(2, device.PlayCount, "resume reuses the same device");
+        Equal(1, device.SeekCount, "resume does not seek to the start");
+        Equal(true, host.Player.SetPaused(false), "repeated resume is accepted");
+        Equal(2, device.PlayCount, "repeated polls do not replay");
+        device.RaiseStopped(null);
+        Equal(true, host.Player.CompletedNormally, "only actual end counts as completion");
+    }
+
+    private static void StoppingAPausedTrackCannotResurrectIt()
+    {
+        var host = new Host();
+        host.Player.Start("battle cue");
+        var device = host.Devices.Single();
+        host.Player.SetPaused(true);
+        host.Player.Stop("save loaded");
+        device.RaiseStopped(null);
+        Equal(false, host.Player.CompletedNormally, "a stopped paused cue remains unheard");
+        Equal(false, host.Player.SetPaused(false), "a stopped device cannot resume");
+        Equal(1, device.PlayCount, "stale resume never plays the old cue");
+        Equal(true, host.Player.Start("next cue"), "a new cue starts after stopping");
+        Equal(true, host.Devices[1].Playing, "pause state does not leak to the next cue");
+        host.Player.Dispose();
+        Equal(false, host.Player.SetPaused(false), "dispose cannot be undone by resume");
+    }
+
+    private static void PauseFailureDoesNotCountAsCompletion()
+    {
+        var host = new Host();
+        host.Player.Start("battle cue");
+        var device = host.Devices.Single();
+        device.FailToPause = true;
+        Equal(false, host.Player.SetPaused(true), "a failed device pause is reported");
+        Equal(false, host.Player.IsPlaying, "a failed device is released");
+        device.RaiseStopped(null);
+        Equal(false, host.Player.CompletedNormally, "device failure cannot become a successful end");
+        Equal(true, device.Disposed, "failed device is disposed");
+    }
+
     private static void NaturalEndOfTrackReleasesTheDevice()
     {
         var host = new Host();
@@ -598,6 +652,7 @@ internal static class OpeningMovieStartupTests
         host.Player.StartTimed("film started", TimeSpan.Zero, null);
         host.Devices[0].RaiseStopped(null);
         Equal(false, host.Player.IsPlaying, "the end of the track releases the film");
+        Equal(true, host.Player.CompletedNormally, "natural playback completion is distinguished from interruption");
         Equal(true, host.Devices[0].Disposed, "and the device");
         Equal(
             true,
@@ -610,6 +665,7 @@ internal static class OpeningMovieStartupTests
         failed.Player.StartTimed("film started", TimeSpan.Zero, null);
         failed.Devices[0].RaiseStopped(new InvalidOperationException("device lost"));
         Equal(false, failed.Player.IsPlaying, "a failed playback releases the film");
+        Equal(false, failed.Player.CompletedNormally, "failed playback cannot mark narration as heard");
         Equal(
             true,
             failed.Log.Any(line => line.Contains("playback failed: device lost", StringComparison.Ordinal)),
@@ -757,14 +813,31 @@ internal static class OpeningMovieStartupTests
 
         public int DisposeCount { get; private set; }
 
-        public void Seek(TimeSpan position) => SeekedTo = position;
+        public int SeekCount { get; private set; }
+        public int PlayCount { get; private set; }
+        public int PauseCount { get; private set; }
+        public bool FailToPause { get; set; }
+
+        public void Seek(TimeSpan position)
+        {
+            SeekCount++;
+            SeekedTo = position;
+        }
 
         public void OnStopped(Action<Exception?> handler) => stopped = handler;
 
         public void Play()
         {
+            PlayCount++;
             Playing = true;
             onPlay();
+        }
+
+        public void Pause()
+        {
+            if (FailToPause) throw new InvalidOperationException("device lost on pause");
+            PauseCount++;
+            Playing = false;
         }
 
         public void RaiseStopped(Exception? exception) => stopped?.Invoke(exception);

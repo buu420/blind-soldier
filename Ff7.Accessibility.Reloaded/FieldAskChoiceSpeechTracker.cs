@@ -31,7 +31,8 @@ public static class FieldAskTextFormatter
             return string.Empty;
         }
 
-        return Ff7EncodedTextDecoder.NormalizeWhitespace(lines[currentQuestionLine]);
+        var text = Ff7EncodedTextDecoder.NormalizeWhitespace(lines[currentQuestionLine]);
+        return text.Length == 0 ? "Blank" : text;
     }
 
     public static bool TryResolveChoicePage(
@@ -48,40 +49,14 @@ public static class FieldAskTextFormatter
             return false;
         }
 
-        Ff7DecodedTextPage? resolved = null;
-        var requireChoiceIndent = pages.Count > 1;
-        foreach (var page in pages)
-        {
-            if (lastQuestionLine >= page.Lines.Count)
-            {
-                continue;
-            }
-
-            var choiceRangeIsExact = true;
-            for (var line = firstQuestionLine; line <= lastQuestionLine; line++)
-            {
-                if (requireChoiceIndent && !page.Lines[line].IsChoice ||
-                    string.IsNullOrWhiteSpace(page.Lines[line].Text))
-                {
-                    choiceRangeIsExact = false;
-                    break;
-                }
-            }
-
-            if (!choiceRangeIsExact)
-            {
-                continue;
-            }
-
-            if (resolved is not null)
-            {
-                return false;
-            }
-
-            resolved = page;
-        }
-
-        if (resolved is null)
+        // FUN_00631945 enters phase 14 at E8/E9 page breaks, and phase 6 only at
+        // the FF string terminator. FUN_006310A1 handles the ASK selector only in
+        // phase 6. Its first/last row numbers therefore belong to the final page;
+        // E0 indentation is optional formatting, not evidence of a choice.
+        // Callers still require that this complete page is actually visible before
+        // publishing it. Blank rows are real selectable rows (the Mansion safe).
+        var resolved = pages[^1];
+        if (lastQuestionLine >= resolved.Lines.Count)
         {
             return false;
         }
@@ -121,6 +96,9 @@ public sealed class FieldAskChoiceSpeechTracker
     private FieldAskIdentity? identity;
     private int lastQuestionLine = -1;
     private string? pending;
+    private int pendingPosition;
+    private int choiceCount;
+    private bool openingChoiceTaken;
 
     public void Observe(FieldAskChoiceObservation observation)
     {
@@ -153,6 +131,7 @@ public sealed class FieldAskChoiceSpeechTracker
                 identity = nextIdentity;
                 lastQuestionLine = -1;
                 pending = null;
+                openingChoiceTaken = false;
             }
 
             if (lastQuestionLine == observation.CurrentQuestionLine)
@@ -162,6 +141,8 @@ public sealed class FieldAskChoiceSpeechTracker
 
             lastQuestionLine = observation.CurrentQuestionLine;
             pending = choice;
+            pendingPosition = observation.CurrentQuestionLine - observation.FirstQuestionLine + 1;
+            choiceCount = observation.LastQuestionLine - observation.FirstQuestionLine + 1;
         }
     }
 
@@ -176,6 +157,13 @@ public sealed class FieldAskChoiceSpeechTracker
 
             var result = pending;
             pending = null;
+            if (result is not null && !openingChoiceTaken)
+            {
+                // The list's first spoken option also says it is one of several.
+                openingChoiceTaken = true;
+                result = Ff7.Accessibility.Core.DialogueChoiceSpeech.FormatOpening(result, pendingPosition, choiceCount);
+            }
+
             return result;
         }
     }
@@ -192,6 +180,7 @@ public sealed class FieldAskChoiceSpeechTracker
             identity = null;
             lastQuestionLine = -1;
             pending = null;
+            openingChoiceTaken = false;
         }
     }
 

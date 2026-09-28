@@ -43,6 +43,9 @@
     <Compile Include="..\Ff7.Accessibility.Reloaded\BattleEnemyActionSpeechTracker.cs" Link="Shared\BattleEnemyActionSpeechTracker.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\BattleDamageSpeechTracker.cs" Link="Shared\BattleDamageSpeechTracker.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\BattleStatusSpeechTracker.cs" Link="Shared\BattleStatusSpeechTracker.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\BattleAnimationNarrationCatalog.cs" Link="Shared\BattleAnimationNarrationCatalog.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\BattleAnimationNarrationCoordinator.cs" Link="Shared\BattleAnimationNarrationCoordinator.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\BattleAnimationNarrationRuntime.cs" Link="Shared\BattleAnimationNarrationRuntime.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\BattleResultsSpeechTracker.cs" Link="Shared\BattleResultsSpeechTracker.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\TifaSlotSpeechTracker.cs" Link="Shared\TifaSlotSpeechTracker.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\CosmoFootstepConfig.cs" Link="Shared\CosmoFootstepConfig.cs" />

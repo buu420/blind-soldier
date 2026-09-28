@@ -35,6 +35,7 @@ internal sealed class Steam2026InGameMenuSpeechBridge
     private readonly Func<SaveMenuStateSnapshot?> readSaveMenu;
     private Func<NativeMenuSelection?> readEquipmentList = () => null;
     private Func<MenuWidgetKind, NativeMenuSelection?> readMateria = _ => null;
+    private Func<MenuWidgetKind, NativeMenuSelection?> readMateriaSubmenu = _ => null;
 
     // Assigned after the constructor chain has already built the first trackers,
     // so PartyFormationSpeechTracker reads it through a deferred lambda.
@@ -99,6 +100,10 @@ internal sealed class Steam2026InGameMenuSpeechBridge
                 : null;
         readMateria = kind =>
             menuReader.TryReadMateria(kind, out var selection)
+                ? selection
+                : null;
+        readMateriaSubmenu = kind =>
+            menuReader.TryReadMateriaSubmenu(kind, out var selection)
                 ? selection
                 : null;
         readPhsRosterName = menuReader.TryReadPhsRosterName;
@@ -692,6 +697,10 @@ internal sealed class Steam2026InGameMenuSpeechBridge
             else if (widget.Kind is MenuWidgetKind.MateriaSlot or MenuWidgetKind.MateriaList)
             {
                 nativeSelection = readMateria(widget.Kind);
+            }
+            else if (MateriaSubmenuSelectionReader.Handles(widget.Kind))
+            {
+                nativeSelection = readMateriaSubmenu(widget.Kind);
             }
             else if (widget.Kind is MenuWidgetKind.MagicList or
                 MenuWidgetKind.SummonList or

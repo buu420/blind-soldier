@@ -48,7 +48,8 @@ internal readonly record struct Steam2026BattleRendererIngressSnapshot(
     Steam2026BattleResultsIngressSnapshot ResultsAfter = default,
     TifaSlotResultSnapshot TifaSlotsBefore = default,
     TifaSlotResultSnapshot TifaSlotsAfter = default,
-    TifaSlotCommittedResultSnapshot TifaSlotsCommittedAfter = default)
+    TifaSlotCommittedResultSnapshot TifaSlotsCommittedAfter = default,
+    BattleVisibleResultSnapshot CapturedResult = default)
 {
     internal Steam2026BattleRendererIngressSnapshot(
         long sequence,
@@ -229,6 +230,7 @@ internal sealed class Steam2026BattleRendererDetourIngressCoordinator : IDisposa
         var canPublish = false;
         var guestValue = default(short);
         var capturedDamage = BattleDamagePopupSnapshot.Invalid;
+        var capturedResult = BattleVisibleResultSnapshot.Invalid;
         var capturedAction = Steam2026BattleActionTextCommitSnapshot.Invalid;
         var enemyActionBefore =
             Steam2026BattleEnemyActionIngressSnapshot.NotCaptured;
@@ -254,6 +256,7 @@ internal sealed class Steam2026BattleRendererDetourIngressCoordinator : IDisposa
                               kind,
                               out guestValue,
                               out capturedDamage,
+                              out capturedResult,
                               out capturedAction)
                           && TryReadTimestamp(out timestampUtc);
             if (canPublish
@@ -379,7 +382,8 @@ internal sealed class Steam2026BattleRendererDetourIngressCoordinator : IDisposa
                 resultsAfter,
                 tifaSlotsBefore,
                 tifaSlotsAfter,
-                tifaSlotsCommittedAfter);
+                tifaSlotsCommittedAfter,
+                capturedResult);
             if (!IsObservationCurrent(kind, entryEpoch)
                 || !observationGate.TryCommit())
             {
@@ -402,10 +406,12 @@ internal sealed class Steam2026BattleRendererDetourIngressCoordinator : IDisposa
         Steam2026BattleRendererCallbackKind kind,
         out short guestValue,
         out BattleDamagePopupSnapshot capturedDamage,
+        out BattleVisibleResultSnapshot capturedResult,
         out Steam2026BattleActionTextCommitSnapshot capturedAction)
     {
         guestValue = default;
         capturedDamage = BattleDamagePopupSnapshot.Invalid;
+        capturedResult = BattleVisibleResultSnapshot.Invalid;
         capturedAction = Steam2026BattleActionTextCommitSnapshot.Invalid;
         if (!IsCurrentIdentity(kind))
         {
@@ -423,7 +429,8 @@ internal sealed class Steam2026BattleRendererDetourIngressCoordinator : IDisposa
             Steam2026BattleRendererCallbackKind.DamageDisplay =>
                 contract.TryCaptureDamagePopup(
                     identities[kind],
-                    out capturedDamage),
+                    out capturedDamage,
+                    out capturedResult),
             Steam2026BattleRendererCallbackKind.ActionTextCommit =>
                 contract.TryCaptureActionTextCommit(
                     identities[kind],

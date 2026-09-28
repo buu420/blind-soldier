@@ -714,7 +714,28 @@ public sealed class FieldWalkmeshRoutePlanner :
         var body = ResolveBodyClearance(position, result.Walkmesh, boundaryState);
         if (body is null)
         {
-            return TryBuildRouteOn(position, target, result, boundaryState, boundaryDiagnostic, out plan);
+            if (!TryBuildRouteOn(position, target, result, boundaryState, boundaryDiagnostic, out plan))
+            {
+                return false;
+            }
+
+            // No flat-floor body model for this mesh (gaiin_1 has no z = 0 face at all), but the
+            // leader's radius is still known: keep the funnel's corners a body radius off the
+            // walls, as the body route does, so auto walk is not held against a wall vertex the
+            // game will not let the body reach (gaiin_1, 2026-09-28 11:02:44-49, the Ribbon).
+            if (plan.StableWaypointsOverride is null &&
+                playerCollisionRadiusProvider?.Invoke(position) is { } radius &&
+                double.IsFinite(radius) && radius >= 1d)
+            {
+                plan = plan with
+                {
+                    Portals = InsetPortalCorners(result.Walkmesh!, (int)Math.Round(radius), plan.Portals,
+                        boundaryState.IsBoundaryEnabled, static (_, _) => true, clearWallSegments: true)
+                };
+                LastDiagnostic += $", corners kept {radius:0} off the walls (no flat-floor body model)";
+            }
+
+            return true;
         }
 
         // Every replan shares one deadline: the budget is for the whole build, not per attempt.
@@ -775,10 +796,38 @@ public sealed class FieldWalkmeshRoutePlanner :
     private static IReadOnlyList<FieldNavigationRoutePortal> InsetPortalCornersForBody(
         FieldNavigationBodyClearance body,
         IReadOnlyList<FieldNavigationRoutePortal> portals,
-        Func<int, bool> isTriangleBlocked)
+        Func<int, bool> isTriangleBlocked) =>
+        // Only where the oracle is exact: a sloped face, a staircase or anything beside one
+        // keeps the portal the planner gave it on a mesh the body analysis covers.
+        InsetPortalCorners(body.Walkmesh, body.Radius, portals, isTriangleBlocked, body.IsPortalExactlyModelled);
+
+    /// <summary>
+    /// <see cref="InsetPortalCornersForBody"/>'s geometry, for any walkmesh and radius: each
+    /// portal endpoint that is a wall vertex moves along its own portal by the radius (the
+    /// native flank probes keep the leader's centre that far off a wall in plan view, whatever
+    /// the floor's slope), and a portal no wider than the body is crossed at its middle.
+    /// Nothing moves off a portal, so the route still crosses every portal it did.
+    /// <paramref name="eligible"/> says which portals may be moved.
+    ///
+    /// <para>With <paramref name="clearWallSegments"/> the radius is measured to the wall
+    /// segments themselves, not to the wall vertex. A wall that meets the portal at an oblique
+    /// angle is nearer than its vertex: on gaiin_1's portal 54->51, (-168,-452)-(-193,-379),
+    /// a radius-30 step from each vertex gives (-178,-424) and (-183,-407), only 23.2 and 27.5
+    /// units from the walls (-95,-334)-(-168,-452) and (-234,-416)-(-193,-379). So each wall
+    /// end moves along the portal to the first point a radius from every wall segment on its
+    /// floor near the portal. Where the two ends would cross, or no point clears, both are put
+    /// on the portal's point of most clearance, so a portal narrower than the body is still
+    /// crossed at its widest and never closed. Only the no-body-model path uses this; the
+    /// flat-floor body route keeps its oracle-gated vertex inset.</para>
+    /// </summary>
+    private static IReadOnlyList<FieldNavigationRoutePortal> InsetPortalCorners(
+        FieldWalkmesh walkmesh,
+        int radius,
+        IReadOnlyList<FieldNavigationRoutePortal> portals,
+        Func<int, bool> isTriangleBlocked,
+        Func<int, int, bool> eligible,
+        bool clearWallSegments = false)
     {
-        var walkmesh = body.Walkmesh;
-        var radius = body.Radius;
         if (portals.Count == 0 || radius <= 0)
         {
             return portals;
@@ -787,6 +836,7 @@ public sealed class FieldWalkmeshRoutePlanner :
         // Keyed by the vertex itself, height included: a wall on a floor stacked above or
         // below is not beside this portal.
         var wallVertices = new HashSet<(int X, int Y, int Z)>();
+        var wallSegments = new List<(FieldWalkmeshVertex A, FieldWalkmeshVertex B)>();
         foreach (var triangle in walkmesh.Triangles)
         {
             for (var edge = 0; edge < 3; edge++)
@@ -800,6 +850,7 @@ public sealed class FieldWalkmeshRoutePlanner :
                 var (a, b) = triangle.GetEdge(edge);
                 wallVertices.Add((a.X, a.Y, a.Z));
                 wallVertices.Add((b.X, b.Y, b.Z));
+                wallSegments.Add((a, b));
             }
         }
 
@@ -808,11 +859,9 @@ public sealed class FieldWalkmeshRoutePlanner :
         {
             var portal = portals[index];
             inset[index] = portal;
-            // Only where the oracle is exact. A sloped face, a staircase or anything beside
-            // one keeps the portal the planner gave it, as the body analysis leaves it unknown.
             if (portal.TransitionKind is not null || portal.RequiresAction ||
                 (uint)portal.FromTriangle >= (uint)walkmesh.Triangles.Count ||
-                !body.IsPortalExactlyModelled(portal.FromTriangle, portal.ToTriangle))
+                !eligible(portal.FromTriangle, portal.ToTriangle))
             {
                 continue;
             }
@@ -861,7 +910,15 @@ public sealed class FieldWalkmeshRoutePlanner :
                 rightInset = Math.Max(rightInset, radius);
             }
 
-            if (leftInset + rightInset > length)
+            if (clearWallSegments)
+            {
+                (leftInset, rightInset) = InsetAgainstWallSegments(
+                    leftVertex, rightVertex, length, radius, leftInset, rightInset,
+                    wallVertices.Contains((leftVertex.X, leftVertex.Y, leftVertex.Z)),
+                    wallVertices.Contains((rightVertex.X, rightVertex.Y, rightVertex.Z)),
+                    wallSegments);
+            }
+            else if (leftInset + rightInset > length)
             {
                 // No wider than the body: crossed at its middle, where it has the most room.
                 leftInset = length / 2d;
@@ -876,6 +933,96 @@ public sealed class FieldWalkmeshRoutePlanner :
         }
 
         return inset;
+    }
+
+    /// <summary>
+    /// The insets from each end of a portal (raw edge <paramref name="left"/> to
+    /// <paramref name="right"/>) that keep the point a radius from every nearby wall segment on
+    /// the portal's floor, searched in one-unit steps from the planner's own inset. A wall end
+    /// with no such point, or two ends that would cross, both go to the portal's point of most
+    /// clearance. An end that is not a wall vertex keeps the planner's inset.
+    /// </summary>
+    private static (double Left, double Right) InsetAgainstWallSegments(
+        FieldWalkmeshVertex left,
+        FieldWalkmeshVertex right,
+        double length,
+        int radius,
+        double leftInset,
+        double rightInset,
+        bool leftIsWall,
+        bool rightIsWall,
+        IReadOnlyList<(FieldWalkmeshVertex A, FieldWalkmeshVertex B)> wallSegments)
+    {
+        var dx = right.X - (double)left.X;
+        var dy = right.Y - (double)left.Y;
+        var floorZ = (left.Z + right.Z) / 2d;
+        var reach = length + (radius * 2d);
+        var midX = (left.X + right.X) / 2d;
+        var midY = (left.Y + right.Y) / 2d;
+        var near = wallSegments
+            .Where(segment =>
+                Math.Abs(((segment.A.Z + segment.B.Z) / 2d) - floorZ) < 64d &&
+                DistanceToSegment(midX, midY, segment.A, segment.B) <= reach)
+            .ToArray();
+        double Clearance(double fromLeft)
+        {
+            var x = left.X + (dx * fromLeft / length);
+            var y = left.Y + (dy * fromLeft / length);
+            var best = double.PositiveInfinity;
+            foreach (var (a, b) in near)
+            {
+                best = Math.Min(best, DistanceToSegment(x, y, a, b));
+            }
+
+            return best;
+        }
+
+        double? FirstClear(double from, bool forward)
+        {
+            for (var step = from; step <= length; step += 1d)
+            {
+                var along = forward ? step : length - step;
+                if (Clearance(along) >= radius)
+                {
+                    return step;
+                }
+            }
+
+            return null;
+        }
+
+        var newLeft = leftIsWall ? FirstClear(leftInset, forward: true) : leftInset;
+        var newRight = rightIsWall ? FirstClear(rightInset, forward: false) : rightInset;
+        if (newLeft is { } l && newRight is { } r && l + r <= length)
+        {
+            return (l, r);
+        }
+
+        // Narrower than the body wherever it is crossed: cross at the widest point.
+        var bestAlong = length / 2d;
+        var bestClearance = double.NegativeInfinity;
+        for (var along = 0d; along <= length; along += 1d)
+        {
+            var clearance = Clearance(along);
+            if (clearance > bestClearance)
+            {
+                bestClearance = clearance;
+                bestAlong = along;
+            }
+        }
+
+        return (bestAlong, length - bestAlong);
+
+        static double DistanceToSegment(double x, double y, FieldWalkmeshVertex a, FieldWalkmeshVertex b)
+        {
+            var ex = b.X - (double)a.X;
+            var ey = b.Y - (double)a.Y;
+            var lengthSquared = (ex * ex) + (ey * ey);
+            var t = lengthSquared <= 0d ? 0d : Math.Clamp((((x - a.X) * ex) + ((y - a.Y) * ey)) / lengthSquared, 0d, 1d);
+            var px = a.X + (t * ex) - x;
+            var py = a.Y + (t * ey) - y;
+            return Math.Sqrt((px * px) + (py * py));
+        }
     }
 
     /// <summary>Route searches one build may repeat while closing portals it finds impassable.</summary>

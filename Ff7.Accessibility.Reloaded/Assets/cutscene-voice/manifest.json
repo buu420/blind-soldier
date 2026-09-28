@@ -4230,6 +4230,1201 @@
       "text": "Beside the altar, Cait Sith falls forward and stays down.",
       "file": "bdccdda4f4c19c7c6dc0148562da548fdf3c7c9c8f4f9f49ad3c33b473962b64.ogg",
       "duration_seconds": 3.12
+    },
+    {
+      "text": "A moogle rides a yellow chocobo straight into the enemy. The impact leaves the moogle spinning and dazed before the pair retreat.",
+      "file": "3b59fc078929ba343ad5582a5e617d1a59266ff0745188ba355148eeedfe9df2.ogg",
+      "duration_seconds": 7.07
+    },
+    {
+      "text": "A very round yellow chocobo drops from above, squashes down in a cloud of dust, then bounces back up.",
+      "file": "04de4e985892a4c158761b552741d09e3842785509324ea14fd34bac18e02ead.ogg",
+      "duration_seconds": 6.37
+    },
+    {
+      "text": "A blue woman floats in a shower of light. She raises one arm, and a freezing blast sends jagged ice bursting around the enemy.",
+      "file": "6a082777f45b242e95c686ef5c3b8c9d0251db7e23c1e306884ee759d4b0afea.ogg",
+      "duration_seconds": 7.63
+    },
+    {
+      "text": "A horned beast rises through flames. He leaps forward, engulfing the battlefield in a roaring burst of orange fire.",
+      "file": "2140bfe12f26a83051912d2085d2710b77275e86e89bd59c6ae3b133ae6020d7.ogg",
+      "duration_seconds": 6.18
+    },
+    {
+      "text": "Lightning reveals a bearded wizard atop a rocky pinnacle. He raises his staff, sending brilliant bolts across the battlefield.",
+      "file": "5bb44b23891b48fa27d206b9018bcda7c6c48e17b1ee2ef171b20e3bccd3e5d6.ogg",
+      "duration_seconds": 7.07
+    },
+    {
+      "text": "A muscular giant heaves himself out of the earth. He lifts an enormous slab beneath the enemy, then overturns it.",
+      "file": "19db413f9c0743eebab2661b43ce708e1341ae6455523706aabca1c7a9359967.ogg",
+      "duration_seconds": 6.34
+    },
+    {
+      "text": "Against a full moon, an armored horseman draws his sword. He charges past the enemy, leaving a sharp blue slash across the scene.",
+      "file": "10f649b051fe8400b37fe0472954bbd6459b5f6770fed5daaf0d4476a015204e.ogg",
+      "duration_seconds": 7.44
+    },
+    {
+      "text": "Rain falls around an armored horseman. He casts his glowing lance into the sky, and it plunges back down through a blue ring of light.",
+      "file": "206297ccbd039b748e43bf123e649f03f7463c385e30360bbf93480d512e4ab8.ogg",
+      "duration_seconds": 6.95
+    },
+    {
+      "text": "A long sea serpent unfurls from a sphere of water. It rears above the battlefield as a vast wave sweeps across the enemy.",
+      "file": "e53f7c13d56d4c0d620a1e30fe25038dc8672df0ca70aeeecd03c6f2d32c5a65.ogg",
+      "duration_seconds": 7.150045351473923
+    },
+    {
+      "text": "A winged dragon emerges from a purple opening in the sky. It spreads its wings and breathes a broad blue-white beam into the battlefield.",
+      "file": "2f7bd459592dec02045d6e970177d8f25b7d4fa1fc3c6e9bd067a15620cecec8.ogg",
+      "duration_seconds": 7.2
+    },
+    {
+      "text": "Lightning strikes, ice erupts, and flames engulf the enemy. A great horned beast appears amid the swirling elements and stamps down.",
+      "file": "4398d3ce4272d97117b49a72aa7c8086277691a0c07dae60eadf13a9e94459d0.ogg",
+      "duration_seconds": 7.960045351473923
+    },
+    {
+      "text": "The ground splits and steams. A towering mechanical fortress rises, then sends brilliant beams of light pouring down onto the enemy.",
+      "file": "af9d8555c61b27dd4e6f148f3523bfbbcbee9c78dc1a1156ac3f04691ff8b873.ogg",
+      "duration_seconds": 7.48
+    },
+    {
+      "text": "A golden light blossoms into a great red-and-gold bird. It spreads its fiery wings, bathing the battlefield in a sweeping flare.",
+      "file": "55313f59de179070aa97475abf1b81919f155f01c15547a12bc291ce65280082.ogg",
+      "duration_seconds": 7.32
+    },
+    {
+      "text": "A slab of ground carries the enemy high into the clouds. A red dragon hovers before it, then blasts the floating rock apart with a golden beam.",
+      "file": "b1774622cee41a885eb46bd0aed94db585441dbfa73b451b1ab81e489b0d80f9.ogg",
+      "duration_seconds": 8.49
+    },
+    {
+      "text": "A horned, skull-faced figure looms behind a bubbling cauldron, surrounded by stone pillars. Thick purple vapor spills out and floods the battlefield.",
+      "file": "015fcdfc8869e37327cd3590a8e216de740eeaea68cab656d806e6a94487b34d.ogg",
+      "duration_seconds": 9.04
+    },
+    {
+      "text": "A pink, two-faced creature floats into view. Fire and whirling wind batter the enemy, then the whole scene tips over and the ground crashes down.",
+      "file": "36b56332a6cdf31e6f77509c5d8e1c4cb7685b380e9b6bcb58c0cf69b9aeed52.ogg",
+      "duration_seconds": 8.66
+    },
+    {
+      "text": "High above the planet, a six-winged dragon opens its wings. Its blue beam cuts down through the clouds, ending in an enormous golden explosion.",
+      "file": "31f80933b6335172732e34b8bd99c0ed5a44dd7d9228b5128455262441368a3c.ogg",
+      "duration_seconds": 8.53
+    },
+    {
+      "text": "A purple portal pulls the enemy into another realm. Armored knights strike in succession with blades, axes, and bursts of magic. Finally, a giant king in a red cape brings down his sword. Golden light floods the scene, which shatters like glass.",
+      "file": "16a20bd87cf589a9235b86abc09a788d0b9a839341b7ced8c5421a99abb55cc6.ogg",
+      "duration_seconds": 14.09
+    },
+    {
+      "text": "Cloud leaps high, then brings his sword crashing down with both hands.",
+      "file": "899dc3fb1d6d09cc8192f612ee90c39395a2c6b973aefb4e7dba4033fc340c0f.ogg",
+      "duration_seconds": 3.63
+    },
+    {
+      "text": "Cloud strikes three times, leaving a glowing symbol hanging across the enemy.",
+      "file": "81700fa040dca00b82fc8935fa7e3ced0638a30fea78e677ce0953dfeefc6316.ogg",
+      "duration_seconds": 3.93
+    },
+    {
+      "text": "Cloud swings his sword, sending a bright wave of energy racing along the ground.",
+      "file": "dcdf834d6aeb451df7937fb933913dead7d77c1d4e1755b78d9c7148d3956ec5.ogg",
+      "duration_seconds": 4.4
+    },
+    {
+      "text": "Cloud thrusts his sword forward, then springs upward, dragging the blade through the enemy.",
+      "file": "95daaa4981fa8ead78a0458465a7e833eacef8f4ad60ceb0588c4c7ae6f4f04d.ogg",
+      "duration_seconds": 4.55
+    },
+    {
+      "text": "Cloud leaps and whirls his sword overhead as glowing meteors rain down across the battlefield.",
+      "file": "85afd7984425e60928d1f596233049451d2b4e428fd8e5e9026415dc37a75d96.ogg",
+      "duration_seconds": 5.4
+    },
+    {
+      "text": "Cloud spins his sword in a sweeping circle, raising a whirlwind filled with debris.",
+      "file": "ed5c76abb524bff05969558f2b5c79907416af7375eeb184489b7690489edc56.ogg",
+      "duration_seconds": 4.49
+    },
+    {
+      "text": "Cloud's sword glows as he dashes through a flurry of slashes. He leaps above the enemy, then drives the blade down in a final burst of light.",
+      "file": "af41ec177ceed9e60f1beaaea7559055b5eb80a82896e23c2b69acb46ef8b792.ogg",
+      "duration_seconds": 7.8
+    },
+    {
+      "text": "Barret braces his gun arm and fires a large, glowing shot.",
+      "file": "3f6ae289c6b612c271c6405ca488e79f92183291fa87c712ac5d7fba67bfb685.ogg",
+      "duration_seconds": 3.44
+    },
+    {
+      "text": "Barret charges his gun arm, then launches a pulsing blue-green ball of energy.",
+      "file": "639dc59c1208d8f9db42ec546816832c1528a911596a088632348944b95684b4.ogg",
+      "duration_seconds": 4.14
+    },
+    {
+      "text": "Barret lobs a blazing orange ball that bursts across the battlefield.",
+      "file": "d72c599236381d281d3f95ac1e11405fab6d89650ad484bcd1f58f185650a6c2.ogg",
+      "duration_seconds": 3.87
+    },
+    {
+      "text": "Barret rushes in and swings upward, launching the enemy into the air.",
+      "file": "9a85491edba149eff00369001100db87537d3b76feb5f4a57f878995c3332123.ogg",
+      "duration_seconds": 3.49
+    },
+    {
+      "text": "Red targeting marks cross the battlefield, and bright beams stab down from above.",
+      "file": "a21f2c9529a4afa6d982532e746828ce4423b7e1f61a6e426b4917bb9a9726d9.ogg",
+      "duration_seconds": 4.34
+    },
+    {
+      "text": "Barret plants his feet and unleashes a rapid barrage from his gun arm.",
+      "file": "792d2b776a2328c58e7feafa4a51ef4115dff285aa35965b1700e8c81331526b.ogg",
+      "duration_seconds": 3.57
+    },
+    {
+      "text": "Barret rises into the air, firing a thick golden beam down across the enemy.",
+      "file": "4d2075652cb842ea8b0be467933d013aeb25a1e5016decea779f0e1ef2bfa655.ogg",
+      "duration_seconds": 4.33
+    },
+    {
+      "text": "Tifa steps in close and delivers a quick flurry of punches.",
+      "file": "be79562dd23713482b544b20d4ff4d84b56a25e497c0bf7d654f605186337822.ogg",
+      "duration_seconds": 3.18
+    },
+    {
+      "text": "Tifa kicks upward and flips backward through the air.",
+      "file": "a5696205b5508f1c634e97c5060f42b66b18a6ff1b805fb3401dc0f165ab4c24.ogg",
+      "duration_seconds": 2.64
+    },
+    {
+      "text": "Tifa sweeps her leg around, trailing a bright ribbon of water.",
+      "file": "29b6ce49a7a3d945b96013b2fa68482abc9d445d60aabfa470c19badc8f6a41e.ogg",
+      "duration_seconds": 3.14
+    },
+    {
+      "text": "Tifa lifts the enemy overhead, then slams it down behind her.",
+      "file": "bf508e7a877a116a67465cd4047e93871bcdc686d9ed1e549b6acd72b8937ee0.ogg",
+      "duration_seconds": 3.62
+    },
+    {
+      "text": "Tifa drives an uppercut skyward as a dolphin leaps through a rising waterspout.",
+      "file": "81a4ceef7b323f93b8e7f9ef5db1c65d8cb1eef3f8c8f6254ca2828883308203.ogg",
+      "duration_seconds": 4.13
+    },
+    {
+      "text": "Tifa leaps high with the enemy, then hurls it back down to the ground.",
+      "file": "3b6a9e4444194b83fa9dff330ca34a5bdb08dea98b7b6dfe069d1842c1d0402c.ogg",
+      "duration_seconds": 3.5
+    },
+    {
+      "text": "Golden light gathers around Tifa's fist, and her punch releases a brilliant shock wave.",
+      "file": "aa07d204a829243e1fd2005d5487c04758e6d176550aa321f6eac92518c1b363.ogg",
+      "duration_seconds": 4.6
+    },
+    {
+      "text": "Aerith raises her arms as blue sparkles drift in circles around the party.",
+      "file": "f8d512e48f22a9864ce7155f6e846edf5a25ceb8cf556b66738531d818664ade.ogg",
+      "duration_seconds": 4.33
+    },
+    {
+      "text": "Aerith raises her staff, sending a white flash across the enemies.",
+      "file": "6890db55e05b16d4971b2a7ce7342df869e9fe5dba262a7682974bd68ae8e24a.ogg",
+      "duration_seconds": 3.73
+    },
+    {
+      "text": "Aerith lifts her staff as circling winds and golden stars surround the party.",
+      "file": "a81123fe2b20bbd652c343a7c5b44510d088cac95d003d1f835a952ce8c0f009.ogg",
+      "duration_seconds": 4.0
+    },
+    {
+      "text": "Aerith holds her staff aloft as blue arcs of energy ripple around her companions.",
+      "file": "334db553931ac965cacfcc9c5a63d23937522b851642c0d519fba2fb81271c84.ogg",
+      "duration_seconds": 4.69
+    },
+    {
+      "text": "Stars circle the party, and each figure becomes wrapped in a translucent golden glow.",
+      "file": "f0aae26b02c326c008173943c34d3a2f3a1ff55d445266633633b50495d16ee3.ogg",
+      "duration_seconds": 5.07
+    },
+    {
+      "text": "Aerith kneels in prayer as stars and slender beams of light rise around the party.",
+      "file": "e89d4f8ab43af9a19ac28db598555146b08fd0d5ff0ed231c434798ccf3a705e.ogg",
+      "duration_seconds": 4.66
+    },
+    {
+      "text": "Aerith prays as glowing circles form beneath the party. Small angels descend through a bright opening in the clouds.",
+      "file": "db42d722c1dd7da37eb185b127b8650390d256d0ff95b3618ee9e8cc8abd7443.ogg",
+      "duration_seconds": 6.900045351473923
+    },
+    {
+      "text": "Red Thirteen hurtles forward, leaving a blue streak behind him.",
+      "file": "55c7758ffdbbff5315fd52b74c92e656e7e208665d1179b6afa5c3b05a306341.ogg",
+      "duration_seconds": 3.11
+    },
+    {
+      "text": "Red Thirteen howls, and golden flames rise around his companions.",
+      "file": "9d2b466b4c52dd62cbf1d48f4bbea32b74d950a1a183bcd1501b133e3606da8d.ogg",
+      "duration_seconds": 3.55
+    },
+    {
+      "text": "Red Thirteen pounces and swipes as glowing orbs stream back toward him.",
+      "file": "136db67096881c0bdcfc322f6cefa87e236efe259e24f09e11cd85c38aeab493.ogg",
+      "duration_seconds": 4.02
+    },
+    {
+      "text": "Red Thirteen howls toward the sky, and a shower of bright stars rains onto the enemy.",
+      "file": "71c6bb89af51eb0cb62321b759e6419be8b1828ab4d46b4a5d4137d83a974483.ogg",
+      "duration_seconds": 4.58
+    },
+    {
+      "text": "Red Thirteen rises onto his hind legs and howls against a huge full moon.",
+      "file": "9b51dd95f879a0b060e9f5d2550f84fb8100ad9a2be4911c97370e7d3440eb6b.ogg",
+      "duration_seconds": 4.16
+    },
+    {
+      "text": "Red Thirteen darts and leaps through the enemy, striking with his claws amid fiery bursts.",
+      "file": "206cd048c00471f0b5a5560b3a8cbec59381712d1939164b81bc8b9cbd2ec5ff.ogg",
+      "duration_seconds": 5.29
+    },
+    {
+      "text": "Stars gather into a glowing red sphere before Red Thirteen. A vast beam erupts from it, engulfing the battlefield in fire and shattered rock.",
+      "file": "15c116e20b566b6ed4cbec5e55034e99d81969ae968c3a61651095bba4e39d7b.ogg",
+      "duration_seconds": 8.34
+    },
+    {
+      "text": "Cid springs into the air, then plunges spear-first onto the enemy.",
+      "file": "8f28fce1549f9ab26c60bab486c18e0f674b424538f1856f458500b70e33eab4.ogg",
+      "duration_seconds": 3.59
+    },
+    {
+      "text": "Cid lights a stick of dynamite with his cigarette, then tosses it toward the enemy.",
+      "file": "b1e1d270337fe942b5329f51fbf78c7fcf3b4238792e308e60ca11eaac10eba8.ogg",
+      "duration_seconds": 4.25
+    },
+    {
+      "text": "Cid twirls his spear and leaps. His landing sends a ring of energy across the ground.",
+      "file": "39eae7323ba97d2b3ff91f1748f0dc693b15cadb100072b32632e5a74837252e.ogg",
+      "duration_seconds": 4.64
+    },
+    {
+      "text": "Cid points his spear as a ghostly blue dragon coils around the enemy, and a glowing orb flows back toward him.",
+      "file": "1c19b1b84ed4bd4bf10fb05225b37d9316d5852783ed1865822fb2600c086ca6.ogg",
+      "duration_seconds": 6.12
+    },
+    {
+      "text": "Cid repeatedly dives from above, driving his spear down through pillars of purple light.",
+      "file": "f51575948b4f1f1640bc794045bf58cc8c1773aebbda897fcd742beb08fb74c7.ogg",
+      "duration_seconds": 4.64
+    },
+    {
+      "text": "Cid rushes forward, spinning and striking with his spear in a rapid flurry.",
+      "file": "ea776bb4abf18d2f4963c1597723b9178ec6e94f51c1c2654fa9532a173f12dd.ogg",
+      "duration_seconds": 4.08
+    },
+    {
+      "text": "Cid signals overhead, and the Highwind sweeps into view and bombards the battlefield with missiles.",
+      "file": "b65b20e7dd74f342335582629206008a40e343dae20250895d78ed0d221f40e5.ogg",
+      "duration_seconds": 5.06
+    },
+    {
+      "text": "Yuffie darts through the enemy with a swift slash, then flips back.",
+      "file": "91c2624e5140ba418876757a9a98864fc2e7dc9d8e13fe1c654edc9089b48bbd.ogg",
+      "duration_seconds": 3.52
+    },
+    {
+      "text": "Yuffie raises her arms as blue orbs and rippling rings surround the party.",
+      "file": "fed5265264d57e24f0c42e181e45c1d2d69690b5064bcd0fc8f397376bb5cea3.ogg",
+      "duration_seconds": 4.09
+    },
+    {
+      "text": "Yuffie strikes the ground, sending jagged slabs of earth bursting beneath the enemy.",
+      "file": "eb7ad66a1b62f6b9236f28ff49577632d5050a5403c9bbb12cd540b49638b69f.ogg",
+      "duration_seconds": 4.18
+    },
+    {
+      "text": "Yuffie darts back and forth, striking repeatedly through bright red streaks.",
+      "file": "f765a1d479bf760159667427d0213ae1d556bf508b1a7284737c31707f6493a5.ogg",
+      "duration_seconds": 3.87
+    },
+    {
+      "text": "Yuffie thrusts her hand forward, and a towering blue beam erupts inside a glowing circle.",
+      "file": "2f67a4602febfdbeae866f6b8339026f45c1fd0cefa3ee11c8eb223f7a458f94.ogg",
+      "duration_seconds": 4.63
+    },
+    {
+      "text": "Yuffie leaps between rapid slashes, filling the battlefield with flashes of purple light.",
+      "file": "9ba39cfde169388a8e09faff5a92fcbff6a9f03ead708a25eba454ffad42bf43.ogg",
+      "duration_seconds": 4.64
+    },
+    {
+      "text": "Yuffie gathers energy, then releases a huge, many-colored beam across the battlefield.",
+      "file": "f62109d283c6cb355ef8dd433162ac4dd9973589a0b84b5148eb86bec15f20e8.ogg",
+      "duration_seconds": 4.6
+    },
+    {
+      "text": "Vincent fades into shadow and becomes a purple, horned beast with a long tail.",
+      "file": "99ce25e384f083c6a78cba91445f062d1b3d5248980b27d8fd53933c93d1bfb1.ogg",
+      "duration_seconds": 4.17
+    },
+    {
+      "text": "The horned beast lunges at the enemy, slashing with its claws.",
+      "file": "889e235791613075afa55d8ad31295531edcabcdd1fa919196668b1c7baff93a.ogg",
+      "duration_seconds": 3.42
+    },
+    {
+      "text": "The horned beast gathers light and launches blazing golden orbs that burst around the enemy.",
+      "file": "0a2bdfeb28cd5ea41b897da9d50df8e82a0299cc6284d623c9eb1578989128dd.ogg",
+      "duration_seconds": 4.92
+    },
+    {
+      "text": "Vincent transforms into a hulking, stitched monster with bolts jutting from its neck.",
+      "file": "de1d4124deef3c9ce40dba4f132b35986395fbf3b18db89586c212a5f372ff43.ogg",
+      "duration_seconds": 4.2
+    },
+    {
+      "text": "The hulking monster charges forward and drives a heavy fist into the enemy.",
+      "file": "b3958866ce899c3c2ef6c153aa4c110166f9957a62ba1eda5fdcc8a21783b990.ogg",
+      "duration_seconds": 3.71
+    },
+    {
+      "text": "Electric orbs gather around the hulking monster, then burst into crackling arcs across the battlefield.",
+      "file": "8bb5da3807b92daea9fbfe3b24128a43775680ea4463bcc4f9e401c6c551be2d.ogg",
+      "duration_seconds": 5.38
+    },
+    {
+      "text": "Vincent becomes a hunched, masked figure clutching a long chainsaw.",
+      "file": "ba4b8156ca758c086b5ea7758228df844017e00972e4b11033ee0d72e7976add.ogg",
+      "duration_seconds": 3.44
+    },
+    {
+      "text": "The masked figure lunges in and tears through a rapid series of chainsaw swings.",
+      "file": "47bb89aef549d4783f8e71ed58f9ce4aabb174e39c7ae5a2b7d5229242f8678a.ogg",
+      "duration_seconds": 4.37
+    },
+    {
+      "text": "The masked figure sends eerie green lights and drifting mist swirling around the enemy.",
+      "file": "d73bf16aeb8768d358126a34ffbe4a95dc33081efb64450dfa0b0ca089f69c11.ogg",
+      "duration_seconds": 4.46
+    },
+    {
+      "text": "Vincent transforms into a dark demon, unfurling a pair of broad red wings.",
+      "file": "9024cab50735b3b87400b5a571c50f2ab752d48a8e48a08144ad002fb6673764.ogg",
+      "duration_seconds": 4.36
+    },
+    {
+      "text": "The winged demon sweeps forward, sending a sharp wave of energy across the enemy.",
+      "file": "924d328c6ab8ecd619f0f33d4c81ea92c51acf0c9723a3e0e4d79dc19bf4eccf.ogg",
+      "duration_seconds": 4.44
+    },
+    {
+      "text": "A huge grinning skull rises from the ground. Light blazes in its eyes as the earth breaks apart around it.",
+      "file": "c8da366384541bfea91aeabe379e942430384acf7ef436027492e673c1cb446d.ogg",
+      "duration_seconds": 5.96
+    },
+    {
+      "text": "Cait Sith tosses giant white dice, which bounce and tumble across the battlefield.",
+      "file": "45ecc1e98c297afbaad6131c2ff23f1b2f1d9f4e5aa1328965c138b8f45c2212.ogg",
+      "duration_seconds": 4.29
+    },
+    {
+      "text": "A line of tiny soldiers marches into place, raises its guns, and fires.",
+      "file": "78cbd86203f550a8821c1479fcfcd6295095587347fd71918e9ced852b82047c.ogg",
+      "duration_seconds": 4.27
+    },
+    {
+      "text": "A little moogle floats and dances as colorful stars drift around the party.",
+      "file": "5dc25a09ac4be889bf38d7c16f9abc5a8c36ac6c28f73b32fa68e5c6ee3ea795.ogg",
+      "duration_seconds": 3.88
+    },
+    {
+      "text": "A floating woman blows a kiss, and pink hearts swell around the party.",
+      "file": "ecf4733ba818a05d2f145cc32f7409a994211d14413b0df34becf68b93e602b4.ogg",
+      "duration_seconds": 3.59
+    },
+    {
+      "text": "The other party members vanish as Cait Sith and his moogle grow to an enormous size.",
+      "file": "014acaf04e2e393fc99a717ce501b54bf2d74757446f806b7034e1e4f2fe6b6d.ogg",
+      "duration_seconds": 4.61
+    },
+    {
+      "text": "A small red-cloaked figure appears in white smoke, sweeps its curved blade, then vanishes.",
+      "file": "aed40cd5635feeb7a16b60bd94c9f8d937c1a6c60a0a015998f3148142767579.ogg",
+      "duration_seconds": 5.43
+    },
+    {
+      "text": "Red skulls drift over the party, then turn into skull-and-crossbones symbols.",
+      "file": "86aac803038319fc25db3485b210b5a1ab110da06516d5ae092a62563d785e4e.ogg",
+      "duration_seconds": 3.98
+    },
+    {
+      "text": "A broad slab crashes down and shatters into pale fragments around the enemy.",
+      "file": "2f986571983cc47242d70db90fa3c6697a037f8d52bfcf95bfa67c0ae78c6bf4.ogg",
+      "duration_seconds": 4.06
+    },
+    {
+      "text": "Blue icicles burst around the enemy amid glittering snowflakes.",
+      "file": "675285ae31ac17991bd57d3717b7bd23051c977ccdcd4712ef0c68b19b92bc94.ogg",
+      "duration_seconds": 3.43
+    },
+    {
+      "text": "A huge black weight marked with a white question mark drops onto the enemy.",
+      "file": "43d9e9c4e68ec69a2ac6d20d0900438538ef6586b614356af8811b0d994bb712.ogg",
+      "duration_seconds": 3.98
+    },
+    {
+      "text": "An oversized mallet swings down onto the enemy.",
+      "file": "872c933e66c9261568dd83f78b302113ccb0cc69cb8f5b636144621c51f5c668.ogg",
+      "duration_seconds": 2.5
+    },
+    {
+      "text": "A fat yellow chocobo plummets onto the enemy, landing in a puff of dust.",
+      "file": "7a4b8f3957d7231085651bc4317ec41195db808d9e13ceee761472f731bfcec5.ogg",
+      "duration_seconds": 3.95
+    },
+    {
+      "text": "A red-roofed house drops from above and crashes down in a cloud of dust.",
+      "file": "a7daf1fd1d43be48d1814baf03f9aad288a655a6315d9defd023fc9bff808218.ogg",
+      "duration_seconds": 3.75
+    },
+    {
+      "text": "Burning rocks streak down and explode around the enemy.",
+      "file": "da4b01cb7a15065374c0fed224dc915bf428e0607bd318ee6ac50c12155671e9.ogg",
+      "duration_seconds": 2.9
+    },
+    {
+      "text": "A white moogle rides a yellow chocobo, charging across the field.",
+      "file": "ea4ca593fb2f228b8c575bceca97a7ca40d8959fa86f414baaea78ed1f7894c3.ogg",
+      "duration_seconds": 3.77
+    },
+    {
+      "text": "A cartoon explosion! The moogle reels, spiral-eyed, with stars circling its head.",
+      "file": "9694e3d6f942f7952e9baaa3afcba789b4a22b0c048e1787c904be743492027c.ogg",
+      "duration_seconds": 4.71
+    },
+    {
+      "text": "A huge, round yellow chocobo drops onto the enemy in a puff of dust, then bounces away.",
+      "file": "d93989dddd76821de2506fdb278483a2b86cac521a58ad8b35af75b87214bf9b.ogg",
+      "duration_seconds": 5.16
+    },
+    {
+      "text": "White lights drift down. Shiva appears, blue-skinned, with long green hair and a violet wrap.",
+      "file": "36adf854642fb750b014855c0e1caaec9c50c1c4f8917239d9f53cf7968170e0.ogg",
+      "duration_seconds": 5.18
+    },
+    {
+      "text": "She sweeps one arm overhead, gathering a ball of blue light.",
+      "file": "02fee4fba2627f449a5750f73688e810923539dacab914fb32224b65b90ceddd.ogg",
+      "duration_seconds": 2.87
+    },
+    {
+      "text": "Glittering frost surrounds the enemy. Jagged blue ice bursts from the ground and shatters.",
+      "file": "d1290be86d554fdbfa098e15b72b14d21405bce7292ff91309a4e5eec8df1d62.ogg",
+      "duration_seconds": 4.8100453514739225
+    },
+    {
+      "text": "A pillar of fire lifts a horned, muscular beast out of the ground.",
+      "file": "b475dd77b8808a5c93ac4a5620607c77ae8b0049253a1562a8c208177f56cd66.ogg",
+      "duration_seconds": 3.39
+    },
+    {
+      "text": "Ifrit bares his fangs, his long mane whipping behind him.",
+      "file": "a0f4145ececbc307fffd9dc7350aa80ed10a9466217e51fbd04105c8d1baaf80.ogg",
+      "duration_seconds": 3.13
+    },
+    {
+      "text": "He plunges toward the enemy. Flames engulf the ground in a blazing orange explosion.",
+      "file": "94f6944be439d7579ac3f02bf8d64cf982631d76559f14b5368fea161939f206.ogg",
+      "duration_seconds": 4.42
+    },
+    {
+      "text": "Forks of lightning strike the ground. A rocky pinnacle rises amid flying stones.",
+      "file": "7827775a3d5b4dec1d10525cc5264e7ffee81d34a53383881444b83bcfbf2725.ogg",
+      "duration_seconds": 4.78
+    },
+    {
+      "text": "At its summit stands Ramuh, a white-robed old man with a long beard and staff.",
+      "file": "1108c085cceefcf7fd06399b37edf6f11d1d7372393660be52b2a6bbaba267a0.ogg",
+      "duration_seconds": 4.67
+    },
+    {
+      "text": "He raises the staff. Branching blue lightning lashes outward, engulfing the enemy in light.",
+      "file": "e707491077271de4f1508f3fc33e3bffc87fa1330021d412e87e0cd48f00a779.ogg",
+      "duration_seconds": 4.75
+    },
+    {
+      "text": "The earth bulges. Titan, a bare-chested, muscular giant, heaves himself out.",
+      "file": "37675862ad97ba963169d11a4e91ebfe3536338f4231d491a5542a6f91cb1690.ogg",
+      "duration_seconds": 5.07
+    },
+    {
+      "text": "He crouches and grips the ground beneath the enemy, straining to lift an enormous slab.",
+      "file": "99cb0737ccf502871a703afdcbb7d3e412b71a372e9a9344b1771eb397fc8e75.ogg",
+      "duration_seconds": 4.34
+    },
+    {
+      "text": "He flips the whole slab over. Rock crashes down and breaks apart.",
+      "file": "89406324309b9e489fea7b4071eafbbdc1490a9d8bddc375910d4ee3dfceccb2.ogg",
+      "duration_seconds": 3.52
+    },
+    {
+      "text": "Clouds part around a full moon. A mounted warrior appears in silhouette on a rocky crag.",
+      "file": "423f35b1299a90af9f63f0a2b807b1aa4aed3d80c4c7f260f3196e754c27cb00.ogg",
+      "duration_seconds": 4.57
+    },
+    {
+      "text": "Odin's many-legged horse rears, his black cape streaming.",
+      "file": "2c8313ccfad2d3d599c9294276e4947cb365bd241dec531447e3b3ef13a81971.ogg",
+      "duration_seconds": 3.1
+    },
+    {
+      "text": "His horned armor gleams as they charge. A blue sword slashes across the enemies.",
+      "file": "b96aa4aab3a1ab7b971e93363a36b98ef3cc63929079611a5dd38d31258d80d8.ogg",
+      "duration_seconds": 4.56
+    },
+    {
+      "text": "A blue line cuts across the enemies as horse and rider gallop away.",
+      "file": "d8f6c447bd0d524d8888f260f56633bd65904bcb901323e66224896859996670.ogg",
+      "duration_seconds": 4.11
+    },
+    {
+      "text": "The sky darkens, and rain streaks across the battlefield.",
+      "file": "b89f0b8818276772e40e6fd54d2b4430b65225f7c37c2e38f60f2799d7c82f38.ogg",
+      "duration_seconds": 2.95
+    },
+    {
+      "text": "Odin rides in on his gray, many-legged horse, carrying a glowing pink lance.",
+      "file": "a10de0f3728733cce024759d2b8d9e34e07c2819da509978687a3b25df54e972.ogg",
+      "duration_seconds": 4.56
+    },
+    {
+      "text": "His horned helmet tilts upward. He draws back his arm and hurls the lance into the clouds.",
+      "file": "cb879837cc58442d8f0e8778bf6ce264c55684ae1d592b71dbc10ab7c2219432.ogg",
+      "duration_seconds": 4.48
+    },
+    {
+      "text": "A blue ring opens overhead. The lance plunges through it, spearing the ground in a flash.",
+      "file": "635e662bdced7491bd7815d9834e872b89e7058340d63837d55fc2f976bf0896.ogg",
+      "duration_seconds": 4.6
+    },
+    {
+      "text": "A sphere of water spins above the enemy, then breaks open into a long sea serpent.",
+      "file": "137b12c389214548828b8250ba4205a17bea2da03f58f36bbef3ece1c09e4227.ogg",
+      "duration_seconds": 4.64
+    },
+    {
+      "text": "Leviathan coils through the air, teal-scaled, with pale fins and long whiskers.",
+      "file": "c64eb99b1ed18099b165b40827c561e2643f2bf021965cda42e3b14636a989a6.ogg",
+      "duration_seconds": 4.63
+    },
+    {
+      "text": "Water rises around the battlefield. A towering wave curls over and crashes across the enemy.",
+      "file": "2d6dbf6973976d5d06998ef771853c51de94f14ef6e602982ffc79cd75e0359c.ogg",
+      "duration_seconds": 5.07
+    },
+    {
+      "text": "A purple vortex churns in the dark sky, its bright center swelling open.",
+      "file": "3a52b4aa0a116bc3a79d1dbfd2d0894a5b43829bc1f6c8160af36e9648699902.ogg",
+      "duration_seconds": 4.43
+    },
+    {
+      "text": "Bahamut emerges: a gray, armored dragon with a golden chest, swept-back horns, and broad violet wings.",
+      "file": "b479911cb745e34a47c69d115928e3b20376932bcf39aec755dd29b196e50ebb.ogg",
+      "duration_seconds": 6.63
+    },
+    {
+      "text": "He throws his head back, gathering light in his jaws.",
+      "file": "7a589cfe1f4056b9b428ab34dc90469d10de63972a1a1192a76ad2106e9a7735.ogg",
+      "duration_seconds": 2.86
+    },
+    {
+      "text": "A thick blue-white beam pours down, engulfing the enemy in a blinding column.",
+      "file": "a30235992f3e523ed302c60fd910bf702303397d8e83300e88b77a7eedf3a861.ogg",
+      "duration_seconds": 4.28
+    },
+    {
+      "text": "Purple lightning lashes the enemy. Shards of ice whirl together into a frozen sphere.",
+      "file": "ccf49d30ff350a6142f50d4d942b896db667b8d2ea5832abe1b0c3bd501b9714.ogg",
+      "duration_seconds": 4.49
+    },
+    {
+      "text": "Golden sparks scatter. Flames surge upward, exploding across the ground.",
+      "file": "f049583ba4c3555b6be6d233210889ab46042d63600ff847a62dd15924771086.ogg",
+      "duration_seconds": 3.95
+    },
+    {
+      "text": "A massive brown bull appears, with curling horns and a jagged red mane down its back.",
+      "file": "f6a31e84fb2cb9532222e692dccfb3c2abe9f4da3797935afb10169e3ed3fc17.ogg",
+      "duration_seconds": 4.640045351473923
+    },
+    {
+      "text": "Kujata stamps down. The ground jolts beneath the enemy.",
+      "file": "159540cfe649254e29396e2104a8ab109655fd64e41f5d3e6a9e42a53ee77893.ogg",
+      "duration_seconds": 3.19
+    },
+    {
+      "text": "Cracks tear across the ground. Steam billows from a widening black chasm.",
+      "file": "410dba21a666dc044d555f47b5f9a103a9d2602e66fc123b656da75d7d8f1fb9.ogg",
+      "duration_seconds": 4.16
+    },
+    {
+      "text": "Alexander rises: an immense mechanical fortress with towers, gold trim, and two thick, column-like arms.",
+      "file": "fca56b79dcad7c3cf47efc06858ec28c1cd2c70171ba86ce9498bff687924fb9.ogg",
+      "duration_seconds": 6.31
+    },
+    {
+      "text": "Blue light gathers beneath its face. It aims its enormous arms toward the enemy.",
+      "file": "9c8088521f377ca2eebf5a9d9bb304151bc0b5dfa5c1420823bb62cfc897fabb.ogg",
+      "duration_seconds": 4.44
+    },
+    {
+      "text": "Beams converge from both sides. A brilliant white explosion fills the battlefield.",
+      "file": "0bbff523dbb152c7f103350c8fbae29c5adbf9bae7d3f8e0c6763b1f837389b2.ogg",
+      "duration_seconds": 4.750045351473923
+    },
+    {
+      "text": "A golden spark descends. It blooms into a pillar of flame.",
+      "file": "e0ee444a78bbfd2c78438d049568e776e07f68f3848f26fb6fefd3e05150abcf.ogg",
+      "duration_seconds": 3.23
+    },
+    {
+      "text": "Phoenix rises from the blaze, a huge red-and-gold bird with a long, flowing tail.",
+      "file": "431208fa511d2a16f9c8ca7903e66446295ce0e08070a5f081a88fe8ea7f94cc.ogg",
+      "duration_seconds": 4.52
+    },
+    {
+      "text": "Its wings spread wide. Radiant streaks fan outward, washing across the battlefield.",
+      "file": "7d0cb4d80df499826a3513b79aafdbecff6ecb3104ef28ef80f28625a83aed44.ogg",
+      "duration_seconds": 4.88
+    },
+    {
+      "text": "Cracks encircle the enemies. The ground beneath them breaks free in one enormous slab.",
+      "file": "ca755bcb452733acee7081fe278005060606587b3921b4a05eba5d894aeef675.ogg",
+      "duration_seconds": 4.5
+    },
+    {
+      "text": "The slab rises between towering banks of cloud, carrying them high above the world.",
+      "file": "7b3b5bc0c6701083d9b9c8ce8bea55afa39b8958faaf73c910cbb42846df1656.ogg",
+      "duration_seconds": 4.86
+    },
+    {
+      "text": "Neo Bahamut hovers before the floating rock: a red dragon with long horns and four spreading wings.",
+      "file": "68c9e8e38c204fa16a705d0f80efa553ce0fe6618facdd84ad600b49fefcbee3.ogg",
+      "duration_seconds": 5.79
+    },
+    {
+      "text": "He draws his head back. White light gathers between his open jaws.",
+      "file": "edab447b27482d46152391e586d6c36ce4897d59a2e3c99ff57b68949d096f15.ogg",
+      "duration_seconds": 3.37
+    },
+    {
+      "text": "A broad golden beam tears across the slab, blasting it into fragments.",
+      "file": "f5485196fe4a1f10cc10b5716f7e0f8476adfb9bba4d21f49d2035f9bc8da70f.ogg",
+      "duration_seconds": 4.12
+    },
+    {
+      "text": "Shattered rock tumbles through a white flash, and the battlefield returns.",
+      "file": "2f3e26a948a2b06137f85d5bbc6c05db85005f00f06060466fff74e3a22c6fde.ogg",
+      "duration_seconds": 3.7
+    },
+    {
+      "text": "Small flames encircle the enemies. A patterned stone platform rises through a ring of smoke.",
+      "file": "0394473096f973d2aeb1ec81eb4a2212330c8e4ead49f57cd0378ecb8f4b9899.ogg",
+      "duration_seconds": 5.32
+    },
+    {
+      "text": "Pillars stand around a huge cauldron. A shadowy figure looms behind it.",
+      "file": "d3ec0a467bd7bf37e4ed4ae206d0e0cc297a2b4c5453ca39ae897861b8301513.ogg",
+      "duration_seconds": 3.95
+    },
+    {
+      "text": "Hades reveals a grinning skull beneath a dark red hood. He bends over the bubbling cauldron.",
+      "file": "799d18fddac04688421b0c9133a02531ba3dc8097a17d2fe87dc4491654cb97e.ogg",
+      "duration_seconds": 5.23
+    },
+    {
+      "text": "He spreads his arms. Thick magenta vapor spills outward, curling around the enemy in rolling clouds.",
+      "file": "3c5b8aaa2d9b11b0cac7055704c62081b09f11c76538439aeadd6e8cb77d928d.ogg",
+      "duration_seconds": 5.74
+    },
+    {
+      "text": "A green whirlwind coils up from the ground, widening into a spinning funnel.",
+      "file": "280878558aa0bef7a8a0663003d5041f632919fa77f727074bee09e7cd130568.ogg",
+      "duration_seconds": 3.93
+    },
+    {
+      "text": "Typhon drops from it: a plump pink creature with clawed arms and a huge, toothy mouth.",
+      "file": "c2331a6237e58d1b15dee834f18f2c4cf3a3e036d8f258c88367487f043c9eed.ogg",
+      "duration_seconds": 5.17
+    },
+    {
+      "text": "It blows flame toward the enemy. Wind and flying stones twist upward around them.",
+      "file": "0702dea5788580a91432cd6021276af9927704746f3b0a71f06fe87dd025ac89.ogg",
+      "duration_seconds": 4.48
+    },
+    {
+      "text": "Typhon turns, revealing another snarling face on its back. The whole battlefield rolls upside down.",
+      "file": "8f731ebdd5d7f54a33477d6c423190d67fe10fac2df8e01d7c3f4c98ec0f2b6a.ogg",
+      "duration_seconds": 5.89
+    },
+    {
+      "text": "The upturned ground crashes down in a storm of rocks and purple light.",
+      "file": "c67bff4ee926f89b3eb41e99b59377fe31b59d654f310c950151e00c91678153.ogg",
+      "duration_seconds": 3.58
+    },
+    {
+      "text": "The view rushes into space. The blue-white planet hangs against a field of stars.",
+      "file": "bb0e07da9eb64de5346a09713e703393c2132947e9586e43218e6a7fe419769d.ogg",
+      "duration_seconds": 4.3
+    },
+    {
+      "text": "A vast shadow passes overhead, dwarfing the curve of the planet.",
+      "file": "aee5039c5df5644aefa4eae57ac1e84e0db5f31d615f0b6bb82084c59eb07761.ogg",
+      "duration_seconds": 3.57
+    },
+    {
+      "text": "Bahamut ZERO glides into view: a metallic gray dragon with a spiked head and six immense wings.",
+      "file": "24249df48e0e8be6888ae21c021e61985867a7f9707a261a92c7c6afd5d479b6.ogg",
+      "duration_seconds": 5.91
+    },
+    {
+      "text": "Its three pairs of wings spread. Purple light pulses around its body.",
+      "file": "e151c521022c1274220b19544c64ddf590dc61fefa445c85f0bd0c9d14a19beb.ogg",
+      "duration_seconds": 3.99
+    },
+    {
+      "text": "A bright blue sphere builds between its jaws, sending sharp rays in every direction.",
+      "file": "11939fcf17ff7c31aba6d932666c833a755bb4863103aeda35f69aa5d8fbf03d.ogg",
+      "duration_seconds": 4.35
+    },
+    {
+      "text": "The dragon fires a narrow beam down toward the planet.",
+      "file": "0d9b396897db50131810dc80070104e8fc9145c101d7cf563bc2ddc8b13a1171.ogg",
+      "duration_seconds": 2.72
+    },
+    {
+      "text": "The beam pierces the clouds and bears down on the battlefield.",
+      "file": "92d6d1e7b222c9136e04168786c8c6310114c7714daef7c3da940c1985708038.ogg",
+      "duration_seconds": 3.07
+    },
+    {
+      "text": "A golden blast swells into a blazing dome, swallowing the enemy before the light fades.",
+      "file": "99b75eb3abcf355ea511fb4c908e1ca2cf502eb4952450a52f8cbf34ab001417.ogg",
+      "duration_seconds": 5.03
+    },
+    {
+      "text": "Violet light encloses the enemy. A circular portal pulls the battlefield into darkness.",
+      "file": "8da66f8e71d9eb30257690e77f872ad8622f007aa190a623771e2a95b24eb19d.ogg",
+      "duration_seconds": 4.99
+    },
+    {
+      "text": "Against a red void, an armored knight sweeps a huge, jagged sword through the enemy.",
+      "file": "003b010ca961b87484390f66b82cbb9760960716a334f212c7849cba0c37a8eb.ogg",
+      "duration_seconds": 4.16
+    },
+    {
+      "text": "A lance-bearing knight charges. A red-robed mage follows, hurling a rolling fireball.",
+      "file": "06abdc2859a9ae8137de54d432e0d5a951187332f41bcebc1699b65c81daaa14.ogg",
+      "duration_seconds": 5.02
+    },
+    {
+      "text": "Against a blue void, a golden knight strikes with his mace and shield.",
+      "file": "2897d9543ff89ba1dd0d6f4a2be15474edd5333e5690712a530afebebab4088a.ogg",
+      "duration_seconds": 3.49
+    },
+    {
+      "text": "A pink-armored swordsman lunges. A green knight follows with a massive hammer.",
+      "file": "292698f0222641e364b24fcf993cb8bcfb96fe3e56fa3d9f38fc0df63fd8b59c.ogg",
+      "duration_seconds": 4.33
+    },
+    {
+      "text": "A robed knight thrusts his staff, sending out a branching wave of frost.",
+      "file": "bcf6cd829bcee441470c1286f662cb17b8b63a693ecdc95b32ac1133a78409c3.ogg",
+      "duration_seconds": 3.91
+    },
+    {
+      "text": "Another raises a three-pronged staff. Golden rays flash across a swirling starfield.",
+      "file": "f872327c5814155397704c8844e332a35486fdea7aa47645d299443bd00d6680.ogg",
+      "duration_seconds": 4.61
+    },
+    {
+      "text": "A towering knight drives down a meteor, which bursts into chunks of rock.",
+      "file": "1a8d6e4b541c88aceefd2cbe9064cec01c12fa46e200ec17cf21024b1eaf7af3.ogg",
+      "duration_seconds": 3.93
+    },
+    {
+      "text": "A swordsman sweeps his long blade across the enemy, leaving a brilliant trail.",
+      "file": "1e6144fb3cc21dfc33e9dadef24313b99218da44f5ae3852e21744af80b1a371.ogg",
+      "duration_seconds": 4.21
+    },
+    {
+      "text": "Another knight swings a great axe. White light flares along its broad edge.",
+      "file": "af5f1bbb3a0b171767aebe996a853cf95e5b430d835eeb4d35b5a35c9d75d725.ogg",
+      "duration_seconds": 4.29
+    },
+    {
+      "text": "A final swordsman charges through the stars. The swirling realm falls black.",
+      "file": "1c6433b1b73dc25c7b34fa43c33e33fce2f556156af398a2ba912c39822ac841.ogg",
+      "duration_seconds": 3.91
+    },
+    {
+      "text": "A giant king descends, a long red cape flowing behind him. He lifts an enormous silver sword.",
+      "file": "263b844d62885c3e22600268124314fe38eeb8c86f2d83f266f8375fb13c6026.ogg",
+      "duration_seconds": 6.03
+    },
+    {
+      "text": "His two-handed blow floods the scene with white light.",
+      "file": "c2cddeb38106e8dc89314e02d4f00a8469bd1cebce989a6cf87d09b7c3060936.ogg",
+      "duration_seconds": 2.46
+    },
+    {
+      "text": "The glowing world cracks and shatters like glass, revealing the battlefield again.",
+      "file": "157e4d2cbf709721753c0744cbe6c386e07596401ca65ed1812552f183f9788a.ogg",
+      "duration_seconds": 4.13
+    },
+    {
+      "text": "Cloud leaps with his sword overhead, then chops straight down.",
+      "file": "4ff2d14a83207a19c91d45d9fef85ced00c16d8da734ab9fe6c6659c9f041927.ogg",
+      "duration_seconds": 3.36
+    },
+    {
+      "text": "Cloud lunges in, carving three bright slashes into a glowing symbol across the enemy.",
+      "file": "5e7b751344ba9ab42bdd83364c337181c5b1e70abb2686e99e2daeaf90ebcd65.ogg",
+      "duration_seconds": 5.08
+    },
+    {
+      "text": "Cloud swings his sword down, launching a glowing shockwave along the ground.",
+      "file": "0acb4e474c5698c9d6a5e60e12490d2cf2fa0caa4924d1fd3aa3b59ba35d2dc4.ogg",
+      "duration_seconds": 3.95
+    },
+    {
+      "text": "Cloud drives his sword into the enemy, then leaps upward, dragging the blade with him.",
+      "file": "b7b17f9bdabffd95c9ab93996136e18db6fa24d3082019924b7ae80cc98b9329.ogg",
+      "duration_seconds": 4.49
+    },
+    {
+      "text": "Cloud spins his sword and leaps.",
+      "file": "4b881588c8e11d63fde7f7fb58a6d235e5351617b8034d1ac20eab5cd87ea12e.ogg",
+      "duration_seconds": 2.38
+    },
+    {
+      "text": "Blazing meteors rain down, striking the enemies in rapid flashes.",
+      "file": "0cddc08f80cdb822c117ca06cb4b9f15051b199f9670b3e723d0fdc635f1b4ae.ogg",
+      "duration_seconds": 3.77
+    },
+    {
+      "text": "Cloud spins, then whips his sword overhead.",
+      "file": "d44354c115dd9d4e87b698bb964efc7bfb5a515adb10cbbc4931ab3c5c70d9c6.ogg",
+      "duration_seconds": 2.69
+    },
+    {
+      "text": "The tornado surges across the enemies, lifting rocks and debris into its glowing column.",
+      "file": "a534763063b236beacf9e55e87ffc1665b9e99343130c3438642451311271df0.ogg",
+      "duration_seconds": 4.51
+    },
+    {
+      "text": "Cloud raises his sword into a column of golden light.",
+      "file": "c11f74c176101b20bf5d3c9a5f72607def5fd1ea4ea4a8b4d8e73d1ece9f3ca4.ogg",
+      "duration_seconds": 2.79
+    },
+    {
+      "text": "He rushes in, slashing again and again. Each sweeping blow bursts into white and green light.",
+      "file": "9896e490e5c5f0a031b0b70850083bae27798825f520284d653c11ccccc1026d.ogg",
+      "duration_seconds": 4.95
+    },
+    {
+      "text": "Cloud leaps high, drawing the blazing sword above his head.",
+      "file": "38c2a5531eb51466f8e8e5f500b66f889435e0c9fdc83a43a4ad0d291114a65f.ogg",
+      "duration_seconds": 2.88
+    },
+    {
+      "text": "He plunges down with a two-handed strike. A blinding explosion swallows the battlefield.",
+      "file": "4548477bbba655daf82ae6179fcc7f22fcfdd6976a725fe5827242e996b01e38.ogg",
+      "duration_seconds": 4.65
+    },
+    {
+      "text": "Barret levels his gun arm and fires a swelling ball of yellow light.",
+      "file": "68ba5bdf6527ded0e1bbc129255c09df1c426722ba88765f6fd352a8cfa75304.ogg",
+      "duration_seconds": 3.26
+    },
+    {
+      "text": "Barret fires a blue-white sphere from his gun arm, bursting against the enemy.",
+      "file": "2a45762a76eb4d7915bf5984ca131ae98d3625215502f0fe733fa1b79f950a0f.ogg",
+      "duration_seconds": 4.12
+    },
+    {
+      "text": "Barret launches a glowing grenade high into the air.",
+      "file": "6b10fc25d2fa4c72dba0d3f4238b704ce82364ea2de9285b4b2db533f0e6bf6b.ogg",
+      "duration_seconds": 2.71
+    },
+    {
+      "text": "It drops onto the enemy and bursts in a spreading explosion.",
+      "file": "9c75b1e98fdba723fcd71553067c4e656b17c7102572aae888f32b973c6d649b.ogg",
+      "duration_seconds": 2.87
+    },
+    {
+      "text": "Barret charges in and swings a rising punch, knocking the enemy skyward.",
+      "file": "2532ee8ef46e9967e46d40abaa6636c053e7b6ceeef78144574fd15fe2e78132.ogg",
+      "duration_seconds": 4.03
+    },
+    {
+      "text": "The view rises overhead. Red targeting sights sweep across the battlefield and lock onto the enemies.",
+      "file": "84e44715f7ccfa3b476fa6503d7e52ed232e899b8cf085973389289438d932b2.ogg",
+      "duration_seconds": 5.74
+    },
+    {
+      "text": "White-blue beams lance down from above, exploding in widening rings of light.",
+      "file": "f97c0c41efe2973f258ff30cd3e56616fe78f4b32390e22ded40dae30e879721.ogg",
+      "duration_seconds": 4.15
+    },
+    {
+      "text": "Barret braces his gun arm and unleashes a barrage, muzzle flashes strobing with each shot.",
+      "file": "7ce72c5912d833be2e91caa9c8c2ce4b6cab4cd5ee65d8df372bbaa0c73367e7.ogg",
+      "duration_seconds": 4.96
+    },
+    {
+      "text": "Barret spreads his arms and rises into the air. Light gathers at his gun arm.",
+      "file": "1ae4dc959b2b56b8c03fa3fd17cc1fff41ebbb912f3d76da8ce4edaf5e906247.ogg",
+      "duration_seconds": 4.19
+    },
+    {
+      "text": "He aims down, pouring out a thick golden beam. Explosions flare as he sweeps it across the enemy.",
+      "file": "d61121019bc0223ed46849bf6404443352e80f49c88204b2b24f19a944996614.ogg",
+      "duration_seconds": 6.09
+    },
+    {
+      "text": "Tifa pounds the enemy with quick punches.",
+      "file": "a2a60b2e08a7fb7446fef14da418f520dc1cf3bf6b64a74ad34233dd306f34c8.ogg",
+      "duration_seconds": 2.42
+    },
+    {
+      "text": "Tifa backflips with a rising kick.",
+      "file": "1b9bee3f2cb1bdf6ee35500bed5c26b09df0c9f61c413d6b63f33bfa405f04ba.ogg",
+      "duration_seconds": 2.04
+    },
+    {
+      "text": "Tifa sweeps a watery kick.",
+      "file": "82c7aef44f3eb6681d73510e6de2e353e07d9f5f8fa4e13867008e52404edd52.ogg",
+      "duration_seconds": 1.73
+    },
+    {
+      "text": "Tifa hoists the enemy into a backward slam.",
+      "file": "567e56e23f70e6e855a4231211b0fccce110af2b2232abf86cfe896a29afe3af.ogg",
+      "duration_seconds": 2.86
+    },
+    {
+      "text": "Tifa uppercuts alongside a leaping dolphin.",
+      "file": "8eb34e56e0fa7cb094028d1dd3493917424f3eecd35eb884d6a13891efd0b3f8.ogg",
+      "duration_seconds": 2.26
+    },
+    {
+      "text": "Tifa leaps high, then hurls the enemy down.",
+      "file": "6dce33acfeb6dbb0c7a683085ff6f56a272bf07d5ca71475d4b0a6425725232c.ogg",
+      "duration_seconds": 2.47
+    },
+    {
+      "text": "Golden light gathers around Tifa's fist.",
+      "file": "ec1183684dcc41ca08fbeb9b2f7b0577b20e281aa5e08b3e15f2ce8ad156d299.ogg",
+      "duration_seconds": 2.25
+    },
+    {
+      "text": "Her punch releases a brilliant shock wave.",
+      "file": "d03e3af021ad9d3c42cb66835b11625402726ed1de4fd26886322943b99499c6.ogg",
+      "duration_seconds": 2.25
+    },
+    {
+      "text": "Aerith holds her staff aloft. Blue lightning branches around her companions, followed by spheres of golden light.",
+      "file": "aaa0532f10981d1e2bd1b53bf421f07930ea5a2dd00dd56042e936482ed327ee.ogg",
+      "duration_seconds": 6.23
+    },
+    {
+      "text": "Aerith clasps her hands and kneels. Blue-white stars stream through slender columns of light around the party.",
+      "file": "4ea336c983e31280f3b3c6f198a45bdac707b2157d53536be650588d6a45b1b0.ogg",
+      "duration_seconds": 6.15
+    },
+    {
+      "text": "Aerith closes her eyes in prayer. Golden pools of light spread beneath her companions.",
+      "file": "e2bb86eb82dd047a49418d530ab54570d715ef4bc0beea0324d83a9cee7353ab.ogg",
+      "duration_seconds": 4.99
+    },
+    {
+      "text": "Small winged angels descend through a bright opening in swirling clouds.",
+      "file": "9b4ab3b20c3345df32782ddc6d91499e11150df5e6324fa4d18798332cbee226.ogg",
+      "duration_seconds": 3.76
+    },
+    {
+      "text": "Red Thirteen raises his head. A field of stars spins around a red sphere above him.",
+      "file": "a0bd75678becc6aa60f39c6c6fd451763114cd15476d4cb57dcb14922a3ac6c5.ogg",
+      "duration_seconds": 5.09
+    },
+    {
+      "text": "Points of light spiral inward. The sphere swells, glowing like a miniature sun.",
+      "file": "a6702e61b41a20526ae5687f049817159219f81001249517e31cde0dbc72dbb2.ogg",
+      "duration_seconds": 4.57
+    },
+    {
+      "text": "It fires a huge beam across the battlefield. Flame and jagged slabs of rock engulf the enemies.",
+      "file": "0c570bebc4fadeb4b49a17b5ed45c2756563c036d18e4bfb8c1a2364e7843ab3.ogg",
+      "duration_seconds": 6.07
+    },
+    {
+      "text": "It explodes in a red-orange flash as he ducks away.",
+      "file": "ddff3fc961aa50b566fba59d3db300d908958368a7539a3acd88ab0a04ba2a5e.ogg",
+      "duration_seconds": 2.79
+    },
+    {
+      "text": "Cid points his spear. A translucent blue dragon twists around the enemy in falling green light.",
+      "file": "d63cd0be390bca45494d81f2553720a3a9871736dc22aacfe45fe553701915b2.ogg",
+      "duration_seconds": 4.8100453514739225
+    },
+    {
+      "text": "A glowing orb streams back toward Cid.",
+      "file": "9f153d3c2ce5ff1471335ac1bdeddd0ec4c3d34ed7b0a4f8dcc198463890de8c.ogg",
+      "duration_seconds": 2.39
+    },
+    {
+      "text": "Cid crouches and rockets upward, spear poised.",
+      "file": "962378461eb57e1bc2fc5f795c3c74d12cac2c383768be3863836d0e3d86f4b0.ogg",
+      "duration_seconds": 2.95
+    },
+    {
+      "text": "He plunges down again and again, rebounding between blows as white bursts flash below.",
+      "file": "4cbd2b08ec6057c5913babf9462fc2d72a5459e23472bb10d471fed1bc4f0afd.ogg",
+      "duration_seconds": 5.37
+    },
+    {
+      "text": "A final dive drives a tall column of colored light into the ground.",
+      "file": "a18cfcc0f1bd39c6020d43c32f8ec04dba9783b5aa854d53ace1fb39a47d8bd6.ogg",
+      "duration_seconds": 3.44
+    },
+    {
+      "text": "Cid rushes in, jabbing and swinging his spear through a rapid flurry of blows.",
+      "file": "25d52f2907f8b170ac3bbf1b0fbb30351cfe07d1880e343bd39fe97adf5820fa.ogg",
+      "duration_seconds": 4.34
+    },
+    {
+      "text": "Cid raises his spear overhead, then waves to the sky.",
+      "file": "143d008524e1eca5854ff9c232ca2507671371d69c2fce3e2686efff3b768026.ogg",
+      "duration_seconds": 3.04
+    },
+    {
+      "text": "Missiles streak down in curving trails, peppering the enemy with bright explosions and billowing smoke.",
+      "file": "3182bf3710bae3d9ec5f8b4b448a51e29a5808c18810f4befb45b03c3c8d52e5.ogg",
+      "duration_seconds": 5.31
+    },
+    {
+      "text": "The barrage ends in a tall flare surrounded by fanning trails of smoke.",
+      "file": "f281f9facc635e314bca0a41577a8fe99db2eaee432d978d549b7971bf1c4924.ogg",
+      "duration_seconds": 3.8
+    },
+    {
+      "text": "Yuffie dashes past the enemy, slashes with her shuriken, and flips back into place.",
+      "file": "ea1f451064df93c4819bf5bf4aaa1c5fef87ec4d2cf9af1ab6863523954ebcf9.ogg",
+      "duration_seconds": 4.68
+    },
+    {
+      "text": "Yuffie spreads her arms. Blue-violet bubbles rise around each companion, shimmering before they fade.",
+      "file": "1cf0eba72a20174406b8f48285654318393569c3a8b0c61f19270b6649dde94c.ogg",
+      "duration_seconds": 6.34
+    },
+    {
+      "text": "Yuffie thrusts her hand toward the ground. A blue ring spreads beneath the enemies.",
+      "file": "709643b0a7549bbb081d9641075dbda22288024b32ca117010d6b17bed1737f0.ogg",
+      "duration_seconds": 4.25
+    },
+    {
+      "text": "Rocky slabs burst upward, tossing dust and debris into the air.",
+      "file": "b6f2485037a408c9d92b14bc803ad79292602be64bd7d359aa574e1b79f69859.ogg",
+      "duration_seconds": 3.93
+    },
+    {
+      "text": "Yuffie streaks between the enemies, swinging her shuriken through bursts of violet light.",
+      "file": "60d9f951c28d5286da52ae48cace9699ef2b4ee3c537527202244b4ec1531146.ogg",
+      "duration_seconds": 4.24
+    },
+    {
+      "text": "She vaults upward for the final strikes, then flips back toward her companions.",
+      "file": "16f65df7b031f8d94c01cc31286e248ba3e41d5450676cbb46794cf379f3adf4.ogg",
+      "duration_seconds": 3.84
+    },
+    {
+      "text": "Yuffie holds her weapon close and rises off the ground. Red light fills the air around her.",
+      "file": "6f5867a53a0ad661652a4fcf04ac85bfd10daa14f57297ac10f1b1ad74590b07.ogg",
+      "duration_seconds": 4.59
+    },
+    {
+      "text": "She releases a tremendous multicolored beam. It widens across the enemies, bleaching the scene white.",
+      "file": "7907f8582bffd9a40f80249a40173dabed3cdfc943c42b25b02f12dd1cae7b58.ogg",
+      "duration_seconds": 5.320045351473923
+    },
+    {
+      "text": "Vincent becomes a horned purple beast with a red mane, clawed hands, and a long tail.",
+      "file": "f87e2d476dc56fb880ecd1f8534e9f0549d6e93d45301d97585f02beabfe9ee9.ogg",
+      "duration_seconds": 4.62
+    },
+    {
+      "text": "Vincent becomes a hulking gray-green monster, with mismatched limbs and large bolts protruding from its shoulders.",
+      "file": "6d4011f8b3bec3c26eb0ac58d50d302082416167df2efb46d50000e80689cda1.ogg",
+      "duration_seconds": 6.27
+    },
+    {
+      "text": "Vincent becomes a hunched, white-masked figure in ragged clothes, a long chainsaw clutched in one hand.",
+      "file": "fe4c7d0b5961b719846707fb016e6bf8374cafaa7ddebf38be7f6d76c65bad6c.ogg",
+      "duration_seconds": 6.28
+    },
+    {
+      "text": "Vincent becomes a horned demon. Broad red bat wings unfurl from his back as he hovers.",
+      "file": "e4f4cc8a8474b8a6568c6a13e6b46367b7937ba8708346377c78ecf0f610f823.ogg",
+      "duration_seconds": 5.23
+    },
+    {
+      "text": "A huge stone skull pushes up beneath the enemies, its teeth forming a jagged grin.",
+      "file": "7ef30c74ca8e4cc141f438e50499bfb44c35d6eda885b6eb6420bba28299e286.ogg",
+      "duration_seconds": 4.64
+    },
+    {
+      "text": "Orange fire blazes from its eye sockets. The skull fractures, scattering chunks of rock across the ground.",
+      "file": "bf53f56019156d60504e947364428adf22dca9575de0f87d8f5b0263fbaf9fe6.ogg",
+      "duration_seconds": 5.65
+    },
+    {
+      "text": "Tiny red-uniformed soldiers march into a line. They shoulder their rifles and fire together.",
+      "file": "c3dfe49200d45b5f0f4884697c50ee951350f086ec159a6b8c06c54d69c88ed2.ogg",
+      "duration_seconds": 5.29
+    },
+    {
+      "text": "Cait Sith's big moogle bounces and sways, waving both arms as colorful stars swirl around the party.",
+      "file": "df4ae9b7abcc8d587dfcf245777f9e0e3876e224b1d914c1eab4a884eb369163.ogg",
+      "duration_seconds": 5.83
+    },
+    {
+      "text": "Red skulls rise around the party, their jaws gaping as a crimson glow pulses.",
+      "file": "b2c91b4135acc42bbdee23e578dd2395ab9b417939b588f2a8036a610ed77edc.ogg",
+      "duration_seconds": 4.44
+    },
+    {
+      "text": "Small blazing meteors tumble down, bursting around the enemy in golden explosions.",
+      "file": "ab57465fb9d854831d2e98b74f1cfdc0ee038c141e39437032ac2a8a42bd2c80.ogg",
+      "duration_seconds": 4.71
+    },
+    {
+      "text": "White-blue beams lance down from above. Explosions expand in rings of light.",
+      "file": "a2830011acc8e44f9ac145168b02d029ed67173031b0521490acb333ae60768b.ogg",
+      "duration_seconds": 4.52
+    },
+    {
+      "text": "Small winged angels descend through an opening in the swirling clouds.",
+      "file": "a12e81704c6009ed4b468c65dcee227af73b3462555bf687d2c6d516df0dfa8b.ogg",
+      "duration_seconds": 3.34
+    },
+    {
+      "text": "Colored orbs circle the summoner in rising green light.",
+      "file": "8038b7add3753ca125c45bfbaaf97e09af8f165fab65f854ae581988d87cf5d8.ogg",
+      "duration_seconds": 2.92
     }
   ]
 }

@@ -30,6 +30,7 @@ public sealed class Steam2026MenuObservationReader
     private readonly Func<int, string?> inventoryObjectNameResolver;
     private readonly Func<int, string?> inventoryObjectDescriptionResolver;
     private MateriaMenuSelectionReader? materiaReader;
+    private MateriaSubmenuSelectionReader? materiaSubmenuReader;
     private ShopMenuStateReader shopReader;
 
     internal string LastSaveMenuDiagnostic { get; private set; } = "not sampled";
@@ -47,7 +48,9 @@ public sealed class Steam2026MenuObservationReader
         Func<int, string?>? resolveItemDescription = null,
         int savemapAddress = SavemapPartyReader.AddressSavemap,
         Func<int, string?>? resolveMateriaName = null,
-        Func<int, string?>? resolveMateriaDescription = null)
+        Func<int, string?>? resolveMateriaDescription = null,
+        Func<int, string?>? resolveCommandName = null,
+        Func<int, string?>? resolveCommandDescription = null)
         : this(
             ValidatedTranslatedX86AddressSpaceFactory.Create(
                 fingerprint,
@@ -62,7 +65,11 @@ public sealed class Steam2026MenuObservationReader
             resolveItemDescription,
             savemapAddress)
     {
-        ConfigureNativeDetailResolvers(resolveMateriaName, resolveMateriaDescription);
+        ConfigureNativeDetailResolvers(
+            resolveMateriaName,
+            resolveMateriaDescription,
+            resolveCommandName,
+            resolveCommandDescription);
     }
 
     internal Steam2026MenuObservationReader(
@@ -327,6 +334,15 @@ public sealed class Steam2026MenuObservationReader
         return materiaReader?.TryRead(kind, out selection) == true;
     }
 
+    /// <summary>The Materia screen's command, Check, Arrange, Trash and Exchange selectors.</summary>
+    public bool TryReadMateriaSubmenu(
+        MenuWidgetKind kind,
+        out NativeMenuSelection selection)
+    {
+        selection = default;
+        return materiaSubmenuReader?.TryRead(kind, out selection) == true;
+    }
+
     internal bool TryReadShopMenuOwnership(out bool ownsShop) =>
         shopReader.TryReadOwnership(out ownsShop);
 
@@ -341,12 +357,19 @@ public sealed class Steam2026MenuObservationReader
 
     internal void ConfigureNativeDetailResolvers(
         Func<int, string?>? resolveMateriaName,
-        Func<int, string?>? resolveMateriaDescription)
+        Func<int, string?>? resolveMateriaDescription,
+        Func<int, string?>? resolveCommandName = null,
+        Func<int, string?>? resolveCommandDescription = null)
     {
         materiaReader = new MateriaMenuSelectionReader(
             addressSpace,
             resolveMateriaName,
             resolveMateriaDescription);
+        materiaSubmenuReader = new MateriaSubmenuSelectionReader(
+            addressSpace,
+            materiaReader,
+            resolveCommandName,
+            resolveCommandDescription);
         shopReader = new ShopMenuStateReader(
             addressSpace,
             inventoryObjectNameResolver,

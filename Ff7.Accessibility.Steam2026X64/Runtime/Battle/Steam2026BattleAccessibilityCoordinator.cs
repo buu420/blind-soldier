@@ -229,7 +229,15 @@ internal sealed class Steam2026BattleAccessibilityCoordinator
                 break;
             case Steam2026BattleRendererCallbackKind.DamageDisplay
                 when module == BattleStateReader.BattleModule:
-                ProcessDamage(ingress.CapturedDamage);
+                if (ingress.CapturedResult.IsValid)
+                {
+                    ProcessVisibleResult(ingress.CapturedResult);
+                }
+                else
+                {
+                    ProcessDamage(ingress.CapturedDamage);
+                }
+
                 break;
         }
     }
@@ -253,11 +261,6 @@ internal sealed class Steam2026BattleAccessibilityCoordinator
             return;
         }
 
-        if (options.Damage)
-        {
-            damageTracker.SeedActors(snapshot.Actors);
-        }
-
         if (options.EnemyAction)
         {
             if (!hasNativeBoundaryCapture)
@@ -270,7 +273,14 @@ internal sealed class Steam2026BattleAccessibilityCoordinator
 
         if (options.Status)
         {
-            statusTracker.Observe(snapshot.Actors);
+            // The damage calculation writes the live status mask before the
+            // animation starts; the drawn mask changes when the hit reaches the
+            // actor on screen. No drawn read, no status speech this batch.
+            if (reader.TryReadDisplayedStatus(out var displayedStatus))
+            {
+                statusTracker.ObserveDisplayed(snapshot.Actors, displayedStatus);
+            }
+
             QueueAll(
                 Steam2026BattleSpeechDomain.Status,
                 statusTracker.Poll,
@@ -337,6 +347,45 @@ internal sealed class Steam2026BattleAccessibilityCoordinator
             statusTracker.ConfirmVisibleDamageOutcome(
                 snapshot.Popup,
                 snapshot.VisibleActor);
+            QueueAll(
+                Steam2026BattleSpeechDomain.Status,
+                statusTracker.Poll,
+                preferredInterrupt: false);
+        }
+    }
+
+    private void ProcessVisibleResult(BattleVisibleResultSnapshot capturedResult)
+    {
+        if (!reader.TryReadVisibleResultTrackerSnapshot(capturedResult, out var snapshot))
+        {
+            return;
+        }
+
+        if (options.Damage)
+        {
+            damageTracker.ObserveVisibleResult(snapshot.Result, snapshot.Actors);
+            QueueSingle(
+                Steam2026BattleSpeechDomain.Damage,
+                damageTracker.Poll(),
+                preferredInterrupt: false);
+        }
+
+        if (options.Status)
+        {
+            if (snapshot.Result.HasProvenance)
+            {
+                statusTracker.ConfirmVisibleResult(snapshot.Result, snapshot.Target);
+            }
+            else if (snapshot.HasVisibleTarget)
+            {
+                // Without its result row the lethal hit is unknown: fall back to
+                // the live defeat flag, as before.
+                statusTracker.ConfirmVisibleDamageOutcome(
+                    snapshot.Result.ToPopupSnapshot(),
+                    snapshot.VisibleTarget);
+            }
+
+            statusTracker.ReleaseDeferred(snapshot.Result.TargetActor);
             QueueAll(
                 Steam2026BattleSpeechDomain.Status,
                 statusTracker.Poll,

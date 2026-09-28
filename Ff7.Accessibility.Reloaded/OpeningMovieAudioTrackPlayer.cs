@@ -33,7 +33,7 @@ namespace Ff7.Accessibility.Reloaded;
 /// <see cref="Stop"/> or <see cref="Dispose"/> orphans all three. A late preparation can
 /// therefore neither cancel a newer start nor be adopted by one.</para>
 /// </summary>
-internal sealed class OpeningMovieAudioTrackPlayer : IFieldMovieNarrationOutput
+internal sealed class OpeningMovieAudioTrackPlayer : IFieldMovieNarrationOutput, IFieldMovieNarrationCompletion, IFieldMovieNarrationPause
 {
     /// <summary>
     /// The most a late device is allowed to skip. Beyond this something pathological has
@@ -57,6 +57,8 @@ internal sealed class OpeningMovieAudioTrackPlayer : IFieldMovieNarrationOutput
     private INarrationDevice? playing;
     private int epoch;
     private bool disposed;
+    private bool completedNormally;
+    private bool paused;
 
     public OpeningMovieAudioTrackPlayer(string path, int volumePercent, Action<string> log, string label = "Opening movie")
         : this(path, volumePercent, log, label, null, null, null)
@@ -112,6 +114,11 @@ internal sealed class OpeningMovieAudioTrackPlayer : IFieldMovieNarrationOutput
                 return playing is not null || pendingStart is not null;
             }
         }
+    }
+
+    public bool CompletedNormally
+    {
+        get { lock (sync) return completedNormally; }
     }
 
     /// <summary>Whether a warm device is sitting ready. Diagnostic and test use.</summary>
@@ -275,6 +282,41 @@ internal sealed class OpeningMovieAudioTrackPlayer : IFieldMovieNarrationOutput
         }
     }
 
+    public bool SetPaused(bool value)
+    {
+        INarrationDevice? failed = null;
+        string? failure = null;
+        lock (sync)
+        {
+            var device = playing;
+            if (disposed || device is null) return false;
+            if (paused == value) return true;
+            try
+            {
+                // Keep ownership across Pause: a paused cue still occupies the voice.
+                // Resume reuses the stream cursor rather than replaying or seeking it.
+                if (value) device.Pause();
+                else device.Play();
+                if (!ReferenceEquals(playing, device)) return false;
+                paused = value;
+                return true;
+            }
+            catch (Exception ex)
+            {
+                // Detach before Dispose raises PlaybackStopped, so device failure can
+                // never masquerade as natural completion and mark a cue heard.
+                if (ReferenceEquals(playing, device)) playing = null;
+                completedNormally = false;
+                paused = false;
+                failed = device;
+                failure = ex.Message;
+            }
+        }
+        failed.Dispose();
+        log($"{label} narration pause/resume failed: {failure}");
+        return false;
+    }
+
     public bool Stop(string reason)
     {
         INarrationDevice? stopping;
@@ -285,6 +327,8 @@ internal sealed class OpeningMovieAudioTrackPlayer : IFieldMovieNarrationOutput
             // Every epoch bump orphans whatever is in flight: a preparation that finishes
             // later, and the pending start it would have satisfied.
             epoch++;
+            completedNormally = false;
+            paused = false;
             stopping = playing;
             warm = preparation?.Device;
             hadPending = pendingStart is not null;
@@ -509,6 +553,8 @@ internal sealed class OpeningMovieAudioTrackPlayer : IFieldMovieNarrationOutput
                 device.Seek(offset);
                 pendingStart = null;
                 playing = device;
+                completedNormally = false;
+                paused = false;
                 device.Play();
             }
             catch (Exception ex)
@@ -546,6 +592,8 @@ internal sealed class OpeningMovieAudioTrackPlayer : IFieldMovieNarrationOutput
             if (ReferenceEquals(playing, device))
             {
                 playing = null;
+                completedNormally = exception is null;
+                paused = false;
                 shouldDispose = true;
             }
         }
@@ -594,6 +642,8 @@ internal sealed class OpeningMovieAudioTrackPlayer : IFieldMovieNarrationOutput
         void OnStopped(Action<Exception?> handler);
 
         void Play();
+
+        void Pause();
     }
 
     private sealed class WaveOutNarrationDevice : INarrationDevice
@@ -647,6 +697,8 @@ internal sealed class OpeningMovieAudioTrackPlayer : IFieldMovieNarrationOutput
             output.PlaybackStopped += (_, args) => handler(args.Exception);
 
         public void Play() => output.Play();
+
+        public void Pause() => output.Pause();
 
         public void Dispose()
         {

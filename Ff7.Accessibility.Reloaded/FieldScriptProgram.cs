@@ -1017,6 +1017,10 @@ internal sealed class FieldScriptProgram
             var before = Leading(offset);
             before.IntersectWith(forward.Keys);
             before.Remove(offset);
+            if (literal.Block == TemporaryBankBlock && !IsVisitLatch(bytes, forward.Keys, before))
+            {
+                continue;
+            }
             if (bytes.Any(IsConcurrentlyWritten) &&
                 !(startedByTheDispatcher && before.Count < NativeOpcodesPerPass && before.All(IsNeverWaiting)))
             {
@@ -1084,6 +1088,34 @@ internal sealed class FieldScriptProgram
             address < 0xFF
                 ? new FieldBankByte(block, address + 1)
                 : new FieldBankByte(block switch { 1 => 3, 3 => 11, 11 => 13, 13 => 15, _ => 0 }, 0);
+    }
+
+    private const int TemporaryBankBlock = 5;
+
+    /// <summary>
+    /// Whether a temporary-bank test is a once-per-visit latch: field init (0060BCFA) zeroes the
+    /// bank, and the only code anywhere in the field that writes the byte is this same script,
+    /// after the test. Then its live value says exactly whether this visit has already been
+    /// through - gaiin_5's bat1, whose fallen icicle asks "Jump down to the room below?" only
+    /// while 5[13] is 0 and then INCs it, so a player who answered No is not sent back to a
+    /// line that no longer asks. A temporary byte anything else writes (another entity, a Main,
+    /// an unnamed write into the bank) is not a latch and decides nothing here.
+    /// </summary>
+    private bool IsVisitLatch(
+        IReadOnlyList<FieldBankByte> bytes,
+        IEnumerable<int> ownCode,
+        IReadOnlySet<int> beforeTheTest)
+    {
+        if (UnnamedWriters(TemporaryBankBlock).Count != 0)
+        {
+            return false;
+        }
+
+        var own = ownCode as ISet<int> ?? ownCode.ToHashSet();
+        var writers = WritersByByte();
+        return bytes.All(key =>
+            writers.TryGetValue(key, out var offsets) && offsets.Count != 0 &&
+            offsets.All(writer => own.Contains(writer) && !beforeTheTest.Contains(writer)));
     }
 
     /// <summary>
@@ -1217,9 +1249,12 @@ internal sealed class FieldScriptProgram
             return null;
         }
 
+        // Block 5 is the field's temporary bank (banks 5/6, 00CC14D0 in 0060FA7D; field init
+        // 0060BCFA zeroes all 256 bytes). It is kept here and admitted by MapJumpGuard only as
+        // a once-per-visit latch (IsVisitLatch); every other temporary test is still dropped.
         var bank = raw[1] >> 4;
         var block = FieldBankByte.BlockOf(bank);
-        if (block is 0 or 5 || raw[operatorAt] > 10)
+        if (block is 0 || raw[operatorAt] > 10)
         {
             return null;
         }

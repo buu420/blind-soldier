@@ -3,6 +3,15 @@ namespace Ff7.Accessibility.Reloaded;
 public sealed class MagicMenuSelectionReader
 {
     public const int AddressSelectedPartySlot = 0x00DD17E8;
+
+    /// <summary>
+    /// The Materia screen's Check lists (FUN_00708970, FUN_0070964b, FUN_00709a3b) index the
+    /// same ability records, the same way, for the party slot the Materia screen shows.
+    /// </summary>
+    public const int AddressMateriaCheckPartySlot = 0x00DD1638;
+    public const uint AddressMateriaCheckMagicWidget = 0x00DD13D0;
+    public const uint AddressMateriaCheckSummonWidget = 0x00DD1408;
+    public const uint AddressMateriaCheckEnemySkillWidget = 0x00DD1440;
     public const int AddressCurrentMp = 0x00DBA4AC;
     public const int AddressMagicRecords = 0x00DBA5A0;
     public const int AddressSummonRecords = 0x00DBA760;
@@ -134,7 +143,7 @@ public sealed class MagicMenuSelectionReader
             widget.First < 0 || widget.First >= widget.Columns ||
             widget.Cursor < 0 || widget.Cursor >= widget.Rows ||
             widget.ScrollOffset < 0 ||
-            !TryReadByte((uint)AddressSelectedPartySlot, out var partySlot) ||
+            !TryReadByte((uint)ResolvePartySlotAddress(expectedWidget.Address), out var partySlot) ||
             partySlot >= PartySlotCount)
         {
             return false;
@@ -174,6 +183,13 @@ public sealed class MagicMenuSelectionReader
             requiredMp);
         return true;
     }
+
+    private static int ResolvePartySlotAddress(uint widgetAddress) => widgetAddress is
+        AddressMateriaCheckMagicWidget or
+        AddressMateriaCheckSummonWidget or
+        AddressMateriaCheckEnemySkillWidget
+            ? AddressMateriaCheckPartySlot
+            : AddressSelectedPartySlot;
 
     private static bool TryResolveLayout(MenuWidgetKind kind, out AbilityMenuLayout layout)
     {

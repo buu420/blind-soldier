@@ -91,6 +91,17 @@ Canyon bonfire, Shinra Mansion, Rocket Town, and Temple of the Ancients.
 Version 0.6.2 preserves those recordings and adds no new narration.
 All packaged narration uses Brice's approved voice.
 
+Battle descriptions cover 93 distinct Limit Break and summon animations, including
+Tifa's successful chain moves, Vincent's forms and attacks, and Cait Sith's Slots
+outcomes. The 175 recorded cues describe appearances, movements, and attacks during
+the animations. A shared opening description also covers the summoner's colored
+orbs and green light, once per save. The displayed summon attack name is read on
+each cast. The summon's main description waits for its own scene to begin, and
+battle pause pauses the narration too. Each animation is described once per save; these expanded
+descriptions can play once even if that save already heard the earlier brief version.
+Selecting an ability in a menu does not start a description. Set `EnableBattleAnimationDescriptions`
+to `false` in the mod's configuration to disable these recordings.
+
 Coverage is limited to the included scenes; this does not mean every cutscene
 or optional event has been described. Area arrival descriptions say what a
 screen looks like when you enter it. They are not descriptions of moving
@@ -103,6 +114,13 @@ again where one exists.
 
 Field and world-map navigation, routes, auto walk and the progress indicator
 are described under [Navigation](#navigation).
+
+Version 0.7.8 repairs Gaea's Cliff story progression, cave exit labels, long
+climbs, and the Ribbon approach. It also adds recorded Limit Break and summon
+descriptions, reads Materia Arrange and Check, improves dialogue-choice speech,
+and reports battle drains and status changes at the visible result.
+Both runtimes passed automated checks; the cave traversal and battle narration
+timing still need in-game testing. See the [release notes](docs/releases/v0.7.8.md).
 
 Version 0.7.7 adds the coffin-room entrance and return path to the Shinra Mansion
 Exits list, improves autowalk around narrow gaps and NPC counters, and repairs
@@ -277,10 +295,10 @@ instead of reading unverified game memory.
 Choose one download from the
 [Blind Soldier Releases page](https://github.com/buu420/blind-soldier/releases):
 
-- [Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.7.7/Blind-Soldier-Portable.zip)
+- [Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.7.8/Blind-Soldier-Portable.zip)
   is the complete dual-runtime package. Use it for Steam 2026 x64 or when one
   extracted package must support both x86 and x64 installations.
-- [Blind-Soldier-2013-x86-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.7.7/Blind-Soldier-2013-x86-Portable.zip)
+- [Blind-Soldier-2013-x86-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.7.8/Blind-Soldier-2013-x86-Portable.zip)
   is the smaller legacy-only package. Use it for the 2013 x86 game, including
   stock 7th Heaven/FFNx. It deliberately contains no Steam 2026 launcher or
   x64 files.
@@ -391,17 +409,17 @@ Visual Studio C++ Build Tools, and PowerShell, then run:
 ```powershell
 .\Build-BlindSoldierPortablePackage.ps1 `
   -OutputPath .\artifacts\Blind-Soldier-Portable.zip `
-  -Version 0.7.7
+  -Version 0.7.8
 .\Verify-BlindSoldierPortablePackage.ps1 `
   -ArchivePath .\artifacts\Blind-Soldier-Portable.zip `
-  -ExpectedVersion 0.7.7
+  -ExpectedVersion 0.7.8
 .\Build-BlindSoldier2013PortablePackage.ps1 `
   -SourceArchivePath .\artifacts\Blind-Soldier-Portable.zip `
   -OutputPath .\artifacts\Blind-Soldier-2013-x86-Portable.zip `
-  -Version 0.7.7
+  -Version 0.7.8
 .\Verify-BlindSoldier2013PortablePackage.ps1 `
   -ArchivePath .\artifacts\Blind-Soldier-2013-x86-Portable.zip `
-  -ExpectedVersion 0.7.7 `
+  -ExpectedVersion 0.7.8 `
   -ExpectedSourceArchivePath .\artifacts\Blind-Soldier-Portable.zip
 ```
 

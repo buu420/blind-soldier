@@ -19,6 +19,13 @@ public static class FieldScriptExitGuards
 {
     public const int AddressSavemapFieldBanks = 0x00DC08DC;
 
+    /// <summary>
+    /// The field's temporary bank (banks 5 and 6, block 5): 0060FA7D writes it at 00CC14D0,
+    /// the x64 translation addresses the same guest bytes, and field init (0060BCFA) zeroes
+    /// it, so it holds what has happened on this visit only.
+    /// </summary>
+    public const int AddressTemporaryFieldBank = 0x00CC14D0;
+
     public static IReadOnlyList<FieldNavigationTarget> Apply(
         IReadOnlyList<FieldNavigationTarget> exits,
         IReadOnlyDictionary<string, IReadOnlyList<FieldScriptExitGuard>> guards,
@@ -88,6 +95,7 @@ public static class FieldScriptExitGuards
 
     private static int? BlockBase(int block) => block switch
     {
+        5 => AddressTemporaryFieldBank,
         1 => AddressSavemapFieldBanks,
         3 => AddressSavemapFieldBanks + 0x100,
         11 => AddressSavemapFieldBanks + 0x200,

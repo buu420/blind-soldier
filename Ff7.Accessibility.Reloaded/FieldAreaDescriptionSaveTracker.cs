@@ -42,6 +42,7 @@ public sealed class FieldAreaDescriptionSaveTracker
     public const int LoadedReadiness = 2;
 
     private readonly FieldAreaDescriptionHistory history;
+    private readonly FieldAreaDescriptionHistory? additionalHistory;
     private readonly Action<string>? log;
 
     private int pendingSaveFile;
@@ -57,9 +58,17 @@ public sealed class FieldAreaDescriptionSaveTracker
     private bool loadSucceeded;
     private bool titleSeenSinceGameplay;
 
-    public FieldAreaDescriptionSaveTracker(FieldAreaDescriptionHistory history, Action<string>? log = null)
+    /// <param name="additionalHistory">
+    /// Another per-save history bound by exactly the same native events - the battle
+    /// animation narrations - kept in its own file so neither can contaminate the other.
+    /// </param>
+    public FieldAreaDescriptionSaveTracker(
+        FieldAreaDescriptionHistory history,
+        Action<string>? log = null,
+        FieldAreaDescriptionHistory? additionalHistory = null)
     {
         this.history = history ?? throw new ArgumentNullException(nameof(history));
+        this.additionalHistory = additionalHistory;
         this.log = log;
     }
 
@@ -220,6 +229,7 @@ public sealed class FieldAreaDescriptionSaveTracker
         }
 
         history.LoadSave(pendingLoadFile, pendingLoadGame);
+        additionalHistory?.LoadSave(pendingLoadFile, pendingLoadGame);
         LastDiagnostic = $"bound to loaded save {pendingLoadFile}:{pendingLoadGame}";
         log?.Invoke($"Room description history bound to loaded save {pendingLoadFile}:{pendingLoadGame}.");
         loadingObserved = false;
@@ -235,6 +245,7 @@ public sealed class FieldAreaDescriptionSaveTracker
     public void ObserveNewGame()
     {
         history.BeginNewGame();
+        additionalHistory?.BeginNewGame();
         pendingSaveFile = 0;
         pendingSaveGame = 0;
         pendingLoadFile = 0;
@@ -281,6 +292,7 @@ public sealed class FieldAreaDescriptionSaveTracker
         if (result.IsSuccess)
         {
             history.SaveGame(pendingSaveFile, pendingSaveGame);
+            additionalHistory?.SaveGame(pendingSaveFile, pendingSaveGame);
             LastDiagnostic = $"bound to saved game {pendingSaveFile}:{pendingSaveGame}";
             log?.Invoke($"Room description history bound to saved game {pendingSaveFile}:{pendingSaveGame}.");
             return;

@@ -57,7 +57,56 @@ public readonly record struct FieldAutoWalkConvergenceSample(
     bool IsHeldByGame,
     FieldAutoWalkHoldReason Hold,
     int PortalIndex,
-    double RemainingDistance);
+    double RemainingDistance)
+{
+    /// <summary>
+    /// The sample both runtimes take of a live field route, built in one place so they
+    /// cannot measure it differently.
+    /// </summary>
+    public static FieldAutoWalkConvergenceSample ForRoute(
+        FieldNavigationController route,
+        FieldPositionSnapshot position,
+        bool isHeldByGame,
+        bool hasDirection)
+    {
+        ArgumentNullException.ThrowIfNull(route);
+        var progress = route.ResolveAutoWalkProgress(position);
+        // A climb is measured to its own landing and needs no route guidance. Navigation
+        // switched on while already mounted, or a position recovery on the ladder, leaves the
+        // route guidance empty for the rest of the climb; counting that as "no route" reset the
+        // guard on every sample, so a climb going nowhere was never stopped.
+        var measurable = route.CurrentRouteGuidance is not null || progress.IsClimb;
+        return new FieldAutoWalkConvergenceSample(
+            IsAutoWalkEnabled: true,
+            RouteIdentity: $"{route.CurrentRouteIdentity}|{progress.Traversal}",
+            IsHeldByGame: isHeldByGame,
+            Hold: !measurable
+                ? FieldAutoWalkHoldReason.NoRoute
+                : hasDirection
+                    ? FieldAutoWalkHoldReason.None
+                    : route.LastAutomaticInputHold,
+            PortalIndex: progress.PortalIndex,
+            RemainingDistance: progress.RemainingDistance);
+    }
+}
+
+/// <summary>
+/// What the convergence guard measures on the current stretch of a route.
+/// </summary>
+/// <param name="Traversal">
+/// Which stretch this is - walking, or one particular ladder climb. A new stretch is a new
+/// measurement, so the distance left on one cannot be held against the next.
+/// </param>
+/// <param name="PortalIndex">How far along the route's portals the party has got.</param>
+/// <param name="RemainingDistance">How far is left on this stretch.</param>
+public readonly record struct FieldAutoWalkProgress(
+    string Traversal,
+    int PortalIndex,
+    double RemainingDistance)
+{
+    /// <summary>A mounted climb, measured to its own landing.</summary>
+    public bool IsClimb => Traversal.StartsWith("ladder:", StringComparison.Ordinal);
+}
 
 /// <summary>
 /// Whether field auto walk is still getting anywhere.

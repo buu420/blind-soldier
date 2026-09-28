@@ -1,0 +1,50 @@
+Battle animation descriptions, revision 2, 2026-09-28
+
+93 animation identities, described in 175 recorded visual cues: 18 summon
+variants, 49 regular Limit Breaks, 12 Vincent transformations/attacks, and
+14 Cait Sith outcomes. Long animations have several cues describing appearance,
+movement, and the attack as those stages occur. Short chain moves stay concise.
+The wording concerns visible actions rather than hidden statistics or promised
+combat results. Source footage is not distributed.
+
+Visual references:
+https://www.youtube.com/watch?v=0t8yQ47qvQI (summons)
+https://www.youtube.com/watch?v=hITXcwHMEJA (Limit Breaks and variants)
+
+Scripts and timing were reviewed directly against extracted reference frames,
+including half-second samples at action starts and complex transitions.
+Descript was offered these reference videos for a second visual review but did
+not complete that review. It did not produce these scripts or voice recordings.
+
+Cue offsets use vanilla 15-Hz battle ticks. Limits anchor to their native action
+row; summons anchor to the native summon dispatcher handing off to the summon
+sequence, after casting. FFNx 30/60-fps battle modes scale the authored ticks.
+Native timing/anchor addresses were checked in both executables using Ghidra.
+Visual offsets are reference-footage estimates, not frame-exact live calibration.
+Final synchronization in both running games still requires play testing.
+
+Narration uses Brice's approved reference recording and local Qwen3-TTS,
+with his permission to synthesize and distribute his voice in this mod.
+No friend's voice, reference sample, model weights, or private recordings are
+included. English, temperature 0.68, top_p 0.9; natural generated timing,
+without tempo or pitch manipulation. Loudness is matched to the existing voice
+assets, with clipping checked after Vorbis decode.
+
+Each recording received an independent local spoken-word transcription check.
+Flagged results received a second pass with voice-activity detection; ambiguous
+or clipped takes were replaced and checked again. Expected name spellings and
+homophones are reviewed separately from actual added or missing words.
+Recording lengths were checked against the ordered cue timings, including
+Tifa's complete chain and Vincent's transformation followed by an attack.
+
+Revision 2 has its own once-per-save history identities, so a save that heard
+the earlier brief descriptions can hear this expanded set once. Existing movie
+and field recordings, configuration, and save history are preserved.
+
+Summoning-opening addition, 2026-09-28:
+One additional own-voice cue describes the shared colored-orb and green-light
+casting effect. It plays once per save, after the native attack-name banner
+appears and its screen-reader speech has finished. The displayed attack name
+comes from the game's loaded text and is announced on each cast. The existing
+175 main cues and their timing are unchanged. The new clip is 2.92 seconds,
+at natural speed, and passed the same decoded-audio and exact-word checks.

@@ -27,7 +27,14 @@ public enum MenuWidgetKind
     LimitLevel,
     LimitMoveList,
     LimitConfirmation,
-    KeyItemList
+    KeyItemList,
+    MateriaCheckCommand,
+    MateriaArrangeCommand,
+    MateriaTrashList,
+    MateriaTrashConfirmation,
+    MateriaExchangeSlot,
+    MateriaExchangeList,
+    MateriaExchangeCharacter
 }
 
 public readonly record struct MenuWidgetDescriptor(uint Address, string Name, MenuWidgetKind Kind);
@@ -59,6 +66,21 @@ public static class MenuWidgetCatalog
         new(0x00DD12B8, "Materia command", MenuWidgetKind.MateriaCommand),
         new(0x00DD12F0, "Materia slot", MenuWidgetKind.MateriaSlot),
         new(0x00DD1360, "Materia list", MenuWidgetKind.MateriaList),
+        // FUN_0070cf0b updates the selector at 0x00DD12B8 + mode * 0x38 for the Materia
+        // screen's mode at 0x00920FA0: 4 Check's command grid, 5-7 its Magic, Summon and
+        // Enemy Skill lists (the Magic screen's ability records, for the party slot at
+        // 0x00DD1638), 8 Arrange, 9 the Trash list, 10 the Trash confirmation. Exchange
+        // (FUN_0070fec2) moves one of its own three.
+        new(0x00DD1398, "Materia check command", MenuWidgetKind.MateriaCheckCommand),
+        new(0x00DD13D0, "Materia check magic list", MenuWidgetKind.MagicList),
+        new(0x00DD1408, "Materia check summon list", MenuWidgetKind.SummonList),
+        new(0x00DD1440, "Materia check enemy skill list", MenuWidgetKind.EnemySkillList),
+        new(0x00DD1478, "Materia arrange", MenuWidgetKind.MateriaArrangeCommand),
+        new(0x00DD14B0, "Materia trash list", MenuWidgetKind.MateriaTrashList),
+        new(0x00DD14E8, "Materia trash confirmation", MenuWidgetKind.MateriaTrashConfirmation),
+        new(0x00DD1520, "Materia exchange list", MenuWidgetKind.MateriaExchangeList),
+        new(0x00DD1558, "Materia exchange slot", MenuWidgetKind.MateriaExchangeSlot),
+        new(0x00DD1590, "Materia exchange character", MenuWidgetKind.MateriaExchangeCharacter),
         new(0x00DCA5C0, "Equip slot", MenuWidgetKind.EquipmentSlot),
         new(0x00DCA5F8, "Equip list", MenuWidgetKind.EquipmentList),
         new(0x00DC6C48, "Order party", MenuWidgetKind.CharacterList),

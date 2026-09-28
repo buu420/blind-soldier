@@ -262,6 +262,7 @@ public sealed class Mod : IModV1, IModV2
     /// history it is, and the gate is the only thing that consults it.
     /// </summary>
     private FieldAreaDescriptionHistory? fieldAreaDescriptionHistory;
+    private BattleAnimationNarrationRuntime? battleAnimationNarration;
     private FieldAreaDescriptionSaveTracker? fieldAreaDescriptionSaveTracker;
     private FieldAreaDescriptionHistoryGate fieldAreaDescriptionGate = new(null);
     private NativeSaveResultPopupReader? nativeSaveResultPopupReader;
@@ -359,6 +360,7 @@ public sealed class Mod : IModV1, IModV2
     private OrderMenuSelectionReader? orderMenuSelectionReader;
     private EquipmentMenuSelectionReader? equipmentMenuSelectionReader;
     private MateriaMenuSelectionReader? materiaMenuSelectionReader;
+    private MateriaSubmenuSelectionReader? materiaSubmenuSelectionReader;
     private ShopMenuStateReader? shopMenuStateReader;
     private readonly ShopMenuSpeechTracker shopMenuSpeechTracker = new();
     private MenuGilStateReader? menuGilStateReader;
@@ -367,7 +369,8 @@ public sealed class Mod : IModV1, IModV2
     private BattleHookAddressResolver? battleHookAddressResolver;
     private BattleStateReader? battleStateReader;
     private BattleResultsReader? battleResultsReader;
-    private BattleDamagePopupReader? battleDamagePopupReader;
+    private BattleVisibleResultReader? battleVisibleResultReader;
+    private BattleDisplayedStatusReader? battleDisplayedStatusReader;
     private TifaSlotResultReader? tifaSlotResultReader;
     private BattleMenuFrameSpeechCoordinator battleMenuFrameSpeechCoordinator = new();
     private readonly BattleTargetSpeechTracker battleTargetSpeechTracker = new();
@@ -656,6 +659,7 @@ public sealed class Mod : IModV1, IModV2
             openingMovieAudioTrackPlayer?.Dispose();
             fieldMovieNarrationTracker?.Dispose();
             cutsceneVoicePlayer?.Dispose();
+            battleAnimationNarration?.Dispose();
             basketballWindUpCuePlayer?.Dispose();
             basketballTopCuePlayer?.Dispose();
             armWrestlingLevelCuePlayer?.Dispose();
@@ -872,13 +876,13 @@ public sealed class Mod : IModV1, IModV2
             LoadCutsceneVoiceManifest(),
             CreateCutsceneVoiceOutput,
             Log,
-            () => fieldMovieNarrationTracker?.IsPlaying == true);
+            () => fieldMovieNarrationTracker?.IsPlaying == true || battleAnimationNarration?.IsPlaying == true);
 
         // The device is the only thing that knows a recording is still being heard: it
         // plays outside the screen reader, so neither Prism nor the word-count estimate
         // can see it. Field dialogue delivery waits on this.
         fieldCutsceneSpeechPriority.AttachRecordingProbe(
-            () => cutsceneVoicePlayer?.IsPlaying == true);
+            () => cutsceneVoicePlayer?.IsPlaying == true || battleAnimationNarration?.IsPlaying == true);
         fieldVisibleWindowSpeechCoordinator = new FieldVisibleWindowSpeechCoordinator(
             TimeSpan.FromMilliseconds(Math.Max(100, config.FieldMessageStableMs)));
         var legacyAddressSpace = new CurrentProcessLegacyAddressSpace();
@@ -1175,9 +1179,17 @@ public sealed class Mod : IModV1, IModV2
         fieldAreaDescriptionHistory = new FieldAreaDescriptionHistory(
             Path.Combine(modDirectory, "Configuration", "room-descriptions.json"),
             Log);
+        var battleDescriptionHistory = new FieldAreaDescriptionHistory(
+            Path.Combine(modDirectory, "Configuration", "battle-descriptions.json"), Log);
         fieldAreaDescriptionSaveTracker = new FieldAreaDescriptionSaveTracker(
             fieldAreaDescriptionHistory,
-            Log);
+            Log, battleDescriptionHistory);
+        battleAnimationNarration = BattleAnimationNarrationRuntime.Create(
+            legacyAddressSpace, battleDescriptionHistory, config, modDirectory, Log,
+            text => Speak(text, false),
+            () => cutsceneVoicePlayer?.IsPlaying == true || fieldMovieNarrationTracker?.IsPlaying == true,
+            IsScreenReaderSpeaking,
+            kernel2TextDatabase);
         fieldAreaDescriptionGate = new FieldAreaDescriptionHistoryGate(fieldAreaDescriptionHistory);
         flevelFieldTextResolver = gameRootDirectory is null
             ? null
@@ -1261,6 +1273,11 @@ public sealed class Mod : IModV1, IModV2
             legacyAddressSpace,
             resolveMateriaMenuName,
             resolveMateriaDescription);
+        materiaSubmenuSelectionReader = new MateriaSubmenuSelectionReader(
+            legacyAddressSpace,
+            materiaMenuSelectionReader,
+            resolveCommandName,
+            kernel2TextDatabase is null ? null : kernel2TextDatabase.ResolveCommandDescription);
         shopMenuStateReader = new ShopMenuStateReader(
             legacyAddressSpace,
             resolveInventoryObjectName,
@@ -1281,7 +1298,8 @@ public sealed class Mod : IModV1, IModV2
         battleResultsReader = new BattleResultsReader(
             legacyAddressSpace,
             resolveInventoryObjectName ?? (_ => null));
-        battleDamagePopupReader = new BattleDamagePopupReader(legacyAddressSpace);
+        battleVisibleResultReader = new BattleVisibleResultReader(legacyAddressSpace);
+        battleDisplayedStatusReader = new BattleDisplayedStatusReader(legacyAddressSpace);
         tifaSlotResultReader = new TifaSlotResultReader(legacyAddressSpace);
         battleMenuFrameSpeechCoordinator = new BattleMenuFrameSpeechCoordinator();
         Func<int, string?> resolveBattleText = kernel2TextDatabase is null
@@ -1703,6 +1721,10 @@ public sealed class Mod : IModV1, IModV2
                 TickCondorBattleReader();
                 TickCondorMinigameProbe();
                 TickFieldAreaDescriptionSaveIdentity();
+                var battleAnimationForeground = config.EnableSpeech && foregroundProcessGate.IsCurrentProcessForeground();
+                battleAnimationNarration?.Tick(DateTime.UtcNow,
+                    battleAnimationForeground && config.EnableBattleAnimationDescriptions,
+                    battleAnimationForeground && config.EnableBattleMessageSpeech);
                 TickFieldActivityReadout();
                 TickGlacierIceFloes();
                 TickGlacierMapScreen();
@@ -1789,7 +1811,7 @@ public sealed class Mod : IModV1, IModV2
             sleep = Math.Min(sleep, 50);
         }
 
-        if (config.EnableFieldCutsceneDescriptions)
+        if (config.EnableFieldCutsceneDescriptions || config.EnableBattleAnimationDescriptions)
         {
             sleep = Math.Min(sleep, 50);
         }
@@ -7195,21 +7217,16 @@ public sealed class Mod : IModV1, IModV2
         bool hasDirection,
         bool movementSuppressed)
     {
-        var guidance = fieldNavigationController.CurrentRouteGuidance;
         var label = fieldNavigationController.CurrentTargetLabel;
-        if (!fieldAutoWalkConvergence.Observe(
-                new FieldAutoWalkConvergenceSample(
-                    IsAutoWalkEnabled: true,
-                    RouteIdentity: fieldNavigationController.CurrentRouteIdentity,
-                    IsHeldByGame: movementSuppressed || !control.IsUsable,
-                    Hold: guidance is null
-                        ? FieldAutoWalkHoldReason.NoRoute
-                        : hasDirection
-                            ? FieldAutoWalkHoldReason.None
-                            : fieldNavigationController.LastAutomaticInputHold,
-                    PortalIndex: guidance?.PortalIndex ?? 0,
-                    RemainingDistance: guidance?.RemainingDistance ?? 0d),
-                DateTime.UtcNow))
+        // Built by the shared helper so both runtimes measure a ladder climb by its own
+        // landing (see FieldNavigationController.ResolveAutoWalkProgress) and CurrentRouteIdentity
+        // plus the stretch decides what a new measurement is.
+        var sample = FieldAutoWalkConvergenceSample.ForRoute(
+            fieldNavigationController,
+            position,
+            isHeldByGame: movementSuppressed || !control.IsUsable,
+            hasDirection: hasDirection);
+        if (!fieldAutoWalkConvergence.Observe(sample, DateTime.UtcNow))
         {
             return;
         }
@@ -7218,9 +7235,10 @@ public sealed class Mod : IModV1, IModV2
         Log(
             $"Field auto walk stopped: no meaningful progress for " +
             $"{FieldAutoWalkConvergenceTracker.NoProgressTimeout.TotalSeconds:0} seconds; " +
-            $"target={label}, remaining={guidance?.RemainingDistance ?? 0d:0}, " +
-            $"portal={guidance?.PortalIndex ?? -1}, hold={fieldNavigationController.LastAutomaticInputHold}, " +
-            $"position={position.X},{position.Y}");
+            $"target={label}, remaining={sample.RemainingDistance:0}, " +
+            $"portal={sample.PortalIndex}, stretch={sample.RouteIdentity}, " +
+            $"hold={fieldNavigationController.LastAutomaticInputHold}, " +
+            $"position={position.X},{position.Y},{position.Z}");
         if (StopNavigationAutoWalk(NavigationAutoWalkDomain.Field, announce: false))
         {
             Speak(
@@ -7894,6 +7912,12 @@ public sealed class Mod : IModV1, IModV2
                 return materia;
             }
 
+            if (MateriaSubmenuSelectionReader.Handles(probe.Kind) &&
+                materiaSubmenuSelectionReader?.TryRead(probe.Kind, out var materiaSubmenu) == true)
+            {
+                return materiaSubmenu;
+            }
+
             if (savemapPartyReader is null)
             {
                 return null;
@@ -8031,6 +8055,12 @@ public sealed class Mod : IModV1, IModV2
                 materiaMenuSelectionReader?.TryRead(snapshot.Kind, out var materia) == true)
             {
                 return snapshot with { NativeSelection = materia };
+            }
+
+            if (MateriaSubmenuSelectionReader.Handles(snapshot.Kind) &&
+                materiaSubmenuSelectionReader?.TryRead(snapshot.Kind, out var materiaSubmenu) == true)
+            {
+                return snapshot with { NativeSelection = materiaSubmenu };
             }
         }
         catch (Exception ex)
@@ -9464,17 +9494,11 @@ public sealed class Mod : IModV1, IModV2
                     }
                     else
                     {
-                        var needsActors = config.EnableBattleDamageSpeech ||
-                            config.EnableBattleEnemyActionSpeech ||
+                        var needsActors = config.EnableBattleEnemyActionSpeech ||
                             config.EnableBattleStatusSpeech;
                         IReadOnlyList<BattleActorSnapshot> actors = Array.Empty<BattleActorSnapshot>();
                         var actorsAvailable = !needsActors ||
                             battleStateReader.TryReadBattleActors(out actors);
-
-                        if (config.EnableBattleDamageSpeech && actorsAvailable)
-                        {
-                            battleDamageSpeechTracker.SeedActors(actors);
-                        }
 
                         if (config.EnableBattleEncounterSpeech)
                         {
@@ -9488,7 +9512,14 @@ public sealed class Mod : IModV1, IModV2
 
                         if (config.EnableBattleStatusSpeech && actorsAvailable)
                         {
-                            battleStatusSpeechTracker.Observe(actors);
+                            // The damage calculation writes the live status mask before the
+                            // animation starts; the drawn mask changes when the hit reaches
+                            // the actor on screen.
+                            if (battleDisplayedStatusReader?.TryRead(out var displayedStatus) == true)
+                            {
+                                battleStatusSpeechTracker.ObserveDisplayed(actors, displayedStatus);
+                            }
+
                             var speech = battleStatusSpeechTracker.Poll();
                             if (!string.IsNullOrWhiteSpace(speech))
                             {
@@ -9638,43 +9669,52 @@ public sealed class Mod : IModV1, IModV2
                 return;
             }
 
-            var popup = battleDamagePopupReader?.Read() ?? BattleDamagePopupSnapshot.Invalid;
-            if (popup.IsValid &&
-                battleStateReader?.TryReadBattleActor(popup.TargetActor, out var actor) == true)
+            // Read inside FUN_005bb410 before its first frame, while the popup's
+            // FUN_00425e5f sibling still names the result row it displays.
+            var result = battleVisibleResultReader?.Read() ?? BattleVisibleResultSnapshot.Invalid;
+            if (!result.IsValid)
             {
-                if (config.EnableBattleDamageSpeech)
-                {
-                    battleDamageSpeechTracker.Observe(popup, actor);
-                    var damageSpeech = battleDamageSpeechTracker.Poll();
-                    if (!string.IsNullOrWhiteSpace(damageSpeech))
-                    {
-                        if (config.EnableBattleDiagnostics)
-                        {
-                            Log($"Battle damage speech: effect={popup.EffectIndex}, target={popup.TargetActor}, value={popup.Value}, flags=0x{popup.Flags:X}, text={damageSpeech}");
-                        }
+                return;
+            }
 
-                        Speak(damageSpeech, false);
+            var actors = ReadBattlePopupActors(result.TargetActor);
+            if (actors.Count == 0)
+            {
+                return;
+            }
+
+            if (config.EnableBattleDamageSpeech)
+            {
+                battleDamageSpeechTracker.ObserveVisibleResult(result, actors);
+                var damageSpeech = battleDamageSpeechTracker.Poll();
+                if (!string.IsNullOrWhiteSpace(damageSpeech))
+                {
+                    if (config.EnableBattleDiagnostics)
+                    {
+                        Log(
+                            $"Battle damage speech: effect={result.EffectIndex}, target={result.TargetActor}, " +
+                            $"value={result.Value}, flags=0x{result.Flags:X}, attacker={result.AttackerActor}, " +
+                            $"row={result.ResultRow}, rowFlags=0x{result.ResultFlags:X}, " +
+                            $"drain={result.IsDrainRecovery}, sources=0x{result.DrainSourceMask:X4}, text={damageSpeech}");
                     }
+
+                    Speak(damageSpeech, false);
                 }
+            }
 
-                if (config.EnableBattleStatusSpeech &&
-                    battleStateReader.TryReadVisibleActorCorrelation(
-                        popup.TargetActor,
-                        out var visibleActorCorrelation))
+            if (config.EnableBattleStatusSpeech)
+            {
+                ConfirmBattlePopupStatus(result, actors);
+                battleStatusSpeechTracker.ReleaseDeferred(result.TargetActor);
+                string? statusSpeech;
+                while (!string.IsNullOrWhiteSpace(statusSpeech = battleStatusSpeechTracker.Poll()))
                 {
-                    battleStatusSpeechTracker.ConfirmVisibleDamageOutcome(
-                        popup,
-                        visibleActorCorrelation);
-                    var statusSpeech = battleStatusSpeechTracker.Poll();
-                    if (!string.IsNullOrWhiteSpace(statusSpeech))
+                    if (config.EnableBattleDiagnostics)
                     {
-                        if (config.EnableBattleDiagnostics)
-                        {
-                            Log($"Battle status speech confirmed by damage popup: {statusSpeech}");
-                        }
-
-                        Speak(statusSpeech, false);
+                        Log($"Battle status speech confirmed by damage popup: {statusSpeech}");
                     }
+
+                    Speak(statusSpeech, false);
                 }
             }
         }
@@ -9685,6 +9725,50 @@ public sealed class Mod : IModV1, IModV2
         finally
         {
             battleDamageDisplayHook?.OriginalFunction();
+        }
+    }
+
+    private IReadOnlyList<BattleActorSnapshot> ReadBattlePopupActors(int targetActor)
+    {
+        if (battleStateReader is null)
+        {
+            return Array.Empty<BattleActorSnapshot>();
+        }
+
+        if (battleStateReader.TryReadBattleActors(out var actors))
+        {
+            return actors;
+        }
+
+        // Drain sources then go unnamed, but the popup itself is still spoken.
+        return battleStateReader.TryReadBattleActor(targetActor, out var target)
+            ? [target]
+            : Array.Empty<BattleActorSnapshot>();
+    }
+
+    private void ConfirmBattlePopupStatus(
+        BattleVisibleResultSnapshot result,
+        IReadOnlyList<BattleActorSnapshot> actors)
+    {
+        if (result.HasProvenance)
+        {
+            foreach (var actor in actors)
+            {
+                if (actor.ActorIndex == result.TargetActor)
+                {
+                    battleStatusSpeechTracker.ConfirmVisibleResult(result, actor);
+                    break;
+                }
+            }
+
+            return;
+        }
+
+        // Without its result row the lethal hit is unknown: fall back to the
+        // live defeat flag, as before.
+        if (battleStateReader?.TryReadVisibleActorCorrelation(result.TargetActor, out var correlation) == true)
+        {
+            battleStatusSpeechTracker.ConfirmVisibleDamageOutcome(result.ToPopupSnapshot(), correlation);
         }
     }
 

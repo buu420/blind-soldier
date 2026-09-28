@@ -120,6 +120,36 @@ public sealed class FieldExitLabelResolver
             "gateway:307:1:304" or "gateway:307:2:304" or "gateway:307:3:304" or
             "gateway:308:1:305" or "gateway:308:2:305" or "gateway:308:3:305" => "Return through the basement library",
             "gateway:309:0:307" or "gateway:310:0:308" => "Leave the innermost library room",
+            // Gaea's Cliff's icicle caves (gaiin_3 693, gaiin_4 696, gaiin_5 697) all share
+            // the map name "Inside of Gaea's Cliff", and gaiin_5's four icicle battle lines are
+            // script exits too (each leaves for gaiin_3 only by the jump the game offers after
+            // its battle). Each way out is named for where it goes.
+            // The first two ice caves, gaiin_1 (690) and gaiin_2 (691), are joined by four doors
+            // each way on separate walkmesh levels: gaiin_1's entrance, middle and upper levels,
+            // gaiin_2's main and boulder levels. Each door is named by the level it leaves and
+            // the level it lands on (installed walkmesh, both runtimes).
+            "gateway:690:0:691" => "Door from the entrance level to the second cave's main level",
+            "gateway:690:1:691" => "Door from the upper level to the second cave's main level",
+            "gateway:690:2:691" => "Door from the middle level to the second cave's boulder level",
+            "gateway:690:3:691" => "Door from the middle level to the second cave's main level",
+            "gateway:691:0:690" => "Door from the main level to the first cave's entrance level",
+            "gateway:691:1:690" => "Door from the main level to the first cave's upper level, the way on",
+            "gateway:691:2:690" => "Door from the boulder level to the first cave's middle level",
+            "gateway:691:3:690" => "Door from the main level to the first cave's middle level",
+            "script-exit:693:15:692" => "Back out onto the cliff face",
+            "script-exit:693:16:696" => "Passage out to the ledge by the icicles",
+            "script-exit:693:17:696" => "Passage beyond the fallen ice, out to the far ledge",
+            "gateway:696:0:693" => "Back into the cave, beyond the fallen ice",
+            "gateway:696:1:693" => "Back into the cave by the icicle passage",
+            "gateway:696:2:697" => "Along the ledge to the icicles",
+            "gateway:696:3:697" => "Along the ledge to the way down",
+            "script-exit:697:3:693" => "First icicle, then the jump down into the cave",
+            "script-exit:697:4:693" => "Second icicle, then the jump down into the cave",
+            "script-exit:697:5:693" => "Third icicle, then the jump down into the cave",
+            "script-exit:697:6:693" => "Fourth icicle, then the jump down into the cave",
+            "script-exit:697:7:694" => "Out onto the cliff face, the way on up",
+            "script-exit:697:8:696" => "Back along the ledge from the icicles",
+            "script-exit:697:9:696" => "Back along the ledge from the way down",
             "gateway:335:0:329" => "Enter Item Store",
             "gateway:335:1:330" => "Enter Bar",
             "gateway:335:2:328" => "Enter Materia Store",
