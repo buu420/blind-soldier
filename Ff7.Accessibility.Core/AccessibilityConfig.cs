@@ -54,6 +54,7 @@ public sealed class AccessibilityConfig
     public string SubmarineMissionLockCueSoundPath { get; set; } = ArcadeCueAssets.FieldActivityButtonReady;
     public int SubmarineMissionCueVolumePercent { get; set; } = 70;
     public bool EnableSpeedSquareCoasterReadout { get; set; } = true;
+    public bool EnableSnowboardReadout { get; set; } = true;
     public bool EnableSpeedSquareCoasterDiagnostics { get; set; } = false;
     // The Basketball Game's wind-up. The tick and the top-of-rise marker play on
     // their own devices so the button the player is holding cannot cut them off.
@@ -271,5 +272,4 @@ public sealed class AccessibilityConfig
     public bool EnableBattleStatusSpeech { get; set; } = true;
     public bool EnableBattleDiagnostics { get; set; } = true;
 }
-
 

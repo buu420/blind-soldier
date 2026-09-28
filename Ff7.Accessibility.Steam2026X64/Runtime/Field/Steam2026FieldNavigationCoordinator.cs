@@ -69,6 +69,9 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
     // the altar, the dig, the Corel handcar, the cliff, the wind and the Junon rooms.
     // This runtime never built its observation, so none of those rooms spoke here.
     private readonly FieldActivityStateReader fieldActivityStateReader;
+    private readonly GreatGlacierIceFloeReader glacierIceReader;
+    private readonly GreatGlacierIceFloeReadout glacierIceReadout = new();
+    private readonly GreatGlacierMapScreenReadout glacierMapReadout = new();
     private readonly FieldActivityReadout fieldActivityReadout = new();
     private readonly ImmediateWaveCuePlayer? fieldActivityButtonCuePlayer;
     private bool fieldActivityOwnsInput;
@@ -246,7 +249,8 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             (address, length) => ReadEncodedText(addressSpace, address, length));
         exitLabelResolver = new FieldExitLabelResolver(
             fieldId => mapNames.Read(fieldId),
-            mapNameReader.Read);
+            mapNameReader.Read,
+            readGlacierCorridorState: new GreatGlacierCorridorStateReader(addressSpace).Read);
         exitPresentationPolicy = new FieldExitPresentationPolicy(
             ReadKalmTownComplete,
             new WutaiBellDoorStateReader(addressSpace).ReadDoorOpen);
@@ -349,6 +353,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                 log)
             : null;
         fieldActivityStateReader = new FieldActivityStateReader(addressSpace);
+        glacierIceReader = new GreatGlacierIceFloeReader(addressSpace);
         fieldActivityButtonCuePlayer = config.EnableFieldActivityReadout
             ? new ImmediateWaveCuePlayer(
                 ResolveConfiguredPath(
@@ -620,6 +625,8 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         ObserveJunonMinigameCues(frame, nowUtc);
         ObserveFloor60SoldierTurnCue(frame, nowUtc);
         ObserveFieldActivity(frame, nowUtc);
+        ObserveGlacierIceFloes(frame, nowUtc);
+        ObserveGlacierMapScreen(frame, nowUtc);
         var navigationEnabled = config.EnableFieldNavigationAssistant;
         var ownershipDisposition = ResolveOwnershipDisposition(
             navigationEnabled,
@@ -1774,6 +1781,59 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         fieldActivityLatestLine.Reset();
         fieldActivityOwnsInput = false;
         fieldActivityCurrentLine = null;
+    }
+
+    private void ObserveGlacierMapScreen(RuntimeFrameObservation frame, DateTime nowUtc)
+    {
+        if (!config.EnableFieldActivityReadout || frame.Lifecycle.IsShuttingDown ||
+            frame.Lifecycle.ModuleId != FieldPositionReader.FieldModule)
+        {
+            glacierMapReadout.Observe(-1);
+            return;
+        }
+        if (!frame.Lifecycle.IsForeground || !foregroundInput.IsCurrentProcessForeground()) return;
+        // A static map has no usable player pose; read its native screen identity directly.
+        if (!addressSpace.TryReadByte(FieldPositionReader.AddressCurrentModule, out var module) ||
+            !addressSpace.TryReadUInt16(FieldPositionReader.AddressFieldId, out var field) ||
+            !addressSpace.TryReadUInt16(FieldPositionReader.AddressFieldId, out var fieldAfter) ||
+            !addressSpace.TryReadByte(FieldPositionReader.AddressCurrentModule, out var moduleAfter) ||
+            module != moduleAfter || field != fieldAfter) return;
+        var screen = module == FieldPositionReader.FieldModule ? field : -1;
+        var speech = glacierMapReadout.Observe(screen);
+        if (screen == GreatGlacierMapScreen.FieldId)
+        {
+            fieldActivityCurrentLine = GreatGlacierMapScreen.Description;
+            fieldActivityOwnsInput = true;
+        }
+        if (speech is not null) Speak(speech, interrupt: true, nowUtc, "Glacier Map");
+    }
+
+    private void ObserveGlacierIceFloes(RuntimeFrameObservation frame, DateTime nowUtc)
+    {
+        if (!config.EnableFieldActivityReadout || frame.Lifecycle.IsShuttingDown ||
+            frame.Lifecycle.ModuleId != FieldPositionReader.FieldModule)
+        {
+            glacierIceReadout.Reset();
+            return;
+        }
+        if (!frame.Lifecycle.IsForeground || !foregroundInput.IsCurrentProcessForeground()) return;
+        var position = positionReader.ReadNavigation();
+        if (!position.IsUsable) return;
+        if (position.Position.FieldId != GreatGlacierIceFloePuzzle.FieldId)
+        {
+            glacierIceReadout.Reset();
+            return;
+        }
+        var state = glacierIceReader.Read();
+        if (state is null) return;
+        fieldActivityCurrentLine = GreatGlacierIceFloeReadout.DescribeGrid(state);
+        fieldActivityOwnsInput = state.IsCrossing;
+        var control = controlReader.Read(position.Position);
+        if (!control.IsUsable) return;
+        var speech = glacierIceReadout.Observe(position.Position.FieldId, state,
+            position.Position.Direction, control.Transform.SignedControlDirection);
+        if (speech is not null)
+            Speak(speech, interrupt: true, nowUtc, "Glacier ice floes");
     }
 
     /// <summary>Bank[5] is the field's 256 temporary bytes.</summary>

@@ -26,7 +26,12 @@ public static class FieldRoomDescriptorCatalog
             [216] = "dressing room",
             [218] = "lobby",
             [219] = "Lover's and Queen's rooms",
-            [220] = "Group and &$#% rooms"
+            [220] = "Group and &$#% rooms",
+            // Holzoff's cabin shares the map name Base of Gaea's Cliff with the ground outside.
+            // gaiafoot's gateway 0 opens into holu_1, and holu_2 is reached only through holu_1.
+            [686] = "outside the cabin",
+            [687] = "cabin front room",
+            [688] = "cabin back room"
         };
 
     public static string? Resolve(int fieldId) =>

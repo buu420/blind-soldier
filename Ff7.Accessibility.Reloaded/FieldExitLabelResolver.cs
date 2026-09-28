@@ -1,3 +1,5 @@
+using Ff7.Accessibility.LegacyLayout;
+
 namespace Ff7.Accessibility.Reloaded;
 
 public sealed class FieldExitLabelResolver
@@ -5,15 +7,23 @@ public sealed class FieldExitLabelResolver
     private readonly Func<int, FieldMapNameResolution> resolveMapNames;
     private readonly Func<string> readCurrentMapName;
     private readonly Func<int, string?> resolveRoomDescriptor;
+    private readonly Func<int?>? readGlacierCorridorState;
 
+    /// <param name="readGlacierCorridorState">
+    /// Bank 1 byte 184 while a Great Glacier passage screen (670..675) is loaded, e.g.
+    /// <see cref="GreatGlacierCorridorStateReader.Read"/>. Without it passage exits keep
+    /// their plain name; every other glacier exit is named either way.
+    /// </param>
     public FieldExitLabelResolver(
         Func<int, FieldMapNameResolution> resolveMapNames,
         Func<string> readCurrentMapName,
-        Func<int, string?>? resolveRoomDescriptor = null)
+        Func<int, string?>? resolveRoomDescriptor = null,
+        Func<int?>? readGlacierCorridorState = null)
     {
         this.resolveMapNames = resolveMapNames;
         this.readCurrentMapName = readCurrentMapName;
         this.resolveRoomDescriptor = resolveRoomDescriptor ?? FieldRoomDescriptorCatalog.Resolve;
+        this.readGlacierCorridorState = readGlacierCorridorState;
     }
 
     public IReadOnlyList<FieldNavigationTarget> Resolve(
@@ -25,12 +35,36 @@ public sealed class FieldExitLabelResolver
         }
 
         var currentMapName = Normalize(readCurrentMapName());
+        // One read of the passage state per publication, and only if a passage exit asks.
+        int? corridorState = null;
+        var corridorStateRead = false;
+        int? ReadCorridorState()
+        {
+            if (!corridorStateRead)
+            {
+                corridorStateRead = true;
+                try
+                {
+                    corridorState = readGlacierCorridorState?.Invoke();
+                }
+                catch (Exception)
+                {
+                    corridorState = null;
+                }
+            }
+
+            return corridorState;
+        }
+
         return targets
-            .Select(target => target with { Label = ResolveLabel(target, currentMapName) })
+            .Select(target => target with
+            {
+                Label = ResolveLabel(target, currentMapName, ReadCorridorState)
+            })
             .ToArray();
     }
 
-    private string ResolveLabel(FieldNavigationTarget target, string currentMapName)
+    private string ResolveLabel(FieldNavigationTarget target, string currentMapName, Func<int?> readCorridorState)
     {
         if (TempleChaseLayout.ResolveLabel(target) is { } chaseLabel)
         {
@@ -189,11 +223,21 @@ public sealed class FieldExitLabelResolver
             "script-exit:586:15:586:floor2" => "Stairs down to the second floor",
             "script-exit:586:15:586:floor3" => "Stairs down to the third floor",
             "script-exit:586:15:586:floor4" => "Stairs down to the fourth floor",
+            // The Great Glacier's ways back onto the snowfield are world entries (64 from the
+            // All cave, 60 from the cabin's front gateway), which have no map name and were
+            // a bare "Exit".
+            "script-exit:682:1:64" => "Leave the cave for the snowfield",
+            "gateway:686:1:60" => "Leave for the snowfield",
             _ => null
         };
         if (exactLabel is not null)
         {
             return exactLabel;
+        }
+
+        if (GreatGlacierExitLabels.ResolveLabel(target, readCorridorState) is { } glacierLabel)
+        {
+            return glacierLabel;
         }
 
         var destinationFieldIds = target.DestinationFieldIds;
@@ -269,4 +313,282 @@ public sealed class FieldExitLabelResolver
             (value ?? string.Empty).Split(
                 (char[]?)null,
                 StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+}
+
+/// <summary>
+/// Where each Great Glacier exit finally comes out. Every glacier screen has the map name
+/// "Great Glacier", and most exits lead into one of the six passage screens (move_s, move_i,
+/// move_f, move_r, move_u, move_d: fields 670..675), whose event scripts send the party on
+/// according to savemap bank 1 byte 184. A path from an ordinary screen always writes the
+/// same value, so where it comes out is fixed. Inside a passage it depends on the live byte.
+///
+/// <para>The tables were built from the installed scripts: each LINE's MAPJUMP and the byte
+/// its script leaves, followed through each passage by the one line that does not lead back.
+/// GreatGlacierExitLabelTests rebuilds every entry from the installed field archive. The
+/// landmark names are what each destination screen shows (its background, or its native
+/// hot spring, lake crossing and caves), cross-checked with Absolute Steve's guide. No label
+/// names a treasure.</para>
+/// </summary>
+public static class GreatGlacierExitLabels
+{
+    public const int FirstPassageField = 670;
+    public const int LastPassageField = 675;
+
+    private const string GlacierExit = "Exit to Great Glacier";
+
+    public static bool IsPassage(int fieldId) => fieldId is >= FirstPassageField and <= LastPassageField;
+
+    /// <summary>
+    /// The label for a glacier LINE exit, or null to leave the ordinary name: an exit this
+    /// table does not know, a passage exit without a readable state, or a destination with a
+    /// map name of its own (Frostbite Cave, Cave).
+    /// </summary>
+    public static string? ResolveLabel(FieldNavigationTarget target, Func<int?> readCorridorState)
+    {
+        if (!TryParseScriptExit(target.StableId, out var field, out var entity))
+        {
+            return null;
+        }
+
+        if (IsPassage(field))
+        {
+            return readCorridorState() is int state &&
+                   CorridorFinals.TryGetValue((field, state, entity), out var hop)
+                ? Describe(IsPassage(hop.Next), hop.Final)
+                : null;
+        }
+
+        return FixedFinals.TryGetValue((field, entity), out var final)
+            ? Describe(target.DestinationFieldIds?.Any(IsPassage) == true, final)
+            : null;
+    }
+
+    public static int? FixedFinal(int field, int entity) =>
+        FixedFinals.TryGetValue((field, entity), out var final) ? final : null;
+
+    public static (int Next, int Final)? CorridorFinal(int field, int state, int entity) =>
+        CorridorFinals.TryGetValue((field, state, entity), out var hop) ? hop : null;
+
+    public static IEnumerable<(int Field, int Entity)> FixedKeys => FixedFinals.Keys;
+
+    public static IEnumerable<(int Field, int State, int Entity)> CorridorKeys => CorridorFinals.Keys;
+
+    public static int FixedEntryCount => FixedFinals.Count;
+
+    public static int CorridorEntryCount => CorridorFinals.Count;
+
+    /// <summary>Every label the tables can produce, both ways a destination can be reached.</summary>
+    public static IEnumerable<string> AllLabels() =>
+        FixedFinals.Values.Concat(CorridorFinals.Values.Select(hop => hop.Final))
+            .Distinct()
+            .SelectMany(final => new[] { Describe(false, final), Describe(true, final) })
+            .OfType<string>()
+            .Distinct();
+
+    private static string? Describe(bool throughPassage, int final)
+    {
+        if (final == 48)
+        {
+            return throughPassage ? $"{GlacierExit}, passage toward the world map" : "Leave the glacier for the world map";
+        }
+
+        if (final is >= 61 and <= 64)
+        {
+            return throughPassage ? $"{GlacierExit}, passage toward the snowfield" : "Leave for the snowfield";
+        }
+
+        if (final is 661 or 662)
+        {
+            return throughPassage ? $"{GlacierExit}, passage toward Frostbite Cave" : null;
+        }
+
+        if (final is 666 or 678 or 682 or 684)
+        {
+            return throughPassage ? $"{GlacierExit}, passage toward a cave" : null;
+        }
+
+        if (!Landmarks.TryGetValue(final, out var landmark))
+        {
+            return null;
+        }
+
+        return throughPassage ? $"{GlacierExit}, passage toward the {landmark}" : $"{GlacierExit}, {landmark}";
+    }
+
+    private static bool TryParseScriptExit(string stableId, out int field, out int entity)
+    {
+        field = 0;
+        entity = 0;
+        var parts = stableId.Split(':');
+        return parts.Length >= 3 &&
+               parts[0] == "script-exit" &&
+               int.TryParse(parts[1], out field) &&
+               int.TryParse(parts[2], out entity) &&
+               field is >= 658 and <= 684;
+    }
+
+    // What each destination screen shows. 658 has the "ICE GATE" sign; 659 is snow-laden pine
+    // forest; 660 a snowy valley between rocky slopes; 663 open snow slopes; 664 flat plates of
+    // ice above a stand of pines, beside the lake; 665 the frozen lake of the ice-floe crossing;
+    // 667 its north shore; 668 a fallen tree lying across a ravine; 676 open snow with a single
+    // pine; 677 a field of snow-covered pillars around a cave; 679 rocky ridges where four
+    // paths meet; 680 the hot spring (native, dialogs 54 and 55); 681 a rocky mountain trail;
+    // 683 a ravine between cliffs below the cave in 684.
+    private static readonly IReadOnlyDictionary<int, string> Landmarks = new Dictionary<int, string>
+    {
+        [658] = "Ice Gate",
+        [659] = "pine forest",
+        [660] = "rocky valley",
+        [663] = "open snow slopes",
+        [664] = "ice flats",
+        [665] = "frozen lake",
+        [667] = "north shore of the frozen lake",
+        [668] = "fallen-tree bridge",
+        [676] = "lone pine",
+        [677] = "snow pillars",
+        [679] = "rocky crossroads",
+        [680] = "hot spring",
+        [681] = "mountain trail",
+        [683] = "cliff ravine"
+    };
+
+
+    // Ordinary screens: (field, LINE entity) -> the screen the path finally reaches.
+    private static readonly Dictionary<(int Field, int Entity), int> FixedFinals = new()
+    {
+        [(658, 4)] = 660, [(658, 5)] = 659, [(658, 6)] = 663, [(658, 7)] = 48,
+        [(659, 4)] = 664, [(659, 5)] = 658, [(659, 6)] = 658, [(659, 7)] = 663,
+        [(660, 4)] = 658, [(660, 5)] = 679, [(660, 6)] = 664, [(660, 7)] = 661,
+        [(661, 5)] = 660, [(661, 6)] = 662, [(661, 7)] = 662, [(661, 8)] = 662,
+        [(662, 2)] = 661, [(662, 3)] = 48,
+        [(663, 4)] = 659, [(663, 5)] = 659, [(663, 6)] = 658, [(663, 7)] = 658, [(663, 8)] = 658, [(663, 9)] = 658, [(663, 10)] = 677, [(663, 11)] = 677, [(663, 12)] = 677, [(663, 13)] = 677, [(663, 14)] = 677, [(663, 15)] = 677, [(663, 16)] = 677, [(663, 17)] = 677, [(663, 18)] = 677,
+        [(664, 4)] = 676, [(664, 5)] = 676, [(664, 6)] = 676, [(664, 7)] = 676, [(664, 8)] = 660, [(664, 9)] = 660, [(664, 10)] = 659, [(664, 11)] = 659, [(664, 12)] = 659, [(664, 13)] = 665,
+        [(665, 11)] = 664, [(665, 12)] = 667, [(665, 13)] = 667, [(665, 14)] = 667, [(665, 15)] = 667, [(665, 16)] = 667, [(665, 17)] = 667, [(665, 18)] = 667, [(665, 19)] = 667, [(665, 20)] = 667,
+        [(666, 2)] = 667, [(666, 3)] = 667,
+        [(667, 4)] = 666, [(667, 5)] = 665,
+        [(668, 4)] = 676, [(668, 5)] = 676, [(668, 6)] = 676, [(668, 7)] = 676, [(668, 8)] = 676, [(668, 9)] = 676, [(668, 10)] = 681, [(668, 11)] = 681, [(668, 12)] = 681, [(668, 13)] = 681, [(668, 14)] = 681, [(668, 15)] = 681, [(668, 16)] = 677,
+        [(676, 4)] = 664, [(676, 5)] = 679, [(676, 6)] = 679, [(676, 7)] = 679, [(676, 8)] = 668,
+        [(677, 4)] = 668, [(677, 5)] = 668, [(677, 6)] = 663, [(677, 7)] = 681, [(677, 8)] = 681, [(677, 9)] = 681, [(677, 10)] = 678, [(677, 11)] = 678,
+        [(678, 1)] = 677, [(678, 2)] = 677,
+        [(679, 4)] = 660, [(679, 5)] = 680, [(679, 6)] = 676, [(679, 7)] = 680,
+        [(680, 6)] = 62, [(680, 7)] = 62, [(680, 8)] = 62, [(680, 9)] = 62, [(680, 10)] = 62, [(680, 11)] = 62, [(680, 12)] = 679, [(680, 13)] = 679, [(680, 14)] = 679, [(680, 15)] = 679, [(680, 16)] = 679, [(680, 17)] = 679, [(680, 18)] = 679, [(680, 19)] = 679,
+        [(681, 4)] = 61, [(681, 5)] = 668, [(681, 6)] = 668, [(681, 7)] = 668, [(681, 8)] = 677,
+        [(682, 1)] = 64,
+        [(683, 4)] = 63, [(683, 5)] = 63, [(683, 6)] = 63, [(683, 7)] = 63, [(683, 8)] = 679, [(683, 9)] = 679, [(683, 10)] = 679, [(683, 11)] = 679, [(683, 12)] = 679, [(683, 13)] = 679, [(683, 14)] = 679, [(683, 15)] = 684,
+        [(684, 3)] = 683,
+    };
+
+    // Passage screens: (field, bank 1 byte 184, LINE entity) -> (next screen, screen finally reached).
+    private static readonly Dictionary<(int Field, int State, int Entity), (int Next, int Final)> CorridorFinals = new()
+    {
+        [(670, 27, 4)] = (658, 658), [(670, 27, 5)] = (670, 663),
+        [(670, 28, 4)] = (658, 658), [(670, 28, 5)] = (670, 663),
+        [(670, 29, 4)] = (670, 658), [(670, 29, 5)] = (670, 663),
+        [(670, 30, 4)] = (670, 658), [(670, 30, 5)] = (670, 663),
+        [(670, 31, 4)] = (670, 658), [(670, 31, 5)] = (663, 663),
+        [(670, 32, 4)] = (670, 658), [(670, 32, 5)] = (663, 663),
+        [(670, 33, 4)] = (663, 663), [(670, 33, 5)] = (671, 677),
+        [(670, 34, 4)] = (663, 663), [(670, 34, 5)] = (671, 677),
+        [(670, 35, 4)] = (671, 663), [(670, 35, 5)] = (677, 677),
+        [(670, 36, 4)] = (671, 663), [(670, 36, 5)] = (677, 677),
+        [(670, 37, 4)] = (671, 676), [(670, 37, 5)] = (668, 668),
+        [(670, 38, 4)] = (671, 676), [(670, 38, 5)] = (668, 668),
+        [(670, 39, 4)] = (668, 668), [(670, 39, 5)] = (670, 677),
+        [(670, 40, 4)] = (668, 668), [(670, 40, 5)] = (670, 677),
+        [(670, 41, 4)] = (670, 668), [(670, 41, 5)] = (677, 677),
+        [(670, 42, 4)] = (670, 668), [(670, 42, 5)] = (677, 677),
+        [(670, 43, 4)] = (670, 681), [(670, 43, 5)] = (677, 677),
+        [(670, 44, 4)] = (670, 681), [(670, 44, 5)] = (677, 677),
+        [(670, 45, 4)] = (681, 681), [(670, 45, 5)] = (670, 677),
+        [(670, 46, 4)] = (681, 681), [(670, 46, 5)] = (670, 677),
+        [(670, 47, 4)] = (668, 668), [(670, 47, 5)] = (681, 681),
+        [(670, 48, 4)] = (668, 668), [(670, 48, 5)] = (681, 681),
+        [(670, 49, 4)] = (670, 61), [(670, 49, 5)] = (681, 681),
+        [(670, 50, 4)] = (670, 61), [(670, 50, 5)] = (681, 681),
+        [(670, 51, 4)] = (61, 61), [(670, 51, 5)] = (670, 681),
+        [(670, 52, 4)] = (61, 61), [(670, 52, 5)] = (670, 681),
+        [(670, 53, 4)] = (675, 680), [(670, 53, 5)] = (62, 62),
+        [(670, 54, 4)] = (675, 680), [(670, 54, 5)] = (62, 62),
+        [(670, 55, 4)] = (671, 683), [(670, 55, 5)] = (63, 63),
+        [(670, 56, 4)] = (671, 683), [(670, 56, 5)] = (63, 63),
+        [(671, 21, 4)] = (673, 683), [(671, 21, 5)] = (670, 63),
+        [(671, 22, 4)] = (673, 683), [(671, 22, 5)] = (670, 63),
+        [(671, 23, 4)] = (676, 676), [(671, 23, 5)] = (670, 668),
+        [(671, 24, 4)] = (676, 676), [(671, 24, 5)] = (670, 668),
+        [(671, 25, 4)] = (670, 663), [(671, 25, 5)] = (670, 677),
+        [(671, 26, 4)] = (670, 663), [(671, 26, 5)] = (670, 677),
+        [(672, 0, 6)] = (659, 659), [(672, 0, 7)] = (659, 659), [(672, 0, 8)] = (659, 659), [(672, 0, 9)] = (659, 659), [(672, 0, 10)] = (658, 658), [(672, 0, 11)] = (658, 658), [(672, 0, 12)] = (658, 658), [(672, 0, 13)] = (658, 658), [(672, 0, 14)] = (658, 658), [(672, 0, 15)] = (658, 658), [(672, 0, 16)] = (658, 658),
+        [(672, 1, 6)] = (659, 659), [(672, 1, 7)] = (659, 659), [(672, 1, 8)] = (659, 659), [(672, 1, 9)] = (659, 659), [(672, 1, 10)] = (658, 658), [(672, 1, 11)] = (658, 658), [(672, 1, 12)] = (658, 658), [(672, 1, 13)] = (658, 658), [(672, 1, 14)] = (658, 658), [(672, 1, 15)] = (658, 658), [(672, 1, 16)] = (658, 658),
+        [(672, 3, 6)] = (659, 659), [(672, 3, 7)] = (659, 659), [(672, 3, 8)] = (659, 659), [(672, 3, 9)] = (659, 659), [(672, 3, 10)] = (663, 663), [(672, 3, 11)] = (663, 663), [(672, 3, 12)] = (663, 663), [(672, 3, 13)] = (663, 663), [(672, 3, 14)] = (663, 663), [(672, 3, 15)] = (663, 663), [(672, 3, 16)] = (663, 663),
+        [(672, 4, 6)] = (659, 659), [(672, 4, 7)] = (659, 659), [(672, 4, 8)] = (659, 659), [(672, 4, 9)] = (659, 659), [(672, 4, 10)] = (663, 663), [(672, 4, 11)] = (663, 663), [(672, 4, 12)] = (663, 663), [(672, 4, 13)] = (663, 663), [(672, 4, 14)] = (663, 663), [(672, 4, 15)] = (663, 663), [(672, 4, 16)] = (663, 663),
+        [(672, 5, 6)] = (664, 664), [(672, 5, 7)] = (664, 664), [(672, 5, 8)] = (664, 664), [(672, 5, 9)] = (664, 664), [(672, 5, 10)] = (659, 659), [(672, 5, 11)] = (659, 659), [(672, 5, 12)] = (659, 659), [(672, 5, 13)] = (659, 659), [(672, 5, 14)] = (659, 659), [(672, 5, 15)] = (659, 659), [(672, 5, 16)] = (659, 659),
+        [(672, 6, 6)] = (664, 664), [(672, 6, 7)] = (664, 664), [(672, 6, 8)] = (664, 664), [(672, 6, 9)] = (664, 664), [(672, 6, 10)] = (659, 659), [(672, 6, 11)] = (659, 659), [(672, 6, 12)] = (659, 659), [(672, 6, 13)] = (659, 659), [(672, 6, 14)] = (659, 659), [(672, 6, 15)] = (659, 659), [(672, 6, 16)] = (659, 659),
+        [(672, 7, 6)] = (676, 676), [(672, 7, 7)] = (676, 676), [(672, 7, 8)] = (676, 676), [(672, 7, 9)] = (676, 676), [(672, 7, 10)] = (664, 664), [(672, 7, 11)] = (664, 664), [(672, 7, 12)] = (664, 664), [(672, 7, 13)] = (664, 664), [(672, 7, 14)] = (664, 664), [(672, 7, 15)] = (664, 664), [(672, 7, 16)] = (664, 664),
+        [(672, 8, 6)] = (676, 676), [(672, 8, 7)] = (676, 676), [(672, 8, 8)] = (676, 676), [(672, 8, 9)] = (676, 676), [(672, 8, 10)] = (664, 664), [(672, 8, 11)] = (664, 664), [(672, 8, 12)] = (664, 664), [(672, 8, 13)] = (664, 664), [(672, 8, 14)] = (664, 664), [(672, 8, 15)] = (664, 664), [(672, 8, 16)] = (664, 664),
+        [(673, 9, 4)] = (673, 660), [(673, 9, 5)] = (658, 658),
+        [(673, 10, 4)] = (673, 660), [(673, 10, 5)] = (658, 658),
+        [(673, 11, 4)] = (660, 660), [(673, 11, 5)] = (673, 658),
+        [(673, 12, 4)] = (660, 660), [(673, 12, 5)] = (673, 658),
+        [(673, 13, 4)] = (660, 660), [(673, 13, 5)] = (664, 664),
+        [(673, 14, 4)] = (660, 660), [(673, 14, 5)] = (664, 664),
+        [(673, 15, 4)] = (673, 679), [(673, 15, 5)] = (660, 660),
+        [(673, 17, 4)] = (674, 679), [(673, 17, 5)] = (673, 660),
+        [(673, 19, 4)] = (683, 683), [(673, 19, 5)] = (671, 63),
+        [(673, 20, 4)] = (683, 683), [(673, 20, 5)] = (671, 63),
+        [(674, 57, 4)] = (674, 679), [(674, 57, 5)] = (673, 660),
+        [(674, 58, 4)] = (679, 679), [(674, 58, 5)] = (674, 660),
+        [(674, 59, 4)] = (674, 679), [(674, 59, 5)] = (676, 676),
+        [(674, 60, 4)] = (674, 679), [(674, 60, 5)] = (674, 676),
+        [(674, 61, 4)] = (679, 679), [(674, 61, 5)] = (674, 676),
+        [(674, 63, 4)] = (674, 679), [(674, 63, 5)] = (680, 680),
+        [(674, 64, 4)] = (679, 679), [(674, 64, 5)] = (674, 680),
+        [(674, 65, 4)] = (683, 683), [(674, 65, 5)] = (674, 679),
+        [(674, 66, 4)] = (674, 683), [(674, 66, 5)] = (679, 679),
+        [(675, 74, 4)] = (679, 679), [(675, 74, 5)] = (679, 679), [(675, 74, 6)] = (679, 679), [(675, 74, 7)] = (679, 679), [(675, 74, 8)] = (675, 680), [(675, 74, 9)] = (675, 680), [(675, 74, 10)] = (675, 680),
+        [(675, 75, 4)] = (675, 679), [(675, 75, 5)] = (675, 679), [(675, 75, 6)] = (675, 679), [(675, 75, 7)] = (675, 679), [(675, 75, 8)] = (680, 680), [(675, 75, 9)] = (680, 680), [(675, 75, 10)] = (680, 680),
+        [(675, 76, 4)] = (680, 680), [(675, 76, 5)] = (680, 680), [(675, 76, 6)] = (680, 680), [(675, 76, 7)] = (680, 680), [(675, 76, 8)] = (670, 62), [(675, 76, 9)] = (670, 62), [(675, 76, 10)] = (670, 62),
+    };
+}
+
+/// <summary>
+/// Bank 1 byte 184 while a Great Glacier passage screen is loaded: read twice between two
+/// reads of the field module and id, and null for anything unreadable, changing, or outside
+/// fields 670..675.
+/// </summary>
+public sealed class GreatGlacierCorridorStateReader
+{
+    public const uint CorridorStateAddress = FieldNavigationObjectReader.AddressFieldBankBase + 184;
+
+    private readonly ILegacyAddressSpace addressSpace;
+
+    public GreatGlacierCorridorStateReader(ILegacyAddressSpace addressSpace)
+    {
+        this.addressSpace = addressSpace ?? throw new ArgumentNullException(nameof(addressSpace));
+    }
+
+    public int? Read()
+    {
+        if (!TryReadOwner(out var moduleBefore, out var fieldBefore) ||
+            !addressSpace.TryReadByte(CorridorStateAddress, out var first) ||
+            !addressSpace.TryReadByte(CorridorStateAddress, out var second) ||
+            !TryReadOwner(out var moduleAfter, out var fieldAfter))
+        {
+            return null;
+        }
+
+        return moduleBefore == FieldPositionReader.FieldModule &&
+               GreatGlacierExitLabels.IsPassage(fieldBefore) &&
+               moduleAfter == moduleBefore &&
+               fieldAfter == fieldBefore &&
+               first == second
+            ? first
+            : null;
+    }
+
+    private bool TryReadOwner(out byte module, out ushort fieldId)
+    {
+        fieldId = 0;
+        return addressSpace.TryReadByte(FieldPositionReader.AddressCurrentModule, out module) &&
+               addressSpace.TryReadUInt16(FieldPositionReader.AddressFieldId, out fieldId);
+    }
 }

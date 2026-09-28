@@ -26,7 +26,8 @@ public enum MenuWidgetKind
     LimitCommand,
     LimitLevel,
     LimitMoveList,
-    LimitConfirmation
+    LimitConfirmation,
+    KeyItemList
 }
 
 public readonly record struct MenuWidgetDescriptor(uint Address, string Name, MenuWidgetKind Kind);
@@ -44,6 +45,10 @@ public static class MenuWidgetCatalog
         new(0x00DD1A18, "Item submenu command", MenuWidgetKind.ItemCommand),
         new(0x00DD1A50, "Item list", MenuWidgetKind.ItemList),
         new(0x00DD1A88, "Item target", MenuWidgetKind.ItemTarget),
+        // FUN_00715105 case 2 of the Item submenu: FUN_006f4d30(&DAT_00dd1ac0, ..., 2, 10,
+        // ..., 2, 0x20, ...) - two columns, ten visible rows of thirty-two. The selected
+        // key item is DAT_00dd19d0[column + scroll * 2 + row * 2] (a byte, 0xFF = none).
+        new(0x00DD1AC0, "Key Items list", MenuWidgetKind.KeyItemList),
         new(0x00DD1AF8, "Item arrange", MenuWidgetKind.ItemArrange),
         new(0x00DD1B30, "Item arrange list", MenuWidgetKind.ItemList),
         new(0x00DD1698, "Magic category", MenuWidgetKind.MagicCategory),
@@ -139,6 +144,14 @@ public sealed class ActiveMenuWidgetReader
             return false;
         }
 
+        // The Limit screen's header (FUN_00703344) is drawn with each of its widgets; the
+        // widget itself is the native gate that the header's character and level are live.
+        if (addressSpace is not null && candidate.IsLimitScreenWidget &&
+            new LimitMenuHeaderReader(addressSpace).TryRead(out var header))
+        {
+            candidate = candidate with { LimitHeader = header };
+        }
+
         snapshot = candidate;
         return true;
     }
@@ -220,6 +233,14 @@ public readonly record struct ActiveMenuWidgetSnapshot(
     InventoryItemSnapshot? InventoryItem = null,
     NativeMenuSelection? NativeSelection = null,
     MagicMenuSpellSnapshot? MagicSpell = null,
-    NativeEmptyMenuSlotSnapshot? EmptySlot = null);
+    NativeEmptyMenuSlotSnapshot? EmptySlot = null,
+    LimitMenuHeaderSnapshot? LimitHeader = null)
+{
+    /// <summary>The Limit screen's own widgets: its header is on screen with them.</summary>
+    public bool IsLimitScreenWidget => Kind is MenuWidgetKind.LimitCommand or
+        MenuWidgetKind.LimitLevel or
+        MenuWidgetKind.LimitMoveList or
+        MenuWidgetKind.LimitConfirmation;
+}
 
 public readonly record struct NativeEmptyMenuSlotSnapshot(int Slot);

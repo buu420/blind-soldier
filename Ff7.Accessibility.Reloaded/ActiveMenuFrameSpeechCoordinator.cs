@@ -24,6 +24,8 @@ public sealed class ActiveMenuFrameSpeechCoordinator
     private string[]? cachedItemCommandLabels;
     private string[]? cachedItemArrangeLabels;
     private SpeechCandidate? pending;
+    private string? spokenLimitHeaderKey;
+    private int? spokenLimitHeaderCharacter;
     private uint? lastCompletedWidgetAddress;
     private MenuWidgetKind lastCompletedWidgetKind = MenuWidgetKind.Generic;
     private bool limitConfirmationPromptPending;
@@ -81,6 +83,13 @@ public sealed class ActiveMenuFrameSpeechCoordinator
             else if (widget.Kind != MenuWidgetKind.LimitConfirmation)
             {
                 limitConfirmationPromptPending = false;
+            }
+
+            if (!widget.IsLimitScreenWidget)
+            {
+                // Leaving the Limit screen: its header is announced again on the way back in.
+                spokenLimitHeaderKey = null;
+                spokenLimitHeaderCharacter = null;
             }
 
             if (widget.Kind == MenuWidgetKind.RootMainMenu)
@@ -207,6 +216,16 @@ public sealed class ActiveMenuFrameSpeechCoordinator
                     return;
                 }
             }
+            else if (widget.Kind == MenuWidgetKind.KeyItemList)
+            {
+                if (!TryBuildKeyItemSpeech(widget, text, out speech, out var keyItemIdentity))
+                {
+                    ClearPendingSelection(widget.Address);
+                    return;
+                }
+
+                nativeSelectionIdentity = keyItemIdentity;
+            }
             else if (widget.Kind == MenuWidgetKind.LimitLevel)
             {
                 if (!TryBuildLimitLevelSpeech(widget, text, out speech))
@@ -251,11 +270,34 @@ public sealed class ActiveMenuFrameSpeechCoordinator
                 return;
             }
 
+            // Keep the selection identity independent of the one-time spoken prefix.
+            // Otherwise the next render frame would interrupt the header with the same row.
             var selectionIdentity = nativeSelectionIdentity is { Length: > 0 }
                 ? $"native:{nativeSelectionIdentity}"
                 : $"speech:{speech}";
+
+            // The Limit screen's header - the character and the current Limit level, with its
+            // gauge - is said with the first speech on the screen, and again only when L1/R1
+            // switch character or Set changes the level, never on every cursor move.
+            string? limitHeaderKey = null;
+            int? limitHeaderCharacter = null;
+            if (widget.IsLimitScreenWidget && widget.LimitHeader is { } header)
+            {
+                var headerKey = $"{header.CharacterId}:{header.LimitLevel}";
+                selectionIdentity += $"\u001flimit-header:{headerKey}";
+                if (!string.Equals(headerKey, spokenLimitHeaderKey, StringComparison.Ordinal))
+                {
+                    // Also permits immediate re-entry without waiting for a widget timeout.
+                    lastSpokenKeysByWidget.Remove(widget.Address);
+                    var switchedCharacter = spokenLimitHeaderCharacter is { } previous && previous != header.CharacterId;
+                    speech = $"{FormatLimitHeader(header, switchedCharacter)}. {speech}";
+                    limitHeaderKey = headerKey;
+                    limitHeaderCharacter = header.CharacterId;
+                }
+            }
+
             var key = $"{widget.Address:X8}\u001f{widget.First}\u001f{widget.Cursor}\u001f{widget.ScrollOffset}\u001f{selectionIdentity}";
-            pending = new SpeechCandidate(widget.Address, speech, key, now);
+            pending = new SpeechCandidate(widget.Address, speech, key, now, limitHeaderKey, limitHeaderCharacter);
             if (widget.Kind == MenuWidgetKind.LimitConfirmation)
             {
                 limitConfirmationPromptPending = false;
@@ -300,6 +342,12 @@ public sealed class ActiveMenuFrameSpeechCoordinator
             }
 
             lastSpokenKeysByWidget[candidate.WidgetAddress] = candidate.Key;
+            if (candidate.LimitHeaderKey is { } spokenHeader)
+            {
+                spokenLimitHeaderKey = spokenHeader;
+                spokenLimitHeaderCharacter = candidate.LimitHeaderCharacter;
+            }
+
             return candidate.Text;
         }
     }
@@ -316,7 +364,16 @@ public sealed class ActiveMenuFrameSpeechCoordinator
             lastCompletedWidgetAddress = null;
             lastCompletedWidgetKind = MenuWidgetKind.Generic;
             limitConfirmationPromptPending = false;
+            spokenLimitHeaderKey = null;
+            spokenLimitHeaderCharacter = null;
         }
+    }
+
+    private static string FormatLimitHeader(LimitMenuHeaderSnapshot header, bool withName)
+    {
+        var gauge = header.IsGaugeFull ? "Limit gauge full" : $"Limit gauge {header.GaugePercent} percent";
+        var level = $"Limit level {header.LimitLevel}. {gauge}";
+        return withName && header.Name is { Length: > 0 } name ? $"{name}. {level}" : level;
     }
 
     private void ObserveNativeState(ActiveMenuWidgetSnapshot widget, DateTime now)
@@ -636,6 +693,103 @@ public sealed class ActiveMenuFrameSpeechCoordinator
         return $"{speech}. {spell.Description}";
     }
 
+    /// <summary>
+    /// Text context of every Item-screen label and description (FUN_00715105).
+    /// </summary>
+    private const int ItemScreenTextContext = 0x3DCED917;
+
+    /// <summary>
+    /// The Key Items list. FUN_00715105 draws each owned key item's name (text section
+    /// 0xE, form 8) in a two-column grid starting at the list's scroll row, and the
+    /// selected one's description (form 0) above it. At the high-resolution layout a name
+    /// is at (column * 0x125 + 0x35, row * 0x24 + 0x7C) and the description at
+    /// (0x1B, 0x40); at the low-resolution layout (column * 0x92 + 0x1B, row * 0x12 + 0x3E)
+    /// and (0x0E, 0x20). A cell whose id is 0xFF draws nothing, which a sighted player
+    /// sees as a blank: that is said only when the grid itself was drawn this frame.
+    /// </summary>
+    private static bool TryBuildKeyItemSpeech(
+        ActiveMenuWidgetSnapshot widget,
+        IReadOnlyList<MenuTextRenderEntry> text,
+        out string speech,
+        out string? identity)
+    {
+        speech = string.Empty;
+        identity = null;
+        if (widget.Columns != 2 || widget.Rows <= 0 ||
+            widget.First is < 0 or > 1 ||
+            widget.Cursor < 0 || widget.Cursor >= widget.Rows ||
+            widget.ScrollOffset < 0 || widget.ScrollDelta != 0)
+        {
+            return false;
+        }
+
+        var layouts = new[]
+        {
+            (ColumnStep: 0x125, NameX: 0x35, RowStep: 0x24, NameY: 0x7C, DescriptionX: 0x1B, DescriptionY: 0x40),
+            (ColumnStep: 0x92, NameX: 0x1B, RowStep: 0x12, NameY: 0x3E, DescriptionX: 0x0E, DescriptionY: 0x20)
+        };
+        var itemText = text.Where(entry => entry.Context == ItemScreenTextContext).ToList();
+        foreach (var layout in layouts)
+        {
+            bool IsGridCell(MenuTextRenderEntry entry, out int column, out int row)
+            {
+                column = -1;
+                row = -1;
+                for (var candidateColumn = 0; candidateColumn < 2; candidateColumn++)
+                {
+                    var dx = (int)entry.X - (candidateColumn * layout.ColumnStep + layout.NameX);
+                    var dy = (int)entry.Y - layout.NameY;
+                    if (Math.Abs(dx) <= 2 && dy >= -2)
+                    {
+                        var candidateRow = (int)Math.Round(dy / (double)layout.RowStep);
+                        if (Math.Abs(dy - candidateRow * layout.RowStep) <= 2)
+                        {
+                            column = candidateColumn;
+                            row = candidateRow;
+                            return true;
+                        }
+                    }
+                }
+
+                return false;
+            }
+
+            var cells = itemText
+                .Select(entry => (Entry: entry, IsCell: IsGridCell(entry, out var column, out var row), Column: column, Row: row))
+                .Where(cell => cell.IsCell)
+                .ToList();
+            // A grid needs its first column's first row: FUN_00715105 compacts owned key
+            // items from the top, so a drawn list always starts there.
+            if (!cells.Any(cell => cell.Column == 0 && cell.Row == 0))
+            {
+                continue;
+            }
+
+            var index = widget.First + (widget.ScrollOffset + widget.Cursor) * 2;
+            var selected = cells.LastOrDefault(cell => cell.Column == widget.First && cell.Row == widget.Cursor);
+            if (selected.Entry.Text is not { } selectedText || !LooksLikeSpeechCandidate(selectedText))
+            {
+                speech = "Empty slot";
+                identity = $"key-item-empty:{index}";
+                return true;
+            }
+
+            var name = selectedText.Trim();
+            var description = itemText
+                .Where(entry => Math.Abs((int)entry.X - layout.DescriptionX) <= 2 &&
+                    Math.Abs((int)entry.Y - layout.DescriptionY) <= 2)
+                .Select(entry => entry.Text.Trim())
+                .LastOrDefault(LooksLikeSpeechCandidate);
+            speech = description is null || string.Equals(description, name, StringComparison.Ordinal)
+                ? name
+                : $"{name}. {description}";
+            identity = $"key-item:{index}:{name}";
+            return true;
+        }
+
+        return false;
+    }
+
     private static bool TryBuildLimitLevelSpeech(
         ActiveMenuWidgetSnapshot widget,
         IReadOnlyList<MenuTextRenderEntry> text,
@@ -679,6 +833,15 @@ public sealed class ActiveMenuFrameSpeechCoordinator
             .Where(LooksLikeSpeechCandidate)
             .Distinct(StringComparer.Ordinal)
             .ToList();
+
+        // FUN_0070212a draws a level the character has not reached in colour 0 (greyed)
+        // and every reached level in colour 7; confirming a greyed level only plays the
+        // error sound. A sighted player sees the grey, so say it.
+        if ((level.Color & 0xFF) == 0)
+        {
+            speech = $"{level.Text.Trim()} unavailable";
+            return true;
+        }
 
         speech = names.Count == 0
             ? level.Text.Trim()
@@ -823,7 +986,13 @@ public sealed class ActiveMenuFrameSpeechCoordinator
         int VerticalDistance,
         int HorizontalGap);
 
-    private readonly record struct SpeechCandidate(uint WidgetAddress, string Text, string Key, DateTime SeenAt);
+    private readonly record struct SpeechCandidate(
+        uint WidgetAddress,
+        string Text,
+        string Key,
+        DateTime SeenAt,
+        string? LimitHeaderKey = null,
+        int? LimitHeaderCharacter = null);
 
     private readonly record struct NativeWidgetState(int First, int Cursor, int ScrollOffset, int ScrollState);
 }

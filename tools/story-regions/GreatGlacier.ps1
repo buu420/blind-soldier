@@ -109,9 +109,11 @@ $glacierRoutes = @(
 foreach ($glacierRoute in $glacierRoutes) {
     $glacierLine = $glacierRoute.line
     # hyou5_2 is the optional ice-floe puzzle. Its disconnected islands use the
-    # game's directional jump logic, not a continuous walking surface.
+    # game's directional jump logic, not a continuous walking surface. The guidance
+    # names the Objects row that starts the crossing (Generate-FieldNavigationObjects.ps1)
+    # and the game's own instruction; GreatGlacierIceFloeReadout announces the floes.
     $glacierManual = if ($glacierRoute.f -eq 665) {
-        'Use the ice-floe puzzle controls to return to the lake shore. From the shore, use Exits to return to the main glacier route.'
+        'From the south shore, walk to the south exit to rejoin the glacier route. From the north shore, cross the lake first: choose Ice floes, start the crossing from the north shore in Objects, agree to cross, then face a direction and press OK to jump. The floes around you are announced.'
     } else { '' }
     $glacierCondition = $null
     if ($glacierRoute.node -ge 0) {

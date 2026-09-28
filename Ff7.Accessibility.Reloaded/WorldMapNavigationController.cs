@@ -82,6 +82,7 @@ public sealed class WorldMapNavigationController
     private readonly Func<IReadOnlyList<WorldMapEntitySnapshot>>? entityProvider;
     private WorldMapVehicleDetourPlanner? detourPlanner;
     private bool measuringLocalDetour;
+    private WorldMapRoutePlan? vehicleMasksPredictedOnRoute;
 
     private int categoryIndex;
     private bool beaconEnabled;
@@ -458,7 +459,7 @@ public sealed class WorldMapNavigationController
                 remainingAlongRoute * remainingAlongRoute +
                 guidanceMeasurement.DistanceFromRoute * guidanceMeasurement.DistanceFromRoute);
             var convergenceWaypoint = waypointIndex;
-            var hasLocalDetour = ResolveVehicleDetour(state, activeRoute.Waypoints[waypointIndex], out _) ==
+            var hasLocalDetour = ResolveVehicleDetourOnRoute(state, activeRoute, activeRoute.Waypoints[waypointIndex], out _) ==
                 WorldMapVehicleDetourPlanner.DetourOutcome.Detour;
             if (hasLocalDetour != measuringLocalDetour)
             {
@@ -616,23 +617,25 @@ public sealed class WorldMapNavigationController
 
         var waypoint = route.Waypoints[waypointIndex];
 
-        // A vehicle the party parked themselves can physically refuse the approach. Walk
-        // round it rather than pressing into it, and stop rather than pretend when there
-        // is no clear way in.
-        var detourOutcome = ResolveVehicleDetour(state, waypoint, out var detour);
-        switch (detourOutcome)
+        // A vehicle the party parked themselves can refuse the approach. Walk round it
+        // when the native masks leave a way round. When they leave none, that is only the
+        // mask model's prediction, not the game's answer: on 2026-09-27 the party walked on
+        // foot straight through the modelled footprint of the Buggy parked beside Old Man's
+        // House (Mythril) and in at the door, the game accepting every step, while automatic
+        // walking pressed nothing at all. So the route is then walked as if the car were
+        // not there, and the game decides: a key it refuses is remembered and not pressed
+        // again here, and no progress ends in the ordinary spoken fail-stop.
+        var detourOutcome = ResolveVehicleDetourOnRoute(state, route, waypoint, out var detour);
+        var vehicleMasksAreOnlyPredicted = detourOutcome == WorldMapVehicleDetourPlanner.DetourOutcome.Blocked;
+        var followsRoute = detourOutcome != WorldMapVehicleDetourPlanner.DetourOutcome.Detour;
+        if (detourOutcome == WorldMapVehicleDetourPlanner.DetourOutcome.Detour)
         {
-            case WorldMapVehicleDetourPlanner.DetourOutcome.Blocked:
-                return false;
-            case WorldMapVehicleDetourPlanner.DetourOutcome.Detour:
-                waypoint = detour;
-                break;
+            waypoint = detour;
         }
         var dx = WorldMapTargetCatalog.WrappedDelta(state.X, waypoint.X, map.WrapWidth);
         var dz = WorldMapTargetCatalog.WrappedDelta(state.Z, waypoint.Z, map.WrapHeight);
         if (state.PlayerModelId == WorldMapBroncoLanding.BroncoModelId ||
-            (WorldMapRoutePlanner.UsesGroundFootprint(state.PlayerModelId) &&
-             detourOutcome == WorldMapVehicleDetourPlanner.DetourOutcome.Clear))
+            (WorldMapRoutePlanner.UsesGroundFootprint(state.PlayerModelId) && followsRoute))
         {
             // The boat and the party follow their leg rather than cutting at the corner
             // ahead: each leg is the part of the river, or of the pass, their footprint was
@@ -678,7 +681,7 @@ public sealed class WorldMapNavigationController
                      map,
                      state.X + (int)Math.Round(x * Math.Min(probeDistance, BroncoFrameStep)),
                      state.Z + (int)Math.Round(z * Math.Min(probeDistance, BroncoFrameStep)))) &&
-                (state.PlayerModelId is not (0 or 1 or 2) || entityProvider is null ||
+                (state.PlayerModelId is not (0 or 1 or 2) || entityProvider is null || vehicleMasksAreOnlyPredicted ||
                  !WorldMapVehicleObstacles.BlocksSegment(
                      (activeTarget is { } selected ? ObstaclesOtherThan(selected) : entityProvider())
                          .Where(WorldMapVehicleObstacles.IsParkedBuggy).ToArray(),
@@ -741,8 +744,7 @@ public sealed class WorldMapNavigationController
         // the party back and forth between the two every sample. A short walk through steps
         // the game itself would accept is found once and then followed, so that holding a key
         // for several native frames between observations cannot turn it round.
-        if (hasAim && footprintHere && landingPlan is null &&
-            detourOutcome == WorldMapVehicleDetourPlanner.DetourOutcome.Clear)
+        if (hasAim && footprintHere && landingPlan is null && followsRoute)
         {
             if (slotPath.Count > 0 && !ReferenceEquals(slotRoute, route))
             {
@@ -773,7 +775,7 @@ public sealed class WorldMapNavigationController
             {
                 if (slotPath.Count == 0 && !double.IsNaN(slotModeEntry))
                 {
-                    SearchWalkingSlot(state, route);
+                    SearchWalkingSlot(state, route, honourVehicleMasks: !vehicleMasksAreOnlyPredicted);
                     if (slotPath.Count == 0)
                     {
                         slotModeEntry = double.NaN;
@@ -1142,14 +1144,15 @@ public sealed class WorldMapNavigationController
     /// <para>Every step is one native frame (0x1E) in one of the eight directions under the
     /// current camera, and is kept only if the centre line stays on ground the route may use,
     /// it never stands on another place's entrance, the whole FUN_00751EFC footprint fits
-    /// where it lands, and no parked Buggy refuses it. A walk is scored by how much of the
+    /// where it lands, and no parked Buggy refuses it (unless the vehicle detour has found no
+    /// way round, when the masks are only a prediction). A walk is scored by how much of the
     /// route is left from where it ends - the remaining length plus the distance off the line
     /// - so no single corner has to be chosen, which is what flip-flopped. Reaching the
     /// destination's own arrival ground beats everything. The search is bounded in frames
     /// and positions, so it answers in the same observation, and it gives up rather than
     /// pretend.</para>
     /// </summary>
-    private void SearchWalkingSlot(WorldMapStateSnapshot state, WorldMapRoutePlan route)
+    private void SearchWalkingSlot(WorldMapStateSnapshot state, WorldMapRoutePlan route, bool honourVehicleMasks)
     {
         ClearSlotPath();
         if (!planner.TryResolvePlayerTriangle(state, out var originTriangle))
@@ -1158,7 +1161,8 @@ public sealed class WorldMapNavigationController
         }
 
         var exemptions = activeTarget?.NativeEntranceExemptions;
-        var buggies = entityProvider is not null
+        // Not when the vehicle detour has found no way round: see TryResolveAutomaticInput.
+        var buggies = honourVehicleMasks && entityProvider is not null
             ? (activeTarget is { } selected ? ObstaclesOtherThan(selected) : entityProvider())
                 .Where(WorldMapVehicleObstacles.IsParkedBuggy).ToArray()
             : Array.Empty<WorldMapEntitySnapshot>();
@@ -1981,6 +1985,35 @@ public sealed class WorldMapNavigationController
         $"{target.Label} entrance. The way in is on foot, so leave the vehicle here. " +
         "Navigation stays on.";
 
+    /// <summary>
+    /// The vehicle detour for this route, except that once it has found no way round on this
+    /// route the masks stay a prediction until the route is planned again. A way round found
+    /// on one sample and lost on the next otherwise turns the aim back and forth and clears,
+    /// every time, the slot walk the one-row door of Old Man's House needs: the 2026-09-27
+    /// replays with the saved Buggy stalled at the door that way from starts that entered
+    /// with no car at all.
+    /// </summary>
+    private WorldMapVehicleDetourPlanner.DetourOutcome ResolveVehicleDetourOnRoute(
+        WorldMapStateSnapshot state,
+        WorldMapRoutePlan route,
+        WorldMapRouteWaypoint goal,
+        out WorldMapRouteWaypoint aim)
+    {
+        var outcome = ResolveVehicleDetour(state, goal, out aim);
+        if (outcome == WorldMapVehicleDetourPlanner.DetourOutcome.Blocked)
+        {
+            vehicleMasksPredictedOnRoute = route;
+        }
+
+        if (!ReferenceEquals(vehicleMasksPredictedOnRoute, route))
+        {
+            return outcome;
+        }
+
+        aim = goal;
+        return WorldMapVehicleDetourPlanner.DetourOutcome.Blocked;
+    }
+
     private WorldMapVehicleDetourPlanner.DetourOutcome ResolveVehicleDetour(
         WorldMapStateSnapshot state,
         WorldMapRouteWaypoint goal,
@@ -2386,6 +2419,7 @@ public sealed class WorldMapNavigationController
         autoWalkConvergence.Reset();
         detourPlanner?.Invalidate();
         measuringLocalDetour = false;
+        vehicleMasksPredictedOnRoute = null;
         ResetAutomaticLearning();
         paceLastSignature = string.Empty;
     }

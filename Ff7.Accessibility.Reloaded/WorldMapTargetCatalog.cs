@@ -587,6 +587,17 @@ public sealed class WorldMapTargetCatalog
             });
         }
 
+        if (map.WorldMapType == GreatGlacierSnowfieldWorldMapType)
+        {
+            foreach (var exit in GreatGlacierSnowfieldExits)
+            {
+                if (CreateSnowfieldExitLocation(map, exit) is { } location)
+                {
+                    locations.Add(location);
+                }
+            }
+        }
+
         var tracks = BuildChocoboTrackTargets(map);
         var unresolved = triggerDocument.UnresolvedLocations
             .Select(location => new WorldMapUnresolvedLocation(
@@ -609,7 +620,109 @@ public sealed class WorldMapTargetCatalog
                     triangle.TerrainScriptId == location.TerrainScriptId)
                 .Select(triangle => triangle.Id))
             .ToHashSet();
+        if (map.WorldMapType == GreatGlacierSnowfieldWorldMapType)
+        {
+            entrances.UnionWith(map.Triangles
+                .Where(triangle => GreatGlacierSnowfieldExits.Any(exit => exit.Contains(triangle)))
+                .Select(triangle => triangle.Id));
+        }
+
         return new WorldMapTargetCatalog(map, locations, tracks, unresolved, entrances);
+    }
+
+    private const int GreatGlacierSnowfieldWorldMapType = 3;
+
+    /// <summary>
+    /// The Great Glacier snowfield's ways off it: every wm3.ev terrain handler that ends in
+    /// EnterFieldScene, with its field.tbl destination. Location ids 60..64 have no kujata
+    /// coordinate entry, so the generated trigger metadata gave world map 3 no Location at
+    /// all and marked none of these cells as an entrance - "Locations: none available" in
+    /// the 2026-09-27 log, and nothing kept a route off the western or eastern edge.
+    ///
+    /// <para>Each handler first tests the current model for 0, 1 or 2, on foot. The north
+    /// edge is location 60, field.tbl field 686 (Base of Gaea's Cliff). The west, south
+    /// and east edges set savemap bank 1 byte 184 to 52, 53 and 55 and enter locations
+    /// 61..63, all field 670 (move_s). That corridor state leads on to hyou11 (681),
+    /// hyou10 (680, the hot spring) and hyou13_1 (683, the way to Snow's cave). Location
+    /// 64, mesh (4,4) script 7, is the cave in the middle of the snowfield, field 682
+    /// (hyou12, the All materia). The corner cells carry two handlers, script 6 for one
+    /// edge and 7 for the other. GlacierSnowfieldNavigationTests reads all of this back
+    /// out of the installed world_us.lgp.</para>
+    /// </summary>
+    private static readonly SnowfieldExit[] GreatGlacierSnowfieldExits =
+    [
+        new(60, "North edge, to the Base of Gaea's Cliff",
+            [new(1, 1, 6), new(2, 1, 7), new(3, 1, 7), new(4, 1, 7), new(5, 1, 7), new(6, 1, 6)]),
+        new(61, "West edge, into the Great Glacier",
+            [new(1, 1, 7), new(1, 2, 7), new(1, 3, 7), new(1, 4, 7), new(1, 5, 7), new(1, 6, 7)]),
+        new(62, "South edge, into the Great Glacier",
+            [new(1, 6, 6), new(2, 6, 7), new(3, 6, 7), new(4, 6, 7), new(5, 6, 7), new(6, 6, 6)]),
+        new(63, "East edge, into the Great Glacier",
+            [new(6, 1, 7), new(6, 2, 7), new(6, 3, 7), new(6, 4, 7), new(6, 5, 7), new(6, 6, 7)]),
+        new(64, "Cave in the middle of the snowfield", [new(4, 4, 7)])
+    ];
+
+    private sealed record SnowfieldExit(int LocationId, string Label, IReadOnlyList<WorldStoryBoundaryCell> Cells)
+    {
+        public bool Contains(WorldMapTriangle triangle) => Cells.Any(cell =>
+            triangle.MeshX == cell.MeshX &&
+            triangle.MeshZ == cell.MeshZ &&
+            triangle.TerrainScriptId == cell.TerrainScriptId);
+    }
+
+    /// <summary>
+    /// A Location over every triangle of one native exit, arriving by the same cell and
+    /// terrain-script test as the catalog's other locations. The point it is described at
+    /// is the arrival nearest the middle of the trigger, so an edge reads as its middle;
+    /// routes still end on whichever arrival is nearest the party.
+    /// </summary>
+    private static WorldMapNavigationTarget? CreateSnowfieldExitLocation(WorldMapData map, SnowfieldExit exit)
+    {
+        var trigger = map.Triangles.Where(exit.Contains).Select(triangle => triangle.Id).ToHashSet();
+        var candidates = trigger
+            .Order()
+            .Select(id => map.Triangles[id])
+            .Select(triangle => TryFindStrictInteriorPoint(triangle, out var point)
+                ? new NativeLocationCandidate(triangle, point)
+                : (NativeLocationCandidate?)null)
+            .Where(candidate => candidate.HasValue)
+            .Select(candidate => candidate!.Value)
+            .ToArray();
+        if (candidates.Length == 0)
+        {
+            return null;
+        }
+
+        var middleX = (int)Math.Round(candidates.Average(candidate => (double)candidate.Point.X));
+        var middleZ = (int)Math.Round(candidates.Average(candidate => (double)candidate.Point.Z));
+        var representative = candidates
+            .OrderBy(candidate => WrappedDistanceSquared(map, middleX, middleZ, candidate.Point.X, candidate.Point.Z))
+            .ThenBy(candidate => candidate.Triangle.Id)
+            .First();
+        return new WorldMapNavigationTarget(
+            WorldMapNavigationCategory.Locations,
+            WorldMapTargetKind.Location,
+            exit.Label,
+            representative.Point.X,
+            representative.Point.Y,
+            representative.Point.Z,
+            representative.Triangle.Id,
+            representative.Triangle.RegionId & 0x1F,
+            $"world-location:{exit.LocationId}:{exit.Label}",
+            new HashSet<int>(candidates.Select(candidate => candidate.Triangle.Id)))
+        {
+            NativeLocationArrivals = candidates
+                .Select(candidate => new WorldMapNativeLocationArrival(
+                    candidate.Triangle.Id,
+                    candidate.Triangle.MeshX,
+                    candidate.Triangle.MeshZ,
+                    candidate.Triangle.TerrainScriptId,
+                    candidate.Point.X,
+                    candidate.Point.Y,
+                    candidate.Point.Z))
+                .ToArray(),
+            NativeTriggerTriangleIds = trigger
+        };
     }
 
     public IReadOnlyList<WorldMapNavigationTarget> ReadTargets(

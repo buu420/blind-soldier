@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -102,6 +102,13 @@
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\GoldSaucerPlatformExitTests.cs" Link="SharedTests\GoldSaucerPlatformExitTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\GlacierSnowfieldNavigationTests.cs" Link="SharedTests\GlacierSnowfieldNavigationTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\GreatGlacierStoryTests.cs" Link="SharedTests\GreatGlacierStoryTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\SnowboardAccessibilityTests.cs" Link="SharedTests\SnowboardAccessibilityTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\GreatGlacierIceFloeTests.cs" Link="SharedTests\GreatGlacierIceFloeTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\GreatGlacierOptionalContentTests.cs" Link="SharedTests\GreatGlacierOptionalContentTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\GreatGlacierExitLabelTests.cs" Link="SharedTests\GreatGlacierExitLabelTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\KeyItemsMenuSpeechTests.cs" Link="SharedTests\KeyItemsMenuSpeechTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\BattleMessageFlickerTests.cs" Link="SharedTests\BattleMessageFlickerTests.cs" />
+
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\CosmoNibelheimDescriptionTests.cs" Link="SharedTests\CosmoNibelheimDescriptionTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\ContinuationDescriptionTests.cs" Link="SharedTests\ContinuationDescriptionTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\MotionActionDescriptionTests.cs" Link="SharedTests\MotionActionDescriptionTests.cs" />
@@ -116,6 +123,10 @@
              Link="SharedTests\WorldMapMountCorelNavigationTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\WorldMapHouseAutoWalkTests.cs"
              Link="SharedTests\WorldMapHouseAutoWalkTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\WorldMapHouseParkingTests.cs"
+             Link="SharedTests\WorldMapHouseParkingTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\WorldMapEntranceProximityCueTests.cs"
+             Link="SharedTests\WorldMapEntranceProximityCueTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\WorldMapMovementOwnershipTests.cs"
              Link="SharedTests\WorldMapMovementOwnershipTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\FieldGatewayBodyClearanceTests.cs"

@@ -170,6 +170,8 @@ public sealed class Mod : IModV1, IModV2
     private CurrentProcessLegacyAddressSpace? currentProcessLegacyAddressSpace;
     private FfnxPopupStateReader? ffnxPopupStateReader;
     private SpeedSquareCoasterStateReader? speedSquareCoasterReader;
+    private SnowboardStateReader? snowboardReader;
+    private readonly SnowboardReadout snowboardReadout = new();
     private SpeedSquareCoasterTargetReader? speedSquareCoasterTargetReader;
     private SpeedSquareCoasterAimReadout? speedSquareCoasterAimReadout;
     private NavigationBeaconPlayer? speedSquareCoasterTargetCuePlayer;
@@ -177,6 +179,9 @@ public sealed class Mod : IModV1, IModV2
     private ChocoboSquareReadout? chocoboSquareReadout;
     private SpeedSquareCoasterReadout? speedSquareCoasterReadout;
     private FieldActivityStateReader? fieldActivityStateReader;
+    private GreatGlacierIceFloeReader? glacierIceReader;
+    private readonly GreatGlacierIceFloeReadout glacierIceReadout = new();
+    private readonly GreatGlacierMapScreenReadout glacierMapReadout = new();
     private FieldActivityReadout? fieldActivityReadout;
     private FieldBoundaryStateReader? fieldActivityBoundaryStateReader;
     private ImmediateWaveCuePlayer? fieldActivityButtonCuePlayer;
@@ -879,6 +884,7 @@ public sealed class Mod : IModV1, IModV2
         var legacyAddressSpace = new CurrentProcessLegacyAddressSpace();
         currentProcessLegacyAddressSpace = legacyAddressSpace;
         speedSquareCoasterReader = new SpeedSquareCoasterStateReader(legacyAddressSpace);
+        snowboardReader = new SnowboardStateReader(legacyAddressSpace);
         speedSquareCoasterTargetReader = new SpeedSquareCoasterTargetReader(legacyAddressSpace);
         speedSquareCoasterAimReadout = new SpeedSquareCoasterAimReadout();
         chocoboSquareReader = new ChocoboSquareStateReader(legacyAddressSpace);
@@ -916,6 +922,7 @@ public sealed class Mod : IModV1, IModV2
                 Log)
             : null;
         fieldActivityStateReader = new FieldActivityStateReader(legacyAddressSpace);
+        glacierIceReader = new GreatGlacierIceFloeReader(legacyAddressSpace);
         fieldActivityReadout = new FieldActivityReadout();
         fieldActivityBoundaryStateReader = new FieldBoundaryStateReader(legacyAddressSpace);
         fieldActivityButtonCuePlayer?.Dispose();
@@ -1343,7 +1350,8 @@ public sealed class Mod : IModV1, IModV2
         var fieldMapNameReader = new FieldMapNameReader(ReadFf7EncodedText);
         var fieldExitLabelResolver = new FieldExitLabelResolver(
             fieldId => fieldMapNameCatalog?.Read(fieldId) ?? FieldMapNameResolution.Unknown,
-            fieldMapNameReader.Read);
+            fieldMapNameReader.Read,
+            readGlacierCorridorState: new GreatGlacierCorridorStateReader(legacyAddressSpace).Read);
         var fieldExitPresentationPolicy = new FieldExitPresentationPolicy(() =>
         {
             var address = (uint)(FieldNavigationObjectReader.AddressFieldBankBase + 0x100 + 131);
@@ -1692,8 +1700,11 @@ public sealed class Mod : IModV1, IModV2
                 TickCondorMinigameProbe();
                 TickFieldAreaDescriptionSaveIdentity();
                 TickFieldActivityReadout();
+                TickGlacierIceFloes();
+                TickGlacierMapScreen();
                 TickShinraMansionSafeDialReadout();
                 TickSpeedSquareCoasterReadout();
+                TickSnowboardReadout();
                 TickSpeedSquareCoasterTargets();
                 TickWonderSquareBasketballReadout();
                 TickWonderSquareArmWrestlingReadout();
@@ -2898,6 +2909,61 @@ public sealed class Mod : IModV1, IModV2
         }
     }
 
+    private void TickGlacierMapScreen()
+    {
+        if (!config.EnableFieldActivityReadout || currentProcessLegacyAddressSpace is not { } memory)
+        {
+            glacierMapReadout.Observe(-1);
+            return;
+        }
+        if (!foregroundProcessGate.IsCurrentProcessForeground()) return;
+        // The map has no player model: screen ownership must not depend on a navigable pose.
+        if (!memory.TryReadByte(FieldPositionReader.AddressCurrentModule, out var module) ||
+            !memory.TryReadUInt16(FieldPositionReader.AddressFieldId, out var field) ||
+            !memory.TryReadUInt16(FieldPositionReader.AddressFieldId, out var fieldAfter) ||
+            !memory.TryReadByte(FieldPositionReader.AddressCurrentModule, out var moduleAfter) ||
+            module != moduleAfter || field != fieldAfter) return;
+        var screen = module == FieldPositionReader.FieldModule ? field : -1;
+        var speech = glacierMapReadout.Observe(screen);
+        if (screen == GreatGlacierMapScreen.FieldId)
+        {
+            fieldActivityCurrentLine = GreatGlacierMapScreen.Description;
+            fieldActivityOwnsInput = true;
+        }
+        if (speech is null) return;
+        Log("Glacier Map screen opened.");
+        Speak(speech, true);
+    }
+
+    private void TickGlacierIceFloes()
+    {
+        if (!config.EnableFieldActivityReadout || glacierIceReader is null ||
+            fieldPositionReader is null || fieldNavigationControlReader is null)
+        {
+            glacierIceReadout.Reset();
+            return;
+        }
+        if (!foregroundProcessGate.IsCurrentProcessForeground()) return;
+        var position = fieldPositionReader.ReadNavigation();
+        if (!position.IsUsable) return;
+        if (position.Position.FieldId != GreatGlacierIceFloePuzzle.FieldId)
+        {
+            glacierIceReadout.Reset();
+            return;
+        }
+        var state = glacierIceReader.Read();
+        if (state is null) return;
+        fieldActivityCurrentLine = GreatGlacierIceFloeReadout.DescribeGrid(state);
+        fieldActivityOwnsInput = state.IsCrossing;
+        var control = fieldNavigationControlReader.Read(position.Position);
+        if (!control.IsUsable) return;
+        var speech = glacierIceReadout.Observe(position.Position.FieldId, state,
+            position.Position.Direction, control.Transform.SignedControlDirection);
+        if (speech is null) return;
+        Log($"Glacier ice floes: floe={state.CurrentFloe}, facing={position.Position.Direction}; {speech}");
+        Speak(speech, true);
+    }
+
     /// <summary>
     /// Gathers exactly the live state the current field's activity needs, and nothing
     /// else. Anything that cannot be read is reported as unreadable rather than being
@@ -3075,6 +3141,25 @@ public sealed class Mod : IModV1, IModV2
 
         // The aim changes continuously while a direction is held, so a new readout
         // supersedes the previous one rather than queueing behind it.
+        Speak(speech, true);
+    }
+
+    private void TickSnowboardReadout()
+    {
+        if (!config.EnableSnowboardReadout || snowboardReader is null)
+        {
+            snowboardReadout.Reset();
+            return;
+        }
+        if (!snowboardReader.TryRead(out var state))
+        {
+            // A torn observation must not turn the next frame into a new run.
+            if (!snowboardReader.IsSnowboardModule) snowboardReadout.Reset();
+            return;
+        }
+        var speech = snowboardReadout.Observe(state, DateTime.UtcNow);
+        if (speech is null) return;
+        Log($"Snowboard: {snowboardReader.LastDiagnostic}; speech={speech}");
         Speak(speech, true);
     }
 
@@ -11049,6 +11134,10 @@ public sealed class Mod : IModV1, IModV2
         var localizedText = localizer.Localize(text);
         Log($"Speak: {localizedText}");
         var delivered = config.EnableSpeech && speaker?.Speak(localizedText, interrupt) == true;
+        if (config.EnableSpeech && !delivered)
+        {
+            Log($"Speech delivery declined: speakerPresent={speaker is not null}, text={localizedText}");
+        }
         if (delivered)
         {
             repeatLastSpeechController.RememberDelivered(localizedText);

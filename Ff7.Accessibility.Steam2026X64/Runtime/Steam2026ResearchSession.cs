@@ -467,6 +467,8 @@ internal sealed class Steam2026ResearchSession : IDisposable
         // The Speed Square coaster runs the original x86 code, so the translated
         // guest address space reaches exactly the globals the x86 build reads.
         SpeedSquareCoasterStateReader? speedSquareCoasterReader = null;
+        SnowboardStateReader? snowboardReader = null;
+        var snowboardReadout = new SnowboardReadout();
         var speedSquareCoasterReadout = new SpeedSquareCoasterReadout();
         SpeedSquareCoasterTargetReader? speedSquareCoasterTargetReader = null;
         var speedSquareCoasterAimReadout = new SpeedSquareCoasterAimReadout();
@@ -495,6 +497,7 @@ internal sealed class Steam2026ResearchSession : IDisposable
         var movieHooksPermanentlyDisabled = false;
         var cutsceneHooksPermanentlyDisabled = false;
         var battleRendererHooksPermanentlyDisabled = false;
+        var battleQueueOverflowLog = new NativeIngressOverflowLogThrottle(TimeSpan.FromSeconds(1));
         var tracker = new Steam2026RenderedMenuSpeechTracker();
         var nativeSystemMenuSpeech = new Steam2026SystemMenuSpeechCoordinator(
             Steam2026SystemMenuCatalog.CreateEnglish(),
@@ -1022,6 +1025,7 @@ internal sealed class Steam2026ResearchSession : IDisposable
                         try
                         {
                             speedSquareCoasterReader = new SpeedSquareCoasterStateReader(sharedFieldAddressSpace);
+                            snowboardReader = new SnowboardStateReader(sharedFieldAddressSpace);
                             chocoboSquareReader = new ChocoboSquareStateReader(sharedFieldAddressSpace);
                             speedSquareCoasterTargetReader =
                                 new SpeedSquareCoasterTargetReader(sharedFieldAddressSpace);
@@ -1700,6 +1704,28 @@ avigationield_zone_transition.wav"),
                             now,
                             ref lastRuntimeFault,
                             ref lastRuntimeFaultLogUtc);
+                    }
+
+                    try
+                    {
+                        if (!config.EnableSnowboardReadout || snowboardReader is null)
+                            snowboardReadout.Reset();
+                        else if (snowboardReader.TryRead(out var snowboardState))
+                        {
+                            var snowboardSpeech = snowboardReadout.Observe(snowboardState, now);
+                            if (snowboardSpeech is not null && config.EnableSpeech)
+                            {
+                                log($"Snowboard: {snowboardReader.LastDiagnostic}; speech={snowboardSpeech}");
+                                output.Speak(snowboardSpeech, true);
+                            }
+                        }
+                        else if (!snowboardReader.IsSnowboardModule) snowboardReadout.Reset();
+                    }
+                    catch (Exception ex)
+                    {
+                        snowboardReadout.Reset();
+                        LogRuntimeFault($"Snowboard readout reset after a fault: {ex.Message}", now,
+                            ref lastRuntimeFault, ref lastRuntimeFaultLogUtc);
                     }
 
                     try
@@ -3053,6 +3079,19 @@ avigationield_zone_transition.wav"),
                         } activeBattleLifecycle
                         && IsBattleAccessibilityModule(activeBattleLifecycle.ModuleId);
                     var battleBatch = new List<Steam2026BattleRendererIngressSnapshot>();
+                    // A full queue is a worker that fell behind, not broken hooks: drop
+                    // the incomplete batch, forget what the trackers half-saw, resume.
+                    if (battleRendererHookSet.RecoverQueueOverflow())
+                    {
+                        battleAccessibilityCoordinator.Reset();
+                        if (battleQueueOverflowLog.Record(
+                                now,
+                                "Translated battle queue filled; discarded incomplete observations and resumed capture.") is { } overflowLine)
+                        {
+                            log(overflowLine);
+                        }
+                    }
+
                     while (battleRendererHookSet.TryDequeue(out var battleSnapshot))
                     {
                         if (ownsBattleAccessibility)
@@ -3086,9 +3125,24 @@ avigationield_zone_transition.wav"),
                         }
                     }
 
+                    // A producer may overflow while this worker is draining. Clear that
+                    // partial batch before the next iteration can speak any of it.
+                    if (battleRendererHookSet.RecoverQueueOverflow())
+                    {
+                        battleAccessibilityCoordinator.Reset();
+                        if (battleQueueOverflowLog.Record(
+                                now,
+                                "Translated battle queue filled during drain; discarded incomplete observations and resumed capture.") is { } drainOverflowLine)
+                        {
+                            log(drainOverflowLine);
+                        }
+                    }
+
                     if (battleRendererHookSet.IsFatallyDegraded)
                     {
-                        log("Translated battle lifecycle ingress degraded; disabling its hook cohort.");
+                        log(
+                            "Translated battle lifecycle ingress degraded; disabling its hook cohort: "
+                            + battleRendererHookSet.DegradationReason + ".");
                         battleRendererHookSet.Dispose();
                         battleRendererHookSet = null;
                         battleRendererHooksPermanentlyDisabled = true;

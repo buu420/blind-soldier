@@ -18,6 +18,28 @@ if (args.Contains("--field-execution-report", StringComparer.OrdinalIgnoreCase))
     Environment.Exit(Ff7.Accessibility.Reloaded.Tests.FieldScriptExecutionModelTests.Report());
 }
 
+if (args.Contains("--house-parking-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.WorldMapHouseParkingTests.Run();
+    return;
+}
+
+if (args.Contains("--glacier-speech-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.SnowboardAccessibilityTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.SnowboardAccessibilityTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.KeyItemsMenuSpeechTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.BattleMessageFlickerTests.Run();
+    return;
+}
+
+if (args.Contains("--world-entrance-cues-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.WorldMapEntranceProximityCueTests.Run();
+    Console.WriteLine("World entrance proximity cue tests passed.");
+    return;
+}
+
 if (args.Contains("--field-execution-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.FieldScriptExecutionModelTests.Run();
@@ -906,6 +928,10 @@ Ff7.Accessibility.Reloaded.Tests.TownInteractionCoverageTests.Run();
     Ff7.Accessibility.Reloaded.Tests.GreatGlacierStoryTests.Run();
     Ff7.Accessibility.Reloaded.Tests.GreatGlacierStoryTests.RunWithInstalledGameData();
     Ff7.Accessibility.Reloaded.Tests.ReportedNavigationRegressionTests.RunArrivalHysteresisOnly();
+Ff7.Accessibility.Reloaded.Tests.SnowboardAccessibilityTests.Run();
+Ff7.Accessibility.Reloaded.Tests.SnowboardAccessibilityTests.RunWithInstalledGameData();
+Ff7.Accessibility.Reloaded.Tests.KeyItemsMenuSpeechTests.Run();
+Ff7.Accessibility.Reloaded.Tests.BattleMessageFlickerTests.Run();
 Ff7.Accessibility.Reloaded.Tests.MainStoryCoverageTests.Run();
 Ff7.Accessibility.Reloaded.Tests.CosmoNibelheimDescriptionTests.Run();
 Ff7.Accessibility.Reloaded.Tests.ContinuationDescriptionTests.RunCatalogAndNative();
@@ -939,6 +965,8 @@ Ff7.Accessibility.Reloaded.Tests.WorldMapMountCorelNavigationTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WorldMapMovementOwnershipTests.Run();
 Ff7.Accessibility.Reloaded.Tests.FieldGatewayBodyClearanceTests.Run(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.WorldMapHouseAutoWalkTests.Run();
+Ff7.Accessibility.Reloaded.Tests.WorldMapHouseParkingTests.Run();
+Ff7.Accessibility.Reloaded.Tests.WorldMapEntranceProximityCueTests.Run();
 FieldNavigationPrecisionTests.Run();
 FieldNavigationNativeProbeMovementTests.Run(CreateInstalledFieldWalkmeshReader);
 NorthCorelRecoveryHeightTests.Run(CreateInstalledFieldWalkmeshReader);

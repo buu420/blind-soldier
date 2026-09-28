@@ -111,6 +111,10 @@ internal sealed class Steam2026BattleRendererCallbackContract
 {
     private const long HookLeaseHealthProbeIntervalMilliseconds = 1000;
 
+    // As for the menu cohort: retirement is permanent for the session, so one probe
+    // that did not answer (a page remapped mid-transition) must not decide it.
+    private const int HookLeaseUnhealthyProbesBeforeRetirement = 3;
+
     private readonly object hookLeaseLock = new();
     private readonly ulong moduleBase;
     private readonly INativeMemoryReader memory;
@@ -124,6 +128,7 @@ internal sealed class Steam2026BattleRendererCallbackContract
     private long validationEpoch;
     private long nextHookLeaseHealthProbeMilliseconds;
     private int hookLeaseUnhealthy;
+    private int consecutiveUnhealthyHookLeaseProbes;
 
     internal Steam2026BattleRendererCallbackContract(
         ulong moduleBase,
@@ -232,6 +237,7 @@ internal sealed class Steam2026BattleRendererCallbackContract
                 rawActionPlan);
             Volatile.Write(ref nextHookLeaseHealthProbeMilliseconds, 0);
             Volatile.Write(ref hookLeaseUnhealthy, 0);
+            Volatile.Write(ref consecutiveUnhealthyHookLeaseProbes, 0);
             Volatile.Write(ref activeHookLease, lease);
         }
     }
@@ -247,6 +253,7 @@ internal sealed class Steam2026BattleRendererCallbackContract
             Interlocked.Increment(ref validationEpoch);
             Volatile.Write(ref nextHookLeaseHealthProbeMilliseconds, 0);
             Volatile.Write(ref hookLeaseUnhealthy, 0);
+            Volatile.Write(ref consecutiveUnhealthyHookLeaseProbes, 0);
         }
     }
 
@@ -289,12 +296,23 @@ internal sealed class Steam2026BattleRendererCallbackContract
             return true;
         }
 
-        if (!healthy)
+        if (healthy)
         {
-            Interlocked.Exchange(ref hookLeaseUnhealthy, 1);
+            Interlocked.Exchange(ref consecutiveUnhealthyHookLeaseProbes, 0);
+            return true;
         }
 
-        return healthy;
+        // Captures stay refused while probes fail (TryResolveCurrentIdentity), and
+        // the cohort is retired only when the failures agree.
+        var failedProbes = Interlocked.Increment(ref consecutiveUnhealthyHookLeaseProbes);
+        Interlocked.Increment(ref validationEpoch);
+        if (failedProbes < HookLeaseUnhealthyProbesBeforeRetirement)
+        {
+            return true;
+        }
+
+        Interlocked.Exchange(ref hookLeaseUnhealthy, 1);
+        return false;
     }
 
     internal bool TryValidateCaptureIdentity(
@@ -1007,7 +1025,9 @@ internal sealed class Steam2026BattleRendererCallbackContract
             validationGeneration = lease.Generation;
             try
             {
-                return IsEnabled(lease.IsCohortEnabled, kind)
+                return Volatile.Read(ref consecutiveUnhealthyHookLeaseProbes) == 0
+                       && Volatile.Read(ref hookLeaseUnhealthy) == 0
+                       && IsEnabled(lease.IsCohortEnabled, kind)
                        && lease.Identities.TryGetValue(kind, out identity);
             }
             catch

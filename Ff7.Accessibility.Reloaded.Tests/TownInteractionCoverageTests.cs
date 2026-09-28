@@ -10,11 +10,18 @@ public static class TownInteractionCoverageTests
         // These are independently identified native player actions, not all the models
         // or automatic callbacks appearing in a field script.
         foreach (var (field, entity) in new[] { (578,16), (582,11), (587,14), (588,14),
-                     (529,7), (532,14), (582,14), (287,6), (503,7), (553,8), (620,7), (622,9), (623,16) })
+                     (529,7), (532,14), (582,14), (287,6), (503,7), (553,8), (620,7), (622,9), (623,16), (657,18) })
             Check(FieldNavigationObjectCatalog.CreateAllFields().Any(d => d.FieldId == field && d.EntityId == entity),
                 $"missing optional action {field}/{entity}");
 
         var memory = new Memory();
+        var video = TownInteractionObjectCatalog.Create().Single(d => d.FieldId == 657 && d.EntityId == 18);
+        Check(memory.Reader(video).ReadTargets(memory.Position(657)).Single().Label == "Video player",
+            "Gast's optional recordings have an Objects target at the video controls");
+        memory.LineEnabled = false;
+        Check(memory.Reader(video).ReadTargets(memory.Position(657)).Count == 0,
+            "the video controls follow the native interaction line state");
+        memory = new Memory();
         var levers = TownInteractionObjectCatalog.Create().Single(d => d.FieldId == 582 && d.EntityId == 11);
         var reader = memory.Reader(levers);
         Check(reader.ReadTargets(memory.Position(582)).Count == 1, "enabled Wutai levers are reachable through Objects");

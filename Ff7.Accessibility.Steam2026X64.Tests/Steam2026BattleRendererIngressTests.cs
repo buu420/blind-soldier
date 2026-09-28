@@ -38,6 +38,9 @@ internal static class Steam2026BattleRendererIngressTests
         IngressPublishesTheSixCallbackCohortWithCheckedGuestArguments(supportedRuntime);
         ConcurrentCallbacksPublishMonotonicQueueSequences(supportedRuntime);
         IngressContainsOriginalAndQueueFailures(supportedRuntime);
+        AFullBattleQueueIsDiscardedAndCaptureResumes(supportedRuntime);
+        APoisonedBattleQueueDegradesInsteadOfRecoveringForever(supportedRuntime);
+        OverflowRecoveryDiagnosticsAreThrottled();
         BattleMenuWorkerStaysWithinTranslatedReadBudget(supportedRuntime);
         WorkerProducesFramesAndRetryableNativeMenuSpeech(supportedRuntime);
         ManipulateIngressAndWorkerSpeakNativeEnemyActions(supportedRuntime);
@@ -248,22 +251,65 @@ internal static class Steam2026BattleRendererIngressTests
         contract.ActivateHookLease(_ => cohortEnabled);
 
         Equal(true, ProbeActiveLeaseHealth(contract, 0), "initial enabled battle cohort");
+        Equal(
+            true,
+            contract.TryValidateCaptureIdentity(
+                Steam2026BattleRendererCallbackKind.MenuRenderer,
+                out var rendererIdentity),
+            "battle renderer identity");
         cohortEnabled = false;
         Equal(
             true,
             ProbeActiveLeaseHealth(contract, 999),
             "disabled battle cohort waits for the next health interval");
         Equal(
-            false,
+            true,
             ProbeActiveLeaseHealth(contract, 1000),
-            "disabled battle cohort poisons the active lease");
+            "one failed probe does not retire the battle cohort for the session");
+        Equal(
+            false,
+            contract.IsCurrentCaptureIdentity(rendererIdentity),
+            "but captures are refused while the probes are failing");
+        Equal(
+            true,
+            ProbeActiveLeaseHealth(contract, 2000),
+            "a second failed probe still waits for agreement");
+        Equal(
+            false,
+            ProbeActiveLeaseHealth(contract, 3000),
+            "three consecutive failed probes retire the battle cohort");
 
         cohortEnabled = true;
         Equal(
             false,
-            ProbeActiveLeaseHealth(contract, 2000),
-            "poisoned battle lease health remains sticky");
+            ProbeActiveLeaseHealth(contract, 4000),
+            "retired battle lease health remains sticky");
         contract.RevokeHookLease();
+
+        // 2026-09-27 x64 session: the cohort was retired at 14:59:32, straight out of a
+        // Limit-break battle into a field load, and every later battle was silent. A
+        // probe that fails once across such a transition and then answers keeps it.
+        var transient = CreateExactContract(BattleRendererIngressFixture.Create(), supportedRuntime);
+        var transientEnabled = true;
+        transient.ActivateHookLease(_ => transientEnabled);
+        Equal(
+            true,
+            transient.TryValidateCaptureIdentity(
+                Steam2026BattleRendererCallbackKind.MenuRenderer,
+                out var transientIdentity),
+            "transient-probe renderer identity");
+        Equal(true, ProbeActiveLeaseHealth(transient, 0), "transient cohort starts healthy");
+        transientEnabled = false;
+        Equal(true, ProbeActiveLeaseHealth(transient, 1000), "one failed probe across a transition");
+        transientEnabled = true;
+        Equal(true, ProbeActiveLeaseHealth(transient, 2000), "the next probe answers again");
+        Equal(
+            true,
+            transient.IsCurrentCaptureIdentity(transientIdentity),
+            "and battle capture resumes without reinstalling hooks");
+        Equal(true, ProbeActiveLeaseHealth(transient, 3000), "the recovered cohort stays healthy");
+        Equal(true, ProbeActiveLeaseHealth(transient, 4000), "failures are counted only when consecutive");
+        transient.RevokeHookLease();
     }
 
     private static void ResultsUpdateStaysWithinBoundedNativeReadBudget(
@@ -889,9 +935,85 @@ internal static class Steam2026BattleRendererIngressTests
         Equal(1, queueOriginalCalls, "battle original runs before rejected publication");
         Equal(1, rejectingQueue.Attempts, "battle snapshot gets one queue attempt");
         Equal(
-            true,
+            false,
             queueFailure.IsFatallyDegraded,
-            "battle renderer queue rejection permanently degrades ingress");
+            "a full battle queue does not retire the hook cohort");
+        Equal(true, queueFailure.HasQueueOverflow, "a full battle queue is reported as overflow");
+        queueFailure.OnMenuRenderer();
+        Equal(2, queueOriginalCalls, "the native original keeps running during overflow");
+        Equal(
+            1,
+            rejectingQueue.Attempts,
+            "nothing more is published until the worker discards the incomplete batch");
+
+        var throwingFixture = BattleRendererIngressFixture.Create();
+        throwingFixture.WriteRendererState(1);
+        using var throwingFailure = new Steam2026BattleRendererDetourIngressCoordinator(
+            CreateExactContract(throwingFixture, supportedRuntime),
+            () => { },
+            () => Timestamp,
+            new ThrowingIngressQueue());
+        throwingFailure.OnMenuRenderer();
+        Equal(
+            true,
+            throwingFailure.IsFatallyDegraded,
+            "a battle queue that throws still permanently degrades ingress");
+    }
+
+    /// <summary>
+    /// 14:59:31-14:59:32 in the friend's 2026-09-27 x64 session: the menu queue had
+    /// filled three times during a Limit-break battle, then the battle queue filled and
+    /// the whole battle cohort was retired, so no later battle spoke. A full queue must
+    /// cost only the observations that did not fit.
+    /// </summary>
+    private static void AFullBattleQueueIsDiscardedAndCaptureResumes(
+        Steam2026FingerprintResult supportedRuntime)
+    {
+        var fixture = BattleRendererIngressFixture.Create();
+        fixture.WriteRendererState(1);
+        var queue = new BoundedNativeIngressQueue<Steam2026BattleRendererIngressSnapshot>(2);
+        var originalCalls = 0;
+        using var ingress = new Steam2026BattleRendererDetourIngressCoordinator(
+            CreateExactContract(fixture, supportedRuntime),
+            () => originalCalls++,
+            () => Timestamp,
+            queue);
+
+        ingress.OnMenuRenderer();
+        ingress.OnMenuRenderer();
+        ingress.OnMenuRenderer();
+        ingress.OnMenuRenderer();
+        Equal(4, originalCalls, "every native original ran while the worker was behind");
+        Equal(false, ingress.IsFatallyDegraded, "the stalled worker does not retire battle ingress");
+        Equal(true, ingress.HasQueueOverflow, "the third callback found the queue full");
+        Equal(true, ingress.RecoverQueueOverflow(() => { }), "the overflow is recoverable");
+        Equal(false, ingress.HasQueueOverflow, "overflow is cleared by recovery");
+
+        // The recovery above discarded nothing (the delegate was empty); fill again and
+        // recover the way the hook set does, by draining the ring.
+        while (queue.TryDequeue(out _)) { }
+        ingress.OnMenuRenderer();
+        ingress.OnMenuRenderer();
+        ingress.OnMenuRenderer();
+        Equal(true, ingress.HasQueueOverflow, "the queue fills again");
+        var discarded = 0;
+        Equal(
+            true,
+            ingress.RecoverQueueOverflow(() =>
+            {
+                while (queue.TryDequeue(out _))
+                {
+                    discarded++;
+                }
+            }),
+            "the worker recovers the overflow");
+        Equal(2, discarded, "the incomplete batch is discarded, not spoken");
+        Equal(false, ingress.RecoverQueueOverflow(() => { }), "nothing left to recover");
+
+        ingress.OnMenuRenderer();
+        Equal(true, queue.TryDequeue(out var resumed), "capture resumes after recovery");
+        Equal((short)1, resumed.RendererState, "the resumed capture is a live renderer state");
+        Equal(false, ingress.IsFatallyDegraded, "battle ingress stays installed");
     }
 
     private static void DamageIngressCopiesThePopupBeforeTheOriginalRetiresIt(
@@ -1463,6 +1585,83 @@ internal static class Steam2026BattleRendererIngressTests
             Attempts++;
             return false;
         }
+
+        public bool TryEnqueueSequenced(
+            Steam2026BattleRendererIngressSnapshot item,
+            NativeIngressSequenceAssigner<Steam2026BattleRendererIngressSnapshot> assignSequence) =>
+            TryEnqueue(item);
+    }
+
+    /// <summary>
+    /// A full ring and a poisoned ring both refuse an item by returning false. Only the full
+    /// one recovers when drained; the poisoned one (a slot sequence that disagreed with its
+    /// reservation, or a sequence assignment that threw) refuses every later item. Treated as
+    /// overflow it would be recovered and refilled on every worker iteration for the rest of
+    /// the session - silent battles, a flooded log and no honest degradation line.
+    /// </summary>
+    private static void APoisonedBattleQueueDegradesInsteadOfRecoveringForever(
+        Steam2026FingerprintResult supportedRuntime)
+    {
+        var fixture = BattleRendererIngressFixture.Create();
+        fixture.WriteRendererState(1);
+        var queue = new BoundedNativeIngressQueue<Steam2026BattleRendererIngressSnapshot>(8);
+        Equal(
+            false,
+            queue.TryEnqueueSequenced(
+                default,
+                (_, _) => throw new InvalidOperationException("poisoned sequence assignment")),
+            "a throwing sequence assignment is refused");
+        Equal(true, queue.IsUnusable, "and leaves the real ring permanently unusable");
+
+        var originalCalls = 0;
+        using var ingress = new Steam2026BattleRendererDetourIngressCoordinator(
+            CreateExactContract(fixture, supportedRuntime),
+            () => originalCalls++,
+            () => Timestamp,
+            queue);
+        ingress.OnMenuRenderer();
+        Equal(1, originalCalls, "the native original still runs");
+        Equal(true, ingress.IsFatallyDegraded, "a poisoned battle queue degrades the cohort");
+        Equal(false, ingress.HasQueueOverflow, "it is not reported as a recoverable overflow");
+        Equal(false, ingress.RecoverQueueOverflow(() => { }), "so the worker has nothing to recover and loop on");
+    }
+
+    private static void OverflowRecoveryDiagnosticsAreThrottled()
+    {
+        var throttle = new NativeIngressOverflowLogThrottle(TimeSpan.FromSeconds(1));
+        const string message = "Translated battle queue filled; discarded incomplete observations and resumed capture.";
+        Equal(message, throttle.Record(Timestamp, message), "the first recovery is logged at once");
+        var logged = 0;
+        for (var iteration = 1; iteration <= 28; iteration++)
+        {
+            // A sustained overload recovered on every 35 ms worker iteration.
+            if (throttle.Record(Timestamp.AddMilliseconds(iteration * 35), message) is not null)
+            {
+                logged++;
+            }
+        }
+
+        Equal(0, logged, "recoveries inside the interval are only counted");
+        Equal(
+            message + " (28 more recoveries since the last report.)",
+            throttle.Record(Timestamp.AddMilliseconds(1000), message),
+            "the next line after the interval says how many were folded in");
+        Equal<string?>(null, throttle.Record(Timestamp.AddMilliseconds(1035), message), "and the interval restarts");
+        Equal(
+            message + " (1 more recoveries since the last report.)",
+            throttle.Record(Timestamp.AddSeconds(5), message),
+            "a later recovery is logged, carrying the one counted since the last line");
+        Equal(
+            message,
+            throttle.Record(Timestamp.AddSeconds(10), message),
+            "an isolated recovery after a quiet interval is logged plainly");
+    }
+
+    private sealed class ThrowingIngressQueue :
+        ISequencedNativeIngressQueue<Steam2026BattleRendererIngressSnapshot>
+    {
+        public bool TryEnqueue(Steam2026BattleRendererIngressSnapshot item) =>
+            throw new InvalidOperationException("broken capture queue");
 
         public bool TryEnqueueSequenced(
             Steam2026BattleRendererIngressSnapshot item,
