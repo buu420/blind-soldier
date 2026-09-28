@@ -371,6 +371,43 @@ public sealed class FieldNavigationController
     public string CurrentRouteIdentity =>
         BeaconEnabled ? $"{beaconFieldId}|{beaconCategory}|{beaconTargetId}" : string.Empty;
 
+    /// <summary>
+    /// What the auto walk convergence guard measures for this sample.
+    ///
+    /// <para>Walking, it is the route's own remaining distance. On a ladder it cannot be:
+    /// while mounted the route is held (<see cref="UpdateMountedLadder"/>), so its remaining
+    /// distance and portal stand still for the whole climb, and a climb longer than the
+    /// guard's deadline was stopped mid-ladder (Gaea's Cliff, 2026-09-28: gaia_1 at
+    /// 10:58:31, gaia_2 at 11:09:25, footsteps and "climb up" on every sample). A climb is
+    /// measured instead by the straight distance left to the landing this controller is
+    /// guiding to - the native target, or the route's own landing when that differs, which
+    /// also covers a climb back the other way. Native ladder <c>Progress</c> is a phase
+    /// (0..2), not a distance, so it is not used.</para>
+    ///
+    /// <para>Each stretch is its own <see cref="FieldAutoWalkProgress.Traversal"/>: the walk,
+    /// and every ladder by its landing. The guard starts a fresh measurement when that
+    /// changes, so the short distance left at the end of the walk to the ladder is never
+    /// held against the length of the climb, nor the climb against the walk after it.</para>
+    /// </summary>
+    public FieldAutoWalkProgress ResolveAutoWalkProgress(FieldPositionSnapshot position)
+    {
+        var portalIndex = currentGuidance?.PortalIndex ?? 0;
+        if (BeaconEnabled && activeLadderState.IsMounted && activeLadderHasExpectedLanding &&
+            FieldPositionReader.IsUsable(position))
+        {
+            var landing = activeLadderExpectedLanding;
+            var dx = (double)position.X - landing.X;
+            var dy = (double)position.Y - landing.Y;
+            var dz = (double)position.Z - landing.Z;
+            return new FieldAutoWalkProgress(
+                $"ladder:{landing.X},{landing.Y},{landing.Z}",
+                portalIndex,
+                Math.Sqrt((dx * dx) + (dy * dy) + (dz * dz)));
+        }
+
+        return new FieldAutoWalkProgress("walk", portalIndex, currentGuidance?.RemainingDistance ?? 0d);
+    }
+
     public FieldNavigationControllerProbeSnapshot CreateProbeSnapshot(
         FieldPositionSnapshot position)
     {
@@ -2830,6 +2867,16 @@ public sealed class FieldNavigationController
                 }
             }
         }
+        if (spokenOffset is null && routeDistance is null && controlTransform is not null &&
+            target.Value.Category != FieldNavigationCategory.Exits &&
+            DescribeCrossFieldWay(position, target.Value, ladderState) is { } acrossFields)
+        {
+            // No way on this walkmesh, but a native one round through another field: say that,
+            // as starting navigation would, rather than "direction unavailable" (gaiin_4's
+            // Enhance Sword from the eastern ledge, 2026-09-28 11:58:30).
+            return new FieldNavigationActionResult($"{categoryName}, {target.Value.Label}. {acrossFields}.");
+        }
+
         var distance = routeDistance ?? Math.Sqrt(
             Math.Pow(target.Value.X - position.X, 2) +
             Math.Pow(target.Value.Y - position.Y, 2));
@@ -2837,6 +2884,28 @@ public sealed class FieldNavigationController
             ? "nearby"
             : spokenOffset ?? "direction unavailable";
         return new FieldNavigationActionResult($"{categoryName}, {target.Value.Label}. {direction}.");
+    }
+
+    /// <summary>
+    /// The cross-field approach <see cref="TryStartCrossFieldApproach"/> would walk, told rather
+    /// than started; null when there is none.
+    /// </summary>
+    private string? DescribeCrossFieldWay(
+        FieldPositionSnapshot position,
+        FieldNavigationTarget goal,
+        FieldLadderStateSnapshot ladderState)
+    {
+        if (CrossFieldApproach is null)
+        {
+            return null;
+        }
+
+        var exits = source.GetTargets(position, FieldNavigationCategory.Exits);
+        return CrossFieldApproach(ResolveRoutePlanningPosition(position, ladderState), goal, exits) is { } plan &&
+               exits.FirstOrDefault(exit => string.Equals(exit.StableId, plan.OutboundExitStableId, StringComparison.Ordinal))
+                   is { StableId.Length: > 0 } outbound
+            ? $"reached from here only by going out through {outbound.Label} and back in by another way"
+            : null;
     }
 
     private static FieldNavigationActionResult DescribeManualTarget(FieldNavigationTarget target) =>

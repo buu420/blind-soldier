@@ -1525,22 +1525,16 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         bool canMove,
         DateTime nowUtc)
     {
-        var guidance = controller.CurrentRouteGuidance;
         var label = controller.CurrentTargetLabel;
-        var hold = guidance is null
-            ? FieldAutoWalkHoldReason.NoRoute
-            : hasDirection
-                ? FieldAutoWalkHoldReason.None
-                : controller.LastAutomaticInputHold;
-        if (!autoWalkConvergence.Observe(
-                new FieldAutoWalkConvergenceSample(
-                    IsAutoWalkEnabled: true,
-                    RouteIdentity: controller.CurrentRouteIdentity,
-                    IsHeldByGame: !canMove,
-                    Hold: hold,
-                    PortalIndex: guidance?.PortalIndex ?? 0,
-                    RemainingDistance: guidance?.RemainingDistance ?? 0d),
-                nowUtc))
+        // The same shared sample as Mod: a ladder climb is measured by its own landing
+        // (FieldNavigationController.ResolveAutoWalkProgress), and CurrentRouteIdentity plus
+        // the stretch decides what a new measurement is.
+        var sample = FieldAutoWalkConvergenceSample.ForRoute(
+            controller,
+            position,
+            isHeldByGame: !canMove,
+            hasDirection: hasDirection);
+        if (!autoWalkConvergence.Observe(sample, nowUtc))
         {
             return;
         }
@@ -1549,10 +1543,10 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         LogInputDiagnostic(
             "auto walk stopped: no meaningful progress for " +
             $"{FieldAutoWalkConvergenceTracker.NoProgressTimeout.TotalSeconds:0} seconds; " +
-            $"target={label}, remaining={guidance?.RemainingDistance ?? 0d:0}, " +
-            $"portal={guidance?.PortalIndex ?? -1}, hold={hold}, canMove={canMove}, " +
+            $"target={label}, remaining={sample.RemainingDistance:0}, " +
+            $"portal={sample.PortalIndex}, stretch={sample.RouteIdentity}, hold={sample.Hold}, canMove={canMove}, " +
             $"direction={hasDirection}, input={autoWalk.LastDiagnostic}, " +
-            $"position={position.X},{position.Y}");
+            $"position={position.X},{position.Y},{position.Z}");
         if (!autoWalk.Stop())
         {
             return;

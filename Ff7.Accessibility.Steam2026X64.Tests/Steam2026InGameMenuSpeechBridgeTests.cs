@@ -15,6 +15,7 @@ internal static class Steam2026InGameMenuSpeechBridgeTests
         ReadsGenericRenderedSelection();
         ReadsItemCommandWithoutRenderedCursor();
         ReadsItemArrangeWithoutRenderedCursor();
+        ReadsMateriaSubmenusFromTranslatedNativeState();
         ReadsLimitLevelConfirmationFromNativeRow();
         SpeaksTheLimitHeaderFromTheTranslatedGuest();
         ReadsNativeOrderRowsAndPendingSwap();
@@ -2067,6 +2068,58 @@ internal static class Steam2026InGameMenuSpeechBridgeTests
             moduleId,
             isHostForeground,
             isNameEntryActive);
+    }
+
+    /// <summary>
+    /// The Materia screen's Check/Arrange selector and Check's command grid draw no cursor the
+    /// frame matcher can pair (the 2026-09-28 session was silent on both). Through the
+    /// translated guest they are read from the screen's own state, as on the legacy runtime.
+    /// </summary>
+    private static void ReadsMateriaSubmenusFromTranslatedNativeState()
+    {
+        var memory = Ff7.Accessibility.Reloaded.Tests.MateriaSubmenuSpeechTests.ScreenMemory();
+        memory.Int32(0x00920FA0, 0);
+        Ff7.Accessibility.Reloaded.Tests.MateriaSubmenuSpeechTests.Widget(memory, 0x00DD12B8, 0, 1, 1, 2);
+        var reader = CreateMenuReader(memory);
+        reader.ConfigureNativeDetailResolvers(
+            _ => null,
+            _ => null,
+            id => id == 2 ? "Magic" : null,
+            id => id == 2 ? "Cast spell" : null);
+        var bridge = new Steam2026InGameMenuSpeechBridge(reader, TimeSpan.Zero);
+        var now = UtcNow();
+        var sequence = 0L;
+        ObserveWidget(
+            bridge,
+            ref sequence,
+            now,
+            "Materia command",
+            MenuWidgetKind.MateriaCommand,
+            first: 0,
+            cursor: 1,
+            columns: 1,
+            rows: 2,
+            widgetIdentity: 0x00DD12B8);
+        Equal("Arrange", bridge.Poll(now), "Materia command selector reads its native row without a cursor draw");
+
+        now = now.AddMilliseconds(600);
+        memory.Int32(0x00920FA0, 4);
+        memory.Int32(0x00DD1638, 0);
+        memory.Byte(0x00DBA4B9, 1);
+        memory.Byte(0x00DBA4E4 + 6, 2);
+        Ff7.Accessibility.Reloaded.Tests.MateriaSubmenuSpeechTests.Widget(memory, 0x00DD1398, 0, 1, 1, 4);
+        ObserveWidget(
+            bridge,
+            ref sequence,
+            now,
+            "Materia check command",
+            MenuWidgetKind.MateriaCheckCommand,
+            first: 0,
+            cursor: 1,
+            columns: 1,
+            rows: 4,
+            widgetIdentity: 0x00DD1398);
+        Equal("Magic. Cast spell", bridge.Poll(now), "Check's command grid says the command and its description");
     }
 
     private static Steam2026MenuObservationReader CreateMenuReader(ILegacyAddressSpace memory) =>

@@ -75,16 +75,47 @@ public sealed class MateriaMenuSelectionReader
             return TryReadState(kind, out var emptyBookend) && emptyBookend == state;
         }
 
-        if (materiaId == 0xff)
+        if (!TryDescribe(state.RawMateria, out var name, out var description))
         {
             return false;
         }
 
-        string? name;
+        if (!TryReadState(kind, out var bookend) || bookend != state)
+        {
+            return false;
+        }
+
+        var text = kind == MenuWidgetKind.MateriaSlot
+            ? $"{GetSlotLabel(state.Row, state.Column)}, {name}"
+            : name;
+        selection = new NativeMenuSelection(
+            text,
+            description,
+            $"materia:{kind}:{state.CharacterIndex}:{state.EquipmentId}:" +
+            $"{state.Column}:{state.Row}:{state.ListIndex}:{state.RawMateria:X8}");
+        return true;
+    }
+
+    /// <summary>
+    /// The name and details the Materia screen shows for one raw materia word (id in the low
+    /// byte, AP above it): its description, AP and, while the native detail buffer holds this
+    /// materia, its level and equip effect. An empty word (all bits set) is not described.
+    /// </summary>
+    public bool TryDescribe(uint rawMateria, out string name, out string description)
+    {
+        name = string.Empty;
+        description = string.Empty;
+        var materiaId = (int)(rawMateria & 0xff);
+        if (rawMateria == uint.MaxValue || materiaId == 0xff)
+        {
+            return false;
+        }
+
+        string? resolvedName;
         string? help;
         try
         {
-            name = resolveMateriaName(materiaId);
+            resolvedName = resolveMateriaName(materiaId);
             help = resolveMateriaDescription(materiaId);
         }
         catch
@@ -92,7 +123,7 @@ public sealed class MateriaMenuSelectionReader
             return false;
         }
 
-        if (string.IsNullOrWhiteSpace(name))
+        if (string.IsNullOrWhiteSpace(resolvedName))
         {
             return false;
         }
@@ -103,13 +134,11 @@ public sealed class MateriaMenuSelectionReader
             descriptionParts.Add(help.Trim());
         }
 
-        var ap = state.RawMateria >> 8;
+        var ap = rawMateria >> 8;
         descriptionParts.Add(ap == 0x00FF_FFFF ? "AP mastered" : $"AP {ap}");
 
-        MateriaDetailSnapshot? detail = null;
         if (TryReadDetail(materiaId, out var detailSnapshot))
         {
-            detail = detailSnapshot;
             descriptionParts.Add(
                 ap == 0x00FF_FFFF
                     ? $"Mastered, level {detailSnapshot.CurrentLevel} of {detailSnapshot.MaximumLevel}"
@@ -130,19 +159,8 @@ public sealed class MateriaMenuSelectionReader
             }
         }
 
-        if (!TryReadState(kind, out var bookend) || bookend != state)
-        {
-            return false;
-        }
-
-        var text = kind == MenuWidgetKind.MateriaSlot
-            ? $"{GetSlotLabel(state.Row, state.Column)}, {name.Trim()}"
-            : name.Trim();
-        selection = new NativeMenuSelection(
-            text,
-            string.Join(". ", descriptionParts),
-            $"materia:{kind}:{state.CharacterIndex}:{state.EquipmentId}:" +
-            $"{state.Column}:{state.Row}:{state.ListIndex}:{state.RawMateria:X8}");
+        name = resolvedName.Trim();
+        description = string.Join(". ", descriptionParts);
         return true;
     }
 

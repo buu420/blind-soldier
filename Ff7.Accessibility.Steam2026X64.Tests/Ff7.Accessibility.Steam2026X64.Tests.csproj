@@ -108,6 +108,12 @@
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\GreatGlacierOptionalContentTests.cs" Link="SharedTests\GreatGlacierOptionalContentTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\GreatGlacierExitLabelTests.cs" Link="SharedTests\GreatGlacierExitLabelTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\KeyItemsMenuSpeechTests.cs" Link="SharedTests\KeyItemsMenuSpeechTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\MateriaSubmenuSpeechTests.cs" Link="SharedTests\MateriaSubmenuSpeechTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\NativeAskChoicePageTests.cs" Link="SharedTests\NativeAskChoicePageTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\BattleAnimationNarrationTests.cs" Link="SharedTests\BattleAnimationNarrationTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\BattleVisibleFeedbackTests.cs" Link="SharedTests\BattleVisibleFeedbackTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\BattleNarrationAssetTests.cs" Link="SharedTests\BattleNarrationAssetTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\BattleNarrationLifecycleTests.cs" Link="SharedTests\BattleNarrationLifecycleTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\BattleMessageFlickerTests.cs" Link="SharedTests\BattleMessageFlickerTests.cs" />
 
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\CosmoNibelheimDescriptionTests.cs" Link="SharedTests\CosmoNibelheimDescriptionTests.cs" />

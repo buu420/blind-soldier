@@ -1,0 +1,1383 @@
+[
+  {
+    "key": "summon.choco_mog",
+    "name": "Choco/Mog: Deathblow!!",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 22,
+        "text": "A white moogle rides a yellow chocobo, charging across the field."
+      },
+      {
+        "atFrame": 82,
+        "text": "A cartoon explosion! The moogle reels, spiral-eyed, with stars circling its head."
+      }
+    ],
+    "anchor": "summon"
+  },
+  {
+    "key": "summon.fat_chocobo",
+    "name": "Choco/Mog: Fat Chocobo",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 45,
+        "text": "A huge, round yellow chocobo drops onto the enemy in a puff of dust, then bounces away."
+      }
+    ],
+    "anchor": "summon"
+  },
+  {
+    "key": "summon.shiva",
+    "name": "Shiva: Diamond Dust",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 30,
+        "text": "White lights drift down. Shiva appears, blue-skinned, with long green hair and a violet wrap."
+      },
+      {
+        "atFrame": 135,
+        "text": "She sweeps one arm overhead, gathering a ball of blue light."
+      },
+      {
+        "atFrame": 202,
+        "text": "Glittering frost surrounds the enemy. Jagged blue ice bursts from the ground and shatters."
+      }
+    ],
+    "anchor": "summon"
+  },
+  {
+    "key": "summon.ifrit",
+    "name": "Ifrit: Hellfire",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 22,
+        "text": "A pillar of fire lifts a horned, muscular beast out of the ground."
+      },
+      {
+        "atFrame": 90,
+        "text": "Ifrit bares his fangs, his long mane whipping behind him."
+      },
+      {
+        "atFrame": 150,
+        "text": "He plunges toward the enemy. Flames engulf the ground in a blazing orange explosion."
+      }
+    ],
+    "anchor": "summon"
+  },
+  {
+    "key": "summon.ramuh",
+    "name": "Ramuh: Judgment Bolt",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 15,
+        "text": "Forks of lightning strike the ground. A rocky pinnacle rises amid flying stones."
+      },
+      {
+        "atFrame": 112,
+        "text": "At its summit stands Ramuh, a white-robed old man with a long beard and staff."
+      },
+      {
+        "atFrame": 195,
+        "text": "He raises the staff. Branching blue lightning lashes outward, engulfing the enemy in light."
+      }
+    ],
+    "anchor": "summon"
+  },
+  {
+    "key": "summon.titan",
+    "name": "Titan: Anger of the Land",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 15,
+        "text": "The earth bulges. Titan, a bare-chested, muscular giant, heaves himself out."
+      },
+      {
+        "atFrame": 75,
+        "text": "He crouches and grips the ground beneath the enemy, straining to lift an enormous slab."
+      },
+      {
+        "atFrame": 142,
+        "text": "He flips the whole slab over. Rock crashes down and breaks apart."
+      }
+    ],
+    "anchor": "summon"
+  },
+  {
+    "key": "summon.odin_sword",
+    "name": "Odin: Steel Bladed Sword",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 30,
+        "text": "Clouds part around a full moon. A mounted warrior appears in silhouette on a rocky crag."
+      },
+      {
+        "atFrame": 158,
+        "text": "Odin's many-legged horse rears, his black cape streaming."
+      },
+      {
+        "atFrame": 210,
+        "text": "His horned armor gleams as they charge. A blue sword slashes across the enemies."
+      },
+      {
+        "atFrame": 285,
+        "text": "A blue line cuts across the enemies as horse and rider gallop away."
+      }
+    ],
+    "anchor": "summon"
+  },
+  {
+    "key": "summon.odin_lance",
+    "name": "Odin: Gunge Lance",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 30,
+        "text": "The sky darkens, and rain streaks across the battlefield."
+      },
+      {
+        "atFrame": 120,
+        "text": "Odin rides in on his gray, many-legged horse, carrying a glowing pink lance."
+      },
+      {
+        "atFrame": 225,
+        "text": "His horned helmet tilts upward. He draws back his arm and hurls the lance into the clouds."
+      },
+      {
+        "atFrame": 315,
+        "text": "A blue ring opens overhead. The lance plunges through it, spearing the ground in a flash."
+      }
+    ],
+    "anchor": "summon"
+  },
+  {
+    "key": "summon.leviathan",
+    "name": "Leviathan: Tidal Wave",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 38,
+        "text": "A sphere of water spins above the enemy, then breaks open into a long sea serpent."
+      },
+      {
+        "atFrame": 105,
+        "text": "Leviathan coils through the air, teal-scaled, with pale fins and long whiskers."
+      },
+      {
+        "atFrame": 188,
+        "text": "Water rises around the battlefield. A towering wave curls over and crashes across the enemy."
+      }
+    ],
+    "anchor": "summon"
+  },
+  {
+    "key": "summon.bahamut",
+    "name": "Bahamut: Mega Flare",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 30,
+        "text": "A purple vortex churns in the dark sky, its bright center swelling open."
+      },
+      {
+        "atFrame": 150,
+        "text": "Bahamut emerges: a gray, armored dragon with a golden chest, swept-back horns, and broad violet wings."
+      },
+      {
+        "atFrame": 262,
+        "text": "He throws his head back, gathering light in his jaws."
+      },
+      {
+        "atFrame": 308,
+        "text": "A thick blue-white beam pours down, engulfing the enemy in a blinding column."
+      }
+    ],
+    "anchor": "summon"
+  },
+  {
+    "key": "summon.kujata",
+    "name": "Kujata: Tetra Disaster",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 22,
+        "text": "Purple lightning lashes the enemy. Shards of ice whirl together into a frozen sphere."
+      },
+      {
+        "atFrame": 135,
+        "text": "Golden sparks scatter. Flames surge upward, exploding across the ground."
+      },
+      {
+        "atFrame": 255,
+        "text": "A massive brown bull appears, with curling horns and a jagged red mane down its back."
+      },
+      {
+        "atFrame": 322,
+        "text": "Kujata stamps down. The ground jolts beneath the enemy."
+      }
+    ],
+    "anchor": "summon"
+  },
+  {
+    "key": "summon.alexander",
+    "name": "Alexander: Judgment",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 15,
+        "text": "Cracks tear across the ground. Steam billows from a widening black chasm."
+      },
+      {
+        "atFrame": 98,
+        "text": "Alexander rises: an immense mechanical fortress with towers, gold trim, and two thick, column-like arms."
+      },
+      {
+        "atFrame": 188,
+        "text": "Blue light gathers beneath its face. It aims its enormous arms toward the enemy."
+      },
+      {
+        "atFrame": 248,
+        "text": "Beams converge from both sides. A brilliant white explosion fills the battlefield."
+      }
+    ],
+    "anchor": "summon"
+  },
+  {
+    "key": "summon.phoenix",
+    "name": "Phoenix: Phoenix Flame",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 22,
+        "text": "A golden spark descends. It blooms into a pillar of flame."
+      },
+      {
+        "atFrame": 105,
+        "text": "Phoenix rises from the blaze, a huge red-and-gold bird with a long, flowing tail."
+      },
+      {
+        "atFrame": 165,
+        "text": "Its wings spread wide. Radiant streaks fan outward, washing across the battlefield."
+      }
+    ],
+    "anchor": "summon"
+  },
+  {
+    "key": "summon.neo_bahamut",
+    "name": "Neo Bahamut: Giga Flare",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 15,
+        "text": "Cracks encircle the enemies. The ground beneath them breaks free in one enormous slab."
+      },
+      {
+        "atFrame": 120,
+        "text": "The slab rises between towering banks of cloud, carrying them high above the world."
+      },
+      {
+        "atFrame": 232,
+        "text": "Neo Bahamut hovers before the floating rock: a red dragon with long horns and four spreading wings."
+      },
+      {
+        "atFrame": 375,
+        "text": "He draws his head back. White light gathers between his open jaws."
+      },
+      {
+        "atFrame": 450,
+        "text": "A broad golden beam tears across the slab, blasting it into fragments."
+      },
+      {
+        "atFrame": 540,
+        "text": "Shattered rock tumbles through a white flash, and the battlefield returns."
+      }
+    ],
+    "anchor": "summon"
+  },
+  {
+    "key": "summon.hades",
+    "name": "Hades: Black Cauldron",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 15,
+        "text": "Small flames encircle the enemies. A patterned stone platform rises through a ring of smoke."
+      },
+      {
+        "atFrame": 142,
+        "text": "Pillars stand around a huge cauldron. A shadowy figure looms behind it."
+      },
+      {
+        "atFrame": 248,
+        "text": "Hades reveals a grinning skull beneath a dark red hood. He bends over the bubbling cauldron."
+      },
+      {
+        "atFrame": 345,
+        "text": "He spreads his arms. Thick magenta vapor spills outward, curling around the enemy in rolling clouds."
+      }
+    ],
+    "anchor": "summon"
+  },
+  {
+    "key": "summon.typhon",
+    "name": "Typhon: Disintegration",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 15,
+        "text": "A green whirlwind coils up from the ground, widening into a spinning funnel."
+      },
+      {
+        "atFrame": 98,
+        "text": "Typhon drops from it: a plump pink creature with clawed arms and a huge, toothy mouth."
+      },
+      {
+        "atFrame": 165,
+        "text": "It blows flame toward the enemy. Wind and flying stones twist upward around them."
+      },
+      {
+        "atFrame": 248,
+        "text": "Typhon turns, revealing another snarling face on its back. The whole battlefield rolls upside down."
+      },
+      {
+        "atFrame": 352,
+        "text": "The upturned ground crashes down in a storm of rocks and purple light."
+      }
+    ],
+    "anchor": "summon"
+  },
+  {
+    "key": "summon.bahamut_zero",
+    "name": "Bahamut ZERO: Tera Flare",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 15,
+        "text": "The view rushes into space. The blue-white planet hangs against a field of stars."
+      },
+      {
+        "atFrame": 210,
+        "text": "A vast shadow passes overhead, dwarfing the curve of the planet."
+      },
+      {
+        "atFrame": 300,
+        "text": "Bahamut ZERO glides into view: a metallic gray dragon with a spiked head and six immense wings."
+      },
+      {
+        "atFrame": 405,
+        "text": "Its three pairs of wings spread. Purple light pulses around its body."
+      },
+      {
+        "atFrame": 480,
+        "text": "A bright blue sphere builds between its jaws, sending sharp rays in every direction."
+      },
+      {
+        "atFrame": 540,
+        "text": "The dragon fires a narrow beam down toward the planet."
+      },
+      {
+        "atFrame": 615,
+        "text": "The beam pierces the clouds and bears down on the battlefield."
+      },
+      {
+        "atFrame": 690,
+        "text": "A golden blast swells into a blazing dome, swallowing the enemy before the light fades."
+      }
+    ],
+    "anchor": "summon"
+  },
+  {
+    "key": "summon.knights",
+    "name": "Knights of the Round: Ultimate End",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 30,
+        "text": "Violet light encloses the enemy. A circular portal pulls the battlefield into darkness."
+      },
+      {
+        "atFrame": 142,
+        "text": "Against a red void, an armored knight sweeps a huge, jagged sword through the enemy."
+      },
+      {
+        "atFrame": 210,
+        "text": "A lance-bearing knight charges. A red-robed mage follows, hurling a rolling fireball."
+      },
+      {
+        "atFrame": 315,
+        "text": "Against a blue void, a golden knight strikes with his mace and shield."
+      },
+      {
+        "atFrame": 368,
+        "text": "A pink-armored swordsman lunges. A green knight follows with a massive hammer."
+      },
+      {
+        "atFrame": 458,
+        "text": "A robed knight thrusts his staff, sending out a branching wave of frost."
+      },
+      {
+        "atFrame": 532,
+        "text": "Another raises a three-pronged staff. Golden rays flash across a swirling starfield."
+      },
+      {
+        "atFrame": 608,
+        "text": "A towering knight drives down a meteor, which bursts into chunks of rock."
+      },
+      {
+        "atFrame": 690,
+        "text": "A swordsman sweeps his long blade across the enemy, leaving a brilliant trail."
+      },
+      {
+        "atFrame": 758,
+        "text": "Another knight swings a great axe. White light flares along its broad edge."
+      },
+      {
+        "atFrame": 832,
+        "text": "A final swordsman charges through the stars. The swirling realm falls black."
+      },
+      {
+        "atFrame": 930,
+        "text": "A giant king descends, a long red cape flowing behind him. He lifts an enormous silver sword."
+      },
+      {
+        "atFrame": 1020,
+        "text": "His two-handed blow floods the scene with white light."
+      },
+      {
+        "atFrame": 1088,
+        "text": "The glowing world cracks and shatters like glass, revealing the battlefield again."
+      }
+    ],
+    "anchor": "summon"
+  },
+  {
+    "key": "limit.cloud.braver",
+    "name": "Cloud: Braver",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 38,
+        "text": "Cloud leaps with his sword overhead, then chops straight down."
+      }
+    ]
+  },
+  {
+    "key": "limit.cloud.cross_slash",
+    "name": "Cloud: Cross-slash",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 38,
+        "text": "Cloud lunges in, carving three bright slashes into a glowing symbol across the enemy."
+      }
+    ]
+  },
+  {
+    "key": "limit.cloud.blade_beam",
+    "name": "Cloud: Blade Beam",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 38,
+        "text": "Cloud swings his sword down, launching a glowing shockwave along the ground."
+      }
+    ]
+  },
+  {
+    "key": "limit.cloud.climhazzard",
+    "name": "Cloud: Climhazzard",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 30,
+        "text": "Cloud drives his sword into the enemy, then leaps upward, dragging the blade with him."
+      }
+    ]
+  },
+  {
+    "key": "limit.cloud.meteorain",
+    "name": "Cloud: Meteorain",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 38,
+        "text": "Cloud spins his sword and leaps."
+      },
+      {
+        "atFrame": 75,
+        "text": "Blazing meteors rain down, striking the enemies in rapid flashes."
+      }
+    ]
+  },
+  {
+    "key": "limit.cloud.finishing_touch",
+    "name": "Cloud: Finishing Touch",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 30,
+        "text": "Cloud spins, then whips his sword overhead."
+      },
+      {
+        "atFrame": 82,
+        "text": "The tornado surges across the enemies, lifting rocks and debris into its glowing column."
+      }
+    ]
+  },
+  {
+    "key": "limit.cloud.omnislash",
+    "name": "Cloud: Omnislash",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 45,
+        "text": "Cloud raises his sword into a column of golden light."
+      },
+      {
+        "atFrame": 90,
+        "text": "He rushes in, slashing again and again. Each sweeping blow bursts into white and green light."
+      },
+      {
+        "atFrame": 218,
+        "text": "Cloud leaps high, drawing the blazing sword above his head."
+      },
+      {
+        "atFrame": 278,
+        "text": "He plunges down with a two-handed strike. A blinding explosion swallows the battlefield."
+      }
+    ]
+  },
+  {
+    "key": "limit.barret.big_shot",
+    "name": "Barret: Big Shot",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 38,
+        "text": "Barret levels his gun arm and fires a swelling ball of yellow light."
+      }
+    ]
+  },
+  {
+    "key": "limit.barret.mindblow",
+    "name": "Barret: Mindblow",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 30,
+        "text": "Barret fires a blue-white sphere from his gun arm, bursting against the enemy."
+      }
+    ]
+  },
+  {
+    "key": "limit.barret.grenade_bomb",
+    "name": "Barret: Grenade Bomb",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 38,
+        "text": "Barret launches a glowing grenade high into the air."
+      },
+      {
+        "atFrame": 75,
+        "text": "It drops onto the enemy and bursts in a spreading explosion."
+      }
+    ]
+  },
+  {
+    "key": "limit.barret.hammerblow",
+    "name": "Barret: Hammerblow",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 30,
+        "text": "Barret charges in and swings a rising punch, knocking the enemy skyward."
+      }
+    ]
+  },
+  {
+    "key": "limit.barret.satellite_beam",
+    "name": "Barret: Satellite Beam",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 38,
+        "text": "The view rises overhead. Red targeting sights sweep across the battlefield and lock onto the enemies."
+      },
+      {
+        "atFrame": 120,
+        "text": "White-blue beams lance down from above. Explosions expand in rings of light."
+      }
+    ]
+  },
+  {
+    "key": "limit.barret.ungarmax",
+    "name": "Barret: Ungarmax",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 38,
+        "text": "Barret braces his gun arm and unleashes a barrage, muzzle flashes strobing with each shot."
+      }
+    ]
+  },
+  {
+    "key": "limit.barret.catastrophe",
+    "name": "Barret: Catastrophe",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 45,
+        "text": "Barret spreads his arms and rises into the air. Light gathers at his gun arm."
+      },
+      {
+        "atFrame": 128,
+        "text": "He aims down, pouring out a thick golden beam. Explosions flare as he sweeps it across the enemy."
+      }
+    ]
+  },
+  {
+    "key": "limit.tifa.beat_rush",
+    "name": "Tifa: Beat Rush",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 38,
+        "text": "Tifa pounds the enemy with quick punches."
+      }
+    ]
+  },
+  {
+    "key": "limit.tifa.somersault",
+    "name": "Tifa: Somersault",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 15,
+        "text": "Tifa backflips with a rising kick."
+      }
+    ]
+  },
+  {
+    "key": "limit.tifa.waterkick",
+    "name": "Tifa: Waterkick",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 8,
+        "text": "Tifa sweeps a watery kick."
+      }
+    ]
+  },
+  {
+    "key": "limit.tifa.meteodrive",
+    "name": "Tifa: Meteodrive",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 15,
+        "text": "Tifa hoists the enemy into a backward slam."
+      }
+    ]
+  },
+  {
+    "key": "limit.tifa.dolphin_blow",
+    "name": "Tifa: Dolphin Blow",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 8,
+        "text": "Tifa uppercuts alongside a leaping dolphin."
+      }
+    ]
+  },
+  {
+    "key": "limit.tifa.meteor_strike",
+    "name": "Tifa: Meteor Strike",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 22,
+        "text": "Tifa leaps high, then hurls the enemy down."
+      }
+    ]
+  },
+  {
+    "key": "limit.tifa.final_heaven",
+    "name": "Tifa: Final Heaven",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 22,
+        "text": "Golden light gathers around Tifa's fist."
+      },
+      {
+        "atFrame": 75,
+        "text": "Her punch releases a brilliant shock wave."
+      }
+    ]
+  },
+  {
+    "key": "limit.aerith.healing_wind",
+    "name": "Aerith: Healing Wind",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 38,
+        "text": "Aerith raises her arms as blue sparkles drift in circles around the party."
+      }
+    ]
+  },
+  {
+    "key": "limit.aerith.seal_evil",
+    "name": "Aerith: Seal Evil",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 30,
+        "text": "Aerith raises her staff, sending a white flash across the enemies."
+      }
+    ]
+  },
+  {
+    "key": "limit.aerith.breath_earth",
+    "name": "Aerith: Breath of the Earth",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 22,
+        "text": "Aerith lifts her staff as circling winds and golden stars surround the party."
+      }
+    ]
+  },
+  {
+    "key": "limit.aerith.fury_brand",
+    "name": "Aerith: Fury Brand",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 45,
+        "text": "Aerith holds her staff aloft. Blue lightning branches around her companions, followed by spheres of golden light."
+      }
+    ]
+  },
+  {
+    "key": "limit.aerith.planet_protector",
+    "name": "Aerith: Planet Protector",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 52,
+        "text": "Stars circle the party, and each figure becomes wrapped in a translucent golden glow."
+      }
+    ]
+  },
+  {
+    "key": "limit.aerith.pulse_life",
+    "name": "Aerith: Pulse of Life",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 45,
+        "text": "Aerith clasps her hands and kneels. Blue-white stars stream through slender columns of light around the party."
+      }
+    ]
+  },
+  {
+    "key": "limit.aerith.great_gospel",
+    "name": "Aerith: Great Gospel",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 45,
+        "text": "Aerith closes her eyes in prayer. Golden pools of light spread beneath her companions."
+      },
+      {
+        "atFrame": 135,
+        "text": "Small winged angels descend through an opening in the swirling clouds."
+      }
+    ]
+  },
+  {
+    "key": "limit.red.sled_fang",
+    "name": "Red XIII: Sled Fang",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 38,
+        "text": "Red Thirteen hurtles forward, leaving a blue streak behind him."
+      }
+    ]
+  },
+  {
+    "key": "limit.red.lunatic_high",
+    "name": "Red XIII: Lunatic High",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 30,
+        "text": "Red Thirteen howls, and golden flames rise around his companions."
+      }
+    ]
+  },
+  {
+    "key": "limit.red.blood_fang",
+    "name": "Red XIII: Blood Fang",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 22,
+        "text": "Red Thirteen pounces and swipes as glowing orbs stream back toward him."
+      }
+    ]
+  },
+  {
+    "key": "limit.red.stardust_ray",
+    "name": "Red XIII: Stardust Ray",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 45,
+        "text": "Red Thirteen howls toward the sky, and a shower of bright stars rains onto the enemy."
+      }
+    ]
+  },
+  {
+    "key": "limit.red.howling_moon",
+    "name": "Red XIII: Howling Moon",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 45,
+        "text": "Red Thirteen rises onto his hind legs and howls against a huge full moon."
+      }
+    ]
+  },
+  {
+    "key": "limit.red.earth_rave",
+    "name": "Red XIII: Earth Rave",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 38,
+        "text": "Red Thirteen darts and leaps through the enemy, striking with his claws amid fiery bursts."
+      }
+    ]
+  },
+  {
+    "key": "limit.red.cosmo_memory",
+    "name": "Red XIII: Cosmo Memory",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 38,
+        "text": "Red Thirteen raises his head. A field of stars spins around a red sphere above him."
+      },
+      {
+        "atFrame": 120,
+        "text": "Points of light spiral inward. The sphere swells, glowing like a miniature sun."
+      },
+      {
+        "atFrame": 188,
+        "text": "It fires a huge beam across the battlefield. Flame and jagged slabs of rock engulf the enemies."
+      }
+    ]
+  },
+  {
+    "key": "limit.cid.boost_jump",
+    "name": "Cid: Boost Jump",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 45,
+        "text": "Cid springs into the air, then plunges spear-first onto the enemy."
+      }
+    ]
+  },
+  {
+    "key": "limit.cid.dynamite",
+    "name": "Cid: Dynamite",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 38,
+        "text": "Cid lights a stick of dynamite with his cigarette, then tosses it toward the enemy."
+      },
+      {
+        "atFrame": 112,
+        "text": "It explodes in a red-orange flash as he ducks away."
+      }
+    ]
+  },
+  {
+    "key": "limit.cid.hyper_jump",
+    "name": "Cid: Hyper Jump",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 38,
+        "text": "Cid twirls his spear and leaps. His landing sends a ring of energy across the ground."
+      }
+    ]
+  },
+  {
+    "key": "limit.cid.dragon",
+    "name": "Cid: Dragon",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 52,
+        "text": "Cid points his spear. A translucent blue dragon twists around the enemy in falling green light."
+      },
+      {
+        "atFrame": 135,
+        "text": "A glowing orb streams back toward Cid."
+      }
+    ]
+  },
+  {
+    "key": "limit.cid.dragon_dive",
+    "name": "Cid: Dragon Dive",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 68,
+        "text": "Cid crouches and rockets upward, spear poised."
+      },
+      {
+        "atFrame": 112,
+        "text": "He plunges down again and again, rebounding between blows as white bursts flash below."
+      },
+      {
+        "atFrame": 240,
+        "text": "A final dive drives a tall column of colored light into the ground."
+      }
+    ]
+  },
+  {
+    "key": "limit.cid.big_brawl",
+    "name": "Cid: Big Brawl",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 38,
+        "text": "Cid rushes in, jabbing and swinging his spear through a rapid flurry of blows."
+      }
+    ]
+  },
+  {
+    "key": "limit.cid.highwind",
+    "name": "Cid: Highwind",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 38,
+        "text": "Cid raises his spear overhead, then waves to the sky."
+      },
+      {
+        "atFrame": 98,
+        "text": "Missiles streak down in curving trails, peppering the enemy with bright explosions and billowing smoke."
+      },
+      {
+        "atFrame": 180,
+        "text": "The barrage ends in a tall flare surrounded by fanning trails of smoke."
+      }
+    ]
+  },
+  {
+    "key": "limit.yuffie.greased_lightning",
+    "name": "Yuffie: Greased Lightning",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 38,
+        "text": "Yuffie dashes past the enemy, slashes with her shuriken, and flips back into place."
+      }
+    ]
+  },
+  {
+    "key": "limit.yuffie.clear_tranquil",
+    "name": "Yuffie: Clear Tranquil",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 45,
+        "text": "Yuffie spreads her arms. Blue-violet bubbles rise around each companion, shimmering before they fade."
+      }
+    ]
+  },
+  {
+    "key": "limit.yuffie.landscaper",
+    "name": "Yuffie: Landscaper",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 45,
+        "text": "Yuffie thrusts her hand toward the ground. A blue ring spreads beneath the enemies."
+      },
+      {
+        "atFrame": 98,
+        "text": "Rocky slabs burst upward, tossing dust and debris into the air."
+      }
+    ]
+  },
+  {
+    "key": "limit.yuffie.bloodfest",
+    "name": "Yuffie: Bloodfest",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 45,
+        "text": "Yuffie darts back and forth, striking repeatedly through bright red streaks."
+      }
+    ]
+  },
+  {
+    "key": "limit.yuffie.gauntlet",
+    "name": "Yuffie: Gauntlet",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 52,
+        "text": "Yuffie thrusts her hand forward, and a towering blue beam erupts inside a glowing circle."
+      }
+    ]
+  },
+  {
+    "key": "limit.yuffie.doom_living",
+    "name": "Yuffie: Doom of the Living",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 45,
+        "text": "Yuffie streaks between the enemies, swinging her shuriken through bursts of violet light."
+      },
+      {
+        "atFrame": 142,
+        "text": "She vaults upward for the final strikes, then flips back toward her companions."
+      }
+    ]
+  },
+  {
+    "key": "limit.yuffie.all_creation",
+    "name": "Yuffie: All Creation",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 38,
+        "text": "Yuffie holds her weapon close and rises off the ground. Red light fills the air around her."
+      },
+      {
+        "atFrame": 128,
+        "text": "She releases a tremendous multicolored beam. It widens across the enemies, bleaching the scene white."
+      }
+    ]
+  },
+  {
+    "key": "limit.vincent.galian_beast",
+    "name": "Vincent: Galian Beast transformation",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 45,
+        "text": "Vincent becomes a horned purple beast with a red mane, clawed hands, and a long tail."
+      }
+    ]
+  },
+  {
+    "key": "limit.vincent.berserk_dance",
+    "name": "Vincent: Berserk Dance",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 8,
+        "text": "The horned beast lunges at the enemy, slashing with its claws."
+      }
+    ]
+  },
+  {
+    "key": "limit.vincent.beast_flare",
+    "name": "Vincent: Beast Flare",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 15,
+        "text": "The horned beast gathers light and launches blazing golden orbs that burst around the enemy."
+      }
+    ]
+  },
+  {
+    "key": "limit.vincent.death_gigas",
+    "name": "Vincent: Death Gigas transformation",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 45,
+        "text": "Vincent becomes a hulking gray-green monster, with mismatched limbs and large bolts protruding from its shoulders."
+      }
+    ]
+  },
+  {
+    "key": "limit.vincent.gigadunk",
+    "name": "Vincent: Gigadunk",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 15,
+        "text": "The hulking monster charges forward and drives a heavy fist into the enemy."
+      }
+    ]
+  },
+  {
+    "key": "limit.vincent.livewire",
+    "name": "Vincent: Livewire",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 22,
+        "text": "Electric orbs gather around the hulking monster, then burst into crackling arcs across the battlefield."
+      }
+    ]
+  },
+  {
+    "key": "limit.vincent.hellmasker",
+    "name": "Vincent: Hellmasker transformation",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 45,
+        "text": "Vincent becomes a hunched, white-masked figure in ragged clothes, a long chainsaw clutched in one hand."
+      }
+    ]
+  },
+  {
+    "key": "limit.vincent.splattercombo",
+    "name": "Vincent: Splattercombo",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 15,
+        "text": "The masked figure lunges in and tears through a rapid series of chainsaw swings."
+      }
+    ]
+  },
+  {
+    "key": "limit.vincent.nightmare",
+    "name": "Vincent: Nightmare",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 30,
+        "text": "The masked figure sends eerie green lights and drifting mist swirling around the enemy."
+      }
+    ]
+  },
+  {
+    "key": "limit.vincent.chaos",
+    "name": "Vincent: Chaos transformation",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 38,
+        "text": "Vincent becomes a horned demon. Broad red bat wings unfurl from his back as he hovers."
+      }
+    ]
+  },
+  {
+    "key": "limit.vincent.chaos_saber",
+    "name": "Vincent: Chaos Saber",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 15,
+        "text": "The winged demon sweeps forward, sending a sharp wave of energy across the enemy."
+      }
+    ]
+  },
+  {
+    "key": "limit.vincent.satan_slam",
+    "name": "Vincent: Satan Slam",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 38,
+        "text": "A huge stone skull pushes up beneath the enemies, its teeth forming a jagged grin."
+      },
+      {
+        "atFrame": 105,
+        "text": "Orange fire blazes from its eye sockets. The skull fractures, scattering chunks of rock across the ground."
+      }
+    ]
+  },
+  {
+    "key": "limit.cait.dice",
+    "name": "Cait Sith: Dice",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 38,
+        "text": "Cait Sith tosses giant white dice, which bounce and tumble across the battlefield."
+      }
+    ]
+  },
+  {
+    "key": "limit.cait.toy_soldier",
+    "name": "Cait Sith: Toy Soldier",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 45,
+        "text": "Tiny red-uniformed soldiers march into a line. They shoulder their rifles and fire together."
+      }
+    ]
+  },
+  {
+    "key": "limit.cait.mog_dance",
+    "name": "Cait Sith: Mog Dance",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 38,
+        "text": "Cait Sith's big moogle bounces and sways, waving both arms as colorful stars swirl around the party."
+      }
+    ]
+  },
+  {
+    "key": "limit.cait.lucky_girl",
+    "name": "Cait Sith: Lucky Girl",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 45,
+        "text": "A floating woman blows a kiss, and pink hearts swell around the party."
+      }
+    ]
+  },
+  {
+    "key": "limit.cait.transform",
+    "name": "Cait Sith: Transform",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 22,
+        "text": "The other party members vanish as Cait Sith and his moogle grow to an enormous size."
+      }
+    ]
+  },
+  {
+    "key": "limit.cait.game_over",
+    "name": "Cait Sith: Game Over",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 75,
+        "text": "A small red-cloaked figure appears in white smoke, sweeps its curved blade, then vanishes."
+      }
+    ]
+  },
+  {
+    "key": "limit.cait.death_joker",
+    "name": "Cait Sith: Death Joker",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 45,
+        "text": "Red skulls rise around the party, their jaws gaping as a crimson glow pulses."
+      }
+    ]
+  },
+  {
+    "key": "limit.cait.toy_boulder",
+    "name": "Cait Sith: Toy Box boulder",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 38,
+        "text": "A broad slab crashes down and shatters into pale fragments around the enemy."
+      }
+    ]
+  },
+  {
+    "key": "limit.cait.toy_ice",
+    "name": "Cait Sith: Toy Box ice",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 52,
+        "text": "Blue icicles burst around the enemy amid glittering snowflakes."
+      }
+    ]
+  },
+  {
+    "key": "limit.cait.toy_weight",
+    "name": "Cait Sith: Toy Box weight",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 38,
+        "text": "A huge black weight marked with a white question mark drops onto the enemy."
+      }
+    ]
+  },
+  {
+    "key": "limit.cait.toy_hammer",
+    "name": "Cait Sith: Toy Box hammer",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 38,
+        "text": "An oversized mallet swings down onto the enemy."
+      }
+    ]
+  },
+  {
+    "key": "limit.cait.toy_chocobo",
+    "name": "Cait Sith: Toy Box Fat Chocobo",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 45,
+        "text": "A fat yellow chocobo plummets onto the enemy, landing in a puff of dust."
+      }
+    ]
+  },
+  {
+    "key": "limit.cait.toy_house",
+    "name": "Cait Sith: Toy Box house",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 45,
+        "text": "A red-roofed house drops from above and crashes down in a cloud of dust."
+      }
+    ]
+  },
+  {
+    "key": "limit.cait.toy_meteors",
+    "name": "Cait Sith: Toy Box meteors",
+    "revision": 2,
+    "cues": [
+      {
+        "atFrame": 52,
+        "text": "Small blazing meteors tumble down, bursting around the enemy in golden explosions."
+      }
+    ]
+  },
+  {
+    "key": "opening.summon",
+    "name": "Summoning",
+    "revision": 2,
+    "anchor": "banner",
+    "cues": [
+      {
+        "atFrame": 12,
+        "text": "Colored orbs circle the summoner in rising green light."
+      }
+    ]
+  }
+]

@@ -29,6 +29,7 @@ public sealed class ActiveMenuFrameSpeechCoordinator
     private uint? lastCompletedWidgetAddress;
     private MenuWidgetKind lastCompletedWidgetKind = MenuWidgetKind.Generic;
     private bool limitConfirmationPromptPending;
+    private bool materiaTrashPromptPending;
 
     public void ObserveDraw(MenuTextRenderEntry entry)
     {
@@ -79,6 +80,12 @@ public sealed class ActiveMenuFrameSpeechCoordinator
                 {
                     lastSpokenKeysByWidget.Remove(widget.Address);
                 }
+
+                materiaTrashPromptPending = widget.Kind == MenuWidgetKind.MateriaTrashConfirmation;
+                if (materiaTrashPromptPending)
+                {
+                    lastSpokenKeysByWidget.Remove(widget.Address);
+                }
             }
             else if (widget.Kind != MenuWidgetKind.LimitConfirmation)
             {
@@ -107,6 +114,7 @@ public sealed class ActiveMenuFrameSpeechCoordinator
 
             string? speech;
             string? nativeSelectionIdentity = null;
+            var carriesMateriaTrashPrompt = false;
             if (widget.Kind == MenuWidgetKind.MagicCategory)
             {
                 if (!TryBuildMagicCategorySpeech(widget, text, out speech))
@@ -144,6 +152,38 @@ public sealed class ActiveMenuFrameSpeechCoordinator
                 // first field and can update it without drawing a cursor.
                 speech = widget.First == 0 ? "Set" : "Check";
                 nativeSelectionIdentity = $"limit-command:{widget.First}";
+            }
+            else if (MateriaSubmenuSelectionReader.Handles(widget.Kind))
+            {
+                // The Materia screen's own selectors, read from native state by
+                // MateriaSubmenuSelectionReader. The Trash confirmation's question is its
+                // description: said with the first answer, not with every move between them.
+                if (widget.NativeSelection is { Text.Length: > 0 } materiaSubmenu)
+                {
+                    if (widget.Kind == MenuWidgetKind.MateriaTrashConfirmation)
+                    {
+                        speech = materiaTrashPromptPending && !string.IsNullOrWhiteSpace(materiaSubmenu.Description)
+                            ? JoinSentences(materiaSubmenu.Description, materiaSubmenu.Text)
+                            : materiaSubmenu.Text;
+                        carriesMateriaTrashPrompt = materiaTrashPromptPending;
+                    }
+                    else
+                    {
+                        speech = FormatNativeSelection(materiaSubmenu);
+                    }
+
+                    nativeSelectionIdentity = materiaSubmenu.Key;
+                }
+                else if (TryFindCursorSelection(text, cursors, out var renderedMateriaCommand))
+                {
+                    // No native read this frame: a cursor drawn beside a label still says it.
+                    speech = renderedMateriaCommand.Text;
+                }
+                else
+                {
+                    ClearPendingSelection(widget.Address);
+                    return;
+                }
             }
             else if (widget.Kind is MenuWidgetKind.CharacterList or
                 MenuWidgetKind.EquipmentSlot or
@@ -297,7 +337,14 @@ public sealed class ActiveMenuFrameSpeechCoordinator
             }
 
             var key = $"{widget.Address:X8}\u001f{widget.First}\u001f{widget.Cursor}\u001f{widget.ScrollOffset}\u001f{selectionIdentity}";
-            pending = new SpeechCandidate(widget.Address, speech, key, now, limitHeaderKey, limitHeaderCharacter);
+            pending = new SpeechCandidate(
+                widget.Address,
+                speech,
+                key,
+                now,
+                limitHeaderKey,
+                limitHeaderCharacter,
+                carriesMateriaTrashPrompt);
             if (widget.Kind == MenuWidgetKind.LimitConfirmation)
             {
                 limitConfirmationPromptPending = false;
@@ -342,6 +389,11 @@ public sealed class ActiveMenuFrameSpeechCoordinator
             }
 
             lastSpokenKeysByWidget[candidate.WidgetAddress] = candidate.Key;
+            if (candidate.CarriesMateriaTrashPrompt)
+            {
+                materiaTrashPromptPending = false;
+            }
+
             if (candidate.LimitHeaderKey is { } spokenHeader)
             {
                 spokenLimitHeaderKey = spokenHeader;
@@ -364,6 +416,7 @@ public sealed class ActiveMenuFrameSpeechCoordinator
             lastCompletedWidgetAddress = null;
             lastCompletedWidgetKind = MenuWidgetKind.Generic;
             limitConfirmationPromptPending = false;
+            materiaTrashPromptPending = false;
             spokenLimitHeaderKey = null;
             spokenLimitHeaderCharacter = null;
         }
@@ -668,6 +721,14 @@ public sealed class ActiveMenuFrameSpeechCoordinator
         }
 
         return $"{name}. {item.Description}";
+    }
+
+    private static string JoinSentences(string first, string second)
+    {
+        var trimmed = first.TrimEnd();
+        return trimmed.Length > 0 && trimmed[^1] is '.' or '?' or '!'
+            ? $"{trimmed} {second}"
+            : $"{trimmed}. {second}";
     }
 
     private static string FormatNativeSelection(NativeMenuSelection selection)
@@ -992,7 +1053,8 @@ public sealed class ActiveMenuFrameSpeechCoordinator
         string Key,
         DateTime SeenAt,
         string? LimitHeaderKey = null,
-        int? LimitHeaderCharacter = null);
+        int? LimitHeaderCharacter = null,
+        bool CarriesMateriaTrashPrompt = false);
 
     private readonly record struct NativeWidgetState(int First, int Cursor, int ScrollOffset, int ScrollState);
 }

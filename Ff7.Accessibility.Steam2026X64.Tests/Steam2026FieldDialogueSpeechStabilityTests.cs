@@ -38,11 +38,13 @@ internal static class Steam2026FieldDialogueSpeechStabilityTests
         Dispatch(gate, dispatcher, Ask(4, selectedIndex: 0), Timestamp);
         Equal(2, output.Spoken.Count, "exact ASK prompt and selected choice dispatch without polling delay");
         Equal("What happened?", output.Spoken[0].Text, "exact ASK prompt speech");
-        Equal("Buy one", output.Spoken[1].Text, "initial exact ASK selection speech");
+        Equal("Buy one, choice 1 of 2", output.Spoken[1].Text, "initial exact ASK selection says it is a choice");
+        Equal(false, output.Spoken[1].Interrupt, "the initial selection does not cut off the question just spoken");
 
         Dispatch(gate, dispatcher, Ask(4, selectedIndex: 1), Timestamp.AddMilliseconds(35));
         Equal(3, output.Spoken.Count, "exact ASK cursor change dispatches immediately");
         Equal("Forget it", output.Spoken[2].Text, "moved exact ASK selection speech");
+        Equal(true, output.Spoken[2].Interrupt, "a moved selection interrupts the previous one");
 
         Dispatch(gate, dispatcher, Ask(4, selectedIndex: 1), Timestamp.AddMilliseconds(70));
         Dispatch(gate, dispatcher, Ask(4, selectedIndex: 1), Timestamp.AddMilliseconds(105));
@@ -65,7 +67,7 @@ internal static class Steam2026FieldDialogueSpeechStabilityTests
 
         var acknowledgement = DispatchUpdate(dispatcher, stabilized, Timestamp);
         Equal(1, output.Spoken.Count, "selection-only ASK speaks its selected choice");
-        Equal("Buy one", output.Spoken[0].Text, "selection-only ASK selected choice speech");
+        Equal("Buy one, choice 1 of 2", output.Spoken[0].Text, "selection-only ASK says its opening option is a choice");
         Equal(
             true,
             acknowledgement is not null,

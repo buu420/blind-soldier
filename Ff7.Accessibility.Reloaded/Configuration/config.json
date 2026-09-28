@@ -27,6 +27,7 @@
   "EnableFieldOpcodeMessageHooks": true,
   "EnableFieldOpcodeMessageDiagnostics": true,
   "EnableFieldCutsceneDescriptions": true,
+  "EnableBattleAnimationDescriptions": true,
   "EnableFieldCutsceneDescriptionDiagnostics": true,
   "FieldMessageOpenSpeechSettleMs": 0,
   "EnableFieldDialogueDrawSpeech": true,

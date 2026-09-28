@@ -21,6 +21,7 @@ public sealed class Steam2026BattleObservationReader
     private readonly BattleStateReader battleReader;
     private readonly BattleResultsReader resultsReader;
     private readonly BattleDamagePopupReader damageReader;
+    private readonly BattleDisplayedStatusReader displayedStatusReader;
     private readonly Steam2026BattleTextResolvers textResolvers;
     private readonly BattleRuntimeTextReader runtimeTextReader;
 
@@ -53,6 +54,7 @@ public sealed class Steam2026BattleObservationReader
             textResolvers.ResolveLimitDescription);
         resultsReader = new BattleResultsReader(addressSpace, textResolvers.ResolveInventoryObjectName);
         damageReader = new BattleDamagePopupReader(addressSpace);
+        displayedStatusReader = new BattleDisplayedStatusReader(addressSpace);
         runtimeTextReader = new BattleRuntimeTextReader(
             addressSpace,
             textResolvers.ResolveBattleText,
@@ -433,6 +435,80 @@ public sealed class Steam2026BattleObservationReader
         catch
         {
             snapshot = default;
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Names the actors of a result captured on the guest thread. Only names and
+    /// the target's public correlation are read here; the popup's number, flags,
+    /// lethal row and drain identity were fixed at capture time.
+    /// </summary>
+    internal bool TryReadVisibleResultTrackerSnapshot(
+        BattleVisibleResultSnapshot capturedResult,
+        out Steam2026BattleVisibleResultTrackerSnapshot snapshot)
+    {
+        snapshot = default;
+        try
+        {
+            if (!capturedResult.IsValid
+                || capturedResult.EffectIndex is < 0 or >= BattleVisibleResultReader.EffectCount
+                || capturedResult.TargetActor is not ((>= 0 and < 3) or (>= 4 and <= 9)))
+            {
+                return false;
+            }
+
+            ImmutableArray<BattleActorSnapshot> actors;
+            if (battleReader.TryReadBattleActors(out var actorList))
+            {
+                actors = actorList.ToImmutableArray();
+            }
+            else if (battleReader.TryReadBattleActor(capturedResult.TargetActor, out var targetOnly))
+            {
+                // Drain sources then go unnamed, but the popup is still spoken.
+                actors = [targetOnly];
+            }
+            else
+            {
+                return false;
+            }
+
+            var target = actors.FirstOrDefault(actor => actor.ActorIndex == capturedResult.TargetActor);
+            if (target.ActorIndex != capturedResult.TargetActor || string.IsNullOrWhiteSpace(target.Name))
+            {
+                return false;
+            }
+
+            var hasVisibleTarget = battleReader.TryReadVisibleActorCorrelation(
+                    capturedResult.TargetActor,
+                    out var visibleTarget)
+                && visibleTarget.ActorIndex == capturedResult.TargetActor
+                && string.Equals(visibleTarget.Name, target.Name, StringComparison.Ordinal);
+            snapshot = new Steam2026BattleVisibleResultTrackerSnapshot(
+                capturedResult,
+                actors,
+                target,
+                hasVisibleTarget ? visibleTarget : default,
+                hasVisibleTarget);
+            return true;
+        }
+        catch
+        {
+            snapshot = default;
+            return false;
+        }
+    }
+
+    /// <summary>The status masks the battle renderer is drawing now.</summary>
+    internal bool TryReadDisplayedStatus(out BattleDisplayedStatusSnapshot snapshot)
+    {
+        try
+        {
+            return displayedStatusReader.TryRead(out snapshot);
+        }
+        catch
+        {
+            snapshot = BattleDisplayedStatusSnapshot.Invalid;
             return false;
         }
     }
@@ -1519,6 +1595,13 @@ internal readonly record struct Steam2026BattleDamageTrackerSnapshot(
     BattleDamagePopupSnapshot Popup,
     BattleActorSnapshot Actor,
     BattleActorVisibleCorrelation VisibleActor);
+
+internal readonly record struct Steam2026BattleVisibleResultTrackerSnapshot(
+    BattleVisibleResultSnapshot Result,
+    ImmutableArray<BattleActorSnapshot> Actors,
+    BattleActorSnapshot Target,
+    BattleActorVisibleCorrelation VisibleTarget,
+    bool HasVisibleTarget);
 
 internal readonly record struct Steam2026BattleActionTextTrackerSnapshot(
     Steam2026BattleActionTextCommitSnapshot Commit,

@@ -114,6 +114,10 @@ public static class Ff7EncodedTextDecoder
         return NormalizeWhitespace(builder.ToString());
     }
 
+    /// <summary>Kernel text as the running game's language encodes it.</summary>
+    public static string DecodeKernelTerminated(ReadOnlySpan<byte> bytes) =>
+        DecodeKernelTerminated(bytes, DefaultLanguage);
+
     public static string DecodeKernelTerminated(
         ReadOnlySpan<byte> bytes,
         Ff7GameLanguageDescriptor language)
@@ -209,6 +213,7 @@ public static class Ff7EncodedTextDecoder
                     FinishLine();
                     break;
                 case 0xe8:
+                case 0xe9:
                     FinishPage();
                     break;
                 case >= 0xea and <= 0xf2:

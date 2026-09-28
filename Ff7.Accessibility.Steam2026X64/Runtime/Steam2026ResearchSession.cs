@@ -444,7 +444,11 @@ internal sealed class Steam2026ResearchSession : IDisposable
             Path.Combine(modDirectory, "Configuration", "room-descriptions.json"),
             log);
         var roomDescriptionGate = new FieldAreaDescriptionHistoryGate(roomDescriptionHistory);
-        var roomDescriptionSaves = new FieldAreaDescriptionSaveTracker(roomDescriptionHistory, log);
+        var battleDescriptionHistory = new FieldAreaDescriptionHistory(
+            Path.Combine(modDirectory, "Configuration", "battle-descriptions.json"), log);
+        var roomDescriptionSaves = new FieldAreaDescriptionSaveTracker(
+            roomDescriptionHistory, log, battleDescriptionHistory);
+        BattleAnimationNarrationRuntime? battleAnimationNarration = null;
         SaveMenuStateReader? roomDescriptionSaveReader = null;
         TitleLoadMenuDataReader? roomDescriptionLoadReader = null;
         NativeSaveResultPopupReader? roomDescriptionPopupReader = null;
@@ -886,7 +890,10 @@ internal sealed class Steam2026ResearchSession : IDisposable
                             savemapAddress: SavemapPartyReader.AddressSavemap,
                             resolveMateriaName: id => kernel2TextDatabase?.ResolveMateriaName(id),
                             resolveMateriaDescription: id =>
-                                kernel2TextDatabase?.ResolveMateriaDescription(id));
+                                kernel2TextDatabase?.ResolveMateriaDescription(id),
+                            resolveCommandName: id => kernel2TextDatabase?.ResolveCommandName(id),
+                            resolveCommandDescription: id =>
+                                kernel2TextDatabase?.ResolveCommandDescription(id));
                         var candidateMenuBridge = new Steam2026InGameMenuSpeechBridge(candidateMenuReader);
                         var candidateTitleLoadBridge = new Steam2026TitleLoadMenuSpeechBridge(
                             TimeSpan.FromMilliseconds(
@@ -934,7 +941,8 @@ internal sealed class Steam2026ResearchSession : IDisposable
                                 LoadCutsceneVoiceManifest(config, modDirectory, log),
                                 clip => CreateCutsceneVoiceOutput(config, modDirectory, clip, log),
                                 log,
-                                () => candidateFilmNarration?.IsPlaying == true);
+                                () => candidateFilmNarration?.IsPlaying == true ||
+                                    battleAnimationNarration?.IsPlaying == true);
                         }
                         catch (Exception ex)
                         {
@@ -947,7 +955,8 @@ internal sealed class Steam2026ResearchSession : IDisposable
                                 sharedFieldAddressSpace,
                                 FieldCutsceneDescriptionCatalog.CreateEarlyGameDescriptions(),
                                 candidateFilmNarration,
-                                candidateCutsceneVoice);
+                                candidateCutsceneVoice,
+                                () => battleAnimationNarration?.IsPlaying == true);
                         var candidateCutsceneDialogueProbe =
                             new Steam2026FieldDialogueObservationReader(sharedFieldAddressSpace);
                         var candidateFieldZoneSpeechCoordinator =
@@ -1131,6 +1140,13 @@ avigationield_zone_transition.wav"),
                         roomDescriptionLoadReader = new TitleLoadMenuDataReader(sharedFieldAddressSpace);
                         roomDescriptionPopupReader = new NativeSaveResultPopupReader(sharedFieldAddressSpace);
                         roomDescriptionAddressSpace = sharedFieldAddressSpace;
+                        battleAnimationNarration?.Dispose();
+                        battleAnimationNarration = BattleAnimationNarrationRuntime.Create(
+                            sharedFieldAddressSpace, battleDescriptionHistory, config, modDirectory, log,
+                            text => { output.Speak(text, interrupt: false); return true; },
+                            () => candidateCutsceneVoice?.IsPlaying == true || candidateFilmNarration?.IsPlaying == true,
+                            () => output.TryIsSpeaking(out var speaking) ? speaking : null,
+                            kernel2TextDatabase);
                         cutsceneDialogueProbe = candidateCutsceneDialogueProbe;
                         fieldZoneSpeechCoordinator = candidateFieldZoneSpeechCoordinator;
 
@@ -1478,6 +1494,13 @@ avigationield_zone_transition.wav"),
                             : () => cutsceneDialogueProbe.TryRead(out _));
                 }
 
+                // Bind both histories before any description is delivered, including
+                // when field descriptions are disabled.
+                ObserveRoomDescriptionSaveIdentity(
+                    roomDescriptionSaves, roomDescriptionSaveReader, roomDescriptionLoadReader,
+                    roomDescriptionPopupReader, roomDescriptionAddressSpace,
+                    inGameMenuBridge?.HasSaveMenuOwnership == true, ref roomDescriptionPlayableSeen);
+
                 if (cutsceneHookSet is not null && cutsceneDescriptions is not null)
                 {
                     while (cutsceneHookSet.TryDequeue(out var snapshot))
@@ -1488,18 +1511,6 @@ avigationield_zone_transition.wav"),
                     // A field whose own entry anchor ran before this runtime attached
                     // would otherwise never be described at all.
                     cutsceneDescriptions.ObserveStableField(now);
-
-                    // Before any description is delivered, so a load that has just
-                    // succeeded has its history bound and a room this save already knows
-                    // is not described again on the way in.
-                    ObserveRoomDescriptionSaveIdentity(
-                        roomDescriptionSaves,
-                        roomDescriptionSaveReader,
-                        roomDescriptionLoadReader,
-                        roomDescriptionPopupReader,
-                        roomDescriptionAddressSpace,
-                        inGameMenuBridge?.HasSaveMenuOwnership == true,
-                        ref roomDescriptionPlayableSeen);
 
                     // A film that gave way to dialogue keeps being described: its
                     // remaining cues are spoken at the moments they belong to, once
@@ -3150,6 +3161,18 @@ avigationield_zone_transition.wav"),
                     }
                 }
 
+                try
+                {
+                    battleAnimationNarration?.Tick(now,
+                        config.EnableSpeech && config.EnableBattleAnimationDescriptions && isHostForeground,
+                        config.EnableSpeech && config.EnableBattleMessageSpeech && isHostForeground);
+                }
+                catch (Exception ex)
+                {
+                    LogRuntimeFault($"Battle animation description tick failed: {ex.Message}", now,
+                        ref lastRuntimeFault, ref lastRuntimeFaultLogUtc);
+                }
+
                 var workerDelayMs = currentNameEntry?.IsActive == true
                     ? NameEntryNativeNameTracker.RecommendedScanIntervalMs
                     : 35;
@@ -3179,6 +3202,7 @@ avigationield_zone_transition.wav"),
             cutsceneHookSet?.Dispose();
             cutsceneDescriptions?.SuspendNativeFilmNarration(FieldMovieNarrationStopReason.Unloaded);
             cutsceneDescriptions?.Reset();
+            battleAnimationNarration?.Dispose();
             cutsceneNarrationSpeechTracker.Reset();
             fieldZoneSpeechCoordinator?.Reset();
             fieldZoneTransitionCueCoordinator?.Reset();

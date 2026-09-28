@@ -11,6 +11,18 @@ public interface IFieldMovieNarrationOutput : IDisposable
     bool Stop(string reason);
 }
 
+/// <summary>Distinguishes a completed recording from a stopped or failed device.</summary>
+public interface IFieldMovieNarrationCompletion
+{
+    bool CompletedNormally { get; }
+}
+
+/// <summary>Suspends an owned recording without losing its playback position.</summary>
+public interface IFieldMovieNarrationPause
+{
+    bool SetPaused(bool paused);
+}
+
 /// <summary>
 /// What a delivery attempt should do next. The waiting state is the reason this is
 /// not a bool: a caller that treats "not started" as "speak the paragraph" commits

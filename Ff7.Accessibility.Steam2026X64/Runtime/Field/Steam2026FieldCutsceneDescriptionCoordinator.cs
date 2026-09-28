@@ -32,7 +32,8 @@ internal sealed class Steam2026FieldCutsceneDescriptionCoordinator
         ILegacyAddressSpace addressSpace,
         IEnumerable<FieldCutsceneDescriptionCue> cues,
         FieldMovieNarrationTracker? narration = null,
-        CutsceneVoicePlayer? cutsceneVoice = null)
+        CutsceneVoicePlayer? cutsceneVoice = null,
+        Func<bool>? additionalRecordingProbe = null)
     {
         this.addressSpace = addressSpace ?? throw new ArgumentNullException(nameof(addressSpace));
         ArgumentNullException.ThrowIfNull(cues);
@@ -43,9 +44,10 @@ internal sealed class Steam2026FieldCutsceneDescriptionCoordinator
         // The priority policy asks the device, not a word-count estimate, whether a
         // recording is still being heard. Without this the only way the game's words
         // could take precedence was to stop the clip.
-        if (cutsceneVoice is not null)
+        if (cutsceneVoice is not null || additionalRecordingProbe is not null)
         {
-            speechPriority.AttachRecordingProbe(() => cutsceneVoice.IsPlaying);
+            speechPriority.AttachRecordingProbe(() =>
+                cutsceneVoice?.IsPlaying == true || additionalRecordingProbe?.Invoke() == true);
         }
     }
 

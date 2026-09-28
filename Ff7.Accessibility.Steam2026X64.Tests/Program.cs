@@ -24,6 +24,21 @@ if (args.Contains("--house-parking-only", StringComparer.OrdinalIgnoreCase))
     return;
 }
 
+if (args.Contains("--materia-submenus-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.MateriaSubmenuSpeechTests.Run();
+    return;
+}
+
+if (args.Contains("--battle-descriptions-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.BattleAnimationNarrationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.BattleNarrationAssetTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.BattleNarrationLifecycleTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.BattleVisibleFeedbackTests.Run();
+    return;
+}
+
 if (args.Contains("--glacier-speech-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.SnowboardAccessibilityTests.Run();
@@ -696,6 +711,17 @@ var legacy = Steam2026Fingerprint.Inspect(legacyPath);
 AssertEqual(false, legacy.IsSupported, "legacy x86 executable rejected by native backend");
 AssertEqual(false, legacy.Identity.Is64Bit, "legacy executable architecture");
 
+if (args.Contains("--battle-feedback-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.BattleVisibleFeedbackTests.Run();
+    Steam2026BattleObservationTests.Run(native, legacy);
+    Steam2026BattleRendererIngressTests.Run(native, legacy);
+    Steam2026BattleAccessibilityCoordinatorTests.Run(native);
+    Steam2026BattleVisibleFeedbackTests.Run(native);
+    Console.WriteLine("Steam 2026 x64 battle result, timing, and callback tests passed.");
+    return;
+}
+
 if (args.Contains("--cutscene-ingress-only", StringComparer.OrdinalIgnoreCase))
 {
     Steam2026FieldCutsceneWaitTests.Run(native);
@@ -759,6 +785,7 @@ if (args.Contains("--quit-menu-only", StringComparer.OrdinalIgnoreCase))
 
 if (args.Contains("--dialogue-only", StringComparer.OrdinalIgnoreCase))
 {
+    Ff7.Accessibility.Reloaded.Tests.NativeAskChoicePageTests.Run();
     Steam2026AskCursorCallbackTests.Run(native);
     Steam2026FieldMessageCallbackTests.Run(native);
     Steam2026FieldDialogueObservationTests.Run(native, legacy);
@@ -842,6 +869,10 @@ Steam2026ResearchObservationPumpTests.Run();
 Ff7.Accessibility.Reloaded.Tests.MenuGilReadoutTests.Run();
 Steam2026MenuGilReadoutTests.Run();
 Ff7.Accessibility.Reloaded.Tests.FieldAreaDescriptionHistoryTests.Run();
+Ff7.Accessibility.Reloaded.Tests.BattleAnimationNarrationTests.Run();
+Ff7.Accessibility.Reloaded.Tests.BattleNarrationAssetTests.Run();
+Ff7.Accessibility.Reloaded.Tests.BattleNarrationLifecycleTests.Run();
+Ff7.Accessibility.Reloaded.Tests.BattleVisibleFeedbackTests.Run();
 Ff7.Accessibility.Reloaded.Tests.FieldAreaDescriptionSaveTrackerTests.Run();
 Ff7.Accessibility.Reloaded.Tests.FieldActivityNumericWindowReadTests.Run();
 Ff7.Accessibility.Reloaded.Tests.ShinraMansionSafeDialTests.Run();
@@ -961,7 +992,9 @@ Ff7.Accessibility.Reloaded.Tests.TownInteractionCoverageTests.Run();
 Ff7.Accessibility.Reloaded.Tests.SnowboardAccessibilityTests.Run();
 Ff7.Accessibility.Reloaded.Tests.SnowboardAccessibilityTests.RunWithInstalledGameData();
 Ff7.Accessibility.Reloaded.Tests.KeyItemsMenuSpeechTests.Run();
+Ff7.Accessibility.Reloaded.Tests.MateriaSubmenuSpeechTests.Run();
 Ff7.Accessibility.Reloaded.Tests.BattleMessageFlickerTests.Run();
+Ff7.Accessibility.Reloaded.Tests.NativeAskChoicePageTests.Run();
 Ff7.Accessibility.Reloaded.Tests.MainStoryCoverageTests.Run();
 Ff7.Accessibility.Reloaded.Tests.CosmoNibelheimDescriptionTests.Run();
 Ff7.Accessibility.Reloaded.Tests.ContinuationDescriptionTests.RunCatalogAndNative();
@@ -1035,6 +1068,7 @@ Ff7.Accessibility.Reloaded.Tests.BattleManipulateMenuTests.Run();
 Steam2026BattleObservationTests.Run(native, legacy);
 Steam2026BattleRendererIngressTests.Run(native, legacy);
 Steam2026BattleAccessibilityCoordinatorTests.Run(native);
+Steam2026BattleVisibleFeedbackTests.Run(native);
 Steam2026NameEntryObservationTests.Run(native, legacy);
 Steam2026SaveCandidateDiscoveryTests.Run(native, legacy);
 Steam2026SaveContainerProbeTests.Run(native, legacy);

@@ -84,7 +84,7 @@ internal static class CoreMenuDialogueDispatcherTests
         dispatcher.Dispatch(Batch(Frame(Utc(2), dialogue: changedChoice)), Utc(2));
 
         AssertSequence(
-            ["Cloud", "Not interested.", "No", "Yes unavailable"],
+            ["Cloud", "Not interested.", "No, choice 1 of 2", "Yes unavailable"],
             output.Spoken,
             "dialogue speaker, visible page, and selected choice order");
 

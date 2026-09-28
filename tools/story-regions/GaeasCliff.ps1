@@ -242,9 +242,13 @@ $gaeaOutsideEastern = @(0..17) + @(29..85)
 $gaeaOutsideWestern = @(18..28) + @(86..146)
 $gaeaIcicleLedge = @(7, 8, 11) + @(18..43) + @(45, 46)
 $gaeaLowerCliffFloor = @(0..6) + @(9, 10) + @(12..17) + @(44, 47)
+# The east passage leads only to the icicle ledge, so once the three icicles are down it
+# leads nowhere new. In the 2026-09-28 x64 log it stayed the Story step beside the northern
+# passage and was the one taken, and the party looped 693 -> 696 -> 697 for fifty minutes.
 Add-Definition -FieldId 693 -FieldName 'gaiin_3' -Kind Location -EntityId 16 `
     -Label 'Take the passage on through the cave' -X 808 -Y 943 -Z -593 `
     -MinimumGameMoment $gaeaFirstVisitStart -MaximumGameMoment $gaeaFirstVisitEnd -Priority 0 `
+    -CompletedCondition $gaeaThreeIciclesDown `
     -EntityName 'evjp41' -ScriptType 'Move' -UsesPlayerCollisionRadius `
     -RequiredEnabledLineEntityId 16 `
     -TriggerLine ([ordered]@{ startX=830; startY=1045; startZ=-593; endX=786; endY=841; endZ=-593 })
@@ -260,9 +264,21 @@ Add-Definition -FieldId 693 -FieldName 'gaiin_3' -Kind Location -EntityId 17 `
 Add-Definition -FieldId 696 -FieldName 'gaiin_4' -Kind Location `
     -Label 'Follow the ledge round to the icicles' -X 1247 -Y -2607 -Z 1724 `
     -MinimumGameMoment $gaeaFirstVisitStart -MaximumGameMoment $gaeaFirstVisitEnd -Priority 0 `
+    -CompletedCondition $gaeaThreeIciclesDown `
     -RequiredPlayerTriangles $gaeaOutsideEastern `
     -EntityName 'gateway2' -ScriptType 'Gateway' `
     -TriggerLine ([ordered]@{ startX=1093; startY=-2943; startZ=1726; endX=1402; endY=-2272; endZ=1723 })
+
+# With the three icicles down the eastern ledge has nothing left but the way back inside:
+# gateway1, which lands in gaiin_3 at (668,865) on the floor the fallen ice is crossed from.
+# (gateway0 is on the western component and lands on the northern passage's island.)
+Add-Definition -FieldId 696 -FieldName 'gaiin_4' -Kind Location `
+    -Label 'Go back into the cave to cross the fallen ice' -X 243 -Y -4552 -Z 1427 `
+    -MinimumGameMoment $gaeaFirstVisitStart -MaximumGameMoment $gaeaFirstVisitEnd -Priority 0 `
+    -RequiredCondition $gaeaThreeIciclesDown `
+    -RequiredPlayerTriangles $gaeaOutsideEastern `
+    -EntityName 'gateway1' -ScriptType 'Gateway' `
+    -TriggerLine ([ordered]@{ startX=151; startY=-4554; startZ=1428; endX=335; endY=-4550; endZ=1426 })
 
 Add-Definition -FieldId 696 -FieldName 'gaiin_4' -Kind Location `
     -Label 'Follow the ledge round to the way down' -X -738 -Y -3714 -Z 1766 `
@@ -301,6 +317,20 @@ Add-Definition -FieldId 697 -FieldName 'gaiin_5' -Kind Location -EntityId 5 `
     -EntityName 'bat3' -ScriptType 'Go 1x' -UsesPlayerCollisionRadius `
     -RequiredEnabledLineEntityId 5 `
     -TriggerLine ([ordered]@{ startX=-193; startY=1257; startZ=-9; endX=-193; endY=1353; endZ=2 })
+
+# The finished ledge. After each icicle's battle the game itself asks "Jump down to the room
+# below?" (cloud script 3), and Yes lands in gaiin_3 at (20,319). A party still on the ledge
+# afterwards - having answered No, or come back for the treasures - had no step at all ("Story:
+# none for this field yet" from 11:26 in the log). The ledge's own passage, evjp41, is on the
+# ledge's component and leads to gaiin_4's eastern side, which leads back inside.
+Add-Definition -FieldId 697 -FieldName 'gaiin_5' -Kind Location -EntityId 8 `
+    -Label 'Go back along the ledge from the icicles' -X 697 -Y 1448 -Z 41 `
+    -MinimumGameMoment $gaeaFirstVisitStart -MaximumGameMoment $gaeaFirstVisitEnd -Priority 0 `
+    -RequiredCondition $gaeaThreeIciclesDown `
+    -RequiredPlayerTriangles $gaeaIcicleLedge `
+    -EntityName 'evjp41' -ScriptType 'Move' -UsesPlayerCollisionRadius `
+    -RequiredEnabledLineEntityId 8 `
+    -TriggerLine ([ordered]@{ startX=659; startY=1322; startZ=40; endX=735; endY=1573; endZ=41 })
 
 Add-Definition -FieldId 697 -FieldName 'gaiin_5' -Kind Location -EntityId 7 `
     -Label 'Take the passage back out onto the cliff' -X -532 -Y -27 -Z -177 `

@@ -13,6 +13,7 @@ public sealed class FieldAreaDescriptionHistory
     private HashSet<int> heard = [];
     private string? activeSlot;
     private bool reportedFailure;
+    private long playthroughRevision;
 
     public FieldAreaDescriptionHistory(string? path, Action<string>? log = null)
     {
@@ -44,6 +45,24 @@ public sealed class FieldAreaDescriptionHistory
         lock (sync) return heard.Contains(fieldId);
     }
 
+    /// <summary>Changes on a load or new game, but not when saving this playthrough.</summary>
+    public long PlaythroughRevision
+    {
+        get { lock (sync) return playthroughRevision; }
+    }
+
+    /// <summary>A delayed recording cannot mark a different playthrough as heard.</summary>
+    public bool TryMarkHeard(int fieldId, long expectedPlaythroughRevision)
+    {
+        lock (sync)
+        {
+            if (playthroughRevision != expectedPlaythroughRevision || fieldId is < 0 or > ushort.MaxValue)
+                return false;
+            MarkHeard(fieldId);
+            return true;
+        }
+    }
+
     /// <summary>Called only after narration or screen-reader output accepts the room description.</summary>
     public void MarkHeard(int fieldId)
     {
@@ -62,6 +81,7 @@ public sealed class FieldAreaDescriptionHistory
         var key = SlotKey(saveFile, gameSlot);
         lock (sync)
         {
+            playthroughRevision++;
             activeSlot = key;
             heard = profiles.TryGetValue(key, out var previous) ? new HashSet<int>(previous) : [];
         }
@@ -84,6 +104,7 @@ public sealed class FieldAreaDescriptionHistory
     {
         lock (sync)
         {
+            playthroughRevision++;
             activeSlot = null;
             heard = [];
         }

@@ -19,9 +19,11 @@ public sealed class Kernel2TextDatabase
     private readonly IndexedTextSection accessoryNames;
     private readonly IndexedTextSection accessoryDescriptions;
     private readonly IndexedTextSection commandNames;
+    private readonly IndexedTextSection commandDescriptions;
     private readonly IndexedTextSection materiaNames;
     private readonly IndexedTextSection materiaDescriptions;
     private readonly IndexedTextSection battleTexts;
+    private readonly IndexedTextSection summonAttackNames;
 
     private Kernel2TextDatabase(IReadOnlyList<IndexedTextSection> sections)
     {
@@ -33,7 +35,9 @@ public sealed class Kernel2TextDatabase
         accessoryNames = sections[13];
         materiaNames = sections[14];
         battleTexts = sections[16];
+        summonAttackNames = sections[17];
 
+        commandDescriptions = sections[0];
         spellDescriptions = sections[1];
         itemDescriptions = sections[2];
         weaponDescriptions = sections[3];
@@ -70,6 +74,8 @@ public sealed class Kernel2TextDatabase
 
     public string? ResolveCommandName(int id) => commandNames.Resolve(id);
 
+    public string? ResolveCommandDescription(int id) => commandDescriptions.Resolve(id);
+
     public string? ResolveMateriaName(int id) => materiaNames.Resolve(id);
 
     public string? ResolveMateriaDescription(int id) => materiaDescriptions.Resolve(id);
@@ -93,6 +99,19 @@ public sealed class Kernel2TextDatabase
     };
 
     public string? ResolveBattleText(int id) => battleTexts.Resolve(id);
+
+    /// <summary>
+    /// The name a summon's attack banner shows for its action, as <c>FUN_006D1CC0</c>
+    /// case 0x16 draws it for command 3: <c>FUN_0041963C</c> category 6 reads the summon
+    /// attack names (section 17) below 0x10 and the magic names (section 9) at the raw
+    /// action otherwise.
+    /// </summary>
+    public string? ResolveSummonBannerText(int action) => action switch
+    {
+        >= 0 and < 0x10 => NormalizeBattleActionText(summonAttackNames.Resolve(action)),
+        >= 0x10 and <= byte.MaxValue => NormalizeBattleActionText(spellNames.Resolve(action)),
+        _ => null,
+    };
 
     public static Kernel2TextDatabase? TryCreate(string gameRootDirectory, Action<string>? log = null)
     {

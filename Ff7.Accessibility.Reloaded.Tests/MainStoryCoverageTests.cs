@@ -24,6 +24,7 @@ internal static class MainStoryCoverageTests
         PrisonObjectivesStayInsideTheirOwnChapter();
         TheIcicleInnFollowsItsOwnLocalFlags();
         GaeasCliffIsOrderedByItsOwnCabinFlags();
+        GaeasCliffIciclesLeadOnOnceTheyHaveFallen();
         TheNativeEntryDoorsCarryTheirOwnGuardMoment();
         TheSleepingForestWaitsOnTheHarp();
         CosmoCanyonIsOrderedByItsOwnLocalState();
@@ -976,6 +977,72 @@ internal static class MainStoryCoverageTests
         reader.ReadTargets(position)
             .Where(target => !target.Label.EndsWith("(optional)", StringComparison.Ordinal))
             .ToArray();
+
+    /// <summary>
+    /// The icicle caves, as the 2026-09-28 x64 log walked them: once the three icicles
+    /// (Bank 1[131] bits 2, 3 and 4, set by gaiin_5's bat1..bat3) are down, gaiin_3's east
+    /// passage (evjp41) only leads back to a finished ledge, yet it stayed the Story step and
+    /// the northern passage across the fallen ice (evjp42) was never the one offered; gaiin_4's
+    /// eastern ledge kept sending the party "round to the icicles" and gaiin_5's ledge had no
+    /// step at all. The party looped 693 -> 696 -> 697 for fifty minutes. After the icicles the
+    /// only way on is back into gaiin_3 and across the ice: from the ledge through evjp41 (the
+    /// ledge's own passage to gaiin_4's eastern side), from there through gateway1 into gaiin_3
+    /// by the east passage, and across to evjp42.
+    /// </summary>
+    private static void GaeasCliffIciclesLeadOnOnceTheyHaveFallen()
+    {
+        var memory = new StoryMemory();
+        memory.SetGameMoment(677);
+        memory.SetFieldByte(132, 0x01);
+
+        // Where each step is taken from: gaiin_3 after an icicle battle drops the party at
+        // (20,319) triangle 106; gaiin_4's eastern arrival from gaiin_3 is triangle 2 and from
+        // gaiin_5's ledge triangle 32; gaiin_5's ledge arrival is triangle 39.
+        var caveFloor = new FieldPositionSnapshot(FieldPositionReader.FieldModule, 693, 0, 20, 319, -593, 106, 0);
+        var eastLedge = new FieldPositionSnapshot(FieldPositionReader.FieldModule, 696, 0, 1266, -2397, 1724, 32, 0);
+        var westLedge = new FieldPositionSnapshot(FieldPositionReader.FieldModule, 696, 0, -771, -3403, 1766, 28, 0);
+        var icicleLedge = new FieldPositionSnapshot(FieldPositionReader.FieldModule, 697, 0, 692, 1184, 39, 39, 0);
+        static bool EastPassage(FieldNavigationTarget t) => t.TriggerLine is { StartX: 830, StartY: 1045 };
+        static bool NorthPassage(FieldNavigationTarget t) => t.TriggerLine is { StartX: 162, StartY: 1826 };
+        static bool ToTheIcicles(FieldNavigationTarget t) => t.TriggerLine is { StartX: 1093, StartY: -2943 };
+        static bool BackIntoTheCave(FieldNavigationTarget t) => t.TriggerLine is { StartX: 151, StartY: -4554 };
+        static bool ToTheWayDown(FieldNavigationTarget t) => t.TriggerLine is { StartX: -851, StartY: -3459 };
+        static bool BackAlongTheLedge(FieldNavigationTarget t) => t.TriggerLine is { StartX: 659, StartY: 1322 };
+
+        // Two icicles down: the third is still the job, by the east passage and the ledge.
+        memory.SetFieldByte(131, 0xCE);
+        var twoDown = memory.StoryReader();
+        var floor = twoDown.ReadTargets(caveFloor);
+        Equal(true, floor.Any(EastPassage), "with an icicle standing the east passage is the way to it");
+        Equal(false, floor.Any(NorthPassage), "and the fallen ice cannot be crossed yet");
+        Equal(true, twoDown.ReadTargets(eastLedge).Any(ToTheIcicles), "the eastern ledge leads round to the icicles");
+        Equal(false, twoDown.ReadTargets(eastLedge).Any(BackIntoTheCave), "and not back into the cave");
+        Equal(false, twoDown.ReadTargets(icicleLedge).Any(BackAlongTheLedge), "the ledge has an icicle to walk into");
+
+        // All three down (0xC0 | 0x1C | the boulder's bit 1).
+        memory.SetFieldByte(131, 0xDE);
+        var threeDown = memory.StoryReader();
+        floor = threeDown.ReadTargets(caveFloor);
+        Equal(true, floor.Any(NorthPassage), "with the three icicles down the fallen ice is the way on");
+        Equal(false, floor.Any(EastPassage), "and the east passage back to the finished ledge is no longer offered");
+        Equal(1, floor.Count, "gaiin_3 has exactly one Story step once the icicles are down");
+
+        var east = threeDown.ReadTargets(eastLedge);
+        Equal(false, east.Any(ToTheIcicles), "the eastern ledge no longer sends the party round to the icicles");
+        Equal(true, east.Any(BackIntoTheCave), "it sends them back into the cave by the east passage");
+        var west = threeDown.ReadTargets(westLedge);
+        Equal(true, west.Any(ToTheWayDown) && !west.Any(BackIntoTheCave),
+            "the western ledge, reached across the ice, still goes on to the way down");
+
+        var ledge = threeDown.ReadTargets(icicleLedge);
+        Equal(true, ledge.Count == 1 && ledge.Any(BackAlongTheLedge),
+            "the finished icicle ledge has one step: back along the ledge");
+
+        // The optional fourth icicle (bit 5) changes nothing about the way on.
+        memory.SetFieldByte(131, 0xFE);
+        Equal(true, memory.StoryReader().ReadTargets(caveFloor).Any(NorthPassage), "the fourth icicle is optional");
+        memory.SetFieldByte(131, 0xC0);
+    }
 
     private static FieldPositionSnapshot Position(int field) =>
         new(FieldPositionReader.FieldModule, field, 0, 0, 0, 0, 0, 0);

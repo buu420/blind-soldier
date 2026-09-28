@@ -18,6 +18,30 @@ if (args.Contains("--field-execution-report", StringComparer.OrdinalIgnoreCase))
     Environment.Exit(Ff7.Accessibility.Reloaded.Tests.FieldScriptExecutionModelTests.Report());
 }
 
+if (args.Contains("--dialogue-choices-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.NativeAskChoicePageTests.Run();
+    AssertFieldAskChoiceSpeechFollowsNativeHighlightedLine();
+    Ff7.Accessibility.Reloaded.Tests.CoreMenuDialogueDispatcherTests.Run();
+    Console.WriteLine("FFVII dialogue choice speech tests passed.");
+    return;
+}
+
+if (args.Contains("--materia-submenus-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.MateriaSubmenuSpeechTests.Run();
+    return;
+}
+
+if (args.Contains("--battle-descriptions-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.BattleAnimationNarrationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.BattleNarrationAssetTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.BattleNarrationLifecycleTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.BattleVisibleFeedbackTests.Run();
+    return;
+}
+
 if (args.Contains("--glacier-speech-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.SnowboardAccessibilityTests.Run();
@@ -1231,6 +1255,7 @@ CondorBattleReaderTests.Run();
 AssertFf7EncodedTextRequiresTerminatorForBufferReads();
 AssertFf7EncodedAskTextPreservesNativeChoiceLines();
 AssertFf7EncodedAskTextPreservesNativePages();
+Ff7.Accessibility.Reloaded.Tests.NativeAskChoicePageTests.Run();
 AssertInventoryItemReaderReadsNativeSlotWord();
 AssertInventoryItemReaderRejectsEmptyAndInvalidSlots();
 AssertInventoryItemReaderDistinguishesStableEmptySlots();
@@ -1468,6 +1493,10 @@ AssertFieldGatewayTargetReaderReadsEveryNativeGateway();
 AssertFieldGatewayTargetReaderRejectsInvalidState();
 AssertFieldActivityReadoutSpeaksTheNativeActivities();
 Ff7.Accessibility.Reloaded.Tests.FieldAreaDescriptionHistoryTests.Run();
+Ff7.Accessibility.Reloaded.Tests.BattleAnimationNarrationTests.Run();
+Ff7.Accessibility.Reloaded.Tests.BattleNarrationAssetTests.Run();
+Ff7.Accessibility.Reloaded.Tests.BattleNarrationLifecycleTests.Run();
+Ff7.Accessibility.Reloaded.Tests.BattleVisibleFeedbackTests.Run();
 Ff7.Accessibility.Reloaded.Tests.FieldAreaDescriptionSaveTrackerTests.Run();
 Ff7.Accessibility.Reloaded.Tests.FieldActivityNumericWindowReadTests.Run();
 Ff7.Accessibility.Reloaded.Tests.ShinraMansionSafeDialTests.Run();
@@ -1920,6 +1949,7 @@ AssertLegacyX86CapabilityValidationFailsClosedOnMissingSignal();
 Ff7.Accessibility.Reloaded.Tests.SnowboardAccessibilityTests.Run();
 Ff7.Accessibility.Reloaded.Tests.SnowboardAccessibilityTests.RunWithInstalledGameData();
 Ff7.Accessibility.Reloaded.Tests.KeyItemsMenuSpeechTests.Run();
+Ff7.Accessibility.Reloaded.Tests.MateriaSubmenuSpeechTests.Run();
 Ff7.Accessibility.Reloaded.Tests.BattleMessageFlickerTests.Run();
 Ff7.Accessibility.Reloaded.Tests.MainStoryCoverageTests.Run();
 
@@ -5887,19 +5917,19 @@ static void AssertBattleDamageSpeechReportsDamageAndRecovery()
     AssertEqual("Cloud took 12 damage.", tracker.Poll(), "party HP damage speech");
 
     tracker.Observe(
-        new BattleDamagePopupSnapshot(true, 1, 0, 12, 4),
+        new BattleDamagePopupSnapshot(true, 1, 0, 12, 1),
         new BattleActorSnapshot(0, "Cloud", false, 300, 350, 40, 54, true));
     AssertEqual("Cloud recovered 12 HP.", tracker.Poll(), "native HP restoration speech");
 
     tracker.Observe(
-        new BattleDamagePopupSnapshot(true, 2, 0, 10, 4),
+        new BattleDamagePopupSnapshot(true, 2, 0, 10, 5),
         new BattleActorSnapshot(0, "Cloud", false, 300, 350, 50, 54, true));
     AssertEqual("Cloud recovered 10 MP.", tracker.Poll(), "native MP restoration speech");
 
     tracker.Observe(
         new BattleDamagePopupSnapshot(true, 3, 0, 7, 0),
         new BattleActorSnapshot(0, "Cloud", false, 293, 350, 40, 54, true));
-    AssertEqual("Cloud took 7 damage.", tracker.Poll(), "damage after healing uses refreshed HP baseline");
+    AssertEqual("Cloud took 7 damage.", tracker.Poll(), "damage follows the native popup flags after healing");
 
     var unsensedEnemy = new BattleActorSnapshot(4, "Guard Hound", true, 42, 42, 0, 0, false);
     AssertEqual(0, unsensedEnemy.CurrentHp, "unsensed enemy HP is redacted before damage correlation");
@@ -6611,7 +6641,7 @@ static void AssertFieldAskChoiceSpeechFollowsNativeHighlightedLine()
     var first = new FieldAskChoiceObservation(true, 134, 2, 1, 1, 2, 1, lines);
 
     tracker.Observe(first);
-    AssertEqual("Buy one", tracker.Poll(), "initial native ASK highlight");
+    AssertEqual("Buy one, choice 1 of 2", tracker.Poll(), "initial native ASK highlight says it is a choice");
     tracker.Observe(first);
     AssertNull(tracker.Poll(), "unchanged native ASK highlight must not repeat");
 
@@ -6622,7 +6652,19 @@ static void AssertFieldAskChoiceSpeechFollowsNativeHighlightedLine()
     AssertNull(tracker.Poll(), "out-of-range ASK cursor must stay silent");
     tracker.Reset();
     tracker.Observe(first);
-    AssertEqual("Buy one", tracker.Poll(), "new ASK lifecycle should speak its initial highlight");
+    AssertEqual("Buy one, choice 1 of 2", tracker.Poll(), "new ASK lifecycle should speak its initial highlight");
+
+    // niv_w (field 270) dialog 8: ASK first=0 last=1, so the choice page has no question line
+    // and its first option was spoken as if it were dialogue (2026-09-27 23:01:13).
+    tracker.Reset();
+    var nibelheim = new FieldAskChoiceObservation(
+        true, 270, 1, 8, 0, 1, 0, new[] { "How about bein' born and raised here?", "Nope, guess not" }, 7);
+    tracker.Observe(nibelheim);
+    AssertEqual("How about bein' born and raised here?, choice 1 of 2", tracker.Poll(7), "a prompt-less ASK opens as a choice");
+    tracker.Observe(nibelheim with { CurrentQuestionLine = 1 });
+    AssertEqual("Nope, guess not", tracker.Poll(7), "moving the cursor says the option alone");
+    tracker.Observe(nibelheim with { LifecycleToken = 8 });
+    AssertEqual("How about bein' born and raised here?, choice 1 of 2", tracker.Poll(8), "the next ASK lifecycle opens as a choice again");
 }
 
 static void AssertFieldScriptContextReaderReadsActiveNativeScript()

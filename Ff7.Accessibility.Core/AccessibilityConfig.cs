@@ -30,6 +30,7 @@ public sealed class AccessibilityConfig
     public bool EnableFieldOpcodeMessageDiagnostics { get; set; } = true;
     public bool EnableFieldCutsceneDescriptions { get; set; } = true;
     public bool EnableFieldCutsceneDescriptionDiagnostics { get; set; } = true;
+    public bool EnableBattleAnimationDescriptions { get; set; } = true;
     // The Speed Square coaster draws the player's own sight and charge on screen.
     // Reading them aloud gives a blind player the same facts; it never presses a
     // button.
@@ -272,4 +273,3 @@ public sealed class AccessibilityConfig
     public bool EnableBattleStatusSpeech { get; set; } = true;
     public bool EnableBattleDiagnostics { get; set; } = true;
 }
-

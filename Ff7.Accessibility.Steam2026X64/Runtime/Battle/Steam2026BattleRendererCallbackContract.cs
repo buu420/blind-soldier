@@ -122,6 +122,7 @@ internal sealed class Steam2026BattleRendererCallbackContract
     private readonly TranslatedX86CallFrameReader frame;
     private readonly TranslatedX86AddressSpace addressSpace;
     private readonly Ff7.Accessibility.Reloaded.BattleDamagePopupReader damageReader;
+    private readonly BattleVisibleResultReader visibleResultReader;
     private readonly BattleStateReader battleStateReader;
     private readonly TifaSlotResultReader tifaSlotReader;
     private ActiveHookLease? activeHookLease;
@@ -178,6 +179,7 @@ internal sealed class Steam2026BattleRendererCallbackContract
         this.addressSpace = addressSpace;
         frame = new TranslatedX86CallFrameReader(moduleBase, memory, addressSpace);
         damageReader = new Ff7.Accessibility.Reloaded.BattleDamagePopupReader(addressSpace);
+        visibleResultReader = new BattleVisibleResultReader(addressSpace);
         battleStateReader = new BattleStateReader(
             addressSpace,
             new SavemapPartyReader(addressSpace));
@@ -649,6 +651,60 @@ internal sealed class Steam2026BattleRendererCallbackContract
         }
 
         popup = candidate;
+        return true;
+    }
+
+    /// <summary>
+    /// Captures the popup together with the result row it displays. The popup's
+    /// FUN_00425e5f sibling that names that row lives three frames and the result
+    /// rows restart with every queued action, so this must be read on the guest
+    /// thread before FUN_005bb410 draws its first frame. The reader's reads are
+    /// bounded: the 60-slot effect list, one result and one damage row, and only
+    /// for a drainer's recovery the animation event queue and its result rows.
+    /// </summary>
+    internal bool TryCaptureDamagePopup(
+        Steam2026BattleRendererCallbackIdentity expectedIdentity,
+        out Ff7.Accessibility.Reloaded.BattleDamagePopupSnapshot popup,
+        out BattleVisibleResultSnapshot result)
+    {
+        popup = Ff7.Accessibility.Reloaded.BattleDamagePopupSnapshot.Invalid;
+        result = BattleVisibleResultSnapshot.Invalid;
+        if (expectedIdentity.Metadata.Kind
+                != Steam2026BattleRendererCallbackKind.DamageDisplay
+            || expectedIdentity.Metadata.HostAbi
+                != TranslatedBattleRendererHostAbi.TranslatedX86VoidNoArguments
+            || !TryResolveCurrentIdentity(
+                Steam2026BattleRendererCallbackKind.DamageDisplay,
+                out var beforeIdentity,
+                out var beforeGeneration)
+            || beforeIdentity != expectedIdentity)
+        {
+            return false;
+        }
+
+        BattleVisibleResultSnapshot candidate;
+        try
+        {
+            candidate = visibleResultReader.Read();
+        }
+        catch
+        {
+            return false;
+        }
+
+        if (!candidate.IsValid
+            || !TryResolveCurrentIdentity(
+                Steam2026BattleRendererCallbackKind.DamageDisplay,
+                out var afterIdentity,
+                out var afterGeneration)
+            || afterGeneration != beforeGeneration
+            || afterIdentity != expectedIdentity)
+        {
+            return false;
+        }
+
+        result = candidate;
+        popup = candidate.ToPopupSnapshot();
         return true;
     }
 
