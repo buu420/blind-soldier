@@ -1360,7 +1360,9 @@ public sealed class Mod : IModV1, IModV2
             fieldScriptLineStateReader.IsEnabled,
             ResolveFieldNavigationObjectCollectedMask,
             // Each Line object's live segment, so it is reached on the engine's own touch test.
-            entity => fieldScriptLineStateReader.TryReadSegment(entity, out var segment) ? segment : null);
+            entity => fieldScriptLineStateReader.TryReadSegment(entity, out var segment) ? segment : null,
+            // The engine's own LINE OK state, so arrival at an OK machine is the game's verdict.
+            entity => fieldScriptLineStateReader.TryReadOkState(entity, out var okState) ? okState : null);
         fieldGatewayTargetReader = new FieldGatewayTargetReader(legacyAddressSpace);
         fieldScriptNavigationCatalog = gameRootDirectory is null
             ? null
@@ -1402,7 +1404,8 @@ public sealed class Mod : IModV1, IModV2
             ReadInt16,
             ReadByte,
             fieldStoryEvents,
-            fieldScriptLineStateReader.IsEnabled);
+            fieldScriptLineStateReader.IsEnabled,
+            entity => fieldScriptLineStateReader.TryReadOkState(entity, out var storyOkState) ? storyOkState : null);
         var fieldWalkmeshReader = new FieldWalkmeshReader(ReadInt32, ReadInt16);
         var fieldBoundaryStateReader = new FieldBoundaryStateReader(legacyAddressSpace);
         var fieldDynamicObstacleReader = new FieldNavigationDynamicObstacleReader(
@@ -7409,7 +7412,8 @@ public sealed class Mod : IModV1, IModV2
         var result = navigationAutoWalkController.Drive(
             hasDirection ? direction : FieldNavigationInput.None,
             canMove: hasDirection,
-            routeActive: runtime.Navigation.BeaconEnabled);
+            routeActive: runtime.Navigation.BeaconEnabled,
+            holdFlightAction: runtime.Navigation.AutomaticInputHoldsFlightAction);
         return HandleNavigationAutoWalkInputResult(result, NavigationAutoWalkDomain.WorldMap);
     }
 

@@ -61,8 +61,13 @@ public sealed class WorldMapNavigationController
 
     private const int WorldMapBuggyModelId = WorldMapRoutePlanner.BuggyModelId;
 
+    /// <summary>FUN_0074EA48 flies model 3 at 0x78 a frame (eased), whatever the height.</summary>
+    private const double FlightFrameStep = 120d;
+
     private static double GroundFrameStep(int modelId) =>
-        modelId == WorldMapBuggyModelId ? BuggyFrameStep : WalkingFrameStep;
+        modelId == WorldMapBuggyModelId ? BuggyFrameStep
+        : modelId == WorldMapHighwindLanding.HighwindModelId ? FlightFrameStep
+        : WalkingFrameStep;
 
     /// <summary>The native frame of the model automatic movement is steering right now.</summary>
     private double groundFrameStep = WalkingFrameStep;
@@ -135,6 +140,65 @@ public sealed class WorldMapNavigationController
 
     /// <summary>Driven this far from the landing spot, the approach is taken up again.</summary>
     private const double LandingHoldRadius = 1600d;
+
+    // In the Highwind, flying to a grass spot for the active destination. Null for every
+    // other route. The player lands; nothing here presses Cancel.
+    private WorldMapHighwindLandingPlan? highwindLanding;
+    private HighwindPhase highwindPhase;
+    private bool highwindTightLookout;
+    private bool highwindBraking;
+    private DateTime highwindBrakeUntil;
+    private DateTime highwindStillSince;
+    private WorldMapRouteWaypoint highwindLastPosition;
+    private bool highwindHasLastPosition;
+    private double highwindSampleTravel;
+    private bool highwindQuietUntilMoved;
+
+    /// <summary>
+    /// How near the spot a player flying the ship themselves may come to rest and still be
+    /// told whether to land there. Let go, the ship coasts on along its heading, not toward
+    /// the spot, so their stop is judged wherever it falls this near.
+    /// </summary>
+    private const double HighwindPilotLookout = 1024d;
+
+    /// <summary>
+    /// How long the flight action is held alone to stop the ship: FUN_0074EA48 eases the
+    /// thrust by (3 * previous) &gt;&gt; 2 a frame, 117 to nothing in 15 frames, which is half a
+    /// second at the world map's 30 frames a second.
+    /// </summary>
+    private static readonly TimeSpan HighwindBrakeTime = TimeSpan.FromMilliseconds(600);
+
+    /// <summary>How long the ship must stay where it is before the landing is judged.</summary>
+    private static readonly TimeSpan HighwindStillTime = TimeSpan.FromMilliseconds(250);
+
+    /// <summary>
+    /// Where the ship stops being driven on its way in. FUN_0074EA48 eases the flying speed
+    /// (0x78 a frame, on each axis) by a quarter a frame, so released at this distance the ship
+    /// runs on to about the spot; the landing is judged once it is at rest.
+    /// </summary>
+    private const double HighwindLandingLookout = 240d;
+
+    /// <summary>After a stop that did not fit, the way in is taken up again in short hops.</summary>
+    private const double HighwindTightLookout = 128d;
+
+    private enum HighwindPhase
+    {
+        Approaching,
+        Settling,
+        Ready
+    }
+
+    private bool HighwindHolding => highwindLanding is not null && highwindPhase != HighwindPhase.Approaching;
+
+    private const string HighwindRouteSummary = "By Highwind to a landing spot on grass, then on foot";
+
+    /// <summary>
+    /// Whether the direction the last <see cref="TryResolveAutomaticInput"/> returned is a
+    /// flight direction, to be held together with the 0x80 action (control slot 7): in flight
+    /// camera 3 FUN_0074EA48 translates the Highwind on the directions only while it is held,
+    /// by the same camera rotation as walking. Hosts pass it to the auto-walk input.
+    /// </summary>
+    public bool AutomaticInputHoldsFlightAction { get; private set; }
 
     private enum LandingPhase
     {
@@ -497,7 +561,23 @@ public sealed class WorldMapNavigationController
             }
         }
 
-        if (target.HasArrived(state, playerTriangle))
+        if (highwindLanding is { } highwindPlan)
+        {
+            var landingPrompt = ObserveHighwindLanding(highwindPlan, target, state, now, automaticWalkActive);
+            if (HighwindHolding)
+            {
+                // Held over the spot for the player's own landing: nothing is driven.
+                autoWalkConvergence.Reset();
+                return landingPrompt;
+            }
+
+            if (landingPrompt is not null)
+            {
+                return landingPrompt;
+            }
+        }
+
+        if (highwindLanding is null && !UsesHighwindLanding(target, state) && target.HasArrived(state, playerTriangle))
         {
             if (!IsNativeEntryModelSatisfied(target, state.PlayerModelId))
             {
@@ -639,6 +719,27 @@ public sealed class WorldMapNavigationController
         WorldMapStateSnapshot state,
         out FieldNavigationInput input)
     {
+        if (highwindBraking && highwindLanding is not null &&
+            state.PlayerModelId == WorldMapHighwindLanding.HighwindModelId && beaconEnabled && !combatPaused)
+        {
+            // Stopping the ship: the flight action alone, no direction. FUN_0074EA48 then
+            // gives the strafe no X or Z at all while the eased thrust decays; letting go of
+            // everything instead drops into normal flight, which carries on forward on that
+            // thrust (from 117, 333 units).
+            input = FieldNavigationInput.None;
+            AutomaticInputHoldsFlightAction = true;
+            return false;
+        }
+
+        var resolved = TryResolveAutomaticDirection(state, out input);
+        AutomaticInputHoldsFlightAction = resolved && state.PlayerModelId == WorldMapHighwindLanding.HighwindModelId;
+        return resolved;
+    }
+
+    private bool TryResolveAutomaticDirection(
+        WorldMapStateSnapshot state,
+        out FieldNavigationInput input)
+    {
         input = FieldNavigationInput.None;
         // Nothing planned before the party last went into a field is driven.
         RetireStaleGlacierLeg();
@@ -659,6 +760,12 @@ public sealed class WorldMapNavigationController
         // At the landing spot the boat is held still: the landing is judged at rest, and
         // getting off is the player's own Cancel. Nothing here presses it.
         if (landingPlan is not null && landingPhase != LandingPhase.Approaching)
+        {
+            return false;
+        }
+
+        // Over the Highwind's landing spot the ship is held still for the player's own landing.
+        if (HighwindHolding)
         {
             return false;
         }
@@ -808,7 +915,7 @@ public sealed class WorldMapNavigationController
                 (state.PlayerModelId is not (0 or 1 or 2) || entityProvider is null || vehicleMasksAreOnlyPredicted ||
                  !WorldMapVehicleObstacles.BlocksSegment(
                      (activeTarget is { } selected ? ObstaclesOtherThan(selected) : entityProvider())
-                         .Where(WorldMapVehicleObstacles.IsParkedBuggy).ToArray(),
+                         .Where(WorldMapVehicleObstacles.IsParkedVehicle).ToArray(),
                      state.PlayerModelId,
                      state.X, state.Z, next.X, next.Z, map.WrapWidth, map.WrapHeight));
         }
@@ -995,6 +1102,17 @@ public sealed class WorldMapNavigationController
         var command = hasDirection ? commanded.ToString() : "None";
         var slot = slotPath.Count > 0 ? "slot" : "route";
         var native = nativeInputMask is { } mask ? DescribeNativeInput(mask) : "unknown";
+        if (hasDirection && AutomaticInputHoldsFlightAction)
+        {
+            command += "+flight action";
+        }
+
+        // The 0x80 action the Highwind is flown with: whether the engine's own mask holds it.
+        if (state.PlayerModelId == WorldMapHighwindLanding.HighwindModelId && nativeInputMask is { } flightMask)
+        {
+            native += (flightMask & 0x80u) != 0 ? "+0x80" : "-0x80";
+        }
+
         var signature = $"{command}|{native}|{motionEstimate}|{slot}";
         if (string.Equals(signature, paceLastSignature, StringComparison.Ordinal))
         {
@@ -1288,7 +1406,7 @@ public sealed class WorldMapNavigationController
         // Not when the vehicle detour has found no way round: see TryResolveAutomaticInput.
         var buggies = honourVehicleMasks && entityProvider is not null
             ? (activeTarget is { } selected ? ObstaclesOtherThan(selected) : entityProvider())
-                .Where(WorldMapVehicleObstacles.IsParkedBuggy).ToArray()
+                .Where(WorldMapVehicleObstacles.IsParkedVehicle).ToArray()
             : Array.Empty<WorldMapEntitySnapshot>();
         var keys = Enum.GetValues<FieldNavigationInput>()
             .Where(candidate => candidate is >= FieldNavigationInput.Up and <= FieldNavigationInput.UpLeft)
@@ -1480,7 +1598,7 @@ public sealed class WorldMapNavigationController
         return ((cos * x - sin * z) >> 12, (sin * x + cos * z) >> 12);
     }
 
-    private static (double X, double Z) PredictNativeMovement(FieldNavigationInput input, int cameraFront)
+    internal static (double X, double Z) PredictNativeMovement(FieldNavigationInput input, int cameraFront)
     {
         var stick = FieldNavigationMovementObserver.ToStickDirection(input);
         // FUN0074EA48 uses 3/4 speed on both diagonal axes and the full native
@@ -1603,7 +1721,7 @@ public sealed class WorldMapNavigationController
             return new WorldMapNavigationOutput($"Route unavailable to {target.Label}. Navigation off.");
         }
 
-        if (target.HasArrived(state, playerTriangle))
+        if (!UsesHighwindLanding(target, state) && target.HasArrived(state, playerTriangle))
         {
             if (!IsNativeEntryModelSatisfied(target, state.PlayerModelId))
             {
@@ -1633,7 +1751,24 @@ public sealed class WorldMapNavigationController
         }
 
         WorldMapBroncoLandingPlan? landing = null;
-        if (!planner.TryBuildRoute(state, target, out var route))
+        WorldMapHighwindLandingPlan? highwind = null;
+        var highwindDiagnostic = string.Empty;
+        WorldMapRoutePlan route;
+        if (UsesHighwindLanding(target, state))
+        {
+            // In the air no town is entered: the way there is a grass spot where the game's
+            // own landing sets the party down on ground that leads to it.
+            if (!TryBuildHighwindRoute(state, target, out highwind, out route, out highwindDiagnostic))
+            {
+                ResetRoute();
+                lastDiagnostic = highwindDiagnostic;
+                return new WorldMapNavigationOutput(
+                    $"Route unavailable to {target.Label} by Highwind. " +
+                    "No grass landing spot that leads there on foot was found. Navigation off.",
+                    StopAutoWalk: true);
+            }
+        }
+        else if (!planner.TryBuildRoute(state, target, out route))
         {
             var diagnostic = planner.LastDiagnostic;
             if (!IsDestination(target) || state.PlayerModelId != WorldMapBroncoLanding.BroncoModelId)
@@ -1679,13 +1814,17 @@ public sealed class WorldMapNavigationController
         activeWorldProgress = state.WorldProgress;
         landingPlan = landing;
         landingPhase = LandingPhase.Approaching;
+        highwindLanding = highwind;
+        ResetHighwindApproach();
         landingSettleSamples = 0;
         landingClosestApproach = double.PositiveInfinity;
         landingStalledSamples = 0;
         landingOnRunIn = false;
         lastGuidanceAt = now;
         _ = UpdateProgressAndWaypoint(state);
-        lastDiagnostic = landing is null
+        lastDiagnostic = highwind is not null
+            ? highwindDiagnostic
+            : landing is null
             ? planner.LastDiagnostic
             : $"Tiny Bronco landing for {target.Label}: spot {landing.Option.X},{landing.Option.Z} " +
               $"rotation {landing.Option.Rotation}, ground {landing.Option.LandingX},{landing.Option.LandingZ} " +
@@ -1927,8 +2066,18 @@ public sealed class WorldMapNavigationController
                 $"{DisplayName(CurrentCategory)}, {target.Label} entrance. The way in is on foot, so leave the vehicle here.");
         }
 
+        // In the Highwind a town is previewed by its landing, not by flying over it.
+        var byHighwind = UsesHighwindLanding(target, state);
         var byLanding = false;
-        if ((planner.TryBuildRoute(state, target, out var preview) ||
+        WorldMapRoutePlan preview = default!;
+        if (byHighwind && !TryBuildHighwindRoute(state, target, out _, out preview, out _))
+        {
+            return new WorldMapNavigationOutput(
+                $"{DisplayName(CurrentCategory)}, {target.Label}. No grass landing spot that leads there on foot.");
+        }
+
+        if ((byHighwind ||
+             planner.TryBuildRoute(state, target, out preview) ||
              (byLanding = IsReachedByLanding(target, state) &&
                           TryBuildLandingRoute(state, target, out _, out preview))) &&
             preview.Waypoints.Count > 0)
@@ -1949,7 +2098,9 @@ public sealed class WorldMapNavigationController
                 map.WrapHeight,
                 distanceUnitsPerCount).Speech;
             return new WorldMapNavigationOutput(
-                byLanding
+                byHighwind
+                    ? $"{DisplayName(CurrentCategory)}, {target.Label}. {HighwindRouteSummary}. {direction}."
+                    : byLanding
                     ? $"{DisplayName(CurrentCategory)}, {target.Label}. {LandingRouteSummary}. {direction}."
                     : $"{DisplayName(CurrentCategory)}, {target.Label}. {direction}.");
         }
@@ -1987,6 +2138,17 @@ public sealed class WorldMapNavigationController
             }
         }
 
+        if (target is not null && highwindLanding is not null)
+        {
+            switch (highwindPhase)
+            {
+                case HighwindPhase.Ready:
+                    return DescribeHighwindLanding(target);
+                case HighwindPhase.Settling:
+                    return $"Stopping at the landing spot for {target.Label}.";
+            }
+        }
+
         if (target is null || route is null || route.Waypoints.Count == 0)
         {
             return includeTarget && target is not null ? target.Label : "nearby";
@@ -1994,7 +2156,8 @@ public sealed class WorldMapNavigationController
 
         var direction = ResolveGuidanceRun(state, route).Speech;
         var prefix = includeTarget
-            ? landingPlan is null ? $"{target.Label}. " : $"{target.Label}. {LandingRouteSummary}. "
+            ? highwindLanding is not null ? $"{target.Label}. {HighwindRouteSummary}. "
+            : landingPlan is null ? $"{target.Label}. " : $"{target.Label}. {LandingRouteSummary}. "
             : string.Empty;
         var progress = includeProgress ? $" Route progress {progressPercent} percent." : string.Empty;
         return $"{prefix}{direction}.{progress}".Trim();
@@ -2117,6 +2280,7 @@ public sealed class WorldMapNavigationController
     /// none of them can announce an arrival the game will not honour.
     /// </summary>
     private bool IsAwaitingNativeEntry(WorldMapNavigationTarget target, WorldMapStateSnapshot state) =>
+        !UsesHighwindLanding(target, state) &&
         !IsNativeEntryModelSatisfied(target, state.PlayerModelId) &&
         planner.TryResolvePlayerTriangle(state, out var triangle) &&
         target.HasArrived(state, triangle);
@@ -2390,16 +2554,22 @@ public sealed class WorldMapNavigationController
             return new WorldMapPolylineProgress(0d, 0, 0d);
         }
 
+        // The Highwind flies at its own height: FUN_0074EA48's strafe moves it in X and Z
+        // only, and a route over the ground has the ground's height. Measured in three
+        // dimensions a waypoint below the ship is never reached (the replay held at 1281
+        // over a waypoint at 0, 50 units away, turning back and forth), so flight is
+        // measured across the map alone. Every other model keeps the height.
+        var flat = state.PlayerModelId == WorldMapHighwindLanding.HighwindModelId;
         var points = new List<(double X, double Y, double Z)>(waypoints.Count + 1)
         {
-            (start.X, start.Y, start.Z)
+            (start.X, flat ? 0d : start.Y, start.Z)
         };
         foreach (var waypoint in waypoints)
         {
             var prior = points[^1];
             points.Add((
                 prior.X + WorldMapTargetCatalog.WrappedDelta((int)Math.Round(prior.X), waypoint.X, wrapWidth),
-                waypoint.Y,
+                flat ? 0d : waypoint.Y,
                 prior.Z + WorldMapTargetCatalog.WrappedDelta((int)Math.Round(prior.Z), waypoint.Z, wrapHeight)));
         }
 
@@ -2417,7 +2587,7 @@ public sealed class WorldMapNavigationController
             var b = points[segmentIndex + 1];
             var playerX = a.X + WorldMapTargetCatalog.WrappedDelta((int)Math.Round(a.X), state.X, wrapWidth);
             var playerZ = a.Z + WorldMapTargetCatalog.WrappedDelta((int)Math.Round(a.Z), state.Z, wrapHeight);
-            var player = (X: playerX, Y: (double)state.Y, Z: playerZ);
+            var player = (X: playerX, Y: flat ? 0d : state.Y, Z: playerZ);
             var vx = b.X - a.X;
             var vy = b.Y - a.Y;
             var vz = b.Z - a.Z;
@@ -2658,6 +2828,221 @@ public sealed class WorldMapNavigationController
         target.Kind is WorldMapTargetKind.Location or WorldMapTargetKind.Story;
 
     /// <summary>
+    /// A destination the Highwind cannot arrive at in the air, so is flown to a landing for.
+    /// Towns are entered on foot or by a vehicle on the ground; flying over one enters
+    /// nothing (the 2026-09-29 flight over Mideel). The Highwind's own stops - Midgar at
+    /// 1596, and the native crater targets with their own arrival test - keep flying there.
+    /// </summary>
+    private static bool UsesHighwindLanding(WorldMapNavigationTarget target, WorldMapStateSnapshot state) =>
+        state.PlayerModelId == WorldMapHighwindLanding.HighwindModelId &&
+        IsDestination(target) &&
+        !target.ReachedInFlight &&
+        target.NativeStoryArrival is null;
+
+    /// <summary>
+    /// The ship's route: flown straight over whatever lies between, to the grass spot
+    /// <see cref="WorldMapHighwindLanding"/> chose, ending exactly on it.
+    /// </summary>
+    private bool TryBuildHighwindRoute(
+        WorldMapStateSnapshot state,
+        WorldMapNavigationTarget target,
+        out WorldMapHighwindLandingPlan? highwind,
+        out WorldMapRoutePlan route,
+        out string diagnostic)
+    {
+        highwind = null;
+        route = default!;
+        if (!WorldMapHighwindLanding.TryPlan(planner, map, state, target, out var plan, out diagnostic))
+        {
+            return false;
+        }
+
+        var spotTriangle = map.Triangles[plan.ShipTriangleId];
+        var spot = new WorldMapNavigationTarget(
+            target.Category,
+            WorldMapTargetKind.TerrainArea,
+            $"{target.Label} landing",
+            plan.ShipX,
+            plan.ShipY,
+            plan.ShipZ,
+            spotTriangle.Id,
+            spotTriangle.RegionId,
+            $"{target.StableId}:highwind-landing",
+            new HashSet<int> { spotTriangle.Id });
+        if (!planner.TryBuildRoute(state, spot, out var flight))
+        {
+            diagnostic = $"{diagnostic}; the flight to the spot could not be planned: {planner.LastDiagnostic}";
+            return false;
+        }
+
+        // One wrapped leg straight to the spot. Flight crosses every terrain
+        // (WorldMapTerrainPassability, model 3), so the ground triangles between add only
+        // corners the ship would have to be turned through; the triangle path is kept for
+        // the off-route test.
+        var end = new WorldMapRouteWaypoint(plan.ShipX, plan.ShipY, plan.ShipZ);
+        var legX = (double)WorldMapTargetCatalog.WrappedDelta(state.X, end.X, map.WrapWidth);
+        var legZ = (double)WorldMapTargetCatalog.WrappedDelta(state.Z, end.Z, map.WrapHeight);
+        route = flight with
+        {
+            TargetId = target.StableId,
+            Waypoints = [end],
+            TotalDistance = Math.Sqrt(legX * legX + legZ * legZ)
+        };
+        highwind = plan;
+        return true;
+    }
+
+    private void ResetHighwindApproach()
+    {
+        highwindPhase = HighwindPhase.Approaching;
+        highwindTightLookout = false;
+        highwindBraking = false;
+        highwindBrakeUntil = DateTime.MinValue;
+        highwindStillSince = DateTime.MinValue;
+        highwindHasLastPosition = false;
+        highwindSampleTravel = 0d;
+        highwindQuietUntilMoved = false;
+    }
+
+    /// <summary>
+    /// Brings the ship to rest near the spot, then asks once for the landing - only if the game
+    /// would honour it from where the ship really stopped and as it is really turned.
+    ///
+    /// <para>Near the spot (the farther of <see cref="HighwindLandingLookout"/> and most of the
+    /// last sample's travel, so a host sample spanning several frames cannot carry the ship
+    /// through it) the approach ends. When auto walk was driving, the flight action is then
+    /// held alone for <see cref="HighwindBrakeTime"/>: FUN_0074EA48 gives the strafe no X or Z
+    /// without a direction while its eased thrust (DAT_00DE6A18) decays, where letting go of
+    /// everything would coast on in normal flight. Then nothing is held, and once the ship has
+    /// stayed put for <see cref="HighwindStillTime"/> the ground is judged. A player flying it
+    /// themselves is simply waited for.</para>
+    ///
+    /// <para>A stop that does not fit is said, and the way in is taken up again in short hops.
+    /// Leaving the fitting ground takes the prompt back.</para>
+    /// </summary>
+    private WorldMapNavigationOutput? ObserveHighwindLanding(
+        WorldMapHighwindLandingPlan plan,
+        WorldMapNavigationTarget target,
+        WorldMapStateSnapshot state,
+        DateTime now,
+        bool driven)
+    {
+        var dx = (double)WorldMapTargetCatalog.WrappedDelta(state.X, plan.ShipX, map.WrapWidth);
+        var dz = (double)WorldMapTargetCatalog.WrappedDelta(state.Z, plan.ShipZ, map.WrapHeight);
+        var fromSpot = Math.Sqrt(dx * dx + dz * dz);
+        var travel = 0d;
+        if (highwindHasLastPosition)
+        {
+            var mx = (double)WorldMapTargetCatalog.WrappedDelta(highwindLastPosition.X, state.X, map.WrapWidth);
+            var mz = (double)WorldMapTargetCatalog.WrappedDelta(highwindLastPosition.Z, state.Z, map.WrapHeight);
+            travel = Math.Sqrt(mx * mx + mz * mz);
+        }
+
+        highwindLastPosition = new(state.X, state.Y, state.Z);
+        highwindHasLastPosition = true;
+        switch (highwindPhase)
+        {
+            case HighwindPhase.Approaching:
+            {
+                if (travel > 0d)
+                {
+                    highwindSampleTravel = travel;
+                }
+
+                if (travel > 4d)
+                {
+                    highwindQuietUntilMoved = false;
+                }
+
+                var lookout = Math.Max(
+                    highwindTightLookout ? HighwindTightLookout : HighwindLandingLookout,
+                    0.6d * highwindSampleTravel);
+                // A player flying it themselves stops where they stop: near enough, and once
+                // it has stopped, that is where the landing is judged - once per stop.
+                var pilotStopped = !driven && !highwindQuietUntilMoved && travel <= 4d && fromSpot <= HighwindPilotLookout;
+                if (fromSpot > lookout && !pilotStopped)
+                {
+                    return null;
+                }
+
+                highwindPhase = HighwindPhase.Settling;
+                highwindBraking = driven;
+                highwindBrakeUntil = now + HighwindBrakeTime;
+                highwindStillSince = DateTime.MinValue;
+                lastDiagnostic = $"stopping {fromSpot:0} from the landing spot for {target.Label}" +
+                                 (driven ? ", holding the flight action alone to brake" : string.Empty);
+                return null;
+            }
+            case HighwindPhase.Settling:
+                if (highwindBraking)
+                {
+                    if (now < highwindBrakeUntil)
+                    {
+                        return null;
+                    }
+
+                    // Let go of the flight action; stillness is judged from here on.
+                    highwindBraking = false;
+                    highwindStillSince = DateTime.MinValue;
+                    return null;
+                }
+
+                if (travel > 4d)
+                {
+                    highwindStillSince = DateTime.MinValue;
+                    if (!driven && fromSpot > HighwindPilotLookout)
+                    {
+                        // Flown away again by hand: back to the way in, quietly.
+                        highwindPhase = HighwindPhase.Approaching;
+                    }
+
+                    return null;
+                }
+
+                if (highwindStillSince == DateTime.MinValue)
+                {
+                    highwindStillSince = now;
+                    return null;
+                }
+
+                if (now - highwindStillSince < HighwindStillTime)
+                {
+                    return null;
+                }
+
+                if (WorldMapHighwindLanding.IsReadyToLand(map, planner, state, plan.DestinationFootComponents))
+                {
+                    highwindPhase = HighwindPhase.Ready;
+                    lastDiagnostic = $"at rest over grass to land for {target.Label} at {state.X},{state.Z}, " +
+                                     $"{fromSpot:0} from the spot, rotation {state.ModelRotation}{state.SlideRotation:+0;-0;+0}";
+                    return new WorldMapNavigationOutput(DescribeHighwindLanding(target));
+                }
+
+                highwindPhase = HighwindPhase.Approaching;
+                highwindTightLookout = true;
+                highwindSampleTravel = 0d;
+                highwindQuietUntilMoved = true;
+                lastDiagnostic = $"at rest at {state.X},{state.Z}, {fromSpot:0} from the landing spot for {target.Label}, " +
+                                 $"not over ground that lands there (terrain {state.TerrainId})";
+                return new WorldMapNavigationOutput(
+                    $"Not over the landing ground for {target.Label} here. Navigation continues to the landing spot.");
+            default:
+                if (WorldMapHighwindLanding.IsReadyToLand(map, planner, state, plan.DestinationFootComponents))
+                {
+                    return null;
+                }
+
+                highwindPhase = HighwindPhase.Approaching;
+                highwindTightLookout = true;
+                highwindSampleTravel = 0d;
+                lastDiagnostic = $"no longer over the landing ground for {target.Label} at {state.X},{state.Z}";
+                return new WorldMapNavigationOutput($"No longer over the landing spot for {target.Label}.");
+        }
+    }
+    private static string DescribeHighwindLanding(WorldMapNavigationTarget target) =>
+        $"{target.Label} landing spot. Over grass: press Cancel to land, then continue on foot. Navigation stays on.";
+
+    /// <summary>
     /// A destination the party can only reach from the Tiny Bronco by getting off at a
     /// shore. The boat is held to water - FUN_0074CECA gives model 5 mask 0x70, terrain 4,
     /// 5 and 6 - and field entrances are on land, so none is sailed into; the question is
@@ -2696,6 +3081,9 @@ public sealed class WorldMapNavigationController
         landingClosestApproach = double.PositiveInfinity;
         landingStalledSamples = 0;
         landingOnRunIn = false;
+        highwindLanding = null;
+        ResetHighwindApproach();
+        AutomaticInputHoldsFlightAction = false;
         progressPercent = 0;
         activeModelId = -1;
         activeMapType = -1;

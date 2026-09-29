@@ -20554,7 +20554,7 @@
       "sourceFieldName": "games_1",
       "sourceEntityName": "udel",
       "sourceScriptType": "[OK]",
-      "completesOnArrival": true,
+      "completesOnArrival": false,
       "triggerLine": {
         "startX": 178,
         "startY": 1645,
@@ -20563,7 +20563,9 @@
         "endY": 1575,
         "endZ": -255
       },
-      "requiredEnabledLineEntityId": 11
+      "requiredEnabledLineEntityId": 11,
+      "usesPlayerCollisionRadius": true,
+      "activatesOnOk": true
     },
     {
       "fieldId": 506,
@@ -20580,7 +20582,7 @@
       "sourceFieldName": "games_1",
       "sourceEntityName": "ufo1",
       "sourceScriptType": "[OK]",
-      "completesOnArrival": true,
+      "completesOnArrival": false,
       "triggerLine": {
         "startX": 300,
         "startY": 1371,
@@ -20589,7 +20591,9 @@
         "endY": 1319,
         "endZ": -255
       },
-      "requiredEnabledLineEntityId": 14
+      "requiredEnabledLineEntityId": 14,
+      "usesPlayerCollisionRadius": true,
+      "activatesOnOk": true
     },
     {
       "fieldId": 506,
@@ -20606,7 +20610,7 @@
       "sourceFieldName": "games_1",
       "sourceEntityName": "ufo2",
       "sourceScriptType": "[OK]",
-      "completesOnArrival": true,
+      "completesOnArrival": false,
       "triggerLine": {
         "startX": 384,
         "startY": 1423,
@@ -20615,7 +20619,9 @@
         "endY": 1414,
         "endZ": -255
       },
-      "requiredEnabledLineEntityId": 15
+      "requiredEnabledLineEntityId": 15,
+      "usesPlayerCollisionRadius": true,
+      "activatesOnOk": true
     },
     {
       "fieldId": 506,
@@ -20632,7 +20638,7 @@
       "sourceFieldName": "games_1",
       "sourceEntityName": "bsl",
       "sourceScriptType": "Go",
-      "completesOnArrival": true,
+      "completesOnArrival": false,
       "triggerLine": {
         "startX": -188,
         "startY": 1618,
@@ -20641,7 +20647,8 @@
         "endY": 1711,
         "endZ": -255
       },
-      "requiredEnabledLineEntityId": 16
+      "requiredEnabledLineEntityId": 16,
+      "usesPlayerCollisionRadius": true
     },
     {
       "fieldId": 506,
@@ -20675,7 +20682,7 @@
       "sourceFieldName": "games_2",
       "sourceEntityName": "kakul1",
       "sourceScriptType": "Go",
-      "completesOnArrival": true,
+      "completesOnArrival": false,
       "triggerLine": {
         "startX": -152,
         "startY": -121,
@@ -20684,7 +20691,8 @@
         "endY": -168,
         "endZ": 32
       },
-      "requiredEnabledLineEntityId": 10
+      "requiredEnabledLineEntityId": 10,
+      "usesPlayerCollisionRadius": true
     },
     {
       "fieldId": 507,
@@ -20701,7 +20709,7 @@
       "sourceFieldName": "games_2",
       "sourceEntityName": "kakul2",
       "sourceScriptType": "Go",
-      "completesOnArrival": true,
+      "completesOnArrival": false,
       "triggerLine": {
         "startX": -99,
         "startY": -174,
@@ -20710,7 +20718,8 @@
         "endY": -228,
         "endZ": 32
       },
-      "requiredEnabledLineEntityId": 11
+      "requiredEnabledLineEntityId": 11,
+      "usesPlayerCollisionRadius": true
     },
     {
       "fieldId": 507,
@@ -20727,7 +20736,7 @@
       "sourceFieldName": "games_2",
       "sourceEntityName": "mogu",
       "sourceScriptType": "[OK]",
-      "completesOnArrival": true,
+      "completesOnArrival": false,
       "triggerLine": {
         "startX": 12,
         "startY": -233,
@@ -20736,7 +20745,9 @@
         "endY": -271,
         "endZ": 0
       },
-      "requiredEnabledLineEntityId": 18
+      "requiredEnabledLineEntityId": 18,
+      "usesPlayerCollisionRadius": true,
+      "activatesOnOk": true
     },
     {
       "fieldId": 507,
@@ -20753,7 +20764,7 @@
       "sourceFieldName": "games_2",
       "sourceEntityName": "bikeg",
       "sourceScriptType": "[OK]",
-      "completesOnArrival": true,
+      "completesOnArrival": false,
       "triggerLine": {
         "startX": 272,
         "startY": 195,
@@ -20762,7 +20773,9 @@
         "endY": 154,
         "endZ": 0
       },
-      "requiredEnabledLineEntityId": 19
+      "requiredEnabledLineEntityId": 19,
+      "usesPlayerCollisionRadius": true,
+      "activatesOnOk": true
     },
     {
       "fieldId": 507,
@@ -20779,7 +20792,7 @@
       "sourceFieldName": "games_2",
       "sourceEntityName": "la",
       "sourceScriptType": "[OK]",
-      "completesOnArrival": true,
+      "completesOnArrival": false,
       "triggerLine": {
         "startX": 291,
         "startY": 171,
@@ -20788,7 +20801,9 @@
         "endY": 135,
         "endZ": 0
       },
-      "requiredEnabledLineEntityId": 24
+      "requiredEnabledLineEntityId": 24,
+      "usesPlayerCollisionRadius": true,
+      "activatesOnOk": true
     },
     {
       "fieldId": 509,

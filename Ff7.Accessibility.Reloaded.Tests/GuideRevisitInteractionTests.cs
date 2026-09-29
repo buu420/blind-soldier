@@ -39,6 +39,10 @@ internal static class GuideRevisitInteractionTests
         new(507, 22, "snowb2", "Snow Game, second machine", -176, 177, 0, 790),
         new(507, 23, "subm", "Submarine Game", -337, 42, 21, 1299),
         new(507, 24, "la", "Fortune Telling", 299, 153, 0, 445),
+        new(506, 11, "udel", "Arm Wrestling machine", 183, 1610, -255, 445),
+        new(506, 14, "ufo1", "Wonder Catcher", 286, 1345, -255, 445),
+        new(506, 15, "ufo2", "Wonder Catcher, other side", 358, 1418, -255, 445),
+        new(506, 16, "bsl", "Basketball Game", -229, 1664, -255, 445),
         new(500, 18, "lent1", "Battle points exchange counter", 273, -3289, -152),
         new(500, 19, "lent2", "Battle points exchange counter, second window", -244, -3283, -152),
         new(566, 7, "consl", "Control panel", -1, -120, 0, CollectedBank: 3, CollectedAddress: 134, CollectedMask: 0x20),
@@ -63,6 +67,8 @@ internal static class GuideRevisitInteractionTests
         EachRowIsItsNativeLine();
         ThePianoStaysForEveryVisit();
         WonderSquareMachinesFollowTheFirstVisitAndTheSnowGameMoment();
+        WonderSquareFirstFloorMachinesStayAfterTheFirstVisit();
+        WonderSquareOkMachinesAskForFacing();
         RetiredAndSwitchedOffRowsDisappear();
         NoneOfThemBecomesStory();
         TheShellHouseRestSaysWhatTheGameAsks();
@@ -160,6 +166,70 @@ internal static class GuideRevisitInteractionTests
         Equal(9, Offered(1299).Length, "from moment 1299 the Submarine Game is free too");
     }
 
+    /// <summary>
+    /// Wonder Square's first floor (games_1). The logged revisit (Nibel Area, well past the
+    /// first visit) heard "Objects: none" there while the floor above listed its games: the
+    /// four machines were first-visit Story steps (440..444) and nothing took over after. Their
+    /// LINEs are defined by every Init and nothing in games_1 switches one off, so from 445 on
+    /// they are Objects, exactly like games_2's.
+    /// </summary>
+    private static void WonderSquareFirstFloorMachinesStayAfterTheFirstVisit()
+    {
+        var memory = new ObjectMemory();
+        var enabled = new HashSet<int> { 11, 14, 15, 16 };
+        var reader = memory.Reader(entity => enabled.Contains(entity));
+        var position = new FieldPositionSnapshot(1, 506, 0, 0, 0, 0, 0, 0);
+        string Offered(int moment)
+        {
+            memory.GameMoment = moment;
+            return string.Join("|", reader.ReadTargets(position).Select(t => t.Label).OrderBy(l => l, StringComparer.Ordinal));
+        }
+
+        const string machines = "Arm Wrestling machine|Basketball Game|Wonder Catcher|Wonder Catcher, other side";
+        Equal("", Offered(442), "during the first visit the Story steps name the machines, so nothing is offered twice");
+        foreach (var moment in new[] { 445, 600, 1008, 1299, 1998 })
+        {
+            Equal(machines, Offered(moment), $"at moment {moment} the first floor offers its four machines");
+        }
+
+        var story = FieldStoryEventCatalog.CreateAllFields().Where(r => r.FieldId == 506 && r.EntityId >= 0).ToArray();
+        foreach (var entity in new[] { 11, 14, 15, 16 })
+        {
+            var step = story.Single(r => r.RequiredEnabledLineEntityId == entity);
+            Equal((440, 444), (step.MinimumGameMoment, step.MaximumGameMoment), $"{step.Label} stays the first-visit step");
+            Equal(true, Definition(506, entity).MinimumGameMoment > step.MaximumGameMoment,
+                $"{Definition(506, entity).Label} starts only after the first-visit step ends");
+        }
+
+        memory.GameMoment = 600;
+        enabled.Remove(14);
+        Equal(false, reader.ReadTargets(position).Any(t => t.Label == "Wonder Catcher"), "a switched-off LINE is not offered");
+    }
+
+    /// <summary>
+    /// The Wonder Square machines that run from their OK slot (00637D35) are marked so, and the
+    /// reader carries it to the target: OK there also needs the leader facing the line, so auto
+    /// walk turns to it before saying it has arrived. The Basketball Game and the 3D Battler run
+    /// from their Go slot, on the touch, and are not marked.
+    /// </summary>
+    private static void WonderSquareOkMachinesAskForFacing()
+    {
+        var marked = FieldNavigationObjectCatalog.CreateAllFields()
+            .Where(d => d.FieldId is 506 or 507 && d.ActivatesOnOk)
+            .Select(d => $"{d.FieldId}/{d.EntityId}")
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        Equal("506/11|506/14|506/15|507/18|507/19|507/20|507/21|507/22|507/23|507/24", string.Join("|", marked),
+            "the OK machines of both floors are marked, and only they");
+
+        var memory = new ObjectMemory { GameMoment = 1300 };
+        var reader = memory.Reader(_ => true, entity => entity is 10 or 19
+            ? new FieldNavigationTriggerLine(0, 0, 0, 10, 0, 0)
+            : null);
+        var targets = reader.ReadTargets(new FieldPositionSnapshot(1, 507, 0, 0, 0, 0, 0, 0));
+        Equal(true, targets.Single(t => t.Label == "G Bike").LineActivatesOnOk, "the G Bike target asks for facing");
+        Equal(false, targets.Single(t => t.Label == "3D Battler").LineActivatesOnOk, "the 3D Battler, a Go line, does not");
+    }
     private static void RetiredAndSwitchedOffRowsDisappear()
     {
         var memory = new ObjectMemory { GameMoment = 1320 };
@@ -370,7 +440,7 @@ internal static class GuideRevisitInteractionTests
     private static void NoneOfThemBecomesStory()
     {
         var story = FieldStoryEventCatalog.CreateAllFields();
-        foreach (var row in Rows.Where(r => r.Field != 507))
+        foreach (var row in Rows.Where(r => r.Field is not (506 or 507)))
         {
             Equal(false, story.Any(s => s.FieldId == row.Field && s.EntityId == row.Entity),
                 $"{row.Label} stays optional: no Story step points at it");
@@ -413,6 +483,31 @@ internal static class GuideRevisitInteractionTests
         Contains(Hex(507, 9, 0), "1620000013050407", "customer m6 leaves the Submarine Game at moment 1299");
         Contains(Hex(507, 9, 0), "7E01C701A400", "from then its Init turns its talk and solidity off and hides it");
         Equal(false, Scripts(507).Any(s => s.Opcodes.Any(o => o.Opcode == 0xD1)), "no Wonder Square machine is switched off");
+        // games_1: every machine runs from its own LINE on every visit, with no moment test.
+        Equal(false, Scripts(506).Any(s => s.Opcodes.Any(o => o.Opcode == 0xD1)), "nothing in games_1 switches a LINE off");
+        // Every definition marked as running on OK does so in the installed script: its OK slot
+        // (1) has code and its Go (4) and Go once (5) slots have none.
+        int Code(int field, int entity, int slot) => Scripts(field)
+            .Where(s => s.EntityId == entity && s.ScriptId == slot).SelectMany(s => s.Opcodes).Count(o => o.Opcode != 0x00);
+        foreach (var definition in FieldNavigationObjectCatalog.CreateAllFields().Where(d => d.ActivatesOnOk))
+        {
+            Equal((true, 0, 0), (Code(definition.FieldId, definition.EntityId, 1) > 0,
+                    Code(definition.FieldId, definition.EntityId, 4), Code(definition.FieldId, definition.EntityId, 5)),
+                $"{definition.FieldId}/{definition.EntityId} {definition.Label} runs on OK, not on Go");
+        }
+        Contains(Hex(506, 11, 1), "400105", "the arm-wrestling LINE's OK shows its card (dialog 5)");
+        Contains(Hex(506, 11, 1), "3A0064000000", "and takes its 100 gil");
+        Contains(Hex(506, 14, 1), "030148", "the Wonder Catcher's OK runs Cloud's catcher script 8");
+        Contains(Hex(506, 15, 1), "030149", "and its other side script 9");
+        Contains(Hex(506, 16, 4), "31200299", "the basketball LINE needs OK while the leader is on it");
+        Contains(Hex(506, 16, 4), "400115", "and shows its card (dialog 21)");
+        foreach (var entity in new[] { 11, 14, 15, 16 })
+        {
+            Equal(false, Scripts(506).Where(s => s.EntityId == entity).SelectMany(s => s.Opcodes)
+                    .Any(o => o.Opcode is 0x16 or 0x17 or 0x18 or 0x19 && o.Bytes.Count >= 4 &&
+                        o.Bytes[1] >> 4 == 2 && o.Bytes[2] == 0 && o.Bytes[3] == 0),
+                $"games_1 machine {entity} has no moment test");
+        }
         Contains(Hex(500, 18, 1), "40010E", "the prize window says how many battle points there are");
         Contains(Hex(566, 7, 1), "143086050A", "the control panel asks while 3[134] bit 5 is clear");
         Contains(Hex(566, 7, 1), "480500A6", "its question is dialog 166");

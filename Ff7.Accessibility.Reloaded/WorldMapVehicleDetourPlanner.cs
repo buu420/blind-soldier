@@ -44,7 +44,7 @@ public sealed class WorldMapVehicleDetourPlanner
         // entrance may be stepped on.
         exemptEntrances = target.NativeEntranceExemptions;
         if (state.PlayerModelId is not (0 or 1 or 2)) { Invalidate(); return DetourOutcome.Clear; }
-        var obstacles = entities.Where(WorldMapVehicleObstacles.IsParkedBuggy)
+        var obstacles = entities.Where(WorldMapVehicleObstacles.IsParkedVehicle)
             .OrderBy(e => e.X).ThenBy(e => e.Z).ToArray();
         var nextKey = $"{target.StableId}:{state.WorldMapType}:{state.PlayerModelId}:{state.WorldProgress}:" +
             string.Join(";", obstacles.Select(e => $"{e.X},{e.Z},{e.Flags}"));

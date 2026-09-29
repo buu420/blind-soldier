@@ -33,9 +33,14 @@ public readonly record struct HighwaySteeringCueRequest(
     double TruckDeltaLateral = 0d,
     double TruckDeltaLongitudinal = 0d);
 
+/// <summary>
+/// A steering correction and the cue that announces it. The cue can be throttled away on a
+/// poll while the correction is still held, so the reason travels with the direction.
+/// </summary>
 public readonly record struct HighwaySteeringUpdate(
     HighwaySteeringCueRequest? Cue,
-    HighwaySteeringDirection Direction);
+    HighwaySteeringDirection Direction,
+    HighwaySteeringCueReason Reason = HighwaySteeringCueReason.RoadEdge);
 
 /// <summary>
 /// Pure timestamp-driven policy that translates Cloud's native lateral road
@@ -146,7 +151,7 @@ public sealed class HighwaySteeringTracker
         if (!publishImmediately && nowUtc < nextCueUtc)
         {
             wasCritical = isCritical;
-            return new HighwaySteeringUpdate(null, correctionDirection);
+            return new HighwaySteeringUpdate(null, correctionDirection, HighwaySteeringCueReason.RoadEdge);
         }
 
         nextCueUtc = nowUtc + (isCritical ? criticalCueInterval : normalCueInterval);
@@ -159,7 +164,8 @@ public sealed class HighwaySteeringTracker
                 edgeRatio,
                 isCritical,
                 HighwaySteeringCueReason.RoadEdge),
-            correctionDirection);
+            correctionDirection,
+            HighwaySteeringCueReason.RoadEdge);
     }
 
     public void Reset()
@@ -216,7 +222,7 @@ public sealed class HighwaySteeringTracker
         if (!publishImmediately && nowUtc < nextCueUtc)
         {
             wasCritical = true;
-            update = new HighwaySteeringUpdate(null, requestedDirection);
+            update = new HighwaySteeringUpdate(null, requestedDirection, HighwaySteeringCueReason.TruckAvoidance);
             return true;
         }
 
@@ -232,7 +238,8 @@ public sealed class HighwaySteeringTracker
                 HighwaySteeringCueReason.TruckAvoidance,
                 delta.Lateral,
                 delta.Longitudinal),
-            requestedDirection);
+            requestedDirection,
+            HighwaySteeringCueReason.TruckAvoidance);
         return true;
     }
 

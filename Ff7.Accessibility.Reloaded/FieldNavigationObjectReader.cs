@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace Ff7.Accessibility.Reloaded;
@@ -59,7 +59,10 @@ public readonly record struct FieldNavigationObjectDefinition(
     // A Model object whose model is still standing where its Init placed it ([x, y]) is not
     // offered: it has not yet gone where it matters. Bone Village's diggers wait there, all
     // visible, until each is sent to where the party stands.
-    int[]? WaitingSpot = null);
+    int[]? WaitingSpot = null,
+    // A LINE whose script runs from its OK slot (00637D35), not on touch: the leader must also
+    // face the line for OK to work, so auto walk turns to it before saying it has arrived.
+    bool ActivatesOnOk = false);
 
 public static class FieldNavigationObjectCatalog
 {
@@ -147,6 +150,7 @@ public sealed class FieldNavigationObjectReader
 {
     public const int ModelPositionFixedPointScale = 4096;
     public const int DefaultInteractionRadius = 48;
+    public const int EventHeadingOffset = 0x36;
     public const int AddressFieldModelIdArray = 0x00CBFB70;
     public const int AddressFieldEventDataPtr = 0x00CC0B60;
     public const int AddressFieldBankBase = 0x00DC08DC;
@@ -169,6 +173,7 @@ public sealed class FieldNavigationObjectReader
     private readonly Func<int, bool> isLineEnabled;
     private readonly Func<FieldNavigationObjectDefinition, byte> resolveCollectedMask;
     private readonly Func<int, FieldNavigationTriggerLine?>? readLiveLine;
+    private readonly Func<int, FieldNavigationLineOkState?>? readLineOkState;
     private readonly IReadOnlyDictionary<int, IReadOnlyList<FieldNavigationObjectDefinition>> definitionsByField;
 
     public FieldNavigationObjectReader(
@@ -179,13 +184,15 @@ public sealed class FieldNavigationObjectReader
         IEnumerable<FieldNavigationObjectDefinition> definitions,
         Func<int, bool>? isLineEnabled = null,
         Func<FieldNavigationObjectDefinition, byte>? resolveCollectedMask = null,
-        Func<int, FieldNavigationTriggerLine?>? readLiveLine = null)
+        Func<int, FieldNavigationTriggerLine?>? readLiveLine = null,
+        Func<int, FieldNavigationLineOkState?>? readLineOkState = null)
     {
         // A host that can read each LINE's live segment (FieldScriptLineStateReader.TryReadSegment)
         // gives a Line object its segment and the leader's collision radius, and the controller
         // then counts it reached only on the engine's own touch test. Without it a Line object is
         // the point at its static midpoint, as before.
         this.readLiveLine = readLiveLine;
+        this.readLineOkState = readLineOkState;
         this.readInt32 = readInt32;
         this.readByte = readByte;
         this.resolveItemName = resolveItemName;
@@ -226,6 +233,7 @@ public sealed class FieldNavigationObjectReader
             int z;
             FieldNavigationTriggerLine? liveLine = null;
             var lineActivationRadius = 0;
+            bool? lineOkAccepted = null;
             var interactionRadius = definition.InteractionRadiusOverride is > 0
                 ? definition.InteractionRadiusOverride.Value
                 : DefaultInteractionRadius;
@@ -247,6 +255,10 @@ public sealed class FieldNavigationObjectReader
                     liveLine = segment;
                     lineActivationRadius = collision;
                     interactionRadius = 0;
+                    if (definition.ActivatesOnOk)
+                    {
+                        lineOkAccepted = ReadLineOkAccepted(definition.EntityId, eventTable + position.ModelIndex * FieldEventDataStride);
+                    }
                 }
                 else if (definition.UsesPlayerCollisionRadius)
                 {
@@ -361,6 +373,8 @@ public sealed class FieldNavigationObjectReader
                 TriggerLine: liveLine,
                 ApproachCrossingLine: CrossingLineOf(definition),
                 LineActivationRadius: lineActivationRadius,
+                LineActivatesOnOk: definition.TargetKind == FieldNavigationObjectTargetKind.Line && definition.ActivatesOnOk,
+                LineOkAccepted: lineOkAccepted,
                 Activation: definition.TargetKind == FieldNavigationObjectTargetKind.Model && definition.UsesTalkInteraction
                     ? FieldNavigationActivation.Talk
                     : FieldNavigationActivation.Default));
@@ -405,6 +419,19 @@ public sealed class FieldNavigationObjectReader
     /// see, and from the room behind it only its back - offering the far side would name a
     /// room nobody has been shown, and it could not be reached through the scroll's lock.
     /// </summary>
+    // The engine's own OK verdict for a LINE on this read (00637D35 without the key press): its
+    // ready byte (+0x15) and stored angle (+0x14) against the leader's event heading (+0x36) -
+    // not the rendered +0x38 the position snapshot carries. Null when the state is unreadable.
+    private bool? ReadLineOkAccepted(int entityId, int playerEventAddress)
+    {
+        if (readLineOkState?.Invoke(entityId) is not { } state)
+        {
+            return null;
+        }
+
+        return state.Ready && FieldNativeLineContact.IsInOkSector(state.Angle, readByte(playerEventAddress + EventHeadingOffset));
+    }
+
     // The leader's collision radius (event +0x72), checked against the model table; null when
     // the event table, the leader's model or the radius is missing.
     private int? TryReadPlayerCollisionRadius(FieldPositionSnapshot position, ref int eventTable, ref byte modelCount, ref bool modelStateRead)

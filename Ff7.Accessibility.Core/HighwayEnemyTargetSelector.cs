@@ -9,7 +9,7 @@ internal readonly record struct HighwayEnemySelection(
 
 /// <summary>
 /// Keeps the audible attack cue and automatic engagement steering focused on
-/// the same live biker. Bikers already in sword range or threatening the story
+/// the same live biker. Bikers already in sword range or threatening the
 /// truck take priority; otherwise the nearest biker to Cloud is selected.
 /// </summary>
 internal static class HighwayEnemyTargetSelector
@@ -25,9 +25,9 @@ internal static class HighwayEnemyTargetSelector
         {
             var cloudDistance = Distance(enemy.Position, state.Cloud);
             var truckDistance = Distance(enemy.Position, state.Truck);
-            var threatensTruck =
-                state.IsStoryChase &&
-                truckDistance <= Math.Max(0d, truckThreatDistance);
+            // The bikers aim for the truck in the arcade too (FUN_00656880 has no
+            // story-mode test), and there each hit on it costs fifty points.
+            var threatensTruck = truckDistance <= Math.Max(0d, truckThreatDistance);
             var important =
                 cloudDistance <= HighwayAccessibilityTracker.NativeSwordRange ||
                 threatensTruck;

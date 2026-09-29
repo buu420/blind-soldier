@@ -151,6 +151,71 @@ public sealed class FieldScriptLineStateReader
         return true;
     }
 
+    /// <summary>
+    /// The line's native OK state: the angle 00637ABB stored to its foot (+0x14 from the segment)
+    /// and its ready byte (+0x15), which 00637D35 tests with the leader's event heading. Read
+    /// twice with the mapping and field around them, as the segment is; false when any read
+    /// fails, anything changes between them, or the line is off.
+    /// </summary>
+    public const int LineOkAngleOffset = 0x14;
+
+    public const int LineOkReadyOffset = 0x15;
+
+    public bool TryReadOkState(int entityId, out FieldNavigationLineOkState state)
+    {
+        state = default;
+        if (entityId < 0 || entityId > MaximumEntityId)
+        {
+            return false;
+        }
+
+        if (addressSpace is null)
+        {
+            var mappingAddress = AddressFieldLineIndexByEntity + entityId;
+            if (!isReadableMemory!(mappingAddress, sizeof(byte)))
+            {
+                return false;
+            }
+
+            var lineIndex = readByte!(mappingAddress);
+            var at = AddressFieldLineSegments + lineIndex * LineStateStride;
+            if (!isReadableMemory(at, LineOkReadyOffset + 1) || readByte(at + 12) == 0)
+            {
+                return false;
+            }
+
+            state = new FieldNavigationLineOkState(readByte(at + LineOkAngleOffset), readByte(at + LineOkReadyOffset) == 1);
+            return true;
+        }
+
+        var mapping = (uint)(AddressFieldLineIndexByEntity + entityId);
+        if (!TryCapture(mapping, out var before) || before.Module != FieldPositionReader.FieldModule ||
+            !TryReadOkBytes((uint)(AddressFieldLineSegments + before.LineIndex * LineStateStride), out var first) ||
+            !TryReadOkBytes((uint)(AddressFieldLineSegments + before.LineIndex * LineStateStride), out var second) ||
+            !TryCapture(mapping, out var after) || !before.Equals(after) || first != second || !first.Enabled)
+        {
+            LastDiagnostic = $"entity={entityId}, checked OK state torn, unreadable or off";
+            return false;
+        }
+
+        state = new FieldNavigationLineOkState(first.Angle, first.Ready == 1);
+        return true;
+    }
+
+    private bool TryReadOkBytes(uint at, out (bool Enabled, byte Angle, byte Ready) value)
+    {
+        value = default;
+        var memory = addressSpace!;
+        if (!memory.TryReadByte(at + 12, out var enabled) ||
+            !memory.TryReadByte(at + LineOkAngleOffset, out var angle) ||
+            !memory.TryReadByte(at + LineOkReadyOffset, out var ready))
+        {
+            return false;
+        }
+
+        value = (enabled != 0, angle, ready);
+        return true;
+    }
     private bool TryReadSegmentWords(uint at, out (FieldNavigationTriggerLine Line, bool Enabled) value)
     {
         value = default;

@@ -19,6 +19,17 @@ internal interface IHighwayDirectionInputMappingResolver
         HighwaySteeringDirection direction,
         out IReadOnlyList<HighwayKeyboardKey> keys,
         out string diagnostic);
+
+    /// <summary>
+    /// The keyboard key the live control table assigns to one action slot. Resolvers that
+    /// know only directions answer no, which fails the caller closed.
+    /// </summary>
+    bool TryResolveAction(int slotIndex, out HighwayKeyboardKey key, out string diagnostic)
+    {
+        key = default;
+        diagnostic = $"action slot {slotIndex} cannot be resolved";
+        return false;
+    }
 }
 
 /// <summary>
@@ -38,6 +49,13 @@ internal sealed class HighwayDirectionInputMappingResolver(
     internal const int RightSlotIndex = 13;
     internal const int DownSlotIndex = 14;
     internal const int LeftSlotIndex = 15;
+
+    /// <summary>
+    /// Slot 7, native bit 0x80 (slot n is bit 1 &lt;&lt; n, as Up..Left are 0x1000..0x8000).
+    /// FUN_0074EA48 in flight camera 3 translates the Highwind on the directions only while
+    /// it is held; without it they turn the ship and change its height.
+    /// </summary>
+    internal const int FlightActionSlotIndex = 7;
 
     private const uint KeyboardTokenLimitExclusive = 0xDE;
 
@@ -91,6 +109,35 @@ internal sealed class HighwayDirectionInputMappingResolver(
         }
 
         keys = resolved.AsReadOnly();
+        diagnostic = string.Empty;
+        return true;
+    }
+
+    public bool TryResolveAction(int slotIndex, out HighwayKeyboardKey key, out string diagnostic)
+    {
+        if (slotIndex is < 0 or >= MappingBankStride / sizeof(uint))
+        {
+            key = default;
+            diagnostic = $"action slot {slotIndex} is outside the control table";
+            return false;
+        }
+
+        Span<byte> table = stackalloc byte[MappingTableSize];
+        if (!addressSpace.TryRead(MappingTableAddress, table))
+        {
+            key = default;
+            diagnostic = "could not read Final Fantasy VII's live control mapping";
+            return false;
+        }
+
+        if (!TryResolveCardinal(table, slotIndex, out key, out var configured))
+        {
+            diagnostic =
+                $"control slot {slotIndex} is not assigned to a supported keyboard key in " +
+                $"Final Fantasy VII's controls (live banks: {configured})";
+            return false;
+        }
+
         diagnostic = string.Empty;
         return true;
     }

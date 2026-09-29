@@ -15,6 +15,7 @@ internal sealed class HighwayAccessibilityCoordinator : IDisposable
     private readonly HighwayAccessibilityComposer composer;
     private readonly HighwayAutoSteeringModeTracker autoSteeringMode;
     private readonly HighwayAutoSteeringController autoSteeringController;
+    private readonly HighwayScoreChangeTracker scoreLog = new();
     private readonly NavigationBeaconPlayer? lowerPriorityPlayer;
     private readonly NavigationBeaconPlayer? importantPlayer;
     private readonly NavigationBeaconPlayer? truckPlayer;
@@ -26,6 +27,7 @@ internal sealed class HighwayAccessibilityCoordinator : IDisposable
     private string lastRoadFailureDiagnostic = string.Empty;
     private string lastAutoSteeringFailureDiagnostic = string.Empty;
     private HighwaySteeringDirection lastAutomaticDirection;
+    private HighwayControlReason lastAutomaticReason;
     private int disposed;
 
     internal HighwayAccessibilityCoordinator(
@@ -146,6 +148,10 @@ internal sealed class HighwayAccessibilityCoordinator : IDisposable
         {
             combatState = MapState(combatSnapshot);
             lastCombatFailureDiagnostic = string.Empty;
+            foreach (var line in scoreLog.Observe(combatState))
+            {
+                log(line);
+            }
         }
         else
         {
@@ -204,7 +210,9 @@ internal sealed class HighwayAccessibilityCoordinator : IDisposable
         ApplyAutomaticDirection(
             mode.ShouldControl
                 ? update.AutomaticDirection
-                : HighwaySteeringDirection.None);
+                : HighwaySteeringDirection.None,
+            mode.ShouldControl ? update.ControlReason : HighwayControlReason.None,
+            update.RoadEdgeRatio);
 
         // One delivery site for both. The mode announces itself on the first poll of
         // every ride and again on every F8, and the composed speech is one-shot too -
@@ -284,6 +292,10 @@ internal sealed class HighwayAccessibilityCoordinator : IDisposable
     internal void Reset(string reason)
     {
         composer.Reset();
+        if (scoreLog.Reset() is { } scoreSummary)
+        {
+            log(scoreSummary);
+        }
         ReleaseAutomaticDirection();
         StopAll();
         if (!active)
@@ -311,17 +323,23 @@ internal sealed class HighwayAccessibilityCoordinator : IDisposable
         active = false;
     }
 
-    private void ApplyAutomaticDirection(HighwaySteeringDirection direction)
+    private void ApplyAutomaticDirection(
+        HighwaySteeringDirection direction,
+        HighwayControlReason reason = HighwayControlReason.None,
+        double roadEdgeRatio = double.NaN)
     {
         var result = autoSteeringController.Apply(direction);
         ObserveAutomaticInputResult(result);
-        if (!result.Success || direction == lastAutomaticDirection)
+        if (!result.Success || (direction == lastAutomaticDirection && reason == lastAutomaticReason))
         {
             return;
         }
 
         lastAutomaticDirection = direction;
-        log($"Highway auto-steering direction: {direction}.");
+        lastAutomaticReason = reason;
+        // Why, and where on the road: enough to tell engagement from road safety in a live log.
+        log($"Highway auto-steering direction: {direction} (reason={reason}, roadEdgeRatio=" +
+            (double.IsFinite(roadEdgeRatio) ? roadEdgeRatio.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) : "unreadable") + ").");
     }
 
     private void ReleaseAutomaticDirection()
@@ -331,6 +349,7 @@ internal sealed class HighwayAccessibilityCoordinator : IDisposable
         if (result.Success)
         {
             lastAutomaticDirection = HighwaySteeringDirection.None;
+            lastAutomaticReason = HighwayControlReason.None;
         }
     }
 

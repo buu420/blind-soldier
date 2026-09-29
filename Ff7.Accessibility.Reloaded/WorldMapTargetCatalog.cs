@@ -212,6 +212,13 @@ public sealed record WorldMapNavigationTarget(
     public IReadOnlyList<WorldMapNativeLocationArrival> NativeLocationArrivals { get; init; } = [];
 
     /// <summary>
+    /// A stop the Highwind's own script reaches in the air - Midgar at 1596-1597 is point 9 of
+    /// the Highwind Tick - so flying there is arriving, and no landing is planned for it.
+    /// Every other town is entered on foot or by a vehicle on the ground.
+    /// </summary>
+    public bool ReachedInFlight { get; init; }
+
+    /// <summary>
     /// Every triangle of this destination's own native trigger: the mesh cell and terrain
     /// script its handler is registered for. <see cref="ArrivalTriangleIds"/> is only the
     /// part of it with a point the route can end on; this is all of it, including walls and
@@ -998,8 +1005,11 @@ public sealed class WorldMapTargetCatalog
         // below is not that. It offered the Tiny Bronco's far bank, where no position at
         // all is inside the boat's mask, while leaving out the bank the party was standing
         // on, because that one is two triangles away across the water the boat floats in.
+        // The Highwind's mask is known for walking round it once parked, but boarding it has
+        // not been checked against the game, so it keeps the approach it always had.
         var nativeFootprint =
             category == WorldMapNavigationCategory.Transportation &&
+            entity.ModelId != WorldMapHighwindLanding.HighwindModelId &&
             WorldMapVehicleObstacles.TryGetNativeMask(entity.ModelId, out _) &&
             WorldMapVehicleObstacles.TryGetNativeMask(player.PlayerModelId, out _);
         var vehicleContacts = nativeFootprint && (entity.Flags & WorldMapVehicleObstacles.SkippedFlag) == 0
@@ -1018,7 +1028,7 @@ public sealed class WorldMapTargetCatalog
         }
         else
         {
-            // No mask for one of the two models - the Highwind, the submarines, or a party
+            // No checked boarding mask for one of the two models - the Highwind, the submarines, or a party
             // leader nobody has measured. Inventing a footprint for those would be
             // inventing an arrival, so they keep the ring they always had.
             if (WorldMapTerrainPassability.CanTraverse(player.PlayerModelId, player.WorldMapType, triangle.TerrainId))
@@ -1103,7 +1113,8 @@ public sealed class WorldMapTargetCatalog
                 {
                     Category = WorldMapNavigationCategory.Story,
                     Kind = WorldMapTargetKind.Story,
-                    StableId = $"world-story:{CreateStableName(location.Label)}"
+                    StableId = $"world-story:{CreateStableName(location.Label)}",
+                    ReachedInFlight = stage.RequiredPlayerModelIds?.Contains(HighwindModelId) == true
                 });
 
         if (stage.NativeTarget is not { } native)

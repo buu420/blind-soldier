@@ -155,6 +155,9 @@ Add-Definition -FieldId 505 -FieldName 'games' -Kind Location -EntityId 18 `
 # instructions, price prompt and result windows are ordinary native dialogue that
 # the existing message path already speaks; what was missing was any way to find
 # them. Coordinates are the midpoints of the installed LINE triggers.
+# Each is reached as its own handler runs: on the touch within the leader's radius (Go),
+# and for [OK] also facing the line (00637D35), never by crossing it. The later Objects
+# rows use the same contract (Generate-FieldNavigationObjects.ps1 -ActivatesOnOk).
 #
 # Availability was taken from the installed scripts, not from a guide:
 #  - games_2/snowb and snowb2 test `$GameMoment < 790` and answer with a bystander
@@ -191,7 +194,8 @@ foreach ($attraction in $goldSaucerAttractions) {
         -X $attraction.x -Y $attraction.y -Z $attraction.z `
         -MinimumGameMoment 440 -MaximumGameMoment 444 -Priority 1 `
         -EntityName $attraction.entityName -ScriptType $attraction.script `
-        -RequiredEnabledLineEntityId $attraction.entity -TriggerLine $attraction.line
+        -RequiredEnabledLineEntityId $attraction.entity -TriggerLine $attraction.line `
+        -UsesPlayerCollisionRadius -KeepActiveOnArrival -ActivatesOnOk:($attraction.script -eq '[OK]')
 }
 
 # --- The Shooting Coaster's own registration -------------------------------
@@ -258,7 +262,8 @@ foreach ($machine in $goldSaucerArcadeMachines) {
         -X $machine.x -Y $machine.y -Z $machine.z `
         -MinimumGameMoment 440 -MaximumGameMoment 444 -Priority 1 `
         -EntityName $machine.entityName -ScriptType $machine.script `
-        -RequiredEnabledLineEntityId $machine.entity -TriggerLine $machine.line
+        -RequiredEnabledLineEntityId $machine.entity -TriggerLine $machine.line `
+        -UsesPlayerCollisionRadius -KeepActiveOnArrival -ActivatesOnOk:($machine.script -eq '[OK]')
 }
 
 # games_1 s1(8) is the GP prize counter, placed at (182,1543,-255) on triangle

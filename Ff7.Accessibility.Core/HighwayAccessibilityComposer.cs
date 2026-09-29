@@ -1,10 +1,23 @@
 namespace Ff7.Accessibility.Core;
 
+/// <summary>Why the automatic steering chose its direction on a poll.</summary>
+public enum HighwayControlReason
+{
+    None,
+    Engagement,
+    EngagementHold,
+    RoadEdge,
+    RoadEdgeCritical,
+    TruckAvoidance
+}
+
 public readonly record struct HighwayCompositeUpdate(
     HighwayCueRequest? CombatCue,
     HighwaySteeringCueRequest? SteeringCue,
     HighwaySpeechRequest? Speech,
-    HighwaySteeringDirection AutomaticDirection);
+    HighwaySteeringDirection AutomaticDirection,
+    HighwayControlReason ControlReason = HighwayControlReason.None,
+    double RoadEdgeRatio = double.NaN);
 
 /// <summary>
 /// Combines independently available highway combat and road observations and
@@ -113,15 +126,11 @@ public sealed class HighwayAccessibilityComposer
             steeringUpdate = steeringTracker.Update(road, truckDelta, nowUtc);
         }
 
-        // Checked road-edge and truck-collision corrections own the controls
-        // while active. Combat-coordinate engagement fills the gap when the
-        // road is centered or its x64 translated pointer is unavailable.
-        var automaticDirection = steeringUpdate.Direction != HighwaySteeringDirection.None
-            ? steeringUpdate.Direction
-            : engagementDirection;
+        var (automaticDirection, controlReason, edgeRatio) = ComposeAutomaticDirection(
+            combatState, roadState, steeringUpdate, engagementDirection);
         if (combatUpdate.Speech is { } speech)
         {
-            return new HighwayCompositeUpdate(null, null, speech, automaticDirection);
+            return new HighwayCompositeUpdate(null, null, speech, automaticDirection, controlReason, edgeRatio);
         }
 
         var combatCue = combatUpdate.Cue;
@@ -129,13 +138,13 @@ public sealed class HighwayAccessibilityComposer
         if (steeringCue is { IsCritical: true } criticalSteering)
         {
             lastModerateOutput = HighwayOutputSource.Steering;
-            return new HighwayCompositeUpdate(null, criticalSteering, null, automaticDirection);
+            return new HighwayCompositeUpdate(null, criticalSteering, null, automaticDirection, controlReason, edgeRatio);
         }
 
         if (combatCue is { Kind: HighwayCueKind.ImportantEnemy } importantCombat)
         {
             lastModerateOutput = HighwayOutputSource.Combat;
-            return new HighwayCompositeUpdate(importantCombat, null, null, automaticDirection);
+            return new HighwayCompositeUpdate(importantCombat, null, null, automaticDirection, controlReason, edgeRatio);
         }
 
         if (combatCue is { } moderateCombat && steeringCue is { } moderateSteering)
@@ -143,26 +152,26 @@ public sealed class HighwayAccessibilityComposer
             if (lastModerateOutput == HighwayOutputSource.Steering)
             {
                 lastModerateOutput = HighwayOutputSource.Combat;
-                return new HighwayCompositeUpdate(moderateCombat, null, null, automaticDirection);
+                return new HighwayCompositeUpdate(moderateCombat, null, null, automaticDirection, controlReason, edgeRatio);
             }
 
             lastModerateOutput = HighwayOutputSource.Steering;
-            return new HighwayCompositeUpdate(null, moderateSteering, null, automaticDirection);
+            return new HighwayCompositeUpdate(null, moderateSteering, null, automaticDirection, controlReason, edgeRatio);
         }
 
         if (steeringCue is { } onlySteering)
         {
             lastModerateOutput = HighwayOutputSource.Steering;
-            return new HighwayCompositeUpdate(null, onlySteering, null, automaticDirection);
+            return new HighwayCompositeUpdate(null, onlySteering, null, automaticDirection, controlReason, edgeRatio);
         }
 
         if (combatCue is { } onlyCombat)
         {
             lastModerateOutput = HighwayOutputSource.Combat;
-            return new HighwayCompositeUpdate(onlyCombat, null, null, automaticDirection);
+            return new HighwayCompositeUpdate(onlyCombat, null, null, automaticDirection, controlReason, edgeRatio);
         }
 
-        return new HighwayCompositeUpdate(null, null, null, automaticDirection);
+        return new HighwayCompositeUpdate(null, null, null, automaticDirection, controlReason, edgeRatio);
     }
 
     public void Reset()
@@ -171,7 +180,94 @@ public sealed class HighwayAccessibilityComposer
         steeringTracker.Reset();
         engagementTracker.Reset();
         lastModerateOutput = HighwayOutputSource.None;
+        criticalEdgeActive = false;
     }
+
+    /// <summary>
+    /// The road edge takes the controls from the engagement in the arcade from this share of the
+    /// road half-width, and gives them back below <see cref="CriticalEdgeReleaseRatio"/>. The
+    /// entry is the tracker's own critical ratio; 006539B2 clamps the bike only at the half-width
+    /// itself, which already has 96 units taken off it, so the interior below is safe to drive.
+    /// </summary>
+    public const double CriticalEdgeEntryRatio = HighwaySteeringTracker.CriticalCorrectionRatio;
+
+    public const double CriticalEdgeReleaseRatio = 0.55d;
+
+    private bool criticalEdgeActive;
+
+    /// <summary>
+    /// Who drives this poll. In the story chase, as before: any road or truck correction, then
+    /// the engagement. In the arcade the engagement uses the safe interior of the road - driving
+    /// to a biker, or holding still aligned in the sword pocket or through a swing - and only
+    /// the truck-collision correction, or the road edge from the critical ratio (with hysteresis),
+    /// takes the controls from it. With nothing to engage, the ordinary road correction applies.
+    /// </summary>
+    private (HighwaySteeringDirection Direction, HighwayControlReason Reason, double EdgeRatio) ComposeAutomaticDirection(
+        HighwayAccessibilityState? combatState,
+        HighwayRoadState? roadState,
+        HighwaySteeringUpdate steeringUpdate,
+        HighwaySteeringDirection engagementDirection)
+    {
+        var edgeRatio = roadState is { } road &&
+                        double.IsFinite(road.CloudLateralUnits) &&
+                        double.IsFinite(road.RoadHalfWidthUnits) &&
+                        road.RoadHalfWidthUnits > 0d
+            ? Math.Abs(road.CloudLateralUnits) / road.RoadHalfWidthUnits
+            : double.NaN;
+        var steering = steeringUpdate.Direction;
+        var steeringReason = steering == HighwaySteeringDirection.None
+            ? HighwayControlReason.None
+            : steeringUpdate.Reason == HighwaySteeringCueReason.TruckAvoidance
+                ? HighwayControlReason.TruckAvoidance
+                : HighwayControlReason.RoadEdge;
+
+        if (combatState is not { IsStoryChase: false })
+        {
+            criticalEdgeActive = false;
+            if (steering != HighwaySteeringDirection.None)
+            {
+                return (steering, steeringReason, edgeRatio);
+            }
+
+            return combatState is null
+                ? (HighwaySteeringDirection.None, HighwayControlReason.None, edgeRatio)
+                : (engagementDirection, EngagementReason(engagementDirection), edgeRatio);
+        }
+
+        criticalEdgeActive = double.IsFinite(edgeRatio) &&
+                             (criticalEdgeActive ? edgeRatio > CriticalEdgeReleaseRatio : edgeRatio >= CriticalEdgeEntryRatio);
+        if (steeringReason == HighwayControlReason.TruckAvoidance)
+        {
+            return (steering, HighwayControlReason.TruckAvoidance, edgeRatio);
+        }
+
+        if (criticalEdgeActive)
+        {
+            var towardCentre = steering != HighwaySteeringDirection.None
+                ? steering
+                : roadState!.Value.CloudLateralUnits > 0d
+                    ? HighwaySteeringDirection.Left
+                    : HighwaySteeringDirection.Right;
+            return (towardCentre, HighwayControlReason.RoadEdgeCritical, edgeRatio);
+        }
+
+        return engagementTracker.LastDecision switch
+        {
+            HighwayEngagementDecision.Drive => (engagementDirection, HighwayControlReason.Engagement, edgeRatio),
+            HighwayEngagementDecision.Hold => (HighwaySteeringDirection.None, HighwayControlReason.EngagementHold, edgeRatio),
+            _ => steering != HighwaySteeringDirection.None
+                ? (steering, steeringReason, edgeRatio)
+                : (HighwaySteeringDirection.None, HighwayControlReason.None, edgeRatio)
+        };
+    }
+
+    private HighwayControlReason EngagementReason(HighwaySteeringDirection engagementDirection) =>
+        engagementTracker.LastDecision switch
+        {
+            HighwayEngagementDecision.Drive when engagementDirection != HighwaySteeringDirection.None => HighwayControlReason.Engagement,
+            HighwayEngagementDecision.Hold => HighwayControlReason.EngagementHold,
+            _ => HighwayControlReason.None
+        };
 
     private enum HighwayOutputSource
     {

@@ -974,11 +974,13 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         var result = autoWalk.Drive(
             hasDirection ? direction : FieldNavigationInput.None,
             canMove: hasDirection,
-            routeActive: runtime.Navigation.BeaconEnabled);
+            routeActive: runtime.Navigation.BeaconEnabled,
+            holdFlightAction: runtime.Navigation.AutomaticInputHoldsFlightAction);
         if (result.Success)
         {
-            // After the drive, so the renewal belongs to the direction just committed to.
-            if (hasDirection)
+            // Renew the committed input, including the Highwind's direction-free brake.
+            // Its 600 ms hold outlasts the native input overlay's 500 ms lease.
+            if (hasDirection || runtime.Navigation.AutomaticInputHoldsFlightAction)
             {
                 directionalInput.Renew(nowUtc);
             }

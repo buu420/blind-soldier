@@ -240,6 +240,28 @@ public sealed class FieldNavigationController
     private double lastCrossingRemainingDistance = double.PositiveInfinity;
 
     /// <summary>
+    /// When the chosen exit left the target list with the party standing at it. The station's
+    /// Hotel Lobby gateway (491, 2026-09-29 12:17:34) went from the list on the sample the party
+    /// stepped onto it, and the game arrived in 492 the same second: a walk through the door
+    /// was reported as the door being shut. There is no native flag for a pending field change,
+    /// so the refusal waits <see cref="ExitTransitionGrace"/> for the field change (judged by
+    /// the ordinary rule) or for the exit to come back. Default while nothing is held.
+    /// </summary>
+    private DateTime exitRemovalHeldSince;
+
+    private static readonly TimeSpan ExitTransitionGrace = TimeSpan.FromMilliseconds(1500);
+
+    /// <summary>
+    /// How close to the exit's crossing the party must be for its removal to be held: on it,
+    /// within two running steps by the route's own remaining distance or by the line. The
+    /// logged walk had 4 left; a doorway switched off with the party 40 units short of it is
+    /// refused at once (FieldPuzzleStoryTests).
+    /// </summary>
+    private const double ExitTransitionReachUnits = 16d;
+
+    private double lastExitRemainingDistance = double.PositiveInfinity;
+
+    /// <summary>
     /// Near enough to a crossing that a target disappearing there was removed by the crossing
     /// itself: a little more than one scan of running between two samples.
     /// </summary>
@@ -574,12 +596,14 @@ public sealed class FieldNavigationController
     public string CrossFieldGoalLabel => crossFieldGoal?.Label ?? string.Empty;
 
     /// <summary>
-    /// Records that the player is being walked, so each later leg of a cross-field approach is
-    /// walked too (through <see cref="TryConsumeHeldAutoWalkRequest"/>). Ignored when there is
-    /// no such approach.
+    /// Records autowalk intent before its first tracking pass. It also carries that intent
+    /// into later cross-field legs (through <see cref="TryConsumeHeldAutoWalkRequest"/>).
     /// </summary>
     public void NoteAutoWalkStarted()
     {
+        // Arrival can be checked before the first movement input, including when the
+        // player starts beside an interaction. Native facing/readiness applies immediately.
+        automaticWalkDriving = true;
         if (crossFieldPlan is not null)
         {
             crossFieldAutoWalk = true;
@@ -597,6 +621,7 @@ public sealed class FieldNavigationController
     /// </summary>
     public void NoteAutoWalkStopped()
     {
+        automaticWalkDriving = false;
         crossFieldAutoWalk = false;
         GlacierRegion?.NoteAutoWalk(false);
         if (pendingBoundaryTarget is null)
@@ -1550,6 +1575,8 @@ public sealed class FieldNavigationController
         contactHintSpoken = false;
         contactStartedWhileSuppressed = false;
         lastCrossingRemainingDistance = double.PositiveInfinity;
+        exitRemovalHeldSince = default;
+        lastExitRemainingDistance = double.PositiveInfinity;
         ResetLadderMountPrompt();
         routeTracker?.Reset();
         movementObserver.Reset();
@@ -1944,6 +1971,18 @@ public sealed class FieldNavigationController
                     $"{beaconCategory} crossing, target removed as it was crossed",
                     completed: true);
             }
+            else if (beaconCategory == FieldNavigationCategory.Exits &&
+                     beaconLockedTarget is { } heldExit &&
+                     IsAtExitCrossing(heldExit, position) &&
+                     IsWithinExitTransitionGrace(observedAt))
+            {
+                // Walking through the door takes the door off the list before the new field
+                // arrives. Say nothing yet: a field change is judged by the ordinary rule above,
+                // the exit coming back carries on, and a door that stays gone is reported below
+                // once the grace is over.
+                LastNavigationDiagnostic = $"exit {beaconTargetLabel} left the list at its crossing; held for the field change";
+                return null;
+            }
             else if (beaconCategory == FieldNavigationCategory.Exits)
             {
                 completion = CompleteNavigation(
@@ -1963,6 +2002,7 @@ public sealed class FieldNavigationController
             return completion;
         }
 
+        exitRemovalHeldSince = default;
         if (positionContinuityTracker.Observe(
                 position,
                 observedAt,
@@ -2115,6 +2155,11 @@ public sealed class FieldNavigationController
             lastCrossingRemainingDistance = crossingGuidance.RemainingDistance;
         }
 
+        if (target.Value.Category == FieldNavigationCategory.Exits && currentGuidance is { } exitGuidance)
+        {
+            lastExitRemainingDistance = exitGuidance.RemainingDistance;
+        }
+
         var routeAction = CreateRouteActionSpeech(position, observedAt);
         if (routeAction is not null)
         {
@@ -2234,6 +2279,32 @@ public sealed class FieldNavigationController
         return null;
     }
 
+    /// <summary>
+    /// Whether OK would work on this LINE now: only the engine's own verdict, read coherently (the
+    /// ready byte, stored angle and event heading 00637D35 tests). An unreadable verdict is
+    /// unproven, never computed from the rendered direction: the event heading can differ from it,
+    /// and that is how the false "reached" at the G Bike came about.
+    /// </summary>
+    private static bool AcceptsLineOk(FieldNavigationTarget target) => target.LineOkAccepted == true;
+
+    /// <summary>Whether the party is on the exit's own crossing: the route's last remaining distance, or the line itself.</summary>
+    private bool IsAtExitCrossing(FieldNavigationTarget exit, FieldPositionSnapshot position) =>
+        lastExitRemainingDistance <= ExitTransitionReachUnits ||
+        (exit.TriggerLine is { } line
+            ? DistanceToLine(line, position.X, position.Y)
+            : Distance2D(position.X, position.Y, exit.X, exit.Y)) <= ExitTransitionReachUnits;
+
+    /// <summary>Starts the hold on its first sample and says whether it is still inside the grace.</summary>
+    private bool IsWithinExitTransitionGrace(DateTime observedAt)
+    {
+        var now = observedAt == default ? DateTime.UtcNow : observedAt;
+        if (exitRemovalHeldSince == default)
+        {
+            exitRemovalHeldSince = now;
+        }
+
+        return now - exitRemovalHeldSince < ExitTransitionGrace;
+    }
     private int ResolveInteractionArrivalResumeDistance()
     {
         var threshold = Math.Max(0, interactionArrivalDistance);
@@ -2512,6 +2583,56 @@ public sealed class FieldNavigationController
         }
 
         ObserveAutomaticPace(position);
+
+        // On the line but not facing it: a press toward the line's foot, and the native step
+        // turns the leader to it. Within a step of the foot that press would carry the party
+        // across the line and leave the foot behind it, so it first steps back from the line,
+        // still on it, and presses toward it from there. Nothing is confirmed or pressed on
+        // the player's behalf. With the engine's verdict unreadable nothing says which way to
+        // turn, or whether to at all: it stands still on the line until the verdict reads.
+        if (IsLineActivation(target.Value) && target.Value.LineActivatesOnOk && target.Value.TriggerLine is { } touchedLine &&
+            FieldNativeLineContact.Touches(touchedLine, position, target.Value.LineActivationRadius) &&
+            !AcceptsLineOk(target.Value))
+        {
+            if (target.Value.LineOkAccepted is null)
+            {
+                LastAutomaticInputHold = FieldAutoWalkHoldReason.PlayerAction;
+                LastNavigationDiagnostic =
+                    $"{LastNavigationDiagnostic}, holding on {target.Value.Label}'s line until the engine's OK state reads";
+                return false;
+            }
+
+            var (nativeX, nativeY, nativeZ) = FieldNativeLineContact.NativeCoordinates(position);
+            if (FieldNativeLineContact.TryFoot(touchedLine, nativeX, nativeY, nativeZ, out var footX, out var footY))
+            {
+                double towardX = footX - nativeX;
+                double towardY = footY - nativeY;
+                if (towardX == 0d && towardY == 0d)
+                {
+                    // On the foot itself there is no direction to it: step back against the
+                    // current facing (heading h moves by (sin h, -cos h)), then turn from there.
+                    var facing = position.Direction * Math.PI / 128d;
+                    towardX = Math.Sin(facing);
+                    towardY = -Math.Cos(facing);
+                }
+                var backOff = towardX * (double)towardX + towardY * (double)towardY <
+                              LineTurnMinimumUnits * (double)LineTurnMinimumUnits;
+                var face = movementObserver.ResolveStickDirection(
+                    (int)Math.Round((backOff ? -towardX : towardX) * 64d),
+                    (int)Math.Round((backOff ? -towardY : towardY) * 64d),
+                    controlTransform).Input;
+                if (IsDirectionalInput(face))
+                {
+                    input = face;
+                    automaticWalkDriving = true;
+                    LastAutomaticInputHold = FieldAutoWalkHoldReason.None;
+                    LastNavigationDiagnostic = backOff
+                        ? $"{LastNavigationDiagnostic}, stepping back to turn to {target.Value.Label}'s line for OK"
+                        : $"{LastNavigationDiagnostic}, turning to face {target.Value.Label}'s line for OK";
+                    return true;
+                }
+            }
+        }
 
         // In talking range on the approach but not facing the target: the one move left is the
         // one a player makes - press toward them. Native movement turns the leader even where
@@ -3828,6 +3949,12 @@ public sealed class FieldNavigationController
     /// </summary>
     private const int NativeTalkFacingTolerance = 64;
 
+    /// <summary>
+    /// Closer to a line's foot than this, a press toward it can cross the line in one sample;
+    /// the turn steps back first. Twice the running step of eight units.
+    /// </summary>
+    private const int LineTurnMinimumUnits = 16;
+
     private static bool FacesTalkTarget(FieldPositionSnapshot position, FieldNavigationTarget target)
     {
         var toTarget = (int)Math.Round(
@@ -3837,7 +3964,7 @@ public sealed class FieldNavigationController
     }
 
     /// <summary>
-    /// Automatic walking produced the last input: the party is being walked, so arriving has to
+    /// Automatic walking is active: the party is being walked, so arriving has to
     /// leave it where the player can press OK at once, facing included. Plain navigation, where
     /// the player moves the party themselves, keeps its position-only arrival.
     /// </summary>
@@ -4003,7 +4130,14 @@ public sealed class FieldNavigationController
         // remaining length.
         if (IsLineActivation(target) && target.TriggerLine is { } activationLine)
         {
-            return FieldNativeLineContact.Touches(activationLine, position, target.LineActivationRadius);
+            // Walked to a line that runs on OK, the party must also face it: 00637D35 runs its OK script only
+            // within 32 units of the direction to its foot (the G Bike, 2026-09-29 12:24:13, was
+            // "reached" facing 88 with the native line angle at 160, and OK did nothing). Plain navigation,
+            // where the player moves the party themselves, keeps the touch alone, as Talk does; a Go
+            // line runs on the touch whatever the facing.
+            return automaticWalkDriving && target.LineActivatesOnOk
+                ? AcceptsLineOk(target)
+                : FieldNativeLineContact.Touches(activationLine, position, target.LineActivationRadius);
         }
 
         var threshold = ResolveArrivalDistance(target, arrivalDistanceUnits, forCompletion);

@@ -263,7 +263,8 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             ReadInt16,
             ReadByte,
             FieldStoryEventCatalog.CreateAllFields(),
-            lineStateReader.IsEnabled);
+            lineStateReader.IsEnabled,
+            entity => lineStateReader.TryReadOkState(entity, out var storyOkState) ? storyOkState : null);
         var fieldNavigationObjects = FieldNavigationObjectCatalog.CreateAllFields();
         var npcReader = new FieldNavigationNpcReader(
             ReadInt32,

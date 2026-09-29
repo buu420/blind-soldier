@@ -64,7 +64,9 @@ public sealed class Steam2026FieldObjectObservationReader
             allDefinitions,
             lineStateReader.IsEnabled,
             // Each Line object's live segment, so it is reached on the engine's own touch test.
-            readLiveLine: entity => lineStateReader.TryReadSegment(entity, out var segment) ? segment : null);
+            readLiveLine: entity => lineStateReader.TryReadSegment(entity, out var segment) ? segment : null,
+            // The engine's own LINE OK state (+0x14 angle, +0x15 ready), read checked.
+            readLineOkState: entity => lineStateReader.TryReadOkState(entity, out var okState) ? okState : null);
         navigationFieldsWithModelDefinitions = allDefinitions
             .Where(definition => definition.TargetKind == FieldNavigationObjectTargetKind.Model)
             .Select(definition => definition.FieldId)
@@ -374,6 +376,7 @@ public sealed class Steam2026FieldObjectObservationReader
                 out target),
             FieldNavigationObjectTargetKind.Line => TryReadLineDefinition(
                 definition,
+                ownership,
                 identity,
                 requiredValue,
                 collectedValue,
@@ -481,6 +484,7 @@ public sealed class Steam2026FieldObjectObservationReader
 
     private bool TryReadLineDefinition(
         FieldNavigationObjectDefinition definition,
+        ObjectOwnership ownership,
         string identity,
         byte? requiredValue,
         byte? collectedValue,
@@ -535,12 +539,15 @@ public sealed class Steam2026FieldObjectObservationReader
             return true;
         }
 
-        target = CreateTarget(
+        target = WithLiveLine(
             definition,
-            label,
-            definition.StaticX,
-            definition.StaticY,
-            definition.StaticZ);
+            ownership,
+            CreateTarget(
+                definition,
+                label,
+                definition.StaticX,
+                definition.StaticY,
+                definition.StaticZ));
         evidence = DefinitionEvidence.Create(
             identity,
             DefinitionState.Visible,
@@ -673,6 +680,45 @@ public sealed class Steam2026FieldObjectObservationReader
         return definition.Quantity > 1
             ? $"{label}, quantity {definition.Quantity}"
             : label;
+    }
+
+    /// <summary>
+    /// The same LINE metadata the navigation path's shared reader gives: the live segment, the
+    /// leader's own collision radius (event +0x72), whether the line runs on OK, and the engine's
+    /// OK verdict (ready byte and stored angle against event heading +0x36). Each is read checked;
+    /// an unreadable part leaves the target as it was, as before, rather than half-described.
+    /// </summary>
+    private FieldNavigationTarget WithLiveLine(
+        FieldNavigationObjectDefinition definition,
+        ObjectOwnership ownership,
+        FieldNavigationTarget target)
+    {
+        if (!lineStateReader.TryReadSegment(definition.EntityId, out var segment) ||
+            ownership.EventTable == 0 ||
+            !TryAddScaled(ownership.EventTable, ownership.PlayerModelId, FieldNavigationObjectReader.FieldEventDataStride, out var playerEvent) ||
+            !TryAdd(playerEvent, FieldNavigationNpcReader.CollisionRadiusOffset, out var radiusAddress) ||
+            !addressSpace.TryReadUInt16(radiusAddress, out var rawRadius) ||
+            unchecked((short)rawRadius) <= 1)
+        {
+            return target;
+        }
+
+        bool? okAccepted = null;
+        if (definition.ActivatesOnOk &&
+            lineStateReader.TryReadOkState(definition.EntityId, out var okState) &&
+            TryAdd(playerEvent, FieldNavigationObjectReader.EventHeadingOffset, out var headingAddress) &&
+            addressSpace.TryReadByte(headingAddress, out var heading))
+        {
+            okAccepted = okState.Ready && FieldNativeLineContact.IsInOkSector(okState.Angle, heading);
+        }
+
+        return target with
+        {
+            TriggerLine = segment,
+            LineActivationRadius = unchecked((short)rawRadius),
+            LineActivatesOnOk = definition.ActivatesOnOk,
+            LineOkAccepted = okAccepted
+        };
     }
 
     private static FieldNavigationTarget CreateTarget(

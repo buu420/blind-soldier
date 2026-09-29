@@ -1,4 +1,4 @@
-﻿name: Build Blind Soldier release
+name: Build Blind Soldier release
 
 on:
   push:
@@ -9,7 +9,7 @@ on:
       version:
         description: Version used for a verification-only package build
         required: true
-        default: "0.7.9"
+        default: "0.8.0"
 
 permissions:
   contents: write

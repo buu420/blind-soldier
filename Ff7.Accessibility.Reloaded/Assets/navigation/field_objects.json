@@ -2,7 +2,7 @@
     "schemaVersion":  2,
     "source":  "dangarfeld/kujata-data field script extraction",
     "sourceCommit":  "f2316fa54f27ebd1ce4e19242fc3c789337c1eba",
-    "definitionCount":  455,
+    "definitionCount":  459,
     "definitions":  [
                         {
                             "fieldId":  436,
@@ -11066,7 +11066,8 @@
                             "cueKindOverride":  null,
                             "minimumGameMoment":  445,
                             "maximumGameMoment":  -1,
-                            "usesPlayerCollisionRadius":  true
+                            "usesPlayerCollisionRadius":  true,
+                            "activatesOnOk":  true
                         },
                         {
                             "fieldId":  507,
@@ -11092,7 +11093,8 @@
                             "cueKindOverride":  null,
                             "minimumGameMoment":  445,
                             "maximumGameMoment":  -1,
-                            "usesPlayerCollisionRadius":  true
+                            "usesPlayerCollisionRadius":  true,
+                            "activatesOnOk":  true
                         },
                         {
                             "fieldId":  507,
@@ -11118,7 +11120,8 @@
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
                             "maximumGameMoment":  -1,
-                            "usesPlayerCollisionRadius":  true
+                            "usesPlayerCollisionRadius":  true,
+                            "activatesOnOk":  true
                         },
                         {
                             "fieldId":  507,
@@ -11144,7 +11147,8 @@
                             "cueKindOverride":  null,
                             "minimumGameMoment":  790,
                             "maximumGameMoment":  -1,
-                            "usesPlayerCollisionRadius":  true
+                            "usesPlayerCollisionRadius":  true,
+                            "activatesOnOk":  true
                         },
                         {
                             "fieldId":  507,
@@ -11170,7 +11174,8 @@
                             "cueKindOverride":  null,
                             "minimumGameMoment":  790,
                             "maximumGameMoment":  -1,
-                            "usesPlayerCollisionRadius":  true
+                            "usesPlayerCollisionRadius":  true,
+                            "activatesOnOk":  true
                         },
                         {
                             "fieldId":  507,
@@ -11196,7 +11201,8 @@
                             "cueKindOverride":  null,
                             "minimumGameMoment":  1299,
                             "maximumGameMoment":  -1,
-                            "usesPlayerCollisionRadius":  true
+                            "usesPlayerCollisionRadius":  true,
+                            "activatesOnOk":  true
                         },
                         {
                             "fieldId":  507,
@@ -11222,7 +11228,8 @@
                             "cueKindOverride":  null,
                             "minimumGameMoment":  445,
                             "maximumGameMoment":  -1,
-                            "usesPlayerCollisionRadius":  true
+                            "usesPlayerCollisionRadius":  true,
+                            "activatesOnOk":  true
                         },
                         {
                             "fieldId":  500,
@@ -11663,6 +11670,113 @@
                             "staticZ":  -12,
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
+                            "maximumGameMoment":  -1,
+                            "usesPlayerCollisionRadius":  true
+                        },
+                        {
+                            "fieldId":  506,
+                            "entityId":  11,
+                            "kind":  "Named",
+                            "nativeId":  -1,
+                            "label":  "Arm Wrestling machine",
+                            "quantity":  1,
+                            "collectedBank":  -1,
+                            "collectedAddress":  -1,
+                            "collectedMask":  0,
+                            "requiredBank":  -1,
+                            "requiredAddress":  -1,
+                            "requiredMask":  0,
+                            "requiredValue":  0,
+                            "sourceFieldName":  "games_1",
+                            "sourceEntityName":  "udel",
+                            "sourceModelResource":  "",
+                            "targetKind":  "Line",
+                            "staticX":  183,
+                            "staticY":  1610,
+                            "staticZ":  -255,
+                            "cueKindOverride":  null,
+                            "minimumGameMoment":  445,
+                            "maximumGameMoment":  -1,
+                            "usesPlayerCollisionRadius":  true,
+                            "activatesOnOk":  true
+                        },
+                        {
+                            "fieldId":  506,
+                            "entityId":  14,
+                            "kind":  "Named",
+                            "nativeId":  -1,
+                            "label":  "Wonder Catcher",
+                            "quantity":  1,
+                            "collectedBank":  -1,
+                            "collectedAddress":  -1,
+                            "collectedMask":  0,
+                            "requiredBank":  -1,
+                            "requiredAddress":  -1,
+                            "requiredMask":  0,
+                            "requiredValue":  0,
+                            "sourceFieldName":  "games_1",
+                            "sourceEntityName":  "ufo1",
+                            "sourceModelResource":  "",
+                            "targetKind":  "Line",
+                            "staticX":  286,
+                            "staticY":  1345,
+                            "staticZ":  -255,
+                            "cueKindOverride":  null,
+                            "minimumGameMoment":  445,
+                            "maximumGameMoment":  -1,
+                            "usesPlayerCollisionRadius":  true,
+                            "activatesOnOk":  true
+                        },
+                        {
+                            "fieldId":  506,
+                            "entityId":  15,
+                            "kind":  "Named",
+                            "nativeId":  -1,
+                            "label":  "Wonder Catcher, other side",
+                            "quantity":  1,
+                            "collectedBank":  -1,
+                            "collectedAddress":  -1,
+                            "collectedMask":  0,
+                            "requiredBank":  -1,
+                            "requiredAddress":  -1,
+                            "requiredMask":  0,
+                            "requiredValue":  0,
+                            "sourceFieldName":  "games_1",
+                            "sourceEntityName":  "ufo2",
+                            "sourceModelResource":  "",
+                            "targetKind":  "Line",
+                            "staticX":  358,
+                            "staticY":  1418,
+                            "staticZ":  -255,
+                            "cueKindOverride":  null,
+                            "minimumGameMoment":  445,
+                            "maximumGameMoment":  -1,
+                            "usesPlayerCollisionRadius":  true,
+                            "activatesOnOk":  true
+                        },
+                        {
+                            "fieldId":  506,
+                            "entityId":  16,
+                            "kind":  "Named",
+                            "nativeId":  -1,
+                            "label":  "Basketball Game",
+                            "quantity":  1,
+                            "collectedBank":  -1,
+                            "collectedAddress":  -1,
+                            "collectedMask":  0,
+                            "requiredBank":  -1,
+                            "requiredAddress":  -1,
+                            "requiredMask":  0,
+                            "requiredValue":  0,
+                            "sourceFieldName":  "games_1",
+                            "sourceEntityName":  "bsl",
+                            "sourceModelResource":  "",
+                            "targetKind":  "Line",
+                            "staticX":  -229,
+                            "staticY":  1664,
+                            "staticZ":  -255,
+                            "cueKindOverride":  null,
+                            "minimumGameMoment":  445,
                             "maximumGameMoment":  -1,
                             "usesPlayerCollisionRadius":  true
                         }

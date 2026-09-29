@@ -18,6 +18,7 @@ internal static class Steam2026FieldObjectObservationTests
         ReadsEveryPersistentAndTemporaryBank();
         RequiresCheckedLineStateForStaticPickups();
         NavigationLineTargetsCarryTheirLiveSegment();
+        OkLinesCarryTheEnginesOwnOkState();
         RejectsUnreadableRequiredDomains();
         RejectsTornRawEvidenceEvenWhenTargetsWouldMatch();
         PublishesImmutablePointerFreeObservations();
@@ -314,6 +315,73 @@ internal static class Steam2026FieldObjectObservationTests
         Equal(true, reader.TryReadNavigationTargets(position, out targets) && targets.Count == 0, "without the leader's radius it is not offered");
     }
 
+    /// <summary>
+    /// The x64 reader/coordinator boundary for a LINE that runs on OK (the Gold Saucer's G Bike,
+    /// games_2 bikeg): both checked paths carry the live segment, the leader's radius, that it runs
+    /// on OK, and the engine's own verdict - the LINE's ready byte (+0x15) and stored angle
+    /// (+0x14) against the leader's event heading (+0x36), deliberately different here from any
+    /// rendered heading. A torn or unreadable OK state is unknown (null), never a guess.
+    /// </summary>
+    private static void OkLinesCarryTheEnginesOwnOkState()
+    {
+        foreach (var cueBearing in new[] { false, true })
+        {
+            var memory = CreateBaseMemory();
+            WriteGameMoment(memory, 1008);
+            WriteLineState(memory, entityId: 19, lineIndex: 9, enabled: true);
+            var line = (uint)(FieldScriptLineStateReader.AddressFieldLineSegments + 9 * FieldScriptLineStateReader.LineStateStride);
+            foreach (var (offset, value) in new[] { (0, 272), (2, 195), (4, 0), (6, 210), (8, 154), (10, 0) })
+            {
+                memory.WriteUInt16(line + (uint)offset, unchecked((ushort)(short)value));
+            }
+
+            memory.WriteByte(line + (uint)FieldScriptLineStateReader.LineOkAngleOffset, 160);
+            memory.WriteByte(line + (uint)FieldScriptLineStateReader.LineOkReadyOffset, 1);
+            var definition = new FieldNavigationObjectDefinition(
+                FieldId, EntityId: 19, Kind: cueBearing ? FieldNavigationObjectKind.Item : FieldNavigationObjectKind.Named,
+                NativeId: cueBearing ? 241 : -1, Label: "G Bike",
+                TargetKind: FieldNavigationObjectTargetKind.Line, StaticX: 241, StaticY: 174, StaticZ: 0,
+                CueKindOverride: cueBearing ? FieldObjectCueKind.Item : null,
+                UsesPlayerCollisionRadius: true, ActivatesOnOk: true);
+            var reader = CreateReader(memory, [definition], itemId => itemId == 241 ? "G Bike" : null, _ => null);
+            Equal(true, reader.TryReadSnapshot(out var snapshot), $"snapshot (cue-bearing={cueBearing})");
+            var position = snapshot!.Position;
+            var playerEvent = EventTable + (uint)position.ModelIndex * FieldNavigationObjectReader.FieldEventDataStride;
+            memory.WriteUInt16(playerEvent + FieldNavigationNpcReader.CollisionRadiusOffset, 34);
+            var heading = playerEvent + (uint)FieldNavigationObjectReader.EventHeadingOffset;
+            memory.WriteByte(heading, 127);
+
+            FieldNavigationTarget Read(string path)
+            {
+                if (path == "navigation")
+                {
+                    Equal(true, reader.TryReadNavigationTargets(position, out var targets), $"checked navigation targets (cue-bearing={cueBearing})");
+                    return targets.Single();
+                }
+
+                Equal(true, reader.TryReadSnapshot(out var again), $"checked snapshot (cue-bearing={cueBearing})");
+                return again!.Targets.Single();
+            }
+
+            foreach (var path in cueBearing ? new[] { "navigation", "snapshot" } : new[] { "navigation" })
+            {
+                memory.WriteByte(heading, 127);
+                var target = Read(path);
+                Equal(new FieldNavigationTriggerLine(272, 195, 0, 210, 154, 0), target.TriggerLine, $"{path}: the live segment");
+                Equal((34, true), (target.LineActivationRadius, target.LineActivatesOnOk), $"{path}: the leader's radius, and it runs on OK");
+                Equal<bool?>(false, target.LineOkAccepted, $"{path}: event heading 127 against stored angle 160 is outside the OK sector");
+                memory.WriteByte(heading, 150);
+                Equal<bool?>(true, Read(path).LineOkAccepted, $"{path}: event heading 150 is inside it");
+                memory.WriteByte(line + (uint)FieldScriptLineStateReader.LineOkReadyOffset, 0);
+                Equal<bool?>(false, Read(path).LineOkAccepted, $"{path}: not ready, no OK");
+                memory.WriteByte(line + (uint)FieldScriptLineStateReader.LineOkReadyOffset, 1);
+                memory.RemoveRange(line + (uint)FieldScriptLineStateReader.LineOkAngleOffset, 2);
+                Equal<bool?>(null, Read(path).LineOkAccepted, $"{path}: an unreadable OK state is unknown");
+                memory.WriteByte(line + (uint)FieldScriptLineStateReader.LineOkAngleOffset, 160);
+                memory.WriteByte(line + (uint)FieldScriptLineStateReader.LineOkReadyOffset, 1);
+            }
+        }
+    }
     private static void RejectsUnreadableRequiredDomains()
     {
         var definition = CreateCheckedModelDefinition();
