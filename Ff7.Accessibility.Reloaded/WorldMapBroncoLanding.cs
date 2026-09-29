@@ -514,7 +514,8 @@ internal static class WorldMapBroncoLanding
         return boatComponent >= 0;
     }
 
-    private static double[] MeasureDistances(
+    /// <summary>Shortest centroid-to-centroid distances from the sources over triangles <paramref name="canEnter"/> admits.</summary>
+    internal static double[] MeasureDistances(
         WorldMapData map,
         IEnumerable<int> sources,
         Func<int, bool> canEnter)

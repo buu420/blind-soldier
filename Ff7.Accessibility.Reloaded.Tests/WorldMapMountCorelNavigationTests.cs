@@ -208,7 +208,10 @@ internal static class WorldMapMountCorelNavigationTests
             PlayerModelId = 3, MovementSpeed = 120, TerrainId = 16, TerrainScriptId = 7, RegionId = 9
         };
         var destination = new WorldMapRouteWaypoint(37427, 695, 88439);
-        var target = new WorldMapNavigationTarget(WorldMapNavigationCategory.Regions, WorldMapTargetKind.Location,
+        // A terrain area, which flying over does reach. A Location would now be a town, which
+        // the Highwind never enters from the air and is given a grass landing for instead
+        // (WorldMapHighwindNavigationTests); this case is about crossing the vertical face.
+        var target = new WorldMapNavigationTarget(WorldMapNavigationCategory.Regions, WorldMapTargetKind.TerrainArea,
             "Adjacent flight surface", destination.X, destination.Y, destination.Z, 41681, 16,
             "native-flight:41681", new HashSet<int> { 41681 });
         Equal(true, planner.TryBuildRoute(state, target, out var route), "the existing native Highwind route remains buildable");

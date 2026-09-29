@@ -42,6 +42,9 @@ public sealed class FieldNavigationRouteTracker
     private const double RecoveryDirectionAlignment = 0.5d;
     private const double ObstacleRecoveryArrivalDistance = 36d;
 
+    /// <summary>One running step: how far a native step can land from a lattice corner it passes.</summary>
+    private const double ExplicitCornerStepSlack = 8d;
+
     private readonly IFieldNavigationRoutePlanner planner;
     private FieldNavigationRoutePlan? plan;
     private IReadOnlyList<FieldNavigationRouteStep> stableWaypoints = Array.Empty<FieldNavigationRouteStep>();
@@ -1065,7 +1068,18 @@ public sealed class FieldNavigationRouteTracker
             // Required steep approaches can also be native portal corners.
             // Their small proximity radius must not bypass that portal; authored
             // detour checkpoints keep their separate arrival behavior.
+            // A portal narrower than the body's inset collapses onto one point (games_1's fan of
+            // slivers round the ramp foot -49,1606 on the way to the south-west machine), and
+            // its triangle can be too thin for a step to land in. Within one step of that point
+            // the portal has been reached, under the same guard as a lattice corner below.
+            var collapsedPortalReached =
+                isNativePortalCorner &&
+                plan.Portals[step.RequiredPortalIndex - 1].Left == plan.Portals[step.RequiredPortalIndex - 1].Right &&
+                planner is IFieldNavigationAutomaticMovementPlanner collapsedPlanner &&
+                IsCornerReachedWithinAStep(collapsedPlanner, position, target, step.Waypoint,
+                    stableWaypoints[waypointIndex + 1].Waypoint);
             if ((!step.MustReach || isNativePortalCorner) &&
+                !collapsedPortalReached &&
                 portalIndex < step.RequiredPortalIndex &&
                 corridorObservation is
                 {
@@ -1144,6 +1158,11 @@ public sealed class FieldNavigationRouteTracker
             // Two model-avoidance turns can share one native triangle. Entering
             // that triangle cannot satisfy the later bend, and the ordinary
             // arrival tolerance cannot turn early through a wall or resident.
+            // A lattice corner's next leg can be clear from the corner alone (games_1's ramp
+            // corner 16,1026 beside the south-west narrows), and a running step lands up to a
+            // step either side of it and never on it. Within one step the corner's own body
+            // clearance counts - but only once the leg from where the party actually stands
+            // crosses no model and no closed boundary (IsCornerReachedWithinAStep).
             var nextStep = stableWaypoints[waypointIndex + 1];
             if (step.RequiresExplicitArrival &&
                 (planner is not IFieldNavigationAutomaticMovementPlanner movementPlanner ||
@@ -1151,13 +1170,56 @@ public sealed class FieldNavigationRouteTracker
                      ? nextStep.IsNativeEntryStep
                          ? IsNativeEntryContinuationClear(movementPlanner, position, target, nextStep.Waypoint)
                          : movementPlanner.IsNativeProbeMovementClear(position, target, nextStep.Waypoint)
-                     : movementPlanner.IsAutomaticMovementClear(position, target, nextStep.Waypoint))))
+                     : movementPlanner.IsAutomaticMovementClear(position, target, nextStep.Waypoint) ||
+                       movementPlanner.IsModelClearLegClear(position, target, nextStep.Waypoint) ||
+                       IsCornerReachedWithinAStep(movementPlanner, position, target, step.Waypoint, nextStep.Waypoint))))
             {
                 break;
             }
 
             waypointIndex++;
         }
+    }
+
+    /// <summary>
+    /// Whether a corner the party is within one step of (<see cref="ExplicitCornerStepSlack"/>)
+    /// counts as reached. From the actual position the next leg must cross no standing model and
+    /// no closed native boundary, on the unshrunk walkmesh; only then does the body clearance
+    /// witnessed from the corner itself stand in for the body clearance from a spot a step off
+    /// it. A hypothetical corner never clears an obstruction the real continuation would cross.
+    /// The continuation is checked as far as the next waypoint's arrival distance
+    /// (<see cref="MinimumWaypointArrivalDistance"/>): an obstruction beyond that cannot stop the
+    /// party before the next waypoint counts as reached. games_1's ramp corner 16,1026: the leg on
+    /// to 88,1022 passes Man m3 (143,994) with under a unit to spare at its far end, so from a
+    /// step off the corner the native flank probe grazes him there and nowhere before.
+    /// </summary>
+    internal static bool IsCornerReachedWithinAStep(IFieldNavigationAutomaticMovementPlanner planner,
+        FieldPositionSnapshot position, FieldNavigationTarget target,
+        FieldNavigationRouteWaypoint corner, FieldNavigationRouteWaypoint next)
+    {
+        var from = ToWaypoint(position);
+        if (Distance(from, corner) > ExplicitCornerStepSlack)
+        {
+            return false;
+        }
+
+        var remaining = Distance(from, next);
+        if (remaining > MinimumWaypointArrivalDistance)
+        {
+            var share = (remaining - MinimumWaypointArrivalDistance) / remaining;
+            var arrival = new FieldNavigationRouteWaypoint(
+                (int)Math.Round(from.X + (next.X - from.X) * share),
+                (int)Math.Round(from.Y + (next.Y - from.Y) * share),
+                (int)Math.Round(from.Z + (next.Z - from.Z) * share));
+            if (!planner.IsModelAndBoundaryClear(position, target, arrival))
+            {
+                return false;
+            }
+        }
+
+        var atCorner = position with { X = corner.X, Y = corner.Y, Z = corner.Z, NativeFixedPosition = null };
+        return planner.IsAutomaticMovementClear(atCorner, target, next) ||
+               planner.IsModelClearLegClear(atCorner, target, next);
     }
 
     private static bool IsNativeEntryContinuationClear(IFieldNavigationAutomaticMovementPlanner planner,

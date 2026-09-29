@@ -119,7 +119,8 @@ function Add-Definition {
         [int] $MaximumGameMoment = -1,
         [bool] $UsesTalkInteraction = $false,
         [string] $ManualNavigationGuidance = '',
-        [bool] $UsesPlayerCollisionRadius = $false
+        [bool] $UsesPlayerCollisionRadius = $false,
+        [bool] $ActivatesOnOk = $false
     )
 
     # These Kujata object entity indices differ from the native PC archive.
@@ -168,6 +169,9 @@ function Add-Definition {
     }
     if ($UsesPlayerCollisionRadius) {
         $definitions[$definitions.Count - 1]['usesPlayerCollisionRadius'] = $true
+    }
+    if ($ActivatesOnOk) {
+        $definitions[$definitions.Count - 1]['activatesOnOk'] = $true
     }
 }
 
@@ -754,13 +758,24 @@ Add-Definition -FieldId 287 -FieldName 'niv_ti2' -EntityId 17 -EntityName 'piano
 # calls it out of order until moment 1299 (Init IFUW 2[0] >= 1299, dialog 31).
 Add-Definition -FieldId 507 -FieldName 'games_2' -EntityId 10 -EntityName 'kakul1' -ModelResource '' -Kind 'Named' -Label '3D Battler' -TargetKind 'Line' -StaticX -166 -StaticY -144 -StaticZ 32 -MinimumGameMoment 445 -UsesPlayerCollisionRadius $true
 Add-Definition -FieldId 507 -FieldName 'games_2' -EntityId 11 -EntityName 'kakul2' -ModelResource '' -Kind 'Named' -Label '3D Battler, other side' -TargetKind 'Line' -StaticX -110 -StaticY -201 -StaticZ 32 -MinimumGameMoment 445 -UsesPlayerCollisionRadius $true
-Add-Definition -FieldId 507 -FieldName 'games_2' -EntityId 18 -EntityName 'mogu' -ModelResource '' -Kind 'Named' -Label 'Mog House' -TargetKind 'Line' -StaticX 3 -StaticY -252 -StaticZ 0 -MinimumGameMoment 445 -UsesPlayerCollisionRadius $true
-Add-Definition -FieldId 507 -FieldName 'games_2' -EntityId 19 -EntityName 'bikeg' -ModelResource '' -Kind 'Named' -Label 'G Bike' -TargetKind 'Line' -StaticX 241 -StaticY 174 -StaticZ 0 -MinimumGameMoment 445 -UsesPlayerCollisionRadius $true
-Add-Definition -FieldId 507 -FieldName 'games_2' -EntityId 20 -EntityName 'bikeg2' -ModelResource '' -Kind 'Named' -Label 'G Bike, second machine' -TargetKind 'Line' -StaticX 149 -StaticY 145 -StaticZ 0 -UsesPlayerCollisionRadius $true
-Add-Definition -FieldId 507 -FieldName 'games_2' -EntityId 21 -EntityName 'snowb' -ModelResource '' -Kind 'Named' -Label 'Snow Game' -TargetKind 'Line' -StaticX -55 -StaticY 278 -StaticZ 0 -MinimumGameMoment 790 -UsesPlayerCollisionRadius $true
-Add-Definition -FieldId 507 -FieldName 'games_2' -EntityId 22 -EntityName 'snowb2' -ModelResource '' -Kind 'Named' -Label 'Snow Game, second machine' -TargetKind 'Line' -StaticX -176 -StaticY 177 -StaticZ 0 -MinimumGameMoment 790 -UsesPlayerCollisionRadius $true
-Add-Definition -FieldId 507 -FieldName 'games_2' -EntityId 23 -EntityName 'subm' -ModelResource '' -Kind 'Named' -Label 'Submarine Game' -TargetKind 'Line' -StaticX -337 -StaticY 42 -StaticZ 21 -MinimumGameMoment 1299 -UsesPlayerCollisionRadius $true
-Add-Definition -FieldId 507 -FieldName 'games_2' -EntityId 24 -EntityName 'la' -ModelResource '' -Kind 'Named' -Label 'Fortune Telling' -TargetKind 'Line' -StaticX 299 -StaticY 153 -StaticZ 0 -MinimumGameMoment 445 -UsesPlayerCollisionRadius $true
+Add-Definition -FieldId 507 -FieldName 'games_2' -EntityId 18 -EntityName 'mogu' -ModelResource '' -Kind 'Named' -Label 'Mog House' -TargetKind 'Line' -StaticX 3 -StaticY -252 -StaticZ 0 -MinimumGameMoment 445 -UsesPlayerCollisionRadius $true -ActivatesOnOk $true
+Add-Definition -FieldId 507 -FieldName 'games_2' -EntityId 19 -EntityName 'bikeg' -ModelResource '' -Kind 'Named' -Label 'G Bike' -TargetKind 'Line' -StaticX 241 -StaticY 174 -StaticZ 0 -MinimumGameMoment 445 -UsesPlayerCollisionRadius $true -ActivatesOnOk $true
+Add-Definition -FieldId 507 -FieldName 'games_2' -EntityId 20 -EntityName 'bikeg2' -ModelResource '' -Kind 'Named' -Label 'G Bike, second machine' -TargetKind 'Line' -StaticX 149 -StaticY 145 -StaticZ 0 -UsesPlayerCollisionRadius $true -ActivatesOnOk $true
+Add-Definition -FieldId 507 -FieldName 'games_2' -EntityId 21 -EntityName 'snowb' -ModelResource '' -Kind 'Named' -Label 'Snow Game' -TargetKind 'Line' -StaticX -55 -StaticY 278 -StaticZ 0 -MinimumGameMoment 790 -UsesPlayerCollisionRadius $true -ActivatesOnOk $true
+Add-Definition -FieldId 507 -FieldName 'games_2' -EntityId 22 -EntityName 'snowb2' -ModelResource '' -Kind 'Named' -Label 'Snow Game, second machine' -TargetKind 'Line' -StaticX -176 -StaticY 177 -StaticZ 0 -MinimumGameMoment 790 -UsesPlayerCollisionRadius $true -ActivatesOnOk $true
+Add-Definition -FieldId 507 -FieldName 'games_2' -EntityId 23 -EntityName 'subm' -ModelResource '' -Kind 'Named' -Label 'Submarine Game' -TargetKind 'Line' -StaticX -337 -StaticY 42 -StaticZ 21 -MinimumGameMoment 1299 -UsesPlayerCollisionRadius $true -ActivatesOnOk $true
+Add-Definition -FieldId 507 -FieldName 'games_2' -EntityId 24 -EntityName 'la' -ModelResource '' -Kind 'Named' -Label 'Fortune Telling' -TargetKind 'Line' -StaticX 299 -StaticY 153 -StaticZ 0 -MinimumGameMoment 445 -UsesPlayerCollisionRadius $true -ActivatesOnOk $true
+
+# The machines marked -ActivatesOnOk run from their LINE's OK slot (00637D35), which also
+# needs the leader facing the line; the 3D Battler and the Basketball Game run on Go (touch).
+# Wonder Square's first floor (games_1) hands over the same way. Its four machines are
+# model-less LINEs defined by every Init; nothing in games_1 switches a LINE off or tests
+# the moment for them. The arm wrestler and the two Wonder Catcher sides run on OK over
+# the LINE (LineOk); the basketball LINE's LineGo tests OK itself (IFKEYON 0x0220).
+Add-Definition -FieldId 506 -FieldName 'games_1' -EntityId 11 -EntityName 'udel' -ModelResource '' -Kind 'Named' -Label 'Arm Wrestling machine' -TargetKind 'Line' -StaticX 183 -StaticY 1610 -StaticZ -255 -MinimumGameMoment 445 -UsesPlayerCollisionRadius $true -ActivatesOnOk $true
+Add-Definition -FieldId 506 -FieldName 'games_1' -EntityId 14 -EntityName 'ufo1' -ModelResource '' -Kind 'Named' -Label 'Wonder Catcher' -TargetKind 'Line' -StaticX 286 -StaticY 1345 -StaticZ -255 -MinimumGameMoment 445 -UsesPlayerCollisionRadius $true -ActivatesOnOk $true
+Add-Definition -FieldId 506 -FieldName 'games_1' -EntityId 15 -EntityName 'ufo2' -ModelResource '' -Kind 'Named' -Label 'Wonder Catcher, other side' -TargetKind 'Line' -StaticX 358 -StaticY 1418 -StaticZ -255 -MinimumGameMoment 445 -UsesPlayerCollisionRadius $true -ActivatesOnOk $true
+Add-Definition -FieldId 506 -FieldName 'games_1' -EntityId 16 -EntityName 'bsl' -ModelResource '' -Kind 'Named' -Label 'Basketball Game' -TargetKind 'Line' -StaticX -229 -StaticY 1664 -StaticZ -255 -MinimumGameMoment 445 -UsesPlayerCollisionRadius $true
 
 # The Battle Square's two prize windows (coloin1 lent1/lent2): model-less LINEs defined
 # on every visit. Their OK says "You currently have battle points" (dialog 14) and,

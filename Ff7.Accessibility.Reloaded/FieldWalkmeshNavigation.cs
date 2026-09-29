@@ -332,6 +332,25 @@ public interface IFieldNavigationAutomaticMovementPlanner
     /// </summary>
     bool? IsBodyMovementClear(FieldPositionSnapshot position,
         FieldNavigationTarget target, FieldNavigationRouteWaypoint destination) => null;
+
+    /// <summary>
+    /// Whether a leg passes the test the live-model corner lattice chose it by: clear of every
+    /// model, walkable on the unshrunk walkmesh, and clear of the walls at the native forward and
+    /// flank probes (00636C41) a body radius out. A lattice corner can stand closer to a portal
+    /// end than the ordinary inset trace allows, and that trace would then refuse the very leg
+    /// the plan was built from.
+    /// </summary>
+    bool IsModelClearLegClear(FieldPositionSnapshot position,
+        FieldNavigationTarget target, FieldNavigationRouteWaypoint destination) =>
+        IsAutomaticMovementClear(position, target, destination);
+
+    /// <summary>
+    /// Whether a leg crosses no standing model and no closed native boundary, on the unshrunk
+    /// walkmesh - the obstructions alone, without the body's clearance from the walls.
+    /// </summary>
+    bool IsModelAndBoundaryClear(FieldPositionSnapshot position,
+        FieldNavigationTarget target, FieldNavigationRouteWaypoint destination) =>
+        IsAutomaticMovementClear(position, target, destination);
 }
 
 public sealed class FieldWalkmeshRoutePlanner :
@@ -590,6 +609,51 @@ public sealed class FieldWalkmeshRoutePlanner :
         var walkmesh = body is not null && RouteUsesBodyGeometry(target) ? body.Walkmesh : result.Walkmesh;
         return triangle >= 0 && FieldWalkmeshPathfinder.TraceWalkableSegment(
             walkmesh, triangle, current, destination, boundaries.IsBoundaryEnabled).IsClear;
+    }
+
+    public bool IsModelClearLegClear(FieldPositionSnapshot position,
+        FieldNavigationTarget target, FieldNavigationRouteWaypoint destination) =>
+        IsUnshrunkLegClear(position, target, destination, "model-clear leg clearance", withWallProbes: true);
+
+    public bool IsModelAndBoundaryClear(FieldPositionSnapshot position,
+        FieldNavigationTarget target, FieldNavigationRouteWaypoint destination) =>
+        IsUnshrunkLegClear(position, target, destination, "model and boundary clearance", withWallProbes: false);
+
+    /// <summary>
+    /// A leg clear of every model, walkable on the unshrunk walkmesh with the native boundary
+    /// locks closed and, with <paramref name="withWallProbes"/>, clear of the walls at the native
+    /// forward and flank probes a body radius out.
+    /// </summary>
+    private bool IsUnshrunkLegClear(FieldPositionSnapshot position, FieldNavigationTarget target,
+        FieldNavigationRouteWaypoint destination, string diagnostic, bool withWallProbes)
+    {
+        LastReadWasCoherent = true;
+        LastDiagnostic = diagnostic;
+        var radius = ResolvePlayerBodyRadius(position, target);
+        var current = new FieldNavigationRouteWaypoint(position.X, position.Y, position.Z);
+        if (radius <= 0d ||
+            FieldNavigationDynamicObstacleGeometry.IntersectsAny(current, destination, dynamicObstacleProvider?.Invoke(position, target)))
+        {
+            return false;
+        }
+
+        var result = reader.Read(position);
+        if (!result.IsUsable || result.Walkmesh is null)
+        {
+            LastReadWasCoherent = false;
+            LastDiagnostic = result.Diagnostic;
+            return false;
+        }
+        if (!TryReadBoundaryState(position, result.Walkmesh, out var boundaries, out var boundaryDiagnostic))
+        { LastReadWasCoherent = false; LastDiagnostic = boundaryDiagnostic; return false; }
+
+        var triangle = FieldWalkmeshPathfinder.ResolveTriangle(result.Walkmesh,
+            position.X, position.Y, position.Z, preferredTriangleIndex: -1);
+        return triangle >= 0 &&
+            FieldWalkmeshPathfinder.TraceWalkableSegment(result.Walkmesh, triangle, current, destination,
+                boundaries.IsBoundaryEnabled, applyPortalInset: false).IsClear &&
+            (!withWallProbes ||
+             AreNativeWallProbesClear(result.Walkmesh, triangle, current, destination, radius, boundaries.IsBoundaryEnabled));
     }
 
     public bool? IsBodyMovementClear(FieldPositionSnapshot position,
@@ -1092,7 +1156,8 @@ public sealed class FieldWalkmeshRoutePlanner :
                         out targetTriangle,
                         out finalApproach,
                         out triggerLineDistance,
-                        ResolvePlayerBodyRadius(position, target));
+                        ResolvePlayerBodyRadius(position, target),
+                        IsTouchActivation(target) ? target.LineActivationRadius : 0);
         usedTriggerLineApproach = found;
         if (!found)
         {
@@ -1342,6 +1407,27 @@ public sealed class FieldWalkmeshRoutePlanner :
                         (string.IsNullOrEmpty(alternateDiagnostic) ? string.Empty : $", {alternateDiagnostic}");
                 }
             }
+            else if (dynamicObstacles.Count > 0 &&
+                     offMeshLinks.Count == 0 && routeDetours.Count == 0 &&
+                     LaterLegCrossesLiveModel(current, routeSteps, portals, dynamicObstacles) is { } blockedAt &&
+                     TryBuildRouteAroundLiveModels(
+                         result.Walkmesh, playerTriangle, position, finalApproach, target.TriggerLine,
+                         boundaryState.IsBoundaryEnabled, offMeshLinks, dynamicObstacles,
+                         out var laterTriangles, out var laterPortals, out var laterTarget,
+                         out var laterSteps, out var laterDiagnostic))
+            {
+                // The first leg is clear, but the route runs through somebody further on
+                // (games_1: the prize attendant, 2026-09-29 12:21:37). Take the way round now
+                // rather than walk up to her and stall. Where there is no way round, the
+                // route is kept as it was: nothing here refuses a route that worked before.
+                trianglePath = laterTriangles;
+                portals = laterPortals;
+                targetTriangle = laterTarget;
+                stableWaypointsOverride = laterSteps;
+                usedDynamicModelDetour = true;
+                dynamicModelDiagnostic =
+                    $"live model on a later leg at {blockedAt.X},{blockedAt.Y},{blockedAt.Z}; {laterDiagnostic}";
+            }
         }
 
         LastDiagnostic = found
@@ -1410,6 +1496,46 @@ public sealed class FieldWalkmeshRoutePlanner :
     }
 
     /// <summary>
+    /// The first corner of a later leg that runs through a live model, measured as the first
+    /// leg is, up to the route's first action (a door, a ladder): what lies beyond that is a
+    /// different room by the time the party gets there. Null when every leg is clear.
+    /// </summary>
+    private static FieldNavigationRouteWaypoint? LaterLegCrossesLiveModel(
+        FieldNavigationRouteWaypoint current,
+        IReadOnlyList<FieldNavigationRouteStep> routeSteps,
+        IReadOnlyList<FieldNavigationRoutePortal> portals,
+        IReadOnlyList<FieldNavigationDynamicObstacle> obstacles)
+    {
+        var firstActionPortal = portals
+            .Select((portal, index) => (portal, index))
+            .Where(entry => entry.portal.TransitionKind is not null)
+            .Select(entry => entry.index)
+            .DefaultIfEmpty(int.MaxValue)
+            .Min();
+        var from = current;
+        for (var index = 0; index < routeSteps.Count; index++)
+        {
+            var step = routeSteps[index];
+            if (step.RequiredPortalIndex > firstActionPortal)
+            {
+                break;
+            }
+
+            if (index > 0 && FieldNavigationDynamicObstacleGeometry.IntersectsAny(from, step.Waypoint, obstacles))
+            {
+                return from;
+            }
+
+            from = step.Waypoint;
+        }
+
+        return null;
+    }
+
+    /// <summary>How far ahead, in corridor triangles, a sparse corridor corner may look.</summary>
+    private const int SparseCorridorLookaheadTriangles = 12;
+
+    /// <summary>
     /// Plan again with the ground somebody is standing on treated as closed.
     ///
     /// <para>A live model is a cylinder, and the triangle whose middle is inside one is
@@ -1432,8 +1558,11 @@ public sealed class FieldWalkmeshRoutePlanner :
     /// corridor a wall-aware step-wise witness walks in 113 short moves at every one of
     /// the bracketed Shera widths.</para>
     ///
-    /// <para>This runs only where the route was about to be refused, so a route that works
-    /// today never reaches it.</para>
+    /// <para>This runs where the route was about to be refused, or where a later leg crosses a
+    /// live model (and its answer is then taken only if it finds one), so a route that works
+    /// today is unchanged. Its first pass is the original: every covered triangle closed. Only
+    /// where that refuses does a second pass reopen the triangles <see cref="FieldNavigationModelCrossing"/>
+    /// proves crossable.</para>
     /// </summary>
     private static bool TryBuildRouteAroundLiveModels(
         FieldWalkmesh walkmesh,
@@ -1506,19 +1635,6 @@ public sealed class FieldWalkmeshRoutePlanner :
             return false;
         }
 
-        bool IsClosed(int index) =>
-            isTriangleBlocked?.Invoke(index) == true || occupied.Contains(index);
-
-        if (!FieldWalkmeshPathfinder.TryBuildRoute(
-                walkmesh, playerTriangle, position.X, position.Y, position.Z,
-                finalApproach.X, finalApproach.Y, finalApproach.Z,
-                IsClosed, offMeshLinks,
-                out var occupiedAwareTriangles, out var occupiedAwarePortals, out var occupiedAwareTarget))
-        {
-            diagnostic = $"no route round {occupied.Count} occupied triangle(s)";
-            return false;
-        }
-
         // The body that has to fit through every doorway on the way: the player's own
         // collision width, which the obstacle reader already carries.
         var playerRadius = obstacles
@@ -1533,25 +1649,211 @@ public sealed class FieldWalkmeshRoutePlanner :
         }
 
         var start = new FieldNavigationRouteWaypoint(position.X, position.Y, position.Z);
-        var steps = BuildModelClearWaypoints(
-            walkmesh, playerTriangle, start, occupiedAwareTriangles, occupiedAwarePortals,
-            finalApproach, activationLine, playerRadius, isTriangleBlocked, IsClosed, obstacles);
-        if (steps.Count == 0)
+        bool IsClosed(int index) =>
+            isTriangleBlocked?.Invoke(index) == true || occupied.Contains(index);
+
+        // Every covered triangle closed: the answer this has always given, kept first so a
+        // route that is found today is found unchanged.
+        var refusal = string.Empty;
+        if (FieldWalkmeshPathfinder.TryBuildRoute(
+                walkmesh, playerTriangle, position.X, position.Y, position.Z,
+                finalApproach.X, finalApproach.Y, finalApproach.Z,
+                IsClosed, offMeshLinks,
+                out var occupiedAwareTriangles, out var occupiedAwarePortals, out var occupiedAwareTarget))
         {
-            diagnostic = "the way round is still blocked leg by leg";
+            var steps = BuildModelClearWaypoints(
+                walkmesh, playerTriangle, start, occupiedAwareTriangles, occupiedAwarePortals,
+                finalApproach, activationLine, playerRadius, isTriangleBlocked, IsClosed, obstacles);
+            var shapeOfSteps = "clear leg(s)";
+            if (steps.Count == 0)
+            {
+                // Where the corner lattice gives up on a long corridor, the inset funnel with the
+                // legs beside somebody repaired by the lattice (only where this used to refuse).
+                steps = BuildInsetFunnelClearOfModels(
+                    walkmesh, start, playerTriangle, occupiedAwareTriangles, occupiedAwarePortals, finalApproach,
+                    activationLine, playerRadius, isTriangleBlocked, IsClosed, obstacles);
+                shapeOfSteps = "inset funnel leg(s), repaired beside the models";
+            }
+
+            if (steps.Count > 0)
+            {
+                trianglePath = occupiedAwareTriangles;
+                portals = occupiedAwarePortals;
+                targetTriangle = occupiedAwareTarget;
+                stableWaypoints = steps;
+                diagnostic =
+                    $"live models occupy triangle(s) {string.Join(",", occupied.Order())}; " +
+                    $"route round them in {steps.Count} {shapeOfSteps}";
+                return true;
+            }
+
+            refusal = "the way round is still blocked leg by leg";
+        }
+        else
+        {
+            refusal = $"no route round {occupied.Count} occupied triangle(s)";
+        }
+
+        // Only where that refuses: a covered triangle the native step proves the body can still
+        // cross, with every model in place, is not closed (games_1's Man m3, standing against the
+        // wall of the only way round the prize attendant).
+        var crossingClock = System.Diagnostics.Stopwatch.StartNew();
+        var reopened = occupied
+            .Order()
+            .Where(index => FieldNavigationModelCrossing.ProvesEveryCrossing(
+                walkmesh, index, isTriangleBlocked, obstacles, playerRadius, crossingClock))
+            .ToArray();
+        if (reopened.Length == 0)
+        {
+            diagnostic = refusal;
             return false;
         }
 
-        trianglePath = occupiedAwareTriangles;
-        portals = occupiedAwarePortals;
-        targetTriangle = occupiedAwareTarget;
-        stableWaypoints = steps;
+        occupied.ExceptWith(reopened);
+        var reopenedDiagnostic = $"native replay crosses triangle(s) {string.Join(",", reopened)} beside the models";
+        if (!FieldWalkmeshPathfinder.TryBuildRoute(
+                walkmesh, playerTriangle, position.X, position.Y, position.Z,
+                finalApproach.X, finalApproach.Y, finalApproach.Z,
+                IsClosed, offMeshLinks,
+                out var crossingTriangles, out var crossingPortals, out var crossingTarget))
+        {
+            diagnostic = $"{refusal}; {reopenedDiagnostic}; still no route round {occupied.Count} occupied triangle(s)";
+            return false;
+        }
+
+        var crossingSteps = BuildModelClearWaypoints(
+            walkmesh, playerTriangle, start, crossingTriangles, crossingPortals,
+            finalApproach, activationLine, playerRadius, isTriangleBlocked, IsClosed, obstacles);
+        var shape = "clear leg(s)";
+        if (crossingSteps.Count == 0)
+        {
+            // A corridor over stairs and slivers the corner lattice cannot stand on: the
+            // ordinary funnel with its corners a body radius off the walls, as every route on a
+            // mesh with no body model gets, kept only when each leg clears every model.
+            crossingSteps = BuildInsetFunnelClearOfModels(
+                walkmesh, start, playerTriangle, crossingTriangles, crossingPortals, finalApproach, activationLine,
+                playerRadius, isTriangleBlocked, IsClosed, obstacles);
+            shape = "inset funnel leg(s), repaired beside the models";
+        }
+
+        if (crossingSteps.Count == 0)
+        {
+            diagnostic = $"{refusal}; {reopenedDiagnostic}; that way round is blocked leg by leg";
+            return false;
+        }
+
+        trianglePath = crossingTriangles;
+        portals = crossingPortals;
+        targetTriangle = crossingTarget;
+        stableWaypoints = crossingSteps;
         diagnostic =
-            $"live models occupy triangle(s) {string.Join(",", occupied.Order())}; " +
-            $"route round them in {steps.Count} clear leg(s)";
+            $"live models occupy triangle(s) {string.Join(",", occupied.Order())}; {reopenedDiagnostic}; " +
+            $"route round them in {crossingSteps.Count} {shape}";
         return true;
     }
 
+    /// <summary>
+    /// The funnel over <paramref name="portals"/> with its wall corners moved a body radius off
+    /// the walls (<see cref="InsetPortalCorners"/>, as a mesh with no body model gets). A leg that
+    /// crosses a live model - measured with the native probes, as the refusal was - is repaired
+    /// by the corner lattice (<see cref="BuildModelClearWaypoints"/>, model clearance and native
+    /// wall probes) over just the corridor between the corner before it and one of the next few
+    /// corners, so a long corridor over stairs is not lost to the lattice's budget while the part
+    /// beside somebody still gets corners that clear them. Empty when any part cannot be repaired.
+    /// </summary>
+    private static IReadOnlyList<FieldNavigationRouteStep> BuildInsetFunnelClearOfModels(
+        FieldWalkmesh walkmesh,
+        FieldNavigationRouteWaypoint start,
+        int startTriangle,
+        IReadOnlyList<int> trianglePath,
+        IReadOnlyList<FieldNavigationRoutePortal> portals,
+        FieldNavigationRouteWaypoint finalApproach,
+        FieldNavigationTriggerLine? activationLine,
+        double playerRadius,
+        Func<int, bool>? isTriangleBlocked,
+        Func<int, bool> isTriangleClosed,
+        IReadOnlyList<FieldNavigationDynamicObstacle> obstacles)
+    {
+        const int maximumRepairTriangles = 4;
+        var inset = InsetPortalCorners(walkmesh, (int)Math.Round(playerRadius), portals,
+            index => isTriangleBlocked?.Invoke(index) == true, static (_, _) => true, clearWallSegments: true);
+        IReadOnlyList<FieldNavigationRouteStep> Funnel(FieldNavigationRouteWaypoint from, int fromPortal) =>
+            FieldWalkmeshPathfinder.BuildStableWaypoints(from.X, from.Y, from.Z, inset.Skip(fromPortal).ToArray(), finalApproach)
+                .Select(step => step with { RequiredPortalIndex = step.RequiredPortalIndex + fromPortal })
+                .ToArray();
+
+        var result = new List<FieldNavigationRouteStep>();
+        var current = start;
+        var currentPortal = 0;
+        var funnel = Funnel(start, 0);
+        var index = 0;
+        while (index < funnel.Count)
+        {
+            var step = funnel[index];
+            if (!FieldNavigationDynamicObstacleGeometry.IntersectsAny(current, step.Waypoint, obstacles))
+            {
+                result.Add(step);
+                current = step.Waypoint;
+                currentPortal = step.RequiredPortalIndex;
+                index++;
+                continue;
+            }
+
+            // Repair: corners from the lattice over the corridor from here - or from one or two
+            // corners back, when the corner here gives the body no clear way out - to the middle
+            // of a triangle a little past the blocked leg (or to the end), then the funnel again.
+            var repaired = false;
+            for (var backtrack = 0; backtrack <= Math.Min(2, result.Count) && !repaired; backtrack++)
+            {
+                var from = backtrack == 0 ? current : result.Count - backtrack - 1 >= 0 ? result[result.Count - backtrack - 1].Waypoint : start;
+                var fromPortal = backtrack == 0 ? currentPortal : result.Count - backtrack - 1 >= 0 ? result[result.Count - backtrack - 1].RequiredPortalIndex : 0;
+                var first = Math.Max(0, fromPortal - 1);
+                for (var extra = 0; extra <= maximumRepairTriangles && !repaired; extra++)
+                {
+                    var lastTriangle = Math.Min(trianglePath.Count - 1, step.RequiredPortalIndex + extra);
+                    if (lastTriangle < first)
+                    {
+                        continue;
+                    }
+
+                    var toEnd = lastTriangle == trianglePath.Count - 1;
+                    var centre = walkmesh.Triangles[trianglePath[lastTriangle]].GetCentroid();
+                    var goal = toEnd
+                        ? finalApproach
+                        : new FieldNavigationRouteWaypoint((int)Math.Round(centre.X), (int)Math.Round(centre.Y), (int)Math.Round(centre.Z));
+                    var windowTriangles = trianglePath.Skip(first).Take(lastTriangle - first + 1).ToArray();
+                    var windowPortals = portals.Skip(first).Take(lastTriangle - first).ToArray();
+                    var windowStart = FieldWalkmeshPathfinder.ResolveTriangle(
+                        walkmesh, from.X, from.Y, from.Z, preferredTriangleIndex: windowTriangles[0]);
+                    var local = BuildModelClearWaypoints(
+                        walkmesh, windowStart >= 0 ? windowStart : startTriangle, from, windowTriangles, windowPortals,
+                        goal, toEnd ? activationLine : null, playerRadius, isTriangleBlocked, isTriangleClosed, obstacles);
+                    if (local.Count == 0)
+                    {
+                        continue;
+                    }
+
+                    result.RemoveRange(result.Count - backtrack, backtrack);
+                    result.AddRange(local.Select(corner => corner with { RequiredPortalIndex = corner.RequiredPortalIndex + first }));
+                    if (toEnd)
+                    {
+                        return result;
+                    }
+
+                    current = goal;
+                    currentPortal = lastTriangle;
+                    funnel = Funnel(current, lastTriangle);
+                    index = 0;
+                    repaired = true;
+                }
+            }
+            if (!repaired)
+            {
+                return Array.Empty<FieldNavigationRouteStep>();
+            }
+        }
+        return result;
+    }
     /// <summary>
     /// The funnel, but a corner is only taken when the leg to it clears the live models
     /// <em>and</em> passes the native wall probes. Where it does not, the corridor falls
@@ -1608,7 +1910,14 @@ public sealed class FieldWalkmeshRoutePlanner :
         // triangle's own middle and points set back from each of its edges - the same
         // shape of lattice the model corridor generator uses, restricted to this
         // corridor's own triangles so the work stays finite.
-        var candidates = new List<(FieldNavigationRouteWaypoint Point, int PortalIndex, int Triangle)>(
+        // A corridor too long for the full lattice (games_1's way round the prize attendant,
+        // 37 triangles over the stair and platform) used to lose its last triangles to the cap
+        // and so never reach its end. Such a corridor gets the edge middles only, and each corner
+        // looks a bounded number of triangles ahead. A corridor that fits is unchanged.
+        var dense = trianglePath.Count * 19 + 1 <= maximumCandidates;
+        var crossings = dense ? new[] { 0.35d, 0.5d, 0.65d } : new[] { 0.5d };
+        var lookahead = dense ? int.MaxValue : SparseCorridorLookaheadTriangles;
+        var candidates = new List<(FieldNavigationRouteWaypoint Point, int PortalIndex, int Triangle, int PathIndex)>(
             Math.Min(maximumCandidates, trianglePath.Count * 19 + 1));
         for (var pathIndex = 0; pathIndex < trianglePath.Count; pathIndex++)
         {
@@ -1626,7 +1935,7 @@ public sealed class FieldWalkmeshRoutePlanner :
             for (var edgeIndex = 0; edgeIndex < 3; edgeIndex++)
             {
                 var edge = triangle.GetEdge(edgeIndex);
-                foreach (var crossing in new[] { 0.35d, 0.5d, 0.65d })
+                foreach (var crossing in crossings)
                 {
                     var edgeX = edge.Start.X + (edge.End.X - (double)edge.Start.X) * crossing;
                     var edgeY = edge.Start.Y + (edge.End.Y - (double)edge.Start.Y) * crossing;
@@ -1651,15 +1960,16 @@ public sealed class FieldWalkmeshRoutePlanner :
                     break;
                 }
 
-                candidates.Add((point, portalIndex, triangleIndex));
+                candidates.Add((point, portalIndex, triangleIndex, pathIndex));
             }
         }
 
-        candidates.Add((finalApproach, portals.Count, -1));
+        candidates.Add((finalApproach, portals.Count, -1, trianglePath.Count));
 
         var chosenSteps = new List<(FieldNavigationRouteWaypoint Point, int PortalIndex, bool IsFinalApproach)>();
         var apex = start;
         var apexTriangle = startTriangle;
+        var apexPathIndex = 0;
         var next = 0;
         while (next < candidates.Count)
         {
@@ -1678,6 +1988,10 @@ public sealed class FieldWalkmeshRoutePlanner :
                 }
 
                 var candidate = candidates[probe];
+                if (candidate.PathIndex - apexPathIndex > lookahead)
+                {
+                    continue;
+                }
                 if (candidate.Point == apex ||
                     FieldNavigationDynamicObstacleGeometry.IntersectsAny(apex, candidate.Point, obstacles))
                 {
@@ -1715,6 +2029,7 @@ public sealed class FieldWalkmeshRoutePlanner :
             chosenSteps.Add((step.Point, step.PortalIndex, chosen == candidates.Count - 1));
             apex = step.Point;
             apexTriangle = chosenTriangle;
+            apexPathIndex = Math.Min(step.PathIndex, trianglePath.Count);
             next = chosen + 1;
         }
 
@@ -2908,7 +3223,8 @@ public sealed class FieldWalkmeshRoutePlanner :
         out int bestTargetTriangle,
         out FieldNavigationRouteWaypoint bestApproach,
         out double bestTriggerLineDistance,
-        double bodyRadius = 0d)
+        double bodyRadius = 0d,
+        int touchRadius = 0)
     {
         bestTrianglePath = Array.Empty<int>();
         bestPortals = Array.Empty<FieldNavigationRoutePortal>();
@@ -3013,6 +3329,25 @@ public sealed class FieldWalkmeshRoutePlanner :
                 bestApproach = clearApproach;
                 bestTriggerLineDistanceSquared = CalculateSquaredDistanceToTriggerLine(clearApproach, triggerLine);
             }
+
+            // A LINE the engine activates by touch (00637ABB: within the leader's radius of a foot
+            // on the segment) need not be stood on. Where no point of the line leaves the body room
+            // - the Arm Wrestling machine's line runs within 27 units of a wall along its length, and
+            // the body stopped 8 short of its end - take the nearest point off the segment's
+            // interior, inside that reach, where the whole body fits.
+            if (touchRadius > 1 &&
+                DistanceToEdges(closedEdges, bestApproach.X, bestApproach.Y, bestApproach.Z) < bodyRadius + 1d &&
+                TryFindTouchReachApproach(
+                    walkmesh, playerTriangle, position, triggerLine, isTriangleBlocked, offMeshLinks,
+                    closedEdges, bodyRadius, touchRadius,
+                    out var touchPath, out var touchPortals, out var touchTarget, out var touchApproach))
+            {
+                bestTrianglePath = touchPath;
+                bestPortals = touchPortals;
+                bestTargetTriangle = touchTarget;
+                bestApproach = touchApproach;
+                bestTriggerLineDistanceSquared = CalculateSquaredDistanceToTriggerLine(touchApproach, triggerLine);
+            }
         }
 
         if (found)
@@ -3021,6 +3356,99 @@ public sealed class FieldWalkmeshRoutePlanner :
         }
 
         return found;
+    }
+
+    /// <summary>
+    /// The nearest point that touches a LINE natively - its foot inside the segment, strictly
+    /// within <paramref name="touchRadius"/> of it (FieldNativeLineContact.Touches) - on walkable
+    /// floor at the line's height, with room for the whole body from every closed edge and a
+    /// route to it. Samples the segment's interior at the body-clear step, offset square to it on
+    /// both sides at a quarter, a half and three quarters of the reach.
+    /// </summary>
+    private static bool TryFindTouchReachApproach(
+        FieldWalkmesh walkmesh,
+        int playerTriangle,
+        FieldPositionSnapshot position,
+        FieldNavigationTriggerLine triggerLine,
+        Func<int, bool>? isTriangleBlocked,
+        IReadOnlyList<FieldWalkmeshOffMeshLink> offMeshLinks,
+        IReadOnlyList<(double AX, double AY, double AZ, double BX, double BY, double BZ)> closedEdges,
+        double bodyRadius,
+        int touchRadius,
+        out IReadOnlyList<int> trianglePath,
+        out IReadOnlyList<FieldNavigationRoutePortal> portals,
+        out int targetTriangle,
+        out FieldNavigationRouteWaypoint approach)
+    {
+        trianglePath = Array.Empty<int>();
+        portals = Array.Empty<FieldNavigationRoutePortal>();
+        targetTriangle = -1;
+        approach = default;
+        var lineX = (double)triggerLine.EndX - triggerLine.StartX;
+        var lineY = (double)triggerLine.EndY - triggerLine.StartY;
+        var length = Math.Sqrt(lineX * lineX + lineY * lineY);
+        if (length < 1d)
+        {
+            return false;
+        }
+
+        var normalX = -lineY / length;
+        var normalY = lineX / length;
+        var samples = Math.Max(2, (int)Math.Ceiling(length / TriggerLineBodySampleStep));
+        var candidates = new List<(FieldNavigationRouteWaypoint Point, double Straight)>();
+        for (var sample = 1; sample < samples; sample++)
+        {
+            var amount = sample / (double)samples;
+            foreach (var side in new[] { 1d, -1d })
+            foreach (var reach in new[] { 0.25d, 0.5d, 0.75d })
+            {
+                var x = (int)Math.Round(triggerLine.StartX + lineX * amount + normalX * side * reach * touchRadius);
+                var y = (int)Math.Round(triggerLine.StartY + lineY * amount + normalY * side * reach * touchRadius);
+                for (var triangleIndex = 0; triangleIndex < walkmesh.Triangles.Count; triangleIndex++)
+                {
+                    var triangle = walkmesh.Triangles[triangleIndex];
+                    if (isTriangleBlocked?.Invoke(triangleIndex) == true || !ContainsInPlan(triangle, x, y))
+                    {
+                        continue;
+                    }
+
+                    var point = new FieldNavigationRouteWaypoint(x, y, (int)Math.Round(InterpolateTriangleZ(triangle, x, y)));
+                    if (!FieldNativeLineContact.Touches(triggerLine, point.X, point.Y, point.Z, touchRadius) ||
+                        DistanceToEdges(closedEdges, x, y, point.Z) < bodyRadius + 1d)
+                    {
+                        continue;
+                    }
+
+                    candidates.Add((point, Math.Sqrt(Math.Pow(x - position.X, 2) + Math.Pow(y - position.Y, 2))));
+                }
+            }
+        }
+
+        var bestRoute = double.PositiveInfinity;
+        foreach (var (point, _) in candidates.OrderBy(candidate => candidate.Straight).Take(TriggerLineBodyCandidates))
+        {
+            if (!FieldWalkmeshPathfinder.TryBuildRoute(
+                    walkmesh, playerTriangle, position.X, position.Y, position.Z,
+                    point.X, point.Y, point.Z, isTriangleBlocked, offMeshLinks,
+                    out var path, out var routePortals, out var resolved))
+            {
+                continue;
+            }
+
+            var routeDistance = CalculateRouteDistance(position, routePortals, point);
+            if (routeDistance >= bestRoute)
+            {
+                continue;
+            }
+
+            bestRoute = routeDistance;
+            trianglePath = path;
+            portals = routePortals;
+            targetTriangle = resolved;
+            approach = point;
+        }
+
+        return targetTriangle >= 0;
     }
 
     /// <summary>How far apart the body-clear search samples the trigger line.</summary>
@@ -4521,10 +4949,236 @@ public sealed class FieldWalkmeshRoutePlanner :
         return dx * (double)dx + dy * (double)dy;
     }
 
+    /// <summary>A target the engine activates by the leader touching its LINE, not by crossing it.</summary>
+    private static bool IsTouchActivation(FieldNavigationTarget target) =>
+        target is { LineActivationRadius: > 1, TriggerLine: not null } &&
+        target.Category != FieldNavigationCategory.Exits &&
+        !target.CompletesOnArrival;
+
     private static string GetTargetId(FieldNavigationTarget target) =>
         string.IsNullOrWhiteSpace(target.StableId)
             ? $"{target.FieldId}:{target.Category}:{target.Label}:{target.X}:{target.Y}:{target.Z}"
             : $"{target.FieldId}:{target.StableId}";
+}
+
+/// <summary>
+/// Whether the leader's body can get through one triangle that a standing model's cylinder
+/// covers, answered only by the native step itself.
+///
+/// <para>The around-models search closes every triangle whose middle is inside somebody's
+/// cylinder. That is right where the body cannot get past them and wrong where they stand
+/// against a wall with the room beside them free. games_1 (506) has both on one route: the
+/// prize attendant at (172,1543) fills the aisle of triangle 112, while Man m3 at (143,994)
+/// stands against the wall of triangle 124, the only way round. Closing both left no route at
+/// all ("no route round 3 occupied triangle(s)", 2026-09-29 12:21:44).</para>
+///
+/// <para>The answer is the flat-plane replay of <c>00636C41</c>/<c>006367B7</c>
+/// (<see cref="FieldNavigationNativeProbeMovement"/>) with every live model in place, at both
+/// walking (1024) and running (2048) speed. It is run only on a horizontal floor:
+/// <c>006367B7</c> tests walls in X and Y alone and <c>00636C41</c> takes its slope from edge
+/// differences, so a face at one height moves exactly as it does at z = 0, and the floor is
+/// translated there. Models are moved with it, so the replay's native vertical window is
+/// measured from that floor. Any face not at that height - a stair, a ramp, another storey -
+/// is a wall to the replay, never walked and never assumed clear. The triangle is reopened
+/// only when every pair of its open neighbours is proven crossable through it; anything
+/// unproven, unsupported or over budget keeps it closed, as before.</para>
+/// </summary>
+internal static class FieldNavigationModelCrossing
+{
+    private const int MaximumStatesPerSearch = 12_000;
+    private const int MaximumMilliseconds = 60;
+    private static readonly ushort[] Speeds = [1024, 2048];
+
+    public static bool ProvesEveryCrossing(
+        FieldWalkmesh walkmesh,
+        int triangleIndex,
+        Func<int, bool>? isTriangleBlocked,
+        IReadOnlyList<FieldNavigationDynamicObstacle> obstacles,
+        double playerRadius,
+        System.Diagnostics.Stopwatch clock)
+    {
+        if ((uint)triangleIndex >= walkmesh.Triangles.Count ||
+            !double.IsFinite(playerRadius) || playerRadius < 1d || playerRadius != Math.Truncate(playerRadius))
+        {
+            return false;
+        }
+
+        var triangle = walkmesh.Triangles[triangleIndex];
+        var height = triangle.Vertex0.Z;
+        if (!IsLevel(triangle, height))
+        {
+            return false;
+        }
+
+        var neighbours = new List<int>(3);
+        for (var edge = 0; edge < 3; edge++)
+        {
+            var neighbour = triangle.GetAdjacentTriangle(edge);
+            if (neighbour < 0 || neighbour >= walkmesh.Triangles.Count || isTriangleBlocked?.Invoke(neighbour) == true)
+            {
+                continue;
+            }
+
+            // A neighbour on a stair or another storey is somewhere the replay cannot follow.
+            if (!IsLevel(walkmesh.Triangles[neighbour], height))
+            {
+                return false;
+            }
+
+            neighbours.Add(neighbour);
+        }
+
+        if (neighbours.Count < 2)
+        {
+            return false;
+        }
+
+        // The triangle, its neighbours and theirs, on this floor only: room for the probes
+        // to look ahead without inventing walls right at the doorways being tested.
+        var local = new HashSet<int> { triangleIndex };
+        foreach (var neighbour in neighbours)
+        {
+            local.Add(neighbour);
+            for (var edge = 0; edge < 3; edge++)
+            {
+                var beyond = walkmesh.Triangles[neighbour].GetAdjacentTriangle(edge);
+                if (beyond >= 0 && beyond < walkmesh.Triangles.Count && isTriangleBlocked?.Invoke(beyond) != true &&
+                    IsLevel(walkmesh.Triangles[beyond], height))
+                {
+                    local.Add(beyond);
+                }
+            }
+        }
+
+        var fullToFlat = new Dictionary<int, int>();
+        var flatToFull = local.Order().ToArray();
+        for (var index = 0; index < flatToFull.Length; index++)
+        {
+            fullToFlat[flatToFull[index]] = index;
+        }
+
+        var flat = new FieldWalkmesh(flatToFull.Select((full, index) =>
+        {
+            var source = walkmesh.Triangles[full];
+            short Adjacent(int edge)
+            {
+                var neighbour = source.GetAdjacentTriangle(edge);
+                return fullToFlat.TryGetValue(neighbour, out var mapped) ? (short)mapped : (short)-1;
+            }
+
+            return new FieldWalkmeshTriangle(index,
+                source.Vertex0 with { Z = 0 }, source.Vertex1 with { Z = 0 }, source.Vertex2 with { Z = 0 },
+                Adjacent(0), Adjacent(1), Adjacent(2));
+        }).ToArray());
+        if (!FieldNavigationNativeProbeMovement.IsSupportedWalkmesh(flat))
+        {
+            return false;
+        }
+
+        var translated = obstacles.Select(obstacle => obstacle with { Z = obstacle.Z - height }).ToArray();
+        var radius = (int)playerRadius;
+        var through = fullToFlat[triangleIndex];
+        for (var first = 0; first < neighbours.Count; first++)
+        {
+            for (var second = first + 1; second < neighbours.Count; second++)
+            {
+                foreach (var speed in Speeds)
+                {
+                    if (clock.ElapsedMilliseconds > MaximumMilliseconds ||
+                        !Crosses(flat, fullToFlat[neighbours[first]], through, fullToFlat[neighbours[second]], speed, radius, translated, clock))
+                    {
+                        return false;
+                    }
+                }
+            }
+        }
+
+        return true;
+    }
+
+    private static bool IsLevel(FieldWalkmeshTriangle triangle, short height) =>
+        triangle.Vertex0.Z == height && triangle.Vertex1.Z == height && triangle.Vertex2.Z == height;
+
+    /// <summary>
+    /// A native walk, breadth first over sixteen held headings, from one neighbour through the
+    /// triangle into the other. Either direction proves the doorway pair; the search starts
+    /// from each side's middle and from points set back from its doorway.
+    /// </summary>
+    private static bool Crosses(FieldWalkmesh flat, int from, int through, int to, ushort speed, int radius,
+        IReadOnlyList<FieldNavigationDynamicObstacle> obstacles, System.Diagnostics.Stopwatch clock) =>
+        Search(flat, from, through, to, speed, radius, obstacles, clock) ||
+        Search(flat, to, through, from, speed, radius, obstacles, clock);
+
+    private static bool Search(FieldWalkmesh flat, int from, int through, int to, ushort speed, int radius,
+        IReadOnlyList<FieldNavigationDynamicObstacle> obstacles, System.Diagnostics.Stopwatch clock)
+    {
+        var seen = new HashSet<(int X, int Y, bool Entered)>();
+        var queue = new Queue<(FieldNavigationNativeMovementState State, bool Entered)>();
+        foreach (var seed in Seeds(flat, from, through))
+        {
+            var state = new FieldNavigationNativeMovementState(seed.X << 12, seed.Y << 12, 0, from, 0);
+            if (seen.Add((seed.X >> 1, seed.Y >> 1, false)))
+            {
+                queue.Enqueue((state, false));
+            }
+        }
+
+        while (queue.TryDequeue(out var entry))
+        {
+            if (seen.Count > MaximumStatesPerSearch || clock.ElapsedMilliseconds > MaximumMilliseconds)
+            {
+                return false;
+            }
+
+            for (var heading = 0; heading < 256; heading += 16)
+            {
+                var step = FieldNavigationNativeProbeMovement.StepOnSupportedWalkmesh(
+                    flat, entry.State, (byte)heading, speed, radius, obstacles);
+                if (!step.IsSupported || !step.Moved)
+                {
+                    continue;
+                }
+
+                var entered = entry.Entered || step.State.TriangleId == through;
+                if (entered && step.State.TriangleId == to)
+                {
+                    return true;
+                }
+
+                if (seen.Add((step.State.FixedX >> 13, step.State.FixedY >> 13, entered)))
+                {
+                    queue.Enqueue((step.State, entered));
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static IEnumerable<(int X, int Y)> Seeds(FieldWalkmesh flat, int from, int through)
+    {
+        var triangle = flat.Triangles[from];
+        var centre = triangle.GetCentroid();
+        yield return ((int)Math.Round(centre.X), (int)Math.Round(centre.Y));
+        for (var edge = 0; edge < 3; edge++)
+        {
+            if (triangle.GetAdjacentTriangle(edge) != through)
+            {
+                continue;
+            }
+
+            var (a, b) = triangle.GetEdge(edge);
+            foreach (var along in new[] { 0.25d, 0.5d, 0.75d })
+            {
+                var x = a.X + (b.X - a.X) * along;
+                var y = a.Y + (b.Y - a.Y) * along;
+                foreach (var inset in new[] { 0.3d, 0.6d })
+                {
+                    yield return ((int)Math.Round(x + (centre.X - x) * inset), (int)Math.Round(y + (centre.Y - y) * inset));
+                }
+            }
+        }
+    }
 }
 
 public static class FieldWalkmeshPathfinder

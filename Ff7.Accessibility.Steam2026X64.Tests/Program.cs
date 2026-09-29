@@ -47,6 +47,22 @@ if (args.Contains("--glacier-regional-items-only", StringComparer.OrdinalIgnoreC
     return;
 }
 
+if (args.Contains("--gold-saucer-navigation-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.GuideRevisitInteractionTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.GuideRevisitInteractionTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.CidHouseLiveModelRouteTests.Run(CreateInstalledFieldWalkmeshReader);
+    Ff7.Accessibility.Reloaded.Tests.WonderSquareAttendantRouteTests.Run(CreateInstalledFieldWalkmeshReader);
+    Ff7.Accessibility.Reloaded.Tests.GoldSaucerMachineLineTests.Run(CreateInstalledFieldWalkmeshReader);
+    Ff7.Accessibility.Reloaded.Tests.GoldSaucerHotelExitTests.Run();
+    HighwayEngagementSteeringTrackerTests.Run();
+    HighwayScoreChangeTrackerTests.Run();
+    HighwayArcadeCompositionTests.Run();
+    Steam2026FieldObjectObservationTests.Run();
+    Console.WriteLine("Gold Saucer navigation tests passed.");
+    return;
+}
+
 if (args.Contains("--glacier-speech-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.SnowboardAccessibilityTests.Run();
@@ -296,6 +312,8 @@ if (args.Contains("--world-map-only", StringComparer.OrdinalIgnoreCase))
     Ff7.Accessibility.Reloaded.Tests.WorldMapOwnEntranceTests.RunWithInstalledGameData();
     Ff7.Accessibility.Reloaded.Tests.WorldMapBroncoLandingTests.Run();
     Ff7.Accessibility.Reloaded.Tests.WorldMapBroncoLandingTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.WorldMapHighwindNavigationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.WorldMapHighwindNavigationTests.RunWithInstalledGameData();
     Ff7.Accessibility.Reloaded.Tests.WorldMapWutaiNavigationTests.RunWithInstalledGameData();
     Ff7.Accessibility.Reloaded.Tests.WorldMapTargetCatalogTests.RunWithInstalledGameData();
     Ff7.Accessibility.Reloaded.Tests.WorldMapTerrainAnnouncementTests.Run();
@@ -463,8 +481,19 @@ if (args.Contains("--world-house-autowalk-only", StringComparer.OrdinalIgnoreCas
     return;
 }
 
-if (args.Contains("--world-mount-corel-only", StringComparer.OrdinalIgnoreCase))
+if (args.Contains("--highwind-navigation-only", StringComparer.OrdinalIgnoreCase))
 {
+    Ff7.Accessibility.Reloaded.Tests.WorldMapHighwindNavigationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.WorldMapHighwindNavigationTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.WorldMapMountCorelNavigationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.WorldMapBroncoLandingTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.WorldMapBroncoLandingTests.RunWithInstalledGameData();
+    HighwayAutoSteeringControllerTests.Run();
+    Console.WriteLine("World map Highwind navigation tests passed.");
+    return;
+}
+
+if (args.Contains("--world-mount-corel-only", StringComparer.OrdinalIgnoreCase)){
     Ff7.Accessibility.Reloaded.Tests.WorldMapMountCorelNavigationTests.Run();
     Console.WriteLine("World map Mount Corel navigation tests passed.");
     return;
@@ -864,6 +893,8 @@ Ff7.Accessibility.Reloaded.Tests.WorldMapVehicleTerrainTests.RunWithInstalledGam
 Ff7.Accessibility.Reloaded.Tests.WorldMapOwnEntranceTests.RunWithInstalledGameData();
 Ff7.Accessibility.Reloaded.Tests.WorldMapBroncoLandingTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WorldMapBroncoLandingTests.RunWithInstalledGameData();
+Ff7.Accessibility.Reloaded.Tests.WorldMapHighwindNavigationTests.Run();
+Ff7.Accessibility.Reloaded.Tests.WorldMapHighwindNavigationTests.RunWithInstalledGameData();
 Ff7.Accessibility.Reloaded.Tests.WorldMapWutaiNavigationTests.RunWithInstalledGameData();
 Ff7.Accessibility.Reloaded.Tests.FieldNpcTalkCounterTests.RunWithInstalledGameData();
 Ff7.Accessibility.Reloaded.Tests.WorldMapTargetCatalogTests.RunWithInstalledGameData();
@@ -871,6 +902,11 @@ Ff7.Accessibility.Reloaded.Tests.WorldMapTerrainAnnouncementTests.Run();
 Ff7.Accessibility.Reloaded.Tests.NavigationProgressControlTests.Run();
 Steam2026WorldMapTerrainPriorityTests.Run();
 HighwayEngagementSteeringTrackerTests.Run();
+HighwayScoreChangeTrackerTests.Run();
+HighwayArcadeCompositionTests.Run();
+Ff7.Accessibility.Reloaded.Tests.WonderSquareAttendantRouteTests.Run(CreateInstalledFieldWalkmeshReader);
+Ff7.Accessibility.Reloaded.Tests.GoldSaucerMachineLineTests.Run(CreateInstalledFieldWalkmeshReader);
+Ff7.Accessibility.Reloaded.Tests.GoldSaucerHotelExitTests.Run();
 Steam2026ResearchSpeechPolicyTests.Run();
 Steam2026ResearchAccessibilityOutputTests.Run();
 Steam2026ResearchObservationPumpTests.Run();

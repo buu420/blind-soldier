@@ -464,7 +464,8 @@ function Add-Definition {
         [string] $ManualNavigationGuidance = '',
         [switch] $UsesPlayerCollisionRadius,
         [switch] $UsesContactRange,
-        [switch] $UsesHiddenTalkTarget
+        [switch] $UsesHiddenTalkTarget,
+        [switch] $ActivatesOnOk
     )
 
     $definition = [ordered]@{
@@ -527,6 +528,14 @@ function Add-Definition {
             throw 'Native player collision radius requires a Location with a trigger line.'
         }
         $definition.usesPlayerCollisionRadius = $true
+    }
+    if ($ActivatesOnOk) {
+        # 00637D35 runs a LINE's OK slot only while the leader faces the line; the row must be a
+        # touch line (UsesPlayerCollisionRadius, kept active on arrival) whose own script is [OK].
+        if (-not $UsesPlayerCollisionRadius -or -not $KeepActiveOnArrival -or $ScriptType -ne '[OK]') {
+            throw 'ActivatesOnOk needs a touch LINE row whose native script is [OK].'
+        }
+        $definition.activatesOnOk = $true
     }
     if ($UsesHiddenTalkTarget) {
         # Only a Talk can be made with an entity that is not drawn, and only where the

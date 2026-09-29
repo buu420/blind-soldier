@@ -93,7 +93,12 @@ internal sealed class HighwayAutoSteeringController : IDisposable
         }
     }
 
-    internal HighwayAutoSteeringInputResult Apply(HighwaySteeringDirection direction)
+    /// <param name="holdFlightAction">
+    /// Also hold the key assigned to <see cref="HighwayDirectionInputMappingResolver.FlightActionSlotIndex"/>:
+    /// with a direction, how the Highwind is flown like walking; alone, how it is stopped
+    /// without coasting on (FUN_0074EA48). No other action is ever held.
+    /// </param>
+    internal HighwayAutoSteeringInputResult Apply(HighwaySteeringDirection direction, bool holdFlightAction = false)
     {
         lock (sync)
         {
@@ -120,9 +125,23 @@ internal sealed class HighwayAutoSteeringController : IDisposable
                 faultDiagnostic = string.Empty;
             }
 
-            if (!mappingResolver.TryResolve(direction, out var desiredKeys, out var mappingDiagnostic))
+            if (!mappingResolver.TryResolve(direction, out var directionKeys, out var mappingDiagnostic))
             {
                 return FailAndCleanup(Failure(0, 0, 0, mappingDiagnostic));
+            }
+
+            IReadOnlyList<HighwayKeyboardKey> desiredKeys = directionKeys;
+            if (holdFlightAction)
+            {
+                if (!mappingResolver.TryResolveAction(
+                        HighwayDirectionInputMappingResolver.FlightActionSlotIndex,
+                        out var flightKey,
+                        out var actionDiagnostic))
+                {
+                    return FailAndCleanup(Failure(0, 0, 0, $"flight: {actionDiagnostic}"));
+                }
+
+                desiredKeys = directionKeys.Contains(flightKey) ? directionKeys : [.. directionKeys, flightKey];
             }
 
             var desired = desiredKeys.ToHashSet();

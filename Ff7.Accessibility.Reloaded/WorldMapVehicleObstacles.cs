@@ -40,7 +40,13 @@ public static class WorldMapVehicleObstacles
             [5] = [0x00, 0x18, 0x3c, 0x7e, 0x7e, 0x3c, 0x18, 0x00],
 
             // Buggy: 00 00 18 3c 3c 18 00 00.
-            [6] = [0x00, 0x00, 0x18, 0x3c, 0x3c, 0x18, 0x00, 0x00]
+            [6] = [0x00, 0x00, 0x18, 0x3c, 0x3c, 0x18, 0x00, 0x00],
+
+            // Highwind, parked after a landing: 00 00 18 3c 3c 18 00 00, the Buggy's row,
+            // read out of the installed ff7_en.exe at 0096DDB0 + 3 * 8. The party is set down
+            // 300 units from it (FUN_00766417), inside this reach, and walks off it because
+            // FUN_00762A21 refuses only a step that overlaps and closes.
+            [3] = [0x00, 0x00, 0x18, 0x3c, 0x3c, 0x18, 0x00, 0x00]
         };
 
     /// <summary>The 8x8 mask the native routine reads for this model, when it has one.</summary>
@@ -148,6 +154,13 @@ public static class WorldMapVehicleObstacles
         NativeMasks.ContainsKey(entity.ModelId);
 
     public static bool IsParkedBuggy(WorldMapEntitySnapshot entity) => entity.ModelId == 6 && IsObstacle(entity);
+
+    /// <summary>
+    /// A vehicle parked on the map that the party on foot walks round: the Buggy, and the
+    /// Highwind after a landing. Both have the same native mask.
+    /// </summary>
+    public static bool IsParkedVehicle(WorldMapEntitySnapshot entity) =>
+        entity.ModelId is 6 or 3 && IsObstacle(entity);
 
     /// <summary>
     /// Whether any of these entities refuses the party this point.

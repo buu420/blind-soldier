@@ -33,11 +33,18 @@ internal sealed class NavigationAutoWalkController : IDisposable
     private readonly HighwayAutoSteeringController directionalInput;
     private NavigationAutoWalkDomain domain;
     private FieldNavigationInput commandedInput;
+    private bool commandedFlightAction;
     private int missingObservedDirectionSamples;
     private bool disposed;
 
     internal NavigationAutoWalkController(IHighwayKeyboardInputSink sink)
         : this(new HighwayAutoSteeringController(sink))
+    {
+    }
+
+    /// <summary>A delivery and a control table the caller chooses: deterministic tests.</summary>
+    internal NavigationAutoWalkController(IHighwayKeyboardInputSink sink, IHighwayDirectionInputMappingResolver mappingResolver)
+        : this(new HighwayAutoSteeringController(sink, mappingResolver))
     {
     }
 
@@ -91,7 +98,8 @@ internal sealed class NavigationAutoWalkController : IDisposable
         FieldNavigationInput input,
         bool canMove,
         bool routeActive,
-        FieldNavigationInput? observedInput = null)
+        FieldNavigationInput? observedInput = null,
+        bool holdFlightAction = false)
     {
         if (disposed)
         {
@@ -109,6 +117,26 @@ internal sealed class NavigationAutoWalkController : IDisposable
             return release;
         }
 
+        if (Enabled && holdFlightAction && input == FieldNavigationInput.None)
+        {
+            // The Highwind's brake: the flight action alone, no direction.
+            var brake = directionalInput.Apply(HighwaySteeringDirection.None, holdFlightAction: true);
+            if (!brake.Success)
+            {
+                _ = directionalInput.ReleaseAll();
+                domain = NavigationAutoWalkDomain.None;
+                ResetDirectionObservation();
+                LastDiagnostic = brake.Diagnostic;
+                return brake;
+            }
+
+            commandedInput = FieldNavigationInput.None;
+            commandedFlightAction = true;
+            missingObservedDirectionSamples = 0;
+            LastDiagnostic = "auto walk holding the flight action alone to stop the Highwind";
+            return brake;
+        }
+
         if (!Enabled || !canMove || !IsDirectional(input))
         {
             var release = directionalInput.ReleaseAll();
@@ -121,8 +149,8 @@ internal sealed class NavigationAutoWalkController : IDisposable
             return release;
         }
 
-        var directionChanged = input != commandedInput;
-        var result = directionalInput.Apply(Map(input));
+        var directionChanged = input != commandedInput || holdFlightAction != commandedFlightAction;
+        var result = directionalInput.Apply(Map(input), holdFlightAction);
         if (!result.Success)
         {
             _ = directionalInput.ReleaseAll();
@@ -135,6 +163,7 @@ internal sealed class NavigationAutoWalkController : IDisposable
         if (directionChanged)
         {
             commandedInput = input;
+            commandedFlightAction = holdFlightAction;
             missingObservedDirectionSamples = 0;
         }
         else if (observedInput == FieldNavigationInput.None)
@@ -151,7 +180,7 @@ internal sealed class NavigationAutoWalkController : IDisposable
                     return release;
                 }
 
-                result = directionalInput.Apply(Map(input));
+                result = directionalInput.Apply(Map(input), holdFlightAction);
                 if (!result.Success)
                 {
                     _ = directionalInput.ReleaseAll();
@@ -233,6 +262,7 @@ internal sealed class NavigationAutoWalkController : IDisposable
     private void ResetDirectionObservation()
     {
         commandedInput = FieldNavigationInput.None;
+        commandedFlightAction = false;
         missingObservedDirectionSamples = 0;
     }
 

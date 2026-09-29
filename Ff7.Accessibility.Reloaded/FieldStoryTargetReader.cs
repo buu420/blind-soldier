@@ -67,7 +67,10 @@ public readonly record struct FieldStoryEventDefinition(
     bool UsesPlayerCollisionRadius = false,
     bool UsesContactRange = false,
     string? ManualNavigationGuidance = null,
-    bool UsesHiddenTalkTarget = false);
+    bool UsesHiddenTalkTarget = false,
+    // A touch LINE whose script runs from its OK slot (00637D35): the leader must also face the
+    // line, so auto walk turns to it before saying it has arrived. Go lines run on the touch.
+    bool ActivatesOnOk = false);
 
 public static class FieldStoryEventCatalog
 {
@@ -126,6 +129,7 @@ public sealed class FieldStoryTargetReader
     private readonly Func<int, short> readInt16;
     private readonly Func<int, byte> readByte;
     private readonly Func<int, bool>? isLineEnabled;
+    private readonly Func<int, FieldNavigationLineOkState?>? readLineOkState;
     private readonly IReadOnlyDictionary<int, IReadOnlyList<FieldStoryEventDefinition>> definitionsByField;
 
     public FieldStoryTargetReader(
@@ -141,8 +145,10 @@ public sealed class FieldStoryTargetReader
         Func<int, short> readInt16,
         Func<int, byte> readByte,
         IEnumerable<FieldStoryEventDefinition> definitions,
-        Func<int, bool>? isLineEnabled = null)
+        Func<int, bool>? isLineEnabled = null,
+        Func<int, FieldNavigationLineOkState?>? readLineOkState = null)
     {
+        this.readLineOkState = readLineOkState;
         this.readInt32 = readInt32;
         this.readInt16 = readInt16;
         this.readByte = readByte;
@@ -217,6 +223,14 @@ public sealed class FieldStoryTargetReader
         return current.Select(candidate => candidate.Target).ToArray();
     }
 
+    // The engine's own OK verdict for a LINE on this read (00637D35 without the key press): its
+    // ready byte (+0x15) and stored angle (+0x14) against the leader's event heading (+0x36).
+    // Null when the state cannot be read.
+    private bool? ReadLineOkAccepted(int entityId, int playerEventAddress) =>
+        readLineOkState?.Invoke(entityId) is { } state
+            ? state.Ready && FieldNativeLineContact.IsInOkSector(state.Angle, readByte(playerEventAddress + FieldNavigationObjectReader.EventHeadingOffset))
+            : null;
+
     private FieldNavigationTarget? ResolveTarget(
         FieldStoryEventDefinition definition,
         FieldPositionSnapshot position)
@@ -249,7 +263,14 @@ public sealed class FieldStoryTargetReader
                 // player's arrival distance. A crossing keeps its crossing rule.
                 if (!definition.CompletesOnArrival)
                 {
-                    return CreateTarget(definition, definition.X, definition.Y, definition.Z) with { LineActivationRadius = radius };
+                    return CreateTarget(definition, definition.X, definition.Y, definition.Z) with
+                    {
+                        LineActivationRadius = radius,
+                        LineActivatesOnOk = definition.ActivatesOnOk,
+                        LineOkAccepted = definition.ActivatesOnOk
+                            ? ReadLineOkAccepted(definition.RequiredEnabledLineEntityId ?? definition.EntityId, playerAddress)
+                            : null
+                    };
                 }
 
                 return CreateTarget(definition, definition.X, definition.Y, definition.Z, radius - 1);

@@ -567,10 +567,10 @@ internal static class WorldMapNavigationControllerTests
             "an entity the native routine skips is skipped here too");
         Equal(false,
             WorldMapVehicleObstacles.IsBlocked(
-                [buggy with { ModelId = 3 }], 0, 87144, 170406, wrapWidth, wrapHeight),
+                [buggy with { ModelId = 13 }], 0, 87144, 170406, wrapWidth, wrapHeight),
             "a model with no verified mask is not guessed at");
         Equal(false,
-            WorldMapVehicleObstacles.IsBlocked([buggy], 3, 87144, 170406, wrapWidth, wrapHeight),
+            WorldMapVehicleObstacles.IsBlocked([buggy], 13, 87144, 170406, wrapWidth, wrapHeight),
             "and neither is a party model with no verified mask");
 
         Equal(true, WorldMapVehicleObstacles.BlocksSegment([buggy], 0,

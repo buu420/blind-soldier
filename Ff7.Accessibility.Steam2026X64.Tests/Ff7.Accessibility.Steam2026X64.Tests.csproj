@@ -36,6 +36,9 @@
              Link="SharedTests\CondorUnitMovementSpeechTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\HighwayAutoSteeringControllerTests.cs"
              Link="SharedTests\HighwayAutoSteeringControllerTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\HighwayArcadeCompositionTests.cs" Link="SharedTests\HighwayArcadeCompositionTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\HighwayScoreChangeTrackerTests.cs"
+             Link="SharedTests\HighwayScoreChangeTrackerTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\HighwayEngagementSteeringTrackerTests.cs"
              Link="SharedTests\HighwayEngagementSteeringTrackerTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\NavigationAutoWalkControllerTests.cs"
@@ -219,6 +222,9 @@
              Link="SharedTests\MansionSecretDoorExitFixture.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\StoryProgressionGapTests.cs"
              Link="SharedTests\StoryProgressionGapTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\GoldSaucerHotelExitTests.cs" Link="SharedTests\GoldSaucerHotelExitTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\GoldSaucerMachineLineTests.cs" Link="SharedTests\GoldSaucerMachineLineTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\WonderSquareAttendantRouteTests.cs" Link="SharedTests\WonderSquareAttendantRouteTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\CidHouseLiveModelRouteTests.cs"
              Link="SharedTests\CidHouseLiveModelRouteTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\RocketGantryLadderTests.cs"
@@ -233,6 +239,8 @@
              Link="SharedTests\WorldMapOwnEntranceTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\WorldMapBroncoLandingTests.cs"
              Link="SharedTests\WorldMapBroncoLandingTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\WorldMapHighwindNavigationTests.cs"
+             Link="SharedTests\WorldMapHighwindNavigationTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\WorldMapWutaiNavigationTests.cs"
              Link="SharedTests\WorldMapWutaiNavigationTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\FieldNpcTalkCounterTests.cs"
