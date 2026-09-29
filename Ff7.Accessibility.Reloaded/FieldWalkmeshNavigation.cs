@@ -1837,7 +1837,6 @@ public sealed class FieldWalkmeshRoutePlanner :
             return false;
         if (walkmesh.Triangles.Count > maximumTriangles ||
             !FieldNavigationNativeProbeMovement.IsSupportedWalkmesh(walkmesh) ||
-            isTriangleBlocked?.Invoke(startTriangle) == true ||
             isTriangleBlocked?.Invoke(targetTriangle) == true)
         {
             return false;
@@ -2248,8 +2247,10 @@ public sealed class FieldWalkmeshRoutePlanner :
         resolvedTriangle = startTriangle;
         for (var attempt = 0; attempt <= walkmesh.Triangles.Count; attempt++)
         {
+            // The triangle the probe starts on is occupied, not entered; every step into
+            // another triangle is checked against its lock.
             if (resolvedTriangle < 0 || resolvedTriangle >= walkmesh.Triangles.Count ||
-                isTriangleBlocked?.Invoke(resolvedTriangle) == true) return false;
+                (attempt > 0 && isTriangleBlocked?.Invoke(resolvedTriangle) == true)) return false;
             var triangle = walkmesh.Triangles[resolvedTriangle];
             var next = -1;
             for (var edgeIndex = 0; edgeIndex < 3; edgeIndex++)
@@ -3545,6 +3546,16 @@ public sealed class FieldWalkmeshRoutePlanner :
         diagnostic = result.IsUsable
             ? $"active boundary triangles={(activeBoundaries.Count == 0 ? "none" : string.Join(',', activeBoundaries))}"
             : $"dynamic boundaries unavailable: {result.Diagnostic}";
+        if (result.IsUsable && state.IsBoundaryEnabled(position.TriangleId))
+        {
+            // IDLCK blocks entry, not occupancy: the collision test (006367b7, loaded x64
+            // 7ff70235c480) checks only the triangle about to be entered, never the one the
+            // leader stands on. The lock set is kept as it is; the searches, traces and probes
+            // below let a route start on a locked triangle and refuse to enter one, the
+            // starting triangle included.
+            diagnostic += $", starting triangle {position.TriangleId} locked (may be left, not entered)";
+        }
+
         return result.IsUsable;
     }
 
@@ -4681,9 +4692,10 @@ public static class FieldWalkmeshPathfinder
         targetTriangleIndex = FindBestTriangle(triangles, targetX, targetY, targetZ, preferredTriangleIndex: -1);
         trianglePath = Array.Empty<int>();
         routePortals = Array.Empty<FieldNavigationRoutePortal>();
+        // The starting triangle is occupied, not entered (006367b7 tests only the triangle
+        // being entered), so its lock does not stop a route leaving it; the target is entered.
         if (resolvedStartTriangle < 0 ||
             targetTriangleIndex < 0 ||
-            isTriangleBlocked?.Invoke(resolvedStartTriangle) == true ||
             isTriangleBlocked?.Invoke(targetTriangleIndex) == true)
         {
             return false;
@@ -4964,9 +4976,10 @@ public static class FieldWalkmeshPathfinder
         targetTriangleIndex = FindBestTriangle(triangles, targetX, targetY, targetZ, preferredTriangleIndex: -1);
         trianglePath = Array.Empty<int>();
         portals = Array.Empty<Portal>();
+        // The starting triangle is occupied, not entered (006367b7 tests only the triangle
+        // being entered), so its lock does not stop a route leaving it; the target is entered.
         if (resolvedStartTriangle < 0 ||
             targetTriangleIndex < 0 ||
-            isTriangleBlocked?.Invoke(resolvedStartTriangle) == true ||
             isTriangleBlocked?.Invoke(targetTriangleIndex) == true)
         {
             return false;
@@ -5135,15 +5148,9 @@ public static class FieldWalkmeshPathfinder
                 "end is outside the walkmesh");
         }
 
-        if (isTriangleBlocked?.Invoke(resolvedStartTriangle) == true)
-        {
-            return SegmentTraceFailure(
-                resolvedStartTriangle,
-                [resolvedStartTriangle],
-                start,
-                $"start triangle {resolvedStartTriangle} is blocked");
-        }
-
+        // A locked starting triangle is not a failure: the native collision test checks only
+        // the triangle being entered (006367b7), so a segment may leave a locked triangle and
+        // may never enter one.
         var traversed = new List<int> { resolvedStartTriangle };
         var currentTriangle = resolvedStartTriangle;
         var currentAmount = 0d;

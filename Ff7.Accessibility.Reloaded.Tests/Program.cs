@@ -42,6 +42,14 @@ if (args.Contains("--battle-descriptions-only", StringComparer.OrdinalIgnoreCase
     return;
 }
 
+if (args.Contains("--glacier-regional-items-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.GreatGlacierRegionalItemsTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.GreatGlacierRegionalItemsTests.RunWithInstalledGameData();
+    Console.WriteLine("Great Glacier regional item tests passed.");
+    return;
+}
+
 if (args.Contains("--glacier-speech-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.SnowboardAccessibilityTests.Run();

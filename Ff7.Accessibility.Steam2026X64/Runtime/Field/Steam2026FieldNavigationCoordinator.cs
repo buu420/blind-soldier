@@ -70,6 +70,9 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
     // This runtime never built its observation, so none of those rooms spoke here.
     private readonly FieldActivityStateReader fieldActivityStateReader;
     private readonly GreatGlacierIceFloeReader glacierIceReader;
+
+    // The Great Glacier's regional treasure list and routes, shared with the world-map coordinator.
+    private readonly GreatGlacierRegionalNavigator glacierRegion;
     private readonly GreatGlacierIceFloeReadout glacierIceReadout = new();
     private readonly GreatGlacierMapScreenReadout glacierMapReadout = new();
     private readonly FieldActivityReadout fieldActivityReadout = new();
@@ -153,7 +156,8 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         Func<ControllerNavigationCapture?>? controllerCapture = null,
         Steam2026NativeDirectionalInputSink? directionalInput = null,
         Func<bool?>? isSpeechPlaying = null,
-        Func<DateTime>? utcClock = null)
+        Func<DateTime>? utcClock = null,
+        GreatGlacierRegionalNavigator? glacierRegion = null)
     {
         this.utcClock = utcClock ?? (static () => DateTime.UtcNow);
         // The screen reader's own word on whether it is still speaking; null where it cannot say.
@@ -354,6 +358,22 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             : null;
         fieldActivityStateReader = new FieldActivityStateReader(addressSpace);
         glacierIceReader = new GreatGlacierIceFloeReader(addressSpace);
+        // Every Great Glacier treasure not yet picked up is listed in Objects on every region
+        // screen and the snowfield, and a chosen one is walked to leg by leg. The flags are
+        // bank 1 at guest 00dc08dc, read through the checked address space (the loaded host
+        // translates the same guest address, 7ff7016cf0a0); the route table is built from the
+        // installed data on a background task.
+        this.glacierRegion = glacierRegion ?? new GreatGlacierRegionalNavigator(
+            address => addressSpace.TryReadByte(
+                (uint)(FieldNavigationObjectReader.AddressFieldBankBase + address),
+                out var bankValue)
+                ? bankValue
+                : null,
+            log: log);
+        this.glacierRegion.ReadCorridorState = new GreatGlacierCorridorStateReader(addressSpace).Read;
+        this.glacierRegion.ReadIceFloes = glacierIceReader.Read;
+        controller.GlacierRegion = this.glacierRegion;
+        this.glacierRegion.AttachFieldData(gameRootDirectory, language);
         fieldActivityButtonCuePlayer = config.EnableFieldActivityReadout
             ? new ImmediateWaveCuePlayer(
                 ResolveConfiguredPath(
@@ -582,6 +602,29 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
     private static readonly TimeSpan SlowWorkerThreshold = TimeSpan.FromMilliseconds(500);
 
     /// <summary>
+    /// A Great Glacier treasure route ended or paused (picked up, collapse, a failure): the
+    /// walk stops with it, and is not re-armed until the player asks again.
+    /// </summary>
+    private void StopAutoWalkIfGlacierRouteEnded()
+    {
+        if (!controller.TryConsumeAutoWalkStopRequest())
+        {
+            return;
+        }
+
+        if (autoWalk.Enabled)
+        {
+            _ = autoWalk.Stop();
+        }
+
+        autoWalkConvergence.Reset();
+        pendingAutoWalkStart = false;
+        autoWalkRouteToggleQueued = false;
+        controller.NoteAutoWalkStopped();
+        log($"Native Steam 2026 field auto walk stopped with the Great Glacier route: {controller.LastNavigationDiagnostic}");
+    }
+
+    /// <summary>
     /// Ends the automatic walk whatever domain owns it, and clears the keyboard
     /// path's pending start with it.
     ///
@@ -606,6 +649,9 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
     {
         ObjectDisposedException.ThrowIf(disposed != 0, this);
         ArgumentNullException.ThrowIfNull(frame);
+
+        // The title screen (load, new game) ends any Great Glacier treasure route.
+        glacierRegion.ObserveModule(frame.Lifecycle.ModuleId);
 
         // The world-map coordinator owns these same six keys while module 3 is
         // active. Exactly one owner samples each frame, so a rising edge cannot
@@ -821,6 +867,8 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                     Speak(live.Speech, interrupt: true, nowUtc, "native ladder tracking");
                 }
 
+                StopAutoWalkIfGlacierRouteEnded();
+
                 UpdateAutoWalk(
                     position, control, canMove: !navigationSuppressed, nowUtc, input.Direction);
 
@@ -985,6 +1033,13 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             }
 
             var coherence = resolvedCoherence;
+            if (pendingAutoWalkStart && !controller.BeaconEnabled &&
+                controller.GlacierRegion?.Objective is { Paused: true })
+            {
+                // P on a Great Glacier treasure paused after a collapse: resume it, walked.
+                controller.RequestAutoWalkForHeldRoute();
+            }
+
             if (FieldNavigationAutoWalkIntent.ShouldQueueAutoWalkToggle(
                     pendingAutoWalkStart,
                     controller.BeaconEnabled,
@@ -1088,6 +1143,8 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                     guidanceRepeatGate.Reset();
                     Speak(live.Speech, interrupt: true, nowUtc, "live tracking");
                 }
+
+                StopAutoWalkIfGlacierRouteEnded();
             }
 
 
@@ -2180,6 +2237,9 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         var preliminary = positionReader.ReadNavigation();
         if (!preliminary.IsUsable)
         {
+            // A field loading (a passage screen reloading itself included): the next usable
+            // sample is where the game put the party, which is a new Great Glacier leg.
+            glacierRegion.NotePositionGap();
             diagnostic = preliminary.Diagnostic;
             return false;
         }

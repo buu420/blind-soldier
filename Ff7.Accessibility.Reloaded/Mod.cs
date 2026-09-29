@@ -180,6 +180,9 @@ public sealed class Mod : IModV1, IModV2
     private SpeedSquareCoasterReadout? speedSquareCoasterReadout;
     private FieldActivityStateReader? fieldActivityStateReader;
     private GreatGlacierIceFloeReader? glacierIceReader;
+
+    // The Great Glacier's regional treasure list and routes, shared by field and world navigation.
+    private GreatGlacierRegionalNavigator? glacierRegion;
     private readonly GreatGlacierIceFloeReadout glacierIceReadout = new();
     private readonly GreatGlacierMapScreenReadout glacierMapReadout = new();
     private FieldActivityReadout? fieldActivityReadout;
@@ -1533,6 +1536,31 @@ public sealed class Mod : IModV1, IModV2
                 fieldNavigationCadence,
                 fieldFootstepDistanceProbe.GetFieldSummary(fieldId)),
             fieldNavigationProgressSink);
+
+        // Every Great Glacier treasure not yet picked up is listed in Objects on every region
+        // screen and the snowfield, and a chosen one is walked to leg by leg (see
+        // GreatGlacierRegionalNavigator). Collection flags are the savemap's own bank 1 bytes
+        // (00dc08dc + address, as 0060fd6c reads them); the route table is built from the
+        // installed data on a background task.
+        glacierRegion = new GreatGlacierRegionalNavigator(
+            address => legacyAddressSpace.TryReadByte(
+                (uint)(FieldNavigationObjectReader.AddressFieldBankBase + address),
+                out var bankValue)
+                ? bankValue
+                : null,
+            resolveNavigationObjectName,
+            resolveMateriaName,
+            Log,
+            fieldNavigationObjects)
+        {
+            ReadCorridorState = new GreatGlacierCorridorStateReader(legacyAddressSpace).Read,
+            ReadIceFloes = () => glacierIceReader?.Read()
+        };
+        fieldNavigationController.GlacierRegion = glacierRegion;
+        if (gameRootDirectory is { } glacierRoot)
+        {
+            glacierRegion.AttachFieldData(glacierRoot, gameLanguage);
+        }
 
         // The two Cosmo observatory doors are released by native LINE scripts, and the
         // game switches those lines on and off. Reading the live state is what keeps the
@@ -5434,6 +5462,7 @@ public sealed class Mod : IModV1, IModV2
             Log(
                 "World-map accessibility unavailable: installed location metadata is missing. " +
                 $"coordinates={coordinatePath}, names={menuNamePath}, triggers={triggerPath}.");
+            glacierRegion?.MarkUnavailable("the world-map location metadata is not installed");
             return;
         }
 
@@ -5470,6 +5499,15 @@ public sealed class Mod : IModV1, IModV2
                         Math.Max(1, config.WorldMapEntranceCueOuterRangeUnits),
                         TimeSpan.FromMilliseconds(Math.Max(0, config.WorldMapEntranceCueIntervalMs)));
                     worldMapRuntimes.Add((mapType, progressStage), runtime);
+                    runtime.Navigation.GlacierRegion = glacierRegion;
+                    if (mapType == GreatGlacierRegion.SnowfieldWorldMapType && glacierRegion is not null)
+                    {
+                        glacierRegion.AttachSnowfield(
+                            map,
+                            catalog.Locations,
+                            catalog.EntranceTriangleIds,
+                            Path.Combine(Path.GetDirectoryName(mapPath) ?? string.Empty, "world_us.lgp"));
+                    }
                     Log(
                         $"World-map type {mapType}, progress stage {progressStage} initialized from {mapPath}: " +
                         $"triangles={map.Triangles.Count}, locations={catalog.Locations.Count}, " +
@@ -5487,6 +5525,13 @@ public sealed class Mod : IModV1, IModV2
             {
                 Log($"World-map type {mapType} initialization failed closed: {ex.Message}");
             }
+        }
+
+        if (!worldMapRuntimes.ContainsKey((GreatGlacierRegion.SnowfieldWorldMapType, 0)))
+        {
+            // Without the snowfield the Great Glacier routes cannot be built: a treasure asked
+            // for says so instead of waiting.
+            glacierRegion?.MarkUnavailable("the snowfield's WM3 map could not be loaded");
         }
 
         Log(
@@ -5893,6 +5938,13 @@ public sealed class Mod : IModV1, IModV2
             Log("World-map navigation requested an automatic-walk fail-stop; regular navigation remains active.");
         }
 
+        if (value.StartAutoWalk &&
+            navigationAutoWalkController?.TryStart(NavigationAutoWalkDomain.WorldMap, routeActive: true) == true)
+        {
+            // The next snowfield leg of a Great Glacier treasure the player asked to be walked to.
+            Log("World-map navigation auto walk started for the next Great Glacier leg.");
+        }
+
         if (!string.IsNullOrWhiteSpace(value.Speech))
         {
             Log($"World-map navigation speech: {value.Speech}");
@@ -6234,6 +6286,14 @@ public sealed class Mod : IModV1, IModV2
                 Log($"Field navigation live tracking: {liveTrackingSpeech.Value.Speech}");
                 Speak(liveTrackingSpeech.Value.Speech);
                 lastNavigationSpeechAt = now;
+            }
+
+            // A Great Glacier treasure route ended or paused (picked up, collapse, a failure):
+            // the walk stops with it, and is not re-armed until the player asks again.
+            if (fieldNavigationController.TryConsumeAutoWalkStopRequest())
+            {
+                StopNavigationAutoWalk(NavigationAutoWalkDomain.Field, announce: false);
+                Log($"Field navigation auto walk stopped with the Great Glacier route: {fieldNavigationController.LastNavigationDiagnostic}");
             }
 
             // A destination held for a shut door has just started. If the player asked to
@@ -6776,6 +6836,8 @@ public sealed class Mod : IModV1, IModV2
     {
         var module = ReadByte(FieldPositionReader.AddressCurrentModule);
         var foreground = foregroundProcessGate.IsCurrentProcessForeground();
+        // The title screen (load, new game) ends any Great Glacier treasure route.
+        glacierRegion?.ObserveModule(module);
         PublishControllerNavigationContextFromModule(module, foreground);
 
         var domain = module switch
@@ -6887,10 +6949,23 @@ public sealed class Mod : IModV1, IModV2
                 action => controllerWorldRuntime?.Navigation
                     .HandleAction(action, controllerWorldState, controllerNavigationNow)?.Speech,
                 () => navigationAutoWalkController?.IsEnabledFor(NavigationAutoWalkDomain.WorldMap) == true,
-                () => navigationAutoWalkController?.TryStart(
-                    NavigationAutoWalkDomain.WorldMap, routeActive: true) == true,
+                () =>
+                {
+                    if (navigationAutoWalkController?.TryStart(
+                            NavigationAutoWalkDomain.WorldMap, routeActive: true) != true)
+                    {
+                        return false;
+                    }
+
+                    controllerWorldRuntime?.Navigation.NoteAutoWalkStarted();
+                    return true;
+                },
                 StopEveryControllerAutoWalk,
-                () => navigationAutoWalkController?.Suspend()),
+                () => navigationAutoWalkController?.Suspend(),
+                // A Great Glacier treasure between snowfield legs is a held destination: B
+                // cancels it, A or X replace it, and X asks for its legs to be walked.
+                () => controllerWorldRuntime?.Navigation.IsHoldingDestination == true,
+                () => controllerWorldRuntime?.Navigation.NoteAutoWalkStarted()),
             speech => Speak(speech, interrupt: true),
             Log);
     }
@@ -7128,6 +7203,15 @@ public sealed class Mod : IModV1, IModV2
         }
 
         var speechDelivered = false;
+        if (runtime.Navigation.IsHoldingDestination)
+        {
+            // A Great Glacier treasure waiting for its next snowfield leg: this asks for that
+            // leg to be walked, not for the selection to be toggled off.
+            runtime.Navigation.NoteAutoWalkStarted();
+            glacierRegion?.Resume(autoWalk: true);
+            return Speak("Auto walk on.", interrupt: true);
+        }
+
         if (!runtime.Navigation.BeaconEnabled)
         {
             speechDelivered |= ProcessWorldMapNavigationOutput(
@@ -7139,6 +7223,7 @@ public sealed class Mod : IModV1, IModV2
                 NavigationAutoWalkDomain.WorldMap,
                 routeActive: true) == true)
         {
+            runtime.Navigation.NoteAutoWalkStarted();
             Log("World-map navigation auto walk started for the selected target.");
             speechDelivered |= Speak("Auto walk on.", interrupt: true);
         }
@@ -7358,6 +7443,12 @@ public sealed class Mod : IModV1, IModV2
         }
 
         navigationAutoWalkController.Stop();
+        if (domain == NavigationAutoWalkDomain.WorldMap && announce)
+        {
+            // The player's own stop: the later legs of a Great Glacier treasure are spoken only.
+            glacierRegion?.NoteAutoWalk(false);
+        }
+
         if (domain == NavigationAutoWalkDomain.Field)
         {
             // The stop itself, not the sample that notices it later. A player who switches

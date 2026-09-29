@@ -127,24 +127,31 @@ public sealed class FieldNavigationTargetSource
         }
 
         var staticTargets = GetTargets(position.FieldId, category);
-        if (category != FieldNavigationCategory.Objects || objectTargetProvider is null)
+        if (category != FieldNavigationCategory.Objects)
         {
             return staticTargets;
+        }
+
+        if (objectTargetProvider is null)
+        {
+            return ObjectRows is { } staticRows ? staticRows(position, staticTargets) : staticTargets;
         }
 
         var objectTargets = objectTargetProvider(position);
-        if (staticTargets.Count == 0)
-        {
-            return objectTargets;
-        }
-
-        if (objectTargets.Count == 0)
-        {
-            return staticTargets;
-        }
-
-        return staticTargets.Concat(objectTargets).ToArray();
+        IReadOnlyList<FieldNavigationTarget> merged = staticTargets.Count == 0
+            ? objectTargets
+            : objectTargets.Count == 0
+                ? staticTargets
+                : staticTargets.Concat(objectTargets).ToArray();
+        return ObjectRows is { } rows ? rows(position, merged) : merged;
     }
+
+    /// <summary>
+    /// Rows added to Objects after this field's own: the Great Glacier's treasures that are
+    /// elsewhere in the region (<see cref="GreatGlacierRegionalNavigator.AppendFieldRows"/>).
+    /// Given the field's own objects, so a treasure standing here is never listed twice.
+    /// </summary>
+    public Func<FieldPositionSnapshot, IReadOnlyList<FieldNavigationTarget>, IReadOnlyList<FieldNavigationTarget>>? ObjectRows { get; set; }
 
     public IReadOnlyList<FieldNavigationTarget> GetTargets(int fieldId, FieldNavigationCategory category)
     {
@@ -530,6 +537,10 @@ public sealed class FieldNavigationController
     {
         CancelHeldBoundaryTarget();
         CancelCrossFieldApproach();
+        // The leg being walked ends; the treasure it serves does not. Leaving the field module
+        // for the snowfield, a battle or a menu resets this controller, and the region
+        // navigator carries the treasure to the next leg.
+        glacierLeg = null;
         ResetCore(deactivateProgress: true);
     }
 
@@ -573,6 +584,8 @@ public sealed class FieldNavigationController
         {
             crossFieldAutoWalk = true;
         }
+
+        GlacierRegion?.NoteAutoWalk(true);
     }
 
     /// <summary>
@@ -585,6 +598,7 @@ public sealed class FieldNavigationController
     public void NoteAutoWalkStopped()
     {
         crossFieldAutoWalk = false;
+        GlacierRegion?.NoteAutoWalk(false);
         if (pendingBoundaryTarget is null)
         {
             // A leg that has just started may still hold its request for the host to take.
@@ -858,7 +872,8 @@ public sealed class FieldNavigationController
     /// is produced while it waits, but B must still cancel it, changing the selection must
     /// still replace it, and an auto-walk request must survive it.</para>
     /// </summary>
-    public bool IsHoldingForNativeBoundary => pendingBoundaryTarget is not null;
+    public bool IsHoldingForNativeBoundary =>
+        pendingBoundaryTarget is not null || (!BeaconEnabled && GlacierRegion?.Objective is not null);
 
     /// <summary>
     /// Records that the player asked to be walked there, not merely told the way. Ignored
@@ -867,6 +882,19 @@ public sealed class FieldNavigationController
     /// </summary>
     public void RequestAutoWalkForHeldRoute()
     {
+        if (GlacierRegion?.Objective is { } objective)
+        {
+            // A treasure route between legs, or paused: this is the player asking to be walked
+            // there, which also resumes a paused one.
+            if (!GlacierRegion.Resume(autoWalk: true))
+            {
+                objective.AutoWalk = true;
+            }
+
+            heldAutoWalkRequested = true;
+            return;
+        }
+
         heldAutoWalkRequested = pendingBoundaryTarget is not null;
         if (heldAutoWalkRequested && beaconIsBoundaryApproach)
         {
@@ -1004,6 +1032,490 @@ public sealed class FieldNavigationController
                 : $"The way to {held.Label} is open. Navigation on. {guidance.Value.Speech}.");
     }
 
+    // ------------------------------------------------------------------ Great Glacier treasures
+
+    private GreatGlacierRegionalNavigator? glacierRegion;
+
+    /// <summary>
+    /// The Great Glacier's regional treasures, shared with the world map. Setting it lists
+    /// every treasure not yet picked up in Objects on every region screen, and makes choosing
+    /// one walk its route leg by leg (see <see cref="GreatGlacierRegionalNavigator"/>).
+    /// </summary>
+    public GreatGlacierRegionalNavigator? GlacierRegion
+    {
+        get => glacierRegion;
+        set
+        {
+            glacierRegion = value;
+            source.ObjectRows = value is null ? null : value.AppendFieldRows;
+        }
+    }
+
+    /// <summary>The native target of the treasure-route leg being walked, for diagnostics.</summary>
+    public string CurrentGlacierLegTargetId => glacierLeg?.Target.StableId ?? string.Empty;
+
+    // The leg of the treasure route this controller is walking now, if any, and how many times
+    // the game had gone to the world map when it was planned (see RetireStaleGlacierLeg).
+    private GreatGlacierFieldLeg? glacierLeg;
+    private int glacierLegWorldEntries;
+    private string? glacierDeferredSpeech;
+    private DateTime glacierPreparingSince;
+    private DateTime glacierLegPendingSince;
+    private DateTime glacierAwaitingTransitionSince;
+    private bool glacierPreparingAnnounced;
+    private bool glacierAutoWalkStopRequested;
+
+    /// <summary>How long an exit leg that finished on its line may wait for the game to move the party on.</summary>
+    public static readonly TimeSpan GlacierTransitionWait = TimeSpan.FromSeconds(5);
+
+    /// <summary>
+    /// The treasure route stopped or paused and the walk has to stop with it. Taken once by the
+    /// host, which stops auto walk the ordinary way.
+    /// </summary>
+    public bool TryConsumeAutoWalkStopRequest()
+    {
+        if (!glacierAutoWalkStopRequested)
+        {
+            return false;
+        }
+
+        glacierAutoWalkStopRequested = false;
+        return true;
+    }
+
+    private void ResetGlacierLegState()
+    {
+        glacierLeg = null;
+        glacierLegPendingSince = default;
+        glacierAwaitingTransitionSince = default;
+        glacierPreparingAnnounced = false;
+        glacierPreparingSince = default;
+        glacierDeferredSpeech = null;
+    }
+
+    /// <summary>
+    /// A treasure-route leg belongs to the screen it was planned on. Once the game has gone to
+    /// the world map since then - whether or not the treasure is still wanted - the leg and its
+    /// beacon are retired, so nothing planned for a screen left behind is walked or revived when
+    /// the party comes back to it. Hosts only suspend this controller for the world map (a battle
+    /// or a menu must keep the route); the region navigator counts the domain changes every host
+    /// reports each frame.
+    /// </summary>
+    private void RetireStaleGlacierLeg()
+    {
+        if (glacierLeg is null || GlacierRegion is not { } region || region.WorldEntries == glacierLegWorldEntries)
+        {
+            return;
+        }
+
+        LastNavigationDiagnostic = $"retired the treasure-route leg {glacierLeg.Target.StableId}: the party went to the world map";
+        if (BeaconEnabled)
+        {
+            Reset();
+        }
+
+        glacierLeg = null;
+        glacierAwaitingTransitionSince = default;
+    }
+
+    private FieldNavigationActionResult EndGlacierObjective(string reason, string speech)
+    {
+        GlacierRegion?.Cancel(reason);
+        if (glacierLeg is not null && BeaconEnabled)
+        {
+            Reset();
+        }
+
+        ResetGlacierLegState();
+        glacierAutoWalkStopRequested = true;
+        return new FieldNavigationActionResult(speech);
+    }
+
+    private void DropGlacierLeg()
+    {
+        if (glacierLeg is not null && BeaconEnabled)
+        {
+            ResetCore(deactivateProgress: true);
+        }
+
+        glacierLeg = null;
+        glacierLegPendingSince = default;
+    }
+
+    /// <summary>
+    /// Everything about a treasure route that comes before walking its leg: leaving the
+    /// region, the Glacier Map, a collapse, a new screen or a passage reload (each a new
+    /// leg), the ice floes, the treasure picked up or a native step done, and starting the
+    /// next leg when none is being walked. True when this tick's answer is decided here.
+    /// </summary>
+    private bool TryUpdateGlacierObjective(
+        FieldPositionSnapshot position,
+        FieldNavigationControlTransform controlTransform,
+        FieldLadderStateSnapshot ladderState,
+        bool isSuppressed,
+        DateTime observedAt,
+        out FieldNavigationActionResult? result)
+    {
+        result = null;
+        var region = GlacierRegion!;
+        var objective = region.Objective!;
+        var now = observedAt == default ? DateTime.UtcNow : observedAt;
+        if (!FieldPositionReader.IsUsable(position))
+        {
+            // A field loading: the next usable sample is somewhere new.
+            region.NotePositionGap();
+            return false;
+        }
+
+        // Where the party is, even while the game has it (a scene, a question, a map screen
+        // opened mid-walk): the screen changes under suppression too, and a leg that belonged
+        // to the screen left behind must not be tracked as if it were still there.
+        var field = position.FieldId;
+        if (field == GreatGlacierRegion.MapScreenField)
+        {
+            // The Glacier Map shows a picture and returns to the screen it was opened from,
+            // where the route is planned again from where the party stands.
+            DropGlacierLeg();
+            glacierAwaitingTransitionSince = default;
+            return true;
+        }
+
+        if (!GreatGlacierRegion.IsRegionField(field))
+        {
+            if (isSuppressed)
+            {
+                return false;
+            }
+
+            result = EndGlacierObjective(
+                $"left the region for field {field}",
+                $"Left the Great Glacier. Navigation to {objective.Label} cancelled.");
+            return true;
+        }
+
+        var corridor = GreatGlacierRegion.IsPassage(field) ? region.ReadCorridorState() : null;
+        var arrival = region.ObserveField(field, corridor, position.X, position.Y, now);
+        if (arrival == GreatGlacierArrival.CollapsedToCabin)
+        {
+            DropGlacierLeg();
+            glacierAwaitingTransitionSince = default;
+            region.Pause("collapsed from exhaustion and taken to the cabin");
+            glacierAutoWalkStopRequested = true;
+            glacierDeferredSpeech =
+                $"Taken to Holzoff's cabin. Navigation to {objective.Label} paused and auto walk off. " +
+                $"Choose {objective.Label} in Objects to go on.";
+        }
+        else if (arrival is GreatGlacierArrival.NewField or GreatGlacierArrival.SameFieldReload ||
+                 (glacierLeg is { } walked && walked.Target.FieldId != field))
+        {
+            // The leg that led here is done; the next is planned from where the game put the party.
+            DropGlacierLeg();
+            glacierAwaitingTransitionSince = default;
+        }
+
+        if (isSuppressed)
+        {
+            // A leg that is waiting to start waits afresh once the party is handed back; a leg
+            // being walked is held by the ordinary tracking.
+            if (!BeaconEnabled)
+            {
+                glacierLegPendingSince = default;
+                return true;
+            }
+
+            return false;
+        }
+
+        if (glacierDeferredSpeech is { } deferred)
+        {
+            // Said once the game has handed the party back, so the scene does not swallow it.
+            glacierDeferredSpeech = null;
+            result = new FieldNavigationActionResult(deferred);
+            return true;
+        }
+
+        if (field == GreatGlacierRegion.LakeField)
+        {
+            if (region.ReadIceFloes() is { IsCrossing: true })
+            {
+                // The player is solving the floes; the readout guides each jump.
+                DropGlacierLeg();
+                return true;
+            }
+
+            if (glacierLeg is { Kind: GreatGlacierLegKind.IceFloeCrossing } crossingLeg && BeaconEnabled &&
+                GreatGlacierRegionGraph.IsNorthShore(crossingLeg.Target.Y) != GreatGlacierRegionGraph.IsNorthShore(position.Y))
+            {
+                // Across: the crossing leg is done.
+                DropGlacierLeg();
+            }
+        }
+
+        var goal = region.CurrentGoal(objective.Treasure, out var readable);
+        if (!readable)
+        {
+            return BeaconEnabled ? false : true;
+        }
+
+        if (goal is null)
+        {
+            result = EndGlacierObjective("picked up", $"{objective.Label} collected. Navigation off.");
+            return true;
+        }
+
+        if (objective.Goal is { } previous && previous != goal.Value)
+        {
+            // The spring touched or Snow beaten: on to the next native step.
+            DropGlacierLeg();
+        }
+
+        objective.Goal = goal;
+        if (BeaconEnabled)
+        {
+            return false;
+        }
+
+        if (objective.Paused)
+        {
+            return true;
+        }
+
+        if (glacierAwaitingTransitionSince != default)
+        {
+            if (now - glacierAwaitingTransitionSince < GlacierTransitionWait)
+            {
+                return true;
+            }
+
+            glacierAwaitingTransitionSince = default;
+            result = EndGlacierObjective(
+                "the exit's line was reached but the game did not move the party on",
+                $"The way on did not open. Navigation to {objective.Label} off.");
+            return true;
+        }
+
+        result = TryStartGlacierLeg(position, controlTransform, ladderState, now, fromSelection: false);
+        return true;
+    }
+
+    /// <summary>
+    /// The ordinary tracking of a leg has just run. An exit leg that finished on its own line
+    /// waits for the game to move the party; a native step that went away without its flag
+    /// changing (the hot spring answered "Let's go on") pauses the route and says why.
+    /// </summary>
+    private FieldNavigationActionResult? AfterGlacierLegTracking(
+        GreatGlacierFieldLeg leg,
+        bool beaconBefore,
+        FieldNavigationActionResult? result,
+        DateTime observedAt)
+    {
+        if (!beaconBefore || BeaconEnabled || GlacierRegion?.Objective is not { } objective)
+        {
+            return result;
+        }
+
+        glacierLeg = null;
+        if (leg.Kind == GreatGlacierLegKind.Exit)
+        {
+            glacierAwaitingTransitionSince = observedAt == default ? DateTime.UtcNow : observedAt;
+            return null;
+        }
+
+        var goal = GlacierRegion.CurrentGoal(objective.Treasure, out var readable);
+        if (!readable || goal is null || objective.Goal is not { } planned || planned != goal.Value)
+        {
+            // Picked up or moved on: the next tick says so and plans on.
+            return null;
+        }
+
+        GlacierRegion.Pause($"{leg.Target.Label} went away without its native step");
+        glacierAutoWalkStopRequested = true;
+        var why = planned.Stage == GreatGlacierGoalStage.HotSpring
+            ? "The hot spring was left untouched; it asks again after you leave this screen and come back."
+            : $"{leg.Target.Label} is no longer here.";
+        return new FieldNavigationActionResult(
+            $"{why} Navigation to {objective.Label} paused. Choose it again in Objects to go on.");
+    }
+
+    /// <summary>
+    /// Plans and starts the leg in front of the party: validated on the live walkmesh and the
+    /// exits the game offers now. A new screen's exits can take a few samples to be offered, so
+    /// a leg that finds nothing waits up to <see cref="CrossFieldLegWait"/> before the route
+    /// ends with its reason; while the route table is still being built it waits for that.
+    /// </summary>
+    private FieldNavigationActionResult? TryStartGlacierLeg(
+        FieldPositionSnapshot position,
+        FieldNavigationControlTransform? controlTransform,
+        FieldLadderStateSnapshot ladderState,
+        DateTime now,
+        bool fromSelection)
+    {
+        if (GlacierRegion is not { Objective: { } objective } region)
+        {
+            return null;
+        }
+
+        var goal = region.CurrentGoal(objective.Treasure, out var readable);
+        if (!readable)
+        {
+            return fromSelection
+                ? EndGlacierObjective("collection flags unreadable", $"Route unavailable to {objective.Label}: its native state could not be read. Navigation off.")
+                : null;
+        }
+
+        if (goal is null)
+        {
+            return EndGlacierObjective("already picked up", $"{objective.Label} has already been collected. Navigation off.");
+        }
+
+        objective.Goal = goal;
+        if (glacierLegPendingSince == default)
+        {
+            glacierLegPendingSince = now;
+        }
+
+        var planning = ResolveRoutePlanningPosition(position, ladderState);
+        var corridor = GreatGlacierRegion.IsPassage(position.FieldId) ? region.ReadCorridorState() : null;
+        if (fromSelection)
+        {
+            // Where the route starts: the next screen the party is put on is its next leg.
+            _ = region.ObserveField(position.FieldId, corridor, position.X, position.Y, now);
+        }
+        var leg = region.PlanFieldLeg(
+            position,
+            goal.Value,
+            corridor,
+            source.GetTargets(position, FieldNavigationCategory.Exits),
+            source.GetTargets(position, FieldNavigationCategory.Objects),
+            source.GetTargets(position, FieldNavigationCategory.Npcs),
+            target => LiveRouteLength(planning, target),
+            out var failure);
+        if (leg is not null && !TryLockBeacon(leg.Target, position, ladderState))
+        {
+            failure = $"{leg.Target.Label} could not be routed: {LastNavigationDiagnostic}";
+            leg = null;
+        }
+
+        if (leg is null)
+        {
+            LastNavigationDiagnostic = $"glacier objective {objective.Treasure} ({goal.Value.Stage}): {failure}";
+            if (region.Graph is null && region.BuildFailure is null)
+            {
+                if (glacierPreparingSince == default)
+                {
+                    glacierPreparingSince = now;
+                }
+
+                if (now - glacierPreparingSince >= GreatGlacierRegionalNavigator.PreparationLimit)
+                {
+                    return EndGlacierObjective(
+                        "the route table was not ready in time",
+                        $"Route unavailable to {objective.Label}: the Great Glacier routes could not be prepared. Navigation off.");
+                }
+
+                if (glacierPreparingAnnounced)
+                {
+                    return null;
+                }
+
+                glacierPreparingAnnounced = true;
+                return new FieldNavigationActionResult(
+                    $"{objective.Label}. Preparing the Great Glacier routes; navigation starts when they are ready.");
+            }
+
+            if (region.LastPlanAwaitsGoal && fromSelection)
+            {
+                // Chosen in the goal's own room before the game offers it: held, not walked,
+                // for the same bounded wait as a leg arriving on a new screen.
+                return new FieldNavigationActionResult($"{objective.Label}: {failure}; waiting for it here.");
+            }
+
+            if (!fromSelection && now - glacierLegPendingSince < CrossFieldLegWait)
+            {
+                return null;
+            }
+
+            return EndGlacierObjective(
+                $"no leg: {failure}",
+                $"Route unavailable to {objective.Label}: {failure}. Navigation off.");
+        }
+
+        glacierLeg = leg;
+        glacierLegWorldEntries = region.WorldEntries;
+        glacierLegPendingSince = default;
+        glacierAwaitingTransitionSince = default;
+        glacierPreparingSince = default;
+        heldAutoWalkRequested = objective.AutoWalk && !fromSelection;
+        LastNavigationDiagnostic =
+            $"glacier objective {objective.Treasure} ({goal.Value.Stage}), leg {leg.Kind}: {leg.Diagnostic}; {LastNavigationDiagnostic}";
+        var lead = fromSelection ? "Navigation on. " : string.Empty;
+        var speech = leg.Kind switch
+        {
+            GreatGlacierLegKind.Exit => $"{lead}{objective.Label}: next, {leg.Target.Label}.",
+            GreatGlacierLegKind.IceFloeCrossing =>
+                $"{lead}{objective.Label}: across the ice floes. To the crossing start first; the floe readout guides each jump.",
+            _ => goal.Value.Stage switch
+            {
+                GreatGlacierGoalStage.HotSpring => $"{lead}{objective.Label}: first the hot spring. {leg.Target.Label}.",
+                GreatGlacierGoalStage.Snow => $"{lead}{objective.Label}: first Snow. {leg.Target.Label}.",
+                _ => $"{lead}{leg.Target.Label}."
+            }
+        };
+        if (!fromSelection)
+        {
+            speech = $"{speech} Navigation on.";
+        }
+
+        var guidance = controlTransform is null
+            ? null
+            : CreateSpokenGuidance(position, controlTransform.Value, arrivalDistanceUnits: 0);
+        return new FieldNavigationActionResult(guidance is null ? speech : $"{speech} {guidance.Value.Speech}.");
+    }
+
+    private double? LiveRouteLength(FieldPositionSnapshot planning, FieldNavigationTarget target) =>
+        routePlanner is not null && routePlanner.TryBuildRoute(planning, target, out var plan)
+            ? GreatGlacierRegionGraph.RouteLength(planning.X, planning.Y, planning.Z, plan)
+            : null;
+
+    /// <summary>What choosing a regional row would do first, told rather than started.</summary>
+    private string DescribeGlacierFirstStep(
+        GreatGlacierTreasure treasure,
+        FieldPositionSnapshot position,
+        FieldLadderStateSnapshot ladderState)
+    {
+        if (GlacierRegion is not { } region)
+        {
+            return "route unavailable";
+        }
+
+        var goal = region.CurrentGoal(treasure, out var readable);
+        if (!readable || goal is null)
+        {
+            return "route unavailable";
+        }
+
+        var planning = ResolveRoutePlanningPosition(position, ladderState);
+        var corridor = GreatGlacierRegion.IsPassage(position.FieldId) ? region.ReadCorridorState() : null;
+        var leg = region.PlanFieldLeg(
+            position,
+            goal.Value,
+            corridor,
+            source.GetTargets(position, FieldNavigationCategory.Exits),
+            source.GetTargets(position, FieldNavigationCategory.Objects),
+            source.GetTargets(position, FieldNavigationCategory.Npcs),
+            target => LiveRouteLength(planning, target),
+            out var failure);
+        return leg?.Kind switch
+        {
+            GreatGlacierLegKind.Exit => $"First through {leg.Target.Label}",
+            GreatGlacierLegKind.IceFloeCrossing => "First across the ice floes",
+            GreatGlacierLegKind.Goal => $"First {leg.Target.Label}, on this screen",
+            _ => region.Graph is null && region.BuildFailure is null
+                ? "Routes are still being prepared"
+                : $"Route unavailable from here: {failure}"
+        };
+    }
+
     private void ResetCore(bool deactivateProgress)
     {
         BeaconEnabled = false;
@@ -1053,6 +1565,8 @@ public sealed class FieldNavigationController
 
     public void SuspendForPositionRecovery(string diagnostic)
     {
+        // A field loading (a passage screen reloading itself included) is a new treasure leg.
+        GlacierRegion?.NotePositionGap();
         if (!BeaconEnabled)
         {
             return;
@@ -1070,6 +1584,7 @@ public sealed class FieldNavigationController
         FieldNavigationControlTransform? controlTransform = null,
         FieldLadderStateSnapshot ladderState = default)
     {
+        RetireStaleGlacierLeg();
         if (!FieldPositionReader.IsUsable(position))
         {
             Reset();
@@ -1104,10 +1619,13 @@ public sealed class FieldNavigationController
                     var guidance = controlTransform is null
                         ? null
                         : CreateSpokenGuidance(position, controlTransform.Value, arrivalDistanceUnits: 0);
+                    var legOf = glacierLeg is not null && GlacierRegion?.Objective is { } walking
+                        ? $"{walking.Label}: next, "
+                        : string.Empty;
                     return new FieldNavigationActionResult(
                         guidance is null
-                            ? $"{beaconTargetLabel}. nearby. Route progress {CurrentRouteProgressPercent} percent."
-                            : $"{beaconTargetLabel}. {guidance.Value.Speech}. " +
+                            ? $"{legOf}{beaconTargetLabel}. nearby. Route progress {CurrentRouteProgressPercent} percent."
+                            : $"{legOf}{beaconTargetLabel}. {guidance.Value.Speech}. " +
                               $"Route progress {CurrentRouteProgressPercent} percent.");
                 }
 
@@ -1115,6 +1633,7 @@ public sealed class FieldNavigationController
             case FieldNavigationAction.ToggleBeacon:
                 if (BeaconEnabled)
                 {
+                    GlacierRegion?.Cancel("navigation switched off");
                     Reset();
                     return new FieldNavigationActionResult("Navigation off.");
                 }
@@ -1124,10 +1643,27 @@ public sealed class FieldNavigationController
                     return new FieldNavigationActionResult("Navigation off.");
                 }
 
+                if (GlacierRegion?.Objective is not null)
+                {
+                    // Between legs, or paused: still a destination the player can cancel.
+                    GlacierRegion.Cancel("navigation switched off while the next leg was pending");
+                    glacierLeg = null;
+                    glacierAwaitingTransitionSince = default;
+                    return new FieldNavigationActionResult("Navigation off.");
+                }
+
                 var target = GetSelectedTarget(position);
                 if (target is null)
                 {
                     return DescribeCurrentSelection(position, controlTransform, ladderState);
+                }
+
+                if (GlacierRegion is { } glacier &&
+                    GreatGlacierRegionalNavigator.TryParseRow(target.Value.StableId, out var treasure))
+                {
+                    glacier.Start(treasure, autoWalk: false);
+                    ResetGlacierLegState();
+                    return TryStartGlacierLeg(position, controlTransform, ladderState, DateTime.UtcNow, fromSelection: true);
                 }
 
                 if (!string.IsNullOrWhiteSpace(target.Value.ManualNavigationGuidance))
@@ -1197,6 +1733,31 @@ public sealed class FieldNavigationController
         int arrivalDistanceUnits = 0,
         FieldLadderStateSnapshot ladderState = default,
         DateTime observedAt = default)
+    {
+        RetireStaleGlacierLeg();
+        if (GlacierRegion?.Objective is not null &&
+            TryUpdateGlacierObjective(position, controlTransform, ladderState, isSuppressed, observedAt, out var glacierResult))
+        {
+            return glacierResult;
+        }
+
+        var legBefore = glacierLeg;
+        var beaconBefore = BeaconEnabled;
+        var result = UpdateLiveTrackingCore(
+            position, input, controlTransform, isSuppressed, arrivalDistanceUnits, ladderState, observedAt);
+        return legBefore is not null && GlacierRegion?.Objective is not null
+            ? AfterGlacierLegTracking(legBefore, beaconBefore, result, observedAt)
+            : result;
+    }
+
+    private FieldNavigationActionResult? UpdateLiveTrackingCore(
+        FieldPositionSnapshot position,
+        FieldNavigationInputSnapshot input,
+        FieldNavigationControlTransform controlTransform,
+        bool isSuppressed,
+        int arrivalDistanceUnits,
+        FieldLadderStateSnapshot ladderState,
+        DateTime observedAt)
     {
         if (!BeaconEnabled)
         {
@@ -1884,6 +2445,8 @@ public sealed class FieldNavigationController
     {
         input = FieldNavigationInput.None;
         LastAutomaticInputHold = FieldAutoWalkHoldReason.NoRoute;
+        // Nothing planned for a screen the party has since left for the world map is driven.
+        RetireStaleGlacierLeg();
         if (BeaconEnabled && activeLadderState.IsMounted)
         {
             input = activeLadderGuidanceInput;
@@ -2805,6 +3368,13 @@ public sealed class FieldNavigationController
             return new FieldNavigationActionResult($"{categoryName}: none for this field yet.");
         }
 
+        if (GlacierRegion is not null &&
+            GreatGlacierRegionalNavigator.TryParseRow(target.Value.StableId, out var regionalTreasure))
+        {
+            return new FieldNavigationActionResult(
+                $"{categoryName}, {target.Value.Label}. {DescribeGlacierFirstStep(regionalTreasure, position, ladderState)}.");
+        }
+
         if (!string.IsNullOrWhiteSpace(target.Value.ManualNavigationGuidance))
         {
             return DescribeManualTarget(target.Value);
@@ -2998,9 +3568,32 @@ public sealed class FieldNavigationController
         }
 
         var target = GetSelectedTarget(position);
+        if (GlacierRegion?.Objective is { } walking && glacierLeg is not null)
+        {
+            if (target is { } same &&
+                string.Equals(same.StableId, GreatGlacierRegionalNavigator.RowId(walking.Treasure), StringComparison.Ordinal))
+            {
+                // Browsing back to the treasure being walked to keeps its leg.
+                return;
+            }
+
+            // Anything else selected while navigating replaces the treasure route.
+            GlacierRegion.Cancel("another target was selected");
+        }
+
         if (target is null)
         {
             Reset();
+            return;
+        }
+
+        if (GlacierRegion is { } glacier &&
+            GreatGlacierRegionalNavigator.TryParseRow(target.Value.StableId, out var treasure))
+        {
+            glacier.Start(treasure, autoWalk: false);
+            Reset();
+            ResetGlacierLegState();
+            _ = TryStartGlacierLeg(position, null, activeLadderState, DateTime.UtcNow, fromSelection: true);
             return;
         }
 

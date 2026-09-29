@@ -969,6 +969,17 @@ internal sealed class Steam2026ResearchSession : IDisposable
                                 id => kernel2TextDatabase?.ResolveInventoryObjectName(id),
                                 id => kernel2TextDatabase?.ResolveMateriaName(id),
                                 FieldNavigationObjectCatalog.CreateAllFields());
+                        // One Great Glacier regional navigator for both coordinators: a treasure
+                        // chosen on a field is carried across the snowfield and back.
+                        var candidateGlacierRegion = new GreatGlacierRegionalNavigator(
+                            address => sharedFieldAddressSpace.TryReadByte(
+                                (uint)(FieldNavigationObjectReader.AddressFieldBankBase + address),
+                                out var bankValue)
+                                ? bankValue
+                                : null,
+                            id => kernel2TextDatabase?.ResolveInventoryObjectName(id),
+                            id => kernel2TextDatabase?.ResolveMateriaName(id),
+                            log);
                         Steam2026FieldNavigationCoordinator? candidateFieldNavigation = null;
                         Steam2026WorldMapAccessibilityCoordinator? candidateWorldMapAccessibility = null;
                         HighwayAccessibilityCoordinator? candidateHighwayAccessibility = null;
@@ -991,7 +1002,8 @@ internal sealed class Steam2026ResearchSession : IDisposable
                                 // for a pad, often after this coordinator exists.
                                 controllerCapture: () => controllerCaptureHook?.Capture,
                                 directionalInput: directionalInput,
-                                isSpeechPlaying: () => output.TryIsSpeaking(out var speaking) ? speaking : null);
+                                isSpeechPlaying: () => output.TryIsSpeaking(out var speaking) ? speaking : null,
+                                glacierRegion: candidateGlacierRegion);
                         }
                         catch (Exception ex)
                         {
@@ -1012,11 +1024,13 @@ internal sealed class Steam2026ResearchSession : IDisposable
                                     autoWalk: null,
                                     playEntranceCue: null,
                                     controllerCapture: () => controllerCaptureHook?.Capture,
-                                    directionalInput: directionalInput);
+                                    directionalInput: directionalInput,
+                                    glacierRegion: candidateGlacierRegion);
                         }
                         catch (Exception ex)
                         {
                             log($"Native Steam 2026 world-map accessibility remains disabled: {ex.Message}");
+                            candidateGlacierRegion.MarkUnavailable($"world-map data could not be loaded ({ex.Message})");
                         }
                         try
                         {
