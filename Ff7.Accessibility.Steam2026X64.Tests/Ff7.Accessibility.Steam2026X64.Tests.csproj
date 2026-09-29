@@ -107,6 +107,7 @@
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\GreatGlacierIceFloeTests.cs" Link="SharedTests\GreatGlacierIceFloeTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\GreatGlacierOptionalContentTests.cs" Link="SharedTests\GreatGlacierOptionalContentTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\GreatGlacierExitLabelTests.cs" Link="SharedTests\GreatGlacierExitLabelTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\GreatGlacierRegionalItemsTests.cs" Link="SharedTests\GreatGlacierRegionalItemsTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\KeyItemsMenuSpeechTests.cs" Link="SharedTests\KeyItemsMenuSpeechTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\MateriaSubmenuSpeechTests.cs" Link="SharedTests\MateriaSubmenuSpeechTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\NativeAskChoicePageTests.cs" Link="SharedTests\NativeAskChoicePageTests.cs" />

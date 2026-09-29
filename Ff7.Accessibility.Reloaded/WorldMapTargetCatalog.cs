@@ -11,7 +11,10 @@ public enum WorldMapNavigationCategory
     Transportation,
     Events,
     ChocoboTracks,
-    Regions
+    Regions,
+
+    // Only on the Great Glacier snowfield: the region's treasures (GreatGlacierRegionalNavigator).
+    Objects
 }
 
 public enum WorldMapTargetKind

@@ -31,6 +31,8 @@
     <Compile Include="..\Ff7.Accessibility.Reloaded\SnowboardReadout.cs" Link="Shared\SnowboardReadout.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\GreatGlacierIceFloe.cs" Link="Shared\GreatGlacierIceFloe.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\GreatGlacierMapScreen.cs" Link="Shared\GreatGlacierMapScreen.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\GreatGlacierRegion.cs" Link="Shared\GreatGlacierRegion.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\GreatGlacierRegionalNavigator.cs" Link="Shared\GreatGlacierRegionalNavigator.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\RootMainMenuRenderEvidenceTracker.cs" Link="Shared\RootMainMenuRenderEvidenceTracker.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\ActiveMenuFrameSpeechCoordinator.cs" Link="Shared\ActiveMenuFrameSpeechCoordinator.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\PartyTargetMenuSelectionFormatter.cs" Link="Shared\PartyTargetMenuSelectionFormatter.cs" />

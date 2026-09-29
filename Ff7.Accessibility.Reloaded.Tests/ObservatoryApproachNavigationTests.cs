@@ -120,8 +120,26 @@ internal static class ObservatoryApproachNavigationTests
         Equal(5, open.EndTriangle, "the corner continuation enters adjacent triangle 5");
         Equal(false, FieldWalkmeshPathfinder.TraceWalkableSegment(mesh, 2, start, end,
             triangle => triangle == 5, allowStartingEdgeCrossing: true).IsClear, "a boundary on the adjacent triangle still blocks the crossing");
-        Equal(false, FieldWalkmeshPathfinder.TraceWalkableSegment(mesh, 2, start, end,
-            triangle => triangle == 2, allowStartingEdgeCrossing: true).IsClear, "a boundary on the starting triangle still blocks movement");
+        // IDLCK is directional. The native collision test (legacy 006367b7, loaded x64
+        // 7ff70235c480) checks, on each of its three edge branches, the triangle about to be
+        // ENTERED against the lock bits (IDLCK 0061e29f sets (global+0xB2)[t>>3]); it never tests
+        // the triangle the leader already occupies. So a lock on the starting triangle 2 does not
+        // stop the leader leaving it into open triangle 5 ...
+        var leaving = FieldWalkmeshPathfinder.TraceWalkableSegment(mesh, 2, start, end,
+            triangle => triangle == 2, allowStartingEdgeCrossing: true);
+        Equal(true, leaving.IsClear, "a lock on the occupied starting triangle does not stop leaving it: " + leaving.Diagnostic);
+        Equal(5, leaving.EndTriangle, "the egress still ends in adjacent triangle 5");
+
+        // ... but the same lock refuses coming back in. From an interior point of 5 to an
+        // interior point of 2 (not a point on their shared edge, so this is a real crossing),
+        // the way is clear while 2 is open and refused once 2 is locked.
+        var inside2 = mesh.Triangles[2].GetCentroid();
+        var back = new FieldNavigationRouteWaypoint((int)Math.Round(inside2.X), (int)Math.Round(inside2.Y), (int)Math.Round(inside2.Z));
+        var reentryOpen = FieldWalkmeshPathfinder.TraceWalkableSegment(mesh, 5, end, back, applyPortalInset: false);
+        Equal(true, reentryOpen.IsClear, "5 -> 2 is walkable while 2 is open: " + reentryOpen.Diagnostic);
+        Equal(2, reentryOpen.EndTriangle, "and it really enters triangle 2");
+        Equal(false, FieldWalkmeshPathfinder.TraceWalkableSegment(mesh, 5, end, back,
+            triangle => triangle == 2, applyPortalInset: false).IsClear, "a lock on 2 refuses entering it from 5");
         Equal(false, FieldWalkmeshPathfinder.TraceWalkableSegment(mesh, 2, start, end).IsClear,
             "native wall-probe callers retain their existing conservative default");
     }

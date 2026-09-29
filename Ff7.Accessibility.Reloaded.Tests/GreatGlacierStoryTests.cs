@@ -37,6 +37,7 @@ internal static class GreatGlacierStoryTests
         GreatGlacierIceFloeTests.Run();
         GreatGlacierOptionalContentTests.Run();
         GreatGlacierExitLabelTests.Run();
+        GreatGlacierRegionalItemsTests.Run();
     }
 
     public static void RunWithInstalledGameData()
@@ -116,6 +117,7 @@ internal static class GreatGlacierStoryTests
         GreatGlacierIceFloeTests.RunWithInstalledGameData();
         GreatGlacierOptionalContentTests.RunWithInstalledGameData();
         GreatGlacierExitLabelTests.RunWithInstalledGameData();
+        GreatGlacierRegionalItemsTests.RunWithInstalledGameData();
     }
 
     private sealed record Jump(int Field, int X, int Y, int Triangle);

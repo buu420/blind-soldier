@@ -79,6 +79,9 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
     // The controller navigation menu. Fetched through a delegate because SDL is
     // loaded when the host first looks for a pad, which is often after this exists.
     private readonly Func<ControllerNavigationCapture?> controllerCapture;
+
+    // The Great Glacier's regional treasure routes, shared with the field coordinator.
+    private readonly GreatGlacierRegionalNavigator? glacierRegion;
     private ControllerNavigationDispatcher? controllerNavigation;
     private WorldMapRuntimeContext? controllerRuntime;
     private WorldMapStateSnapshot controllerState;
@@ -97,8 +100,10 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         NavigationAutoWalkController? autoWalk = null,
         Action<NavigationBeaconCue, float>? playEntranceCue = null,
         Func<ControllerNavigationCapture?>? controllerCapture = null,
-        Steam2026NativeDirectionalInputSink? directionalInput = null)
+        Steam2026NativeDirectionalInputSink? directionalInput = null,
+        GreatGlacierRegionalNavigator? glacierRegion = null)
     {
+        this.glacierRegion = glacierRegion;
         // Never a Win32 sink. See the field coordinator: this host synthesizes the legacy
         // keyboard state, and the keys the control table names are the screen reader's.
         this.directionalInput = directionalInput ?? new Steam2026NativeDirectionalInputSink();
@@ -193,6 +198,15 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
                         progressStage,
                         mapPath);
                     var catalog = WorldMapTargetCatalog.Load(map, coordinatePath, menuNamePath, triggerPath);
+                    if (mapType == GreatGlacierRegion.SnowfieldWorldMapType)
+                    {
+                        glacierRegion?.AttachSnowfield(
+                            map,
+                            catalog.Locations,
+                            catalog.EntranceTriangleIds,
+                            Path.Combine(Path.GetDirectoryName(mapPath) ?? string.Empty, "world_us.lgp"));
+                    }
+
                     runtimes.Add(
                         (mapType, progressStage),
                         new WorldMapRuntimeContext(
@@ -206,6 +220,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
                             Math.Max(0, config.WorldMapEntranceCueInnerRangeUnits),
                             Math.Max(1, config.WorldMapEntranceCueOuterRangeUnits),
                             TimeSpan.FromMilliseconds(Math.Max(0, config.WorldMapEntranceCueIntervalMs))));
+                    runtimes[(mapType, progressStage)].Navigation.GlacierRegion = glacierRegion;
                     log(
                         $"Native Steam 2026 world-map type {mapType}, progress stage {progressStage} ready: " +
                         $"triangles={map.Triangles.Count}, locations={catalog.Locations.Count}, " +
@@ -223,6 +238,13 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
             {
                 log($"Native Steam 2026 world-map type {mapType} failed closed: {ex.Message}");
             }
+        }
+
+        if (!runtimes.ContainsKey((GreatGlacierRegion.SnowfieldWorldMapType, 0)))
+        {
+            // Without the snowfield the Great Glacier routes cannot be built: a treasure asked
+            // for says so instead of waiting.
+            glacierRegion?.MarkUnavailable("the snowfield's WM3 map could not be loaded");
         }
 
         if (runtimes.Count == 0)
@@ -302,6 +324,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         if (autoWalkToggleRequested && autoWalk.IsEnabledFor(NavigationAutoWalkDomain.WorldMap))
         {
             _ = autoWalk.Stop();
+            glacierRegion?.NoteAutoWalk(false);
             speak("Auto walk off.", true);
             higherPrioritySpeech = true;
             log("Native Steam 2026 world-map auto walk: P toggle off.");
@@ -312,6 +335,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
             actions.Any(action => action != FieldNavigationAction.RepeatTarget))
         {
             _ = autoWalk.Stop();
+            glacierRegion?.NoteAutoWalk(false);
             speak("Auto walk off.", true);
             higherPrioritySpeech = true;
             log("Native Steam 2026 world-map auto walk stopped because the selection changed.");
@@ -440,6 +464,17 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
                 runtime.Navigation.HandleAction(action, state, nowUtc));
         }
 
+        if (autoWalkToggleRequested && runtime.Navigation.IsHoldingDestination)
+        {
+            // A Great Glacier treasure waiting for its next snowfield leg: this asks for that
+            // leg to be walked, not for the selection to be toggled off.
+            autoWalkToggleRequested = false;
+            runtime.Navigation.NoteAutoWalkStarted();
+            glacierRegion?.Resume(autoWalk: true);
+            speak("Auto walk on.", true);
+            higherPrioritySpeech = true;
+        }
+
         if (autoWalkToggleRequested)
         {
             if (!runtime.Navigation.BeaconEnabled)
@@ -452,6 +487,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
                     NavigationAutoWalkDomain.WorldMap,
                     runtime.Navigation.BeaconEnabled))
             {
+                runtime.Navigation.NoteAutoWalkStarted();
                 speak("Auto walk on.", true);
                 higherPrioritySpeech = true;
                 log("Native Steam 2026 world-map auto walk: P toggle on.");
@@ -656,6 +692,12 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
             log(
                 "Native Steam 2026 world-map navigation requested an automatic-walk " +
                 "fail-stop; regular navigation remains active.");
+        }
+
+        if (value.StartAutoWalk && autoWalk.TryStart(NavigationAutoWalkDomain.WorldMap, routeActive: true))
+        {
+            // The next snowfield leg of a Great Glacier treasure the player asked to be walked to.
+            log("Native Steam 2026 world-map auto walk started for the next Great Glacier leg.");
         }
 
         if (!string.IsNullOrWhiteSpace(value.Speech))
@@ -870,9 +912,22 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
                 action => controllerRuntime?.Navigation
                     .HandleAction(action, controllerState, controllerNowUtc)?.Speech,
                 () => autoWalk.IsEnabledFor(NavigationAutoWalkDomain.WorldMap),
-                () => autoWalk.TryStart(NavigationAutoWalkDomain.WorldMap, routeActive: true),
+                () =>
+                {
+                    if (!autoWalk.TryStart(NavigationAutoWalkDomain.WorldMap, routeActive: true))
+                    {
+                        return false;
+                    }
+
+                    controllerRuntime?.Navigation.NoteAutoWalkStarted();
+                    return true;
+                },
                 StopEveryControllerAutoWalk,
-                () => autoWalk.Suspend()),
+                () => autoWalk.Suspend(),
+                // A Great Glacier treasure between snowfield legs is a held destination: B
+                // cancels it, A or X replace it, and X asks for its legs to be walked.
+                () => controllerRuntime?.Navigation.IsHoldingDestination == true,
+                () => controllerRuntime?.Navigation.NoteAutoWalkStarted()),
             speech => { speak(speech, true); return true; },
             log);
 
@@ -892,6 +947,8 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         {
             _ = autoWalk.Stop();
         }
+
+        glacierRegion?.NoteAutoWalk(false);
     }
 
     private bool UpdateAutoWalk(
