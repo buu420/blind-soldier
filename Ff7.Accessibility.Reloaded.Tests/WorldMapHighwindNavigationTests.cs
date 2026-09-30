@@ -50,6 +50,9 @@ internal static class WorldMapHighwindNavigationTests
         TheHighwindsOwnStoryStopStillFlies(map, catalog);
         AWalkOrABoatIsUnchanged(map, mideel);
         EveryTownFromTheLoggedFlightLandsOrSaysItCannot(map, catalog);
+        TheNorthPocketIsReachedThroughIcicleInn(map, catalog);
+        TheWayIntoTheNorthPocketIsIcicleInnsOwnFields(map, catalog);
+        TheSnowboardRunIsAnExitOnALaterVisit();
         if (TryLoadInstalledWorld(out var progressTwo, out var progressTwoCatalog, worldProgress: 2))
         {
             NativeFlightReachesTheSpotAndComesToRest(progressTwo, progressTwoCatalog);
@@ -533,16 +536,19 @@ internal static class WorldMapHighwindNavigationTests
     /// </summary>
     private static void EveryTownFromTheLoggedFlightLandsOrSaysItCannot(WorldMapData map, WorldMapTargetCatalog catalog)
     {
-        var planner = new WorldMapRoutePlanner(map);
+        // The planner the game runs with: other locations' entrances are not walked through.
+        var planner = new WorldMapRoutePlanner(map) { EntranceTriangleIds = catalog.EntranceTriangleIds };
         var start = Flying(map, LoggedFlight.X, LoggedFlight.Z, LoggedFlight.Camera);
         var landed = new List<string>();
         var none = new List<string>();
+        var through = new List<string>();
         var slowest = (Label: string.Empty, Milliseconds: 0L);
         var total = System.Diagnostics.Stopwatch.StartNew();
         foreach (var town in catalog.Locations)
         {
             var clock = System.Diagnostics.Stopwatch.StartNew();
-            var controller = new WorldMapNavigationController(map, planner, (_, _) => [town]);
+            var controller = new WorldMapNavigationController(map, planner, (_, category) =>
+                category == WorldMapNavigationCategory.Locations ? [town, .. catalog.Locations.Where(other => other != town)] : [town]);
             var spoken = controller.HandleAction(FieldNavigationAction.ToggleBeacon, start)?.Speech ?? string.Empty;
             clock.Stop();
             if (clock.ElapsedMilliseconds > slowest.Milliseconds) slowest = (town.Label, clock.ElapsedMilliseconds);
@@ -557,19 +563,238 @@ internal static class WorldMapHighwindNavigationTests
 
             var route = controller.Probe.Route!;
             var end = route.Waypoints[^1];
-            Equal(false, town.ArrivalTriangleIds.Contains(route.TargetTriangleId), $"{town.Label}: the flight ends off the town");
+            var goal = catalog.Locations.Single(location => location.Label == controller.Probe.TargetLabel);
+            if (goal != town)
+            {
+                Equal(true, spoken.Contains($"reached through {goal.Label}", StringComparison.Ordinal),
+                    $"{town.Label}: routed through {goal.Label}, and said so: {spoken}");
+                through.Add($"{town.Label} via {goal.Label}");
+            }
+            else
+            {
+                landed.Add(town.Label);
+            }
+
+            Equal(false, goal.ArrivalTriangleIds.Contains(route.TargetTriangleId), $"{town.Label}: the flight ends off the town");
             Equal(true, WorldMapHighwindLanding.FitsEveryRotation(map, planner, end.X, end.Z,
-                    WorldMapBroncoLanding.DestinationFootComponents(planner, map, town), out var failure),
+                    WorldMapBroncoLanding.DestinationFootComponents(planner, map, goal), out var failure),
                 $"{town.Label}: the spot lands on its ground: {failure}");
-            landed.Add(town.Label);
         }
 
         Console.WriteLine(
             $"world Highwind: {landed.Count} of {catalog.Locations.Count} locations have a grass landing from the logged flight; " +
+            $"through another's field: {(through.Count == 0 ? "(none)" : string.Join(", ", through))}; " +
             $"none for: {(none.Count == 0 ? "(all have one)" : string.Join(", ", none))}; " +
             $"{total.ElapsedMilliseconds} ms in all, slowest {slowest.Label} {slowest.Milliseconds} ms.");
     }
 
+    /// <summary>
+    /// The Great Glacier and Icicle Inn's north side stand in a pocket of snow north of the
+    /// town with no grass in it, closed in by Icicle Inn's own triggers: nothing can land
+    /// there, and nothing walks in from the world map. Their way is Icicle Inn's south side -
+    /// the same town field, and the town's snowboard run to the Great Glacier - so that is where
+    /// the Highwind is taken, the player is told why, and on arriving how to go on. All through
+    /// one controller: the flight, the landing's model change, the walk and the arrival.
+    /// </summary>
+    private static void TheNorthPocketIsReachedThroughIcicleInn(WorldMapData map, WorldMapTargetCatalog catalog)
+    {
+        var planner = new WorldMapRoutePlanner(map) { EntranceTriangleIds = catalog.EntranceTriangleIds };
+        var south = catalog.Locations.Single(target => target.Label == "Icicle Inn (South Side)");
+        var southGround = WorldMapBroncoLanding.DestinationFootComponents(planner, map, south);
+        var flying = Flying(map, LoggedFlight.X, LoggedFlight.Z, LoggedFlight.Camera);
+        foreach (var (label, onwards) in new[] { ("Great Glacier", "snowboard"), ("Icicle Inn (North Side)", "same town") })
+        {
+            var destination = catalog.Locations.Single(target => target.Label == label);
+            var offered = new List<WorldMapNavigationTarget> { destination };
+            offered.AddRange(catalog.Locations.Where(target => target != destination));
+            var controller = new WorldMapNavigationController(map, planner,
+                (state, category) => category == WorldMapNavigationCategory.Locations ? offered.ToArray() : []);
+            var spoken = controller.HandleAction(FieldNavigationAction.ToggleBeacon, flying)?.Speech ?? string.Empty;
+            Equal(true, controller.BeaconEnabled, $"{label} from the Highwind is navigated: {spoken} ({controller.LastDiagnostic})");
+            Equal(true, spoken.Contains("through Icicle Inn (South Side)", StringComparison.Ordinal),
+                $"{label}: the player is told the way is through Icicle Inn: {spoken}");
+            Equal("Icicle Inn (South Side)", controller.Probe.TargetLabel, $"{label}: the route goes to Icicle Inn's south side");
+            var spot = controller.Probe.Route!.Waypoints[^1];
+            Equal(true, WorldMapHighwindLanding.FitsEveryRotation(map, planner, spot.X, spot.Z, southGround, out var failure),
+                $"{label}: by a grass landing that walks to Icicle Inn: {failure}");
+
+            // The landing's model change, in the same controller: the route is planned again on
+            // foot from where the party was set down, still for the south side, still for this.
+            Equal(true, WorldMapHighwindLanding.TryPredictDisembark(map, spot.X, spot.Z, 1184, out var ground, out var groundX, out var groundZ),
+                $"{label}: the landing sets the party down");
+            var landed = OnFoot(map, groundX, groundZ, ground) with { CameraFront = LoggedFlight.Camera };
+            controller.Observe(landed, automaticWalkActive: true);
+            Equal(true, controller.BeaconEnabled && controller.Probe.TargetLabel == "Icicle Inn (South Side)",
+                $"{label}: after the landing the walk goes on to Icicle Inn ({controller.LastDiagnostic})");
+            Equal(true, controller.TryResolveAutomaticInput(landed, out _) && !controller.AutomaticInputHoldsFlightAction,
+                $"{label}: and is walked, with no flight action");
+            var arrival = map.Triangles[south.ArrivalTriangleIds.First()];
+            var arrived = controller.Observe(OnFoot(map, arrival.Centroid.X, arrival.Centroid.Z, arrival), automaticWalkActive: true)?.Speech ?? string.Empty;
+            Equal(true, arrived.Contains("Arrived at Icicle Inn (South Side)", StringComparison.Ordinal) &&
+                        arrived.Contains(label, StringComparison.Ordinal) && arrived.Contains(onwards, StringComparison.Ordinal),
+                $"{label}: arriving at the south side says how to go on: {arrived}");
+            Equal(false, arrived.Contains($"Arrived at {label}", StringComparison.Ordinal), $"{label} itself is never announced as arrived at");
+
+            // Cancelled and replaced: a later route and arrival carry nothing of this one.
+            var again = new WorldMapNavigationController(map, planner,
+                (state, category) => category == WorldMapNavigationCategory.Locations ? offered.ToArray() : []);
+            again.HandleAction(FieldNavigationAction.ToggleBeacon, landed);
+            again.HandleAction(FieldNavigationAction.ToggleBeacon, landed);
+            Equal(false, again.BeaconEnabled, $"{label}: navigation cancelled");
+            offered.Remove(south);
+            offered.Insert(0, south);
+            var reselected = again.HandleAction(FieldNavigationAction.ToggleBeacon, landed)?.Speech ?? string.Empty;
+            Equal(false, reselected.Contains(label, StringComparison.Ordinal), $"{label}: reselecting Icicle Inn itself says nothing of {label}: {reselected}");
+            var plain = again.Observe(OnFoot(map, arrival.Centroid.X, arrival.Centroid.Z, arrival), automaticWalkActive: true)?.Speech ?? string.Empty;
+            Equal(true, plain.Contains("Arrived at Icicle Inn (South Side)", StringComparison.Ordinal) && !plain.Contains(label, StringComparison.Ordinal),
+                $"{label}: after cancel and reselection the arrival is Icicle Inn's own: {plain}");
+            Console.WriteLine($"world Highwind north: {label}: \"{spoken}\" / arriving: \"{arrived}\"");
+        }
+
+        // Already on foot in the pocket (come out of the Great Glacier at world id 48): the
+        // Great Glacier is walked to directly, with no detour south.
+        var glacier = catalog.Locations.Single(target => target.Label == "Great Glacier");
+        Equal(true, WorldMapBroncoLanding.TryFindSurfaceNear(map, 136153, 54304, 3000, out var pocketGround), "the world id 48 return point has ground");
+        var inPocket = OnFoot(map, 136153, 54304, pocketGround);
+        var direct = new WorldMapNavigationController(map, planner,
+            (state, category) => category == WorldMapNavigationCategory.Locations ? [glacier, .. catalog.Locations.Where(t => t != glacier)] : []);
+        var directSpoken = direct.HandleAction(FieldNavigationAction.ToggleBeacon, inPocket)?.Speech ?? string.Empty;
+        Equal(true, direct.BeaconEnabled && direct.Probe.TargetLabel == "Great Glacier" &&
+                    !directSpoken.Contains("through", StringComparison.Ordinal),
+            $"from the pocket the Great Glacier is walked to directly: {directSpoken} ({direct.LastDiagnostic})");
+    }
+
+    /// <summary>
+    /// The relation the navigation uses, read back out of the installed game - the playable way,
+    /// with its native guards, not a graph of every field jump. World locations 27 (Icicle Inn,
+    /// south) and 47 (north) both enter field 654 (field.tbl). There snow/playgam's Move
+    /// (e11.s2) tests Bank[3][9] == 0 and Bank[1][130] bits 1 and 6 and runs MINIGAME type 2
+    /// with return field 658, whose line03 MAPJUMPs to the world map at id 48. Those return
+    /// points lie in the pocket the Great Glacier's trigger stands in, which holds no grass and
+    /// is closed in by Icicle Inn's own north-side trigger. The catalog's exit row for the run
+    /// carries exactly those guards and its enabled line, and no story window.
+    /// </summary>
+    private static void TheWayIntoTheNorthPocketIsIcicleInnsOwnFields(WorldMapData map, WorldMapTargetCatalog catalog)
+    {
+        var root = Environment.GetEnvironmentVariable("FF7_ACCESSIBILITY_DATA_ROOT")!;
+        var source = Environment.GetEnvironmentVariable("FF7_ACCESSIBILITY_SOURCE_ROOT")!;
+        var world = new LgpArchiveReader(Path.Combine(root, "data", "wm", "world_us.lgp"));
+        Equal(true, world.TryReadFile("field.tbl", out var fieldTable), "field.tbl is installed");
+        int EntryField(int location) => BitConverter.ToUInt16(fieldTable, (location * 2 - 2) * 12 + 6);
+        Equal((654, 654, 658), (EntryField(27), EntryField(47), EntryField(48)),
+            "field.tbl: both sides of Icicle Inn enter field 654; the Great Glacier enters 658");
+
+        var scripts = new FieldScriptNavigationCatalog(root);
+        var run = scripts.ReadAllScriptOpcodes(654).Single(script => script.EntityId == 11 && script.ScriptId == 2);
+        Equal("playgam", run.EntityName, "snow entity 11 is playgam");
+        var ops = run.Opcodes.Select(op => Convert.ToHexString(op.Bytes.ToArray())).ToArray();
+        Equal(true, ops.Any(op => op.StartsWith("1430090000", StringComparison.Ordinal)), "e11.s2 tests Bank[3][9] == 0");
+        Equal(true, ops.Any(op => op.StartsWith("1410820109", StringComparison.Ordinal)), "e11.s2 tests Bank[1][130] bit 1");
+        Equal(true, ops.Any(op => op.StartsWith("1410820609", StringComparison.Ordinal)), "e11.s2 tests Bank[1][130] bit 6");
+        var minigame = run.Opcodes.Single(op => op.Opcode == 0x20).Bytes.ToArray();
+        Equal((658, 0x40, 2), (BitConverter.ToUInt16(minigame, 1), (int)minigame[9], (int)minigame[10]),
+            "e11.s2 runs MINIGAME type 2, parameter 64, returning to field 658");
+        Equal(true, scripts.ReadAllScriptOpcodes(658).Any(script => script.Opcodes.Any(op =>
+                op.Opcode == 0x60 && op.Bytes.Count >= 3 && (op.Bytes[1] | op.Bytes[2] << 8) == 48)),
+            "field 658 MAPJUMPs to the world map at id 48");
+
+        var row = FieldStoryEventCatalog.CreateAllFields().Single(definition => definition.PublishAsExit && definition.FieldId == 654);
+        Equal((11, -1, -1, 11), (row.EntityId, row.MinimumGameMoment, row.MaximumGameMoment, row.RequiredEnabledLineEntityId ?? -1),
+            "the run's exit row is playgam's own line, with no story window");
+        Equal("1:130:2:2,1:130:64:64,3:9:255:0",
+            string.Join(",", row.RequiredConditions!.Select(c => $"{c.Bank}:{c.Address}:{c.Mask}:{c.Value}")),
+            "and exactly e11.s2's guards");
+
+        var coords = System.Text.Json.JsonDocument.Parse(File.ReadAllText(
+            Path.Combine(source, "external", "kujata", "field-id-to-world-map-coords.json"))).RootElement;
+        var planner = new WorldMapRoutePlanner(map) { EntranceTriangleIds = catalog.EntranceTriangleIds };
+        var glacier = catalog.Locations.Single(target => target.Label == "Great Glacier");
+        var pocket = new HashSet<int>(glacier.ArrivalTriangleIds);
+        var blockers = new HashSet<string>();
+        var queue = new Queue<int>(pocket);
+        while (queue.Count > 0)
+        {
+            foreach (var next in map.Triangles[queue.Dequeue()].Neighbors)
+            {
+                if (pocket.Contains(next) || !WorldMapTerrainPassability.CanTraverse(0, 0, map.Triangles[next].TerrainId))
+                {
+                    continue;
+                }
+
+                if (planner.IsUnwantedEntrance(next, glacier.NativeEntranceExemptions))
+                {
+                    blockers.UnionWith(catalog.Locations.Where(l => l.NativeEntranceExemptions.Contains(next)).Select(l => l.Label));
+                    continue;
+                }
+
+                pocket.Add(next);
+                queue.Enqueue(next);
+            }
+        }
+
+        Equal("Icicle Inn (North Side)", string.Join(", ", blockers), "the pocket is closed in by Icicle Inn's north-side trigger alone");
+        Equal(0, pocket.Count(id => map.Triangles[id].TerrainId == WorldMapHighwindLanding.LandingTerrainId), "the pocket holds no grass to land on");
+        foreach (var id in new[] { 47, 48 })
+        {
+            var entry = coords.GetProperty(id.ToString());
+            var x = entry.GetProperty("meshX").GetInt32() * 8192 + entry.GetProperty("coorX").GetInt32();
+            var z = entry.GetProperty("meshY").GetInt32() * 8192 + entry.GetProperty("coorY").GetInt32();
+            Equal(true, WorldMapBroncoLanding.TryFindSurfaceNear(map, x, z, 3000, out var ground) && pocket.Contains(ground.Id),
+                $"leaving a field to world id {id} puts the party in the pocket ({x},{z})");
+        }
+    }
+
+    /// <summary>
+    /// A later visit to Icicle Inn - at 1050, by Highwind, after the town's first-visit story
+    /// rows (677..1007) have gone - still offers the snowboard run in Exits, under its own native
+    /// gates and enabled line, and not as a Story step. Any one of those gates closed, and it
+    /// is not offered.
+    /// </summary>
+    private static void TheSnowboardRunIsAnExitOnALaterVisit()
+    {
+        const int events = 0x02500000;
+        IReadOnlyList<FieldNavigationTarget> Read(int moment, byte flags130, byte leader, bool lineEnabled, out IReadOnlyList<FieldNavigationTarget> story)
+        {
+            var bytes = new Dictionary<int, byte>
+            {
+                [FieldPositionReader.AddressFieldNumModels] = 1,
+                [events + 0x72] = 34,
+                [FieldNavigationObjectReader.AddressFieldBankBase] = (byte)(moment & 0xFF),
+                [FieldNavigationObjectReader.AddressFieldBankBase + 1] = (byte)(moment >> 8),
+                [FieldNavigationObjectReader.AddressFieldBankBase + 130] = flags130,
+                [FieldNavigationObjectReader.AddressFieldBankBase + 0x100 + 9] = leader
+            };
+            var reader = new FieldStoryTargetReader(
+                address => address == FieldNavigationObjectReader.AddressFieldEventDataPtr ? events : bytes.GetValueOrDefault(address) | bytes.GetValueOrDefault(address + 1) << 8,
+                address => (short)(bytes.GetValueOrDefault(address) | bytes.GetValueOrDefault(address + 1) << 8),
+                address => bytes.GetValueOrDefault(address),
+                FieldStoryEventCatalog.CreateAllFields(),
+                entity => entity == 11 && lineEnabled);
+            var position = new FieldPositionSnapshot(FieldPositionReader.FieldModule, 654, 0, -40, 3000, -280, 0, 0);
+            story = reader.ReadTargets(position);
+            return reader.ReadExitTargets(position);
+        }
+
+        const byte boardAndMap = 0x42;
+        var exits = Read(1050, boardAndMap, 0, true, out var story);
+        var runLabel = "Snowboard down to the Great Glacier from the top of the slope";
+        Equal(true, exits.Any(exit => exit.Label == runLabel && exit.Category == FieldNavigationCategory.Exits),
+            $"at 1050 the snowboard run is an Exit ({string.Join("; ", exits.Select(e => e.Label))})");
+        Equal(false, story.Any(target => target.Label == runLabel), "and not a Story step");
+        Equal(false, story.Any(target => target.Label == "Go to the top of the slope to start down"),
+            "the first-visit Story row is not forced on a later visit");
+        foreach (var (name, flags, leader, line) in new[]
+                 {
+                     ("no snowboard (bit 1 clear)", (byte)0x40, (byte)0, true),
+                     ("the map not read (bit 6 clear)", (byte)0x02, (byte)0, true),
+                     ("Cloud not leading (Bank[3][9] != 0)", boardAndMap, (byte)1, true),
+                     ("the line disabled", boardAndMap, (byte)0, false)
+                 })
+        {
+            Equal(false, Read(1050, flags, leader, line, out _).Any(exit => exit.Label == runLabel),
+                $"{name}: the run is not offered");
+        }
+    }
     /// <summary>The same destination on foot is routed as before, with no landing and no flight action.</summary>
     private static void AWalkOrABoatIsUnchanged(WorldMapData map, WorldMapNavigationTarget mideel)
     {

@@ -2440,12 +2440,16 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
 
             // The in-field room doors join after the publication gate, as on the legacy
             // runtime: which side of the door the leader is on must not unsettle the gate.
-            currentExits = FieldRoomDoorExitCatalog.Append(
-                exitPublicationGate.Observe(
-                    position.FieldId,
-                    position.ModelIndex,
-                    candidateExits,
-                    nowUtc),
+            // So do the story catalog's exits (Icicle Inn's snowboard run), under their own native
+            // conditions and enabled line.
+            currentExits = storyReader.AppendExitTargets(
+                FieldRoomDoorExitCatalog.Append(
+                    exitPublicationGate.Observe(
+                        position.FieldId,
+                        position.ModelIndex,
+                        candidateExits,
+                        nowUtc),
+                    position),
                 position);
             diagnostic =
                 $"native={currentExits.Count}, candidates={candidateExits.Count}, " +

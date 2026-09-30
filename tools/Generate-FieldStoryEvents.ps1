@@ -465,7 +465,8 @@ function Add-Definition {
         [switch] $UsesPlayerCollisionRadius,
         [switch] $UsesContactRange,
         [switch] $UsesHiddenTalkTarget,
-        [switch] $ActivatesOnOk
+        [switch] $ActivatesOnOk,
+        [switch] $PublishAsExit
     )
 
     $definition = [ordered]@{
@@ -536,6 +537,15 @@ function Add-Definition {
             throw 'ActivatesOnOk needs a touch LINE row whose native script is [OK].'
         }
         $definition.activatesOnOk = $true
+    }
+    if ($PublishAsExit) {
+        # A way out of the field no gateway or MAPJUMP names (a MINIGAME ending in another
+        # field): offered with the Exits under its own native conditions and line, with no
+        # story window. It must say which line runs it.
+        if ($Kind -ne 'Location' -or $RequiredEnabledLineEntityId -lt 0 -or -not $TriggerLine) {
+            throw 'PublishAsExit needs a Location row with its trigger line and enabled-line entity.'
+        }
+        $definition.publishAsExit = $true
     }
     if ($UsesHiddenTalkTarget) {
         # Only a Talk can be made with an entity that is not drawn, and only where the

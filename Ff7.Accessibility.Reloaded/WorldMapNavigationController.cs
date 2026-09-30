@@ -599,12 +599,15 @@ public sealed class WorldMapNavigationController
             progressSink?.Complete();
             var label = target.Label;
             var legOfObjective = glacierLegActive && GlacierRegion?.Objective is not null;
+            var onwards = throughTarget is { } beyond && ReachedThrough.TryGetValue(beyond.Label, out var way)
+                ? $" For {beyond.Label}, {way.Onwards}."
+                : string.Empty;
             ResetRoute(deactivateProgress: false);
             lastDiagnostic = $"arrived on native triangle {playerTriangle}";
             return new WorldMapNavigationOutput(
                 legOfObjective
                     ? $"Arrived at {label}. Continuing to {GlacierRegion!.Objective!.Label}."
-                    : $"Arrived at {label}. Navigation off.");
+                    : $"Arrived at {label}.{onwards} Navigation off.");
         }
 
         var routeMeasurement = MeasurePolylineProgress(
@@ -1707,6 +1710,12 @@ public sealed class WorldMapNavigationController
         bool announceOn,
         bool preserveProgressRoute = false)
     {
+        // A different destination is a new route; the same one (a replan) keeps where it leads.
+        if (!string.Equals(activeTarget?.StableId, target.StableId, StringComparison.Ordinal))
+        {
+            throughTarget = null;
+        }
+
         var continuesProgressRoute =
             preserveProgressRoute &&
             beaconEnabled &&
@@ -1760,6 +1769,11 @@ public sealed class WorldMapNavigationController
             // own landing sets the party down on ground that leads to it.
             if (!TryBuildHighwindRoute(state, target, out highwind, out route, out highwindDiagnostic))
             {
+                if (TryStartThroughGateway(target, state, now, announceOn) is { } throughHighwind)
+                {
+                    return throughHighwind;
+                }
+
                 ResetRoute();
                 lastDiagnostic = highwindDiagnostic;
                 return new WorldMapNavigationOutput(
@@ -1773,6 +1787,11 @@ public sealed class WorldMapNavigationController
             var diagnostic = planner.LastDiagnostic;
             if (!IsDestination(target) || state.PlayerModelId != WorldMapBroncoLanding.BroncoModelId)
             {
+                if (TryStartThroughGateway(target, state, now, announceOn) is { } throughOnFoot)
+                {
+                    return throughOnFoot;
+                }
+
                 ResetRoute();
                 lastDiagnostic = diagnostic;
                 return new WorldMapNavigationOutput($"Route unavailable to {target.Label}. Navigation off.");
@@ -2073,7 +2092,9 @@ public sealed class WorldMapNavigationController
         if (byHighwind && !TryBuildHighwindRoute(state, target, out _, out preview, out _))
         {
             return new WorldMapNavigationOutput(
-                $"{DisplayName(CurrentCategory)}, {target.Label}. No grass landing spot that leads there on foot.");
+                ReachedThrough.TryGetValue(target.Label, out var throughWay)
+                    ? $"{DisplayName(CurrentCategory)}, {target.Label}. Reached through {throughWay.Gateway}: {throughWay.Why}."
+                    : $"{DisplayName(CurrentCategory)}, {target.Label}. No grass landing spot that leads there on foot.");
         }
 
         if ((byHighwind ||
@@ -2106,7 +2127,9 @@ public sealed class WorldMapNavigationController
         }
 
         return new WorldMapNavigationOutput(
-            $"{DisplayName(CurrentCategory)}, {target.Label}. Route unavailable.");
+            ReachedThrough.TryGetValue(target.Label, out var gatewayWay)
+                ? $"{DisplayName(CurrentCategory)}, {target.Label}. Reached through {gatewayWay.Gateway}: {gatewayWay.Why}."
+                : $"{DisplayName(CurrentCategory)}, {target.Label}. Route unavailable.");
     }
 
     private const string LandingRouteSummary = "By Tiny Bronco to a shore landing, then on foot";
@@ -2828,6 +2851,73 @@ public sealed class WorldMapNavigationController
         target.Kind is WorldMapTargetKind.Location or WorldMapTargetKind.Story;
 
     /// <summary>
+    /// Destinations whose world-map ground no route can reach from outside - no landing, no
+    /// walk - and the destination whose own field is the way to them.
+    ///
+    /// <para>The Great Glacier's trigger (world location 48) and Icicle Inn's north side (47)
+    /// stand in one pocket of snow north of the town: no grass in it to land on, and closed in
+    /// by Icicle Inn's own north-side trigger, so no walk enters it either. field.tbl sends both
+    /// 27 (the south side) and 47 into field 654, the town. The town's way to the Great Glacier
+    /// is the snowboard run: snow/playgam's Move (e11.s2), under Bank[3][9] == 0 and
+    /// Bank[1][130] bits 1 and 6, runs MINIGAME type 2 into field 658, whose line03 MAPJUMPs to
+    /// the world map at id 48 - in that pocket. So for either, the way is Icicle Inn's south
+    /// side, where the Highwind can land; the run itself is offered in the town's Exits
+    /// (story-regions/IcicleInn.ps1). WorldMapHighwindNavigationTests reads all of this back
+    /// out of the installed game. Nothing is walked or flown past the gateway.</para>
+    /// </summary>
+    private static readonly IReadOnlyDictionary<string, (string Gateway, string Why, string Onwards)> ReachedThrough =
+        new Dictionary<string, (string Gateway, string Why, string Onwards)>(StringComparer.Ordinal)
+        {
+            ["Icicle Inn (North Side)"] = ("Icicle Inn (South Side)",
+                "both sides of Icicle Inn enter the same town",
+                "you are entering the same town"),
+            ["Great Glacier"] = ("Icicle Inn (South Side)",
+                "the way there is the snowboard run from the top of the slope in the village",
+                "snowboard down from the top of the slope in the village, in Exits")
+        };
+
+    // The destination the active route leads towards through its gateway (ReachedThrough).
+    private WorldMapNavigationTarget? throughTarget;
+
+    /// <summary>
+    /// When <paramref name="target"/> cannot be routed to and <see cref="ReachedThrough"/> names
+    /// its gateway: navigation to the gateway instead, said as such. Null when there is none, or
+    /// the gateway cannot be routed to either.
+    /// </summary>
+    private WorldMapNavigationOutput? TryStartThroughGateway(
+        WorldMapNavigationTarget target,
+        WorldMapStateSnapshot state,
+        DateTime now,
+        bool announceOn)
+    {
+        if (!ReachedThrough.TryGetValue(target.Label, out var way) ||
+            (targetProvider(state, WorldMapNavigationCategory.Locations) ?? Array.Empty<WorldMapNavigationTarget>())
+                .FirstOrDefault(location => string.Equals(location.Label, way.Gateway, StringComparison.Ordinal))
+                is not { } gateway ||
+            string.Equals(gateway.StableId, target.StableId, StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        var started = StartNavigation(gateway, state, now, announceOn: false);
+        if (started is not { } output || !beaconEnabled ||
+            !string.Equals(activeTarget?.StableId, gateway.StableId, StringComparison.Ordinal))
+        {
+            // Already there, or no route to the gateway either: say that, with the way on.
+            return started is { } said && said.Speech?.StartsWith("Arrived at", StringComparison.Ordinal) == true
+                ? said with { Speech = $"{said.Speech.Replace(" Navigation off.", string.Empty)} For {target.Label}, {way.Onwards}. Navigation off." }
+                : null;
+        }
+
+        throughTarget = target;
+        lastDiagnostic = $"{target.Label} is reached through {gateway.Label}; {lastDiagnostic}";
+        return output with
+        {
+            Speech = $"{(announceOn ? "Navigation on. " : string.Empty)}{target.Label} is reached through {gateway.Label}: {way.Why}. {output.Speech}"
+        };
+    }
+
+    /// <summary>
     /// A destination the Highwind cannot arrive at in the air, so is flown to a landing for.
     /// Towns are entered on foot or by a vehicle on the ground; flying over one enters
     /// nothing (the 2026-09-29 flight over Mideel). The Highwind's own stops - Midgar at
@@ -3061,6 +3151,7 @@ public sealed class WorldMapNavigationController
 
     private void ResetRoute(bool deactivateProgress = true)
     {
+        throughTarget = null;
         if (deactivateProgress)
         {
             progressSink?.Deactivate();
