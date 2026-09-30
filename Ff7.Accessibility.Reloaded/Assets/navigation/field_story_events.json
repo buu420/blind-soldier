@@ -5,7 +5,7 @@
   "scannedGameMomentWrites": 334,
   "navigableGameMomentWrites": 118,
   "unresolvedAutomaticOrIndirectWrites": 219,
-  "definitionCount": 1443,
+  "definitionCount": 1444,
   "definitions": [
     {
       "fieldId": 115,
@@ -47510,6 +47510,54 @@
       ],
       "requiredEnabledLineEntityId": 8,
       "usesPlayerCollisionRadius": true
+    },
+    {
+      "fieldId": 654,
+      "kind": "Location",
+      "label": "Snowboard down to the Great Glacier from the top of the slope",
+      "entityId": 11,
+      "x": -47,
+      "y": 3473,
+      "z": -280,
+      "targetGameMoment": -1,
+      "minimumGameMoment": -1,
+      "maximumGameMoment": -1,
+      "priority": 100,
+      "sourceFieldName": "snow",
+      "sourceEntityName": "playgam",
+      "sourceScriptType": "Move",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 1,
+          "address": 130,
+          "mask": 2,
+          "value": 2
+        },
+        {
+          "bank": 1,
+          "address": 130,
+          "mask": 64,
+          "value": 64
+        },
+        {
+          "bank": 3,
+          "address": 9,
+          "mask": 255,
+          "value": 0
+        }
+      ],
+      "triggerLine": {
+        "startX": -78,
+        "startY": 3517,
+        "startZ": -280,
+        "endX": -16,
+        "endY": 3430,
+        "endZ": -280
+      },
+      "requiredEnabledLineEntityId": 11,
+      "usesPlayerCollisionRadius": true,
+      "publishAsExit": true
     }
   ]
 }

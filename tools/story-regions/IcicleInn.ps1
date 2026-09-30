@@ -128,6 +128,23 @@ Add-Definition -FieldId 654 -FieldName 'snow' -Kind Location -EntityId 11 `
     -RequiredEnabledLineEntityId 11 `
     -TriggerLine ([ordered]@{ startX=-78; startY=3517; startZ=-280; endX=-16; endY=3430; endZ=-280 })
 
+# The same slope on any later visit, for instance by Highwind: the way from Icicle Inn to the
+# Great Glacier. playgam's Move (e11.s2) has no GameMoment test of its own - only
+# Bank[3][9] == 0 (byte 7), Bank[1][130] bit 1 (byte 16) and bit 6 (byte 22) - before its
+# MINIGAME type 2 into field 658 at byte 58, whose line03 MAPJUMPs to the world map at 48,
+# the snow north of the town where the Great Glacier's own trigger stands. So it is offered
+# with the Exits, under exactly those conditions and its enabled line, and not as a Story
+# step: the story may be anywhere by then.
+Add-Definition -FieldId 654 -FieldName 'snow' -Kind Location -EntityId 11 `
+    -Label 'Snowboard down to the Great Glacier from the top of the slope' -X -47 -Y 3473 -Z -280 `
+    -RequiredConditions @(
+        (New-Condition -Bank 1 -Address 130 -Mask 2 -Value 2),
+        (New-Condition -Bank 1 -Address 130 -Mask 64 -Value 64),
+        (New-Condition -Bank 3 -Address 9 -Mask 255 -Value 0)) `
+    -EntityName 'playgam' -ScriptType 'Move' -UsesPlayerCollisionRadius `
+    -RequiredEnabledLineEntityId 11 -PublishAsExit `
+    -TriggerLine ([ordered]@{ startX=-78; startY=3517; startZ=-280; endX=-16; endY=3430; endZ=-280 })
+
 # Reviewed above. The village's other buildings are ordinary shops and are not part of
 # the route, and the later visit is a different chapter with its own state.
 Add-CuratedFields 654, 655, 656

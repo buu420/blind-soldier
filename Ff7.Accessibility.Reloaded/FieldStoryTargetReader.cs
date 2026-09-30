@@ -70,7 +70,11 @@ public readonly record struct FieldStoryEventDefinition(
     bool UsesHiddenTalkTarget = false,
     // A touch LINE whose script runs from its OK slot (00637D35): the leader must also face the
     // line, so auto walk turns to it before saying it has arrived. Go lines run on the touch.
-    bool ActivatesOnOk = false);
+    bool ActivatesOnOk = false,
+    // A way out of the field that no gateway or MAPJUMP names - a MINIGAME that ends in another
+    // field - published with the Exits instead of as a Story step, whenever its own native
+    // conditions and line allow it, whatever the story's current objective is.
+    bool PublishAsExit = false);
 
 public static class FieldStoryEventCatalog
 {
@@ -172,7 +176,8 @@ public sealed class FieldStoryTargetReader
         var candidates = new List<(FieldStoryEventDefinition Definition, FieldNavigationTarget Target)>();
         foreach (var definition in definitions)
         {
-            if (!IsInGameMomentRange(definition, gameMoment) ||
+            if (definition.PublishAsExit ||
+                !IsInGameMomentRange(definition, gameMoment) ||
                 !MeetsCondition(definition.RequiredCondition) ||
                 !MeetsConditions(definition.RequiredConditions) ||
                 !MeetsPlayerTriangleConditions(definition, position.TriangleId) ||
@@ -221,6 +226,55 @@ public sealed class FieldStoryTargetReader
         }
 
         return current.Select(candidate => candidate.Target).ToArray();
+    }
+
+    /// <summary>
+    /// The rows published as Exits (<see cref="FieldStoryEventDefinition.PublishAsExit"/>) whose
+    /// native conditions, enabled line and game-moment bounds hold now. None of the Story's
+    /// priority or milestone narrowing applies: an exit is there whenever the game offers it.
+    /// </summary>
+    public IReadOnlyList<FieldNavigationTarget> ReadExitTargets(FieldPositionSnapshot position)
+    {
+        if (!FieldPositionReader.IsUsable(position) ||
+            !definitionsByField.TryGetValue(position.FieldId, out var definitions) ||
+            !definitions.Any(definition => definition.PublishAsExit))
+        {
+            return EmptyTargets;
+        }
+
+        var gameMoment = ReadGameMoment();
+        var exits = new List<FieldNavigationTarget>();
+        foreach (var definition in definitions)
+        {
+            if (!definition.PublishAsExit ||
+                !IsInGameMomentRange(definition, gameMoment) ||
+                !MeetsCondition(definition.RequiredCondition) ||
+                !MeetsConditions(definition.RequiredConditions) ||
+                !MeetsPlayerTriangleConditions(definition, position.TriangleId) ||
+                (definition.RequiredEnabledLineEntityId is { } requiredLine &&
+                 isLineEnabled?.Invoke(requiredLine) != true) ||
+                MeetsCompletedCondition(definition.CompletedCondition) ||
+                ResolveTarget(definition, position) is not { } target)
+            {
+                continue;
+            }
+
+            exits.Add(target with
+            {
+                Category = FieldNavigationCategory.Exits,
+                StableId = $"story-exit:{definition.FieldId}:{definition.EntityId}:{definition.Label}"
+            });
+        }
+
+        return exits;
+    }
+
+    /// <summary>A published exit list with the story-catalog exits of this field added.</summary>
+    public IReadOnlyList<FieldNavigationTarget> AppendExitTargets(
+        IReadOnlyList<FieldNavigationTarget> published, FieldPositionSnapshot position)
+    {
+        var exits = ReadExitTargets(position);
+        return exits.Count == 0 ? published : published.Concat(exits).DistinctBy(target => target.StableId).ToArray();
     }
 
     // The engine's own OK verdict for a LINE on this read (00637D35 without the key press): its

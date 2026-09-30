@@ -1481,7 +1481,11 @@ public sealed class Mod : IModV1, IModV2
         // door leads. They join after the settled native list, so walking from one side to
         // the other never unsettles - and empties - the other exits under an active walk.
         reachableFieldExitTargetProvider = new ReachableFieldExitTargetProvider(
-            position => FieldRoomDoorExitCatalog.Append(nativeFieldExitTargetProvider.ReadTargets(position), position),
+            // Story-catalog exits (Icicle Inn's snowboard run) join the same way, each under its
+            // own native conditions and enabled line.
+            position => fieldStoryTargetReader?.AppendExitTargets(
+                    FieldRoomDoorExitCatalog.Append(nativeFieldExitTargetProvider.ReadTargets(position), position), position) ??
+                FieldRoomDoorExitCatalog.Append(nativeFieldExitTargetProvider.ReadTargets(position), position),
             fieldExitReachabilityPlanner);
         fieldExitProximityCueTracker = new FieldExitProximityCueTracker(
             config.FieldExitCueInnerRangeUnits,
