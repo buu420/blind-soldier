@@ -20,6 +20,7 @@ internal static class Steam2026WorldMapTerrainPriorityTests
         TheX64HostRepeatsADirectionalCueTowardJunonsNativeEntrance();
         ControllerBumpersCycleWorldCategoriesAndKeepSpeechPriority();
         AVisibleWorldWarningSpeaksAndReleasesMovement();
+        AWorldChoiceSpeaksItsPromptAndThenOnlyTheMovedCursor();
         LostControlReleasesMovementBeforeTheScanThrottle();
     }
 
@@ -47,8 +48,9 @@ internal static class Steam2026WorldMapTerrainPriorityTests
         Equal(true, autoWalk.IsEnabledFor(NavigationAutoWalkDomain.WorldMap),
             "suspending for the native script retains the walk intent");
 
+        // FUN_00769836 opens the window with the world's owner, DAT_00CC0964 = 0xFF.
         memory.WriteUInt16(WorldMapDialogueReader.WindowStateAddress, 6);
-        memory.WriteByte((uint)FieldMessageReader.AddressFieldWindowStates, 0);
+        memory.WriteByte((uint)FieldMessageReader.AddressFieldWindowStates, 0xFF);
         memory.WriteUInt32(WorldMapDialogueReader.TextPointerAddress, 0x01234000);
         for (var index = 0; index < 256; index++)
         {
@@ -60,14 +62,57 @@ internal static class Steam2026WorldMapTerrainPriorityTests
         Equal(1, spoken.Count(text => text == warning), "a completed visible warning is spoken once");
 
         memory.WriteUInt16(WorldMapDialogueReader.WindowStateAddress, 0);
-        memory.WriteByte((uint)FieldMessageReader.AddressFieldWindowStates, 0xFF);
         memory.WriteInt32(WorldMapDialogueReader.ControlAddress, 1);
         Observe(coordinator, Epoch.AddMilliseconds(750));
         memory.WriteUInt16(WorldMapDialogueReader.WindowStateAddress, 6);
-        memory.WriteByte((uint)FieldMessageReader.AddressFieldWindowStates, 0);
         memory.WriteInt32(WorldMapDialogueReader.ControlAddress, 0);
         Observe(coordinator, Epoch.AddMilliseconds(1000));
         Equal(2, spoken.Count(text => text == warning), "a later warning window is announced again");
+    }
+
+    /// <summary>
+    /// A world ASK (FUN_0075EEBB: first line E36108, last line E36100, cursor E36104) through
+    /// the real x64 coordinator: the prompt and highlighted option once, then only a moved
+    /// cursor, and the party stays held while the choice is up.
+    /// </summary>
+    private static void AWorldChoiceSpeaksItsPromptAndThenOnlyTheMovedCursor()
+    {
+        var spoken = new List<string>();
+        var memory = SeedWorldMemory(terrainId: 0);
+        var sink = new AcceptingKeyboardSink();
+        using var autoWalk = new NavigationAutoWalkController(sink);
+        using var coordinator = CreateCoordinator(memory, new MutableInput(), autoWalk,
+            (text, _) => spoken.Add(text));
+        Observe(coordinator, Epoch);
+
+        var lines = new[] { "Cloud", "Now for the Chocobo...", "Send it back to the stables", "Turn it loose" };
+        var rendered = string.Join('\n', lines);
+        memory.WriteInt32(WorldMapDialogueReader.ControlAddress, 0);
+        memory.WriteUInt16(WorldMapDialogueReader.WindowStateAddress, 6);
+        memory.WriteByte((uint)FieldMessageReader.AddressFieldWindowStates, 0xFF);
+        memory.WriteUInt32(WorldMapDialogueReader.TextPointerAddress, 0x01234000);
+        for (var index = 0; index < 256; index++)
+        {
+            memory.WriteByte(WorldMapDialogueReader.TextBufferAddress + (uint)index,
+                index < rendered.Length ? rendered[index] == '\n' ? 0xE7 : rendered[index] - 32 : 0xFF);
+        }
+        memory.WriteUInt16(WorldMapDialogueReader.AskFirstLineAddress, 2);
+        memory.WriteUInt16(WorldMapDialogueReader.AskLastLineAddress, 3);
+        memory.WriteUInt16(WorldMapDialogueReader.AskCursorAddress, 2);
+        memory.WriteByte(WorldMapDialogueReader.CursorShownAddress, 1);
+        Observe(coordinator, Epoch.AddMilliseconds(250));
+        Observe(coordinator, Epoch.AddMilliseconds(500));
+        Equal(1, spoken.Count(text => text ==
+                "Cloud Now for the Chocobo... " +
+                "Send it back to the stables, 1 of 2."),
+            "the prompt and its highlighted option are spoken once");
+
+        spoken.Clear();
+        memory.WriteUInt16(WorldMapDialogueReader.AskCursorAddress, 3);
+        Observe(coordinator, Epoch.AddMilliseconds(750));
+        Observe(coordinator, Epoch.AddMilliseconds(1000));
+        Equal("Turn it loose, 2 of 2.", string.Join(" | ", spoken), "a moved cursor speaks only the new option");
+        Equal(false, sink.Sent.Any(transition => transition.IsKeyDown), "nothing is pressed for the player");
     }
 
     private static void ControllerBumpersCycleWorldCategoriesAndKeepSpeechPriority()
@@ -669,6 +714,11 @@ internal static class Steam2026WorldMapTerrainPriorityTests
         // menu's session flag and slide phase: no menu session, closed.
         memory.WriteInt32((uint)MenuGilStateReader.AddressMainMenuSession, 0);
         memory.WriteInt32((uint)MenuGilStateReader.AddressMainMenuPhase, -1);
+        // FUN_0075EE50 sets the world's window owner to 0xFF; no ASK is pending.
+        memory.WriteByte(WorldMapDialogueReader.CurrentWindowOwnerAddress, 0xFF);
+        memory.WriteUInt16(WorldMapDialogueReader.AskFirstLineAddress, 0);
+        memory.WriteUInt16(WorldMapDialogueReader.AskLastLineAddress, 0);
+        memory.WriteUInt16(WorldMapDialogueReader.AskCursorAddress, 0);
         for (var window = 0; window < 4; window++)
         {
             memory.WriteUInt16(WorldMapDialogueReader.WindowStateAddress + (uint)(window * 0x30), 0);
