@@ -29,9 +29,10 @@ internal static class WorldMapMovementOwnershipTests
     private static void ATornWindowDoesNotHideThatControlWasTaken()
     {
         var memory = WorldMemory(control: 0, session: 0, phase: -1);
-        // A window whose owner byte says free while its state says open: TryRead refuses it.
+        // A world window (owner 0xFF, the world's DAT_00CC0964) open while its rendered text
+        // cannot be read: TryRead refuses it.
         memory.WriteUInt16(WorldMapDialogueReader.WindowStateAddress, 6);
-        memory.WriteByte((uint)FieldMessageReader.AddressFieldWindowStates, FieldMessageReader.FreeWindowState);
+        memory.WriteByte((uint)FieldMessageReader.AddressFieldWindowStates, 0xFF);
         var reader = new WorldMapDialogueReader(memory);
         Equal(false, reader.TryRead(out _), "the torn window is not read");
         Equal(true, reader.TryReadMovementOwnership(out var ownership), "ownership is still read");
@@ -301,6 +302,11 @@ internal static class WorldMapMovementOwnershipTests
         memory.WriteInt32(WorldMapDialogueReader.ControlAddress, control);
         memory.WriteInt32((uint)MenuGilStateReader.AddressMainMenuSession, session);
         memory.WriteInt32((uint)MenuGilStateReader.AddressMainMenuPhase, phase);
+        // FUN_0075EE50 sets the world's window owner to 0xFF; no ASK is pending.
+        memory.WriteByte(WorldMapDialogueReader.CurrentWindowOwnerAddress, 0xFF);
+        memory.WriteUInt16(WorldMapDialogueReader.AskFirstLineAddress, 0);
+        memory.WriteUInt16(WorldMapDialogueReader.AskLastLineAddress, 0);
+        memory.WriteUInt16(WorldMapDialogueReader.AskCursorAddress, 0);
         for (var window = 0; window < 4; window++)
         {
             memory.WriteUInt16(WorldMapDialogueReader.WindowStateAddress + (uint)(window * 0x30), 0);
