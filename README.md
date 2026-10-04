@@ -72,6 +72,14 @@ exploration, and please report them.
 
 ### Minigames and activities
 
+At the Gold Saucer GP seller, speech reports the selected GP amount and gil cost.
+Battle Square announces the between-round Continue/Quit choices, the selected
+answer, current BP, and the handicap after the reels stop. Registration reads
+the displayed GP balance and party-member choices.
+
+The submarine mission reports its instruments and visible target markers on both
+runtimes. Press `K` to repeat its status; a separate sound signals target lock.
+
 Implemented with spoken state, cues, or both: the motorcycle/highway escape
 (including optional automatic steering on `F8`), the Speed Square coaster with
 its aiming readout, G-Bike, 3D Battler, arm wrestling, basketball, the Wonder
@@ -515,8 +523,13 @@ one category, even if the D-pad is already repeating.
 If more than one controller is connected, the menu follows the pad you click R3
 on, so a PlayStation and an Xbox controller can be plugged in at the same time.
 The menu stays with that pad until you close it; a second controller cannot take
-a menu somebody is already reading, and its buttons keep working in the game
-normally.
+a menu somebody is already reading, and its ordinary buttons keep working in the
+game normally. On Steam x64, R3 is reserved for navigation while controller
+navigation is enabled, including when a game dialogue prevents the menu from
+opening. This keeps navigation clicks from toggling Battle Assist. It also reserves
+R3 when combined with other buttons, so native controller shortcuts using R3 are
+unavailable. Their keyboard shortcuts (F1, F2 and F9) remain available; Battle
+Assist can also be changed in the game's Boosts settings.
 
 ### Battle status keys
 

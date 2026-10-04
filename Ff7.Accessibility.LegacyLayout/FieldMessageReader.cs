@@ -272,7 +272,9 @@ public sealed class FieldMessageReader
             return false;
         }
 
-        var text = Ff7EncodedTextDecoder.NormalizeWhitespace(Ff7EncodedTextDecoder.Decode(bytes));
+        var text = Ff7EncodedTextDecoder.NormalizeWhitespace(string.Join(
+            " ",
+            DecodeWithParty(bytes).SelectMany(page => page.Lines).Select(line => line.Text)));
         if (text.Length == 0)
         {
             return false;
@@ -348,7 +350,7 @@ public sealed class FieldMessageReader
             return false;
         }
 
-        lines = Ff7EncodedTextDecoder.DecodeLines(bytes);
+        lines = DecodeWithParty(bytes).SelectMany(page => page.Lines).Select(line => line.Text).ToArray();
         return true;
     }
 
@@ -362,8 +364,22 @@ public sealed class FieldMessageReader
             return false;
         }
 
-        pages = Ff7EncodedTextDecoder.DecodePages(bytes);
+        pages = DecodeWithParty(bytes);
         return pages.Count != 0;
+    }
+
+    /// <summary>
+    /// A message as the window will draw it: 0xF3 to 0xF5 are whoever is in party slots one to
+    /// three (the Battle Square's "Which one of you will participate?" lists them), named from
+    /// the savemap the way the game names them. The window's own rendered buffer already holds
+    /// those names; the message table holds only the codes.
+    /// </summary>
+    private IReadOnlyList<Ff7DecodedTextPage> DecodeWithParty(byte[] bytes)
+    {
+        var party = new SavemapPartyReader(addressSpace!);
+        return Ff7EncodedTextDecoder.DecodePages(
+            bytes,
+            slot => party.TryReadPartySlot(slot, out var member) ? member.Name : null);
     }
 
     private bool TryReadCheckedMessageBytes(int messageId, out byte[] bytes, out CheckedFrame before)

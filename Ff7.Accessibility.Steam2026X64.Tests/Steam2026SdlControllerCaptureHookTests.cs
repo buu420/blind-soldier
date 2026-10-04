@@ -163,8 +163,8 @@ internal static class Steam2026SdlControllerCaptureHookTests
                     Sdl.SetVirtualButton(secondJoystick, ButtonRightStick, 1);
                     hook.Capture.PublishContext(
                         ControllerNavigationDomain.Field, true, true, false, DateTime.UtcNow, identity: 500);
-                    Equal((byte)1, Sdl.GetButton(second, ButtonRightStick),
-                        "a click we never saw go down reaches the game untouched");
+                    Equal((byte)0, Sdl.GetButton(second, ButtonRightStick),
+                        "an unarmed navigation click cannot toggle Battle Assist");
                     Equal(false, hook.Capture.IsOpen, "and does not open the menu");
                     Equal(controller, hook.LatchedController,
                         "nor move the menu to that pad");
@@ -187,8 +187,8 @@ internal static class Steam2026SdlControllerCaptureHookTests
                     Sdl.SetVirtualButton(joystick, ButtonRightStick, 1);
                     hook.Capture.PublishContext(
                         ControllerNavigationDomain.Field, true, true, false, DateTime.UtcNow, identity: 500);
-                    Equal((byte)1, Sdl.GetButton(controller, ButtonRightStick),
-                        "the other pad keeps its own buttons while somebody else has the menu");
+                    Equal((byte)0, Sdl.GetButton(controller, ButtonRightStick),
+                        "the other pad's R3 is reserved while somebody else has the menu");
                     Equal(true, hook.Capture.IsOpen, "which stays open");
                     Equal(second, hook.LatchedController, "on the pad that opened it");
                     Sdl.SetVirtualButton(joystick, ButtonRightStick, 0);

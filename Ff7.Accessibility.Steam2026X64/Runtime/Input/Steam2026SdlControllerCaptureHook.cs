@@ -7,6 +7,8 @@ namespace Ff7.Accessibility.Steam2026X64.Runtime.Input;
 /// <summary>
 /// Takes the navigation menu's buttons out of the controller state the Steam 2026 host
 /// is given, in the same read that produced them.
+/// R3 stays reserved even when the menu cannot open: the native game otherwise
+/// treats its release as the Battle Assist shortcut.
 ///
 /// <para>The seam is SDL, on binary evidence: the exact supported <c>FFVII.exe</c>
 /// imports <c>SDL_GameControllerGetButton</c>, <c>SDL_GameControllerUpdate</c>,
@@ -363,27 +365,36 @@ internal sealed class Steam2026SdlControllerCaptureHook : IDisposable
             return raw;
         }
 
+        // The native shortcut table (action 15) binds Battle Assist to logical
+        // button 1, which SDL maps to R3, and toggles it on RELEASE. Navigation
+        // owns this binding for the lifetime of the installed hook, including
+        // busy/stale contexts and other pads. Letting even one held sample escape
+        // would turn a failed navigation click into a cheat toggle. Ordinary
+        // controls still fail open; Boosts remains available in the game's menu.
+        var gameValue = button == SdlRightStick ? (byte)0 : raw;
+
         try
         {
             var mapped = MapButton(button);
             if (!TryOwn(controller))
             {
-                return raw;
+                return gameValue;
             }
 
             var strip = Decide(controller);
-            return mapped != GamepadButton.None && (strip & mapped) == mapped ? (byte)0 : raw;
+            return mapped != GamepadButton.None && (strip & mapped) == mapped ? (byte)0 : gameValue;
         }
         catch (Exception ex)
         {
             log?.Invoke($"Controller navigation capture failed and was bypassed: {ex.Message}");
-            return raw;
+            return gameValue;
         }
     }
 
     /// <summary>
     /// Whether this device is the one the menu is listening to. A device we do not own
-    /// is read and filtered by nobody - its buttons go back to the game untouched.
+    /// keeps its ordinary controls. R3 is reserved on every device so it cannot
+    /// trigger the native Battle Assist shortcut.
     ///
     /// <para>The first device the game reads is latched exactly as it always was. On a
     /// single pad that happens during startup, long before the player reaches for
