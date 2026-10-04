@@ -1,6 +1,6 @@
 # Gold Saucer, Pagoda, controller shortcuts and submarine
 
-This is a local candidate after 0.8.2, without a version bump or public release.
+This records the changes and evidence prepared for release 0.8.3.
 Evidence comes from the tester's cumulative x64 log through October 3, the
 licensed field archives, and cached Ghidra output for both supported executables.
 
