@@ -12,6 +12,7 @@ internal static class FieldDialogueScriptLayoutTests
         AssertMessageReaderRejectsActiveBulkReadFailure();
         AssertMessageIdReaderBoundsHighGuestText();
         AssertMessageIdReaderPreservesAskPagesAndChoiceIndent();
+        AssertMessageIdReaderNamesThePartySlots();
         AssertMessageIdReaderRejectsInvalidMessageTables();
         AssertMessageIdReaderRejectsTornMessageTables();
         AssertScriptContextReaderChecksNestedState();
@@ -277,6 +278,70 @@ internal static class FieldDialogueScriptLayoutTests
         Equal(false, pages[1].Lines[0].IsChoice, "ASK prompt is not a choice");
         Equal("C", pages[1].Lines[1].Text, "second ASK page choice");
         Equal(true, pages[1].Lines[1].IsChoice, "native choice indent is preserved");
+    }
+
+    /// <summary>
+    /// coloin1's dialog 29, the Battle Square's "Which one of you will participate?" choices, is
+    /// 0xF3, 0xF4 and 0xF5 on three indented (0xE0) choice lines: whoever is in party slots one to three. The window
+    /// draws their names; read from the message table they were three replacement characters,
+    /// and the October 3 log spoke "�, choice 1 of 3". Names come from the savemap, as the game
+    /// draws them, renamed or not; an empty slot is still not named.
+    /// </summary>
+    private static void AssertMessageIdReaderNamesThePartySlots()
+    {
+        const uint data = 0x706000;
+        var memory = MessageMemory();
+        U32(memory, FieldMessageReader.AddressFieldMessageDataPointer, data);
+        U16(memory, data, 1);
+        U16(memory, data + 2, 0x10);
+        var encoded = new byte[0xff0];
+        Array.Fill(encoded, (byte)0xff);
+        byte[] content = [0xe0, 0xf3, 0xe7, 0xe0, 0xf4, 0xe7, 0xe0, 0xf5, 0xff];
+        content.CopyTo(encoded, 0);
+        memory.Write(data + 0x10, encoded);
+
+        void Party(int slot, byte character, string? name)
+        {
+            memory.Write((uint)(SavemapPartyReader.AddressSavemap + SavemapPartyReader.PartyMembersOffset + slot), [character]);
+            if (name is null) return;
+            var bytes = new byte[12];
+            Array.Fill(bytes, (byte)0xff);
+            for (var i = 0; i < name.Length; i++) bytes[i] = (byte)(name[i] - 0x20);
+            memory.Write((uint)(SavemapPartyReader.AddressSavemap + SavemapPartyReader.CharactersOffset +
+                character * SavemapPartyReader.CharacterSize + SavemapPartyReader.CharacterNameOffset), bytes);
+        }
+
+        Party(0, 0, "Cloud");
+        Party(1, 5, "Yuffie");
+        Party(2, 8, "Cid");
+        var reader = new FieldMessageReader(memory);
+        Equal(true, reader.TryReadMessagePagesById(0, out var pages), "the choices read");
+        Equal("Cloud|Yuffie|Cid", string.Join("|", pages[0].Lines.Select(line => line.Text)), "each slot's own character");
+        Equal(true, reader.TryReadMessageLinesById(0, out var lines), "as lines");
+        Equal("Cloud|Yuffie|Cid", string.Join("|", lines), "the same names");
+
+        Party(0, 0, "Spike");
+        Equal(true, reader.TryReadMessageById(0, out var renamed), "as one message");
+        Equal("Spike Yuffie Cid", renamed.Text, "the name the player gave, as the window draws it");
+
+        Party(2, 0xff, null);
+        Equal(true, reader.TryReadMessagePagesById(0, out var gap), "with an empty third slot");
+        Equal("�", gap[0].Lines[2].Text, "an empty slot is not given a name");
+
+        // The installed coloin1 (500) is what the content above copies: dialog 29 is the three
+        // party-slot codes on three lines.
+        var root = Environment.GetEnvironmentVariable("FF7_ACCESSIBILITY_DATA_ROOT");
+        if (string.IsNullOrWhiteSpace(root) || !new FlevelDataSource(root).TryReadField("coloin1", out var file))
+        {
+            Console.WriteLine("Party-slot names: no installed coloin1; native dialog check not run.");
+            return;
+        }
+
+        var field = Ff7LzsDecoder.DecodeFieldFile(file);
+        var section = BitConverter.ToInt32(field, 6) + 4;
+        var table = section + BitConverter.ToUInt16(field, section + 4);
+        var text = table + BitConverter.ToUInt16(field, table + 2 + 29 * 2);
+        Equal("E0F3E7E0F4E7E0F5FF", Convert.ToHexString(field, text, content.Length), "installed coloin1 dialog 29");
     }
 
     private static void AssertMessageIdReaderRejectsInvalidMessageTables()

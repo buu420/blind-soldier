@@ -75,6 +75,13 @@ public readonly record struct FieldActivityObservation(
     public FieldActivityNumericWindow NumericWindow { get; init; }
 
     /// <summary>
+    /// Every numeric window this field's readout reads (<see cref="FieldActivityReadout.ObservedNumericWindows"/>),
+    /// by window id. A window whose read failed or tore is absent: nothing is known about it,
+    /// which is not the same as its being closed.
+    /// </summary>
+    public IReadOnlyDictionary<int, FieldActivityNumericWindow>? NumericWindows { get; init; }
+
+    /// <summary>
     /// Bank[5], the field's own temporary bytes, or null when they could not be read.
     /// The wind fields keep their strength, gust gap and safe flag here, and the cliff
     /// keeps the climbing bit that decides whether warming is possible at all.
@@ -309,12 +316,18 @@ public sealed class FieldActivityReadout
     private DateTime clockLastSpokenAt = DateTime.MinValue;
     private string? clockCurrentLine;
 
+    // The Gold Saucer GP exchange's own state, like the clock's: the amount last said and the
+    // amount on screen now.
+    private string? gpExchangeLastSpoken;
+    private string? gpExchangeCurrentLine;
+
     public void Reset()
     {
         ResetShared();
         ResetClock();
         ResetChase();
         ResetExcavation();
+        ResetGpExchange();
     }
 
     private void ResetShared()
@@ -330,7 +343,7 @@ public sealed class FieldActivityReadout
     /// "Stopped, ..." and the time the hands show, or null when no clock is being read. The host
     /// delivers this rather than an older line it could not say at the time.
     /// </summary>
-    public string? CurrentReplaceableLine => clockCurrentLine;
+    public string? CurrentReplaceableLine => clockCurrentLine ?? gpExchangeCurrentLine;
 
     public FieldActivityCue Observe(FieldActivityObservation observation) =>
         Observe(observation, DateTime.UtcNow);
@@ -348,10 +361,23 @@ public sealed class FieldActivityReadout
         // and nothing about it applies to any other room.
         if (observation.FieldId == ClockRoomFieldId)
         {
+            ResetGpExchange();
             return ObserveClock(observation, now);
         }
 
         ResetClock();
+
+        // The GP exchange's amount is a reading that keeps changing while Up or Down is held,
+        // so like the clock's it is delivered newest-only rather than queued.
+        if (observation.FieldId == GoldSaucerStationFieldId)
+        {
+            ResetChase();
+            ResetExcavation();
+            ResetShared();
+            return ObserveGpExchange(observation);
+        }
+
+        ResetGpExchange();
 
         // The chase and the dig say what changes as it is seen - the guard coming out of a door,
         // a digger taking his place - rather than a periodic description of the room. Their
@@ -485,8 +511,70 @@ public sealed class FieldActivityReadout
         ExcavationFieldId => ComposeExcavation(observation),
         PillarApproachFieldId => ComposePillars(observation),
         AltarSceneFieldId => ComposeAltarScene(observation),
+        GoldSaucerStationFieldId => ComposeGpExchange(observation, out _),
         _ => null
     };
+
+    // --- 496 gldst, the GP exchange --------------------------------------------------------
+    private void ResetGpExchange()
+    {
+        gpExchangeLastSpoken = null;
+        gpExchangeCurrentLine = null;
+    }
+
+    /// <summary>
+    /// gldst's <c>ayasii</c> (entity 17, Talk): after "Hey, thanks / 1 GP is 100 gil." it sets
+    /// windows 0 and 1 to numeric display (WSPCL type 2), puts the amount B6[20] in window 0
+    /// (WNUMB, three digits) and the cost B6[20] * 100 in window 1 (five digits), labelled by
+    /// dialogs 29 ("GP") and 30 ("gil"). <c>kawari</c> (entity 18) then adds 10 on Up up to 100,
+    /// takes 10 off on Down, rewrites both numbers each time, and closes both windows on OK
+    /// or Cancel. Nothing but the numbers changes, so the dialogue readout says only "gil".
+    /// The amount is said as it changes, newest only, and nothing is pressed.
+    /// </summary>
+    private FieldActivityCue ObserveGpExchange(FieldActivityObservation observation)
+    {
+        var report = ComposeGpExchange(observation, out var known);
+        if (!known)
+        {
+            // A torn or failed read says nothing new and forgets nothing.
+            return default;
+        }
+
+        gpExchangeCurrentLine = report?.Text;
+        if (report is not { } line)
+        {
+            gpExchangeLastSpoken = null;
+            return default;
+        }
+
+        if (string.Equals(line.Text, gpExchangeLastSpoken, StringComparison.Ordinal))
+        {
+            return default;
+        }
+
+        gpExchangeLastSpoken = line.Text;
+        return new FieldActivityCue(line.Text, false, false) { ReplacesEarlierLine = true };
+    }
+
+    private static Report? ComposeGpExchange(FieldActivityObservation observation, out bool known)
+    {
+        known = false;
+        if (observation.NumericWindows is not { } windows ||
+            !windows.TryGetValue(GpExchangeAmountWindowId, out var amount) ||
+            !windows.TryGetValue(GpExchangeCostWindowId, out var cost))
+        {
+            return null;
+        }
+
+        known = true;
+        if (!amount.IsUsable || !cost.IsUsable)
+        {
+            return null;
+        }
+
+        var text = $"{amount.Value} GP, {cost.Value} gil.";
+        return new Report($"gp:{amount.Value}:{cost.Value}", $"gp:{amount.Value}:{cost.Value}", text, IsPending: false);
+    }
 
     // --- 728, the pursuit ---------------------------------------------------------------
     private Report? ComposePursuit(FieldActivityObservation observation)
@@ -1975,6 +2063,11 @@ public sealed class FieldActivityReadout
     public const int CliffMiddleFieldId = 692;
     public const int CliffUpperFieldId = 694;
     public const int CliffNumericWindowId = 1;
+
+    /// <summary>gldst, the Gold Saucer's ropeway station, where <c>ayasii</c> changes gil into GP.</summary>
+    public const int GoldSaucerStationFieldId = 496;
+    public const int GpExchangeAmountWindowId = 0;
+    public const int GpExchangeCostWindowId = 1;
     public const int CliffClimbingStateAddress = 13;
     public const int CliffClimbingBit = 0x01;
 
@@ -2161,6 +2254,13 @@ public sealed class FieldActivityReadout
             ? CliffNumericWindowId
             : -1;
 
+    /// <summary>The numeric windows this field's readout reads together; empty for none.</summary>
+    public static IReadOnlyList<int> ObservedNumericWindows(int fieldId) => fieldId switch
+    {
+        GoldSaucerStationFieldId => [GpExchangeAmountWindowId, GpExchangeCostWindowId],
+        _ => []
+    };
+
     /// <summary>Whether this field's readout needs the field's own temporary bytes.</summary>
     public static bool NeedsTemporaryBank(int fieldId) =>
         fieldId is CliffLowerFieldId or CliffMiddleFieldId or CliffUpperFieldId
@@ -2190,5 +2290,6 @@ public sealed class FieldActivityReadout
             or WindFirstFieldId or WindSecondFieldId or WindThirdFieldId
             or WhirlwindStruggleFieldId or JunonPressRoomFieldId
             or JunonGasChairFieldId or JunonCannonFieldId
-            or CorelPursuitFieldId or CorelBrakingFieldId;
+            or CorelPursuitFieldId or CorelBrakingFieldId
+            or GoldSaucerStationFieldId;
 }

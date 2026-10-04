@@ -34,6 +34,7 @@ internal static class Steam2026SdlControllerOwnershipTests
 
     public static void Run()
     {
+        NavigationStickNeverReachesTheBattleAssistShortcut();
         ASecondControllerOpensTheMenuWithItsOwnStickClick();
         AForeignControllerCannotTakeAnOpenMenu();
         AStickClickHeldBeforeWeEverSawTheDeviceCannotOpenAnything();
@@ -81,8 +82,42 @@ internal static class Steam2026SdlControllerOwnershipTests
 
         Equal(true, host.Capture.IsOpen, "the menu the first pad opened stays open");
         Equal(First, host.LatchedController, "and the second pad does not take it away");
-        Equal((byte)1, host.Read(Second, ButtonRightStick),
-            "a pad that does not own the menu keeps every button it presses");
+        Equal((byte)0, host.Read(Second, ButtonRightStick),
+            "the reserved navigation click cannot toggle Battle Assist on a second pad");
+    }
+
+    private static void NavigationStickNeverReachesTheBattleAssistShortcut()
+    {
+        // Native shortcut action 15 is logical button 1, SDL button 8 (R3).
+        // It toggles on RELEASE. A single unfiltered held sample is enough.
+        var host = new FakeHost();
+        host.Frame(First, Second);
+        foreach (var stale in new[] { false, true })
+        {
+            host = new FakeHost();
+            host.Frame(First, Second);
+            host.Capture.PublishContext(ControllerNavigationDomain.WorldMap,
+                true, true, gameIsBusy: !stale, host.Now, identity: 0);
+            if (stale) host.AdvanceWithoutPublishing(TimeSpan.FromSeconds(2));
+            host.Down(First, ButtonRightStick);
+            Equal((byte)0, host.Read(First, ButtonRightStick),
+                "R3 is reserved even when a busy or stale context refuses navigation");
+            host.Up(First, ButtonRightStick);
+            Equal((byte)0, host.Read(First, ButtonRightStick), "no shortcut release edge");
+        }
+        host = new FakeHost();
+        host.Frame(First, Second);
+        host.OpenOn(First);
+        host.Down(First, ButtonRightStick);
+        host.Capture.PublishUnavailable(ControllerNavigationDomain.None, host.Now);
+        Equal((byte)0, host.Read(First, ButtonRightStick),
+            "a module transition cannot release a navigation click into Battle Assist");
+        host.Up(First, ButtonRightStick);
+        host.Down(First, ButtonA);
+        Equal((byte)1, host.Read(First, ButtonA),
+            "native Confirm remains available while navigation cannot open");
+        host.Down(Second, ButtonA);
+        Equal((byte)1, host.Read(Second, ButtonA), "the other pad keeps ordinary controls");
     }
 
     /// <summary>
@@ -221,6 +256,8 @@ internal static class Steam2026SdlControllerOwnershipTests
         public ControllerNavigationCapture Capture { get; }
 
         public DateTime Now { get; private set; } = Start;
+
+        public void AdvanceWithoutPublishing(TimeSpan elapsed) => Now += elapsed;
 
         public nint LatchedController => hook.LatchedController;
 

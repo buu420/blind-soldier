@@ -472,6 +472,10 @@ internal sealed class Steam2026ResearchSession : IDisposable
         // guest address space reaches exactly the globals the x86 build reads.
         SpeedSquareCoasterStateReader? speedSquareCoasterReader = null;
         SnowboardStateReader? snowboardReader = null;
+        Steam2026SubmarineMissionHost? submarineMission = null;
+        ImmediateWaveCuePlayer? submarineLockCue = null;
+        string? lastSubmarineDiagnostic = null;
+        long lastSubmarineReturnMessageSequence = 0;
         var snowboardReadout = new SnowboardReadout();
         var speedSquareCoasterReadout = new SpeedSquareCoasterReadout();
         SpeedSquareCoasterTargetReader? speedSquareCoasterTargetReader = null;
@@ -494,6 +498,8 @@ internal sealed class Steam2026ResearchSession : IDisposable
         Steam2026BattleRendererHookSet? battleRendererHookSet = null;
         Steam2026BattleAccessibilityCoordinator? battleAccessibilityCoordinator = null;
         Steam2026BattleStatusHotkeyReader? battleStatusHotkeyReader = null;
+        BattleArenaScreenReader? battleArenaScreenReader = null;
+        var battleArenaScreenTracker = new BattleArenaScreenTracker();
         var hooksPermanentlyDisabled = false;
         var nativeSystemMenuHooksPermanentlyDisabled = false;
         var fieldMessageHooksPermanentlyDisabled = false;
@@ -766,6 +772,8 @@ internal sealed class Steam2026ResearchSession : IDisposable
                     fieldObjectSpatialCoordinator?.Reset("native x64 research reset");
                     fieldNavigationCoordinator?.Reset();
                     worldMapAccessibilityCoordinator?.Reset("native x64 research reset");
+                    submarineMission?.Reset();
+                    battleArenaScreenTracker.Reset();
                     highwayAccessibilityCoordinator?.Reset("native x64 research reset");
                     nextFieldObjectScanUtc = DateTime.MinValue;
                     battleRendererHookSet?.Dispose();
@@ -963,6 +971,7 @@ internal sealed class Steam2026ResearchSession : IDisposable
                             new Steam2026FieldZoneSpeechCoordinator(sharedFieldAddressSpace);
                         var candidateBattleStatusHotkeyReader =
                             new Steam2026BattleStatusHotkeyReader(sharedFieldAddressSpace);
+                        battleArenaScreenReader = new BattleArenaScreenReader(sharedFieldAddressSpace);
                         var candidateFieldObjectReader =
                             new Steam2026FieldObjectObservationReader(
                                 sharedFieldAddressSpace,
@@ -1069,6 +1078,22 @@ avigationield_zone_transition.wav"),
                             speedSquareCoasterReader = null;
                             speedSquareCoasterTargetReader = null;
                             log($"Native Steam 2026 Speed Square readout remains disabled: {ex.Message}");
+                        }
+                        try
+                        {
+                            submarineMission = new Steam2026SubmarineMissionHost(sharedFieldAddressSpace);
+                            submarineLockCue?.Dispose();
+                            submarineLockCue = config.EnableSubmarineMissionReadout
+                                ? new ImmediateWaveCuePlayer(
+                                    ResolveArcadeCuePath(modDirectory, config.SubmarineMissionLockCueSoundPath,
+                                        ArcadeCueAssets.FieldActivityButtonReady),
+                                    config.SubmarineMissionCueVolumePercent,
+                                    "Submarine target lock cue", log)
+                                : null;
+                        }
+                        catch (Exception ex)
+                        {
+                            log($"Native Steam 2026 submarine lock cue unavailable: {ex.Message}");
                         }
                         try
                         {
@@ -1621,6 +1646,9 @@ avigationield_zone_transition.wav"),
                     while (fieldMessageHookSet.TryDequeue(out var messageSnapshot))
                     {
                         pump.ObserveMessageLifecycle(messageSnapshot);
+                        if (messageSnapshot.Observation.FieldId == 406 &&
+                            messageSnapshot.Observation.DialogId == 85)
+                            lastSubmarineReturnMessageSequence = messageSnapshot.Sequence;
                         var messageIngressDiagnostic =
                             $"field={messageSnapshot.Observation.FieldId}, " +
                             $"window={messageSnapshot.Observation.WindowId}, " +
@@ -1669,6 +1697,49 @@ avigationield_zone_transition.wav"),
                 {
                     lifecycle = frame.Lifecycle;
                     menuGilFrame = frame;
+                    // The mission owns all game controls regardless of whether its
+                    // instruments are readable. Retire field/world menu ownership
+                    // now, before either navigation worker has a chance to renew it.
+                    if (frame.Lifecycle.ModuleId == SubmarineMissionStateReader.MinigameModule)
+                    {
+                        controllerCaptureHook?.Capture.PublishUnavailable(
+                            ControllerNavigationDomain.None, now);
+                        directionalInput.Clear();
+                        lastSubmarineReturnMessageSequence = 0;
+                    }
+                    try
+                    {
+                        if (submarineMission is not null)
+                        {
+                            if (submarineMission.ObserveReturn(frame.Lifecycle.ModuleId, now,
+                                    controllerCaptureHook?.Capture.IsOpen == true,
+                                    controllerCaptureHook?.Capture.IsSuppressing == true,
+                                    lastSubmarineReturnMessageSequence) is { } returnDiagnostic)
+                                log($"Native Steam 2026 submarine return: {returnDiagnostic}");
+                            var submarineCue = submarineMission.Observe(frame.Lifecycle.ModuleId,
+                                isHostForeground, config.EnableSpeech && config.EnableSubmarineMissionReadout,
+                                now, () => foregroundInput.ObserveRisingEdge(0x4B), out var interruptSubmarine);
+                            if (submarineCue.PlayLockCue)
+                                submarineLockCue?.Play("submarine target lock");
+                            if (submarineCue.Speech is { } submarineSpeech)
+                            {
+                                output.Speak(submarineSpeech, interruptSubmarine);
+                                log($"Native Steam 2026 submarine: {submarineSpeech}");
+                            }
+                            if (frame.Lifecycle.ModuleId == SubmarineMissionStateReader.MinigameModule &&
+                                !string.Equals(lastSubmarineDiagnostic, submarineMission.Diagnostic, StringComparison.Ordinal))
+                            {
+                                lastSubmarineDiagnostic = submarineMission.Diagnostic;
+                                log($"Native Steam 2026 submarine state: {lastSubmarineDiagnostic}");
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        submarineMission?.Reset();
+                        LogRuntimeFault($"Submarine readout reset after a fault: {ex.Message}", now,
+                            ref lastRuntimeFault, ref lastRuntimeFaultLogUtc);
+                    }
                     try
                     {
                         var highwayIsForeground =
@@ -2328,6 +2399,30 @@ avigationield_zone_transition.wav"),
                     }
 
                     Steam2026NavigationProbeSnapshot? navigationProbeSnapshot = null;
+                    try
+                    {
+                        // The arena's Continue/Quit screen follows victory, outside
+                        // the regular combat menu coordinator's active lifetime.
+                        if (!config.EnableSpeech || !config.EnableBattleMenuSpeech ||
+                            !isHostForeground || !frame.Lifecycle.IsForeground ||
+                            frame.Lifecycle.IsShuttingDown ||
+                            frame.Lifecycle.ModuleId != BattleStateReader.BattleModule)
+                        {
+                            battleArenaScreenTracker.Reset();
+                        }
+                        else if (battleArenaScreenReader?.TryRead(out var arenaScreen) == true &&
+                                 battleArenaScreenTracker.Observe(arenaScreen) is { } arenaSpeech)
+                        {
+                            log($"Native Battle Square screen: {arenaSpeech}");
+                            output.Speak(arenaSpeech, interrupt: true);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        battleArenaScreenTracker.Reset();
+                        LogRuntimeFault($"Native Battle Square screen will retry: {ex.Message}",
+                            now, ref lastRuntimeFault, ref lastRuntimeFaultLogUtc);
+                    }
                     // Battle status owns L before suspended field navigation samples
                     // the shared U/O/J/L/K/I key set later in this frame.
                     try
@@ -2458,6 +2553,8 @@ avigationield_zone_transition.wav"),
                 }
                 else if (pump is not null)
                 {
+                    submarineMission?.Reset();
+                    battleArenaScreenTracker.Reset();
                     footstepCoordinator?.Reset();
                     fieldFootstepNavigationProbe?.ResetCorrelation();
                     fieldObjectSpatialCoordinator?.Reset("field frame unreadable");
@@ -3229,6 +3326,7 @@ avigationield_zone_transition.wav"),
             fieldObjectSpatialCoordinator?.Dispose();
             // The detour comes out before the coordinators it queues into go away.
             controllerCaptureHook?.Dispose();
+            submarineLockCue?.Dispose();
             directionalInputHook?.Dispose();
             fieldNavigationCoordinator?.Dispose();
             worldMapAccessibilityCoordinator?.Dispose();

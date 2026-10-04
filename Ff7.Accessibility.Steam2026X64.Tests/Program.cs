@@ -222,6 +222,14 @@ if (args.Contains("--menu-gil-only", StringComparer.OrdinalIgnoreCase))
 
 // The controller-ownership regressions on their own. They need no game data and no
 // hooking backend, so this is the switch to run while working on the capture.
+if (args.Contains("--submarine-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.SubmarineMissionTests.Run();
+    Steam2026SubmarineMissionHostTests.Run();
+    Console.WriteLine("Steam 2026 x64 submarine host tests passed.");
+    return;
+}
+
 if (args.Contains("--controller-ownership-only", StringComparer.OrdinalIgnoreCase))
 {
     Steam2026SdlControllerOwnershipTests.Run();
@@ -994,6 +1002,8 @@ Steam2026FieldObservationTests.Run(native, legacy);
 Steam2026FieldNavigationObservationTests.Run(native, legacy);
 Steam2026FieldNavigationRuntimeTests.Run();
 Steam2026NativeDirectionalInputTests.Run();
+Steam2026SubmarineMissionHostTests.Run();
+Ff7.Accessibility.Reloaded.Tests.SubmarineMissionTests.Run();
 Steam2026JunonParadeNativeInputTests.Run();
 Steam2026FieldObjectObservationTests.Run();
 Ff7.Accessibility.Reloaded.Tests.JunonFieldNavigationTests.Run(

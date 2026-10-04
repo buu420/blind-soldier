@@ -72,6 +72,14 @@ exploration, and please report them.
 
 ### Minigames and activities
 
+At the Gold Saucer GP seller, speech reports the selected GP amount and gil cost.
+Battle Square announces the between-round Continue/Quit choices, the selected
+answer, current BP, and the handicap after the reels stop. Registration reads
+the displayed GP balance and party-member choices.
+
+The submarine mission reports its instruments and visible target markers on both
+runtimes. Press `K` to repeat its status; a separate sound signals target lock.
+
 Implemented with spoken state, cues, or both: the motorcycle/highway escape
 (including optional automatic steering on `F8`), the Speed Square coaster with
 its aiming readout, G-Bike, 3D Battler, arm wrestling, basketball, the Wonder
@@ -114,6 +122,13 @@ again where one exists.
 
 Field and world-map navigation, routes, auto walk and the progress indicator
 are described under [Navigation](#navigation).
+
+Version 0.8.3 reads GP exchange amounts and Battle Square round choices,
+BP and handicaps, and adds the submarine's spoken instruments and targeting
+feedback to Steam x64. It also prevents the navigation R3 shortcut from toggling
+Battle Assist. The reported post-submarine dialogue freeze remains under
+investigation; this update adds diagnostics for the next tester attempt.
+See the [release notes](docs/releases/v0.8.3.md).
 
 Version 0.8.2 reads the late-game chocobo dismount prompt and its selected
 choice, including sending the chocobo back to the stables. Changing options
@@ -322,10 +337,10 @@ instead of reading unverified game memory.
 Choose one download from the
 [Blind Soldier Releases page](https://github.com/buu420/blind-soldier/releases):
 
-- [Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.8.2/Blind-Soldier-Portable.zip)
+- [Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.8.3/Blind-Soldier-Portable.zip)
   is the complete dual-runtime package. Use it for Steam 2026 x64 or when one
   extracted package must support both x86 and x64 installations.
-- [Blind-Soldier-2013-x86-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.8.2/Blind-Soldier-2013-x86-Portable.zip)
+- [Blind-Soldier-2013-x86-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.8.3/Blind-Soldier-2013-x86-Portable.zip)
   is the smaller legacy-only package. Use it for the 2013 x86 game, including
   stock 7th Heaven/FFNx. It deliberately contains no Steam 2026 launcher or
   x64 files.
@@ -436,17 +451,17 @@ Visual Studio C++ Build Tools, and PowerShell, then run:
 ```powershell
 .\Build-BlindSoldierPortablePackage.ps1 `
   -OutputPath .\artifacts\Blind-Soldier-Portable.zip `
-  -Version 0.8.2
+  -Version 0.8.3
 .\Verify-BlindSoldierPortablePackage.ps1 `
   -ArchivePath .\artifacts\Blind-Soldier-Portable.zip `
-  -ExpectedVersion 0.8.2
+  -ExpectedVersion 0.8.3
 .\Build-BlindSoldier2013PortablePackage.ps1 `
   -SourceArchivePath .\artifacts\Blind-Soldier-Portable.zip `
   -OutputPath .\artifacts\Blind-Soldier-2013-x86-Portable.zip `
-  -Version 0.8.2
+  -Version 0.8.3
 .\Verify-BlindSoldier2013PortablePackage.ps1 `
   -ArchivePath .\artifacts\Blind-Soldier-2013-x86-Portable.zip `
-  -ExpectedVersion 0.8.2 `
+  -ExpectedVersion 0.8.3 `
   -ExpectedSourceArchivePath .\artifacts\Blind-Soldier-Portable.zip
 ```
 
@@ -515,8 +530,13 @@ one category, even if the D-pad is already repeating.
 If more than one controller is connected, the menu follows the pad you click R3
 on, so a PlayStation and an Xbox controller can be plugged in at the same time.
 The menu stays with that pad until you close it; a second controller cannot take
-a menu somebody is already reading, and its buttons keep working in the game
-normally.
+a menu somebody is already reading, and its ordinary buttons keep working in the
+game normally. On Steam x64, R3 is reserved for navigation while controller
+navigation is enabled, including when a game dialogue prevents the menu from
+opening. This keeps navigation clicks from toggling Battle Assist. It also reserves
+R3 when combined with other buttons, so native controller shortcuts using R3 are
+unavailable. Their keyboard shortcuts (F1, F2 and F9) remain available; Battle
+Assist can also be changed in the game's Boosts settings.
 
 ### Battle status keys
 

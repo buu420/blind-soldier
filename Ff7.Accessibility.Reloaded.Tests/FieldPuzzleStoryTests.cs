@@ -41,6 +41,7 @@ internal static class FieldPuzzleStoryTests
         yield return ("clock Story is a route exactly when the bridges make one", () => ClockStoryIsARouteExactlyWhenTheBridgesMakeOne(createWalkmeshReader));
         yield return ("clock second hand is not a static exit", () => ClockSecondHandIsNotAStaticExit(createWalkmeshReader));
         yield return ("pagoda native evidence", PagodaNativeEvidence);
+        yield return ("pagoda retries after a loss and Godo's reset", PagodaRetriesKeepTheWayUp);
         yield return ("pagoda routes follow the floor's own locks", () => PagodaRoutesFollowTheFloorsOwnLocks(createWalkmeshReader));
         yield return ("pagoda stairs are Exits on their own floors", () => PagodaStairsAreExitsOnTheirOwnFloors(createWalkmeshReader));
         yield return ("other same-field resets stay out of Exits", OrdinarySameFieldResetsStayOutOfExits);
@@ -908,6 +909,69 @@ internal static class FieldPuzzleStoryTests
 
         Equal(true, scripts.ReadAllScriptOpcodes(579).Any(script => script.EntityName.Equals("save", StringComparison.OrdinalIgnoreCase)),
             "uutai1 has the town's save point");
+    }
+
+    /// <summary>
+    /// The retry flow, from the installed scripts. A loss sets only a "lost once" flag - 15[139]
+    /// bit 5 for Gorky, 6 for Shake, 7 for Chekhov (each opponent's Init, "156 bit 2" path), and
+    /// 15[137] bit 4 for Godo (his Talk) - and never the floor's own win bit, so the same opponent
+    /// is still the step. Staniv's floor relocks triangle 29 when the party crosses entity 16's
+    /// line, but only while his own bit is clear. Godo's loss sets 15[138] to 0 and map jumps to
+    /// the courtyard (587): the four wins stand, so every floor offers its stairs up again and the
+    /// top floor offers Godo.
+    /// </summary>
+    private static void PagodaRetriesKeepTheWayUp()
+    {
+        var scripts = Scripts();
+        foreach (var (entity, bit) in new[] { (17, 5), (18, 6), (19, 7) })
+        {
+            Equal(true, scripts.ReadScriptOpcodes(586, entity, 0).Any(op => Hex(op) == $"82F08B0{bit}"),
+                $"e{entity}'s loss sets only 15[139] bit {bit}");
+        }
+
+        var godoTalk = scripts.ReadScriptOpcodes(586, 21, 1).Select(Hex).ToArray();
+        Equal(true, godoTalk.Contains("82F08904"), "Godo's loss sets 15[137] bit 4");
+        var godoInit = scripts.ReadScriptOpcodes(586, 21, 0).Select(Hex).ToArray();
+        Equal(true, godoInit.Contains("80F08A00") && godoInit.Contains("604B02C9FFA8F85A0000"),
+            "and his loss puts 15[138] back to 0 and the party in the courtyard");
+        var staniv = scripts.ReadScriptOpcodes(586, 16, 2).Select(Hex).ToArray();
+        var relock = Array.IndexOf(staniv, "6D1D0001");
+        Equal(true, relock > 0 && staniv[..relock].Contains("14F08B030A43"),
+            "entity 16's relock of triangle 29 runs only while Staniv's bit 3 is clear");
+
+        var memory = new PuzzleMemory(586);
+        memory.SetGameMoment(700);
+        for (var floor = 0; floor < 5; floor++)
+        {
+            memory.AddActor(17 + floor, 30, 315, 20);
+        }
+
+        var reader = memory.StoryReader();
+        var courtyard = Position(586, 8, -356, 16);
+        var upstairs = Position(586, -215, 312, 15);
+        memory.SetParty(0, Yuffie, 2);
+        foreach (var (floor, lostFlag) in new[] { (0, 0x20), (1, 0x40), (2, 0x80) })
+        {
+            memory.SetBankByte(15, 138, (byte)floor);
+            memory.SetBankByte(15, 139, (byte)(((1 << floor) - 1) | lostFlag));
+            Equal(true, Labels(reader, floor == 0 ? courtyard : upstairs)
+                    .Split(" | ").Contains($"Talk to {PagodaOpponents[floor]} (optional)"),
+                $"floor {floor}: after a loss the same opponent is still the step");
+        }
+
+        // Godo's loss: courtyard, floor 0, four wins and his lost flag.
+        memory.SetBankByte(15, 137, 0x10);
+        memory.SetBankByte(15, 139, 0x0F);
+        for (var floor = 0; floor < 4; floor++)
+        {
+            memory.SetBankByte(15, 138, (byte)floor);
+            Equal(true, Labels(reader, floor == 0 ? courtyard : upstairs).Split(" | ").Contains(Climb(floor)),
+                $"after Godo's loss, floor {floor} offers its stairs up again");
+        }
+
+        memory.SetBankByte(15, 138, 4);
+        Equal(true, Labels(reader, upstairs).Split(" | ").Contains("Talk to Godo (optional)"),
+            "and the top floor offers Godo again");
     }
 
     private static void PagodaRoutesFollowTheFloorsOwnLocks(Func<int, FieldWalkmeshReader> createWalkmeshReader)

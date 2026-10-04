@@ -27,6 +27,7 @@ internal static class Steam2026FieldDialogueObservationTests
         ReadsExactNativeAskPromptAndChoices();
         ReadsMultiPageAskFromExactChoicePage();
         TransfersAskOwnershipToCrossWindowMessageSuccessor();
+        KeepsTheBattleSquareAskBesideItsCurrentGpWindow();
         ReadsExactCrossWindowMessageWhileItsVisibleMirrorIsStillBlank();
         ReadsExactMessageWhenItsWindowStillContainsTheRetiredAskMirror();
         ReadsExactMessageBeforeItsTargetWindowSlotIsAssigned();
@@ -175,6 +176,76 @@ internal static class Steam2026FieldDialogueObservationTests
         Equal("10 gil", page.Choices[1].Text, "multi-page ASK second choice");
         Equal("nothin'", page.Choices[2].Text, "multi-page ASK third choice");
         Equal(true, page.Choices[0].Selected, "multi-page ASK native highlight");
+    }
+
+    /// <summary>
+    /// coloin1 (500), the Battle Square desk: MPRA2 then MESSAGE win3 dlg34 opens "Current GP 40
+    /// GP" and leaves it open, and another entity's ASK asks "Register for battle?" in window 1.
+    /// Both scripts stay blocked, so the interpreter's current opcode alternates between the
+    /// MESSAGE and the ASK. On 2026-10-03 every alternation published the GP window as a new
+    /// page and then the question again, so the question was spoken nine times in twelve
+    /// seconds and "Current GP" not once. The GP window is part of the question's screen: it is
+    /// said with it, the question keeps one page, and a window opened after the question is
+    /// still its successor.
+    /// </summary>
+    private static void KeepsTheBattleSquareAskBesideItsCurrentGpWindow()
+    {
+        const uint scriptPointer = 0x00400000;
+        var fixture = DialogueObservationFixture.CreateOpen(
+            "Register for battle? The registration fee is 10 GP. Let's do it Not interested");
+        fixture.OpenWindow(3, "Current GP 40 GP");
+        fixture.WriteMessageTableBytes(
+        [
+            .. Encode("Register for battle? The registration fee is 10 GP.")[..^1],
+            0xE7,
+            0xE0,
+            .. Encode("Let's do it")[..^1],
+            0xE7,
+            0xE0,
+            .. Encode("Not interested")
+        ]);
+        fixture.Write((uint)FieldOpcodeParameterReader.AddressFieldScriptPtr, BitConverter.GetBytes(scriptPointer));
+        fixture.Write(scriptPointer + 2, [1]);
+        fixture.WriteByte(FieldOpcodeParameterReader.AddressCurrentEntityId, 0);
+        fixture.Write(
+            (uint)FieldOpcodeParameterReader.AddressFieldCurrScriptPosition,
+            BitConverter.GetBytes((ushort)0x20));
+        byte[] askOpcode = [FieldOpcodeParameterReader.AskOpcode, 0, 0, 0, 1, 2, 6];
+        byte[] gpMessageOpcode = [FieldOpcodeParameterReader.MessageOpcode, 3, 34, 0, 0, 0, 0];
+        fixture.Write(scriptPointer + 0x20, askOpcode);
+        fixture.WriteWindowLifecyclePhase(0, 6);
+
+        var reader = CreateTranslatedReader(fixture);
+        reader.ObserveAskCursorCapture(new Steam2026AskCursorIngressSnapshot(
+            1,
+            new DateTime(2026, 10, 3, 16, 49, 24, DateTimeKind.Utc),
+            new Steam2026AskCursorCapture(116, 0, 0, 1, 2, 1)));
+        Equal(true, reader.TryRead(out var ask), "the registration question");
+        Equal("Register for battle? The registration fee is 10 GP. Current GP 40 GP", ask.VisibleText,
+            "the question with the GP the desk shows beside it");
+        Equal("Let's do it", ask.Choices[0].Text, "its first answer");
+
+        for (var pass = 0; pass < 6; pass++)
+        {
+            fixture.Write(scriptPointer + 0x20, gpMessageOpcode);
+            if (reader.TryRead(out var during))
+            {
+                Equal(ask.PageRevision, during.PageRevision, $"pass {pass}: the GP window's MESSAGE is not a new page");
+                Equal(ask.VisibleText, during.VisibleText, $"pass {pass}: and does not replace the question");
+            }
+
+            fixture.Write(scriptPointer + 0x20, askOpcode);
+            Equal(true, reader.TryRead(out var again), $"pass {pass}: the question again");
+            Equal(ask.PageRevision, again.PageRevision, $"pass {pass}: the same page, so it is not said again");
+        }
+
+        // Answered: the ASK's script moves on and a reply opens in window 2. That is a successor.
+        fixture.Write(scriptPointer + 0x20, [FieldOpcodeParameterReader.MessageOpcode, 2, 8, 0, 0, 0, 0]);
+        fixture.OpenWindow(2, "This is a one-on-one battle.");
+        fixture.WriteWindowLifecyclePhase(2, 6);
+        Equal(true, reader.TryRead(out var reply), "the reply after the question");
+        Equal(2, reply.WindowId, "the reply owns its own window");
+        Equal("This is a one-on-one battle.", reply.VisibleText, "a later window is still a successor");
     }
 
     private static void TransfersAskOwnershipToCrossWindowMessageSuccessor()

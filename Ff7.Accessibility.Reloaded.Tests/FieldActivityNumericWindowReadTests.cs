@@ -47,7 +47,107 @@ internal static class FieldActivityNumericWindowReadTests
         ATornReadLeavesTheDialAttemptStanding();
         AClosedWindowEndsTheDialAttempt();
         ADepartureEndsTheDialAttempt();
+        TheGpExchangeSaysTheAmountItDraws();
+        TheGpExchangeDeliversOnlyTheNewestAmount();
     }
+
+    /// <summary>
+    /// gldst (496): after "Hey, thanks / 1 GP is 100 gil." ayasii draws the amount in numeric
+    /// window 0 and its cost in numeric window 1, and kawari moves them by 10 GP on Up and Down.
+    /// The October 3 log has the dialogue readout saying only "gil" there, three times: the
+    /// numbers are not text. The readout says both, from the windows themselves, as they change.
+    /// </summary>
+    private static void TheGpExchangeSaysTheAmountItDraws()
+    {
+        const int Station = FieldActivityReadout.GoldSaucerStationFieldId;
+        Equal(true, FieldActivityReadout.HasActivity(Station), "the station is an activity field");
+        Equal("0,1", string.Join(",", FieldActivityReadout.ObservedNumericWindows(Station)), "both of its numeric windows");
+        Equal(0, FieldActivityReadout.ObservedNumericWindows(FieldActivityReadout.CliffLowerFieldId).Count,
+            "the cliff keeps its own single window");
+
+        var memory = new GpMemory();
+        var reader = new FieldActivityStateReader(memory);
+        var readout = new FieldActivityReadout();
+        FieldActivityCue Tick() => readout.Observe(GpObservation(reader), Start);
+
+        var opened = Tick();
+        Equal("0 GP, 0 gil.", opened.Speech, "the exchange opens on nothing");
+        Equal(true, opened.ReplacesEarlierLine, "a reading the next one makes worthless");
+        Equal(false, opened.IsPending, "nothing is pressed or held for the player");
+        Equal("0 GP, 0 gil.", readout.CurrentReplaceableLine, "the newest reading is the one owed");
+        Equal(null, Tick().Speech, "unchanged, nothing more");
+
+        memory.Set(10);
+        Equal("10 GP, 1000 gil.", Tick().Speech, "Up: the amount and its cost");
+        Equal("10 GP, 1000 gil.", readout.Describe(GpObservation(reader)), "the repeat key says the amount now on screen");
+
+        memory.TearWindow = FieldActivityReadout.GpExchangeAmountWindowId;
+        Equal(null, Tick().Speech, "a torn read says nothing");
+        Equal("10 GP, 1000 gil.", readout.CurrentReplaceableLine, "and forgets nothing");
+        memory.TearWindow = -1;
+        Equal(null, Tick().Speech, "recovered, the same amount is not said again");
+
+        memory.Owner = (byte)FieldActivityStateReader.FreeWindowState;
+        Equal(null, Tick().Speech, "OK or Cancel closes both windows; nothing is said");
+        Equal(null, readout.CurrentReplaceableLine, "nothing is owed for a closed exchange");
+        memory.Owner = 2;
+        memory.Set(0);
+        Equal("0 GP, 0 gil.", Tick().Speech, "a later exchange is said again");
+
+        memory.DisplayType = 0;
+        Equal(null, Tick().Speech, "an ordinary window in the same slot is not an amount");
+
+        memory.DisplayType = 2;
+        Tick();
+        readout.Observe(GpObservation(reader) with
+        {
+            FieldId = FieldActivityReadout.ClockRoomFieldId,
+            Models = [new(FieldActivityReadout.ClockLongHandEntityId, FieldActivityReadStatus.Hidden, default),
+                      new(FieldActivityReadout.ClockShortHandEntityId, FieldActivityReadStatus.Hidden, default)]
+        }, Start);
+        Equal(null, readout.CurrentReplaceableLine, "a hidden clock cannot retain a former GP exchange amount");
+    }
+
+    /// <summary>
+    /// Holding Up adds 10 GP every few frames. Through the shared newest-line delivery both
+    /// hosts use, the dialogue just spoken is not cut off and only the amount on screen when it
+    /// has finished is said - not a queue of every step.
+    /// </summary>
+    private static void TheGpExchangeDeliversOnlyTheNewestAmount()
+    {
+        var memory = new GpMemory();
+        var reader = new FieldActivityStateReader(memory);
+        var readout = new FieldActivityReadout();
+        var delivery = new FieldActivityLatestLineDelivery();
+        var spoken = new List<string>();
+        delivery.NoteOtherSpeech("“Hey, thanks 1 GP is 100 gil.”", Start);
+        foreach (var (amount, at) in new[] { (0, 0), (10, 80), (20, 160), (30, 240) })
+        {
+            memory.Set(amount);
+            var now = Start.AddMilliseconds(at);
+            FieldActivityClockHost.Deliver(readout.Observe(GpObservation(reader), now), readout, delivery, now,
+                () => true, () => true, text => { spoken.Add(text); return true; }, isSpeaking: null);
+        }
+
+        Equal(0, spoken.Count, "the exchange's own line waits for the dialogue it follows");
+        var later = Start.AddSeconds(4);
+        FieldActivityClockHost.Deliver(readout.Observe(GpObservation(reader), later), readout, delivery, later,
+            () => true, () => true, text => { spoken.Add(text); return true; }, isSpeaking: null);
+        Equal("30 GP, 3000 gil.", string.Join(" | ", spoken), "then only the amount now on screen");
+    }
+
+    private static FieldActivityObservation GpObservation(FieldActivityStateReader reader) =>
+        FieldActivityObservationBuilder.Build(
+            new FieldPositionSnapshot(FieldPositionReader.FieldModule, FieldActivityReadout.GoldSaucerStationFieldId,
+                0, -1051, 776, 0, 30, 0),
+            reader,
+            lineStateReader: null,
+            boundaryStateReader: null,
+            control: default,
+            isPlayerControlled: false,
+            gameMoment: 1250,
+            pillarGate: -1,
+            readTemporaryByte: null);
 
     private static void ReadsTheNumberTheDialIsDrawing()
     {
@@ -301,6 +401,85 @@ internal static class FieldActivityNumericWindowReadTests
 
         private static bool Matches(uint address, Span<byte> destination, uint expected, int length) =>
             address == expected && destination.Length == length;
+    }
+
+    /// <summary>gldst loaded with the GP exchange's two numeric windows on screen.</summary>
+    private sealed class GpMemory : ILegacyAddressSpace
+    {
+        private const uint ScriptSection = 0x00A00000;
+        private readonly int[] values = new int[FieldMessageReader.WindowCount];
+        private int tearReads;
+
+        public byte Owner { get; set; } = 2;
+        public byte DisplayType { get; set; } = FieldActivityStateReader.NumericWindowDisplayType;
+        public int TearWindow { get; set; } = -1;
+
+        /// <summary>What kawari's WNUMBs write: the amount in window 0, its cost in gil in window 1.</summary>
+        public void Set(int gp)
+        {
+            values[FieldActivityReadout.GpExchangeAmountWindowId] = gp;
+            values[FieldActivityReadout.GpExchangeCostWindowId] = gp * 100;
+        }
+
+        public bool TryRead(uint virtualAddress, Span<byte> destination)
+        {
+            if (virtualAddress == (uint)FieldPositionReader.AddressCurrentModule && destination.Length == 1)
+            {
+                destination[0] = (byte)FieldPositionReader.FieldModule;
+                return true;
+            }
+
+            if (virtualAddress == (uint)FieldPositionReader.AddressFieldId && destination.Length == 2)
+            {
+                BinaryPrimitives.WriteUInt16LittleEndian(destination, (ushort)FieldActivityReadout.GoldSaucerStationFieldId);
+                return true;
+            }
+
+            if (virtualAddress == (uint)FieldScriptControllerReader.AddressFieldScriptPointer && destination.Length == 4)
+            {
+                BinaryPrimitives.WriteUInt32LittleEndian(destination, ScriptSection);
+                return true;
+            }
+
+            if (virtualAddress == ScriptSection + FieldActivityStateReader.ScriptHeaderEntityCountOffset && destination.Length == 1)
+            {
+                destination[0] = 35;
+                return true;
+            }
+
+            for (var window = 0; window < FieldMessageReader.WindowCount; window++)
+            {
+                var stride = (uint)(window * FieldActivityStateReader.WindowRecordStride);
+                if (virtualAddress == (uint)(FieldActivityStateReader.AddressWindowStates + window) && destination.Length == 1)
+                {
+                    destination[0] = window <= FieldActivityReadout.GpExchangeCostWindowId
+                        ? Owner
+                        : (byte)FieldActivityStateReader.FreeWindowState;
+                    return true;
+                }
+
+                if (virtualAddress == (uint)FieldActivityStateReader.AddressWindowDisplayType + stride && destination.Length == 1)
+                {
+                    destination[0] = DisplayType;
+                    return true;
+                }
+
+                if (virtualAddress == (uint)FieldActivityStateReader.AddressWindowDigitLimit + stride && destination.Length == 1)
+                {
+                    destination[0] = (byte)(window == FieldActivityReadout.GpExchangeAmountWindowId ? 3 : 5);
+                    return true;
+                }
+
+                if (virtualAddress == (uint)FieldActivityStateReader.AddressWindowNumericValue + stride && destination.Length == 4)
+                {
+                    var value = values[window] + (window == TearWindow && ++tearReads % 2 == 0 ? 10 : 0);
+                    BinaryPrimitives.WriteInt32LittleEndian(destination, value);
+                    return true;
+                }
+            }
+
+            return false;
+        }
     }
 
     private static void Equal<T>(T expected, T actual, string label)

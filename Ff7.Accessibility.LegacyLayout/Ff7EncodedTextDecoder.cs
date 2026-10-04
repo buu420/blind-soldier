@@ -70,6 +70,16 @@ public static class Ff7EncodedTextDecoder
         Ff7GameLanguageDescriptor language) =>
         DecodeFieldPagesCore(bytes, language, requireTerminator: true);
 
+    /// <summary>
+    /// Field pages with 0xF3, 0xF4 and 0xF5 - the names of whoever is in party slots one, two
+    /// and three - resolved by <paramref name="partyMemberName"/> (slot 0 to 2). A slot it cannot
+    /// name stays the replacement character, as it always has; no name is guessed.
+    /// </summary>
+    public static IReadOnlyList<Ff7DecodedTextPage> DecodePages(
+        ReadOnlySpan<byte> bytes,
+        Func<int, string?>? partyMemberName) =>
+        DecodeFieldPagesCore(bytes, DefaultLanguage, requireTerminator: true, partyMemberName);
+
     public static string DecodeKernel(ReadOnlySpan<byte> bytes, Ff7GameLanguageDescriptor language)
     {
         var builder = new StringBuilder(bytes.Length);
@@ -131,7 +141,8 @@ public static class Ff7EncodedTextDecoder
     private static IReadOnlyList<Ff7DecodedTextPage> DecodeFieldPagesCore(
         ReadOnlySpan<byte> bytes,
         Ff7GameLanguageDescriptor language,
-        bool requireTerminator)
+        bool requireTerminator,
+        Func<int, string?>? partyMemberName = null)
     {
         var pages = new List<Ff7DecodedTextPage>();
         var lines = new List<Ff7DecodedTextLine>();
@@ -218,6 +229,9 @@ public static class Ff7EncodedTextDecoder
                     break;
                 case >= 0xea and <= 0xf2:
                     builder.Append(PartyNames[value - 0xea]);
+                    break;
+                case >= 0xf3 and <= 0xf5 when !japanese && partyMemberName?.Invoke(value - 0xf3) is { Length: > 0 } member:
+                    builder.Append(member);
                     break;
                 case 0xf6:
                     // PC field 462's native prompts pair F6 with these button

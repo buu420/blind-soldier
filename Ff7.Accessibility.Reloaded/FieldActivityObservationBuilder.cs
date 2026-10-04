@@ -91,6 +91,18 @@ public static class FieldActivityObservationBuilder
             ? stateReader.ReadNumericWindow(fieldId, numericWindowId)
             : default;
 
+        // The GP exchange draws its amount and its cost in two numeric windows at once. A
+        // window whose read tore is left out rather than reported closed.
+        Dictionary<int, FieldActivityNumericWindow>? numericWindows = null;
+        foreach (var windowId in FieldActivityReadout.ObservedNumericWindows(fieldId))
+        {
+            numericWindows ??= [];
+            if (stateReader.TryReadNumericWindow(fieldId, windowId, out var window))
+            {
+                numericWindows[windowId] = window;
+            }
+        }
+
         return new FieldActivityObservation(
             fieldId,
             position.X,
@@ -108,6 +120,7 @@ public static class FieldActivityObservationBuilder
             pillarGate)
         {
             NumericWindow = numericWindow,
+            NumericWindows = numericWindows,
             ReadTemporaryByte = FieldActivityReadout.NeedsTemporaryBank(fieldId) ? readTemporaryByte : null
         };
     }

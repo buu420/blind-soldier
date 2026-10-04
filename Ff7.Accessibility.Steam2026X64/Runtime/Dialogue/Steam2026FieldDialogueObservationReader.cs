@@ -27,6 +27,12 @@ public sealed class Steam2026FieldDialogueObservationReader
     private long lastAskCursorSequence;
     private AskWindowSnapshot? lastExactAskWindow;
     private AskWindowSnapshot? retiredAskWindow;
+
+    // The other windows already open, with their text, when the current exact ASK was first
+    // published. The Battle Square desk keeps "Current GP" open in window 3 under its ASK in
+    // window 1; both scripts stay blocked, so the interpreter's current opcode alternates
+    // between them. Such a window is part of the question, not its successor.
+    private Dictionary<int, string> askCompanions = [];
     private readonly Dictionary<MessageIngressIdentity, ActiveMessageIngress> activeMessageIngresses = [];
     private FieldOpcodeMessageObservation? activeMessageIngress;
     private long lastMessageIngressSequence;
@@ -312,7 +318,14 @@ public sealed class Steam2026FieldDialogueObservationReader
             DialoguePageIdentity page;
             if (askStatus == ExactAskPageReadStatus.Exact)
             {
-                visibleText = askPrompt;
+                // Everything the sighted player sees with the question: its own prompt, then
+                // any companion window still showing what it showed when the question opened.
+                visibleText = string.Join(
+                    " ",
+                    new[] { askPrompt }.Concat(candidate.Windows
+                        .Where(other => IsOpenAskCompanion(candidate, other.WindowId))
+                        .OrderBy(other => other.WindowId)
+                        .Select(other => other.Text)));
                 choices = askChoices;
                 page = askPage;
             }
@@ -394,6 +407,14 @@ public sealed class Steam2026FieldDialogueObservationReader
         {
             diagnostic =
                 $"exact MESSAGE rejected: invalid window={message.WindowId}, dialog={message.DialogId}";
+            return false;
+        }
+
+        if (!hasAuthoritativeIngress && IsOpenAskCompanion(candidate, message.WindowId))
+        {
+            diagnostic =
+                $"exact current opcode deferred: window={message.WindowId}, dialog={message.DialogId} " +
+                "is the open ASK's companion";
             return false;
         }
 
@@ -669,6 +690,13 @@ public sealed class Steam2026FieldDialogueObservationReader
                 && ownedMessage.Kind == FieldOpcodeKind.Message
                 && ownedMessage.FieldId == capture.FieldId)
             {
+                if (IsOpenAskCompanion(candidate, ownedMessage.WindowId))
+                {
+                    // The companion's own blocked MESSAGE, seen between two passes of the
+                    // ASK. The question is still on screen.
+                    return ExactAskPageReadStatus.Unavailable;
+                }
+
                 successorWindowId = ownedMessage.WindowId;
                 RetireAsk(candidate.Ownership.FieldId, window);
                 return ExactAskPageReadStatus.Ended;
@@ -754,6 +782,15 @@ public sealed class Steam2026FieldDialogueObservationReader
         }
 
         choices = exactChoices;
+        if (lastExactAskWindow is not { } previousAsk
+            || previousAsk.FieldId != candidate.Ownership.FieldId
+            || previousAsk.WindowId != window.WindowId)
+        {
+            askCompanions = candidate.Windows
+                .Where(other => other.WindowId != window.WindowId && !string.IsNullOrWhiteSpace(other.Text))
+                .ToDictionary(other => other.WindowId, other => other.Text);
+        }
+
         var identityText = string.Join(
             '\u001f',
             new[] { prompt }.Concat(exactChoices.Select(choice => choice.Text)));
@@ -773,6 +810,27 @@ public sealed class Steam2026FieldDialogueObservationReader
             AskFirstQuestionLine: capture.FirstQuestionLine,
             AskLastQuestionLine: capture.LastQuestionLine);
         return ExactAskPageReadStatus.Exact;
+    }
+
+    /// <summary>
+    /// Whether <paramref name="windowId"/> is a window that was already open beside the current
+    /// exact ASK when it was first published, still showing the same text, while the ASK's own
+    /// window is still visible. A window opened or changed after that is a successor.
+    /// </summary>
+    private bool IsOpenAskCompanion(DialogueCompleteFrame candidate, int windowId)
+    {
+        if (lastExactAskWindow is not { } ask
+            || ask.FieldId != candidate.Ownership.FieldId
+            || ask.WindowId == windowId
+            || !askCompanions.TryGetValue(windowId, out var companionText)
+            || !candidate.Windows.Any(window => window.WindowId == ask.WindowId))
+        {
+            return false;
+        }
+
+        return candidate.Windows.Any(window =>
+            window.WindowId == windowId
+            && string.Equals(window.Text, companionText, StringComparison.Ordinal));
     }
 
     private void RetireAsk(ushort fieldId, FieldVisibleWindowSnapshot window)

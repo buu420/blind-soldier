@@ -371,6 +371,8 @@ public sealed class Mod : IModV1, IModV2
     private readonly MenuGilReadoutController menuGilReadoutController = new();
     private BattleHookAddressResolver? battleHookAddressResolver;
     private BattleStateReader? battleStateReader;
+    private BattleArenaScreenReader? battleArenaScreenReader;
+    private readonly BattleArenaScreenTracker battleArenaScreenTracker = new();
     private BattleResultsReader? battleResultsReader;
     private BattleVisibleResultReader? battleVisibleResultReader;
     private BattleDisplayedStatusReader? battleDisplayedStatusReader;
@@ -1301,6 +1303,7 @@ public sealed class Mod : IModV1, IModV2
         battleResultsReader = new BattleResultsReader(
             legacyAddressSpace,
             resolveInventoryObjectName ?? (_ => null));
+        battleArenaScreenReader = new BattleArenaScreenReader(legacyAddressSpace);
         battleVisibleResultReader = new BattleVisibleResultReader(legacyAddressSpace);
         battleDisplayedStatusReader = new BattleDisplayedStatusReader(legacyAddressSpace);
         tifaSlotResultReader = new TifaSlotResultReader(legacyAddressSpace);
@@ -1748,6 +1751,7 @@ public sealed class Mod : IModV1, IModV2
                 TickFootstepProbe();
                 TickBattleSessionState();
                 TickBattleStatusHotkeys();
+                TickBattleArenaScreen();
                 TickHighwayAccessibility();
                 TickFieldZoneTransitionCue();
                 TickFieldSwingingBarTimingCue();
@@ -2396,9 +2400,9 @@ public sealed class Mod : IModV1, IModV2
             return;
         }
 
-        var pages = flevelFieldTextResolver?.ReadMessagePagesById(
+        var pages = ReadCurrentFieldAskPages(
             hookEvent.FieldId,
-            hookEvent.DialogId) ?? Array.Empty<Ff7DecodedTextPage>();
+            hookEvent.DialogId);
         if (!FieldAskTextFormatter.TryResolveChoicePage(
                 pages,
                 hookEvent.FirstQuestionLine,
@@ -9447,6 +9451,33 @@ public sealed class Mod : IModV1, IModV2
         HandleMenuCursorDraw("B", menuCursorDrawHookB, x, y, context);
     }
 
+    // Between-round arena menus remain visible after victory. Poll their native
+    // state independently of the combat renderer's victory suppression.
+    private void TickBattleArenaScreen()
+    {
+        if (!config.EnableSpeech || !config.EnableBattleMenuSpeech ||
+            !foregroundProcessGate.IsCurrentProcessForeground() ||
+            ReadByte(BattleStateReader.AddressCurrentModule) != BattleStateReader.BattleModule)
+        {
+            battleArenaScreenTracker.Reset();
+            return;
+        }
+        try
+        {
+            if (battleArenaScreenReader?.TryRead(out var screen) == true &&
+                battleArenaScreenTracker.Observe(screen) is { } speech)
+            {
+                Log($"Battle Square screen: {speech}");
+                Speak(speech);
+            }
+        }
+        catch (Exception ex)
+        {
+            battleArenaScreenTracker.Reset();
+            LogBattleHookError("Battle Square screen", ex);
+        }
+    }
+
     private void BattleMenuRenderDetour(int context, short rendererState)
     {
         if (battleVictoryActive)
@@ -10571,6 +10602,20 @@ public sealed class Mod : IModV1, IModV2
         }
     }
 
+    private IReadOnlyList<Ff7DecodedTextPage> ReadCurrentFieldAskPages(int fieldId, int dialogId)
+    {
+        // The archive stores party-slot control codes. Read the current field's
+        // checked message table so those codes resolve to the live saved names.
+        if (ReadUInt16(FieldPositionReader.AddressFieldId) == fieldId &&
+            fieldMessageReader?.TryReadMessagePagesById(dialogId, out var pages) == true &&
+            ReadUInt16(FieldPositionReader.AddressFieldId) == fieldId)
+        {
+            return pages;
+        }
+        return flevelFieldTextResolver?.ReadMessagePagesById(fieldId, dialogId)
+            ?? Array.Empty<Ff7DecodedTextPage>();
+    }
+
     private void HandleFieldAskMessageObservation(
         FieldOpcodeMessageObservation observation,
         string source,
@@ -10582,9 +10627,9 @@ public sealed class Mod : IModV1, IModV2
             observation.WindowId,
             observation.DialogId,
             observation.LifecycleToken);
-        var pages = flevelFieldTextResolver?.ReadMessagePagesById(
+        var pages = ReadCurrentFieldAskPages(
             observation.FieldId,
-            observation.DialogId) ?? Array.Empty<Ff7DecodedTextPage>();
+            observation.DialogId);
         if (!FieldAskTextFormatter.TryResolveChoicePage(
                 pages,
                 observation.FirstQuestionLine,

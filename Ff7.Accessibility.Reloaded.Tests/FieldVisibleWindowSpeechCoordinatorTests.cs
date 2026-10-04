@@ -29,6 +29,7 @@ internal static class FieldVisibleWindowSpeechCoordinatorTests
         TransientUnavailableScanPreservesHeldText();
         NativeAskWaitsForOlderRetainedPollingSpeech();
         NativeAskDoesNotWaitForLaterHeldWindow();
+        BattleSquareDeskSpeaksCurrentGpBesideItsAsk();
         FailedPollingPredecessorKeepsNativeAskBlocked();
         FailedLaterBatchItemRetriesWithoutInterruptingEarlierSpeech();
         OpenHigherWindowSpeechMakesLowerAskNonInterrupting();
@@ -699,6 +700,61 @@ internal static class FieldVisibleWindowSpeechCoordinatorTests
         Equal(true, interrupt, "ASK starts the batch when it has no real predecessor");
     }
 
+    /// <summary>
+    /// coloin1, the Battle Square desk (x86 path): MESSAGE win3 dlg34 opens "Current GP 40 GP"
+    /// and stays open, then another entity's ASK opens win1. The GP window is its own native
+    /// MESSAGE lifecycle in a higher window; the ASK neither waits for it nor retires it, so
+    /// the sighted player's GP figure is still said once, and not again while both stay up.
+    /// </summary>
+    private static void BattleSquareDeskSpeaksCurrentGpBesideItsAsk()
+    {
+        var now = Utc(0);
+        var coordinator = new FieldVisibleWindowSpeechCoordinator(TimeSpan.FromMilliseconds(100));
+        FieldVisibleWindowSnapshot gp = new(3, 0x0C, "Current GP 40 GP", 0x700140);
+        coordinator.BeginNativeMessageLifecycle(new NativeFieldMessageIdentity(FieldOpcodeKind.Message, 500, 3, 34, 1));
+        Equal(0, coordinator.Observe([gp], 1, now).Count, "the GP window settles first");
+
+        var askIdentity = new NativeFieldMessageIdentity(FieldOpcodeKind.Ask, 500, 1, 27, 2);
+        coordinator.BeginNativeAskLifecycle(askIdentity);
+        FieldVisibleWindowSnapshot ask = new(1, 0x0C, "Register for battle? The registration fee is 10 GP. Let's do it Not interested", 0x700080);
+        var speech = new List<FieldVisibleWindowSpeechDispatch>();
+        for (var step = 1; step <= 4; step++)
+        {
+            speech.AddRange(coordinator.Observe(
+                [ask, gp],
+                2,
+                now.AddMilliseconds(100 * step),
+                window => window.WindowId == 1,
+                askIdentity,
+                nativeOwnershipSpeechPending: true));
+        }
+
+        Equal(0, speech.Count(item => item.WindowId == 1), "the question itself stays native-owned");
+        Equal(true, coordinator.CanDispatchNativeSpeech(askIdentity, now.AddMilliseconds(400), out _),
+            "the question is not held behind the GP window");
+
+        // The host speaks the question natively and acknowledges it (Mod's prompt delivery).
+        coordinator.AcknowledgeNativeSpeech(askIdentity, visibleContentComplete: true, consumeOrderingBarrier: true);
+        for (var step = 5; step <= 8; step++)
+        {
+            var batch = coordinator.Observe(
+                [ask, gp],
+                2,
+                now.AddMilliseconds(100 * step),
+                window => window.WindowId == 1,
+                askIdentity,
+                nativeOwnershipDelivered: true,
+                requireDeliveryAcknowledgement: true);
+            foreach (var item in batch)
+            {
+                coordinator.AcknowledgePollingSpeech(item.DispatchToken, delivered: true);
+            }
+
+            speech.AddRange(batch);
+        }
+
+        Equal(1, speech.Count(item => item.Text == "Current GP 40 GP"), "Current GP is said exactly once beside the question");
+    }
     private static void FailedPollingPredecessorKeepsNativeAskBlocked()
     {
         var now = Utc(0);
