@@ -78,14 +78,21 @@ answer, current BP, and the handicap after the reels stop. Registration reads
 the displayed GP balance and party-member choices.
 
 The submarine mission reports its instruments and visible contacts on both
-runtimes. `J`/`L` select a submarine, `P` toggles automatic pursuit, `I` starts
+runtimes. `J`/`L` select a submarine, `O` toggles automatic pursuit, `I` starts
 pursuit and `K` repeats status. On a controller, `R3` opens the target list;
 D-pad Up/Down selects, A or X pursues, and B or R3 from the list stops.
 The Huge Materia red leader has its own name. The assist remembers the last
 visible position of a contact between sightings and tells you when it is stale.
-Use PageDown for the overview to spot contacts, then return to normal view for
-a lock. Firing stays manual with Switch; guidance distinguishes your selected
+Pursuit returns to the normal firing view automatically when close enough to
+the selected contact's visible or fixed last-seen position. View changes are
+spoken during manual play too. Use the game's configured overview control to
+spot contacts; the control name does not identify a physical Page Down key.
+Firing stays manual with Switch; guidance distinguishes your selected
 target from a different submarine holding the game's lock.
+
+Steam's default submarine controls are R1/RB or E for overview, R2/RT or T to
+change view, and Square/X or Z to fire. The dedicated Page Down key is unbound
+by default. Remapped controls follow your game settings.
 
 Implemented with spoken state, cues, or both: the motorcycle/highway escape
 (including optional automatic steering on `F8`), the Speed Square coaster with
@@ -129,6 +136,13 @@ again where one exists.
 
 Field and world-map navigation, routes, auto walk and the progress indicator
 are described under [Navigation](#navigation).
+
+Version 0.8.5 fixes submarine pursuit getting stuck in overview: pursuit uses
+the game's configured Target action to return to normal view when close, then
+waits for the game's own lock before giving firing guidance. It also announces
+manual view changes and recognizes an existing lock in overview.
+The submarine toggle is now O because P is also Steam's default Pause control.
+See the [release notes](docs/releases/v0.8.5.md).
 
 Version 0.8.4 adds submarine selection, automatic pursuit and spoken firing
 guidance on both runtimes. Targets come from visible native sightings, including
@@ -349,10 +363,10 @@ instead of reading unverified game memory.
 Choose one download from the
 [Blind Soldier Releases page](https://github.com/buu420/blind-soldier/releases):
 
-- [Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.8.4/Blind-Soldier-Portable.zip)
+- [Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.8.5/Blind-Soldier-Portable.zip)
   is the complete dual-runtime package. Use it for Steam 2026 x64 or when one
   extracted package must support both x86 and x64 installations.
-- [Blind-Soldier-2013-x86-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.8.4/Blind-Soldier-2013-x86-Portable.zip)
+- [Blind-Soldier-2013-x86-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.8.5/Blind-Soldier-2013-x86-Portable.zip)
   is the smaller legacy-only package. Use it for the 2013 x86 game, including
   stock 7th Heaven/FFNx. It deliberately contains no Steam 2026 launcher or
   x64 files.
@@ -463,17 +477,17 @@ Visual Studio C++ Build Tools, and PowerShell, then run:
 ```powershell
 .\Build-BlindSoldierPortablePackage.ps1 `
   -OutputPath .\artifacts\Blind-Soldier-Portable.zip `
-  -Version 0.8.4
+  -Version 0.8.5
 .\Verify-BlindSoldierPortablePackage.ps1 `
   -ArchivePath .\artifacts\Blind-Soldier-Portable.zip `
-  -ExpectedVersion 0.8.4
+  -ExpectedVersion 0.8.5
 .\Build-BlindSoldier2013PortablePackage.ps1 `
   -SourceArchivePath .\artifacts\Blind-Soldier-Portable.zip `
   -OutputPath .\artifacts\Blind-Soldier-2013-x86-Portable.zip `
-  -Version 0.8.4
+  -Version 0.8.5
 .\Verify-BlindSoldier2013PortablePackage.ps1 `
   -ArchivePath .\artifacts\Blind-Soldier-2013-x86-Portable.zip `
-  -ExpectedVersion 0.8.4 `
+  -ExpectedVersion 0.8.5 `
   -ExpectedSourceArchivePath .\artifacts\Blind-Soldier-Portable.zip
 ```
 

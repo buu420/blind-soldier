@@ -42,12 +42,27 @@ internal static class SubmarinePursuitTrackerTests
         ANativeLockOnAnotherSubmarineIsReported();
         ReloadingThenLoadedPromptsFire();
         TheFirePromptNeedsTheSelectedTargetVisibleAndLocked();
+        AnExistingOverviewLockStillAllowsManualFire();
         PauseResultSuspendResetAndUnavailableViewsStopDriving();
         ASinkingTargetIsReportedOnlyWhenSeen();
         HullContactStopsAndAnnounces();
         AimRemindersAreBounded();
         NothingExactIsEverSpoken();
         StatusDescribesPursuitAndLock();
+    }
+
+    private static void AnExistingOverviewLockStillAllowsManualFire()
+    {
+        var tracker = new SubmarinePursuitTracker();
+        _ = tracker.Observe(Mission(viewMode: 1,
+            targets: [Sub(0, Leader, 0, 512, 400, locked: true)]), Start);
+        var started = tracker.StartPursuit();
+        Contains("Press Switch to fire", started, "the visible existing lock is usable in overview");
+        Lacks("cannot lock", started, "an existing lock must not be contradicted by overview guidance");
+        var reloading = tracker.Observe(Mission(viewMode: 1, ready: 0, reloading: 4,
+            targets: [Sub(0, Leader, 0, 512, 400, locked: true)]), Start.AddSeconds(1)).Speech ?? "";
+        Contains("reloading", reloading, "the existing overview lock follows the drawn loaded lamps");
+        Lacks("Press Switch", reloading, "an empty torpedo rack has no fire prompt");
     }
 
     private static void TheRedLeaderIsKnownByItsHullNotItsSlot()
@@ -158,7 +173,7 @@ internal static class SubmarinePursuitTrackerTests
         _ = tracker.Observe(Mission(), Start);
         var refused = tracker.StartPursuit();
         Contains("No submarine", refused, "nothing has been seen to pursue");
-        Contains("PageDown", refused, "the overview is the game's own way to find one");
+        Contains("overview control", refused, "the game's overview can reveal contacts without inventing a physical key binding");
         Equal(false, tracker.IsPursuing, "the pursuit does not start");
         Equal(false, tracker.Plan.CanDrive, "and nothing is driven");
         Contains("No submarines", tracker.Apply(FieldNavigationAction.NextTarget) ?? "",
@@ -406,7 +421,7 @@ internal static class SubmarinePursuitTrackerTests
         _ = tracker.Observe(Mission(viewMode: 1, targets: [Sub(0, Leader, -600, 512, 1200)]), Start);
         var started = tracker.StartPursuit();
         Contains("cannot lock", started, "the overview cannot lock");
-        Contains("PageDown returns to the normal view", started, "and the way back is named, not pressed");
+        Equal(false, tracker.Plan.ReturnToFiringView, "a distant target stays within the overview's longer sonar range");
 
         var blink = ObserveFor(tracker, Start.AddSeconds(0.25), 3, Mission(viewMode: 1));
         Equal(true, tracker.Plan.CanDrive, "the seen point is held between sweeps");
@@ -422,7 +437,7 @@ internal static class SubmarinePursuitTrackerTests
         _ = normal.Observe(Mission(targets: [Sub(1, Yellow, 0, 512, 300)]), Start);
         _ = normal.StartPursuit();
         var entered = normal.Observe(Mission(viewMode: 1, targets: [Sub(1, Yellow, 0, 512, 300)]), Start.AddSeconds(0.5)).Speech ?? "";
-        Contains("PageDown returns to the normal view", entered, "entering the overview is said");
+        Equal(true, normal.Plan.ReturnToFiringView, "a close overview target requests the ordinary firing view");
         Equal(null, normal.Observe(Mission(viewMode: 1, targets: [Sub(1, Yellow, 0, 512, 300)]), Start.AddSeconds(0.75)).Speech,
             "and not repeated");
     }
@@ -430,7 +445,7 @@ internal static class SubmarinePursuitTrackerTests
     /// <summary>
     /// The overview is where a lost submarine is found, but it cannot lock. A sighted
     /// player sees the blip close to their own hull and switches back; the pursuit says
-    /// when a sighting in the overview is that close, once, and never presses PageDown.
+    /// when the point is close and asks the host to return through the ordinary Target action.
     /// </summary>
     private static void TheOverviewSaysWhenTheTargetIsCloseEnoughToLock()
     {
@@ -442,7 +457,7 @@ internal static class SubmarinePursuitTrackerTests
 
         var close = tracker.Observe(Mission(viewMode: 1, targets: [Sub(0, Leader, 0, 512, 400)]), Start.AddSeconds(1)).Speech ?? "";
         Contains("Red Leader is close", close, "a sighting within lock range is said");
-        Contains("PageDown returns to the normal view", close, "with the way to lock, named and not pressed");
+        Equal(true, tracker.Plan.ReturnToFiringView, "the native view action is requested when the target is close");
 
         // Between sweeps it blinks out; that is not the target moving away.
         Equal(null, tracker.Observe(Mission(viewMode: 1), Start.AddSeconds(1.25)).Speech, "a blink is not news");
@@ -565,7 +580,8 @@ internal static class SubmarinePursuitTrackerTests
         Contains("Holding course for the next sweep", reached, "a reached point in the overview holds the course");
         Equal(true, tracker.IsPursuing, "without ending the pursuit");
         Equal(HighwaySteeringDirection.None, tracker.Plan.Direction, "no turn is held");
-        Equal(true, tracker.Plan.Accelerate, "and the boost is kept");
+        Equal(true, tracker.Plan.ReturnToFiringView, "a reached remembered point now requests the normal firing view");
+        Equal(false, tracker.Plan.Accelerate, "propulsion is released while requesting that view");
 
         _ = tracker.Observe(Mission(viewMode: 1, z: 360, speedIndex: 18), Start.AddSeconds(1));
         Equal(HighwaySteeringDirection.None, tracker.Plan.Direction, "past the point it does not turn back to it");

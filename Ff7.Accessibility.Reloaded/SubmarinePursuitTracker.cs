@@ -14,6 +14,9 @@ internal readonly record struct SubmarinePursuitPlan(
     bool Accelerate,
     bool Brake)
 {
+    /// <summary>The bounded sighting is within normal-view range; request the native Target action.</summary>
+    internal bool ReturnToFiringView { get; init; }
+
     internal static SubmarinePursuitPlan Idle { get; } =
         new(false, HighwaySteeringDirection.None, false, false);
 }
@@ -755,6 +758,16 @@ internal sealed class SubmarinePursuitTracker
             return SubmarinePursuitPlan.Idle;
         }
 
+        if (snapshot.IsOverview && Range(target, snapshot) <= OverviewCloseRange)
+        {
+            // This is the visible or fixed last-seen point, never a hidden
+            // position. Normal sonar reaches 512; keep overview until close.
+            return new SubmarinePursuitPlan(true, HighwaySteeringDirection.None, false, false)
+            {
+                ReturnToFiringView = true
+            };
+        }
+
         if (holdingCourse && !target.Visible)
         {
             // Straight on, keeping full ahead or the boost if that is what it was making.
@@ -1015,18 +1028,8 @@ internal sealed class SubmarinePursuitTracker
     private FireState FireStateOf(Contact target, SubmarineMissionSnapshot snapshot, out int otherSlot)
     {
         otherSlot = -1;
-        if (snapshot.IsOverview)
-        {
-            // Between sweeps the overview stops drawing it; that says nothing about range.
-            if (!target.Visible)
-            {
-                return fireState == FireState.OverviewClose ? FireState.OverviewClose : FireState.Overview;
-            }
-
-            var limit = fireState == FireState.OverviewClose ? LockRange : OverviewCloseRange;
-            return Range(target, snapshot) <= limit ? FireState.OverviewClose : FireState.Overview;
-        }
-
+        // A lock acquired in a normal view can survive a move to overview. The
+        // visible native lock marker and loaded lamps still permit manual fire.
         if (target.Visible && target.Locked)
         {
             return snapshot.ReadyTorpedoes > 0 ? FireState.LockedReady : FireState.LockedReloading;
@@ -1039,16 +1042,28 @@ internal sealed class SubmarinePursuitTracker
             return FireState.OtherLocked;
         }
 
+        if (snapshot.IsOverview)
+        {
+            // Between sweeps the overview stops drawing it; that says nothing about range.
+            if (!target.Visible)
+            {
+                return fireState == FireState.OverviewClose ? FireState.OverviewClose : FireState.Overview;
+            }
+
+            var limit = fireState == FireState.OverviewClose ? LockRange : OverviewCloseRange;
+            return Range(target, snapshot) <= limit ? FireState.OverviewClose : FireState.Overview;
+        }
+
         return FireState.None;
     }
 
     private string? FireSentence(FireState state, Contact target, int otherSlot, bool starting) => state switch
     {
         FireState.Overview => starting
-            ? "Torpedoes cannot lock in the overview. PageDown returns to the normal view."
-            : "Overview: torpedoes cannot lock here. PageDown returns to the normal view.",
+            ? "Torpedoes cannot lock in the overview. Pursuit will change to the firing view when close."
+            : "Overview: torpedoes cannot lock here. Pursuit will change to the firing view when close.",
         FireState.OverviewClose =>
-            $"{Capitalised(target.Name)} is close. PageDown returns to the normal view, where torpedoes can lock.",
+            $"{Capitalised(target.Name)} is close enough for the firing view.",
         FireState.LockedReady => $"{Capitalised(target.Name)} locked with a torpedo loaded. Press Switch to fire.",
         FireState.LockedReloading => $"{Capitalised(target.Name)} locked. Torpedoes reloading.",
         FireState.OtherLocked when contacts.TryGetValue(otherSlot, out var other) =>
@@ -1174,7 +1189,7 @@ internal sealed class SubmarinePursuitTracker
         (anySighting ? "No submarines in view or remembered." : "No submarines seen yet.") + OverviewHint();
 
     private string OverviewHint() =>
-        current is { IsOverview: true } ? string.Empty : " PageDown shows the overview.";
+        current is { IsOverview: true } ? string.Empty : " Use the game's overview control to spot contacts.";
 
     private string Spoken(string text)
     {
@@ -1208,7 +1223,10 @@ internal sealed class SubmarinePursuitTracker
     {
         current = null;
         plan = SubmarinePursuitPlan.Idle;
-        fireState = FireState.Unknown;
+        // Keep only the overview announcement baseline across torn captures.
+        // No current view or driving plan survives, and lock state is forgotten.
+        if (fireState is not (FireState.Overview or FireState.OverviewClose))
+            fireState = FireState.Unknown;
         lockedOtherSlot = -1;
         rangeBand = -1;
         ForgetClosingRate();

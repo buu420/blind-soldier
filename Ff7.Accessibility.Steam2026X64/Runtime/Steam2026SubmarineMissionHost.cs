@@ -8,7 +8,9 @@ internal sealed class Steam2026SubmarineMissionHost(ILegacyAddressSpace memory,
     HighwayAutoSteeringController? input = null, Action<DateTime>? renewInput = null,
     Action<string>? log = null) : IDisposable
 {
-    private readonly SubmarineAccessibilityCoordinator accessibility = new(memory, input, renewInput, log);
+    private readonly SubmarineAccessibilityCoordinator accessibility = new(memory, input, renewInput, log,
+        "Steam default controls: R1 or RB, or E, toggles overview; R2 or RT, or T, changes view; " +
+        "Square or X, or Z, fires. Remapped game controls follow your settings.");
     private int previousModule = -1;
     private DateTime inspectReturnUntil;
     private string? lastReturnDiagnostic;

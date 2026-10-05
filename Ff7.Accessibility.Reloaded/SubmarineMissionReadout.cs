@@ -57,6 +57,7 @@ public sealed class SubmarineMissionReadout
     private bool wasPaused;
     private bool announcedResult;
     private bool wasLocked;
+    private bool? lastOverview;
     private bool? lastQuitSelection;
     private int lastHealthStep = int.MinValue;
     private int lastWarnings = int.MinValue;
@@ -71,6 +72,7 @@ public sealed class SubmarineMissionReadout
         wasPaused = false;
         announcedResult = false;
         wasLocked = false;
+        lastOverview = null;
         lastQuitSelection = null;
         lastHealthStep = int.MinValue;
         lastWarnings = int.MinValue;
@@ -84,6 +86,18 @@ public sealed class SubmarineMissionReadout
         Observe(snapshot, DateTime.UtcNow);
 
     public SubmarineMissionCue Observe(SubmarineMissionSnapshot snapshot, DateTime now)
+    {
+        var cue = ObserveCore(snapshot, now);
+        if (!snapshot.IsActive || snapshot.HasResult || snapshot.IsPaused || !snapshot.CanPlaceTargets)
+            return cue;
+        var changed = lastOverview != snapshot.IsOverview;
+        lastOverview = snapshot.IsOverview;
+        var view = DescribeView(snapshot);
+        if (!changed || cue.Speech?.Contains(view, StringComparison.Ordinal) == true) return cue;
+        return new(cue.Speech is null ? view : cue.Speech + " " + view, cue.PlayLockCue);
+    }
+
+    private SubmarineMissionCue ObserveCore(SubmarineMissionSnapshot snapshot, DateTime now)
     {
         if (!snapshot.IsActive)
         {
@@ -259,6 +273,7 @@ public sealed class SubmarineMissionReadout
         }
 
         var parts = new List<string>(6) { DescribeInstruments(snapshot) };
+        if (snapshot.CanPlaceTargets) parts.Add(DescribeView(snapshot));
         if (DescribeWarnings(snapshot) is { } warnings)
         {
             parts.Add(warnings);
@@ -274,6 +289,9 @@ public sealed class SubmarineMissionReadout
     }
 
     private const int VisibleWarningMask = 0x1 | 0x2 | 0x4 | 0x400 | 0x800;
+
+    private static string DescribeView(SubmarineMissionSnapshot snapshot) =>
+        snapshot.IsOverview ? "Overview." : "Normal view.";
 
     private static string DescribeInstruments(SubmarineMissionSnapshot snapshot)
     {
@@ -482,6 +500,6 @@ public sealed class SubmarineMissionReadout
     public static string DescribeControls() =>
         "Switch fires a torpedo at a locked target. Menu is forward and Cancel is " +
         "reverse. Left and Right turn; Up dips the nose to dive and Down raises it to " +
-        "climb. PageUp rises and Camera dives. Target changes the view and PageDown " +
-        "toggles the overview. Start pauses.";
+        "climb. PageUp rises and Camera dives. The game's Target control changes the view; " +
+        "its overview control toggles the overview. These action names follow the game's bindings. Start pauses.";
 }
