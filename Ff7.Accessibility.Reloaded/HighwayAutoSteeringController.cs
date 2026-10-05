@@ -105,8 +105,11 @@ internal sealed class HighwayAutoSteeringController : IDisposable
         HighwaySteeringDirection direction, bool accelerate = false, bool brake = false) =>
         ApplyCore(direction, holdFlightAction: false, submarine: true, accelerate, brake);
 
+    internal HighwayAutoSteeringInputResult ApplySubmarineFiringView() =>
+        ApplyCore(HighwaySteeringDirection.None, false, true, false, false, firingView: true);
+
     private HighwayAutoSteeringInputResult ApplyCore(HighwaySteeringDirection direction,
-        bool holdFlightAction, bool submarine, bool accelerate, bool brake)
+        bool holdFlightAction, bool submarine, bool accelerate, bool brake, bool firingView = false)
     {
         lock (sync)
         {
@@ -135,7 +138,9 @@ internal sealed class HighwayAutoSteeringController : IDisposable
 
             IReadOnlyList<HighwayKeyboardKey> directionKeys;
             string mappingDiagnostic;
-            var mapped = submarine
+            var mapped = firingView
+                ? mappingResolver.TryResolveSubmarineFiringView(out directionKeys, out mappingDiagnostic)
+                : submarine
                 ? mappingResolver.TryResolveSubmarine(direction, accelerate, brake, out directionKeys, out mappingDiagnostic)
                 : mappingResolver.TryResolve(direction, out directionKeys, out mappingDiagnostic);
             if (!mapped)
@@ -148,7 +153,7 @@ internal sealed class HighwayAutoSteeringController : IDisposable
                 foreach (var key in directionKeys)
                 {
                     var virtualKey = Win32HighwayKeyboardInputSink.ResolveVirtualKey(key);
-                    if (virtualKey is 'I' or 'J' or 'K' or 'L' or 'P' or 'R')
+                    if (virtualKey is 'I' or 'J' or 'K' or 'L' or 'O' or 'R')
                         return FailAndCleanup(Failure(0, 0, 0,
                             $"submarine movement shares {(char)virtualKey} with an accessibility command; remap that game control before pursuing"));
                 }

@@ -10,6 +10,7 @@ internal static class SubmarineCoordinatorTests
 
     internal static void Run()
     {
+        NativePauseDoesNotAlsoTogglePursuit();
         List<Exception> failures = [];
         foreach (var test in new Action[]
         {
@@ -28,13 +29,157 @@ internal static class SubmarineCoordinatorTests
             APauseBetweenCaptureAndDeliverySuspendsPursuit,
             AHeldPauseDuringUnpauseDoesNotRepeatTheFirePrompt,
             SelectingOnHullContactStillAnnouncesTheStoppedPursuit,
-            ReturningToTheGameKeepsTheFiringGuidance
+            ReturningToTheGameKeepsTheFiringGuidance,
+            AnOverviewPursuitReturnsToTheNativeFiringView,
+            TornViewsDoNotRepeatTheOverviewWarning,
+            AViewRequestIsReleasedAndRefusedAfterNoResponse,
+            AViewRequestReleasesAtEveryUnavailableBoundary,
+            TheNativePollCannotCycleAnAlreadyNormalView,
+            ARemappedViewActionCannotAlsoFireOrOperateAnotherControl
         })
         {
             try { test(); }
             catch (Exception exception) { failures.Add(exception); }
         }
         if (failures.Count != 0) throw new AggregateException(failures);
+    }
+
+    private static void AnOverviewPursuitReturnsToTheNativeFiringView()
+    {
+        using var fixture = new Fixture();
+        fixture.Memory.Put(SubmarineMissionStateReader.AddressViewMode, 1);
+        var capture = new ControllerNavigationCapture(
+            suppressor => new ControllerNavigationMenu(EmptyGamepadReader.Instance, suppressor), () => true);
+        fixture.Coordinator.Observe(10, true, true, Now, _ => false, capture, out _);
+        capture.ObserveRawPoll(new(true, 0, 0, GamepadButton.None), Now);
+        capture.ObserveRawPoll(new(true, 0, 0, GamepadButton.RightThumb), Now.AddMilliseconds(1));
+        fixture.Coordinator.Observe(10, true, true, Now.AddMilliseconds(10), _ => false, capture, out _);
+        Check(fixture.Sink.Held.Count == 0, "browsing never changes the native view");
+        capture.ObserveRawPoll(new(true, 0, 0, GamepadButton.None), Now.AddMilliseconds(12));
+        capture.ObserveRawPoll(new(true, 0, 0, GamepadButton.A), Now.AddMilliseconds(14));
+        fixture.Coordinator.Observe(10, true, true, Now.AddMilliseconds(16), _ => false, capture, out _);
+        Check(fixture.Coordinator.IsPursuing && fixture.Sink.Held.Any(key => key.ScanCode == 0x4F),
+            "a close overview target requests the ordinary Target action to leave the overview");
+        Check(!fixture.Sink.Held.Any(key => key.ScanCode == 0x39), "returning to the firing view never fires");
+
+        // The native Target pressed-edge branch acknowledges the requested camera.
+        fixture.Memory.Put(SubmarineMissionStateReader.AddressViewMode, 0);
+        fixture.Coordinator.Observe(10, true, true, Now.AddMilliseconds(46), _ => false, capture, out _);
+        Check(!fixture.Sink.Held.Any(key => key.ScanCode == 0x4F),
+            "the camera action is released once the game enters the normal view");
+        fixture.Memory.Put(SubmarineMissionStateReader.AddressEnemyRecords + 0x38, 0x800);
+        var locked = fixture.Coordinator.Observe(10, true, true, Now.AddMilliseconds(76), _ => false, capture, out _);
+        Check(locked.Speech?.Contains("Press Switch", StringComparison.OrdinalIgnoreCase) == true,
+            "R3, select, pursue can reach the native lock and manual fire guidance without Page Down");
+        Check(!fixture.Sink.Held.Any(key => key.ScanCode == 0x39), "the player still supplies every fire press");
+    }
+
+    private static void TornViewsDoNotRepeatTheOverviewWarning()
+    {
+        using var fixture = new Fixture();
+        fixture.Memory.Put(SubmarineMissionStateReader.AddressViewMode, 1);
+        fixture.Memory.Put(SubmarineMissionStateReader.AddressEnemyRecords + 8, 2000 << 12);
+        fixture.Coordinator.Observe(10, true, true, Now, _ => false, null, out _);
+        var start = fixture.Coordinator.Observe(10, true, true, Now.AddMilliseconds(10),
+            key => key == 0x4F, null, out _);
+        var warnings = start.Speech?.Contains("torpedoes cannot lock", StringComparison.OrdinalIgnoreCase) == true ? 1 : 0;
+        for (var tick = 1; tick <= 6; tick++)
+        {
+            fixture.Memory.AllowRead = false;
+            var unavailable = fixture.Coordinator.Observe(10, true, true, Now.AddMilliseconds(tick * 60),
+                _ => false, null, out _);
+            Check(fixture.Sink.Held.Count == 0 && unavailable.Speech is null,
+                "unreadable frames release inputs and do not speak stale guidance");
+            fixture.Memory.AllowRead = true;
+            var recovered = fixture.Coordinator.Observe(10, true, true, Now.AddMilliseconds(tick * 60 + 30),
+                _ => false, null, out _);
+            if (recovered.Speech?.Contains("torpedoes cannot lock", StringComparison.OrdinalIgnoreCase) == true) warnings++;
+        }
+        Check(warnings <= 1, $"a fixed overview is announced once across torn reads, not {warnings} times");
+        Check(!fixture.Sink.Held.Any(key => key.ScanCode == 0x4F),
+            "a distant contact stays in overview until the sighting is in normal-view range");
+    }
+
+    private static void AViewRequestIsReleasedAndRefusedAfterNoResponse()
+    {
+        using var fixture = new Fixture();
+        fixture.Memory.Put(SubmarineMissionStateReader.AddressViewMode, 1);
+        fixture.Start();
+        fixture.Coordinator.Observe(10, true, true, Now.AddMilliseconds(150), _ => false, null, out _);
+        Check(fixture.Sink.Held.Count == 0 && fixture.Coordinator.IsPursuing,
+            "the view control is released while its native response is awaited");
+        var refused = fixture.Coordinator.Observe(10, true, true, Now.AddSeconds(3), _ => false, null, out _);
+        Check(!fixture.Coordinator.IsPursuing && fixture.Sink.Held.Count == 0,
+            "an unacknowledged view request cannot silently keep pursuit active");
+        Check(refused.Speech?.Contains("did not return", StringComparison.OrdinalIgnoreCase) == true,
+            "the missing view response is explained once");
+    }
+
+    private static void AViewRequestReleasesAtEveryUnavailableBoundary()
+    {
+        foreach (var boundary in new[] { "pause", "quit prompt", "result", "module", "read", "view", "focus", "disabled", "dispose" })
+        {
+            using var fixture = new Fixture();
+            fixture.Memory.Put(SubmarineMissionStateReader.AddressViewMode, 1);
+            fixture.Start();
+            Check(fixture.Sink.Held.Any(key => key.ScanCode == 0x4F), "the fixture owns the view request");
+            var module = 10;
+            var foreground = true;
+            var enabled = true;
+            switch (boundary)
+            {
+                case "pause": fixture.Memory.Put(SubmarineMissionStateReader.AddressSessionFlags, 1); break;
+                case "quit prompt": fixture.Memory.Put(SubmarineMissionStateReader.AddressSessionFlags, 5); break;
+                case "result": fixture.Memory.Put(SubmarineMissionStateReader.AddressResult, 2); break;
+                case "module": module = 1; fixture.Memory.AllowRead = false; break;
+                case "read": fixture.Memory.AllowRead = false; break;
+                case "view": fixture.Memory.Put(SubmarineMissionStateReader.AddressProjectionContextPointer, 0); break;
+                case "focus": foreground = false; break;
+                case "disabled": enabled = false; break;
+                case "dispose": fixture.Coordinator.Dispose(); break;
+            }
+            if (boundary != "dispose") fixture.Coordinator.Observe(module, foreground, enabled,
+                Now.AddMilliseconds(30), _ => false, null, out _);
+            Check(!fixture.Coordinator.HasOwnedInput && fixture.Sink.Held.Count == 0,
+                boundary + " releases the actual camera action as well as steering");
+        }
+    }
+
+    private static void TheNativePollCannotCycleAnAlreadyNormalView()
+    {
+        using var fixture = new Fixture();
+        fixture.Memory.Put(SubmarineMissionStateReader.AddressViewMode, 1);
+        fixture.Start();
+        Check(fixture.Coordinator.MayDeliverInputNow, "the overview accepts its return action");
+        fixture.Memory.Put(SubmarineMissionStateReader.AddressViewMode, 0);
+        Check(!fixture.Coordinator.MayDeliverInputNow,
+            "a view change before the next worker tick retires the camera key at the native poll");
+        fixture.Coordinator.Observe(10, true, true, Now.AddMilliseconds(30), _ => false, null, out _);
+        Check(fixture.Coordinator.MayDeliverInputNow && fixture.Sink.Held.All(key => key.ScanCode != 0x4F),
+            "normal-view steering resumes without cycling the camera");
+    }
+
+    private static void ARemappedViewActionCannotAlsoFireOrOperateAnotherControl()
+    {
+        foreach (var conflict in new[] { 0, 2, 3, 4, 5, 6, 7, 8, 11, 12, 13, 14, 15 })
+        {
+            using var fixture = new Fixture();
+            fixture.Memory.Put(SubmarineMissionStateReader.AddressViewMode, 1);
+            fixture.Memory.Put(HighwayDirectionInputMappingResolver.MappingTableAddress + 2 * 0x64 + (uint)conflict * 4, 0x4F);
+            fixture.Coordinator.Observe(10, true, true, Now, _ => false, null, out _);
+            var refused = fixture.Coordinator.Observe(10, true, true, Now.AddMilliseconds(10), key => key == 0x4F, null, out _);
+            Check(!fixture.Coordinator.IsPursuing && fixture.Sink.Held.Count == 0,
+                "a view binding aliased to native control " + conflict + " is never pressed");
+            Check(refused.Speech?.Contains("shares a key", StringComparison.OrdinalIgnoreCase) == true,
+                "the conflicting binding is explained");
+        }
+        using var remapped = new Fixture();
+        remapped.Memory.Put(SubmarineMissionStateReader.AddressViewMode, 1);
+        remapped.Memory.Put(HighwayDirectionInputMappingResolver.MappingTableAddress + 4, 0);
+        remapped.Memory.Put(HighwayDirectionInputMappingResolver.MappingTableAddress + 0x64 + 4, 0x2E);
+        remapped.Start();
+        Check(remapped.Sink.Held.Contains(new HighwayKeyboardKey(0x2E, false)),
+            "the actual live remapped Target binding is used instead of a guessed Page Down key");
     }
 
     private static void ManualPlayStillAnnouncesNativeLocks()
@@ -199,7 +344,7 @@ internal static class SubmarineCoordinatorTests
         using var fixture = new Fixture();
         var edges = new NavigationKeyPressTracker();
         var pursuitKeyDown = false;
-        bool Pressed(int key) => edges.Observe(key, key == 0x50 && pursuitKeyDown, true);
+        bool Pressed(int key) => edges.Observe(key, key == 0x4F && pursuitKeyDown, true);
         fixture.Coordinator.Observe(10, true, true, Now, Pressed, null, out _);
         fixture.Memory.AllowRead = false;
         pursuitKeyDown = true;
@@ -315,6 +460,20 @@ internal static class SubmarineCoordinatorTests
         Check(fixture.Sink.Held.Count == 0, "a reader or tracker fault cannot leave keys held");
     }
 
+    private static void NativePauseDoesNotAlsoTogglePursuit()
+    {
+        using var fixture = new Fixture();
+        fixture.Coordinator.Observe(10, true, true, Now, key => key == 0x50, null, out _);
+        Check(!fixture.Coordinator.IsPursuing && fixture.Sink.Held.Count == 0,
+            "Steam's default P/Pause key does not also start pursuit");
+        fixture.Coordinator.Observe(10, true, true, Now.AddMilliseconds(30), key => key == 0x4F, null, out _);
+        Check(fixture.Coordinator.IsPursuing && fixture.Sink.Held.Count > 0,
+            "the unbound O accessibility key starts pursuit");
+        fixture.Coordinator.Observe(10, true, true, Now.AddMilliseconds(60), key => key == 0x4F, null, out _);
+        Check(!fixture.Coordinator.IsPursuing && fixture.Sink.Held.Count == 0,
+            "a new O press stops pursuit and releases its keys");
+    }
+
     private sealed class Fixture : IDisposable
     {
         internal readonly MissionMemory Memory = new();
@@ -325,7 +484,7 @@ internal static class SubmarineCoordinatorTests
         internal void Start()
         {
             Coordinator.Observe(10, true, true, Now, _ => false, null, out _);
-            var cue = Coordinator.Observe(10, true, true, Now.AddMilliseconds(10), key => key == 0x50, null, out _);
+            var cue = Coordinator.Observe(10, true, true, Now.AddMilliseconds(10), key => key == 0x4F, null, out _);
             Check(Coordinator.IsPursuing && Sink.Held.Count > 0,
                 "the real reader, tracker and input controller start pursuit: " + cue.Speech);
         }
@@ -380,7 +539,7 @@ internal static class SubmarineCoordinatorTests
             var record = SubmarineMissionStateReader.AddressEnemyRecords;
             Put(record, 40 << 12); Put(record + 4, 20 << 12); Put(record + 8, 200 << 12);
             Put(record + 0x34, 0x15); Put(record + 0x38, 0x400); Put(record + 0x54, 0x00989D18);
-            foreach (var item in new[] { (4, 0x1E), (6, 0x1F), (7, 0x39), (12, 0x48), (13, 0x4D), (14, 0x50), (15, 0x4B) })
+            foreach (var item in new[] { (1, 0x4F), (4, 0x1E), (6, 0x1F), (7, 0x39), (12, 0x48), (13, 0x4D), (14, 0x50), (15, 0x4B) })
                 Put(HighwayDirectionInputMappingResolver.MappingTableAddress + (uint)item.Item1 * 4, item.Item2);
         }
         internal void Put(uint address, int value)

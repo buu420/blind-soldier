@@ -27,7 +27,7 @@ internal static class HighwayAutoSteeringControllerTests
 
     private static void LegacySubmarineInputCannotPressItsOwnAccessibilityHotkeys()
     {
-        foreach (var scan in new uint[] { 0x17, 0x24, 0x25, 0x26, 0x19, 0x13 })
+        foreach (var scan in new uint[] { 0x17, 0x24, 0x25, 0x26, 0x18, 0x13 })
         {
             var memory = new MutableDirectionMappingAddressSpace();
             memory.SetToken(0, 4, scan);

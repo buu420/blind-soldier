@@ -38,6 +38,13 @@ internal interface IHighwayDirectionInputMappingResolver
         diagnostic = "submarine controls cannot be resolved";
         return false;
     }
+
+    bool TryResolveSubmarineFiringView(out IReadOnlyList<HighwayKeyboardKey> keys, out string diagnostic)
+    {
+        keys = Array.Empty<HighwayKeyboardKey>();
+        diagnostic = "the submarine view control cannot be resolved";
+        return false;
+    }
 }
 
 /// <summary>
@@ -69,6 +76,7 @@ internal sealed class HighwayDirectionInputMappingResolver(
     internal const int SubmarineAccelerateSlotIndex = 4;
     internal const int SubmarineBrakeSlotIndex = 6;
     internal const int SubmarineFireSlotIndex = 7;
+    internal const int SubmarineFiringViewSlotIndex = 1;
 
     private static readonly DirectionComponent[] SubmarineActions =
     [
@@ -167,6 +175,13 @@ internal sealed class HighwayDirectionInputMappingResolver(
 
     public bool TryResolveSubmarine(HighwaySteeringDirection direction, bool accelerate, bool brake,
         out IReadOnlyList<HighwayKeyboardKey> keys, out string diagnostic)
+        => TryResolveSubmarineCore(direction, accelerate, brake, false, out keys, out diagnostic);
+
+    public bool TryResolveSubmarineFiringView(out IReadOnlyList<HighwayKeyboardKey> keys, out string diagnostic)
+        => TryResolveSubmarineCore(HighwaySteeringDirection.None, false, false, true, out keys, out diagnostic);
+
+    private bool TryResolveSubmarineCore(HighwaySteeringDirection direction, bool accelerate, bool brake,
+        bool firingView, out IReadOnlyList<HighwayKeyboardKey> keys, out string diagnostic)
     {
         keys = Array.Empty<HighwayKeyboardKey>();
         diagnostic = string.Empty;
@@ -176,7 +191,7 @@ internal sealed class HighwayDirectionInputMappingResolver(
             diagnostic = "unsupported submarine steering or conflicting throttle commands";
             return false;
         }
-        if (components.Length == 0 && !accelerate && !brake) return true;
+        if (components.Length == 0 && !accelerate && !brake && !firingView) return true;
 
         Span<byte> table = stackalloc byte[MappingTableSize];
         if (!addressSpace.TryRead(MappingTableAddress, table))
@@ -187,6 +202,9 @@ internal sealed class HighwayDirectionInputMappingResolver(
         var requested = components.ToList();
         if (accelerate) requested.Add(new("Accelerate", SubmarineAccelerateSlotIndex));
         if (brake) requested.Add(new("Brake", SubmarineBrakeSlotIndex));
+        // Target leaves the overview without toggling it back on. It is an
+        // ordinary pressed-edge action, delivered alone and checked for aliases.
+        if (firingView) requested.Add(new("Change view", SubmarineFiringViewSlotIndex));
         var resolved = new List<HighwayKeyboardKey>(requested.Count);
         foreach (var component in requested)
         {

@@ -42,6 +42,7 @@ internal static class SubmarineMissionTests
         DamageAndWarningLampsAreSpokenWhenTheyChange();
         TheReadoutNamesTheHullsItCanSee();
         APursuitCanOwnTheTargetLines();
+        ManualViewChangesAreSpokenOnceFromACoherentView();
         TheControlsAreNamedByActionNotByKey();
         NothingUndrawnIsEverSpoken();
 
@@ -757,7 +758,7 @@ internal static class SubmarineMissionTests
     private static void TheControlsAreNamedByActionNotByKey()
     {
         var controls = SubmarineMissionReadout.DescribeControls();
-        foreach (var action in new[] { "Switch", "Menu", "Cancel", "PageUp", "PageDown", "Target", "Camera", "Start" })
+        foreach (var action in new[] { "Switch", "Menu", "Cancel", "PageUp", "overview control", "Target", "Camera", "Start" })
         {
             Equal(true, controls.Contains(action, StringComparison.Ordinal),
                 $"the mission's controls name the action {action}");
@@ -773,6 +774,26 @@ internal static class SubmarineMissionTests
             Equal(false, controls.Contains(key, StringComparison.OrdinalIgnoreCase),
                 $"a remapped control must not be described as the key {key}");
         }
+    }
+
+    private static void ManualViewChangesAreSpokenOnceFromACoherentView()
+    {
+        var readout = new SubmarineMissionReadout();
+        var now = DateTime.UtcNow;
+        var normal = Snapshot();
+        Equal(true, readout.Observe(normal, now).Speech?.Contains("Normal view.") == true,
+            "the introduction identifies the visible camera mode");
+        var overview = normal with { ViewMode = 1 };
+        Equal("Overview.", readout.Observe(overview, now.AddMilliseconds(30)).Speech,
+            "manual play hears the overview change without starting pursuit");
+        Equal(null, readout.Observe(overview, now.AddMilliseconds(60)).Speech,
+            "holding a view does not repeat its announcement");
+        Equal(null, readout.Observe(normal with { CanPlaceTargets = false }, now.AddMilliseconds(90)).Speech,
+            "an unreadable camera does not announce a view change");
+        Equal("Normal view.", readout.Observe(normal, now.AddMilliseconds(120)).Speech,
+            "a coherent return is announced");
+        Equal(null, readout.Observe(normal, now.AddMilliseconds(150)).Speech,
+            "the normal-view announcement is said once");
     }
 
     private static void NothingUndrawnIsEverSpoken()
