@@ -228,7 +228,9 @@ internal sealed class SubmarineAccessibilityCoordinator : IDisposable
         {
             if (!MayDeliverInputNow)
             {
-                SuspendInput();
+                // The captured view may still be live (Start unpauses on its
+                // pressed edge). Withhold input without resetting lock speech.
+                ReleaseInput();
                 return;
             }
             pursuit.StopPursuit();

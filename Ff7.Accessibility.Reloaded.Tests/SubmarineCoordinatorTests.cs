@@ -26,6 +26,7 @@ internal static class SubmarineCoordinatorTests
             APreviousOwnedKeyCanDrainBeforeItCountsAsManualInput,
             BrowsingKeepsTheLockBaselineWhileReleasingSteering,
             APauseBetweenCaptureAndDeliverySuspendsPursuit,
+            AHeldPauseDuringUnpauseDoesNotRepeatTheFirePrompt,
             SelectingOnHullContactStillAnnouncesTheStoppedPursuit,
             ReturningToTheGameKeepsTheFiringGuidance
         })
@@ -108,6 +109,40 @@ internal static class SubmarineCoordinatorTests
             "hull contact stops pursuit even with a selection command");
         Check(cue.Speech?.Contains("Pursuit stopped", StringComparison.OrdinalIgnoreCase) == true &&
             cue.Speech.Contains("1 of 1"), "the stopped pursuit and new selection are both announced");
+    }
+
+    private static void AHeldPauseDuringUnpauseDoesNotRepeatTheFirePrompt()
+    {
+        using var fixture = new Fixture();
+        fixture.Memory.Put(HighwayDirectionInputMappingResolver.MappingTableAddress + 11 * 4, 0x1C);
+        fixture.Start();
+        fixture.Memory.Put(SubmarineMissionStateReader.AddressEnemyRecords + 0x38, 0x800);
+        fixture.Memory.Put(SubmarineMissionStateReader.AddressSessionFlags, 1);
+        fixture.Coordinator.Observe(10, true, true, Now.AddMilliseconds(30), _ => false, null, out _);
+        Check(fixture.Sink.Held.Count == 0, "the actual pause first releases pursuit keys");
+        // Start is a pressed-edge action: the game unpauses while the key is
+        // physically down. The native delivery gate withholds new steering keys.
+        fixture.Memory.Put(SubmarineMissionStateReader.AddressSessionFlags, 0);
+        fixture.Memory.Put(0x009ADAE4 + 0x1C, 0x80);
+        fixture.Sink.AcceptKeyDown = () => fixture.Coordinator.MayDeliverInputNow;
+        var prompts = 0;
+        var cues = 0;
+        for (var tick = 1; tick <= 5; tick++)
+        {
+            var cue = fixture.Coordinator.Observe(10, true, true, Now.AddMilliseconds(30 + tick * 30),
+                _ => false, null, out _);
+            if (cue.Speech?.Contains("Press Switch", StringComparison.OrdinalIgnoreCase) == true) prompts++;
+            if (cue.PlayLockCue) cues++;
+            Check(fixture.Coordinator.IsPursuing && fixture.Sink.Held.Count == 0,
+                "a held Pause withholds steering without cancelling pursuit");
+        }
+        fixture.Memory.Put(0x009ADAE4 + 0x1C, 0);
+        var resumed = fixture.Coordinator.Observe(10, true, true, Now.AddMilliseconds(210), _ => false, null, out _);
+        if (resumed.Speech?.Contains("Press Switch", StringComparison.OrdinalIgnoreCase) == true) prompts++;
+        if (resumed.PlayLockCue) cues++;
+        Check(prompts <= 1 && cues <= 1, $"unpausing with Pause held retains the lock baseline: {prompts} prompts, {cues} cues");
+        Check(fixture.Coordinator.IsPursuing && fixture.Sink.Held.Count > 0,
+            "steering resumes when the physical Pause key is released");
     }
 
     private static void ReturningToTheGameKeepsTheFiringGuidance()
