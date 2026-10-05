@@ -25,6 +25,28 @@ public static class ControllerNavigationDomainOwnershipTests
         ASuspendedFieldDoesNotDiscardTheWorldMapsQueuedSelection();
         TheOwningDomainStillClosesItsOwnMenu();
         TheGlobalCloseStillAppliesToWhoeverHoldsThePad();
+        RetiredWalkingDomainsDoNotCloseOrDrainTheSubmarineMenu();
+    }
+
+    private static void RetiredWalkingDomainsDoNotCloseOrDrainTheSubmarineMenu()
+    {
+        var capture = OpenOnWorldMap(ControllerNavigationDomain.Submarine);
+        _ = capture.ObserveRawPoll(Pad(GamepadButton.DPadDown), Now);
+        capture.RequestClose(ControllerNavigationDomain.Field);
+        capture.PublishUnavailable(ControllerNavigationDomain.WorldMap, Now);
+        capture.PublishContext(ControllerNavigationDomain.Field, true, true, false, Now);
+        Equal(ControllerNavigationDomain.Submarine, capture.Owner,
+            "inactive field and world workers cannot replace the live submarine context");
+        Equal(true, capture.Commands.TryDequeue(out var kept, out _),
+            "the submarine selection survives the inactive workers");
+        Equal(ControllerNavigationCommand.NextTarget, kept, "the right selection is retained");
+        var strip = capture.ObserveRawPoll(Pad(GamepadButton.X), Now);
+        Equal(GamepadButton.X, strip & GamepadButton.X, "pursue does not leak its press into native Fire");
+        Equal(false, capture.IsOpen, "pursue closes browsing");
+        strip = capture.ObserveRawPoll(Pad(GamepadButton.X), Now);
+        Equal(GamepadButton.X, strip & GamepadButton.X, "the pursue button remains drained until released");
+        strip = capture.ObserveRawPoll(Pad(GamepadButton.None), Now);
+        Equal(GamepadButton.None, strip, "ordinary game controls return after release");
     }
 
     /// <summary>
@@ -105,14 +127,15 @@ public static class ControllerNavigationDomainOwnershipTests
     }
 
     /// <summary>The world map holding the pad with its menu open, as the log shows it.</summary>
-    private static ControllerNavigationCapture OpenOnWorldMap()
+    private static ControllerNavigationCapture OpenOnWorldMap(
+        ControllerNavigationDomain domain = ControllerNavigationDomain.WorldMap)
     {
         var capture = new ControllerNavigationCapture(
             suppressor => new ControllerNavigationMenu(EmptyGamepadReader.Instance, suppressor),
             captureIsInstalled: () => true);
 
         capture.PublishContext(
-            ControllerNavigationDomain.WorldMap,
+            domain,
             isHostForeground: true,
             moduleSupportsNavigation: true,
             gameIsBusy: false,

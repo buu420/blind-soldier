@@ -33,12 +33,14 @@ internal static class Steam2026SubmarineMissionHostTests
         memory.Put(SubmarineMissionStateReader.AddressInnerCompletion, 0);
         memory.Put(SubmarineMissionStateReader.AddressResult, 0);
         cue = host.Observe(10, false, true, now.AddSeconds(4), Repeat, out _);
-        Check(cue.Speech is null && repeatPolls == 1, "background mission remains silent");
+        Check(cue.Speech is null && repeatPolls == 2,
+            "background mission tracks held keys without speaking or acting on them");
         cue = host.Observe(10, true, true, now.AddSeconds(5), () => false, out _);
         Check(cue.Speech?.StartsWith("Submarine mission.") == true, "new run has fresh state");
         memory.AllowRead = false;
         cue = host.Observe(10, true, true, now.AddSeconds(6), Repeat, out _);
-        Check(cue.Speech is null && repeatPolls == 1, "unreadable instruments are never invented");
+        Check(cue.Speech?.Contains("temporarily unavailable") == true && repeatPolls == 3,
+            "K reports unavailable instruments without inventing a reading");
         ReturnTraceDistinguishesOwnerPhaseAndConfirm();
     }
 

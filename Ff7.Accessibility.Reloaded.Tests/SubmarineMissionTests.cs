@@ -16,11 +16,17 @@ internal static class SubmarineMissionTests
         AnIdleModuleIsNotAMission();
         AnUnreadableIdentityIsNotAnEndedMission();
         ATornIdentityIsRefusedRatherThanReported();
+        ASingleTearIsRetriedIntoOneCoherentReading();
         AnUninitialisedRunIsNotAMission();
         TheInstrumentsAreTheOnesTheMissionDraws();
         NegativeAndImpossibleCountersDoNotProduceNonsense();
         TorpedoLampsCountOnlyLoadedSlots();
         OnlyDrawnMarkersBecomeTargets();
+        TargetsCarryTheirHullAndPosition();
+        EveryOneOfTheTwelveSlotsIsRead();
+        ASinkingHullIsATargetOnlyWhereItIsDrawn();
+        AHiddenLeaderIsNotRevealed();
+        ThePlayersPoseThrottleAndOverviewComeFromTheView();
         TheViewportOriginIsHonoured();
         ARecordBehindTheCameraIsNotOnScreen();
         AnAlternateCameraMovesWhereTargetsAppear();
@@ -34,8 +40,13 @@ internal static class SubmarineMissionTests
         TheLockCueIsProtectedAndOrdinaryUpdatesAreNot();
         LeavingTheMissionClearsEverything();
         DamageAndWarningLampsAreSpokenWhenTheyChange();
+        TheReadoutNamesTheHullsItCanSee();
+        APursuitCanOwnTheTargetLines();
         TheControlsAreNamedByActionNotByKey();
         NothingUndrawnIsEverSpoken();
+
+        // The pursuit tracker reads these snapshots, so its cases run wherever these do.
+        SubmarinePursuitTrackerTests.Run();
     }
 
     // -- reader -------------------------------------------------------------------
@@ -57,13 +68,21 @@ internal static class SubmarineMissionTests
         Equal(false, reader.TryRead(out _), "a failed read is a failure, not an idle module");
     }
 
+    /// <summary>
+    /// A word that disagrees with itself across every capture is never reported, however
+    /// many captures are tried, and the diagnostic names which word it was. E73F18 is in
+    /// the list because 77DF72 clears it as each frame's update starts and 78C9E1 sets it
+    /// when the frame is done: a change in it means a frame boundary fell inside the
+    /// capture, which is exactly what the double sample exists to catch.
+    /// </summary>
     private static void ATornIdentityIsRefusedRatherThanReported()
     {
-        foreach (var address in new[]
+        foreach (var (address, label) in new[]
                  {
-                     SubmarineMissionStateReader.AddressCurrentModule,
-                     SubmarineMissionStateReader.AddressResult,
-                     SubmarineMissionStateReader.AddressSessionFlags
+                     (SubmarineMissionStateReader.AddressCurrentModule, "module"),
+                     (SubmarineMissionStateReader.AddressResult, "result"),
+                     (SubmarineMissionStateReader.AddressSessionFlags, "session flags"),
+                     (SubmarineMissionStateReader.AddressInnerCompletion, "frame flag")
                  })
         {
             var memory = Running();
@@ -75,16 +94,72 @@ internal static class SubmarineMissionTests
                     return;
                 }
 
-                // The second sample of this word lands after the mission has moved on.
-                if (++reads == 2)
+                // Every second sample of this word lands after the mission has moved on.
+                var first = ++reads % 2 == 1;
+                if (address == SubmarineMissionStateReader.AddressCurrentModule)
                 {
-                    memory.WriteInt32(address, 5);
-                    memory.Module = 3;
+                    memory.Module = first ? SubmarineMissionStateReader.MinigameModule : (byte)3;
+                }
+                else
+                {
+                    memory.WriteInt32(address, first ? 0 : 5);
                 }
             };
             var reader = new SubmarineMissionStateReader(memory);
-            Equal(false, reader.TryRead(out _), $"a torn sample of {address:X} is refused");
+            Equal(false, reader.TryRead(out _), $"a torn sample of the {label} is refused");
+            Equal(true, reader.LastDiagnostic.Contains("torn identity", StringComparison.Ordinal),
+                $"the refusal says why: '{reader.LastDiagnostic}'");
+            Equal(true, reader.LastDiagnostic.Contains(label, StringComparison.Ordinal),
+                $"and names the {label}: '{reader.LastDiagnostic}'");
+            Equal(SubmarineMissionStateReader.MaximumCaptureAttempts, reads / 2,
+                $"every bounded attempt sampled the {label} twice");
+            Equal(SubmarineMissionStateReader.MaximumCaptureAttempts, reader.TornIdentityCaptures,
+                "each torn attempt is counted");
         }
+    }
+
+    /// <summary>
+    /// One tear is not a broken mission. The whole capture is taken again, and the next
+    /// one - which agrees with itself - is the reading, rather than either half of the
+    /// torn one.
+    /// </summary>
+    private static void ASingleTearIsRetriedIntoOneCoherentReading()
+    {
+        var memory = Running();
+        var reads = 0;
+        memory.BeforeRead = read =>
+        {
+            if (read == SubmarineMissionStateReader.AddressSessionFlags && ++reads == 2)
+            {
+                memory.WriteInt32(SubmarineMissionStateReader.AddressSessionFlags, 1);
+            }
+        };
+        var reader = new SubmarineMissionStateReader(memory);
+        Equal(true, reader.TryRead(out var paused), $"a single torn identity is retried: {reader.LastDiagnostic}");
+        Equal(true, paused.IsPaused, "the coherent second capture is the one reported");
+        Equal(1, reader.TornIdentityCaptures, "the torn capture is counted");
+        Equal(true, reader.LastTear?.Contains("session flags", StringComparison.Ordinal) == true,
+            $"and the torn word is named: '{reader.LastTear}'");
+
+        var moving = Running();
+        moving.PlaceEnemy(0, x: 40, y: 20, flags: 3, marker: 0x400);
+        var positionReads = 0;
+        moving.BeforeRead = read =>
+        {
+            if (read == SubmarineMissionStateReader.AddressEnemyRecords && ++positionReads == 2)
+            {
+                moving.WriteInt32(SubmarineMissionStateReader.AddressEnemyRecords, 60 << 12);
+            }
+        };
+        var viewReader = new SubmarineMissionStateReader(moving);
+        Equal(true, viewReader.TryRead(out var placed), viewReader.LastDiagnostic);
+        Equal(true, placed.CanPlaceTargets, "a view torn once is captured again rather than withheld");
+        Equal(60, placed.VisibleTargets.Single().X, "and shows where the target now is");
+        Equal(1, viewReader.TornViewCaptures, "the torn view capture is counted");
+        Equal(true, viewReader.LastTear?.Contains("enemy 0 position", StringComparison.Ordinal) == true,
+            $"and named: '{viewReader.LastTear}'");
+        Equal(false, viewReader.LastDiagnostic.Contains("torn", StringComparison.Ordinal),
+            $"a recovered reading's diagnostic is the ordinary one: '{viewReader.LastDiagnostic}'");
     }
 
     private static void AnUninitialisedRunIsNotAMission()
@@ -197,6 +272,103 @@ internal static class SubmarineMissionTests
         Equal(true, speech.Contains("locked", StringComparison.Ordinal), speech);
     }
 
+    private static void TargetsCarryTheirHullAndPosition()
+    {
+        var memory = Running();
+        memory.WriteInt32(SubmarineMissionStateReader.AddressArcadeFlag, 2);
+        // Arcade table 2 keeps its leader (model 2) in slot 7; model 3 is the ordinary
+        // hull in the leader's red.
+        memory.PlaceEnemy(7, x: 40, y: 20, z: 3, flags: 3, marker: 0x400, hull: Hull(2));
+        memory.PlaceEnemy(1, x: -40, y: 20, flags: 3, marker: 0x200, hull: Hull(3));
+        memory.PlaceEnemy(0, x: 0, y: -20, flags: 3, marker: 0x100, hull: Hull(0));
+        memory.PlaceEnemy(2, x: 10, y: 10, flags: 3, marker: 0x400, hull: Hull(1));
+        memory.PlaceEnemy(3, x: -10, y: 10, flags: 3, marker: 0x400, hull: 0x12345678);
+
+        var snapshot = Read(memory);
+        Equal(true, snapshot.IsArcade, "the arcade flag is read");
+        Equal(SubmarineTargetModel.RedLeader, ModelOf(snapshot, 7), "the leader's own hull in slot 7 is the leader");
+        Equal(SubmarineTargetModel.Red, ModelOf(snapshot, 1), "model 3 is red on the ordinary hull");
+        Equal(SubmarineTargetModel.Yellow, ModelOf(snapshot, 0), "model 0 is the yellow hull");
+        Equal(SubmarineTargetModel.Unknown, ModelOf(snapshot, 2), "the player's blue hull is no enemy kind");
+        Equal(SubmarineTargetModel.Unknown, ModelOf(snapshot, 3), "an unrecognised pointer names nothing");
+
+        var leader = snapshot.VisibleTargets.Single(target => target.Slot == 7);
+        Equal((40, 20, 3), (leader.X, leader.Y, leader.Z), "the sighting is where the record is, in map units");
+        Equal(false, leader.IsSinking, "a marked hull is not sinking");
+    }
+
+    private static void EveryOneOfTheTwelveSlotsIsRead()
+    {
+        var memory = Running();
+        for (var slot = 0; slot < SubmarineMissionStateReader.EnemyRecordCount; slot++)
+        {
+            memory.PlaceEnemy(slot, x: (slot - 6) * 20, y: 0, flags: 3, marker: 0x400, hull: Hull(slot == 0 ? 2 : 0));
+        }
+
+        var snapshot = Read(memory);
+        Equal(12, snapshot.VisibleTargets.Count, "all twelve records are drawn and read");
+        Equal(true,
+            Enumerable.Range(0, 12).SequenceEqual(snapshot.VisibleTargets.Select(target => target.Slot).OrderBy(slot => slot)),
+            "one target per slot, the last one included");
+    }
+
+    private static void ASinkingHullIsATargetOnlyWhereItIsDrawn()
+    {
+        var memory = Running();
+        // 78D092 turns a dead record into exactly 0x20 with no marker, and 78E3FB still
+        // draws its hull on the way down.
+        memory.PlaceEnemy(0, x: 30, y: 40, flags: 0x20, marker: 0, hull: Hull(0));
+        // On the sea bed the flags are cleared and nothing is drawn.
+        memory.PlaceEnemy(1, x: 30, y: 40, flags: 0, marker: 0, hull: Hull(0));
+        // Going down, but outside the viewport.
+        memory.PlaceEnemy(2, x: 5000, y: 40, flags: 0x20, marker: 0, hull: Hull(3));
+
+        var snapshot = Read(memory);
+        Equal(1, snapshot.VisibleTargets.Count, "only the sinking hull inside the view is drawn");
+        var sinking = snapshot.VisibleTargets.Single();
+        Equal(0, sinking.Slot, "slot 0 is the one going down");
+        Equal(true, sinking.IsSinking, "and it is marked sinking");
+        Equal(false, sinking.IsLocked, "a sinking hull holds no lock");
+        Equal(false, snapshot.HasLockedTarget, "nor does the view");
+
+        var speech = new SubmarineMissionReadout().Describe(snapshot);
+        Equal(true, speech.Contains("No marked enemy on screen", StringComparison.Ordinal),
+            $"a sinking hull is not a marked enemy: '{speech}'");
+        Equal(true, speech.Contains("Sinking: yellow submarine", StringComparison.Ordinal),
+            $"it is said as sinking: '{speech}'");
+    }
+
+    private static void AHiddenLeaderIsNotRevealed()
+    {
+        var memory = Running();
+        // In sonar range but unmarked, then marked but outside the view.
+        memory.PlaceEnemy(0, x: 40, y: 20, flags: 3 | 0x10, marker: 0, hull: Hull(2));
+        memory.PlaceEnemy(1, x: 4000, y: 20, flags: 3, marker: 0x400, hull: Hull(2));
+        // Dead and on the sea bed, its hull pointer left behind.
+        memory.PlaceEnemy(2, x: 40, y: 20, flags: 0, marker: 0x800, hull: Hull(2));
+
+        var snapshot = Read(memory);
+        Equal(0, snapshot.VisibleTargets.Count, "nothing the game is not drawing is reported");
+        var speech = new SubmarineMissionReadout().Describe(snapshot);
+        Equal(false, speech.Contains("Leader", StringComparison.OrdinalIgnoreCase),
+            $"an undrawn leader is not named: '{speech}'");
+    }
+
+    private static void ThePlayersPoseThrottleAndOverviewComeFromTheView()
+    {
+        var memory = Running();
+        memory.SetPlayer(-1728, 512, -1792);
+        memory.WriteInt32(SubmarineMissionStateReader.AddressSpeedIndex, 18);
+        memory.WriteInt32(SubmarineMissionStateReader.AddressViewMode, 1);
+
+        var snapshot = Read(memory);
+        Equal((-1728, 512, -1792), (snapshot.PlayerX, snapshot.PlayerY, snapshot.PlayerZ),
+            "the submarine's own position, in map units");
+        Equal(512, snapshot.Depth, "the depth instrument reads the same word");
+        Equal(18, snapshot.SpeedIndex, "the throttle step, the held boost included");
+        Equal(true, snapshot.IsOverview, "9873A8 is PageDown's overview");
+    }
+
     private static void TheViewportOriginIsHonoured()
     {
         var memory = Running();
@@ -263,34 +435,40 @@ internal static class SubmarineMissionTests
     }
 
     /// <summary>
-    /// A stable module number is not evidence that the camera, the renderer context and
-    /// the enemy records came from one frame. Each of those is sampled twice; when the
-    /// two disagree the markers are withheld, and the instruments - which were read
-    /// coherently - are still reported.
+    /// A stable module number is not evidence that the camera, the renderer context, the
+    /// submarine and the enemy records came from one frame. Each of those is sampled twice
+    /// per capture; when they disagree in every bounded capture, the markers are withheld,
+    /// the instruments - which were read coherently - are still reported, and the
+    /// diagnostic names what would not hold still.
     /// </summary>
     private static void ATornViewKeepsTheInstrumentsAndDropsThePlacement()
     {
-        (uint Address, int First, int Second, string What)[] tears =
+        (uint Address, int First, int Second, string What, string Label)[] tears =
         [
-            (SubmarineMissionStateReader.AddressCamera, 4096, 0, "the camera turning"),
+            (SubmarineMissionStateReader.AddressCamera, 4096, 0, "the camera turning", "camera rotation"),
             (SubmarineMissionStateReader.AddressProjectionContextPointer,
                 unchecked((int)Native.Context), unchecked((int)Native.Context) + 0x10000,
-                "the renderer context moving"),
-            (SubmarineMissionStateReader.AddressEnemyRecords, 0, 900 << 12, "a target moving"),
-            (SubmarineMissionStateReader.AddressEnemyRecords + 0x38, 0x800, 0, "a marker changing")
+                "the renderer context moving", "renderer context"),
+            (SubmarineMissionStateReader.AddressEnemyRecords, 0, 900 << 12, "a target moving", "enemy 0 position"),
+            (SubmarineMissionStateReader.AddressEnemyRecords + 0x38, 0x800, 0, "a marker changing", "enemy 0 marker"),
+            (SubmarineMissionStateReader.AddressEnemyRecords + 0x54, unchecked((int)Hull(2)), unchecked((int)Hull(3)),
+                "a hull pointer changing", "enemy 0 hull"),
+            (SubmarineMissionStateReader.AddressPlayerX, 0, 50 << 12, "the submarine moving", "player position"),
+            (SubmarineMissionStateReader.AddressSpeedIndex, 17, 16, "the throttle stepping", "throttle"),
+            (SubmarineMissionStateReader.AddressViewMode, 0, 1, "the overview toggling", "view mode")
         ];
 
         foreach (var tear in tears)
         {
             var memory = Running();
-            memory.PlaceEnemy(0, x: 40, y: 20, flags: 3, marker: 0x800);
+            memory.PlaceEnemy(0, x: 40, y: 20, flags: 3, marker: 0x800, hull: Hull(2));
             memory.WriteInt32(tear.Address, tear.First);
             var reads = 0;
             memory.BeforeRead = address =>
             {
-                if (address == tear.Address && ++reads == 2)
+                if (address == tear.Address)
                 {
-                    memory.WriteInt32(tear.Address, tear.Second);
+                    memory.WriteInt32(tear.Address, ++reads % 2 == 1 ? tear.First : tear.Second);
                 }
             };
 
@@ -300,6 +478,12 @@ internal static class SubmarineMissionTests
             Equal(0, snapshot.VisibleTargets.Count, $"{tear.What} places nothing");
             Equal(false, snapshot.HasLockedTarget, $"{tear.What} claims no lock");
             Equal(100, snapshot.HealthPercent, $"{tear.What} leaves the instruments alone");
+            Equal(true, reader.LastDiagnostic.Contains("torn view", StringComparison.Ordinal),
+                $"{tear.What} is diagnosed as a torn view: '{reader.LastDiagnostic}'");
+            Equal(true, reader.LastDiagnostic.Contains(tear.Label, StringComparison.Ordinal),
+                $"{tear.What} names the {tear.Label}: '{reader.LastDiagnostic}'");
+            Equal(SubmarineMissionStateReader.MaximumCaptureAttempts, reader.TornViewCaptures,
+                $"{tear.What} was captured the bounded number of times");
         }
     }
 
@@ -506,6 +690,70 @@ internal static class SubmarineMissionTests
             "a lamp going out is a visible change too");
     }
 
+    private static void TheReadoutNamesTheHullsItCanSee()
+    {
+        var snapshot = Snapshot() with
+        {
+            VisibleTargets =
+            [
+                new SubmarineVisibleTarget(0, false, 280, 30) { Model = SubmarineTargetModel.RedLeader },
+                new SubmarineVisibleTarget(3, false, 20, 200) { Model = SubmarineTargetModel.Yellow },
+                new SubmarineVisibleTarget(5, false, 160, 120) { Model = SubmarineTargetModel.Red, IsSinking = true }
+            ]
+        };
+        var speech = new SubmarineMissionReadout().Describe(snapshot);
+        foreach (var expected in new[]
+                 {
+                     "2 marked enemies",
+                     "Red Leader, right and high",
+                     "yellow submarine, left and low",
+                     "Sinking: red submarine, centre and level"
+                 })
+        {
+            Equal(true, speech.Contains(expected, StringComparison.Ordinal), $"'{expected}' in '{speech}'");
+        }
+
+        var readout = new SubmarineMissionReadout();
+        var start = new DateTime(2026, 10, 5, 0, 0, 0, DateTimeKind.Utc);
+        _ = readout.Observe(Snapshot(), start);
+        var locked = readout.Observe(
+            Snapshot() with
+            {
+                HasLockedTarget = true,
+                VisibleTargets = [new SubmarineVisibleTarget(0, true, 160, 120) { Model = SubmarineTargetModel.RedLeader }]
+            },
+            start.AddSeconds(1));
+        Equal("Target locked, Red Leader, centre and level.", locked.Speech, "the lock names the hull it is on");
+    }
+
+    /// <summary>
+    /// While a pursuit runs it speaks the lock and where its target is, with the fire
+    /// guidance attached. The readout keeps the instruments, and taking the targets back
+    /// does not replay a lock that was already spoken.
+    /// </summary>
+    private static void APursuitCanOwnTheTargetLines()
+    {
+        var readout = new SubmarineMissionReadout();
+        var start = new DateTime(2026, 10, 5, 0, 0, 0, DateTimeKind.Utc);
+        _ = readout.Observe(Snapshot(), start);
+        readout.PursuitOwnsTargets = true;
+
+        var locked = Snapshot() with
+        {
+            HasLockedTarget = true,
+            VisibleTargets = [new SubmarineVisibleTarget(0, true, 160, 120) { Model = SubmarineTargetModel.RedLeader }]
+        };
+        var quiet = readout.Observe(locked, start.AddSeconds(1));
+        Equal(null, quiet.Speech, "the pursuit speaks the lock while it runs");
+        Equal(false, quiet.PlayLockCue, "and plays the cue itself");
+        Equal("Hull 62 percent.", readout.Observe(locked with { HealthPercent = 62 }, start.AddSeconds(2)).Speech,
+            "the instruments are still the readout's");
+
+        readout.PursuitOwnsTargets = false;
+        Equal(default, readout.Observe(locked with { HealthPercent = 62 }, start.AddSeconds(3)),
+            "handing the targets back does not replay a lock already spoken");
+    }
+
     private static void TheControlsAreNamedByActionNotByKey()
     {
         var controls = SubmarineMissionReadout.DescribeControls();
@@ -514,6 +762,11 @@ internal static class SubmarineMissionTests
             Equal(true, controls.Contains(action, StringComparison.Ordinal),
                 $"the mission's controls name the action {action}");
         }
+
+        // 798580: Up takes 4 from 98734C (nose down), Down adds 4 (nose up).
+        Equal(true, controls.Contains("Up dips the nose to dive", StringComparison.Ordinal) &&
+                    controls.Contains("Down raises it to climb", StringComparison.Ordinal),
+            $"the pitch directions are said the way the mission applies them: '{controls}'");
 
         foreach (var key in new[] { "Enter", "Space", "Ctrl", "F1", "keyboard", "arrow key" })
         {
@@ -549,6 +802,13 @@ internal static class SubmarineMissionTests
         Equal(true, reader.TryRead(out var snapshot), $"the mission reads: {reader.LastDiagnostic}");
         return snapshot;
     }
+
+    /// <summary>The +0x54 pointer 78E882 stores for a model index.</summary>
+    private static uint Hull(int model) =>
+        SubmarineMissionStateReader.AddressModelTable + (uint)(model * SubmarineMissionStateReader.ModelTableStride);
+
+    private static SubmarineTargetModel ModelOf(SubmarineMissionSnapshot snapshot, int slot) =>
+        snapshot.VisibleTargets.Single(target => target.Slot == slot).Model;
 
     private static SubmarineMissionSnapshot Snapshot() =>
         new(
@@ -696,7 +956,7 @@ internal static class SubmarineMissionTests
             }
         }
 
-        internal void PlaceEnemy(int slot, int x, int y, int flags, int marker, int z = 0)
+        internal void PlaceEnemy(int slot, int x, int y, int flags, int marker, int z = 0, uint hull = 0)
         {
             var record = SubmarineMissionStateReader.AddressEnemyRecords +
                 (uint)(slot * SubmarineMissionStateReader.EnemyRecordStride);
@@ -705,6 +965,14 @@ internal static class SubmarineMissionTests
             WriteInt32(record + 0x08, z << 12);
             WriteInt32(record + 0x34, flags);
             WriteInt32(record + 0x38, marker);
+            WriteInt32(record + 0x54, unchecked((int)hull));
+        }
+
+        internal void SetPlayer(int x, int y, int z)
+        {
+            WriteInt32(SubmarineMissionStateReader.AddressPlayerX, x << 12);
+            WriteInt32(SubmarineMissionStateReader.AddressPlayerY, y << 12);
+            WriteInt32(SubmarineMissionStateReader.AddressPlayerZ, z << 12);
         }
     }
 

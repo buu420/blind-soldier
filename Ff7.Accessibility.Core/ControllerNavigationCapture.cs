@@ -6,6 +6,7 @@ public enum ControllerNavigationDomain
     None,
     Field,
     WorldMap,
+    Submarine,
 }
 
 /// <summary>

@@ -22,7 +22,13 @@ public readonly record struct SubmarineMissionCue(string? Speech, bool PlayLockC
 /// <para>It never fires, never steers, never names an enemy's health, never gives a
 /// distance the game does not print, and never counts down a reload the game keeps to
 /// itself. A target that will not project into the current camera and viewport is not
-/// mentioned, because the game is not drawing it.</para>
+/// mentioned, because the game is not drawing it. Hulls are named by what is drawn: the
+/// leader's own red hull, the red and the yellow ones, and a hull going down as
+/// sinking rather than as a marked enemy.</para>
+///
+/// <para>Steering belongs to <see cref="SubmarinePursuitTracker"/>. While it runs it
+/// speaks the lock and where its target is, with fire guidance attached, so the host can
+/// hand those lines to it with <see cref="PursuitOwnsTargets"/>.</para>
 /// </summary>
 public sealed class SubmarineMissionReadout
 {
@@ -38,6 +44,14 @@ public sealed class SubmarineMissionReadout
 
     /// <summary>The damage bar is spoken in tenths, the way a bar reads at a glance.</summary>
     public const int HealthStep = 10;
+
+    /// <summary>
+    /// While true, lock changes and target placement are left to the pursuit, which says
+    /// them with the target's name and the fire guidance, and plays its own lock cue. The
+    /// readout keeps following both silently, so handing them back replays nothing. The
+    /// instruments, hull, warnings, pause and result are still spoken here.
+    /// </summary>
+    public bool PursuitOwnsTargets { get; set; }
 
     private bool wasActive;
     private bool wasPaused;
@@ -139,7 +153,7 @@ public sealed class SubmarineMissionReadout
             lastTargetKey = snapshot.CanPlaceTargets ? DescribeTargetKey(snapshot) : null;
             return new SubmarineMissionCue(
                 (entering ? "Submarine mission. " : "Resumed. ") + Describe(snapshot),
-                snapshot.HasLockedTarget);
+                snapshot.HasLockedTarget && !PursuitOwnsTargets);
         }
 
         // The lock is what the fire button actually needs, and it comes and goes with
@@ -152,18 +166,21 @@ public sealed class SubmarineMissionReadout
         {
             var acquired = snapshot.HasLockedTarget;
             wasLocked = acquired;
-            lastInstrumentsAt = now;
-
-            // The lock carries where the locked square is, so the news and the place it
-            // is in arrive together rather than as two sentences a beat apart.
             lastTargetKey = DescribeTargetKey(snapshot);
             lastTargetsAt = now;
-            var locked = snapshot.VisibleTargets.FirstOrDefault(target => target.IsLocked);
-            return new SubmarineMissionCue(
-                acquired
-                    ? $"Target locked, {DescribeTarget(snapshot, locked)}."
-                    : "Lock lost.",
-                acquired);
+            if (!PursuitOwnsTargets)
+            {
+                lastInstrumentsAt = now;
+
+                // The lock carries where the locked square is, so the news and the place
+                // it is in arrive together rather than as two sentences a beat apart.
+                var locked = snapshot.VisibleTargets.FirstOrDefault(target => target.IsLocked);
+                return new SubmarineMissionCue(
+                    acquired
+                        ? $"Target locked, {DescribeTarget(snapshot, locked, includeLock: false)}."
+                        : "Lock lost.",
+                    acquired);
+            }
         }
 
         // Taking damage is the change a player most needs told at once, and the bar it
@@ -197,8 +214,13 @@ public sealed class SubmarineMissionReadout
         if (snapshot.CanPlaceTargets)
         {
             var targetKey = DescribeTargetKey(snapshot);
-            if (!string.Equals(targetKey, lastTargetKey, StringComparison.Ordinal) &&
-                now - lastTargetsAt >= TargetInterval)
+            if (PursuitOwnsTargets)
+            {
+                lastTargetKey = targetKey;
+                lastTargetsAt = now;
+            }
+            else if (!string.Equals(targetKey, lastTargetKey, StringComparison.Ordinal) &&
+                     now - lastTargetsAt >= TargetInterval)
             {
                 lastTargetKey = targetKey;
                 lastTargetsAt = now;
@@ -357,7 +379,7 @@ public sealed class SubmarineMissionReadout
             snapshot.VisibleTargets
                 .OrderBy(target => target.Slot)
                 .Select(target =>
-                    $"{target.Slot}:{target.IsLocked}:{DescribeTarget(snapshot, target)}"));
+                    $"{target.Slot}:{target.IsLocked}:{target.IsSinking}:{DescribeTarget(snapshot, target)}"));
 
     private static string DescribeTargets(SubmarineMissionSnapshot snapshot)
     {
@@ -366,23 +388,37 @@ public sealed class SubmarineMissionReadout
             return "The view cannot be read, so marked enemies cannot be placed on screen.";
         }
 
-        if (snapshot.VisibleTargets.Count == 0)
-        {
-            return "No marked enemy on screen.";
-        }
-
-        var described = snapshot.VisibleTargets
+        var marked = snapshot.VisibleTargets
+            .Where(target => !target.IsSinking)
             .OrderBy(target => target.Slot)
             .Select(target => DescribeTarget(snapshot, target))
             .ToArray();
-        return described.Length == 1
-            ? $"Enemy {described[0]}."
-            : $"{described.Length} marked enemies: {string.Join("; ", described)}.";
+        var text = marked.Length switch
+        {
+            0 => "No marked enemy on screen.",
+            1 => $"Enemy {marked[0]}.",
+            _ => $"{marked.Length} marked enemies: {string.Join("; ", marked)}."
+        };
+
+        // 78E3FB keeps drawing a hull 78D092 is sinking; it carries no marker and is not
+        // an enemy that can be locked any more.
+        var sinking = snapshot.VisibleTargets
+            .Where(target => target.IsSinking)
+            .OrderBy(target => target.Slot)
+            .Select(target => DescribeTarget(snapshot, target))
+            .ToArray();
+        return sinking.Length switch
+        {
+            0 => text,
+            1 => $"{text} Sinking: {sinking[0]}.",
+            _ => $"{text} {sinking.Length} sinking: {string.Join("; ", sinking)}."
+        };
     }
 
     private static string DescribeTarget(
         SubmarineMissionSnapshot snapshot,
-        SubmarineVisibleTarget target)
+        SubmarineVisibleTarget target,
+        bool includeLock = true)
     {
         var horizontal = Third(
             target.ScreenX - snapshot.ViewportOriginX,
@@ -396,10 +432,20 @@ public sealed class SubmarineMissionReadout
             "high",
             "level",
             "low");
-        return target.IsLocked
-            ? $"locked, {horizontal} and {vertical}"
+        var place = DescribeHull(target.Model) is { } hull
+            ? $"{hull}, {horizontal} and {vertical}"
             : $"{horizontal} and {vertical}";
+        return includeLock && target.IsLocked ? $"locked, {place}" : place;
     }
+
+    /// <summary>The hull as drawn; an unrecognised one is just an enemy.</summary>
+    internal static string? DescribeHull(SubmarineTargetModel model) => model switch
+    {
+        SubmarineTargetModel.RedLeader => "Red Leader",
+        SubmarineTargetModel.Red => "red submarine",
+        SubmarineTargetModel.Yellow => "yellow submarine",
+        _ => null
+    };
 
     private static string Third(int offset, int extent, string low, string middle, string high)
     {
@@ -430,11 +476,12 @@ public sealed class SubmarineMissionReadout
     /// <summary>
     /// What the mission does with each action, by the game's own action names rather
     /// than by any particular key, so a remapped control still reads correctly. 798580
-    /// is the handler these come from.
+    /// is the handler these come from: Up takes 4 from the pitch word and Down adds 4, and
+    /// a larger pitch is nose up, so Up dives and Down climbs.
     /// </summary>
     public static string DescribeControls() =>
         "Switch fires a torpedo at a locked target. Menu is forward and Cancel is " +
-        "reverse. Up and Down change pitch, Left and Right turn. PageUp rises and " +
-        "Camera dives. Target changes the view and PageDown toggles the overview. " +
-        "Start pauses.";
+        "reverse. Left and Right turn; Up dips the nose to dive and Down raises it to " +
+        "climb. PageUp rises and Camera dives. Target changes the view and PageDown " +
+        "toggles the overview. Start pauses.";
 }

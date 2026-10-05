@@ -98,7 +98,15 @@ internal sealed class HighwayAutoSteeringController : IDisposable
     /// with a direction, how the Highwind is flown like walking; alone, how it is stopped
     /// without coasting on (FUN_0074EA48). No other action is ever held.
     /// </param>
-    internal HighwayAutoSteeringInputResult Apply(HighwaySteeringDirection direction, bool holdFlightAction = false)
+    internal HighwayAutoSteeringInputResult Apply(HighwaySteeringDirection direction, bool holdFlightAction = false) =>
+        ApplyCore(direction, holdFlightAction, submarine: false, accelerate: false, brake: false);
+
+    internal HighwayAutoSteeringInputResult ApplySubmarine(
+        HighwaySteeringDirection direction, bool accelerate = false, bool brake = false) =>
+        ApplyCore(direction, holdFlightAction: false, submarine: true, accelerate, brake);
+
+    private HighwayAutoSteeringInputResult ApplyCore(HighwaySteeringDirection direction,
+        bool holdFlightAction, bool submarine, bool accelerate, bool brake)
     {
         lock (sync)
         {
@@ -125,9 +133,25 @@ internal sealed class HighwayAutoSteeringController : IDisposable
                 faultDiagnostic = string.Empty;
             }
 
-            if (!mappingResolver.TryResolve(direction, out var directionKeys, out var mappingDiagnostic))
+            IReadOnlyList<HighwayKeyboardKey> directionKeys;
+            string mappingDiagnostic;
+            var mapped = submarine
+                ? mappingResolver.TryResolveSubmarine(direction, accelerate, brake, out directionKeys, out mappingDiagnostic)
+                : mappingResolver.TryResolve(direction, out directionKeys, out mappingDiagnostic);
+            if (!mapped)
             {
                 return FailAndCleanup(Failure(0, 0, 0, mappingDiagnostic));
+            }
+
+            if (submarine && sink is Win32HighwayKeyboardInputSink)
+            {
+                foreach (var key in directionKeys)
+                {
+                    var virtualKey = Win32HighwayKeyboardInputSink.ResolveVirtualKey(key);
+                    if (virtualKey is 'I' or 'J' or 'K' or 'L' or 'P' or 'R')
+                        return FailAndCleanup(Failure(0, 0, 0,
+                            $"submarine movement shares {(char)virtualKey} with an accessibility command; remap that game control before pursuing"));
+                }
             }
 
             IReadOnlyList<HighwayKeyboardKey> desiredKeys = directionKeys;
@@ -166,6 +190,7 @@ internal sealed class HighwayAutoSteeringController : IDisposable
             return result.Success ? result : FailAndCleanup(result);
         }
     }
+
 
     internal HighwayAutoSteeringInputResult ReleaseAll()
     {
@@ -383,6 +408,12 @@ internal sealed class Win32HighwayKeyboardInputSink : IHighwayKeyboardInputSink
         this.getLastError = getLastError ?? throw new ArgumentNullException(nameof(getLastError));
     }
 
+    // System keyboard events also reach GetAsyncKeyState. Keep automatic movement
+    // from selecting, stopping or repeating itself through the accessibility keys.
+    internal static int ResolveVirtualKey(HighwayKeyboardKey key) =>
+        checked((int)NativeMethods.MapVirtualKey(
+            (uint)key.ScanCode | (key.IsExtended ? 0xE000u : 0), 3));
+
     public HighwayKeyboardSendResult Send(IReadOnlyList<HighwayKeyboardTransition> transitions)
     {
         ArgumentNullException.ThrowIfNull(transitions);
@@ -460,6 +491,10 @@ internal sealed class Win32HighwayKeyboardInputSink : IHighwayKeyboardInputSink
 
     private static class NativeMethods
     {
+        [DllImport("user32.dll", EntryPoint = "MapVirtualKeyW", ExactSpelling = true)]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+        internal static extern uint MapVirtualKey(uint code, uint mapType);
+
         [DllImport("user32.dll", SetLastError = true)]
         [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         internal static extern uint SendInput(

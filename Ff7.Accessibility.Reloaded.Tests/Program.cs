@@ -18,6 +18,23 @@ if (args.Contains("--field-execution-report", StringComparer.OrdinalIgnoreCase))
     Environment.Exit(Ff7.Accessibility.Reloaded.Tests.FieldScriptExecutionModelTests.Report());
 }
 
+if (args.Contains("--submarine-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.SubmarineMissionTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.SubmarineCoordinatorTests.Run();
+    HighwayAutoSteeringControllerTests.Run();
+    Console.WriteLine("Legacy x86 submarine pursuit tests passed.");
+    return;
+}
+
+if (args.Contains("--submarine-input-only", StringComparer.OrdinalIgnoreCase))
+{
+    HighwayAutoSteeringControllerTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.ControllerNavigationDomainOwnershipTests.Run();
+    Console.WriteLine("Legacy x86 submarine input tests passed.");
+    return;
+}
+
 if (args.Contains("--dialogue-choices-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.NativeAskChoicePageTests.Run();
@@ -1197,6 +1214,7 @@ Ff7.Accessibility.Reloaded.Tests.MotionActionDescriptionTests.Run();
 Ff7.Accessibility.Reloaded.Tests.MotionActionDescriptionTests.RunAgainstInstalledArchive();
 Ff7.Accessibility.Reloaded.Tests.HugeMateriaContactTests.Run(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.SubmarineMissionTests.Run();
+Ff7.Accessibility.Reloaded.Tests.SubmarineCoordinatorTests.Run();
 Ff7.Accessibility.Reloaded.Tests.Reactor5ButtonCueTests.Run();
 Ff7.Accessibility.Reloaded.Tests.CorelJourneyDescriptionTests.Run();
 MountCorelNavigationTests.Run(CreateInstalledFieldWalkmeshReader);

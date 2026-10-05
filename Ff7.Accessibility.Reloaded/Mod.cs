@@ -188,8 +188,9 @@ public sealed class Mod : IModV1, IModV2
     private FieldActivityReadout? fieldActivityReadout;
     private FieldBoundaryStateReader? fieldActivityBoundaryStateReader;
     private ImmediateWaveCuePlayer? fieldActivityButtonCuePlayer;
-    private SubmarineMissionStateReader? submarineMissionReader;
-    private SubmarineMissionReadout? submarineMissionReadout;
+    private SubmarineAccessibilityCoordinator? submarineAccessibility;
+    private string? lastSubmarineDiagnostic;
+    private DateTime lastSubmarineStateLogUtc = DateTime.MinValue;
     private ImmediateWaveCuePlayer? submarineMissionLockCuePlayer;
 
     /// <summary>
@@ -617,7 +618,7 @@ public sealed class Mod : IModV1, IModV2
         // otherwise keep describing a film the player is no longer watching.
         fieldMovieNarrationTracker?.Stop(FieldMovieNarrationStopReason.Suspended);
         speedSquareCoasterReadout?.Reset();
-        submarineMissionReadout?.Reset();
+        submarineAccessibility?.Reset();
         submarineMissionOwnsInput = false;
         reactor5ButtonCueTracker?.Reset();
         speedSquareCoasterAimReadout?.Reset();
@@ -689,6 +690,8 @@ public sealed class Mod : IModV1, IModV2
             junonParadeClaimsFieldInput = false;
             navigationAutoWalkController?.Dispose();
             navigationAutoWalkController = null;
+            submarineAccessibility?.Dispose();
+            submarineAccessibility = null;
             pendingNavigationAutoWalkToggle = NavigationAutoWalkDomain.None;
 
             // The detour comes out before anything it calls into goes away. Its
@@ -906,8 +909,9 @@ public sealed class Mod : IModV1, IModV2
                 Log)
             : null;
         speedSquareCoasterReadout = new SpeedSquareCoasterReadout();
-        submarineMissionReader = new SubmarineMissionStateReader(legacyAddressSpace);
-        submarineMissionReadout = new SubmarineMissionReadout();
+        submarineAccessibility?.Dispose();
+        submarineAccessibility = new SubmarineAccessibilityCoordinator(legacyAddressSpace,
+            HighwayAutoSteeringController.CreateCurrentProcess(legacyAddressSpace), log: Log);
         submarineMissionLockCuePlayer?.Dispose();
         submarineMissionLockCuePlayer = config.EnableSubmarineMissionReadout
             ? new ImmediateWaveCuePlayer(
@@ -1812,6 +1816,7 @@ public sealed class Mod : IModV1, IModV2
             {
                 try
                 {
+                    submarineAccessibility?.Reset();
                     highwayAccessibilityCoordinator?.Reset("x86 monitor loop fault");
                     junonParadeAlignmentAssist?.Reset("x86 monitor loop fault");
                     junonParadeClaimsFieldInput = false;
@@ -3117,29 +3122,15 @@ public sealed class Mod : IModV1, IModV2
     /// </summary>
     private void TickSubmarineMissionReadout()
     {
-        if (!config.EnableSubmarineMissionReadout ||
-            submarineMissionReader is null ||
-            submarineMissionReadout is null)
-        {
-            return;
-        }
-
-        if (!submarineMissionReader.TryRead(out var snapshot))
-        {
-            // A reading that cannot be trusted is not a mission that has ended, so
-            // ownership is left exactly as it was.
-            // A reading that cannot be trusted is not a mission that has ended, so the
-            // tracked state is left exactly as it was and this pass simply says nothing.
-            if (config.EnableSubmarineMissionDiagnostics)
-            {
-                Log($"Submarine mission: {submarineMissionReader.LastDiagnostic}");
-            }
-
-            return;
-        }
-
-        submarineMissionOwnsInput = snapshot.IsActive;
-        var cue = submarineMissionReadout.Observe(snapshot, DateTime.UtcNow);
+        if (submarineAccessibility is null) return;
+        var now = DateTime.UtcNow;
+        var module = ReadByte(checked((int)SubmarineMissionStateReader.AddressCurrentModule));
+        var foreground = foregroundProcessGate.IsCurrentProcessForeground();
+        submarineMissionOwnsInput = module == SubmarineMissionStateReader.MinigameModule;
+        var cue = submarineAccessibility.Observe(module, foreground,
+            config.EnableSpeech && config.EnableSubmarineMissionReadout, now,
+            key => WasNavigationKeyPressed(key, foreground), controllerCaptureHook?.Capture,
+            out var interrupt);
         if (cue.PlayLockCue &&
             submarineMissionLockCuePlayer?.Play("submarine target lock") != true)
         {
@@ -3148,23 +3139,16 @@ public sealed class Mod : IModV1, IModV2
 
         if (cue.Speech is not null)
         {
-            Speak(cue.Speech, false);
+            Speak(cue.Speech, interrupt);
         }
 
-        // The same key that answers "what is on screen now" everywhere else. It is
-        // short-circuited on the mission being live, so no other owner of K loses a
-        // press to a mission that is not running.
-        if (snapshot.IsActive &&
-            WasNavigationKeyPressed(
-                VirtualKeyK,
-                foregroundProcessGate.IsCurrentProcessForeground()))
+        if (config.EnableSubmarineMissionDiagnostics && submarineMissionOwnsInput &&
+            now - lastSubmarineStateLogUtc >= TimeSpan.FromSeconds(1) &&
+            !string.Equals(lastSubmarineDiagnostic, submarineAccessibility.Diagnostic, StringComparison.Ordinal))
         {
-            Speak(submarineMissionReadout.Describe(snapshot), true);
-        }
-
-        if (config.EnableSubmarineMissionDiagnostics)
-        {
-            Log($"Submarine mission: {submarineMissionReader.LastDiagnostic}");
+            lastSubmarineDiagnostic = submarineAccessibility.Diagnostic;
+            lastSubmarineStateLogUtc = now;
+            Log($"Submarine mission: {lastSubmarineDiagnostic}");
         }
     }
 
@@ -6851,6 +6835,16 @@ public sealed class Mod : IModV1, IModV2
         glacierRegion?.ObserveModule(module);
         PublishControllerNavigationContextFromModule(module, foreground);
 
+        // The mission owns P and its controller context. Retire walking before
+        // pursuit sends any keys, and do not consume its rising edge here.
+        submarineMissionOwnsInput = module == SubmarineMissionStateReader.MinigameModule;
+        if (submarineMissionOwnsInput)
+        {
+            pendingNavigationAutoWalkToggle = NavigationAutoWalkDomain.None;
+            navigationAutoWalkController?.Suspend();
+            return;
+        }
+
         var domain = module switch
         {
             FieldPositionReader.FieldModule when config.EnableFieldNavigationAssistant =>
@@ -6903,7 +6897,7 @@ public sealed class Mod : IModV1, IModV2
     private void InstallControllerNavigationCapture(IReloadedHooks installedHooks)
     {
         if (controllerCaptureHook is not null ||
-            !(config.EnableFieldNavigationAssistant || config.EnableWorldMapNavigationAssistant))
+            !(config.EnableFieldNavigationAssistant || config.EnableWorldMapNavigationAssistant || config.EnableSubmarineMissionReadout))
         {
             return;
         }
@@ -7097,6 +7091,15 @@ public sealed class Mod : IModV1, IModV2
         var capture = controllerCaptureHook?.Capture;
         if (capture is null)
         {
+            return;
+        }
+
+        // The submarine coordinator publishes pause, focus and target availability.
+        // Clear the previous domain once; its next tick must retain its own commands.
+        if (module == SubmarineMissionStateReader.MinigameModule && config.EnableSubmarineMissionReadout)
+        {
+            if (capture.Owner != ControllerNavigationDomain.Submarine)
+                capture.PublishUnavailable(ControllerNavigationDomain.None, DateTime.UtcNow);
             return;
         }
 

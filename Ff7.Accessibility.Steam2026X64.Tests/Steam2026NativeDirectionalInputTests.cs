@@ -52,6 +52,7 @@ internal static class Steam2026NativeDirectionalInputTests
         WhatThePlayerIsHoldingIsNeverTakenAway();
         NothingIsWrittenOnTheCallsThatAreNotOurs();
         AStaleOrUnfocusedDirectionIsNotDelivered();
+        AnInputOwnerCanRetireItsKeysBeforeTheWorkerSeesTheTransition();
         PressesNeedTheOverlayAndReleasesNeverFail();
         TheRealGuestWritePathLandsInTheGamesOwnPage();
         TheProductionDetourInstallsOverARealNativeFunction();
@@ -292,6 +293,33 @@ internal static class Steam2026NativeDirectionalInputTests
         background.IsForeground = false;
         _ = background.Poll();
         Equal(0, background.Overlays, "nothing is delivered while the game is not in front");
+    }
+
+    private static void AnInputOwnerCanRetireItsKeysBeforeTheWorkerSeesTheTransition()
+    {
+        var allowed = true;
+        var gateThrows = false;
+        var host = new FakeHost(deliveryGate: () => gateThrows
+            ? throw new InvalidOperationException("native owner unreadable")
+            : allowed);
+        host.Command(FieldNavigationInput.Down);
+        _ = host.Poll();
+        Equal((byte)0x80, host.State(TokenDown), "the live owner can drive");
+
+        // A submarine can pause or return to the field between worker ticks. The
+        // input poll must drop its commands immediately, preserving physical input.
+        allowed = false;
+        host.HostHeldTokens = [TokenLeft];
+        _ = host.Poll();
+        Equal((byte)0, host.State(TokenDown), "retired owner cannot leak into the next screen");
+        Equal((byte)0x80, host.State(TokenLeft), "the player's own input still reaches the game");
+
+        allowed = true;
+        _ = host.Poll();
+        Equal((byte)0x80, host.State(TokenDown), "a temporary pause does not discard commanded keys");
+        gateThrows = true;
+        _ = host.Poll();
+        Equal((byte)0, host.State(TokenDown), "an unreadable native owner refuses delivery");
     }
 
     private static void PressesNeedTheOverlayAndReleasesNeverFail()
@@ -564,7 +592,8 @@ internal static class Steam2026NativeDirectionalInputTests
             byte upToken = TokenUp,
             byte rightToken = TokenRight,
             byte downToken = TokenDown,
-            byte leftToken = TokenLeft)
+            byte leftToken = TokenLeft,
+            Func<bool>? deliveryGate = null)
         {
             up = upToken;
             right = rightToken;
@@ -582,7 +611,8 @@ internal static class Steam2026NativeDirectionalInputTests
                 (uint)FieldNavigationInputReader.AddressCurrentKeyInput,
                 BitConverter.GetBytes(0u));
 
-            sink = new Steam2026NativeDirectionalInputSink(() => IsForeground, () => Now);
+            sink = new Steam2026NativeDirectionalInputSink(() => IsForeground, () => Now,
+                deliveryGate);
             Hook = Steam2026NativeDirectInputKeyboardHook.CreateForOverlayTest(
                 sink, guest, guest, Original, () => Now);
             autoWalk = NavigationAutoWalkController.CreateCurrentProcess(guest, sink);
