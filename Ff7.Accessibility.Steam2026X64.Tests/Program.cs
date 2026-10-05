@@ -222,11 +222,28 @@ if (args.Contains("--menu-gil-only", StringComparer.OrdinalIgnoreCase))
 
 // The controller-ownership regressions on their own. They need no game data and no
 // hooking backend, so this is the switch to run while working on the capture.
+if (args.Contains("--native-directional-input-only", StringComparer.OrdinalIgnoreCase))
+{
+    Steam2026NativeDirectionalInputTests.Run();
+    HighwayAutoSteeringControllerTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.ControllerNavigationDomainOwnershipTests.Run();
+    Console.WriteLine("Steam 2026 x64 native directional input tests passed.");
+    return;
+}
+
 if (args.Contains("--submarine-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.SubmarineMissionTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.SubmarineCoordinatorTests.Run();
     Steam2026SubmarineMissionHostTests.Run();
     Console.WriteLine("Steam 2026 x64 submarine host tests passed.");
+    return;
+}
+
+if (args.Contains("--submarine-coordinator-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.SubmarineCoordinatorTests.Run();
+    Console.WriteLine("Shared submarine coordinator tests passed.");
     return;
 }
 
@@ -1004,6 +1021,7 @@ Steam2026FieldNavigationRuntimeTests.Run();
 Steam2026NativeDirectionalInputTests.Run();
 Steam2026SubmarineMissionHostTests.Run();
 Ff7.Accessibility.Reloaded.Tests.SubmarineMissionTests.Run();
+Ff7.Accessibility.Reloaded.Tests.SubmarineCoordinatorTests.Run();
 Steam2026JunonParadeNativeInputTests.Run();
 Steam2026FieldObjectObservationTests.Run();
 Ff7.Accessibility.Reloaded.Tests.JunonFieldNavigationTests.Run(

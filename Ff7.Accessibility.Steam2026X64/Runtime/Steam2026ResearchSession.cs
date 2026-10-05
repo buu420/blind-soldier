@@ -476,6 +476,8 @@ internal sealed class Steam2026ResearchSession : IDisposable
         ImmediateWaveCuePlayer? submarineLockCue = null;
         string? lastSubmarineDiagnostic = null;
         long lastSubmarineReturnMessageSequence = 0;
+        bool wasSubmarineModule = false;
+        DateTime lastSubmarineStateLogUtc = DateTime.MinValue;
         var snowboardReadout = new SnowboardReadout();
         var speedSquareCoasterReadout = new SpeedSquareCoasterReadout();
         SpeedSquareCoasterTargetReader? speedSquareCoasterTargetReader = null;
@@ -526,7 +528,8 @@ internal sealed class Steam2026ResearchSession : IDisposable
         // game - and numpad 2, which that table names for Down, is NVDA's read-current-
         // character command, so the presses reached the player's screen reader instead.
         var directionalInput = new Steam2026NativeDirectionalInputSink(
-            foregroundInput.IsCurrentProcessForeground);
+            foregroundInput.IsCurrentProcessForeground,
+            deliveryIsAllowed: () => submarineMission?.MayDeliverInputNow ?? true);
         Steam2026NativeDirectInputKeyboardHook? directionalInputHook = null;
         var nextDirectionalInputAttemptUtc = DateTime.MinValue;
         var navigationProgressController = new NavigationProgressController(
@@ -1081,7 +1084,10 @@ avigationield_zone_transition.wav"),
                         }
                         try
                         {
-                            submarineMission = new Steam2026SubmarineMissionHost(sharedFieldAddressSpace);
+                            submarineMission?.Dispose();
+                            submarineMission = new Steam2026SubmarineMissionHost(sharedFieldAddressSpace,
+                                HighwayAutoSteeringController.CreateCurrentProcess(sharedFieldAddressSpace, directionalInput),
+                                directionalInput.Renew, log);
                             submarineLockCue?.Dispose();
                             submarineLockCue = config.EnableSubmarineMissionReadout
                                 ? new ImmediateWaveCuePlayer(
@@ -1435,7 +1441,7 @@ avigationield_zone_transition.wav"),
                 // IDirectInputDeviceA::GetDeviceState, validated against its registration
                 // record and live prefix, so the direction is marked in the keyboard state
                 // it has just built and read by the translated caller on the same call.
-                if ((config.EnableFieldNavigationAssistant || config.EnableWorldMapNavigationAssistant)
+                if ((config.EnableFieldNavigationAssistant || config.EnableWorldMapNavigationAssistant || config.EnableSubmarineMissionReadout)
                     && hooks is not null
                     && directionalInputHook is null
                     && now >= nextDirectionalInputAttemptUtc)
@@ -1466,7 +1472,7 @@ avigationield_zone_transition.wav"),
                 // The controller navigation capture. SDL2 is loaded by the host when
                 // it gets as far as opening a controller, which can be long after we
                 // attach, so this retries on the same clock every other hook uses.
-                if ((config.EnableFieldNavigationAssistant || config.EnableWorldMapNavigationAssistant)
+                if ((config.EnableFieldNavigationAssistant || config.EnableWorldMapNavigationAssistant || config.EnableSubmarineMissionReadout)
                     && hooks is not null
                     && controllerCaptureHook is null
                     && now >= nextControllerCaptureAttemptUtc)
@@ -1702,11 +1708,16 @@ avigationield_zone_transition.wav"),
                     // now, before either navigation worker has a chance to renew it.
                     if (frame.Lifecycle.ModuleId == SubmarineMissionStateReader.MinigameModule)
                     {
-                        controllerCaptureHook?.Capture.PublishUnavailable(
-                            ControllerNavigationDomain.None, now);
-                        directionalInput.Clear();
+                        if (!wasSubmarineModule)
+                        {
+                            fieldNavigationCoordinator?.Suspend();
+                            worldMapAccessibilityCoordinator?.Suspend("submarine mission owns the controls");
+                            controllerCaptureHook?.Capture.PublishUnavailable(ControllerNavigationDomain.None, now);
+                            directionalInput.Clear();
+                        }
                         lastSubmarineReturnMessageSequence = 0;
                     }
+                    wasSubmarineModule = frame.Lifecycle.ModuleId == SubmarineMissionStateReader.MinigameModule;
                     try
                     {
                         if (submarineMission is not null)
@@ -1718,7 +1729,7 @@ avigationield_zone_transition.wav"),
                                 log($"Native Steam 2026 submarine return: {returnDiagnostic}");
                             var submarineCue = submarineMission.Observe(frame.Lifecycle.ModuleId,
                                 isHostForeground, config.EnableSpeech && config.EnableSubmarineMissionReadout,
-                                now, () => foregroundInput.ObserveRisingEdge(0x4B), out var interruptSubmarine);
+                                now, foregroundInput.ObserveRisingEdge, controllerCaptureHook?.Capture, out var interruptSubmarine);
                             if (submarineCue.PlayLockCue)
                                 submarineLockCue?.Play("submarine target lock");
                             if (submarineCue.Speech is { } submarineSpeech)
@@ -1727,9 +1738,11 @@ avigationield_zone_transition.wav"),
                                 log($"Native Steam 2026 submarine: {submarineSpeech}");
                             }
                             if (frame.Lifecycle.ModuleId == SubmarineMissionStateReader.MinigameModule &&
+                                now - lastSubmarineStateLogUtc >= TimeSpan.FromSeconds(1) &&
                                 !string.Equals(lastSubmarineDiagnostic, submarineMission.Diagnostic, StringComparison.Ordinal))
                             {
                                 lastSubmarineDiagnostic = submarineMission.Diagnostic;
+                                lastSubmarineStateLogUtc = now;
                                 log($"Native Steam 2026 submarine state: {lastSubmarineDiagnostic}");
                             }
                         }
@@ -3327,6 +3340,7 @@ avigationield_zone_transition.wav"),
             // The detour comes out before the coordinators it queues into go away.
             controllerCaptureHook?.Dispose();
             submarineLockCue?.Dispose();
+            submarineMission?.Dispose();
             directionalInputHook?.Dispose();
             fieldNavigationCoordinator?.Dispose();
             worldMapAccessibilityCoordinator?.Dispose();

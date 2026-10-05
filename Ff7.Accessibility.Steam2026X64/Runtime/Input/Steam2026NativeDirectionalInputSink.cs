@@ -45,6 +45,7 @@ internal sealed class Steam2026NativeDirectionalInputSink : IHighwayKeyboardInpu
     private readonly List<byte> held = new(MaxHeldTokens);
     private readonly Func<DateTime> now;
     private readonly Func<bool> isForeground;
+    private readonly Func<bool> deliveryIsAllowed;
     private Func<bool>? isOverlayInstalled;
     private DateTime renewedUtc;
     private long acceptedPresses;
@@ -52,10 +53,12 @@ internal sealed class Steam2026NativeDirectionalInputSink : IHighwayKeyboardInpu
 
     internal Steam2026NativeDirectionalInputSink(
         Func<bool>? isForeground = null,
-        Func<DateTime>? now = null)
+        Func<DateTime>? now = null,
+        Func<bool>? deliveryIsAllowed = null)
     {
         this.isForeground = isForeground ?? (static () => true);
         this.now = now ?? (static () => DateTime.UtcNow);
+        this.deliveryIsAllowed = deliveryIsAllowed ?? (static () => true);
     }
 
     /// <summary>
@@ -125,6 +128,7 @@ internal sealed class Steam2026NativeDirectionalInputSink : IHighwayKeyboardInpu
         // Sampled before the lock: it is a Win32 call, and this lock is also taken on the
         // game's own input thread inside its keyboard poll.
         var foreground = isForeground();
+        var deliveryAllowed = MayDeliverNow();
         lock (sync)
         {
             // Counted as a prefix because that is how the shared controller takes
@@ -162,6 +166,12 @@ internal sealed class Steam2026NativeDirectionalInputSink : IHighwayKeyboardInpu
                     break;
                 }
 
+                if (!deliveryAllowed)
+                {
+                    diagnostic = "the native input owner is paused, unavailable or has changed";
+                    break;
+                }
+
                 if (held.Count >= MaxHeldTokens)
                 {
                     diagnostic = "more directional keys than a direction can hold";
@@ -195,6 +205,7 @@ internal sealed class Steam2026NativeDirectionalInputSink : IHighwayKeyboardInpu
     {
         count = 0;
         var foreground = isForeground();
+        var deliveryAllowed = MayDeliverNow();
         lock (sync)
         {
             if (held.Count == 0 || held.Count > tokens.Length)
@@ -212,7 +223,7 @@ internal sealed class Steam2026NativeDirectionalInputSink : IHighwayKeyboardInpu
                 return false;
             }
 
-            if (!foreground)
+            if (!foreground || !deliveryAllowed)
             {
                 return false;
             }
@@ -225,6 +236,14 @@ internal sealed class Steam2026NativeDirectionalInputSink : IHighwayKeyboardInpu
             count = held.Count;
             return true;
         }
+    }
+
+    // The native poll checks ownership again: the mission can pause or return to
+    // dialogue between worker ticks, before the movement lease expires.
+    private bool MayDeliverNow()
+    {
+        try { return deliveryIsAllowed(); }
+        catch { return false; }
     }
 
     /// <summary>

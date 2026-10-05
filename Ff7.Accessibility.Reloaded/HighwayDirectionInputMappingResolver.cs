@@ -30,6 +30,14 @@ internal interface IHighwayDirectionInputMappingResolver
         diagnostic = $"action slot {slotIndex} cannot be resolved";
         return false;
     }
+
+    bool TryResolveSubmarine(HighwaySteeringDirection direction, bool accelerate, bool brake,
+        out IReadOnlyList<HighwayKeyboardKey> keys, out string diagnostic)
+    {
+        keys = Array.Empty<HighwayKeyboardKey>();
+        diagnostic = "submarine controls cannot be resolved";
+        return false;
+    }
 }
 
 /// <summary>
@@ -56,6 +64,21 @@ internal sealed class HighwayDirectionInputMappingResolver(
     /// it is held; without it they turn the ship and change its height.
     /// </summary>
     internal const int FlightActionSlotIndex = 7;
+
+    // FUN_00798580: held 0x10 raises throttle, held 0x40 lowers it; pressed 0x80 fires.
+    internal const int SubmarineAccelerateSlotIndex = 4;
+    internal const int SubmarineBrakeSlotIndex = 6;
+    internal const int SubmarineFireSlotIndex = 7;
+
+    private static readonly DirectionComponent[] SubmarineActions =
+    [
+        new("Dive", 0), new("Change view", 1), new("Rise", 2),
+        new("Overview", 3), new("Confirm", 5), new("Fire", SubmarineFireSlotIndex),
+        new("Quit", 8), new("Pause", 11),
+        new("Accelerate", SubmarineAccelerateSlotIndex), new("Brake", SubmarineBrakeSlotIndex),
+        new("Up", UpSlotIndex), new("Right", RightSlotIndex),
+        new("Down", DownSlotIndex), new("Left", LeftSlotIndex)
+    ];
 
     private const uint KeyboardTokenLimitExclusive = 0xDE;
 
@@ -139,6 +162,58 @@ internal sealed class HighwayDirectionInputMappingResolver(
         }
 
         diagnostic = string.Empty;
+        return true;
+    }
+
+    public bool TryResolveSubmarine(HighwaySteeringDirection direction, bool accelerate, bool brake,
+        out IReadOnlyList<HighwayKeyboardKey> keys, out string diagnostic)
+    {
+        keys = Array.Empty<HighwayKeyboardKey>();
+        diagnostic = string.Empty;
+        var components = GetComponents(direction);
+        if (components is null || (accelerate && brake))
+        {
+            diagnostic = "unsupported submarine steering or conflicting throttle commands";
+            return false;
+        }
+        if (components.Length == 0 && !accelerate && !brake) return true;
+
+        Span<byte> table = stackalloc byte[MappingTableSize];
+        if (!addressSpace.TryRead(MappingTableAddress, table))
+        {
+            diagnostic = "could not read Final Fantasy VII's live submarine controls";
+            return false;
+        }
+        var requested = components.ToList();
+        if (accelerate) requested.Add(new("Accelerate", SubmarineAccelerateSlotIndex));
+        if (brake) requested.Add(new("Brake", SubmarineBrakeSlotIndex));
+        var resolved = new List<HighwayKeyboardKey>(requested.Count);
+        foreach (var component in requested)
+        {
+            if (!TryResolveCardinal(table, component.SlotIndex, out var key, out var configured))
+            {
+                diagnostic = $"{component.Name} has no supported keyboard binding (live banks: {configured})";
+                return false;
+            }
+            // Any live bank can cause an action. A movement key must not also
+            // fire, change the camera, operate a menu, or add movement not in this plan.
+            foreach (var action in SubmarineActions)
+            {
+                if (requested.Any(request => request.SlotIndex == action.SlotIndex)) continue;
+                for (var bank = 0; bank < MappingBankCount; bank++)
+                {
+                    var token = BinaryPrimitives.ReadUInt32LittleEndian(table.Slice(
+                        bank * MappingBankStride + action.SlotIndex * sizeof(uint), sizeof(uint)));
+                    if (token == (uint)(key.ScanCode | (key.IsExtended ? 0x80 : 0)))
+                    {
+                        diagnostic = $"{component.Name} shares a key with {action.Name}; remap those controls before pursuing";
+                        return false;
+                    }
+                }
+            }
+            if (!resolved.Contains(key)) resolved.Add(key);
+        }
+        keys = resolved.AsReadOnly();
         return true;
     }
 

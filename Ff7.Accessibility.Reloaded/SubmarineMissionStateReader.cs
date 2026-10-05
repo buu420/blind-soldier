@@ -14,16 +14,48 @@ public enum SubmarineMissionOutcome
 }
 
 /// <summary>
-/// One enemy the game is drawing a marker for, placed where the marker actually is on
-/// screen. A record that will not project in front of the current camera, or that lands
-/// outside the current viewport rectangle, is not one of these: the game is not drawing
-/// it and a player cannot see it.
+/// Which hull and colour 79FB20 draws for an enemy, from the model pointer 78E882 stores
+/// at record +0x54 (<c>0x989CF8 + model * 16</c>). The colour words are read as
+/// <c>0xFF:b0:b1:b2</c> ARGB, so model 0 is orange-yellow, 3 dark red on the same hull,
+/// and 2 dark red on a hull of its own: the leader. Model 1 is the player's blue hull and
+/// no enemy table uses it.
+/// </summary>
+public enum SubmarineTargetModel
+{
+    Unknown = 0,
+    Yellow,
+    Red,
+    RedLeader
+}
+
+/// <summary>
+/// One enemy the game is drawing, placed where it actually is on screen: a marked record
+/// the marker square is drawn for, or a sinking hull 78E3FB still draws. A record that
+/// will not project in front of the current camera, or that lands outside the current
+/// viewport rectangle, is not one of these: the game is not drawing it and a player
+/// cannot see it.
+///
+/// <para>The position is where this sighting was, in map units, for steering only. It is
+/// never spoken: the game prints no coordinates or distances.</para>
 /// </summary>
 public readonly record struct SubmarineVisibleTarget(
     int Slot,
     bool IsLocked,
     int ScreenX,
-    int ScreenY);
+    int ScreenY)
+{
+    public SubmarineTargetModel Model { get; init; }
+
+    public int X { get; init; }
+
+    /// <summary>Depth, growing downward, like the player's.</summary>
+    public int Y { get; init; }
+
+    public int Z { get; init; }
+
+    /// <summary>Hit and going down: 78E3FB draws the hull, 78E9CE no longer draws a marker.</summary>
+    public bool IsSinking { get; init; }
+}
 
 public readonly record struct SubmarineMissionSnapshot(
     bool IsActive,
@@ -55,6 +87,33 @@ public readonly record struct SubmarineMissionSnapshot(
         0, 0, 0, 0, 0, 0, 0, 0, 0, false, false, Array.Empty<SubmarineVisibleTarget>(),
         0, 0, 0, 0);
 
+    /// <summary>
+    /// The player's own position in map units (Y is depth, growing downward), from the same
+    /// coherent view sample as the targets. Only meaningful when <see cref="CanPlaceTargets"/>.
+    /// Steering internals: never spoken.
+    /// </summary>
+    public int PlayerX { get; init; }
+
+    public int PlayerY { get; init; }
+
+    public int PlayerZ { get; init; }
+
+    /// <summary>
+    /// 9873D8, the throttle step 798580 moves: 9 is stopped, 17 full ahead, 18 the boost
+    /// that lasts only while Menu is held at 17, below 9 astern. Only meaningful when
+    /// <see cref="CanPlaceTargets"/>.
+    /// </summary>
+    public int SpeedIndex { get; init; }
+
+    /// <summary>9873A8: non-zero while PageDown's overview camera (view 4) is up.</summary>
+    public int ViewMode { get; init; }
+
+    /// <summary>
+    /// The overview's sonar reaches 4096 but sweeps too slowly for 78D092 to raise any
+    /// marker to 0x400, so 78E2F8 can never lock from it.
+    /// </summary>
+    public bool IsOverview => ViewMode != 0;
+
     // 7929B1 draws only these. Nothing else in the word is on screen.
     public bool TerrainClose => (Warnings & 0x1) != 0;
     public bool HullContact => (Warnings & 0x2) != 0;
@@ -70,21 +129,28 @@ public readonly record struct SubmarineMissionSnapshot(
 /// whose 77D030 init, 77DF72 frame and 77DAED teardown own the screen - so nothing here
 /// is a field or world reading. Everything reported is something the game puts on the
 /// screen: the clock, the damage bar, the depth and speed numbers, the compass and pitch
-/// gauges, the four torpedo indicators, the warning lamps, and the coloured squares it
-/// draws over enemies it has detected.</para>
+/// gauges, the four torpedo indicators, the warning lamps, the coloured squares it draws
+/// over enemies it has detected, and the hulls of enemies going down.</para>
 ///
 /// <para>The squares are the delicate part. An enemy record carrying the sonar-range bit
 /// is not an enemy on screen: 78D092 sets that bit from the travelling sonar pulse, and
 /// the game still only draws a square where 78E9CE can project the record into the
 /// current camera with a positive W. This reader runs that same transform and then clips
 /// against the viewport rectangle the renderer context carries. A record that fails
-/// either test is not reported at all. Hidden health, AI headings, the exact distance and
-/// the reload countdown are never read.</para>
+/// either test is not reported at all, and nothing about it - position, hull or lock -
+/// leaves the reader. Hidden health, AI headings, the exact distance and the reload
+/// countdown are never read.</para>
 ///
-/// <para>The whole view - camera, renderer context, viewport, projection and every enemy
-/// record - is sampled twice and compared, because a stable module number is not evidence
-/// that those bytes came from one frame. A torn sample leaves the instruments intact and
-/// marks the view unavailable: an unknown view is not an empty sea.</para>
+/// <para>The whole view - camera, renderer context, viewport, projection, the player's
+/// position, throttle and view mode, and every enemy record - is sampled twice and
+/// compared, because a stable module number is not evidence that those bytes came from
+/// one frame. Identity is sampled before and after everything else. E73F18 is part of it
+/// on purpose: 77DF72 clears it as each frame's update starts and 78C9E1 sets it when the
+/// frame is done, so a change in it means a frame boundary fell inside the capture. A
+/// torn capture is not used at all; the whole capture is taken again, a bounded number of
+/// times, and only one whose own samples agree is reported. A view still torn after that
+/// leaves the instruments intact and marks the view unavailable - an unknown view is not
+/// an empty sea - and the diagnostic names what would not hold still.</para>
 /// </summary>
 public sealed class SubmarineMissionStateReader
 {
@@ -108,10 +174,25 @@ public sealed class SubmarineMissionStateReader
     public const uint AddressEnemyRecords = 0x0098A1A8;
     public const uint AddressCamera = 0x00E996F8;
     public const uint AddressProjectionContextPointer = 0x00DB2BB8;
+    public const uint AddressPlayerX = 0x00987338;
+    public const uint AddressPlayerY = AddressDepth;
+    public const uint AddressPlayerZ = 0x00987340;
+    public const uint AddressSpeedIndex = 0x009873D8;
+    public const uint AddressViewMode = 0x009873A8;
+
+    /// <summary>79FB20's model table; an enemy's +0x54 is <c>this + model * 16</c>.</summary>
+    public const uint AddressModelTable = 0x00989CF8;
+    public const int ModelTableStride = 16;
 
     public const int EnemyRecordCount = 12;
     public const int EnemyRecordStride = 0x70;
     public const int TorpedoSlotCount = 4;
+
+    /// <summary>
+    /// Whole identity, instrument and view captures tried per read. Each one keeps both
+    /// double samples; only a capture whose own samples agree is used.
+    /// </summary>
+    public const int MaximumCaptureAttempts = 4;
 
     public const int ProjectionMatrixOffset = 0x8D0;
     public const int ViewportOriginXOffset = 0x848;
@@ -135,6 +216,7 @@ public sealed class SubmarineMissionStateReader
     private const int SessionQuitYesBit = 0x8;
 
     private const int EnemyActiveMask = 0x3;
+    private const int EnemySinkingBit = 0x20;
     private const int EnemyMarkerLocked = 0x800;
     private const int EnemyMarkerMask = 0xF00;
 
@@ -143,6 +225,7 @@ public sealed class SubmarineMissionStateReader
     private const int EnemyPositionZOffset = 0x08;
     private const int EnemyFlagsOffset = 0x34;
     private const int EnemyMarkerOffset = 0x38;
+    private const int EnemyModelOffset = 0x54;
 
     private const int TorpedoReadyValue = 0x20000;
     private const int TorpedoReloadingHighWord = 0x10000;
@@ -154,7 +237,11 @@ public sealed class SubmarineMissionStateReader
     // not carry those offsets without wrapping is not a context this reader will use.
     private const uint MaximumContextAddress = 0xFFFF0000;
 
-    private const int EnemyFieldsPerRecord = 5;
+    // Position X, Y and Z, flags, marker and hull pointer.
+    private const int EnemyFieldsPerRecord = 6;
+
+    // A tear naming every enemy field would be a paragraph; the first few say enough.
+    private const int MaximumNamedTears = 3;
 
     private readonly ILegacyAddressSpace memory;
 
@@ -165,50 +252,114 @@ public sealed class SubmarineMissionStateReader
 
     public string LastDiagnostic { get; private set; } = "not read";
 
+    /// <summary>Captures abandoned because identity changed between its two samples.</summary>
+    public int TornIdentityCaptures { get; private set; }
+
+    /// <summary>Captures abandoned because the view's two samples disagreed.</summary>
+    public int TornViewCaptures { get; private set; }
+
+    /// <summary>What tore most recently, even when a later capture recovered.</summary>
+    public string? LastTear { get; private set; }
+
     /// <summary>
     /// Reads the mission if it owns the screen. Returns false when the reading cannot be
-    /// trusted - a failed read, a torn identity, or an instrument the game could not have
-    /// drawn - so a caller never mistakes a failure for a mission that has ended.
+    /// trusted - a failed read, an identity that would not hold still for any of the
+    /// bounded captures, or an instrument the game could not have drawn - so a caller never
+    /// mistakes a failure for a mission that has ended.
     /// </summary>
     public bool TryRead(out SubmarineMissionSnapshot snapshot)
     {
         snapshot = SubmarineMissionSnapshot.Inactive;
+        SubmarineMissionSnapshot? coherentInstruments = null;
+        string? identityTear = null;
+        string? viewTear = null;
 
-        // The frame deliberately clears its render-availability flag after drawing and
-        // sets it again, so requiring it at an arbitrary polling moment would drop every
-        // other reading. Identity is the module, the run flag and the session word, and
-        // all three are sampled again after everything that depends on them.
-        if (!TryReadIdentity(out var before))
+        for (var attempt = 1; attempt <= MaximumCaptureAttempts; attempt++)
         {
-            LastDiagnostic = "identity unreadable";
-            return false;
-        }
+            // The frame deliberately clears its render-availability flag after drawing and
+            // sets it again, so requiring it at an arbitrary polling moment would drop every
+            // other reading. Identity is sampled again after everything that depends on it.
+            if (!TryReadIdentity(out var before))
+            {
+                LastDiagnostic = "identity unreadable";
+                return false;
+            }
 
-        if (before.Module != MinigameModule || before.ActiveRun == 0)
-        {
-            LastDiagnostic = $"not in the mission: module={before.Module}, run={before.ActiveRun}";
-            snapshot = SubmarineMissionSnapshot.Inactive;
+            if (before.Module != MinigameModule || before.ActiveRun == 0)
+            {
+                LastDiagnostic = $"not in the mission: module={before.Module}, run={before.ActiveRun}";
+                snapshot = SubmarineMissionSnapshot.Inactive;
+                return true;
+            }
+
+            if (!TryReadInstruments(before, out var reading, out var tornView, out var instrumentDiagnostic))
+            {
+                LastDiagnostic = instrumentDiagnostic;
+                return false;
+            }
+
+            if (!TryReadIdentity(out var after))
+            {
+                LastDiagnostic = "identity unreadable";
+                return false;
+            }
+
+            if (before != after)
+            {
+                identityTear = DescribeIdentityTear(before, after);
+                TornIdentityCaptures++;
+                LastTear = $"identity: {identityTear}";
+                continue;
+            }
+
+            if (tornView is not null)
+            {
+                // The instruments of this capture are coherent and kept in case no capture
+                // gets a view to agree with itself; the view is tried again.
+                viewTear = tornView;
+                TornViewCaptures++;
+                LastTear = $"view: {tornView}";
+                coherentInstruments = reading;
+                continue;
+            }
+
+            snapshot = reading;
+            LastDiagnostic = DescribeReading(reading);
             return true;
         }
 
-        if (!TryReadInstruments(before, out var reading, out var instrumentDiagnostic))
+        if (coherentInstruments is { } instruments)
         {
-            LastDiagnostic = instrumentDiagnostic;
-            return false;
+            snapshot = instruments;
+            LastDiagnostic =
+                $"{DescribeReading(instruments)}, torn view after {MaximumCaptureAttempts} attempts: {viewTear}";
+            return true;
         }
 
-        if (!TryReadIdentity(out var after) || before != after)
-        {
-            LastDiagnostic = "torn identity";
-            return false;
-        }
-
-        snapshot = reading;
-        LastDiagnostic =
-            $"mission active: outcome={reading.Outcome}, paused={reading.IsPaused}, " +
-            $"targets={reading.VisibleTargets.Count}, placeable={reading.CanPlaceTargets}";
-        return true;
+        LastDiagnostic = $"torn identity after {MaximumCaptureAttempts} attempts: {identityTear}";
+        return false;
     }
+
+    /// <summary>
+    /// The model pointer's hull. Only a pointer into the table at one of the three enemy
+    /// entries names anything; model 1 is the player's own hull.
+    /// </summary>
+    internal static SubmarineTargetModel DecodeModel(uint pointer) => pointer switch
+    {
+        YellowHull => SubmarineTargetModel.Yellow,
+        RedLeaderHull => SubmarineTargetModel.RedLeader,
+        RedHull => SubmarineTargetModel.Red,
+        _ => SubmarineTargetModel.Unknown
+    };
+
+    // Models 0, 2 and 3 of the 16-byte table.
+    private const uint YellowHull = AddressModelTable;
+    private const uint RedLeaderHull = AddressModelTable + 0x20;
+    private const uint RedHull = AddressModelTable + 0x30;
+
+    private static string DescribeReading(SubmarineMissionSnapshot reading) =>
+        $"mission active: outcome={reading.Outcome}, paused={reading.IsPaused}, " +
+        $"targets={reading.VisibleTargets.Count}, placeable={reading.CanPlaceTargets}";
 
     private readonly record struct Identity(
         byte Module,
@@ -235,12 +386,50 @@ public sealed class SubmarineMissionStateReader
         return true;
     }
 
+    private static string DescribeIdentityTear(Identity before, Identity after)
+    {
+        var torn = new List<string>(6);
+        if (before.Module != after.Module)
+        {
+            torn.Add($"module {before.Module}->{after.Module}");
+        }
+
+        if (before.ActiveRun != after.ActiveRun)
+        {
+            torn.Add($"run flag {before.ActiveRun}->{after.ActiveRun}");
+        }
+
+        if (before.InnerCompletion != after.InnerCompletion)
+        {
+            torn.Add($"frame flag {before.InnerCompletion}->{after.InnerCompletion}");
+        }
+
+        if (before.SessionFlags != after.SessionFlags)
+        {
+            torn.Add($"session flags 0x{before.SessionFlags:X}->0x{after.SessionFlags:X}");
+        }
+
+        if (before.Result != after.Result)
+        {
+            torn.Add($"result {before.Result}->{after.Result}");
+        }
+
+        if (before.Arcade != after.Arcade)
+        {
+            torn.Add($"arcade flag {before.Arcade}->{after.Arcade}");
+        }
+
+        return string.Join(", ", torn);
+    }
+
     private bool TryReadInstruments(
         Identity identity,
         out SubmarineMissionSnapshot snapshot,
+        out string? tornView,
         out string diagnostic)
     {
         snapshot = SubmarineMissionSnapshot.Inactive;
+        tornView = null;
         diagnostic = "instruments unreadable";
         if (!memory.TryReadInt32(AddressRemainingFrames, out var remainingFrames) ||
             !memory.TryReadInt32(AddressHealth, out var health) ||
@@ -305,9 +494,10 @@ public sealed class SubmarineMissionStateReader
         var placeable = false;
         IReadOnlyList<SubmarineVisibleTarget> targets = Array.Empty<SubmarineVisibleTarget>();
         var viewport = default(Viewport);
+        var pose = default(ViewPose);
         if (!paused && !hasResult)
         {
-            placeable = TryReadVisibleTargets(out targets, out viewport);
+            placeable = TryReadVisibleTargets(out targets, out viewport, out pose, out tornView);
         }
 
         snapshot = new SubmarineMissionSnapshot(
@@ -335,7 +525,14 @@ public sealed class SubmarineMissionStateReader
             ViewportOriginX: viewport.OriginX,
             ViewportOriginY: viewport.OriginY,
             ViewportWidth: viewport.Width,
-            ViewportHeight: viewport.Height);
+            ViewportHeight: viewport.Height)
+        {
+            PlayerX = pose.X,
+            PlayerY = pose.Y,
+            PlayerZ = pose.Z,
+            SpeedIndex = pose.SpeedIndex,
+            ViewMode = pose.ViewMode
+        };
         diagnostic = "instruments read";
         return true;
     }
@@ -354,12 +551,16 @@ public sealed class SubmarineMissionStateReader
             y >= OriginY && y < OriginY + Height;
     }
 
+    /// <summary>The player's side of a coherent view: map position, throttle and view mode.</summary>
+    private readonly record struct ViewPose(int X, int Y, int Z, int SpeedIndex, int ViewMode);
+
     /// <summary>
-    /// Everything the marker squares depend on, in one sample: the camera, the renderer
-    /// context it is projected through, that context's viewport and projection, and every
-    /// enemy record. Two of these are compared before anything is placed, because a
-    /// marker drawn from one frame's camera and the next frame's position is in the wrong
-    /// place and nothing about the module number would say so.
+    /// Everything the marker squares and the steering depend on, in one sample: the camera,
+    /// the renderer context it is projected through, that context's viewport and
+    /// projection, the player's position, throttle and view mode, and every enemy record.
+    /// Two of these are compared before anything is placed, because a marker drawn from
+    /// one frame's camera and the next frame's position is in the wrong place and nothing
+    /// about the module number would say so.
     /// </summary>
     private sealed class ViewCapture
     {
@@ -368,28 +569,104 @@ public sealed class SubmarineMissionStateReader
         internal uint Context { get; set; }
         internal int[] ViewportBounds { get; } = new int[4];
         internal float[] Projection { get; } = new float[16];
+        internal int[] Player { get; } = new int[3];
+        internal int SpeedIndex { get; set; }
+        internal int ViewMode { get; set; }
         internal int[] Records { get; } = new int[EnemyRecordCount * EnemyFieldsPerRecord];
 
-        internal bool Matches(ViewCapture other) =>
-            Context == other.Context &&
-            Rotation.AsSpan().SequenceEqual(other.Rotation) &&
-            Translation.AsSpan().SequenceEqual(other.Translation) &&
-            ViewportBounds.AsSpan().SequenceEqual(other.ViewportBounds) &&
-            Projection.AsSpan().SequenceEqual(other.Projection) &&
-            Records.AsSpan().SequenceEqual(other.Records);
+        internal List<string> Differences(ViewCapture other)
+        {
+            var differences = new List<string>();
+            if (!Rotation.AsSpan().SequenceEqual(other.Rotation))
+            {
+                differences.Add("camera rotation");
+            }
+
+            if (!Translation.AsSpan().SequenceEqual(other.Translation))
+            {
+                differences.Add("camera translation");
+            }
+
+            if (Context != other.Context)
+            {
+                differences.Add("renderer context");
+            }
+
+            if (!ViewportBounds.AsSpan().SequenceEqual(other.ViewportBounds))
+            {
+                differences.Add("viewport");
+            }
+
+            if (!Projection.AsSpan().SequenceEqual(other.Projection))
+            {
+                differences.Add("projection");
+            }
+
+            if (!Player.AsSpan().SequenceEqual(other.Player))
+            {
+                differences.Add("player position");
+            }
+
+            if (SpeedIndex != other.SpeedIndex)
+            {
+                differences.Add("throttle");
+            }
+
+            if (ViewMode != other.ViewMode)
+            {
+                differences.Add("view mode");
+            }
+
+            for (var slot = 0; slot < EnemyRecordCount; slot++)
+            {
+                var index = slot * EnemyFieldsPerRecord;
+                if (!Records.AsSpan(index, 3).SequenceEqual(other.Records.AsSpan(index, 3)))
+                {
+                    differences.Add($"enemy {slot} position");
+                }
+
+                if (Records[index + 3] != other.Records[index + 3])
+                {
+                    differences.Add($"enemy {slot} flags");
+                }
+
+                if (Records[index + 4] != other.Records[index + 4])
+                {
+                    differences.Add($"enemy {slot} marker");
+                }
+
+                if (Records[index + 5] != other.Records[index + 5])
+                {
+                    differences.Add($"enemy {slot} hull");
+                }
+            }
+
+            return differences;
+        }
     }
 
     private bool TryReadVisibleTargets(
         out IReadOnlyList<SubmarineVisibleTarget> targets,
-        out Viewport viewport)
+        out Viewport viewport,
+        out ViewPose pose,
+        out string? tear)
     {
         targets = Array.Empty<SubmarineVisibleTarget>();
         viewport = default;
+        pose = default;
+        tear = null;
 
-        if (!TryCaptureView(out var first) ||
-            !TryCaptureView(out var second) ||
-            !first.Matches(second))
+        if (!TryCaptureView(out var first) || !TryCaptureView(out var second))
         {
+            return false;
+        }
+
+        var differences = first.Differences(second);
+        if (differences.Count != 0)
+        {
+            tear = differences.Count <= MaximumNamedTears
+                ? string.Join(", ", differences)
+                : $"{string.Join(", ", differences.Take(MaximumNamedTears))} and {differences.Count - MaximumNamedTears} more";
             return false;
         }
 
@@ -406,17 +683,25 @@ public sealed class SubmarineMissionStateReader
             var index = slot * EnemyFieldsPerRecord;
             var flags = first.Records[index + 3];
             var markerState = first.Records[index + 4] & EnemyMarkerMask;
-            if ((flags & EnemyActiveMask) == 0 || markerState == 0)
+
+            // 78E9CE draws a square over a live record carrying a marker; 78E3FB keeps
+            // drawing a dead one's hull while 78D092 sinks it. Nothing else is on screen.
+            var marked = (flags & EnemyActiveMask) != 0 && markerState != 0;
+            var sinking = (flags & EnemySinkingBit) != 0;
+            if (!marked && !sinking)
             {
                 continue;
             }
 
+            var x = first.Records[index] >> 12;
+            var y = first.Records[index + 1] >> 12;
+            var z = first.Records[index + 2] >> 12;
             if (!TryProject(
                     camera,
                     first.Projection,
-                    (short)(first.Records[index] >> 12),
-                    (short)(first.Records[index + 1] >> 12),
-                    (short)(first.Records[index + 2] >> 12),
+                    (short)x,
+                    (short)y,
+                    (short)z,
                     out var screenX,
                     out var screenY) ||
                 !viewport.Contains(screenX, screenY))
@@ -426,12 +711,25 @@ public sealed class SubmarineMissionStateReader
 
             found.Add(new SubmarineVisibleTarget(
                 slot,
-                (markerState & EnemyMarkerLocked) != 0,
+                marked && (markerState & EnemyMarkerLocked) != 0,
                 (int)MathF.Round(screenX),
-                (int)MathF.Round(screenY)));
+                (int)MathF.Round(screenY))
+            {
+                Model = DecodeModel(unchecked((uint)first.Records[index + 5])),
+                X = x,
+                Y = y,
+                Z = z,
+                IsSinking = sinking && !marked
+            });
         }
 
         targets = found;
+        pose = new ViewPose(
+            first.Player[0] >> 12,
+            first.Player[1] >> 12,
+            first.Player[2] >> 12,
+            first.SpeedIndex,
+            first.ViewMode);
         return true;
     }
 
@@ -497,6 +795,20 @@ public sealed class SubmarineMissionStateReader
             }
         }
 
+        // 987338/98733C/987340 is where 7991C6 moves the player; 9873D8 is 798580's throttle
+        // step and 9873A8 its overview toggle.
+        if (!memory.TryReadInt32(AddressPlayerX, out capture.Player[0]) ||
+            !memory.TryReadInt32(AddressPlayerY, out capture.Player[1]) ||
+            !memory.TryReadInt32(AddressPlayerZ, out capture.Player[2]) ||
+            !memory.TryReadInt32(AddressSpeedIndex, out var speedIndex) ||
+            !memory.TryReadInt32(AddressViewMode, out var viewMode))
+        {
+            return false;
+        }
+
+        capture.SpeedIndex = speedIndex;
+        capture.ViewMode = viewMode;
+
         for (var slot = 0; slot < EnemyRecordCount; slot++)
         {
             var record = AddressEnemyRecords + (uint)(slot * EnemyRecordStride);
@@ -505,7 +817,8 @@ public sealed class SubmarineMissionStateReader
                 !memory.TryReadInt32(record + EnemyPositionYOffset, out capture.Records[index + 1]) ||
                 !memory.TryReadInt32(record + EnemyPositionZOffset, out capture.Records[index + 2]) ||
                 !memory.TryReadInt32(record + EnemyFlagsOffset, out capture.Records[index + 3]) ||
-                !memory.TryReadInt32(record + EnemyMarkerOffset, out capture.Records[index + 4]))
+                !memory.TryReadInt32(record + EnemyMarkerOffset, out capture.Records[index + 4]) ||
+                !memory.TryReadInt32(record + EnemyModelOffset, out capture.Records[index + 5]))
             {
                 return false;
             }

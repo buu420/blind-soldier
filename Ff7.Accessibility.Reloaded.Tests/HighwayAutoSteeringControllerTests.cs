@@ -17,7 +17,119 @@ internal static class HighwayAutoSteeringControllerTests
         NoneNeedsNoMappingReadAndCanAlwaysReleaseInput();
         RemappingWhileHeldReleasesTheExactOldPhysicalKey();
         MappingReadFailureFailsClosedAndReleasesOwnedInput();
+        SubmarinePropulsionUsesItsLiveActionsAndNeverFire();
+        SubmarineRefusesFireAliasesAndCleansUpFailedPropulsion();
+        SubmarineRefusesKeysThatAlsoOperateTheNativeMenus();
+        SubmarineRefusesBindingsThatAddUnrequestedMovement();
+        LegacySubmarineInputCannotPressItsOwnAccessibilityHotkeys();
         MapsDefaultKeypadTransitionsToNonExtendedWin32ScanCodeEvents();
+    }
+
+    private static void LegacySubmarineInputCannotPressItsOwnAccessibilityHotkeys()
+    {
+        foreach (var scan in new uint[] { 0x17, 0x24, 0x25, 0x26, 0x19, 0x13 })
+        {
+            var memory = new MutableDirectionMappingAddressSpace();
+            memory.SetToken(0, 4, scan);
+            var sends = 0;
+            var sink = new Win32HighwayKeyboardInputSink((count, inputs, size) =>
+            {
+                sends++;
+                return count;
+            }, () => 0);
+            using var controller = HighwayAutoSteeringController.CreateCurrentProcess(memory, sink);
+            var result = controller.ApplySubmarine(HighwaySteeringDirection.None, accelerate: true);
+            Equal(false, result.Success,
+                $"legacy movement cannot inject accessibility hotkey scan {scan:X2}");
+            Equal(0, sends, "no operating-system keyboard event is sent for a hotkey alias");
+        }
+    }
+
+    private static void SubmarineRefusesBindingsThatAddUnrequestedMovement()
+    {
+        foreach (var (requestedSlot, extraSlot) in new[] { (13, 15), (4, 6), (13, 4) })
+        {
+            var memory = new MutableDirectionMappingAddressSpace();
+            memory.SetToken(0, requestedSlot, 0x20);
+            memory.SetToken(2, extraSlot, 0x20);
+            var sink = new RecordingKeyboardInputSink();
+            using var controller = HighwayAutoSteeringController.CreateCurrentProcess(memory, sink);
+            var result = controller.ApplySubmarine(
+                requestedSlot == 13 ? HighwaySteeringDirection.Right : HighwaySteeringDirection.None,
+                accelerate: requestedSlot == 4);
+            Equal(false, result.Success,
+                $"action slot {requestedSlot} cannot also add unrequested movement slot {extraSlot}");
+            Equal(0, sink.Batches.Count, "the conflicting movement is never pressed");
+        }
+    }
+
+    private static void SubmarineRefusesKeysThatAlsoOperateTheNativeMenus()
+    {
+        foreach (var slot in new[] { 0, 1, 2, 3, 5, 8, 11 })
+        {
+            var memory = new MutableDirectionMappingAddressSpace();
+            memory.SetToken(0, 4, 0x1E);
+            memory.SetToken(2, slot, 0x1E);
+            var sink = new RecordingKeyboardInputSink();
+            using var controller = HighwayAutoSteeringController.CreateCurrentProcess(memory, sink);
+            var result = controller.ApplySubmarine(HighwaySteeringDirection.None, accelerate: true);
+            Equal(false, result.Success, $"an automatic throttle key cannot also invoke native action slot {slot}");
+            Equal(0, sink.Batches.Count, "the conflicting control is never pressed");
+        }
+    }
+
+    private static void SubmarineRefusesFireAliasesAndCleansUpFailedPropulsion()
+    {
+        var memory = new MutableDirectionMappingAddressSpace();
+        memory.SetToken(0, 13, 0x20);
+        memory.SetToken(0, 4, 0x1E);
+        memory.SetToken(0, 6, 0x1F);
+        var sink = new RecordingKeyboardInputSink();
+        using var controller = HighwayAutoSteeringController.CreateCurrentProcess(memory, sink);
+        Equal(true, controller.ApplySubmarine(HighwaySteeringDirection.Right, accelerate: true).Success,
+            "pursuit holds only turn and throttle");
+        memory.SetToken(2, 7, 0x20);
+        var refusal = controller.ApplySubmarine(HighwaySteeringDirection.Right, accelerate: true);
+        Equal(false, refusal.Success, "a fire alias in any live bank refuses automatic input");
+        Equal(true, refusal.Diagnostic.Contains("Fire"), "the player can identify the control conflict");
+        Equal(false, controller.HasOwnedKeys, "a mapping change releases the exact old keys");
+        Equal(true, sink.Batches[^1].All(key => !key.IsKeyDown), "refusal sends only releases");
+        memory.SetToken(2, 7, 0);
+        sink.Results.Enqueue(new HighwayKeyboardSendResult(1, 5));
+        Equal(false, controller.ApplySubmarine(HighwaySteeringDirection.Right, accelerate: true).Success,
+            "partial propulsion delivery fails closed");
+        Equal(false, controller.HasOwnedKeys, "partial propulsion is immediately cleaned up");
+        Equal(true, controller.ApplySubmarine(HighwaySteeringDirection.None).Success,
+            "no-input stop works even without any mapping");
+    }
+
+    private static void SubmarinePropulsionUsesItsLiveActionsAndNeverFire()
+    {
+        var memory = new MutableDirectionMappingAddressSpace();
+        memory.SetToken(0, 12, 0x11);
+        memory.SetToken(0, 13, 0x20);
+        memory.SetToken(1, 4, 0x1E);
+        memory.SetToken(2, 6, 0x1F);
+        memory.SetToken(0, 7, 0x39);
+        var sink = new RecordingKeyboardInputSink();
+        using var controller = HighwayAutoSteeringController.CreateCurrentProcess(memory, sink);
+
+        Equal(true, controller.ApplySubmarine(HighwaySteeringDirection.UpRight, accelerate: true).Success,
+            "submarine turning and throttle succeed with remapped live actions");
+        SequenceEqual(
+            [new HighwayKeyboardTransition(0x11, true), new HighwayKeyboardTransition(0x20, true),
+             new HighwayKeyboardTransition(0x1E, true)], sink.Batches.Single(),
+            "accelerate is native slot four, alongside the directions");
+        Equal(true, controller.ApplySubmarine(HighwaySteeringDirection.None, brake: true).Success,
+            "braking succeeds");
+        SequenceEqual(
+            [new HighwayKeyboardTransition(0x11, false), new HighwayKeyboardTransition(0x20, false),
+             new HighwayKeyboardTransition(0x1E, false), new HighwayKeyboardTransition(0x1F, true)],
+            sink.Batches[^1], "braking releases steering and throttle before native slot six");
+        Equal(true, controller.ApplySubmarine(HighwaySteeringDirection.None).Success,
+            "stopping releases brake too");
+        Equal(false, sink.Batches.SelectMany(batch => batch).Any(key => key.ScanCode == 0x39),
+            "native fire slot seven is never issued");
     }
 
     private static void SendsOnlyChangedCardinalAndDiagonalScanCodes()

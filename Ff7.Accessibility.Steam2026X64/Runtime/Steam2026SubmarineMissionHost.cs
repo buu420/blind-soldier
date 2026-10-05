@@ -4,40 +4,30 @@ using Ff7.Accessibility.Reloaded;
 namespace Ff7.Accessibility.Steam2026X64.Runtime;
 
 /// <summary>Runs the shared submarine reader through the checked x64 guest address space.</summary>
-internal sealed class Steam2026SubmarineMissionHost(ILegacyAddressSpace memory)
+internal sealed class Steam2026SubmarineMissionHost(ILegacyAddressSpace memory,
+    HighwayAutoSteeringController? input = null, Action<DateTime>? renewInput = null,
+    Action<string>? log = null) : IDisposable
 {
-    private readonly SubmarineMissionStateReader reader = new(memory);
-    private readonly SubmarineMissionReadout readout = new();
+    private readonly SubmarineAccessibilityCoordinator accessibility = new(memory, input, renewInput, log);
     private int previousModule = -1;
     private DateTime inspectReturnUntil;
     private string? lastReturnDiagnostic;
     private DateTime nextReturnHeartbeat;
 
-    internal string Diagnostic => reader.LastDiagnostic;
+    internal string Diagnostic => accessibility.Diagnostic;
+    internal bool MayDeliverInputNow => accessibility.MayDeliverInputNow;
 
     internal SubmarineMissionCue Observe(int module, bool foreground, bool enabled,
-        DateTime now, Func<bool> repeatRequested, out bool interrupt)
-    {
-        interrupt = false;
-        // Module ownership, not a stale result word, determines when K belongs
-        // to the mission. Never wait for unmapped minigame memory after returning
-        // to Cloud's dialogue in the field.
-        if (module != SubmarineMissionStateReader.MinigameModule || !foreground || !enabled)
-        {
-            Reset();
-            return default;
-        }
-        if (!reader.TryRead(out var snapshot)) return default;
-        var cue = readout.Observe(snapshot, now);
-        if (snapshot.IsActive && repeatRequested())
-        {
-            interrupt = true;
-            return cue with { Speech = readout.Describe(snapshot) };
-        }
-        return cue;
-    }
+        DateTime now, Func<bool> repeatRequested, out bool interrupt) =>
+        Observe(module, foreground, enabled, now,
+            key => key == 0x4B && repeatRequested(), null, out interrupt);
 
-    internal void Reset() => readout.Reset();
+    internal SubmarineMissionCue Observe(int module, bool foreground, bool enabled,
+        DateTime now, Func<int, bool> pressed, Ff7.Accessibility.Core.ControllerNavigationCapture? capture,
+        out bool interrupt) => accessibility.Observe(module, foreground, enabled, now, pressed, capture, out interrupt);
+
+    internal void Reset() => accessibility.Reset();
+    public void Dispose() => accessibility.Dispose();
 
     // Read-only evidence for the tester's stuck post-mission dialogue. The old
     // "state13" log was entity 19's window ownership, not the window's phase.

@@ -1122,6 +1122,8 @@
     <Compile Include="..\Ff7.Accessibility.Reloaded\SpeedSquareCoasterStateReader.cs" Link="Shared\SpeedSquareCoasterStateReader.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\SubmarineMissionStateReader.cs" Link="Shared\SubmarineMissionStateReader.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\SubmarineMissionReadout.cs" Link="Shared\SubmarineMissionReadout.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\SubmarinePursuitTracker.cs" Link="Shared\SubmarinePursuitTracker.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\SubmarineAccessibilityCoordinator.cs" Link="Shared\SubmarineAccessibilityCoordinator.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\Reactor5ButtonStateReader.cs" Link="Shared\Reactor5ButtonStateReader.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\Reactor5ButtonCueTracker.cs" Link="Shared\Reactor5ButtonCueTracker.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\SpeedSquareCoasterReadout.cs" Link="Shared\SpeedSquareCoasterReadout.cs" />

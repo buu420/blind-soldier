@@ -658,13 +658,13 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         // active. Exactly one owner samples each frame, so a rising edge cannot
         // be consumed by the inactive field controller before world navigation
         // sees it.
-        var observedActions = frame.Lifecycle.ModuleId == WorldMapStateReader.WorldModule
+        var observedActions = frame.Lifecycle.ModuleId is WorldMapStateReader.WorldModule or SubmarineMissionStateReader.MinigameModule
             ? Array.Empty<FieldNavigationAction>()
             : Steam2026FieldNavigationKeyRouter.ReadActions(
                 foregroundInput.ObserveRisingEdge,
                 observeLimitKey:
                     frame.Lifecycle.ModuleId == FieldPositionReader.FieldModule);
-        var autoWalkToggleRequested = frame.Lifecycle.ModuleId != WorldMapStateReader.WorldModule &&
+        var autoWalkToggleRequested = frame.Lifecycle.ModuleId is not (WorldMapStateReader.WorldModule or SubmarineMissionStateReader.MinigameModule) &&
             NavigationAutoWalkKeyRouter.ObserveToggle(foregroundInput.ObserveRisingEdge) &&
             frame.Lifecycle.ModuleId == FieldPositionReader.FieldModule;
         ObserveSwingingBarTimingCue(frame, nowUtc);
