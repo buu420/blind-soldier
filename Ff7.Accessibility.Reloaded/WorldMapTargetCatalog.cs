@@ -968,6 +968,13 @@ public sealed partial class WorldMapTargetCatalog
         WorldMapStateSnapshot player,
         WorldMapEntitySnapshot entity)
     {
+        // The usable submarine is boarded only by Cloud, Tifa or Cid on foot
+        // (wm0.ev 4D04). Its submerged and hidden entities are not parked rides.
+        var parkedSubmarine = category == WorldMapNavigationCategory.Transportation && entity.ModelId == 13;
+        if (parkedSubmarine && (player.WorldMapType != 0 || (entity.Flags & 0x08) != 0))
+        {
+            return null;
+        }
         if (player.WorldMapType == 2)
         {
             // Fixed places use script coordinates, not a hidden live entity position.
@@ -1047,14 +1054,17 @@ public sealed partial class WorldMapTargetCatalog
         // on, because that one is two triangles away across the water the boat floats in.
         // The Highwind's mask is known for walking round it once parked, but boarding it has
         // not been checked against the game, so it keeps the approach it always had.
+        var boardingModel = parkedSubmarine && player.PlayerModelId == WorldMapHighwindLanding.HighwindModelId
+            ? 0 : player.PlayerModelId;
+        var canBoardSubmarine = !parkedSubmarine || boardingModel is 0 or 1 or 2;
         var nativeFootprint =
             category == WorldMapNavigationCategory.Transportation &&
             entity.ModelId != WorldMapHighwindLanding.HighwindModelId &&
             WorldMapVehicleObstacles.TryGetNativeMask(entity.ModelId, out _) &&
-            WorldMapVehicleObstacles.TryGetNativeMask(player.PlayerModelId, out _);
-        var vehicleContacts = nativeFootprint && (entity.Flags & WorldMapVehicleObstacles.SkippedFlag) == 0
+            (parkedSubmarine || WorldMapVehicleObstacles.TryGetNativeMask(boardingModel, out _));
+        var vehicleContacts = nativeFootprint && canBoardSubmarine && (entity.Flags & WorldMapVehicleObstacles.SkippedFlag) == 0
             ? WorldMapVehicleShoreApproach.FindContactPoints(
-                map, player.PlayerModelId, entity.ModelId, entity.X, entity.Z)
+                map, boardingModel, entity.ModelId, entity.X, entity.Z)
             : new Dictionary<int, WorldMapVertex>();
         if (nativeFootprint)
         {
@@ -1068,7 +1078,7 @@ public sealed partial class WorldMapTargetCatalog
         }
         else
         {
-            // No checked boarding mask for one of the two models - the Highwind, the submarines, or a party
+            // No checked boarding mask for one of the two models - the Highwind or a party
             // leader nobody has measured. Inventing a footprint for those would be
             // inventing an arrival, so they keep the ring they always had.
             if (WorldMapTerrainPassability.CanTraverse(player.PlayerModelId, player.WorldMapType, triangle.TerrainId))
@@ -1669,4 +1679,3 @@ public sealed partial class WorldMapTargetCatalog
         double PlanarArea,
         IReadOnlyList<int> TriangleIds);
 }
-

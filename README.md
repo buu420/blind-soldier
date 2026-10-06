@@ -137,6 +137,12 @@ again where one exists.
 Field and world-map navigation, routes, auto walk and the progress indicator
 are described under [Navigation](#navigation).
 
+Version 0.8.7 lets you select your parked submarine in Transportation. From the
+Highwind, navigation finds a grass landing spot with a walking route to the boat.
+Press Cancel when asked to land, then continue on foot and press Confirm to board.
+A submarine at an isolated dock remains trackable, with an explanation when no
+Highwind landing leads to it. See the [release notes](docs/releases/v0.8.7.md).
+
 Version 0.8.6 adds world-map submarine destination navigation on both runtimes.
 Surface travel uses the existing destination menu and native directional controls,
 checking turning drift against the coastline. Underwater, select the Sunken
@@ -376,10 +382,10 @@ instead of reading unverified game memory.
 Choose one download from the
 [Blind Soldier Releases page](https://github.com/buu420/blind-soldier/releases):
 
-- [Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.8.6/Blind-Soldier-Portable.zip)
+- [Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.8.7/Blind-Soldier-Portable.zip)
   is the complete dual-runtime package. Use it for Steam 2026 x64 or when one
   extracted package must support both x86 and x64 installations.
-- [Blind-Soldier-2013-x86-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.8.6/Blind-Soldier-2013-x86-Portable.zip)
+- [Blind-Soldier-2013-x86-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.8.7/Blind-Soldier-2013-x86-Portable.zip)
   is the smaller legacy-only package. Use it for the 2013 x86 game, including
   stock 7th Heaven/FFNx. It deliberately contains no Steam 2026 launcher or
   x64 files.

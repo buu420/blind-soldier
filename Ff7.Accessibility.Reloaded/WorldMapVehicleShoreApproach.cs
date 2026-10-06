@@ -29,8 +29,8 @@ public static class WorldMapVehicleShoreApproach
     /// contact with this vehicle, mapped to the contact point nearest the vehicle.
     ///
     /// <para>Empty when either model has no mask read out of the executable. Guessing a
-    /// footprint for the Highwind or the submarine would be inventing an arrival, so those
-    /// keep the behaviour they already had.</para>
+    /// footprint for an unmeasured model would invent an arrival. The submarine uses its
+    /// measured mask with an on-foot boarding party, including when selected in flight.</para>
     /// </summary>
     public static IReadOnlyDictionary<int, WorldMapVertex> FindContactPoints(
         WorldMapData map,
