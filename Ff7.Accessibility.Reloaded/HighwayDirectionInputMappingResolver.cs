@@ -45,6 +45,14 @@ internal interface IHighwayDirectionInputMappingResolver
         diagnostic = "the submarine view control cannot be resolved";
         return false;
     }
+
+    bool TryResolveWorldSubmarine(HighwaySteeringDirection direction, bool thrust,
+        out IReadOnlyList<HighwayKeyboardKey> keys, out string diagnostic)
+    {
+        keys = Array.Empty<HighwayKeyboardKey>();
+        diagnostic = "world submarine controls cannot be resolved";
+        return false;
+    }
 }
 
 /// <summary>
@@ -89,6 +97,11 @@ internal sealed class HighwayDirectionInputMappingResolver(
     ];
 
     private const uint KeyboardTokenLimitExclusive = 0xDE;
+
+    // Module3: slot5 is thrust. Module10 throttle/fire bindings are unrelated.
+    private static readonly string[] WorldActionNames =
+        ["Camera", "Camera", "Turn camera left", "Turn camera right", "Menu", "Thrust",
+         "Dive or surface", "Switch", "Map", "Action9", "Action10", "Map", "Up", "Right", "Down", "Left"];
 
     private readonly ILegacyAddressSpace addressSpace =
         addressSpace ?? throw new ArgumentNullException(nameof(addressSpace));
@@ -179,6 +192,40 @@ internal sealed class HighwayDirectionInputMappingResolver(
 
     public bool TryResolveSubmarineFiringView(out IReadOnlyList<HighwayKeyboardKey> keys, out string diagnostic)
         => TryResolveSubmarineCore(HighwaySteeringDirection.None, false, false, true, out keys, out diagnostic);
+
+    public bool TryResolveWorldSubmarine(HighwaySteeringDirection direction, bool thrust,
+        out IReadOnlyList<HighwayKeyboardKey> keys, out string diagnostic)
+    {
+        keys = Array.Empty<HighwayKeyboardKey>();
+        diagnostic = string.Empty;
+        var components = GetComponents(direction);
+        if (components is null) { diagnostic = "unsupported world submarine direction"; return false; }
+        var requested = components.ToList();
+        if (thrust) requested.Add(new("Thrust", 5));
+        if (requested.Count == 0) return true;
+        Span<byte> table = stackalloc byte[MappingTableSize];
+        if (!addressSpace.TryRead(MappingTableAddress, table))
+        { diagnostic = "could not read the live world submarine controls"; return false; }
+        var resolved = new List<HighwayKeyboardKey>();
+        foreach (var component in requested)
+        {
+            if (!TryResolveCardinal(table, component.SlotIndex, out var key, out _))
+            { diagnostic = $"{component.Name} has no supported keyboard binding"; return false; }
+            var token = (uint)(key.ScanCode | (key.IsExtended ? 0x80 : 0));
+            for (var slot = 0; slot < WorldActionNames.Length; slot++)
+            {
+                if (requested.Any(c => c.SlotIndex == slot)) continue;
+                for (var bank = 0; bank < MappingBankCount; bank++)
+                {
+                    if (BinaryPrimitives.ReadUInt32LittleEndian(table.Slice(bank * MappingBankStride + slot * 4, 4)) == token)
+                    { diagnostic = $"{component.Name} shares a key with {WorldActionNames[slot]}; remap those controls before navigating"; return false; }
+                }
+            }
+            if (!resolved.Contains(key)) resolved.Add(key);
+        }
+        keys = resolved.AsReadOnly();
+        return true;
+    }
 
     private bool TryResolveSubmarineCore(HighwaySteeringDirection direction, bool accelerate, bool brake,
         bool firingView, out IReadOnlyList<HighwayKeyboardKey> keys, out string diagnostic)

@@ -22,6 +22,8 @@ internal static class WorldMapStateReaderTests
         WriteUInt16(bytes, WorldMapStateReader.AddressGameMoment, 341);
         WriteUInt32(bytes, WorldMapStateReader.AddressWorldPlayerEntityPointer, player);
         WriteInt32(bytes, WorldMapStateReader.AddressWorldCameraFront, 1024);
+        WriteInt32(bytes, WorldMapStateReader.AddressNativeCameraMode, 2);
+        WriteInt32(bytes, WorldMapStateReader.AddressNativeFrameMultiplier, 2);
         WriteUInt32(bytes, player + WorldMapStateReader.ContactEntityOffset, 0x0012_4000);
         WriteInt32(bytes, player + WorldMapStateReader.PositionXOffset, 181_000);
         WriteInt32(bytes, player + WorldMapStateReader.PositionYOffset, 700);
@@ -53,6 +55,22 @@ internal static class WorldMapStateReaderTests
             "the native contact pointer at player + 4, which is what Confirm reads");
         Equal(341, result.State.GameMoment, "game moment");
         Equal(-64, result.State.ControlTransform.SignedControlDirection, "camera-front control transform");
+        Equal(true, result.State.HasNativeControlMode, "checked native world control profile");
+        Equal(2, result.State.NativeCameraMode, "native camera mode");
+        Equal(2, result.State.NativeFrameMultiplier, "native world frame multiplier");
+
+        // A restored surface camera can retain a nonzero front, but modes 0 and 1
+        // still move in world axes. Spoken guidance and automatic input must agree.
+        WriteByte(bytes, player + WorldMapStateReader.ModelIdOffset, 13);
+        foreach (var mode in new[] { 0, 1, 2 })
+        {
+            WriteInt32(bytes, WorldMapStateReader.AddressNativeCameraMode, mode);
+            var submarine = new WorldMapStateReader(new DictionaryLegacyAddressSpace(bytes)).Read();
+            Equal(true, submarine.IsUsable, $"surface submarine camera {mode} is coherent");
+            Equal(1024, submarine.State.CameraFront, "preserve the observed native front");
+            Equal(mode == 2 ? -64 : 0, submarine.State.ControlTransform.SignedControlDirection,
+                $"surface submarine camera {mode} uses its native movement axes");
+        }
     }
 
     private static void RejectsOtherModulesAndNullPlayer()
@@ -84,10 +102,14 @@ internal static class WorldMapStateReaderTests
         WriteByte(bytes, player + WorldMapStateReader.ModelIdOffset, 0);
         WriteByte(bytes, player + WorldMapStateReader.MovementSpeedOffset, 30);
 
-        var result = new WorldMapStateReader(
-            new TearingWorldMemory(bytes, (uint)(player + WorldMapStateReader.PositionXOffset))).Read();
-
-        Equal(false, result.IsUsable, "torn nested entity state fails closed");
+        WriteInt32(bytes, WorldMapStateReader.AddressNativeCameraMode, 2);
+        WriteInt32(bytes, WorldMapStateReader.AddressNativeFrameMultiplier, 2);
+        foreach (var address in new[] { player + WorldMapStateReader.PositionXOffset,
+            WorldMapStateReader.AddressNativeCameraMode, WorldMapStateReader.AddressNativeFrameMultiplier })
+        {
+            var result = new WorldMapStateReader(new TearingWorldMemory(bytes, (uint)address)).Read();
+            Equal(false, result.IsUsable, $"torn nested entity/control state at {address:X8} fails closed");
+        }
     }
 
     private static void RejectsATornNativeTrackFlag()

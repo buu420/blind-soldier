@@ -244,6 +244,14 @@
              Link="SharedTests\WorldMapBroncoLandingTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\WorldMapHighwindNavigationTests.cs"
              Link="SharedTests\WorldMapHighwindNavigationTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\WorldMapSubmarineNavigationTests.cs"
+             Link="SharedTests\WorldMapSubmarineNavigationTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\WorldMapSubmarineCompatibilityTests.cs"
+             Link="SharedTests\WorldMapSubmarineCompatibilityTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\WorldMapSubmarineSurfaceNavigationTests.cs"
+             Link="SharedTests\WorldMapSubmarineSurfaceNavigationTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\WorldMapUnderwaterVisibilityTests.cs"
+             Link="SharedTests\WorldMapUnderwaterVisibilityTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\WorldMapWutaiNavigationTests.cs"
              Link="SharedTests\WorldMapWutaiNavigationTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\FieldNpcTalkCounterTests.cs"

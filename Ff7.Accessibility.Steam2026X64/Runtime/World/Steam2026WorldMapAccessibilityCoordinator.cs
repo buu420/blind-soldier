@@ -16,6 +16,7 @@ namespace Ff7.Accessibility.Steam2026X64.Runtime.World;
 internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
 {
     private readonly AccessibilityConfig config;
+    private readonly ILegacyAddressSpace addressSpace;
     private readonly Steam2026ForegroundInputAdapter foregroundInput;
     private readonly WorldMapStateReader stateReader;
     private readonly WorldMapDialogueReader dialogueReader;
@@ -110,6 +111,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         this.controllerCapture = controllerCapture ?? (static () => null);
         this.config = config ?? throw new ArgumentNullException(nameof(config));
         ArgumentNullException.ThrowIfNull(addressSpace);
+        this.addressSpace = addressSpace;
         this.foregroundInput = foregroundInput ?? throw new ArgumentNullException(nameof(foregroundInput));
         dialogueReader = new WorldMapDialogueReader(addressSpace);
         ArgumentException.ThrowIfNullOrWhiteSpace(gameWorkingDirectory);
@@ -408,9 +410,9 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
 
         var state = stateResult.State;
         var entityResult = entityReader.Read();
-        runtime.UpdateEntities(entityResult.IsUsable
+        runtime.UpdateEntities(state, entityResult.IsUsable
             ? entityResult.Entities
-            : Array.Empty<WorldMapEntitySnapshot>());
+            : Array.Empty<WorldMapEntitySnapshot>(), addressSpace);
         LogDiagnostic("entities", entityResult.Diagnostic, ref lastEntityDiagnostic);
         foreach (var context in runtimes.Values)
         {
@@ -435,6 +437,12 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         }
 
         higherPrioritySpeech |= ObserveMidgarZolomCrossing(runtime, state);
+        if (config.EnableWorldMapNavigationAssistant &&
+            runtime.ObserveUnderwaterSightings(state, higherPrioritySpeech, nowUtc) is { } emeraldSighting)
+        {
+            speak(emeraldSighting, false);
+            higherPrioritySpeech = true;
+        }
         var progressRevision = progressSink?.PublicationRevision ?? 0;
         if (progressRevision != lastProgressPublicationRevision)
         {
@@ -975,7 +983,9 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
             hasDirection ? direction : FieldNavigationInput.None,
             canMove: hasDirection,
             routeActive: runtime.Navigation.BeaconEnabled,
-            holdFlightAction: runtime.Navigation.AutomaticInputHoldsFlightAction);
+            holdFlightAction: runtime.Navigation.AutomaticInputHoldsFlightAction,
+            worldSubmarine: runtime.Navigation.AutomaticInputIsWorldSubmarine,
+            holdSubmarineThrust: runtime.Navigation.AutomaticInputHoldsSubmarineThrust);
         if (result.Success)
         {
             // Renew the committed input, including the Highwind's direction-free brake.

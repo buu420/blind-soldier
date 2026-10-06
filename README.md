@@ -137,6 +137,19 @@ again where one exists.
 Field and world-map navigation, routes, auto walk and the progress indicator
 are described under [Navigation](#navigation).
 
+Version 0.8.6 adds world-map submarine destination navigation on both runtimes.
+Surface travel uses the existing destination menu and native directional controls,
+checking turning drift against the coastline. Underwater, select the Sunken
+Gelnika, Key of the Ancients or red submarine wreck through
+the existing navigation controls. Automatic travel turns and uses native thrust
+at the entry depth, keeping clear of Emerald Weapon. Above the destination it
+stops and asks you to descend manually; navigation stays on until the native
+arrival condition is met. Emerald is announced and selectable in Events only
+while visibly on screen. Selecting it explicitly allows a deeper approach,
+which releases input immediately on a visibility gap and stops after a sustained
+loss. A deep approach that could enter a known wreck first stops with an
+explanation. See the [release notes](docs/releases/v0.8.6.md).
+
 Version 0.8.5 fixes submarine pursuit getting stuck in overview: pursuit uses
 the game's configured Target action to return to normal view when close, then
 waits for the game's own lock before giving firing guidance. It also announces
@@ -363,10 +376,10 @@ instead of reading unverified game memory.
 Choose one download from the
 [Blind Soldier Releases page](https://github.com/buu420/blind-soldier/releases):
 
-- [Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.8.5/Blind-Soldier-Portable.zip)
+- [Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.8.6/Blind-Soldier-Portable.zip)
   is the complete dual-runtime package. Use it for Steam 2026 x64 or when one
   extracted package must support both x86 and x64 installations.
-- [Blind-Soldier-2013-x86-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.8.5/Blind-Soldier-2013-x86-Portable.zip)
+- [Blind-Soldier-2013-x86-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.8.6/Blind-Soldier-2013-x86-Portable.zip)
   is the smaller legacy-only package. Use it for the 2013 x86 game, including
   stock 7th Heaven/FFNx. It deliberately contains no Steam 2026 launcher or
   x64 files.
@@ -477,17 +490,17 @@ Visual Studio C++ Build Tools, and PowerShell, then run:
 ```powershell
 .\Build-BlindSoldierPortablePackage.ps1 `
   -OutputPath .\artifacts\Blind-Soldier-Portable.zip `
-  -Version 0.8.5
+  -Version 0.8.6
 .\Verify-BlindSoldierPortablePackage.ps1 `
   -ArchivePath .\artifacts\Blind-Soldier-Portable.zip `
-  -ExpectedVersion 0.8.5
+  -ExpectedVersion 0.8.6
 .\Build-BlindSoldier2013PortablePackage.ps1 `
   -SourceArchivePath .\artifacts\Blind-Soldier-Portable.zip `
   -OutputPath .\artifacts\Blind-Soldier-2013-x86-Portable.zip `
-  -Version 0.8.5
+  -Version 0.8.6
 .\Verify-BlindSoldier2013PortablePackage.ps1 `
   -ArchivePath .\artifacts\Blind-Soldier-2013-x86-Portable.zip `
-  -ExpectedVersion 0.8.5 `
+  -ExpectedVersion 0.8.6 `
   -ExpectedSourceArchivePath .\artifacts\Blind-Soldier-Portable.zip
 ```
 
@@ -619,7 +632,8 @@ currently be built.
 
 ### World-map categories
 
-- **Locations:** towns, caves, and other entrances.
+- **Locations:** towns, caves, and other entrances; underwater, the Gelnika,
+  Key of the Ancients and red submarine wreck when available.
 - **Story:** the currently available story destination.
 - **Transportation:** vehicles and other usable transport.
 - **Events:** temporary or progression-dependent world-map targets.
@@ -663,11 +677,30 @@ the same native-walkmesh route used by spoken navigation and holds only the
 directional controls needed for the current route segment. Press `P` again to
 stop automatic movement without changing the selected target.
 
-Auto walk never presses the action or confirm button. At a door, switch, chest,
+Field auto walk never presses the action or confirm button. At a door, switch, chest,
 NPC, ladder entrance, or other interaction point, it releases the directional
 keys and leaves the interaction to you. Once Cloud is mounted on a supported
 ladder, auto walk can follow the route's live climb direction, including a
 horizontal climb.
+
+Underwater submarine travel uses Confirm for thrust and Left/Right to turn, as
+the game requires. It rises to entry depth before ordinary travel and stops
+above underwater destinations for your manual descent with Up. This avoids
+Emerald during automatic travel without reading its hidden position. Final
+descent can encounter Emerald; visible sightings are announced. Leave depth
+controls alone during auto travel: diving manually can encounter Emerald too.
+Selecting a visible Emerald in Events allows automatic descent toward it, and losing sight
+pauses input immediately; a sustained loss stops that route. Dive/surface and
+interactions remain manual.
+
+Surface submarine travel uses directional controls without automatic Confirm.
+The route stays on submarine water and checks movement while the camera turns.
+Getting off at a port remains manual; destinations without a water route are
+reported as unreachable from the submarine.
+
+On legacy FFNx, combining external world meshes and analogue controls replaces
+the submarine controls. Auto travel explains how to restore the supported
+settings and restart; spoken navigation remains available.
 
 For safety, all directions are released during dialogue, menus, movies,
 battles, control locks, loading transitions, focus loss, unreadable game state,

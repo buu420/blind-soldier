@@ -55,6 +55,12 @@
     <Compile Include="..\Ff7.Accessibility.Reloaded\WorldMapData.cs" Link="Shared\WorldMapData.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\WorldMapDataLoader.cs" Link="Shared\WorldMapDataLoader.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\WorldMapTargetCatalog.cs" Link="Shared\WorldMapTargetCatalog.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\WorldMapUnderwaterDestinations.cs" Link="Shared\WorldMapUnderwaterDestinations.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\WorldMapSubmarineSteering.cs" Link="Shared\WorldMapSubmarineSteering.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\WorldMapSubmarineCompatibility.cs" Link="Shared\WorldMapSubmarineCompatibility.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\WorldMapSubmarineSurfaceSteering.cs" Link="Shared\WorldMapSubmarineSurfaceSteering.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\WorldMapSubmarineNavigationController.cs" Link="Shared\WorldMapSubmarineNavigationController.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\WorldMapUnderwaterVisibilityReader.cs" Link="Shared\WorldMapUnderwaterVisibilityReader.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\WorldMapRoutePlanner.cs" Link="Shared\WorldMapRoutePlanner.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\WorldMapFunnel.cs" Link="Shared\WorldMapFunnel.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\WorldMapConnectedRunFormatter.cs" Link="Shared\WorldMapConnectedRunFormatter.cs" />

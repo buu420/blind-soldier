@@ -39,11 +39,12 @@ public static class WorldMapDataLoader
     {
         var (blockWidth, blockHeight) = ResolveGrid(worldMapType);
         var activeBlockCount = checked(blockWidth * blockHeight);
-        if (bytes.Length < checked(activeBlockCount * BlockSize) || bytes.Length % BlockSize != 0)
+        var minimumPhysicalBlocks = worldMapType == 2 ? 12 : activeBlockCount;
+        if (bytes.Length < checked(minimumPhysicalBlocks * BlockSize) || bytes.Length % BlockSize != 0)
         {
             throw new InvalidDataException(
                 $"World map {worldMapType} has invalid length {bytes.Length}; " +
-                $"expected at least {activeBlockCount * BlockSize} bytes in {BlockSize}-byte blocks.");
+                $"expected at least {minimumPhysicalBlocks * BlockSize} bytes in {BlockSize}-byte blocks.");
         }
 
         var rawBlockCount = bytes.Length / BlockSize;
@@ -121,7 +122,9 @@ public static class WorldMapDataLoader
         worldMapType switch
         {
             0 => (9, 7),
-            2 => (3, 4),
+            // FUN_00750F3C repeats twelve physical blocks in the global world frame.
+            // Native entities and scripts retain the same 9x7 coordinates as map0.
+            2 => (9, 7),
             3 => (2, 2),
             _ => throw new ArgumentOutOfRangeException(
                 nameof(worldMapType),
@@ -263,6 +266,13 @@ public static class WorldMapDataLoader
         int worldProgress,
         int logicalBlockIndex)
     {
+        if (worldMapType == 2)
+        {
+            var column = logicalBlockIndex % 9;
+            var row = logicalBlockIndex / 9;
+            return ((row + 2) % 4) * 3 + column % 3;
+        }
+
         if (worldMapType != 0)
         {
             return logicalBlockIndex;
