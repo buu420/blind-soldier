@@ -99,7 +99,9 @@ internal sealed class NavigationAutoWalkController : IDisposable
         bool canMove,
         bool routeActive,
         FieldNavigationInput? observedInput = null,
-        bool holdFlightAction = false)
+        bool holdFlightAction = false,
+        bool worldSubmarine = false,
+        bool holdSubmarineThrust = false)
     {
         if (disposed)
         {
@@ -115,6 +117,26 @@ internal sealed class NavigationAutoWalkController : IDisposable
                 ? "auto walk stopped because navigation is inactive"
                 : release.Diagnostic;
             return release;
+        }
+
+        if (worldSubmarine)
+        {
+            if (!Enabled || !canMove || (!IsDirectional(input) && !holdSubmarineThrust))
+            {
+                var release = directionalInput.ReleaseAll();
+                ResetDirectionObservation();
+                LastDiagnostic = release.Success ? "world submarine movement suspended" : release.Diagnostic;
+                return release;
+            }
+            var worldResult = directionalInput.ApplyWorldSubmarine(Map(input), holdSubmarineThrust);
+            if (!worldResult.Success)
+            {
+                _ = directionalInput.ReleaseAll();
+                domain = NavigationAutoWalkDomain.None;
+            }
+            ResetDirectionObservation();
+            LastDiagnostic = worldResult.Success ? $"world submarine {input}, thrust={holdSubmarineThrust}" : worldResult.Diagnostic;
+            return worldResult;
         }
 
         if (Enabled && holdFlightAction && input == FieldNavigationInput.None)

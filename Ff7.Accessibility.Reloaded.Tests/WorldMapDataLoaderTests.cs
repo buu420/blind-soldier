@@ -86,10 +86,22 @@ internal static class WorldMapDataLoaderTests
     private static void LoadsInstalledAlternateWorldMaps()
     {
         var underwater = WorldMapDataLoader.Load(InstalledMap("WM2.MAP"), 2, 0);
-        Equal(3, underwater.BlockGridWidth, "underwater block columns");
-        Equal(4, underwater.BlockGridHeight, "underwater block rows");
-        Equal(12, underwater.MeshGridWidth, "underwater mesh columns");
-        Equal(16, underwater.MeshGridHeight, "underwater mesh rows");
+        Equal(9, underwater.BlockGridWidth, "underwater native global block columns");
+        Equal(7, underwater.BlockGridHeight, "underwater native global block rows");
+        Equal(36, underwater.MeshGridWidth, "underwater native global mesh columns");
+        Equal(28, underwater.MeshGridHeight, "underwater native global mesh rows");
+        Equal(12, underwater.RawBlockCount, "underwater physical blocks");
+        Equal(0x48000, underwater.WrapWidth, "underwater native X wrap");
+        Equal(0x38000, underwater.WrapHeight, "underwater native Z wrap");
+        Equal(true, underwater.Triangles.Any(t => t.MeshX == 16 && t.MeshZ == 18),
+            "native Gelnika mesh exists at script coordinates");
+        foreach (var triangle in underwater.Triangles)
+        {
+            var logicalColumn = triangle.MeshX / 4;
+            var logicalRow = triangle.MeshZ / 4;
+            Equal(((logicalRow + 2) % 4) * 3 + logicalColumn % 3,
+                triangle.SourceBlockIndex, "native underwater physical block remap");
+        }
 
         var glacier = WorldMapDataLoader.Load(InstalledMap("WM3.MAP"), 3, 0);
         Equal(2, glacier.BlockGridWidth, "glacier block columns");

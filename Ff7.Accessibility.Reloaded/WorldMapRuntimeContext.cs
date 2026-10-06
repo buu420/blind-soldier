@@ -8,6 +8,9 @@
 public sealed class WorldMapRuntimeContext
 {
     private IReadOnlyList<WorldMapEntitySnapshot> entities = Array.Empty<WorldMapEntitySnapshot>();
+    private WorldMapUnderwaterVisibilityReader? underwaterVisibility;
+    private uint announcedEmerald;
+    private DateTime emeraldAbsentSince = DateTime.MinValue;
 
     public WorldMapRuntimeContext(
         WorldMapData map,
@@ -117,8 +120,45 @@ public sealed class WorldMapRuntimeContext
     public void UpdateEntities(IReadOnlyList<WorldMapEntitySnapshot>? value) =>
         Volatile.Write(ref entities, value ?? Array.Empty<WorldMapEntitySnapshot>());
 
+    public void UpdateEntities(WorldMapStateSnapshot state,
+        IReadOnlyList<WorldMapEntitySnapshot>? value, Ff7.Accessibility.LegacyLayout.ILegacyAddressSpace? memory)
+    {
+        value ??= Array.Empty<WorldMapEntitySnapshot>();
+        if (Map.WorldMapType != 2) { UpdateEntities(value); return; }
+        WorldMapUnderwaterVisibilityReadResult sighting = default;
+        if (memory is not null && value.Any(e => !e.IsPlayer && e.ModelId is 17 or 26 or 28 or 30))
+        {
+            underwaterVisibility ??= new(memory, Map);
+            sighting = underwaterVisibility.Read(state, value);
+        }
+        UpdateEntities(value.Select(e => e with
+        {
+            IsVisibleUnderwater = sighting.IsUsable && sighting.VisibleEntities.Contains(e.GuestPointer)
+        }).ToArray());
+    }
+
+    public string? ObserveUnderwaterSightings(WorldMapStateSnapshot state, bool speechReserved = false, DateTime? nowUtc = null)
+    {
+        var pointer = state.WorldMapType == 2 && state.PlayerModelId == 13
+            ? Entities.FirstOrDefault(e => !e.IsPlayer && e.ModelId == 30 && e.IsVisibleUnderwater).GuestPointer
+            : 0;
+        if (pointer == 0)
+        {
+            var now = nowUtc ?? DateTime.UtcNow;
+            if (emeraldAbsentSince == DateTime.MinValue) emeraldAbsentSince = now;
+            if (now - emeraldAbsentSince >= TimeSpan.FromMilliseconds(500)) announcedEmerald = 0;
+            return null;
+        }
+        emeraldAbsentSince = DateTime.MinValue;
+        if (speechReserved || announcedEmerald == pointer) return null;
+        announcedEmerald = pointer;
+        return "Emerald Weapon is visible nearby.";
+    }
+
     public void Reset()
     {
+        announcedEmerald = 0;
+        emeraldAbsentSince = DateTime.MinValue;
         UpdateEntities(Array.Empty<WorldMapEntitySnapshot>());
         Footsteps.Reset();
         TerrainAnnouncements.Reset();

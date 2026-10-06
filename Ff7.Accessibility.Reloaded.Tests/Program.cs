@@ -577,8 +577,22 @@ if (args.Contains("--multilingual-menu-only", StringComparer.OrdinalIgnoreCase))
     return;
 }
 
+if (args.Contains("--world-submarine-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.WorldMapSubmarineCompatibilityTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.WorldMapSubmarineNavigationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.WorldMapSubmarineSurfaceNavigationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.WorldMapUnderwaterVisibilityTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.WorldMapDataLoaderTests.Run();
+    return;
+}
+
 if (args.Contains("--world-map-only", StringComparer.OrdinalIgnoreCase))
 {
+    Ff7.Accessibility.Reloaded.Tests.WorldMapSubmarineCompatibilityTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.WorldMapSubmarineNavigationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.WorldMapSubmarineSurfaceNavigationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.WorldMapUnderwaterVisibilityTests.Run();
     Ff7.Accessibility.Reloaded.Tests.WorldMapDataLoaderTests.Run();
     Ff7.Accessibility.Reloaded.Tests.WorldMapStateReaderTests.Run();
     Ff7.Accessibility.Reloaded.Tests.MidgarZolomStateReaderTests.Run();
@@ -1487,6 +1501,10 @@ Ff7.Accessibility.Reloaded.Tests.WorldMapStateReaderTests.Run();
 Ff7.Accessibility.Reloaded.Tests.MidgarZolomStateReaderTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WorldMapEntityReaderTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WorldMapDataLoaderTests.Run();
+Ff7.Accessibility.Reloaded.Tests.WorldMapSubmarineCompatibilityTests.Run();
+Ff7.Accessibility.Reloaded.Tests.WorldMapSubmarineNavigationTests.Run();
+Ff7.Accessibility.Reloaded.Tests.WorldMapSubmarineSurfaceNavigationTests.Run();
+Ff7.Accessibility.Reloaded.Tests.WorldMapUnderwaterVisibilityTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WorldMapTargetCatalogTests.RunWithInstalledGameData();
 Ff7.Accessibility.Reloaded.Tests.WorldMapLocationEntranceTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WorldMapRoutePlannerTests.Run();

@@ -47,6 +47,7 @@ internal static class Steam2026NativeDirectionalInputTests
         ACommandedDirectionBecomesTheDirectionTheGameHolds();
         ADiagonalIsBothCardinalsAndSurvivesEveryPoll();
         ADirectionChangeReplacesTheOldOne();
+        WorldSubmarineThrustReachesConfirmAndYawReleasesIt();
         LettingGoNeedsNoWriteAndLeavesNothingBehind();
         ARemappedControlTableIsFollowedRatherThanAssumed();
         WhatThePlayerIsHoldingIsNeverTakenAway();
@@ -132,6 +133,35 @@ internal static class Steam2026NativeDirectionalInputTests
             host.ObservedDirection(),
             "and the game's logical direction is Down");
         Equal(1, host.Overlays, "one byte was written for one direction");
+    }
+
+    private static void WorldSubmarineThrustReachesConfirmAndYawReleasesIt()
+    {
+        var allowed = true;
+        var host = new FakeHost(deliveryGate: () => allowed);
+        host.CommandWorldSubmarine(FieldNavigationInput.None, thrust: true);
+        host.Poll();
+        Equal((byte)0x80, host.State(0x2D), "world-map thrust reaches native Confirm");
+        Equal(FieldNavigationInput.None, host.ObservedDirection(), "forward thrust never presses Up to descend");
+        host.CommandWorldSubmarine(FieldNavigationInput.Left, thrust: false);
+        host.Poll();
+        Equal((byte)0, host.State(0x2D), "turning in place releases thrust on next native poll");
+        Equal(FieldNavigationInput.Left, host.ObservedDirection(), "world yaw reaches native Left");
+        host.CommandWorldSubmarine(FieldNavigationInput.Down, thrust: false);
+        host.Poll();
+        Equal(FieldNavigationInput.Down, host.ObservedDirection(), "safe-depth recovery reaches native Down alone");
+        host.CommandWorldSubmarine(FieldNavigationInput.None, thrust: true);
+        allowed = false;
+        host.Poll();
+        Equal((byte)0, host.State(0x2D), "lost native ownership suppresses thrust before worker scan");
+        allowed = true;
+        host.IsForeground = false;
+        host.Poll();
+        Equal((byte)0, host.State(0x2D), "lost foreground suppresses native world thrust");
+        host.IsForeground = true;
+        host.Advance(Steam2026NativeDirectionalInputSink.Freshness + TimeSpan.FromMilliseconds(1));
+        host.Poll();
+        Equal((byte)0, host.State(0x2D), "expired coordinator lease stops thrust");
     }
 
     private static void ADiagonalIsBothCardinalsAndSurvivesEveryPoll()
@@ -606,6 +636,7 @@ internal static class Steam2026NativeDirectionalInputTests
             WriteToken(13, right);
             WriteToken(14, down);
             WriteToken(15, left);
+            WriteToken(5, 0x2D);
             guest.Write(Keyboard, new byte[StateLength]);
             guest.Write(
                 (uint)FieldNavigationInputReader.AddressCurrentKeyInput,
@@ -651,6 +682,16 @@ internal static class Steam2026NativeDirectionalInputTests
         }
 
         public void Renew() => sink.Renew(Now);
+
+        public void CommandWorldSubmarine(FieldNavigationInput direction, bool thrust)
+        {
+            if (!autoWalk.IsEnabledFor(NavigationAutoWalkDomain.WorldMap))
+                Equal(true, autoWalk.TryStart(NavigationAutoWalkDomain.WorldMap, true), "world input owns the navigator");
+            var result = autoWalk.Drive(direction, canMove: true, routeActive: true,
+                worldSubmarine: true, holdSubmarineThrust: thrust);
+            Equal(true, result.Success, $"native submarine input accepted: {result.Diagnostic}");
+            Renew();
+        }
 
         public int Poll() => PollRaw(StateLength, Keyboard);
 

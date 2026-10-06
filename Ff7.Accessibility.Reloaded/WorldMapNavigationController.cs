@@ -38,7 +38,7 @@ public static class WorldMapNavigationLifecycle
 /// feed this class the same checked guest state and therefore receive the same
 /// target order, speech, progress, and arrival behavior.
 /// </summary>
-public sealed class WorldMapNavigationController
+public sealed partial class WorldMapNavigationController
 {
     private const double WaypointArrivalDistance = 480d;
     private const double AutomaticMovementProbeDistance = 120d;
@@ -199,6 +199,8 @@ public sealed class WorldMapNavigationController
     /// by the same camera rotation as walking. Hosts pass it to the auto-walk input.
     /// </summary>
     public bool AutomaticInputHoldsFlightAction { get; private set; }
+    public bool AutomaticInputIsWorldSubmarine { get; private set; }
+    public bool AutomaticInputHoldsSubmarineThrust { get; private set; }
 
     private enum LandingPhase
     {
@@ -442,6 +444,14 @@ public sealed class WorldMapNavigationController
             return new WorldMapNavigationOutput($"{label} no longer available. Navigation off.");
         }
 
+        // A moving destination must not replan away a refused approach before its
+        // explanation is delivered. The prior command already released every input.
+        if (submarineUnsafeApproach is not null && state.PlayerModelId == 13 && state.WorldMapType == 2 &&
+            activeTarget is { NativeUnderwaterArrival.ModelId: 30 } unsafeTarget)
+        {
+            return ObserveSubmarineApproach(state, unsafeTarget, -1, automaticWalkActive, now);
+        }
+
         var resumedAfterCombat = combatPaused;
         if (resumedAfterCombat)
         {
@@ -534,7 +544,9 @@ public sealed class WorldMapNavigationController
             // repeated several times a second.
             if (landingPlan is null &&
                 (!refreshed.ArrivalTriangleIds.Contains(activeRoute.TargetTriangleId) ||
-                 HasMovedItsContactPoint(refreshed, activeRoute)))
+                 HasMovedItsContactPoint(refreshed, activeRoute) ||
+                 (refreshed.NativeUnderwaterArrival?.ModelId == 30 &&
+                  UnderwaterRouteEndMoved(refreshed, activeRoute))))
             {
                 var replanned = StartNavigation(refreshed, state, now, announceOn: false);
                 return replanned is null
@@ -548,6 +560,9 @@ public sealed class WorldMapNavigationController
             lastDiagnostic = planner.LastDiagnostic;
             return null;
         }
+
+        if (ObserveSubmarineApproach(state, target, playerTriangle, automaticWalkActive, now) is { } submarineOutput)
+            return submarineOutput;
 
         if (landingPlan is { } landing)
         {
@@ -722,6 +737,26 @@ public sealed class WorldMapNavigationController
         WorldMapStateSnapshot state,
         out FieldNavigationInput input)
     {
+        AutomaticInputIsWorldSubmarine = false;
+        AutomaticInputHoldsSubmarineThrust = false;
+        AutomaticInputHoldsFlightAction = false;
+        if (state.PlayerModelId == WorldMapSubmarineSteering.PlayerModelId)
+        {
+            AutomaticInputIsWorldSubmarine = true;
+            if (state.WorldMapType == 2)
+                return TryResolveSubmarineInput(state, out input);
+            if (state.WorldMapType != 0 || !state.HasNativeControlMode ||
+                state.NativeCameraMode is not (0 or 1 or 2) ||
+                state.NativeFrameMultiplier is < 1 or > 4 || state.CameraFront is < 0 or >= 4096)
+            { input = FieldNavigationInput.None; return false; }
+
+            // Surface modes 0 and 1 move in world axes. Mode 2 rotates the movement and
+            // also moves sideways while turning: the full native lease is checked below.
+            var surfaceControls = state.NativeCameraMode is 0 or 1
+                ? state with { CameraFront = 0, ControlTransform = new FieldNavigationControlTransform(0) }
+                : state;
+            return TryResolveAutomaticDirection(surfaceControls, out input);
+        }
         if (highwindBraking && highwindLanding is not null &&
             state.PlayerModelId == WorldMapHighwindLanding.HighwindModelId && beaconEnabled && !combatPaused)
         {
@@ -897,6 +932,13 @@ public sealed class WorldMapNavigationController
             planner.HasWalkingFootprint(state, state.X, state.Y, state.Z);
         bool IsCentreClear(FieldNavigationInput candidate)
         {
+            if (state.PlayerModelId == WorldMapSubmarineSteering.PlayerModelId && state.WorldMapType == 0)
+            {
+                return WorldMapSubmarineSurfaceSteering.IsCommandSafe(
+                    state, candidate, map, planner, activeTarget.NativeEntranceExemptions,
+                    activeTarget.ArrivalTriangleIds);
+            }
+
             var (x, z) = PredictNativeMovement(candidate, state.CameraFront);
             var next = new WorldMapRouteWaypoint(
                 state.X + (int)Math.Round(x * probeDistance), state.Y,
@@ -1715,6 +1757,10 @@ public sealed class WorldMapNavigationController
         {
             throughTarget = null;
         }
+        submarineManualDescent = false;
+        submarineDepthRecoveryAnnounced = false;
+        submarineEmeraldMissingSince = DateTime.MinValue;
+        submarineUnsafeApproach = null;
 
         var continuesProgressRoute =
             preserveProgressRoute &&
@@ -2141,6 +2187,8 @@ public sealed class WorldMapNavigationController
     {
         var target = activeTarget;
         var route = activeRoute;
+        if (target is not null && state.PlayerModelId == 13 && state.WorldMapType == 2)
+            return DescribeSubmarineGuidance(state, target);
         if (target is not null && (ShouldHoldNativeEntry(target, state) || IsAwaitingNativeEntry(target, state)))
         {
             // Repeating the destination while parked on its entrance must not report an
@@ -2581,8 +2629,9 @@ public sealed class WorldMapNavigationController
         // only, and a route over the ground has the ground's height. Measured in three
         // dimensions a waypoint below the ship is never reached (the replay held at 1281
         // over a waypoint at 0, 50 units away, turning back and forth), so flight is
-        // measured across the map alone. Every other model keeps the height.
-        var flat = state.PlayerModelId == WorldMapHighwindLanding.HighwindModelId;
+        // measured across the map alone. The submarine likewise travels independently
+        // of the seabed waypoint height; its depth has a separate native input policy.
+        var flat = state.PlayerModelId is WorldMapHighwindLanding.HighwindModelId or WorldMapSubmarineSteering.PlayerModelId;
         var points = new List<(double X, double Y, double Z)>(waypoints.Count + 1)
         {
             (start.X, flat ? 0d : start.Y, start.Z)
@@ -3173,8 +3222,14 @@ public sealed class WorldMapNavigationController
         landingStalledSamples = 0;
         landingOnRunIn = false;
         highwindLanding = null;
+        submarineManualDescent = false;
+        submarineDepthRecoveryAnnounced = false;
+        submarineEmeraldMissingSince = DateTime.MinValue;
+        submarineUnsafeApproach = null;
         ResetHighwindApproach();
         AutomaticInputHoldsFlightAction = false;
+        AutomaticInputIsWorldSubmarine = false;
+        AutomaticInputHoldsSubmarineThrust = false;
         progressPercent = 0;
         activeModelId = -1;
         activeMapType = -1;

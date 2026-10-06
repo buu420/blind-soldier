@@ -15,6 +15,8 @@ public sealed class WorldMapStateReader
     public const int AddressWorldPlayerEntityPointer = 0x00E3A7D0;
     public const int AddressWorldMapType = 0x00E045E8;
     public const int AddressWorldCameraFront = 0x00DFC484;
+    public const int AddressNativeCameraMode = 0x00DFC4B4;
+    public const int AddressNativeFrameMultiplier = 0x00DFC480;
     public const int AddressGameMoment = 0x00DC08DC;
 
     /// <summary>
@@ -197,6 +199,12 @@ public sealed class WorldMapStateReader
         var terrainScriptId = (walkmapType >> 5) & 0x07;
         var regionId = (walkmapType >> 9) & 0x1F;
         var hasChocoboTracks = (walkmapType & 0x8000) != 0;
+        var nativeFrameMultiplier = 0;
+        var hasNativeControlMode = memory.TryReadInt32(AddressNativeCameraMode, out var nativeCameraMode) &&
+            memory.TryReadInt32(AddressNativeFrameMultiplier, out nativeFrameMultiplier);
+        // Only submarine steering consumes this optional observation. Existing readers
+        // and other vehicle navigation remain usable when it is unavailable.
+        if (!hasNativeControlMode) { nativeCameraMode = -1; nativeFrameMultiplier = 0; }
         frame = frame with
         {
             X = x,
@@ -214,7 +222,10 @@ public sealed class WorldMapStateReader
             HasModelRotation = hasModelRotation,
             ModelRotation = modelRotation,
             SlideRotation = slideRotation,
-            EntityFlags = entityFlags
+            EntityFlags = entityFlags,
+            HasNativeControlMode = hasNativeControlMode,
+            NativeCameraMode = nativeCameraMode,
+            NativeFrameMultiplier = nativeFrameMultiplier
         };
         diagnostic = string.Empty;
         return true;
@@ -273,6 +284,9 @@ public sealed class WorldMapStateReader
         short SlideRotation,
         byte EntityFlags)
     {
+        public bool HasNativeControlMode { get; init; }
+        public int NativeCameraMode { get; init; }
+        public int NativeFrameMultiplier { get; init; }
         public WorldMapStateSnapshot State => new(
             Module,
             WorldMapType,
@@ -288,7 +302,9 @@ public sealed class WorldMapStateReader
             ModelId,
             MovementSpeed,
             CameraFront,
-            new FieldNavigationControlTransform(ToSignedControlDirection(CameraFront)))
+            new FieldNavigationControlTransform(ToSignedControlDirection(
+                ModelId == 13 && WorldMapType == 0 && HasNativeControlMode && NativeCameraMode is 0 or 1
+                    ? 0 : CameraFront)))
         {
             HasChocoboTracks = HasChocoboTracks,
             TerrainScriptId = TerrainScriptId,
@@ -297,7 +313,10 @@ public sealed class WorldMapStateReader
             HasModelRotation = HasModelRotation,
             ModelRotation = ModelRotation,
             SlideRotation = SlideRotation,
-            EntityFlags = EntityFlags
+            EntityFlags = EntityFlags,
+            HasNativeControlMode = HasNativeControlMode,
+            NativeCameraMode = NativeCameraMode,
+            NativeFrameMultiplier = NativeFrameMultiplier
         };
     }
 }
@@ -357,6 +376,9 @@ public readonly record struct WorldMapStateSnapshot(
 
     /// <summary>Entity +0x51.</summary>
     public byte EntityFlags { get; init; }
+    public bool HasNativeControlMode { get; init; }
+    public int NativeCameraMode { get; init; }
+    public int NativeFrameMultiplier { get; init; }
 }
 
 public readonly record struct WorldMapStateReadResult(

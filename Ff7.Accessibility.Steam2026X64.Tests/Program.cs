@@ -327,8 +327,21 @@ if (args.Contains("--module-tests-only", StringComparer.OrdinalIgnoreCase))
     return;
 }
 
+if (args.Contains("--world-submarine-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.WorldMapSubmarineCompatibilityTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.WorldMapSubmarineNavigationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.WorldMapSubmarineSurfaceNavigationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.WorldMapUnderwaterVisibilityTests.Run();
+    return;
+}
+
 if (args.Contains("--world-map-only", StringComparer.OrdinalIgnoreCase))
 {
+    Ff7.Accessibility.Reloaded.Tests.WorldMapSubmarineCompatibilityTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.WorldMapSubmarineNavigationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.WorldMapSubmarineSurfaceNavigationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.WorldMapUnderwaterVisibilityTests.Run();
     Ff7.Accessibility.Reloaded.Tests.WorldMapNavigationControllerTests.Run();
     Ff7.Accessibility.Reloaded.Tests.TinyBroncoTransportationTests.Run();
     Ff7.Accessibility.Reloaded.Tests.TinyBroncoTransportationTests.RunWithInstalledGameData();
@@ -919,6 +932,10 @@ Ff7.Accessibility.Reloaded.Tests.WorldMapOwnEntranceTests.RunWithInstalledGameDa
 Ff7.Accessibility.Reloaded.Tests.WorldMapBroncoLandingTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WorldMapBroncoLandingTests.RunWithInstalledGameData();
 Ff7.Accessibility.Reloaded.Tests.WorldMapHighwindNavigationTests.Run();
+Ff7.Accessibility.Reloaded.Tests.WorldMapSubmarineCompatibilityTests.Run();
+Ff7.Accessibility.Reloaded.Tests.WorldMapSubmarineNavigationTests.Run();
+Ff7.Accessibility.Reloaded.Tests.WorldMapSubmarineSurfaceNavigationTests.Run();
+Ff7.Accessibility.Reloaded.Tests.WorldMapUnderwaterVisibilityTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WorldMapHighwindNavigationTests.RunWithInstalledGameData();
 Ff7.Accessibility.Reloaded.Tests.WorldMapWutaiNavigationTests.RunWithInstalledGameData();
 Ff7.Accessibility.Reloaded.Tests.FieldNpcTalkCounterTests.RunWithInstalledGameData();

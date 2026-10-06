@@ -55,8 +55,9 @@ public static class WorldMapTerrainPassability
             5 => terrainId is 4 or 5 or 6,
             // Buggy adds the native river-crossing surface to walking land.
             6 => WalkingTerrain.Contains(terrainId) || terrainId == 4,
-            // Submarine and red submarine own the underwater world.
-            13 or 28 => worldMapType == 2 && terrainId is 3 or 18 or 26,
+            // FUN_0074CECA model13 mask0x4048008 applies on the surface too.
+            // Model28 is the Huge Materia wreck, not a playable vehicle.
+            13 => worldMapType is 0 or 2 && terrainId is 3 or 15 or 18 or 26,
             // Model 4 is the live caught Chocobo used immediately after a
             // Chocobo battle; model 19 is the alternate ridden form. A
             // Chocobo's color/capability is stored separately, so both retain

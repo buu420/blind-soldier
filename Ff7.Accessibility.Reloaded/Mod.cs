@@ -413,6 +413,7 @@ public sealed class Mod : IModV1, IModV2
     private WorldMapDialogueReader? worldMapDialogueReader;
     private readonly WorldMapDialogueTracker worldMapDialogueTracker = new();
     private WorldMapEntityReader? worldMapEntityReader;
+    private WorldMapSubmarineCompatibility? worldMapSubmarineCompatibility;
     private MidgarZolomStateReader? midgarZolomStateReader;
     private readonly MidgarZolomCrossingTracker midgarZolomCrossingTracker = new();
     private readonly MidgarZolomAreaTracker midgarZolomAreaTracker = new();
@@ -5422,6 +5423,8 @@ public sealed class Mod : IModV1, IModV2
         worldMapStateReader = new WorldMapStateReader(legacyAddressSpace);
         worldMapDialogueReader = new WorldMapDialogueReader(legacyAddressSpace);
         worldMapEntityReader = new WorldMapEntityReader(legacyAddressSpace);
+        worldMapSubmarineCompatibility = WorldMapSubmarineCompatibility.DetectForCurrentProcess();
+        Log(worldMapSubmarineCompatibility.Diagnostic);
         midgarZolomStateReader = new MidgarZolomStateReader(legacyAddressSpace);
         midgarZolomCrossingTracker.Reset();
             midgarZolomAreaTracker.Reset();
@@ -5693,9 +5696,9 @@ public sealed class Mod : IModV1, IModV2
             var state = stateResult.State;
             var entityResult = worldMapEntityReader?.Read()
                 ?? WorldMapEntityReadResult.Invalid("world entity reader is not initialized");
-            runtime.UpdateEntities(entityResult.IsUsable
+            runtime.UpdateEntities(state, entityResult.IsUsable
                 ? entityResult.Entities
-                : Array.Empty<WorldMapEntitySnapshot>());
+                : Array.Empty<WorldMapEntitySnapshot>(), currentProcessLegacyAddressSpace);
             if (config.EnableWorldMapNavigationDiagnostics &&
                 !string.Equals(entityResult.Diagnostic, lastWorldMapEntityDiagnostic, StringComparison.Ordinal))
             {
@@ -5734,6 +5737,12 @@ public sealed class Mod : IModV1, IModV2
             // richer marsh state machine.
             var higherPrioritySpeech = ObserveMidgarZolomCrossing(runtime, state);
             higherPrioritySpeech |= progressControlSpeechWasObserved;
+            if (config.EnableWorldMapNavigationAssistant &&
+                runtime.ObserveUnderwaterSightings(state, higherPrioritySpeech, now) is { } emeraldSighting)
+            {
+                Speak(emeraldSighting, interrupt: false);
+                higherPrioritySpeech = true;
+            }
             var progressRevision = worldMapNavigationProgressSink?.PublicationRevision ?? 0;
             if (progressRevision != lastWorldMapProgressPublicationRevision)
             {
@@ -7409,6 +7418,16 @@ public sealed class Mod : IModV1, IModV2
             return false;
         }
 
+        // FFNx can replace the world controls the submarine steering models. Each attempt to
+        // drive the submarine then stops before any key is held and says why, once; the route
+        // and its spoken guidance stay on.
+        if (state.PlayerModelId == WorldMapSubmarineSteering.PlayerModelId &&
+            worldMapSubmarineCompatibility is { AllowsAutomaticMovement: false } incompatible)
+        {
+            StopNavigationAutoWalk(NavigationAutoWalkDomain.WorldMap, announce: false);
+            return Speak(incompatible.SpokenReason, interrupt: true);
+        }
+
         var hasDirection = runtime.Navigation.TryResolveAutomaticInput(state, out var direction);
         if (config.EnableWorldMapNavigationDiagnostics &&
             runtime.Navigation.DescribeAutomaticPace(
@@ -7424,7 +7443,9 @@ public sealed class Mod : IModV1, IModV2
             hasDirection ? direction : FieldNavigationInput.None,
             canMove: hasDirection,
             routeActive: runtime.Navigation.BeaconEnabled,
-            holdFlightAction: runtime.Navigation.AutomaticInputHoldsFlightAction);
+            holdFlightAction: runtime.Navigation.AutomaticInputHoldsFlightAction,
+            worldSubmarine: runtime.Navigation.AutomaticInputIsWorldSubmarine,
+            holdSubmarineThrust: runtime.Navigation.AutomaticInputHoldsSubmarineThrust);
         return HandleNavigationAutoWalkInputResult(result, NavigationAutoWalkDomain.WorldMap);
     }
 

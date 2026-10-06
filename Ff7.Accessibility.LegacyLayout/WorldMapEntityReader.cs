@@ -199,7 +199,11 @@ public readonly record struct WorldMapEntitySnapshot(
     int TerrainId,
     int RegionId,
     int ModelId,
-    byte Flags);
+    byte Flags)
+{
+    /// <summary>Set only by the checked native underwater draw/occlusion observation.</summary>
+    public bool IsVisibleUnderwater { get; init; }
+}
 
 public readonly record struct WorldMapEntityReadResult(
     bool IsUsable,

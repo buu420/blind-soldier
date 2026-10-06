@@ -205,6 +205,7 @@ public sealed record WorldMapNavigationTarget(
     IReadOnlySet<int> ArrivalTriangleIds)
 {
     public bool HasArrived(int triangleId) =>
+        NativeUnderwaterArrival is null &&
         NativeLocationArrivals.Count == 0 &&
         triangleId >= 0 &&
         ArrivalTriangleIds.Contains(triangleId);
@@ -265,6 +266,7 @@ public sealed record WorldMapNavigationTarget(
     /// cannot then do.
     /// </summary>
     internal WorldMapNativeVehicleContact? NativeVehicleContact { get; init; }
+    internal WorldMapUnderwaterArrival? NativeUnderwaterArrival { get; init; }
 
     /// <summary>
     /// Per arrival triangle, the point in it nearest the vehicle that is in native
@@ -275,6 +277,8 @@ public sealed record WorldMapNavigationTarget(
 
     public bool HasArrived(WorldMapStateSnapshot state, int triangleId)
     {
+        if (NativeUnderwaterArrival is { } underwater)
+            return underwater.IsSatisfiedBy(state, triangleId);
         if (NativeVehicleContact is { } vehicleContact)
         {
             return ArrivalTriangleIds.Contains(triangleId) && vehicleContact.IsSatisfiedBy(state);
@@ -307,7 +311,7 @@ public sealed record WorldMapNavigationTarget(
     }
 }
 
-public sealed class WorldMapTargetCatalog
+public sealed partial class WorldMapTargetCatalog
 {
     private static readonly Regex MenuNamePattern = new(
         @"^\s*0x(?<id>[0-9A-Fa-f]+)\s+wm\d+\s+(?<name>.+?)\s*$",
@@ -637,6 +641,11 @@ public sealed class WorldMapTargetCatalog
                 .Select(triangle => triangle.Id));
         }
 
+        if (map.WorldMapType == 2)
+        {
+            locations.AddRange(BuildUnderwaterLocations(map));
+            entrances.UnionWith(locations.SelectMany(t => t.NativeTriggerTriangleIds));
+        }
         return new WorldMapTargetCatalog(map, locations, tracks, unresolved, entrances);
     }
 
@@ -759,6 +768,16 @@ public sealed class WorldMapTargetCatalog
         WorldMapStateSnapshot state,
         IReadOnlyList<WorldMapEntitySnapshot> entities)
     {
+        if (state.WorldMapType == 2 && map.WorldMapType == 2 &&
+            category is WorldMapNavigationCategory.Locations or WorldMapNavigationCategory.Story)
+        {
+            var known = Locations.Where(t => t.NativeUnderwaterArrival is { } arrival &&
+                (arrival.ModelId == 17 || entities.Any(e => !e.IsPlayer && e.ModelId == arrival.ModelId)));
+            if (category == WorldMapNavigationCategory.Story)
+                known = known.Where(t => t.NativeUnderwaterArrival!.ModelId == 26 && state.GameMoment == 1396)
+                    .Select(t => t with { Category = category, Kind = WorldMapTargetKind.Story });
+            return known.ToArray();
+        }
         if (category == WorldMapNavigationCategory.Regions)
         {
             return ReadTerrainAreaTargets(state);
@@ -949,6 +968,17 @@ public sealed class WorldMapTargetCatalog
         WorldMapStateSnapshot player,
         WorldMapEntitySnapshot entity)
     {
+        if (player.WorldMapType == 2)
+        {
+            // Fixed places use script coordinates, not a hidden live entity position.
+            if (entity.ModelId is 17 or 26 or 28)
+            {
+                if (category != WorldMapNavigationCategory.Events) return null;
+                return Locations.FirstOrDefault(t => t.NativeUnderwaterArrival?.ModelId == entity.ModelId) is { } place
+                    ? place with { Category = category } : null;
+            }
+            if (entity.ModelId == 30 && !entity.IsVisibleUnderwater) return null;
+        }
         var label = category switch
         {
             WorldMapNavigationCategory.Story => player.GameMoment switch
@@ -998,6 +1028,16 @@ public sealed class WorldMapTargetCatalog
 
         var arrivals = new HashSet<int>();
         var triangle = map.Triangles[triangleId];
+        if (player.WorldMapType == 2 && entity.ModelId == 30)
+        {
+            return new WorldMapNavigationTarget(category, WorldMapTargetKind.Event, "Emerald Weapon",
+                entity.X, entity.Y, entity.Z, triangleId, entity.RegionId,
+                $"world-entity:{entity.GuestPointer:X8}:{entity.ModelId}", new HashSet<int> { triangleId })
+            {
+                NativeUnderwaterArrival = new WorldMapUnderwaterArrival(map, 30, entity.X, entity.Y, entity.Z,
+                    WorldMapSubmarineSteering.EmeraldEncounterDistance, new HashSet<int> { triangleId })
+            };
+        }
 
         // A vehicle whose native footprint was read out of the executable resolves its own
         // approach: the ground the party can stand on and be in collision with it, which
@@ -1629,5 +1669,4 @@ public sealed class WorldMapTargetCatalog
         double PlanarArea,
         IReadOnlyList<int> TriangleIds);
 }
-
 
