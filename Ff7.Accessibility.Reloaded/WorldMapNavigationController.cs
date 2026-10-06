@@ -529,6 +529,8 @@ public sealed partial class WorldMapNavigationController
 
         if (refreshed is not null && refreshed != target)
         {
+            var movedWhileFlying = highwindLanding is not null &&
+                (refreshed.X != target.X || refreshed.Z != target.Z);
             target = refreshed;
             activeTarget = refreshed;
             // A landing route ends on water beside the destination by design; its end is
@@ -542,7 +544,9 @@ public sealed partial class WorldMapNavigationController
             // disagree for a vehicle that has not moved at all. Comparing them announced a
             // fresh route on every observation, which is how the parked Buggy came to be
             // repeated several times a second.
-            if (landingPlan is null &&
+            // A flight also ends at its landing spot, not at the boat's contact
+            // triangle. Keep its brake/landing handoff unless the boat actually moves.
+            if (movedWhileFlying || landingPlan is null && highwindLanding is null &&
                 (!refreshed.ArrivalTriangleIds.Contains(activeRoute.TargetTriangleId) ||
                  HasMovedItsContactPoint(refreshed, activeRoute) ||
                  (refreshed.NativeUnderwaterArrival?.ModelId == 30 &&
@@ -2974,7 +2978,8 @@ public sealed partial class WorldMapNavigationController
     /// </summary>
     private static bool UsesHighwindLanding(WorldMapNavigationTarget target, WorldMapStateSnapshot state) =>
         state.PlayerModelId == WorldMapHighwindLanding.HighwindModelId &&
-        IsDestination(target) &&
+        (IsDestination(target) ||
+         target.Kind == WorldMapTargetKind.Transportation && target.NativeVehicleContact?.VehicleModelId == 13) &&
         !target.ReachedInFlight &&
         target.NativeStoryArrival is null;
 

@@ -39,6 +39,10 @@ public static class WorldMapVehicleObstacles
             // the party cannot walk onto the water from.
             [5] = [0x00, 0x18, 0x3c, 0x7e, 0x7e, 0x3c, 0x18, 0x00],
 
+            // Usable submarine: the same row as the Bronco, measured at
+            // 0096DDB0 + 13 * 8 in the licensed executable. Boarding is on foot.
+            [13] = [0x00, 0x18, 0x3c, 0x7e, 0x7e, 0x3c, 0x18, 0x00],
+
             // Buggy: 00 00 18 3c 3c 18 00 00.
             [6] = [0x00, 0x00, 0x18, 0x3c, 0x3c, 0x18, 0x00, 0x00],
 
