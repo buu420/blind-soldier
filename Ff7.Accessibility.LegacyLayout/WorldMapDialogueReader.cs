@@ -50,6 +50,13 @@ public readonly record struct WorldMapMovementOwnership(bool PlayerHasControl, b
     public bool IsBlockingMovement => !PlayerHasControl || MainMenuSession;
 }
 
+/// <summary>FUN_0074EA48's full dive gate and the transition set by FUN_0074D6F6.</summary>
+public readonly record struct WorldMapSubmarineDiveState(int MainState, int Control, int ControlLock, int MovementEnabled)
+{
+    public bool CanRequestDive => MainState == 1 && Control != 0 && ControlLock <= 0 && MovementEnabled != 0;
+    public bool DiveAccepted => MainState is 4 or 6;
+}
+
 /// <summary>
 /// Whether world movement belongs to something else this sample. Window text is only for
 /// speech; a window that is up still blocks when it can be read.
@@ -171,8 +178,8 @@ public sealed class WorldMapDialogueReader(ILegacyAddressSpace memory)
     /// <summary>
     /// The native world input mask FUN_0074EA48 moves the party by: FUN_007186B9 returns the
     /// 32-bit DAT_009A85D4 (the x64 build reads the same translated guest address). Direction
-    /// bits: Up 0x1000, Right 0x2000, Down 0x4000, Left 0x8000. For diagnostics only - two
-    /// agreeing reads, and false (unknown) otherwise; nothing is pressed from it.
+    /// bits: Up 0x1000, Right 0x2000, Down 0x4000, Left 0x8000. Two agreeing reads, or
+    /// unknown. Navigation also uses Cancel's observed release to prepare one dive press.
     /// </summary>
     public const uint NativeWorldInputAddress = 0x009A85D4;
 
@@ -188,6 +195,30 @@ public sealed class WorldMapDialogueReader(ILegacyAddressSpace memory)
 
         mask = first;
         return true;
+    }
+
+    public const uint NativeWorldMainStateAddress = 0x00E045E4;
+    public const uint NativeControlLockAddress = 0x00DFC4B8;
+    public const uint NativeMovementEnabledAddress = 0x00E28CDC;
+
+    public bool TryReadSubmarineDiveState(out WorldMapSubmarineDiveState state)
+    {
+        state = default;
+        if (!Capture(out var first) || !Capture(out var second) || first != second) return false;
+        state = first;
+        return true;
+
+        bool Capture(out WorldMapSubmarineDiveState value)
+        {
+            value = default;
+            if (!memory.TryReadByte((uint)WorldMapStateReader.AddressCurrentModule, out var module) || module != 3 ||
+                !memory.TryReadInt32(NativeWorldMainStateAddress, out var main) ||
+                !memory.TryReadInt32(ControlAddress, out var control) ||
+                !memory.TryReadInt32(NativeControlLockAddress, out var controlLock) ||
+                !memory.TryReadInt32(NativeMovementEnabledAddress, out var movement)) return false;
+            value = new(main, control, controlLock, movement);
+            return true;
+        }
     }
 
     private bool TryReadOwnershipOnce(out WorldMapMovementOwnership ownership)

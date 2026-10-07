@@ -73,7 +73,8 @@ public static class WorldMapDataLoader
         var neighbors = BuildAdjacency(
             builders,
             checked(blockWidth * 4 * MeshSize),
-            checked(blockHeight * 4 * MeshSize));
+            checked(blockHeight * 4 * MeshSize),
+            ignoreHeight: worldMapType == 2);
         var triangles = new WorldMapTriangle[builders.Count];
         for (var index = 0; index < builders.Count; index++)
         {
@@ -295,9 +296,10 @@ public static class WorldMapDataLoader
     private static IReadOnlyList<int>[] BuildAdjacency(
         IReadOnlyList<TriangleBuilder> triangles,
         int wrapWidth,
-        int wrapHeight)
+        int wrapHeight,
+        bool ignoreHeight)
     {
-        var edgeOwners = new Dictionary<EdgeKey, List<int>>(triangles.Count * 2);
+        var edgeOwners = new Dictionary<EdgeKey, List<(int Owner, EdgeKey Original)>>(triangles.Count * 2);
         for (var triangleIndex = 0; triangleIndex < triangles.Count; triangleIndex++)
         {
             var triangle = triangles[triangleIndex];
@@ -315,13 +317,24 @@ public static class WorldMapDataLoader
             {
                 for (var second = first + 1; second < owners.Count; second++)
                 {
-                    if (owners[first] == owners[second])
+                    var a = owners[first]; var b = owners[second];
+                    if (a.Owner == b.Owner)
                     {
                         continue;
                     }
 
-                    neighbors[owners[first]].Add(owners[second]);
-                    neighbors[owners[second]].Add(owners[first]);
+                    if (a.Original != b.Original)
+                    {
+                        var ta = triangles[a.Owner]; var tb = triangles[b.Owner];
+                        // Only the native submarine floor seams across wm2 mesh cells.
+                        // Other layers retain exact XYZ adjacency. The installed game
+                        // has 12 such water seams: the two tunnel edges, repeated six times.
+                        if (!ignoreHeight || ta.MeshX == tb.MeshX && ta.MeshZ == tb.MeshZ ||
+                            !WorldMapTerrainPassability.CanTraverse(13, 2, ta.TerrainId) ||
+                            !WorldMapTerrainPassability.CanTraverse(13, 2, tb.TerrainId)) continue;
+                    }
+                    neighbors[a.Owner].Add(b.Owner);
+                    neighbors[b.Owner].Add(a.Owner);
                 }
             }
         }
@@ -332,6 +345,11 @@ public static class WorldMapDataLoader
 
         void AddEdge(int owner, WorldMapVertex first, WorldMapVertex second)
         {
+            var original = EdgeKey.Create(first, second, wrapWidth, wrapHeight);
+            // FUN_0074CC07 selects wm2's lowest floor per X/Z point. Mesh-cell floor
+            // edges can meet with different Y values; treating Y as connectivity
+            // sealed the native tunnel to Lucrecia's lake. Ground maps keep XYZ edges.
+            if (ignoreHeight) { first = first with { Y = 0 }; second = second with { Y = 0 }; }
             var key = EdgeKey.Create(first, second, wrapWidth, wrapHeight);
             if (!edgeOwners.TryGetValue(key, out var owners))
             {
@@ -339,7 +357,7 @@ public static class WorldMapDataLoader
                 edgeOwners.Add(key, owners);
             }
 
-            owners.Add(owner);
+            owners.Add((owner, original));
         }
     }
 

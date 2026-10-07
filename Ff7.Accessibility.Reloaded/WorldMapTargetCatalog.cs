@@ -206,6 +206,7 @@ public sealed record WorldMapNavigationTarget(
 {
     public bool HasArrived(int triangleId) =>
         NativeUnderwaterArrival is null &&
+        SubmarineDiveDestination is null && SubmarineSurfacingPoint is null &&
         NativeLocationArrivals.Count == 0 &&
         triangleId >= 0 &&
         ArrivalTriangleIds.Contains(triangleId);
@@ -247,7 +248,7 @@ public sealed record WorldMapNavigationTarget(
     /// entrance", from outside the seller's own house.</para>
     /// </summary>
     public IReadOnlySet<int> NativeEntranceExemptions =>
-        Kind is WorldMapTargetKind.Location or WorldMapTargetKind.Story
+        SubmarineDiveDestination is null && Kind is WorldMapTargetKind.Location or WorldMapTargetKind.Story
             ? NativeTriggerTriangleIds.Count > 0 ? NativeTriggerTriangleIds : ArrivalTriangleIds
             : NoEntranceExemptions;
 
@@ -266,7 +267,10 @@ public sealed record WorldMapNavigationTarget(
     /// cannot then do.
     /// </summary>
     internal WorldMapNativeVehicleContact? NativeVehicleContact { get; init; }
+    internal int? NativeEntityModelId { get; init; }
     internal WorldMapUnderwaterArrival? NativeUnderwaterArrival { get; init; }
+    internal WorldMapSubmarineDiveDestination? SubmarineDiveDestination { get; init; }
+    internal WorldMapSubmarineSurfacingPoint? SubmarineSurfacingPoint { get; init; }
 
     /// <summary>
     /// Per arrival triangle, the point in it nearest the vehicle that is in native
@@ -277,11 +281,21 @@ public sealed record WorldMapNavigationTarget(
 
     public bool HasArrived(WorldMapStateSnapshot state, int triangleId)
     {
+        if (SubmarineDiveDestination is { } dive)
+            return state.WorldMapType == 0 && state.PlayerModelId == 13 && state.TerrainId == 3 &&
+                ArrivalTriangleIds.Contains(triangleId) && dive.CanDiveAt(state);
+        if (SubmarineSurfacingPoint is { } surfacePoint)
+            return surfacePoint.IsSatisfiedBy(state);
         if (NativeUnderwaterArrival is { } underwater)
             return underwater.IsSatisfiedBy(state, triangleId);
         if (NativeVehicleContact is { } vehicleContact)
         {
-            return ArrivalTriangleIds.Contains(triangleId) && vehicleContact.IsSatisfiedBy(state);
+            // A refused colliding step records player+4, then rolls the party back. The
+            // rollback face need not contain any point inside the vehicle mask, but
+            // Confirm still dispatches this witnessed contact's function4.
+            return vehicleContact.IsWitnessedBy(state) ||
+                ArrivalTriangleIds.Contains(triangleId) && vehicleContact.OccupiesNativeMask(state) &&
+                vehicleContact.IsSomebodyElse(state);
         }
 
         if (NativeStoryArrival is { } nativeArrival)
@@ -768,14 +782,29 @@ public sealed partial class WorldMapTargetCatalog
         WorldMapStateSnapshot state,
         IReadOnlyList<WorldMapEntitySnapshot> entities)
     {
+        var ordinary = ReadNativeTargets(category, state, entities);
+        if (map.WorldMapType == 0 && state.WorldMapType == 0 && state.PlayerModelId == 13 &&
+            category is WorldMapNavigationCategory.Locations or WorldMapNavigationCategory.Story or WorldMapNavigationCategory.Events)
+            return ordinary.Concat(ReadSurfaceSubmarineTargets(category, state)).DistinctBy(t => t.StableId).ToArray();
+        return ordinary;
+    }
+
+    private IReadOnlyList<WorldMapNavigationTarget> ReadNativeTargets(
+        WorldMapNavigationCategory category, WorldMapStateSnapshot state, IReadOnlyList<WorldMapEntitySnapshot> entities)
+    {
         if (state.WorldMapType == 2 && map.WorldMapType == 2 &&
             category is WorldMapNavigationCategory.Locations or WorldMapNavigationCategory.Story)
         {
-            var known = Locations.Where(t => t.NativeUnderwaterArrival is { } arrival &&
-                (arrival.ModelId == 17 || entities.Any(e => !e.IsPlayer && e.ModelId == arrival.ModelId)));
+            var availability = ReadSubmarineAvailability();
+            var known = Locations.Where(t => t.SubmarineSurfacingPoint is not null || t.NativeUnderwaterArrival is { } arrival &&
+                (arrival.ModelId == 17 || arrival.ModelId == 26 && availability?.KeyPresent == true ||
+                 arrival.ModelId == 28 && availability?.RedWreckPresent == true ||
+                 availability is null && entities.Any(e => !e.IsPlayer && e.ModelId == arrival.ModelId)));
             if (category == WorldMapNavigationCategory.Story)
-                known = known.Where(t => t.NativeUnderwaterArrival!.ModelId == 26 && state.GameMoment == 1396)
-                    .Select(t => t with { Category = category, Kind = WorldMapTargetKind.Story });
+                known = known.Where(t => t.NativeUnderwaterArrival?.ModelId == 26 && state.GameMoment == 1396 ||
+                        t.NativeUnderwaterArrival?.ModelId == 28 && availability?.MateriaCollected == false)
+                    .Select(t => t with { Category = category, Kind = WorldMapTargetKind.Story,
+                        Label = t.NativeUnderwaterArrival?.ModelId == 28 ? "Huge Materia, red submarine wreck" : t.Label });
             return known.ToArray();
         }
         if (category == WorldMapNavigationCategory.Regions)
@@ -925,7 +954,7 @@ public sealed partial class WorldMapTargetCatalog
                 }
             }
 
-            if (planarArea < minimumArea)
+            if (planarArea < minimumArea && terrainId != 18)
             {
                 continue;
             }
@@ -1052,17 +1081,18 @@ public sealed partial class WorldMapTargetCatalog
         // below is not that. It offered the Tiny Bronco's far bank, where no position at
         // all is inside the boat's mask, while leaving out the bank the party was standing
         // on, because that one is two triangles away across the water the boat floats in.
-        // The Highwind's mask is known for walking round it once parked, but boarding it has
-        // not been checked against the game, so it keeps the approach it always had.
+        // wm0.ev 4304 accepts a party on foot at the parked Highwind's contact.
         var boardingModel = parkedSubmarine && player.PlayerModelId == WorldMapHighwindLanding.HighwindModelId
             ? 0 : player.PlayerModelId;
         var canBoardSubmarine = !parkedSubmarine || boardingModel is 0 or 1 or 2;
+        var canBoardHighwind = entity.ModelId != WorldMapHighwindLanding.HighwindModelId ||
+            boardingModel is 0 or 1 or 2 && (entity.Flags & 0x10) == 0;
         var nativeFootprint =
             category == WorldMapNavigationCategory.Transportation &&
-            entity.ModelId != WorldMapHighwindLanding.HighwindModelId &&
             WorldMapVehicleObstacles.TryGetNativeMask(entity.ModelId, out _) &&
             (parkedSubmarine || WorldMapVehicleObstacles.TryGetNativeMask(boardingModel, out _));
-        var vehicleContacts = nativeFootprint && canBoardSubmarine && (entity.Flags & WorldMapVehicleObstacles.SkippedFlag) == 0
+        var vehicleContacts = nativeFootprint && canBoardSubmarine && canBoardHighwind &&
+            (entity.Flags & WorldMapVehicleObstacles.SkippedFlag) == 0
             ? WorldMapVehicleShoreApproach.FindContactPoints(
                 map, boardingModel, entity.ModelId, entity.X, entity.Z)
             : new Dictionary<int, WorldMapVertex>();
@@ -1078,7 +1108,7 @@ public sealed partial class WorldMapTargetCatalog
         }
         else
         {
-            // No checked boarding mask for one of the two models - the Highwind or a party
+            // No checked boarding mask for one of the two models - a party
             // leader nobody has measured. Inventing a footprint for those would be
             // inventing an arrival, so they keep the ring they always had.
             if (WorldMapTerrainPassability.CanTraverse(player.PlayerModelId, player.WorldMapType, triangle.TerrainId))
@@ -1129,6 +1159,7 @@ public sealed partial class WorldMapTargetCatalog
                 : $"world-entity:{entity.GuestPointer:X8}:{entity.ModelId}",
             arrivals)
         {
+            NativeEntityModelId = entity.ModelId,
             VehicleContactPoints = contactPoints,
             NativeVehicleContact = contactPoints.Count > 0
                 ? new WorldMapNativeVehicleContact(

@@ -166,6 +166,15 @@ internal static class WorldMapSubmarineNavigationTests
             Path.Combine(sourceRoot, "external", "kujata", "field-id-to-world-map-coords.json"),
             Path.Combine(sourceRoot, "external", "kujata", "wm-field-menu-names.txt"),
             Path.Combine(sourceRoot, "Ff7.Accessibility.Reloaded", "Assets", "world", "world-map-location-triggers.json"));
+        var surfaceMap = WorldMapDataLoader.Load(Path.Combine(dataRoot, "data", "wm", "wm0.map"), 0, 3);
+        var surfaceCatalog = WorldMapTargetCatalog.Load(surfaceMap,
+            Path.Combine(sourceRoot, "external", "kujata", "field-id-to-world-map-coords.json"),
+            Path.Combine(sourceRoot, "external", "kujata", "wm-field-menu-names.txt"),
+            Path.Combine(sourceRoot, "Ff7.Accessibility.Reloaded", "Assets", "world", "world-map-location-triggers.json"));
+        var loggedSurface = Submarine(-240, 3672) with
+        { WorldMapType = 0, WorldProgress = 3, X = 121103, Z = 113875, TerrainId = 26, TerrainScriptId = 1 };
+        Equal(true, surfaceCatalog.ReadTargets(WorldMapNavigationCategory.Events, loggedSurface, [])
+            .Any(t => t.Label == "Dive underwater"), "surface submarine offers a route to native diveable Sea");
         SightingsAreAnnouncedOnceAndUnreadableVisibilityCannotLeakTargets(map, catalog);
         EmeraldDescentCannotEnterAnUnselectedWreck(map, catalog);
         Equal(true, catalog.Locations.Any(t => t.Label == "Sunken Gelnika"), "underwater Locations includes native Gelnika");
@@ -241,9 +250,166 @@ internal static class WorldMapSubmarineNavigationTests
         var lost = pursue.Observe(explicitStart, visibilityClock.AddMilliseconds(800), automaticWalkActive: true);
         Equal(true, lost?.StopAutoWalk == true && lost?.Speech?.Contains("confirm", StringComparison.OrdinalIgnoreCase) == true,
             "sustained loss of positive visibility stops with an explanation");
+        TerminalPlanningIsNeutralBoundedAndFresh(map, catalog);
+        // Every directed route at the default world-map scan (AccessibilityConfig
+        // WorldMapScanIntervalMs = 50: 1 or 2 native frames a scan at multiplier 2), at
+        // 100 ms, and at a jittered 50 ms like Windows sleep granularity.
+        foreach (var (scan, jitter) in new[] { (50, 0), (100, 0), (50, 7) })
         foreach (var origin in catalog.Locations)
         foreach (var destination in catalog.Locations.Where(t => t.StableId != origin.StableId))
-            ReplayInstalledRoute(map, catalog, origin, destination);
+            ReplayInstalledRoute(map, catalog, origin, destination, scan, jitter);
+        // The configurable floor (30 ms: 0 or 1 frame a scan) and a slow 200 ms host.
+        foreach (var scan in new[] { 30, 200 })
+        foreach (var origin in catalog.Locations)
+        foreach (var destination in catalog.Locations.Where(t => t.StableId != origin.StableId))
+            ReplayInstalledRoute(map, catalog, origin, destination, scan);
+        // Native delivery that stops moving the sub at any point of the final approach -
+        // before, during or after a positioning maneuver - must end in a truthful stop
+        // within the host's no-motion bound, with every automatic input released.
+        var frozenOrigin = catalog.Locations.Single(t => t.Label == "Sunken Gelnika");
+        var frozenLake = catalog.Locations.Single(t => t.SubmarineSurfacingPoint is not null);
+        foreach (var freezeAfter in new[] { 0, 1000, 2500, 4000, 6000 })
+            ReplayInstalledRoute(map, catalog, frozenOrigin, frozenLake, 50, 0, freezeAfter);
+        // The reviewer's changed-cadence case: two-frame scans accept a heading whose capture
+        // is only native frames 9-11, then the host slows to 200 ms (six frames) mid-approach.
+        // Arrival or a clearly explained stop are both acceptable; a false arrival is not.
+        // The switch comes after one, two or three polls of thrust, so it lands before, at and
+        // after the capture the two-frame plan relied on.
+        foreach (var thrustPollsBeforeSlowing in new[] { 1, 2, 3 })
+            ReplayInstalledRoute(map, catalog, frozenLake, frozenLake, 50, 0,
+                start: Submarine(-3000, 3584) with { X = 102338, Z = 145010, NativeFrameMultiplier = 2 },
+                slowToMillisecondsAfterThrust: 200, allowExplainedStop: true, slowAfterThrustPolls: thrustPollsBeforeSlowing);
+        Console.WriteLine($"underwater replays: worst controller poll {worstPollWork} work units, {worstPollMilliseconds:0.0} ms (Debug, this machine)");
+    }
+
+    private static int worstPollWork;
+    private static double worstPollMilliseconds;
+
+    /// <summary>
+    /// The terminal planning contract, poll by poll, at the reviewer's lake state: the first
+    /// poll arms planning with no search work and neutral input; search and result polls stay
+    /// neutral and within one work slice; a changed position or camera at delivery is not
+    /// flown but planned again; a search that runs out of budget stays neutral, keeps the
+    /// destination, and the host's no-motion deadline still runs out on time.
+    /// </summary>
+    private static void TerminalPlanningIsNeutralBoundedAndFresh(WorldMapData map, WorldMapTargetCatalog catalog)
+    {
+        var lake = catalog.Locations.Single(t => t.SubmarineSurfacingPoint is not null);
+        var planner = new WorldMapRoutePlanner(map) { EntranceTriangleIds = catalog.EntranceTriangleIds };
+        var exempt = lake.NativeEntranceExemptions;
+        WorldMapStateSnapshot At(int x, int z, int camera)
+        {
+            Equal(true, WorldMapBroncoLanding.TryFindSurface(map, x, z, out var floor), "planning fixture has native seabed");
+            return Submarine(-3000, camera) with
+            {
+                X = x, Z = z, NativeFrameMultiplier = 2, TerrainId = floor.TerrainId,
+                RegionId = floor.RegionId & 31, TerrainScriptId = floor.TerrainScriptId
+            };
+        }
+        var bound = WorldMapNavigationController.SubmarineSearchSlice + 2000;
+
+        var navigator = new WorldMapNavigationController(map, planner, (_, _) => [lake]);
+        var state = At(102338, 145010, 3584);
+        Equal(true, navigator.HandleAction(FieldNavigationAction.ToggleBeacon, state) is not null && navigator.BeaconEnabled,
+            "lake destination starts from the reviewer's terminal state");
+        Equal(true, navigator.TryResolveAutomaticInput(state, out var input), "terminal poll keeps automatic intent");
+        Equal("Prepare", navigator.SubmarineTerminalState, "the first terminal poll only arms planning");
+        Equal(0, navigator.LastSubmarinePollWork, "the arming poll does no search or forecast work");
+        Equal(true, navigator.LastSubmarineCommandWasPlanning && input == FieldNavigationInput.None &&
+            !navigator.AutomaticInputHoldsSubmarineThrust, "the arming poll is neutral, so the host releases held keys");
+
+        void RunToReady(WorldMapStateSnapshot pose, string label)
+        {
+            for (var poll = 0; ; poll++)
+            {
+                Equal(true, poll < WorldMapNavigationController.SubmarineSearchBudget / WorldMapNavigationController.SubmarineSearchSlice + 4,
+                    $"{label}: planning finishes within its work budget");
+                navigator.TryResolveAutomaticInput(pose, out var planned);
+                Equal(true, navigator.LastSubmarinePollWork <= bound,
+                    $"{label}: one planning poll stays within a slice ({navigator.LastSubmarinePollWork} units)");
+                if (navigator.SubmarineTerminalState is "Prepare" or "Search" or "Ready")
+                    Equal(true, navigator.LastSubmarineCommandWasPlanning && planned == FieldNavigationInput.None &&
+                        !navigator.AutomaticInputHoldsSubmarineThrust, $"{label}: search and result polls are neutral");
+                if (navigator.SubmarineTerminalState == "Ready") return;
+            }
+        }
+
+        RunToReady(state, "reviewer lake state");
+        var moved = At(102368, 145010, 3584);
+        navigator.TryResolveAutomaticInput(moved, out input);
+        Equal(true, navigator.LastSubmarineCommandWasPlanning && input == FieldNavigationInput.None &&
+            !navigator.AutomaticInputHoldsSubmarineThrust && navigator.SubmarineTerminalState == "Prepare" &&
+            navigator.LastDiagnostic.Contains("changed since planning", StringComparison.Ordinal),
+            $"a position changed since planning is not flown but planned again: {navigator.LastDiagnostic}");
+        RunToReady(moved, "moved state");
+        var turned = moved with { CameraFront = (moved.CameraFront + 16) % 4096 };
+        navigator.TryResolveAutomaticInput(turned, out input);
+        Equal(true, navigator.LastSubmarineCommandWasPlanning && input == FieldNavigationInput.None &&
+            navigator.SubmarineTerminalState == "Prepare",
+            $"a camera changed since planning is not flown but planned again: {navigator.LastDiagnostic}");
+        RunToReady(turned, "turned state");
+        navigator.TryResolveAutomaticInput(turned, out input);
+        Equal(false, navigator.LastSubmarineCommandWasPlanning, "the following fresh poll with the planned pose flies the plan");
+        Equal(true, navigator.SubmarineTerminalState is "Final" or "Maneuver", $"a checked plan is flown: {navigator.SubmarineTerminalState}");
+        if (navigator.AutomaticInputHoldsSubmarineThrust)
+            Equal(true, ExactFullLeaseFits(map, planner, turned, exempt), "the first planned thrust has an exact full lease from the actual pose");
+
+        // A search that runs out of budget: neutral, destination kept, no clock reset.
+        var starved = new WorldMapNavigationController(map, planner, (_, _) => [lake]) { SubmarineSearchBudgetOverride = 1 };
+        starved.HandleAction(FieldNavigationAction.ToggleBeacon, state);
+        starved.TryResolveAutomaticInput(state, out _);
+        Equal("Prepare", starved.SubmarineTerminalState, "starved planning arms first");
+        starved.TryResolveAutomaticInput(state, out input);
+        Equal(true, starved.LastSubmarineCommandWasPlanning && input == FieldNavigationInput.None &&
+            !starved.AutomaticInputHoldsSubmarineThrust && starved.SubmarineTerminalState == "Ordinary" &&
+            starved.LastDiagnostic.Contains("work budget", StringComparison.Ordinal) && starved.BeaconEnabled,
+            $"an exhausted search stays neutral on its result poll and keeps the destination: {starved.LastDiagnostic}");
+        var deadline = new DateTime(2026, 10, 6, 18, 0, 0, DateTimeKind.Utc);
+        var stopAfter = -1d;
+        for (var poll = 0; poll < 400 && stopAfter < 0; poll++)
+        {
+            var output = starved.Observe(state, deadline.AddMilliseconds(poll * 50), automaticWalkActive: true);
+            if (output?.StopAutoWalk == true)
+            {
+                Equal(true, output.Value.Speech?.Contains("Auto walk stopped", StringComparison.Ordinal) == true,
+                    $"exhausted planning ends in an explained stop: {output.Value.Speech}");
+                stopAfter = poll * 0.05;
+                break;
+            }
+            starved.TryResolveAutomaticInput(state, out _);
+        }
+        Equal(true, stopAfter >= 0 && stopAfter <= 5.5,
+            $"repeated starved searches with the native side frozen do not extend the 5-second no-motion deadline ({stopAfter:0.00} s)");
+        Console.WriteLine($"terminal planning contract: arming poll 0 units; planning polls <= {bound} units; exhausted search stopped after {stopAfter:0.00} s frozen");
+    }
+
+    /// <summary>
+    /// The test's own check of the native full input lease from an actual pose: every native
+    /// frame of LeaseUpdates(multiplier) along the camera, then 96 units of margin, each a
+    /// segment the planner's exact submarine body test accepts.
+    /// </summary>
+    private static bool ExactFullLeaseFits(WorldMapData map, WorldMapRoutePlanner planner, WorldMapStateSnapshot state,
+        IReadOnlySet<int>? exempt)
+    {
+        var multiplier = Math.Clamp(state.NativeFrameMultiplier, 1, 4);
+        var (fx, fz) = WorldMapNavigationController.SubmarineForwardFrame(state.CameraFront, multiplier);
+        var current = state;
+        for (var frame = 0; frame < WorldMapSubmarineSurfaceSteering.LeaseUpdates(multiplier); frame++)
+        {
+            var next = new WorldMapRouteWaypoint((current.X + fx + map.WrapWidth) % map.WrapWidth, current.Y,
+                (current.Z + fz + map.WrapHeight) % map.WrapHeight);
+            if (!planner.CanTraverseSegment(current, next, null, exempt) ||
+                !WorldMapBroncoLanding.TryFindSurface(map, next.X, next.Z, out var floor)) return false;
+            current = current with
+            {
+                X = next.X, Z = next.Z, TerrainId = floor.TerrainId,
+                TerrainScriptId = floor.TerrainScriptId, RegionId = floor.RegionId & 31
+            };
+        }
+        var radians = state.CameraFront * Math.PI * 2 / 4096;
+        return planner.CanTraverseSegment(current, new WorldMapRouteWaypoint(
+            current.X + (int)Math.Round(Math.Sin(radians) * 96), current.Y,
+            current.Z - (int)Math.Round(Math.Cos(radians) * 96)), null, exempt);
     }
 
     private static void SightingsAreAnnouncedOnceAndUnreadableVisibilityCannotLeakTargets(WorldMapData map, WorldMapTargetCatalog catalog)
@@ -306,41 +472,132 @@ internal static class WorldMapSubmarineNavigationTests
         }
     }
 
-    private static void ReplayInstalledRoute(WorldMapData map, WorldMapTargetCatalog catalog,
-        WorldMapNavigationTarget origin, WorldMapNavigationTarget destination)
+    /// <param name="scanMilliseconds">The host's world-map scan interval; the controller is
+    /// asked for input once per scan, the auto-walk owner holds it until the next one.</param>
+    /// <param name="jitterSeed">Nonzero: each scan lasts the interval +-15 ms.</param>
+    /// <param name="freezeAfterApproachMs">Zero or more: this long into the final approach the
+    /// native side stops delivering any frames, and the replay expects a bounded stop.</param>
+    /// <param name="start">A starting pose other than the origin's own.</param>
+    /// <param name="slowToMillisecondsAfterThrust">Nonzero: after
+    /// <paramref name="slowAfterThrustPolls"/> polls of thrust the host's scans become this long.</param>
+    /// <param name="allowExplainedStop">An explained guard stop also ends the replay.</param>
+    internal static void ReplayInstalledRoute(WorldMapData map, WorldMapTargetCatalog catalog,
+        WorldMapNavigationTarget origin, WorldMapNavigationTarget destination,
+        int scanMilliseconds = 100, int jitterSeed = 0, int freezeAfterApproachMs = -1,
+        WorldMapStateSnapshot? start = null, int slowToMillisecondsAfterThrust = 0, bool allowExplainedStop = false,
+        int slowAfterThrustPolls = 2)
     {
+        var jitter = jitterSeed == 0 ? null : new Random(jitterSeed);
         var planner = new WorldMapRoutePlanner(map) { EntranceTriangleIds = catalog.EntranceTriangleIds };
         var navigator = new WorldMapNavigationController(map, planner, (_, _) => [destination]);
-        var multiplier = origin.NativeUnderwaterArrival!.ModelId == 26 ? 1 : 2;
-        var state = Submarine(-3000, origin.NativeUnderwaterArrival.ModelId * 277 % 4096) with
+        var originModel = origin.NativeUnderwaterArrival?.ModelId ?? 13;
+        var multiplier = start?.NativeFrameMultiplier ?? (originModel == 26 ? 1 : 2);
+        var state = start ?? Submarine(-3000, originModel * 277 % 4096) with
             { X = origin.X, Z = origin.Z, NativeFrameMultiplier = multiplier };
         var clock = new DateTime(2026, 10, 6, 15, 0, 0, DateTimeKind.Utc);
         UpdateSurface();
         var started = navigator.HandleAction(FieldNavigationAction.ToggleBeacon, state, clock);
         Equal(true, navigator.BeaconEnabled, $"{origin.Label} to {destination.Label} starts: {started?.Speech}");
+        // The hosts' own input owner: they resolve, then Drive; StopAutoWalk stops it.
+        var memory = new Mapping();
+        var sink = new Sink();
+        using var autoWalk = new NavigationAutoWalkController(sink, new HighwayDirectionInputMappingResolver(memory));
+        Equal(true, autoWalk.TryStart(NavigationAutoWalkDomain.WorldMap, routeActive: true), "replay input owner starts");
+        const int Thrust = 0x2D, Right = 0x4D, Left = 0x4B, Up = 0x48;
         var handoff = false;
         var moved = 0;
-        for (var tick = 0; tick < 12000 && navigator.BeaconEnabled; tick++)
+        var thrustPolls = 0;
+        var label = start is null ? origin.Label : $"{origin.Label} (from {state.X},{state.Z})";
+        var cadence = $"{scanMilliseconds} ms scan{(jitter is null ? "" : " +-15 ms")}" +
+                      (slowToMillisecondsAfterThrust > 0 ? $" then {slowToMillisecondsAfterThrust} ms after {slowAfterThrustPolls} thrust polls" : "");
+        // The native world update runs 60 / multiplier times a second (FUN_0074EA48 scales
+        // each update by the multiplier); a scan spans however many updates its time covers.
+        var elapsed = 0L;
+        // The final approach - turning, positioning maneuvers and the last run in - is timed
+        // from first coming within a lease and a waypoint's reach of the point (where the
+        // controller starts positioning) to the handoff, and must stay well inside the host's
+        // 30-second positioning bound.
+        var (pointX, pointZ) = destination.SubmarineSurfacingPoint is { } surfacing
+            ? (surfacing.X, surfacing.Z) : (destination.X, destination.Z);
+        long? approachFrom = null;
+        for (var tick = 0; elapsed < 1_200_000 && navigator.BeaconEnabled; tick++)
         {
-            clock = clock.AddMilliseconds(100);
+            if (approachFrom is null &&
+                Math.Sqrt(Math.Pow(WorldMapTargetCatalog.WrappedDelta(state.X, pointX, map.WrapWidth), 2) +
+                          Math.Pow(WorldMapTargetCatalog.WrappedDelta(state.Z, pointZ, map.WrapHeight), 2)) <= 900 + 96 + 240)
+                approachFrom = elapsed;
+            var interval = (slowToMillisecondsAfterThrust > 0 && thrustPolls >= slowAfterThrustPolls ? slowToMillisecondsAfterThrust : scanMilliseconds) +
+                           (jitter?.Next(-15, 16) ?? 0);
+            var frames = (int)((elapsed + interval) * 60 / (1000L * multiplier) - elapsed * 60 / (1000L * multiplier));
+            var frozen = freezeAfterApproachMs >= 0 && approachFrom is { } from && elapsed - from >= freezeAfterApproachMs;
+            if (frozen) frames = 0;
+            elapsed += interval;
+            clock = clock.AddMilliseconds(interval);
             var output = navigator.Observe(state, clock, automaticWalkActive: true);
             if (output?.StopAutoWalk == true)
             {
-                Equal(true, output?.Speech?.Contains("descend", StringComparison.OrdinalIgnoreCase) == true,
-                    $"native route must reach descent handoff: {output?.Speech} ({navigator.LastDiagnostic})");
+                // What both hosts do with it: stop the input owner, releasing every key.
+                autoWalk.Stop();
+                Equal(true, sink.Held.Count == 0 && !autoWalk.Enabled,
+                    $"StopAutoWalk releases every held key: {string.Join(",", sink.Held)}");
+            }
+            if (freezeAfterApproachMs >= 0 && output?.StopAutoWalk == true)
+            {
+                var frozenFor = (elapsed - (approachFrom ?? elapsed) - freezeAfterApproachMs) / 1000d;
+                Equal(true, frozenFor >= 0 && frozenFor <= 6.5 &&
+                    output?.Speech?.Contains("Auto walk stopped", StringComparison.Ordinal) == true,
+                    $"frozen native delivery {freezeAfterApproachMs} ms into the final approach stops truthfully within the bound: {frozenFor:0.0} s, {output?.Speech}");
+                Console.WriteLine($"underwater freeze ({cadence}): {label} -> {destination.Label}, frozen {freezeAfterApproachMs} ms into the final approach, stopped {frozenFor:0.0} s later with no key held: {navigator.LastDiagnostic}");
+                return;
+            }
+            if (destination.SubmarineSurfacingPoint is not null && !navigator.BeaconEnabled)
+            {
+                Equal(true, output?.Speech?.Contains("Press Cancel to surface", StringComparison.Ordinal) == true,
+                    "lake arrival explains manual surface and dock controls");
+                autoWalk.Drive(FieldNavigationInput.None, canMove: false, routeActive: false, worldSubmarine: true);
+                Equal(0, sink.Held.Count, "lake arrival releases every held key");
                 handoff = true;
                 break;
             }
-            if (!navigator.TryResolveAutomaticInput(state, out var input)) continue;
-            Equal(false, input == FieldNavigationInput.Up, "ordinary destination never automatically descends toward hidden Emerald");
-            // FUN_0074EA48: underwater turn = multiplier * 8 per native frame;
-            // Confirm gives multiplier * 30 forward, with no eased velocity after release.
-            for (var frame = 0; frame < 3; frame++)
+            if (output?.StopAutoWalk == true)
             {
-                if (input is FieldNavigationInput.Left or FieldNavigationInput.Right)
+                if (allowExplainedStop && output?.Speech?.Contains("Auto walk stopped. Could not", StringComparison.Ordinal) == true)
+                {
+                    Console.WriteLine($"underwater replay ({cadence}): {label} -> {destination.Label} ended in an explained stop with no key held: {output?.Speech} ({navigator.LastDiagnostic})");
+                    return;
+                }
+                Equal(true, output?.Speech?.Contains("descend", StringComparison.OrdinalIgnoreCase) == true,
+                    $"native route must reach descent handoff at {cadence}: {output?.Speech} ({navigator.LastDiagnostic}; state {state.X},{state.Z}, heading {state.CameraFront}; aim {navigator.Probe.Route?.Waypoints[navigator.Probe.WaypointIndex]})");
+                handoff = true;
+                break;
+            }
+            var timer = System.Diagnostics.Stopwatch.StartNew();
+            var hasDirection = navigator.TryResolveAutomaticInput(state, out var input);
+            worstPollMilliseconds = Math.Max(worstPollMilliseconds, timer.Elapsed.TotalMilliseconds);
+            worstPollWork = Math.Max(worstPollWork, navigator.LastSubmarinePollWork);
+            Equal(false, input == FieldNavigationInput.Up, "ordinary destination never automatically descends toward hidden Emerald");
+            autoWalk.Drive(hasDirection ? input : FieldNavigationInput.None, canMove: hasDirection,
+                routeActive: navigator.BeaconEnabled, worldSubmarine: navigator.AutomaticInputIsWorldSubmarine,
+                holdSubmarineThrust: navigator.AutomaticInputHoldsSubmarineThrust);
+            if (navigator.LastSubmarineCommandWasPlanning)
+                Equal(false, sink.Held.Contains(Thrust) || sink.Held.Contains(Right) || sink.Held.Contains(Left),
+                    $"a planning poll holds no turn or thrust key ({navigator.SubmarineTerminalState})");
+            if (sink.Held.Contains(Thrust))
+            {
+                thrustPolls++;
+                Equal(true, ExactFullLeaseFits(map, planner, state, destination.NativeEntranceExemptions),
+                    $"every delivered thrust has an exact full native lease from the actual pose {state.X},{state.Z} camera {state.CameraFront}");
+            }
+            Equal(false, sink.Held.Contains(Up), "no automatic descent key");
+            // FUN_0074EA48: underwater turn = multiplier * 8 per native frame; Confirm gives
+            // multiplier * 30 forward, with no eased velocity after release. Only the keys the
+            // owner actually holds move the sub.
+            for (var frame = 0; frame < frames; frame++)
+            {
+                if (sink.Held.Contains(Right) != sink.Held.Contains(Left))
                     state = state with { CameraFront = (state.CameraFront +
-                        (input == FieldNavigationInput.Right ? 1 : -1) * multiplier * 8 + 4096) % 4096 };
-                if (navigator.AutomaticInputHoldsSubmarineThrust)
+                        (sink.Held.Contains(Right) ? 1 : -1) * multiplier * 8 + 4096) % 4096 };
+                if (sink.Held.Contains(Thrust))
                 {
                     var radians = state.CameraFront * Math.PI * 2 / 4096;
                     var sine = (int)Math.Round(Math.Sin(radians) * 4096);
@@ -352,14 +609,33 @@ internal static class WorldMapSubmarineNavigationTests
                         $"replayed native movement must fit actual terrain: {state.X},{state.Z},terrain={state.TerrainId},script={state.TerrainScriptId} -> {x},{z}");
                     state = state with { X = x, Z = z };
                     UpdateSurface();
+                    if (destination.SubmarineSurfacingPoint is not null)
+                    {
+                        foreach (var (ox, oz) in new[] { (0, 0), (-200, 0), (200, 0), (0, -200), (0, 200) })
+                            Equal(true, WorldMapBroncoLanding.TryFindSurface(map, state.X + ox, state.Z + oz, out var contact) &&
+                                WorldMapTerrainPassability.CanTraverse(13, 2, contact.TerrainId),
+                                $"Lucrecia tunnel route must fit native submarine contact {state.X + ox},{state.Z + oz}");
+                    }
                     moved++;
                 }
                 Equal(true, state.Y >= -3000, "ordinary replay stays above Emerald encounter range");
             }
         }
         Equal(true, handoff && moved > 0,
-            $"{origin.Label} -> {destination.Label} must reach handoff: {state.X},{state.Z}; {navigator.LastDiagnostic}");
+            $"{label} -> {destination.Label} must reach handoff at {cadence}: {state.X},{state.Z}; {navigator.LastDiagnostic}");
+        var approachSeconds = (elapsed - (approachFrom ?? elapsed)) / 1000d;
+        Equal(true, freezeAfterApproachMs < 0, $"{label} -> {destination.Label}: frozen native delivery must not reach the handoff");
+        Equal(true, approachSeconds <= 30,
+            $"{label} -> {destination.Label} at {cadence}: final approach took {approachSeconds:0.0} s");
         Equal(false, navigator.TryResolveAutomaticInput(state, out _), "handoff releases all automatic input");
+        Equal(0, sink.Held.Count, "handoff leaves no key held");
+        if (destination.SubmarineSurfacingPoint is not null)
+        {
+            Equal(true, destination.HasArrived(state, -1), "lake handoff is at the safe point on native Sea");
+            Equal(-3000, state.Y, "lake trip stays at safe travel depth");
+            Console.WriteLine($"underwater replay ({cadence}): {label} -> {destination.Label}, {moved} native forward frames, final approach {approachSeconds:0.0} s, depth {state.Y}");
+            return;
+        }
         Equal(true, WorldMapBroncoLanding.TryFindSurface(map, state.X, state.Z, out var arrivalFloor),
             "manual descent has the native seabed at the actual handoff position");
         var descended = state with
@@ -370,7 +646,7 @@ internal static class WorldMapSubmarineNavigationTests
         };
         Equal(true, destination.HasArrived(descended, arrivalFloor.Id),
             $"{destination.Label}: manual descent from the actual handoff must satisfy native arrival");
-        Console.WriteLine($"underwater replay: {origin.Label} -> {destination.Label}, {moved} native forward frames, depth {state.Y}");
+        Console.WriteLine($"underwater replay ({cadence}): {label} -> {destination.Label}, {moved} native forward frames, final approach {approachSeconds:0.0} s, depth {state.Y}");
 
         void UpdateSurface()
         {

@@ -1,4 +1,4 @@
-﻿namespace Ff7.Accessibility.Reloaded;
+namespace Ff7.Accessibility.Reloaded;
 
 public delegate IReadOnlyList<WorldMapNavigationTarget> WorldMapTargetProvider(
     WorldMapStateSnapshot state,
@@ -83,6 +83,13 @@ public sealed partial class WorldMapNavigationController
     private readonly TimeSpan guidanceInterval;
     private readonly Dictionary<WorldMapNavigationCategory, int> selectedIndices = new();
     private readonly WorldMapAutoWalkConvergenceTracker autoWalkConvergence = new();
+    private readonly WorldMapSubmarineStagingConvergenceTracker submarineStagingConvergence = new();
+
+    private void ResetAutoWalkConvergence()
+    {
+        autoWalkConvergence.Reset();
+        submarineStagingConvergence.Reset();
+    }
     private readonly FieldNavigationMovementObserver automaticDirection = new();
 
     // Live world entities, when the host supplies them, so a parked vehicle can be walked
@@ -282,13 +289,14 @@ public sealed partial class WorldMapNavigationController
     /// held. Hosts give this to <see cref="ControllerNavigationServices"/> so B cancels it and
     /// A or X replace it, exactly as a field destination held for a shut door.
     /// </summary>
-    public bool IsHoldingDestination => !beaconEnabled && GlacierRegion?.Objective is not null;
+    public bool IsHoldingDestination => !beaconEnabled &&
+        (GlacierRegion?.Objective is not null || SubmarineJourney?.IsHoldingDestination == true);
 
     /// <summary>The player started world-map auto walk: later legs of a treasure route walk too.</summary>
-    public void NoteAutoWalkStarted() => GlacierRegion?.NoteAutoWalk(true);
+    public void NoteAutoWalkStarted() { GlacierRegion?.NoteAutoWalk(true); SubmarineJourney?.NoteAutoWalk(true); }
 
     /// <summary>The player (or the stall guard) stopped auto walk: later legs are spoken only.</summary>
-    public void NoteAutoWalkStopped() => GlacierRegion?.NoteAutoWalk(false);
+    public void NoteAutoWalkStopped() { GlacierRegion?.NoteAutoWalk(false); SubmarineJourney?.NoteAutoWalk(false); }
 
     private bool ObjectsAvailable(WorldMapStateSnapshot state) =>
         GlacierRegion is not null && state.WorldMapType == GreatGlacierRegion.SnowfieldWorldMapType;
@@ -368,6 +376,12 @@ public sealed partial class WorldMapNavigationController
                     return new WorldMapNavigationOutput("Navigation off.");
                 }
 
+                if (SubmarineJourney?.IsHoldingDestination == true)
+                {
+                    SubmarineJourney.Cancel();
+                    return new WorldMapNavigationOutput("Navigation off.", StopAutoWalk: true);
+                }
+
                 var selected = GetSelectedTarget(state);
                 if (selected is null)
                 {
@@ -393,9 +407,12 @@ public sealed partial class WorldMapNavigationController
     public WorldMapNavigationOutput? Observe(
         WorldMapStateSnapshot state,
         DateTime observedAt = default,
-        bool automaticWalkActive = false)
+        bool automaticWalkActive = false,
+        uint? nativeInputMask = null)
     {
         var now = observedAt == default ? DateTime.UtcNow : observedAt;
+        if (IsUsable(state) && TryContinueUnderwaterJourney(state, now) is { } continuation)
+            return continuation;
         RetireStaleGlacierLeg();
         if (GlacierRegion?.Objective is { } objective)
         {
@@ -427,7 +444,7 @@ public sealed partial class WorldMapNavigationController
 
         if (!beaconEnabled)
         {
-            autoWalkConvergence.Reset();
+            ResetAutoWalkConvergence();
             return null;
         }
 
@@ -456,7 +473,7 @@ public sealed partial class WorldMapNavigationController
         if (resumedAfterCombat)
         {
             combatPaused = false;
-            autoWalkConvergence.Reset();
+            ResetAutoWalkConvergence();
             progressSink?.Activate(progressPercent);
             lastGuidanceAt = DateTime.MinValue;
         }
@@ -565,8 +582,20 @@ public sealed partial class WorldMapNavigationController
             return null;
         }
 
+        if (target.SubmarineDiveDestination is not null && SubmarineJourney is { } journey &&
+            journey.ObserveSurface(this, state, target.HasArrived(state, playerTriangle), now,
+                automaticWalkActive, nativeInputMask) is { } diveOutput)
+        {
+            ResetAutoWalkConvergence();
+            if (!journey.IsHoldingDestination) ResetRoute();
+            return diveOutput;
+        }
+
         if (ObserveSubmarineApproach(state, target, playerTriangle, automaticWalkActive, now) is { } submarineOutput)
+        {
+            submarineStagingConvergence.Reset();
             return submarineOutput;
+        }
 
         if (landingPlan is { } landing)
         {
@@ -575,7 +604,7 @@ public sealed partial class WorldMapNavigationController
             {
                 // Stopped at the shore: nothing is being driven, so neither the
                 // convergence guard nor route guidance has anything to say.
-                autoWalkConvergence.Reset();
+                ResetAutoWalkConvergence();
                 return landingOutput;
             }
         }
@@ -586,7 +615,7 @@ public sealed partial class WorldMapNavigationController
             if (HighwindHolding)
             {
                 // Held over the spot for the player's own landing: nothing is driven.
-                autoWalkConvergence.Reset();
+                ResetAutoWalkConvergence();
                 return landingPrompt;
             }
 
@@ -621,6 +650,14 @@ public sealed partial class WorldMapNavigationController
             var onwards = throughTarget is { } beyond && ReachedThrough.TryGetValue(beyond.Label, out var way)
                 ? $" For {beyond.Label}, {way.Onwards}."
                 : string.Empty;
+            if (target.SubmarineSurfacingPoint is not null)
+                onwards = " Press Cancel to surface. Then select Submarine pen in Regions, " +
+                    "face the shore and press Cancel to get off. Lucrecia's Cave is entered on foot.";
+            else if (state.PlayerModelId == 13 && state.WorldMapType == 0 && state.TerrainId == 18 &&
+                target.Kind == WorldMapTargetKind.TerrainArea)
+                onwards = " Face the shore and press Cancel to get off the submarine.";
+            else if (target.NativeVehicleContact is not null && state.PlayerModelId is 0 or 1 or 2)
+                onwards = " Press Confirm to board.";
             ResetRoute(deactivateProgress: false);
             lastDiagnostic = $"arrived on native triangle {playerTriangle}";
             return new WorldMapNavigationOutput(
@@ -668,7 +705,7 @@ public sealed partial class WorldMapNavigationController
         var guidanceMeasurement = UpdateProgressAndWaypoint(state, automaticWalkActive);
         if (!automaticWalkActive)
         {
-            autoWalkConvergence.Reset();
+            ResetAutoWalkConvergence();
             measuringLocalDetour = false;
         }
         else
@@ -686,7 +723,7 @@ public sealed partial class WorldMapNavigationController
             {
                 // Local and full-route distances have different origins. Rejoining the
                 // global route must not compare its long remainder to a short detour.
-                autoWalkConvergence.Reset();
+                ResetAutoWalkConvergence();
                 measuringLocalDetour = hasLocalDetour;
             }
             if (hasLocalDetour && detourPlanner is { } localPath)
@@ -694,10 +731,26 @@ public sealed partial class WorldMapNavigationController
                 remainingDistance = localPath.RemainingDistance(state);
                 convergenceWaypoint = activeRoute.Waypoints.Count + localPath.Corner;
             }
-            if (autoWalkConvergence.Observe(convergenceWaypoint, remainingDistance, now))
+            bool stalled;
+            var positioningTimedOut = false;
+            if (state.WorldMapType == 2 && state.PlayerModelId == 13 &&
+                ReferenceEquals(submarineStagingRoute, activeRoute))
             {
-                autoWalkConvergence.Reset();
-                lastDiagnostic =
+                // Positioning can retreat or turn before closing on its point. Observed
+                // native motion keeps that maneuver alive, with an absolute time bound.
+                remainingDistance = SubmarineDistance(state, submarineStaging);
+                stalled = submarineStagingConvergence.Observe(submarineStagingCount, state,
+                    now, map.WrapWidth, map.WrapHeight, out positioningTimedOut);
+            }
+            else
+            {
+                submarineStagingConvergence.Reset();
+                stalled = autoWalkConvergence.Observe(convergenceWaypoint, remainingDistance, now);
+            }
+            if (stalled)
+            {
+                ResetAutoWalkConvergence();
+                lastDiagnostic = positioningTimedOut ? "submarine positioning exceeded 30 seconds" :
                     $"auto walk made no meaningful progress for " +
                     $"{WorldMapAutoWalkConvergenceTracker.NoProgressTimeout.TotalSeconds:0} seconds; " +
                     $"remaining={remainingDistance:0}, waypoint={waypointIndex}";
@@ -705,7 +758,9 @@ public sealed partial class WorldMapNavigationController
                 // walked, until the player asks again.
                 NoteAutoWalkStopped();
                 return new WorldMapNavigationOutput(
-                    $"Auto walk stopped. Could not get closer to {target.Label}. " +
+                    (positioningTimedOut
+                        ? $"Auto walk stopped. Could not finish positioning for {target.Label}. "
+                        : $"Auto walk stopped. Could not get closer to {target.Label}. ") +
                     "Regular navigation is still on.",
                     StopAutoWalk: true);
             }
@@ -744,11 +799,33 @@ public sealed partial class WorldMapNavigationController
         AutomaticInputIsWorldSubmarine = false;
         AutomaticInputHoldsSubmarineThrust = false;
         AutomaticInputHoldsFlightAction = false;
+        AutomaticInputRequestsSubmarineDive = false;
         if (state.PlayerModelId == WorldMapSubmarineSteering.PlayerModelId)
         {
             AutomaticInputIsWorldSubmarine = true;
+            if (beaconEnabled && activeTarget?.SubmarineDiveDestination is not null &&
+                SubmarineJourney?.IsAtDivePoint == true)
+            {
+                input = FieldNavigationInput.None;
+                AutomaticInputRequestsSubmarineDive = SubmarineJourney.RequestsDive &&
+                    state.WorldMapType == 0 && state.TerrainId == 3 && !combatPaused;
+                return AutomaticInputRequestsSubmarineDive;
+            }
             if (state.WorldMapType == 2)
+            {
+                // A terminal heading can supply direction when already over its point,
+                // but cannot replace missing native steering controls. Readers may still
+                // provide a useful position while these optional words are unreadable.
+                if (!state.HasNativeControlMode || state.NativeCameraMode is not (2 or 3) ||
+                    state.NativeFrameMultiplier is < 1 or > 4 || state.CameraFront is < 0 or >= 4096)
+                {
+                    EndSubmarineTerminal();
+                    lastDiagnostic = "world submarine native steering controls are unavailable";
+                    input = FieldNavigationInput.None;
+                    return false;
+                }
                 return TryResolveSubmarineInput(state, out input);
+            }
             if (state.WorldMapType != 0 || !state.HasNativeControlMode ||
                 state.NativeCameraMode is not (0 or 1 or 2) ||
                 state.NativeFrameMultiplier is < 1 or > 4 || state.CameraFront is < 0 or >= 4096)
@@ -1660,14 +1737,14 @@ public sealed partial class WorldMapNavigationController
             x * Math.Sin(angle) + z * Math.Cos(angle));
     }
 
-    public void Suspend(string diagnostic)
+    public void Suspend(string diagnostic, bool preserveSubmarineJourney = false)
     {
         if (!beaconEnabled)
         {
             return;
         }
 
-        ResetRoute();
+        ResetRoute(preserveSubmarineJourney: preserveSubmarineJourney);
         lastDiagnostic = string.IsNullOrWhiteSpace(diagnostic)
             ? "world navigation suspended"
             : diagnostic;
@@ -1675,8 +1752,10 @@ public sealed partial class WorldMapNavigationController
 
     public void PauseForNativeControl()
     {
+        SubmarineJourney?.Pause();
+        AutomaticInputRequestsSubmarineDive = false;
         ResetAutomaticLearning();
-        autoWalkConvergence.Reset();
+        ResetAutoWalkConvergence();
         offRouteSince = DateTime.MinValue;
         lastGuidanceAt = DateTime.MinValue;
         lastDiagnostic = "native world script or dialogue owns movement";
@@ -1691,7 +1770,7 @@ public sealed partial class WorldMapNavigationController
 
         combatPaused = true;
         ResetAutomaticLearning();
-        autoWalkConvergence.Reset();
+        ResetAutoWalkConvergence();
         progressSink?.Deactivate();
         lastDiagnostic = string.IsNullOrWhiteSpace(diagnostic)
             ? "world navigation paused for combat"
@@ -1700,6 +1779,7 @@ public sealed partial class WorldMapNavigationController
 
     public void Reset()
     {
+        SubmarineJourney?.Cancel();
         // The world map is being left (usually for a field). A glacier leg ends here; the
         // treasure it serves is the region navigator's and carries on in the next field.
         ResetRoute();
@@ -1756,6 +1836,14 @@ public sealed partial class WorldMapNavigationController
         bool announceOn,
         bool preserveProgressRoute = false)
     {
+        if (target.SubmarineDiveDestination is { } diveDestination && SubmarineJourney is { } journey)
+            journey.Start(this, diveDestination, state);
+        else SubmarineJourney?.Cancel(this);
+        if (state.PlayerModelId == 13 && target.Kind == WorldMapTargetKind.Transportation && target.NativeEntityModelId == 3)
+        {
+            ResetRoute();
+            return new("Highwind is on land. Select Submarine pen in Regions and press Cancel to get off before navigating to it.", StopAutoWalk: true);
+        }
         // A different destination is a new route; the same one (a replan) keeps where it leads.
         if (!string.Equals(activeTarget?.StableId, target.StableId, StringComparison.Ordinal))
         {
@@ -1780,7 +1868,7 @@ public sealed partial class WorldMapNavigationController
             return new WorldMapNavigationOutput($"Route unavailable to {target.Label}. Navigation off.");
         }
 
-        if (!UsesHighwindLanding(target, state) && target.HasArrived(state, playerTriangle))
+        if (target.SubmarineDiveDestination is null && !UsesHighwindLanding(target, state) && target.HasArrived(state, playerTriangle))
         {
             if (!IsNativeEntryModelSatisfied(target, state.PlayerModelId))
             {
@@ -1863,7 +1951,7 @@ public sealed partial class WorldMapNavigationController
 
         beaconEnabled = true;
         combatPaused = false;
-        autoWalkConvergence.Reset();
+        ResetAutoWalkConvergence();
         activeTarget = target;
         activeRoute = route;
         routeStart = new WorldMapRouteWaypoint(state.X, state.Y, state.Z);
@@ -2001,7 +2089,7 @@ public sealed partial class WorldMapNavigationController
                 {
                     // The run in has its own measure of progress - towards the landing, which
                     // it does not reach - so the route's convergence guard stays out of it.
-                    autoWalkConvergence.Reset();
+                    ResetAutoWalkConvergence();
                     if (fromGround < landingClosestApproach - 8d)
                     {
                         landingClosestApproach = fromGround;
@@ -2129,6 +2217,8 @@ public sealed partial class WorldMapNavigationController
         }
 
         var target = GetSelectedTarget(state)!;
+        if (state.PlayerModelId == 13 && target.Kind == WorldMapTargetKind.Transportation && target.NativeEntityModelId == 3)
+            return new("Transportation, Highwind. Select Submarine pen in Regions and press Cancel to get off before navigating to it.");
         if (IsAwaitingNativeEntry(target, state))
         {
             return new WorldMapNavigationOutput(
@@ -2290,13 +2380,12 @@ public sealed partial class WorldMapNavigationController
                 map.WrapHeight);
         progressPercent = Math.Clamp((int)Math.Floor(progressMeasurement.Fraction * 100d), 0, 99);
         progressSink?.SetValue(progressPercent);
-        waypointIndex = Math.Clamp(
-            guidanceMeasurement.NextWaypointIndex,
-            0,
-            Math.Max(0, activeRoute.Waypoints.Count - 1));
-        if (automaticWalkActive)
+        if (state.PlayerModelId == 13 && state.WorldMapType == 2)
+            waypointIndex = ResolveSubmarineWaypoint(state, activeRoute, waypointIndex);
+        else
         {
-            waypointIndex = ResolveAutomaticWaypoint(state, activeRoute, waypointIndex);
+            waypointIndex = Math.Clamp(guidanceMeasurement.NextWaypointIndex, 0, Math.Max(0, activeRoute.Waypoints.Count - 1));
+            if (automaticWalkActive) waypointIndex = ResolveAutomaticWaypoint(state, activeRoute, waypointIndex);
         }
         lastDiagnostic =
             $"route progress={progressPercent}, waypoint={waypointIndex}, offset={guidanceMeasurement.DistanceFromRoute:0}";
@@ -3203,8 +3292,10 @@ public sealed partial class WorldMapNavigationController
         state.CurrentModule == WorldMapStateReader.WorldModule &&
         state.WorldMapType == map.WorldMapType;
 
-    private void ResetRoute(bool deactivateProgress = true)
+    private void ResetRoute(bool deactivateProgress = true, bool preserveSubmarineJourney = false)
     {
+        if (!preserveSubmarineJourney) SubmarineJourney?.Cancel(this);
+        AutomaticInputRequestsSubmarineDive = false;
         throughTarget = null;
         if (deactivateProgress)
         {
@@ -3242,7 +3333,7 @@ public sealed partial class WorldMapNavigationController
         lastGuidanceAt = DateTime.MinValue;
         offRouteSince = DateTime.MinValue;
         lastGuidanceSignature = string.Empty;
-        autoWalkConvergence.Reset();
+        ResetAutoWalkConvergence();
         detourPlanner?.Invalidate();
         measuringLocalDetour = false;
         vehicleMasksPredictedOnRoute = null;
@@ -3288,6 +3379,48 @@ public readonly record struct WorldMapPolylineProgress(
     double Fraction,
     int NextWaypointIndex,
     double DistanceFromRoute);
+
+internal sealed class WorldMapSubmarineStagingConvergenceTracker
+{
+    private readonly WorldMapAutoWalkConvergenceTracker motion = new();
+    private WorldMapStateSnapshot? previous;
+    private DateTime lastObservedAt, startedAt;
+    private int stage = -1;
+    private double observedMotion;
+
+    internal bool Observe(int stageId, WorldMapStateSnapshot state, DateTime now,
+        int wrapWidth, int wrapHeight, out bool timedOut)
+    {
+        if (stage != stageId || previous is null || now <= lastObservedAt ||
+            now - lastObservedAt > TimeSpan.FromSeconds(2))
+        {
+            Reset();
+            stage = stageId;
+            startedAt = now;
+        }
+        if (previous is { } last)
+        {
+            observedMotion += Math.Abs(WorldMapTargetCatalog.WrappedDelta(last.X, state.X, wrapWidth)) +
+                Math.Abs(WorldMapTargetCatalog.WrappedDelta(last.Z, state.Z, wrapHeight)) +
+                Math.Abs(((state.CameraFront - last.CameraFront) % 4096 + 6144) % 4096 - 2048);
+        }
+        previous = state;
+        lastObservedAt = now;
+        // Count real displacement/turning in either direction. A positioning leg can
+        // retreat, but cannot remain still for five seconds or circle beyond thirty.
+        timedOut = now - startedAt >= TimeSpan.FromSeconds(30);
+        return timedOut || motion.Observe(0, Math.Max(0, 1_000_000_000d - observedMotion), now);
+    }
+
+    internal void Reset()
+    {
+        motion.Reset();
+        previous = null;
+        lastObservedAt = startedAt = DateTime.MinValue;
+        stage = -1;
+        observedMotion = 0;
+    }
+}
 
 internal sealed class WorldMapAutoWalkConvergenceTracker
 {

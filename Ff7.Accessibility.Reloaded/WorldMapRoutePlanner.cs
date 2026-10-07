@@ -346,6 +346,24 @@ public sealed class WorldMapRoutePlanner
             return true;
         }
 
+        if (state.PlayerModelId == 13 && map.WorldMapType == 2)
+        {
+            var dx = WorldMapTargetCatalog.WrappedDelta(state.X, destination.X, map.WrapWidth);
+            var dz = WorldMapTargetCatalog.WrappedDelta(state.Z, destination.Z, map.WrapHeight);
+            var steps = Math.Max(1, (int)Math.Ceiling(Math.Sqrt(dx * (double)dx + dz * (double)dz) / 30));
+            var escapes = exemptEntrances is null ? null : ResolveEscapeExemptions(startTriangle, exemptEntrances);
+            for (var sample = 0; sample <= steps; sample++)
+            {
+                var x = state.X + (int)Math.Round(dx * sample / (double)steps);
+                var z = state.Z + (int)Math.Round(dz * sample / (double)steps);
+                if (!HasSubmarineFootprint(x, z) ||
+                    !WorldMapBroncoLanding.TryFindSurface(map, x, z, out var floor) ||
+                    escapes is not null && IsUnwantedEntrance(floor.Id, escapes, startTriangle)) return false;
+                if (sample == steps && destinationTriangle is { } expected && floor.Id != expected) return false;
+            }
+            return true;
+        }
+
         // A null exempt set still means "this caller is not avoiding entrances at all".
         if (exemptEntrances is not null)
         {
@@ -757,6 +775,8 @@ public sealed class WorldMapRoutePlanner
                 BoatFrameStep,
                 SailingLegMargin,
                 MinimumBendOffset: 0)
+            : state.PlayerModelId == 13 && map.WorldMapType == 2
+                ? new FootprintRule((x, _, z) => HasSubmarineFootprint(x, z), 30d, 96d, MinimumBendOffset: 0)
             : UsesGroundFootprint(state.PlayerModelId)
                 ? new FootprintRule(
                     (x, y, z) => HasWalkingFootprint(state, x, y, z),
@@ -1353,8 +1373,18 @@ public sealed class WorldMapRoutePlanner
 
     private bool SameWrappedVertex(WorldMapVertex first, WorldMapVertex second) =>
         Normalize(first.X, map.WrapWidth) == Normalize(second.X, map.WrapWidth) &&
-        first.Y == second.Y &&
+        (map.WorldMapType == 2 || first.Y == second.Y) &&
         Normalize(first.Z, map.WrapHeight) == Normalize(second.Z, map.WrapHeight);
+
+    internal bool HasSubmarineFootprint(int x, int z) => HasSubmarineFootprint(map, x, z);
+
+    internal static bool HasSubmarineFootprint(WorldMapData map, int x, int z)
+    {
+        foreach (var (ox, oz) in WalkingContactOffsets)
+            if (!WorldMapBroncoLanding.TryFindSurface(map, x + ox, z + oz, out var floor) ||
+                !WorldMapTerrainPassability.CanTraverse(13, 2, floor.TerrainId)) return false;
+        return true;
+    }
 
     private static WorldMapRouteWaypoint ToWaypoint(WorldMapVertex vertex) =>
         new(vertex.X, vertex.Y, vertex.Z);

@@ -85,6 +85,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
     private readonly GreatGlacierRegionalNavigator? glacierRegion;
     private ControllerNavigationDispatcher? controllerNavigation;
     private WorldMapRuntimeContext? controllerRuntime;
+    private WorldMapSubmarineJourney? submarineJourney;
     private WorldMapStateSnapshot controllerState;
     private DateTime controllerNowUtc;
     private bool controllerMenuIsOpen;
@@ -254,6 +255,8 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
             throw new InvalidOperationException("No native world-map geometry could be loaded.");
         }
 
+        submarineJourney = WorldMapSubmarineJourney.Attach(runtimes.Values, addressSpace);
+
         log(
             "Native Steam 2026 world-map accessibility uses the shared x86 controller: " +
             "Locations, Story, Transportation, Events, Chocobo Tracks; " +
@@ -294,6 +297,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
 
         // Own and sample all six shared navigation keys on every world frame,
         // including background frames, so refocus cannot create delayed edges.
+        if (submarineJourney?.ObserveNativeTransition(nowUtc) == true) autoWalk.Suspend();
         var actions = Steam2026FieldNavigationKeyRouter.ReadActions(
             foregroundInput.ObserveRisingEdge);
         var autoWalkToggleRequested = NavigationAutoWalkKeyRouter.ObserveToggle(
@@ -327,6 +331,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         {
             _ = autoWalk.Stop();
             glacierRegion?.NoteAutoWalk(false);
+            submarineJourney?.NoteAutoWalk(false);
             speak("Auto walk off.", true);
             higherPrioritySpeech = true;
             log("Native Steam 2026 world-map auto walk: P toggle off.");
@@ -338,6 +343,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         {
             _ = autoWalk.Stop();
             glacierRegion?.NoteAutoWalk(false);
+            submarineJourney?.NoteAutoWalk(false);
             speak("Auto walk off.", true);
             higherPrioritySpeech = true;
             log("Native Steam 2026 world-map auto walk stopped because the selection changed.");
@@ -421,7 +427,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
                 context.Footsteps.Reset();
                 context.EntranceProximityCues.Reset();
                 context.TerrainAnnouncements.Reset();
-                context.Navigation.Suspend("another native world map is active");
+                context.Navigation.Suspend("another native world map is active", preserveSubmarineJourney: true);
             }
         }
 
@@ -513,7 +519,8 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         var routeObservation = runtime.Navigation.Observe(
             state,
             nowUtc,
-            !controllerMenuIsOpen && !holdAutoWalk && autoWalk.IsEnabledFor(NavigationAutoWalkDomain.WorldMap));
+            !controllerMenuIsOpen && !holdAutoWalk && autoWalk.IsEnabledFor(NavigationAutoWalkDomain.WorldMap),
+            dialogueReader.TryReadNativeWorldInput(out var diveInput) ? diveInput : null);
         if (controllerMenuIsOpen || holdAutoWalk)
         {
             autoWalk.Suspend();
@@ -957,6 +964,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         }
 
         glacierRegion?.NoteAutoWalk(false);
+        submarineJourney?.NoteAutoWalk(false);
     }
 
     private bool UpdateAutoWalk(
@@ -985,9 +993,12 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
             routeActive: runtime.Navigation.BeaconEnabled,
             holdFlightAction: runtime.Navigation.AutomaticInputHoldsFlightAction,
             worldSubmarine: runtime.Navigation.AutomaticInputIsWorldSubmarine,
-            holdSubmarineThrust: runtime.Navigation.AutomaticInputHoldsSubmarineThrust);
+            holdSubmarineThrust: runtime.Navigation.AutomaticInputHoldsSubmarineThrust,
+            requestSubmarineDive: runtime.Navigation.AutomaticInputRequestsSubmarineDive);
         if (result.Success)
         {
+            if (runtime.Navigation.AutomaticInputRequestsSubmarineDive)
+                runtime.Navigation.NoteSubmarineDiveDelivered(nowUtc);
             // Renew the committed input, including the Highwind's direction-free brake.
             // Its 600 ms hold outlasts the native input overlay's 500 ms lease.
             if (hasDirection || runtime.Navigation.AutomaticInputHoldsFlightAction)
@@ -999,6 +1010,15 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
             return false;
         }
 
+        runtime.Navigation.NoteAutoWalkStopped();
+        if (runtime.Navigation.AutomaticInputRequestsSubmarineDive)
+        {
+            runtime.Navigation.Suspend("native dive input failed");
+            speak($"Automatic dive stopped. {result.Diagnostic}", true);
+            log($"Native Steam 2026 automatic dive failed: {result.Diagnostic}");
+            lastAutoWalkFailure = result.Diagnostic;
+            return true;
+        }
         if (!string.Equals(result.Diagnostic, lastAutoWalkFailure, StringComparison.Ordinal))
         {
             lastAutoWalkFailure = result.Diagnostic;
