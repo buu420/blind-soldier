@@ -111,9 +111,12 @@ internal sealed class HighwayAutoSteeringController : IDisposable
     internal HighwayAutoSteeringInputResult ApplyWorldSubmarine(HighwaySteeringDirection direction, bool thrust) =>
         ApplyCore(direction, false, false, false, false, worldSubmarine: true, worldThrust: thrust);
 
+    internal HighwayAutoSteeringInputResult ApplyWorldSubmarineDive() =>
+        ApplyCore(HighwaySteeringDirection.None, false, false, false, false, worldSubmarine: true, worldDive: true);
+
     private HighwayAutoSteeringInputResult ApplyCore(HighwaySteeringDirection direction,
         bool holdFlightAction, bool submarine, bool accelerate, bool brake, bool firingView = false,
-        bool worldSubmarine = false, bool worldThrust = false)
+        bool worldSubmarine = false, bool worldThrust = false, bool worldDive = false)
     {
         lock (sync)
         {
@@ -142,7 +145,9 @@ internal sealed class HighwayAutoSteeringController : IDisposable
 
             IReadOnlyList<HighwayKeyboardKey> directionKeys;
             string mappingDiagnostic;
-            var mapped = worldSubmarine
+            var mapped = worldDive
+                ? mappingResolver.TryResolveWorldSubmarineDive(out directionKeys, out mappingDiagnostic)
+                : worldSubmarine
                 ? mappingResolver.TryResolveWorldSubmarine(direction, worldThrust, out directionKeys, out mappingDiagnostic)
                 : firingView
                 ? mappingResolver.TryResolveSubmarineFiringView(out directionKeys, out mappingDiagnostic)

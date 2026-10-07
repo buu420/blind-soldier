@@ -1,5 +1,14 @@
 namespace Ff7.Accessibility.Reloaded;
 
+/// <summary>A point inside visible lake water with space for the surfaced sub's footprint.</summary>
+internal sealed record WorldMapSubmarineSurfacingPoint(int X, int Z)
+{
+    internal bool IsSatisfiedBy(WorldMapStateSnapshot state) => state.WorldMapType == 2 &&
+        state.PlayerModelId == 13 && state.TerrainId == 3 &&
+        Math.Abs(WorldMapTargetCatalog.WrappedDelta(state.X, X, 0x48000)) +
+        Math.Abs(WorldMapTargetCatalog.WrappedDelta(state.Z, Z, 0x38000)) <= 128;
+}
+
 /// <summary>Fixed script entrances that a deliberate deep Emerald approach must avoid.</summary>
 internal static class WorldMapUnderwaterEntryGuard
 {
@@ -74,9 +83,17 @@ public sealed partial class WorldMapTargetCatalog
             .Select(t => t.Id).ToHashSet();
         var ship = WorldMapUnderwaterEntryGuard.Gelnika;
         var wreck = WorldMapUnderwaterEntryGuard.RedWreck;
+        var lakeState = new WorldMapStateSnapshot(3, 2, 0, 0, 101908, -3000, 144580,
+            0, 0, 3, 0, 13, 0, 0, default);
+        if (!resolver.TryResolvePlayerTriangle(lakeState, out var lakeTriangle))
+            throw new InvalidDataException($"Lucrecia lake surfacing point is absent: {resolver.LastDiagnostic}");
+        var lake = new WorldMapNavigationTarget(WorldMapNavigationCategory.Locations, WorldMapTargetKind.Location,
+            "Lucrecia's Cave, lake", lakeState.X, lakeState.Y, lakeState.Z, lakeTriangle,
+            map.Triangles[lakeTriangle].RegionId & 31, "world-underwater:lucrecia-lake", new HashSet<int> { lakeTriangle })
+            { SubmarineSurfacingPoint = new(lakeState.X, lakeState.Z) };
         return [Place("Sunken Gelnika", 17, ship.X, ship.Y, ship.Z, 975, new HashSet<int>()),
                 Place("Key of the Ancients", 26, 143996, -4284, 94815, -1, keyTriangles),
-                Place("Red submarine wreck", 28, wreck.X, wreck.Y, wreck.Z, 975, new HashSet<int>())];
+                Place("Red submarine wreck", 28, wreck.X, wreck.Y, wreck.Z, 975, new HashSet<int>()), lake];
 
         WorldMapNavigationTarget Place(string label, int model, int x, int y, int z, int bound, IReadOnlySet<int> triggers)
         {

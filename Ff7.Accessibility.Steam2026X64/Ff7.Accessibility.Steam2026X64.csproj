@@ -10,6 +10,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="..\Ff7.Accessibility.Reloaded\WorldMapSubmarineDive.cs" Link="Shared\WorldMapSubmarineDive.cs" />
     <ProjectReference Include="..\Ff7.Accessibility.Core\Ff7.Accessibility.Core.csproj" />
     <ProjectReference Include="..\Ff7.Accessibility.LegacyLayout\Ff7.Accessibility.LegacyLayout.csproj" />
     <ProjectReference Include="..\Ff7.Accessibility.Runtime.Abstractions\Ff7.Accessibility.Runtime.Abstractions.csproj" />

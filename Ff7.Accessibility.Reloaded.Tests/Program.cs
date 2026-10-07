@@ -583,6 +583,7 @@ if (args.Contains("--world-submarine-only", StringComparer.OrdinalIgnoreCase))
     Ff7.Accessibility.Reloaded.Tests.SubmarineTransportationEdgeTests.Run();
     Ff7.Accessibility.Reloaded.Tests.WorldMapSubmarineCompatibilityTests.Run();
     Ff7.Accessibility.Reloaded.Tests.WorldMapSubmarineNavigationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.WorldMapSubmarineDiveTests.Run();
     Ff7.Accessibility.Reloaded.Tests.WorldMapSubmarineSurfaceNavigationTests.Run();
     Ff7.Accessibility.Reloaded.Tests.WorldMapUnderwaterVisibilityTests.Run();
     Ff7.Accessibility.Reloaded.Tests.WorldMapDataLoaderTests.Run();
@@ -595,6 +596,7 @@ if (args.Contains("--world-map-only", StringComparer.OrdinalIgnoreCase))
     Ff7.Accessibility.Reloaded.Tests.SubmarineTransportationEdgeTests.Run();
     Ff7.Accessibility.Reloaded.Tests.WorldMapSubmarineCompatibilityTests.Run();
     Ff7.Accessibility.Reloaded.Tests.WorldMapSubmarineNavigationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.WorldMapSubmarineDiveTests.Run();
     Ff7.Accessibility.Reloaded.Tests.WorldMapSubmarineSurfaceNavigationTests.Run();
     Ff7.Accessibility.Reloaded.Tests.WorldMapUnderwaterVisibilityTests.Run();
     Ff7.Accessibility.Reloaded.Tests.WorldMapDataLoaderTests.Run();
@@ -1509,6 +1511,7 @@ Ff7.Accessibility.Reloaded.Tests.SubmarineTransportationTests.Run();
 Ff7.Accessibility.Reloaded.Tests.SubmarineTransportationEdgeTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WorldMapSubmarineCompatibilityTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WorldMapSubmarineNavigationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.WorldMapSubmarineDiveTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WorldMapSubmarineSurfaceNavigationTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WorldMapUnderwaterVisibilityTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WorldMapTargetCatalogTests.RunWithInstalledGameData();

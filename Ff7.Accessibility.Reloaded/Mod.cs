@@ -410,6 +410,7 @@ public sealed class Mod : IModV1, IModV2
     private NativeFieldNavigationProgressBar? fieldNavigationProgressBar;
     private IntervalFieldNavigationProgressSink? fieldNavigationProgressSink;
     private WorldMapStateReader? worldMapStateReader;
+    private WorldMapSubmarineJourney? worldMapSubmarineJourney;
     private WorldMapDialogueReader? worldMapDialogueReader;
     private readonly WorldMapDialogueTracker worldMapDialogueTracker = new();
     private WorldMapEntityReader? worldMapEntityReader;
@@ -5532,6 +5533,7 @@ public sealed class Mod : IModV1, IModV2
             glacierRegion?.MarkUnavailable("the snowfield's WM3 map could not be loaded");
         }
 
+        worldMapSubmarineJourney = WorldMapSubmarineJourney.Attach(worldMapRuntimes.Values, legacyAddressSpace);
         Log(
             "World-map accessibility initialized with native WM geometry, native post-collision player movement, " +
             "live entity-backed Transportation and Events, and categories Locations, Story, Transportation, " +
@@ -5575,6 +5577,8 @@ public sealed class Mod : IModV1, IModV2
         // owns movement - or it cannot be read - held keys are released and automatic walking
         // forgets its movement learning and stall time at once. The route is kept, and speech
         // stays on the throttled scan below.
+        if (worldMapSubmarineJourney?.ObserveNativeTransition(now) == true)
+            SuspendNavigationAutoWalk(NavigationAutoWalkDomain.WorldMap);
         ReleaseWorldMovementIfOwnedElsewhere();
 
         if (now - lastWorldMapScanAt < TimeSpan.FromMilliseconds(Math.Max(30, config.WorldMapScanIntervalMs)) &&
@@ -5713,7 +5717,7 @@ public sealed class Mod : IModV1, IModV2
                     context.Footsteps.Reset();
                     context.EntranceProximityCues.Reset();
                     context.TerrainAnnouncements.Reset();
-                    context.Navigation.Suspend("another native world map is active");
+                    context.Navigation.Suspend("another native world map is active", preserveSubmarineJourney: true);
                 }
             }
 
@@ -5812,7 +5816,8 @@ public sealed class Mod : IModV1, IModV2
                 now,
                 !controllerMenuIsOpen && !holdWorldAutoWalk &&
                 navigationAutoWalkController?.IsEnabledFor(
-                    NavigationAutoWalkDomain.WorldMap) == true);
+                    NavigationAutoWalkDomain.WorldMap) == true,
+                worldMapDialogueReader?.TryReadNativeWorldInput(out var diveInput) == true ? diveInput : null);
             if (!controllerMenuIsOpen)
             {
                 higherPrioritySpeech |= ProcessWorldMapNavigationOutput(worldRouteObservation);
@@ -7445,7 +7450,18 @@ public sealed class Mod : IModV1, IModV2
             routeActive: runtime.Navigation.BeaconEnabled,
             holdFlightAction: runtime.Navigation.AutomaticInputHoldsFlightAction,
             worldSubmarine: runtime.Navigation.AutomaticInputIsWorldSubmarine,
-            holdSubmarineThrust: runtime.Navigation.AutomaticInputHoldsSubmarineThrust);
+            holdSubmarineThrust: runtime.Navigation.AutomaticInputHoldsSubmarineThrust,
+            requestSubmarineDive: runtime.Navigation.AutomaticInputRequestsSubmarineDive);
+        if (runtime.Navigation.AutomaticInputRequestsSubmarineDive)
+        {
+            if (result.Success) runtime.Navigation.NoteSubmarineDiveDelivered(DateTime.UtcNow);
+            else
+            {
+                runtime.Navigation.Suspend("native dive input failed");
+                Log($"World-map automatic dive stopped: {result.Diagnostic}");
+                return Speak($"Automatic dive stopped. {result.Diagnostic}", interrupt: true);
+            }
+        }
         return HandleNavigationAutoWalkInputResult(result, NavigationAutoWalkDomain.WorldMap);
     }
 
@@ -7457,6 +7473,12 @@ public sealed class Mod : IModV1, IModV2
         {
             lastNavigationAutoWalkFailure = string.Empty;
             return false;
+        }
+
+        if (domain == NavigationAutoWalkDomain.WorldMap)
+        {
+            worldMapSubmarineJourney?.NoteAutoWalk(false);
+            glacierRegion?.NoteAutoWalk(false);
         }
 
         if (string.Equals(lastNavigationAutoWalkFailure, result.Diagnostic, StringComparison.Ordinal))
@@ -7479,6 +7501,7 @@ public sealed class Mod : IModV1, IModV2
         }
 
         navigationAutoWalkController.Stop();
+        if (domain == NavigationAutoWalkDomain.WorldMap) worldMapSubmarineJourney?.NoteAutoWalk(false);
         if (domain == NavigationAutoWalkDomain.WorldMap && announce)
         {
             // The player's own stop: the later legs of a Great Glacier treasure are spoken only.

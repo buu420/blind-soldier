@@ -407,10 +407,18 @@ internal static class TinyBroncoTransportationTests
             target.HasArrived(
                 near with { NativePlayerEntityPointer = 0x00E3A288 }, arrival),
             "the witnessed contact this whole mechanism exists for must be accepted");
-        Equal(false,
+        Equal(true,
             target.HasArrived(
                 near with { NativePlayerEntityPointer = 0x00E3A288 }, WrongBankTriangle),
-            "but only where the approach was actually offered");
+            "native contact survives collision rollback beyond a computed approach triangle");
+        Equal(false,
+            target.HasArrived(near with { NativePlayerEntityPointer = 0x00E3A288,
+                NativeContactEntityPointer = 0 }, WrongBankTriangle),
+            "geometry alone still requires an offered approach triangle");
+        Equal(false,
+            target.HasArrived(near with { NativePlayerEntityPointer = 0x00E3A288,
+                NativeContactEntityPointer = 0x00E3A348 }, WrongBankTriangle),
+            "rollback cannot turn another vehicle's contact into arrival at this boat");
     }
 
     /// <summary>

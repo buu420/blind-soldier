@@ -53,6 +53,13 @@ internal interface IHighwayDirectionInputMappingResolver
         diagnostic = "world submarine controls cannot be resolved";
         return false;
     }
+
+    bool TryResolveWorldSubmarineDive(out IReadOnlyList<HighwayKeyboardKey> keys, out string diagnostic)
+    {
+        keys = Array.Empty<HighwayKeyboardKey>();
+        diagnostic = "the world submarine dive control cannot be resolved";
+        return false;
+    }
 }
 
 /// <summary>
@@ -195,6 +202,13 @@ internal sealed class HighwayDirectionInputMappingResolver(
 
     public bool TryResolveWorldSubmarine(HighwaySteeringDirection direction, bool thrust,
         out IReadOnlyList<HighwayKeyboardKey> keys, out string diagnostic)
+        => TryResolveWorldSubmarineCore(direction, thrust, false, out keys, out diagnostic);
+
+    public bool TryResolveWorldSubmarineDive(out IReadOnlyList<HighwayKeyboardKey> keys, out string diagnostic)
+        => TryResolveWorldSubmarineCore(HighwaySteeringDirection.None, false, true, out keys, out diagnostic);
+
+    private bool TryResolveWorldSubmarineCore(HighwaySteeringDirection direction, bool thrust, bool dive,
+        out IReadOnlyList<HighwayKeyboardKey> keys, out string diagnostic)
     {
         keys = Array.Empty<HighwayKeyboardKey>();
         diagnostic = string.Empty;
@@ -202,6 +216,7 @@ internal sealed class HighwayDirectionInputMappingResolver(
         if (components is null) { diagnostic = "unsupported world submarine direction"; return false; }
         var requested = components.ToList();
         if (thrust) requested.Add(new("Thrust", 5));
+        if (dive) requested.Add(new("Dive", 6));
         if (requested.Count == 0) return true;
         Span<byte> table = stackalloc byte[MappingTableSize];
         if (!addressSpace.TryRead(MappingTableAddress, table))
