@@ -92,7 +92,10 @@ internal static class FieldPuzzleStoryTests
     /// <summary>The clock at six and ten with the party on the given triangle.</summary>
     private static FieldActivityObservation ClockAt(int triangle) =>
         new(607, 0, 0, 0, triangle, true, 618, new FieldNavigationControlTransform(0), true,
-            [ClockHand(21, 0), ClockHand(22, 170)], new Dictionary<int, FieldActivityWaitState>(), _ => true,
+            // These cases isolate the main hands and party-place details. Explicitly
+            // hide the second hand; omission now correctly means an unreadable hazard.
+            [ClockHand(21, 0), ClockHand(22, 170), new(23, FieldActivityReadStatus.Hidden, default)],
+            new Dictionary<int, FieldActivityWaitState>(), _ => true,
             locked => locked is not (85 or 48 or 76 or 10), 0);
 
     private static void ClockReadoutNamesBothHandsBridges()

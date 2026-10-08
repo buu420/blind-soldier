@@ -5,7 +5,7 @@
   "scannedGameMomentWrites": 334,
   "navigableGameMomentWrites": 118,
   "unresolvedAutomaticOrIndirectWrites": 219,
-  "definitionCount": 1444,
+  "definitionCount": 1445,
   "definitions": [
     {
       "fieldId": 115,
@@ -47558,6 +47558,33 @@
       "requiredEnabledLineEntityId": 11,
       "usesPlayerCollisionRadius": true,
       "publishAsExit": true
+    },
+    {
+      "fieldId": 612,
+      "kind": "Location",
+      "label": "Press Confirm at the miniature temple at the far right of the hall",
+      "entityId": 7,
+      "x": 918,
+      "y": -6,
+      "z": 0,
+      "targetGameMoment": 624,
+      "minimumGameMoment": 621,
+      "maximumGameMoment": 626,
+      "priority": 0,
+      "sourceFieldName": "kuro_82",
+      "sourceEntityName": "border2",
+      "sourceScriptType": "Go",
+      "completesOnArrival": false,
+      "triggerLine": {
+        "startX": 914,
+        "startY": 35,
+        "startZ": 0,
+        "endX": 922,
+        "endY": -46,
+        "endZ": 0
+      },
+      "requiredEnabledLineEntityId": 7,
+      "usesPlayerCollisionRadius": true
     }
   ]
 }

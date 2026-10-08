@@ -952,11 +952,22 @@ if (args.Contains("--guide-routes-only", StringComparer.OrdinalIgnoreCase))
     return;
 }
 
+if (args.Contains("--temple-hazard-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.TempleClockHazardTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.TempleClockHazardTests.RunWithInstalledGameData(CreateInstalledFieldWalkmeshReader);
+    Console.WriteLine("Temple clock second-hand hazard tests passed.");
+    return;
+}
+
 if (args.Contains("--field-puzzles-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.FieldPuzzleStoryTests.Run(CreateInstalledFieldWalkmeshReader);
+Ff7.Accessibility.Reloaded.Tests.TempleStatueNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
     Ff7.Accessibility.Reloaded.Tests.TempleClockSpeechTests.Run();
     Ff7.Accessibility.Reloaded.Tests.TempleClockDeliveryTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.TempleClockHazardTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.TempleClockHazardTests.RunWithInstalledGameData(CreateInstalledFieldWalkmeshReader);
     Ff7.Accessibility.Reloaded.Tests.ChaseAndExcavationTests.Run(CreateInstalledFieldWalkmeshReader);
     Console.WriteLine("FFVII x86 Pagoda, Cait Sith chase and Temple clock tests passed.");
     return;
@@ -1239,8 +1250,11 @@ Ff7.Accessibility.Reloaded.Tests.Reactor5ButtonCueTests.Run();
 Ff7.Accessibility.Reloaded.Tests.CorelJourneyDescriptionTests.Run();
 MountCorelNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.FieldPuzzleStoryTests.Run(CreateInstalledFieldWalkmeshReader);
+Ff7.Accessibility.Reloaded.Tests.TempleStatueNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.TempleClockSpeechTests.Run();
 Ff7.Accessibility.Reloaded.Tests.TempleClockDeliveryTests.Run();
+Ff7.Accessibility.Reloaded.Tests.TempleClockHazardTests.Run();
+Ff7.Accessibility.Reloaded.Tests.TempleClockHazardTests.RunWithInstalledGameData(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.ChaseAndExcavationTests.Run(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.GuideRouteRegressionTests.Run();
 Ff7.Accessibility.Reloaded.Tests.FieldNavigationTriggerFallbackTests.Run();

@@ -1035,6 +1035,7 @@
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldCountdownSpeechCoordinator.cs" Link="Shared\FieldCountdownSpeechCoordinator.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\ShinraMansionSafeDialReadout.cs" Link="Shared\ShinraMansionSafeDialReadout.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldActivityReadout.cs" Link="Shared\FieldActivityReadout.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\TempleClockSecondHandReadout.cs" Link="Shared\TempleClockSecondHandReadout.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldActivityLatestLineDelivery.cs" Link="Shared\FieldActivityLatestLineDelivery.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldActivityClockHost.cs" Link="Shared\FieldActivityClockHost.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\TempleChaseLayout.cs" Link="Shared\TempleChaseLayout.cs" />

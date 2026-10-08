@@ -2,7 +2,7 @@
     "schemaVersion":  2,
     "source":  "dangarfeld/kujata-data field script extraction",
     "sourceCommit":  "f2316fa54f27ebd1ce4e19242fc3c789337c1eba",
-    "definitionCount":  459,
+    "definitionCount":  460,
     "definitions":  [
                         {
                             "fieldId":  436,
@@ -11778,6 +11778,32 @@
                             "cueKindOverride":  null,
                             "minimumGameMoment":  445,
                             "maximumGameMoment":  -1,
+                            "usesPlayerCollisionRadius":  true
+                        },
+                        {
+                            "fieldId":  612,
+                            "entityId":  7,
+                            "kind":  "Named",
+                            "nativeId":  -1,
+                            "label":  "Miniature temple; press Confirm at it",
+                            "quantity":  1,
+                            "collectedBank":  -1,
+                            "collectedAddress":  -1,
+                            "collectedMask":  0,
+                            "requiredBank":  -1,
+                            "requiredAddress":  -1,
+                            "requiredMask":  0,
+                            "requiredValue":  0,
+                            "sourceFieldName":  "kuro_82",
+                            "sourceEntityName":  "border2",
+                            "sourceModelResource":  "",
+                            "targetKind":  "Line",
+                            "staticX":  918,
+                            "staticY":  -6,
+                            "staticZ":  0,
+                            "cueKindOverride":  null,
+                            "minimumGameMoment":  621,
+                            "maximumGameMoment":  629,
                             "usesPlayerCollisionRadius":  true
                         }
                     ]

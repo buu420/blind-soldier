@@ -619,6 +619,12 @@ Add-Definition -FieldId 762 -FieldName 'las3_3' -EntityId 27 -EntityName 'l22' -
 Add-Definition -FieldId 680 -FieldName 'hyou10' -EntityId 20 -EntityName 'line80' -ModelResource '' -Kind 'Named' -Label 'Hot spring' -TargetKind 'Line' -StaticX -395 -StaticY 109 -StaticZ 99 -CollectedBank 1 -CollectedAddress 199 -CollectedMask 0x01 -UsesPlayerCollisionRadius $true
 Add-Definition -FieldId 665 -FieldName 'hyou5_2' -EntityId 21 -EntityName 'line50a' -ModelResource '' -Kind 'Named' -Label 'Ice floes, start the crossing from the south shore' -TargetKind 'Line' -StaticX 137 -StaticY -696 -StaticZ 31 -UsesPlayerCollisionRadius $true
 Add-Definition -FieldId 665 -FieldName 'hyou5_2' -EntityId 22 -EntityName 'line50b' -ModelResource '' -Kind 'Named' -Label 'Ice floes, start the crossing from the north shore' -TargetKind 'Line' -StaticX 192 -StaticY 246 -StaticZ 28 -UsesPlayerCollisionRadius $true
+# Temple of the Ancients mural hall (612 kuro_82): the miniature temple the director shows after
+# the Red Dragon (entity 19 "mini", jtmpobj, at (1032,18,57); Talk and Contact are a lone RET).
+# What the game runs is LINE entity 7 "border2" (914,35,0)-(922,-46,0) in front of it: its Go,
+# on Confirm, sets 624 and enters the model (613) from 621; at 627 it plays Cloud failing to
+# shift it. The 630 branch is a cutscene. See story-regions/TempleOfTheAncients.ps1.
+Add-Definition -FieldId 612 -FieldName 'kuro_82' -EntityId 7 -EntityName 'border2' -ModelResource '' -Kind 'Named' -Label 'Miniature temple; press Confirm at it' -TargetKind 'Line' -StaticX 918 -StaticY -6 -StaticZ 0 -MinimumGameMoment 621 -MaximumGameMoment 629 -UsesPlayerCollisionRadius $true
 
 # anfrst_1's Slash-All (box1, e36) lies in the first Mutant Flytrap's mouth, between its lines
 # big0lt (e25) and big0rt (e26). While 5[51] is 0 - it starts so on every entry, and only the

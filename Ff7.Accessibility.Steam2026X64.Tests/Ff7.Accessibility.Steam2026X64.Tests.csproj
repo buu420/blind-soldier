@@ -184,6 +184,10 @@
              Link="SharedTests\TempleClockSpeechTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\TempleClockDeliveryTests.cs"
              Link="SharedTests\TempleClockDeliveryTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\TempleStatueNavigationTests.cs"
+             Link="SharedTests\TempleStatueNavigationTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\TempleClockHazardTests.cs"
+             Link="SharedTests\TempleClockHazardTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\ChaseAndExcavationTests.cs"
              Link="SharedTests\ChaseAndExcavationTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\BoneVillageDigSpotTests.cs"

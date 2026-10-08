@@ -29,15 +29,83 @@ internal static class Steam2026FieldActivityRuntimeTests
         RegainingFocusDuringASpinIsNotAStop();
         MutedSpeechSaysOnlyTheCurrentTimeOnUnmute();
         StaysSilentWhenTheReadoutIsTurnedOff();
+        SecondHandHazardReachesTheSpeakerFromNativeMemory();
+        HazardDeliveryStillRespectsMuteFocusAndNativeDisable();
+        RepeatRetainsTheNativeHazardWhenAnotherHandCannotBeRead();
         WiringMatchesTheReloadedRuntime();
     }
 
     private static readonly DateTime Start = new(2026, 9, 24, 22, 2, 30, DateTimeKind.Utc);
 
+    private static void SecondHandHazardReachesTheSpeakerFromNativeMemory()
+    {
+        using var rig = new ClockRig(true, 0, 170, 64, [6, 10], playerTriangle: 48);
+        rig.SetPlayerPosition(0, -350);
+        rig.SetKnockOffEnabled(true);
+        rig.Observe(Start);
+        Equal(true, rig.Spoken.Any(line => line.Text.Contains("knock", StringComparison.OrdinalIgnoreCase)),
+            "the real x64 coordinator names the knock-off hazard on entering a hand");
+        rig.Coordinator.NoteSpeechDelivered("Long hand at six, short hand at ten. The bridge to doorway six is open.", Start.AddSeconds(3));
+        rig.Speaking = true;
+        rig.SetSecondHand(32);
+        rig.Observe(Start.AddSeconds(3.1));
+        Equal(true, rig.Spoken.Last().Text.Contains("approaching", StringComparison.OrdinalIgnoreCase),
+            "native rendered movement produces the warning even while a repeat is speaking");
+        Equal(true, rig.Spoken.Last().Interrupt, "a fresh hazard interrupts older speech");
+        rig.SetSecondHand(4);
+        rig.Observe(Start.AddSeconds(4));
+        Equal(true, rig.Spoken.Last().Text.Contains("crossing", StringComparison.OrdinalIgnoreCase),
+            "the closer visible position produces a stronger warning");
+    }
+
+    private static void HazardDeliveryStillRespectsMuteFocusAndNativeDisable()
+    {
+        using var rig = new ClockRig(true, 0, 170, 4, [6, 10], playerTriangle: 48);
+        rig.SetPlayerPosition(0, -350);
+        rig.SetKnockOffEnabled(true);
+        rig.Config.EnableSpeech = false;
+        rig.Observe(Start);
+        Equal(0, rig.Spoken.Count, "urgency cannot bypass the actual coordinator's speech setting");
+        rig.SetSecondHand(64);
+        rig.Config.EnableSpeech = true;
+        rig.Observe(Start.AddSeconds(1));
+        Equal(true, rig.Spoken.Any(line => line.Text.StartsWith("Second hand", StringComparison.Ordinal)),
+            "unmute delivers only the current visible second hand");
+        Equal(false, rig.Spoken.Any(line => line.Text.Contains("crossing", StringComparison.OrdinalIgnoreCase)),
+            "the older muted warning is not replayed");
+        rig.Observe(Start.AddSeconds(2), foreground: false);
+        rig.SetKnockOffEnabled(false);
+        rig.SetSecondHand(4);
+        rig.Spoken.Clear();
+        rig.Observe(Start.AddSeconds(3));
+        rig.Observe(Start.AddSeconds(4));
+        Equal(false, rig.Spoken.Any(line => line.Text.StartsWith("Second hand", StringComparison.Ordinal)),
+            "focus regain does not revive the disabled native hazard");
+    }
+
     private static bool IsClockLine(string text) =>
         text.StartsWith("Moving, ", StringComparison.Ordinal) ||
         text.StartsWith("Stopped, ", StringComparison.Ordinal) ||
         text.Contains("Long hand", StringComparison.Ordinal);
+
+    private static void RepeatRetainsTheNativeHazardWhenAnotherHandCannotBeRead()
+    {
+        foreach (var entity in new[] { 21, 22 })
+        {
+            using var rig = new ClockRig(true, 0, 170, 4, [6, 10], playerTriangle: 48);
+            rig.SetPlayerPosition(0, -350);
+            rig.SetKnockOffEnabled(true);
+            rig.MakeHandUnreadable(entity);
+            rig.Observe(Start);
+            var repeat = rig.Coordinator.FieldActivityCurrentLine ?? string.Empty;
+            Equal(true, repeat.Contains("Cannot read the clock hands", StringComparison.Ordinal),
+                "the native repeat reports the failed time read");
+            Equal(true, repeat.Contains("Second hand crossing", StringComparison.Ordinal),
+                "the actual x64 repeat retains the independently readable hazard");
+            Equal(true, rig.Spoken.Any(line => line.Text.Contains("Second hand crossing", StringComparison.Ordinal)),
+                "the actual coordinator still delivers the automatic hazard");
+        }
+    }
 
     private static void SpeaksTheClockTimeAndRepeatsTheDetail()
     {
@@ -247,7 +315,7 @@ internal static class Steam2026FieldActivityRuntimeTests
     private sealed class ClockRig : IDisposable
     {
         private readonly FieldObservationFixture fixture;
-        private readonly int secondBearing;
+        private int secondBearing;
 
         public ClockRig(bool enabled, int longBearing, int shortBearing, int secondBearing, int[] openHours, int playerTriangle = 26)
         {
@@ -331,6 +399,35 @@ internal static class Steam2026FieldActivityRuntimeTests
 
         /// <summary>How many more lines Prism refuses.</summary>
         public int Refusals { get; set; }
+
+        public void SetPlayerPosition(int x, int y)
+        {
+            var at = (uint)(FieldPositionReader.AddressFieldModelsObjs + FieldPositionReader.FieldObjectStride);
+            fixture.Write(at + FieldPositionReader.ObjectXOffset, BitConverter.GetBytes(x << 12));
+            fixture.Write(at + FieldPositionReader.ObjectYOffset, BitConverter.GetBytes(y << 12));
+            fixture.Write(at + FieldPositionReader.ObjectZOffset, BitConverter.GetBytes(0));
+        }
+
+        public void SetKnockOffEnabled(bool enabled)
+        {
+            fixture.WriteByte(FieldScriptLineStateReader.AddressFieldLineIndexByEntity + 18, 31);
+            fixture.WriteByte(FieldScriptLineStateReader.AddressFieldLineStates + 31 * FieldScriptLineStateReader.LineStateStride,
+                enabled ? (byte)1 : (byte)0);
+        }
+
+        public void SetSecondHand(int bearing)
+        {
+            secondBearing = bearing;
+            fixture.Write(FieldObservationFixture.ModelTable + 4 * FieldPositionReader.FieldModelStride +
+                FieldPositionReader.ModelDirectionOffset, [(byte)bearing]);
+        }
+
+        public void MakeHandUnreadable(int entity)
+        {
+            // The field has five models. An out-of-range mapping must fail the coherent
+            // native read rather than hide a model or affect the independent second hand.
+            fixture.WriteByte(FieldScriptControllerReader.AddressEntityModelIds + entity, 5);
+        }
 
         /// <summary>The rendered bearings of the long and short hands, and the bridges IDdr has left unlocked.</summary>
         public void SetHands(int longBearing, int shortBearing, int[] openHours)
