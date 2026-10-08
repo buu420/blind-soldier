@@ -600,11 +600,21 @@ if (args.Contains("--guide-routes-only", StringComparer.OrdinalIgnoreCase))
     return;
 }
 
+if (args.Contains("--temple-clock-runtime-only", StringComparer.OrdinalIgnoreCase))
+{
+    Steam2026FieldActivityRuntimeTests.Run();
+    Console.WriteLine("Steam x64 native clock coordinator tests passed.");
+    return;
+}
+
 if (args.Contains("--field-puzzles-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.FieldPuzzleStoryTests.Run(CreateInstalledFieldWalkmeshReader);
+Ff7.Accessibility.Reloaded.Tests.TempleStatueNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
     Ff7.Accessibility.Reloaded.Tests.TempleClockSpeechTests.Run();
     Ff7.Accessibility.Reloaded.Tests.TempleClockDeliveryTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.TempleClockHazardTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.TempleClockHazardTests.RunWithInstalledGameData(CreateInstalledFieldWalkmeshReader);
     Ff7.Accessibility.Reloaded.Tests.ChaseAndExcavationTests.Run(CreateInstalledFieldWalkmeshReader);
     Steam2026FieldActivityRuntimeTests.Run();
     Console.WriteLine("Steam 2026 x64 Pagoda, Cait Sith chase, Temple clock and field activity tests passed.");
@@ -775,7 +785,7 @@ if (args.Contains("--kalm-junon-descriptions-only", StringComparer.OrdinalIgnore
     return;
 }
 
-const string nativePath =
+var nativePath = Environment.GetEnvironmentVariable("FF7_ACCESSIBILITY_NATIVE_EXECUTABLE") ??
     @"C:\Program Files (x86)\Steam\steamapps\common\FINAL FANTASY VII Steam Edition\FFVII.exe";
 const string legacyPath =
     @"C:\Games\Final Fantasy VII\workingdir\ff7_en.exe";
@@ -1101,8 +1111,11 @@ Ff7.Accessibility.Reloaded.Tests.MotionActionDescriptionTests.RunAgainstInstalle
 Ff7.Accessibility.Reloaded.Tests.CorelJourneyDescriptionTests.Run();
 MountCorelNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.FieldPuzzleStoryTests.Run(CreateInstalledFieldWalkmeshReader);
+Ff7.Accessibility.Reloaded.Tests.TempleStatueNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.TempleClockSpeechTests.Run();
 Ff7.Accessibility.Reloaded.Tests.TempleClockDeliveryTests.Run();
+Ff7.Accessibility.Reloaded.Tests.TempleClockHazardTests.Run();
+Ff7.Accessibility.Reloaded.Tests.TempleClockHazardTests.RunWithInstalledGameData(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.ChaseAndExcavationTests.Run(CreateInstalledFieldWalkmeshReader);
 Steam2026CorelCaveControllerTests.Run();
 Ff7.Accessibility.Reloaded.Tests.GuideRouteRegressionTests.Run();

@@ -124,11 +124,12 @@ public readonly record struct FieldActivityObservation(
 /// <b>607 kuro_4, the clock.</b> <c>long</c> 21, <c>short</c> 22 and <c>second</c> 23
 /// are the hands; entity 21's script 10 gives the bearing of each hour - 128 for
 /// twelve, 106, 86, 64, 42, 22, 0 for six, 234, 214, 192, 170, 150 - a full turn in 256
-/// units. On its own the clock says only whether the two hands the player sets are moving
+/// units. While setting it, the clock says whether the two hands the player sets are moving
 /// and the time they show - "Moving, ten thirty." or "Stopped, ten thirty.", the short hand
 /// the hour and the long hand's numeral times five the minutes - and each reading replaces
 /// the one before (<see cref="FieldActivityCue.ReplacesEarlierLine"/>). Everything else is
-/// the repeat's. A hand between two of those is turning, and no bridge is claimed for it. When
+/// the repeat's. While crossing a hand, the visible second hand also gives automatic knock-off
+/// warnings through <see cref="TempleClockSecondHandReadout"/>. A hand between two of those is turning, and no bridge is claimed for it. When
 /// it is on an hour, the bridge is claimed only if the native IDLCK state agrees:
 /// entity 8's script 1 locks all twenty-four bridge triangles and each hour's own
 /// script unlocks its pair, so an unlocked pair is a bridge that is actually there.
@@ -315,6 +316,7 @@ public sealed class FieldActivityReadout
     private string? clockLastSpoken;
     private DateTime clockLastSpokenAt = DateTime.MinValue;
     private string? clockCurrentLine;
+    private readonly TempleClockSecondHandReadout clockSecondHand = new();
 
     // The Gold Saucer GP exchange's own state, like the clock's: the amount last said and the
     // amount on screen now.
@@ -339,11 +341,14 @@ public sealed class FieldActivityReadout
     }
 
     /// <summary>
-    /// What the clock would say on its own for the latest observation: "Moving, ..." or
-    /// "Stopped, ..." and the time the hands show, or null when no clock is being read. The host
+    /// What the clock would say for the latest observation: a current second-hand hazard
+    /// while crossing, otherwise the time the hands show, or null when no clock is being read. The host
     /// delivers this rather than an older line it could not say at the time.
     /// </summary>
     public string? CurrentReplaceableLine => clockCurrentLine ?? gpExchangeCurrentLine;
+
+    /// <summary>A current visible knock-off hazard takes priority over a lengthy repeat.</summary>
+    public bool CurrentReplaceableLineIsUrgent => clockSecondHand.CurrentIsUrgent;
 
     public FieldActivityCue Observe(FieldActivityObservation observation) =>
         Observe(observation, DateTime.UtcNow);
@@ -932,6 +937,12 @@ public sealed class FieldActivityReadout
 
     private void ResetClock()
     {
+        ResetClockTime();
+        clockSecondHand.Reset();
+    }
+
+    private void ResetClockTime()
+    {
         clockLongHand = ClockHandMotion.Unseen;
         clockShortHand = ClockHandMotion.Unseen;
         clockMotion = ClockMotion.Unknown;
@@ -954,10 +965,23 @@ public sealed class FieldActivityReadout
     /// <see cref="ClockSettleTime"/>. Until the hands have been watched that long - on entering,
     /// after a reset, after a torn look - nothing is claimed: a hand on a numeral may be one
     /// a spin is passing through. The second hand never stops and is not one of the hands the
-    /// player sets, so it is never a reason to speak. Where the party stands, the bridges and
-    /// the second hand are the repeat's (<see cref="Describe"/>).</para>
+    /// player sets, so its motion does not change the reported clock time. Where the party stands, the bridges and
+    /// the second hand are the repeat's (<see cref="Describe"/>) while setting the clock;
+    /// crossing hazards have their own rendered-pose watch.</para>
     /// </summary>
     private FieldActivityCue ObserveClock(FieldActivityObservation observation, DateTime now)
+    {
+        var time = ObserveClockTime(observation, now);
+        var hazardSpeech = clockSecondHand.Observe(observation, now);
+        if (clockSecondHand.CurrentLine is not { } hazard)
+        {
+            return time;
+        }
+        clockCurrentLine = hazard;
+        return new FieldActivityCue(hazardSpeech, false, false) { ReplacesEarlierLine = true };
+    }
+
+    private FieldActivityCue ObserveClockTime(FieldActivityObservation observation, DateTime now)
     {
         // Whatever the rest of the readout last said belongs to another room.
         lastKey = null;
@@ -972,7 +996,7 @@ public sealed class FieldActivityReadout
             // motion so the next readable look is read afresh.
             const string unreadable = "Cannot read the clock hands.";
             var alreadySaid = clockLastSpoken == unreadable;
-            ResetClock();
+            ResetClockTime();
             clockCurrentLine = unreadable;
             // Remembered so it is said once; not a reading the next one must wait behind, so
             // the pace of moving readings starts over.
@@ -984,7 +1008,7 @@ public sealed class FieldActivityReadout
             shortHand.Status != FieldActivityReadStatus.Visible)
         {
             // Hands that are not shown are no clock to read.
-            ResetClock();
+            ResetClockTime();
             return new FieldActivityCue(null, false, false) { ReplacesEarlierLine = true };
         }
 
@@ -1099,7 +1123,9 @@ public sealed class FieldActivityReadout
         if (longHand.Status == FieldActivityReadStatus.Unreadable ||
             shortHand.Status == FieldActivityReadStatus.Unreadable)
         {
-            return new Report("607:unreadable", "607:unreadable", "Cannot read the clock hands.", IsPending: false);
+            var hazard = TempleClockSecondHandReadout.DescribeCurrentHazard(observation);
+            return new Report("607:unreadable", "607:unreadable",
+                "Cannot read the clock hands." + (hazard is null ? string.Empty : " " + hazard), IsPending: false);
         }
 
         if (longHand.Status != FieldActivityReadStatus.Visible ||
@@ -1131,6 +1157,10 @@ public sealed class FieldActivityReadout
             _ => string.Empty
         };
         var text = ClockLine(bearing, shortBearing, motion) + " " + where + string.Join(", ", parts) + ".";
+        if (TempleClockSecondHandReadout.DescribeCurrentHazard(observation) is { } currentHazard)
+        {
+            text += " " + currentHazard;
+        }
         var hour = AlignedHour(bearing);
         var key = $"607:{place}:{DescribeBearing(bearing)}";
         if (hour >= 0)
@@ -1178,7 +1208,7 @@ public sealed class FieldActivityReadout
         }
     }
 
-    private static string DescribeBearing(int bearing)
+    internal static string DescribeBearing(int bearing)
     {
         var hour = AlignedHour(bearing);
         if (hour >= 0)
@@ -2270,6 +2300,7 @@ public sealed class FieldActivityReadout
     /// <summary>The trigger entities whose LINON state this field's readout depends on.</summary>
     public static IReadOnlyList<int> ObservedLineEntities(int fieldId) => fieldId switch
     {
+        ClockRoomFieldId => [TempleClockSecondHandReadout.KnockOffLineEntityId],
         ChaseChamberFieldId => [ChaseCrossings[0].EntityId, ChaseCrossings[1].EntityId],
         ExcavationFieldId => [ExcavationLadders[0].EntityId, ExcavationLadders[1].EntityId],
         PillarApproachFieldId => [12, 13, 14, 15, 16],

@@ -147,12 +147,13 @@ public sealed class FieldActivityLatestLineDelivery
         string? current,
         DateTime now,
         Func<string, bool> deliver,
-        Func<bool?>? isSpeaking = null)
+        Func<bool?>? isSpeaking = null,
+        bool interruptProtectedSpeech = false)
     {
         ArgumentNullException.ThrowIfNull(deliver);
         lock (sync)
         {
-            return PumpLocked(newLine, current, now, deliver, isSpeaking);
+            return PumpLocked(newLine, current, now, deliver, isSpeaking, interruptProtectedSpeech);
         }
     }
 
@@ -161,7 +162,8 @@ public sealed class FieldActivityLatestLineDelivery
         string? current,
         DateTime now,
         Func<string, bool> deliver,
-        Func<bool?>? isSpeaking)
+        Func<bool?>? isSpeaking,
+        bool interruptProtectedSpeech)
     {
         if (newLine is not null)
         {
@@ -183,7 +185,7 @@ public sealed class FieldActivityLatestLineDelivery
         }
 
         owed = current;
-        if (IsOtherSpeechProtected(now, isSpeaking) || now < nextAttempt)
+        if ((!interruptProtectedSpeech && IsOtherSpeechProtected(now, isSpeaking)) || now < nextAttempt)
         {
             return null;
         }
@@ -213,6 +215,14 @@ public sealed class FieldActivityLatestLineDelivery
         var spoken = owed;
         owed = null;
         nextAttempt = DateTime.MinValue;
+        if (interruptProtectedSpeech)
+        {
+            // A successfully delivered warning interrupted the old speech; there is
+            // no longer a repeat or dialogue line still waiting to finish.
+            otherSpeechAt = DateTime.MinValue;
+            otherSpeechEstimatedEnd = DateTime.MinValue;
+            otherSpeechCeiling = DateTime.MinValue;
+        }
         return spoken;
     }
 

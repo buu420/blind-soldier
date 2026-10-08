@@ -57,6 +57,7 @@ public static class FieldActivityClockHost
             readout.CurrentReplaceableLine,
             now,
             text => isSpeechEnabled() && isForeground() && speak(text),
-            isSpeaking);
+            isSpeaking,
+            interruptProtectedSpeech: readout.CurrentReplaceableLineIsUrgent);
     }
 }

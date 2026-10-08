@@ -29,9 +29,9 @@
 #        611; at 627 and above the same line goes to 612 instead, which is why the row
 #        stops at 626 and the clock becomes the goal again.
 #   ...  611's border3, entity 8, is the far end of the mural hall and starts 613.
-#   621  612 offers the miniature temple - already extracted - and after Cait's choice
-#        at 627 the way out is gateway0 back to 610, then 610's gateway0 back to the
-#        clock, then the twelfth doorway to 616 and the door itself, entity 16.
+#   621  612 offers the miniature temple - the row below, not the generic extraction - and
+#        after Cait's choice at 627 the way out is gateway0 back to 610, then 610's gateway0
+#        back to the clock, then the twelfth doorway to 616 and the door itself, entity 16.
 #   630  The collapse, 600's fall, 601, 775, the dream and the cinematic all run
 #        themselves and take the controlled character away and give it back; none of it
 #        is walkable and none of it is claimed. Cloud protesting as a child in 601 and
@@ -173,6 +173,27 @@ Add-Definition @templeAfterVision -FieldId 611 -FieldName 'kuro_8' -Kind Locatio
     -EntityName 'border3' -ScriptType 'Move' -UsesPlayerCollisionRadius `
     -RequiredEnabledLineEntityId 8 `
     -TriggerLine ([ordered]@{ startX = 678; startY = 118; startZ = 0; endX = 640; endY = -80; endZ = 0 })
+
+# --- After the Red Dragon ------------------------------------------------------------
+# kuro_9's Cloud script 4 (613 e6.s4) sets 621 and brings the party to 612. Its director
+# starts battle 652, then shows the miniature temple - entity 19 "mini", the jtmpobj model
+# placed at (1032,18,57) by an Init that hides it, made visible, solid and talkable by its
+# script 3 - and turns on border2, entity 7, the LINE just in front of it. The model's own
+# Talk and Contact are a lone RET; the line's Go is what the game runs while the leader
+# touches it, and only with Confirm (IFKEY 0x220) does it set 624 and take the party into
+# the model (613). The generic extraction offered this as "Continue on from here", which
+# says neither what a sighted player sees there nor that Confirm is needed; this row, at
+# priority 0 under the same native gates, is what Story offers instead. The Go runs on
+# touch, not on a crossing, so the row keeps active on arrival: the reader then gives it
+# the line and the leader's radius, and auto walk says it is reached on the engine's own
+# touch test (the generic row, completing by crossing, walked the party onto the line and
+# never said so).
+Add-Definition -FieldId 612 -FieldName 'kuro_82' -Kind Location -EntityId 7 `
+    -Label 'Press Confirm at the miniature temple at the far right of the hall' -X 918 -Y -6 -Z 0 `
+    -TargetGameMoment 624 -MinimumGameMoment 621 -MaximumGameMoment 626 -Priority 0 `
+    -EntityName 'border2' -ScriptType 'Go' -UsesPlayerCollisionRadius -KeepActiveOnArrival `
+    -RequiredEnabledLineEntityId 7 `
+    -TriggerLine ([ordered]@{ startX = 914; startY = 35; startZ = 0; endX = 922; endY = -46; endZ = 0 })
 
 # --- After the agreement -------------------------------------------------------------
 Add-Definition @templeAfterAgreement -FieldId 612 -FieldName 'kuro_82' -Kind Location `
