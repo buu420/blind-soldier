@@ -17,7 +17,7 @@ public enum GamepadButton
     Back = 0x0020,
     LeftThumb = 0x0040,
 
-    /// <summary>R3 - the right stick pressed in. Opens and closes the menu.</summary>
+    /// <summary>R3 - with a held trigger, starts accessibility auto walk.</summary>
     RightThumb = 0x0080,
     LeftShoulder = 0x0100,
     RightShoulder = 0x0200,
@@ -33,6 +33,11 @@ public enum GamepadButton
 
     /// <summary>Y on Xbox, Triangle on PlayStation.</summary>
     Y = 0x8000,
+
+    // Virtual bits for the analogue triggers. They are never written into XInput's
+    // ushort button word; each native adapter clears the matching trigger axis.
+    LeftTrigger = 0x10000,
+    RightTrigger = 0x20000,
 }
 
 /// <summary>
@@ -53,11 +58,17 @@ public readonly record struct GamepadSnapshot(
     bool IsConnected,
     int UserIndex,
     uint PacketNumber,
-    GamepadButton Buttons)
+    GamepadButton Buttons,
+    byte LeftTrigger = 0,
+    byte RightTrigger = 0)
 {
     public static GamepadSnapshot Disconnected => new(false, -1, 0, GamepadButton.None);
 
     public bool IsDown(GamepadButton button) => (Buttons & button) == button && button != GamepadButton.None;
+
+    public GamepadButton AccessibilityButtons => Buttons |
+        (LeftTrigger >= 64 ? GamepadButton.LeftTrigger : GamepadButton.None) |
+        (RightTrigger >= 64 ? GamepadButton.RightTrigger : GamepadButton.None);
 }
 
 /// <summary>Polls one controller. Implemented over XInput; faked in tests.</summary>

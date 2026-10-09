@@ -27,6 +27,13 @@ public sealed class HighwayAutoSteeringModeTracker
 
     public bool Enabled => enabled;
 
+    public void ApplySetting(bool value)
+    {
+        if (enabled == value) return;
+        enabled = value;
+        sessionAnnounced = false;
+    }
+
     public HighwayAutoSteeringModeUpdate Observe(
         bool isHighway,
         bool isForeground,

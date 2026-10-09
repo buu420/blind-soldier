@@ -19,6 +19,7 @@ public sealed class Mod : IModV1, IModV2
     private ILoggerV2? logger;
     private Steam2026X64RuntimeBackend? backend;
     private Steam2026ResearchSession? researchSession;
+    private PlayerSettingsStore? playerSettingsStore;
     private BlindSoldierRuntimeLease? runtimeLease;
     private int started;
 
@@ -149,7 +150,7 @@ public sealed class Mod : IModV1, IModV2
                 gameWorkingDirectory,
                 openingMoviePath,
                 gameLanguage,
-                Log);
+                Log, playerSettingsStore);
             researchSession.Start();
             Log(
                 "Activated the exact-fingerprint native x64 research path for " +
@@ -235,6 +236,9 @@ public sealed class Mod : IModV1, IModV2
         {
             Log("Restored the original traversal cue and separated the 214.wav ladder-mount cue.");
         }
+        playerSettingsStore = PlayerSettingsStore.Open(
+            Path.Combine(modDirectory, "Configuration", PlayerSettingsStore.FileName),
+            config, ModSettingsRuntime.Steam2026, log: Log);
 
         var configuredTrack = string.IsNullOrWhiteSpace(config.OpeningMovieAudioTrackPath)
             ? @"Assets\movies\opening_audio_description.ogg"

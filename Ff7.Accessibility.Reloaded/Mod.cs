@@ -425,6 +425,10 @@ public sealed class Mod : IModV1, IModV2
     // XInput read, which buttons the game may see; everything that speaks or walks
     // happens here on the monitor thread from the commands it leaves behind.
     private XInputCaptureHook? controllerCaptureHook;
+    private PlayerSettingsStore? playerSettingsStore;
+    private ModSettingsMenu? modSettingsMenu;
+    private ControllerAccessibilityDispatcher? controllerAccessibility;
+    private FieldAreaDescriptionHistory? battleDescriptionHistory;
     private ControllerNavigationDispatcher? fieldControllerNavigation;
     private ControllerNavigationDispatcher? worldControllerNavigation;
     private FieldPositionSnapshot controllerFieldPosition;
@@ -860,7 +864,7 @@ public sealed class Mod : IModV1, IModV2
         openingMovieAudioTrackPlayer = new OpeningMovieAudioTrackPlayer(
             ResolveOpeningMovieAudioTrackPath(),
             config.OpeningMovieAudioTrackVolumePercent,
-            Log);
+            Log, liveMasterVolumePercent: () => config.AudioDescriptionVolumePercent);
 
         // Warmed here rather than when the film starts. Opening the track and the output
         // device is the slowest thing this player does, and the opening film is the one
@@ -1190,7 +1194,7 @@ public sealed class Mod : IModV1, IModV2
         fieldAreaDescriptionHistory = new FieldAreaDescriptionHistory(
             Path.Combine(modDirectory, "Configuration", "room-descriptions.json"),
             Log);
-        var battleDescriptionHistory = new FieldAreaDescriptionHistory(
+        battleDescriptionHistory = new FieldAreaDescriptionHistory(
             Path.Combine(modDirectory, "Configuration", "battle-descriptions.json"), Log);
         fieldAreaDescriptionSaveTracker = new FieldAreaDescriptionSaveTracker(
             fieldAreaDescriptionHistory,
@@ -1202,6 +1206,26 @@ public sealed class Mod : IModV1, IModV2
             IsScreenReaderSpeaking,
             kernel2TextDatabase);
         fieldAreaDescriptionGate = new FieldAreaDescriptionHistoryGate(fieldAreaDescriptionHistory);
+        modSettingsMenu = new ModSettingsMenu(config, playerSettingsStore!,
+            () => BattleAnimationNarrationRuntime.ResetBattleDescriptions(battleDescriptionHistory, Log));
+        controllerAccessibility = new ControllerAccessibilityDispatcher(
+            () => controllerCaptureHook?.Capture, () => modSettingsMenu.IsOpen,
+            HandleModSettingsInput,
+            command => battleStatusHotkeyController.HandleController(
+                (BattleStatusControllerCommand)((int)command - (int)ControllerNavigationCommand.PartyPrevious),
+                ReadBattleStatusMember),
+            text => { if (speaker?.Speak(localizer.Localize(text), interrupt: true) != true)
+                throw new InvalidOperationException("Prism did not accept the settings line."); },
+            text => { if (!Speak(text, interrupt: true))
+                throw new InvalidOperationException("Prism did not accept the party readout."); }, () =>
+            {
+                SuspendEveryControllerAutoWalk();
+                submarineAccessibility?.SuspendInput();
+                condorCursorSteering?.Cancel("mod settings owns input");
+                pendingCondorNavigation.Clear();
+                junonParadeAlignmentAssist?.Reset("mod settings owns input");
+                junonParadeClaimsFieldInput = false;
+            }, Log);
         flevelFieldTextResolver = gameRootDirectory is null
             ? null
             : new FlevelFieldTextResolver(gameRootDirectory, gameLanguage);
@@ -1745,6 +1769,23 @@ public sealed class Mod : IModV1, IModV2
                 }
 
                 TickExitShortcutDiagnostics();
+                PublishControllerNavigationContextFromModule(ReadByte(FieldPositionReader.AddressCurrentModule),
+                    foregroundProcessGate.IsCurrentProcessForeground());
+                var settingsWereOpen = modSettingsMenu?.IsOpen == true;
+                controllerAccessibility?.Tick(foregroundProcessGate.IsCurrentProcessForeground(),
+                    key => (GetAsyncKeyState(key) & unchecked((short)0x8000)) != 0, DateTime.UtcNow);
+                if (settingsWereOpen || modSettingsMenu?.IsOpen == true)
+                {
+                    for (var key = 1; key <= 255; key++)
+                        _ = navigationKeyPressTracker.Observe(key,
+                            (GetAsyncKeyState(key) & unchecked((short)0x8000)) != 0, false);
+                    _ = repeatLastSpeechKeyTracker.Observe(RepeatLastSpeechController.VirtualKeyR,
+                        (GetAsyncKeyState(RepeatLastSpeechController.VirtualKeyR) & unchecked((short)0x8000)) != 0, false);
+                    _ = menuGilKeyTracker.Observe(MenuGilReadoutController.VirtualKeyG,
+                        (GetAsyncKeyState(MenuGilReadoutController.VirtualKeyG) & unchecked((short)0x8000)) != 0, false);
+                }
+                navigationProgressController.ApplySettings(config.EnableNavigationProgressIndicators,
+                    config.NavigationProgressIntervalPercent);
                 TickRepeatLastSpeech();
                 SampleMenuGilHotkey();
                 TickNavigationProgressControls();
@@ -1766,7 +1807,7 @@ public sealed class Mod : IModV1, IModV2
                 TickCondorBattleReader();
                 TickCondorMinigameProbe();
                 TickFieldAreaDescriptionSaveIdentity();
-                var battleAnimationForeground = config.EnableSpeech && foregroundProcessGate.IsCurrentProcessForeground();
+                var battleAnimationForeground = config.EnableSpeech && modSettingsMenu?.IsOpen != true && foregroundProcessGate.IsCurrentProcessForeground();
                 battleAnimationNarration?.Tick(DateTime.UtcNow,
                     battleAnimationForeground && config.EnableBattleAnimationDescriptions,
                     battleAnimationForeground && config.EnableBattleMessageSpeech);
@@ -2052,6 +2093,7 @@ public sealed class Mod : IModV1, IModV2
 
     private void TickRepeatLastSpeech()
     {
+        if (modSettingsMenu?.IsOpen == true) return;
         try
         {
             repeatLastSpeechController.Poll(
@@ -2564,7 +2606,12 @@ public sealed class Mod : IModV1, IModV2
             return;
         }
 
-        var isForeground = foregroundProcessGate.IsCurrentProcessForeground();
+        var isForeground = foregroundProcessGate.IsCurrentProcessForeground() && modSettingsMenu?.IsOpen != true;
+        if (!isForeground)
+        {
+            condorCursorSteering?.Cancel("Fort Condor input is held by focus or settings");
+            pendingCondorNavigation.Clear();
+        }
 
         // Sampled every pass and before the throttle, so a tap between reads is
         // still seen. Short-circuited on the module so no other owner of K loses
@@ -2846,7 +2893,7 @@ public sealed class Mod : IModV1, IModV2
             fieldActivityLatestLine,
             now,
             foregroundProcessGate.IsCurrentProcessForeground,
-            () => config.EnableSpeech,
+            () => config.EnableSpeech && modSettingsMenu?.IsOpen != true,
             TrySpeakFieldActivityLatestLine,
             IsScreenReaderSpeaking);
 
@@ -2872,7 +2919,7 @@ public sealed class Mod : IModV1, IModV2
     /// </summary>
     private bool TrySpeakFieldActivityLatestLine(string text)
     {
-        if (!config.EnableSpeech || speaker is null)
+        if (!config.EnableSpeech || modSettingsMenu?.IsOpen == true || speaker is null)
         {
             return false;
         }
@@ -3130,7 +3177,7 @@ public sealed class Mod : IModV1, IModV2
         var foreground = foregroundProcessGate.IsCurrentProcessForeground();
         submarineMissionOwnsInput = module == SubmarineMissionStateReader.MinigameModule;
         var cue = submarineAccessibility.Observe(module, foreground,
-            config.EnableSpeech && config.EnableSubmarineMissionReadout, now,
+            config.EnableSpeech && config.EnableSubmarineMissionReadout && modSettingsMenu?.IsOpen != true, now,
             key => WasNavigationKeyPressed(key, foreground), controllerCaptureHook?.Capture,
             out var interrupt);
         if (cue.PlayLockCue &&
@@ -3566,6 +3613,7 @@ public sealed class Mod : IModV1, IModV2
         junonParadeClaimsFieldInput = false;
         if ((!config.EnableJunonMinigamePrompts &&
              !config.EnableJunonParadeAlignmentAssist) ||
+            modSettingsMenu?.IsOpen == true ||
             !foregroundProcessGate.IsCurrentProcessForeground() ||
             junonMinigameCueCoordinator is null ||
             junonParadeAlignmentAssist is null)
@@ -3876,7 +3924,7 @@ public sealed class Mod : IModV1, IModV2
     private void TickBattleStatusHotkeys()
     {
         var currentModule = ReadByte(BattleStateReader.AddressCurrentModule);
-        var isForeground = foregroundProcessGate.IsCurrentProcessForeground();
+        var isForeground = foregroundProcessGate.IsCurrentProcessForeground() && modSettingsMenu?.IsOpen != true;
         var navigationOwnsLimitKey = NavigationOwnsBattleStatusLimitKey(
             config,
             currentModule);
@@ -5800,7 +5848,7 @@ public sealed class Mod : IModV1, IModV2
             controllerWorldRuntime = runtime;
             controllerWorldState = state;
             controllerNavigationNow = now;
-            var controllerMenuIsOpen = DrainControllerNavigation(
+            var controllerMenuIsOpen = modSettingsMenu?.IsOpen == true || DrainControllerNavigation(
                 worldControllerNavigation,
                 ControllerNavigationDomain.WorldMap,
                 WorldMapStateReader.WorldModule,
@@ -6391,7 +6439,7 @@ public sealed class Mod : IModV1, IModV2
             controllerFieldTransform = controlResult.IsUsable ? controlResult.Transform : null;
             controllerFieldLadder = ladderState;
             controllerNavigationNow = now;
-            var controllerMenuIsOpen = DrainControllerNavigation(
+            var controllerMenuIsOpen = modSettingsMenu?.IsOpen == true || DrainControllerNavigation(
                 fieldControllerNavigation,
                 ControllerNavigationDomain.Field,
                 FieldPositionReader.FieldModule,
@@ -6836,6 +6884,10 @@ public sealed class Mod : IModV1, IModV2
                      virtualKey => WasNavigationKeyPressed(virtualKey, isForeground)))
         {
             var speech = navigationProgressController.HandleAction(action);
+            config.EnableNavigationProgressIndicators = navigationProgressController.Enabled;
+            config.NavigationProgressIntervalPercent = navigationProgressController.IntervalPercent;
+            SavePlayerShortcut(nameof(config.EnableNavigationProgressIndicators), config.EnableNavigationProgressIndicators ? 1 : 0);
+            SavePlayerShortcut(nameof(config.NavigationProgressIntervalPercent), config.NavigationProgressIntervalPercent);
             Log($"Navigation progress control: {speech}");
             Speak(speech, interrupt: true);
         }
@@ -6910,8 +6962,7 @@ public sealed class Mod : IModV1, IModV2
     /// </summary>
     private void InstallControllerNavigationCapture(IReloadedHooks installedHooks)
     {
-        if (controllerCaptureHook is not null ||
-            !(config.EnableFieldNavigationAssistant || config.EnableWorldMapNavigationAssistant || config.EnableSubmarineMissionReadout))
+        if (controllerCaptureHook is not null)
         {
             return;
         }
@@ -6919,8 +6970,7 @@ public sealed class Mod : IModV1, IModV2
         if (!XInputCaptureHook.TryInstall(
                 installedHooks,
                 isInstalled => new ControllerNavigationCapture(
-                    suppressor => new ControllerNavigationMenu(
-                        EmptyGamepadReader.Instance, suppressor),
+                    suppressor => new ControllerAccessibilityMenu(suppressor),
                     isInstalled,
                     isForegroundNow: foregroundProcessGate.IsCurrentProcessForeground),
                 out var installed,
@@ -7088,8 +7138,8 @@ public sealed class Mod : IModV1, IModV2
     /// </summary>
     private void PublishControllerNavigationUnavailable()
     {
-        controllerCaptureHook?.Capture.PublishUnavailable(
-            ControllerNavigationDomain.None, DateTime.UtcNow);
+        controllerCaptureHook?.Capture.PublishNavigationUnavailable(ControllerNavigationDomain.None,
+            foregroundProcessGate.IsCurrentProcessForeground(), DateTime.UtcNow);
     }
 
     /// <summary>
@@ -7108,12 +7158,32 @@ public sealed class Mod : IModV1, IModV2
             return;
         }
 
+        if (!isForeground)
+        {
+            capture.PublishUnavailable(ControllerNavigationDomain.None, DateTime.UtcNow);
+            SuspendEveryControllerAutoWalk();
+            return;
+        }
+        if (module == BattleStateReader.BattleModule ||
+            module is not (FieldPositionReader.FieldModule or WorldMapStateReader.WorldModule or SubmarineMissionStateReader.MinigameModule))
+        {
+            var isBattle = module == BattleStateReader.BattleModule;
+            var domainForSettings = isBattle ? ControllerNavigationDomain.Battle : ControllerNavigationDomain.SystemMenu;
+            var activeParty = false;
+            var partyAvailable = isBattle && config.EnableSpeech &&
+                battleStateReader?.TryReadBattleQueryActive(out activeParty) == true && activeParty;
+            capture.PublishSettingsContext(domainForSettings, module, true, partyAvailable, DateTime.UtcNow);
+            if (module == TitleMenuCursorReader.TitleModule) StopEveryControllerAutoWalk();
+            else SuspendEveryControllerAutoWalk();
+            return;
+        }
+
         // The submarine coordinator publishes pause, focus and target availability.
         // Clear the previous domain once; its next tick must retain its own commands.
-        if (module == SubmarineMissionStateReader.MinigameModule && config.EnableSubmarineMissionReadout)
+        if (module == SubmarineMissionStateReader.MinigameModule && config.EnableSubmarineMissionReadout && config.EnableSpeech)
         {
             if (capture.Owner != ControllerNavigationDomain.Submarine)
-                capture.PublishUnavailable(ControllerNavigationDomain.None, DateTime.UtcNow);
+                capture.PublishSettingsContext(ControllerNavigationDomain.Submarine, module, true, false, DateTime.UtcNow);
             return;
         }
 
@@ -7126,9 +7196,9 @@ public sealed class Mod : IModV1, IModV2
             _ => ControllerNavigationDomain.None
         };
 
-        if (domain == ControllerNavigationDomain.None || !isForeground)
+        if (domain == ControllerNavigationDomain.None)
         {
-            capture.PublishUnavailable(domain, DateTime.UtcNow);
+            capture.PublishSettingsContext(ControllerNavigationDomain.SystemMenu, module, true, false, DateTime.UtcNow);
             if (module == TitleMenuCursorReader.TitleModule)
                 StopEveryControllerAutoWalk();
             else
@@ -7589,7 +7659,7 @@ public sealed class Mod : IModV1, IModV2
 
         var module = ReadByte(HighwayStateReader.AddressCurrentModule);
         var isHighway = module == HighwayStateReader.HighwayModule;
-        var isForeground = foregroundProcessGate.IsCurrentProcessForeground();
+        var isForeground = foregroundProcessGate.IsCurrentProcessForeground() && modSettingsMenu?.IsOpen != true;
         var statusRequested =
             isHighway &&
             WasNavigationKeyPressed(VirtualKeyK, isForeground);
@@ -7601,6 +7671,8 @@ public sealed class Mod : IModV1, IModV2
             isForeground,
             statusRequested,
             autoSteeringToggleRequested);
+        if (autoSteeringToggleRequested)
+            SavePlayerShortcut(nameof(config.EnableHighwayAutoSteering), config.EnableHighwayAutoSteering ? 1 : 0);
     }
 
     private IEnumerable<FieldNavigationAction> ReadFieldNavigationActions(int ownerModule)
@@ -7640,7 +7712,8 @@ public sealed class Mod : IModV1, IModV2
     private bool WasNavigationKeyPressed(int virtualKey, bool isForeground)
     {
         var isDown = (GetAsyncKeyState(virtualKey) & unchecked((short)0x8000)) != 0;
-        return navigationKeyPressTracker.Observe(virtualKey, isDown, isForeground);
+        return navigationKeyPressTracker.Observe(virtualKey, isDown,
+            isForeground && modSettingsMenu?.IsOpen != true);
     }
 
     private static uint GetForegroundWindowProcessId(nint window)
@@ -11411,6 +11484,7 @@ public sealed class Mod : IModV1, IModV2
 
     private bool Speak(string text, bool interrupt)
     {
+        if (modSettingsMenu?.IsOpen == true) return false;
         var localizedText = localizer.Localize(text);
         Log($"Speak: {localizedText}");
         var delivered = config.EnableSpeech && speaker?.Speak(localizedText, interrupt) == true;
@@ -11456,6 +11530,33 @@ public sealed class Mod : IModV1, IModV2
         {
             Log("Restored the original traversal cue and separated the 214.wav ladder-mount cue.");
         }
+        playerSettingsStore = PlayerSettingsStore.Open(
+            Path.Combine(modDirectory, "Configuration", PlayerSettingsStore.FileName),
+            config, ModSettingsRuntime.Legacy, log: Log);
+    }
+
+    private string? HandleModSettingsInput(ModSettingsInputCommand command) => command switch
+    {
+        ModSettingsInputCommand.Open => modSettingsMenu?.Open(controllerAccessibility?.UseControllerSettingsControls == true
+            ? ModSettingsInputDevice.Controller : ModSettingsInputDevice.Keyboard),
+        ModSettingsInputCommand.Close => modSettingsMenu?.Close(),
+        ModSettingsInputCommand.None => null,
+        _ => modSettingsMenu?.Handle(command switch
+        {
+            ModSettingsInputCommand.Previous => ModSettingsMenuCommand.Previous,
+            ModSettingsInputCommand.Next => ModSettingsMenuCommand.Next,
+            ModSettingsInputCommand.Decrease => ModSettingsMenuCommand.Decrease,
+            ModSettingsInputCommand.Increase => ModSettingsMenuCommand.Increase,
+            ModSettingsInputCommand.Activate => ModSettingsMenuCommand.Activate,
+            _ => ModSettingsMenuCommand.Repeat
+        })
+    };
+
+    private void SavePlayerShortcut(string key, int value)
+    {
+        var saved = playerSettingsStore?.Record(key, value);
+        if (saved?.SaveFailure is { } failure)
+            Speak($"Setting changed for this session but could not be saved. {failure}", interrupt: true);
     }
 
     private string ResolveModDirectory(IModConfigV1? modConfig)
@@ -11553,7 +11654,7 @@ public sealed class Mod : IModV1, IModV2
             path,
             config.FieldMovieNarrationTrackVolumePercent,
             Log,
-            "Cutscene description");
+            "Cutscene description", liveMasterVolumePercent: () => config.AudioDescriptionVolumePercent);
     }
 
     private CutsceneVoiceManifest LoadCutsceneVoiceManifest()
@@ -11601,7 +11702,7 @@ public sealed class Mod : IModV1, IModV2
             path,
             config.FieldMovieNarrationTrackVolumePercent,
             Log,
-            $"Field movie {track.Label}");
+            $"Field movie {track.Label}", liveMasterVolumePercent: () => config.AudioDescriptionVolumePercent);
     }
 
     /// <summary>

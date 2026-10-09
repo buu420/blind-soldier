@@ -519,9 +519,9 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         var routeObservation = runtime.Navigation.Observe(
             state,
             nowUtc,
-            !controllerMenuIsOpen && !holdAutoWalk && autoWalk.IsEnabledFor(NavigationAutoWalkDomain.WorldMap),
+            !controllerMenuIsOpen && !foregroundInput.ModSettingsOwnsInput && !holdAutoWalk && autoWalk.IsEnabledFor(NavigationAutoWalkDomain.WorldMap),
             dialogueReader.TryReadNativeWorldInput(out var diveInput) ? diveInput : null);
-        if (controllerMenuIsOpen || holdAutoWalk)
+        if (controllerMenuIsOpen || foregroundInput.ModSettingsOwnsInput || holdAutoWalk)
         {
             autoWalk.Suspend();
             runtime.Navigation.PauseForNativeControl();
@@ -899,7 +899,8 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         // The field coordinator no longer closes another domain's menu. The world
         // coordinator must therefore retire its own context as soon as it stops
         // being usable, including battle entry before the freshness timeout.
-        controllerCapture()?.PublishUnavailable(ControllerNavigationDomain.WorldMap, nowUtc);
+        controllerCapture()?.PublishNavigationUnavailable(ControllerNavigationDomain.WorldMap,
+            foregroundInput.IsCurrentProcessForeground(), nowUtc);
         controllerMenuIsOpen = false;
     }
 

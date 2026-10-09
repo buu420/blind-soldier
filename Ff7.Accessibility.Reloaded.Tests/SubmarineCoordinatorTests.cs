@@ -26,6 +26,7 @@ internal static class SubmarineCoordinatorTests
             FiringGuidanceDoesNotDiscardHullDamage,
             APreviousOwnedKeyCanDrainBeforeItCountsAsManualInput,
             BrowsingKeepsTheLockBaselineWhileReleasingSteering,
+            KeyboardSettingsKeepsPursuitSuspendedWithoutControllerCapture,
             APauseBetweenCaptureAndDeliverySuspendsPursuit,
             AHeldPauseDuringUnpauseDoesNotRepeatTheFirePrompt,
             SelectingOnHullContactStillAnnouncesTheStoppedPursuit,
@@ -42,6 +43,31 @@ internal static class SubmarineCoordinatorTests
             catch (Exception exception) { failures.Add(exception); }
         }
         if (failures.Count != 0) throw new AggregateException(failures);
+    }
+
+    private static void KeyboardSettingsKeepsPursuitSuspendedWithoutControllerCapture()
+    {
+        using var fixture = new Fixture();
+        fixture.Start();
+        var config = new AccessibilityConfig();
+        var menu = new ModSettingsMenu(config, PlayerSettingsStore.Open(null, config, ModSettingsRuntime.Legacy), () => "reset");
+        var worker = new ControllerAccessibilityDispatcher(() => null, () => menu.IsOpen,
+            command => command == ModSettingsInputCommand.Open ? menu.Open() : menu.Close(),
+            _ => null, _ => { }, _ => { }, () => fixture.Coordinator.SuspendInput());
+        worker.Tick(true, _ => false, Now.AddMilliseconds(20));
+        worker.Tick(true, key => key == 0x7A, Now.AddMilliseconds(40));
+        Check(menu.IsOpen && fixture.Sink.Held.Count == 0, "keyboard settings releases pursuit even without an XInput hook");
+        for (var tick = 1; tick <= 5; tick++)
+        {
+            worker.Tick(true, _ => false, Now.AddMilliseconds(40 + tick * 30));
+            fixture.Coordinator.Observe(10, true, !menu.IsOpen, Now.AddMilliseconds(40 + tick * 30),
+                _ => false, null, out _);
+            Check(fixture.Coordinator.IsPursuing && fixture.Sink.Held.Count == 0,
+                "coherent mission observations retain pursuit but cannot reacquire input through keyboard settings");
+        }
+        worker.Tick(true, key => key == 0x7A, Now.AddMilliseconds(230));
+        fixture.Coordinator.Observe(10, true, !menu.IsOpen, Now.AddMilliseconds(260), _ => false, null, out _);
+        Check(!menu.IsOpen && fixture.Sink.Held.Count > 0, "pursuit can resume only after settings closes");
     }
 
     private static void AnOverviewPursuitReturnsToTheNativeFiringView()

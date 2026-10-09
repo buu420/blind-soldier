@@ -130,13 +130,13 @@ internal sealed class SubmarineAccessibilityCoordinator : IDisposable
             SuspendInput();
             readout.Reset();
             wasActive = false;
-            capture?.PublishUnavailable(ControllerNavigationDomain.Submarine, now);
+            PublishSettingsOnly(capture, foreground, now);
             return default;
         }
         if (!reader.TryRead(out var snapshot))
         {
             SuspendInput(preserveViewRequest: true);
-            capture?.PublishUnavailable(ControllerNavigationDomain.Submarine, now);
+            PublishSettingsOnly(capture, foreground, now);
             if (capture is not null) dispatcher.Drain(capture, ControllerNavigationDomain.Submarine, now);
             if (toggle && pursuit.IsPursuing) commandSpeech = pursuit.StopPursuit();
             if (repeat) commandSpeech = "Submarine status is temporarily unavailable. Pursuit input is released.";
@@ -146,7 +146,7 @@ internal sealed class SubmarineAccessibilityCoordinator : IDisposable
         if (!snapshot.IsActive)
         {
             Reset();
-            capture?.PublishUnavailable(ControllerNavigationDomain.Submarine, now);
+            PublishSettingsOnly(capture, foreground, now);
             return default;
         }
 
@@ -319,6 +319,13 @@ internal sealed class SubmarineAccessibilityCoordinator : IDisposable
         if (plan.Direction is HighwaySteeringDirection.Left or HighwaySteeringDirection.UpLeft or HighwaySteeringDirection.DownLeft) mask |= 0x8000;
         if (plan.Direction is HighwaySteeringDirection.Right or HighwaySteeringDirection.UpRight or HighwaySteeringDirection.DownRight) mask |= 0x2000;
         return mask;
+    }
+
+    private static void PublishSettingsOnly(ControllerNavigationCapture? capture, bool foreground, DateTime now)
+    {
+        if (foreground && capture?.UsesModifierControls == true)
+            capture.PublishContext(ControllerNavigationDomain.Submarine, true, false, true, now, 10);
+        else capture?.PublishUnavailable(ControllerNavigationDomain.Submarine, now);
     }
 
     internal void SuspendInput(bool preserveViewRequest = false)

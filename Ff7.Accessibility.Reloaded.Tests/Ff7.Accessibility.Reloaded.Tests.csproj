@@ -7,6 +7,7 @@
     <Nullable>enable</Nullable>
     <PlatformTarget>x86</PlatformTarget>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <DefineConstants>$(DefineConstants);BLIND_SOLDIER_LEGACY_TESTS</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>

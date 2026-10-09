@@ -35,6 +35,15 @@ namespace Ff7.Accessibility.Reloaded;
 /// leaves the animation unheard, and a load or new game discards everything in flight.
 /// The whole schedule is then told again the next time the animation plays.</para>
 ///
+/// <para><b>Reset.</b> The player can reset the save's history from the mod settings
+/// (<see cref="FieldAreaDescriptionHistory.ResetActiveSave"/>). That is not another
+/// playthrough: the animation on screen keeps its schedule and its row, so it is neither cut
+/// off nor described again from its middle. But each schedule remembers the
+/// <see cref="FieldAreaDescriptionHistory.ResetEpoch"/> it was opened under, and one opened
+/// before the reset is not recorded as heard when it settles - otherwise a description already
+/// in flight would put back the very entry the player had just cleared, and the next cast
+/// would be silent again. Every later animation opens under the new epoch and is told.</para>
+///
 /// <para><b>Anchor.</b> Cue ticks count from the row start, or for a summon described
 /// with <see cref="BattleAnimationAnchor.SummonSequence"/> from the tick the summon
 /// dispatcher <c>FUN_005C0E4B</c> left the effect table, which is when its stage 1 began
@@ -370,7 +379,7 @@ public sealed class BattleAnimationNarrationCoordinator : IDisposable
     private void TryOpen(BattleAnimationDescription description, Episode episode, BattleAnimationObservation seen)
     {
         var key = description.HistoryKey;
-        if (history.HasHeard(key) || schedules.Exists(schedule => schedule.Description.HistoryKey == key))
+        if (history.HasHeard(key, out var resetEpoch) || schedules.Exists(schedule => schedule.Description.HistoryKey == key))
         {
             return;
         }
@@ -381,7 +390,7 @@ public sealed class BattleAnimationNarrationCoordinator : IDisposable
             return;
         }
 
-        var schedule = new Schedule(description, episode, playthroughRevision, ticksPerCueFrame);
+        var schedule = new Schedule(description, episode, playthroughRevision, resetEpoch, ticksPerCueFrame);
         if (description.Anchor == BattleAnimationAnchor.Banner && seen.BannerVisible)
         {
             // How long the banner has been up is unknown, so its cues cannot be timed.
@@ -476,14 +485,19 @@ public sealed class BattleAnimationNarrationCoordinator : IDisposable
         {
             log($"Battle animation narration not heard: {identity.Key} ({summary}); kept for next time.");
         }
-        else if (history.TryMarkHeard(schedule.Description.HistoryKey, schedule.PlaythroughRevision))
+        else if (history.TryMarkHeard(schedule.Description.HistoryKey, schedule.PlaythroughRevision, schedule.ResetEpoch))
         {
             log($"Battle animation narration heard: {identity.NativeName} ({identity.Key}, revision " +
                 $"{schedule.Description.Revision}; {summary}).");
         }
-        else
+        else if (history.PlaythroughRevision != schedule.PlaythroughRevision)
         {
             log($"Battle animation narration finished after another playthrough was loaded: {identity.Key} not marked heard.");
+        }
+        else
+        {
+            log($"Battle animation narration finished after the battle descriptions were reset: {identity.Key} " +
+                "not marked heard, so it is told again next time.");
         }
     }
 
@@ -694,6 +708,7 @@ public sealed class BattleAnimationNarrationCoordinator : IDisposable
         BattleAnimationDescription description,
         Episode episode,
         long playthroughRevision,
+        long resetEpoch,
         int ticksPerCueFrame)
     {
         private int finalTick = -1;
@@ -727,6 +742,9 @@ public sealed class BattleAnimationNarrationCoordinator : IDisposable
         public Episode Episode { get; } = episode;
 
         public long PlaythroughRevision { get; } = playthroughRevision;
+
+        /// <summary>The history's reset epoch when this opened; a later reset leaves it unheard.</summary>
+        public long ResetEpoch { get; } = resetEpoch;
 
         public int Elapsed { get; set; }
 

@@ -1,7 +1,7 @@
 using System.Diagnostics;
+using Ff7.Accessibility.Core;
 using NAudio.Vorbis;
 using NAudio.Wave;
-using NAudio.Wave.SampleProviders;
 
 namespace Ff7.Accessibility.Reloaded;
 
@@ -44,6 +44,7 @@ internal sealed class OpeningMovieAudioTrackPlayer : IFieldMovieNarrationOutput,
 
     private readonly string path;
     private readonly float volume;
+    private readonly Func<int>? liveMasterVolumePercent;
     private readonly Action<string> log;
     // The same Vorbis/WaveOut playback is used for the opening film and for
     // described in-game films; only the diagnostic wording differs.
@@ -60,8 +61,18 @@ internal sealed class OpeningMovieAudioTrackPlayer : IFieldMovieNarrationOutput,
     private bool completedNormally;
     private bool paused;
 
-    public OpeningMovieAudioTrackPlayer(string path, int volumePercent, Action<string> log, string label = "Opening movie")
-        : this(path, volumePercent, log, label, null, null, null)
+    /// <param name="volumePercent">This recording's own calibration.</param>
+    /// <param name="liveMasterVolumePercent">
+    /// The player's description volume (<see cref="AccessibilityConfig.AudioDescriptionVolumePercent"/>),
+    /// read for every buffer while the recording plays; null keeps the calibration alone.
+    /// </param>
+    public OpeningMovieAudioTrackPlayer(
+        string path,
+        int volumePercent,
+        Action<string> log,
+        string label = "Opening movie",
+        Func<int>? liveMasterVolumePercent = null)
+        : this(path, volumePercent, log, label, null, null, null, liveMasterVolumePercent)
     {
     }
 
@@ -77,13 +88,15 @@ internal sealed class OpeningMovieAudioTrackPlayer : IFieldMovieNarrationOutput,
         string label,
         Func<string, float, INarrationDevice>? openDevice,
         Action<Action>? schedule,
-        Func<long>? elapsedMs)
+        Func<long>? elapsedMs,
+        Func<int>? liveMasterVolumePercent = null)
     {
         this.path = path;
         volume = OpeningMovieAudioTrackVolumePolicy.ToGain(volumePercent);
+        this.liveMasterVolumePercent = liveMasterVolumePercent;
         this.log = log;
         this.label = label;
-        this.openDevice = openDevice ?? OpenWaveOutDevice;
+        this.openDevice = openDevice ?? ((devicePath, _) => new WaveOutNarrationDevice(devicePath, () => CurrentGain));
         this.schedule = schedule ?? (work => ThreadPool.QueueUserWorkItem(_ => work()));
         var stopwatch = Stopwatch.StartNew();
         this.elapsedMs = elapsedMs ?? (() => stopwatch.ElapsedMilliseconds);
@@ -92,7 +105,11 @@ internal sealed class OpeningMovieAudioTrackPlayer : IFieldMovieNarrationOutput,
         {
             log(
                 $"{label} narration track: {path} " +
-                $"({new FileInfo(path).Length} bytes), volume={volume * 100:0}%.");
+                $"({new FileInfo(path).Length} bytes), volume={volume * 100:0}%" +
+                (liveMasterVolumePercent is null
+                    ? "."
+                    : $" x live master description volume, now {liveMasterVolumePercent()}% " +
+                      $"(limited at {AudioDescriptionLimiter.Ceiling:0.00} of full scale)."));
         }
         else
         {
@@ -120,6 +137,21 @@ internal sealed class OpeningMovieAudioTrackPlayer : IFieldMovieNarrationOutput,
     {
         get { lock (sync) return completedNormally; }
     }
+
+    /// <summary>
+    /// The gain the recording plays at now: its own calibration times the player's description
+    /// volume. The output reads it for every buffer, so a change reaches a recording that is
+    /// already playing without seeking, restarting or touching how its end is reported.
+    /// </summary>
+    internal float CurrentGain =>
+        AudioDescriptionLevel.Gain(volume, liveMasterVolumePercent?.Invoke() ?? AudioDescriptionLevel.DefaultPercent);
+
+    /// <summary>
+    /// The samples the output device plays: the decoded recording at <paramref name="gain"/>,
+    /// limited within full scale.
+    /// </summary>
+    internal static ISampleProvider CreateNarrationChain(WaveStream reader, Func<float> gain) =>
+        new NarrationGainSampleProvider(reader.ToSampleProvider(), gain);
 
     /// <summary>Whether a warm device is sitting ready. Diagnostic and test use.</summary>
     internal bool IsPrepared
@@ -614,9 +646,6 @@ internal sealed class OpeningMovieAudioTrackPlayer : IFieldMovieNarrationOutput,
         }
     }
 
-    private static INarrationDevice OpenWaveOutDevice(string path, float volume) =>
-        new WaveOutNarrationDevice(path, volume);
-
     private readonly record struct PendingStart(
         int Generation,
         long RequestedAtMs,
@@ -652,7 +681,7 @@ internal sealed class OpeningMovieAudioTrackPlayer : IFieldMovieNarrationOutput,
         private readonly WaveOutEvent output;
         private int disposed;
 
-        public WaveOutNarrationDevice(string path, float volume)
+        public WaveOutNarrationDevice(string path, Func<float> gain)
         {
             reader = new VorbisWaveReader(path);
             var opening = new WaveOutEvent
@@ -661,14 +690,9 @@ internal sealed class OpeningMovieAudioTrackPlayer : IFieldMovieNarrationOutput,
             };
             try
             {
-                var volumeProvider = new VolumeSampleProvider(reader.ToSampleProvider())
-                {
-                    Volume = volume
-                };
-
                 // Init opens the device and allocates its buffers; it does not read the
                 // provider, so seeking afterwards still decides where playback begins.
-                opening.Init(volumeProvider);
+                opening.Init(CreateNarrationChain(reader, gain));
             }
             catch
             {
@@ -711,5 +735,59 @@ internal sealed class OpeningMovieAudioTrackPlayer : IFieldMovieNarrationOutput,
             output.Dispose();
             reader.Dispose();
         }
+    }
+}
+
+/// <summary>
+/// A recorded description at the gain the player chose, read afresh for every buffer the
+/// output asks for and passed through <see cref="AudioDescriptionLimiter"/>, so no boost can
+/// exceed full scale. It returns exactly what the decoder returned, sample for sample, so the
+/// recording's length, position, pause and end stay the decoder's own.
+/// </summary>
+internal sealed class NarrationGainSampleProvider : ISampleProvider
+{
+    private readonly ISampleProvider source;
+    private readonly Func<float> gain;
+    private float lastGain = 1.0f;
+
+    public NarrationGainSampleProvider(ISampleProvider source, Func<float> gain)
+    {
+        this.source = source ?? throw new ArgumentNullException(nameof(source));
+        this.gain = gain ?? throw new ArgumentNullException(nameof(gain));
+        Limiter = new AudioDescriptionLimiter(source.WaveFormat.SampleRate, source.WaveFormat.Channels);
+    }
+
+    internal AudioDescriptionLimiter Limiter { get; }
+
+    public WaveFormat WaveFormat => source.WaveFormat;
+
+    public int Read(float[] buffer, int offset, int count)
+    {
+        var read = source.Read(buffer, offset, count);
+        if (read > 0)
+        {
+            Limiter.Process(buffer.AsSpan(offset, read), NextGain());
+        }
+
+        return read;
+    }
+
+    private float NextGain()
+    {
+        try
+        {
+            var value = gain();
+            if (float.IsFinite(value) && value >= 0)
+            {
+                lastGain = value;
+            }
+        }
+        catch (Exception)
+        {
+            // Keep the level it had. Failing here would stop the recording on the device's
+            // thread, and a stopped recording also counts as never heard.
+        }
+
+        return lastGain;
     }
 }

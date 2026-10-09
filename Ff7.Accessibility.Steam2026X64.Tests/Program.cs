@@ -18,6 +18,18 @@ if (args.Contains("--field-execution-report", StringComparer.OrdinalIgnoreCase))
     Environment.Exit(Ff7.Accessibility.Reloaded.Tests.FieldScriptExecutionModelTests.Report());
 }
 
+if (args.Contains("--mod-settings-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.ModSettingsTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.BattleDescriptionResetTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.AudioDescriptionVolumeTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.ControllerModifierNavigationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.ControllerAccessibilityWorkerTests.Run();
+    Steam2026SdlModifierInputTests.Run();
+    Console.WriteLine("Mod settings, battle reset and live description volume tests passed.");
+    return;
+}
+
 if (args.Contains("--house-parking-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.WorldMapHouseParkingTests.Run();
@@ -231,6 +243,14 @@ if (args.Contains("--native-directional-input-only", StringComparer.OrdinalIgnor
     return;
 }
 
+if (args.Contains("--controller-modifier-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.ControllerModifierNavigationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.ControllerAccessibilityWorkerTests.Run();
+    Steam2026SdlModifierInputTests.Run();
+    return;
+}
+
 if (args.Contains("--submarine-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.SubmarineMissionTests.Run();
@@ -308,6 +328,9 @@ if (args.Contains("--module-tests-only", StringComparer.OrdinalIgnoreCase))
     Steam2026SdlControllerOwnershipTests.Run();
     Steam2026SdlControllerPollStarvationTests.Run();
     Steam2026SdlControllerCaptureHookTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.ControllerModifierNavigationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.ControllerAccessibilityWorkerTests.Run();
+    Steam2026SdlModifierInputTests.Run();
     Ff7.Accessibility.Reloaded.Tests.WorldMapTerrainAnnouncementTests.Run();
     Ff7.Accessibility.Reloaded.Tests.WorldMapTargetCatalogTests.Run();
     // Steam2026WorldMapTerrainPriorityTests is deliberately absent. Every one of
@@ -315,6 +338,9 @@ if (args.Contains("--module-tests-only", StringComparer.OrdinalIgnoreCase))
     // there is no honest data-free subset of it to run here. It stays mandatory
     // in --world-map-only and in the full suite.
     Ff7.Accessibility.Reloaded.Tests.ReviewedFilmNarrationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.ModSettingsTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.BattleDescriptionResetTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.AudioDescriptionVolumeTests.Run();
     Ff7.Accessibility.Reloaded.Tests.FilmNarrationSeamTests.Run();
     Ff7.Accessibility.Reloaded.Tests.CutsceneVoiceTests.Run();
     Steam2026CutsceneVoiceAdapterTests.Run();
@@ -840,8 +866,8 @@ if (args.Contains("--field-countdown-only", StringComparer.OrdinalIgnoreCase))
 
 if (args.Contains("--room-history-only", StringComparer.OrdinalIgnoreCase))
 {
-    Ff7.Accessibility.Reloaded.Tests.FieldAreaDescriptionHistoryTests.Run();
-    Ff7.Accessibility.Reloaded.Tests.FieldAreaDescriptionSaveTrackerTests.Run();
+Ff7.Accessibility.Reloaded.Tests.FieldAreaDescriptionHistoryTests.Run();
+Ff7.Accessibility.Reloaded.Tests.FieldAreaDescriptionSaveTrackerTests.Run();
     Console.WriteLine("Steam 2026 x64 room description history tests passed.");
     return;
 }
@@ -974,6 +1000,12 @@ Steam2026ResearchObservationPumpTests.Run();
 Ff7.Accessibility.Reloaded.Tests.MenuGilReadoutTests.Run();
 Steam2026MenuGilReadoutTests.Run();
 Ff7.Accessibility.Reloaded.Tests.FieldAreaDescriptionHistoryTests.Run();
+Ff7.Accessibility.Reloaded.Tests.ModSettingsTests.Run();
+Ff7.Accessibility.Reloaded.Tests.BattleDescriptionResetTests.Run();
+Ff7.Accessibility.Reloaded.Tests.AudioDescriptionVolumeTests.Run();
+Ff7.Accessibility.Reloaded.Tests.ControllerModifierNavigationTests.Run();
+Ff7.Accessibility.Reloaded.Tests.ControllerAccessibilityWorkerTests.Run();
+Steam2026SdlModifierInputTests.Run();
 Ff7.Accessibility.Reloaded.Tests.BattleAnimationNarrationTests.Run();
 Ff7.Accessibility.Reloaded.Tests.BattleNarrationAssetTests.Run();
 Ff7.Accessibility.Reloaded.Tests.BattleNarrationLifecycleTests.Run();

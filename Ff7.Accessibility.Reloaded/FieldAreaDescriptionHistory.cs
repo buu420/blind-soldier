@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 
@@ -12,8 +13,10 @@ public sealed class FieldAreaDescriptionHistory
     private readonly Dictionary<string, HashSet<int>> profiles = new(StringComparer.Ordinal);
     private HashSet<int> heard = [];
     private string? activeSlot;
+    private bool newGame;
     private bool reportedFailure;
     private long playthroughRevision;
+    private long resetEpoch;
 
     public FieldAreaDescriptionHistory(string? path, Action<string>? log = null)
     {
@@ -45,10 +48,35 @@ public sealed class FieldAreaDescriptionHistory
         lock (sync) return heard.Contains(fieldId);
     }
 
+    /// <summary>
+    /// Whether it was heard, and the <see cref="ResetEpoch"/> that answer belongs to, read
+    /// together so a reset cannot fall between them.
+    /// </summary>
+    public bool HasHeard(int fieldId, out long resetEpoch)
+    {
+        lock (sync)
+        {
+            resetEpoch = this.resetEpoch;
+            return heard.Contains(fieldId);
+        }
+    }
+
     /// <summary>Changes on a load or new game, but not when saving this playthrough.</summary>
     public long PlaythroughRevision
     {
         get { lock (sync) return playthroughRevision; }
+    }
+
+    /// <summary>
+    /// Changes when the player resets this history (<see cref="ResetActiveSave"/>), and only
+    /// then. It is deliberately not <see cref="PlaythroughRevision"/>: the same playthrough
+    /// stays on screen, so nothing already playing is stopped or started again from its
+    /// middle, but a description that was already being told when the player reset must not
+    /// then record itself heard - the player asked to hear it again at its next occurrence.
+    /// </summary>
+    public long ResetEpoch
+    {
+        get { lock (sync) return resetEpoch; }
     }
 
     /// <summary>A delayed recording cannot mark a different playthrough as heard.</summary>
@@ -60,6 +88,19 @@ public sealed class FieldAreaDescriptionHistory
                 return false;
             MarkHeard(fieldId);
             return true;
+        }
+    }
+
+    /// <summary>
+    /// As <see cref="TryMarkHeard(int, long)"/>, and refused too when the player has reset
+    /// the history since <paramref name="expectedResetEpoch"/> was read: a description that
+    /// was in flight across the reset cannot put back the entry the player just cleared.
+    /// </summary>
+    public bool TryMarkHeard(int fieldId, long expectedPlaythroughRevision, long expectedResetEpoch)
+    {
+        lock (sync)
+        {
+            return resetEpoch == expectedResetEpoch && TryMarkHeard(fieldId, expectedPlaythroughRevision);
         }
     }
 
@@ -83,6 +124,7 @@ public sealed class FieldAreaDescriptionHistory
         {
             playthroughRevision++;
             activeSlot = key;
+            newGame = false;
             heard = profiles.TryGetValue(key, out var previous) ? new HashSet<int>(previous) : [];
         }
     }
@@ -94,6 +136,7 @@ public sealed class FieldAreaDescriptionHistory
         lock (sync)
         {
             activeSlot = key;
+            newGame = false;
             profiles[key] = new HashSet<int>(heard);
             Persist();
         }
@@ -106,13 +149,48 @@ public sealed class FieldAreaDescriptionHistory
         {
             playthroughRevision++;
             activeSlot = null;
+            newGame = true;
             heard = [];
         }
     }
 
-    private void Persist()
+    /// <summary>
+    /// The player's reset: forgets everything heard in the playthrough being played, so each
+    /// description is told again at its next occurrence. Only the bound save's entry in the
+    /// file is removed; every other save keeps its history. An unsaved new game is reset in
+    /// memory, and its first save then carries only what was heard afterwards. Descriptions
+    /// already in flight finish but are not recorded (<see cref="ResetEpoch"/>).
+    /// </summary>
+    public DescriptionHistoryResetResult ResetActiveSave()
     {
-        if (string.IsNullOrWhiteSpace(path)) return;
+        lock (sync)
+        {
+            resetEpoch++;
+            var cleared = heard.Count;
+            heard = [];
+            if (activeSlot is null)
+            {
+                var scope = newGame || cleared > 0
+                    ? DescriptionHistoryResetScope.UnsavedGame
+                    : DescriptionHistoryResetScope.NoGame;
+                return new DescriptionHistoryResetResult(scope, 0, 0, cleared, null);
+            }
+
+            var parts = activeSlot.Split(':');
+            profiles.Remove(activeSlot);
+            return new DescriptionHistoryResetResult(
+                DescriptionHistoryResetScope.SavedGame,
+                int.Parse(parts[0], CultureInfo.InvariantCulture),
+                int.Parse(parts[1], CultureInfo.InvariantCulture),
+                cleared,
+                Persist());
+        }
+    }
+
+    /// <returns>Why the file could not be written, or null when it was or there is no file.</returns>
+    private string? Persist()
+    {
+        if (string.IsNullOrWhiteSpace(path)) return null;
         string? temporary = null;
         try
         {
@@ -124,10 +202,12 @@ public sealed class FieldAreaDescriptionHistory
             File.WriteAllText(temporary, JsonSerializer.Serialize(data), new UTF8Encoding(false));
             File.Move(temporary, destination, overwrite: true);
             temporary = null;
+            return null;
         }
         catch (Exception ex) when (IsStorageFailure(ex))
         {
             ReportFailure(ex);
+            return ex.Message;
         }
         finally
         {
@@ -164,4 +244,31 @@ public sealed class FieldAreaDescriptionHistory
     }
 
     private sealed record HistoryFile(int Version, Dictionary<string, int[]> Slots);
+}
+
+/// <summary>Whose history a reset cleared.</summary>
+public enum DescriptionHistoryResetScope
+{
+    /// <summary>Nothing has been loaded or started yet, so there was nothing to clear.</summary>
+    NoGame,
+
+    /// <summary>A game not yet tied to a native save: cleared in memory only.</summary>
+    UnsavedGame,
+
+    /// <summary>The loaded or last saved native save, in memory and in the file.</summary>
+    SavedGame,
+}
+
+/// <param name="SaveFile">The native save file, 1-10, for <see cref="DescriptionHistoryResetScope.SavedGame"/>.</param>
+/// <param name="GameSlot">The game within it, 1-15, for <see cref="DescriptionHistoryResetScope.SavedGame"/>.</param>
+/// <param name="ClearedCount">How many heard entries the playthrough had.</param>
+/// <param name="PersistenceFailure">Why the file could not be written, or null.</param>
+public sealed record DescriptionHistoryResetResult(
+    DescriptionHistoryResetScope Scope,
+    int SaveFile,
+    int GameSlot,
+    int ClearedCount,
+    string? PersistenceFailure)
+{
+    public bool Persisted => PersistenceFailure is null;
 }

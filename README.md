@@ -79,8 +79,8 @@ the displayed GP balance and party-member choices.
 
 The submarine mission reports its instruments and visible contacts on both
 runtimes. `J`/`L` select a submarine, `O` toggles automatic pursuit, `I` starts
-pursuit and `K` repeats status. On a controller, `R3` opens the target list;
-D-pad Up/Down selects, A or X pursues, and B or R3 from the list stops.
+pursuit and `K` repeats status. On a controller, hold either trigger and use
+D-pad Up/Down to select, L3 or R3 to pursue, and B/Circle to stop.
 The Huge Materia red leader has its own name. The assist remembers the last
 visible position of a contact between sightings and tells you when it is stale.
 Pursuit returns to the normal firing view automatically when close enough to
@@ -121,8 +121,9 @@ orbs and green light, once per save. The displayed summon attack name is read on
 each cast. The summon's main description waits for its own scene to begin, and
 battle pause pauses the narration too. Each animation is described once per save; these expanded
 descriptions can play once even if that save already heard the earlier brief version.
-Selecting an ability in a menu does not start a description. Set `EnableBattleAnimationDescriptions`
-to `false` in the mod's configuration to disable these recordings.
+Selecting an ability in a menu does not start a description. The mod settings
+menu lets you disable these recordings, reset battle descriptions for the current
+save, and adjust recorded-description volume from 50 to 300 percent.
 
 Coverage is limited to the included scenes; this does not mean every cutscene
 or optional event has been described. Area arrival descriptions say what a
@@ -136,6 +137,10 @@ again where one exists.
 
 Field and world-map navigation, routes, auto walk and the progress indicator
 are described under [Navigation](#navigation).
+
+Version 0.8.10 replaces the R3 navigation menu with held-trigger controls, adds
+controller party readouts and spoken mod settings, and lets you reset current-save
+battle descriptions and boost recordings. See the [release notes](docs/releases/v0.8.10.md).
 
 Version 0.8.9 makes the Temple clock's second-hand hazard audible while you cross
 its hands. It reports the visible hand's position, approach and crossing, and
@@ -397,10 +402,10 @@ instead of reading unverified game memory.
 Choose one download from the
 [Blind Soldier Releases page](https://github.com/buu420/blind-soldier/releases):
 
-- [Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.8.9/Blind-Soldier-Portable.zip)
+- [Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.8.10/Blind-Soldier-Portable.zip)
   is the complete dual-runtime package. Use it for Steam 2026 x64 or when one
   extracted package must support both x86 and x64 installations.
-- [Blind-Soldier-2013-x86-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.8.9/Blind-Soldier-2013-x86-Portable.zip)
+- [Blind-Soldier-2013-x86-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.8.10/Blind-Soldier-2013-x86-Portable.zip)
   is the smaller legacy-only package. Use it for the 2013 x86 game, including
   stock 7th Heaven/FFNx. It deliberately contains no Steam 2026 launcher or
   x64 files.
@@ -554,8 +559,9 @@ foreground. The normal game controls are unchanged.
 | `F8` | Toggle automatic steering during the motorcycle minigame |
 
 Progress intervals are `5`, `10`, `15`, and `20` percent. `F6` and `F7` wrap
-around at either end. Key changes to progress settings last for the current
-game session; the installed configuration supplies the next launch's defaults.
+around at either end. Progress and highway-steering shortcut changes are saved
+in `Configuration/player-settings.json` and apply over the installed configuration
+at the next launch.
 
 Opening the main menu announces your gil once, after the first menu item.
 Returning from a submenu does not repeat it. In shops, the screens that show
@@ -564,39 +570,63 @@ as it is at that moment, so it reflects a purchase or sale straight away. It
 stays silent where the game does not show your gil, such as fields, the world
 map, main-menu submenus, and a shop's Buy, Sell, and Exit choice.
 
-### Controller navigation menu
+### Controller navigation
 
-Click the right stick (R3) to open the spoken navigation menu in a field or
-on the world map. R3 also reopens it while navigation is running. Automatic
-walking pauses while you browse.
+Hold either trigger, LT/L2 or RT/R2, to browse navigation in fields, on the world
+map, and in the submarine mission. Automatic movement pauses while you browse.
 
-| Button | Action while the navigation menu is open |
+| While holding a trigger | Action |
 | --- | --- |
+| D-pad Left / Right | Previous / next category |
 | D-pad Up / Down | Previous / next target |
-| LB / L1 | Previous category |
-| RB / R1 | Next category |
-| A / Cross | Start spoken guidance to the selected target and close the menu |
-| X / Square | Start automatic walking to the selected target and close the menu |
-| B / Circle, or R3 again | Stop navigation and automatic walking, then close the menu |
+| L3, click the left stick | Start spoken guidance |
+| R3, click the right stick | Start automatic travel |
+| B / Circle | Stop navigation and automatic travel |
 
-The D-pad controls selection; the left stick does not cycle targets. Choosing
-the same target again keeps navigation running. The menu uses the same
-targets and categories as the keyboard shortcuts above.
+Release the trigger to return to ordinary play. After starting or stopping a
+route, release it before browsing again. D-pad selection repeats after a short
+hold. The controller uses the same targets as keyboard navigation. In the
+submarine mission either stick click starts pursuit; firing remains manual.
 
-Individual D-pad presses respond immediately. Holding Up or Down starts scrolling
-after a short delay, at about three targets per second. Each bumper press changes
-one category, even if the D-pad is already repeating.
+In battle, hold LT/L2 for party information. D-pad Left/Right selects the previous
+or next present member, Up reads HP, MP and limit, Down reads buffs and debuffs,
+and Y/Triangle reads the limit gauge. These readouts use the game's visible party
+state and do not select a battle action.
 
-If more than one controller is connected, the menu follows the pad you click R3
-on, so a PlayStation and an Xbox controller can be plugged in at the same time.
-The menu stays with that pad until you close it; a second controller cannot take
-a menu somebody is already reading, and its ordinary buttons keep working in the
-game normally. On Steam x64, R3 is reserved for navigation while controller
-navigation is enabled, including when a game dialogue prevents the menu from
-opening. This keeps navigation clicks from toggling Battle Assist. It also reserves
-R3 when combined with other buttons, so native controller shortcuts using R3 are
-unavailable. Their keyboard shortcuts (F1, F2 and F9) remain available; Battle
-Assist can also be changed in the game's Boosts settings.
+Accessibility chords and their release tails are captured before the game reads
+them, including buttons and movement axes. With multiple controllers, a fresh
+trigger press selects the browsing controller when the previous controller has
+released its controls. R3 is reserved on every controller while the mod's capture
+hooks are active, even outside a trigger chord, because Steam's Battle Assist
+shortcut toggles on release. Use the game's Boosts menu for Battle Assist.
+
+### Mod settings
+
+Press `F11`, or hold both triggers and press Y/Triangle, to open spoken settings.
+The controller menu stays open when you release the triggers. It stays audible
+with Mod speech turned off, and automatic movement pauses while it is open.
+
+| Action | Keyboard | Controller |
+| --- | --- | --- |
+| Previous / next setting | J / L | D-pad Up / Down |
+| Decrease / increase value | U / O | D-pad Left / Right |
+| Toggle or activate | I | A / Cross |
+| Repeat setting | K | Read the setting again by selecting it |
+| Close | F11 | B / Circle |
+
+Description volume is the first setting: 50-300 percent in steps of 25. It
+changes currently playing recorded descriptions as well as later playback;
+screen-reader volume remains separate. A limiter controls boosted peaks.
+
+Reset battle descriptions is the second setting. Activate it twice to confirm
+the reset for the current save. Summons and limits are described again when they
+next occur. A recording already in progress finishes normally. Other saves and
+area-description history are preserved.
+
+All player toggles are listed. Settings announce when a change requires restarting
+the game or is unavailable in that runtime. Choices are saved in
+`Configuration/player-settings.json`; `config.json` remains the base configuration.
+The installer preserves overrides and description histories on updates.
 
 ### Battle status keys
 

@@ -1,5 +1,7 @@
 namespace Ff7.Accessibility.Reloaded;
 
+public enum BattleStatusControllerCommand { Previous, Next, Summary, Statuses, Limit }
+
 public enum BattleStatusHotkeyCommand
 {
     SelectParty1,
@@ -137,6 +139,37 @@ public sealed class BattleStatusHotkeyController
     }
 
     public void Reset() => SelectedPartySlot = 0;
+
+    /// <summary>Reads the same visible party state as the keyboard controls.</summary>
+    public string? HandleController(BattleStatusControllerCommand command,
+        Func<int, BattleStatusMemberSnapshot?> readMember)
+    {
+        ArgumentNullException.ThrowIfNull(readMember);
+        if (command is BattleStatusControllerCommand.Previous or BattleStatusControllerCommand.Next)
+        {
+            var direction = command == BattleStatusControllerCommand.Next ? 1 : -1;
+            for (var offset = 1; offset <= 3; offset++)
+            {
+                var slot = (SelectedPartySlot + direction * offset + 6) % 3;
+                if (ReadMember(readMember, slot) is null) continue;
+                return Handle(BattleStatusHotkeyCommand.SelectParty1 + slot, readMember);
+            }
+            return "Party information unavailable.";
+        }
+        if (command is BattleStatusControllerCommand.Summary or BattleStatusControllerCommand.Statuses)
+        {
+            var member = ReadMember(readMember, SelectedPartySlot);
+            if (member is null) return Unavailable(SelectedPartySlot);
+            var actor = member.Value.Actor;
+            return command == BattleStatusControllerCommand.Summary
+                ? $"{actor.Name} HP {actor.CurrentHp} of {actor.MaxHp}, MP {actor.CurrentMp} of {actor.MaxMp}, " +
+                  $"limit {LimitGaugeToPercent(member.Value.LimitGauge)} percent."
+                : string.Join(" ", FormatStatuses(actor.Name, actor.StatusMask, false),
+                    FormatStatuses(actor.Name, actor.StatusMask, true));
+        }
+        return command == BattleStatusControllerCommand.Limit
+            ? Handle(BattleStatusHotkeyCommand.Limit, readMember) : null;
+    }
 
     public static int LimitGaugeToPercent(byte value) =>
         value == byte.MaxValue ? 100 : (value * 100 + 127) / byte.MaxValue;

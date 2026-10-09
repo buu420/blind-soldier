@@ -39,6 +39,7 @@ internal static class CondorCursorSteeringTests
         DestinationSteeringStopsAudiblyWhenItsModeOrTargetDisappears();
         DestinationSteeringRefusesANewKeyDownWhenAnotherDirectionAppears();
         SharedProductionPathStillSteersTheBattlefieldCursor();
+        OpeningSettingsReleasesActiveCursorDirections();
     }
 
     /// <summary>
@@ -709,6 +710,30 @@ internal static class CondorCursorSteeringTests
         var step = steering.Step(cursorReadable: true, underCursorControl: true, 300, 700, AllDirections);
         Equal(CondorSteeringOutcome.Arrived, step.Outcome, "already there is arrival");
         Equal("Moving stopped.", step.Speech, "arrival announces that movement ended once");
+    }
+
+    private static void OpeningSettingsReleasesActiveCursorDirections()
+    {
+        var sink = new RecordingSink();
+        using var steering = new CondorCursorSteering(new HighwayAutoSteeringController(sink));
+        steering.Begin(targetX: 300, targetY: 700, cursorX: 100, cursorY: 100);
+        _ = steering.Step(true, true, 100, 100, AllDirections);
+        Equal(2, sink.HeldScanCodes().Length, "a real cursor jump is holding directions before settings");
+        var open = false;
+        var dispatcher = new ControllerAccessibilityDispatcher(() => null, () => open,
+            command => { if (command == ModSettingsInputCommand.Open) open = true;
+                if (command == ModSettingsInputCommand.Close) open = false; return "settings"; },
+            _ => null, _ => { }, _ => { }, () => steering.Cancel("mod settings owns input"));
+        var now = DateTime.UtcNow;
+        dispatcher.Tick(true, _ => false, now);
+        dispatcher.Tick(true, key => key == 0x7A, now);
+        Equal(true, open, "F11 owns settings during the cursor jump");
+        Equal(false, steering.IsSteering, "settings cancels the cursor jump");
+        Equal(0, sink.HeldScanCodes().Length, "the real steering sink releases all directions immediately");
+        dispatcher.Tick(true, _ => false, now.AddMilliseconds(20));
+        dispatcher.Tick(true, key => key == 0x7A, now.AddMilliseconds(40));
+        _ = steering.Step(true, true, 100, 100, AllDirections);
+        Equal(0, sink.HeldScanCodes().Length, "closing settings cannot revive the cancelled jump");
     }
 
     private sealed class RecordingSink : IHighwayKeyboardInputSink

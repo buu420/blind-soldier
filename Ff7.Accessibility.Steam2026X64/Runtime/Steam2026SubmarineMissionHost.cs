@@ -29,6 +29,7 @@ internal sealed class Steam2026SubmarineMissionHost(ILegacyAddressSpace memory,
         out bool interrupt) => accessibility.Observe(module, foreground, enabled, now, pressed, capture, out interrupt);
 
     internal void Reset() => accessibility.Reset();
+    internal void SuspendInput() => accessibility.SuspendInput();
     public void Dispose() => accessibility.Dispose();
 
     // Read-only evidence for the tester's stuck post-mission dialogue. The old

@@ -39,6 +39,8 @@ public sealed class XInputCaptureHook : IDisposable
     private static bool inDetour;
 
     private int latchedUserIndex = -1;
+    private readonly object deviceSync = new();
+    private readonly SlotState[] slots = [new(), new(), new(), new()];
     private int disposed;
 
     private XInputCaptureHook(
@@ -316,6 +318,11 @@ public sealed class XInputCaptureHook : IDisposable
     /// <summary>Takes the menu's buttons out of one poll of the latched slot.</summary>
     private void Filter(int userIndex, int result, ref XInputState state)
     {
+        if (capture.UsesModifierControls)
+        {
+            FilterModifiers(userIndex, result, ref state);
+            return;
+        }
         var connected = result == ErrorSuccess;
         var latched = Volatile.Read(ref latchedUserIndex);
         if (connected && latched < 0)
@@ -341,12 +348,76 @@ public sealed class XInputCaptureHook : IDisposable
         }
 
         var raw = new GamepadSnapshot(
-            true, userIndex, state.PacketNumber, (GamepadButton)state.Gamepad.Buttons);
+            true, userIndex, state.PacketNumber, (GamepadButton)state.Gamepad.Buttons,
+            state.Gamepad.LeftTrigger, state.Gamepad.RightTrigger);
         var strip = capture.ObserveRawPoll(raw, now());
         if (strip != GamepadButton.None)
         {
             state.Gamepad.Buttons = (ushort)(state.Gamepad.Buttons & ~(ushort)strip);
+            if ((strip & GamepadButton.LeftTrigger) != 0) state.Gamepad.LeftTrigger = 0;
+            if ((strip & GamepadButton.RightTrigger) != 0) state.Gamepad.RightTrigger = 0;
+            if (capture.UsesModifierControls)
+            {
+                state.Gamepad.ThumbLX = state.Gamepad.ThumbLY = 0;
+                state.Gamepad.ThumbRX = state.Gamepad.ThumbRY = 0;
+            }
         }
+    }
+
+    private void FilterModifiers(int userIndex, int result, ref XInputState state)
+    {
+        if (userIndex is < 0 or >= 4) return;
+        lock (deviceSync)
+        {
+            var device = slots[userIndex];
+            if (result != ErrorSuccess)
+            {
+                device.Known = false;
+                device.Tail = GamepadButton.None;
+                if (latchedUserIndex == userIndex)
+                {
+                    latchedUserIndex = -1;
+                    _ = capture.ObserveRawPoll(GamepadSnapshot.Disconnected, now());
+                }
+                return;
+            }
+            var raw = new GamepadSnapshot(true, userIndex, state.PacketNumber,
+                (GamepadButton)state.Gamepad.Buttons, state.Gamepad.LeftTrigger, state.Gamepad.RightTrigger);
+            var down = raw.AccessibilityButtons;
+            var modified = (down & ControllerAccessibilityMenu.Modifiers) != 0;
+            var freshModifier = device.Known && modified && !device.ModifierDown;
+            device.Known = true;
+            device.ModifierDown = modified;
+            device.Tail &= down;
+            if (modified) device.Tail |= down & ControllerAccessibilityMenu.OwnedButtons;
+            var strip = modified ? ControllerAccessibilityMenu.OwnedButtons : device.Tail;
+
+            if (latchedUserIndex < 0) latchedUserIndex = userIndex;
+            else if (latchedUserIndex != userIndex && freshModifier && !capture.IsSuppressing)
+            {
+                latchedUserIndex = userIndex;
+                _ = capture.ObserveRawPoll(GamepadSnapshot.Disconnected, now());
+                _ = capture.ObserveRawPoll(raw with { Buttons = down & ~ControllerAccessibilityMenu.Modifiers,
+                    LeftTrigger = 0, RightTrigger = 0 }, now());
+                log?.Invoke($"Controller accessibility moved to XInput slot {userIndex} after a fresh trigger press.");
+            }
+            if (latchedUserIndex == userIndex) strip |= capture.ObserveRawPoll(raw, now());
+            // R3 may arrive before its modifier. Never expose that partial chord
+            // as a native shortcut press followed by a captured release.
+            state.Gamepad.Buttons &= unchecked((ushort)~(ushort)GamepadButton.RightThumb);
+            if (strip == GamepadButton.None) return;
+            state.Gamepad.Buttons &= (ushort)~(ushort)strip;
+            if ((strip & GamepadButton.LeftTrigger) != 0) state.Gamepad.LeftTrigger = 0;
+            if ((strip & GamepadButton.RightTrigger) != 0) state.Gamepad.RightTrigger = 0;
+            state.Gamepad.ThumbLX = state.Gamepad.ThumbLY = state.Gamepad.ThumbRX = state.Gamepad.ThumbRY = 0;
+        }
+    }
+
+    private sealed class SlotState
+    {
+        internal bool Known;
+        internal bool ModifierDown;
+        internal GamepadButton Tail;
     }
 
     public void Dispose()
