@@ -16,7 +16,7 @@ using Reloaded.Hooks;
 internal static class Steam2026SdlControllerCaptureHookTests
 {
     private const string InstalledSdl =
-        @"C:\Program Files (x86)\Steam\steamapps\common\FINAL FANTASY VII Steam Edition\SDL2.dll";
+        @"D:\SteamLibrary\steamapps\common\FINAL FANTASY VII Steam Edition\SDL2.dll";
 
     private const uint InitGameController = 0x00002000;
     private const int TypeGameController = 1;
@@ -50,10 +50,57 @@ internal static class Steam2026SdlControllerCaptureHookTests
         try
         {
             TheProductionHookInstallsOverTheInstalledSdlAndFilters();
+            TheProductionModifierHookConsumesAxesAndBattleAssistReleaseTails();
         }
         finally
         {
             Sdl.QuitSubSystem(InitGameController);
+        }
+    }
+
+    private static void TheProductionModifierHookConsumesAxesAndBattleAssistReleaseTails()
+    {
+        if (!Steam2026SdlControllerCaptureHook.TryInstall(ReloadedHooks.Instance,
+            installed => new(s => new ControllerAccessibilityMenu(s), installed),
+            out var hook, out var diagnostic))
+        {
+            Console.WriteLine($"SDL modifier capture: INSTALL NOT EXERCISED in this host - {diagnostic}");
+            return;
+        }
+        var device = -1;
+        nint controller = 0;
+        try
+        {
+            device = Sdl.AttachVirtual(TypeGameController, 6, 15, 1);
+            Equal(true, device >= 0, "the modifier test has a native virtual device");
+            controller = Sdl.GameControllerOpen(device);
+            Equal(true, controller != 0, "the modifier controller opens");
+            var joystick = Sdl.GameControllerGetJoystick(controller);
+            Sdl.SetVirtualAxis(joystick, 4, short.MinValue);
+            Sdl.SetVirtualAxis(joystick, 5, short.MinValue);
+            hook.Capture.PublishContext(ControllerNavigationDomain.Field, true, true, false, DateTime.UtcNow, 500);
+            Equal((short)0, Sdl.GetAxis(controller, 4), "native SDL trigger resting value is zero");
+            Sdl.SetVirtualAxis(joystick, 4, short.MaxValue);
+            Equal((short)0, Sdl.GetAxis(controller, 4), "the installed axis detour consumes LT");
+            Equal(true, hook.Capture.IsOpen, "a native trigger opens modifier navigation");
+            Sdl.SetVirtualAxis(joystick, 0, 16000);
+            Equal((short)0, Sdl.GetAxis(controller, 0), "the installed axis detour holds movement while browsing");
+            Sdl.SetVirtualButton(joystick, ButtonRightStick, 1);
+            Equal((byte)0, Sdl.GetButton(controller, ButtonRightStick), "modified R3 is private in native SDL");
+            Sdl.SetVirtualAxis(joystick, 4, short.MinValue);
+            Equal((byte)0, Sdl.GetButton(controller, ButtonRightStick), "native release-order tail stays private");
+            Sdl.SetVirtualButton(joystick, ButtonRightStick, 0);
+            _ = Sdl.GetButton(controller, ButtonRightStick);
+            Equal((short)16000, Sdl.GetAxis(controller, 0), "ordinary native movement returns after release");
+            Sdl.SetVirtualButton(joystick, ButtonRightStick, 1);
+            Equal((byte)0, Sdl.GetButton(controller, ButtonRightStick), "native R3 remains reserved against partial-chord Battle Assist");
+            Console.WriteLine("Native SDL modifier button/axis hooks and release tails passed.");
+        }
+        finally
+        {
+            if (controller != 0) Sdl.GameControllerClose(controller);
+            if (device >= 0) Sdl.DetachVirtual(device);
+            hook.Dispose();
         }
     }
 
@@ -278,6 +325,18 @@ internal static class Steam2026SdlControllerCaptureHookTests
             JoystickUpdate();
             return result;
         }
+
+        [DllImport("SDL2.dll", EntryPoint = "SDL_JoystickSetVirtualAxis", CallingConvention = CallingConvention.Cdecl)]
+        private static extern int SetVirtualAxisRaw(nint joystick, int axis, short value);
+
+        internal static void SetVirtualAxis(nint joystick, int axis, short value)
+        {
+            Equal(0, SetVirtualAxisRaw(joystick, axis, value), "virtual axis state updates");
+            JoystickUpdate();
+        }
+
+        [DllImport("SDL2.dll", EntryPoint = "SDL_GameControllerGetAxis", CallingConvention = CallingConvention.Cdecl)]
+        internal static extern short GetAxis(nint controller, int axis);
 
         [DllImport("SDL2.dll", EntryPoint = "SDL_GameControllerOpen", CallingConvention = CallingConvention.Cdecl)]
         internal static extern nint GameControllerOpen(int joystickIndex);

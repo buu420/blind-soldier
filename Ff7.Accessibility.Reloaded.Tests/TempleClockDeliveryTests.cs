@@ -26,6 +26,7 @@ internal static class TempleClockDeliveryTests
         OverlappingSpeechIsWaitedForInFull();
         TheHostSpeaksTheClockOnlyWithFocus();
         TheHostKeepsOnlyTheCurrentTimeWhileMuted();
+        ModSettingsHoldsTheClockUntilItCloses();
         TheHostLeavesOtherRoomsAlone();
     }
 
@@ -88,6 +89,7 @@ internal static class TempleClockDeliveryTests
         public List<string> Said { get; } = [];
         public bool Foreground { get; set; } = true;
         public bool SpeechEnabled { get; set; } = true;
+        public bool SettingsIsOpen { get; set; }
         public Action? DuringSpeak { get; set; }
 
         /// <summary>One host tick over the clock with its long hand at <paramref name="longBearing"/>, short hand at ten.</summary>
@@ -104,7 +106,7 @@ internal static class TempleClockDeliveryTests
                 new Dictionary<int, FieldActivityWaitState>(), _ => true, _ => false, 0);
             var cue = Readout.Observe(observation, T(seconds));
             _ = FieldActivityClockHost.Deliver(cue, Readout, Delivery, T(seconds),
-                () => Foreground, () => SpeechEnabled,
+                () => Foreground, () => SpeechEnabled && !SettingsIsOpen,
                 text =>
                 {
                     DuringSpeak?.Invoke();
@@ -116,6 +118,20 @@ internal static class TempleClockDeliveryTests
 
         private static FieldActivityModelReading Hand(int entityId, int bearing) =>
             new(entityId, FieldActivityReadStatus.Visible, new FieldActivityModelState(true, true, 0, 0, 0, 0, bearing));
+    }
+
+    private static void ModSettingsHoldsTheClockUntilItCloses()
+    {
+        var host = new Host { SettingsIsOpen = true };
+        host.Tick(0, 10);
+        host.Tick(7, 120);
+        host.Tick(14, 170);
+        Equal(0, host.Said.Count, "the clock cannot interrupt settings, even without earlier protected speech");
+        Equal(true, host.Delivery.HasPending, "the current clock reading stays retryable while browsing");
+        host.SettingsIsOpen = false;
+        host.Tick(21, 170);
+        Equal(1, host.Said.Count, "closing settings releases only the current clock reading");
+        Equal(false, host.Delivery.HasPending, "the successfully spoken current reading is delivered");
     }
 
     /// <summary>

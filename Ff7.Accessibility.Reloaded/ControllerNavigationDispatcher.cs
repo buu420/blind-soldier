@@ -104,7 +104,7 @@ public sealed class ControllerNavigationDispatcher
         // a flag for the next poll, and there is no next poll - which is how an
         // unplugged pad left the menu open for ever, repeating its complaint on every
         // worker frame. The capture retires it here instead, once.
-        if (capture.TryRetireForLostPolling(nowUtc, PollFreshness))
+        if (!capture.SettingsIsOpen && capture.TryRetireForLostPolling(nowUtc, PollFreshness))
         {
             var spokeRetirement = Say("Navigation menu closed: the controller stopped responding.");
             if (target.AutoWalkIsActive)
@@ -154,13 +154,13 @@ public sealed class ControllerNavigationDispatcher
                 continue;
             }
 
-            spoke |= Apply(command);
+            spoke |= Apply(command, capture.UsesModifierControls);
         }
 
         return spoke;
     }
 
-    private bool Apply(ControllerNavigationCommand command)
+    private bool Apply(ControllerNavigationCommand command, bool modifierControls)
     {
         switch (command)
         {
@@ -169,8 +169,10 @@ public sealed class ControllerNavigationDispatcher
                 // starts nothing: the player asked for a menu, not a journey.
                 var opening = target.Apply(FieldNavigationAction.RepeatTarget);
                 return Say(string.IsNullOrWhiteSpace(opening)
-                    ? "Navigation menu. Up and down for targets, bumpers for categories, " +
-                      "A to guide, X to walk, B to stop."
+                    ? modifierControls
+                        ? "Navigation. Hold a trigger. Left and right for categories, up and down for targets, " +
+                          "L3 to guide, R3 to walk, B to stop."
+                        : "Navigation menu. Up and down for targets, bumpers for categories, A to guide, X to walk, B to stop."
                     : $"Navigation menu. {opening}");
 
             case ControllerNavigationCommand.PreviousCategory:

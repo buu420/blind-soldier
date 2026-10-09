@@ -8,6 +8,7 @@ internal static class BattleStatusHotkeyTests
         AssertVirtualKeyMap();
         AssertSelectionAndUnavailableSlots();
         AssertVitalsAndStatuses();
+        AssertControllerReadsTheSelectedNativePartyMember();
         AssertLimitGaugeConversion();
         AssertNativeLimitGaugeReadUsesPartySlot();
         AssertLiveBattleLimitGaugeReadUsesPartySlotAndUpdates();
@@ -86,6 +87,29 @@ internal static class BattleStatusHotkeyTests
         controller.HandleVirtualKey('2', Read);
         AssertEqual("Tifa has no debuffs.", controller.HandleVirtualKey('D', Read), "no debuffs");
         AssertEqual("Tifa has no buffs.", controller.HandleVirtualKey('S', Read), "no buffs");
+    }
+
+    private static void AssertControllerReadsTheSelectedNativePartyMember()
+    {
+        var controller = new BattleStatusHotkeyController();
+        var members = CreateMembers();
+        var reads = 0;
+        BattleStatusMemberSnapshot? Read(int slot)
+        { reads++; return members.TryGetValue(slot, out var member) ? member : null; }
+        AssertEqual("Tifa selected.", controller.HandleController(BattleStatusControllerCommand.Next, Read), "controller next party");
+        AssertEqual("Cloud selected.", controller.HandleController(BattleStatusControllerCommand.Next, Read), "skip empty party slot and wrap");
+        AssertEqual("Tifa selected.", controller.HandleController(BattleStatusControllerCommand.Previous, Read), "previous wraps past empty slot");
+        reads = 0;
+        AssertEqual("Tifa HP 512 of 640, MP 42 of 61, limit 0 percent.",
+            controller.HandleController(BattleStatusControllerCommand.Summary, Read), "controller reads visible vitals");
+        AssertEqual(1, reads, "summary is one coherent selected-member snapshot");
+        reads = 0;
+        AssertEqual("Tifa has no debuffs. Tifa has no buffs.",
+            controller.HandleController(BattleStatusControllerCommand.Statuses, Read), "controller reads visible statuses");
+        AssertEqual(1, reads, "statuses are one coherent selected-member snapshot");
+        members.Clear();
+        AssertEqual("Party information unavailable.", controller.HandleController(BattleStatusControllerCommand.Next, Read), "native unavailable party");
+        AssertEqual(1, controller.SelectedPartySlot, "failed controller selection preserves existing selection");
     }
 
     private static void AssertLimitGaugeConversion()

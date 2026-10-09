@@ -7,6 +7,8 @@ public enum ControllerNavigationDomain
     Field,
     WorldMap,
     Submarine,
+    Battle,
+    SystemMenu,
 }
 
 /// <summary>
@@ -25,10 +27,12 @@ public sealed record ControllerNavigationGeneration(
     bool IsHostForeground,
     bool ModuleSupportsNavigation,
     bool GameIsBusy,
-    DateTime StampUtc)
+    DateTime StampUtc,
+    bool SupportsPartyReadout = false,
+    bool SupportsSettings = true)
 {
     public static ControllerNavigationGeneration None { get; } =
-        new(0, ControllerNavigationDomain.None, -1, false, false, true, DateTime.MinValue);
+        new(0, ControllerNavigationDomain.None, -1, false, false, true, DateTime.MinValue, false, false);
 
     public bool IsFreshAt(DateTime nowUtc, TimeSpan freshness) =>
         StampUtc != DateTime.MinValue && nowUtc - StampUtc <= freshness;
@@ -49,7 +53,7 @@ public sealed class ControllerNavigationCapture : IGameInputSuppressor
     /// <summary>How long a context published by the worker stays usable.</summary>
     public static readonly TimeSpan ContextFreshness = TimeSpan.FromMilliseconds(750);
 
-    private readonly ControllerNavigationMenu menu;
+    private readonly IControllerNavigationMenu menu;
     private readonly Func<bool> captureIsInstalled;
     private readonly Func<bool>? isForegroundNow;
     private readonly object policySync = new();
@@ -62,7 +66,7 @@ public sealed class ControllerNavigationCapture : IGameInputSuppressor
     private bool retiredForLostPolling;
 
     public ControllerNavigationCapture(
-        Func<IGameInputSuppressor, ControllerNavigationMenu> createMenu,
+        Func<IGameInputSuppressor, IControllerNavigationMenu> createMenu,
         Func<bool> captureIsInstalled,
         ControllerNavigationCommandQueue? commands = null,
         Func<bool>? isForegroundNow = null)
@@ -75,6 +79,11 @@ public sealed class ControllerNavigationCapture : IGameInputSuppressor
     }
 
     public ControllerNavigationCommandQueue Commands { get; }
+
+    public ControllerNavigationCommandQueue AccessibilityCommands { get; } = new();
+    public bool UsesModifierControls => menu.UsesModifierControls;
+    public bool SettingsIsOpen => menu.SettingsIsOpen;
+    public void SetSettingsOpen(bool open) { lock (policySync) menu.SetSettingsOpen(open); }
 
     public ControllerNavigationAnnouncementQueue Announcements { get; } = new();
 
@@ -125,7 +134,50 @@ public sealed class ControllerNavigationCapture : IGameInputSuppressor
 
     public ControllerNavigationDomain Owner => Generation.Domain;
 
+    public void PublishSettingsContext(ControllerNavigationDomain domain, int identity,
+        bool foreground, bool partyAvailable, DateTime nowUtc)
+    {
+        lock (policySync)
+        {
+            var changedIdentity = generation.Domain != domain || generation.Identity != identity;
+            if (changedIdentity)
+            {
+                Commands.ClearExceptStops();
+                AccessibilityCommands.ClearExceptStops();
+                if (!menu.SettingsIsOpen) menu.RequestClose();
+            }
+            generation = new(changedIdentity ? nextGenerationId++ : generation.Id,
+                domain, identity, foreground, false, false, nowUtc, partyAvailable, true);
+        }
+    }
+
     public DateTime LastPollUtc => new(Interlocked.Read(ref lastPollTicks), DateTimeKind.Utc);
+
+    /// <summary>Retires movement without taking away the independent settings page.</summary>
+    public void PublishNavigationUnavailable(ControllerNavigationDomain domain, bool foreground, DateTime nowUtc)
+    {
+        if (!UsesModifierControls || !foreground)
+        {
+            PublishUnavailable(domain, nowUtc);
+            return;
+        }
+        lock (policySync)
+        {
+            if (domain != ControllerNavigationDomain.None && generation.Domain != ControllerNavigationDomain.None &&
+                generation.Domain != domain && generation.IsFreshAt(nowUtc, ContextFreshness)) return;
+            var target = domain == ControllerNavigationDomain.None ? generation.Domain : domain;
+            if (target == ControllerNavigationDomain.None) target = ControllerNavigationDomain.SystemMenu;
+            var changed = target != generation.Domain;
+            generation = new(changed ? nextGenerationId++ : generation.Id, target, generation.Identity,
+                true, false, true, nowUtc, false, true);
+            Commands.ClearExceptStops();
+            if (!menu.SettingsIsOpen)
+            {
+                AccessibilityCommands.ClearExceptStops();
+                if (menu.IsOpen) menu.RequestClose();
+            }
+        }
+    }
 
     /// <summary>
     /// Publishes one coherent context. A change of domain or of field identity starts
@@ -138,7 +190,9 @@ public sealed class ControllerNavigationCapture : IGameInputSuppressor
         bool moduleSupportsNavigation,
         bool gameIsBusy,
         DateTime nowUtc,
-        int identity = -1)
+        int identity = -1,
+        bool supportsPartyReadout = false,
+        bool supportsSettings = true)
     {
         lock (policySync)
         {
@@ -158,6 +212,7 @@ public sealed class ControllerNavigationCapture : IGameInputSuppressor
             if (changedIdentity)
             {
                 Commands.ClearExceptStops();
+                AccessibilityCommands.ClearExceptStops();
             }
 
             generation = new ControllerNavigationGeneration(
@@ -168,6 +223,8 @@ public sealed class ControllerNavigationCapture : IGameInputSuppressor
                 moduleSupportsNavigation,
                 gameIsBusy,
                 nowUtc);
+            generation = generation with { SupportsPartyReadout = supportsPartyReadout,
+                SupportsSettings = supportsSettings };
         }
     }
 
@@ -190,8 +247,9 @@ public sealed class ControllerNavigationCapture : IGameInputSuppressor
             }
 
             generation = new ControllerNavigationGeneration(
-                nextGenerationId++, domain, -1, false, false, true, nowUtc);
+                nextGenerationId++, domain, -1, false, false, true, nowUtc, false, false);
             Commands.ClearExceptStops();
+            AccessibilityCommands.ClearExceptStops();
             menu.RequestClose();
         }
     }
@@ -228,7 +286,9 @@ public sealed class ControllerNavigationCapture : IGameInputSuppressor
             var context = new ControllerNavigationContext(
                 foreground,
                 fresh && current.ModuleSupportsNavigation,
-                !fresh || current.GameIsBusy);
+                !fresh || current.GameIsBusy,
+                fresh && current.SupportsPartyReadout,
+                fresh && current.SupportsSettings);
 
             try
             {
@@ -246,7 +306,10 @@ public sealed class ControllerNavigationCapture : IGameInputSuppressor
             // under. Doing this after releasing would let a command land in a queue
             // that a newly published context had just cleared.
             generationId = current.Id;
-            Commands.Enqueue(result.Command, generationId);
+            if (result.Command >= ControllerNavigationCommand.SettingsOpen)
+                AccessibilityCommands.Enqueue(result.Command, generationId);
+            else
+                Commands.Enqueue(result.Command, generationId);
             if (result.Command == ControllerNavigationCommand.Closed && result.Announcement is not null)
             {
                 var age = current.StampUtc == DateTime.MinValue ? double.NaN : (nowUtc - current.StampUtc).TotalMilliseconds;
@@ -295,6 +358,7 @@ public sealed class ControllerNavigationCapture : IGameInputSuppressor
         }
 
         Commands.ClearExceptStops();
+        AccessibilityCommands.ClearExceptStops();
         Interlocked.Exchange(ref suppressedMask, 0);
         return true;
     }
@@ -339,10 +403,14 @@ public sealed class ControllerNavigationCapture : IGameInputSuppressor
                 return;
             }
 
-            menu.RequestClose();
+            // Navigation coordinators retire destinations; settings is independent
+            // of that destination. Only a global shutdown/focus close owns both.
+            if (domain == ControllerNavigationDomain.None || !menu.SettingsIsOpen)
+                menu.RequestClose();
             // Keep the ownership check and queue cleanup together: a new domain
             // must not publish and enqueue between accepting this close and cleanup.
             Commands.ClearExceptStops();
+            AccessibilityCommands.ClearExceptStops();
         }
     }
 
@@ -355,6 +423,7 @@ public sealed class ControllerNavigationCapture : IGameInputSuppressor
         }
 
         Commands.ClearExceptStops();
+        AccessibilityCommands.ClearExceptStops();
     }
 
     bool IGameInputSuppressor.IsAvailable => captureIsInstalled();

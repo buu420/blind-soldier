@@ -22,7 +22,8 @@ internal sealed class Steam2026MovieNarrationPlayback : ISteam2026MovieNarration
     internal Steam2026MovieNarrationPlayback(
         string absolutePath,
         int volumePercent,
-        Action<string> log)
+        Action<string> log,
+        Func<int>? liveMasterVolumePercent = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(absolutePath);
         ArgumentNullException.ThrowIfNull(log);
@@ -36,7 +37,7 @@ internal sealed class Steam2026MovieNarrationPlayback : ISteam2026MovieNarration
         player = new OpeningMovieAudioTrackPlayer(
             Path.GetFullPath(absolutePath),
             volumePercent,
-            log);
+            log, liveMasterVolumePercent: liveMasterVolumePercent);
     }
 
     public bool Prepare(string reason) => player.Prepare(reason);

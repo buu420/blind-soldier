@@ -11,6 +11,7 @@ internal sealed class Steam2026ResearchAccessibilityOutput : IAccessibilityOutpu
     private readonly ISteam2026MovieNarrationPlayback? movieNarrationPlayback;
     private readonly RepeatLastSpeechController repeatLastSpeechController = new();
     private int disposed;
+    internal Func<bool>? SpeechIsAllowed { get; set; }
 
     /// <summary>
     /// Raised after Prism has taken a line, with the words it took. The field coordinator
@@ -62,7 +63,8 @@ internal sealed class Steam2026ResearchAccessibilityOutput : IAccessibilityOutpu
         string absoluteOpeningMovieAudioTrackPath,
         int openingMovieAudioTrackVolumePercent,
         BlindSoldierLocalizer localizer,
-        Action<string> log)
+        Action<string> log,
+        Func<int>? liveMasterVolumePercent = null)
         : this(
             speaker,
             localizer,
@@ -70,7 +72,7 @@ internal sealed class Steam2026ResearchAccessibilityOutput : IAccessibilityOutpu
             new Steam2026MovieNarrationPlayback(
                 absoluteOpeningMovieAudioTrackPath,
                 openingMovieAudioTrackVolumePercent,
-                log))
+                log, liveMasterVolumePercent))
     {
     }
 
@@ -108,6 +110,9 @@ internal sealed class Steam2026ResearchAccessibilityOutput : IAccessibilityOutpu
 
     public void Speak(string text, bool interrupt)
     {
+        // A declined line must remain retryable for description-history callers.
+        if (SpeechIsAllowed?.Invoke() == false)
+            throw new InvalidOperationException("Automatic speech is held by the mod settings or speech option.");
         if (string.IsNullOrWhiteSpace(text))
         {
             return;
@@ -125,7 +130,7 @@ internal sealed class Steam2026ResearchAccessibilityOutput : IAccessibilityOutpu
     }
 
     internal bool RepeatLast() =>
-        repeatLastSpeechController.Repeat(text =>
+        SpeechIsAllowed?.Invoke() != false && repeatLastSpeechController.Repeat(text =>
         {
             if (!speaker.Speak(text, interrupt: true))
             {

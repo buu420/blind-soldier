@@ -197,10 +197,12 @@ internal sealed class HighwayAccessibilityCoordinator : IDisposable
             log("Highway accessibility acquired native module-6 ownership.");
         }
 
+        autoSteeringMode.ApplySetting(config.EnableHighwayAutoSteering);
         var mode = autoSteeringMode.Observe(
             isHighway: true,
             isForeground: true,
             autoSteeringToggleRequested);
+        config.EnableHighwayAutoSteering = mode.Enabled;
         var update = composer.Update(
             combatState,
             roadState,

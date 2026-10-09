@@ -15,6 +15,16 @@ public sealed class Steam2026ForegroundInputAdapter
     private readonly ForegroundProcessGate foregroundGate;
     private readonly NavigationKeyPressTracker keyPressTracker = new();
     private readonly Func<int, short> getAsyncKeyState;
+    public bool ModSettingsOwnsInput { get; set; }
+
+    public bool IsKeyDown(int virtualKey) =>
+        (getAsyncKeyState(virtualKey) & unchecked((short)0x8000)) != 0;
+
+    public void BlockHeldModKeys()
+    {
+        for (var key = 1; key <= MaximumVirtualKey; key++)
+            _ = keyPressTracker.Observe(key, IsKeyDown(key), false);
+    }
 
     internal Steam2026ForegroundInputAdapter(
         Func<nint> getForegroundWindow,
@@ -74,7 +84,7 @@ public sealed class Steam2026ForegroundInputAdapter
         return keyPressTracker.Observe(
             virtualKey,
             isDown,
-            foregroundBefore && foregroundAfter);
+            foregroundBefore && foregroundAfter && !ModSettingsOwnsInput);
     }
 
     private static class NativeMethods

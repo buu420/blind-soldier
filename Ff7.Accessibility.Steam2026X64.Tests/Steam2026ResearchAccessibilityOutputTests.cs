@@ -134,6 +134,11 @@ internal static class Steam2026ResearchAccessibilityOutputTests
 
         Equal(true, output.RepeatLast(), "repeating must leave the same utterance available");
         Equal("Barret, back row", spoken[2].Text, "repeat does not replace remembered speech");
+        output.SpeechIsAllowed = () => false;
+        Equal(false, output.RepeatLast(), "R obeys speech off and settings ownership");
+        Equal(3, spoken.Count, "blocked repeat cannot reach Prism");
+        output.SpeechIsAllowed = () => true;
+        Equal(true, output.RepeatLast(), "speech resumes without losing remembered utterance");
     }
 
     private static void LocalizesBeforePrismAndRepeatStorage()

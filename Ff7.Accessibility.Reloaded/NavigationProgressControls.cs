@@ -127,6 +127,19 @@ internal sealed class NavigationProgressController
         return speech;
     }
 
+    internal void ApplySettings(bool enabled, int intervalPercent)
+    {
+        var interval = NormalizeInterval(intervalPercent);
+        lock (sync)
+        {
+            if (this.enabled == enabled && this.intervalPercent == interval) return;
+            this.enabled = enabled;
+            this.intervalPercent = interval;
+            speechRevision++;
+        }
+        Changed?.Invoke();
+    }
+
     private static int NormalizeInterval(int intervalPercent) =>
         Array.IndexOf(SupportedIntervals, intervalPercent) >= 0
             ? intervalPercent

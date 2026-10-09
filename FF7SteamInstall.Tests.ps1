@@ -1171,6 +1171,13 @@ Describe 'Install-Ff7DualRuntimePackage' {
             [IO.File]::WriteAllBytes($installedConfiguration, $protectedConfigurationBytes)
             Write-TestTextFile -Path (Join-Path $installedMod 'obsolete.dll') -Content 'old-package'
             $protectedConfigurationHash = (Get-FileHash -LiteralPath $installedConfiguration -Algorithm SHA256).Hash
+            $protectedPlayerFiles = @{}
+            foreach ($playerFile in @('player-settings.json', 'room-descriptions.json', 'battle-descriptions.json')) {
+                $playerPath = Join-Path $installedMod (Join-Path 'Configuration' $playerFile)
+                $playerBytes = [Text.Encoding]::UTF8.GetBytes("{`r`n  `"UserContent`": `"preserve-$playerFile`"`r`n}")
+                [IO.File]::WriteAllBytes($playerPath, $playerBytes)
+                $protectedPlayerFiles[$playerFile] = [Convert]::ToBase64String($playerBytes)
+            }
 
             $first = Install-Ff7DualRuntimePackage -PackagePath $package -ModDirectory $installedMod
             $first.Changed | Should Be $true
@@ -1183,6 +1190,10 @@ Describe 'Install-Ff7DualRuntimePackage' {
                 Should Be ([Convert]::ToBase64String($protectedConfigurationBytes))
             Test-Path -LiteralPath (Join-Path $installedMod 'obsolete.dll') | Should Be $false
             $firstFingerprint = Get-TestDirectoryFingerprint -Root $installedMod
+            foreach ($playerFile in $protectedPlayerFiles.Keys) {
+                [Convert]::ToBase64String([IO.File]::ReadAllBytes((Join-Path $installedMod (Join-Path 'Configuration' $playerFile)))) |
+                    Should Be $protectedPlayerFiles[$playerFile]
+            }
 
             $second = Install-Ff7DualRuntimePackage -PackagePath $package -ModDirectory $installedMod
             $second.Changed | Should Be $false

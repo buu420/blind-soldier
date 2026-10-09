@@ -7,8 +7,8 @@ namespace Ff7.Accessibility.Steam2026X64.Runtime.Input;
 /// <summary>
 /// Takes the navigation menu's buttons out of the controller state the Steam 2026 host
 /// is given, in the same read that produced them.
-/// R3 stays reserved even when the menu cannot open: the native game otherwise
-/// treats its release as the Battle Assist shortcut.
+/// R3 stays reserved on every device. Steam toggles Battle Assist on release,
+/// so an R3 sample arriving before its trigger must also stay private.
 ///
 /// <para>The seam is SDL, on binary evidence: the exact supported <c>FFVII.exe</c>
 /// imports <c>SDL_GameControllerGetButton</c>, <c>SDL_GameControllerUpdate</c>,
@@ -41,9 +41,8 @@ internal sealed class Steam2026SdlControllerCaptureHook : IDisposable
     private const string SdlModule = "SDL2.dll";
 
     /// <summary>
-    /// SDL's own number for the right stick click. It is the only button a device that
-    /// is not the owner is ever asked about, because it is the only one that can make
-    /// it the owner.
+    /// SDL's number for the right stick click. The modifier policy selects command
+    /// ownership on a fresh trigger; the compatibility policy uses this click.
     /// </summary>
     private const int SdlRightStick = 8;
 
@@ -60,6 +59,8 @@ internal sealed class Steam2026SdlControllerCaptureHook : IDisposable
         (1, GamepadButton.B),
         (2, GamepadButton.X),
         (3, GamepadButton.Y),
+        (4, GamepadButton.Back),
+        (6, GamepadButton.Start),
         (7, GamepadButton.LeftThumb),
         (8, GamepadButton.RightThumb),
         (9, GamepadButton.LeftShoulder),
@@ -72,6 +73,9 @@ internal sealed class Steam2026SdlControllerCaptureHook : IDisposable
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     internal delegate byte GetButtonDelegate(nint controller, int button);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    internal delegate short GetAxisDelegate(nint controller, int axis);
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     internal delegate void CloseDelegate(nint controller);
@@ -98,15 +102,18 @@ internal sealed class Steam2026SdlControllerCaptureHook : IDisposable
     // failed to remove: a collected delegate is a jump into freed memory on the
     // game's input path.
     private readonly GetButtonDelegate getButtonDetour;
+    private readonly GetAxisDelegate getAxisDetour;
     private readonly CloseDelegate? closeDetour;
     private readonly GetAttachedDelegate? getAttached;
 
     /// <summary>Injected under test; null in production, where the trampoline is used.</summary>
     private readonly GetButtonDelegate? originalGetButton;
+    private readonly GetAxisDelegate? originalGetAxis;
     private readonly ControllerNavigationCapture capture;
     private readonly Func<DateTime> now;
     private readonly Action<string>? log;
     private readonly IHook<GetButtonDelegate>? getButtonHook;
+    private readonly IHook<GetAxisDelegate>? getAxisHook;
     private readonly IHook<CloseDelegate>? closeHook;
     private readonly object deviceSync = new();
 
@@ -139,6 +146,9 @@ internal sealed class Steam2026SdlControllerCaptureHook : IDisposable
         this.log = log;
         capture = createCapture(this);
         getButtonDetour = OnGetButton;
+        getAxisDetour = OnGetAxis;
+        if (capture.UsesModifierControls && exports.GetAxis == 0)
+            throw new InvalidOperationException("SDL_GameControllerGetAxis is required for trigger controls.");
 
         // The whole cohort is created before any of it is activated, and a failure
         // rolls the activated ones back. Half a cohort is live detours calling into an
@@ -146,6 +156,8 @@ internal sealed class Steam2026SdlControllerCaptureHook : IDisposable
         try
         {
             getButtonHook = hooks.CreateHook(getButtonDetour, (long)exports.GetButton);
+            if (exports.GetAxis != 0)
+                getAxisHook = hooks.CreateHook(getAxisDetour, (long)exports.GetAxis);
             if (exports.Close != 0)
             {
                 closeDetour = OnClose;
@@ -153,6 +165,7 @@ internal sealed class Steam2026SdlControllerCaptureHook : IDisposable
             }
 
             getButtonHook!.Activate();
+            getAxisHook?.Activate();
             closeHook?.Activate();
         }
         catch
@@ -185,6 +198,10 @@ internal sealed class Steam2026SdlControllerCaptureHook : IDisposable
             ? originalGetButton(controller, button)
             : getButtonHook!.OriginalFunction(controller, button);
 
+    private short CallOriginalGetAxis(nint controller, int axis) =>
+        originalGetAxis is not null ? originalGetAxis(controller, axis) :
+            getAxisHook is not null ? getAxisHook.OriginalFunction(controller, axis) : (short)0;
+
     /// <summary>
     /// Builds the decide path over an injected getter and clock, with no hooking
     /// backend. The live close-on-open fault is a timing fault, so it needs a clock
@@ -196,13 +213,14 @@ internal sealed class Steam2026SdlControllerCaptureHook : IDisposable
         GetButtonDelegate originalGetButton,
         GetAttachedDelegate getAttached,
         Func<DateTime> now,
-        Action<string>? log = null)
+        Action<string>? log = null,
+        GetAxisDelegate? originalGetAxis = null)
     {
         ArgumentNullException.ThrowIfNull(createCapture);
         ArgumentNullException.ThrowIfNull(originalGetButton);
         ArgumentNullException.ThrowIfNull(getAttached);
         ArgumentNullException.ThrowIfNull(now);
-        return new Steam2026SdlControllerCaptureHook(createCapture, originalGetButton, getAttached, now, log);
+        return new Steam2026SdlControllerCaptureHook(createCapture, originalGetButton, getAttached, now, log, originalGetAxis);
     }
 
     private Steam2026SdlControllerCaptureHook(
@@ -210,26 +228,33 @@ internal sealed class Steam2026SdlControllerCaptureHook : IDisposable
         GetButtonDelegate originalGetButton,
         GetAttachedDelegate getAttached,
         Func<DateTime> now,
-        Action<string>? log)
+        Action<string>? log,
+        GetAxisDelegate? originalGetAxis)
     {
         this.now = now;
         this.log = log;
         this.originalGetButton = originalGetButton;
+        this.originalGetAxis = originalGetAxis;
         this.getAttached = getAttached;
         Steam2026SdlControllerCaptureHook? self = null;
         capture = createCapture(() => self?.IsInstalled == true);
         self = this;
         getButtonDetour = OnGetButton;
+        getAxisDetour = OnGetAxis;
     }
 
     /// <summary>One game button read, as SDL would deliver it. Test seam.</summary>
     internal byte InvokeGetButtonForTest(nint controller, int button) =>
         OnGetButton(controller, button);
 
+    internal short InvokeGetAxisForTest(nint controller, int axis) => OnGetAxis(controller, axis);
+
     internal bool IsInstalled =>
         Volatile.Read(ref disposed) == 0 &&
         (getButtonHook is { IsHookActivated: true, IsHookEnabled: true }
-            || (getButtonHook is null && originalGetButton is not null));
+            || (getButtonHook is null && originalGetButton is not null)) &&
+        (!capture.UsesModifierControls || originalGetButton is not null ||
+            getAxisHook is { IsHookActivated: true, IsHookEnabled: true });
 
     /// <summary>The device the menu is listening to, or zero. Diagnostic only.</summary>
     internal nint LatchedController
@@ -270,12 +295,15 @@ internal sealed class Steam2026SdlControllerCaptureHook : IDisposable
                 now,
                 log);
             installed = candidate;
-            diagnostic = "Controller navigation capture installed over SDL2!SDL_GameControllerGetButton (multi-controller R3 ownership).";
+            diagnostic = "Controller accessibility capture installed over SDL2 button/axis getters (held-trigger ownership).";
             return true;
         }
         catch (Exception ex)
         {
-            diagnostic = $"SDL_GameControllerGetButton could not be hooked: {ex.Message}";
+            var failures = new List<string>();
+            for (var error = ex; error is not null; error = error.InnerException)
+                failures.Add($"{error.GetType().Name}: {error.Message}");
+            diagnostic = "SDL controller input could not be hooked: " + string.Join(" -> ", failures);
             return false;
         }
     }
@@ -308,7 +336,8 @@ internal sealed class Steam2026SdlControllerCaptureHook : IDisposable
             NativeMethods.GetProcAddress(module, "SDL_GameControllerGetType"),
             NativeMethods.GetProcAddress(module, "SDL_GameControllerHasButton"),
             NativeMethods.GetProcAddress(module, "SDL_GameControllerGetVendor"),
-            NativeMethods.GetProcAddress(module, "SDL_GameControllerGetProduct"));
+            NativeMethods.GetProcAddress(module, "SDL_GameControllerGetProduct"),
+            NativeMethods.GetProcAddress(module, "SDL_GameControllerGetAxis"));
         diagnostic = "SDL2.dll controller exports resolved.";
         return true;
     }
@@ -365,23 +394,15 @@ internal sealed class Steam2026SdlControllerCaptureHook : IDisposable
             return raw;
         }
 
-        // The native shortcut table (action 15) binds Battle Assist to logical
-        // button 1, which SDL maps to R3, and toggles it on RELEASE. Navigation
-        // owns this binding for the lifetime of the installed hook, including
-        // busy/stale contexts and other pads. Letting even one held sample escape
-        // would turn a failed navigation click into a cheat toggle. Ordinary
-        // controls still fail open; Boosts remains available in the game's menu.
+        // The native shortcut toggles Battle Assist on R3 RELEASE. Each device
+        // retains its own modified-button tail, regardless of command ownership.
         var gameValue = button == SdlRightStick ? (byte)0 : raw;
 
         try
         {
             var mapped = MapButton(button);
-            if (!TryOwn(controller))
-            {
-                return gameValue;
-            }
-
-            var strip = Decide(controller);
+            var strip = capture.UsesModifierControls ? ReserveModifiedButtons(controller) : GamepadButton.None;
+            if (TryOwn(controller)) strip |= Decide(controller);
             return mapped != GamepadButton.None && (strip & mapped) == mapped ? (byte)0 : gameValue;
         }
         catch (Exception ex)
@@ -389,6 +410,60 @@ internal sealed class Steam2026SdlControllerCaptureHook : IDisposable
             log?.Invoke($"Controller navigation capture failed and was bypassed: {ex.Message}");
             return gameValue;
         }
+    }
+
+    private short OnGetAxis(nint controller, int axis)
+    {
+        var raw = CallOriginalGetAxis(controller, axis);
+        if (Volatile.Read(ref disposed) != 0 || inSnapshot) return raw;
+        try
+        {
+            var strip = capture.UsesModifierControls ? ReserveModifiedButtons(controller) : GamepadButton.None;
+            if (TryOwn(controller)) strip |= Decide(controller);
+            if (axis == 4 && (strip & GamepadButton.LeftTrigger) != 0 ||
+                axis == 5 && (strip & GamepadButton.RightTrigger) != 0 ||
+                axis is >= 0 and <= 3 && capture.UsesModifierControls && strip != GamepadButton.None)
+                return 0;
+        }
+        catch (Exception ex) { log?.Invoke($"Controller axis capture failed: {ex.Message}"); }
+        return raw;
+    }
+
+    private GamepadButton ReadModifierMask(nint controller)
+    {
+        inSnapshot = true;
+        try
+        {
+            return (CallOriginalGetAxis(controller, 4) > 8000 ? GamepadButton.LeftTrigger : GamepadButton.None) |
+                (CallOriginalGetAxis(controller, 5) > 8000 ? GamepadButton.RightTrigger : GamepadButton.None);
+        }
+        finally { inSnapshot = false; }
+    }
+
+    private GamepadButton ReserveModifiedButtons(nint controller)
+    {
+        var down = ReadSnapshot(controller, out var attached);
+        if (!attached) return GamepadButton.None;
+        var modified = (down & ControllerAccessibilityMenu.Modifiers) != 0;
+        var firstSight = false;
+        GamepadButton mask;
+        lock (deviceSync)
+        {
+            var device = FindDeviceLocked(controller);
+            if (device is null)
+            {
+                AddDeviceLocked(controller, (down & GamepadButton.RightThumb) != 0);
+                device = FindDeviceLocked(controller)!;
+                device.ModifierKnown = true;
+                device.ModifierWasDown = modified;
+                firstSight = true;
+            }
+            device.Tail &= down;
+            if (modified) device.Tail |= down & ControllerAccessibilityMenu.OwnedButtons;
+            mask = modified ? ControllerAccessibilityMenu.OwnedButtons : device.Tail;
+        }
+        if (firstSight) LogDeviceSeen(controller);
+        return mask;
     }
 
     /// <summary>
@@ -497,11 +572,12 @@ internal sealed class Steam2026SdlControllerCaptureHook : IDisposable
         // being blocked along with whatever else the player has a thumb resting on.
         _ = capture.ObserveRawPoll(GamepadSnapshot.Disconnected, now());
         _ = capture.ObserveRawPoll(
-            new GamepadSnapshot(true, 0, 0, buttons & ~GamepadButton.RightThumb), now());
+            new GamepadSnapshot(true, 0, 0, buttons & ~(capture.UsesModifierControls
+                ? ControllerAccessibilityMenu.Modifiers : GamepadButton.RightThumb)), now());
 
         log?.Invoke(
             $"Controller navigation moved to controller 0x{controller:X} " +
-            $"from 0x{previous:X}: the right stick was clicked on it.");
+            $"from 0x{previous:X}: {(capture.UsesModifierControls ? "a trigger was pressed" : "the right stick was clicked")} on it.");
         return true;
     }
 
@@ -516,7 +592,8 @@ internal sealed class Steam2026SdlControllerCaptureHook : IDisposable
     /// </summary>
     private bool ObserveStickClickEdge(nint controller)
     {
-        var down = ReadOneButton(controller, SdlRightStick) != 0;
+        var down = capture.UsesModifierControls ? ReadModifierMask(controller) != GamepadButton.None :
+            ReadOneButton(controller, SdlRightStick) != 0;
 
         bool firstSight;
         bool rising;
@@ -528,11 +605,26 @@ internal sealed class Steam2026SdlControllerCaptureHook : IDisposable
             {
                 rising = false;
                 AddDeviceLocked(controller, down);
+                if (capture.UsesModifierControls)
+                {
+                    var added = FindDeviceLocked(controller)!;
+                    added.ModifierKnown = true;
+                    added.ModifierWasDown = down;
+                }
             }
             else
             {
-                rising = down && !device.RightThumbWasDown;
-                device.RightThumbWasDown = down;
+                if (capture.UsesModifierControls)
+                {
+                    rising = device.ModifierKnown && down && !device.ModifierWasDown;
+                    device.ModifierKnown = true;
+                    device.ModifierWasDown = down;
+                }
+                else
+                {
+                    rising = down && !device.RightThumbWasDown;
+                    device.RightThumbWasDown = down;
+                }
             }
         }
 
@@ -662,6 +754,9 @@ internal sealed class Steam2026SdlControllerCaptureHook : IDisposable
         internal nint Controller { get; } = controller;
 
         internal bool RightThumbWasDown { get; set; } = rightThumbWasDown;
+        internal bool ModifierKnown { get; set; }
+        internal bool ModifierWasDown { get; set; }
+        internal GamepadButton Tail { get; set; }
     }
 
     /// <summary>
@@ -719,6 +814,8 @@ internal sealed class Steam2026SdlControllerCaptureHook : IDisposable
             {
                 device.RightThumbWasDown =
                     (buttons & GamepadButton.RightThumb) == GamepadButton.RightThumb;
+                device.ModifierKnown = true;
+                device.ModifierWasDown = (buttons & ControllerAccessibilityMenu.Modifiers) != 0;
             }
         }
 
@@ -789,6 +886,12 @@ internal sealed class Steam2026SdlControllerCaptureHook : IDisposable
                 }
             }
 
+            if (capture.UsesModifierControls)
+            {
+                if (CallOriginalGetAxis(controller, 4) > 8000) buttons |= GamepadButton.LeftTrigger;
+                if (CallOriginalGetAxis(controller, 5) > 8000) buttons |= GamepadButton.RightTrigger;
+            }
+
             return buttons;
         }
         finally
@@ -833,6 +936,7 @@ internal sealed class Steam2026SdlControllerCaptureHook : IDisposable
     private void DisableHooks()
     {
         Disable(closeHook);
+        Disable(getAxisHook);
         Disable(getButtonHook);
 
         void Disable<T>(IHook<T>? hook) where T : Delegate
@@ -865,7 +969,8 @@ internal sealed class Steam2026SdlControllerCaptureHook : IDisposable
         nint GetControllerType,
         nint HasButton,
         nint GetVendor,
-        nint GetProduct);
+        nint GetProduct,
+        nint GetAxis = 0);
 
     private static class NativeMethods
     {

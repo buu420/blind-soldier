@@ -194,7 +194,8 @@ internal sealed class BattleAnimationNarrationRuntime : IDisposable
                     var path = Path.Combine(voiceDirectory, clip.FileName);
                     return File.Exists(path)
                         ? new OpeningMovieAudioTrackPlayer(path,
-                            config.FieldMovieNarrationTrackVolumePercent, log, "Battle description")
+                            config.FieldMovieNarrationTrackVolumePercent, log, "Battle description",
+                            () => config.AudioDescriptionVolumePercent)
                         : null;
                 },
                 log, speak, anotherDescriptionIsPlaying, ticksPerCueFrame, speechIsPlaying);
@@ -271,6 +272,40 @@ internal sealed class BattleAnimationNarrationRuntime : IDisposable
             ? $"Battle animation cue ticks: {known} native battle tick(s) per authored tick ({(toml is null ? "no FFNx.toml" : path)})."
             : $"Battle animation descriptions unavailable: FFNx.toml at {path} sets an unknown ff7_fps_limiter, so the battle frame rate is unknown.");
         return multiplier;
+    }
+
+    /// <summary>
+    /// The mod settings' "reset battle descriptions": forgets every limit break, summon and
+    /// summoning opening heard in the save being played, and says what happened. Works whether
+    /// or not this runtime was created. A description already playing finishes but is not
+    /// recorded, and the animation on screen is not described again from its middle (see
+    /// <see cref="BattleAnimationNarrationCoordinator"/>); each is told at its next occurrence.
+    /// </summary>
+    /// <param name="battleHistory">The battle-descriptions.json history, never the room history.</param>
+    internal static string ResetBattleDescriptions(FieldAreaDescriptionHistory battleHistory, Action<string>? log = null)
+    {
+        ArgumentNullException.ThrowIfNull(battleHistory);
+        var result = battleHistory.ResetActiveSave();
+        const string again =
+            "Every limit break and summon, and the summoning opening, will be described again the next time it plays.";
+        var speech = result.Scope switch
+        {
+            DescriptionHistoryResetScope.NoGame =>
+                "No game is loaded, so there are no battle descriptions to reset.",
+            DescriptionHistoryResetScope.UnsavedGame =>
+                $"Battle descriptions reset for this unsaved game. {again}",
+            _ when result.Persisted =>
+                $"Battle descriptions reset for save {result.SaveFile}, game {result.GameSlot}. {again}",
+            _ =>
+                $"Battle descriptions reset for save {result.SaveFile}, game {result.GameSlot} for this session only: " +
+                $"the change could not be saved ({result.PersistenceFailure}). After the game restarts, descriptions " +
+                "already heard in this save will be silent again.",
+        };
+        log?.Invoke(
+            $"Battle description history reset: {result.Scope}, save {result.SaveFile}, game {result.GameSlot}, " +
+            $"{result.ClearedCount} heard entries cleared" +
+            (result.Persisted ? "." : $"; not saved: {result.PersistenceFailure}"));
+        return speech;
     }
 
     internal bool IsPlaying => narration?.IsPlaying == true;

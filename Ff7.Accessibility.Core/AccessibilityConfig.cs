@@ -119,6 +119,17 @@ public sealed class AccessibilityConfig
     /// setting is a separate key and is left alone.
     /// </summary>
     public int FieldMovieNarrationTrackVolumePercent { get; set; } = 100;
+
+    /// <summary>
+    /// The player's description volume, 50 to 300 percent in steps of 25: a master level for
+    /// every recorded description - scenes, films, the opening and battles - multiplying each
+    /// recording's own volume above (so the opening keeps its 300 relative to the rest). It
+    /// is read again for every buffer while a recording plays, so a change is heard at once,
+    /// and a limiter keeps the boosted samples within full scale (see
+    /// <see cref="AudioDescriptionLimiter"/>). It does not change the screen reader's voice,
+    /// the music or the cue sounds.
+    /// </summary>
+    public int AudioDescriptionVolumePercent { get; set; } = AudioDescriptionLevel.DefaultPercent;
     public int FieldMessageOpenSpeechSettleMs { get; set; } = 0;
     public bool EnableFieldDialogueDrawSpeech { get; set; } = true;
     public int FieldDialogueDrawStableMs { get; set; } = 250;

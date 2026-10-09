@@ -10,6 +10,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\ModSettingsTests.cs" Link="SharedTests\ModSettingsTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\BattleDescriptionResetTests.cs" Link="SharedTests\BattleDescriptionResetTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\AudioDescriptionVolumeTests.cs" Link="SharedTests\AudioDescriptionVolumeTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\ControllerAccessibilityWorkerTests.cs" Link="SharedTests\ControllerAccessibilityWorkerTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\WorldMapSubmarineDiveTests.cs" Link="SharedTests\WorldMapSubmarineDiveTests.cs" />
     <ProjectReference Include="..\Ff7.Accessibility.Runtime.Abstractions\Ff7.Accessibility.Runtime.Abstractions.csproj" />
     <ProjectReference Include="..\Ff7.Accessibility.Steam2026X64\Ff7.Accessibility.Steam2026X64.csproj" />
@@ -73,6 +77,8 @@
              Link="SharedTests\CutsceneVoiceTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\ControllerNavigationMenuTests.cs"
              Link="SharedTests\ControllerNavigationMenuTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\ControllerModifierNavigationTests.cs"
+             Link="SharedTests\ControllerModifierNavigationTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\ControllerNavigationDomainOwnershipTests.cs"
              Link="SharedTests\ControllerNavigationDomainOwnershipTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\GoldSaucerDescriptionTests.cs"

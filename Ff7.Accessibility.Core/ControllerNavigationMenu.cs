@@ -27,6 +27,19 @@ public enum ControllerNavigationCommand
 
     /// <summary>Stop the route and any auto walk with it.</summary>
     StopNavigation,
+
+    SettingsOpen,
+    SettingsClose,
+    SettingsPrevious,
+    SettingsNext,
+    SettingsDecrease,
+    SettingsIncrease,
+    SettingsActivate,
+    PartyPrevious,
+    PartyNext,
+    PartySummary,
+    PartyStatuses,
+    PartyLimit,
 }
 
 /// <summary>
@@ -45,7 +58,9 @@ public enum ControllerNavigationCommand
 public readonly record struct ControllerNavigationContext(
     bool IsHostForeground,
     bool ModuleSupportsNavigation,
-    bool GameIsBusy);
+    bool GameIsBusy,
+    bool SupportsPartyReadout = false,
+    bool SupportsSettings = true);
 
 /// <param name="Command">What to do, or <see cref="ControllerNavigationCommand.None"/>.</param>
 /// <param name="MenuIsOpen">Whether the menu owns the pad after this tick.</param>
@@ -92,7 +107,7 @@ public readonly record struct ControllerNavigationMenuResult(
 /// game. See <see cref="IGameInputSuppressor"/> for why that is a refusal and not a
 /// warning.</para>
 /// </summary>
-public sealed class ControllerNavigationMenu
+public sealed class ControllerNavigationMenu : IControllerNavigationMenu
 {
     /// <summary>
     /// Everything the menu takes over while it is open: the D-pad, the face buttons
@@ -137,6 +152,10 @@ public sealed class ControllerNavigationMenu
     }
 
     public bool IsOpen => isOpen;
+
+    public bool UsesModifierControls => false;
+    public bool SettingsIsOpen => false;
+    public void SetSettingsOpen(bool open) { }
 
     /// <summary>Whether the pad is being kept from the game at all right now.</summary>
     public bool IsSuppressing => isOpen || draining != GamepadButton.None;

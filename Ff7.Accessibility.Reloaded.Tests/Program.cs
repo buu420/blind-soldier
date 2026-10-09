@@ -18,6 +18,17 @@ if (args.Contains("--field-execution-report", StringComparer.OrdinalIgnoreCase))
     Environment.Exit(Ff7.Accessibility.Reloaded.Tests.FieldScriptExecutionModelTests.Report());
 }
 
+if (args.Contains("--mod-settings-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.ModSettingsTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.BattleDescriptionResetTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.AudioDescriptionVolumeTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.ControllerModifierNavigationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.ControllerAccessibilityWorkerTests.Run();
+    Console.WriteLine("Mod settings, battle reset and live description volume tests passed.");
+    return;
+}
+
 if (args.Contains("--submarine-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.SubmarineMissionTests.Run();
@@ -389,8 +400,17 @@ if (args.Contains("--reactor-ladder-only", StringComparer.OrdinalIgnoreCase))
     return;
 }
 
+if (args.Contains("--controller-modifier-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.ControllerModifierNavigationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.ControllerAccessibilityWorkerTests.Run();
+    return;
+}
+
 if (args.Contains("--controller-nav-only", StringComparer.OrdinalIgnoreCase))
 {
+    Ff7.Accessibility.Reloaded.Tests.ControllerModifierNavigationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.ControllerAccessibilityWorkerTests.Run();
     Ff7.Accessibility.Reloaded.Tests.ControllerNavigationMenuTests.Run();
     Ff7.Accessibility.Reloaded.Tests.ControllerNavigationDomainOwnershipTests.Run();
     Ff7.Accessibility.Reloaded.Tests.ControllerNavigationAdapterTests.Run();
@@ -1019,8 +1039,8 @@ if (args.Contains("--story-progression-only", StringComparer.OrdinalIgnoreCase))
 
 if (args.Contains("--room-history-only", StringComparer.OrdinalIgnoreCase))
 {
-    Ff7.Accessibility.Reloaded.Tests.FieldAreaDescriptionHistoryTests.Run();
-    Ff7.Accessibility.Reloaded.Tests.FieldAreaDescriptionSaveTrackerTests.Run();
+Ff7.Accessibility.Reloaded.Tests.FieldAreaDescriptionHistoryTests.Run();
+Ff7.Accessibility.Reloaded.Tests.FieldAreaDescriptionSaveTrackerTests.Run();
     Console.WriteLine("FFVII room description history tests passed.");
     return;
 }
@@ -1325,6 +1345,8 @@ Ff7.Accessibility.Reloaded.Tests.NativeLandingArrivalTests.RunWithInstalledGameD
     CreateInstalledFieldWalkmeshReader,
     new FieldScriptNavigationCatalog(FindGameRoot()));
 Ff7.Accessibility.Reloaded.Tests.ModPostBattleAutoWalkTests.Run();
+Ff7.Accessibility.Reloaded.Tests.ControllerModifierNavigationTests.Run();
+Ff7.Accessibility.Reloaded.Tests.ControllerAccessibilityWorkerTests.Run();
 Ff7.Accessibility.Reloaded.Tests.ControllerNavigationMenuTests.Run();
 Ff7.Accessibility.Reloaded.Tests.ControllerNavigationDomainOwnershipTests.Run();
 Ff7.Accessibility.Reloaded.Tests.ControllerNavigationAdapterTests.Run();
@@ -1600,6 +1622,9 @@ AssertFieldGatewayTargetReaderReadsEveryNativeGateway();
 AssertFieldGatewayTargetReaderRejectsInvalidState();
 AssertFieldActivityReadoutSpeaksTheNativeActivities();
 Ff7.Accessibility.Reloaded.Tests.FieldAreaDescriptionHistoryTests.Run();
+Ff7.Accessibility.Reloaded.Tests.ModSettingsTests.Run();
+Ff7.Accessibility.Reloaded.Tests.BattleDescriptionResetTests.Run();
+Ff7.Accessibility.Reloaded.Tests.AudioDescriptionVolumeTests.Run();
 Ff7.Accessibility.Reloaded.Tests.BattleAnimationNarrationTests.Run();
 Ff7.Accessibility.Reloaded.Tests.BattleNarrationAssetTests.Run();
 Ff7.Accessibility.Reloaded.Tests.BattleNarrationLifecycleTests.Run();

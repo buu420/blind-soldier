@@ -45,6 +45,7 @@ internal sealed class Steam2026ResearchSession : IDisposable
     private readonly INativeMemoryReader memory;
     private readonly IReloadedHooks? hooks;
     private readonly AccessibilityConfig config;
+    private readonly PlayerSettingsStore playerSettingsStore;
     private readonly string modDirectory;
     private readonly string gameWorkingDirectory;
     private readonly string expectedOpeningMoviePath;
@@ -68,7 +69,8 @@ internal sealed class Steam2026ResearchSession : IDisposable
         string gameWorkingDirectory,
         string expectedOpeningMoviePath,
         Ff7GameLanguageContext gameLanguage,
-        Action<string> log)
+        Action<string> log,
+        PlayerSettingsStore? playerSettingsStore = null)
     {
         this.fingerprint = fingerprint ?? throw new ArgumentNullException(nameof(fingerprint));
         this.moduleBase = moduleBase;
@@ -89,6 +91,9 @@ internal sealed class Steam2026ResearchSession : IDisposable
             : Path.GetFullPath(expectedOpeningMoviePath);
         this.gameLanguage = gameLanguage ?? throw new ArgumentNullException(nameof(gameLanguage));
         this.log = log ?? throw new ArgumentNullException(nameof(log));
+        this.playerSettingsStore = playerSettingsStore ?? PlayerSettingsStore.Open(
+            Path.Combine(this.modDirectory, "Configuration", PlayerSettingsStore.FileName),
+            config, ModSettingsRuntime.Steam2026, log: log);
         worker = new Thread(Run)
         {
             IsBackground = true,
@@ -208,7 +213,7 @@ internal sealed class Steam2026ResearchSession : IDisposable
                 path,
                 config.FieldMovieNarrationTrackVolumePercent,
                 log,
-                $"Field movie {track.Label}");
+                $"Field movie {track.Label}", liveMasterVolumePercent: () => config.AudioDescriptionVolumePercent);
         }
         catch (Exception ex)
         {
@@ -247,7 +252,7 @@ internal sealed class Steam2026ResearchSession : IDisposable
                 path,
                 config.FieldMovieNarrationTrackVolumePercent,
                 log,
-                "Cutscene description");
+                "Cutscene description", liveMasterVolumePercent: () => config.AudioDescriptionVolumePercent);
         }
         catch (Exception ex)
         {
@@ -449,6 +454,9 @@ internal sealed class Steam2026ResearchSession : IDisposable
         var roomDescriptionSaves = new FieldAreaDescriptionSaveTracker(
             roomDescriptionHistory, log, battleDescriptionHistory);
         BattleAnimationNarrationRuntime? battleAnimationNarration = null;
+        var modSettingsMenu = new ModSettingsMenu(config, playerSettingsStore,
+            () => BattleAnimationNarrationRuntime.ResetBattleDescriptions(battleDescriptionHistory, log));
+        ControllerAccessibilityDispatcher? controllerAccessibility = null;
         SaveMenuStateReader? roomDescriptionSaveReader = null;
         TitleLoadMenuDataReader? roomDescriptionLoadReader = null;
         NativeSaveResultPopupReader? roomDescriptionPopupReader = null;
@@ -529,7 +537,7 @@ internal sealed class Steam2026ResearchSession : IDisposable
         // character command, so the presses reached the player's screen reader instead.
         var directionalInput = new Steam2026NativeDirectionalInputSink(
             foregroundInput.IsCurrentProcessForeground,
-            deliveryIsAllowed: () => submarineMission?.MayDeliverInputNow ?? true);
+            deliveryIsAllowed: () => !modSettingsMenu.IsOpen && (submarineMission?.MayDeliverInputNow ?? true));
         Steam2026NativeDirectInputKeyboardHook? directionalInputHook = null;
         var nextDirectionalInputAttemptUtc = DateTime.MinValue;
         var navigationProgressController = new NavigationProgressController(
@@ -583,7 +591,33 @@ internal sealed class Steam2026ResearchSession : IDisposable
             config.OpeningMovieAudioTrackPath,
             config.OpeningMovieAudioTrackVolumePercent,
             localizer,
-            log);
+            log, () => config.AudioDescriptionVolumePercent);
+        output.SpeechIsAllowed = () => config.EnableSpeech && !modSettingsMenu.IsOpen;
+        controllerAccessibility = new ControllerAccessibilityDispatcher(
+            () => controllerCaptureHook?.Capture, () => modSettingsMenu.IsOpen,
+            command => command switch
+            {
+                ModSettingsInputCommand.Open => modSettingsMenu.Open(controllerAccessibility?.UseControllerSettingsControls == true
+                    ? ModSettingsInputDevice.Controller : ModSettingsInputDevice.Keyboard),
+                ModSettingsInputCommand.Close => modSettingsMenu.Close(),
+                ModSettingsInputCommand.None => null,
+                _ => modSettingsMenu.Handle(command switch
+                {
+                    ModSettingsInputCommand.Previous => ModSettingsMenuCommand.Previous,
+                    ModSettingsInputCommand.Next => ModSettingsMenuCommand.Next,
+                    ModSettingsInputCommand.Decrease => ModSettingsMenuCommand.Decrease,
+                    ModSettingsInputCommand.Increase => ModSettingsMenuCommand.Increase,
+                    ModSettingsInputCommand.Activate => ModSettingsMenuCommand.Activate,
+                    _ => ModSettingsMenuCommand.Repeat
+                })
+            },
+            command => battleStatusHotkeyController.HandleController(
+                (BattleStatusControllerCommand)((int)command - (int)ControllerNavigationCommand.PartyPrevious),
+                slot => battleStatusHotkeyReader?.ReadMember(slot)),
+            text => { if (!speaker.Speak(localizer.Localize(text), interrupt: true))
+                throw new InvalidOperationException("Prism did not accept the settings line."); },
+            text => output.Speak(text, interrupt: true), () =>
+            { directionalInput.Clear(); submarineMission?.SuspendInput(); }, log);
 
         // Published for Suspend and Resume, which are called from the loader's
         // thread rather than this worker and would otherwise have nothing to speak
@@ -790,6 +824,12 @@ internal sealed class Steam2026ResearchSession : IDisposable
 
                 var now = DateTime.UtcNow;
                 var isHostForeground = foregroundInput.IsCurrentProcessForeground();
+                var settingsWereOpen = modSettingsMenu.IsOpen;
+                controllerAccessibility.Tick(isHostForeground, foregroundInput.IsKeyDown, now);
+                foregroundInput.ModSettingsOwnsInput = modSettingsMenu.IsOpen;
+                if (settingsWereOpen || modSettingsMenu.IsOpen) foregroundInput.BlockHeldModKeys();
+                navigationProgressController.ApplySettings(config.EnableNavigationProgressIndicators,
+                    config.NavigationProgressIntervalPercent);
                 // Sample every worker iteration, even when no coherent guest frame is
                 // available. A key held through frame recovery therefore cannot become
                 // a delayed false rising edge.
@@ -842,6 +882,10 @@ internal sealed class Steam2026ResearchSession : IDisposable
                     try
                     {
                         var speech = navigationProgressController.HandleAction(action);
+                        config.EnableNavigationProgressIndicators = navigationProgressController.Enabled;
+                        config.NavigationProgressIntervalPercent = navigationProgressController.IntervalPercent;
+                        SavePlayerShortcut(nameof(config.EnableNavigationProgressIndicators), config.EnableNavigationProgressIndicators ? 1 : 0);
+                        SavePlayerShortcut(nameof(config.NavigationProgressIntervalPercent), config.NavigationProgressIntervalPercent);
                         log($"Navigation progress control: {speech}");
                         output.Speak(speech, interrupt: true);
                     }
@@ -1441,8 +1485,7 @@ avigationield_zone_transition.wav"),
                 // IDirectInputDeviceA::GetDeviceState, validated against its registration
                 // record and live prefix, so the direction is marked in the keyboard state
                 // it has just built and read by the translated caller on the same call.
-                if ((config.EnableFieldNavigationAssistant || config.EnableWorldMapNavigationAssistant || config.EnableSubmarineMissionReadout)
-                    && hooks is not null
+                if (hooks is not null
                     && directionalInputHook is null
                     && now >= nextDirectionalInputAttemptUtc)
                 {
@@ -1481,9 +1524,8 @@ avigationield_zone_transition.wav"),
                     if (Steam2026SdlControllerCaptureHook.TryInstall(
                             hooks,
                             isInstalled => new ControllerNavigationCapture(
-                                suppressor => new ControllerNavigationMenu(
-                                    EmptyGamepadReader.Instance, suppressor),
-                                isInstalled),
+                                suppressor => new ControllerAccessibilityMenu(suppressor),
+                                isInstalled, isForegroundNow: foregroundInput.IsCurrentProcessForeground),
                             out var installedControllerCapture,
                             out var controllerCaptureDiagnostic,
                             log: log))
@@ -1718,6 +1760,25 @@ avigationield_zone_transition.wav"),
                         lastSubmarineReturnMessageSequence = 0;
                     }
                     wasSubmarineModule = frame.Lifecycle.ModuleId == SubmarineMissionStateReader.MinigameModule;
+                    var moduleForSettings = frame.Lifecycle.ModuleId;
+                    if (!isHostForeground || frame.Lifecycle.IsShuttingDown)
+                        controllerCaptureHook?.Capture.PublishUnavailable(ControllerNavigationDomain.None, now);
+                    else if (moduleForSettings == BattleStateReader.BattleModule)
+                    {
+                        var partyActive = false;
+                        var partyAvailable = config.EnableSpeech &&
+                            battleStatusHotkeyReader?.TryReadBattleQueryActive(out partyActive) == true && partyActive;
+                        controllerCaptureHook?.Capture.PublishSettingsContext(ControllerNavigationDomain.Battle,
+                            moduleForSettings, true, partyAvailable, now);
+                    }
+                    else if (moduleForSettings != FieldPositionReader.FieldModule &&
+                             moduleForSettings != WorldMapStateReader.WorldModule &&
+                             moduleForSettings != SubmarineMissionStateReader.MinigameModule ||
+                             moduleForSettings == FieldPositionReader.FieldModule && !config.EnableFieldNavigationAssistant ||
+                             moduleForSettings == WorldMapStateReader.WorldModule && !config.EnableWorldMapNavigationAssistant ||
+                             moduleForSettings == SubmarineMissionStateReader.MinigameModule && (!config.EnableSubmarineMissionReadout || !config.EnableSpeech))
+                        controllerCaptureHook?.Capture.PublishSettingsContext(ControllerNavigationDomain.SystemMenu,
+                            moduleForSettings, true, false, now);
                     try
                     {
                         if (submarineMission is not null)
@@ -1728,7 +1789,7 @@ avigationield_zone_transition.wav"),
                                     lastSubmarineReturnMessageSequence) is { } returnDiagnostic)
                                 log($"Native Steam 2026 submarine return: {returnDiagnostic}");
                             var submarineCue = submarineMission.Observe(frame.Lifecycle.ModuleId,
-                                isHostForeground, config.EnableSpeech && config.EnableSubmarineMissionReadout,
+                                isHostForeground, config.EnableSpeech && config.EnableSubmarineMissionReadout && !modSettingsMenu.IsOpen,
                                 now, foregroundInput.ObserveRisingEdge, controllerCaptureHook?.Capture, out var interruptSubmarine);
                             if (submarineCue.PlayLockCue)
                                 submarineLockCue?.Play("submarine target lock");
@@ -1758,7 +1819,7 @@ avigationield_zone_transition.wav"),
                         var highwayIsForeground =
                             isHostForeground &&
                             frame.Lifecycle.IsForeground &&
-                            !frame.Lifecycle.IsShuttingDown;
+                            !frame.Lifecycle.IsShuttingDown && !modSettingsMenu.IsOpen;
                         var highwayIsActive =
                             frame.Lifecycle.ModuleId == HighwayStateReader.HighwayModule;
                         var highwayStatusRequested =
@@ -1775,6 +1836,8 @@ avigationield_zone_transition.wav"),
                             highwayIsForeground,
                             highwayStatusRequested,
                             autoSteeringToggleRequested);
+                        if (autoSteeringToggleRequested)
+                            SavePlayerShortcut(nameof(config.EnableHighwayAutoSteering), config.EnableHighwayAutoSteering ? 1 : 0);
                     }
                     catch (Exception ex)
                     {
@@ -2444,7 +2507,7 @@ avigationield_zone_transition.wav"),
                         var battleQueryReadable = battleStatusHotkeyReader is not null
                             && battleStatusHotkeyReader.TryReadBattleQueryActive(
                                 out battleQueryActive);
-                        var ownsBattleStatusHotkeys = config.EnableSpeech
+                        var ownsBattleStatusHotkeys = config.EnableSpeech && !modSettingsMenu.IsOpen
                             && lifecycle is
                             {
                                 IsForeground: true,
@@ -2575,6 +2638,8 @@ avigationield_zone_transition.wav"),
                     fieldNavigationCoordinator?.Suspend();
                     worldMapAccessibilityCoordinator?.Suspend("runtime frame unreadable");
                     highwayAccessibilityCoordinator?.Reset("runtime frame unreadable");
+                    controllerCaptureHook?.Capture.PublishSettingsContext(ControllerNavigationDomain.SystemMenu,
+                        -1, isHostForeground, false, now);
                 }
 
                 if (movieHookSet is not null)
@@ -3288,8 +3353,8 @@ avigationield_zone_transition.wav"),
                 try
                 {
                     battleAnimationNarration?.Tick(now,
-                        config.EnableSpeech && config.EnableBattleAnimationDescriptions && isHostForeground,
-                        config.EnableSpeech && config.EnableBattleMessageSpeech && isHostForeground);
+                        config.EnableSpeech && config.EnableBattleAnimationDescriptions && isHostForeground && !modSettingsMenu.IsOpen,
+                        config.EnableSpeech && config.EnableBattleMessageSpeech && isHostForeground && !modSettingsMenu.IsOpen);
                 }
                 catch (Exception ex)
                 {
@@ -3369,6 +3434,12 @@ avigationield_zone_transition.wav"),
         suppressDialogue && update.Kind == RuntimeDomainUpdateKind.Present
             ? RuntimeDomainUpdate<DialoguePageObservation>.Unchanged
             : update;
+
+    private void SavePlayerShortcut(string key, int value)
+    {
+        var result = playerSettingsStore.Record(key, value);
+        if (result.SaveFailure is { } failure) log($"Setting changed for this session but could not be saved: {failure}");
+    }
 
     internal static Steam2026BattleAccessibilityOptions CreateBattleOptions(
         AccessibilityConfig config)

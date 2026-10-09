@@ -1518,7 +1518,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         // An open navigation menu holds the party still without giving up the
         // route: the player is choosing where to go, not asking to be carried off
         // the spot while they read the list.
-        canMove = canMove && !controllerMenuIsOpen;
+        canMove = canMove && !controllerMenuIsOpen && !foregroundInput.ModSettingsOwnsInput;
         var direction = FieldNavigationInput.None;
         var hasDirection = canMove && controller.TryResolveAutomaticInput(
             position,
