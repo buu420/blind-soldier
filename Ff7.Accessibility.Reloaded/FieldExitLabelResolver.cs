@@ -78,6 +78,19 @@ public sealed class FieldExitLabelResolver
 
         var exactLabel = target.StableId switch
         {
+            // Highwind rooms share the broad map name "Highwind". Name the native
+            // gateway/LINE rather than making the player find it through a Story milestone.
+            // Live gateway switches, LINE enable state and MAPJUMP guards still decide which
+            // doors exist. The forward LINE selects bridge variants 68/70/72; its stable id
+            // retains all three even after the guards resolve the current destination.
+            "gateway:66:0:74" or "gateway:67:0:74" => "Enter Highwind corridor",
+            "script-exit:70:6:74" or "gateway:72:0:74" or "gateway:73:0:74" or
+            "gateway:76:0:74" => "Return to Highwind corridor",
+            "script-exit:73:3:72" or "script-exit:74:6:68,70,72" => "Enter Highwind bridge",
+            "gateway:74:0:66" or "gateway:75:0:66" => "Go to Highwind outside deck",
+            "gateway:74:1:73" or "gateway:75:1:73" => "Enter Highwind operations room",
+            "gateway:74:2:76" or "gateway:75:2:76" => "Enter Highwind Chocobo hold",
+            "script-exit:74:7:744" => "Leave Highwind for Northern Crater",
             "gateway:148:0:151" => "Exit to Sector 7 Slums, ground floor",
             "gateway:148:1:151" => "Exit to Sector 7 Slums, upstairs",
             "script-exit:161:1:161,163" => "South through the winding tunnel",
