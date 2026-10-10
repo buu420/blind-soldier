@@ -11,6 +11,7 @@ internal static class Steam2026WorldMapTerrainPriorityTests
     internal static void Run()
     {
         AConsumedAutoWalkToggleStillDefersTerrainSpeech();
+        AnUnreadableEntityListStillAllowsCurrentTerrainSpeech();
         AProgressControlUtteranceWithoutAnActiveRouteDefersTerrainSpeech();
         AFailedStateReadStillPreservesTheSpeechQuietPeriod();
         ARejectedRichMarshCueFallsBackToNativeTerrainSpeech();
@@ -335,6 +336,28 @@ internal static class Steam2026WorldMapTerrainPriorityTests
         DoesNotContain("Entered forest.", spoken, "terrain remains deferred during the quiet period");
         Observe(coordinator, start + TimeSpan.FromMilliseconds(2420));
         Contains("Left grass. Entered forest.", spoken, "latest stable terrain speaks after quiet");
+    }
+
+    private static void AnUnreadableEntityListStillAllowsCurrentTerrainSpeech()
+    {
+        var spoken = new List<string>();
+        var memory = SeedWorldMemory(terrainId: 0);
+        var inputSink = new AcceptingKeyboardSink();
+        var autoWalk = new NavigationAutoWalkController(inputSink);
+        using var coordinator = CreateCoordinator(memory, new MutableInput(), autoWalk, (text, _) => spoken.Add(text));
+        EstablishSurface(coordinator, Epoch);
+        spoken.Clear();
+        memory.SetTerrain(1);
+        memory.WriteUInt32((uint)WorldMapEntityReader.AddressEntityListHead, 0x0BADCAFE);
+        Equal(false, new WorldMapEntityReader(memory).Read().IsUsable, "the entity list is actually unreadable");
+        autoWalk.TryStart(NavigationAutoWalkDomain.WorldMap, routeActive: true);
+        Observe(coordinator, Epoch.AddMilliseconds(1200));
+        Observe(coordinator, Epoch.AddMilliseconds(1500));
+        Observe(coordinator, Epoch.AddMilliseconds(1800));
+        Observe(coordinator, Epoch.AddMilliseconds(2100));
+        Contains("Left grass. Entered forest.", spoken,
+            "an unreadable entity list cannot hide terrain from the independently valid player state");
+        Equal(0, inputSink.Sent.Count, "no automatic input is delivered from an unreadable entity list");
     }
 
     private static void AFailedStateReadStillPreservesTheSpeechQuietPeriod()
@@ -729,6 +752,9 @@ internal static class Steam2026WorldMapTerrainPriorityTests
         memory.WriteInt32((uint)WorldMapStateReader.AddressWorldProgress, 0);
         memory.WriteUInt16((uint)WorldMapStateReader.AddressGameMoment, 0);
         memory.WriteUInt32((uint)WorldMapStateReader.AddressWorldPlayerEntityPointer, player);
+        memory.WriteUInt32((uint)WorldMapEntityReader.AddressEntityListHead, player);
+        memory.WriteUInt32(player, 0);
+        memory.WriteByte(player + 0x51, 0x80);
         memory.WriteInt32((uint)WorldMapStateReader.AddressWorldCameraFront, 0);
         memory.WriteUInt32(player + WorldMapStateReader.ContactEntityOffset, 0);
         memory.WriteInt32(player + WorldMapStateReader.PositionXOffset, 174000);

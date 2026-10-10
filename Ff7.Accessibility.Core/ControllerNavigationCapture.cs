@@ -59,6 +59,7 @@ public sealed class ControllerNavigationCapture : IGameInputSuppressor
     private readonly object policySync = new();
 
     private ControllerNavigationGeneration generation = ControllerNavigationGeneration.None;
+    private DateTime nativeInputExclusiveStampUtc = DateTime.MinValue;
     private long nextGenerationId = 1;
     private int suppressedMask;
     private long observedPolls;
@@ -152,6 +153,39 @@ public sealed class ControllerNavigationCapture : IGameInputSuppressor
     }
 
     public DateTime LastPollUtc => new(Interlocked.Read(ref lastPollTicks), DateTimeKind.Utc);
+
+    /// <summary>
+    /// Says whether the game is reading the pad as an instrument right now: a field host
+    /// renews this on every frame it sees a piano's native note and chord threads running,
+    /// and withdraws it the frame they stop. While it stands, no controller page opens and
+    /// no button - a resting trigger included - is kept from the game, apart from a press
+    /// that was already being kept back, until it is released. R3 stays with the input
+    /// hooks, which withhold it on every read.
+    ///
+    /// <para>It is a lease rather than a switch: one nobody renews lapses after
+    /// <see cref="ContextFreshness"/>, so a host that stops publishing cannot leave the
+    /// player's own controls given away.</para>
+    /// </summary>
+    public void PublishNativeInputExclusive(bool exclusive, DateTime nowUtc)
+    {
+        lock (policySync)
+        {
+            nativeInputExclusiveStampUtc = exclusive ? nowUtc : DateTime.MinValue;
+        }
+    }
+
+    /// <summary>Whether a native-input lease stands at <paramref name="nowUtc"/>.</summary>
+    public bool IsNativeInputExclusive(DateTime nowUtc)
+    {
+        lock (policySync)
+        {
+            return IsNativeInputExclusiveLocked(nowUtc);
+        }
+    }
+
+    private bool IsNativeInputExclusiveLocked(DateTime nowUtc) =>
+        nativeInputExclusiveStampUtc != DateTime.MinValue &&
+        nowUtc - nativeInputExclusiveStampUtc <= ContextFreshness;
 
     /// <summary>Retires movement without taking away the independent settings page.</summary>
     public void PublishNavigationUnavailable(ControllerNavigationDomain domain, bool foreground, DateTime nowUtc)
@@ -288,7 +322,8 @@ public sealed class ControllerNavigationCapture : IGameInputSuppressor
                 fresh && current.ModuleSupportsNavigation,
                 !fresh || current.GameIsBusy,
                 fresh && current.SupportsPartyReadout,
-                fresh && current.SupportsSettings);
+                fresh && current.SupportsSettings,
+                IsNativeInputExclusiveLocked(nowUtc));
 
             try
             {

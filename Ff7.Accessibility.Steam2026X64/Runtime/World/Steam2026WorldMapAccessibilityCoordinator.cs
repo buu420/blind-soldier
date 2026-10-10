@@ -420,6 +420,12 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
             ? entityResult.Entities
             : Array.Empty<WorldMapEntitySnapshot>(), addressSpace);
         LogDiagnostic("entities", entityResult.Diagnostic, ref lastEntityDiagnostic);
+        if (!entityResult.IsUsable)
+        {
+            runtime.Navigation.PauseForUnavailableEntities();
+            autoWalk.Suspend();
+            PublishControllerUnavailable(nowUtc);
+        }
         foreach (var context in runtimes.Values)
         {
             if (!ReferenceEquals(context, runtime))
@@ -443,7 +449,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         }
 
         higherPrioritySpeech |= ObserveMidgarZolomCrossing(runtime, state);
-        if (config.EnableWorldMapNavigationAssistant &&
+        if (entityResult.IsUsable && config.EnableWorldMapNavigationAssistant &&
             runtime.ObserveUnderwaterSightings(state, higherPrioritySpeech, nowUtc) is { } emeraldSighting)
         {
             speak(emeraldSighting, false);
@@ -468,6 +474,14 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
             PublishControllerUnavailable(nowUtc);
             runtime.Navigation.Suspend("world navigation disabled");
             autoWalk.Reset();
+            ObserveTerrain(runtime, state, nowUtc, higherPrioritySpeech);
+            return;
+        }
+
+        if (!entityResult.IsUsable)
+        {
+            // Terrain comes from the independently usable player state. A failed
+            // entity read pauses routing, not valid ordinary world information.
             ObserveTerrain(runtime, state, nowUtc, higherPrioritySpeech);
             return;
         }
@@ -942,7 +956,8 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
                 () => autoWalk.Suspend(),
                 // A Great Glacier treasure between snowfield legs is a held destination: B
                 // cancels it, A or X replace it, and X asks for its legs to be walked.
-                () => controllerRuntime?.Navigation.IsHoldingDestination == true,
+                () => controllerRuntime?.Navigation.IsHoldingDestination == true ||
+                    controllerRuntime?.Navigation.IsHoldingEntityTarget == true,
                 () => controllerRuntime?.Navigation.NoteAutoWalkStarted()),
             speech => { speak(speech, true); return true; },
             log);

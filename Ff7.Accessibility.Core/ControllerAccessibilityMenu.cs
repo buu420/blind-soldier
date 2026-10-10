@@ -20,8 +20,10 @@ public sealed class ControllerAccessibilityMenu : IControllerNavigationMenu
     private GamepadButton draining;
     private GamepadButton reservedStick;
     private GamepadButton lastDown;
+    private GamepadButton withheld;
     private int closeRequested;
     private bool waitForModifierRelease;
+    private bool nativeInputExclusive;
     private volatile bool suppressing;
 
     public ControllerAccessibilityMenu(IGameInputSuppressor suppressor) =>
@@ -46,8 +48,9 @@ public sealed class ControllerAccessibilityMenu : IControllerNavigationMenu
     {
         mode = Mode.None;
         draining = reservedStick = GamepadButton.None;
-        lastDown = GamepadButton.None;
+        lastDown = withheld = GamepadButton.None;
         waitForModifierRelease = false;
+        nativeInputExclusive = false;
         suppressing = false;
         edges.Reset();
         suppressor.ReleaseAll();
@@ -57,11 +60,17 @@ public sealed class ControllerAccessibilityMenu : IControllerNavigationMenu
         ControllerNavigationContext context, DateTime nowUtc)
     {
         var down = snapshot.IsConnected ? snapshot.AccessibilityButtons : GamepadButton.None;
+        var heldBefore = lastDown;
         lastDown = down;
         snapshot = snapshot with { Buttons = down };
+        nativeInputExclusive = context.NativeInputIsExclusive;
         var modifierDown = (down & Modifiers) != 0;
         if (!modifierDown) waitForModifierRelease = false;
         draining &= down;
+        // While the game reads the pad as an instrument, only a press it has never seen
+        // stays private: one withheld on the last read and held ever since. Handing it over
+        // mid-hold would play it as a fresh note or chord.
+        if (nativeInputExclusive) draining |= down & heldBefore & withheld;
         reservedStick &= down;
         // A modified R3 sample must stay private even if the context is stale,
         // unavailable or changing. Battle Assist toggles on RELEASE.
@@ -69,7 +78,9 @@ public sealed class ControllerAccessibilityMenu : IControllerNavigationMenu
             reservedStick |= GamepadButton.RightThumb;
 
         var allowed = context.IsHostForeground && snapshot.IsConnected;
-        var pressed = edges.Observe(snapshot, allowed, nowUtc,
+        // Whatever is held while the game owns the pad has to be released and pressed
+        // again before it means anything here.
+        var pressed = edges.Observe(snapshot, allowed && !nativeInputExclusive, nowUtc,
             GamepadButton.DPadUp | GamepadButton.DPadDown | GamepadButton.DPadLeft | GamepadButton.DPadRight,
             out var repeated);
         var deliberate = pressed & ~repeated;
@@ -83,6 +94,20 @@ public sealed class ControllerAccessibilityMenu : IControllerNavigationMenu
             Finish(down);
             return Result(wasSettings ? ControllerNavigationCommand.SettingsClose :
                 wasOpen ? ControllerNavigationCommand.Closed : ControllerNavigationCommand.None, down);
+        }
+
+        if (nativeInputExclusive)
+        {
+            // A piano is reading these buttons as notes, chords and its own end. Browsing
+            // and the party readout give way; the settings page stays open for the
+            // keyboard but takes nothing from the pad.
+            if (mode is Mode.Navigation or Mode.Party)
+            {
+                Finish(down);
+                return Result(ControllerNavigationCommand.Closed, down);
+            }
+
+            return Result(ControllerNavigationCommand.None, down);
         }
 
         if (context.SupportsSettings && (down & Modifiers) == Modifiers && Has(pressed, GamepadButton.Y))
@@ -145,11 +170,29 @@ public sealed class ControllerAccessibilityMenu : IControllerNavigationMenu
         return Result(action, down);
     }
 
+    /// <summary>
+    /// What one device's own read withholds before the shared policy adds its part: with
+    /// a trigger held, every owned button, and afterwards whatever that chord still has
+    /// down until it is let go. While the game reads the pad as an instrument a resting
+    /// trigger takes nothing, and only a press that was already being kept back drains.
+    /// </summary>
+    public static GamepadButton ReserveModifiedChord(GamepadButton down, ref GamepadButton tail,
+        bool nativeInputExclusive)
+    {
+        var modified = !nativeInputExclusive && (down & Modifiers) != 0;
+        tail &= down;
+        if (nativeInputExclusive) tail &= ~Modifiers;
+        if (modified) tail |= down & OwnedButtons;
+        return modified ? OwnedButtons : tail;
+    }
+
     private void Finish(GamepadButton down)
     {
         if (mode != Mode.None)
         {
-            draining |= down & OwnedButtons;
+            // Under a lease the page has not been taking the pad, and what it last took
+            // is already draining.
+            if (!nativeInputExclusive) draining |= down & OwnedButtons;
             edges.BlockHeld();
             waitForModifierRelease = (down & Modifiers) != 0;
         }
@@ -167,14 +210,27 @@ public sealed class ControllerAccessibilityMenu : IControllerNavigationMenu
     private ControllerNavigationMenuResult Result(ControllerNavigationCommand command,
         GamepadButton down, string? announcement = null)
     {
-        var mask = (mode != Mode.None ? OwnedButtons : draining) | reservedStick;
-        // Capture attempted modifier chords in invalid contexts too. Their face
-        // buttons must not become a game command when navigation refuses to open.
-        if ((down & Modifiers) != 0)
+        GamepadButton mask;
+        if (nativeInputExclusive)
         {
-            mask |= OwnedButtons;
-            draining |= down & OwnedButtons;
+            // Only a press already being kept back stays private until it is let go.
+            // A resting trigger is the game's again, and so are the sticks: the input
+            // hooks clear every stick axis whenever anything at all is withheld.
+            draining &= ~Modifiers;
+            mask = draining;
         }
+        else
+        {
+            mask = (mode != Mode.None ? OwnedButtons : draining) | reservedStick;
+            // Capture attempted modifier chords in invalid contexts too. Their face
+            // buttons must not become a game command when navigation refuses to open.
+            if ((down & Modifiers) != 0)
+            {
+                mask |= OwnedButtons;
+                draining |= down & OwnedButtons;
+            }
+        }
+        withheld = mask;
         suppressing = mask != GamepadButton.None;
         if (mask == GamepadButton.None) suppressor.ReleaseAll();
         else if (!suppressor.TryHold(mask, out var diagnostic)) LastRefusal = diagnostic;

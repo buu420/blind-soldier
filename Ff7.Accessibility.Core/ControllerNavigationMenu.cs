@@ -55,12 +55,19 @@ public enum ControllerNavigationCommand
 /// Whether the game has its own dialogue or menu on screen. The menu closes: those
 /// windows are driven by the same buttons and the player is talking to them.
 /// </param>
+/// <param name="NativeInputIsExclusive">
+/// Whether the game is reading the pad as an instrument right now - a piano's note and
+/// chord threads are running - so every button, a resting trigger included, is the
+/// game's. Nothing opens, nothing is taken, and only a press that was already being
+/// kept back when it began stays private until it is released.
+/// </param>
 public readonly record struct ControllerNavigationContext(
     bool IsHostForeground,
     bool ModuleSupportsNavigation,
     bool GameIsBusy,
     bool SupportsPartyReadout = false,
-    bool SupportsSettings = true);
+    bool SupportsSettings = true,
+    bool NativeInputIsExclusive = false);
 
 /// <param name="Command">What to do, or <see cref="ControllerNavigationCommand.None"/>.</param>
 /// <param name="MenuIsOpen">Whether the menu owns the pad after this tick.</param>
@@ -201,7 +208,8 @@ public sealed class ControllerNavigationMenu : IControllerNavigationMenu
         var mayOwn = snapshot.IsConnected
             && context.IsHostForeground
             && context.ModuleSupportsNavigation
-            && !context.GameIsBusy;
+            && !context.GameIsBusy
+            && !context.NativeInputIsExclusive;
 
         if (!mayOwn)
         {

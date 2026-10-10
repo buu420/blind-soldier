@@ -237,7 +237,33 @@ public sealed class WorldMapRoutePlanner
             return false;
         }
 
-        var goals = target.ArrivalTriangleIds
+        if (target.NativeWeaponArrival is not null)
+        {
+            if (state.PlayerModelId != 3 || state.WorldMapType != 0)
+            {
+                LastDiagnostic = "Ultimate Weapon is followed aboard the Highwind";
+                return false;
+            }
+            // A native flying model has no ground corridor to traverse. The Highwind
+            // already bypasses ground faces in CanTraverseSegment; follow the current
+            // visible point directly instead of routing to a neighboring ground face.
+            var flightPath = startTriangle == target.TriangleId ? new[] { startTriangle } :
+                new[] { startTriangle, target.TriangleId };
+            plan = new WorldMapRoutePlan(target.StableId, startTriangle, target.TriangleId,
+                flightPath, [new(target.X, target.Y, target.Z)], Math.Sqrt(
+                    WorldMapTargetCatalog.WrappedDistanceSquared(map, state.X, state.Z, target.X, target.Z)));
+            LastDiagnostic = $"native Weapon flight to {target.X},{target.Y},{target.Z}";
+            return true;
+        }
+
+        // A native point test also measures flight height. Stopping at the nearest
+        // horizontal boundary consumes that whole allowance before altitude is added.
+        // Fly toward the point itself; retain all valid arrival faces for the native
+        // test so a manual pilot can still arrive anywhere the game actually accepts.
+        var routeGoals = target.NativeStoryArrival is { RequiredTerrainId: < 0, ManhattanBound: >= 0 }
+            ? new[] { target.TriangleId }
+            : target.ArrivalTriangleIds.AsEnumerable();
+        var goals = routeGoals
             .Where(id => id >= 0 && id < map.Triangles.Count)
             .Where(id => WorldMapTerrainPassability.CanTraverse(
                 state.PlayerModelId,

@@ -119,6 +119,9 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
     // inside the game's own button read, which presses the game may see; this is
     // where the ones it kept become speech and routes.
     private readonly Func<ControllerNavigationCapture?> controllerCapture;
+
+    // Whether a piano's native note and chord threads are reading the pad as an instrument.
+    private readonly FieldPianoPerformanceReader pianoPerformanceReader;
     private ControllerNavigationDispatcher? controllerNavigation;
     private FieldPositionSnapshot controllerPosition;
     private FieldNavigationControlTransform? controllerControl;
@@ -170,6 +173,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         this.config = config ?? throw new ArgumentNullException(nameof(config));
         ArgumentNullException.ThrowIfNull(addressSpace);
         this.addressSpace = addressSpace;
+        pianoPerformanceReader = new FieldPianoPerformanceReader(addressSpace);
         this.foregroundInput = foregroundInput ?? throw new ArgumentNullException(nameof(foregroundInput));
         this.objectReader = objectReader ?? throw new ArgumentNullException(nameof(objectReader));
         ArgumentException.ThrowIfNullOrWhiteSpace(gameRootDirectory);
@@ -603,6 +607,32 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
     private static readonly TimeSpan SlowWorkerThreshold = TimeSpan.FromMilliseconds(500);
 
     /// <summary>
+    /// A piano's note and chord threads read the pad as an instrument, so while both run
+    /// the capture leaves every button to the game - a resting trigger included. Published
+    /// on every frame, whatever owns the field, as the legacy host's module floor does: the
+    /// lease is renewed while they run and withdrawn the frame they stop. An unreadable
+    /// frame neither renews nor withdraws it; the lease lapses on its own if that persists.
+    /// </summary>
+    private void PublishFieldPianoPerformance(RuntimeFrameObservation frame)
+    {
+        if (controllerCapture() is not { } capture)
+        {
+            return;
+        }
+
+        if (frame.Lifecycle.ModuleId != FieldPositionReader.FieldModule)
+        {
+            capture.PublishNativeInputExclusive(false, utcClock());
+            return;
+        }
+
+        if (pianoPerformanceReader.TryRead(out var piano))
+        {
+            capture.PublishNativeInputExclusive(piano.IsPlaying, utcClock());
+        }
+    }
+
+    /// <summary>
     /// A Great Glacier treasure route ended or paused (picked up, collapse, a failure): the
     /// walk stops with it, and is not re-armed until the player asks again.
     /// </summary>
@@ -653,6 +683,9 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
 
         // The title screen (load, new game) ends any Great Glacier treasure route.
         glacierRegion.ObserveModule(frame.Lifecycle.ModuleId);
+
+        // Before any ownership return: a piano is played while the field is busy.
+        PublishFieldPianoPerformance(frame);
 
         // The world-map coordinator owns these same six keys while module 3 is
         // active. Exactly one owner samples each frame, so a rising edge cannot
