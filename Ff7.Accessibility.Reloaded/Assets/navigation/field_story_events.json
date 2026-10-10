@@ -5,7 +5,7 @@
   "scannedGameMomentWrites": 334,
   "navigableGameMomentWrites": 118,
   "unresolvedAutomaticOrIndirectWrites": 219,
-  "definitionCount": 1445,
+  "definitionCount": 1449,
   "definitions": [
     {
       "fieldId": 115,
@@ -32175,70 +32175,6 @@
       "requiredEnabledLineEntityId": 8
     },
     {
-      "fieldId": 736,
-      "kind": "Location",
-      "label": "Climb back up toward the main tunnel",
-      "entityId": 15,
-      "x": 788,
-      "y": 2576,
-      "z": 4,
-      "targetGameMoment": -1,
-      "minimumGameMoment": 1602,
-      "maximumGameMoment": 1602,
-      "priority": 0,
-      "sourceFieldName": "tunnel_4",
-      "sourceEntityName": "jump_u",
-      "sourceScriptType": "Move",
-      "completesOnArrival": true,
-      "requiredCondition": {
-        "bank": 15,
-        "address": 129,
-        "mask": 255,
-        "value": 4
-      },
-      "triggerLine": {
-        "startX": 890,
-        "startY": 3542,
-        "startZ": 9,
-        "endX": 687,
-        "endY": 1611,
-        "endZ": 0
-      },
-      "requiredEnabledLineEntityId": 15
-    },
-    {
-      "fieldId": 736,
-      "kind": "Location",
-      "label": "Go back down toward the main tunnel",
-      "entityId": 16,
-      "x": 209,
-      "y": -617,
-      "z": 0,
-      "targetGameMoment": -1,
-      "minimumGameMoment": 1602,
-      "maximumGameMoment": 1602,
-      "priority": 0,
-      "sourceFieldName": "tunnel_4",
-      "sourceEntityName": "jump_d",
-      "sourceScriptType": "Move",
-      "completesOnArrival": true,
-      "requiredCondition": {
-        "bank": 15,
-        "address": 129,
-        "mask": 255,
-        "value": 2
-      },
-      "triggerLine": {
-        "startX": -83,
-        "startY": -665,
-        "startZ": 0,
-        "endX": 502,
-        "endY": -570,
-        "endZ": 0
-      },
-      "requiredEnabledLineEntityId": 16
-    },
-    {
       "fieldId": 737,
       "kind": "Location",
       "label": "Take the passage on the upper left",
@@ -33696,38 +33632,6 @@
         "endZ": 0
       },
       "requiredEnabledLineEntityId": 18
-    },
-    {
-      "fieldId": 778,
-      "kind": "Location",
-      "label": "Climb on up the tunnel",
-      "entityId": 19,
-      "x": 788,
-      "y": 2576,
-      "z": 4,
-      "targetGameMoment": -1,
-      "minimumGameMoment": 1602,
-      "maximumGameMoment": 1602,
-      "priority": 0,
-      "sourceFieldName": "tunnel_6",
-      "sourceEntityName": "jump_u",
-      "sourceScriptType": "Move",
-      "completesOnArrival": true,
-      "requiredCondition": {
-        "bank": 15,
-        "address": 128,
-        "mask": 4,
-        "value": 4
-      },
-      "triggerLine": {
-        "startX": 890,
-        "startY": 3542,
-        "startZ": 9,
-        "endX": 687,
-        "endY": 1611,
-        "endZ": 0
-      },
-      "requiredEnabledLineEntityId": 19
     },
     {
       "fieldId": 750,
@@ -47585,6 +47489,254 @@
       },
       "requiredEnabledLineEntityId": 7,
       "usesPlayerCollisionRadius": true
+    },
+    {
+      "fieldId": 735,
+      "kind": "Location",
+      "label": "Continue into the tunnels",
+      "entityId": 1,
+      "x": 0,
+      "y": 277,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 1601,
+      "maximumGameMoment": 1602,
+      "priority": 0,
+      "sourceFieldName": "sbwy4_22",
+      "sourceEntityName": "cloud",
+      "sourceScriptType": "Main",
+      "completesOnArrival": true,
+      "manualNavigationGuidance": "Hold Up to continue into the tunnels."
+    },
+    {
+      "fieldId": 778,
+      "kind": "Location",
+      "label": "Climb on up the tunnel",
+      "entityId": 19,
+      "x": 788,
+      "y": 2576,
+      "z": 4,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 1602,
+      "maximumGameMoment": 1602,
+      "priority": 0,
+      "sourceFieldName": "tunnel_6",
+      "sourceEntityName": "jump_u",
+      "sourceScriptType": "Move",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 15,
+          "address": 128,
+          "mask": 4,
+          "value": 4
+        },
+        {
+          "bank": 15,
+          "address": 129,
+          "mask": 255,
+          "value": 4
+        }
+      ],
+      "triggerLine": {
+        "startX": 890,
+        "startY": 3542,
+        "startZ": 9,
+        "endX": 687,
+        "endY": 1611,
+        "endZ": 0
+      },
+      "requiredEnabledLineEntityId": 19
+    },
+    {
+      "fieldId": 736,
+      "kind": "Location",
+      "label": "Climb back up toward the main tunnel",
+      "entityId": 15,
+      "x": 788,
+      "y": 2576,
+      "z": 4,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 1601,
+      "maximumGameMoment": 1602,
+      "priority": 0,
+      "sourceFieldName": "tunnel_4",
+      "sourceEntityName": "jump_u",
+      "sourceScriptType": "Move",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 15,
+          "address": 129,
+          "mask": 1,
+          "value": 0
+        },
+        {
+          "bank": 15,
+          "address": 129,
+          "mask": 255,
+          "value": 0,
+          "minimumValue": 4,
+          "maximumValue": 18
+        }
+      ],
+      "triggerLine": {
+        "startX": 890,
+        "startY": 3542,
+        "startZ": 9,
+        "endX": 687,
+        "endY": 1611,
+        "endZ": 0
+      },
+      "requiredEnabledLineEntityId": 15
+    },
+    {
+      "fieldId": 737,
+      "kind": "Location",
+      "label": "Go back down toward the main tunnel",
+      "entityId": 12,
+      "x": -7,
+      "y": 373,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 1601,
+      "maximumGameMoment": 1602,
+      "priority": 0,
+      "sourceFieldName": "tunnel_5",
+      "sourceEntityName": "jump_d",
+      "sourceScriptType": "Move",
+      "completesOnArrival": true,
+      "requiredCondition": {
+        "bank": 15,
+        "address": 129,
+        "mask": 255,
+        "value": 1
+      },
+      "triggerLine": {
+        "startX": -215,
+        "startY": 368,
+        "startZ": 0,
+        "endX": 200,
+        "endY": 379,
+        "endZ": 0
+      },
+      "requiredEnabledLineEntityId": 12
+    },
+    {
+      "fieldId": 737,
+      "kind": "Location",
+      "label": "Go down toward the main tunnel",
+      "entityId": 12,
+      "x": -7,
+      "y": 373,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 1601,
+      "maximumGameMoment": 1601,
+      "priority": 0,
+      "sourceFieldName": "tunnel_5",
+      "sourceEntityName": "jump_d",
+      "sourceScriptType": "Move",
+      "completesOnArrival": true,
+      "requiredCondition": {
+        "bank": 15,
+        "address": 129,
+        "mask": 255,
+        "value": 3
+      },
+      "triggerLine": {
+        "startX": -215,
+        "startY": 368,
+        "startZ": 0,
+        "endX": 200,
+        "endY": 379,
+        "endZ": 0
+      },
+      "requiredEnabledLineEntityId": 12
+    },
+    {
+      "fieldId": 737,
+      "kind": "Location",
+      "label": "Take the passage on the upper right toward the main tunnel",
+      "entityId": 11,
+      "x": 635,
+      "y": 1822,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 1601,
+      "maximumGameMoment": 1602,
+      "priority": 0,
+      "sourceFieldName": "tunnel_5",
+      "sourceEntityName": "jump_ur",
+      "sourceScriptType": "Move",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 15,
+          "address": 129,
+          "mask": 1,
+          "value": 1
+        },
+        {
+          "bank": 15,
+          "address": 129,
+          "mask": 255,
+          "value": 0,
+          "minimumValue": 5,
+          "maximumValue": 17
+        }
+      ],
+      "triggerLine": {
+        "startX": 550,
+        "startY": 1890,
+        "startZ": 0,
+        "endX": 721,
+        "endY": 1754,
+        "endZ": 0
+      },
+      "requiredEnabledLineEntityId": 11
+    },
+    {
+      "fieldId": 736,
+      "kind": "Location",
+      "label": "Go back down toward the main tunnel",
+      "entityId": 16,
+      "x": 209,
+      "y": -617,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 1601,
+      "maximumGameMoment": 1602,
+      "priority": 0,
+      "sourceFieldName": "tunnel_4",
+      "sourceEntityName": "jump_d",
+      "sourceScriptType": "Move",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 15,
+          "address": 129,
+          "mask": 1,
+          "value": 0
+        },
+        {
+          "bank": 15,
+          "address": 129,
+          "mask": 255,
+          "value": 0,
+          "minimumValue": 0,
+          "maximumValue": 2
+        }
+      ],
+      "triggerLine": {
+        "startX": -83,
+        "startY": -665,
+        "startZ": 0,
+        "endX": 502,
+        "endY": -570,
+        "endZ": 0
+      },
+      "requiredEnabledLineEntityId": 16
     }
   ]
 }

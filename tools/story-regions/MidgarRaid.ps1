@@ -11,6 +11,7 @@
 
 $midgarRaid = @{ MinimumGameMoment = 1601; MaximumGameMoment = 1601; Priority = 0 }
 $midgarTunnels = @{ MinimumGameMoment = 1602; MaximumGameMoment = 1602; Priority = 0 }
+$midgarTunnelVisits = @{ MinimumGameMoment = 1601; MaximumGameMoment = 1602; Priority = 0 }
 $midgarCannon = @{ MinimumGameMoment = 1603; MaximumGameMoment = 1603; Priority = 0 }
 
 # 734:3's walkway run only happens while this bit is clear and sets it afterwards, so it
@@ -26,9 +27,14 @@ $turksSettled = New-Condition -Bank 15 -Address 128 -Mask 0x04 -Value 0x04
 # The tunnel's section counter. 735 sets it to 4, every upward line decrements it and
 # every downward line increments it, and the screens read it to decide where their own
 # lines lead. Section three is where 737's upper-left line opens on the bridge.
-$tunnelSectionTwo = New-Condition -Bank 15 -Address 129 -Mask 0xFF -Value 0x02
+$tunnelStartReturnRange = New-Condition -Bank 15 -Address 129 -Mask 0xFF -Value 0 -MinimumValue 0 -MaximumValue 2
 $tunnelSectionThree = New-Condition -Bank 15 -Address 129 -Mask 0xFF -Value 0x03
 $tunnelSectionFour = New-Condition -Bank 15 -Address 129 -Mask 0xFF -Value 0x04
+$tunnelSectionOne = New-Condition -Bank 15 -Address 129 -Mask 0xFF -Value 0x01
+$tunnelEvenSection = New-Condition -Bank 15 -Address 129 -Mask 0x01 -Value 0x00
+$tunnelOddSection = New-Condition -Bank 15 -Address 129 -Mask 0x01 -Value 0x01
+$tunnelEvenReturnRange = New-Condition -Bank 15 -Address 129 -Mask 0xFF -Value 0 -MinimumValue 4 -MaximumValue 18
+$tunnelOddReturnRange = New-Condition -Bank 15 -Address 129 -Mask 0xFF -Value 0 -MinimumValue 5 -MaximumValue 17
 
 $proudClodStanding = New-Condition -Bank 15 -Address 128 -Mask 0x08 -Value 0x00
 $proudClodBeaten = New-Condition -Bank 15 -Address 128 -Mask 0x08 -Value 0x08
@@ -99,6 +105,14 @@ Add-Definition @midgarRaid -FieldId 733 -FieldName 'md8_b1' -Kind Location -Enti
     -RequiredEnabledLineEntityId 10 `
     -TriggerLine ([ordered]@{ startX = -796; startY = 1948; startZ = -179; endX = -700; endY = 1852; endZ = -179 })
 
+# sbwy4_22's Cloud Main starts LADER itself after the catwalk MAPJUMP. There is
+# no walking trigger: LADER operand 1 is the ordinary Up input, and completing
+# the descent loads tunnel_6 with section 4. Keep movement with the player here.
+Add-Definition @midgarTunnelVisits -FieldId 735 -FieldName 'sbwy4_22' -Kind Location -EntityId 1 `
+    -Label 'Continue into the tunnels' -X 0 -Y 277 -Z 0 `
+    -EntityName 'cloud' -ScriptType 'Main' `
+    -ManualNavigationGuidance 'Hold Up to continue into the tunnels.'
+
 Add-Definition -FieldId 778 -FieldName 'tunnel_6' -Kind Location -EntityId 18 -Priority 0 `
     -Label 'Cross the tunnel floor' -X 176 -Y 54 -Z 0 `
     -MinimumGameMoment 1601 -MaximumGameMoment 1601 `
@@ -109,7 +123,7 @@ Add-Definition -FieldId 778 -FieldName 'tunnel_6' -Kind Location -EntityId 18 -P
 
 Add-Definition @midgarTunnels -FieldId 778 -FieldName 'tunnel_6' -Kind Location -EntityId 19 `
     -Label 'Climb on up the tunnel' -X 788 -Y 2576 -Z 4 `
-    -RequiredCondition $turksSettled `
+    -RequiredConditions @($turksSettled, $tunnelSectionFour) `
     -EntityName 'jump_u' -ScriptType 'Move' `
     -RequiredEnabledLineEntityId 19 `
     -TriggerLine ([ordered]@{ startX = 890; startY = 3542; startZ = 9; endX = 687; endY = 1611; endZ = 0 })
@@ -121,21 +135,43 @@ Add-Definition @midgarTunnels -FieldId 737 -FieldName 'tunnel_5' -Kind Location 
     -RequiredEnabledLineEntityId 10 `
     -TriggerLine ([ordered]@{ startX = -722; startY = 1767; startZ = 0; endX = -543; endY = 1902; endZ = 0 })
 
-# 736 is only reached by taking the optional branch, and getting back to the section the
-# story continues from is a climb from above and a drop from below.
-Add-Definition @midgarTunnels -FieldId 736 -FieldName 'tunnel_4' -Kind Location -EntityId 16 `
+# Optional sections can be visited before or after meeting the Turks. Return to
+# section 4 before the encounter, or section 3 and its bridge afterwards. Odd
+# and even guards reject section values belonging to the other reused screen.
+Add-Definition @midgarTunnelVisits -FieldId 736 -FieldName 'tunnel_4' -Kind Location -EntityId 16 `
     -Label 'Go back down toward the main tunnel' -X 209 -Y -617 -Z 0 `
-    -RequiredCondition $tunnelSectionTwo `
+    -RequiredConditions @($tunnelEvenSection, $tunnelStartReturnRange) `
     -EntityName 'jump_d' -ScriptType 'Move' `
     -RequiredEnabledLineEntityId 16 `
     -TriggerLine ([ordered]@{ startX = -83; startY = -665; startZ = 0; endX = 502; endY = -570; endZ = 0 })
 
-Add-Definition @midgarTunnels -FieldId 736 -FieldName 'tunnel_4' -Kind Location -EntityId 15 `
+Add-Definition @midgarTunnelVisits -FieldId 736 -FieldName 'tunnel_4' -Kind Location -EntityId 15 `
     -Label 'Climb back up toward the main tunnel' -X 788 -Y 2576 -Z 4 `
-    -RequiredCondition $tunnelSectionFour `
+    -RequiredConditions @($tunnelEvenSection, $tunnelEvenReturnRange) `
     -EntityName 'jump_u' -ScriptType 'Move' `
     -RequiredEnabledLineEntityId 15 `
     -TriggerLine ([ordered]@{ startX = 890; startY = 3542; startZ = 9; endX = 687; endY = 1611; endZ = 0 })
+
+Add-Definition @midgarTunnelVisits -FieldId 737 -FieldName 'tunnel_5' -Kind Location -EntityId 12 `
+    -Label 'Go back down toward the main tunnel' -X -7 -Y 373 -Z 0 `
+    -RequiredCondition $tunnelSectionOne `
+    -EntityName 'jump_d' -ScriptType 'Move' `
+    -RequiredEnabledLineEntityId 12 `
+    -TriggerLine ([ordered]@{ startX = -215; startY = 368; startZ = 0; endX = 200; endY = 379; endZ = 0 })
+
+Add-Definition @midgarRaid -FieldId 737 -FieldName 'tunnel_5' -Kind Location -EntityId 12 `
+    -Label 'Go down toward the main tunnel' -X -7 -Y 373 -Z 0 `
+    -RequiredCondition $tunnelSectionThree `
+    -EntityName 'jump_d' -ScriptType 'Move' `
+    -RequiredEnabledLineEntityId 12 `
+    -TriggerLine ([ordered]@{ startX = -215; startY = 368; startZ = 0; endX = 200; endY = 379; endZ = 0 })
+
+Add-Definition @midgarTunnelVisits -FieldId 737 -FieldName 'tunnel_5' -Kind Location -EntityId 11 `
+    -Label 'Take the passage on the upper right toward the main tunnel' -X 635 -Y 1822 -Z 0 `
+    -RequiredConditions @($tunnelOddSection, $tunnelOddReturnRange) `
+    -EntityName 'jump_ur' -ScriptType 'Move' `
+    -RequiredEnabledLineEntityId 11 `
+    -TriggerLine ([ordered]@{ startX = 550; startY = 1890; startZ = 0; endX = 721; endY = 1754; endZ = 0 })
 
 Add-Definition @midgarTunnels -FieldId 738 -FieldName 'md8brdg2' -Kind Location -EntityId 13 `
     -Label 'Go along the bridge' -X -458 -Y -816 -Z 512 `
@@ -179,4 +215,4 @@ Add-SuppressedTrigger -FieldId 72 -EntityName 'ket' -ScriptType 'Talk' `
     -MinimumGameMoment 1566 -MaximumGameMoment 1566 `
     -Reason '72:4 script 3 calls Cait 11 Talk automatically at 1566.'
 
-Add-CuratedFields 731, 732, 733, 734, 736, 737, 738, 739, 740, 741, 778
+Add-CuratedFields 731, 732, 733, 734, 735, 736, 737, 738, 739, 740, 741, 778
