@@ -16,6 +16,18 @@ public static class FieldScriptExitBranchPolicy
         IReadOnlyList<FieldNavigationTarget> scriptExits)
     {
         ArgumentNullException.ThrowIfNull(scriptExits);
+        // fship_4/jump Move: IFSW 2[0] == 1614 maps fship_2 (68); otherwise
+        // IFSW 2[0] < 1199 maps fship_23 (70), and the remaining branch maps
+        // fship_25 (72). All are the same visible forward bridge door. Keep its
+        // identity while selecting the one destination its native handler uses now.
+        if (fieldId == 74 && scriptExits.Any(IsHighwindBridgeExit))
+        {
+            var bridge = gameMoment == 1614 ? 68 : gameMoment < 1199 ? 70 : 72;
+            return scriptExits.Select(target => IsHighwindBridgeExit(target)
+                ? target with { DestinationFieldIds = [bridge] }
+                : target).ToArray();
+        }
+
         if (fieldId != SharedReactorElevatorField || scriptExits.Count == 0)
         {
             return scriptExits;
@@ -55,6 +67,10 @@ public static class FieldScriptExitBranchPolicy
             (true, true) => 129
         };
     }
+
+    private static bool IsHighwindBridgeExit(FieldNavigationTarget target) =>
+        target.FieldId == 74 && target.Category == FieldNavigationCategory.Exits &&
+        target.TriggerEntityId == 6 && target.StableId == "script-exit:74:6:68,70,72";
 
     private static bool IsConditionalReactorElevatorExit(FieldNavigationTarget target) =>
         target.FieldId == SharedReactorElevatorField &&

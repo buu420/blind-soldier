@@ -1,0 +1,9 @@
+# Highwind interior navigation
+
+The user confirmed on 2026-10-10 that Highwind rooms, exits, crew and party-formation services must be navigable in the ordinary categories between Story events, with Story guidance retained when needed. Both legacy x86/7th Heaven and Steam x64 use their existing controls and native interaction buttons. Release as 0.9.1 and deploy both installations.
+
+The ordinary native exits already route across the installed corridor walkmesh, including its two elevations. The missing map is player-facing identification: unrelated room exits collapse to Highwind, while the pilot and operations crew are generic crew members. The cockpit LINE's [OK] and Move slots share a pointer; it is already discovered, so changing the opcode walker is unnecessary. Other Highwind variants are scripted scenes and must retain control-lock suppression.
+
+Name the native doors for their visible rooms: bridge, corridor, operations room, outside deck and Chocobo hold. Identify the visible pilot, operations crew and Chocobo handler in NPCs, together with the existing talkable companions. Do not introduce routes, menus or actors absent from the native field. Live gateway switches, LINE enable state, progression guards, model visibility and talkability continue to decide what is available. Party selection, saving, resting, takeoff and boarding remain the player's native interactions.
+
+Research uses both installed flevel archives, Ghidra's original x86 engine project in read-only mode, and primary opcode documentation/source. Tests must demonstrate ordinary category selection with no Story target, coexistence with active Story, named return routes, correct live guards, native crew bindings, and routes from the rooms' native arrival positions. Static archive and memory-frame tests do not establish live controller or speech behavior.

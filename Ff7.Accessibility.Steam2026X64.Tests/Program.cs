@@ -18,6 +18,12 @@ if (args.Contains("--field-execution-report", StringComparer.OrdinalIgnoreCase))
     Environment.Exit(Ff7.Accessibility.Reloaded.Tests.FieldScriptExecutionModelTests.Report());
 }
 
+if (args.Contains("--highwind-interior-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.HighwindInteriorNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
+    return;
+}
+
 if (args.Contains("--mod-settings-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.ModSettingsTests.Run();
@@ -1221,6 +1227,7 @@ MountCorelRouteRepairTests.Run(CreateInstalledFieldWalkmeshReader);
 FieldButtonGlyphTests.Run();
 Ff7.Accessibility.Reloaded.Tests.PianoNativeInputTests.Run();
 Ff7.Accessibility.Reloaded.Tests.MidgarTunnelStoryTests.Run(CreateInstalledFieldWalkmeshReader);
+Ff7.Accessibility.Reloaded.Tests.HighwindInteriorNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.MidgarTunnelObjectTests.Run();
 Ff7.Accessibility.Reloaded.Tests.MidgarTunnelObjectTests.RunWithInstalledGameData();
 Ff7.Accessibility.Reloaded.Tests.JunonMinigameSpeechTests.Run();

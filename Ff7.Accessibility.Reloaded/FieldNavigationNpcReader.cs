@@ -40,6 +40,13 @@ public sealed class FieldNavigationNpcReader
     private static readonly IReadOnlyDictionary<(int FieldId, int EntityId), string>
         VerifiedLabels = new Dictionary<(int FieldId, int EntityId), string>
         {
+            // Highwind: the pilot's own Talk MAPJUMPs to the world; the operations
+            // crew's Talk opens native PHS/Save/rest choices; the hold crew tends the
+            // Chocobo. These remain ordinary visible/talkable NPCs between Story events.
+            [(70, 17)] = "Pilot",
+            [(72, 16)] = "Pilot",
+            [(73, 12)] = "Operations crew member",
+            [(76, 6)] = "Chocobo handler",
             [(79, 4)] = "Weapon seller",
 
             // bonevil: the man seated in the tent's doorway. His own Talk offers the
