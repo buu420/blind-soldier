@@ -180,6 +180,10 @@
              Link="SharedTests\FieldButtonGlyphTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\PianoNativeInputTests.cs"
              Link="SharedTests\PianoNativeInputTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\MidgarTunnelStoryTests.cs"
+             Link="SharedTests\MidgarTunnelStoryTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\MidgarTunnelObjectTests.cs"
+             Link="SharedTests\MidgarTunnelObjectTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\FieldManualObjectGuidanceTests.cs"
              Link="SharedTests\FieldManualObjectGuidanceTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\FieldNavigationNativeProbeMovementTests.cs"

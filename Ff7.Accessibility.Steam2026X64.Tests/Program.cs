@@ -420,6 +420,24 @@ if (args.Contains("--junon-journey-descriptions-only", StringComparer.OrdinalIgn
     return;
 }
 
+if (args.Contains("--midgar-tunnels-only", StringComparer.OrdinalIgnoreCase))
+{
+    var failed = 0;
+    foreach (var (name, check) in Ff7.Accessibility.Reloaded.Tests.MidgarTunnelStoryTests.Cases(CreateInstalledFieldWalkmeshReader))
+    {
+        try { check(); Console.WriteLine($"PASS {name}"); }
+        catch (Exception error) { failed++; Console.WriteLine($"FAIL {name}: {error.Message}"); }
+    }
+    try
+    {
+        Ff7.Accessibility.Reloaded.Tests.MidgarTunnelObjectTests.Run();
+        Ff7.Accessibility.Reloaded.Tests.MidgarTunnelObjectTests.RunWithInstalledGameData();
+    }
+    catch (Exception error) { failed++; Console.WriteLine($"FAIL Midgar tunnel objects: {error.Message}"); }
+    Environment.ExitCode = failed == 0 ? 0 : 1;
+    return;
+}
+
 if (args.Contains("--field-button-glyphs-only", StringComparer.OrdinalIgnoreCase))
 {
     FieldButtonGlyphTests.Run();
@@ -1202,6 +1220,9 @@ FieldManualObjectGuidanceTests.Run();
 MountCorelRouteRepairTests.Run(CreateInstalledFieldWalkmeshReader);
 FieldButtonGlyphTests.Run();
 Ff7.Accessibility.Reloaded.Tests.PianoNativeInputTests.Run();
+Ff7.Accessibility.Reloaded.Tests.MidgarTunnelStoryTests.Run(CreateInstalledFieldWalkmeshReader);
+Ff7.Accessibility.Reloaded.Tests.MidgarTunnelObjectTests.Run();
+Ff7.Accessibility.Reloaded.Tests.MidgarTunnelObjectTests.RunWithInstalledGameData();
 Ff7.Accessibility.Reloaded.Tests.JunonMinigameSpeechTests.Run();
 Ff7.Accessibility.Reloaded.Tests.JunonParadeAlignmentAssistTests.RunWithInstalledGameData();
 Steam2026JunonMinigameRuntimeTests.Run();
