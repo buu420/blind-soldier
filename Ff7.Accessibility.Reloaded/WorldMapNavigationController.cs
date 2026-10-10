@@ -40,6 +40,9 @@ public static class WorldMapNavigationLifecycle
 /// </summary>
 public sealed partial class WorldMapNavigationController
 {
+    private PendingEntityTarget? pendingEntityTarget;
+    private sealed record PendingEntityTarget(string StableId, string Label,
+        WorldMapNavigationCategory Category, int? ModelId, int WorldMapType, bool WasCombatPaused);
     private const double WaypointArrivalDistance = 480d;
     private const double AutomaticMovementProbeDistance = 120d;
 
@@ -292,6 +295,9 @@ public sealed partial class WorldMapNavigationController
     public bool IsHoldingDestination => !beaconEnabled &&
         (GlacierRegion?.Objective is not null || SubmarineJourney?.IsHoldingDestination == true);
 
+    /// <summary>A requested entity is waiting for a usable native read, without a route or coordinates.</summary>
+    public bool IsHoldingEntityTarget => pendingEntityTarget is not null;
+
     /// <summary>The player started world-map auto walk: later legs of a treasure route walk too.</summary>
     public void NoteAutoWalkStarted() { GlacierRegion?.NoteAutoWalk(true); SubmarineJourney?.NoteAutoWalk(true); }
 
@@ -348,6 +354,8 @@ public sealed partial class WorldMapNavigationController
                 MoveTarget(state, 1);
                 return RelockAndDescribe(state, now);
             case FieldNavigationAction.RepeatTarget:
+                if (pendingEntityTarget is { } waiting)
+                    return new($"Navigation to {waiting.Label} is paused while the game updates its position.");
                 if (!beaconEnabled)
                 {
                     return DescribeSelection(state);
@@ -358,6 +366,11 @@ public sealed partial class WorldMapNavigationController
                 return new WorldMapNavigationOutput(
                     CreateGuidanceSpeech(state, includeTarget: true, includeProgress: true));
             case FieldNavigationAction.ToggleBeacon:
+                if (pendingEntityTarget is not null)
+                {
+                    ResetRoute();
+                    return new("Navigation off.", StopAutoWalk: true);
+                }
                 if (beaconEnabled)
                 {
                     if (glacierLegActive)
@@ -411,6 +424,26 @@ public sealed partial class WorldMapNavigationController
         uint? nativeInputMask = null)
     {
         var now = observedAt == default ? DateTime.UtcNow : observedAt;
+        if (pendingEntityTarget is { } pending && IsUsable(state))
+        {
+            var candidates = state.WorldMapType == pending.WorldMapType
+                ? targetProvider(state, pending.Category) ?? Array.Empty<WorldMapNavigationTarget>()
+                : Array.Empty<WorldMapNavigationTarget>();
+            var fresh = candidates.FirstOrDefault(t => t.StableId == pending.StableId);
+            if (fresh is null && pending.WasCombatPaused && pending.ModelId == 11)
+            {
+                var weapons = candidates.Where(t => t.NativeEntityModelId == 11).Take(2).ToArray();
+                if (weapons.Length == 1) fresh = weapons[0];
+            }
+            pendingEntityTarget = null;
+            if (fresh is null)
+            {
+                ResetRoute();
+                return new($"{pending.Label} is no longer there. Navigation off.", StopAutoWalk: true);
+            }
+            var restarted = StartNavigation(fresh, state, now, announceOn: false);
+            return restarted is null ? null : DescribeRouteTransition(restarted.Value, resumedAfterCombat: true);
+        }
         if (IsUsable(state) && TryContinueUnderwaterJourney(state, now) is { } continuation)
             return continuation;
         RetireStaleGlacierLeg();
@@ -502,15 +535,34 @@ public sealed partial class WorldMapNavigationController
         // model change below. Boarding a boat is a model change, and the party in the boat
         // can trivially "reach" it, so replanning first is how navigation came to announce
         // a route to the vehicle the player was sitting in.
-        if (activeTarget is { Kind: WorldMapTargetKind.Transportation } vehicle &&
-            !GetTargets(state).Any(candidate =>
-                string.Equals(candidate.StableId, vehicle.StableId, StringComparison.Ordinal)))
+        var liveTargets = activeTarget is { } liveTarget && !glacierLegActive
+            ? targetProvider(state, liveTarget.Category) ?? Array.Empty<WorldMapNavigationTarget>()
+            : Array.Empty<WorldMapNavigationTarget>();
+        var freshLiveTarget = activeTarget is { } priorLiveTarget
+            ? liveTargets.FirstOrDefault(candidate =>
+                string.Equals(candidate.StableId, priorLiveTarget.StableId, StringComparison.Ordinal))
+            : null;
+        if (freshLiveTarget is null && resumedAfterCombat && activeTarget is { NativeEntityModelId: 11 })
+        {
+            // The native pool is rebuilt when the world reloads after battle. Model11
+            // is a unique event, so reacquire only its one current, visible native node.
+            var weapons = liveTargets.Where(t => t.NativeEntityModelId == 11).Take(2).ToArray();
+            if (weapons.Length == 1) freshLiveTarget = weapons[0];
+        }
+        if (activeTarget is { } missingTarget && freshLiveTarget is null &&
+            (missingTarget.Kind == WorldMapTargetKind.Transportation || missingTarget.NativeEntityModelId is not null))
         {
             ResetRoute();
-            lastDiagnostic = $"{vehicle.Label} is no longer a parked entity in the native list";
+            lastDiagnostic = $"{missingTarget.Label} has no current visible target in the native list";
             return new WorldMapNavigationOutput(
-                $"{vehicle.Label} is no longer there. Navigation off.",
+                $"{missingTarget.Label} is no longer there. Navigation off.",
                 StopAutoWalk: true);
+        }
+        if (freshLiveTarget is { NativeEntityModelId: 11 } reacquired &&
+            !string.Equals(activeTarget?.StableId, reacquired.StableId, StringComparison.Ordinal))
+        {
+            var resumed = StartNavigation(reacquired, state, now, announceOn: false);
+            return resumed is null ? null : DescribeRouteTransition(resumed.Value, resumedAfterCombat);
         }
 
         if (state.PlayerModelId != activeModelId ||
@@ -541,8 +593,7 @@ public sealed partial class WorldMapNavigationController
         // snowfield exit, which never moves.
         var refreshed = glacierLegActive
             ? null
-            : GetTargets(state)
-                .FirstOrDefault(candidate => string.Equals(candidate.StableId, target.StableId, StringComparison.Ordinal));
+            : freshLiveTarget;
 
         if (refreshed is not null && refreshed != target)
         {
@@ -550,6 +601,23 @@ public sealed partial class WorldMapNavigationController
                 (refreshed.X != target.X || refreshed.Z != target.Z);
             target = refreshed;
             activeTarget = refreshed;
+            if (refreshed.NativeWeaponArrival is not null &&
+                (refreshed.X != activeRoute.Waypoints[^1].X || refreshed.Y != activeRoute.Waypoints[^1].Y ||
+                 refreshed.Z != activeRoute.Waypoints[^1].Z))
+            {
+                if (!planner.TryBuildRoute(state, refreshed, out var flight))
+                {
+                    ResetRoute();
+                    return new($"Route unavailable to {refreshed.Label}. Navigation off.", StopAutoWalk: true);
+                }
+                activeRoute = flight;
+                routeStart = new(state.X, state.Y, state.Z);
+                progressRouteWaypoints = flight.Waypoints;
+                waypointIndex = 0;
+                offRouteSince = DateTime.MinValue;
+                // Keep the speech interval and convergence history: an animated target
+                // must not announce/restart a route or reset the timeout every frame.
+            }
             // A landing route ends on water beside the destination by design; its end is
             // never one of the destination's own triangles, and replanning because of that
             // would start the approach over on every sample.
@@ -1739,7 +1807,7 @@ public sealed partial class WorldMapNavigationController
 
     public void Suspend(string diagnostic, bool preserveSubmarineJourney = false)
     {
-        if (!beaconEnabled)
+        if (!beaconEnabled && pendingEntityTarget is null)
         {
             return;
         }
@@ -1761,8 +1829,33 @@ public sealed partial class WorldMapNavigationController
         lastDiagnostic = "native world script or dialogue owns movement";
     }
 
+    /// <summary>
+    /// A failed native list read proves no position. Keep only a requested dynamic
+    /// identity; its route is rebuilt from the next usable list, never from a cache.
+    /// Hosts release movement and skip navigation for every invalid read.
+    /// </summary>
+    public void PauseForUnavailableEntities()
+    {
+        if (pendingEntityTarget is not null) return;
+        if (activeTarget is { } target &&
+            (target.Kind == WorldMapTargetKind.Transportation || target.NativeEntityModelId is not null))
+        {
+            var pending = new PendingEntityTarget(target.StableId, target.Label, target.Category,
+                target.NativeEntityModelId, activeMapType, combatPaused);
+            ResetRoute();
+            pendingEntityTarget = pending;
+            lastDiagnostic = "native entities unreadable; waiting for a fresh target identity";
+        }
+        else PauseForNativeControl();
+    }
+
     public void PauseForCombat(string diagnostic)
     {
+        if (pendingEntityTarget is { } pending)
+        {
+            pendingEntityTarget = pending with { WasCombatPaused = true };
+            return;
+        }
         if (!beaconEnabled || combatPaused)
         {
             return;
@@ -1791,7 +1884,9 @@ public sealed partial class WorldMapNavigationController
 
     private WorldMapNavigationOutput RelockAndDescribe(WorldMapStateSnapshot state, DateTime now)
     {
-        if (!beaconEnabled)
+        var wasEngaged = beaconEnabled || pendingEntityTarget is not null;
+        pendingEntityTarget = null;
+        if (!wasEngaged)
         {
             return DescribeSelection(state);
         }
@@ -1836,9 +1931,17 @@ public sealed partial class WorldMapNavigationController
         bool announceOn,
         bool preserveProgressRoute = false)
     {
+        // Every start is a current request. A fresh selection must retire any identity
+        // that was waiting through an unreadable frame before Observe can resume it.
+        pendingEntityTarget = null;
         if (target.SubmarineDiveDestination is { } diveDestination && SubmarineJourney is { } journey)
             journey.Start(this, diveDestination, state);
         else SubmarineJourney?.Cancel(this);
+        if (target.NativeEntityModelId == 11 && state.PlayerModelId != 3)
+        {
+            ResetRoute();
+            return new("Use the Highwind to follow Ultimate Weapon. Navigation off.", StopAutoWalk: true);
+        }
         if (state.PlayerModelId == 13 && target.Kind == WorldMapTargetKind.Transportation && target.NativeEntityModelId == 3)
         {
             ResetRoute();
@@ -2217,6 +2320,8 @@ public sealed partial class WorldMapNavigationController
         }
 
         var target = GetSelectedTarget(state)!;
+        if (target.NativeEntityModelId == 11 && state.PlayerModelId != 3)
+            return new("Events, Ultimate Weapon. Use the Highwind to follow it.");
         if (state.PlayerModelId == 13 && target.Kind == WorldMapTargetKind.Transportation && target.NativeEntityModelId == 3)
             return new("Transportation, Highwind. Select Submarine pen in Regions and press Cancel to get off before navigating to it.");
         if (IsAwaitingNativeEntry(target, state))
@@ -2280,6 +2385,13 @@ public sealed partial class WorldMapNavigationController
         bool includeProgress)
     {
         var target = activeTarget;
+        if (target?.NativeWeaponArrival is { } weapon &&
+            Math.Abs((long)WorldMapTargetCatalog.WrappedDelta(state.X, weapon.X, map.WrapWidth)) +
+            Math.Abs((long)WorldMapTargetCatalog.WrappedDelta(state.Z, weapon.Z, map.WrapHeight)) <= 1295 &&
+            !weapon.IsSatisfiedBy(state))
+        {
+            return $"Ultimate Weapon is {(weapon.Y > state.Y ? "above" : "below")} you. Match its height to approach.";
+        }
         var route = activeRoute;
         if (target is not null && state.PlayerModelId == 13 && state.WorldMapType == 2)
             return DescribeSubmarineGuidance(state, target);
@@ -2946,8 +3058,11 @@ public sealed partial class WorldMapNavigationController
         // DescribeSelection falls through to "Route unavailable." and StartNavigation
         // refuses without leaving a route running. Nothing here invents an arrival or a
         // position, so this is the vehicle being reported, never a way of reaching it.
-        if (CurrentCategory == WorldMapNavigationCategory.Transportation)
+        if (CurrentCategory is WorldMapNavigationCategory.Transportation or WorldMapNavigationCategory.Events)
         {
+            // Live events are information even when there is no route from the current
+            // vehicle. In particular, Weapon's flight must not vanish like an
+            // inaccessible walking destination. The catalog owns native visibility.
             return candidates.ToArray();
         }
 
@@ -3294,6 +3409,7 @@ public sealed partial class WorldMapNavigationController
 
     private void ResetRoute(bool deactivateProgress = true, bool preserveSubmarineJourney = false)
     {
+        pendingEntityTarget = null;
         if (!preserveSubmarineJourney) SubmarineJourney?.Cancel(this);
         AutomaticInputRequestsSubmarineDive = false;
         throughTarget = null;

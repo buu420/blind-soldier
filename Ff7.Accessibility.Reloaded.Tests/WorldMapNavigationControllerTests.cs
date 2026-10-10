@@ -21,6 +21,10 @@ internal static class WorldMapNavigationControllerTests
         KeepsTheRouteAcrossNearbyWalkableTriangleDrift();
         DoesNotReannounceAParkedVehicleThatHasNotMoved();
         StillReplansWhenAVehicleActuallyMoves();
+        KeepsALiveWeaponListedWithoutAWalkingRoute();
+        FollowsTheCurrentWeaponPointAndItsReallocatedEntityAfterCombat();
+        StopsFollowingAWeaponThatLeavesTheNativeList();
+        CancelsOrReplacesAWeaponRequestWhileItsEntityReadIsPaused();
         StandingOnAnIntermediateWaypointIsNotArrival();
         CosmoCanyonHandsOffToFootInsteadOfClaimingArrival();
         TheCosmoEntryRuleCoversStorySelectionAndRepeat();
@@ -322,6 +326,134 @@ internal static class WorldMapNavigationControllerTests
         Equal(true, controller.BeaconEnabled, "the requested destination survives a native dialogue");
         Equal(true, controller.TryResolveAutomaticInput(state, out _),
             "automatic movement is available again when the host restores control");
+    }
+
+    private static void KeepsALiveWeaponListedWithoutAWalkingRoute()
+    {
+        var (map, catalog, planner) = Load();
+        var midgar = catalog.Locations.Single(t => t.Label == "Midgar");
+        var kalm = catalog.Locations.Single(t => t.Label == "Kalm");
+        var target = new WorldMapNavigationTarget(WorldMapNavigationCategory.Events,
+            WorldMapTargetKind.Event, "Ultimate Weapon", kalm.X, 4000, kalm.Z,
+            kalm.TriangleId, kalm.RegionId, "world-entity:00E3A288:11", new HashSet<int>())
+            { NativeEntityModelId = 11 };
+        var state = StateAt(map, midgar);
+        var controller = new WorldMapNavigationController(map, planner, (_, category) =>
+            category == WorldMapNavigationCategory.Events ? [target] : []);
+        for (var i = 0; i < 3; i++) controller.HandleAction(FieldNavigationAction.NextCategory, state);
+        Contains("Ultimate Weapon", controller.HandleAction(FieldNavigationAction.RepeatTarget, state)!.Value.Speech,
+            "live visible events are still reported when the current vehicle cannot reach them");
+        var refused = controller.HandleAction(FieldNavigationAction.ToggleBeacon, state);
+        Equal(false, controller.BeaconEnabled, "listing a Weapon does not invent a walking route");
+        Contains("Highwind", refused?.Speech, "the player hears how to follow the flying Weapon");
+    }
+
+    private static void FollowsTheCurrentWeaponPointAndItsReallocatedEntityAfterCombat()
+    {
+        var (map, catalog, planner) = Load();
+        planner.EntranceTriangleIds = catalog.EntranceTriangleIds;
+        var midgar = catalog.Locations.Single(t => t.Label == "Midgar");
+        var kalm = catalog.Locations.Single(t => t.Label == "Kalm");
+        var centre = map.Triangles[kalm.TriangleId].Centroid;
+        var entity = new WorldMapEntitySnapshot(0x00E3A288, 0, false,
+            centre.X, 4000, centre.Z, 0, kalm.RegionId, 11, 0x80);
+        var state = StateAt(map, midgar) with { PlayerModelId = 3, GameMoment = 1580, Y = 4000 };
+        var controller = new WorldMapNavigationController(map, planner,
+            (current, category) => catalog.ReadTargets(category, current, [entity]),
+            guidanceInterval: TimeSpan.FromMinutes(1));
+        var now = DateTime.UtcNow;
+        for (var i = 0; i < 3; i++) controller.HandleAction(FieldNavigationAction.NextCategory, state, now);
+        controller.HandleAction(FieldNavigationAction.ToggleBeacon, state, now);
+        var before = controller.Probe.Route ?? throw new InvalidOperationException("Weapon route was not created");
+        entity = entity with { X = entity.X + 1, Z = entity.Z + 1 };
+        var moving = controller.Observe(state, now.AddMilliseconds(100));
+        var refreshed = controller.Probe.Route ?? throw new InvalidOperationException("moving Weapon lost its route");
+        Equal(entity.X, refreshed.Waypoints[^1].X, "even a movement inside one triangle updates the Weapon endpoint");
+        Equal(entity.Z, refreshed.Waypoints[^1].Z, "a chase does not continue to the old ground point");
+        Equal(null, moving?.Speech, "moving flight positions respect the normal guidance interval");
+        controller.PauseForCombat("native world battle");
+        controller.PauseForUnavailableEntities();
+        Equal(null, controller.Probe.Route, "an invalid list discards old flight coordinates");
+        Equal(false, controller.TryResolveAutomaticInput(state, out _),
+            "an invalid list never drives toward the cached Weapon point");
+        entity = entity with { GuestPointer = 0x00E3A348, X = entity.X + 4000 };
+        var resumed = controller.Observe(state, now.AddSeconds(30));
+        Equal(true, controller.BeaconEnabled, "a unique native Weapon is reacquired after battle allocation changes");
+        Equal(entity.X, controller.Probe.Route!.Waypoints[^1].X, "resumed navigation uses only the new live position");
+        Contains("Navigation resumed", resumed?.Speech, "return from battle announces the refreshed chase");
+        NotEqual(before.TargetId, controller.Probe.Route.TargetId, "the old entity pointer is replaced by the current one");
+    }
+
+    private static void StopsFollowingAWeaponThatLeavesTheNativeList()
+    {
+        var (map, catalog, planner) = Load();
+        var midgar = catalog.Locations.Single(t => t.Label == "Midgar");
+        var kalm = catalog.Locations.Single(t => t.Label == "Kalm");
+        IReadOnlyList<WorldMapEntitySnapshot> entities = [new(0x00E3A288, 0, false,
+            kalm.X, 4000, kalm.Z, 0, kalm.RegionId, 11, 0x80)];
+        var state = StateAt(map, midgar) with { PlayerModelId = 3, GameMoment = 1580, Y = 4000 };
+        var controller = new WorldMapNavigationController(map, planner,
+            (current, category) => catalog.ReadTargets(category, current, entities));
+        var now = DateTime.UtcNow;
+        for (var i = 0; i < 3; i++) controller.HandleAction(FieldNavigationAction.NextCategory, state, now);
+        controller.HandleAction(FieldNavigationAction.ToggleBeacon, state, now);
+        entities = [];
+        var missing = controller.Observe(state, now.AddSeconds(1), automaticWalkActive: true);
+        Equal(false, controller.BeaconEnabled, "absence cancels the route instead of keeping stale Weapon coordinates");
+        Equal(true, missing?.StopAutoWalk, "missing Weapon releases automatic flight input");
+        Contains("Ultimate Weapon", missing?.Speech, "native disappearance is explained once");
+        Equal(null, controller.Probe.Route, "no old position survives as a chase destination");
+    }
+
+    private static void CancelsOrReplacesAWeaponRequestWhileItsEntityReadIsPaused()
+    {
+        var (map, catalog, planner) = Load();
+        var midgar = catalog.Locations.Single(t => t.Label == "Midgar");
+        var kalm = catalog.Locations.Single(t => t.Label == "Kalm");
+        var state = StateAt(map, midgar) with { PlayerModelId = 3, GameMoment = 1580, Y = 4000 };
+        var entity = new WorldMapEntitySnapshot(0x00E3A288, 0, false,
+            kalm.X, 4000, kalm.Z, 0, kalm.RegionId, 11, 0x80);
+        var now = DateTime.UtcNow;
+        WorldMapNavigationController PausedWeapon()
+        {
+            var result = new WorldMapNavigationController(map, planner,
+                (current, category) => category == WorldMapNavigationCategory.Events
+                    ? catalog.ReadTargets(category, current, [entity]) : [kalm]);
+            for (var i = 0; i < 3; i++) result.HandleAction(FieldNavigationAction.NextCategory, state, now);
+            result.HandleAction(FieldNavigationAction.ToggleBeacon, state, now);
+            result.PauseForUnavailableEntities();
+            return result;
+        }
+
+        var cancelled = PausedWeapon();
+        var stopped = cancelled.HandleAction(FieldNavigationAction.ToggleBeacon, state, now.AddSeconds(1));
+        Contains("Navigation off", stopped?.Speech, "a stop cancels the paused request rather than starting it");
+        cancelled.Observe(state, now.AddSeconds(2));
+        Equal(false, cancelled.BeaconEnabled, "a cancelled chase cannot restart on the first good native read");
+        Equal(null, cancelled.Probe.Route, "a cancelled chase has no route");
+
+        var controllerStop = PausedWeapon();
+        var services = new ControllerNavigationServices(() => controllerStop.BeaconEnabled,
+            action => controllerStop.HandleAction(action, state, now.AddSeconds(1))?.Speech,
+            () => false, () => false, () => { }, () => { },
+            () => controllerStop.IsHoldingEntityTarget);
+        Equal(true, services.RouteIsActive, "a coordinate-free request remains a cancellable controller selection");
+        services.Stop();
+        controllerStop.Observe(state, now.AddSeconds(2));
+        Equal(false, controllerStop.BeaconEnabled, "controller B cancels a pending entity request too");
+
+        var suspended = PausedWeapon();
+        suspended.Suspend("another world runtime is active");
+        suspended.Observe(state, now.AddSeconds(2));
+        Equal(false, suspended.BeaconEnabled, "domain suspension retires a paused identity too");
+
+        var replaced = PausedWeapon();
+        replaced.HandleAction(FieldNavigationAction.PreviousCategory, state, now.AddSeconds(1));
+        var newSelection = replaced.Probe.TargetId;
+        Equal(true, replaced.BeaconEnabled, "browsing to a fresh destination relocks the engaged navigation request");
+        replaced.Observe(state, now.AddSeconds(2));
+        Equal(newSelection, replaced.Probe.TargetId, "the first good scan cannot replace a new destination with old Weapon");
+        DoesNotContain("Ultimate Weapon", replaced.Probe.TargetLabel, "the replacement remains the selected destination");
     }
 
     private static void StopsNearTargetHuntingInsteadOfOscillatingForever()

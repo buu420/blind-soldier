@@ -423,6 +423,7 @@ if (args.Contains("--junon-journey-descriptions-only", StringComparer.OrdinalIgn
 if (args.Contains("--field-button-glyphs-only", StringComparer.OrdinalIgnoreCase))
 {
     FieldButtonGlyphTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.PianoNativeInputTests.Run();
     Console.WriteLine("Field button glyph tests passed.");
     return;
 }
@@ -580,6 +581,7 @@ if (args.Contains("--mount-corel-repair-only", StringComparer.OrdinalIgnoreCase)
 {
     MountCorelRouteRepairTests.Run(CreateInstalledFieldWalkmeshReader);
     FieldButtonGlyphTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.PianoNativeInputTests.Run();
     FieldManualObjectGuidanceTests.Run();
     Ff7.Accessibility.Reloaded.Tests.FieldGatewayCompletionTests.Run();
     Console.WriteLine("Mount Corel repair tests passed.");
@@ -1199,6 +1201,7 @@ Ff7.Accessibility.Reloaded.Tests.FieldGatewayCompletionTests.Run();
 FieldManualObjectGuidanceTests.Run();
 MountCorelRouteRepairTests.Run(CreateInstalledFieldWalkmeshReader);
 FieldButtonGlyphTests.Run();
+Ff7.Accessibility.Reloaded.Tests.PianoNativeInputTests.Run();
 Ff7.Accessibility.Reloaded.Tests.JunonMinigameSpeechTests.Run();
 Ff7.Accessibility.Reloaded.Tests.JunonParadeAlignmentAssistTests.RunWithInstalledGameData();
 Steam2026JunonMinigameRuntimeTests.Run();

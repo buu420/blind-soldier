@@ -388,9 +388,8 @@ public sealed class XInputCaptureHook : IDisposable
             var freshModifier = device.Known && modified && !device.ModifierDown;
             device.Known = true;
             device.ModifierDown = modified;
-            device.Tail &= down;
-            if (modified) device.Tail |= down & ControllerAccessibilityMenu.OwnedButtons;
-            var strip = modified ? ControllerAccessibilityMenu.OwnedButtons : device.Tail;
+            var strip = ControllerAccessibilityMenu.ReserveModifiedChord(
+                down, ref device.Tail, capture.IsNativeInputExclusive(now()));
 
             if (latchedUserIndex < 0) latchedUserIndex = userIndex;
             else if (latchedUserIndex != userIndex && freshModifier && !capture.IsSuppressing)

@@ -35,6 +35,8 @@ internal static class WorldMapTargetCatalogTests
         SelectsKalmAsTheFirstWorldStoryObjective();
         SelectsOnlyTheCurrentMainStoryDestinationsThroughTheEnding();
         BuildsDynamicStoryObjectivesOnlyFromMatchingLiveNativeEntities();
+        CraterFlyoverRoutesToTheNativePointFromTheReportedFlight();
+        WeaponFlightKeepsItsNativePositionOverFieldEntrances();
     }
 
     private static void JoinsWorldLocationNamesByNativeFieldId()
@@ -60,6 +62,43 @@ internal static class WorldMapTargetCatalogTests
             "Kalm uses its native terrain-script entrance");
     }
 
+    private static void WeaponFlightKeepsItsNativePositionOverFieldEntrances()
+    {
+        var map = LoadMap();
+        var catalog = LoadCatalog(map);
+        var planner = new WorldMapRoutePlanner(map) { EntranceTriangleIds = catalog.EntranceTriangleIds };
+        var kalm = catalog.Locations.Single(t => t.Label == "Kalm");
+        var state = StateAt(map, kalm) with { PlayerModelId = 3, GameMoment = 1580, Y = 4000 };
+        // A whole entrance patch is real installed geometry. Previously every possible
+        // arrival was removed, so a live flying Weapon disappeared from Events.
+        var entrance = map.Triangles.First(t => catalog.EntranceTriangleIds.Contains(t.Id) &&
+            t.Neighbors.Count > 0 && t.Neighbors.All(catalog.EntranceTriangleIds.Contains));
+        var entity = new WorldMapEntitySnapshot(0x00E3A288, 0, false,
+            entrance.Centroid.X, 4000, entrance.Centroid.Z, entrance.TerrainId,
+            entrance.RegionId & 31, 11, 0x80);
+        var target = catalog.ReadTargets(WorldMapNavigationCategory.Events, state, [entity]).Single();
+        Equal(true, target.ArrivalTriangleIds.Count > 0,
+            "the flying Weapon retains an approach above a native field entrance");
+        Equal(true, planner.TryBuildRoute(state, target, out var route),
+            $"the Highwind can follow the live Weapon above ground triggers: {planner.LastDiagnostic}");
+        Equal(entity.X, route.Waypoints[^1].X, "flight ends at the actual Weapon X, not an adjacent ground centroid");
+        Equal(entity.Z, route.Waypoints[^1].Z, "flight ends at the actual Weapon Z");
+        var overhead = state with { X = entity.X, Z = entity.Z, Y = entity.Y + 2000 };
+        Equal(false, target.HasArrived(overhead, target.TriangleId),
+            "the native Weapon approach includes altitude rather than triangle membership");
+        Equal(false, target.HasArrived(overhead with { Y = entity.Y, PlayerModelId = 0 }, target.TriangleId),
+            "Weapon's native encounter handler only accepts the Highwind");
+        Equal(true, target.HasArrived(overhead with { Y = entity.Y + 1295 }, target.TriangleId),
+            "wm0.ev's conservative 80-count proximity includes the integer shift remainder");
+        Equal(false, target.HasArrived(overhead with { Y = entity.Y + 1296 }, target.TriangleId),
+            "one raw unit outside the native proximity is not arrival");
+        Equal(0, catalog.ReadTargets(WorldMapNavigationCategory.Events, state,
+                [entity with { Flags = 0x88 }]).Count,
+            "a natively hidden Weapon is not announced");
+        Equal(0, catalog.ReadTargets(WorldMapNavigationCategory.Events, state, []).Count,
+            "a removed Weapon is not invented from its previous position");
+    }
+
     private static void BuildsTransportationAndEventsOnlyFromLiveNativeEntities()
     {
         var map = LoadMap();
@@ -83,6 +122,37 @@ internal static class WorldMapTargetCatalogTests
         Equal("Highwind", transport[0].Label, "native transport label");
         Equal(1, events.Count, "one live event");
         Equal("Ultimate Weapon", events[0].Label, "native event label");
+    }
+
+    private static void CraterFlyoverRoutesToTheNativePointFromTheReportedFlight()
+    {
+        var map = LoadMap();
+        var catalog = LoadCatalog(map);
+        // October 9 tester log: Highwind southwest of the crater at altitude 2081.
+        var state = new WorldMapStateSnapshot(
+            WorldMapStateReader.WorldModule, 0, map.WorldProgress, 1580,
+            86804, 2081, 138550, 1712, 1712, 6, 7, 3, 0, 336,
+            new FieldNavigationControlTransform(336)) { TerrainScriptId = 1 };
+        var target = catalog.ReadTargets(WorldMapNavigationCategory.Story, state, []).Single();
+        var native = target.NativeStoryArrival!;
+        Equal(true, target.ArrivalTriangleIds.All(id =>
+            (long)Math.Abs(WorldMapTargetCatalog.WrappedDelta(map.Triangles[id].Centroid.X, native.PointX, map.WrapWidth)) +
+            Math.Abs(WorldMapTargetCatalog.WrappedDelta(map.Triangles[id].Centroid.Z, native.PointZ, map.WrapHeight)) <= native.ManhattanBound),
+            "crater candidates cannot admit distant triangles by cancellation of signed deltas");
+
+        var planner = new WorldMapRoutePlanner(map) { EntranceTriangleIds = catalog.EntranceTriangleIds };
+        Equal(true, planner.TryBuildRoute(state, target, out var route),
+            $"the reported flight routes to the native crater: {planner.LastDiagnostic}");
+        var end = route.Waypoints[^1];
+        Equal(native.PointX, end.X, "flyover route aims at native point 14 X rather than the outer bound");
+        Equal(native.PointZ, end.Z, "flyover route aims at native point 14 Z rather than nearby ground");
+        var atEnd = state with { X = end.X, Z = end.Z };
+        Equal(true, planner.TryResolvePlayerTriangle(atEnd, out var endTriangle), "flyover point resolves to native ground");
+        Equal(true, target.HasArrived(atEnd, endTriangle), "the routed flyover satisfies the actual native test at recorded altitude");
+        Equal(false, target.HasArrived(atEnd with { Y = native.ManhattanBound + 1 }, endTriangle),
+            "flight height remains part of native arrival");
+        Equal(false, target.HasArrived(atEnd with { PlayerModelId = 0 }, endTriangle), "a party on foot cannot complete the flyover");
+        Equal(false, target.HasArrived(atEnd with { GameMoment = 1583 }, endTriangle), "an expired story handler is not arrival");
     }
 
     private static void ExposesTheApprovedCategoriesIncludingRegions()
@@ -492,7 +562,5 @@ internal static class WorldMapTargetCatalogTests
         }
     }
 }
-
-
 
 

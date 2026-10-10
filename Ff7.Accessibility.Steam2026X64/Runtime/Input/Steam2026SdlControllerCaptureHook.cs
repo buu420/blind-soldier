@@ -445,6 +445,7 @@ internal sealed class Steam2026SdlControllerCaptureHook : IDisposable
         var down = ReadSnapshot(controller, out var attached);
         if (!attached) return GamepadButton.None;
         var modified = (down & ControllerAccessibilityMenu.Modifiers) != 0;
+        var nativeInputExclusive = capture.IsNativeInputExclusive(now());
         var firstSight = false;
         GamepadButton mask;
         lock (deviceSync)
@@ -458,9 +459,9 @@ internal sealed class Steam2026SdlControllerCaptureHook : IDisposable
                 device.ModifierWasDown = modified;
                 firstSight = true;
             }
-            device.Tail &= down;
-            if (modified) device.Tail |= down & ControllerAccessibilityMenu.OwnedButtons;
-            mask = modified ? ControllerAccessibilityMenu.OwnedButtons : device.Tail;
+            var tail = device.Tail;
+            mask = ControllerAccessibilityMenu.ReserveModifiedChord(down, ref tail, nativeInputExclusive);
+            device.Tail = tail;
         }
         if (firstSight) LogDeviceSeen(controller);
         return mask;

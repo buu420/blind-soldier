@@ -234,17 +234,13 @@ public static class Ff7EncodedTextDecoder
                     builder.Append(member);
                     break;
                 case 0xf6:
-                    // PC field 462's native prompts pair F6 with these button
-                    // codes. Keep legacy single-byte buttons and all unverified
-                    // following bytes, including Japanese kana, unchanged.
+                    // Native PC prompts pair F6 with a button code: all 754 in
+                    // either installed flevel use 0x10-0x1A (the Highwind, the
+                    // pianos, Mount Corel's treasure). Keep legacy single-byte
+                    // buttons and all unverified following bytes, including
+                    // Japanese kana, unchanged.
                     var pairedButton = !japanese && index + 1 < bytes.Length
-                        ? bytes[index + 1] switch
-                        {
-                            0x10 => "[OK]",
-                            0x19 => "[LEFT]",
-                            0x1a => "[RIGHT]",
-                            _ => null
-                        }
+                        ? PairedButtonName(bytes[index + 1])
                         : null;
                     if (pairedButton is not null)
                     {
@@ -293,6 +289,24 @@ public static class Ff7EncodedTextDecoder
         return terminated || !requireTerminator
             ? pages
             : Array.Empty<Ff7DecodedTextPage>();
+    }
+
+    // The button order FFNx's field prompt parser uses for both code ranges, which
+    // matches niv_ti2's own key tests (L1|R1 for the upper octave, D-pad chords, Start
+    // to end).
+    private static readonly string[] PairedButtonNames =
+    [
+        "[OK]", "[L1]", "[L2]", "[R1]", "[R2]", "[START]", "[SELECT]", "[UP]", "[DOWN]", "[LEFT]", "[RIGHT]"
+    ];
+
+    private static string? PairedButtonName(byte code)
+    {
+        if (code is >= 0x10 and <= 0x1a)
+        {
+            return PairedButtonNames[code - 0x10];
+        }
+
+        return code is >= 0x33 and <= 0x3d ? PairedButtonNames[code - 0x33] : null;
     }
 
     private static void AppendNormal(

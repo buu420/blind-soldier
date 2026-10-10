@@ -40,7 +40,9 @@ public sealed class WorldMapEntityReader
 
         // The later frame. Both describe the same list, so the fresher positions are the
         // truthful ones and nothing here is ever a position the reader kept from before.
-        return WorldMapEntityReadResult.Valid(second, $"native world entities={second.Count}");
+        var identities = string.Join(",", second.Select(entity =>
+            $"{entity.GuestPointer:X8}:{entity.ModelId}" + ((entity.Flags & 0x08) != 0 ? "h" : "")));
+        return WorldMapEntityReadResult.Valid(second, $"native world entities={second.Count}; models=[{identities}]");
     }
 
     /// <summary>

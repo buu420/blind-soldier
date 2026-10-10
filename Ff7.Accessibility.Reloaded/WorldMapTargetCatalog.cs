@@ -192,6 +192,21 @@ internal sealed record WorldMapNativeVehicleContact(
             < WorldMapVehicleObstacles.NativeReach;
 }
 
+/// <summary>
+/// wm0.ev model11 Tick requires the Highwind and measures opcode19 distance:
+/// FUN_00753C23's wrapped XYZ Manhattan distance, shifted right four. Its
+/// smallest encounter bound is 80; that includes raw distances through 1295.
+/// Ground triangle membership cannot establish contact with a flying model.
+/// </summary>
+internal sealed record WorldMapNativeWeaponArrival(int X, int Y, int Z, int WrapWidth, int WrapHeight)
+{
+    internal bool IsSatisfiedBy(WorldMapStateSnapshot state) =>
+        state.CurrentModule == WorldMapStateReader.WorldModule && state.PlayerModelId == 3 && state.WorldMapType == 0 &&
+        ((Math.Abs((long)WorldMapTargetCatalog.WrappedDelta(state.X, X, WrapWidth)) +
+          Math.Abs((long)state.Y - Y) +
+          Math.Abs((long)WorldMapTargetCatalog.WrappedDelta(state.Z, Z, WrapHeight))) >> 4) <= 80;
+}
+
 public sealed record WorldMapNavigationTarget(
     WorldMapNavigationCategory Category,
     WorldMapTargetKind Kind,
@@ -268,6 +283,7 @@ public sealed record WorldMapNavigationTarget(
     /// </summary>
     internal WorldMapNativeVehicleContact? NativeVehicleContact { get; init; }
     internal int? NativeEntityModelId { get; init; }
+    internal WorldMapNativeWeaponArrival? NativeWeaponArrival { get; init; }
     internal WorldMapUnderwaterArrival? NativeUnderwaterArrival { get; init; }
     internal WorldMapSubmarineDiveDestination? SubmarineDiveDestination { get; init; }
     internal WorldMapSubmarineSurfacingPoint? SubmarineSurfacingPoint { get; init; }
@@ -281,6 +297,8 @@ public sealed record WorldMapNavigationTarget(
 
     public bool HasArrived(WorldMapStateSnapshot state, int triangleId)
     {
+        if (NativeWeaponArrival is { } weapon)
+            return weapon.IsSatisfiedBy(state);
         if (SubmarineDiveDestination is { } dive)
             return state.WorldMapType == 0 && state.PlayerModelId == 13 && state.TerrainId == 3 &&
                 ArrivalTriangleIds.Contains(triangleId) && dive.CanDiveAt(state);
@@ -1000,6 +1018,8 @@ public sealed partial class WorldMapTargetCatalog
         // The usable submarine is boarded only by Cloud, Tifa or Cid on foot
         // (wm0.ev 4D04). Its submerged and hidden entities are not parked rides.
         var parkedSubmarine = category == WorldMapNavigationCategory.Transportation && entity.ModelId == 13;
+        if (entity.ModelId == 11 && (entity.Flags & 0x08) != 0)
+            return null; // FUN_007630B3 does not draw a natively hidden model.
         if (parkedSubmarine && (player.WorldMapType != 0 || (entity.Flags & 0x08) != 0))
         {
             return null;
@@ -1064,6 +1084,18 @@ public sealed partial class WorldMapTargetCatalog
 
         var arrivals = new HashSet<int>();
         var triangle = map.Triangles[triangleId];
+        if (category == WorldMapNavigationCategory.Events && entity.ModelId == 11 && player.WorldMapType == 0)
+        {
+            // Weapon moves above the world, including field entrances. Removing their
+            // ground faces made a still-live model unlistable as soon as it flew there.
+            return new WorldMapNavigationTarget(category, WorldMapTargetKind.Event, label,
+                entity.X, entity.Y, entity.Z, triangleId, entity.RegionId,
+                $"world-entity:{entity.GuestPointer:X8}:{entity.ModelId}", new HashSet<int> { triangleId })
+            {
+                NativeEntityModelId = 11,
+                NativeWeaponArrival = new(entity.X, entity.Y, entity.Z, map.WrapWidth, map.WrapHeight)
+            };
+        }
         if (player.WorldMapType == 2 && entity.ModelId == 30)
         {
             return new WorldMapNavigationTarget(category, WorldMapTargetKind.Event, "Emerald Weapon",
@@ -1280,8 +1312,8 @@ public sealed partial class WorldMapTargetCatalog
             // altitude at the time.
             var centroid = triangle.Centroid;
             var distance =
-                (long)WrappedDelta(centroid.X, native.X, map.WrapWidth) +
-                WrappedDelta(centroid.Z, native.Z, map.WrapHeight);
+                (long)Math.Abs(WrappedDelta(centroid.X, native.X, map.WrapWidth)) +
+                Math.Abs(WrappedDelta(centroid.Z, native.Z, map.WrapHeight));
             if (distance > WorldStoryNativeTarget.ManhattanBound)
             {
                 continue;

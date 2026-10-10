@@ -5758,6 +5758,14 @@ public sealed class Mod : IModV1, IModV2
                 Log($"World-map entities: {entityResult.Diagnostic}.");
             }
 
+            if (!entityResult.IsUsable)
+            {
+                runtime.Navigation.PauseForUnavailableEntities();
+                SuspendNavigationAutoWalk(NavigationAutoWalkDomain.WorldMap);
+                controllerCaptureHook?.Capture.PublishNavigationUnavailable(
+                    ControllerNavigationDomain.WorldMap, isForeground, now);
+            }
+
             foreach (var context in worldMapRuntimes.Values)
             {
                 if (!ReferenceEquals(context, runtime))
@@ -5789,7 +5797,7 @@ public sealed class Mod : IModV1, IModV2
             // richer marsh state machine.
             var higherPrioritySpeech = ObserveMidgarZolomCrossing(runtime, state);
             higherPrioritySpeech |= progressControlSpeechWasObserved;
-            if (config.EnableWorldMapNavigationAssistant &&
+            if (entityResult.IsUsable && config.EnableWorldMapNavigationAssistant &&
                 runtime.ObserveUnderwaterSightings(state, higherPrioritySpeech, now) is { } emeraldSighting)
             {
                 Speak(emeraldSighting, interrupt: false);
@@ -5822,6 +5830,12 @@ public sealed class Mod : IModV1, IModV2
                 DiscardNavigationAutoWalkToggle(NavigationAutoWalkDomain.WorldMap);
                 runtime.Navigation.Suspend("world navigation disabled");
                 StopNavigationAutoWalk(NavigationAutoWalkDomain.WorldMap, announce: false);
+                ObserveWorldMapTerrain(runtime, state, now, higherPrioritySpeech);
+                return;
+            }
+
+            if (!entityResult.IsUsable)
+            {
                 ObserveWorldMapTerrain(runtime, state, now, higherPrioritySpeech);
                 return;
             }
@@ -7033,7 +7047,8 @@ public sealed class Mod : IModV1, IModV2
                 () => navigationAutoWalkController?.Suspend(),
                 // A Great Glacier treasure between snowfield legs is a held destination: B
                 // cancels it, A or X replace it, and X asks for its legs to be walked.
-                () => controllerWorldRuntime?.Navigation.IsHoldingDestination == true,
+                () => controllerWorldRuntime?.Navigation.IsHoldingDestination == true ||
+                    controllerWorldRuntime?.Navigation.IsHoldingEntityTarget == true,
                 () => controllerWorldRuntime?.Navigation.NoteAutoWalkStarted()),
             speech => Speak(speech, interrupt: true),
             Log);
@@ -7158,6 +7173,7 @@ public sealed class Mod : IModV1, IModV2
             return;
         }
 
+        PublishFieldPianoPerformance(capture, module);
         if (!isForeground)
         {
             capture.PublishUnavailable(ControllerNavigationDomain.None, DateTime.UtcNow);
@@ -7218,6 +7234,30 @@ public sealed class Mod : IModV1, IModV2
             identity: domain == ControllerNavigationDomain.Field
                 ? ReadUInt16(FieldPositionReader.AddressFieldId)
                 : 0);
+    }
+
+    private FieldPianoPerformanceReader? fieldPianoPerformanceReader;
+
+    /// <summary>
+    /// A piano's note and chord threads read the pad as an instrument, so while both run
+    /// the capture leaves every button to the game - a resting trigger included. The floor
+    /// above runs on every tick, so the lease is renewed while they run and withdrawn the
+    /// frame they stop, whatever the field tick does. An unreadable frame neither renews
+    /// nor withdraws it; the lease lapses on its own if that persists.
+    /// </summary>
+    private void PublishFieldPianoPerformance(ControllerNavigationCapture capture, byte module)
+    {
+        if (module != FieldPositionReader.FieldModule || currentProcessLegacyAddressSpace is not { } memory)
+        {
+            capture.PublishNativeInputExclusive(false, DateTime.UtcNow);
+            return;
+        }
+
+        fieldPianoPerformanceReader ??= new FieldPianoPerformanceReader(memory);
+        if (fieldPianoPerformanceReader.TryRead(out var piano))
+        {
+            capture.PublishNativeInputExclusive(piano.IsPlaying, DateTime.UtcNow);
+        }
     }
 
 
