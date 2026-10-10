@@ -40,10 +40,22 @@ public sealed class FieldExitPresentationPolicy
         var kalmComplete = hasKalmBoundary ? TryReadKalmCompletion() : null;
         var hasHiddenRoomGateway = targets.Any(target => target.StableId == WutaiHiddenRoomGateway);
         var hiddenRoomOpen = hasHiddenRoomGateway ? TryReadWutaiBellDoorOpen() : null;
+        // fship_4 gateway 0 and k_jump share the same native LINE. Once the
+        // enabled, progression-guarded k_jump is published, walking through it
+        // runs MAPJUMP 744 instead of the ordinary outside-deck destination 66.
+        // Both runtimes combine live gateways and script exits before this pass.
+        var hasHighwindCraterDeparture = targets.Any(target =>
+            target.FieldId == 74 && target.Category == FieldNavigationCategory.Exits &&
+            target.StableId == "script-exit:74:7:744" && target.TriggerEntityId == 7);
         var visible = new List<FieldNavigationTarget>(targets.Count);
         var addedWorldMapExit = false;
         foreach (var target in targets)
         {
+            if (hasHighwindCraterDeparture && target.StableId == "gateway:74:0:66")
+            {
+                continue;
+            }
+
             if (target.StableId == WutaiHiddenRoomGateway)
             {
                 // Unknown is not open. A door nobody can confirm is not offered.

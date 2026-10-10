@@ -20,7 +20,12 @@ The corridor's gateways lead to 66, 73 and 76. Its forward jump LINE maps to
 68 at GameMoment 1614, to 70 below 1199, and to 72 otherwise. The existing
 generic exit guards do not resolve those word comparisons, so the shared
 branch policy now resolves this one native door. Its identity and geometry
-stay fixed. The separate Northern Crater LINE still waits for bank13[91] bit7.
+stay fixed. The Northern Crater LINE still waits for bank13[91] bit7. Its
+geometry matches gateway0 exactly: (149,178,385) to (157,88,394). When the
+enabled, guarded crater LINE is present in the combined native Exits list,
+the shared presentation pass hides that gateway's obsolete outside-deck
+destination. When the crater LINE is absent, the outside-deck door remains.
+The rule also works with Steam's midpoint-only gateway representation.
 
 The earlier bridge disables its gateway with MPJPO. Entity6's [OK] and Move
 slots share a native pointer, and its MAPJUMP returns to the corridor. The
@@ -56,6 +61,13 @@ crew identification and hidden/non-talkable/absent model cases, ordinary room
 selection with empty and active Story, eight bridge chapter boundary cases,
 the crater access flag, native service opcodes, and routes from nine native
 arrival positions, including both levels of the corridor.
+
+Independent review found the overlapping departure doorway. A third failing
+regression reproduced both destinations being offered with the crater flag
+set. Combined-list checks now cover the flag clear/set and the legacy/Steam
+gateway shapes, preserving all other rooms and retaining deck access when
+the crater LINE is disabled. The final review and package checks follow this
+correction.
 
 The original native corridor walkmesh is connected; no synthetic room, route,
 party menu, camera write or automatic interaction was added. An exploratory

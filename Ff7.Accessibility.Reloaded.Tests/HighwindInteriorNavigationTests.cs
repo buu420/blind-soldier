@@ -34,6 +34,7 @@ internal static class HighwindInteriorNavigationTests
         {
             NativeDoorsAndCrewBindToTheInstalledArchive(root);
             NativeProgressionStillGatesTheBridgeAndCrater(root);
+            NativeDeparturePublishesItsCurrentDestination(root);
             if (createMesh is not null) RoomRoutesUseNativeArrivals(root, createMesh);
         }
         Console.WriteLine("Highwind interior room, crew, Story coexistence and native route checks passed.");
@@ -162,6 +163,45 @@ internal static class HighwindInteriorNavigationTests
                 BitConverter.ToUInt16(o.Bytes.ToArray(),2) == 0 &&
                 BitConverter.ToUInt16(o.Bytes.ToArray(),4) == constant && o.Bytes[6] == operation),
                 "bridge policy boundaries match the installed native IFSW tests");
+    }
+
+    private static void NativeDeparturePublishesItsCurrentDestination(string root)
+    {
+        var native = new FieldScriptNavigationCatalog(root).ReadField(74);
+        var gateways = Gateways(root,74);
+        Equal(gateways.Single(t => t.StableId == "gateway:74:0:66").TriggerLine,
+            native.Exits.Single(t => t.StableId == "script-exit:74:7:744").TriggerLine,
+            "outside-deck gateway and guarded crater LINE occupy the same native doorway");
+        var presentation = new FieldExitPresentationPolicy(() => false);
+        foreach (var steamGatewayShape in new[] {false,true})
+        {
+            // The Steam coordinator retains gateway midpoints, without legacy LINE
+            // geometry. Presentation must agree for both production target shapes.
+            var runtimeGateways = steamGatewayShape
+                ? gateways.Select(t => t with { TriggerLine = null, CompletesOnArrival = false }).ToArray()
+                : gateways;
+            foreach (var craterOpen in new[] {false,true})
+            {
+                var state = new State(1650);
+                state.Bytes[FieldNavigationObjectReader.AddressFieldBankBase + 0x300 + 91] = craterOpen ? (byte)0x80 : (byte)0;
+                var scripts = FieldScriptExitBranchPolicy.Resolve(74,1650,
+                    FieldScriptExitGuards.Apply(native.Exits,native.ExitGuards,state));
+                var exits = presentation.Apply(Labels().Resolve(runtimeGateways.Concat(scripts).ToArray()));
+                Equal(!craterOpen,exits.Any(t => t.StableId == "gateway:74:0:66"),
+                    "combined Exits offers the outside deck only while the native doorway still leads there");
+                Equal(craterOpen,exits.Any(t => t.StableId == "script-exit:74:7:744"),
+                    "combined Exits offers Northern Crater only under the live native departure flag");
+                Equal(4,exits.Count,"one doorway destination is replaced without losing other Highwind rooms");
+                True(exits.Any(t => t.Label == "Enter Highwind operations room") &&
+                    exits.Any(t => t.Label == "Enter Highwind Chocobo hold") &&
+                    exits.Any(t => t.Label == "Enter Highwind bridge"),
+                    "ordinary room navigation remains available in either departure state");
+                var disabledLine = presentation.Apply(Labels().Resolve(runtimeGateways.Concat(
+                    scripts.Where(t => t.TriggerEntityId != 7)).ToArray()));
+                True(disabledLine.Any(t => t.StableId == "gateway:74:0:66"),
+                    "an absent or disabled crater LINE cannot suppress the ordinary deck door");
+            }
+        }
     }
 
     private static void RoomRoutesUseNativeArrivals(string root,Func<int,FieldWalkmeshReader> createMesh)
