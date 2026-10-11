@@ -527,6 +527,7 @@ public sealed class Mod : IModV1, IModV2
     private DateTime lastWorldMapScanAt = DateTime.MinValue;
     private string lastWorldMapStateDiagnostic = string.Empty;
     private string lastWorldMapEntityDiagnostic = string.Empty;
+    private string lastWorldMapVisibilityDiagnostic = string.Empty;
     private string lastWorldMapNavigationDiagnostic = string.Empty;
     private string lastWorldMapFootstepDiagnostic = string.Empty;
     private string lastWorldMapTerrainDiagnostic = string.Empty;
@@ -736,6 +737,9 @@ public sealed class Mod : IModV1, IModV2
     public bool CanSuspend() => true;
     private void LogLegacyStartupDiagnostics()
     {
+        var build = (System.Reflection.AssemblyInformationalVersionAttribute?)Attribute.GetCustomAttribute(
+            typeof(Mod).Assembly, typeof(System.Reflection.AssemblyInformationalVersionAttribute));
+        Log($"Blind Soldier build: {build?.InformationalVersion}; module={typeof(Mod).Module.ModuleVersionId}.");
         var snapshot = LegacyStartupDiagnostics.Capture();
         Log(string.Format(
             "Startup diagnostics: pid={0}, bitness={1}.",
@@ -5758,6 +5762,13 @@ public sealed class Mod : IModV1, IModV2
                 ? entityResult.Entities
                 : Array.Empty<WorldMapEntitySnapshot>(), currentProcessLegacyAddressSpace);
             if (config.EnableWorldMapNavigationDiagnostics &&
+                !string.Equals(runtime.LastUnderwaterVisibilityDiagnostic, lastWorldMapVisibilityDiagnostic, StringComparison.Ordinal))
+            {
+                lastWorldMapVisibilityDiagnostic = runtime.LastUnderwaterVisibilityDiagnostic;
+                if (lastWorldMapVisibilityDiagnostic.Length != 0)
+                    Log($"World-map underwater visibility: {lastWorldMapVisibilityDiagnostic}.");
+            }
+            if (config.EnableWorldMapNavigationDiagnostics &&
                 !string.Equals(entityResult.Diagnostic, lastWorldMapEntityDiagnostic, StringComparison.Ordinal))
             {
                 lastWorldMapEntityDiagnostic = entityResult.Diagnostic;
@@ -6148,6 +6159,7 @@ public sealed class Mod : IModV1, IModV2
             midgarZolomAreaTracker.Reset();
         worldMapWasActive = false;
         lastWorldMapFootstepDiagnostic = string.Empty;
+        lastWorldMapVisibilityDiagnostic = string.Empty;
         lastWorldMapNavigationDiagnostic = string.Empty;
         lastWorldMapTerrainDiagnostic = string.Empty;
         lastWorldMapTerrainFailure = string.Empty;

@@ -77,6 +77,9 @@ public sealed class Mod : IModV1, IModV2
 
         try
         {
+            var build = (System.Reflection.AssemblyInformationalVersionAttribute?)Attribute.GetCustomAttribute(
+                typeof(Mod).Assembly, typeof(System.Reflection.AssemblyInformationalVersionAttribute));
+            Log($"Blind Soldier build: {build?.InformationalVersion}; module={typeof(Mod).Module.ModuleVersionId}.");
             var mainModule = Process.GetCurrentProcess().MainModule
                              ?? throw new InvalidOperationException(
                                  "The current executable module is unavailable.");

@@ -15,6 +15,7 @@ internal static class WorldMapEntranceProximityCueTests
         UsesJunonsNativeScriptSevenEntranceFromTheShippedCatalog();
         UsesTheMythrilHouseDoorFromEveryLoggedApproach();
         MovingAroundTheHouseDoesNotRestartThePulse();
+        KeepsCorelPrisonsCueBehindTheNativeChocoboWall();
         PreservesCuesAcrossTheInstalledLocationCatalog();
     }
 
@@ -27,8 +28,8 @@ internal static class WorldMapEntranceProximityCueTests
         foreach (var model in Enumerable.Range(0, 26))
         foreach (var target in catalog.Locations)
         {
-            // This is the previous cue's eligibility rule. Verify that replacing
-            // centroids with ground boundaries doesn't silently lose other towns.
+            // Preserve the catalog's reachable entrance cues. Native chocobo masks
+            // also exclude walls that the former walking approximation admitted.
             var eligible = target.NativeLocationArrivals.Where(arrival =>
                 planner.GetComponentId(model, map.WorldMapType, arrival.TriangleId) >= 0).ToArray();
             if (eligible.Length == 0) continue;
@@ -41,6 +42,13 @@ internal static class WorldMapEntranceProximityCueTests
             var tracker = new WorldMapEntranceProximityCueTracker(map, planner, [target],
                 512, 4_096, TimeSpan.FromMilliseconds(3_200));
             var cue = tracker.Update(state, Start);
+            if (model is 4 or 19 && target.Label == "Corel Prison/Desert")
+            {
+                // The synthetic position is inside a terrain-16 trigger surrounded
+                // entirely by terrain-24 walls. An ordinary bird cannot reach it.
+                Equal(false, cue.HasValue, "ordinary bird cannot cue across Corel Prison's wall");
+                continue;
+            }
             Equal(true, cue.HasValue, $"native entrance cue retained for {target.Label}, model {model}");
             Equal(true, target.NativeTriggerTriangleIds.Contains(cue!.Value.Arrival.TriangleId),
                 $"cue remains on {target.Label}'s own native entrance");
@@ -49,6 +57,31 @@ internal static class WorldMapEntranceProximityCueTests
         }
         Equal(catalog.Locations.Count, checkedLocations.Count, "every catalogued location was exercised");
         Console.WriteLine($"PASS world entrance cues: {cases} reachable location/model cases across {checkedLocations.Count} locations.");
+    }
+
+    private static void KeepsCorelPrisonsCueBehindTheNativeChocoboWall()
+    {
+        var (map, catalog) = LoadShippedWorldMap();
+        var prison = catalog.Locations.Single(target => target.Label == "Corel Prison/Desert");
+        var arrival = prison.NativeLocationArrivals[0];
+        var outside = prison.NativeTriggerTriangleIds.SelectMany(id => map.Triangles[id].Neighbors)
+            .Where(id => !prison.NativeTriggerTriangleIds.Contains(id)).Select(id => map.Triangles[id].TerrainId)
+            .Distinct().ToArray();
+        Equal(true, outside.Length == 1 && outside[0] == 24, "installed Corel Prison entrance is surrounded by native walls");
+        uint[] nativeMasks = [0x321B6F83u, 0x321B6F87u, 0x321B6FF3u, 0x325B7FF7u, 0x375B7FFFu];
+        var tracker = new WorldMapEntranceProximityCueTracker(map, new(map), [prison],
+            512, 4_096, TimeSpan.Zero);
+        for (var color = 0; color < nativeMasks.Length; color++)
+        {
+            var state = CreateState(arrival.X, arrival.Z, 16, 0) with
+            {
+                Y = arrival.Y, PlayerModelId = 19, TerrainScriptId = arrival.TerrainScriptId,
+                HasNativeChocoboTerrainMask = true, NativeChocoboColor = color,
+                NativeChocoboTerrainMask = nativeMasks[color]
+            };
+            Equal(color == 4, tracker.Update(state, Start).HasValue,
+                $"Corel Prison cue respects color {color}'s native wall access");
+        }
     }
 
     private static void UsesTheMythrilHouseDoorFromEveryLoggedApproach()

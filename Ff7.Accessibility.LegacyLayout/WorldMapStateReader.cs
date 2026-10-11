@@ -18,6 +18,10 @@ public sealed class WorldMapStateReader
     public const int AddressNativeCameraMode = 0x00DFC4B4;
     public const int AddressNativeFrameMultiplier = 0x00DFC480;
     public const int AddressGameMoment = 0x00DC08DC;
+    // FUN_0074DB52 and FUN_0074CECA model 19; Steam uses these same guest addresses.
+    public const int AddressNativeChocoboColor = 0x00DE6B54;
+    public const int AddressNativeChocoboTerrainMasks = 0x00969A40;
+    public const int AddressWorldEventBank0Pointer = 0x00E3A7E0;
 
     /// <summary>
     /// The entity the native collision last reported contact with, written by
@@ -89,6 +93,12 @@ public sealed class WorldMapStateReader
             (first.HasModelRotation
                 ? $", facing={first.Facing}, rotation={first.ModelRotation}{first.SlideRotation:+0;-0;+0}, " +
                   $"flags=0x{first.EntityFlags:X2}"
+                : string.Empty) +
+            (first.ModelId == 19
+                ? first.HasNativeChocoboTerrainMask
+                    ? $", chocoboColor={first.NativeChocoboColor}, terrainMask=0x{first.NativeChocoboTerrainMask:X8}, " +
+                      $"quicksand={(first.HasNativeChocoboQuicksandFlag ? first.NativeChocoboCanCrossQuicksand ? "allowed" : "blocked" : "unknown")}"
+                    : ", chocobo terrain permissions unavailable"
                 : string.Empty));
     }
 
@@ -205,6 +215,23 @@ public sealed class WorldMapStateReader
         // Only submarine steering consumes this optional observation. Existing readers
         // and other vehicle navigation remain usable when it is unavailable.
         if (!hasNativeControlMode) { nativeCameraMode = -1; nativeFrameMultiplier = 0; }
+        var nativeChocoboColor = -1;
+        uint nativeChocoboTerrainMask = 0;
+        var hasNativeChocoboTerrainMask = modelId == 19 &&
+            memory.TryReadInt32(AddressNativeChocoboColor, out nativeChocoboColor) &&
+            nativeChocoboColor is >= 0 and < 5 &&
+            memory.TryReadUInt32((uint)(AddressNativeChocoboTerrainMasks + nativeChocoboColor * 4), out nativeChocoboTerrainMask) &&
+            nativeChocoboTerrainMask != 0;
+        if (!hasNativeChocoboTerrainMask) { nativeChocoboColor = -1; nativeChocoboTerrainMask = 0; }
+        uint chocoboBankPointer = 0;
+        byte chocoboScriptFlags = 0;
+        // wm0.ev function 530F returns without repelling the bird only when bank-0
+        // bit 0x03F6 is set. Color alone does not authorize this scripted crossing.
+        var hasChocoboQuicksandFlag = modelId == 19 &&
+            memory.TryReadUInt32(AddressWorldEventBank0Pointer, out chocoboBankPointer) && chocoboBankPointer != 0 &&
+            TryAdd(chocoboBankPointer, 0x03F6 >> 3, out var chocoboFlagsAddress) &&
+            memory.TryReadByte(chocoboFlagsAddress, out chocoboScriptFlags);
+        if (!hasChocoboQuicksandFlag) { chocoboBankPointer = 0; chocoboScriptFlags = 0; }
         frame = frame with
         {
             X = x,
@@ -225,7 +252,13 @@ public sealed class WorldMapStateReader
             EntityFlags = entityFlags,
             HasNativeControlMode = hasNativeControlMode,
             NativeCameraMode = nativeCameraMode,
-            NativeFrameMultiplier = nativeFrameMultiplier
+            NativeFrameMultiplier = nativeFrameMultiplier,
+            HasNativeChocoboTerrainMask = hasNativeChocoboTerrainMask,
+            NativeChocoboColor = nativeChocoboColor,
+            NativeChocoboTerrainMask = nativeChocoboTerrainMask,
+            HasNativeChocoboQuicksandFlag = hasChocoboQuicksandFlag,
+            NativeChocoboCanCrossQuicksand = (chocoboScriptFlags & 0x40) != 0,
+            ChocoboScriptBankPointer = chocoboBankPointer
         };
         diagnostic = string.Empty;
         return true;
@@ -287,6 +320,12 @@ public sealed class WorldMapStateReader
         public bool HasNativeControlMode { get; init; }
         public int NativeCameraMode { get; init; }
         public int NativeFrameMultiplier { get; init; }
+        public bool HasNativeChocoboTerrainMask { get; init; }
+        public int NativeChocoboColor { get; init; }
+        public uint NativeChocoboTerrainMask { get; init; }
+        public bool HasNativeChocoboQuicksandFlag { get; init; }
+        public bool NativeChocoboCanCrossQuicksand { get; init; }
+        public uint ChocoboScriptBankPointer { get; init; }
         public WorldMapStateSnapshot State => new(
             Module,
             WorldMapType,
@@ -316,7 +355,12 @@ public sealed class WorldMapStateReader
             EntityFlags = EntityFlags,
             HasNativeControlMode = HasNativeControlMode,
             NativeCameraMode = NativeCameraMode,
-            NativeFrameMultiplier = NativeFrameMultiplier
+            NativeFrameMultiplier = NativeFrameMultiplier,
+            HasNativeChocoboTerrainMask = HasNativeChocoboTerrainMask,
+            NativeChocoboColor = NativeChocoboColor,
+            NativeChocoboTerrainMask = NativeChocoboTerrainMask,
+            HasNativeChocoboQuicksandFlag = HasNativeChocoboQuicksandFlag,
+            NativeChocoboCanCrossQuicksand = NativeChocoboCanCrossQuicksand
         };
     }
 }
@@ -339,6 +383,13 @@ public readonly record struct WorldMapStateSnapshot(
     FieldNavigationControlTransform ControlTransform)
 {
     public bool IsOverworld => WorldMapType == 0;
+
+    /// <summary>The current model-19 bird's checked native terrain permissions, not save/stable history.</summary>
+    public bool HasNativeChocoboTerrainMask { get; init; }
+    public int NativeChocoboColor { get; init; }
+    public uint NativeChocoboTerrainMask { get; init; }
+    public bool HasNativeChocoboQuicksandFlag { get; init; }
+    public bool NativeChocoboCanCrossQuicksand { get; init; }
 
     public bool HasChocoboTracks { get; init; }
 

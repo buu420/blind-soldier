@@ -116,9 +116,13 @@ public sealed class WorldMapRuntimeContext
     }
 
     public IReadOnlyList<WorldMapEntitySnapshot> Entities => Volatile.Read(ref entities);
+    public string LastUnderwaterVisibilityDiagnostic { get; private set; } = string.Empty;
 
-    public void UpdateEntities(IReadOnlyList<WorldMapEntitySnapshot>? value) =>
+    public void UpdateEntities(IReadOnlyList<WorldMapEntitySnapshot>? value)
+    {
         Volatile.Write(ref entities, value ?? Array.Empty<WorldMapEntitySnapshot>());
+        LastUnderwaterVisibilityDiagnostic = string.Empty;
+    }
 
     public void UpdateEntities(WorldMapStateSnapshot state,
         IReadOnlyList<WorldMapEntitySnapshot>? value, Ff7.Accessibility.LegacyLayout.ILegacyAddressSpace? memory)
@@ -135,6 +139,8 @@ public sealed class WorldMapRuntimeContext
         {
             IsVisibleUnderwater = sighting.IsUsable && sighting.VisibleEntities.Contains(e.GuestPointer)
         }).ToArray());
+        LastUnderwaterVisibilityDiagnostic = sighting.Diagnostic ??
+            (memory is null ? "underwater visibility memory unavailable" : "no live underwater target entities");
     }
 
     public string? ObserveUnderwaterSightings(WorldMapStateSnapshot state, bool speechReserved = false, DateTime? nowUtc = null)
