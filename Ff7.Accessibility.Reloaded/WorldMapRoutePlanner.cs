@@ -12,6 +12,23 @@ public sealed record WorldMapRoutePlan(
 
 public static class WorldMapTerrainPassability
 {
+    internal static uint ChocoboTerrainMask(WorldMapStateSnapshot state)
+    {
+        if (state.PlayerModelId is not (4 or 19)) return 0;
+        var observed = state.PlayerModelId == 19 && state.HasNativeChocoboTerrainMask &&
+            state.NativeChocoboColor is >= 0 and < 5 && state.NativeChocoboTerrainMask != 0;
+        var mask = observed ? state.NativeChocoboTerrainMask : 0x321B6F83u;
+        // wm0.ev's model functions 440F/530F repel ordinary birds from quicksand.
+        if (state.WorldMapType == 0 && (state.PlayerModelId != 19 || !state.HasNativeChocoboQuicksandFlag ||
+            !state.NativeChocoboCanCrossQuicksand)) mask &= ~(1u << 28);
+        return mask;
+    }
+
+    public static bool CanTraverse(WorldMapStateSnapshot state, int terrainId) =>
+        state.PlayerModelId is 4 or 19
+            ? terrainId is >= 0 and < 32 && (ChocoboTerrainMask(state) & (1u << terrainId)) != 0
+            : CanTraverse(state.PlayerModelId, state.WorldMapType, terrainId);
+
     private static readonly HashSet<int> WalkingTerrain =
     [
         // Native ground type 7 is the Midgar Zolom swamp. The party can cross
@@ -58,13 +75,9 @@ public static class WorldMapTerrainPassability
             // FUN_0074CECA model13 mask0x4048008 applies on the surface too.
             // Model28 is the Huge Materia wreck, not a playable vehicle.
             13 => worldMapType is 0 or 2 && terrainId is 3 or 15 or 18 or 26,
-            // Model 4 is the live caught Chocobo used immediately after a
-            // Chocobo battle; model 19 is the alternate ridden form. A
-            // Chocobo's color/capability is stored separately, so both retain
-            // ordinary walking terrain until that native capability is read. The wild
-            // Chocobo's function440F also repels it from quicksand; function530F does
-            // that for an ordinary bred Chocobo (the capability flag is clear).
-            4 or 19 => WalkingTerrain.Contains(terrainId) &&
+            // Fixed-profile callers and unavailable native capability reads keep the
+            // ordinary bird's mask. State-backed routing uses the overload above.
+            4 or 19 => (0x321B6F83u & (1u << terrainId)) != 0 &&
                        !(worldMapType == 0 && terrainId == 28),
             // Cloud, Tifa, and Cid can physically step on the Gold Saucer desert
             // border, but wm0.ev's eight script-3 handlers on terrain28 call their
@@ -88,7 +101,7 @@ public sealed class WorldMapRoutePlanner
 
     private readonly WorldMapData map;
     private readonly IReadOnlyDictionary<(int X, int Z), IReadOnlyList<int>> trianglesByMesh;
-    private readonly Dictionary<(int PlayerModelId, int WorldMapType), int[]> componentIdsByProfile = new();
+    private readonly Dictionary<(int PlayerModelId, int WorldMapType, uint ChocoboMask), int[]> componentIdsByProfile = new();
     private readonly object componentCacheLock = new();
 
     public WorldMapRoutePlanner(WorldMapData map)
@@ -266,8 +279,7 @@ public sealed class WorldMapRoutePlanner
         var goals = routeGoals
             .Where(id => id >= 0 && id < map.Triangles.Count)
             .Where(id => WorldMapTerrainPassability.CanTraverse(
-                state.PlayerModelId,
-                state.WorldMapType,
+                state,
                 map.Triangles[id].TerrainId))
             .ToHashSet();
         if (goals.Count == 0)
@@ -277,8 +289,7 @@ public sealed class WorldMapRoutePlanner
         }
 
         if (!WorldMapTerrainPassability.CanTraverse(
-                state.PlayerModelId,
-                state.WorldMapType,
+                state,
                 map.Triangles[startTriangle].TerrainId))
         {
             LastDiagnostic = $"player triangle {startTriangle} terrain {map.Triangles[startTriangle].TerrainId} is not traversable by model {state.PlayerModelId}";
@@ -327,8 +338,7 @@ public sealed class WorldMapRoutePlanner
         }
 
         if (!WorldMapTerrainPassability.CanTraverse(
-                state.PlayerModelId,
-                state.WorldMapType,
+                state,
                 map.Triangles[startTriangle].TerrainId))
         {
             LastDiagnostic =
@@ -337,7 +347,7 @@ public sealed class WorldMapRoutePlanner
             return false;
         }
 
-        var componentIds = GetComponentIds(state.PlayerModelId, state.WorldMapType);
+        var componentIds = GetComponentIds(state);
         var startComponent = componentIds[startTriangle];
         var reachable = startComponent >= 0 && target.ArrivalTriangleIds.Any(
             id => id >= 0 &&
@@ -408,7 +418,7 @@ public sealed class WorldMapRoutePlanner
         while (pending.TryDequeue(out var current))
         {
             var triangle = map.Triangles[current.TriangleId];
-            if (!WorldMapTerrainPassability.CanTraverse(state.PlayerModelId, state.WorldMapType, triangle.TerrainId) ||
+            if (!WorldMapTerrainPassability.CanTraverse(state, triangle.TerrainId) ||
                 (exemptEntrances is not null &&
                  IsUnwantedEntrance(current.TriangleId, exemptEntrances, startTriangle)))
             {
@@ -499,7 +509,7 @@ public sealed class WorldMapRoutePlanner
             var triangle = map.Triangles[id];
             if (id != startTriangle &&
                 !HasNoPlanArea(triangle) &&
-                WorldMapTerrainPassability.CanTraverse(state.PlayerModelId, state.WorldMapType, triangle.TerrainId) &&
+                WorldMapTerrainPassability.CanTraverse(state, triangle.TerrainId) &&
                 ContainsPoint(triangle, x, z) &&
                 Math.Abs(SurfaceHeightAt(triangle, x, z) - state.Y) <= CoincidentSurfaceTolerance)
             {
@@ -573,31 +583,30 @@ public sealed class WorldMapRoutePlanner
         componentId = -1;
         if (!TryResolvePlayerTriangle(state, out var triangleId) ||
             !WorldMapTerrainPassability.CanTraverse(
-                state.PlayerModelId,
-                state.WorldMapType,
+                state,
                 map.Triangles[triangleId].TerrainId))
         {
             return false;
         }
 
-        componentId = GetComponentId(
-            state.PlayerModelId,
-            state.WorldMapType,
-            triangleId);
+        componentId = GetComponentId(state, triangleId);
         return componentId >= 0;
     }
 
     internal int GetComponentId(
         int playerModelId,
         int worldMapType,
-        int triangleId)
+        int triangleId) => GetComponentId(default(WorldMapStateSnapshot) with
+            { PlayerModelId = playerModelId, WorldMapType = worldMapType }, triangleId);
+
+    internal int GetComponentId(WorldMapStateSnapshot state, int triangleId)
     {
         if (triangleId < 0 || triangleId >= map.Triangles.Count)
         {
             return -1;
         }
 
-        return GetComponentIds(playerModelId, worldMapType)[triangleId];
+        return GetComponentIds(state)[triangleId];
     }
 
     public double MeasureRemainingDistance(
@@ -671,8 +680,7 @@ public sealed class WorldMapRoutePlanner
 
                 var next = map.Triangles[neighbor];
                 if (!WorldMapTerrainPassability.CanTraverse(
-                        state.PlayerModelId,
-                        state.WorldMapType,
+                        state,
                         next.TerrainId) ||
                     (exemptEntrances is not null &&
                      IsUnwantedEntrance(neighbor, exemptEntrances, start)))
@@ -714,9 +722,9 @@ public sealed class WorldMapRoutePlanner
         return true;
     }
 
-    private int[] GetComponentIds(int playerModelId, int worldMapType)
+    private int[] GetComponentIds(WorldMapStateSnapshot state)
     {
-        var key = (playerModelId, worldMapType);
+        var key = (state.PlayerModelId, state.WorldMapType, WorldMapTerrainPassability.ChocoboTerrainMask(state));
         lock (componentCacheLock)
         {
             if (componentIdsByProfile.TryGetValue(key, out var cached))
@@ -731,8 +739,7 @@ public sealed class WorldMapRoutePlanner
             {
                 if (componentIds[triangleId] >= 0 ||
                     !WorldMapTerrainPassability.CanTraverse(
-                        playerModelId,
-                        worldMapType,
+                        state,
                         map.Triangles[triangleId].TerrainId))
                 {
                     continue;
@@ -746,8 +753,7 @@ public sealed class WorldMapRoutePlanner
                     {
                         if (componentIds[neighbor] >= 0 ||
                             !WorldMapTerrainPassability.CanTraverse(
-                                playerModelId,
-                                worldMapType,
+                                state,
                                 map.Triangles[neighbor].TerrainId))
                         {
                             continue;
@@ -792,9 +798,8 @@ public sealed class WorldMapRoutePlanner
             path = path.Take(firstOwnWall + 1).ToArray();
         }
 
-        // The boat and the party on foot move only where FUN_00751EFC finds all five of their
-        // contact points on ground they may enter, so their portals and legs are planned
-        // where that footprint fits. Everybody else keeps the string pulled tight.
+        // FUN_00751EFC checks five contact points for the boat, party, Buggy and
+        // chocobos. Plan their portals and legs where their native footprint fits.
         FootprintRule? footprint = state.PlayerModelId == WorldMapBroncoLanding.BroncoModelId
             ? new FootprintRule(
                 (x, _, z) => WorldMapBroncoLanding.HasBoatFootprint(map, x, z),
@@ -806,7 +811,8 @@ public sealed class WorldMapRoutePlanner
             : UsesGroundFootprint(state.PlayerModelId)
                 ? new FootprintRule(
                     (x, y, z) => HasWalkingFootprint(state, x, y, z),
-                    state.PlayerModelId == BuggyModelId ? BuggyFrameStep : WalkingFrameStep,
+                    state.PlayerModelId == BuggyModelId ? BuggyFrameStep
+                        : state.PlayerModelId is 4 or 19 ? ChocoboFrameStep : WalkingFrameStep,
                     LegMargin: 0d,
                     MinimumBendOffset: BendSearchStep)
                 : null;
@@ -974,16 +980,19 @@ public sealed class WorldMapRoutePlanner
     /// <summary>FUN_0074EA48: the Buggy moves 0x2D a frame.</summary>
     private const double BuggyFrameStep = 0x2D;
 
+    /// <summary>C_00761844: caught and bred chocobos move 0x3C a frame.</summary>
+    private const double ChocoboFrameStep = 0x3C;
+
     internal const int BuggyModelId = 6;
 
     /// <summary>
     /// The models FUN_00751EFC holds to the 200-unit ground footprint (007530B3 uses 350 only
-    /// for the boat): the party on foot and the Buggy. Their routes keep the footprint's room
-    /// the same way; the Buggy's own ground is still its own terrain rule. Flying, the
-    /// submarine and the chocobos are left as they were.
+    /// for the boat): the party on foot, Buggy and caught/bred chocobos. Each model's
+    /// footprint retains its own native terrain permissions. Flight and submarine
+    /// steering use their own rules.
     /// </summary>
     internal static bool UsesGroundFootprint(int playerModelId) =>
-        IsWalkingModel(playerModelId) || playerModelId == BuggyModelId;
+        IsWalkingModel(playerModelId) || playerModelId is BuggyModelId or 4 or 19;
 
     /// <summary>
     /// The Tiny Bronco's waypoints: the middle of each portal's sailable stretch, joined by
@@ -1297,7 +1306,7 @@ public sealed class WorldMapRoutePlanner
 
             if (onBridge
                     ? ground.TerrainId is not (13 or 14 or 29)
-                    : !WorldMapTerrainPassability.CanTraverse(state.PlayerModelId, state.WorldMapType, ground.TerrainId))
+                    : !WorldMapTerrainPassability.CanTraverse(state, ground.TerrainId))
             {
                 return false;
             }

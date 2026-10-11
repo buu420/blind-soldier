@@ -55,10 +55,13 @@ public sealed partial class WorldMapNavigationController
     /// <summary>FUN_0074EA48: the Buggy moves 0x2D a frame, and is held by the same footprint.</summary>
     private const double BuggyFrameStep = 45d;
 
+    /// <summary>C_00761844 sets caught and bred chocobo movement to 0x3C a frame.</summary>
+    private const double ChocoboFrameStep = 60d;
+
     /// <summary>
     /// Models FUN_00751EFC holds to the 200-unit ground footprint that this controller
-    /// steers by: the party on foot and the Buggy. The boat has its own 350-unit rule above;
-    /// flying, the submarine and the chocobos are not steered by it.
+    /// steers by: the party, Buggy and caught/bred chocobos. The boat uses 350 units;
+    /// flight and the submarine keep their own steering rules.
     /// </summary>
     private static bool UsesGroundFootprint(int modelId) => WorldMapRoutePlanner.UsesGroundFootprint(modelId);
 
@@ -69,6 +72,7 @@ public sealed partial class WorldMapNavigationController
 
     private static double GroundFrameStep(int modelId) =>
         modelId == WorldMapBuggyModelId ? BuggyFrameStep
+        : modelId is 4 or 19 ? ChocoboFrameStep
         : modelId == WorldMapHighwindLanding.HighwindModelId ? FlightFrameStep
         : WalkingFrameStep;
 
@@ -221,6 +225,7 @@ public sealed partial class WorldMapNavigationController
     }
     private int progressPercent;
     private int activeModelId = -1;
+    private uint activeChocoboTerrainMask;
     private int activeMapType = -1;
     private int activeWorldProgress = int.MinValue;
     private DateTime lastGuidanceAt = DateTime.MinValue;
@@ -566,6 +571,7 @@ public sealed partial class WorldMapNavigationController
         }
 
         if (state.PlayerModelId != activeModelId ||
+            WorldMapTerrainPassability.ChocoboTerrainMask(state) != activeChocoboTerrainMask ||
             state.WorldMapType != activeMapType ||
             state.WorldProgress != activeWorldProgress)
         {
@@ -1982,6 +1988,7 @@ public sealed partial class WorldMapNavigationController
                 combatPaused = false;
                 activeTarget = target;
                 activeModelId = state.PlayerModelId;
+                activeChocoboTerrainMask = WorldMapTerrainPassability.ChocoboTerrainMask(state);
                 activeMapType = state.WorldMapType;
                 activeWorldProgress = state.WorldProgress;
                 awaitingNativeEntry = true;
@@ -2070,6 +2077,7 @@ public sealed partial class WorldMapNavigationController
             progressSink?.Activate(0);
         }
         activeModelId = state.PlayerModelId;
+        activeChocoboTerrainMask = WorldMapTerrainPassability.ChocoboTerrainMask(state);
         activeMapType = state.WorldMapType;
         activeWorldProgress = state.WorldProgress;
         landingPlan = landing;
@@ -2522,6 +2530,14 @@ public sealed partial class WorldMapNavigationController
     private static readonly IReadOnlyDictionary<string, IReadOnlySet<int>> NativeEntryModels =
         new Dictionary<string, IReadOnlySet<int>>(StringComparer.Ordinal)
         {
+            // wm0.ev 8444 (2E8E..2EA8) and A224 (2E07..2E21) compare special 8
+            // with 0, 1 and 2 before EnterField 29/24. Both caves require dismounting.
+            ["Materia Cave (Knights of the Round Materia)"] = new HashSet<int> { 0, 1, 2 },
+            ["Materia Cave (Mime Materia)"] = new HashSet<int> { 0, 1, 2 },
+            // 9E24 (2D98..2DB2) and A854 (2C73..2C8D) apply the same on-foot
+            // model check to EnterField 22/12 for the other two chocobo caves.
+            ["Materia Cave (HP<->MP Materia)"] = new HashSet<int> { 0, 1, 2 },
+            ["Materia Cave (Quadra Magic)"] = new HashSet<int> { 0, 1, 2 },
             // wm0.ev handler ADA4, IP 2D1C..2D36: push special 8, compare against 0, 1 and
             // 2, return unless one matches, then opcode 0x318 EnterField with native
             // destination 18 decimal and entry 0.
@@ -3444,6 +3460,7 @@ public sealed partial class WorldMapNavigationController
         AutomaticInputHoldsSubmarineThrust = false;
         progressPercent = 0;
         activeModelId = -1;
+        activeChocoboTerrainMask = 0;
         activeMapType = -1;
         activeWorldProgress = int.MinValue;
         lastGuidanceAt = DateTime.MinValue;

@@ -66,6 +66,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
     private DateTime nextScanUtc = DateTime.MinValue;
     private string lastStateDiagnostic = string.Empty;
     private string lastEntityDiagnostic = string.Empty;
+    private string lastVisibilityDiagnostic = string.Empty;
     private string lastNavigationDiagnostic = string.Empty;
     private string lastFootstepDiagnostic = string.Empty;
     private string lastTerrainDiagnostic = string.Empty;
@@ -419,6 +420,9 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         runtime.UpdateEntities(state, entityResult.IsUsable
             ? entityResult.Entities
             : Array.Empty<WorldMapEntitySnapshot>(), addressSpace);
+        if (runtime.LastUnderwaterVisibilityDiagnostic.Length != 0)
+            LogDiagnostic("underwater visibility", runtime.LastUnderwaterVisibilityDiagnostic, ref lastVisibilityDiagnostic);
+        else lastVisibilityDiagnostic = string.Empty;
         LogDiagnostic("entities", entityResult.Diagnostic, ref lastEntityDiagnostic);
         if (!entityResult.IsUsable)
         {
@@ -604,6 +608,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         nextScanUtc = DateTime.MinValue;
         lastTerrainFailure = string.Empty;
         lastTerrainDiagnostic = string.Empty;
+        lastVisibilityDiagnostic = string.Empty;
         lastProgressPublicationRevision = progressSink?.PublicationRevision ?? 0;
         lastProgressControlSpeechRevision = progressController.SpeechRevision;
         wasActive = false;

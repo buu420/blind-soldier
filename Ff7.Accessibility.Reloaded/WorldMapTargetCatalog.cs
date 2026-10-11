@@ -882,8 +882,7 @@ public sealed partial class WorldMapTargetCatalog
 
         return terrainAreaPatches
             .Where(patch => triangleResolver.GetComponentId(
-                state.PlayerModelId,
-                state.WorldMapType,
+                state,
                 patch.RepresentativeTriangleId) == componentId)
             .GroupBy(patch => (patch.TerrainId, patch.DominantRegionId))
             .Select(group => CreateTerrainAreaTarget(group.Key, group.ToArray()))
@@ -1143,7 +1142,7 @@ public sealed partial class WorldMapTargetCatalog
             // No checked boarding mask for one of the two models - a party
             // leader nobody has measured. Inventing a footprint for those would be
             // inventing an arrival, so they keep the ring they always had.
-            if (WorldMapTerrainPassability.CanTraverse(player.PlayerModelId, player.WorldMapType, triangle.TerrainId))
+            if (WorldMapTerrainPassability.CanTraverse(player, triangle.TerrainId))
             {
                 arrivals.Add(triangleId);
             }
@@ -1151,8 +1150,7 @@ public sealed partial class WorldMapTargetCatalog
             foreach (var neighbor in triangle.Neighbors)
             {
                 if (WorldMapTerrainPassability.CanTraverse(
-                        player.PlayerModelId,
-                        player.WorldMapType,
+                        player,
                         map.Triangles[neighbor].TerrainId))
                 {
                     arrivals.Add(neighbor);

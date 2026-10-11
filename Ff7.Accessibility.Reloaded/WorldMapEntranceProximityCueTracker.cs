@@ -50,7 +50,7 @@ public sealed class WorldMapEntranceProximityCueTracker
     private readonly int innerRange;
     private readonly int outerRange;
     private readonly TimeSpan pulseInterval;
-    private readonly Dictionary<int, IReadOnlyList<EntrancePoint>> entrancesByModel = new();
+    private readonly Dictionary<(int Model, uint ChocoboMask), IReadOnlyList<EntrancePoint>> entrancesByModel = new();
 
     private string activeTargetKey = string.Empty;
     private DateTime nextPulseAt = DateTime.MinValue;
@@ -85,7 +85,7 @@ public sealed class WorldMapEntranceProximityCueTracker
             return null;
         }
 
-        var candidate = GetEntrancePoints(state.PlayerModelId)
+        var candidate = GetEntrancePoints(state)
             .Where(point => point.ComponentId == playerComponent)
             .Select(point =>
             {
@@ -140,9 +140,10 @@ public sealed class WorldMapEntranceProximityCueTracker
         nextPulseAt = DateTime.MinValue;
     }
 
-    private IReadOnlyList<EntrancePoint> GetEntrancePoints(int playerModelId)
+    private IReadOnlyList<EntrancePoint> GetEntrancePoints(WorldMapStateSnapshot state)
     {
-        if (entrancesByModel.TryGetValue(playerModelId, out var cached)) return cached;
+        var key = (state.PlayerModelId, WorldMapTerrainPassability.ChocoboTerrainMask(state));
+        if (entrancesByModel.TryGetValue(key, out var cached)) return cached;
 
         var points = new List<EntrancePoint>();
         foreach (var target in locations.Where(target => target.Kind == WorldMapTargetKind.Location))
@@ -153,7 +154,7 @@ public sealed class WorldMapEntranceProximityCueTracker
             {
                 foreach (var arrival in target.NativeLocationArrivals)
                 {
-                    var component = planner.GetComponentId(playerModelId, map.WorldMapType, arrival.TriangleId);
+                    var component = planner.GetComponentId(state, arrival.TriangleId);
                     if (component >= 0) points.Add(new(target, arrival, component));
                 }
                 continue;
@@ -166,13 +167,13 @@ public sealed class WorldMapEntranceProximityCueTracker
             // strict interior arrival point, but its ground boundary is a real entry.
             foreach (var triangleId in target.NativeTriggerTriangleIds.Order())
             {
-                var component = planner.GetComponentId(playerModelId, map.WorldMapType, triangleId);
+                var component = planner.GetComponentId(state, triangleId);
                 if (component < 0) continue;
                 var triangle = map.Triangles[triangleId];
                 foreach (var neighborId in triangle.Neighbors)
                 {
                     if (target.NativeTriggerTriangleIds.Contains(neighborId) ||
-                        planner.GetComponentId(playerModelId, map.WorldMapType, neighborId) != component)
+                        planner.GetComponentId(state, neighborId) != component)
                         continue;
 
                     var neighbor = map.Triangles[neighborId];
@@ -194,7 +195,7 @@ public sealed class WorldMapEntranceProximityCueTracker
             }
         }
 
-        entrancesByModel[playerModelId] = points;
+        entrancesByModel[key] = points;
         return points;
     }
 

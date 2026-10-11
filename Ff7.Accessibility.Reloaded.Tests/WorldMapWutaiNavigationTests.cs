@@ -352,7 +352,8 @@ internal static class WorldMapWutaiNavigationTests
     /// where it slides. Its camera is also held still, where the game's turns to follow the
     /// party; the cameras above are five different sets of directions it can be caught in.</para>
     /// </summary>
-    private sealed class NativeWalker(WorldMapData map, int x, int y, int z, int camera)
+    internal sealed class NativeWalker(WorldMapData map, int x, int y, int z, int camera,
+        int playerModel = 0, uint terrainMask = 0x721B6F83, int chocoboColor = -1)
     {
         private int preferredSide = 1;
 
@@ -371,12 +372,20 @@ internal static class WorldMapWutaiNavigationTests
 
             var direction = -(camera / 16);
             return new WorldMapStateSnapshot(
-                3, 0, 0, 900, X, Y, Z, 0, 0, surface.TerrainId, surface.RegionId & 31, 0, WalkStep, camera,
+                3, 0, 0, 900, X, Y, Z, 0, 0, surface.TerrainId, surface.RegionId & 31, playerModel, FrameStep, camera,
                 new FieldNavigationControlTransform(direction < -128 ? direction + 256 : direction))
             {
-                TerrainScriptId = surface.TerrainScriptId
+                TerrainScriptId = surface.TerrainScriptId,
+                HasNativeChocoboTerrainMask = playerModel == 19 && chocoboColor >= 0,
+                NativeChocoboColor = chocoboColor,
+                NativeChocoboTerrainMask = terrainMask,
+                HasNativeChocoboQuicksandFlag = playerModel == 19,
+                NativeChocoboCanCrossQuicksand = (terrainMask & (1u << 28)) != 0
             };
         }
+
+        // FUN_0074EA48 calls C_00761844 before its vehicle speed switch: a chocobo moves 60.
+        private int FrameStep => playerModel is 4 or 19 ? 60 : WalkStep;
 
         public void Frame(FieldNavigationInput input)
         {
@@ -388,8 +397,8 @@ internal static class WorldMapWutaiNavigationTests
             var stick = FieldNavigationMovementObserver.ToStickDirection(input);
             var scale = stick.X != 0f && stick.Y != 0f ? 0.75d : 1d;
             var angle = camera * Math.PI * 2d / 4096d;
-            var sx = Math.Sign(stick.X) * scale * WalkStep;
-            var sz = Math.Sign(stick.Y) * scale * WalkStep;
+            var sx = Math.Sign(stick.X) * scale * FrameStep;
+            var sz = Math.Sign(stick.Y) * scale * FrameStep;
             var dx = (int)(sx * Math.Cos(angle) - sz * Math.Sin(angle));
             var dz = (int)(sx * Math.Sin(angle) + sz * Math.Cos(angle));
             if (!TryFindWalkSurface(map, X, Z, Y, out var here))
@@ -423,7 +432,7 @@ internal static class WorldMapWutaiNavigationTests
         {
             var nx = X + dx;
             var nz = Z + dz;
-            if (!NativeFootprintFits(map, nx, nz, Y, onBridge) ||
+            if (!NativeFootprintFits(map, nx, nz, Y, onBridge, terrainMask) ||
                 !TryFindWalkSurface(map, nx, nz, Y, out var surface))
             {
                 return false;
@@ -439,12 +448,13 @@ internal static class WorldMapWutaiNavigationTests
     /// <summary>FUN_0074CECA, models 0-2 away from a bridge: mask 0x721B6F83.</summary>
     private static bool IsNativeWalkingTerrain(int terrain) => ((0x721B6F83u >> terrain) & 1) != 0;
 
-    private static bool NativeFootprintFits(WorldMapData map, int x, int z, int referenceHeight, bool onBridge)
+    private static bool NativeFootprintFits(WorldMapData map, int x, int z, int referenceHeight, bool onBridge,
+        uint terrainMask = 0x721B6F83)
     {
         foreach (var (ox, oz) in new[] { (0, 0), (WalkContactRadius, 0), (-WalkContactRadius, 0), (0, WalkContactRadius), (0, -WalkContactRadius) })
         {
             if (!TryFindWalkSurface(map, x + ox, z + oz, referenceHeight, out var surface) ||
-                !(onBridge ? surface.TerrainId is 13 or 14 or 29 : IsNativeWalkingTerrain(surface.TerrainId)))
+                !(onBridge ? surface.TerrainId is 13 or 14 or 29 : (terrainMask & (1u << surface.TerrainId)) != 0))
             {
                 return false;
             }

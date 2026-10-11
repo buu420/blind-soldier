@@ -162,7 +162,7 @@ public sealed class WorldMapVehicleDetourPlanner
         result = template with { X = point.X, Y = point.Y, Z = point.Z, TerrainId = -1, TerrainScriptId = -1, RegionId = -1 };
         if (!planner.TryResolvePlayerTriangle(result, out var id)) return false;
         var triangle = map.Triangles[id];
-        if (!WorldMapTerrainPassability.CanTraverse(template.PlayerModelId, template.WorldMapType, triangle.TerrainId)) return false;
+        if (!WorldMapTerrainPassability.CanTraverse(template, triangle.TerrainId)) return false;
         var a = triangle.Vertex0; var b = triangle.Vertex1; var c = triangle.Vertex2;
         var denominator = (b.Z - c.Z) * (double)(a.X - c.X) + (c.X - b.X) * (double)(a.Z - c.Z);
         if (Math.Abs(denominator) < 1e-7) return false;

@@ -27,6 +27,7 @@ internal static class WorldMapUnderwaterVisibilityTests
             AnEmeraldInFrontOfTheCameraAboveOpenSeabedIsVisible,
             AllThreeCameraTranslationComponentsUseThePackedNativeLayout,
             TheNativeCameraFrameMakesEmeraldSelectableAndTrackable,
+            RuntimeRetainsVisibilityRejectionReasonsAndResetsThem,
             TheModelRecordIsFoundThroughTheNativeSlotTable,
             ADrawFlagOnAnotherModelsRecordDoesNotMakeEmeraldVisible,
             HiddenOrUndrawnOrUnloadedModelsAreNotVisible,
@@ -56,7 +57,7 @@ internal static class WorldMapUnderwaterVisibilityTests
         }
 
         if (failures.Count != 0) throw new AggregateException(failures);
-        Console.WriteLine("world-map underwater visibility tests passed (25 scenarios).");
+        Console.WriteLine("world-map underwater visibility tests passed (26 scenarios).");
     }
 
     private static void AnEmeraldInFrontOfTheCameraAboveOpenSeabedIsVisible()
@@ -66,6 +67,34 @@ internal static class WorldMapUnderwaterVisibilityTests
         Check(result.IsUsable, "a coherent frame is usable: " + result.Diagnostic);
         Check(result.VisibleEntities.Contains(EmeraldPointer), "Emerald drawn ahead over open water is visible: " + result.Diagnostic);
         Check(!result.VisibleEntities.Contains(PlayerPointer), "the player is never reported");
+    }
+
+    private static void RuntimeRetainsVisibilityRejectionReasonsAndResetsThem()
+    {
+        var source = Environment.GetEnvironmentVariable("FF7_ACCESSIBILITY_SOURCE_ROOT");
+        if (string.IsNullOrWhiteSpace(source)) return;
+        var scene = Scene.Standard();
+        var catalog = WorldMapTargetCatalog.Load(scene.Map,
+            Path.Combine(source, "external", "kujata", "field-id-to-world-map-coords.json"),
+            Path.Combine(source, "external", "kujata", "wm-field-menu-names.txt"),
+            Path.Combine(source, "Ff7.Accessibility.Reloaded", "Assets", "world", "world-map-location-triggers.json"));
+        var runtime = new WorldMapRuntimeContext(scene.Map, catalog, null, 256, TimeSpan.FromSeconds(2),
+            TimeSpan.FromMilliseconds(400), TimeSpan.FromMilliseconds(300), 1, 10, TimeSpan.FromSeconds(2));
+        string Diagnostic() => runtime.LastUnderwaterVisibilityDiagnostic;
+        runtime.UpdateEntities(scene.State, scene.Entities, scene.Memory);
+        Check(Diagnostic()?.Contains("visible=", StringComparison.Ordinal) == true,
+            "the runtime exposes the coherent native visibility observation for its host log");
+        scene.Memory.PutByte(EmeraldPointer + 0x51, 0x0A);
+        runtime.UpdateEntities(scene.State, scene.Entities, scene.Memory);
+        Check(Diagnostic()?.Contains("30:not drawn", StringComparison.Ordinal) == true &&
+            !runtime.Entities.Single(e => e.ModelId == 30).IsVisibleUnderwater,
+            "a hidden Emerald retains the renderer rejection reason without granting visibility");
+        runtime.UpdateEntities(scene.State, scene.Entities, null);
+        Check(Diagnostic()?.Contains("memory unavailable", StringComparison.Ordinal) == true &&
+            !runtime.Entities.Single(e => e.ModelId == 30).IsVisibleUnderwater,
+            "unavailable memory clears visibility and reports the observation failure");
+        runtime.Reset();
+        Check(Diagnostic() == string.Empty, "reset cannot leave the previous map's visibility diagnostic active");
     }
 
     private static void AllThreeCameraTranslationComponentsUseThePackedNativeLayout()

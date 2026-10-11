@@ -24,6 +24,13 @@ if (args.Contains("--sector7-navigation-only", StringComparer.OrdinalIgnoreCase)
     return;
 }
 
+if (args.Contains("--chocobo-navigation-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.WorldMapChocoboNavigationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.WorldMapChocoboNavigationTests.RunWithInstalledGameData();
+    return;
+}
+
 if (args.Contains("--emerald-tracking-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.WorldMapUnderwaterVisibilityTests.Run();
@@ -649,6 +656,8 @@ if (args.Contains("--world-map-only", StringComparer.OrdinalIgnoreCase))
     Ff7.Accessibility.Reloaded.Tests.WorldMapTerrainAnnouncementTests.Run();
     Ff7.Accessibility.Reloaded.Tests.WorldMapEntranceProximityCueTests.Run();
     Ff7.Accessibility.Reloaded.Tests.WorldMapNavigationControllerTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.WorldMapChocoboNavigationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.WorldMapChocoboNavigationTests.RunWithInstalledGameData();
     Ff7.Accessibility.Reloaded.Tests.TinyBroncoTransportationTests.Run();
     Ff7.Accessibility.Reloaded.Tests.TinyBroncoTransportationTests.RunWithInstalledGameData();
     Ff7.Accessibility.Reloaded.Tests.WorldMapVehicleTerrainTests.Run();
@@ -1604,6 +1613,8 @@ Ff7.Accessibility.Reloaded.Tests.WorldMapTerrainAnnouncementTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WorldMapEntranceProximityCueTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WorldMapHouseParkingTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WorldMapNavigationControllerTests.Run();
+Ff7.Accessibility.Reloaded.Tests.WorldMapChocoboNavigationTests.Run();
+Ff7.Accessibility.Reloaded.Tests.WorldMapChocoboNavigationTests.RunWithInstalledGameData();
 Ff7.Accessibility.Reloaded.Tests.TinyBroncoTransportationTests.Run();
 Ff7.Accessibility.Reloaded.Tests.TinyBroncoTransportationTests.RunWithInstalledGameData();
 Ff7.Accessibility.Reloaded.Tests.WorldMapVehicleTerrainTests.Run();
