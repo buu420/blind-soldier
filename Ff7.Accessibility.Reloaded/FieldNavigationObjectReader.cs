@@ -174,6 +174,7 @@ public sealed class FieldNavigationObjectReader
     private readonly Func<FieldNavigationObjectDefinition, byte> resolveCollectedMask;
     private readonly Func<int, FieldNavigationTriggerLine?>? readLiveLine;
     private readonly Func<int, FieldNavigationLineOkState?>? readLineOkState;
+    private readonly Func<FieldNavigationObjectDefinition, FieldNavigationObjectDefinition?>? remapDefinition;
     private readonly IReadOnlyDictionary<int, IReadOnlyList<FieldNavigationObjectDefinition>> definitionsByField;
 
     public FieldNavigationObjectReader(
@@ -185,7 +186,8 @@ public sealed class FieldNavigationObjectReader
         Func<int, bool>? isLineEnabled = null,
         Func<FieldNavigationObjectDefinition, byte>? resolveCollectedMask = null,
         Func<int, FieldNavigationTriggerLine?>? readLiveLine = null,
-        Func<int, FieldNavigationLineOkState?>? readLineOkState = null)
+        Func<int, FieldNavigationLineOkState?>? readLineOkState = null,
+        Func<FieldNavigationObjectDefinition, FieldNavigationObjectDefinition?>? remapDefinition = null)
     {
         // A host that can read each LINE's live segment (FieldScriptLineStateReader.TryReadSegment)
         // gives a Line object its segment and the leader's collision radius, and the controller
@@ -193,6 +195,7 @@ public sealed class FieldNavigationObjectReader
         // the point at its static midpoint, as before.
         this.readLiveLine = readLiveLine;
         this.readLineOkState = readLineOkState;
+        this.remapDefinition = remapDefinition;
         this.readInt32 = readInt32;
         this.readByte = readByte;
         this.resolveItemName = resolveItemName;
@@ -218,8 +221,10 @@ public sealed class FieldNavigationObjectReader
         var eventTable = 0;
         byte modelCount = 0;
         var modelStateRead = false;
-        foreach (var definition in definitions)
+        foreach (var original in definitions)
         {
+            if ((remapDefinition is null ? original : remapDefinition(original)) is not { } definition)
+                continue;
             if (!MeetsRequiredState(definition) ||
                 !MeetsPlayerTriangleConditions(definition, position.TriangleId) ||
                 !MeetsPlayerSide(definition, position) ||

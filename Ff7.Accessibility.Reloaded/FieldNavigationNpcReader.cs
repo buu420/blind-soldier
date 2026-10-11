@@ -696,6 +696,7 @@ public sealed class FieldNavigationNpcReader
     private readonly Func<int, IReadOnlyList<FieldScriptNpcDefinition>> definitionProvider;
     private readonly HashSet<(int FieldId, int EntityId)> excludedEntities;
     private readonly Func<int, bool>? isLineEnabled;
+    private readonly Func<int, bool>? useVerifiedFallback;
 
     public FieldNavigationNpcReader(
         Func<int, int> readInt32,
@@ -704,7 +705,8 @@ public sealed class FieldNavigationNpcReader
         Func<int, int, IReadOnlyList<string>> resolveDialogLines,
         Func<int, IReadOnlyList<FieldScriptNpcDefinition>> definitionProvider,
         IEnumerable<(int FieldId, int EntityId)>? excludedEntities = null,
-        Func<int, bool>? isLineEnabled = null)
+        Func<int, bool>? isLineEnabled = null,
+        Func<int, bool>? useVerifiedFallback = null)
     {
         this.readInt32 = readInt32;
         this.readInt16 = readInt16;
@@ -713,6 +715,7 @@ public sealed class FieldNavigationNpcReader
         this.definitionProvider = definitionProvider;
         this.excludedEntities = excludedEntities?.ToHashSet() ?? [];
         this.isLineEnabled = isLineEnabled;
+        this.useVerifiedFallback = useVerifiedFallback;
     }
 
     public IReadOnlyList<FieldNavigationTarget> ReadTargets(FieldPositionSnapshot position)
@@ -722,9 +725,11 @@ public sealed class FieldNavigationNpcReader
             return EmptyTargets;
         }
 
-        var definitions = MergeVerifiedDefinitions(
-            position.FieldId,
-            definitionProvider(position.FieldId));
+        var scriptedDefinitions = definitionProvider(position.FieldId);
+        var definitions = useVerifiedFallback?.Invoke(position.FieldId) == false ||
+                          scriptedDefinitions.Any(d => d.ReviewedLabel is not null)
+            ? scriptedDefinitions
+            : MergeVerifiedDefinitions(position.FieldId, scriptedDefinitions);
         if (definitions.Count == 0)
         {
             return EmptyTargets;
@@ -742,7 +747,8 @@ public sealed class FieldNavigationNpcReader
         var playerCollisionRadius = Math.Max(0, (int)readInt16(playerEventAddress + CollisionRadiusOffset));
         foreach (var definition in definitions)
         {
-            if (excludedEntities.Contains((definition.FieldId, definition.EntityId)))
+            // Reviewed loaded identities supersede the stock object-id exclusions.
+            if (definition.ReviewedLabel is null && excludedEntities.Contains((definition.FieldId, definition.EntityId)))
             {
                 continue;
             }
@@ -944,6 +950,7 @@ public sealed class FieldNavigationNpcReader
 
     private string ResolveLabel(FieldScriptNpcDefinition definition)
     {
+        if (definition.ReviewedLabel is { } reviewed) return reviewed;
         if (VerifiedLabels.TryGetValue(
                 (definition.FieldId, definition.EntityId),
                 out var verifiedLabel))

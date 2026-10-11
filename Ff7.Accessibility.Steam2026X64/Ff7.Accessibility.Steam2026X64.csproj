@@ -1082,6 +1082,8 @@
     <Compile Include="..\Ff7.Accessibility.Reloaded\Floor60SoldierTurnCueTracker.cs" Link="Shared\Floor60SoldierTurnCueTracker.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\ImmediateWaveCuePlayer.cs" Link="Shared\ImmediateWaveCuePlayer.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldScriptNavigationCatalog.cs" Link="Shared\FieldScriptNavigationCatalog.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\Sector7NavigationLayout.cs" Link="Shared\Sector7NavigationLayout.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\LoadedFieldScriptIdentityReader.cs" Link="Shared\LoadedFieldScriptIdentityReader.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldScriptProgram.cs" Link="Shared\FieldScriptProgram.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldScriptExitGuards.cs" Link="Shared\FieldScriptExitGuards.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\GoldSaucerPlatformExitCatalog.cs" Link="Shared\GoldSaucerPlatformExitCatalog.cs" />

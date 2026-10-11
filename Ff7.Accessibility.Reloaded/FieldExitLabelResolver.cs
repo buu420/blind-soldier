@@ -66,6 +66,7 @@ public sealed class FieldExitLabelResolver
 
     private string ResolveLabel(FieldNavigationTarget target, string currentMapName, Func<int?> readCorridorState)
     {
+        if (Sector7NavigationLayout.ExitLabel(target) is { } sector7Label) return sector7Label;
         if (TempleChaseLayout.ResolveLabel(target) is { } chaseLabel)
         {
             return chaseLabel;

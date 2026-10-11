@@ -6,8 +6,15 @@ namespace Ff7.Accessibility.Reloaded;
 
 public readonly record struct LoadedFieldScriptIdentity(
     int FieldId,
-    uint ScriptPointer,
-    string ScriptPrefixSha256);
+    string ScriptPrefixSha256)
+{
+    // The public observation is an identity, not an address into native memory.
+    // Legacy lifecycle consumers retain the pointer within the runtime assembly.
+    internal uint ScriptPointer { get; init; }
+
+    internal LoadedFieldScriptIdentity(int fieldId, uint scriptPointer, string scriptPrefixSha256)
+        : this(fieldId, scriptPrefixSha256) => ScriptPointer = scriptPointer;
+}
 
 /// <summary>
 /// Identifies the field script bytes that are actually loaded after FFNx and
@@ -25,9 +32,13 @@ public sealed class LoadedFieldScriptIdentityReader
         this.memory = memory ?? throw new ArgumentNullException(nameof(memory));
     }
 
-    public bool TryRead(out LoadedFieldScriptIdentity identity)
+    public bool TryRead(out LoadedFieldScriptIdentity identity) => TryReadPrefix(out identity, out _);
+
+    /// <summary>The same coherent observation, including the script prefix it identifies.</summary>
+    public bool TryReadPrefix(out LoadedFieldScriptIdentity identity, out byte[] prefix)
     {
         identity = default;
+        prefix = [];
         if (!TryCaptureHeader(out var before) ||
             before.Module != FieldPositionReader.FieldModule ||
             before.EntityCount == 0 ||
@@ -53,6 +64,7 @@ public sealed class LoadedFieldScriptIdentityReader
             before.FieldId,
             before.ScriptPointer,
             Convert.ToHexString(SHA256.HashData(first)));
+        prefix = first;
         return true;
     }
 

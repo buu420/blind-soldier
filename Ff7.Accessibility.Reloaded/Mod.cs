@@ -1395,11 +1395,13 @@ public sealed class Mod : IModV1, IModV2
             // Each Line object's live segment, so it is reached on the engine's own touch test.
             entity => fieldScriptLineStateReader.TryReadSegment(entity, out var segment) ? segment : null,
             // The engine's own LINE OK state, so arrival at an OK machine is the game's verdict.
-            entity => fieldScriptLineStateReader.TryReadOkState(entity, out var okState) ? okState : null);
+            entity => fieldScriptLineStateReader.TryReadOkState(entity, out var okState) ? okState : null,
+            definition => fieldScriptNavigationCatalog is { } catalog ? catalog.RemapObjectDefinition(definition) :
+                Sector7NavigationLayout.IsField(definition.FieldId) ? null : definition);
         fieldGatewayTargetReader = new FieldGatewayTargetReader(legacyAddressSpace);
         fieldScriptNavigationCatalog = gameRootDirectory is null
             ? null
-            : new FieldScriptNavigationCatalog(gameRootDirectory, gameLanguage);
+            : new FieldScriptNavigationCatalog(gameRootDirectory, gameLanguage, loadedFieldScriptIdentityReader);
         var fieldMapNameCatalog = fieldScriptNavigationCatalog is null || flevelFieldTextResolver is null
             ? null
             : new FieldMapNameCatalog(fieldScriptNavigationCatalog, flevelFieldTextResolver);
@@ -1428,7 +1430,8 @@ public sealed class Mod : IModV1, IModV2
                 fieldScriptNavigationCatalog?.ReadField(fieldId).Npcs ??
                 Array.Empty<FieldScriptNpcDefinition>(),
             fieldNavigationObjects.Select(definition => (definition.FieldId, definition.EntityId)),
-            fieldScriptLineStateReader.IsEnabled);
+            fieldScriptLineStateReader.IsEnabled,
+            useVerifiedFallback: fieldId => !Sector7NavigationLayout.IsField(fieldId));
         var fieldScriptNavigationTransitionTracker = new FieldScriptNavigationTransitionTracker();
         var fieldControlledEntityReader = new FieldControlledEntityReader(legacyAddressSpace);
         var fieldStoryEvents = FieldStoryEventCatalog.CreateAllFields();
@@ -1438,7 +1441,9 @@ public sealed class Mod : IModV1, IModV2
             ReadByte,
             fieldStoryEvents,
             fieldScriptLineStateReader.IsEnabled,
-            entity => fieldScriptLineStateReader.TryReadOkState(entity, out var storyOkState) ? storyOkState : null);
+            entity => fieldScriptLineStateReader.TryReadOkState(entity, out var storyOkState) ? storyOkState : null,
+            definition => fieldScriptNavigationCatalog is { } catalog ? catalog.RemapStoryDefinition(definition) :
+                Sector7NavigationLayout.IsField(definition.FieldId) ? null : definition);
         var fieldWalkmeshReader = new FieldWalkmeshReader(ReadInt32, ReadInt16);
         var fieldBoundaryStateReader = new FieldBoundaryStateReader(legacyAddressSpace);
         var fieldDynamicObstacleReader = new FieldNavigationDynamicObstacleReader(
@@ -1502,10 +1507,11 @@ public sealed class Mod : IModV1, IModV2
                 // A destination whose MAPJUMP the field's own live flags keep from running is
                 // not a way out yet.
                 var guardedExits = FieldScriptExitGuards.Apply(enabledExits, result.ExitGuards, legacyAddressSpace);
-                return FieldScriptExitBranchPolicy.Resolve(
+                var branchedExits = FieldScriptExitBranchPolicy.Resolve(
                     position.FieldId,
                     gameMoment,
                     guardedExits);
+                return Sector7NavigationLayout.ApplyLiftApproaches(position, branchedExits, legacyAddressSpace);
             },
             labelResolver: fieldExitLabelResolver,
             presentationPolicy: fieldExitPresentationPolicy);

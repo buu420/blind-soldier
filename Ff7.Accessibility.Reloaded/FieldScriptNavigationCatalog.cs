@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Numerics;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace Ff7.Accessibility.Reloaded;
@@ -84,6 +85,9 @@ public readonly record struct FieldScriptNpcDefinition(
     FieldNavigationTriggerLine? InteractionLine = null,
     string ModelResourceName = "")
 {
+    /// <summary>A role reviewed against the current script layout; empty for scenery.</summary>
+    public string? ReviewedLabel { get; init; }
+
     /// <summary>
     /// Whether <see cref="InteractionLine"/> runs this entity's own Talk script (REQ of
     /// script 1): the game's counter for talking to them, as opposed to a LINE that asks
@@ -143,6 +147,7 @@ public sealed record FieldScriptNavigationReadResult(
     IReadOnlyList<FieldScriptWaitDefinition> Waits,
     string Diagnostic)
 {
+    public bool UsesEchoSector7Layout { get; init; }
     public IReadOnlyList<int> MapNameDialogIds { get; init; } = Array.Empty<int>();
 
     /// <summary>
@@ -198,6 +203,8 @@ public sealed class FieldScriptNavigationCatalog
     private readonly IReadOnlyDictionary<int, string> fieldNames;
     private readonly Dictionary<int, FieldScriptNavigationReadResult> cache = new();
     private readonly object cacheLock = new();
+    private readonly LoadedFieldScriptIdentityReader? loadedScripts;
+    private readonly Dictionary<(int FieldId, string Hash), FieldScriptNavigationReadResult> loadedCache = new();
 
     public FieldScriptNavigationCatalog(string gameRootDirectory)
         : this(gameRootDirectory, Ff7GameLanguageDetector.Detect(gameRootDirectory))
@@ -207,12 +214,34 @@ public sealed class FieldScriptNavigationCatalog
     public FieldScriptNavigationCatalog(
         string gameRootDirectory,
         Ff7GameLanguageContext language)
+        : this(gameRootDirectory, language, null)
     {
+    }
+
+    public FieldScriptNavigationCatalog(
+        string gameRootDirectory,
+        Ff7GameLanguageContext language,
+        LoadedFieldScriptIdentityReader? loadedScripts)
+    {
+        this.loadedScripts = loadedScripts;
         flevelDataSource = new FlevelDataSource(gameRootDirectory, language);
         fieldNames = flevelDataSource.FieldNames;
     }
 
     public FieldScriptNavigationReadResult ReadField(int fieldId)
+    {
+        lock (cacheLock)
+        {
+            // FFNx overrides change entity indices without changing the field id.
+            // A failed live observation must not reuse a disk layout or cached result.
+            if (loadedScripts is not null && Sector7NavigationLayout.IsField(fieldId))
+                return ReadLoadedSector7Field(fieldId);
+            return ReadDiskField(fieldId);
+        }
+    }
+
+    /// <summary>Installed metadata for map names and future cross-field approaches, never current live targets.</summary>
+    public FieldScriptNavigationReadResult ReadDiskField(int fieldId)
     {
         lock (cacheLock)
         {
@@ -225,6 +254,50 @@ public sealed class FieldScriptNavigationCatalog
             cache[fieldId] = result;
             return result;
         }
+    }
+
+    private FieldScriptNavigationReadResult ReadLoadedSector7Field(int fieldId)
+    {
+        if (!loadedScripts!.TryReadPrefix(out var identity, out var prefix) || identity.FieldId != fieldId)
+            return FieldScriptNavigationReadResult.Invalid($"field={fieldId}, loaded script unavailable or changing");
+        var key = (fieldId, identity.ScriptPrefixSha256);
+        if (loadedCache.TryGetValue(key, out var cached)) return cached;
+        if (!fieldNames.TryGetValue(fieldId, out var name) || !flevelDataSource.TryReadField(name, out var encoded))
+            return FieldScriptNavigationReadResult.Invalid($"field={fieldId}, native model metadata unavailable");
+        try
+        {
+            var bytes = Ff7LzsDecoder.DecodeFieldFile(encoded);
+            if (!TryReadSectionOne(bytes, out var diskSection, out _))
+                return FieldScriptNavigationReadResult.Invalid($"field={fieldId}, invalid disk script section");
+            var matchesDisk = ScriptPrefixHash(diskSection) == identity.ScriptPrefixSha256;
+            if (!matchesDisk && !Sector7NavigationLayout.IsEcho(fieldId, identity.ScriptPrefixSha256))
+                return FieldScriptNavigationReadResult.Invalid($"field={fieldId}, unreviewed loaded script {identity.ScriptPrefixSha256}");
+            var result = ReadFieldFromSection(fieldId, name, prefix,
+                StripFieldPrefix(ReadModelResourceNames(bytes), name));
+            if (result.IsUsable) loadedCache[key] = result;
+            return result;
+        }
+        catch (Exception ex)
+        {
+            return FieldScriptNavigationReadResult.Invalid($"field={fieldId}, loaded script read failed: {ex.Message}");
+        }
+    }
+
+    private static string ScriptPrefixHash(byte[] section) =>
+        Convert.ToHexString(SHA256.HashData(section.AsSpan(0, BitConverter.ToUInt16(section, 4))));
+
+    public FieldStoryEventDefinition? RemapStoryDefinition(FieldStoryEventDefinition definition)
+    {
+        if (!Sector7NavigationLayout.IsField(definition.FieldId)) return definition;
+        var current = ReadField(definition.FieldId);
+        return current.IsUsable ? Sector7NavigationLayout.RemapStory(definition, current) : null;
+    }
+
+    public FieldNavigationObjectDefinition? RemapObjectDefinition(FieldNavigationObjectDefinition definition)
+    {
+        if (!Sector7NavigationLayout.IsField(definition.FieldId)) return definition;
+        var current = ReadField(definition.FieldId);
+        return current.IsUsable ? Sector7NavigationLayout.RemapObject(definition, current) : null;
     }
 
     public IReadOnlyList<FieldScriptOpcodeDefinition> ReadScriptOpcodes(
@@ -335,25 +408,34 @@ public sealed class FieldScriptNavigationCatalog
     /// </summary>
     internal static FieldScriptNavigationReadResult ReadFieldFromBytes(int fieldId, string fieldName, byte[] fieldBytes)
     {
-        {
-            if (!TryReadSectionOne(fieldBytes, out var section, out var diagnostic))
-            {
-                return FieldScriptNavigationReadResult.Invalid($"field={fieldId} {fieldName}, {diagnostic}");
-            }
+        if (!TryReadSectionOne(fieldBytes, out var section, out var diagnostic))
+            return FieldScriptNavigationReadResult.Invalid($"field={fieldId} {fieldName}, {diagnostic}");
+        return ReadFieldFromSection(fieldId, fieldName, section,
+            StripFieldPrefix(ReadModelResourceNames(fieldBytes), fieldName));
+    }
 
-            var groups = ParseScriptGroups(section, out diagnostic);
+    private static FieldScriptNavigationReadResult ReadFieldFromSection(
+        int fieldId, string fieldName, byte[] section, IReadOnlyList<string> modelResources)
+    {
+        {
+            var groups = ParseScriptGroups(section, out var diagnostic);
             if (groups.Count == 0)
             {
                 return FieldScriptNavigationReadResult.Invalid($"field={fieldId} {fieldName}, {diagnostic}");
             }
 
             var transitions = new List<FieldScriptNavigationTransition>();
+            var echo = Sector7NavigationLayout.IsField(fieldId) &&
+                       Sector7NavigationLayout.IsEcho(fieldId, ScriptPrefixHash(section));
+            if (Sector7NavigationLayout.IsField(fieldId) && !echo &&
+                !Sector7NavigationLayout.IsStock(fieldId, groups.Select(g => g.Name).ToArray()))
+                return FieldScriptNavigationReadResult.Invalid($"field={fieldId}, unreviewed Sector 7 entity layout");
             var exits = new List<FieldNavigationTarget>();
             var exitGuards = new Dictionary<string, IReadOnlyList<FieldScriptExitGuard>>(StringComparer.Ordinal);
             var npcs = ReadNpcs(
                 fieldId,
                 groups,
-                StripFieldPrefix(ReadModelResourceNames(fieldBytes), fieldName));
+                modelResources);
             var waits = ReadWaits(fieldId, groups);
             var mapNameDialogIds = ReadMapNameDialogIds(groups);
             var walkLimits = new NavigationLimits();
@@ -574,7 +656,7 @@ public sealed class FieldScriptNavigationCatalog
             exits = exits
                 .DistinctBy(exit => exit.StableId)
                 .ToList();
-            return new FieldScriptNavigationReadResult(
+            return Sector7NavigationLayout.Apply(fieldId, echo, new FieldScriptNavigationReadResult(
                 true,
                 transitions,
                 exits,
@@ -591,7 +673,7 @@ public sealed class FieldScriptNavigationCatalog
             {
                 MapNameDialogIds = mapNameDialogIds,
                 ExitGuards = exitGuards
-            };
+            });
         }
     }
 

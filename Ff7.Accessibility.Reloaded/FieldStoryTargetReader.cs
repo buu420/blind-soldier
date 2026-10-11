@@ -135,6 +135,7 @@ public sealed class FieldStoryTargetReader
     private readonly Func<int, bool>? isLineEnabled;
     private readonly Func<int, FieldNavigationLineOkState?>? readLineOkState;
     private readonly IReadOnlyDictionary<int, IReadOnlyList<FieldStoryEventDefinition>> definitionsByField;
+    private readonly Func<FieldStoryEventDefinition, FieldStoryEventDefinition?>? remapDefinition;
 
     public FieldStoryTargetReader(
         Func<int, int> readInt32,
@@ -150,9 +151,11 @@ public sealed class FieldStoryTargetReader
         Func<int, byte> readByte,
         IEnumerable<FieldStoryEventDefinition> definitions,
         Func<int, bool>? isLineEnabled = null,
-        Func<int, FieldNavigationLineOkState?>? readLineOkState = null)
+        Func<int, FieldNavigationLineOkState?>? readLineOkState = null,
+        Func<FieldStoryEventDefinition, FieldStoryEventDefinition?>? remapDefinition = null)
     {
         this.readLineOkState = readLineOkState;
+        this.remapDefinition = remapDefinition;
         this.readInt32 = readInt32;
         this.readInt16 = readInt16;
         this.readByte = readByte;
@@ -174,8 +177,10 @@ public sealed class FieldStoryTargetReader
 
         var gameMoment = ReadGameMoment();
         var candidates = new List<(FieldStoryEventDefinition Definition, FieldNavigationTarget Target)>();
-        foreach (var definition in definitions)
+        foreach (var sourceDefinition in definitions)
         {
+            var adapted = remapDefinition is null ? sourceDefinition : remapDefinition(sourceDefinition);
+            if (adapted is not { } definition) continue;
             if (definition.PublishAsExit ||
                 !IsInGameMomentRange(definition, gameMoment) ||
                 !MeetsCondition(definition.RequiredCondition) ||
@@ -244,8 +249,10 @@ public sealed class FieldStoryTargetReader
 
         var gameMoment = ReadGameMoment();
         var exits = new List<FieldNavigationTarget>();
-        foreach (var definition in definitions)
+        foreach (var sourceDefinition in definitions)
         {
+            var adapted = remapDefinition is null ? sourceDefinition : remapDefinition(sourceDefinition);
+            if (adapted is not { } definition) continue;
             if (!definition.PublishAsExit ||
                 !IsInGameMomentRange(definition, gameMoment) ||
                 !MeetsCondition(definition.RequiredCondition) ||
