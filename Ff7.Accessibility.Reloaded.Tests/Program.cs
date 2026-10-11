@@ -18,6 +18,12 @@ if (args.Contains("--field-execution-report", StringComparer.OrdinalIgnoreCase))
     Environment.Exit(Ff7.Accessibility.Reloaded.Tests.FieldScriptExecutionModelTests.Report());
 }
 
+if (args.Contains("--emerald-tracking-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.WorldMapUnderwaterVisibilityTests.Run();
+    return;
+}
+
 if (args.Contains("--highwind-interior-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.HighwindInteriorNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
