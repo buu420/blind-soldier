@@ -238,7 +238,9 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             gameRootDirectory,
             config.GameLanguage,
             log: log);
-        scriptCatalog = new FieldScriptNavigationCatalog(gameRootDirectory, language);
+        scriptCatalog = new FieldScriptNavigationCatalog(gameRootDirectory, language,
+            new LoadedFieldScriptIdentityReader(addressSpace));
+        objectReader.SetNavigationDefinitionRemapper(scriptCatalog.RemapObjectDefinition);
 
         routePlanner = new Steam2026FailClosedFieldRoutePlanner(
             new FieldWalkmeshRoutePlanner(
@@ -268,7 +270,8 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             ReadByte,
             FieldStoryEventCatalog.CreateAllFields(),
             lineStateReader.IsEnabled,
-            entity => lineStateReader.TryReadOkState(entity, out var storyOkState) ? storyOkState : null);
+            entity => lineStateReader.TryReadOkState(entity, out var storyOkState) ? storyOkState : null,
+            scriptCatalog.RemapStoryDefinition);
         var fieldNavigationObjects = FieldNavigationObjectCatalog.CreateAllFields();
         var npcReader = new FieldNavigationNpcReader(
             ReadInt32,
@@ -277,7 +280,8 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             textResolver.ReadMessageLinesById,
             fieldId => scriptCatalog.ReadField(fieldId).Npcs,
             fieldNavigationObjects.Select(definition => (definition.FieldId, definition.EntityId)),
-            lineStateReader.IsEnabled);
+            lineStateReader.IsEnabled,
+            useVerifiedFallback: fieldId => !Sector7NavigationLayout.IsField(fieldId));
         npcObservationReader = new Steam2026FieldNpcObservationReader(
             positionReader.ReadNavigation,
             npcReader.ReadTargets,
@@ -2530,7 +2534,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             targets.AddRange(Steam2026FieldScriptExitPolicy.Filter(
                 position.FieldId,
                 gameMoment,
-                guardedScriptExits));
+                Sector7NavigationLayout.ApplyLiftApproaches(position, guardedScriptExits, addressSpace)));
         }
 
         return exitPresentationPolicy.Apply(

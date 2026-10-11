@@ -298,7 +298,7 @@ public sealed class FieldCrossFieldApproachResolver
         {
             if (readDecodedField(fieldId) is { } bytes)
             {
-                var read = catalog.ReadField(fieldId);
+                var read = catalog.ReadDiskField(fieldId);
                 data = read.IsUsable ? new FieldData(fieldId, bytes, read, catalog.ReadAllScriptOpcodes(fieldId)) : null;
             }
         }

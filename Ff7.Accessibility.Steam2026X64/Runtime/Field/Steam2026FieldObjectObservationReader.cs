@@ -21,6 +21,7 @@ public sealed class Steam2026FieldObjectObservationReader
     private readonly Func<int, string?> resolveMateriaName;
     private readonly IReadOnlyDictionary<int, FieldNavigationObjectDefinition[]> definitionsByField;
     private readonly HashSet<int> navigationFieldsWithModelDefinitions;
+    private Func<FieldNavigationObjectDefinition, FieldNavigationObjectDefinition?>? navigationDefinitionRemapper;
 
     public string LastDiagnostic { get; private set; } = "not read";
 
@@ -66,7 +67,8 @@ public sealed class Steam2026FieldObjectObservationReader
             // Each Line object's live segment, so it is reached on the engine's own touch test.
             readLiveLine: entity => lineStateReader.TryReadSegment(entity, out var segment) ? segment : null,
             // The engine's own LINE OK state (+0x14 angle, +0x15 ready), read checked.
-            readLineOkState: entity => lineStateReader.TryReadOkState(entity, out var okState) ? okState : null);
+            readLineOkState: entity => lineStateReader.TryReadOkState(entity, out var okState) ? okState : null,
+            remapDefinition: definition => navigationDefinitionRemapper is null ? definition : navigationDefinitionRemapper(definition));
         navigationFieldsWithModelDefinitions = allDefinitions
             .Where(definition => definition.TargetKind == FieldNavigationObjectTargetKind.Model)
             .Select(definition => definition.FieldId)
@@ -136,6 +138,10 @@ public sealed class Steam2026FieldObjectObservationReader
             return false;
         }
     }
+
+    internal void SetNavigationDefinitionRemapper(
+        Func<FieldNavigationObjectDefinition, FieldNavigationObjectDefinition?> remapper) =>
+        navigationDefinitionRemapper = remapper ?? throw new ArgumentNullException(nameof(remapper));
 
     internal bool TryReadNavigationTargets(
         FieldPositionSnapshot expectedPosition,

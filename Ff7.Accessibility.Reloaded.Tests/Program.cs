@@ -18,6 +18,12 @@ if (args.Contains("--field-execution-report", StringComparer.OrdinalIgnoreCase))
     Environment.Exit(Ff7.Accessibility.Reloaded.Tests.FieldScriptExecutionModelTests.Report());
 }
 
+if (args.Contains("--sector7-navigation-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.Sector7NavigationTests.Run(CreateInstalledFieldWalkmeshReader);
+    return;
+}
+
 if (args.Contains("--emerald-tracking-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.WorldMapUnderwaterVisibilityTests.Run();
@@ -1354,6 +1360,7 @@ FieldButtonGlyphTests.Run();
 Ff7.Accessibility.Reloaded.Tests.PianoNativeInputTests.Run();
 Ff7.Accessibility.Reloaded.Tests.MidgarTunnelStoryTests.Run(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.HighwindInteriorNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
+Ff7.Accessibility.Reloaded.Tests.Sector7NavigationTests.Run(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.MidgarTunnelObjectTests.Run();
 Ff7.Accessibility.Reloaded.Tests.MidgarTunnelObjectTests.RunWithInstalledGameData();
 Ff7.Accessibility.Reloaded.Tests.JunonMinigameSpeechTests.Run();

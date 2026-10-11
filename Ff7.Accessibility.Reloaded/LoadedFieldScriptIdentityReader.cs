@@ -25,9 +25,13 @@ public sealed class LoadedFieldScriptIdentityReader
         this.memory = memory ?? throw new ArgumentNullException(nameof(memory));
     }
 
-    public bool TryRead(out LoadedFieldScriptIdentity identity)
+    public bool TryRead(out LoadedFieldScriptIdentity identity) => TryReadPrefix(out identity, out _);
+
+    /// <summary>The same coherent observation, including the script prefix it identifies.</summary>
+    public bool TryReadPrefix(out LoadedFieldScriptIdentity identity, out byte[] prefix)
     {
         identity = default;
+        prefix = [];
         if (!TryCaptureHeader(out var before) ||
             before.Module != FieldPositionReader.FieldModule ||
             before.EntityCount == 0 ||
@@ -53,6 +57,7 @@ public sealed class LoadedFieldScriptIdentityReader
             before.FieldId,
             before.ScriptPointer,
             Convert.ToHexString(SHA256.HashData(first)));
+        prefix = first;
         return true;
     }
 

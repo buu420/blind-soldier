@@ -59,7 +59,7 @@ public sealed class FieldMapNameCatalog
 
     private FieldMapNameResolution ReadCore(int fieldId)
     {
-        var field = scriptCatalog.ReadField(fieldId);
+        var field = scriptCatalog.ReadDiskField(fieldId);
         if (!field.IsUsable)
         {
             return FieldMapNameResolution.Unknown;
