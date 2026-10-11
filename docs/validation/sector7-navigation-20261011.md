@@ -62,6 +62,12 @@ stock object exclusions), remapped Objects and Story, and rejection of stale
 or unreviewed loaded scripts. Independent review identified and corrected
 the object-ID exclusions and the overly broad stock flashback guard.
 
+Exact-package x64 checks also caught a public raw-pointer property on the newly
+linked script identity. The observation now exposes only field ID and prefix
+hash; its pointer and pointer-bearing constructor remain internal for lifecycle
+checks. The public API contract is included in the portable module test path,
+so this boundary is checked even when licensed game data is unavailable.
+
 This evidence establishes static native behavior and automated reader/router
 behavior. No live Echo-S or Steam traversal, controller-hook delivery, purchase,
 lift activation or screen-reader listening was performed for this repair.

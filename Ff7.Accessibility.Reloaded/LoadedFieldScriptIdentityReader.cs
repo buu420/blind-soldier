@@ -6,8 +6,15 @@ namespace Ff7.Accessibility.Reloaded;
 
 public readonly record struct LoadedFieldScriptIdentity(
     int FieldId,
-    uint ScriptPointer,
-    string ScriptPrefixSha256);
+    string ScriptPrefixSha256)
+{
+    // The public observation is an identity, not an address into native memory.
+    // Legacy lifecycle consumers retain the pointer within the runtime assembly.
+    internal uint ScriptPointer { get; init; }
+
+    internal LoadedFieldScriptIdentity(int fieldId, uint scriptPointer, string scriptPrefixSha256)
+        : this(fieldId, scriptPrefixSha256) => ScriptPointer = scriptPointer;
+}
 
 /// <summary>
 /// Identifies the field script bytes that are actually loaded after FFNx and

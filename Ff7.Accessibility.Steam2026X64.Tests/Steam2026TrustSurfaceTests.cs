@@ -10,13 +10,18 @@ internal static class Steam2026TrustSurfaceTests
 {
     public static void Run(Steam2026FingerprintResult supported)
     {
+        RunPublicApiContract();
+        BackendReadFrameFailsClosed(supported);
+        TranslatedReadClearsDestinationBeforeAllValidation();
+    }
+
+    public static void RunPublicApiContract()
+    {
         RawTranslatedAndMenuCallbackTypesAreNotExported();
         PublicPointerBearingConstructorsAreFingerprintGated();
         PublicMenuObservationsArePointerFree();
         NativeMovieIdentityAndMetadataAreAddressOpaque();
         SaveSnapshotExposesOnlyNormalizedOccupancy();
-        BackendReadFrameFailsClosed(supported);
-        TranslatedReadClearsDestinationBeforeAllValidation();
     }
 
     private static void RawTranslatedAndMenuCallbackTypesAreNotExported()

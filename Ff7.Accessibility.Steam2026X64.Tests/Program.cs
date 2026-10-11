@@ -24,6 +24,13 @@ if (args.Contains("--sector7-navigation-only", StringComparer.OrdinalIgnoreCase)
     return;
 }
 
+if (args.Contains("--trust-surface-only", StringComparer.OrdinalIgnoreCase))
+{
+    Steam2026TrustSurfaceTests.RunPublicApiContract();
+    Console.WriteLine("Steam 2026 public API contract passed.");
+    return;
+}
+
 if (args.Contains("--emerald-tracking-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.WorldMapUnderwaterVisibilityTests.Run();
@@ -312,6 +319,7 @@ if (args.Contains("--cutscene-voice-only", StringComparer.OrdinalIgnoreCase))
 
 if (args.Contains("--module-tests-only", StringComparer.OrdinalIgnoreCase))
 {
+    Steam2026TrustSurfaceTests.RunPublicApiContract();
     Ff7.Accessibility.Reloaded.Tests.CostaDelSolNavigationTests.Run();
     Ff7.Accessibility.Reloaded.Tests.GongagaNavigationTests.Run();
     GoldSaucerFollowupTests.Run();
