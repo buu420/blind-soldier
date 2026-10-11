@@ -42,7 +42,10 @@ public sealed class WorldMapUnderwaterVisibilityReader
     internal const int RecordDrawnOffset = 0x24;
     internal const int RecordViewOffset = 0x48;
     internal const uint AddressCameraRotation = 0x00DFC448;
-    internal const uint AddressCameraTranslation = 0x00DE6A20 + 0x14;
+    // Native MATRIX is packed: 9 int16 rotation entries followed immediately by
+    // 3 int32 translations. FUN_0074D50E (x64 FUN_7ff7029e1950) reads
+    // DE6A32/DE6A36/DE6A3A; aligning the vector to +0x14 misreads every component.
+    internal const uint AddressCameraTranslation = 0x00DE6A20 + 0x12;
     internal const uint AddressReferencePoint = 0x00E04918;
     internal const uint AddressBaseHeight = 0x00DE6A04;
     internal const uint AddressCurvatureStart = 0x00E045D8;

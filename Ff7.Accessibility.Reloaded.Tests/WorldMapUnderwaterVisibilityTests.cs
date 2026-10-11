@@ -25,6 +25,8 @@ internal static class WorldMapUnderwaterVisibilityTests
         foreach (var test in new Action[]
         {
             AnEmeraldInFrontOfTheCameraAboveOpenSeabedIsVisible,
+            AllThreeCameraTranslationComponentsUseThePackedNativeLayout,
+            TheNativeCameraFrameMakesEmeraldSelectableAndTrackable,
             TheModelRecordIsFoundThroughTheNativeSlotTable,
             ADrawFlagOnAnotherModelsRecordDoesNotMakeEmeraldVisible,
             HiddenOrUndrawnOrUnloadedModelsAreNotVisible,
@@ -54,7 +56,7 @@ internal static class WorldMapUnderwaterVisibilityTests
         }
 
         if (failures.Count != 0) throw new AggregateException(failures);
-        Console.WriteLine("world-map underwater visibility tests passed (23 scenarios).");
+        Console.WriteLine("world-map underwater visibility tests passed (25 scenarios).");
     }
 
     private static void AnEmeraldInFrontOfTheCameraAboveOpenSeabedIsVisible()
@@ -64,6 +66,101 @@ internal static class WorldMapUnderwaterVisibilityTests
         Check(result.IsUsable, "a coherent frame is usable: " + result.Diagnostic);
         Check(result.VisibleEntities.Contains(EmeraldPointer), "Emerald drawn ahead over open water is visible: " + result.Diagnostic);
         Check(!result.VisibleEntities.Contains(PlayerPointer), "the player is never reported");
+    }
+
+    private static void AllThreeCameraTranslationComponentsUseThePackedNativeLayout()
+    {
+        var scene = Scene.Standard();
+        // Native MATRIX is 30 bytes, packed: nine shorts immediately followed by three
+        // ints. Literal addresses come from FUN_0074D50E / Steam FUN_7ff7029e1950,
+        // independently of the reader's constants. No four-byte alignment padding.
+        scene.Memory.PutInt(0x00DE6A32, 384);
+        scene.Memory.PutInt(0x00DE6A36, -256);
+        scene.Memory.PutInt(0x00DE6A3A, CameraDistance);
+        scene.Memory.PutFloat(Scene.Record(7) + 0x48, 384);
+        scene.Memory.PutFloat(Scene.Record(7) + 0x4C, -1506);
+        Check(scene.Read().VisibleEntities.Contains(EmeraldPointer),
+            "the drawn Emerald matches all three packed translation components: " + scene.Read().Diagnostic);
+    }
+
+    private static void TheNativeCameraFrameMakesEmeraldSelectableAndTrackable()
+    {
+        var dataRoot = Environment.GetEnvironmentVariable("FF7_ACCESSIBILITY_DATA_ROOT");
+        var sourceRoot = Environment.GetEnvironmentVariable("FF7_ACCESSIBILITY_SOURCE_ROOT");
+        if (dataRoot is null || sourceRoot is null)
+        {
+            Console.WriteLine("installed Emerald visibility/navigation checks skipped: data/source roots were not provided.");
+            return;
+        }
+
+        var scene = Scene.Standard();
+        scene.Map = WorldMapDataLoader.Load(Path.Combine(dataRoot, "data", "wm", "wm2.map"), 2, 0);
+        var catalog = WorldMapTargetCatalog.Load(scene.Map,
+            Path.Combine(sourceRoot, "external", "kujata", "field-id-to-world-map-coords.json"),
+            Path.Combine(sourceRoot, "external", "kujata", "wm-field-menu-names.txt"),
+            Path.Combine(sourceRoot, "Ff7.Accessibility.Reloaded", "Assets", "world", "world-map-location-triggers.json"));
+        var runtime = new WorldMapRuntimeContext(scene.Map, catalog, null, 256, TimeSpan.FromSeconds(2),
+            TimeSpan.FromMilliseconds(400), TimeSpan.FromMilliseconds(300), 1, 10, TimeSpan.FromSeconds(2));
+        var state = scene.State with
+        {
+            GameMoment = 1620, HasNativeControlMode = true, NativeCameraMode = 3,
+            NativeFrameMultiplier = 1, CameraFront = 2048
+        };
+        Check(WorldMapBroncoLanding.TryFindSurface(scene.Map, state.X, state.Z, out var floor),
+            "the native submarine frame has a floor");
+        state = state with { TerrainId = floor.TerrainId, TerrainScriptId = floor.TerrainScriptId, RegionId = floor.RegionId & 31 };
+        void ObserveFrame()
+        {
+            var nativeEntities = new WorldMapEntityReader(scene.Memory).Read();
+            Check(nativeEntities.IsUsable, "native entity frame is usable: " + nativeEntities.Diagnostic);
+            runtime.UpdateEntities(state, nativeEntities.Entities, scene.Memory);
+        }
+        ObserveFrame();
+        Check(runtime.ObserveUnderwaterSightings(state) == "Emerald Weapon is visible nearby.",
+            "a positively drawn Emerald is announced through the runtime: " + scene.Read().Diagnostic);
+        var target = catalog.ReadTargets(WorldMapNavigationCategory.Events, state, runtime.Entities)
+            .Single(t => t.Label == "Emerald Weapon");
+        Check(target.X == RefX && target.Z == RefZ + 4000 && target.NativeUnderwaterArrival?.ModelId == 30,
+            "Events offers the observed Emerald position with its native approach");
+        for (var i = 0; i < 3; i++) runtime.Navigation.HandleAction(FieldNavigationAction.NextCategory, state);
+        runtime.Navigation.HandleAction(FieldNavigationAction.ToggleBeacon, state);
+        Check(runtime.Navigation.BeaconEnabled && runtime.Navigation.Probe.TargetId == target.StableId,
+            "the visible Emerald can be selected in Events: " + runtime.Navigation.LastDiagnostic);
+        Check(runtime.Navigation.TryResolveAutomaticInput(state, out var direction) && direction == FieldNavigationInput.Up,
+            "explicit Emerald selection permits approach depth");
+
+        // A new coherent draw follows Emerald's patrol, without manufacturing visibility.
+        scene.MoveEmeraldBy(400);
+        ObserveFrame();
+        runtime.Navigation.Observe(state);
+        Check(runtime.Navigation.Probe.Route!.Waypoints[^1].X == RefX + 400,
+            "tracking follows the fresh visible patrol position");
+        scene.Memory.PutInt(Scene.Record(7) + 0x24, 0);
+        ObserveFrame();
+        Check(!catalog.ReadTargets(WorldMapNavigationCategory.Events, state, runtime.Entities).Any(t => t.Label == "Emerald Weapon"),
+            "an undrawn frame removes Emerald from Events");
+        Check(!runtime.Navigation.TryResolveAutomaticInput(state, out _), "loss of sight immediately releases pursuit input");
+        var clock = new DateTime(2026, 10, 10, 20, 0, 0, DateTimeKind.Utc);
+        runtime.Navigation.Observe(state, clock, automaticWalkActive: true);
+        Check(runtime.Navigation.Observe(state, clock.AddMilliseconds(600), automaticWalkActive: true)?.StopAutoWalk == true,
+            "sustained loss cancels the stale pursuit");
+        scene.Memory.PutInt(Scene.Record(7) + 0x24, 1);
+        scene.Memory.PutByte(EmeraldPointer + 0x51, 0x0A);
+        ObserveFrame();
+        Check(!catalog.ReadTargets(WorldMapNavigationCategory.Events, state, runtime.Entities).Any(t => t.Label == "Emerald Weapon"),
+            "a natively hidden Emerald cannot be reacquired");
+
+        // Ordinary journeys still rise to the safe travel depth even when Emerald is visible.
+        scene.Memory.PutByte(EmeraldPointer + 0x51, 0x02);
+        ObserveFrame();
+        var gelnika = catalog.Locations.Single(t => t.Label == "Sunken Gelnika");
+        var ordinary = new WorldMapNavigationController(scene.Map, runtime.Planner, (_, _) => [gelnika],
+            entityProvider: () => runtime.Entities);
+        var deep = state with { Y = -4250 };
+        ordinary.HandleAction(FieldNavigationAction.ToggleBeacon, deep);
+        Check(ordinary.TryResolveAutomaticInput(deep, out direction) && direction == FieldNavigationInput.Down,
+            "an ordinary destination keeps Emerald avoidance and rises before travel");
+        Console.WriteLine("installed Emerald native-camera selection, patrol tracking, visibility loss and avoidance checks passed.");
     }
 
     private static void AVerticalTerrainFaceBetweenTheCameraAndEmeraldHidesIt()
@@ -183,6 +280,8 @@ internal static class WorldMapUnderwaterVisibilityTests
             (0x00E3B0F8 + 30, "model slot header"),
             (0x00E3A8A8, "model list readiness"),
             (0x00DFC448, "camera rotation"),
+            (0x00DE6A32, "packed camera translation X"),
+            (0x00DE6A3A, "packed camera translation Z"),
             (Scene.Record(7) + 0x50, "model render record"),
             (EmeraldPointer + 0x0C, "entity world position"),
             (0x00E39A00, "entity list identity"),
@@ -335,9 +434,9 @@ internal static class WorldMapUnderwaterVisibilityTests
                 ? [0, 0, 4096, 0, 4096, 0, -4096, 0, 0]
                 : [4096, 0, 0, 0, 4096, 0, 0, 0, 4096];
             scene.PutRotation(rotation);
-            m.PutInt(0x00DE6A20 + 0x14, 0);
-            m.PutInt(0x00DE6A20 + 0x18, 0);
-            m.PutInt(0x00DE6A20 + 0x1C, CameraDistance);
+            m.PutInt(0x00DE6A32, 0);
+            m.PutInt(0x00DE6A36, 0);
+            m.PutInt(0x00DE6A3A, CameraDistance);
 
             // Renderer context: a pinhole whose screen point is (160 + 160x/z, 120 + 160y/z).
             m.PutInt(0x00DB2BB8, unchecked((int)Context));
@@ -401,16 +500,29 @@ internal static class WorldMapUnderwaterVisibilityTests
             Memory.PutInt(pointer + 0x10, y);
             Memory.PutInt(pointer + 0x14, z);
             Memory.PutShort(pointer + 0x44, 0);
+            Memory.PutShort(pointer + 0x4A, 3);
             Memory.PutByte(pointer + 0x50, (byte)model);
             Memory.PutByte(pointer + 0x51, flags);
             Memory.PutInt(0x00E39A00, unchecked((int)pointer));
             Entities.Add(new WorldMapEntitySnapshot(pointer, previousHead, pointer == PlayerPointer, x, y, z, 3, 0, model, flags));
         }
 
+        internal WorldMapStateSnapshot State =>
+            new(3, 2, 0, 0, RefX, BaseY, ReferenceZ, 0, 0, 3, 0, 13, 0, 0, default);
+
+        internal void MoveEmeraldBy(int deltaX)
+        {
+            var index = Entities.FindIndex(e => e.GuestPointer == EmeraldPointer);
+            var moved = Entities[index] with { X = Entities[index].X + deltaX };
+            Entities[index] = moved;
+            Memory.PutInt(EmeraldPointer + 0x0C, moved.X);
+            Memory.PutFloat(Record(7) + 0x48, moved.X - RefX);
+        }
+
         internal WorldMapUnderwaterVisibilityReadResult Read(int stateMapType = 2)
         {
             var reader = new WorldMapUnderwaterVisibilityReader(Memory, Map);
-            var state = new WorldMapStateSnapshot(3, stateMapType, 0, 0, RefX, BaseY, ReferenceZ, 0, 0, 3, 0, 13, 0, 0, default);
+            var state = State with { WorldMapType = stateMapType };
             var list = Entities.AsEnumerable().Reverse().ToList();
             return reader.Read(state, list);
         }
