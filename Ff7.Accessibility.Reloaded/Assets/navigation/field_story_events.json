@@ -32582,60 +32582,6 @@
       "fieldId": 749,
       "kind": "Location",
       "label": "Drop down past the ledge below",
-      "entityId": 10,
-      "x": -617,
-      "y": 81,
-      "z": 346,
-      "targetGameMoment": -1,
-      "minimumGameMoment": 1620,
-      "maximumGameMoment": 1996,
-      "priority": 0,
-      "sourceFieldName": "las0_6",
-      "sourceEntityName": "fall_2",
-      "sourceScriptType": "Move",
-      "completesOnArrival": true,
-      "triggerLine": {
-        "startX": -617,
-        "startY": 116,
-        "startZ": 346,
-        "endX": -617,
-        "endY": 45,
-        "endZ": 346
-      },
-      "requiredEnabledLineEntityId": 10,
-      "usesPlayerCollisionRadius": true
-    },
-    {
-      "fieldId": 749,
-      "kind": "Location",
-      "label": "Drop down past the ledge below",
-      "entityId": 11,
-      "x": -335,
-      "y": 64,
-      "z": -69,
-      "targetGameMoment": -1,
-      "minimumGameMoment": 1620,
-      "maximumGameMoment": 1996,
-      "priority": 0,
-      "sourceFieldName": "las0_6",
-      "sourceEntityName": "fall_3",
-      "sourceScriptType": "Move",
-      "completesOnArrival": true,
-      "triggerLine": {
-        "startX": -335,
-        "startY": 128,
-        "startZ": -69,
-        "endX": -335,
-        "endY": 0,
-        "endZ": -69
-      },
-      "requiredEnabledLineEntityId": 11,
-      "usesPlayerCollisionRadius": true
-    },
-    {
-      "fieldId": 749,
-      "kind": "Location",
-      "label": "Drop down past the ledge below",
       "entityId": 12,
       "x": 535,
       "y": 54,
@@ -32657,7 +32603,17 @@
         "endZ": -69
       },
       "requiredEnabledLineEntityId": 12,
-      "usesPlayerCollisionRadius": true
+      "usesPlayerCollisionRadius": true,
+      "requiredPlayerTriangles": [
+        102,
+        104,
+        106,
+        108,
+        109,
+        110,
+        111,
+        112
+      ]
     },
     {
       "fieldId": 749,
@@ -32684,34 +32640,17 @@
         "endZ": 919
       },
       "requiredEnabledLineEntityId": 13,
-      "usesPlayerCollisionRadius": true
-    },
-    {
-      "fieldId": 749,
-      "kind": "Location",
-      "label": "Jump down to the next ledge",
-      "entityId": 15,
-      "x": -407,
-      "y": 51,
-      "z": 554,
-      "targetGameMoment": -1,
-      "minimumGameMoment": 1620,
-      "maximumGameMoment": 1996,
-      "priority": 0,
-      "sourceFieldName": "las0_6",
-      "sourceEntityName": "down_1",
-      "sourceScriptType": "Move",
-      "completesOnArrival": true,
-      "triggerLine": {
-        "startX": -412,
-        "startY": 122,
-        "startZ": 554,
-        "endX": -402,
-        "endY": -21,
-        "endZ": 554
-      },
-      "requiredEnabledLineEntityId": 15,
-      "usesPlayerCollisionRadius": true
+      "usesPlayerCollisionRadius": true,
+      "requiredPlayerTriangles": [
+        180,
+        181,
+        182,
+        183,
+        184,
+        185,
+        186,
+        187
+      ]
     },
     {
       "fieldId": 749,
@@ -32738,7 +32677,22 @@
         "endZ": 554
       },
       "requiredEnabledLineEntityId": 17,
-      "usesPlayerCollisionRadius": true
+      "usesPlayerCollisionRadius": true,
+      "requiredPlayerTriangles": [
+        10,
+        37,
+        39,
+        46,
+        49,
+        59,
+        75,
+        100,
+        130,
+        139,
+        161,
+        162,
+        163
+      ]
     },
     {
       "fieldId": 749,
@@ -32765,7 +32719,23 @@
         "endZ": 345
       },
       "requiredEnabledLineEntityId": 19,
-      "usesPlayerCollisionRadius": true
+      "usesPlayerCollisionRadius": true,
+      "requiredPlayerTriangles": [
+        11,
+        28,
+        60,
+        94,
+        98,
+        99,
+        107,
+        114,
+        172,
+        174,
+        176,
+        177,
+        178,
+        179
+      ]
     },
     {
       "fieldId": 749,
@@ -32792,7 +32762,23 @@
         "endZ": -69
       },
       "requiredEnabledLineEntityId": 21,
-      "usesPlayerCollisionRadius": true
+      "usesPlayerCollisionRadius": true,
+      "requiredPlayerTriangles": [
+        113,
+        115,
+        116,
+        117,
+        118,
+        119,
+        120,
+        121,
+        122,
+        123,
+        124,
+        125,
+        131,
+        133
+      ]
     },
     {
       "fieldId": 749,
@@ -32819,7 +32805,13 @@
         "endZ": -278
       },
       "requiredEnabledLineEntityId": 23,
-      "usesPlayerCollisionRadius": true
+      "usesPlayerCollisionRadius": true,
+      "requiredPlayerTriangles": [
+        82,
+        88,
+        89,
+        138
+      ]
     },
     {
       "fieldId": 749,
@@ -32846,7 +32838,13 @@
         "endZ": -485
       },
       "requiredEnabledLineEntityId": 25,
-      "usesPlayerCollisionRadius": true
+      "usesPlayerCollisionRadius": true,
+      "requiredPlayerTriangles": [
+        73,
+        80,
+        81,
+        83
+      ]
     },
     {
       "fieldId": 749,
@@ -32873,7 +32871,13 @@
         "endZ": -485
       },
       "requiredEnabledLineEntityId": 27,
-      "usesPlayerCollisionRadius": true
+      "usesPlayerCollisionRadius": true,
+      "requiredPlayerTriangles": [
+        74,
+        76,
+        85,
+        86
+      ]
     },
     {
       "fieldId": 749,
@@ -32900,7 +32904,35 @@
         "endZ": 762
       },
       "requiredEnabledLineEntityId": 9,
-      "usesPlayerCollisionRadius": true
+      "usesPlayerCollisionRadius": true,
+      "requiredPlayerTriangles": [
+        31,
+        51,
+        52,
+        58,
+        68,
+        78,
+        79,
+        84,
+        87,
+        90,
+        92,
+        93,
+        103,
+        105,
+        126,
+        128,
+        129,
+        146,
+        147,
+        151,
+        153,
+        164,
+        166,
+        167,
+        173,
+        175
+      ]
     },
     {
       "fieldId": 75,
@@ -33676,26 +33708,26 @@
     {
       "fieldId": 750,
       "kind": "Location",
-      "label": "Follow the passage down and out to the next ledge",
+      "label": "Leave the cave for the right-hand descent",
       "entityId": -1,
-      "x": 131,
-      "y": 186,
-      "z": -529,
+      "x": -752,
+      "y": 83,
+      "z": 713,
       "targetGameMoment": -1,
       "minimumGameMoment": 1620,
       "maximumGameMoment": 1996,
       "priority": 0,
       "sourceFieldName": "las0_7",
-      "sourceEntityName": "gateway4",
+      "sourceEntityName": "gateway0",
       "sourceScriptType": "Gateway",
       "completesOnArrival": true,
       "triggerLine": {
-        "startX": 201,
-        "startY": 195,
-        "startZ": -529,
-        "endX": 61,
-        "endY": 176,
-        "endZ": -529
+        "startX": -696,
+        "startY": 97,
+        "startZ": 713,
+        "endX": -808,
+        "endY": 69,
+        "endZ": 713
       },
       "requiredPlayerTriangles": [
         0,
@@ -35803,7 +35835,13 @@
         "endZ": -278
       },
       "requiredEnabledLineEntityId": 38,
-      "usesPlayerCollisionRadius": true
+      "usesPlayerCollisionRadius": true,
+      "requiredPlayerTriangles": [
+        91,
+        95,
+        96,
+        97
+      ]
     },
     {
       "fieldId": 749,
@@ -35830,7 +35868,15 @@
         "endZ": -693
       },
       "requiredEnabledLineEntityId": 29,
-      "usesPlayerCollisionRadius": true
+      "usesPlayerCollisionRadius": true,
+      "requiredPlayerTriangles": [
+        40,
+        48,
+        54,
+        55,
+        56,
+        57
+      ]
     },
     {
       "fieldId": 749,
@@ -35857,7 +35903,26 @@
         "endZ": -902
       },
       "requiredEnabledLineEntityId": 33,
-      "usesPlayerCollisionRadius": true
+      "usesPlayerCollisionRadius": true,
+      "requiredPlayerTriangles": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        8,
+        12,
+        17,
+        19,
+        20,
+        21,
+        22,
+        23,
+        29,
+        30,
+        53
+      ]
     },
     {
       "fieldId": 749,
@@ -35884,7 +35949,13 @@
         "endZ": -1041
       },
       "requiredEnabledLineEntityId": 40,
-      "usesPlayerCollisionRadius": true
+      "usesPlayerCollisionRadius": true,
+      "requiredPlayerTriangles": [
+        27,
+        32,
+        34,
+        35
+      ]
     },
     {
       "fieldId": 751,
@@ -47737,6 +47808,139 @@
         "endZ": 0
       },
       "requiredEnabledLineEntityId": 16
+    },
+    {
+      "fieldId": 749,
+      "kind": "Location",
+      "label": "Climb back up toward the right-hand descent",
+      "entityId": 16,
+      "x": -534,
+      "y": 52,
+      "z": 346,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 1620,
+      "maximumGameMoment": 1996,
+      "priority": 0,
+      "sourceFieldName": "las0_6",
+      "sourceEntityName": "jump_1",
+      "sourceScriptType": "[OK]",
+      "completesOnArrival": false,
+      "triggerLine": {
+        "startX": -534,
+        "startY": 122,
+        "startZ": 346,
+        "endX": -534,
+        "endY": -18,
+        "endZ": 346
+      },
+      "requiredPlayerTriangles": [
+        101,
+        141,
+        143,
+        144,
+        148,
+        149,
+        158,
+        159,
+        165,
+        168,
+        169,
+        170,
+        171
+      ],
+      "requiredEnabledLineEntityId": 16,
+      "usesPlayerCollisionRadius": true,
+      "activatesOnOk": true
+    },
+    {
+      "fieldId": 749,
+      "kind": "Location",
+      "label": "Enter the side passage to the lower ledge",
+      "entityId": -1,
+      "x": 457,
+      "y": 245,
+      "z": 137,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 1620,
+      "maximumGameMoment": 1996,
+      "priority": 0,
+      "sourceFieldName": "las0_6",
+      "sourceEntityName": "gateway3",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "triggerLine": {
+        "startX": 417,
+        "startY": 245,
+        "startZ": 137,
+        "endX": 497,
+        "endY": 245,
+        "endZ": 137
+      },
+      "requiredPlayerTriangles": [
+        77,
+        127,
+        134,
+        135,
+        136,
+        140,
+        142,
+        145,
+        150,
+        152,
+        154,
+        155,
+        156,
+        157,
+        160
+      ]
+    },
+    {
+      "fieldId": 749,
+      "kind": "Location",
+      "label": "Enter the cave to reach the right-hand descent",
+      "entityId": -1,
+      "x": -209,
+      "y": 264,
+      "z": -693,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 1620,
+      "maximumGameMoment": 1996,
+      "priority": 0,
+      "sourceFieldName": "las0_6",
+      "sourceEntityName": "gateway5",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "triggerLine": {
+        "startX": -243,
+        "startY": 264,
+        "startZ": -693,
+        "endX": -175,
+        "endY": 264,
+        "endZ": -693
+      },
+      "requiredPlayerTriangles": [
+        38,
+        41,
+        42,
+        43,
+        44,
+        45,
+        47,
+        50,
+        61,
+        62,
+        63,
+        64,
+        65,
+        66,
+        67,
+        69,
+        70,
+        71,
+        72,
+        132,
+        137
+      ]
     }
   ]
 }

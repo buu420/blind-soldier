@@ -12,6 +12,7 @@ internal static class Steam2026FieldNavigationRuntimeTests
     {
         RoutesTheExactSixLegacyNavigationKeysInStableOrder();
         KeepsNavigationActiveForPermanentNonClosableMessage();
+        KeepsNavigationActiveForPermanentNonClosableMessage(backgroundMovie: true);
         SuspendsTemporaryNonFieldOwnershipWithoutDiscardingNavigationIntent();
         TreatsNativeLadderMovementAsNavigationInsteadOfGenericScriptSuppression();
         RetainsNavigationKeyEdgesUntilAUsableFieldSnapshot();
@@ -172,11 +173,16 @@ internal static class Steam2026FieldNavigationRuntimeTests
             "no rising edges produce no navigation actions");
     }
 
-    private static void KeepsNavigationActiveForPermanentNonClosableMessage()
+    private static void KeepsNavigationActiveForPermanentNonClosableMessage(bool backgroundMovie = false)
     {
         const uint lifecyclePhaseBase = 0x00CFF5E4;
         const uint lifecycleStride = 0x30;
         var fixture = FieldObservationFixture.CreatePopulated();
+        if (backgroundMovie)
+        {
+            fixture.Write((uint)FieldAudibleCueStateReader.AddressFieldMovieActive, BitConverter.GetBytes((ushort)1));
+            fixture.WriteByte(FieldAudibleCueStateReader.AddressFieldBackgroundMovieMode, 1);
+        }
         fixture.WriteByte(FieldAudibleCueStateReader.AddressActiveFieldMessageCount, 1);
         for (var index = 0; index < FieldMessageReader.WindowCount; index++)
         {
@@ -252,7 +258,7 @@ internal static class Steam2026FieldNavigationRuntimeTests
         Equal(
             true,
             spoken[0].Contains("Objects", StringComparison.Ordinal),
-            "category selection speaks while a completed permanent message remains assigned");
+            $"category selection speaks while a completed permanent message remains assigned; backgroundMovie={backgroundMovie}");
     }
 
     private static void InterruptsSupersededDynamicGuidance()

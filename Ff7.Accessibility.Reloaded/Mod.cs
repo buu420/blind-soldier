@@ -6926,7 +6926,8 @@ public sealed class Mod : IModV1, IModV2
             ?? new FieldAudibleCueState(true, "state reader unavailable", 0, 0, 0, 0);
         var diagnostic =
             $"suppressed={state.IsSuppressed}, reason={state.Reason}, module={state.Module}, " +
-            $"control={state.UserControl}, messages={state.ActiveMessageCount}, movie={state.MovieActive}";
+            $"control={state.UserControl}, messages={state.ActiveMessageCount}, movie={state.MovieActive}, " +
+            $"bgMovie={state.BackgroundMovieMode}";
         if (!string.Equals(diagnostic, lastFieldAudibleCueStateDiagnostic, StringComparison.Ordinal))
         {
             lastFieldAudibleCueStateDiagnostic = diagnostic;
