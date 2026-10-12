@@ -698,11 +698,11 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         var observedActions = frame.Lifecycle.ModuleId is WorldMapStateReader.WorldModule or SubmarineMissionStateReader.MinigameModule
             ? Array.Empty<FieldNavigationAction>()
             : Steam2026FieldNavigationKeyRouter.ReadActions(
-                foregroundInput.ObserveRisingEdge,
+                foregroundInput.ObserveFieldNavigationRisingEdge,
                 observeLimitKey:
                     frame.Lifecycle.ModuleId == FieldPositionReader.FieldModule);
         var autoWalkToggleRequested = frame.Lifecycle.ModuleId is not (WorldMapStateReader.WorldModule or SubmarineMissionStateReader.MinigameModule) &&
-            NavigationAutoWalkKeyRouter.ObserveToggle(foregroundInput.ObserveRisingEdge) &&
+            NavigationAutoWalkKeyRouter.ObserveToggle(foregroundInput.ObserveFieldNavigationRisingEdge) &&
             frame.Lifecycle.ModuleId == FieldPositionReader.FieldModule;
         ObserveSwingingBarTimingCue(frame, nowUtc);
         ObserveSquatMinigameCue(frame, nowUtc);
@@ -734,6 +734,8 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
 
         if (ownershipDisposition != Steam2026FieldNavigationOwnershipDisposition.Active)
         {
+            if (frame.Lifecycle.ModuleId == FieldPositionReader.FieldModule)
+                foregroundInput.SetFieldNavigationSuppressed(true);
             if (ownershipDisposition == Steam2026FieldNavigationOwnershipDisposition.Reset)
             {
                 Reset();
@@ -751,6 +753,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
 
         if (junonParadeClaimsFieldInput)
         {
+            foregroundInput.SetFieldNavigationSuppressed(true);
             navigableControllerField = -1;
             pendingActions.Clear();
             pendingAutoWalkStart = false;
@@ -822,6 +825,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                     out var isLadderStateCoherent,
                     out var baseDiagnostic))
             {
+                foregroundInput.SetFieldNavigationSuppressed(true);
                 exitPublicationGate.Reset();
                 exitSpatial.Observe(default, default, NoTargets, true, false, false, nowUtc);
                 ladderSpatial.Observe(
@@ -845,6 +849,16 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             currentNavigationCadence = input.IsDirectionalRun
                 ? FieldFootstepCadence.Run
                 : FieldFootstepCadence.Walk;
+            var keyboardNavigationSuppressed = !navigationEnabled || fieldActivityOwnsInput ||
+                IsNavigationSuppressed(cue, ladder, isLadderStateCoherent);
+            if (foregroundInput.SetFieldNavigationSuppressed(keyboardNavigationSuppressed))
+            {
+                // Actions sampled before the coherent ownership read belong to
+                // its previous generation, including a just-ended native activity.
+                pendingActions.Clear();
+                pendingAutoWalkStart = false;
+                autoWalkRouteToggleQueued = false;
+            }
             if (cue.IsSuppressed)
             {
                 // A native window or scene owns the pad: the context this runtime last
@@ -1223,6 +1237,10 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         catch (Exception ex)
         {
             navigableControllerField = -1;
+            foregroundInput.SetFieldNavigationSuppressed(true);
+            pendingActions.Clear();
+            pendingAutoWalkStart = false;
+            autoWalkRouteToggleQueued = false;
             autoWalk.Suspend();
             autoWalkConvergence.Suspend();
             exitSpatial.Observe(default, default, NoTargets, true, false, false, nowUtc);
@@ -1399,6 +1417,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
     internal void Reset()
     {
         ObjectDisposedException.ThrowIf(disposed != 0, this);
+        foregroundInput.SetFieldNavigationSuppressed(true);
 
         // A reset is the session tearing down or the module changing underneath.
         // The menu closes with it, and anything queued but not a stop goes: those
@@ -1447,6 +1466,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
     internal void Suspend()
     {
         ObjectDisposedException.ThrowIf(disposed != 0, this);
+        foregroundInput.SetFieldNavigationSuppressed(true);
 
         // Losing the foreground or the frame closes the menu too, so nothing held
         // through the gap can act when it comes back.

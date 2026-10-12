@@ -18,7 +18,8 @@ internal sealed class BattleStatusLimitKeyFrameRouter
         bool isLimitDown,
         bool isForeground,
         int currentModule,
-        bool navigationOwnsLimitKey)
+        bool navigationOwnsLimitKey,
+        bool? observedPress = null)
     {
         if (!isForeground ||
             !navigationOwnsLimitKey ||
@@ -27,7 +28,8 @@ internal sealed class BattleStatusLimitKeyFrameRouter
             ClearNavigationPress();
         }
 
-        var pressed = tracker.Observe(VirtualKeyL, isLimitDown, isForeground);
+        var physicalPress = tracker.Observe(VirtualKeyL, isLimitDown, isForeground);
+        var pressed = isForeground && (observedPress ?? physicalPress);
         if (navigationOwnsLimitKey)
         {
             if (pressed)

@@ -299,10 +299,13 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         // Own and sample all six shared navigation keys on every world frame,
         // including background frames, so refocus cannot create delayed edges.
         if (submarineJourney?.ObserveNativeTransition(nowUtc) == true) autoWalk.Suspend();
+        if (!frame.Lifecycle.IsForeground || !foregroundInput.IsCurrentProcessForeground() ||
+            !dialogueReader.TryReadMovementOwnership(out var keyboardOwnership) || keyboardOwnership.IsBlockingMovement)
+            foregroundInput.SetWorldNavigationSuppressed(true);
         var actions = Steam2026FieldNavigationKeyRouter.ReadActions(
-            foregroundInput.ObserveRisingEdge);
+            foregroundInput.ObserveWorldNavigationRisingEdge);
         var autoWalkToggleRequested = NavigationAutoWalkKeyRouter.ObserveToggle(
-            foregroundInput.ObserveRisingEdge);
+            foregroundInput.ObserveWorldNavigationRisingEdge);
         var autoWalkToggleWasObserved = autoWalkToggleRequested;
         wasActive = true;
         var isForeground =
@@ -490,6 +493,11 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
             return;
         }
 
+        if (foregroundInput.SetWorldNavigationSuppressed(false))
+        {
+            actions = Array.Empty<FieldNavigationAction>();
+            autoWalkToggleRequested = false;
+        }
         foreach (var action in actions)
         {
             higherPrioritySpeech |= ProcessOutput(
@@ -915,6 +923,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
     /// </summary>
     private void PublishControllerUnavailable(DateTime nowUtc)
     {
+        foregroundInput.SetWorldNavigationSuppressed(true);
         // The field coordinator no longer closes another domain's menu. The world
         // coordinator must therefore retire its own context as soon as it stops
         // being usable, including battle entry before the freshness timeout.

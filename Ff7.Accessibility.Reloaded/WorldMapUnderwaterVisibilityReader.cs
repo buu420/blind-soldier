@@ -153,32 +153,43 @@ public sealed class WorldMapUnderwaterVisibilityReader
         }
 
         var visible = new HashSet<uint>();
+        var observations = new Dictionary<uint, WorldMapEntitySnapshot>();
         var notes = new List<string>();
         foreach (var candidate in candidates)
         {
             var reason = Judge(capture, candidate);
-            if (reason is null) visible.Add(candidate.GuestPointer);
+            if (reason is null)
+            {
+                var native = capture.Entities[candidate.GuestPointer];
+                visible.Add(candidate.GuestPointer);
+                observations[candidate.GuestPointer] = candidate with
+                {
+                    X = native.X, Y = native.Y, Z = native.Z,
+                    TerrainId = native.Walkmap & 0x1F, RegionId = (native.Walkmap >> 9) & 0x1F,
+                    Flags = native.Flags, IsVisibleUnderwater = true
+                };
+            }
             else notes.Add($"{candidate.ModelId}:{reason}");
         }
 
         return new(true, visible,
-            $"visible={visible.Count}" + (notes.Count == 0 ? string.Empty : " (" + string.Join(", ", notes) + ")"));
+            $"visible={visible.Count}" + (notes.Count == 0 ? string.Empty : " (" + string.Join(", ", notes) + ")"))
+        { ObservedEntities = observations };
     }
 
     /// <summary>Null when the entity is visible; otherwise why it is not.</summary>
     private string? Judge(Capture capture, WorldMapEntitySnapshot candidate)
     {
         if (!capture.Entities.TryGetValue(candidate.GuestPointer, out var entity) ||
-            entity.Model != candidate.ModelId)
+            entity.Model != candidate.ModelId || entity.Next != candidate.NextGuestPointer ||
+            candidate.GuestPointer == capture.Player)
         {
             return "not in the live list";
         }
 
-        // The caller labels and steers by its own coordinates: they must be this frame's.
-        if (entity.X != candidate.X || entity.Y != candidate.Y || entity.Z != candidate.Z)
-        {
-            return "caller position is from another frame";
-        }
+        // Identity belongs to the caller's scan; coordinates belong to this checked draw
+        // capture. Emerald patrols between these independent scans. Publishing the capture's
+        // coordinates with visibility avoids rejecting motion or steering to the older scan.
 
         // Model render records are per model: two live entities sharing one cannot be told apart.
         if (capture.Entities.Values.Count(other => other.Model == entity.Model) != 1)
@@ -445,7 +456,8 @@ public sealed class WorldMapUnderwaterVisibilityReader
             !memory.TryReadInt32(AddressModelSlotsReady, out var slotsReady) ||
             !memory.TryReadInt32(AddressBaseHeight, out capture.BaseHeight) ||
             !memory.TryReadInt32(AddressCurvatureStart, out capture.CurvatureStart) ||
-            !memory.TryReadUInt32(AddressRendererContext, out capture.Context))
+            !memory.TryReadUInt32(AddressRendererContext, out capture.Context) ||
+            !memory.TryReadUInt32((uint)WorldMapStateReader.AddressWorldPlayerEntityPointer, out capture.Player))
         {
             return false;
         }
@@ -503,6 +515,7 @@ public sealed class WorldMapUnderwaterVisibilityReader
                 !memory.TryReadInt32(node + 0x10, out var y) ||
                 !memory.TryReadInt32(node + 0x14, out var z) ||
                 !memory.TryReadInt16(node + EntityDrawOffsetY, out var drawOffset) ||
+                !memory.TryReadUInt16(node + (uint)WorldMapStateReader.WalkmapTypeOffset, out var walkmap) ||
                 !memory.TryReadByte(node + EntityModelOffset, out var model) ||
                 !memory.TryReadByte(node + EntityFlagsOffset, out var flags))
             {
@@ -510,7 +523,7 @@ public sealed class WorldMapUnderwaterVisibilityReader
             }
 
             capture.Order.Add(node);
-            capture.Entities[node] = new EntityState(x, y, z, drawOffset, model, flags);
+            capture.Entities[node] = new EntityState(next, x, y, z, drawOffset, walkmap, model, flags);
             node = next;
         }
 
@@ -556,7 +569,8 @@ public sealed class WorldMapUnderwaterVisibilityReader
     private static WorldMapUnderwaterVisibilityReadResult Unusable(string why) =>
         new(false, new HashSet<uint>(), why);
 
-    private readonly record struct EntityState(int X, int Y, int Z, short DrawOffsetY, byte Model, byte Flags);
+    private readonly record struct EntityState(uint Next, int X, int Y, int Z, short DrawOffsetY,
+        ushort Walkmap, byte Model, byte Flags);
 
     private readonly record struct RecordState(int Slot, bool Drawn, float X, float Y, float Z);
 
@@ -623,6 +637,7 @@ public sealed class WorldMapUnderwaterVisibilityReader
         internal int BaseHeight;
         internal int CurvatureStart;
         internal uint Context;
+        internal uint Player;
         internal readonly int[] Reference = new int[3];
         internal readonly CameraState Camera = new();
         internal readonly int[] Viewport = new int[4];
@@ -633,7 +648,7 @@ public sealed class WorldMapUnderwaterVisibilityReader
 
         internal bool SameAs(Capture other) =>
             Module == other.Module && SlotsReady == other.SlotsReady && MapType == other.MapType && BaseHeight == other.BaseHeight &&
-            CurvatureStart == other.CurvatureStart && Context == other.Context &&
+            CurvatureStart == other.CurvatureStart && Context == other.Context && Player == other.Player &&
             Reference.AsSpan().SequenceEqual(other.Reference) && Camera.SameAs(other.Camera) &&
             Viewport.AsSpan().SequenceEqual(other.Viewport) &&
             Projection.Select(BitConverter.SingleToInt32Bits).SequenceEqual(other.Projection.Select(BitConverter.SingleToInt32Bits)) &&
@@ -655,4 +670,8 @@ public sealed class WorldMapUnderwaterVisibilityReader
 public readonly record struct WorldMapUnderwaterVisibilityReadResult(
     bool IsUsable,
     IReadOnlySet<uint> VisibleEntities,
-    string Diagnostic);
+    string Diagnostic)
+{
+    /// <summary>Visible target coordinates from the same checked native capture as visibility.</summary>
+    public IReadOnlyDictionary<uint, WorldMapEntitySnapshot>? ObservedEntities { get; init; }
+}

@@ -342,6 +342,7 @@ internal sealed class Steam2026ResearchSession : IDisposable
     {
         Interlocked.Exchange(ref resetRequested, 1);
         resumeGate.Reset();
+        Volatile.Read(ref activeKeyboardInput)?.InvalidateBufferedKeyboard();
         log("Native Steam 2026 research session suspended.");
 
         // Said out loud, as the legacy runtime has always said it. Without this the
@@ -353,6 +354,7 @@ internal sealed class Steam2026ResearchSession : IDisposable
     internal void Resume()
     {
         Interlocked.Exchange(ref resetRequested, 1);
+        Volatile.Read(ref activeKeyboardInput)?.InvalidateBufferedKeyboard();
         resumeGate.Set();
         log("Native Steam 2026 research session resumed.");
         AnnounceLifecycle("Final Fantasy Seven accessibility mod resumed.");
@@ -399,6 +401,7 @@ internal sealed class Steam2026ResearchSession : IDisposable
     /// calls can reach it from another thread.
     /// </summary>
     private Steam2026ResearchAccessibilityOutput? lifecycleOutput;
+    private Steam2026ForegroundInputAdapter? activeKeyboardInput;
 
     public void Dispose()
     {
@@ -528,7 +531,8 @@ internal sealed class Steam2026ResearchSession : IDisposable
         var dialogueIngressSequencer = new Steam2026DialogueIngressSequencer();
         var battleOptions = CreateBattleOptions(config);
         var battleStatusHotkeyController = new BattleStatusHotkeyController();
-        var foregroundInput = Steam2026ForegroundInputAdapter.CreateCurrentProcess(fingerprint);
+        using var foregroundInput = Steam2026ForegroundInputAdapter.CreateCurrentProcess(fingerprint);
+        Volatile.Write(ref activeKeyboardInput, foregroundInput);
 
         // Where automatic movement is delivered on this host. Not SendInput: the host
         // synthesizes the legacy keyboard state from its own logical actions inside its
@@ -760,6 +764,7 @@ internal sealed class Steam2026ResearchSession : IDisposable
 
                 if (Interlocked.Exchange(ref resetRequested, 0) != 0)
                 {
+                    foregroundInput.InvalidateBufferedKeyboard();
                     tracker.Reset();
                     nativeSystemMenuSpeech.Reset();
                     nativeSystemMenuReader?.Reset();
@@ -825,7 +830,9 @@ internal sealed class Steam2026ResearchSession : IDisposable
                 var now = DateTime.UtcNow;
                 var isHostForeground = foregroundInput.IsCurrentProcessForeground();
                 var settingsWereOpen = modSettingsMenu.IsOpen;
-                controllerAccessibility.Tick(isHostForeground, foregroundInput.IsKeyDown, now);
+                foregroundInput.BeginWorkerFrame();
+                controllerAccessibility.Tick(isHostForeground, foregroundInput.IsKeyDown, now,
+                    foregroundInput.ObserveSettingsKeyGroup);
                 foregroundInput.ModSettingsOwnsInput = modSettingsMenu.IsOpen;
                 if (settingsWereOpen || modSettingsMenu.IsOpen) foregroundInput.BlockHeldModKeys();
                 navigationProgressController.ApplySettings(config.EnableNavigationProgressIndicators,
@@ -964,6 +971,8 @@ internal sealed class Steam2026ResearchSession : IDisposable
                                 fingerprint,
                                 moduleBase,
                                 memory);
+                        foregroundInput.EnableBufferedKeyboard(sharedFieldAddressSpace, log,
+                            () => resumeGate.IsSet && !cancellation.IsCancellationRequested);
                         // Independent film narration plays on its own device so an
                         // ordinary button press cannot cut a 45-second description
                         // into a fragment. A missing asset, a disabled track or a
@@ -1790,7 +1799,7 @@ avigationield_zone_transition.wav"),
                                 log($"Native Steam 2026 submarine return: {returnDiagnostic}");
                             var submarineCue = submarineMission.Observe(frame.Lifecycle.ModuleId,
                                 isHostForeground, config.EnableSpeech && config.EnableSubmarineMissionReadout && !modSettingsMenu.IsOpen,
-                                now, foregroundInput.ObserveRisingEdge, controllerCaptureHook?.Capture, out var interruptSubmarine);
+                                now, foregroundInput.ObserveSubmarineRisingEdge, controllerCaptureHook?.Capture, out var interruptSubmarine);
                             if (submarineCue.PlayLockCue)
                                 submarineLockCue?.Play("submarine target lock");
                             if (submarineCue.Speech is { } submarineSpeech)
@@ -2194,7 +2203,7 @@ avigationield_zone_transition.wav"),
                         {
                             foreach (var (virtualKey, action) in CondorNavigationKeys)
                             {
-                                if (foregroundInput.ObserveRisingEdge(virtualKey))
+                                if (foregroundInput.ObservePhysicalGameActionEdge(virtualKey))
                                 {
                                     condorNavigation.Add(action);
                                 }
@@ -3377,6 +3386,8 @@ avigationield_zone_transition.wav"),
         }
         finally
         {
+            foregroundInput.Dispose();
+            Volatile.Write(ref activeKeyboardInput, null);
             pump?.BeginShutdown();
             tracker.Reset();
             nativeSystemMenuSpeech.Reset();

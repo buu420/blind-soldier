@@ -44,6 +44,13 @@ if (args.Contains("--emerald-tracking-only", StringComparer.OrdinalIgnoreCase))
     return;
 }
 
+if (args.Contains("--keyboard-input-only", StringComparer.OrdinalIgnoreCase))
+{
+    Steam2026ForegroundInputTests.RunBufferedInputTests();
+    Ff7.Accessibility.Reloaded.Tests.BufferedKeyboardInputTests.Run();
+    return;
+}
+
 if (args.Contains("--highwind-interior-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.HighwindInteriorNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
@@ -1012,6 +1019,7 @@ catch (InvalidOperationException)
 
 AssertEqual(true, startThrew, "incomplete x64 backend refuses startup");
 Steam2026ForegroundInputTests.Run(native, legacy);
+Ff7.Accessibility.Reloaded.Tests.BufferedKeyboardInputTests.Run();
 CondorBattleInitializationTests.Run();
 CondorPlacementLineReadoutTests.Run();
 CondorCursorSteeringTests.Run();
