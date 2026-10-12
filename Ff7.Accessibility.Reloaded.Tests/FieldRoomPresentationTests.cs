@@ -18,6 +18,25 @@ internal static class FieldRoomPresentationTests
         Check(true,reader.IsRoomVisible(777),"background movie presents the field room");
         memory.Set(1,777,0,1);
         Check(true,reader.IsRoomVisible(777),"inactive background movie presents room");
+        memory.Set(1,767,1,1);
+        memory.TileFlags(0,0,0);
+        Check(false,reader.IsRoomVisible(767),"las4_4 movie-only branch suppresses every static field tile");
+        memory.TileFlags(1,0,0);
+        Check(true,reader.IsRoomVisible(767),"las4_4 native background layer explicitly enabled");
+        memory.TileFlags(0,1,0);
+        Check(true,reader.IsRoomVisible(767),"las4_4 alternate native background presentation");
+        memory.Set(1,767,0,0);memory.TileFlags(0,0,0);
+        Check(true,reader.IsRoomVisible(767),"las4_4 tiles return after movie stops");
+        memory.TileFlags(0,0,1);
+        Check(false,reader.IsRoomVisible(767),"las4_4 initial black fade must not begin a long room recording");
+        foreach(var at in new uint[]{0x00CC0B68,0x009A0718,0x00CFFEF8,0x00CC0DC0,0x00CFFA98})
+        {
+            memory.Set(1,767,0,0);memory.TileFlags(0,0,0);memory.Bytes.Remove(at);
+            Check(false,reader.IsRoomVisible(767),"las4_4 unknown tile/fade gate fails closed");
+            memory.Set(1,767,0,0);memory.TileFlags(0,0,0);memory.Tear=at;
+            Check(false,reader.IsRoomVisible(767),"las4_4 changing tile/fade gate fails closed");
+        }
+        memory.Set(1,777,0,1);
         Check(false,reader.IsRoomVisible(776),"expected room must match actual native field");
         memory.Set(2,777,0,0);
         Check(false,reader.IsRoomVisible(777),"non-field module is not a room");
@@ -56,6 +75,13 @@ internal static class FieldRoomPresentationTests
         }
         private void Word(uint at,ushort value)
         { Bytes[at]=(byte)value;Bytes[at+1]=(byte)(value>>8); }
+        internal void TileFlags(byte background,int alternate,int fade)
+        {
+            Bytes[0x00CC0B68]=background;Bytes[0x00CC0DC0]=0;
+            Integer(0x009A0718,alternate);Integer(0x00CFFEF8,fade);Integer(0x00CFFA98,0);
+        }
+        private void Integer(uint at,int value)
+        {for(var i=0;i<4;i++)Bytes[at+(uint)i]=(byte)(value>>(i*8));}
         public bool TryRead(uint address,Span<byte> destination)
         {
             for(var i=0;i<destination.Length;i++)

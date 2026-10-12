@@ -7,6 +7,19 @@ using Ff7.Accessibility.Reloaded.Runtime;
 using Ff7.Accessibility.Runtime.Abstractions;
 using AccessibilityConfig = Ff7.Accessibility.Core.AccessibilityConfig;
 
+if (args.Contains("--creature-narration-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.CreatureApproachReaderTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.NativeCreatureDrawObservationIngressTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.LegacyNativeCreatureDrawHookGuardTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.CreatureApproachNarrationCoordinatorTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.CreatureWarningSpeechGateTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.FieldCreatureWarningReaderTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.FfnxCreatureVoiceCompletionReaderTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.FieldRoomPresentationTests.Run();
+    return;
+}
+
 if (args.Contains("--remaining-narration-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.RemainingFieldDescriptionTests.Run();
@@ -1569,6 +1582,13 @@ AssertFieldAskChoiceSpeechFollowsNativeHighlightedLine();
 AssertFieldScriptContextReaderReadsActiveNativeScript();
 AssertFieldScriptContextReaderRejectsInvalidNativeState();
 AssertFieldCutsceneDescriptionCatalogUsesNativeTrainArrivalWaits();
+Ff7.Accessibility.Reloaded.Tests.CreatureApproachReaderTests.Run();
+Ff7.Accessibility.Reloaded.Tests.NativeCreatureDrawObservationIngressTests.Run();
+Ff7.Accessibility.Reloaded.Tests.LegacyNativeCreatureDrawHookGuardTests.Run();
+Ff7.Accessibility.Reloaded.Tests.CreatureApproachNarrationCoordinatorTests.Run();
+Ff7.Accessibility.Reloaded.Tests.CreatureWarningSpeechGateTests.Run();
+Ff7.Accessibility.Reloaded.Tests.FieldCreatureWarningReaderTests.Run();
+Ff7.Accessibility.Reloaded.Tests.FfnxCreatureVoiceCompletionReaderTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WholeGameEchoCompatibilityTests.Run();
 Ff7.Accessibility.Reloaded.Tests.RemainingFieldDescriptionTests.Run();
     Ff7.Accessibility.Reloaded.Tests.LateGameMotionActionDescriptionTests.Run();

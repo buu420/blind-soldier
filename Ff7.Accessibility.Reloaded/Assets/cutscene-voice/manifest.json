@@ -7560,6 +7560,16 @@
       "text": "Wrecked vehicles are piled along a dusty slope. Twisted pipes, wheels, and broken machinery crowd the ground beside the path.",
       "file": "398e3db3ae5456182209968fca07ddad12187ea5ea36df39cdca5e91aea37018.ogg",
       "duration_seconds": 7.37
+    },
+    {
+      "text": "The creature closes in.",
+      "file": "7c116f2ee63e6b28e9af7b48699326afbb711c1feb2b93bd6c448a3f2b6ba3b6.ogg",
+      "duration_seconds": 1.23
+    },
+    {
+      "text": "The huge creature glides closer.",
+      "file": "8036c212d7b5af867f754965d2407c5743303fbc1e9794328ffaad27984c1a2d.ogg",
+      "duration_seconds": 1.95
     }
   ]
 }

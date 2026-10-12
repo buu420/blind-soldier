@@ -1,0 +1,7 @@
+Blind Soldier 0.9.8 Northern Crater creature descriptions
+Voice: Brice, generated locally from his approved reference at his request.
+Reference SHA-256: 2ede6b6c6c27938e7a63f3ea0c64b533ca0fd6f4c6a9cd0fa5110e2153a070a5.
+Qwen3-TTS 1.7B Base; no pitch or tempo alteration. Outer silence trim and loudness gain only.
+Wording and triggers checked against the native scripts, HRC geometry and renderer.
+Independent medium.en word checks and decoded waveform verification retained in release evidence.
+All earlier recordings and original game audio are preserved.

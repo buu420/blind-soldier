@@ -61,6 +61,7 @@ internal sealed class Steam2026ResearchSession : IDisposable
     private EndgameMovieNarrationTracker? activeEndgameNarration;
     private NativeCreditsNarrator? activeCreditsNarration;
     private NativeObservedCaptionNarrator? activeCreditsTitleNarration;
+    private Steam2026FieldCutsceneDescriptionCoordinator? activeFieldCutsceneDescriptions;
 
     internal Steam2026ResearchSession(
         Steam2026FingerprintResult fingerprint,
@@ -351,6 +352,7 @@ internal sealed class Steam2026ResearchSession : IDisposable
             activeEndgameNarration?.Suspend();
             activeCreditsNarration?.Suspend();
             activeCreditsTitleNarration?.Suspend();
+            activeFieldCutsceneDescriptions?.SuspendNativeFilmNarration(FieldMovieNarrationStopReason.Suspended);
         }
         Volatile.Read(ref activeKeyboardInput)?.InvalidateBufferedKeyboard();
         log("Native Steam 2026 research session suspended.");
@@ -392,6 +394,16 @@ internal sealed class Steam2026ResearchSession : IDisposable
             {
                 endgame.Resume(); credits.Resume(); title.Resume();
             }
+        }
+    }
+
+    internal void PublishFieldCutsceneDescriptions(Steam2026FieldCutsceneDescriptionCoordinator descriptions)
+    {
+        lock (narrationLifecycleSync)
+        {
+            activeFieldCutsceneDescriptions = descriptions;
+            if (!resumeGate.IsSet || cancellation.IsCancellationRequested)
+                descriptions.SuspendNativeFilmNarration(FieldMovieNarrationStopReason.Suspended);
         }
     }
 
@@ -448,6 +460,7 @@ internal sealed class Steam2026ResearchSession : IDisposable
         lock (narrationLifecycleSync)
         {
             cancellation.Cancel();
+            activeFieldCutsceneDescriptions?.SuspendNativeFilmNarration(FieldMovieNarrationStopReason.Unloaded);
             activeEndgameNarration?.Suspend();
             activeCreditsNarration?.Suspend();
             activeCreditsTitleNarration?.Suspend();
@@ -496,6 +509,9 @@ internal sealed class Steam2026ResearchSession : IDisposable
         Steam2026NativeCreditsTitleObservationHook? creditsTitleObserver = null;
         var creditsTitleObserverFailed = false;
         var nextCreditsTitleSetupUtc = DateTime.MinValue;
+        Steam2026NativeCreatureDrawObservationHook? creatureObserver = null;
+        var creatureObserverFailed = false;
+        var nextCreatureSetupUtc = DateTime.MinValue;
 
         // One history, one tracker, one gate for the whole session. The history outlives
         // the process; the tracker decides which native save it belongs to; the gate is
@@ -850,6 +866,8 @@ internal sealed class Steam2026ResearchSession : IDisposable
                     cutsceneHookSet?.Dispose();
                     cutsceneHookSet = null;
                     cutsceneDescriptions?.Reset();
+                    creatureObserver?.Dispose();
+                    creatureObserver = null;
                     lastCutsceneNarrationFieldId = -1;
                     cutsceneNarrationSpeechTracker.Reset();
                     fieldZoneSpeechCoordinator?.Reset();
@@ -1307,7 +1325,10 @@ avigationield_zone_transition.wav"),
                         titleLoadMenuBridge = candidateTitleLoadBridge;
                         nameEntryReader = candidateNameEntryReader;
                         candidateCutsceneDescriptions.HistoryGate = roomDescriptionGate;
+                        creatureObserver?.Dispose();
+                        creatureObserver = null;
                         cutsceneDescriptions = candidateCutsceneDescriptions;
+                        PublishFieldCutsceneDescriptions(candidateCutsceneDescriptions);
 
                         // The save identity is read through the same translated address
                         // space the rest of the field stack uses, and is rebuilt with it.
@@ -1655,6 +1676,8 @@ avigationield_zone_transition.wav"),
 
                 if (cutsceneDescriptions is not null)
                 {
+                    cutsceneDescriptions.ObserveCreatureLifetime(
+                        config.EnableSpeech && config.EnableFieldCutsceneDescriptions && !modSettingsMenu.IsOpen,isHostForeground);
                     // The independent track outlives a single frame, so its native
                     // lifetime is checked every frame and whenever the host stops
                     // being the foreground window.
@@ -1684,13 +1707,49 @@ avigationield_zone_transition.wav"),
                     // A field whose own entry anchor ran before this runtime attached
                     // would otherwise never be described at all.
                     cutsceneDescriptions.ObserveStableField(now);
+                    if (config.EnableSpeech && config.EnableFieldCutsceneDescriptions &&
+                        roomDescriptionAddressSpace is { } creatureMemory &&
+                        creatureMemory.TryReadByte((uint)FieldPositionReader.AddressCurrentModule,out var creatureModule) && creatureModule==1 &&
+                        creatureMemory.TryReadUInt16((uint)FieldPositionReader.AddressFieldId,out var creatureField) && creatureField==767 &&
+                        creatureObserver is null && !creatureObserverFailed && hooks is not null && now>=nextCreatureSetupUtc)
+                    {
+                        nextCreatureSetupUtc=now.AddSeconds(5);
+                        var installed=Steam2026NativeCreatureDrawObservationHook.TryCreate(fingerprint,moduleBase,moduleImageSize,
+                            memory,hooks,cutsceneDescriptions.ObserveCreatureDraw,log,out var candidate,out var diagnostic);
+                        if(installed)creatureObserver=candidate;
+                        else if(candidate is not null)creatureObserverFailed=true;
+                        if(!installed)log(diagnostic);
+                    }
+                    if(creatureObserver?.HasOriginalFault==true || creatureObserver?.HasCaptureFault==true)
+                    {
+                        creatureObserver.Dispose();creatureObserver=null;creatureObserverFailed=true;
+                        cutsceneDescriptions.Reset();
+                        log("Translated creature observation retired after a callback fault.");
+                    }
+                    var creatureSpoken=false;
+                    if(config.EnableSpeech && config.EnableFieldCutsceneDescriptions && isHostForeground && modSettingsMenu.IsOpen!=true &&
+                        cutsceneDialogueProbe is not null)
+                    {
+                        var dialogueOnScreen=cutsceneDialogueProbe.TryRead(out _);
+                        bool? prismSpeaking=output.TryIsSpeaking(out var activeSpeech)?activeSpeech:null;
+                        creatureSpoken=cutsceneDescriptions.TrySpeakCreature(now,
+                            sample=>cutsceneDescriptions.CanStartCreatureDescription(sample,dialogueOnScreen,prismSpeaking),
+                            text=>{output.Speak(text,interrupt:false);return true;},out var creatureCue);
+                        if(creatureSpoken)
+                        {
+                            lastCutsceneNarrationFieldId=creatureCue.FieldId;
+                            cutsceneNarrationSpeechTracker.Begin(creatureCue.FieldId);
+                            if(config.EnableFieldCutsceneDescriptionDiagnostics)
+                                log($"Native visible creature description: field={creatureCue.FieldId}, script={creatureCue.ScriptId}, text={creatureCue.Text}");
+                        }
+                    }
 
                     // A film that gave way to dialogue keeps being described: its
                     // remaining cues are spoken at the moments they belong to, once
                     // the game has stopped talking. Delivery goes through the same
                     // reservation as every other description, and only the speaker
                     // accepting the words advances the film's schedule.
-                    if (Steam2026FieldCutsceneHostTick.TryDeliverDeferredFilmCue(
+                    if (!creatureSpoken && Steam2026FieldCutsceneHostTick.TryDeliverDeferredFilmCue(
                             cutsceneDescriptions,
                             isHostForeground,
                             now,
@@ -1712,7 +1771,7 @@ avigationield_zone_transition.wav"),
                             log($"Native Steam 2026 film cue spoken: {deferredFilmCue}");
                         }
                     }
-                    else if (cutsceneDialogueProbe is not null
+                    else if (!creatureSpoken && cutsceneDialogueProbe is not null
                         && cutsceneDescriptions.TrySpeakPending(
                             isHostForeground,
                             () => cutsceneDialogueProbe.TryRead(out _),
@@ -2412,6 +2471,8 @@ avigationield_zone_transition.wav"),
                                 "Native Steam 2026 dialogue close acknowledgement " +
                                 "did not match the queued lifecycle boundary; reset remains pending.");
                         }
+                        if(dialogueAcknowledgement is {} acceptedCreatureWarning)
+                            cutsceneDescriptions?.NoteCreatureWarningSpeechAccepted(acceptedCreatureWarning.WindowId,acceptedCreatureWarning.VisibleText);
                     }
                     catch (Exception ex)
                     {
@@ -3574,6 +3635,7 @@ avigationield_zone_transition.wav"),
             creditsNarration?.Dispose();
             Volatile.Write(ref activeCreditsTitleNarration, null);
             creditsTitleObserver?.Dispose();
+            creatureObserver?.Dispose();
             creditsTitleNarration?.Dispose();
             fieldMessageHookSet?.Dispose();
             askCursorHookSet?.Dispose();
