@@ -10,6 +10,20 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\RemainingFieldDescriptionTests.cs" Link="SharedTests\RemainingFieldDescriptionTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\LateGameMotionActionDescriptionTests.cs" Link="SharedTests\LateGameMotionActionDescriptionTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\LifestreamMotionActionDescriptionTests.cs" Link="SharedTests\LifestreamMotionActionDescriptionTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\LateStoryMotionCompletionDescriptionTests.cs" Link="SharedTests\LateStoryMotionCompletionDescriptionTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\NativeCreditsSnapshotReaderTests.cs" Link="SharedTests\NativeCreditsSnapshotReaderTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\NativeCreditsObservationIngressTests.cs" Link="SharedTests\NativeCreditsObservationIngressTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\NativeCreditsNarratorTests.cs" Link="SharedTests\NativeCreditsNarratorTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\NativeObservedCaptionNarratorTests.cs" Link="SharedTests\NativeObservedCaptionNarratorTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\NativeCreditsTitleObservationIngressTests.cs" Link="SharedTests\NativeCreditsTitleObservationIngressTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\FieldRoomPresentationTests.cs" Link="SharedTests\FieldRoomPresentationTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\EndgameMovieNarrationTests.cs" Link="SharedTests\EndgameMovieNarrationTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\WholeGameEchoCompatibilityTests.cs" Link="SharedTests\WholeGameEchoCompatibilityTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\HighwayAccessibilityCoordinatorTests.cs" Link="SharedTests\HighwayAccessibilityCoordinatorTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\HighwayAutoSteeringModeTrackerTests.cs" Link="SharedTests\HighwayAutoSteeringModeTrackerTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\WorldMapChocoboNavigationTests.cs" Link="SharedTests\WorldMapChocoboNavigationTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\Sector7NavigationTests.cs" Link="SharedTests\Sector7NavigationTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\ModSettingsTests.cs" Link="SharedTests\ModSettingsTests.cs" />

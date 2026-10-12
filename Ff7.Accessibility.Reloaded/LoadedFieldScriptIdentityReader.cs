@@ -34,6 +34,38 @@ public sealed class LoadedFieldScriptIdentityReader
 
     public bool TryRead(out LoadedFieldScriptIdentity identity) => TryReadPrefix(out identity, out _);
 
+    internal bool? ReadGuard(FieldScriptGuardTest test)
+    {
+        var block = test.Block switch
+        {
+            1 => FieldScriptExitGuards.AddressSavemapFieldBanks,
+            3 => FieldScriptExitGuards.AddressSavemapFieldBanks + 0x100,
+            5 => FieldScriptExitGuards.AddressTemporaryFieldBank,
+            11 => FieldScriptExitGuards.AddressSavemapFieldBanks + 0x200,
+            13 => FieldScriptExitGuards.AddressSavemapFieldBanks + 0x300,
+            15 => FieldScriptExitGuards.AddressSavemapFieldBanks + 0x400,
+            _ => -1
+        };
+        if (block < 0 || test.Address is < 0 or > 255 || !TryCaptureHeader(out var before) || before.Module != 1)
+            return null;
+        var address = (uint)(block + test.Address);
+        bool Read(out int value)
+        {
+            value = 0;
+            if (!memory.TryReadByte(address, out var low)) return false;
+            value = low;
+            if (test.Word)
+            {
+                if (!memory.TryReadByte(address + 1, out var high)) return false;
+                value |= high << 8;
+            }
+            return true;
+        }
+        if (!Read(out var first) || !Read(out var second) || first != second ||
+            !TryCaptureHeader(out var after) || before != after) return null;
+        return test.IsMetBy(first);
+    }
+
     /// <summary>The same coherent observation, including the script prefix it identifies.</summary>
     public bool TryReadPrefix(out LoadedFieldScriptIdentity identity, out byte[] prefix)
     {

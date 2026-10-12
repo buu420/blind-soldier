@@ -256,6 +256,8 @@ internal sealed class Steam2026FieldCutsceneCallbackContract
                     or FieldOpcodeAddressResolver.OpcodeCanm2Index,
             Steam2026FieldCutsceneCallbackKind.BackgroundOn =>
                 opcode == FieldOpcodeAddressResolver.OpcodeBackgroundOnIndex,
+            Steam2026FieldCutsceneCallbackKind.BackgroundOff =>
+                opcode == FieldOpcodeAddressResolver.OpcodeBackgroundOffIndex,
             Steam2026FieldCutsceneCallbackKind.Sound =>
                 opcode == FieldOpcodeAddressResolver.OpcodeSoundIndex,
             Steam2026FieldCutsceneCallbackKind.Akao =>

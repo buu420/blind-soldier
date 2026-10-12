@@ -184,6 +184,12 @@ public sealed class HighwayAccessibilityComposer
     }
 
     /// <summary>
+    /// Re-evaluate current visible speech after a refused backend delivery without
+    /// releasing road-edge hysteresis or the existing engagement/steering decision.
+    /// </summary>
+    public void RetrySpeech() => combatTracker.Reset();
+
+    /// <summary>
     /// The road edge takes the controls from the engagement in the arcade from this share of the
     /// road half-width, and gives them back below <see cref="CriticalEdgeReleaseRatio"/>. The
     /// entry is the tracker's own critical ratio; 006539B2 clamps the bike only at the half-width

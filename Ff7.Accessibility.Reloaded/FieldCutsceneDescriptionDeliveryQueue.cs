@@ -56,16 +56,19 @@ public sealed class FieldCutsceneDescriptionDelivery(FieldCutsceneDescriptionDel
         Action<FieldCutsceneDescriptionCue> onDelivered,
         out FieldCutsceneDescriptionCue delivered,
         Func<string?>? describeRunningFilm = null,
-        Func<FieldCutsceneDescriptionCue, bool>? shouldOffer = null)
+        Func<FieldCutsceneDescriptionCue, bool>? shouldOffer = null,
+        Func<FieldCutsceneDescriptionCue, bool>? mayDeliver = null)
     {
         ArgumentNullException.ThrowIfNull(beginNarration);
         ArgumentNullException.ThrowIfNull(trySpeak);
         ArgumentNullException.ThrowIfNull(onDelivered);
 
         delivered = default;
-        if (!queue.TryPeek(fieldId, out var cue))
+        var ready = mayDeliver is null ? queue.TryPeek(fieldId, out var cue)
+            : queue.TryPeekDeliverable(fieldId, mayDeliver, out cue);
+        if (!ready)
         {
-            return FieldCutsceneDeliveryOutcome.Nothing;
+            return queue.Count == 0 ? FieldCutsceneDeliveryOutcome.Nothing : FieldCutsceneDeliveryOutcome.Waiting;
         }
 
         // Asked before anything is started or reserved. A room the player has already
@@ -194,6 +197,25 @@ public sealed class FieldCutsceneDescriptionDeliveryQueue
                 pending.Dequeue();
             }
 
+            cue = default;
+            return false;
+        }
+    }
+
+    /// <summary>Retains temporarily hidden rooms while allowing the visible film/action behind them.</summary>
+    public bool TryPeekDeliverable(int fieldId, Func<FieldCutsceneDescriptionCue, bool> mayDeliver,
+        out FieldCutsceneDescriptionCue cue)
+    {
+        lock (sync)
+        {
+            var remaining = pending.Count;
+            while (remaining-- > 0 && pending.Count > 0)
+            {
+                var candidate = pending.Peek();
+                if (candidate.FieldId != fieldId) { pending.Dequeue(); continue; }
+                if (mayDeliver(candidate)) { cue = candidate; return true; }
+                pending.Enqueue(pending.Dequeue());
+            }
             cue = default;
             return false;
         }

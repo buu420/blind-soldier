@@ -116,7 +116,11 @@ public static class FieldCutsceneDescriptionCatalog
         .. CreateCosmoThroughNibelheimActionDescriptions(),
         .. FieldCutsceneContinuationDescriptions.CreateActionDescriptions(),
         .. FieldMotionActionDescriptions.CreateAll(),
-        .. CreateAllAreaDescriptions()
+        .. FieldLateGameMotionActionDescriptions.CreateAll(),
+        .. FieldLifestreamMotionActionDescriptions.CreateAll(),
+        .. FieldLateStoryMotionCompletionDescriptions.CreateAll(),
+        .. CreateRemainingVisualActions(),
+        .. CreateAllAreaDescriptions().Where(cue => !cue.ObservationOnly)
     ];
 
     /// <summary>
@@ -132,7 +136,17 @@ public static class FieldCutsceneDescriptionCatalog
     [
         .. CreateGoldSaucerAreaDescriptions(),
         .. CreateCosmoThroughNibelheimAreaDescriptions(),
-        .. FieldCutsceneContinuationDescriptions.CreateAreaDescriptions()
+        .. FieldCutsceneContinuationDescriptions.CreateAreaDescriptions(),
+        .. RemainingFieldAreaDescriptions.CreateAll()
+    ];
+
+    private static IReadOnlyList<FieldCutsceneDescriptionCue> CreateRemainingVisualActions() =>
+    [
+        // Exact native background layers, reviewed in both stock and all Echo field variants.
+        new(557, 3, 1, 0, "A door opens.", FieldOpcodeAddressResolver.OpcodeBackgroundOffIndex),
+        new(562, 0, 1, 0, "A door opens.", FieldOpcodeAddressResolver.OpcodeBackgroundOffIndex),
+        // The lid's action script, not its initialization or the dialogue request.
+        new(303, 18, 2, 0, "The coffin lid closes.", FieldOpcodeAddressResolver.OpcodeBackgroundOnIndex)
     ];
 
     /// <summary>
@@ -1409,12 +1423,6 @@ public static class FieldCutsceneDescriptionCatalog
             322,
             0,
             0,
-            444,
-            "In the memory, Tifa kneels beside her injured father on the floor of the Nibelheim reactor."),
-        new(
-            322,
-            0,
-            0,
             446,
             "In the memory, Tifa kneels beside her injured father on the floor of the Nibelheim reactor."),
         new(
@@ -2342,7 +2350,8 @@ public readonly record struct FieldCutsceneDescriptionCue(
     string Text,
     int Opcode = FieldOpcodeAddressResolver.OpcodeWaitIndex,
     string RecurringGroup = "",
-    bool StartsRecurringGroup = false)
+    bool StartsRecurringGroup = false,
+    bool ObservationOnly = false)
 {
     public FieldCutsceneDescriptionKey Key => new(FieldId, EntityId, ScriptId, ByteIndex);
 

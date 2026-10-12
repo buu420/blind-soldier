@@ -1,0 +1,11 @@
+# Blind Soldier 0.9.7 implementation plan
+
+The user approved the full Echo-S compatibility and remaining visual-description pass, deployment to the legacy and Steam runtimes, and release 0.9.7. Version 0.9.6 is the starting release.
+
+1. Reproduce navigation and description failures against the installed stock archives and all five current Echo-S 1.24 field variants. Parse the current loaded script and map only reviewed identities; read future-field metadata separately. Repair native guards, line geometry, object/story identities and NPC exclusions. Unknown or torn script layouts must not receive stock targets.
+2. Preserve motorcycle steering state while retrying refused entry announcements. Propagate legacy speech rejection and supply Steam's existing native directional input sink. Verify current banner composition, retry bounds, foreground suspension and episode reset in both runtimes.
+3. Audit every shipped field, film and battle description against native instructions, actual footage and installed recordings. Remove invalid duplicate anchors, extend the Echo-S cue mapping to the current catalog, and add descriptions only from observed visual evidence. Use the existing approved voice and generation settings; retain existing recordings unchanged.
+4. Describe the ending and post-credits film from coherent native movie identity, playback state and frame progression outside FIELD. Preserve stop, skip, replacement, pause and unload boundaries. Describe the credits' visible presentation and expose native visible credit text where its renderer is verified.
+5. Add meaningful regressions for failures and native compatibility matrices, review changes, then run fresh dual-runtime release gates and exact package suites. Deploy verified payloads while preserving saves, settings, description histories and existing recordings. Publish 0.9.7 and both manager records, verify public hashes and record remaining live-game validation limits.
+
+Research and evidence are stored outside the release payload in `C:\Users\buu42\Documents\FFVII-ActiveBuild\echo-narration-20261012`. Offline native/archive regression results are distinct from live controller, speech and gameplay validation.

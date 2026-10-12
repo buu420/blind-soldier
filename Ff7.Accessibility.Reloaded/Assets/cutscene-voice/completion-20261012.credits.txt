@@ -1,0 +1,7 @@
+Blind Soldier 0.9.7 narration completion
+Voice: approved Brice reference, SHA-256 2ede6b6c6c27938e7a63f3ea0c64b533ca0fd6f4c6a9cd0fa5110e2153a070a5.
+Generated locally with Qwen3-TTS 1.7B Base using the existing approved voice workflow.
+No pitch or tempo alteration; outer silence trim and fixed loudness gain only.
+Descriptions checked against native field art, skeletal animations and actual script boundaries; original game assets remain research inputs and are not included here.
+Independent transcription checks, decoded waveform hashes and release package checks retained in the 0.9.7 evidence.
+Original soundtrack and all prior recordings retained.

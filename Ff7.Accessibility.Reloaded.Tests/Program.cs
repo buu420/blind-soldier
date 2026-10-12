@@ -7,6 +7,33 @@ using Ff7.Accessibility.Reloaded.Runtime;
 using Ff7.Accessibility.Runtime.Abstractions;
 using AccessibilityConfig = Ff7.Accessibility.Core.AccessibilityConfig;
 
+if (args.Contains("--remaining-narration-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.RemainingFieldDescriptionTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.LateGameMotionActionDescriptionTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.LifestreamMotionActionDescriptionTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.LateStoryMotionCompletionDescriptionTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.NativeCreditsSnapshotReaderTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.NativeCreditsObservationIngressTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.NativeCreditsNarratorTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.NativeObservedCaptionNarratorTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.NativeCreditsTitleObservationIngressTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.FieldRoomPresentationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.LegacyNativeCreditsTitleHookGuardTests.Run();
+    return;
+}
+
+if (args.Contains("--echo-narration-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.WholeGameEchoCompatibilityTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.EndgameMovieNarrationTests.Run();
+    LegacyNativeMoviePlaybackReaderTests.Run();
+    LegacyNativeMovieObservationHookTests.Run();
+    HighwayAutoSteeringModeTrackerTests.Run();
+    HighwayAccessibilityCoordinatorTests.Run();
+    return;
+}
+
 // The Prism ABI probe re-enters this host as a child process and must do nothing else.
 if (args.Length == 1 && string.Equals(args[0], PrismAbiProbeTests.ProbeSwitch, StringComparison.Ordinal))
 {
@@ -937,6 +964,7 @@ if (args.Contains("--continuation-descriptions-only", StringComparer.OrdinalIgno
     Ff7.Accessibility.Reloaded.Tests.MotionActionDescriptionTests.RunAgainstInstalledArchive();
     Console.WriteLine("FFVII continuation description catalog and native tests passed.");
     Ff7.Accessibility.Reloaded.Tests.ContinuationDescriptionTests.RunPayloadReadiness();
+Ff7.Accessibility.Reloaded.Tests.RemainingFieldDescriptionTests.RunPayloadReadiness();
     Ff7.Accessibility.Reloaded.Tests.MotionActionDescriptionTests.RunPayloadReadiness();
     return;
 }
@@ -1541,6 +1569,21 @@ AssertFieldAskChoiceSpeechFollowsNativeHighlightedLine();
 AssertFieldScriptContextReaderReadsActiveNativeScript();
 AssertFieldScriptContextReaderRejectsInvalidNativeState();
 AssertFieldCutsceneDescriptionCatalogUsesNativeTrainArrivalWaits();
+Ff7.Accessibility.Reloaded.Tests.WholeGameEchoCompatibilityTests.Run();
+Ff7.Accessibility.Reloaded.Tests.RemainingFieldDescriptionTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.LateGameMotionActionDescriptionTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.LifestreamMotionActionDescriptionTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.LateStoryMotionCompletionDescriptionTests.Run();
+Ff7.Accessibility.Reloaded.Tests.NativeCreditsSnapshotReaderTests.Run();
+Ff7.Accessibility.Reloaded.Tests.NativeCreditsObservationIngressTests.Run();
+Ff7.Accessibility.Reloaded.Tests.NativeCreditsNarratorTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.NativeObservedCaptionNarratorTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.NativeCreditsTitleObservationIngressTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.FieldRoomPresentationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.LegacyNativeCreditsTitleHookGuardTests.Run();
+Ff7.Accessibility.Reloaded.Tests.EndgameMovieNarrationTests.Run();
+LegacyNativeMoviePlaybackReaderTests.Run();
+LegacyNativeMovieObservationHookTests.Run();
 AssertFieldCutsceneDescriptionCatalogCoversOpeningReactorRegroup();
 AssertFieldCutsceneDescriptionCatalogCoversOpeningReactorBomb();
 AssertFieldCutsceneDescriptionCatalogCoversSector8EscapeActions();
@@ -7114,7 +7157,7 @@ static void AssertFieldCutsceneDescriptionCatalogCoversTrainAndSector7()
 static void AssertFieldCutsceneDescriptionCatalogCoversReactor5AndAeris()
 {
     var cues = FieldCutsceneDescriptionCatalog.CreateReactor5AndAerisDescriptions();
-    AssertEqual(28, cues.Count, "Reactor 5 through Aeris's home cue count including branch-specific church barrel outcomes");
+    AssertEqual(27, cues.Count, "Reactor 5 through Aeris's home valid native cues including branch-specific church barrel outcomes");
     AssertEqual(
         "127,132,181,182,183,184,188,190,276,322",
         string.Join(',', cues.Select(cue => cue.FieldId).Distinct().Order()),
@@ -7161,7 +7204,7 @@ static void AssertFieldCutsceneDescriptionCatalogCoversReactor5AndAeris()
         .Where(cue => cue.FieldId == 322 && cue.EntityId == 0 && cue.ScriptId == 0 &&
             cue.Text.Contains("injured father", StringComparison.Ordinal))
         .ToArray();
-    AssertEqual("444,446", string.Join(',', nibelheimVariants.Select(cue => cue.ByteIndex)), "verified PC Nibelheim cue anchors");
+    AssertEqual("446", string.Join(',', nibelheimVariants.Select(cue => cue.ByteIndex)), "Nibelheim uses its actual instruction boundary; duplicate operand offset444 is absent");
     foreach (var cue in cues.Except(nibelheimVariants))
     {
         var nativeOpcodes = nativeCatalog.ReadScriptOpcodes(cue.FieldId, cue.EntityId, cue.ScriptId);
@@ -7399,8 +7442,8 @@ static void AssertFieldCutsceneDescriptionCatalogCoversUpperJunonThroughCargoShi
 
     var all = FieldCutsceneDescriptionCatalog.CreateEarlyGameDescriptions();
     AssertEqual(all.Count, all.Select(cue => cue.Key).Distinct().Count(), "no duplicate keys once merged");
-    AssertEqual(1, all.Count(cue => cue.FieldId == 359), "the existing Junon establishing movie cue must survive");
-    var upperJunonPanorama = all.Single(cue => cue.FieldId == 359);
+    AssertEqual(1, all.Count(cue => cue.FieldId == 359 && cue.Opcode == FieldOpcodeAddressResolver.OpcodeMovieIndex), "the existing Junon establishing movie cue must survive");
+    var upperJunonPanorama = all.Single(cue => cue.FieldId == 359 && cue.Opcode == FieldOpcodeAddressResolver.OpcodeMovieIndex);
     AssertContains(upperJunonPanorama.Text, "cannon");
     AssertContains(
         upperJunonPanorama.Text,

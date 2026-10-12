@@ -27,6 +27,9 @@ public sealed class HighwayAutoSteeringModeTracker
 
     public bool Enabled => enabled;
 
+    /// <summary>A refused output has not announced this mode to the player.</summary>
+    public void RetryAnnouncement() => sessionAnnounced = false;
+
     public void ApplySetting(bool value)
     {
         if (enabled == value) return;

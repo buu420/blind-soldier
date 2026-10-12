@@ -322,7 +322,9 @@ internal static class Steam2026FieldNavigationPendingActionExecutor
         FieldLadderStateSnapshot ladderState,
         ref Steam2026FieldNavigationDomainCoherence coherence,
         out FieldNavigationAction action,
-        out FieldNavigationActionResult? result)
+        out FieldNavigationActionResult? result,
+        bool areaKnown = true,
+        bool roomVisible = false)
     {
         ArgumentNullException.ThrowIfNull(pendingActions);
         ArgumentNullException.ThrowIfNull(controller);
@@ -381,7 +383,7 @@ internal static class Steam2026FieldNavigationPendingActionExecutor
             // The automatic delivery on arrival is gone the moment a button press
             // interrupts the screen reader, and no generic repeat-last buffer can
             // recover it once a navigation line has replaced it.
-            if (candidate == FieldNavigationAction.RepeatTarget && result is { } spoken)
+            if (areaKnown && roomVisible && candidate == FieldNavigationAction.RepeatTarget && result is { } spoken)
             {
                 result = spoken with
                 {

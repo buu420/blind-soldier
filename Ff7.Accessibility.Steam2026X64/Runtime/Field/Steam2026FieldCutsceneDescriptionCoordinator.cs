@@ -12,8 +12,13 @@ internal sealed class Steam2026FieldCutsceneDescriptionCoordinator
 {
     private readonly object sync = new();
     private readonly ILegacyAddressSpace addressSpace;
+    private readonly FieldRoomPresentationReader roomPresentation;
+    private readonly FieldActivityStateReader activityState;
     private FieldAreaDescriptionHistoryGate historyGate = new(null);
     private readonly FieldCutsceneDescriptionTracker tracker;
+    private readonly EchoSFieldCutsceneDescriptionTracker? compatibleTracker;
+    private readonly Func<LoadedFieldScriptIdentity?>? readIdentity;
+    private string? observedPrefix;
     private readonly FieldCutsceneSpeechPriority speechPriority = new();
     private readonly Queue<FieldCutsceneDescriptionCue> pending = new();
     private readonly FieldMovieNarrationTracker? narration;
@@ -24,7 +29,7 @@ internal sealed class Steam2026FieldCutsceneDescriptionCoordinator
 
     internal Steam2026FieldCutsceneDescriptionCoordinator(
         ILegacyAddressSpace addressSpace)
-        : this(addressSpace, FieldCutsceneDescriptionCatalog.CreateEarlyGameDescriptions())
+        : this(addressSpace, FieldCutsceneDescriptionCatalog.CreateEarlyGameDescriptions(), useLoadedScriptIdentity: true)
     {
     }
 
@@ -33,11 +38,21 @@ internal sealed class Steam2026FieldCutsceneDescriptionCoordinator
         IEnumerable<FieldCutsceneDescriptionCue> cues,
         FieldMovieNarrationTracker? narration = null,
         CutsceneVoicePlayer? cutsceneVoice = null,
-        Func<bool>? additionalRecordingProbe = null)
+        Func<bool>? additionalRecordingProbe = null,
+        bool useLoadedScriptIdentity = false,
+        Func<LoadedFieldScriptIdentity?>? readIdentity = null)
     {
         this.addressSpace = addressSpace ?? throw new ArgumentNullException(nameof(addressSpace));
+        roomPresentation = new FieldRoomPresentationReader(addressSpace);
+        activityState = new FieldActivityStateReader(addressSpace);
         ArgumentNullException.ThrowIfNull(cues);
         tracker = new FieldCutsceneDescriptionTracker(cues);
+        if (useLoadedScriptIdentity)
+        {
+            compatibleTracker = new EchoSFieldCutsceneDescriptionTracker();
+            var reader = new LoadedFieldScriptIdentityReader(addressSpace);
+            this.readIdentity = readIdentity ?? (() => reader.TryRead(out var identity) ? identity : null);
+        }
         this.narration = narration;
         this.cutsceneVoice = cutsceneVoice;
 
@@ -133,7 +148,28 @@ internal sealed class Steam2026FieldCutsceneDescriptionCoordinator
                     liveSample);
             }
 
-            var cue = tracker.Observe(snapshot.Context);
+            LoadedFieldScriptIdentity? identity = null;
+            if (compatibleTracker is not null)
+            {
+                identity = ReadSupportedIdentity(snapshot.Context.FieldId);
+                if (identity is null) return false;
+            }
+            // Classify the reviewed semantic event, but read the actual loaded actor.
+            // Echo lastmap Cloud is entity4; the English catalog calls him entity5.
+            var actualKey = new FieldCutsceneDescriptionKey(snapshot.Context.FieldId, snapshot.Context.EntityId,
+                snapshot.Context.ScriptId, snapshot.Context.ByteIndex);
+            var canonicalKey = identity is { } known
+                ? EchoSCompatibilityManifest.ResolveCanonicalCueKey(snapshot.Context,known) : actualKey;
+            if (canonicalKey is { } key &&
+                (FieldLateGameMotionActionDescriptions.RequiresVisibleActor(key) ||
+                 FieldLifestreamMotionActionDescriptions.RequiresVisibleActor(key) ||
+                 FieldLateStoryMotionCompletionDescriptions.RequiresVisibleActor(key)) &&
+                activityState.ReadModel(snapshot.Context.FieldId, snapshot.Context.EntityId).Status != FieldActivityReadStatus.Visible)
+                return false;
+
+            // Hidden/torn actor reads return before a tracker can spend this event key.
+            var cue = compatibleTracker is not null
+                ? compatibleTracker.Observe(snapshot.Context,identity!.Value) : tracker.Observe(snapshot.Context);
             if (cue is null
                 || cue.Value.FieldId != snapshot.Context.FieldId
                 || cue.Value.EntityId != snapshot.Context.EntityId
@@ -189,6 +225,19 @@ internal sealed class Steam2026FieldCutsceneDescriptionCoordinator
                 return;
             }
 
+            if (module != FieldPositionReader.FieldModule)
+            {
+                ResetFieldState();
+                currentFieldId = -1;
+                return;
+            }
+            if (currentFieldId != fieldId)
+            {
+                ResetFieldState();
+                currentFieldId = fieldId;
+            }
+            if (compatibleTracker is not null && ReadSupportedIdentity(fieldId) is null) return;
+            if (!roomPresentation.IsRoomVisible(fieldId)) return;
             if (areaColdStart.Observe(module, fieldId, nowUtc) is { } cue)
             {
                 pending.Enqueue(cue);
@@ -228,7 +277,16 @@ internal sealed class Steam2026FieldCutsceneDescriptionCoordinator
                 return false;
             }
 
+            // Retain an invisible room for later without starving a native film or
+            // action queued behind it. Rotation neither speaks nor spends history.
+            var candidates = pending.Count;
+            while (candidates-- > 0 && FieldAreaDescriptionHistoryGate.IsRoomCue(pending.Peek()) &&
+                   !roomPresentation.IsRoomVisible(pending.Peek().FieldId))
+                pending.Enqueue(pending.Dequeue());
+            if (FieldAreaDescriptionHistoryGate.IsRoomCue(pending.Peek()) &&
+                !roomPresentation.IsRoomVisible(pending.Peek().FieldId)) return false;
             var cue = pending.Peek();
+            if (compatibleTracker is not null && (ReadSupportedIdentity(cue.FieldId) is null || pending.Count == 0)) return false;
 
             // A room this playthrough has already heard leaves the queue here, before
             // anything is started or reserved, so it costs no narration track, no speech
@@ -474,6 +532,8 @@ internal sealed class Steam2026FieldCutsceneDescriptionCoordinator
     }
 
 
+    internal bool CanDescribeRoom(int fieldId) => roomPresentation.IsRoomVisible(fieldId);
+
     internal bool ShouldDeferDialogueDelivery(DateTime nowUtc) =>
         speechPriority.ShouldDeferDialogueDelivery(nowUtc);
 
@@ -615,8 +675,23 @@ internal sealed class Steam2026FieldCutsceneDescriptionCoordinator
     {
         pending.Clear();
         tracker.Reset();
+        compatibleTracker?.Reset();
+        observedPrefix = null;
         speechPriority.Reset();
         cutsceneVoice?.StopIfOwnedBy(CutsceneVoiceOwner.FieldAction, "the field changed");
+    }
+
+    private LoadedFieldScriptIdentity? ReadSupportedIdentity(int fieldId)
+    {
+        if (readIdentity?.Invoke() is not { } identity || identity.FieldId != fieldId ||
+            WholeGameEchoNavigationManifest.ResolveVariant(identity) == SupportedFieldScriptVariant.Unknown)
+        {
+            ResetFieldState();
+            return null;
+        }
+        if (observedPrefix is not null && observedPrefix != identity.ScriptPrefixSha256) ResetFieldState();
+        observedPrefix = identity.ScriptPrefixSha256;
+        return identity;
     }
 
     private static bool IsSupportedIngressOpcode(int opcode) =>
@@ -635,6 +710,7 @@ internal sealed class Steam2026FieldCutsceneDescriptionCoordinator
             or FieldOpcodeAddressResolver.OpcodeAnimHoldIndex
             or FieldOpcodeAddressResolver.OpcodeCanm2Index
             or FieldOpcodeAddressResolver.OpcodeBackgroundOnIndex
+            or FieldOpcodeAddressResolver.OpcodeBackgroundOffIndex
             or FieldOpcodeAddressResolver.OpcodeSoundIndex
             or FieldOpcodeAddressResolver.OpcodeAkaoIndex
             or FieldOpcodeAddressResolver.OpcodeMovieIndex

@@ -271,7 +271,8 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             FieldStoryEventCatalog.CreateAllFields(),
             lineStateReader.IsEnabled,
             entity => lineStateReader.TryReadOkState(entity, out var storyOkState) ? storyOkState : null,
-            scriptCatalog.RemapStoryDefinition);
+            scriptCatalog.RemapStoryDefinition,
+            scriptCatalog.ReadNativeGuard);
         var fieldNavigationObjects = FieldNavigationObjectCatalog.CreateAllFields();
         var npcReader = new FieldNavigationNpcReader(
             ReadInt32,
@@ -281,7 +282,8 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             fieldId => scriptCatalog.ReadField(fieldId).Npcs,
             fieldNavigationObjects.Select(definition => (definition.FieldId, definition.EntityId)),
             lineStateReader.IsEnabled,
-            useVerifiedFallback: fieldId => !Sector7NavigationLayout.IsField(fieldId));
+            useVerifiedFallback: fieldId => !Sector7NavigationLayout.IsField(fieldId) && scriptCatalog.ReadField(fieldId).IsUsable,
+            definitionRemapper: scriptCatalog.RemapNpcDefinition);
         npcObservationReader = new Steam2026FieldNpcObservationReader(
             positionReader.ReadNavigation,
             npcReader.ReadTargets,
@@ -1128,7 +1130,9 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                        ladder,
                        ref coherence,
                        out var action,
-                       out var result))
+                       out var result,
+                       areaKnown: scriptCatalog.ReadField(position.FieldId).IsUsable,
+                       roomVisible: new FieldRoomPresentationReader(addressSpace).IsRoomVisible(position.FieldId)))
             {
                 LogInputDiagnostic(
                     $"executed={action}, speech={(result is null ? "none" : "present")}");
@@ -2550,7 +2554,8 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                 exit.TriggerEntityId < 0 || lineStateReader.IsEnabled(exit.TriggerEntityId)).ToArray();
             // A destination whose MAPJUMP the field's own live flags keep from running is not a
             // way out yet (the same guards the legacy runtime applies).
-            var guardedScriptExits = FieldScriptExitGuards.Apply(enabledScriptExits, scriptField.ExitGuards, addressSpace);
+            var guardedScriptExits = FieldScriptExitGuards.Apply(enabledScriptExits, scriptField.ExitGuards, addressSpace,
+                scriptField.UsesReviewedEchoLayout ? scriptCatalog.ReadNativeGuard : null);
             targets.AddRange(Steam2026FieldScriptExitPolicy.Filter(
                 position.FieldId,
                 gameMoment,

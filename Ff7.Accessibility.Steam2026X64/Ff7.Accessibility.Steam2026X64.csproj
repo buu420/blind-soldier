@@ -7,11 +7,16 @@
     <PlatformTarget>x64</PlatformTarget>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
-    <InformationalVersion>0.9.6</InformationalVersion>
+    <InformationalVersion>0.9.7</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="..\Ff7.Accessibility.Reloaded\WholeGameEchoNavigationManifest.cs" Link="Shared\WholeGameEchoNavigationManifest.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\WholeGameEchoFutureMetadata.cs" Link="Shared\WholeGameEchoFutureMetadata.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\EchoSCompatibilityManifest.cs" Link="Shared\EchoSCompatibilityManifest.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\NativeMoviePlaybackSample.cs" Link="Shared\NativeMoviePlaybackSample.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\EndgameMovieNarrationTracker.cs" Link="Shared\EndgameMovieNarrationTracker.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\WorldMapSubmarineDive.cs" Link="Shared\WorldMapSubmarineDive.cs" />
     <ProjectReference Include="..\Ff7.Accessibility.Core\Ff7.Accessibility.Core.csproj" />
     <ProjectReference Include="..\Ff7.Accessibility.LegacyLayout\Ff7.Accessibility.LegacyLayout.csproj" />
@@ -1099,6 +1104,14 @@
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldExitPresentationPolicy.cs" Link="Shared\FieldExitPresentationPolicy.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\WutaiBellDoorStateReader.cs" Link="Shared\WutaiBellDoorStateReader.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldAreaDescriptionColdStartTracker.cs" Link="Shared\FieldAreaDescriptionColdStartTracker.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\RemainingFieldAreaDescriptions.cs" Link="Shared\RemainingFieldAreaDescriptions.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldLateGameMotionActionDescriptions.cs" Link="Shared\FieldLateGameMotionActionDescriptions.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldLifestreamMotionActionDescriptions.cs" Link="Shared\FieldLifestreamMotionActionDescriptions.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldLateStoryMotionCompletionDescriptions.cs" Link="Shared\FieldLateStoryMotionCompletionDescriptions.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\NativeCreditsNarrator.cs" Link="Shared\NativeCreditsNarrator.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\NativeCreditsObservationConsumer.cs" Link="Shared\NativeCreditsObservationConsumer.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\NativeObservedCaptionNarrator.cs" Link="Shared\NativeObservedCaptionNarrator.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\NativeCreditsTitleObservationConsumer.cs" Link="Shared\NativeCreditsTitleObservationConsumer.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldAreaDescriptionStatus.cs" Link="Shared\FieldAreaDescriptionStatus.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldMapNameCatalog.cs" Link="Shared\FieldMapNameCatalog.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldRoomDescriptorCatalog.cs" Link="Shared\FieldRoomDescriptorCatalog.cs" />

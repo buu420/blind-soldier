@@ -26,15 +26,15 @@ public sealed class FieldOpcodeAddressResolver
     public const int OpcodeCanm2Index = 0xBC;
     public const int OpcodeJumpIndex = 0xC0;
     public const int OpcodeBackgroundOnIndex = 0xE0;
+    public const int OpcodeBackgroundOffIndex = 0xE1;
     public const int OpcodeSoundIndex = 0xF1;
     public const int OpcodeAkaoIndex = 0xF2;
     public const int OpcodeMovieIndex = 0xF9;
 
     /// <summary>
-    /// MPNAM, the opcode that sets the field's own displayed area name. Every field
-    /// runs exactly one of these from its director entity's init, on every entry, so
-    /// it is the natural anchor for a description of what the area looks like: it
-    /// runs once when the player arrives and never again until the next arrival.
+    /// MPNAM sets the field's displayed area name. Proven entry occurrences can
+    /// anchor an area description, but some fields have multiple conditional
+    /// occurrences or none. The description tracker owns arrival deduplication.
     /// </summary>
     public const int OpcodeMapNameIndex = 0x43;
 

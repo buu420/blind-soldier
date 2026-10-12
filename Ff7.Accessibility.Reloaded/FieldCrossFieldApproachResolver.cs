@@ -56,7 +56,7 @@ public sealed class FieldCrossFieldApproachResolver
     private const int GatewayCount = 12;
 
     /// <summary>Where a MAPJUMP or gateway puts the party, and what its script is proven to have written first.</summary>
-    private sealed record NativeArrival(int X, int Y, int Triangle, FieldEntryWrites Writes);
+    private sealed record NativeArrival(int X, int Y, int Triangle, FieldEntryWrites Writes, bool AlreadyPlaced = false, int? Z = null);
 
     /// <summary>Where the party can move from after an arrival; Z is null when it is the walkmesh's own.</summary>
     private readonly record struct Placement(int X, int Y, int? Z, int Triangle);
@@ -66,6 +66,7 @@ public sealed class FieldCrossFieldApproachResolver
     private readonly IFieldNavigationRoutePlanner livePlanner;
     private readonly Func<FieldPositionSnapshot, FieldWalkmesh?> readLiveWalkmesh;
     private readonly Dictionary<int, FieldData?> fields = new();
+    private bool useReviewedEcho;
 
     public FieldCrossFieldApproachResolver(
         FieldScriptNavigationCatalog catalog,
@@ -110,6 +111,10 @@ public sealed class FieldCrossFieldApproachResolver
         }
 
         var originId = position.FieldId;
+        var currentLayout = catalog.ReadField(originId);
+        if (!currentLayout.IsUsable) { LastDiagnostic = "current loaded field layout unavailable"; return null; }
+        var reviewedEcho = currentLayout.UsesReviewedEchoLayout;
+        if (reviewedEcho != useReviewedEcho) { fields.Clear(); useReviewedEcho = reviewedEcho; }
         if (Field(originId) is not { } origin || readLiveWalkmesh(position) is not { } liveMesh)
         {
             LastDiagnostic = $"field {originId} data unavailable";
@@ -267,6 +272,9 @@ public sealed class FieldCrossFieldApproachResolver
         int triggerEntityId,
         int destination)
     {
+        if (field.ReviewedEcho)
+            return WholeGameEchoFutureMetadata.Arrivals(field.FieldId, stableId, destination)
+                .Select(p => new NativeArrival(p.X, p.Y, p.Triangle, FieldEntryWrites.None, true, p.Z)).ToArray();
         var parts = stableId.Split(':');
         if (parts.Length == 4 && parts[0] == "gateway" && int.TryParse(parts[2], out var gatewayIndex))
         {
@@ -298,8 +306,8 @@ public sealed class FieldCrossFieldApproachResolver
         {
             if (readDecodedField(fieldId) is { } bytes)
             {
-                var read = catalog.ReadDiskField(fieldId);
-                data = read.IsUsable ? new FieldData(fieldId, bytes, read, catalog.ReadAllScriptOpcodes(fieldId)) : null;
+                var read = catalog.ReadFutureFieldMetadata(fieldId, useReviewedEcho);
+                data = read.IsUsable ? new FieldData(fieldId, bytes, read, useReviewedEcho ? [] : catalog.ReadAllScriptOpcodes(fieldId), useReviewedEcho) : null;
             }
         }
         catch (Exception ex) when (ex is ArgumentException or IndexOutOfRangeException or InvalidDataException)
@@ -317,13 +325,15 @@ public sealed class FieldCrossFieldApproachResolver
         private readonly byte[] bytes;
         private readonly FieldScriptNavigationReadResult read;
 
-        public FieldData(int fieldId, byte[] bytes, FieldScriptNavigationReadResult read, IReadOnlyList<FieldScriptDefinition> scripts)
+        public FieldData(int fieldId, byte[] bytes, FieldScriptNavigationReadResult read, IReadOnlyList<FieldScriptDefinition> scripts, bool reviewedEcho = false)
         {
             FieldId = fieldId;
             this.bytes = bytes;
             this.read = read;
             Scripts = scripts;
-            Gateways = ReadGateways(fieldId, bytes);
+            ReviewedEcho = reviewedEcho;
+            Gateways = reviewedEcho ? WholeGameEchoFutureMetadata.Gateways(fieldId)
+                .Select(g => new Gateway(g.Index, g.Destination, g.Line, g.ArrivalX, g.ArrivalY, g.ArrivalTriangle)).ToArray() : ReadGateways(fieldId, bytes);
             // The installed walkmesh, with nothing locked: this field is not loaded, so its
             // live locks cannot be read. Its leg is started from its own live exit list.
             Planner = new FieldWalkmeshRoutePlanner(
@@ -332,6 +342,7 @@ public sealed class FieldCrossFieldApproachResolver
         }
 
         public int FieldId { get; }
+        public bool ReviewedEcho { get; }
 
         public IReadOnlyList<FieldScriptDefinition> Scripts { get; }
 
@@ -353,6 +364,7 @@ public sealed class FieldCrossFieldApproachResolver
 
         /// <summary>Where the party can first move from after <paramref name="arrival"/> (see <see cref="FieldEntryPlacement"/>).</summary>
         public Placement? Place(NativeArrival arrival) =>
+            arrival.AlreadyPlaced ? new Placement(arrival.X, arrival.Y, arrival.Z, arrival.Triangle) :
             FieldEntryPlacement.Place(Scripts, arrival.X, arrival.Y, arrival.Triangle, arrival.Writes) is { } placed
                 ? new Placement(placed.X, placed.Y, placed.Z, placed.Triangle)
                 : null;
