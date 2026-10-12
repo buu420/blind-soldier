@@ -19,6 +19,7 @@ internal static class Steam2026FieldCutsceneWaitTests
         ContractCapturesAStableSoundContextAcrossAnActiveHookLease(supportedRuntime);
         ContractAcceptsBothOpcodesForSharedTranslatedHandlers(supportedRuntime);
         DfanmIngressPreservesThePostDialogueAnimationContext(supportedRuntime);
+        BackgroundOffIngressPreservesItsExactPreOriginalContext(supportedRuntime);
         IngressCopiesContextBeforeCallingTheOriginalExactlyOnce(supportedRuntime);
         SoundIngressCopiesContextBeforeCallingTheOriginalExactlyOnce(supportedRuntime);
         IngressContainsOriginalAndQueueFailures(supportedRuntime);
@@ -47,7 +48,8 @@ internal static class Steam2026FieldCutsceneWaitTests
             (Steam2026FieldCutsceneCallbackKind.Sound, 0x00613A2Du, 0x016EA430ul, 0x00BB72C0ul, "48895C2408574883EC208B0DF8224801"),
             (Steam2026FieldCutsceneCallbackKind.Akao, 0x006137F9u, 0x016EA410ul, 0x00BB6620ul, "48895C2408574883EC208B0D982F4801"),
             (Steam2026FieldCutsceneCallbackKind.Movie, 0x0061A321u, 0x016EAB60ul, 0x00BD4A70ul, "48895C2408574883EC208B0D484B4601"),
-            ((Steam2026FieldCutsceneCallbackKind)15, 0x00614424u, 0x016EA580ul, 0x00BBA510ul, "48895C2408574883EC208B0DA8F04701")
+            ((Steam2026FieldCutsceneCallbackKind)15, 0x00614424u, 0x016EA580ul, 0x00BBA510ul, "48895C2408574883EC208B0DA8F04701"),
+            (Steam2026FieldCutsceneCallbackKind.BackgroundOff, 0x0061A0ACu, 0x016EAB10ul, 0x00BD3F20ul, "48895C24084889742410574883EC208B0D935646018B1D9156460183C1FC890D")
         };
 
         Equal(expected.Length, Enum.GetValues<Steam2026FieldCutsceneCallbackKind>().Length,
@@ -108,6 +110,40 @@ internal static class Steam2026FieldCutsceneWaitTests
             false,
             contract.TryCaptureContext(identity, out _),
             "shared animation handler rejects MESSAGE");
+    }
+
+    private static void BackgroundOffIngressPreservesItsExactPreOriginalContext(
+        Steam2026FingerprintResult supportedRuntime)
+    {
+        var kind = Steam2026FieldCutsceneCallbackKind.BackgroundOff;
+        var fixture = CreateFixture(FieldOpcodeAddressResolver.OpcodeBackgroundOffIndex);
+        var contract = CreateExactContract(fixture, supportedRuntime);
+        Equal(true, contract.TryValidateCaptureIdentity(kind, out var identity), "BGOFF distinct pristine identity");
+        Equal(FieldOpcodeAddressResolver.OpcodeBackgroundOffIndex,
+            ReadContext(contract, identity, "BGOFF").Opcode, "BGOFF context is captured");
+        Equal(true, contract.TryValidateCaptureIdentity(Steam2026FieldCutsceneCallbackKind.BackgroundOn, out var onIdentity),
+            "BGON distinct identity remains available");
+        Equal(false, contract.TryCaptureContext(onIdentity, out _), "BGON cannot claim BGOFF context");
+        WriteCurrentOpcode(fixture, FieldOpcodeAddressResolver.OpcodeBackgroundOnIndex);
+        Equal(false, contract.TryCaptureContext(identity, out _), "BGOFF cannot claim BGON context");
+        WriteCurrentOpcode(fixture, FieldOpcodeAddressResolver.OpcodeBackgroundOffIndex);
+        var expected = ReadContext(contract, identity, "BGOFF");
+        var originalCalls = 0;
+        var queue = new BoundedNativeIngressQueue<Steam2026FieldCutsceneIngressSnapshot>(2);
+        using var ingress = new Steam2026FieldCutsceneDetourIngressCoordinator(contract, kind,
+            () =>
+            {
+                originalCalls++;
+                Equal(false, queue.TryDequeue(out _), "BGOFF publishes after original");
+                fixture.Write((uint)FieldScriptContextReader.AddressFieldCurrScriptPosition,
+                    BitConverter.GetBytes((ushort)0x0124));
+            }, () => Timestamp, queue);
+        fixture.Native.Write(identity.HostAddress, [0xE9]);
+        contract.ActivateHookLease(_ => true);
+        ingress.OnCallback();
+        Equal(1, originalCalls, "BGOFF original executes exactly once");
+        Equal(true, queue.TryDequeue(out var snapshot), "BGOFF context is queued");
+        Equal(expected, snapshot.Context, "BGOFF preserves four-byte pre-original position");
     }
 
     private static void DfanmIngressPreservesThePostDialogueAnimationContext(
@@ -373,7 +409,7 @@ internal static class Steam2026FieldCutsceneWaitTests
     private static void DescriptionSpeechRetriesWithoutLosingTheCue()
     {
         var fixture = CreateWaitFixture();
-        var coordinator = new Steam2026FieldCutsceneDescriptionCoordinator(fixture.Direct);
+        var coordinator = KnownStockCoordinator(fixture.Direct);
         Equal(true, coordinator.Observe(CreateOpeningSnapshot()), "opening WAIT cue queued");
 
         var attempts = 0;
@@ -424,7 +460,7 @@ internal static class Steam2026FieldCutsceneWaitTests
     private static void DescriptionSpeechDefersForReadableDialogueAndFailsClosed()
     {
         var fixture = CreateWaitFixture();
-        var coordinator = new Steam2026FieldCutsceneDescriptionCoordinator(fixture.Direct);
+        var coordinator = KnownStockCoordinator(fixture.Direct);
         Equal(true, coordinator.Observe(CreateOpeningSnapshot()), "dialogue-gated WAIT cue queued");
         fixture.Write(
             (uint)FieldAudibleCueStateReader.AddressActiveFieldMessageCount,
@@ -477,7 +513,7 @@ internal static class Steam2026FieldCutsceneWaitTests
             "WAIT narration resumes when foreground and dialogue gates are clear");
         Equal(1, speechCalls, "resumed WAIT narration reaches output once");
 
-        var invalid = new Steam2026FieldCutsceneDescriptionCoordinator(fixture.Direct);
+        var invalid = KnownStockCoordinator(fixture.Direct);
         Equal(
             false,
             invalid.Observe(CreateOpeningSnapshot() with
@@ -575,6 +611,9 @@ internal static class Steam2026FieldCutsceneWaitTests
             "cutscene hook set owns one ingress coordinator per catalog identity");
     }
 
+    private static Steam2026FieldCutsceneDescriptionCoordinator KnownStockCoordinator(Ff7.Accessibility.LegacyLayout.ILegacyAddressSpace memory) =>
+        new(memory, FieldCutsceneDescriptionCatalog.CreateEarlyGameDescriptions(), useLoadedScriptIdentity: true,
+            readIdentity: () => new LoadedFieldScriptIdentity(116, EchoSCompatibilityManifest.GetVanillaFingerprint(116)!));
     private static FieldObservationFixture CreateWaitFixture() =>
         CreateFixture(FieldOpcodeAddressResolver.OpcodeWaitIndex);
 

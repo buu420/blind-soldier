@@ -697,6 +697,7 @@ public sealed class FieldNavigationNpcReader
     private readonly HashSet<(int FieldId, int EntityId)> excludedEntities;
     private readonly Func<int, bool>? isLineEnabled;
     private readonly Func<int, bool>? useVerifiedFallback;
+    private readonly Func<FieldScriptNpcDefinition, FieldScriptNpcDefinition?>? definitionRemapper;
 
     public FieldNavigationNpcReader(
         Func<int, int> readInt32,
@@ -706,7 +707,8 @@ public sealed class FieldNavigationNpcReader
         Func<int, IReadOnlyList<FieldScriptNpcDefinition>> definitionProvider,
         IEnumerable<(int FieldId, int EntityId)>? excludedEntities = null,
         Func<int, bool>? isLineEnabled = null,
-        Func<int, bool>? useVerifiedFallback = null)
+        Func<int, bool>? useVerifiedFallback = null,
+        Func<FieldScriptNpcDefinition, FieldScriptNpcDefinition?>? definitionRemapper = null)
     {
         this.readInt32 = readInt32;
         this.readInt16 = readInt16;
@@ -716,6 +718,7 @@ public sealed class FieldNavigationNpcReader
         this.excludedEntities = excludedEntities?.ToHashSet() ?? [];
         this.isLineEnabled = isLineEnabled;
         this.useVerifiedFallback = useVerifiedFallback;
+        this.definitionRemapper = definitionRemapper;
     }
 
     public IReadOnlyList<FieldNavigationTarget> ReadTargets(FieldPositionSnapshot position)
@@ -748,7 +751,7 @@ public sealed class FieldNavigationNpcReader
         foreach (var definition in definitions)
         {
             // Reviewed loaded identities supersede the stock object-id exclusions.
-            if (definition.ReviewedLabel is null && excludedEntities.Contains((definition.FieldId, definition.EntityId)))
+            if (definition.ReviewedLabel is null && excludedEntities.Contains((definition.FieldId, CanonicalEntity(definition))))
             {
                 continue;
             }
@@ -878,7 +881,7 @@ public sealed class FieldNavigationNpcReader
     private bool IsConversationStillPending(FieldScriptNpcDefinition definition)
     {
         if (!VerifiedPendingConversations.TryGetValue(
-                (definition.FieldId, definition.EntityId),
+                (definition.FieldId, CanonicalEntity(definition)),
                 out var pending))
         {
             return true;
@@ -890,7 +893,7 @@ public sealed class FieldNavigationNpcReader
         return (readByte(address) & pending.Mask) != 0;
     }
 
-    private static IReadOnlyList<FieldScriptNpcDefinition> MergeVerifiedDefinitions(
+    private IReadOnlyList<FieldScriptNpcDefinition> MergeVerifiedDefinitions(
         int fieldId,
         IReadOnlyList<FieldScriptNpcDefinition> scriptedDefinitions)
     {
@@ -898,6 +901,9 @@ public sealed class FieldNavigationNpcReader
         {
             return scriptedDefinitions;
         }
+
+        if (definitionRemapper is not null)
+            verifiedDefinitions = verifiedDefinitions.Select(definitionRemapper).Where(d => d.HasValue).Select(d => d!.Value).ToArray();
 
         var merged = new List<FieldScriptNpcDefinition>(
             scriptedDefinitions.Count + verifiedDefinitions.Count);
@@ -946,17 +952,21 @@ public sealed class FieldNavigationNpcReader
     }
 
     private static bool IsConditionalBedsideProxy(FieldScriptNpcDefinition definition) =>
-        definition.FieldId == 175 && definition.EntityId == 5;
+        definition.FieldId == 175 && CanonicalEntity(definition) == 5;
+
+    private static int CanonicalEntity(FieldScriptNpcDefinition definition) => definition.ReviewedStockEntityId ?? definition.EntityId;
 
     private string ResolveLabel(FieldScriptNpcDefinition definition)
     {
-        if (definition.ReviewedLabel is { } reviewed) return reviewed;
+        if (definition.ReviewedLabel is { Length: > 0 } reviewed) return reviewed;
+        if (definition.ReviewedLabel is not null && definition.ReviewedModelLabel is null) return string.Empty;
         if (VerifiedLabels.TryGetValue(
-                (definition.FieldId, definition.EntityId),
+                (definition.FieldId, CanonicalEntity(definition)),
                 out var verifiedLabel))
         {
             return verifiedLabel;
         }
+        if (definition.ReviewedModelLabel is { } nativeKnownLabel) return nativeKnownLabel;
 
         if (ReviewedLabelFields.Contains(definition.FieldId))
         {
@@ -988,6 +998,11 @@ public sealed class FieldNavigationNpcReader
         {
             return role;
         }
+
+        // Loaded Echo-S MESSAGE indices address its replacement text table. The
+        // installed stock resolver cannot name this model from those indices.
+        // Reviewed canonical labels and native model roles above remain available.
+        if (definition.SuppressInstalledDialogueLabels) return string.Empty;
 
         // Nobody with a role, so fall back to a heading on the entity's own dialogue.
         // This is what names the people the role vocabulary has no word for: the party in

@@ -16,6 +16,240 @@ internal static class HighwayAccessibilityCoordinatorTests
         EnablesSteeringWithTheApprovedDefaults();
         RejectsEnemyCueWithoutAKnownAttackSide();
         RejectsAZeroLengthSpatialVector();
+        RetriesDeclinedEntryAndToggleSpeech();
+        KeepsEntryPendingAcrossUnavailableAndBackgroundFrames();
+        RetriesOnlyTheCurrentlyVisibleBanner();
+        CancelsPendingSpeechWhenTheRideEnds();
+        BoundsAutomaticRetriesAndFailureLogs();
+        RetriesAFalsePrismBackendResultThroughTheHostGuard();
+        SpeechRetryPreservesTheHeldRoadCorrection();
+    }
+
+    private static void RetriesDeclinedEntryAndToggleSpeech()
+    {
+        var memory = new BikeMemory();
+        var spoken = new List<string>();
+        var declined = true;
+        using var coordinator = CreateLivePipeline(memory, (text, interrupt) =>
+        {
+            Equal(true, interrupt, "mode delivery interrupts once as a single utterance");
+            if (declined) throw new InvalidOperationException("Prism unavailable");
+            spoken.Add(text);
+        });
+        coordinator.Update(UtcNow(), true, true, false, false);
+        declined = false;
+        coordinator.Update(UtcNow().AddSeconds(1), true, true, false, false);
+        Equal("Motorcycle auto steering on.", string.Join("|", spoken),
+            "entry mode must remain retryable after a refused delivery");
+        coordinator.Update(UtcNow().AddSeconds(2), true, true, false, false);
+        Equal(1, spoken.Count, "accepted entry does not repeat each poll");
+
+        declined = true;
+        coordinator.Update(UtcNow().AddSeconds(3), true, true, false, true);
+        declined = false;
+        coordinator.Update(UtcNow().AddSeconds(4), true, true, false, false);
+        Equal("Motorcycle auto steering off. Steering beeps on.", spoken.Last(),
+            "a failed F8 announcement retries the resulting mode without toggling twice");
+        coordinator.Update(UtcNow().AddSeconds(5), true, true, false, true);
+        Equal("Motorcycle auto steering on.", spoken.Last(), "next F8 still restores automatic mode");
+    }
+
+    private static void KeepsEntryPendingAcrossUnavailableAndBackgroundFrames()
+    {
+        var memory = new BikeMemory { Available = false };
+        var spoken = new List<string>();
+        using var coordinator = CreateLivePipeline(memory, (text, _) => spoken.Add(text));
+        coordinator.Update(UtcNow(), true, true, false, false);
+        memory.Available = true;
+        coordinator.Update(UtcNow().AddSeconds(1), true, false, false, true);
+        Equal(0, spoken.Count, "unreadable and background polls do not consume or toggle entry");
+        coordinator.Update(UtcNow().AddSeconds(2), true, true, false, false);
+        Equal("Motorcycle auto steering on.", spoken.Single(), "first valid foreground ownership speaks");
+        memory.Available = false;
+        coordinator.Update(UtcNow().AddSeconds(3), true, true, false, false);
+        memory.Available = true;
+        coordinator.Update(UtcNow().AddSeconds(4), true, true, false, false);
+        coordinator.Update(UtcNow().AddSeconds(5), true, false, false, false);
+        coordinator.Update(UtcNow().AddSeconds(6), true, true, false, false);
+        Equal(1, spoken.Count, "accepted mode survives transient reads and foreground changes without repetition");
+    }
+
+    private static void RetriesOnlyTheCurrentlyVisibleBanner()
+    {
+        var memory = new BikeMemory();
+        memory.Int32(HighwayStateReader.AddressStoryMode, 1);
+        memory.Int32(HighwayStateReader.AddressHudPointer, 0x10000);
+        memory.Int32(0x10000, 1); // READY is visible.
+        var spoken = new List<string>();
+        var declined = true;
+        using var coordinator = CreateLivePipeline(memory, (text, _) =>
+        {
+            if (declined) throw new InvalidOperationException("Prism unavailable");
+            spoken.Add(text);
+        });
+        coordinator.Update(UtcNow(), true, true, false, false);
+        declined = false;
+        coordinator.Update(UtcNow().AddSeconds(1), true, true, false, false);
+        Equal("Motorcycle auto steering on. Ready.", spoken.Single(),
+            "mode and still visible READY are retried together instead of cancelling one another");
+        memory.Int32(0x10000, 3); // GO is now visible.
+        declined = true;
+        coordinator.Update(UtcNow().AddSeconds(2), true, true, false, true);
+        memory.Int32(0x10000, 0); // GO has left the HUD before retry.
+        declined = false;
+        coordinator.Update(UtcNow().AddSeconds(3), true, true, false, false);
+        Equal("Motorcycle auto steering off. Steering beeps on.", spoken.Last(),
+            "retry says current mode without replaying an expired banner");
+    }
+
+    private static void CancelsPendingSpeechWhenTheRideEnds()
+    {
+        var memory = new BikeMemory();
+        var spoken = new List<string>();
+        var declined = true;
+        using var coordinator = CreateLivePipeline(memory, (text, _) =>
+        {
+            if (declined) throw new InvalidOperationException("Prism unavailable");
+            spoken.Add(text);
+        });
+        coordinator.Update(UtcNow(), true, true, false, false);
+        declined = false;
+        coordinator.Update(UtcNow().AddSeconds(1), false, true, false, false);
+        Equal(0, spoken.Count, "failed ride speech does not leak into another module");
+        coordinator.Update(UtcNow().AddSeconds(2), true, true, false, false);
+        Equal("Motorcycle auto steering on.", spoken.Single(), "next ride gets its own mode announcement");
+    }
+
+    private static HighwayAccessibilityCoordinator CreateLivePipeline(BikeMemory memory, Action<string, bool> speak) =>
+        new(new AccessibilityConfig { EnableHighwaySteeringGuidance = false }, memory,
+            Path.Combine(Path.GetTempPath(), "blind-soldier-bike-no-audio"), speak, _ => { },
+            new HighwayAutoSteeringController(new NoPhysicalInput()));
+
+    private static void BoundsAutomaticRetriesAndFailureLogs()
+    {
+        var attempts = new List<DateTime>();
+        var logs = new List<string>();
+        var now = UtcNow();
+        using var coordinator = new HighwayAccessibilityCoordinator(
+            new AccessibilityConfig { EnableHighwaySteeringGuidance = false }, new BikeMemory(),
+            Path.Combine(Path.GetTempPath(), "blind-soldier-bike-no-audio"), (_, _) =>
+            {
+                attempts.Add(now);
+                throw new InvalidOperationException("Prism unavailable");
+            }, logs.Add, new HighwayAutoSteeringController(new NoPhysicalInput()));
+        for (var ms = 0; ms <= 1100; ms += 50)
+        {
+            now = UtcNow().AddMilliseconds(ms);
+            coordinator.Update(now, true, true, false, false);
+        }
+        Equal("0|500|1000", string.Join("|", attempts.Select(at => (at - UtcNow()).TotalMilliseconds)),
+            "the backend receives at most one automatic retry every 500 ms");
+        Equal(1, logs.Count(line => line.Contains("Prism speech failed", StringComparison.Ordinal)),
+            "an unchanged backend failure is logged once rather than each retry");
+    }
+
+    private sealed class NoPhysicalInput : IHighwayKeyboardInputSink
+    {
+        public HighwayKeyboardSendResult Send(IReadOnlyList<HighwayKeyboardTransition> transitions) =>
+            throw new InvalidOperationException("This speech-only fixture must not issue gameplay input.");
+    }
+
+    private static void RetriesAFalsePrismBackendResultThroughTheHostGuard()
+    {
+        var accepted = new List<string>();
+        var available = false;
+        using var speaker = new PrismNativeSpeaker(_ => { }, (nint)1, (nint)2,
+            (_, text, _) =>
+            {
+                if (!available) return (PrismError)(-1);
+                accepted.Add(System.Runtime.InteropServices.Marshal.PtrToStringUTF8(text)!);
+                return PrismError.Ok;
+            }, _ => { });
+        using var coordinator = CreateLivePipeline(new BikeMemory(), (text, interrupt) =>
+        {
+            // Same checked bridge used by the legacy host: a false native backend
+            // result must become rejection rather than a successful void return.
+            if (!speaker.Speak(text, interrupt)) throw new InvalidOperationException("Prism did not accept the highway speech request.");
+        });
+        coordinator.Update(UtcNow(), true, true, false, false);
+        available = true;
+        coordinator.Update(UtcNow().AddSeconds(1), true, true, false, false);
+        Equal("Motorcycle auto steering on.", accepted.Single(),
+            "a false Prism result traverses the checked host bridge and remains retryable");
+    }
+
+    private static void SpeechRetryPreservesTheHeldRoadCorrection()
+    {
+        var memory = new BikeMemory();
+        memory.Int32(HighwayStateReader.AddressStoryMode, 1);
+        memory.Int32(HighwayStateReader.AddressActorTable + HighwayStateReader.ActorLateralOffset, 190 * 256);
+        var enemy = HighwayStateReader.AddressActorTable + 2 * HighwayStateReader.ActorStride;
+        memory.Int32(enemy + HighwayStateReader.ActorHitPointsOffset, 5);
+        memory.Int32(enemy + HighwayStateReader.ActorTypeOffset, 10);
+        memory.Int32(enemy + HighwayStateReader.ActorLateralOffset, 400 * 256);
+        memory.Int32(enemy + HighwayStateReader.ActorLongitudinalOffset, 150 * 256);
+        memory.Int32(HighwayRoadStateReader.AddressRoadScroll, 0);
+        memory.Int32(HighwayRoadStateReader.AddressRoadStatePointer, 0x20000);
+        memory.Int32(0x20000 + (int)HighwayRoadStateReader.RoadRingPointerOffset, 0x30000);
+        memory.Int32(0x30000 + (int)HighwayRoadStateReader.RoadWidthSampleOffset, (250 + 96) * 2);
+        var transitions = new List<HighwayKeyboardTransition>();
+        var declined = true;
+        using var coordinator = new HighwayAccessibilityCoordinator(new AccessibilityConfig(), memory,
+            Path.Combine(Path.GetTempPath(), "blind-soldier-bike-no-audio"), (_, _) =>
+            {
+                if (declined) throw new InvalidOperationException("Prism unavailable");
+            }, _ => { }, new HighwayAutoSteeringController(new CapturedInput(transitions)));
+        coordinator.Update(UtcNow(), true, true, false, false);
+        Equal("75", string.Join("|", transitions.Where(t => t.IsKeyDown).Select(t => t.ScanCode)),
+            "critical road edge owns left steering before the refused announcement");
+        memory.Int32(HighwayStateReader.AddressActorTable + HighwayStateReader.ActorLateralOffset, 150 * 256);
+        declined = false;
+        coordinator.Update(UtcNow().AddSeconds(1), true, true, false, false);
+        Equal("75", string.Join("|", transitions.Where(t => t.IsKeyDown).Select(t => t.ScanCode)),
+            "speech retry keeps the held left correction at ratio 0.60 instead of resetting hysteresis");
+    }
+
+    private sealed class CapturedInput(List<HighwayKeyboardTransition> transitions) : IHighwayKeyboardInputSink
+    {
+        public HighwayKeyboardSendResult Send(IReadOnlyList<HighwayKeyboardTransition> batch)
+        {
+            transitions.AddRange(batch);
+            return new HighwayKeyboardSendResult(batch.Count, 0);
+        }
+    }
+
+    // Native reader fixture. No process memory, physical keyboard, audio or Prism calls.
+    private sealed class BikeMemory : ILegacyAddressSpace
+    {
+        private readonly Dictionary<uint, byte> bytes = new();
+        internal bool Available { get; set; } = true;
+        internal BikeMemory()
+        {
+            bytes[(uint)HighwayStateReader.AddressCurrentModule] = HighwayStateReader.HighwayModule;
+            for (var i = 0; i < HighwayStateReader.ActorCount * HighwayStateReader.ActorStride; i++)
+                bytes[(uint)(HighwayStateReader.AddressActorTable + i)] = 0;
+            for (var i = 0; i < HighwayStateReader.PartySlotCount * HighwayStateReader.PartyHealthStride; i++)
+                bytes[(uint)(HighwayStateReader.AddressPartyHealth + i)] = 0;
+            Int32(HighwayStateReader.AddressActorTable + HighwayStateReader.ActorStride + HighwayStateReader.ActorLongitudinalOffset, 800 * 256);
+            Int32(HighwayStateReader.AddressStoryMode, 0);
+            Int32(HighwayStateReader.AddressScore, 0);
+            Int32(HighwayStateReader.AddressHighScore, 0);
+        }
+        internal void Int32(int address, int value)
+        {
+            var valueBytes = BitConverter.GetBytes(value);
+            for (var i = 0; i < valueBytes.Length; i++) bytes[(uint)(address + i)] = valueBytes[i];
+        }
+        public bool TryRead(uint virtualAddress, Span<byte> destination)
+        {
+            if (!Available) return false;
+            for (var i = 0; i < destination.Length; i++)
+            {
+                if (!bytes.TryGetValue(virtualAddress + (uint)i, out var value)) return false;
+                destination[i] = value;
+            }
+            return true;
+        }
     }
 
     private static void MapsTheCheckedGuestSnapshotWithoutArchitectureState()

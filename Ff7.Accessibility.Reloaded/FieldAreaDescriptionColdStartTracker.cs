@@ -3,8 +3,9 @@ namespace Ff7.Accessibility.Reloaded;
 /// <summary>
 /// Delivers an area description for a field whose own entry anchor was never seen.
 ///
-/// The area descriptions run from MPNAM, which every field executes once from its
-/// director's init. That is the right anchor while the mod is already attached, but
+/// Native entry descriptions run from reviewed MPNAM occurrences. Other reviewed
+/// backgrounds have no such event and use a stable observed-field arrival. An entry
+/// event is the right anchor while the mod is already attached, but
 /// it is missed outright in two ordinary cases: the mod attaching to a game that is
 /// already standing in a room, and a save loaded straight into one. In both the
 /// player arrives somewhere and is told nothing about it, which is the failure this
@@ -47,7 +48,7 @@ public sealed class FieldAreaDescriptionColdStartTracker
     {
         ArgumentNullException.ThrowIfNull(areaCues);
         this.areaCues = areaCues
-            .Where(cue => cue.Opcode == FieldOpcodeAddressResolver.OpcodeMapNameIndex)
+            .Where(cue => cue.ObservationOnly || cue.Opcode == FieldOpcodeAddressResolver.OpcodeMapNameIndex)
             .GroupBy(cue => cue.FieldId)
             .ToDictionary(group => group.Key, group => group.First());
     }

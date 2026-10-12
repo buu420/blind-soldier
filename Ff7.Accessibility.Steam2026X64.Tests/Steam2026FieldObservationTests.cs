@@ -816,6 +816,7 @@ internal sealed class FieldObservationFixture
         WriteByte(FieldAudibleCueStateReader.AddressUserControl, 0);
         WriteByte(FieldAudibleCueStateReader.AddressActiveFieldMessageCount, 0);
         Write((uint)FieldAudibleCueStateReader.AddressFieldMovieActive, BitConverter.GetBytes((ushort)0));
+        WriteByte(FieldAudibleCueStateReader.AddressFieldBackgroundMovieMode, 0);
 
         Write((uint)FieldNavigationControlReader.AddressFieldTriggersPtr, BitConverter.GetBytes(TriggerPointer));
         Write(TriggerPointer + FieldNavigationControlReader.ControlDirectionOffset, [0xA0]);

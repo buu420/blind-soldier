@@ -7,6 +7,32 @@ using Ff7.Accessibility.Steam2026X64.Runtime.Field;
 using Ff7.Accessibility.LegacyLayout;
 using System.Text.Json;
 
+if (args.Contains("--remaining-narration-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.RemainingFieldDescriptionTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.LateGameMotionActionDescriptionTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.LifestreamMotionActionDescriptionTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.LateStoryMotionCompletionDescriptionTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.NativeCreditsSnapshotReaderTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.NativeCreditsObservationIngressTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.NativeCreditsNarratorTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.NativeObservedCaptionNarratorTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.NativeCreditsTitleObservationIngressTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.FieldRoomPresentationTests.Run();
+    Steam2026FieldRoomDescriptionTests.Run();
+    Steam2026NarrationLifecycleTests.Run();
+    return;
+}
+
+if (args.Contains("--echo-narration-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.WholeGameEchoCompatibilityTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.EndgameMovieNarrationTests.Run();
+    HighwayAutoSteeringModeTrackerTests.Run();
+    HighwayAccessibilityCoordinatorTests.Run();
+    return;
+}
+
 // The Prism ABI probe re-enters this host as a child process and must do nothing else.
 if (args.Length == 1 && string.Equals(args[0], PrismAbiProbeTests.ProbeSwitch, StringComparison.Ordinal))
 {
@@ -733,6 +759,7 @@ if (args.Contains("--continuation-descriptions-only", StringComparer.OrdinalIgno
     Ff7.Accessibility.Reloaded.Tests.MotionActionDescriptionTests.RunAgainstInstalledArchive();
     Console.WriteLine("Steam 2026 x64 continuation description catalog and native tests passed.");
     Ff7.Accessibility.Reloaded.Tests.ContinuationDescriptionTests.RunPayloadReadiness();
+Ff7.Accessibility.Reloaded.Tests.RemainingFieldDescriptionTests.RunPayloadReadiness();
     Ff7.Accessibility.Reloaded.Tests.MotionActionDescriptionTests.RunPayloadReadiness();
     return;
 }
@@ -906,6 +933,13 @@ if (args.Contains("--battle-feedback-only", StringComparer.OrdinalIgnoreCase))
     Steam2026BattleAccessibilityCoordinatorTests.Run(native);
     Steam2026BattleVisibleFeedbackTests.Run(native);
     Console.WriteLine("Steam 2026 x64 battle result, timing, and callback tests passed.");
+    return;
+}
+
+if (args.Contains("--native-movie-only", StringComparer.OrdinalIgnoreCase))
+{
+    Steam2026NativeMovieHookTests.Run(native);
+NativeCreditsTitleHookGuardTests.Run(native);
     return;
 }
 
@@ -1107,12 +1141,29 @@ AssertNativeMovieCallbackContractRejectsForeignAndStaleIdentities(native);
 AssertNativeMovieCallbackCapturesAreStableUnderConcurrency(native);
 AssertNativeMovieCallbackContractRejectsWrappingModuleBase(native);
 AssertOpeningMovieLifecycleRequiresExactPathAndRisingStart(native);
+Ff7.Accessibility.Reloaded.Tests.WholeGameEchoCompatibilityTests.Run();
+Ff7.Accessibility.Reloaded.Tests.RemainingFieldDescriptionTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.LateGameMotionActionDescriptionTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.LifestreamMotionActionDescriptionTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.LateStoryMotionCompletionDescriptionTests.Run();
+Ff7.Accessibility.Reloaded.Tests.NativeCreditsSnapshotReaderTests.Run();
+Ff7.Accessibility.Reloaded.Tests.NativeCreditsObservationIngressTests.Run();
+Ff7.Accessibility.Reloaded.Tests.NativeCreditsNarratorTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.NativeObservedCaptionNarratorTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.NativeCreditsTitleObservationIngressTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.FieldRoomPresentationTests.Run();
+    Steam2026FieldRoomDescriptionTests.Run();
+    Steam2026NarrationLifecycleTests.Run();
+Ff7.Accessibility.Reloaded.Tests.EndgameMovieNarrationTests.Run();
+HighwayAutoSteeringModeTrackerTests.Run();
+HighwayAccessibilityCoordinatorTests.Run();
 AssertOpeningMovieLifecycleOrdersAndDeduplicatesEvents(native);
 AssertOpeningMovieLifecycleRejectsFailedAndNonOpeningSequences(native);
 AssertOpeningMovieLifecycleTerminalsResetCleanly(native);
 AssertNativeMovieCallbackContractHasNoRuntimeSideEffects();
 Steam2026NativeMovieIngressTests.Run(native);
 Steam2026NativeMovieHookTests.Run(native);
+NativeCreditsTitleHookGuardTests.Run(native);
 AssertNativeMemoryRegionReportsReadability();
 AssertTranslatedX86AddressSpaceReadsMappedPages();
 AssertTranslatedX86AddressSpaceReadsAcrossNoncontiguousPages();

@@ -58,6 +58,107 @@ internal static class Steam2026NativeDirectionalInputTests
         TheRealGuestWritePathLandsInTheGamesOwnPage();
         TheProductionDetourInstallsOverARealNativeFunction();
         AutowalkUsesTheNativeSink();
+        BikeSteeringStaysInTheNativeKeyboardBeyondTheLease();
+        BikeSteeringOnlyRenewsSuccessfulOwnedInput();
+    }
+
+    private static void BikeSteeringStaysInTheNativeKeyboardBeyondTheLease()
+    {
+        var host = new FakeHost();
+        var config = new AccessibilityConfig { EnableHighwaySteeringGuidance = false };
+        using var coordinator = host.CreateBikeCoordinator(config);
+        for (var ms = 0; ms <= 1600; ms += 100)
+        {
+            if (ms > 0) host.Advance(TimeSpan.FromMilliseconds(100));
+            coordinator.Update(host.Now, true, true, false, false);
+            host.Poll();
+            Equal(FieldNavigationInput.Up, host.ObservedDirection(),
+                $"unchanged bike direction remains in the game's rebuilt keyboard at {ms} ms");
+        }
+        coordinator.Update(host.Now, true, true, false, true);
+        host.Poll();
+        Equal(FieldNavigationInput.None, host.ObservedDirection(), "F8 manual mode releases the native bike direction immediately");
+        host.Advance(TimeSpan.FromMilliseconds(700));
+        coordinator.Update(host.Now, true, true, false, false);
+        host.Poll();
+        Equal(FieldNavigationInput.None, host.ObservedDirection(), "manual mode never renews or restores automatic input");
+        coordinator.Update(host.Now, true, true, false, true);
+        host.Poll();
+        Equal(FieldNavigationInput.Up, host.ObservedDirection(), "return to automatic mode acquires its direction");
+        host.IsForeground = false;
+        coordinator.Update(host.Now, true, false, false, false);
+        host.Poll();
+        Equal(FieldNavigationInput.None, host.ObservedDirection(), "background ownership releases native bike keys");
+        host.IsForeground = true;
+        host.Advance(TimeSpan.FromMilliseconds(700));
+        host.Poll();
+        Equal(FieldNavigationInput.None, host.ObservedDirection(), "focus restoration alone cannot resurrect released bike keys");
+        coordinator.Update(host.Now, true, true, false, false);
+        host.Poll();
+        Equal(FieldNavigationInput.Up, host.ObservedDirection(), "valid foreground bike poll reacquires steering");
+        host.Advance(Steam2026NativeDirectionalInputSink.Freshness + TimeSpan.FromMilliseconds(1));
+        host.Poll();
+        Equal(FieldNavigationInput.None, host.ObservedDirection(), "stopped coordinator still lets its lease expire");
+        coordinator.Update(host.Now, true, true, false, false);
+        host.Poll();
+        Equal(FieldNavigationInput.Up, host.ObservedDirection(), "a valid update restores an expired lease");
+        coordinator.Update(host.Now, false, true, false, false);
+        host.Poll();
+        Equal(FieldNavigationInput.None, host.ObservedDirection(), "module exit releases native bike input");
+    }
+
+    private static void BikeSteeringOnlyRenewsSuccessfulOwnedInput()
+    {
+        var refused = new FakeHost();
+        var refusedRenewals = 0;
+        using var refusedCoordinator = refused.CreateBikeCoordinator(
+            new AccessibilityConfig { EnableHighwaySteeringGuidance = false }, _ => refusedRenewals++);
+        refused.Hook.Dispose();
+        refusedCoordinator.Update(refused.Now, true, true, false, false);
+        Equal(0, refusedRenewals, "a refused native key press cannot renew ownership");
+
+        var host = new FakeHost();
+        var config = new AccessibilityConfig { EnableHighwaySteeringGuidance = false };
+        var renewals = 0;
+        using var coordinator = host.CreateBikeCoordinator(config, _ => renewals++);
+        coordinator.Update(host.Now, true, true, false, false);
+        host.Poll();
+        Equal(FieldNavigationInput.Up, host.ObservedDirection(), "the verified bike state acquires native keys");
+        var acceptedRenewals = renewals;
+        Equal(true, acceptedRenewals > 0, "accepted owned input renews its lease");
+        host.SetBikeModule(0);
+        host.HostHeldTokens = [TokenLeft];
+        coordinator.Update(host.Now, true, true, false, false);
+        host.Poll();
+        Equal(FieldNavigationInput.Left, host.ObservedDirection(), "unavailable snapshots release automatic keys and preserve physical input");
+        Equal(acceptedRenewals, renewals, "unavailable native state never renews keys");
+        host.SetBikeModule(HighwayStateReader.HighwayModule);
+        host.HostHeldTokens = [];
+        coordinator.Update(host.Now, true, true, false, false);
+        host.Poll();
+        Equal(FieldNavigationInput.Up, host.ObservedDirection(), "coherent state recovery reacquires native input");
+        acceptedRenewals = renewals;
+        config.EnableHighwayAccessibility = false;
+        coordinator.Update(host.Now, true, true, false, false);
+        host.Poll();
+        Equal(FieldNavigationInput.None, host.ObservedDirection(), "disabling accessibility releases owned native input");
+        Equal(acceptedRenewals, renewals, "disabled accessibility never renews keys");
+        config.EnableHighwayAccessibility = true;
+        coordinator.Update(host.Now, true, true, false, false);
+        host.Poll();
+        Equal(FieldNavigationInput.Up, host.ObservedDirection(), "enabled ownership can reacquire native input");
+        acceptedRenewals = renewals;
+        coordinator.Update(host.Now, true, true, false, true);
+        host.Poll();
+        Equal(FieldNavigationInput.None, host.ObservedDirection(), "manual mode releases native steering");
+        Equal(acceptedRenewals, renewals, "manual mode never renews keys");
+        coordinator.Update(host.Now, true, true, false, true);
+        acceptedRenewals = renewals;
+        host.IsForeground = false;
+        coordinator.Update(host.Now, true, false, false, false);
+        host.Poll();
+        Equal(FieldNavigationInput.None, host.ObservedDirection(), "background mode releases native steering");
+        Equal(acceptedRenewals, renewals, "background mode never renews keys");
     }
 
     /// <summary>
@@ -682,6 +783,31 @@ internal static class Steam2026NativeDirectionalInputTests
         }
 
         public void Renew() => sink.Renew(Now);
+
+        public HighwayAccessibilityCoordinator CreateBikeCoordinator(AccessibilityConfig config, Action<DateTime>? observeRenewal = null)
+        {
+            guest.Write((uint)HighwayStateReader.AddressCurrentModule, [HighwayStateReader.HighwayModule]);
+            guest.Write((uint)HighwayStateReader.AddressActorTable, new byte[HighwayStateReader.ActorCount * HighwayStateReader.ActorStride]);
+            guest.Write((uint)HighwayStateReader.AddressPartyHealth, new byte[HighwayStateReader.PartySlotCount * HighwayStateReader.PartyHealthStride]);
+            guest.Write((uint)HighwayStateReader.AddressStoryMode, BitConverter.GetBytes(0));
+            guest.Write((uint)HighwayStateReader.AddressScore, BitConverter.GetBytes(0));
+            guest.Write((uint)HighwayStateReader.AddressHighScore, BitConverter.GetBytes(0));
+            guest.Write((uint)(HighwayStateReader.AddressActorTable + HighwayStateReader.ActorStride + HighwayStateReader.ActorLongitudinalOffset), BitConverter.GetBytes(800 * 256));
+            var enemy = (uint)(HighwayStateReader.AddressActorTable + 2 * HighwayStateReader.ActorStride);
+            guest.Write(enemy + HighwayStateReader.ActorHitPointsOffset, BitConverter.GetBytes(5));
+            guest.Write(enemy + HighwayStateReader.ActorTypeOffset, BitConverter.GetBytes(10));
+            guest.Write(enemy + HighwayStateReader.ActorLateralOffset, BitConverter.GetBytes(300 * 256));
+            guest.Write(enemy + HighwayStateReader.ActorLongitudinalOffset, BitConverter.GetBytes(150 * 256));
+            return new(config, guest, Path.Combine(Path.GetTempPath(), "blind-soldier-bike-no-audio"),
+                (_, _) => { }, _ => { }, HighwayAutoSteeringController.CreateCurrentProcess(guest, sink), now =>
+                {
+                    observeRenewal?.Invoke(now);
+                    sink.Renew(now);
+                });
+        }
+
+        public void SetBikeModule(byte module) =>
+            guest.Write((uint)HighwayStateReader.AddressCurrentModule, [module]);
 
         public void CommandWorldSubmarine(FieldNavigationInput direction, bool thrust)
         {

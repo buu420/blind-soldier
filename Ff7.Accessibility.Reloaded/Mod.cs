@@ -146,6 +146,23 @@ public sealed class Mod : IModV1, IModV2
     private OpeningMovieDescription? openingMovieDescription;
     private OpeningMovieAudioTrackPlayer? openingMovieAudioTrackPlayer;
     private FieldMovieNarrationTracker? fieldMovieNarrationTracker;
+    private EndgameMovieNarrationTracker? endgameMovieNarration;
+    private LegacyNativeMoviePlaybackReader? endgameMovieReader;
+    private LegacyNativeMovieObservationHook? endgameMovieObserver;
+    private NativeMoviePlaybackSample? latestEndgameMovieSample;
+    private DateTime latestEndgameMovieObservedUtc;
+    private DateTime nextEndgameMovieSetupUtc;
+    private NativeCreditsNarrator? creditsNarration;
+    private NativeCreditsObservationConsumer? creditsConsumer;
+    private LegacyNativeCreditsObservationHook? creditsObserver;
+    private DateTime nextCreditsSetupUtc;
+    private string? creditsExecutableSha256;
+    private bool creditsObserverFailed;
+    private NativeObservedCaptionNarrator? creditsTitleNarration;
+    private NativeCreditsTitleObservationConsumer? creditsTitleConsumer;
+    private LegacyNativeCreditsTitleObservationHook? creditsTitleObserver;
+    private DateTime nextCreditsTitleSetupUtc;
+    private bool creditsTitleObserverFailed;
     private string modDirectory = AppContext.BaseDirectory;
     private string? gameRootDirectory;
     private Ff7GameLanguageContext? gameLanguage;
@@ -631,6 +648,9 @@ public sealed class Mod : IModV1, IModV2
         // The film narration plays on its own device, so a suspended mod would
         // otherwise keep describing a film the player is no longer watching.
         fieldMovieNarrationTracker?.Stop(FieldMovieNarrationStopReason.Suspended);
+        endgameMovieNarration?.Suspend();
+        creditsNarration?.Suspend();
+        creditsTitleNarration?.Suspend();
         speedSquareCoasterReadout?.Reset();
         submarineAccessibility?.Reset();
         submarineMissionOwnsInput = false;
@@ -654,6 +674,9 @@ public sealed class Mod : IModV1, IModV2
 
         bufferedKeyboardInput?.Invalidate();
         Volatile.Write(ref keyboardSessionActive, true);
+        endgameMovieNarration?.Resume();
+        creditsNarration?.Resume();
+        creditsTitleNarration?.Resume();
         Speak("Final Fantasy Seven accessibility mod resumed.");
     }
 
@@ -681,6 +704,12 @@ public sealed class Mod : IModV1, IModV2
             bufferedKeyboardInput?.Dispose();
             openingMovieAudioTrackPlayer?.Dispose();
             fieldMovieNarrationTracker?.Dispose();
+            endgameMovieObserver?.Dispose();
+            endgameMovieNarration?.Dispose();
+            creditsObserver?.Dispose();
+            creditsNarration?.Dispose();
+            creditsTitleObserver?.Dispose();
+            creditsTitleNarration?.Dispose();
             cutsceneVoicePlayer?.Dispose();
             battleAnimationNarration?.Dispose();
             basketballWindUpCuePlayer?.Dispose();
@@ -911,6 +940,19 @@ public sealed class Mod : IModV1, IModV2
             Log,
             () => fieldMovieNarrationTracker?.IsPlaying == true || battleAnimationNarration?.IsPlaying == true);
 
+        var endgameVoice = LoadCutsceneVoiceManifest();
+        endgameMovieNarration = new EndgameMovieNarrationTracker(
+            film => ReadFieldMovieNarrationCues(new(-1, -1, -1, -1, -1,
+                MovieFilmDescriptionCatalog.RecordingFileName(film), film, 0)),
+            text => endgameVoice.TryGet(text, out var clip) ? CreateCutsceneVoiceOutput(clip) : null,
+            text => Speak(text, interrupt: false), Log);
+        creditsNarration = new NativeCreditsNarrator(
+            () => endgameVoice.TryGet(NativeCreditsNarrator.Introduction, out var clip) ? CreateCutsceneVoiceOutput(clip) : null,
+            text => Speak(text, interrupt: false), Log);
+        creditsTitleNarration = new NativeObservedCaptionNarrator(
+            text => endgameVoice.TryGet(text, out var clip) ? CreateCutsceneVoiceOutput(clip) : null,
+            text => Speak(text, interrupt: false), Log);
+
         // The device is the only thing that knows a recording is still being heard: it
         // plays outside the screen reader, so neither Prism nor the word-count estimate
         // can see it. Field dialogue delivery waits on this.
@@ -1074,7 +1116,11 @@ public sealed class Mod : IModV1, IModV2
             config,
             legacyAddressSpace,
             modDirectory,
-            (text, interrupt) => { _ = Speak(text, interrupt); },
+            (text, interrupt) =>
+            {
+                if (!Speak(text, interrupt))
+                    throw new InvalidOperationException("The highway announcement was not accepted by the speech backend.");
+            },
             Log);
         navigationAutoWalkController?.Dispose();
         navigationAutoWalkController = NavigationAutoWalkController.CreateCurrentProcess();
@@ -1423,8 +1469,7 @@ public sealed class Mod : IModV1, IModV2
             entity => fieldScriptLineStateReader.TryReadSegment(entity, out var segment) ? segment : null,
             // The engine's own LINE OK state, so arrival at an OK machine is the game's verdict.
             entity => fieldScriptLineStateReader.TryReadOkState(entity, out var okState) ? okState : null,
-            definition => fieldScriptNavigationCatalog is { } catalog ? catalog.RemapObjectDefinition(definition) :
-                Sector7NavigationLayout.IsField(definition.FieldId) ? null : definition);
+            definition => fieldScriptNavigationCatalog?.RemapObjectDefinition(definition));
         fieldGatewayTargetReader = new FieldGatewayTargetReader(legacyAddressSpace);
         fieldScriptNavigationCatalog = gameRootDirectory is null
             ? null
@@ -1458,7 +1503,9 @@ public sealed class Mod : IModV1, IModV2
                 Array.Empty<FieldScriptNpcDefinition>(),
             fieldNavigationObjects.Select(definition => (definition.FieldId, definition.EntityId)),
             fieldScriptLineStateReader.IsEnabled,
-            useVerifiedFallback: fieldId => !Sector7NavigationLayout.IsField(fieldId));
+            useVerifiedFallback: fieldId => !Sector7NavigationLayout.IsField(fieldId) &&
+                fieldScriptNavigationCatalog?.ReadField(fieldId).IsUsable == true,
+            definitionRemapper: definition => fieldScriptNavigationCatalog?.RemapNpcDefinition(definition));
         var fieldScriptNavigationTransitionTracker = new FieldScriptNavigationTransitionTracker();
         var fieldControlledEntityReader = new FieldControlledEntityReader(legacyAddressSpace);
         var fieldStoryEvents = FieldStoryEventCatalog.CreateAllFields();
@@ -1469,8 +1516,8 @@ public sealed class Mod : IModV1, IModV2
             fieldStoryEvents,
             fieldScriptLineStateReader.IsEnabled,
             entity => fieldScriptLineStateReader.TryReadOkState(entity, out var storyOkState) ? storyOkState : null,
-            definition => fieldScriptNavigationCatalog is { } catalog ? catalog.RemapStoryDefinition(definition) :
-                Sector7NavigationLayout.IsField(definition.FieldId) ? null : definition);
+            definition => fieldScriptNavigationCatalog?.RemapStoryDefinition(definition),
+            nativeGuardReader: guard => fieldScriptNavigationCatalog?.ReadNativeGuard(guard));
         var fieldWalkmeshReader = new FieldWalkmeshReader(ReadInt32, ReadInt16);
         var fieldBoundaryStateReader = new FieldBoundaryStateReader(legacyAddressSpace);
         var fieldDynamicObstacleReader = new FieldNavigationDynamicObstacleReader(
@@ -1533,7 +1580,9 @@ public sealed class Mod : IModV1, IModV2
                     .ToArray();
                 // A destination whose MAPJUMP the field's own live flags keep from running is
                 // not a way out yet.
-                var guardedExits = FieldScriptExitGuards.Apply(enabledExits, result.ExitGuards, legacyAddressSpace);
+                var guardedExits = FieldScriptExitGuards.Apply(enabledExits, result.ExitGuards, legacyAddressSpace,
+                    result.UsesReviewedEchoLayout && fieldScriptNavigationCatalog is { } guardCatalog
+                        ? guardCatalog.ReadNativeGuard : null);
                 var branchedExits = FieldScriptExitBranchPolicy.Resolve(
                     position.FieldId,
                     gameMoment,
@@ -1868,6 +1917,9 @@ public sealed class Mod : IModV1, IModV2
                 TickFloor60SoldierTurnCue();
                 TickTitleMenuReader();
                 TickOpeningMovieDescription();
+                TickEndgameMovieDescriptions();
+                TickCreditsDescriptions();
+                TickCreditsTitleDescription();
                 TickFfnxPopupSpeech();
                 TickFieldCutsceneDescriptions();
                 TickFieldCountdownSpeech();
@@ -1906,6 +1958,9 @@ public sealed class Mod : IModV1, IModV2
                     junonParadeClaimsFieldInput = false;
                     navigationAutoWalkController?.Suspend();
                     fieldMovieNarrationTracker?.Stop(FieldMovieNarrationStopReason.Suspended);
+                    endgameMovieNarration?.Interrupt("x86 monitor loop fault");
+                    creditsNarration?.Interrupt("x86 monitor loop fault");
+                    creditsTitleNarration?.Interrupt("x86 monitor loop fault");
                 }
                 catch (Exception resetException)
                 {
@@ -4012,6 +4067,141 @@ public sealed class Mod : IModV1, IModV2
             : null;
     }
 
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate uint NativeMovieFrameGetter();
+
+    private void TickEndgameMovieDescriptions()
+    {
+        if (endgameMovieNarration is null || currentProcessLegacyAddressSpace is null) return;
+        var now = DateTime.UtcNow;
+        var enabled = Volatile.Read(ref keyboardSessionActive) && config.EnableSpeech
+            && config.EnableFieldCutsceneDescriptions && modSettingsMenu?.IsOpen != true;
+        var foreground = foregroundProcessGate.IsCurrentProcessForeground();
+        var memory = currentProcessLegacyAddressSpace;
+        if (!memory.TryReadUInt16(LegacyNativeMoviePlaybackReader.ModuleAddress, out var module)
+            || !memory.TryReadUInt16(LegacyNativeMoviePlaybackReader.ModuleAddress, out var secondModule)
+            || module != secondModule)
+        {
+            endgameMovieNarration.Observe(null, now, enabled, foreground);
+            return;
+        }
+
+        if (module is not 25 and not 28)
+        {
+            latestEndgameMovieSample = null;
+            endgameMovieNarration.Observe(new(string.Empty, module, 0, false, false), now, enabled, foreground);
+            return;
+        }
+
+        // Set up when the native ending module arrives. FFNx has finished installing
+        // its decoder by then, so this wraps the actual current update function.
+        if (endgameMovieObserver is null && hooks is not null && now >= nextEndgameMovieSetupUtc)
+        {
+            nextEndgameMovieSetupUtc = now.AddSeconds(5);
+            var getter = Marshal.GetDelegateForFunctionPointer<NativeMovieFrameGetter>(
+                (nint)LegacyNativeMoviePlaybackReader.GetterAddress);
+            if (LegacyNativeMoviePlaybackReader.TryCreate(Process.GetCurrentProcess(), memory, getter.Invoke,
+                    out var reader, out var readerDiagnostic)
+                && LegacyNativeMovieObservationHook.TryInstall(hooks, reader, out var observer, out var hookDiagnostic))
+            {
+                endgameMovieReader = reader;
+                endgameMovieObserver = observer;
+                Log(hookDiagnostic);
+            }
+            else Log($"Final movie narration is waiting for a verified decoder: {readerDiagnostic}");
+        }
+
+        if (endgameMovieObserver?.TryDrain(out var observation) == true)
+        {
+            latestEndgameMovieSample = observation.Sample;
+            latestEndgameMovieObservedUtc = observation.ObservedUtc;
+        }
+
+        var sample = latestEndgameMovieSample;
+        if (sample is { } cached && endgameMovieReader is { } currentReader)
+        {
+            // Flags and identity can be checked on this worker. Entering the game's
+            // stock COM getter belongs exclusively to the hooked decoder thread.
+            if (!currentReader.TryIsCurrentPlayback(cached, out var playing)) sample = null;
+            else if (!playing)
+            {
+                sample = new(string.Empty, module, 0, false, false);
+                latestEndgameMovieSample = null;
+            }
+            else if (now - latestEndgameMovieObservedUtc > TimeSpan.FromSeconds(2))
+                sample = cached with { IsPaused = true };
+        }
+        endgameMovieNarration.Observe(sample, now, enabled, foreground);
+    }
+
+    private void TickCreditsDescriptions()
+    {
+        if (creditsNarration is null || currentProcessLegacyAddressSpace is null) return;
+        var now = DateTime.UtcNow;
+        var memory = currentProcessLegacyAddressSpace;
+        creditsConsumer ??= new NativeCreditsObservationConsumer(memory, creditsNarration);
+        if (creditsObserver is null && !creditsObserverFailed && hooks is not null && now >= nextCreditsSetupUtc
+            && memory.TryReadByte(NativeCreditsSnapshotReader.AddressCurrentModule, out var module)
+            && module == NativeCreditsSnapshotReader.StaffCreditsModule)
+        {
+            nextCreditsSetupUtc = now.AddSeconds(5);
+            using var process = Process.GetCurrentProcess();
+            if (creditsExecutableSha256 is null && process.MainModule?.FileName is { } executable)
+            {
+                using var file = File.OpenRead(executable);
+                creditsExecutableSha256 = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(file));
+            }
+            var installed = LegacyNativeCreditsObservationHook.TryCreate(creditsExecutableSha256 ?? string.Empty,
+                memory, hooks, out var candidate, out var diagnostic);
+            if (installed) creditsObserver = candidate;
+            else if (candidate is not null) creditsObserverFailed = true;
+            Log(diagnostic);
+        }
+        NativeCreditsSnapshot? snapshot = null;
+        var observed = creditsObserver?.TryTakeLatest(out snapshot) == true;
+        if (creditsObserver?.HasOriginalFault == true)
+        {
+            creditsObserver.Dispose();
+            creditsObserverFailed = true;
+            observed = true;
+            snapshot = null;
+        }
+        creditsConsumer.Tick(observed, snapshot, DateTime.UtcNow,
+            Volatile.Read(ref keyboardSessionActive) && config.EnableSpeech && config.EnableFieldCutsceneDescriptions
+                && modSettingsMenu?.IsOpen != true, foregroundProcessGate.IsCurrentProcessForeground());
+    }
+
+    private void TickCreditsTitleDescription()
+    {
+        if (creditsTitleNarration is null || currentProcessLegacyAddressSpace is null) return;
+        var now = DateTime.UtcNow;
+        var memory = currentProcessLegacyAddressSpace;
+        creditsTitleConsumer ??= new NativeCreditsTitleObservationConsumer(memory, creditsTitleNarration);
+        if (creditsTitleObserver is null && !creditsTitleObserverFailed && hooks is not null && now >= nextCreditsTitleSetupUtc
+            && creditsExecutableSha256 is not null
+            && memory.TryReadByte(NativeCreditsSnapshotReader.AddressCurrentModule, out var module) && module == 28)
+        {
+            nextCreditsTitleSetupUtc = now.AddSeconds(5);
+            var installed = LegacyNativeCreditsTitleObservationHook.TryCreate(creditsExecutableSha256,
+                memory, hooks, out var candidate, out var diagnostic);
+            if (installed) creditsTitleObserver = candidate;
+            else if (candidate is not null) creditsTitleObserverFailed = true;
+            Log(diagnostic);
+        }
+        NativeCaptionObservation? caption = null;
+        var observed = creditsTitleObserver?.TryTakeLatest(out caption) == true;
+        if (creditsTitleObserver?.HasOriginalFault == true)
+        {
+            creditsTitleObserver.Dispose();
+            creditsTitleObserverFailed = true;
+            observed = true;
+            caption = null;
+        }
+        creditsTitleConsumer.Tick(observed, caption, DateTime.UtcNow,
+            Volatile.Read(ref keyboardSessionActive) && config.EnableSpeech && config.EnableFieldCutsceneDescriptions
+                && modSettingsMenu?.IsOpen != true, foregroundProcessGate.IsCurrentProcessForeground());
+    }
+
     private void TickOpeningMovieDescription()
     {
         if (openingMovieDescription is null)
@@ -4276,12 +4466,27 @@ public sealed class Mod : IModV1, IModV2
             _ = TryGetLoadedFieldScriptIdentity(fieldId, out _);
         }
 
+        // Scenery can be offered from a stable native room even when its language
+        // has separately verified navigation offsets. Unknown overrides stay silent.
+        var observedAreaKnown = loadedFieldScriptIdentityReader?.TryRead(out var areaIdentity) == true
+            && areaIdentity.FieldId == fieldId
+            && WholeGameEchoNavigationManifest.ResolveVariant(areaIdentity) != SupportedFieldScriptVariant.Unknown;
+        if (!observedAreaKnown)
+        {
+            fieldAreaDescriptionColdStart.Reset();
+            lock (fieldCutsceneDescriptionSync) pendingFieldCutsceneDescriptions.Clear();
+            return;
+        }
+
         // The area description normally runs from the field's own area-name opcode,
         // which is missed outright when the mod attaches to a game already standing
         // in a room, or when a save is loaded straight into one. This offers it from
         // a stable field observation instead, through the same queue, so it still
         // waits behind dialogue and still happens once per visit.
-        if (fieldAreaDescriptionColdStart.Observe(
+        var roomVisible = currentProcessLegacyAddressSpace is { } roomMemory
+            && new FieldRoomPresentationReader(roomMemory).IsRoomVisible(fieldId);
+        if (!roomVisible) fieldAreaDescriptionColdStart.Reset();
+        if (roomVisible && fieldAreaDescriptionColdStart.Observe(
                 FieldPositionReader.FieldModule, fieldId, DateTime.UtcNow) is { } coldStartCue)
         {
             lock (fieldCutsceneDescriptionSync)
@@ -4361,7 +4566,8 @@ public sealed class Mod : IModV1, IModV2
             () => FieldMovieNarrationTracker.TryDescribeRunningFilm(sample, out var paragraph)
                 ? paragraph
                 : null,
-            fieldAreaDescriptionGate.ShouldOffer);
+            fieldAreaDescriptionGate.ShouldOffer,
+            candidate => !FieldAreaDescriptionHistoryGate.IsRoomCue(candidate) || roomVisible);
 
         if (config.EnableFieldCutsceneDescriptionDiagnostics &&
             outcome is FieldCutsceneDeliveryOutcome.Narrated or FieldCutsceneDeliveryOutcome.Spoken)
@@ -6491,6 +6697,11 @@ public sealed class Mod : IModV1, IModV2
                 // button interrupts the screen reader, and no generic repeat-last
                 // buffer can recover it once a navigation line has replaced it.
                 var line = action == FieldNavigationAction.RepeatTarget
+                    && currentProcessLegacyAddressSpace is { } statusMemory
+                    && new FieldRoomPresentationReader(statusMemory).IsRoomVisible(result.Position.FieldId)
+                    && loadedFieldScriptIdentityReader?.TryRead(out var statusIdentity) == true
+                    && statusIdentity.FieldId == result.Position.FieldId
+                    && WholeGameEchoNavigationManifest.ResolveVariant(statusIdentity) != SupportedFieldScriptVariant.Unknown
                     ? FieldAreaDescriptionStatus.Append(speech.Value.Speech, result.Position.FieldId)
                     : speech.Value.Speech;
 
@@ -10606,6 +10817,13 @@ public sealed class Mod : IModV1, IModV2
                 return;
             }
 
+            var actorKey = EchoSCompatibilityManifest.ResolveCanonicalCueKey(context.Value, identity);
+            if (actorKey is { } canonicalActorKey
+                && (FieldLateGameMotionActionDescriptions.RequiresVisibleActor(canonicalActorKey)
+                    || FieldLifestreamMotionActionDescriptions.RequiresVisibleActor(canonicalActorKey)
+                    || FieldLateStoryMotionCompletionDescriptions.RequiresVisibleActor(canonicalActorKey))
+                && fieldActivityStateReader?.ReadModel(context.Value.FieldId, context.Value.EntityId).Status
+                    != FieldActivityReadStatus.Visible) return;
             var cue = fieldCutsceneDescriptionTracker.Observe(context.Value, identity);
             if (cue is null)
             {

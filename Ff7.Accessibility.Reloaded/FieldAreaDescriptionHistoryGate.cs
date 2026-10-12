@@ -33,7 +33,7 @@ public sealed class FieldAreaDescriptionHistoryGate
 
     /// <summary>Whether this cue is a room description rather than an event description.</summary>
     public static bool IsRoomCue(FieldCutsceneDescriptionCue cue) =>
-        cue.Opcode == FieldOpcodeAddressResolver.OpcodeMapNameIndex;
+        cue.ObservationOnly || cue.Opcode == FieldOpcodeAddressResolver.OpcodeMapNameIndex;
 
     /// <summary>
     /// Whether this cue should be offered to the player at all. False only for a room

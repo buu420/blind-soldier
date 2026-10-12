@@ -57,6 +57,10 @@ internal sealed class Steam2026ResearchSession : IDisposable
     private int started;
     private int disposed;
     private int resetRequested;
+    private readonly object narrationLifecycleSync = new();
+    private EndgameMovieNarrationTracker? activeEndgameNarration;
+    private NativeCreditsNarrator? activeCreditsNarration;
+    private NativeObservedCaptionNarrator? activeCreditsTitleNarration;
 
     internal Steam2026ResearchSession(
         Steam2026FingerprintResult fingerprint,
@@ -341,7 +345,13 @@ internal sealed class Steam2026ResearchSession : IDisposable
     internal void Suspend()
     {
         Interlocked.Exchange(ref resetRequested, 1);
-        resumeGate.Reset();
+        lock (narrationLifecycleSync)
+        {
+            resumeGate.Reset();
+            activeEndgameNarration?.Suspend();
+            activeCreditsNarration?.Suspend();
+            activeCreditsTitleNarration?.Suspend();
+        }
         Volatile.Read(ref activeKeyboardInput)?.InvalidateBufferedKeyboard();
         log("Native Steam 2026 research session suspended.");
 
@@ -355,9 +365,34 @@ internal sealed class Steam2026ResearchSession : IDisposable
     {
         Interlocked.Exchange(ref resetRequested, 1);
         Volatile.Read(ref activeKeyboardInput)?.InvalidateBufferedKeyboard();
-        resumeGate.Set();
+        lock (narrationLifecycleSync)
+        {
+            activeEndgameNarration?.Resume();
+            activeCreditsNarration?.Resume();
+            activeCreditsTitleNarration?.Resume();
+            resumeGate.Set();
+        }
         log("Native Steam 2026 research session resumed.");
         AnnounceLifecycle("Final Fantasy Seven accessibility mod resumed.");
+    }
+
+    internal void PublishNarrationOwners(EndgameMovieNarrationTracker endgame,
+        NativeCreditsNarrator credits, NativeObservedCaptionNarrator title)
+    {
+        lock (narrationLifecycleSync)
+        {
+            activeEndgameNarration = endgame;
+            activeCreditsNarration = credits;
+            activeCreditsTitleNarration = title;
+            if (!resumeGate.IsSet || cancellation.IsCancellationRequested)
+            {
+                endgame.Suspend(); credits.Suspend(); title.Suspend();
+            }
+            else
+            {
+                endgame.Resume(); credits.Resume(); title.Resume();
+            }
+        }
     }
 
     /// <summary>
@@ -410,8 +445,14 @@ internal sealed class Steam2026ResearchSession : IDisposable
             return;
         }
 
-        cancellation.Cancel();
-        resumeGate.Set();
+        lock (narrationLifecycleSync)
+        {
+            cancellation.Cancel();
+            activeEndgameNarration?.Suspend();
+            activeCreditsNarration?.Suspend();
+            activeCreditsTitleNarration?.Suspend();
+            resumeGate.Set();
+        }
         if (Volatile.Read(ref started) != 0
             && Thread.CurrentThread != worker
             && !worker.Join(TimeSpan.FromSeconds(3)))
@@ -443,6 +484,18 @@ internal sealed class Steam2026ResearchSession : IDisposable
         Steam2026NativeMovieHookSet? movieHookSet = null;
         Steam2026FieldCutsceneHookSet? cutsceneHookSet = null;
         Steam2026FieldCutsceneDescriptionCoordinator? cutsceneDescriptions = null;
+        Steam2026NativeMovieStateReader? endgameMovieReader = null;
+        EndgameMovieNarrationTracker? endgameMovieNarration = null;
+        NativeCreditsNarrator? creditsNarration = null;
+        NativeCreditsObservationConsumer? creditsConsumer = null;
+        Steam2026NativeCreditsObservationHook? creditsObserver = null;
+        var creditsObserverFailed = false;
+        var nextCreditsSetupUtc = DateTime.MinValue;
+        NativeObservedCaptionNarrator? creditsTitleNarration = null;
+        NativeCreditsTitleObservationConsumer? creditsTitleConsumer = null;
+        Steam2026NativeCreditsTitleObservationHook? creditsTitleObserver = null;
+        var creditsTitleObserverFailed = false;
+        var nextCreditsTitleSetupUtc = DateTime.MinValue;
 
         // One history, one tracker, one gate for the whole session. The history outlives
         // the process; the tracker decides which native save it belongs to; the gate is
@@ -810,6 +863,9 @@ internal sealed class Steam2026ResearchSession : IDisposable
                     // the schedule running against a clock the player is no longer
                     // watching; it would resume mid-description with no movie.
                     openingMovieDescription.Stop();
+                    endgameMovieNarration?.Interrupt("native x64 research reset");
+                    creditsNarration?.Interrupt("native x64 research reset");
+                    creditsTitleNarration?.Interrupt("native x64 research reset");
                     pump?.ResetCondorBattle();
                     fieldObjectSpatialCoordinator?.Reset("native x64 research reset");
                     fieldNavigationCoordinator?.Reset();
@@ -971,6 +1027,23 @@ internal sealed class Steam2026ResearchSession : IDisposable
                                 fingerprint,
                                 moduleBase,
                                 memory);
+                        endgameMovieReader ??= new Steam2026NativeMovieStateReader(fingerprint, moduleBase, moduleImageSize, memory);
+                        var endgameVoice = LoadCutsceneVoiceManifest(config, modDirectory, log);
+                        endgameMovieNarration ??= new EndgameMovieNarrationTracker(
+                            film => ReadFieldMovieNarrationCues(config, modDirectory,
+                                new(-1, -1, -1, -1, -1, MovieFilmDescriptionCatalog.RecordingFileName(film), film, 0), log),
+                            text => endgameVoice.TryGet(text, out var clip) ? CreateCutsceneVoiceOutput(config, modDirectory, clip, log) : null,
+                            text => { output.Speak(text, interrupt: false); return true; }, log);
+                        creditsNarration ??= new NativeCreditsNarrator(
+                            () => endgameVoice.TryGet(NativeCreditsNarrator.Introduction, out var clip)
+                                ? CreateCutsceneVoiceOutput(config, modDirectory, clip, log) : null,
+                            text => { output.Speak(text, interrupt: false); return true; }, log);
+                        creditsConsumer ??= new NativeCreditsObservationConsumer(sharedFieldAddressSpace, creditsNarration);
+                        creditsTitleNarration ??= new NativeObservedCaptionNarrator(
+                            text => endgameVoice.TryGet(text, out var clip) ? CreateCutsceneVoiceOutput(config, modDirectory, clip, log) : null,
+                            text => { output.Speak(text, interrupt: false); return true; }, log);
+                        creditsTitleConsumer ??= new NativeCreditsTitleObservationConsumer(sharedFieldAddressSpace, creditsTitleNarration);
+                        PublishNarrationOwners(endgameMovieNarration, creditsNarration, creditsTitleNarration);
                         foregroundInput.EnableBufferedKeyboard(sharedFieldAddressSpace, log,
                             () => resumeGate.IsSet && !cancellation.IsCancellationRequested);
                         // Independent film narration plays on its own device so an
@@ -1020,7 +1093,8 @@ internal sealed class Steam2026ResearchSession : IDisposable
                                 FieldCutsceneDescriptionCatalog.CreateEarlyGameDescriptions(),
                                 candidateFilmNarration,
                                 candidateCutsceneVoice,
-                                () => battleAnimationNarration?.IsPlaying == true);
+                                () => battleAnimationNarration?.IsPlaying == true,
+                                useLoadedScriptIdentity: true);
                         var candidateCutsceneDialogueProbe =
                             new Steam2026FieldDialogueObservationReader(sharedFieldAddressSpace);
                         var candidateFieldZoneSpeechCoordinator =
@@ -1104,7 +1178,10 @@ internal sealed class Steam2026ResearchSession : IDisposable
                                 sharedFieldAddressSpace,
                                 modDirectory,
                                 (text, interrupt) => output.Speak(text, interrupt),
-                                log);
+                                log,
+                                autoSteeringController: HighwayAutoSteeringController.CreateCurrentProcess(
+                                    sharedFieldAddressSpace, directionalInput),
+                                renewInput: directionalInput.Renew);
                         }
                         catch (Exception ex)
                         {
@@ -2651,6 +2728,99 @@ avigationield_zone_transition.wav"),
                         -1, isHostForeground, false, now);
                 }
 
+                if (endgameMovieNarration is not null && endgameMovieReader is not null)
+                {
+                    try
+                    {
+                        var readable = endgameMovieReader.TryReadEndgamePlayback(
+                            () => roomDescriptionAddressSpace?.TryReadUInt16((uint)FieldPositionReader.AddressCurrentModule, out var module) == true ? module : null,
+                            gameWorkingDirectory, gameLanguage.Descriptor.LanguageDirectoryName, out var movie);
+                        endgameMovieNarration.Observe(readable ? movie : null, now,
+                            resumeGate.IsSet && !cancellation.IsCancellationRequested && config.EnableSpeech
+                                && config.EnableFieldCutsceneDescriptions && !modSettingsMenu.IsOpen,
+                            isHostForeground);
+                    }
+                    catch (Exception ex)
+                    {
+                        endgameMovieNarration.Observe(null, now, enabled: false, foreground: false);
+                        LogRuntimeFault($"Final movie narration observation declined: {ex.Message}",
+                            now, ref lastRuntimeFault, ref lastRuntimeFaultLogUtc);
+                    }
+                }
+
+                if (creditsConsumer is not null && creditsNarration is not null)
+                {
+                    try
+                    {
+                        if (creditsObserver is null && !creditsObserverFailed && hooks is not null && now >= nextCreditsSetupUtc
+                            && roomDescriptionAddressSpace?.TryReadByte(NativeCreditsSnapshotReader.AddressCurrentModule, out var creditsModule) == true
+                            && creditsModule == NativeCreditsSnapshotReader.StaffCreditsModule)
+                        {
+                            nextCreditsSetupUtc = now.AddSeconds(5);
+                            var installed = Steam2026NativeCreditsObservationHook.TryCreate(fingerprint, moduleBase,
+                                moduleImageSize, memory, hooks, out var candidate, out var diagnostic);
+                            if (installed) creditsObserver = candidate;
+                            else if (candidate is not null) creditsObserverFailed = true;
+                            log(diagnostic);
+                        }
+                        NativeCreditsSnapshot? creditSnapshot = null;
+                        var creditsObserved = creditsObserver?.TryTakeLatest(out creditSnapshot) == true;
+                        if (creditsObserver?.HasOriginalFault == true)
+                        {
+                            creditsObserver.Dispose();
+                            creditsObserverFailed = true;
+                            creditsObserved = true;
+                            creditSnapshot = null;
+                        }
+                        creditsConsumer.Tick(creditsObserved, creditSnapshot, DateTime.UtcNow,
+                            resumeGate.IsSet && !cancellation.IsCancellationRequested && config.EnableSpeech
+                                && config.EnableFieldCutsceneDescriptions && !modSettingsMenu.IsOpen, isHostForeground);
+                    }
+                    catch (Exception ex)
+                    {
+                        creditsNarration.Interrupt("credits observation fault");
+                        LogRuntimeFault($"Credits narration observation declined: {ex.Message}",
+                            now, ref lastRuntimeFault, ref lastRuntimeFaultLogUtc);
+                    }
+                }
+
+                if (creditsTitleConsumer is not null && creditsTitleNarration is not null)
+                {
+                    try
+                    {
+                        if (creditsTitleObserver is null && !creditsTitleObserverFailed && hooks is not null
+                            && now >= nextCreditsTitleSetupUtc
+                            && roomDescriptionAddressSpace?.TryReadByte(NativeCreditsSnapshotReader.AddressCurrentModule, out var titleModule) == true
+                            && titleModule == 28)
+                        {
+                            nextCreditsTitleSetupUtc = now.AddSeconds(5);
+                            var installed = Steam2026NativeCreditsTitleObservationHook.TryCreate(fingerprint, moduleBase,
+                                moduleImageSize, memory, hooks, out var candidate, out var diagnostic);
+                            if (installed) creditsTitleObserver = candidate;
+                            else if (candidate is not null) creditsTitleObserverFailed = true;
+                            log(diagnostic);
+                        }
+                        NativeCaptionObservation? caption = null;
+                        var observed = creditsTitleObserver?.TryTakeLatest(out caption) == true;
+                        if (creditsTitleObserver?.HasOriginalFault == true)
+                        {
+                            creditsTitleObserver.Dispose();
+                            creditsTitleObserverFailed = true;
+                            observed = true;
+                            caption = null;
+                        }
+                        creditsTitleConsumer.Tick(observed, caption, DateTime.UtcNow,
+                            resumeGate.IsSet && !cancellation.IsCancellationRequested && config.EnableSpeech
+                                && config.EnableFieldCutsceneDescriptions && !modSettingsMenu.IsOpen, isHostForeground);
+                    }
+                    catch (Exception ex)
+                    {
+                        creditsTitleNarration.Interrupt("title observation fault");
+                        LogRuntimeFault($"Title narration observation declined: {ex.Message}", now,
+                            ref lastRuntimeFault, ref lastRuntimeFaultLogUtc);
+                    }
+                }
+
                 if (movieHookSet is not null)
                 {
                     List<RuntimeEvent>? movieEvents = null;
@@ -3397,6 +3567,14 @@ avigationield_zone_transition.wav"),
             nameEntrySpeechCoordinator.Reset();
             nameEntryPromptSpeechCoordinator.Reset();
             movieHookSet?.Dispose();
+            Volatile.Write(ref activeEndgameNarration, null);
+            endgameMovieNarration?.Dispose();
+            Volatile.Write(ref activeCreditsNarration, null);
+            creditsObserver?.Dispose();
+            creditsNarration?.Dispose();
+            Volatile.Write(ref activeCreditsTitleNarration, null);
+            creditsTitleObserver?.Dispose();
+            creditsTitleNarration?.Dispose();
             fieldMessageHookSet?.Dispose();
             askCursorHookSet?.Dispose();
             cutsceneHookSet?.Dispose();

@@ -115,7 +115,7 @@ internal static class CosmoNibelheimDescriptionTests
                 $"the generic surface must include field {cue.FieldId}");
         }
 
-        Equal(0, all.Count(cue => cue.Opcode != FieldOpcodeAddressResolver.OpcodeMapNameIndex),
+        Equal(0, all.Count(cue => !FieldAreaDescriptionHistoryGate.IsRoomCue(cue)),
             "the area surface must contain area cues only");
 
         // Every region that contributes, and nothing beyond them. Written as the sum of the
@@ -125,7 +125,8 @@ internal static class CosmoNibelheimDescriptionTests
         Equal(
             FieldCutsceneDescriptionCatalog.CreateGoldSaucerAreaDescriptions().Count +
             FieldCutsceneDescriptionCatalog.CreateCosmoThroughNibelheimAreaDescriptions().Count +
-            FieldCutsceneContinuationDescriptions.CreateAreaDescriptions().Count,
+            FieldCutsceneContinuationDescriptions.CreateAreaDescriptions().Count +
+            RemainingFieldAreaDescriptions.CreateAll().Count,
             all.Count,
             "and nothing else");
         Equal(all.Count, all.Select(cue => cue.Key).Distinct().Count(),

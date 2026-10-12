@@ -26,6 +26,7 @@ internal static class Steam2026NativeMovieHookTests
         HookLeaseRequiresTheFullEnabledCohortAndRevokesCleanly(supportedRuntime);
         StateReaderCopiesStableBoundedPathAndStartState(supportedRuntime);
         StateReaderRejectsPathPointerAndStateTears(supportedRuntime);
+        EndgameReaderUsesDecoderClockAndExactPath(supportedRuntime);
         OpeningVirtualIdentityMapsOnlyToTheValidatedPhysicalPath(supportedRuntime);
         HookSetOwnsExactlyTheFourProvenCallbacks();
     }
@@ -200,6 +201,43 @@ internal static class Steam2026NativeMovieHookTests
             MovieIngressFixture.ModuleImageSize,
             tearingStateMemory);
         Equal(false, stateReader.TryReadStartState(out _), "torn movie start state rejected");
+    }
+
+    private static void EndgameReaderUsesDecoderClockAndExactPath(Steam2026FingerprintResult runtime)
+    {
+        var f = MovieIngressFixture.Create(runtime);
+        const ulong movieObject = 0x0000000500000000;
+        const string root = @"X:\Games\FF7";
+        MapMovieObject(f.Memory, movieObject, 1);
+        f.Memory.Write(MovieIngressFixture.ModuleBase + MovieObjectPointerRva, BitConverter.GetBytes(movieObject));
+        f.Memory.Write(MovieIngressFixture.ModuleBase + NativeMovieCallbackContract.GetRva(NativeMovieCallbackKind.FrameGetter),
+            Convert.FromHexString("8B051EA6B000C3"));
+        f.Memory.Write(MovieIngressFixture.ModuleBase + Steam2026NativeMovieStateReader.NativeMovieFrameRva, BitConverter.GetBytes(450u));
+        WriteCanonicalPath(f.Memory, "0://data/lang-en/movies/ending2.avi");
+        var reader = new Steam2026NativeMovieStateReader(runtime, MovieIngressFixture.ModuleBase,
+            MovieIngressFixture.ModuleImageSize, f.Memory);
+        Equal(true, reader.TryReadEndgamePlayback(() => 25, root, "lang-en", out var ending), "native ending2 decoder state");
+        Equal("ending2.avi", ending.FilmFileName, "native ending2 identity");
+        Equal(30d, ending.PositionSeconds, "ending2 uses the decoder clock outside FIELD");
+        WriteCanonicalPath(f.Memory, "0://data/movies/ending3.avi");
+        Equal(true, reader.TryReadEndgamePlayback(() => 28, root, "lang-en", out var post), "postcredits decoder state");
+        Equal("ending3.avi", post.FilmFileName, "postcredits film identified inside module28");
+        foreach (var path in new[] { "ending3.avi", "0://data/movies/../movies/ending3.avi", "0://override/movies/ending3.avi",
+            @"Y:\Games\FF7\data\movies\ending3.avi", "0://data/movies//ending3.avi" })
+        {
+            WriteCanonicalPath(f.Memory, path);
+            Equal(false, reader.TryReadEndgamePlayback(() => 28, root, "lang-en", out _), "unverified postcredits path rejected");
+        }
+        WriteCanonicalPath(f.Memory, "0://data/movies/ending3.avi");
+        var calls = 0;
+        Equal(false, reader.TryReadEndgamePlayback(() => ++calls == 1 ? 28 : 1, root, "lang-en", out _), "torn module rejected");
+        var frameTear = new TearingNativeMemoryReader(f.Memory,
+            MovieIngressFixture.ModuleBase + Steam2026NativeMovieStateReader.NativeMovieFrameRva, 2,
+            () => f.Memory.Write(MovieIngressFixture.ModuleBase + Steam2026NativeMovieStateReader.NativeMovieFrameRva, BitConverter.GetBytes(0u)));
+        var tornReader = new Steam2026NativeMovieStateReader(runtime, MovieIngressFixture.ModuleBase, MovieIngressFixture.ModuleImageSize, frameTear);
+        Equal(false, tornReader.TryReadEndgamePlayback(() => 28, root, "lang-en", out _), "decoder reset during copy rejected");
+        f.Corrupt(NativeMovieCallbackKind.FrameGetter);
+        Equal(false, reader.TryReadEndgamePlayback(() => 28, root, "lang-en", out _), "changed decoder getter identity rejected");
     }
 
     private static void HookSetOwnsExactlyTheFourProvenCallbacks()

@@ -88,6 +88,15 @@ public readonly record struct FieldScriptNpcDefinition(
     /// <summary>A role reviewed against the current script layout; empty for scenery.</summary>
     public string? ReviewedLabel { get; init; }
 
+    /// <summary>The reviewed stock identity for labels and exclusions; -1 is a new native entity.</summary>
+    public int? ReviewedStockEntityId { get; init; }
+
+    /// <summary>A known visible party identity reviewed against this exact current native model/entity layout.</summary>
+    public string? ReviewedModelLabel { get; init; }
+
+    /// <summary>Current Echo-S message indices cannot address the installed stock message table.</summary>
+    public bool SuppressInstalledDialogueLabels { get; init; }
+
     /// <summary>
     /// Whether <see cref="InteractionLine"/> runs this entity's own Talk script (REQ of
     /// script 1): the game's counter for talking to them, as opposed to a LINE that asks
@@ -148,6 +157,11 @@ public sealed record FieldScriptNavigationReadResult(
     string Diagnostic)
 {
     public bool UsesEchoSector7Layout { get; init; }
+    public bool UsesReviewedEchoLayout { get; init; }
+
+    public bool UsesReviewedLocalizedStockLayout { get; init; }
+    public IReadOnlyDictionary<int, int> StockToLoadedEntities { get; init; } = ImmutableDictionary<int, int>.Empty;
+    public IReadOnlyDictionary<int, FieldNavigationTriggerLine> NativeLines { get; init; } = ImmutableDictionary<int, FieldNavigationTriggerLine>.Empty;
     public IReadOnlyList<int> MapNameDialogIds { get; init; } = Array.Empty<int>();
 
     /// <summary>
@@ -234,8 +248,8 @@ public sealed class FieldScriptNavigationCatalog
         {
             // FFNx overrides change entity indices without changing the field id.
             // A failed live observation must not reuse a disk layout or cached result.
-            if (loadedScripts is not null && Sector7NavigationLayout.IsField(fieldId))
-                return ReadLoadedSector7Field(fieldId);
+            if (loadedScripts is not null)
+                return ReadLoadedField(fieldId);
             return ReadDiskField(fieldId);
         }
     }
@@ -256,7 +270,11 @@ public sealed class FieldScriptNavigationCatalog
         }
     }
 
-    private FieldScriptNavigationReadResult ReadLoadedSector7Field(int fieldId)
+    /// <summary>Audited future-route metadata; never used to authorize a current target.</summary>
+    public FieldScriptNavigationReadResult ReadFutureFieldMetadata(int fieldId, bool reviewedEcho) =>
+        reviewedEcho ? WholeGameEchoFutureMetadata.Read(fieldId) ?? FieldScriptNavigationReadResult.Invalid("Future Echo-S metadata unavailable") : ReadDiskField(fieldId);
+
+    private FieldScriptNavigationReadResult ReadLoadedField(int fieldId)
     {
         if (!loadedScripts!.TryReadPrefix(out var identity, out var prefix) || identity.FieldId != fieldId)
             return FieldScriptNavigationReadResult.Invalid($"field={fieldId}, loaded script unavailable or changing");
@@ -269,11 +287,31 @@ public sealed class FieldScriptNavigationCatalog
             var bytes = Ff7LzsDecoder.DecodeFieldFile(encoded);
             if (!TryReadSectionOne(bytes, out var diskSection, out _))
                 return FieldScriptNavigationReadResult.Invalid($"field={fieldId}, invalid disk script section");
+            var variant = WholeGameEchoNavigationManifest.ResolveVariant(identity);
             var matchesDisk = ScriptPrefixHash(diskSection) == identity.ScriptPrefixSha256;
-            if (!matchesDisk && !Sector7NavigationLayout.IsEcho(fieldId, identity.ScriptPrefixSha256))
+            if (variant == SupportedFieldScriptVariant.Unknown ||
+                variant == SupportedFieldScriptVariant.Vanilla && !matchesDisk)
                 return FieldScriptNavigationReadResult.Invalid($"field={fieldId}, unreviewed loaded script {identity.ScriptPrefixSha256}");
+            var echo = variant == SupportedFieldScriptVariant.EchoS124;
+            var models = echo ? WholeGameEchoNavigationManifest.Models(fieldId) : null;
             var result = ReadFieldFromSection(fieldId, name, prefix,
-                StripFieldPrefix(ReadModelResourceNames(bytes), name));
+                StripFieldPrefix(models ?? ReadModelResourceNames(bytes), name));
+            var mapping = echo ? WholeGameEchoNavigationManifest.EntityMap(fieldId) : WholeGameEchoNavigationManifest.ReviewedOfficialStockEntityMap(identity);
+            if (result.IsUsable && mapping is not null)
+            {
+                if (echo) result = ApplyReviewedEchoExitGuards(result, fieldId);
+                var entityMap = mapping.ToImmutableDictionary();
+                var canonical = entityMap.ToDictionary(p => p.Value, p => p.Key);
+                result = result with
+                {
+                    UsesReviewedEchoLayout = echo,
+                    UsesReviewedLocalizedStockLayout = !echo,
+                    StockToLoadedEntities = entityMap,
+                    Npcs = result.Npcs.Select(n => n with { ReviewedStockEntityId = canonical.GetValueOrDefault(n.EntityId, -1),
+                        ReviewedModelLabel = echo ? WholeGameEchoNavigationManifest.NpcLabels(fieldId).GetValueOrDefault(n.EntityId) : null,
+                        SuppressInstalledDialogueLabels = echo }).ToArray()
+                };
+            }
             if (result.IsUsable) loadedCache[key] = result;
             return result;
         }
@@ -288,17 +326,108 @@ public sealed class FieldScriptNavigationCatalog
 
     public FieldStoryEventDefinition? RemapStoryDefinition(FieldStoryEventDefinition definition)
     {
-        if (!Sector7NavigationLayout.IsField(definition.FieldId)) return definition;
+        if (loadedScripts is null && !Sector7NavigationLayout.IsField(definition.FieldId)) return definition;
         var current = ReadField(definition.FieldId);
-        return current.IsUsable ? Sector7NavigationLayout.RemapStory(definition, current) : null;
+        if (!current.IsUsable) return null;
+        if (Sector7NavigationLayout.IsField(definition.FieldId)) return Sector7NavigationLayout.RemapStory(definition, current);
+        if (!current.UsesReviewedEchoLayout && !current.UsesReviewedLocalizedStockLayout) return definition;
+        if (current.UsesReviewedEchoLayout) definition = WholeGameEchoFutureMetadata.RemapGatewayStory(definition);
+        var entity = RemapEntity(current, definition.EntityId);
+        var lineEntity = definition.RequiredEnabledLineEntityId is { } line ? RemapEntity(current, line) : null;
+        if (entity is null || definition.RequiredEnabledLineEntityId.HasValue && lineEntity is null) return null;
+        var nativeLineEntity = lineEntity ?? entity;
+        var segment = definition.TriggerLine;
+        if (segment.HasValue && nativeLineEntity >= 0)
+        {
+            if (!current.NativeLines.TryGetValue(nativeLineEntity.Value, out var native)) return null;
+            segment = native;
+        }
+        var adapted = definition with
+        {
+            EntityId = entity.Value,
+            RequiredEnabledLineEntityId = lineEntity,
+            TriggerLine = segment,
+            X = segment is { } sx ? (sx.StartX + sx.EndX) / 2 : definition.X,
+            Y = segment is { } sy ? (sy.StartY + sy.EndY) / 2 : definition.Y,
+            Z = segment is { } sz ? (sz.StartZ + sz.EndZ) / 2 : definition.Z
+        };
+        if (!current.UsesReviewedEchoLayout) return adapted;
+        var exits = current.Exits.Where(exit => segment.HasValue ? exit.TriggerLine == segment :
+            definition.Kind == FieldStoryTargetKind.Location && exit.TriggerLine is { } line &&
+            (line.StartX + line.EndX) / 2 == definition.X && (line.StartY + line.EndY) / 2 == definition.Y &&
+            (line.StartZ + line.EndZ) / 2 == definition.Z).ToArray();
+        var alternatives = new List<IReadOnlyList<FieldScriptGuardTest>>();
+        foreach (var exit in exits)
+        {
+            // A LINE that can leave by an unguarded branch needs no extra restriction.
+            if (!current.ExitGuards.TryGetValue(exit.StableId, out var guards) ||
+                exit.DestinationFieldIds!.Any(destination => guards.All(g => g.DestinationFieldId != destination))) return adapted;
+            alternatives.AddRange(guards.SelectMany(g => g.Alternatives));
+        }
+        return alternatives.Count == 0 ? adapted : adapted with { NativeAvailabilityGuards = alternatives };
     }
 
     public FieldNavigationObjectDefinition? RemapObjectDefinition(FieldNavigationObjectDefinition definition)
     {
-        if (!Sector7NavigationLayout.IsField(definition.FieldId)) return definition;
+        if (loadedScripts is null && !Sector7NavigationLayout.IsField(definition.FieldId)) return definition;
         var current = ReadField(definition.FieldId);
-        return current.IsUsable ? Sector7NavigationLayout.RemapObject(definition, current) : null;
+        if (!current.IsUsable) return null;
+        if (Sector7NavigationLayout.IsField(definition.FieldId)) return Sector7NavigationLayout.RemapObject(definition, current);
+        if (!current.UsesReviewedEchoLayout && !current.UsesReviewedLocalizedStockLayout) return definition;
+        var entity = RemapEntity(current, definition.EntityId);
+        if (entity is null) return null;
+        if (definition.TargetKind == FieldNavigationObjectTargetKind.Line)
+        {
+            if (!current.NativeLines.TryGetValue(entity.Value, out var line)) return null;
+            return definition with { EntityId = entity.Value, StaticX = (line.StartX + line.EndX) / 2,
+                StaticY = (line.StartY + line.EndY) / 2, StaticZ = (line.StartZ + line.EndZ) / 2 };
+        }
+        return definition with { EntityId = entity.Value };
     }
+
+    /// <summary>Remaps a reviewed manual NPC proxy, including its current native LINE.</summary>
+    public FieldScriptNpcDefinition? RemapNpcDefinition(FieldScriptNpcDefinition definition)
+    {
+        var current = ReadField(definition.FieldId);
+        if (!current.IsUsable) return null;
+        if (!current.UsesReviewedEchoLayout && !current.UsesReviewedLocalizedStockLayout) return definition;
+        var entity = RemapEntity(current, definition.EntityId);
+        var line = definition.InteractionLineEntityId is { } id ? RemapEntity(current, id) : null;
+        if (entity is null || definition.InteractionLineEntityId.HasValue && line is null) return null;
+        var segment = definition.InteractionLine;
+        if (line is { } loadedLine && segment.HasValue)
+        {
+            if (!current.NativeLines.TryGetValue(loadedLine, out var native)) return null;
+            segment = native;
+        }
+        return definition with { EntityId = entity.Value, ReviewedStockEntityId = definition.EntityId,
+            InteractionLineEntityId = line, InteractionLine = segment };
+    }
+
+    // Current official Echo-S native IFs whose surrounding voice/control flow is
+    // beyond the generic branch scan. These are admitted only after exact loaded
+    // prefix verification above. Native operand evidence is retained in the audit.
+    private static FieldScriptNavigationReadResult ApplyReviewedEchoExitGuards(FieldScriptNavigationReadResult current, int fieldId)
+    {
+        var entity = fieldId == 139 ? 26 : fieldId == 279 ? 5 : -1;
+        var destination = fieldId == 139 ? 140 : 332;
+        if (entity < 0) return current;
+        var matches = current.Exits.Where(e => e.TriggerEntityId == entity && e.DestinationFieldIds is { Count: 1 } d && d[0] == destination).ToArray();
+        if (matches.Length != 1) return current;
+        var exit = matches[0];
+        IReadOnlyList<FieldScriptGuardTest> tests = fieldId == 139
+            ? [new(1,0,true,true,4,108,true), new(5,32,false,false,0,1,false), new(5,255,false,false,0,0,true)]
+            : [new(1,0,true,true,3,384,true)];
+        var guards = current.ExitGuards.ToDictionary(p => p.Key, p => p.Value, StringComparer.Ordinal);
+        guards[exit.StableId] = [new FieldScriptExitGuard(destination, [tests])];
+        return current with { ExitGuards = guards };
+    }
+
+    private static int? RemapEntity(FieldScriptNavigationReadResult current, int entity) =>
+        entity < 0 ? entity : current.StockToLoadedEntities.TryGetValue(entity, out var mapped) ? mapped : null;
+
+    /// <summary>Checked current native field-bank test; unreadable or changing state is unknown.</summary>
+    public bool? ReadNativeGuard(FieldScriptGuardTest test) => loadedScripts?.ReadGuard(test);
 
     public IReadOnlyList<FieldScriptOpcodeDefinition> ReadScriptOpcodes(
         int fieldId,
@@ -672,7 +801,8 @@ public sealed class FieldScriptNavigationCatalog
                 (walkLimits.UnsupportedEntities == 0 ? string.Empty : $", unsupportedMovers={walkLimits.UnsupportedEntities}"))
             {
                 MapNameDialogIds = mapNameDialogIds,
-                ExitGuards = exitGuards
+                ExitGuards = exitGuards,
+                NativeLines = nativeLines.ToImmutableDictionary()
             });
         }
     }

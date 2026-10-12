@@ -74,7 +74,11 @@ public readonly record struct FieldStoryEventDefinition(
     // A way out of the field that no gateway or MAPJUMP names - a MINIGAME that ends in another
     // field - published with the Exits instead of as a Story step, whenever its own native
     // conditions and line allow it, whatever the story's current objective is.
-    bool PublishAsExit = false);
+    bool PublishAsExit = false)
+{
+    /// <summary>Current native LINE alternatives, attached only to an exact reviewed loaded layout.</summary>
+    public IReadOnlyList<IReadOnlyList<FieldScriptGuardTest>>? NativeAvailabilityGuards { get; init; }
+}
 
 public static class FieldStoryEventCatalog
 {
@@ -136,6 +140,7 @@ public sealed class FieldStoryTargetReader
     private readonly Func<int, FieldNavigationLineOkState?>? readLineOkState;
     private readonly IReadOnlyDictionary<int, IReadOnlyList<FieldStoryEventDefinition>> definitionsByField;
     private readonly Func<FieldStoryEventDefinition, FieldStoryEventDefinition?>? remapDefinition;
+    private readonly Func<FieldScriptGuardTest, bool?>? nativeGuardReader;
 
     public FieldStoryTargetReader(
         Func<int, int> readInt32,
@@ -152,10 +157,12 @@ public sealed class FieldStoryTargetReader
         IEnumerable<FieldStoryEventDefinition> definitions,
         Func<int, bool>? isLineEnabled = null,
         Func<int, FieldNavigationLineOkState?>? readLineOkState = null,
-        Func<FieldStoryEventDefinition, FieldStoryEventDefinition?>? remapDefinition = null)
+        Func<FieldStoryEventDefinition, FieldStoryEventDefinition?>? remapDefinition = null,
+        Func<FieldScriptGuardTest, bool?>? nativeGuardReader = null)
     {
         this.readLineOkState = readLineOkState;
         this.remapDefinition = remapDefinition;
+        this.nativeGuardReader = nativeGuardReader;
         this.readInt32 = readInt32;
         this.readInt16 = readInt16;
         this.readByte = readByte;
@@ -185,6 +192,7 @@ public sealed class FieldStoryTargetReader
                 !IsInGameMomentRange(definition, gameMoment) ||
                 !MeetsCondition(definition.RequiredCondition) ||
                 !MeetsConditions(definition.RequiredConditions) ||
+                !MeetsNativeAvailability(definition) ||
                 !MeetsPlayerTriangleConditions(definition, position.TriangleId) ||
                 (definition.RequiredEnabledLineEntityId is { } requiredLine &&
                  isLineEnabled?.Invoke(requiredLine) != true) ||
@@ -257,6 +265,7 @@ public sealed class FieldStoryTargetReader
                 !IsInGameMomentRange(definition, gameMoment) ||
                 !MeetsCondition(definition.RequiredCondition) ||
                 !MeetsConditions(definition.RequiredConditions) ||
+                !MeetsNativeAvailability(definition) ||
                 !MeetsPlayerTriangleConditions(definition, position.TriangleId) ||
                 (definition.RequiredEnabledLineEntityId is { } requiredLine &&
                  isLineEnabled?.Invoke(requiredLine) != true) ||
@@ -283,6 +292,10 @@ public sealed class FieldStoryTargetReader
         var exits = ReadExitTargets(position);
         return exits.Count == 0 ? published : published.Concat(exits).DistinctBy(target => target.StableId).ToArray();
     }
+
+    private bool MeetsNativeAvailability(FieldStoryEventDefinition definition) =>
+        definition.NativeAvailabilityGuards is not { } alternatives ||
+        alternatives.Any(way => way.All(test => nativeGuardReader?.Invoke(test) == true));
 
     // The engine's own OK verdict for a LINE on this read (00637D35 without the key press): its
     // ready byte (+0x15) and stored angle (+0x14) against the leader's event heading (+0x36).

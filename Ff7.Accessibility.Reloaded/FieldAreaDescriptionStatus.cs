@@ -18,7 +18,7 @@ public static class FieldAreaDescriptionStatus
 {
     private static readonly IReadOnlyDictionary<int, string> Descriptions =
         FieldCutsceneDescriptionCatalog.CreateAllAreaDescriptions()
-            .Where(cue => cue.Opcode == FieldOpcodeAddressResolver.OpcodeMapNameIndex)
+            .Where(FieldAreaDescriptionHistoryGate.IsRoomCue)
             .GroupBy(cue => cue.FieldId)
             .ToDictionary(group => group.Key, group => group.First().Text);
 

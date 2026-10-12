@@ -15,6 +15,7 @@ internal sealed class HighwayAccessibilityCoordinator : IDisposable
     private readonly HighwayAccessibilityComposer composer;
     private readonly HighwayAutoSteeringModeTracker autoSteeringMode;
     private readonly HighwayAutoSteeringController autoSteeringController;
+    private readonly Action<DateTime>? renewInput;
     private readonly HighwayScoreChangeTracker scoreLog = new();
     private readonly NavigationBeaconPlayer? lowerPriorityPlayer;
     private readonly NavigationBeaconPlayer? importantPlayer;
@@ -26,6 +27,11 @@ internal sealed class HighwayAccessibilityCoordinator : IDisposable
     private string lastCombatFailureDiagnostic = string.Empty;
     private string lastRoadFailureDiagnostic = string.Empty;
     private string lastAutoSteeringFailureDiagnostic = string.Empty;
+    private string lastSpeechFailureDiagnostic = string.Empty;
+    private bool speechRetryPending;
+    private bool modeSpeechRetryPending;
+    private DateTime nextSpeechRetryUtc = DateTime.MinValue;
+    private static readonly TimeSpan SpeechRetryInterval = TimeSpan.FromMilliseconds(500);
     private HighwaySteeringDirection lastAutomaticDirection;
     private HighwayControlReason lastAutomaticReason;
     private int disposed;
@@ -35,7 +41,9 @@ internal sealed class HighwayAccessibilityCoordinator : IDisposable
         ILegacyAddressSpace addressSpace,
         string modDirectory,
         Action<string, bool> speak,
-        Action<string> log)
+        Action<string> log,
+        HighwayAutoSteeringController? autoSteeringController = null,
+        Action<DateTime>? renewInput = null)
     {
         this.config = config ?? throw new ArgumentNullException(nameof(config));
         ArgumentNullException.ThrowIfNull(addressSpace);
@@ -45,7 +53,8 @@ internal sealed class HighwayAccessibilityCoordinator : IDisposable
         this.speak = speak ?? throw new ArgumentNullException(nameof(speak));
         this.log = log ?? throw new ArgumentNullException(nameof(log));
         autoSteeringMode = new HighwayAutoSteeringModeTracker(config.EnableHighwayAutoSteering);
-        autoSteeringController = HighwayAutoSteeringController.CreateCurrentProcess(addressSpace);
+        this.autoSteeringController = autoSteeringController ?? HighwayAutoSteeringController.CreateCurrentProcess(addressSpace);
+        this.renewInput = renewInput;
         composer = new HighwayAccessibilityComposer(
             new HighwayAccessibilityTracker(
                 TimeSpan.FromMilliseconds(Math.Max(0, config.HighwayEnemyCueIntervalMs)),
@@ -122,6 +131,7 @@ internal sealed class HighwayAccessibilityCoordinator : IDisposable
         ObjectDisposedException.ThrowIf(disposed != 0, this);
         if (!config.EnableHighwayAccessibility)
         {
+            ClearSpeechRetry();
             _ = autoSteeringMode.Observe(false, false, false);
             Reset("disabled");
             return;
@@ -129,6 +139,7 @@ internal sealed class HighwayAccessibilityCoordinator : IDisposable
 
         if (!isHighway)
         {
+            ClearSpeechRetry();
             _ = autoSteeringMode.Observe(false, isForeground, false);
             Reset("motorcycle module is not active");
             return;
@@ -197,6 +208,18 @@ internal sealed class HighwayAccessibilityCoordinator : IDisposable
             log("Highway accessibility acquired native module-6 ownership.");
         }
 
+        // A failed line is rebuilt from this poll's checked state, never stored for
+        // later playback: READY/GO may have disappeared while Prism was unavailable.
+        // An explicit player request can supersede the pending automatic retry.
+        var retryDue = speechRetryPending &&
+            (nowUtc >= nextSpeechRetryUtc || autoSteeringToggleRequested || statusRequested);
+        if (retryDue)
+        {
+            if (modeSpeechRetryPending) autoSteeringMode.RetryAnnouncement();
+            composer.RetrySpeech();
+            speechRetryPending = false;
+            modeSpeechRetryPending = false;
+        }
         autoSteeringMode.ApplySetting(config.EnableHighwayAutoSteering);
         var mode = autoSteeringMode.Observe(
             isHighway: true,
@@ -210,6 +233,7 @@ internal sealed class HighwayAccessibilityCoordinator : IDisposable
             statusRequested,
             steeringAudioEnabled: config.EnableHighwaySteeringGuidance && !mode.Enabled);
         ApplyAutomaticDirection(
+            nowUtc,
             mode.ShouldControl
                 ? update.AutomaticDirection
                 : HighwaySteeringDirection.None,
@@ -223,6 +247,13 @@ internal sealed class HighwayAccessibilityCoordinator : IDisposable
         // acquired while READY was on screen never heard READY, and F8 during GO or
         // GOAL lost that word for good.
         var deliveries = HighwayAccessibilityComposer.Deliver(mode.Announcement, update.Speech);
+        if (speechRetryPending && deliveries.Count > 0)
+        {
+            // Observe still owns controls and the toggle; it cannot consume a new
+            // mode message merely because the speech backend is cooling down.
+            modeSpeechRetryPending |= mode.Announcement is not null;
+            return;
+        }
         if (deliveries.Count > 0)
         {
             StopAll();
@@ -231,13 +262,23 @@ internal sealed class HighwayAccessibilityCoordinator : IDisposable
                 try
                 {
                     speak(text, interrupt);
+                    lastSpeechFailureDiagnostic = string.Empty;
+                    // Callback return means accepted by the speech backend. It does
+                    // not prove that the screen reader finished speaking the line.
                     log(mode.Announcement is null
                         ? $"Highway {update.Speech?.Kind.ToString().ToLowerInvariant()} speech: {text}"
                         : $"Highway steering mode speech: {text}");
                 }
                 catch (Exception ex)
                 {
-                    log($"Highway Prism speech failed: {ex.Message}");
+                    speechRetryPending = true;
+                    modeSpeechRetryPending |= mode.Announcement is not null;
+                    nextSpeechRetryUtc = nowUtc + SpeechRetryInterval;
+                    if (!string.Equals(lastSpeechFailureDiagnostic, ex.Message, StringComparison.Ordinal))
+                    {
+                        lastSpeechFailureDiagnostic = ex.Message;
+                        log($"Highway Prism speech failed; retry remains pending: {ex.Message}");
+                    }
                 }
             }
 
@@ -309,6 +350,14 @@ internal sealed class HighwayAccessibilityCoordinator : IDisposable
         log($"Highway accessibility released ownership: {reason}.");
     }
 
+    private void ClearSpeechRetry()
+    {
+        speechRetryPending = false;
+        modeSpeechRetryPending = false;
+        nextSpeechRetryUtc = DateTime.MinValue;
+        lastSpeechFailureDiagnostic = string.Empty;
+    }
+
     public void Dispose()
     {
         if (Interlocked.Exchange(ref disposed, 1) != 0)
@@ -326,12 +375,18 @@ internal sealed class HighwayAccessibilityCoordinator : IDisposable
     }
 
     private void ApplyAutomaticDirection(
+        DateTime nowUtc,
         HighwaySteeringDirection direction,
         HighwayControlReason reason = HighwayControlReason.None,
         double roadEdgeRatio = double.NaN)
     {
         var result = autoSteeringController.Apply(direction);
         ObserveAutomaticInputResult(result);
+        // An unchanged direction has no key transitions, but still needs a fresh native lease.
+        if (result.Success && autoSteeringController.HasOwnedKeys)
+        {
+            renewInput?.Invoke(nowUtc);
+        }
         if (!result.Success || (direction == lastAutomaticDirection && reason == lastAutomaticReason))
         {
             return;

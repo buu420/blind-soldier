@@ -178,6 +178,7 @@ internal static class Steam2026FieldNavigationRuntimeTests
         const uint lifecyclePhaseBase = 0x00CFF5E4;
         const uint lifecycleStride = 0x30;
         var fixture = FieldObservationFixture.CreatePopulated();
+        var gameRoot = PopulateReviewedStock116IfAvailable(fixture) ?? Path.GetTempPath();
         if (backgroundMovie)
         {
             fixture.Write((uint)FieldAudibleCueStateReader.AddressFieldMovieActive, BitConverter.GetBytes((ushort)1));
@@ -233,7 +234,7 @@ internal static class Steam2026FieldNavigationRuntimeTests
             fixture.Direct,
             foregroundInput,
             objectReader,
-            Path.GetTempPath(),
+            gameRoot,
             AppContext.BaseDirectory,
             (text, _) => spoken.Add(text),
             _ => { });
@@ -263,15 +264,23 @@ internal static class Steam2026FieldNavigationRuntimeTests
 
     private static void InterruptsSupersededDynamicGuidance()
     {
-        var ordinary = RunDynamicGuidance(renderOffsetZ: 0);
-        var airportLift = RunDynamicGuidance(renderOffsetZ: 624);
+        var gameRoot = Environment.GetEnvironmentVariable("FF7_ACCESSIBILITY_DATA_ROOT");
+        if (string.IsNullOrWhiteSpace(gameRoot))
+        {
+            Console.WriteLine("SKIP native dynamic guidance/OFST integration: FF7_ACCESSIBILITY_DATA_ROOT is unset; licensed stock116 data is required. Geometry unit checks still run.");
+            return;
+        }
+        var ordinary = RunDynamicGuidance(renderOffsetZ: 0, gameRoot);
+        var airportLift = RunDynamicGuidance(renderOffsetZ: 624, gameRoot);
         SequenceEqual(ordinary, airportLift,
             "x64 runtime navigation must not change its route or speech when only OFST changes");
+        Console.WriteLine($"PASS native dynamic guidance, auto walk and OFST against {gameRoot}");
     }
 
-    private static IReadOnlyList<(string Text, bool Interrupt)> RunDynamicGuidance(int renderOffsetZ)
+    private static IReadOnlyList<(string Text, bool Interrupt)> RunDynamicGuidance(int renderOffsetZ, string gameRoot)
     {
         var fixture = FieldObservationFixture.CreatePopulated();
+        Equal(gameRoot, PopulateReviewedStock116IfAvailable(fixture), "native route fixture uses selected licensed stock116 input");
         fixture.Write(
             FieldObservationFixture.ModelBase + FieldPositionReader.ModelZOffset,
             BitConverter.GetBytes(300 + renderOffsetZ));
@@ -378,7 +387,7 @@ internal static class Steam2026FieldNavigationRuntimeTests
             fixture.Direct,
             foregroundInput,
             objectReader,
-            Path.GetTempPath(),
+            gameRoot,
             AppContext.BaseDirectory,
             (text, interrupt) => spoken.Add((text, interrupt)),
             diagnostics.Add,
@@ -419,7 +428,8 @@ internal static class Steam2026FieldNavigationRuntimeTests
         Equal(
             true,
             spoken.Any(item => string.Equals(item.Text, "Auto walk on.", StringComparison.Ordinal)),
-            "P starts auto walk on the already selected coherent route");
+            "P starts auto walk on the already selected coherent route; " +
+            $"speech={string.Join(" | ", spoken.Select(item => item.Text))}; diagnostics={string.Join(" | ", diagnostics)}");
         Equal(
             true,
             autoWalkSink.Batches.SelectMany(batch => batch).Any(transition => transition.IsKeyDown),
@@ -2026,6 +2036,7 @@ internal static class Steam2026FieldNavigationRuntimeTests
     private static void CapturesNativeTriangleResolutionAndBoundariesForPendingFootstep()
     {
         var fixture = FieldObservationFixture.CreatePopulated();
+        var gameRoot = PopulateReviewedStock116IfAvailable(fixture) ?? Path.GetTempPath();
         PopulateSingleTriangleWalkmesh(fixture);
         var now = new DateTime(2026, 7, 23, 18, 10, 0, DateTimeKind.Utc);
         using var probe = new Steam2026FieldFootstepNavigationProbe(
@@ -2081,7 +2092,7 @@ internal static class Steam2026FieldNavigationRuntimeTests
             fixture.Direct,
             foregroundInput,
             objectReader,
-            Path.GetTempPath(),
+            gameRoot,
             AppContext.BaseDirectory,
             (_, _) => { },
             _ => { },
@@ -2104,6 +2115,24 @@ internal static class Steam2026FieldNavigationRuntimeTests
         SequenceEqual([0], snapshot.ActiveBoundaryTriangles, "live active IDLCK boundary triangles");
         Equal(true, snapshot.BoundaryFingerprint.Length != 0, "boundary fingerprint");
         Equal(9, snapshot.Position.TriangleId, "native triangle remains independently recorded");
+    }
+
+    private static string? PopulateReviewedStock116IfAvailable(FieldObservationFixture fixture)
+    {
+        var gameRoot = Environment.GetEnvironmentVariable("FF7_ACCESSIBILITY_DATA_ROOT");
+        if (string.IsNullOrWhiteSpace(gameRoot)) return null;
+        var source = new FlevelDataSource(gameRoot);
+        Equal(true, source.TryReadField(116, out var encoded), "configured native test root contains licensed stock116");
+        var decoded = Ff7LzsDecoder.DecodeFieldFile(encoded);
+        var section = BinaryPrimitives.ReadInt32LittleEndian(decoded.AsSpan(6));
+        var length = BinaryPrimitives.ReadInt32LittleEndian(decoded.AsSpan(section));
+        fixture.Write(FieldObservationFixture.ScriptPointer, decoded.AsSpan(section + sizeof(int), length).ToArray());
+        var reader = new LoadedFieldScriptIdentityReader(fixture.Direct);
+        Equal(true, reader.TryRead(out var identity), "native route fixture has a coherent actual loaded prefix");
+        Equal(SupportedFieldScriptVariant.Vanilla, WholeGameEchoNavigationManifest.ResolveVariant(identity), "native route fixture uses an exact reviewed official stock prefix");
+        Equal(true, new FieldScriptNavigationCatalog(gameRoot, Ff7GameLanguageDetector.Detect(gameRoot), reader).ReadField(116).IsUsable,
+            "native route fixture current catalog accepts selected stock116 metadata");
+        return gameRoot;
     }
 
     private static void PopulateSingleTriangleWalkmesh(FieldObservationFixture fixture, bool stackedFloor = false)

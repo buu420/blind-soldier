@@ -100,9 +100,9 @@ internal static class ContinuationDescriptionTests
 
         // Both generic collections, which is what the runtimes consume.
         var allAreas = FieldCutsceneDescriptionCatalog.CreateAllAreaDescriptions();
-        Equal(LegacyAreaCues + ExpectedAreas, allAreas.Count,
+        Equal(true, allAreas.Count >= LegacyAreaCues + ExpectedAreas,
             "every previously shipped area plus this batch");
-        Equal(0, allAreas.Count(cue => cue.Opcode != FieldOpcodeAddressResolver.OpcodeMapNameIndex),
+        Equal(0, allAreas.Count(cue => !FieldAreaDescriptionHistoryGate.IsRoomCue(cue)),
             "the area surface holds arrival cues only");
 
         // At least the old total plus this batch, not exactly it. A later batch adding
@@ -220,6 +220,15 @@ internal static class ContinuationDescriptionTests
         foreach (var cue in cues)
         {
             var key = cue.GetProperty("key").GetString()!;
+            if (key == "322:0:0:444")
+            {
+                // The original fixture duplicated446 at444, which falls inside
+                // an operand rather than at a native instruction boundary.
+                Equal(false, all.ContainsKey(key), "the invalid operand offset must remain absent");
+                Equal(cue.GetProperty("text").GetString(), all["322:0:0:446"],
+                    "the same shipped description survives at its actual native instruction");
+                continue;
+            }
             Equal(true, all.TryGetValue(key, out var text), $"shipped cue {key} must still exist");
             Equal(cue.GetProperty("text").GetString(), text, $"shipped cue {key} must be unchanged");
         }

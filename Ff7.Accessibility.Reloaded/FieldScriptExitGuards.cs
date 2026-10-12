@@ -29,7 +29,8 @@ public static class FieldScriptExitGuards
     public static IReadOnlyList<FieldNavigationTarget> Apply(
         IReadOnlyList<FieldNavigationTarget> exits,
         IReadOnlyDictionary<string, IReadOnlyList<FieldScriptExitGuard>> guards,
-        ILegacyAddressSpace memory)
+        ILegacyAddressSpace memory,
+        Func<FieldScriptGuardTest, bool?>? checkedNativeGuard = null)
     {
         ArgumentNullException.ThrowIfNull(exits);
         ArgumentNullException.ThrowIfNull(guards);
@@ -50,7 +51,7 @@ public static class FieldScriptExitGuards
 
             var open = destinations
                 .Where(destination => exitGuards.FirstOrDefault(guard => guard.DestinationFieldId == destination) is not { } guard ||
-                                      guard.Alternatives.Any(alternative => alternative.All(test => IsMet(test, memory))))
+                                      guard.Alternatives.Any(alternative => alternative.All(test => checkedNativeGuard is null ? IsMet(test, memory) : checkedNativeGuard(test) == true)))
                 .ToArray();
             if (open.Length == destinations.Count)
             {

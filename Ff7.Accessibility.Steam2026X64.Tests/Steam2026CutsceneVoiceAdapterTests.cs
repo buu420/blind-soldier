@@ -417,9 +417,8 @@ internal static class Steam2026CutsceneVoiceAdapterTests
         Equal(true, coordinator.IsNativeFilmNarrationPlaying,
             "the mtnvl film narration started, or the rest of this proves nothing");
 
-        // The arrival description arrives underneath it, by the only route x64 has for
-        // one: the field has been readable and unchanged for longer than the settling
-        // window, and its own anchor was never seen because nothing hooks it here.
+        // The stable-field observer keeps polling during the film. A full-screen
+        // movie has not presented the room yet, so its scenery cannot settle here.
         coordinator.ObserveStableField(Timestamp.AddSeconds(1));
         coordinator.ObserveStableField(
             Timestamp.AddSeconds(1) + FieldAreaDescriptionColdStartTracker.SettlingWindow
@@ -444,10 +443,13 @@ internal static class Steam2026CutsceneVoiceAdapterTests
         memory.SetFilm(0, active: false);
         coordinator.ObserveNativeFilm(Timestamp.AddSeconds(21));
         Equal(false, coordinator.IsNativeFilmNarrationPlaying, "the film is over");
+        coordinator.ObserveStableField(Timestamp.AddSeconds(21));
+        coordinator.ObserveStableField(Timestamp.AddSeconds(21) +
+            FieldAreaDescriptionColdStartTracker.SettlingWindow + TimeSpan.FromMilliseconds(1));
 
         Equal(true,
-            coordinator.TrySpeakPending(true, () => false, Speak, Timestamp.AddSeconds(22), out var spoken),
-            "the held cue is delivered afterwards");
+            coordinator.TrySpeakPending(true, () => false, Speak, Timestamp.AddSeconds(25), out var spoken),
+            "the room is delivered after it becomes visible and settles");
         Equal(arrival.Text, spoken.Text, "and it is the arrival description, unaltered");
         Equal(1, clip.Starts, "said once, by its own recording");
         Equal(0, spokenByScreenReader.Count, "never by the screen reader");
@@ -757,6 +759,9 @@ internal static class Steam2026CutsceneVoiceAdapterTests
                     return Write(destination, (ushort)FieldMovieNarrationPolicy.MovieHandlerPhaseYielding);
                 case (uint)FieldPositionReader.AddressFieldId when destination.Length == 2:
                     return Write(destination, FieldId);
+                case (uint)FieldAudibleCueStateReader.AddressFieldBackgroundMovieMode when destination.Length == 1:
+                    destination[0] = 0;
+                    return true;
                 case (uint)FieldAudibleCueStateReader.AddressFieldMovieActive when destination.Length == 2:
                     return FilmStateReadable && Write(destination, movieActive);
                 case (uint)FieldAudibleCueStateReader.AddressFieldMovieNumber when destination.Length == 2:
