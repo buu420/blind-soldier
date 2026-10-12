@@ -93,7 +93,8 @@ public sealed class FieldAudibleCueOwnershipStateReader
                 after.Module,
                 after.UserControl,
                 after.ActiveMessageCount,
-                after.MovieActive)
+                after.MovieActive,
+                after.BackgroundMovieMode)
             : after;
         LastDiagnostic =
             $"{FormatRawCue(after)}; {windowDiagnostic}; " +
@@ -219,7 +220,7 @@ public sealed class FieldAudibleCueOwnershipStateReader
 
     private static string FormatRawCue(FieldAudibleCueState state) =>
         $"cueRaw=module:{state.Module:X2},control:{state.UserControl:X2}," +
-        $"messages:{state.ActiveMessageCount:X2},movie:{state.MovieActive:X4}";
+        $"messages:{state.ActiveMessageCount:X2},movie:{state.MovieActive:X4},bgMovie:{state.BackgroundMovieMode:X2}";
 
     private static string FormatWindowOwnership(
         ReadOnlySpan<byte> states,
@@ -250,7 +251,7 @@ public sealed class FieldAudibleCueOwnershipStateReader
 
     private static bool NeedsWindowOwnershipConfirmation(FieldAudibleCueState state) =>
         state.Module == FieldPositionReader.FieldModule &&
-        state.MovieActive == 0 &&
+        (state.MovieActive == 0 || state.HasInteractiveBackgroundMovie) &&
         state.UserControl == 0 &&
         state.ActiveMessageCount != 0;
 }

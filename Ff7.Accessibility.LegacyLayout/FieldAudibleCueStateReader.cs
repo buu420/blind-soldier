@@ -8,9 +8,12 @@ public readonly record struct FieldAudibleCueState(
     byte Module,
     byte UserControl,
     byte ActiveMessageCount,
-    ushort MovieActive)
+    ushort MovieActive,
+    byte BackgroundMovieMode = 0)
 {
     public bool SuppressFootsteps => false;
+
+    public bool HasInteractiveBackgroundMovie => MovieActive == 1 && BackgroundMovieMode == 1;
 }
 
 public sealed class FieldAudibleCueStateReader
@@ -18,6 +21,14 @@ public sealed class FieldAudibleCueStateReader
     public const int AddressUserControl = 0x00CC040C;
     public const int AddressActiveFieldMessageCount = 0x00CC0B64;
     public const int AddressFieldMovieActive = 0x00CC1638;
+
+    /// <summary>
+    /// BGMOVIE (00614023) writes context+0x3A; field initialization (0060BCFA)
+    /// clears it. Native field rendering (00644075) and movement (006342C6)
+    /// consult this byte during playback. A background film can run behind live
+    /// movement, as in las4_2/las4_3. Control and message ownership still apply.
+    /// </summary>
+    public const int AddressFieldBackgroundMovieMode = 0x00CC0DC2;
 
     /// <summary>
     /// The native film number the engine is currently running. FUN_0040B27B pushes
@@ -168,13 +179,21 @@ public sealed class FieldAudibleCueStateReader
 
     private FieldAudibleCueFrame ReadLegacyFrame()
     {
+        var module = readByte!(FieldPositionReader.AddressCurrentModule);
+        var fieldId = readUInt16!(FieldPositionReader.AddressFieldId);
+        var userControl = readByte!(AddressUserControl);
         var activeMessageCount = readByte!(AddressActiveFieldMessageCount);
+        var movieActive = readUInt16!(AddressFieldMovieActive);
+        var backgroundMovieMode = module == FieldPositionReader.FieldModule && movieActive != 0
+            ? readByte!(AddressFieldBackgroundMovieMode)
+            : (byte)0;
         return new FieldAudibleCueFrame(
-            readByte!(FieldPositionReader.AddressCurrentModule),
-            readUInt16!(FieldPositionReader.AddressFieldId),
-            readByte!(AddressUserControl),
+            module,
+            fieldId,
+            userControl,
             activeMessageCount,
-            readUInt16!(AddressFieldMovieActive),
+            movieActive,
+            backgroundMovieMode,
             ReadActiveMessageOwnership(activeMessageCount));
     }
 
@@ -191,12 +210,20 @@ public sealed class FieldAudibleCueStateReader
             return false;
         }
 
+        byte backgroundMovieMode = 0;
+        if (module == FieldPositionReader.FieldModule && movieActive != 0 &&
+            !checkedAddressSpace.TryReadByte((uint)AddressFieldBackgroundMovieMode, out backgroundMovieMode))
+        {
+            return false;
+        }
+
         frame = new FieldAudibleCueFrame(
             module,
             fieldId,
             userControl,
             activeMessageCount,
             movieActive,
+            backgroundMovieMode,
             ReadActiveMessageOwnership(activeMessageCount));
         return true;
     }
@@ -208,7 +235,7 @@ public sealed class FieldAudibleCueStateReader
     {
         var reason = frame.Module != FieldPositionReader.FieldModule
             ? "not field gameplay"
-            : frame.MovieActive != 0
+            : frame.MovieActive != 0 && !(frame.MovieActive == 1 && frame.BackgroundMovieMode == 1)
                 ? "movie"
                 : frame.UserControl != 0
                     ? "scripted control lock"
@@ -223,7 +250,8 @@ public sealed class FieldAudibleCueStateReader
             frame.Module,
             frame.UserControl,
             frame.ActiveMessageCount,
-            frame.MovieActive);
+            frame.MovieActive,
+            frame.BackgroundMovieMode);
     }
 
     private static FieldAudibleCueState CreateUnavailableState(string reason) =>
@@ -235,6 +263,7 @@ public sealed class FieldAudibleCueStateReader
         byte UserControl,
         byte ActiveMessageCount,
         ushort MovieActive,
+        byte BackgroundMovieMode,
         bool HasReadableActiveMessage);
 
     private enum FieldAudibleCueReadFailure

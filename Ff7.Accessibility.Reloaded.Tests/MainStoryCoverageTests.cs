@@ -33,7 +33,7 @@ internal static class MainStoryCoverageTests
         EveryStoryRowNamesARealFieldAndPlace();
         AStepThatCompletesNothingIsNotHiddenByTheDoorThatDoes();
         TheReactorPipingOffersTheJumpsBetweenItsDoors();
-        TheCraterLatticeOffersOnlyWaysDown();
+        TheCraterLatticeFollowsTheCurrentLedge();
         TheCraterSideCaveAnswersForTheSideThePlayerIsStandingOn();
         CidsHighwindHandoffIsWalkedRoomByRoom();
         TheShootingCoasterSendsThePlayerToRegisterRatherThanAtTheBarrier();
@@ -813,28 +813,17 @@ internal static class MainStoryCoverageTests
             "a disabled piping line is not offered");
     }
 
-    private static void TheCraterLatticeOffersOnlyWaysDown()
+    private static void TheCraterLatticeFollowsTheCurrentLedge()
     {
         var memory = new StoryMemory();
         memory.SetGameMoment(1700);
         var reader = memory.StoryReader();
-
-        var offered = Objectives(reader, 749).Select(target => target.Label).ToArray();
-        Equal(true, offered.Length >= 16,
-            "the crater lattice is sixteen descents, not the one row it used to carry");
-        Equal(true, offered.Contains("Jump down to the crater floor"),
-            "m_jump is the only line in that field that leaves it, and it has to be offered");
-        Equal(true, offered.All(label =>
-                label.StartsWith("Jump down", StringComparison.Ordinal) ||
-                label.StartsWith("Drop down", StringComparison.Ordinal)),
-            "nothing offered there may be one of the hops that climbs back up a ledge");
-
-        // PC las0_6 includes down_8_d/e and down_9_d/e; m_jump is entity 40.
-        var withoutTheExit = memory.StoryReader(disabledLineEntityId: 40);
-        Equal(false,
-            Objectives(withoutTheExit, 749).Select(target => target.Label)
-                .Contains("Jump down to the crater floor"),
-            "and a disabled exit line is silent rather than offered");
+        var floorLedge = new FieldPositionSnapshot(1, 749, 0, -72, 55, -1041, 32, 0);
+        var offered = Objectives(reader, floorLedge);
+        Equal(1, offered.Length, "only the current ledge's onward trigger is offered");
+        Equal("Jump down to the crater floor", offered[0].Label, "the bottom ledge leaves for 751");
+        Equal(0, Objectives(memory.StoryReader(disabledLineEntityId: 40), floorLedge).Length,
+            "a disabled floor jump cannot fall back to an unrelated ledge");
     }
 
     private static void TheCraterSideCaveAnswersForTheSideThePlayerIsStandingOn()
@@ -848,8 +837,8 @@ internal static class MainStoryCoverageTests
         // answer with the door on its own side and no other.
         foreach (var (triangle, expected) in new[]
         {
-            (130, "Follow the passage down and out to the next ledge"),
-            (166, "Follow the passage down and out to the next ledge"),
+            (130, "Leave the cave for the right-hand descent"),
+            (166, "Leave the cave for the right-hand descent"),
             (117, "Take the passage back out to the ledge"),
             (92, "Follow the passage down and out to the next ledge"),
             (195, "Follow the passage down and out to the next ledge"),

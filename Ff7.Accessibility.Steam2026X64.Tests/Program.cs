@@ -18,6 +18,12 @@ if (args.Contains("--field-execution-report", StringComparer.OrdinalIgnoreCase))
     Environment.Exit(Ff7.Accessibility.Reloaded.Tests.FieldScriptExecutionModelTests.Report());
 }
 
+if (args.Contains("--northern-crater-navigation-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.NorthernCraterNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
+    return;
+}
+
 if (args.Contains("--sector7-navigation-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.Sector7NavigationTests.Run(CreateInstalledFieldWalkmeshReader);
@@ -168,6 +174,7 @@ if (args.Contains("--town-coverage-only", StringComparer.OrdinalIgnoreCase))
 
 if (args.Contains("--story-coverage-only", StringComparer.OrdinalIgnoreCase))
 {
+    Ff7.Accessibility.Reloaded.Tests.NorthernCraterNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
     Ff7.Accessibility.Reloaded.Tests.MainStoryCoverageTests.Run();
     Ff7.Accessibility.Reloaded.Tests.NibelheimStoryTests.Run();
     Ff7.Accessibility.Reloaded.Tests.NibelheimStoryTests.RunWithInstalledGameData();
@@ -749,6 +756,7 @@ if (args.Contains("--cosmo-navigation-only", StringComparer.OrdinalIgnoreCase))
     Ff7.Accessibility.Reloaded.Tests.GreatGlacierStoryTests.Run();
     Ff7.Accessibility.Reloaded.Tests.GreatGlacierStoryTests.RunWithInstalledGameData();
     Ff7.Accessibility.Reloaded.Tests.ReportedNavigationRegressionTests.RunArrivalHysteresisOnly();
+    Ff7.Accessibility.Reloaded.Tests.NorthernCraterNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
     Ff7.Accessibility.Reloaded.Tests.MainStoryCoverageTests.Run();
     Ff7.Accessibility.Reloaded.Tests.CosmoNibelheimDescriptionTests.Run();
     Ff7.Accessibility.Reloaded.Tests.ContinuationDescriptionTests.RunCatalogAndNative();
@@ -1200,7 +1208,8 @@ Ff7.Accessibility.Reloaded.Tests.KeyItemsMenuSpeechTests.Run();
 Ff7.Accessibility.Reloaded.Tests.MateriaSubmenuSpeechTests.Run();
 Ff7.Accessibility.Reloaded.Tests.BattleMessageFlickerTests.Run();
 Ff7.Accessibility.Reloaded.Tests.NativeAskChoicePageTests.Run();
-Ff7.Accessibility.Reloaded.Tests.MainStoryCoverageTests.Run();
+Ff7.Accessibility.Reloaded.Tests.NorthernCraterNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
+    Ff7.Accessibility.Reloaded.Tests.MainStoryCoverageTests.Run();
 Ff7.Accessibility.Reloaded.Tests.CosmoNibelheimDescriptionTests.Run();
 Ff7.Accessibility.Reloaded.Tests.ContinuationDescriptionTests.RunCatalogAndNative();
 Ff7.Accessibility.Reloaded.Tests.MotionActionDescriptionTests.Run();

@@ -23,6 +23,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\NorthernCraterNavigationTests.cs" Link="SharedTests\NorthernCraterNavigationTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\SubmarineMissionTests.cs" Link="SharedTests\SubmarineMissionTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\SubmarinePursuitTrackerTests.cs" Link="SharedTests\SubmarinePursuitTrackerTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\SubmarineCoordinatorTests.cs" Link="SharedTests\SubmarineCoordinatorTests.cs" />

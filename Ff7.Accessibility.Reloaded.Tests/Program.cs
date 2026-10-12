@@ -18,6 +18,12 @@ if (args.Contains("--field-execution-report", StringComparer.OrdinalIgnoreCase))
     Environment.Exit(Ff7.Accessibility.Reloaded.Tests.FieldScriptExecutionModelTests.Report());
 }
 
+if (args.Contains("--northern-crater-navigation-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.NorthernCraterNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
+    return;
+}
+
 if (args.Contains("--sector7-navigation-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.Sector7NavigationTests.Run(CreateInstalledFieldWalkmeshReader);
@@ -174,6 +180,7 @@ if (args.Contains("--town-coverage-only", StringComparer.OrdinalIgnoreCase))
 
 if (args.Contains("--story-coverage-only", StringComparer.OrdinalIgnoreCase))
 {
+    Ff7.Accessibility.Reloaded.Tests.NorthernCraterNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
     Ff7.Accessibility.Reloaded.Tests.MainStoryCoverageTests.Run();
     Ff7.Accessibility.Reloaded.Tests.NibelheimStoryTests.Run();
     Ff7.Accessibility.Reloaded.Tests.NibelheimStoryTests.RunWithInstalledGameData();
@@ -2139,7 +2146,8 @@ Ff7.Accessibility.Reloaded.Tests.SnowboardAccessibilityTests.RunWithInstalledGam
 Ff7.Accessibility.Reloaded.Tests.KeyItemsMenuSpeechTests.Run();
 Ff7.Accessibility.Reloaded.Tests.MateriaSubmenuSpeechTests.Run();
 Ff7.Accessibility.Reloaded.Tests.BattleMessageFlickerTests.Run();
-Ff7.Accessibility.Reloaded.Tests.MainStoryCoverageTests.Run();
+Ff7.Accessibility.Reloaded.Tests.NorthernCraterNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
+    Ff7.Accessibility.Reloaded.Tests.MainStoryCoverageTests.Run();
 
 Console.WriteLine("Reloaded accessibility tests passed.");
 

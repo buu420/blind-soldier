@@ -49,19 +49,14 @@ Add-Definition @craterDescent -FieldId 748 -FieldName 'las0_5' -Kind Location `
     -EntityName 'gateway1' -ScriptType 'Gateway' `
     -TriggerLine ([ordered]@{ startX = 914; startY = -1500; startZ = -627; endX = 982; endY = -1500; endZ = -604 })
 
-# Field 749 is a lattice of ledges, eighteen of them and none walkable to the next, so
-# every step down is a line the party has to stand on. The gateways in and out of 750
-# are read from the live gateway table by the exit provider and are not repeated here;
-# these are the jumps, which no native reader offers because they stay inside the field.
-#
-# Only the lines that descend are offered. Each jump_N goes back up the ledge its
-# partner came down, and the row that used to be here named one of those.
-# They all share one priority: a player standing on a ledge can only reach the line on
-# that ledge, and splitting them by priority would hide the reachable one behind the
-# rest of the lattice.
+# The native lattice has eighteen disconnected mesh components. Offer only the
+# onward trigger on the current ledge. The west dead end goes back through 750's
+# upper exit to reach the right-hand descent; blindly choosing lower exits loops.
+# Two components are decorative/terminal and have no player-controlled onward step.
 
 # down_0 starts on the ledge at z 920 and puts the party down at z 762.
 Add-Definition @craterDescent -FieldId 749 -FieldName 'las0_6' -Kind Location -EntityId 13 `
+    -RequiredPlayerTriangles @(180, 181, 182, 183, 184, 185, 186, 187) `
     -Label 'Jump down to the next ledge' -X 3 -Y 54 -Z 920 `
     -EntityName 'down_0' -ScriptType 'Move' -UsesPlayerCollisionRadius `
     -RequiredEnabledLineEntityId 13 `
@@ -69,48 +64,34 @@ Add-Definition @craterDescent -FieldId 749 -FieldName 'las0_6' -Kind Location -E
 
 # fall_1 starts on the ledge at z 762 and puts the party down at z 346.
 Add-Definition @craterDescent -FieldId 749 -FieldName 'las0_6' -Kind Location -EntityId 9 `
+    -RequiredPlayerTriangles @(31, 51, 52, 58, 68, 78, 79, 84, 87, 90, 92, 93, 103, 105, 126, 128, 129, 146, 147, 151, 153, 164, 166, 167, 173, 175) `
     -Label 'Drop down past the ledge below' -X 457 -Y 47 -Z 762 `
     -EntityName 'fall_1' -ScriptType 'Move' -UsesPlayerCollisionRadius `
     -RequiredEnabledLineEntityId 9 `
     -TriggerLine ([ordered]@{ startX = 461; startY = 96; startZ = 762; endX = 452; endY = -3; endZ = 762 })
 
-# down_1 starts on the ledge at z 554 and puts the party down at z 346.
-Add-Definition @craterDescent -FieldId 749 -FieldName 'las0_6' -Kind Location -EntityId 15 `
-    -Label 'Jump down to the next ledge' -X -407 -Y 51 -Z 554 `
-    -EntityName 'down_1' -ScriptType 'Move' -UsesPlayerCollisionRadius `
-    -RequiredEnabledLineEntityId 15 `
-    -TriggerLine ([ordered]@{ startX = -412; startY = 122; startZ = 554; endX = -402; endY = -21; endZ = 554 })
 
 # down_2 starts on the ledge at z 554 and puts the party down at z 346.
 Add-Definition @craterDescent -FieldId 749 -FieldName 'las0_6' -Kind Location -EntityId 17 `
+    -RequiredPlayerTriangles @(10, 37, 39, 46, 49, 59, 75, 100, 130, 139, 161, 162, 163) `
     -Label 'Jump down to the next ledge' -X 442 -Y 64 -Z 554 `
     -EntityName 'down_2' -ScriptType 'Move' -UsesPlayerCollisionRadius `
     -RequiredEnabledLineEntityId 17 `
     -TriggerLine ([ordered]@{ startX = 442; startY = 120; startZ = 554; endX = 442; endY = 8; endZ = 554 })
 
-# fall_2 starts on the ledge at z 346 and puts the party down at z -693.
-Add-Definition @craterDescent -FieldId 749 -FieldName 'las0_6' -Kind Location -EntityId 10 `
-    -Label 'Drop down past the ledge below' -X -617 -Y 81 -Z 346 `
-    -EntityName 'fall_2' -ScriptType 'Move' -UsesPlayerCollisionRadius `
-    -RequiredEnabledLineEntityId 10 `
-    -TriggerLine ([ordered]@{ startX = -617; startY = 116; startZ = 346; endX = -617; endY = 45; endZ = 346 })
 
 # down_3 starts on the ledge at z 345 and puts the party down at z 137.
 Add-Definition @craterDescent -FieldId 749 -FieldName 'las0_6' -Kind Location -EntityId 19 `
+    -RequiredPlayerTriangles @(11, 28, 60, 94, 98, 99, 107, 114, 172, 174, 176, 177, 178, 179) `
     -Label 'Jump down to the next ledge' -X 608 -Y 63 -Z 345 `
     -EntityName 'down_3' -ScriptType 'Move' -UsesPlayerCollisionRadius `
     -RequiredEnabledLineEntityId 19 `
     -TriggerLine ([ordered]@{ startX = 610; startY = 129; startZ = 345; endX = 606; endY = -3; endZ = 345 })
 
-# fall_3 starts on the ledge at z -69 and puts the party down at z -693.
-Add-Definition @craterDescent -FieldId 749 -FieldName 'las0_6' -Kind Location -EntityId 11 `
-    -Label 'Drop down past the ledge below' -X -335 -Y 64 -Z -69 `
-    -EntityName 'fall_3' -ScriptType 'Move' -UsesPlayerCollisionRadius `
-    -RequiredEnabledLineEntityId 11 `
-    -TriggerLine ([ordered]@{ startX = -335; startY = 128; startZ = -69; endX = -335; endY = 0; endZ = -69 })
 
 # fall_4 starts on the ledge at z -69 and puts the party down at z -485.
 Add-Definition @craterDescent -FieldId 749 -FieldName 'las0_6' -Kind Location -EntityId 12 `
+    -RequiredPlayerTriangles @(102, 104, 106, 108, 109, 110, 111, 112) `
     -Label 'Drop down past the ledge below' -X 535 -Y 54 -Z -69 `
     -EntityName 'fall_4' -ScriptType 'Move' -UsesPlayerCollisionRadius `
     -RequiredEnabledLineEntityId 12 `
@@ -118,6 +99,7 @@ Add-Definition @craterDescent -FieldId 749 -FieldName 'las0_6' -Kind Location -E
 
 # down_4 starts on the ledge at z -69 and puts the party down at z -278.
 Add-Definition @craterDescent -FieldId 749 -FieldName 'las0_6' -Kind Location -EntityId 21 `
+    -RequiredPlayerTriangles @(113, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 131, 133) `
     -Label 'Jump down to the next ledge' -X 224 -Y 48 -Z -69 `
     -EntityName 'down_4' -ScriptType 'Move' -UsesPlayerCollisionRadius `
     -RequiredEnabledLineEntityId 21 `
@@ -125,6 +107,7 @@ Add-Definition @craterDescent -FieldId 749 -FieldName 'las0_6' -Kind Location -E
 
 # down_5 starts on the ledge at z -278 and puts the party down at z -485.
 Add-Definition @craterDescent -FieldId 749 -FieldName 'las0_6' -Kind Location -EntityId 23 `
+    -RequiredPlayerTriangles @(82, 88, 89, 138) `
     -Label 'Jump down to the next ledge' -X 382 -Y 54 -Z -278 `
     -EntityName 'down_5' -ScriptType 'Move' -UsesPlayerCollisionRadius `
     -RequiredEnabledLineEntityId 23 `
@@ -132,6 +115,7 @@ Add-Definition @craterDescent -FieldId 749 -FieldName 'las0_6' -Kind Location -E
 
 # down_10 starts on the ledge at z -278 and puts the party down at z -485.
 Add-Definition @craterDescent -FieldId 749 -FieldName 'las0_6' -Kind Location -EntityId 38 `
+    -RequiredPlayerTriangles @(91, 95, 96, 97) `
     -Label 'Jump down to the next ledge' -X -7 -Y 62 -Z -278 `
     -EntityName 'down_10' -ScriptType 'Move' -UsesPlayerCollisionRadius `
     -RequiredEnabledLineEntityId 38 `
@@ -139,6 +123,7 @@ Add-Definition @craterDescent -FieldId 749 -FieldName 'las0_6' -Kind Location -E
 
 # down_6 starts on the ledge at z -485 and puts the party down at z -693.
 Add-Definition @craterDescent -FieldId 749 -FieldName 'las0_6' -Kind Location -EntityId 25 `
+    -RequiredPlayerTriangles @(73, 80, 81, 83) `
     -Label 'Jump down to the next ledge' -X -42 -Y 55 -Z -485 `
     -EntityName 'down_6' -ScriptType 'Move' -UsesPlayerCollisionRadius `
     -RequiredEnabledLineEntityId 25 `
@@ -146,6 +131,7 @@ Add-Definition @craterDescent -FieldId 749 -FieldName 'las0_6' -Kind Location -E
 
 # down_7 starts on the ledge at z -485 and puts the party down at z -693.
 Add-Definition @craterDescent -FieldId 749 -FieldName 'las0_6' -Kind Location -EntityId 27 `
+    -RequiredPlayerTriangles @(74, 76, 85, 86) `
     -Label 'Jump down to the next ledge' -X 543 -Y 54 -Z -485 `
     -EntityName 'down_7' -ScriptType 'Move' -UsesPlayerCollisionRadius `
     -RequiredEnabledLineEntityId 27 `
@@ -153,6 +139,7 @@ Add-Definition @craterDescent -FieldId 749 -FieldName 'las0_6' -Kind Location -E
 
 # down_8 starts on the ledge at z -693 and puts the party down at z -902.
 Add-Definition @craterDescent -FieldId 749 -FieldName 'las0_6' -Kind Location -EntityId 29 `
+    -RequiredPlayerTriangles @(40, 48, 54, 55, 56, 57) `
     -Label 'Jump down to the next ledge' -X 500 -Y 64 -Z -693 `
     -EntityName 'down_8' -ScriptType 'Move' -UsesPlayerCollisionRadius `
     -RequiredEnabledLineEntityId 29 `
@@ -160,6 +147,7 @@ Add-Definition @craterDescent -FieldId 749 -FieldName 'las0_6' -Kind Location -E
 
 # down_9 starts on the ledge at z -902 and puts the party down at z -1014.
 Add-Definition @craterDescent -FieldId 749 -FieldName 'las0_6' -Kind Location -EntityId 33 `
+    -RequiredPlayerTriangles @(0, 1, 2, 3, 4, 5, 8, 12, 17, 19, 20, 21, 22, 23, 29, 30, 53) `
     -Label 'Jump down to the next ledge' -X 5 -Y 55 -Z -902 `
     -EntityName 'down_9' -ScriptType 'Move' -UsesPlayerCollisionRadius `
     -RequiredEnabledLineEntityId 33 `
@@ -167,10 +155,34 @@ Add-Definition @craterDescent -FieldId 749 -FieldName 'las0_6' -Kind Location -E
 
 # m_jump starts on the ledge at z -1041 and is the one line here that leaves for 751.
 Add-Definition @craterDescent -FieldId 749 -FieldName 'las0_6' -Kind Location -EntityId 40 `
+    -RequiredPlayerTriangles @(27, 32, 34, 35) `
     -Label 'Jump down to the crater floor' -X -72 -Y 55 -Z -1041 `
     -EntityName 'm_jump' -ScriptType 'Move' -UsesPlayerCollisionRadius `
     -RequiredEnabledLineEntityId 40 `
     -TriggerLine ([ordered]@{ startX = -72; startY = 127; startZ = -1041; endX = -72; endY = -17; endZ = -1041 })
+
+# From the left ledge, its native OK jump climbs back to the branching ledge.
+# The upper right descent then reaches the floor; no Confirm is injected.
+Add-Definition @craterDescent -FieldId 749 -FieldName 'las0_6' -Kind Location -EntityId 16 `
+    -Label 'Climb back up toward the right-hand descent' -X -534 -Y 52 -Z 346 `
+    -EntityName 'jump_1' -ScriptType '[OK]' `
+    -UsesPlayerCollisionRadius -KeepActiveOnArrival -ActivatesOnOk -RequiredEnabledLineEntityId 16 `
+    -RequiredPlayerTriangles @(101, 141, 143, 144, 148, 149, 158, 159, 165, 168, 169, 170, 171) `
+    -TriggerLine ([ordered]@{ startX = -534; startY = 122; startZ = 346; endX = -534; endY = -18; endZ = 346 })
+
+# The middle right ledge continues through the lower side passage.
+Add-Definition @craterDescent -FieldId 749 -FieldName 'las0_6' -Kind Location `
+    -Label 'Enter the side passage to the lower ledge' -X 457 -Y 245 -Z 137 `
+    -EntityName 'gateway3' -ScriptType 'Gateway' `
+    -RequiredPlayerTriangles @(77, 127, 134, 135, 136, 140, 142, 145, 150, 152, 154, 155, 156, 157, 160) `
+    -TriggerLine ([ordered]@{ startX = 417; startY = 245; startZ = 137; endX = 497; endY = 245; endZ = 137 })
+
+# Escape the west dead end through the main cave and its upper exit.
+Add-Definition @craterDescent -FieldId 749 -FieldName 'las0_6' -Kind Location `
+    -Label 'Enter the cave to reach the right-hand descent' -X -209 -Y 264 -Z -693 `
+    -EntityName 'gateway5' -ScriptType 'Gateway' `
+    -RequiredPlayerTriangles @(38, 41, 42, 43, 44, 45, 47, 50, 61, 62, 63, 64, 65, 66, 67, 69, 70, 71, 72, 132, 137) `
+    -TriggerLine ([ordered]@{ startX = -243; startY = 264; startZ = -693; endX = -175; endY = 264; endZ = -693 })
 
 # 751:5's Main waits on bank5[26], and the ladder is what sets it: climbing down is how
 # the party splitting begins. Nothing here chooses a side.
@@ -307,16 +319,16 @@ Add-CuratedFields 744, 745, 746, 747, 748, 749, 751, 752, 753, 754, 755, 756, 75
 # Its walkmesh is three separate pieces and its five doors are spread across them, so a
 # row for the wrong door would point at a way out across a gap the player cannot cross.
 # Each row therefore carries the triangles of the piece its door stands on, and where a
-# piece has two doors it is the one that comes out lower - this is a way down. The rest
-# are still offered by the live gateway reader.
+# piece has two doors, choose the one leading onward to the crater floor. The normal
+# Exits category still offers both native doors.
 
-# gateway4 stands on the 162-triangle side of the cave and comes out
-# on the ledge at z -693. The other door on this side, gateway0, goes back up to z 762 and is left to the live gateway reader.
+# gateway0 returns from the main cave to z 762, where fall_1 reaches the right descent.
+# gateway4 instead returns to the west dead end, creating a 749/750 loop.
 Add-Definition @craterDescent -FieldId 750 -FieldName 'las0_7' -Kind Location `
-    -Label 'Follow the passage down and out to the next ledge' -X 131 -Y 186 -Z -529 `
-    -EntityName 'gateway4' -ScriptType 'Gateway' `
+    -Label 'Leave the cave for the right-hand descent' -X -752 -Y 83 -Z 713 `
+    -EntityName 'gateway0' -ScriptType 'Gateway' `
     -RequiredPlayerTriangles @(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 54, 55, 56, 58, 59, 60, 61, 62, 70, 71, 72, 74, 84, 107, 108, 111, 112, 113, 114, 115, 119, 120, 122, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 145, 146, 147, 149, 150, 151, 152, 153, 154, 155, 156, 157, 158, 159, 160, 161, 162, 166, 167, 168, 169, 170, 171, 172, 173, 174, 175, 176, 177, 178, 179, 180, 181, 182, 183, 184, 185, 186, 187, 188, 189, 190, 191, 192, 193, 196, 197, 198, 199, 200, 201, 202, 204, 205, 206, 207, 208, 209, 210, 211, 212, 213, 214, 215, 216, 217) `
-    -TriggerLine ([ordered]@{ startX = 201; startY = 195; startZ = -529; endX = 61; endY = 176; endZ = -529 })
+    -TriggerLine ([ordered]@{ startX = -696; startY = 97; startZ = 713; endX = -808; endY = 69; endZ = 713 })
 
 # gateway1 stands on the 13-triangle side of the cave and comes out
 # on the ledge at z 346.
