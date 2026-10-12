@@ -7,10 +7,59 @@ internal static class ControllerAccessibilityWorkerTests
     public static void Run()
     {
         KeyboardSettingsSurvivesAbsentControllerAndSpeechOff();
+        BufferedSettingsKeysLeaveClosedNavigationKeysToTheirOwner();
         ControllerSettingsAndPartyRespectNativeOwnership();
         DeclinedAnnouncementsCannotStopTheWorker();
         NavigationRetirementPreservesSettings();
         Console.WriteLine("Controller accessibility worker tests passed.");
+    }
+
+    private static void BufferedSettingsKeysLeaveClosedNavigationKeysToTheirOwner()
+    {
+        var open = false;
+        var down = new HashSet<int>();
+        var commands = new List<ModSettingsInputCommand>();
+        using var keyboard = new BufferedKeyboardInput(() => true, down.Contains,
+            () => open ? 1L : 0L, startObserver: false);
+        var dispatcher = new ControllerAccessibilityDispatcher(() => null, () => open,
+            command =>
+            {
+                commands.Add(command);
+                if (command == ModSettingsInputCommand.Open) open = true;
+                if (command == ModSettingsInputCommand.Close) open = false;
+                return command.ToString();
+            }, _ => null, _ => { }, _ => { }, () => { });
+        void Tap(int key)
+        {
+            down.Add(key); keyboard.Capture(); down.Remove(key); keyboard.Capture();
+        }
+        void Tick()
+        {
+            keyboard.BeginWorkerFrame();
+            dispatcher.Tick(true, down.Contains, DateTime.UtcNow,
+                keys => keyboard.TakeOldestPress(keys, true));
+        }
+        Tap('J'); Tick();
+        Assert(keyboard.TakePress('J', true) && commands.Count == 0,
+            "closed keyboard settings do not steal navigation's completed J tap");
+        Tap(0x7A); Tick(); keyboard.Capture();
+        Assert(open && commands[^1] == ModSettingsInputCommand.Open,
+            "a completed F11 tap opens settings without a controller");
+        Tap('J'); Tap('O'); Tick();
+        Assert(commands[^1] == ModSettingsInputCommand.Previous,
+            "open settings retain a completed J tap for their own controls");
+        Tick();
+        Assert(commands[^1] == ModSettingsInputCommand.Increase,
+            "a second distinct completed settings tap remains queued for the next worker tick");
+        Tap('O'); Tap('J'); Tick();
+        Assert(commands[^1] == ModSettingsInputCommand.Increase,
+            "O before J adjusts the selected setting before changing selection");
+        Tick(); Assert(commands[^1] == ModSettingsInputCommand.Previous,
+            "the following J keeps captured order and cannot redirect the earlier adjustment");
+        Tap(0x7A); Tick(); keyboard.Capture();
+        Assert(!open && commands[^1] == ModSettingsInputCommand.Close,
+            "a completed F11 tap closes settings");
+        Tick(); Assert(commands.Count == 6, "completed settings taps do not repeat on later worker ticks");
     }
 
     private static void KeyboardSettingsSurvivesAbsentControllerAndSpeechOff()

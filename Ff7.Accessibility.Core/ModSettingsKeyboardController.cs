@@ -12,15 +12,23 @@ public sealed class ModSettingsKeyboardController
         ('I', ModSettingsInputCommand.Activate), ('K', ModSettingsInputCommand.Repeat)
     ];
     private readonly NavigationKeyPressTracker keys = new();
+    private static readonly int[] ToggleKey = [0x7A];
+    private static readonly int[] SettingsKeys = [0x7A, 'J', 'L', 'U', 'O', 'I', 'K'];
 
-    public ModSettingsInputCommand Poll(bool open, bool foreground, Func<int, bool> isDown)
+    public ModSettingsInputCommand Poll(bool open, bool foreground, Func<int, bool> isDown,
+        Func<IReadOnlyList<int>, int>? observeBufferedPress = null)
     {
         ArgumentNullException.ThrowIfNull(isDown);
-        var toggle = keys.Observe(0x7A, isDown(0x7A), foreground);
+        var liveToggle = keys.Observe(0x7A, isDown(0x7A), foreground);
+        var buffered = observeBufferedPress?.Invoke(open ? SettingsKeys : ToggleKey) ?? 0;
+        var toggle = observeBufferedPress is null ? liveToggle : buffered == 0x7A;
         var command = ModSettingsInputCommand.None;
         foreach (var (key, action) in Bindings)
         {
-            var pressed = keys.Observe(key, isDown(key), foreground && open && !toggle);
+            var livePress = keys.Observe(key, isDown(key), foreground && open && !toggle);
+            // Closed settings synchronize holds without consuming navigation's queued keys.
+            var pressed = observeBufferedPress is null ? livePress :
+                foreground && open && !toggle && buffered == key;
             if (pressed && command == ModSettingsInputCommand.None) command = action;
         }
         if (!foreground) return open ? ModSettingsInputCommand.Close : ModSettingsInputCommand.None;

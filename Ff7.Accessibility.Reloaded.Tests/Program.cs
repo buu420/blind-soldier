@@ -1559,6 +1559,7 @@ AssertCurrentProcessMemoryTextReaderReadsValidText();
 AssertCurrentProcessMemoryTextReaderRejectsUnreadablePointer();
 Ff7.Accessibility.Reloaded.Tests.CurrentProcessLegacyAddressSpaceTests.Run();
 Ff7.Accessibility.Reloaded.Tests.CoreForegroundInputTests.Run();
+Ff7.Accessibility.Reloaded.Tests.BufferedKeyboardInputTests.Run();
 AssertFieldMessageReaderUsesVisibleWindowPage();
 AssertFieldMessageReaderRejectsStaleOrInvalidWindowPointer();
 AssertFieldMessageReaderIgnoresWindowGenerationByte();

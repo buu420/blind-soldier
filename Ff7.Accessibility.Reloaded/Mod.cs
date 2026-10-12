@@ -428,6 +428,11 @@ public sealed class Mod : IModV1, IModV2
     private PlayerSettingsStore? playerSettingsStore;
     private ModSettingsMenu? modSettingsMenu;
     private ControllerAccessibilityDispatcher? controllerAccessibility;
+    private BufferedKeyboardInput? bufferedKeyboardInput;
+    private bool keyboardSettingsOwnsInput;
+    private bool keyboardFieldNavigationSuppressed = true;
+    private bool keyboardWorldNavigationSuppressed = true;
+    private bool keyboardSessionActive = true;
     private FieldAreaDescriptionHistory? battleDescriptionHistory;
     private ControllerNavigationDispatcher? fieldControllerNavigation;
     private ControllerNavigationDispatcher? worldControllerNavigation;
@@ -600,6 +605,8 @@ public sealed class Mod : IModV1, IModV2
             return;
         }
 
+        Volatile.Write(ref keyboardSessionActive, false);
+        bufferedKeyboardInput?.Invalidate();
         fieldCountdownSpeechCoordinator.Reset();
         shinraMansionSafeDialReadout.Reset();
         pendingSafeDialSpeech = null;
@@ -645,6 +652,8 @@ public sealed class Mod : IModV1, IModV2
             return;
         }
 
+        bufferedKeyboardInput?.Invalidate();
+        Volatile.Write(ref keyboardSessionActive, true);
         Speak("Final Fantasy Seven accessibility mod resumed.");
     }
 
@@ -669,6 +678,7 @@ public sealed class Mod : IModV1, IModV2
             }
 
             module19WriterProbe?.Dispose();
+            bufferedKeyboardInput?.Dispose();
             openingMovieAudioTrackPlayer?.Dispose();
             fieldMovieNarrationTracker?.Dispose();
             cutsceneVoicePlayer?.Dispose();
@@ -781,6 +791,8 @@ public sealed class Mod : IModV1, IModV2
         }
         catch
         {
+            bufferedKeyboardInput?.Dispose();
+            bufferedKeyboardInput = null;
             ReleaseRuntimeOwnership();
             throw;
         }
@@ -794,6 +806,9 @@ public sealed class Mod : IModV1, IModV2
 
     private void StartCore()
     {
+        Volatile.Write(ref keyboardSessionActive, true);
+        Volatile.Write(ref keyboardFieldNavigationSuppressed, true);
+        Volatile.Write(ref keyboardWorldNavigationSuppressed, true);
         navigationProgressController = new NavigationProgressController(
             config.EnableNavigationProgressIndicators,
             config.NavigationProgressIntervalPercent);
@@ -905,6 +920,14 @@ public sealed class Mod : IModV1, IModV2
             TimeSpan.FromMilliseconds(Math.Max(100, config.FieldMessageStableMs)));
         var legacyAddressSpace = new CurrentProcessLegacyAddressSpace();
         currentProcessLegacyAddressSpace = legacyAddressSpace;
+        var keyboardContext = new KeyboardInputContextReader(legacyAddressSpace, GetForegroundWindow,
+            () => Volatile.Read(ref keyboardSettingsOwnsInput), () => Volatile.Read(ref keyboardFieldNavigationSuppressed),
+            () => Volatile.Read(ref keyboardWorldNavigationSuppressed));
+        bufferedKeyboardInput = new BufferedKeyboardInput(
+            () => Volatile.Read(ref keyboardSessionActive) && foregroundProcessGate.IsCurrentProcessForeground(),
+            key => (GetAsyncKeyState(key) & unchecked((short)0x8000)) != 0, keyboardContext.Read, Log,
+            keyGroups: KeyboardInputContextReader.OrderedKeys);
+        Log("Keyboard accessibility input uses an independent 8 ms foreground observer; native game input is unchanged.");
         speedSquareCoasterReader = new SpeedSquareCoasterStateReader(legacyAddressSpace);
         snowboardReader = new SnowboardStateReader(legacyAddressSpace);
         speedSquareCoasterTargetReader = new SpeedSquareCoasterTargetReader(legacyAddressSpace);
@@ -1782,8 +1805,16 @@ public sealed class Mod : IModV1, IModV2
                 PublishControllerNavigationContextFromModule(ReadByte(FieldPositionReader.AddressCurrentModule),
                     foregroundProcessGate.IsCurrentProcessForeground());
                 var settingsWereOpen = modSettingsMenu?.IsOpen == true;
+                bufferedKeyboardInput?.BeginWorkerFrame();
                 controllerAccessibility?.Tick(foregroundProcessGate.IsCurrentProcessForeground(),
-                    key => (GetAsyncKeyState(key) & unchecked((short)0x8000)) != 0, DateTime.UtcNow);
+                    key => (GetAsyncKeyState(key) & unchecked((short)0x8000)) != 0, DateTime.UtcNow,
+                    ObserveSettingsKeyboardGroup);
+                var settingsOwnKeyboard = modSettingsMenu?.IsOpen == true;
+                if (settingsOwnKeyboard != Volatile.Read(ref keyboardSettingsOwnsInput))
+                {
+                    Volatile.Write(ref keyboardSettingsOwnsInput, settingsOwnKeyboard);
+                    bufferedKeyboardInput?.Invalidate();
+                }
                 if (settingsWereOpen || modSettingsMenu?.IsOpen == true)
                 {
                     for (var key = 1; key <= 255; key++)
@@ -1884,7 +1915,8 @@ public sealed class Mod : IModV1, IModV2
                 Log($"Monitor error: {ex}");
             }
 
-            Thread.Sleep(GetMonitorSleepMs());
+            if (bufferedKeyboardInput is not null) bufferedKeyboardInput.WaitForPressOrTimeout(GetMonitorSleepMs());
+            else Thread.Sleep(GetMonitorSleepMs());
         }
     }
 
@@ -2107,10 +2139,9 @@ public sealed class Mod : IModV1, IModV2
         try
         {
             repeatLastSpeechController.Poll(
-                virtualKey => repeatLastSpeechKeyTracker.Observe(
-                    virtualKey,
-                    (GetAsyncKeyState(virtualKey) & 0x8000) != 0,
-                    foregroundProcessGate.IsCurrentProcessForeground()),
+                virtualKey => ObserveKeyboardPress(virtualKey,
+                    foregroundProcessGate.IsCurrentProcessForeground() && !Volatile.Read(ref keyboardSettingsOwnsInput),
+                    repeatLastSpeechKeyTracker),
                 text =>
                 {
                     // While a native activity is on screen, asking again means asking
@@ -2142,10 +2173,10 @@ public sealed class Mod : IModV1, IModV2
         menuGilRepeatPending = false;
         try
         {
-            menuGilRepeatPending = menuGilKeyTracker.Observe(
+            menuGilRepeatPending = ObserveKeyboardPress(
                 MenuGilReadoutController.VirtualKeyG,
-                (GetAsyncKeyState(MenuGilReadoutController.VirtualKeyG) & 0x8000) != 0,
-                foregroundProcessGate.IsCurrentProcessForeground());
+                foregroundProcessGate.IsCurrentProcessForeground() && !Volatile.Read(ref keyboardSettingsOwnsInput),
+                menuGilKeyTracker);
         }
         catch (Exception ex)
         {
@@ -2751,27 +2782,27 @@ public sealed class Mod : IModV1, IModV2
     /// </remarks>
     private IEnumerable<CondorNavigationAction> ReadCondorNavigationActions(bool isForeground)
     {
-        if (WasNavigationKeyPressed(VirtualKeyU, isForeground))
+        if (WasPhysicalGameActionPressed(VirtualKeyU, isForeground))
         {
             yield return CondorNavigationAction.PreviousCategory;
         }
 
-        if (WasNavigationKeyPressed(VirtualKeyO, isForeground))
+        if (WasPhysicalGameActionPressed(VirtualKeyO, isForeground))
         {
             yield return CondorNavigationAction.NextCategory;
         }
 
-        if (WasNavigationKeyPressed(VirtualKeyJ, isForeground))
+        if (WasPhysicalGameActionPressed(VirtualKeyJ, isForeground))
         {
             yield return CondorNavigationAction.PreviousTarget;
         }
 
-        if (WasNavigationKeyPressed(VirtualKeyL, isForeground))
+        if (WasPhysicalGameActionPressed(VirtualKeyL, isForeground))
         {
             yield return CondorNavigationAction.NextTarget;
         }
 
-        if (WasNavigationKeyPressed(VirtualKeyI, isForeground))
+        if (WasPhysicalGameActionPressed(VirtualKeyI, isForeground))
         {
             yield return CondorNavigationAction.JumpToTarget;
         }
@@ -3188,7 +3219,8 @@ public sealed class Mod : IModV1, IModV2
         submarineMissionOwnsInput = module == SubmarineMissionStateReader.MinigameModule;
         var cue = submarineAccessibility.Observe(module, foreground,
             config.EnableSpeech && config.EnableSubmarineMissionReadout && modSettingsMenu?.IsOpen != true, now,
-            key => WasNavigationKeyPressed(key, foreground), controllerCaptureHook?.Capture,
+            key => KeyboardInputContextReader.IsSubmarineActionKey(key)
+                ? WasPhysicalGameActionPressed(key, foreground) : WasNavigationKeyPressed(key, foreground), controllerCaptureHook?.Capture,
             out var interrupt);
         if (cue.PlayLockCue &&
             submarineMissionLockCuePlayer?.Play("submarine target lock") != true)
@@ -3944,7 +3976,8 @@ public sealed class Mod : IModV1, IModV2
             isLimitDown,
             isForeground,
             currentModule,
-            navigationOwnsLimitKey);
+            navigationOwnsLimitKey,
+            observedPress: bufferedKeyboardInput is not null ? false : null);
         var battleQueryActive = false;
         var battleQueryReadable = battleStateReader is not null &&
             battleStateReader.TryReadBattleQueryActive(out battleQueryActive);
@@ -3955,7 +3988,9 @@ public sealed class Mod : IModV1, IModV2
         var speech = battleStatusHotkeyController.Poll(
             battleActive,
             virtualKey => virtualKey == VirtualKeyL
-                ? battleLimitPressed
+                ? bufferedKeyboardInput is not null
+                    ? battleActive && WasNavigationKeyPressed(VirtualKeyL, isForeground)
+                    : battleLimitPressed
                 : WasNavigationKeyPressed(virtualKey, isForeground),
             ReadBattleStatusMember,
             observeLimitKey: true,
@@ -5640,7 +5675,7 @@ public sealed class Mod : IModV1, IModV2
         ReleaseWorldMovementIfOwnedElsewhere();
 
         if (now - lastWorldMapScanAt < TimeSpan.FromMilliseconds(Math.Max(30, config.WorldMapScanIntervalMs)) &&
-            !battleStatusLimitKeyFrameRouter.HasNavigationPress(
+            !HasPendingNavigationInput(
                 WorldMapStateReader.WorldModule) &&
             !HasNavigationAutoWalkToggle(NavigationAutoWalkDomain.WorldMap) &&
             !progressControlSpeechWasObserved)
@@ -5692,7 +5727,7 @@ public sealed class Mod : IModV1, IModV2
 
             worldMapWasActive = true;
             var isForeground = foregroundProcessGate.IsCurrentProcessForeground();
-            var holdWorldAutoWalk = false;
+            var holdWorldAutoWalk = worldMapDialogueReader is null;
             if (worldMapDialogueReader is { } dialogueReader)
             {
                 // Ownership is read on its own: a torn window must neither hide that a world
@@ -5708,6 +5743,7 @@ public sealed class Mod : IModV1, IModV2
                 holdWorldAutoWalk = !ownershipRead;
                 if (WorldMapMovementGate.ShouldPauseSample(ownershipRead, ownership, dialogueRead, dialogueRead ? dialogue : null))
                 {
+                    SetWorldKeyboardNavigationSuppressed(true);
                     PublishControllerNavigationUnavailable();
                     battleStatusLimitKeyFrameRouter.DiscardNavigationPress(WorldMapStateReader.WorldModule);
                     DiscardNavigationAutoWalkToggle(NavigationAutoWalkDomain.WorldMap);
@@ -5735,6 +5771,7 @@ public sealed class Mod : IModV1, IModV2
                             stateResult.State.WorldProgress)),
                     out var runtime))
             {
+                SetWorldKeyboardNavigationSuppressed(true);
                 battleStatusLimitKeyFrameRouter.DiscardNavigationPress(
                     WorldMapStateReader.WorldModule);
                 DiscardNavigationAutoWalkToggle(NavigationAutoWalkDomain.WorldMap);
@@ -5758,6 +5795,8 @@ public sealed class Mod : IModV1, IModV2
             var state = stateResult.State;
             var entityResult = worldMapEntityReader?.Read()
                 ?? WorldMapEntityReadResult.Invalid("world entity reader is not initialized");
+            SetWorldKeyboardNavigationSuppressed(!isForeground || !entityResult.IsUsable ||
+                !config.EnableWorldMapNavigationAssistant || holdWorldAutoWalk);
             runtime.UpdateEntities(state, entityResult.IsUsable
                 ? entityResult.Entities
                 : Array.Empty<WorldMapEntitySnapshot>(), currentProcessLegacyAddressSpace);
@@ -5935,6 +5974,7 @@ public sealed class Mod : IModV1, IModV2
         {
             battleStatusLimitKeyFrameRouter.DiscardNavigationPress(
                 WorldMapStateReader.WorldModule);
+            SetWorldKeyboardNavigationSuppressed(true);
             DiscardNavigationAutoWalkToggle(NavigationAutoWalkDomain.WorldMap);
             worldMapAccessibilityErrorCount++;
             midgarZolomCrossingTracker.Reset();
@@ -6143,6 +6183,7 @@ public sealed class Mod : IModV1, IModV2
 
     private void ResetWorldMapAccessibility(string diagnostic)
     {
+        SetWorldKeyboardNavigationSuppressed(true);
         worldMapDialogueTracker.Reset();
         foreach (var runtime in worldMapRuntimes.Values)
         {
@@ -6194,6 +6235,7 @@ public sealed class Mod : IModV1, IModV2
     {
         if (submarineMissionOwnsInput)
         {
+            SetFieldKeyboardNavigationSuppressed(true);
             battleStatusLimitKeyFrameRouter.DiscardNavigationPress(
                 FieldPositionReader.FieldModule);
             DiscardNavigationAutoWalkToggle(NavigationAutoWalkDomain.Field);
@@ -6205,6 +6247,7 @@ public sealed class Mod : IModV1, IModV2
 
         if (junonParadeClaimsFieldInput)
         {
+            SetFieldKeyboardNavigationSuppressed(true);
             battleStatusLimitKeyFrameRouter.DiscardNavigationPress(
                 FieldPositionReader.FieldModule);
             DiscardNavigationAutoWalkToggle(NavigationAutoWalkDomain.Field);
@@ -6216,6 +6259,7 @@ public sealed class Mod : IModV1, IModV2
 
         if (!config.EnableFieldNavigationAssistant)
         {
+            SetFieldKeyboardNavigationSuppressed(true);
             battleStatusLimitKeyFrameRouter.DiscardNavigationPress(
                 FieldPositionReader.FieldModule);
             DiscardNavigationAutoWalkToggle(NavigationAutoWalkDomain.Field);
@@ -6225,7 +6269,7 @@ public sealed class Mod : IModV1, IModV2
 
         var now = DateTime.UtcNow;
         if (now - lastFieldNavigationScanAt < TimeSpan.FromMilliseconds(Math.Max(30, config.FieldNavigationScanIntervalMs)) &&
-            !battleStatusLimitKeyFrameRouter.HasNavigationPress(
+            !HasPendingNavigationInput(
                 FieldPositionReader.FieldModule) &&
             !HasNavigationAutoWalkToggle(NavigationAutoWalkDomain.Field))
         {
@@ -6238,6 +6282,7 @@ public sealed class Mod : IModV1, IModV2
             var result = fieldPositionReader?.ReadNavigation() ?? throw new InvalidOperationException("Field position reader is not initialized.");
             if (!result.IsUsable)
             {
+                SetFieldKeyboardNavigationSuppressed(true);
                 battleStatusLimitKeyFrameRouter.DiscardNavigationPress(
                     FieldPositionReader.FieldModule);
                 DiscardNavigationAutoWalkToggle(NavigationAutoWalkDomain.Field);
@@ -6273,6 +6318,7 @@ public sealed class Mod : IModV1, IModV2
                     ladderState,
                     ladderResult.IsUsable);
             var navigationForeground = foregroundProcessGate.IsCurrentProcessForeground();
+            SetFieldKeyboardNavigationSuppressed(navigationSuppressed || !navigationForeground || !controlResult.IsUsable);
             if (navigationSuppressed || !navigationForeground || !controlResult.IsUsable)
             {
                 battleStatusLimitKeyFrameRouter.DiscardNavigationPress(
@@ -6420,7 +6466,7 @@ public sealed class Mod : IModV1, IModV2
 
             }
 
-            var actions = navigationSuppressed || !navigationForeground
+            var actions = navigationSuppressed || !navigationForeground || !controlResult.IsUsable
                 ? Array.Empty<FieldNavigationAction>()
                 : ReadFieldNavigationActions(FieldPositionReader.FieldModule).ToArray();
             if (actions.Any(IsNavigationSelectionAction))
@@ -6537,6 +6583,7 @@ public sealed class Mod : IModV1, IModV2
                 FieldPositionReader.FieldModule);
             DiscardNavigationAutoWalkToggle(NavigationAutoWalkDomain.Field);
             SuspendNavigationAutoWalk(NavigationAutoWalkDomain.Field);
+            SetFieldKeyboardNavigationSuppressed(true);
             fieldNavigationErrorCount++;
             if (fieldNavigationErrorCount <= 10)
             {
@@ -6952,7 +6999,9 @@ public sealed class Mod : IModV1, IModV2
             _ => NavigationAutoWalkDomain.None
         };
         var togglePressed = NavigationAutoWalkKeyRouter.ObserveToggle(
-            virtualKey => WasNavigationKeyPressed(
+            virtualKey => domain == NavigationAutoWalkDomain.Field ? WasFieldNavigationKeyPressed(
+                virtualKey, foreground) : domain == NavigationAutoWalkDomain.WorldMap ? WasWorldNavigationKeyPressed(
+                virtualKey, foreground) : WasNavigationKeyPressed(
                 virtualKey,
                 foreground && domain != NavigationAutoWalkDomain.None));
 
@@ -7672,6 +7721,7 @@ public sealed class Mod : IModV1, IModV2
             !ownershipReader.TryReadMovementOwnership(out var ownership) ||
             ownership.IsBlockingMovement ||
             !foregroundProcessGate.IsCurrentProcessForeground();
+        if (ownedElsewhere) SetWorldKeyboardNavigationSuppressed(true);
         if (!ownedElsewhere)
         {
             return;
@@ -7736,6 +7786,10 @@ public sealed class Mod : IModV1, IModV2
     private IEnumerable<FieldNavigationAction> ReadFieldNavigationActions(int ownerModule)
     {
         var isForeground = foregroundProcessGate.IsCurrentProcessForeground();
+        if (bufferedKeyboardInput is not null && ownerModule == FieldPositionReader.FieldModule &&
+            Volatile.Read(ref keyboardFieldNavigationSuppressed)) yield break;
+        if (bufferedKeyboardInput is not null && ownerModule == WorldMapStateReader.WorldModule &&
+            Volatile.Read(ref keyboardWorldNavigationSuppressed)) yield break;
         if (WasNavigationKeyPressed(VirtualKeyU, isForeground))
         {
             yield return FieldNavigationAction.PreviousCategory;
@@ -7751,7 +7805,9 @@ public sealed class Mod : IModV1, IModV2
             yield return FieldNavigationAction.PreviousTarget;
         }
 
-        if (battleStatusLimitKeyFrameRouter.TakeNavigationPress(ownerModule))
+        if (bufferedKeyboardInput is not null
+            ? WasNavigationKeyPressed(VirtualKeyL, isForeground)
+            : battleStatusLimitKeyFrameRouter.TakeNavigationPress(ownerModule))
         {
             yield return FieldNavigationAction.NextTarget;
         }
@@ -7769,9 +7825,70 @@ public sealed class Mod : IModV1, IModV2
 
     private bool WasNavigationKeyPressed(int virtualKey, bool isForeground)
     {
-        var isDown = (GetAsyncKeyState(virtualKey) & unchecked((short)0x8000)) != 0;
-        return navigationKeyPressTracker.Observe(virtualKey, isDown,
-            isForeground && modSettingsMenu?.IsOpen != true);
+        if (Volatile.Read(ref keyboardSettingsOwnsInput)) return false;
+        return ObserveKeyboardPress(virtualKey,
+            isForeground && !Volatile.Read(ref keyboardSettingsOwnsInput), navigationKeyPressTracker);
+    }
+
+    private bool WasPhysicalGameActionPressed(int key, bool foreground) => bufferedKeyboardInput is not null
+        ? bufferedKeyboardInput.ObservePhysicalAction(key, foreground && !Volatile.Read(ref keyboardSettingsOwnsInput))
+        : navigationKeyPressTracker.Observe(key, (GetAsyncKeyState(key) & unchecked((short)0x8000)) != 0,
+            foreground && !Volatile.Read(ref keyboardSettingsOwnsInput));
+
+    private void SetFieldKeyboardNavigationSuppressed(bool suppressed)
+    {
+        Volatile.Write(ref keyboardFieldNavigationSuppressed, suppressed);
+        if (suppressed) DiscardNavigationAutoWalkToggle(NavigationAutoWalkDomain.Field);
+        if (suppressed) bufferedKeyboardInput?.DiscardPresses(
+            KeyboardInputContextReader.NavigationVirtualKeys, KeyboardInputContextReader.IsNormalFieldOwner);
+    }
+
+    private bool WasFieldNavigationKeyPressed(int key, bool foreground)
+    {
+        if (bufferedKeyboardInput is not null && Volatile.Read(ref keyboardFieldNavigationSuppressed))
+        {
+            bufferedKeyboardInput.DiscardPresses(KeyboardInputContextReader.NavigationVirtualKeys,
+                KeyboardInputContextReader.IsNormalFieldOwner);
+            return false;
+        }
+        return WasNavigationKeyPressed(key, foreground);
+    }
+
+    private void SetWorldKeyboardNavigationSuppressed(bool suppressed)
+    {
+        Volatile.Write(ref keyboardWorldNavigationSuppressed, suppressed);
+        if (suppressed) DiscardNavigationAutoWalkToggle(NavigationAutoWalkDomain.WorldMap);
+        if (suppressed) bufferedKeyboardInput?.DiscardPresses(
+            KeyboardInputContextReader.NavigationVirtualKeys, KeyboardInputContextReader.IsNormalWorldOwner);
+    }
+
+    private bool WasWorldNavigationKeyPressed(int key, bool foreground)
+    {
+        if (bufferedKeyboardInput is not null && Volatile.Read(ref keyboardWorldNavigationSuppressed))
+        {
+            bufferedKeyboardInput.DiscardPresses(KeyboardInputContextReader.NavigationVirtualKeys,
+                KeyboardInputContextReader.IsNormalWorldOwner);
+            return false;
+        }
+        return WasNavigationKeyPressed(key, foreground);
+    }
+
+    private bool ObserveKeyboardPress(int virtualKey, bool allowed, NavigationKeyPressTracker tracker) =>
+        bufferedKeyboardInput is not null && BufferedKeyboardInput.Tracks(virtualKey)
+            ? bufferedKeyboardInput.TakePress(virtualKey, allowed)
+            : tracker.Observe(virtualKey, (GetAsyncKeyState(virtualKey) & unchecked((short)0x8000)) != 0, allowed);
+
+    private bool HasPendingNavigationInput(int ownerModule) => bufferedKeyboardInput is not null
+        ? !Volatile.Read(ref keyboardSettingsOwnsInput) && bufferedKeyboardInput.HasPendingPresses(
+            new[] { VirtualKeyU, VirtualKeyO, VirtualKeyJ, VirtualKeyL, VirtualKeyK, VirtualKeyI, VirtualKeyP })
+        : battleStatusLimitKeyFrameRouter.HasNavigationPress(ownerModule);
+
+    private int ObserveSettingsKeyboardGroup(IReadOnlyList<int> keys)
+    {
+        var allowed = foregroundProcessGate.IsCurrentProcessForeground();
+        if (bufferedKeyboardInput is not null) return bufferedKeyboardInput.TakeOldestPress(keys, allowed);
+        foreach (var key in keys) if (ObserveKeyboardPress(key, allowed, navigationKeyPressTracker)) return key;
+        return 0;
     }
 
     private static uint GetForegroundWindowProcessId(nint window)

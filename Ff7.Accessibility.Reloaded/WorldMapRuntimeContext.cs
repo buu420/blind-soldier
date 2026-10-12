@@ -135,10 +135,9 @@ public sealed class WorldMapRuntimeContext
             underwaterVisibility ??= new(memory, Map);
             sighting = underwaterVisibility.Read(state, value);
         }
-        UpdateEntities(value.Select(e => e with
-        {
-            IsVisibleUnderwater = sighting.IsUsable && sighting.VisibleEntities.Contains(e.GuestPointer)
-        }).ToArray());
+        UpdateEntities(value.Select(e => sighting.IsUsable &&
+            sighting.ObservedEntities?.TryGetValue(e.GuestPointer, out var observed) == true
+                ? observed : e with { IsVisibleUnderwater = false }).ToArray());
         LastUnderwaterVisibilityDiagnostic = sighting.Diagnostic ??
             (memory is null ? "underwater visibility memory unavailable" : "no live underwater target entities");
     }

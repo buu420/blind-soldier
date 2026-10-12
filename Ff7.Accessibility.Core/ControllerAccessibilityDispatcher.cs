@@ -34,10 +34,11 @@ public sealed class ControllerAccessibilityDispatcher
     public bool IsOpen => settingsIsOpen();
     public bool UseControllerSettingsControls => !openedByKeyboard;
 
-    public void Tick(bool foreground, Func<int, bool> isKeyDown, DateTime nowUtc)
+    public void Tick(bool foreground, Func<int, bool> isKeyDown, DateTime nowUtc,
+        Func<IReadOnlyList<int>, int>? observeBufferedPress = null)
     {
         this.nowUtc = nowUtc;
-        try { TickCore(foreground, isKeyDown, nowUtc); }
+        try { TickCore(foreground, isKeyDown, nowUtc, observeBufferedPress); }
         catch (Exception ex) { Report($"Controller accessibility command failed: {ex.Message}"); }
         finally
         {
@@ -47,7 +48,8 @@ public sealed class ControllerAccessibilityDispatcher
         }
     }
 
-    private void TickCore(bool foreground, Func<int, bool> isKeyDown, DateTime nowUtc)
+    private void TickCore(bool foreground, Func<int, bool> isKeyDown, DateTime nowUtc,
+        Func<IReadOnlyList<int>, int>? observeBufferedPress)
     {
         var input = capture();
         if (foreground && IsOpen && pendingSettingsSpeech is { } waiting && nowUtc >= retrySettingsUtc)
@@ -58,7 +60,7 @@ public sealed class ControllerAccessibilityDispatcher
             pendingParty = ControllerNavigationCommand.None;
         else if (pendingParty != ControllerNavigationCommand.None && nowUtc >= retryPartyUtc)
             DeliverParty(pendingParty, input.Generation.Id);
-        var keyCommand = keyboard.Poll(IsOpen, foreground, isKeyDown);
+        var keyCommand = keyboard.Poll(IsOpen, foreground, isKeyDown, observeBufferedPress);
         if (keyCommand != ModSettingsInputCommand.None)
         {
             if (keyCommand == ModSettingsInputCommand.Open) openedByKeyboard = true;

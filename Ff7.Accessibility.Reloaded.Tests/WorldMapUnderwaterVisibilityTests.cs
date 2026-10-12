@@ -48,7 +48,9 @@ internal static class WorldMapUnderwaterVisibilityTests
             ASightLineAcrossTheWorldWrapIsTested,
             ASeabedRestingObjectIsNotHiddenByItsOwnSeabed,
             ASkewedOrMirroredCameraIsNeverUsable,
-            AStaleCallerPositionIsNotLabelledVisible,
+            AStaleCallerPositionIsReplacedByTheCheckedDrawPosition,
+            MovingEmeraldUsesOneCheckedFrameForVisibilityAndNavigation,
+            RefreshedPositionsCannotReidentifyANodeAsThePlayerOrAnotherModel,
             AVerticalTerrainFaceBetweenTheCameraAndEmeraldHidesIt
         })
         {
@@ -57,7 +59,7 @@ internal static class WorldMapUnderwaterVisibilityTests
         }
 
         if (failures.Count != 0) throw new AggregateException(failures);
-        Console.WriteLine("world-map underwater visibility tests passed (26 scenarios).");
+        Console.WriteLine("world-map underwater visibility tests passed (28 scenarios).");
     }
 
     private static void AnEmeraldInFrontOfTheCameraAboveOpenSeabedIsVisible()
@@ -159,8 +161,9 @@ internal static class WorldMapUnderwaterVisibilityTests
             "explicit Emerald selection permits approach depth");
 
         // A new coherent draw follows Emerald's patrol, without manufacturing visibility.
+        var olderScan = new WorldMapEntityReader(scene.Memory).Read();
         scene.MoveEmeraldBy(400);
-        ObserveFrame();
+        runtime.UpdateEntities(state, olderScan.Entities, scene.Memory);
         runtime.Navigation.Observe(state);
         Check(runtime.Navigation.Probe.Route!.Waypoints[^1].X == RefX + 400,
             "tracking follows the fresh visible patrol position");
@@ -396,11 +399,79 @@ internal static class WorldMapUnderwaterVisibilityTests
         }
     }
 
-    private static void AStaleCallerPositionIsNotLabelledVisible()
+    private static void AStaleCallerPositionIsReplacedByTheCheckedDrawPosition()
     {
+        if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("FF7_ACCESSIBILITY_SOURCE_ROOT"))) return;
         var scene = Scene.Standard();
         scene.MakeCallerPositionStale(byX: 100);
-        Check(!scene.Read().VisibleEntities.Contains(EmeraldPointer), "a position the caller holds from another frame is not labelled visible");
+        var runtime = CreateRuntime(scene.Map);
+        runtime.UpdateEntities(scene.State, scene.Entities, scene.Memory);
+        var observed = runtime.Entities.Single(e => e.ModelId == 30);
+        Check(observed.IsVisibleUnderwater && observed.X == RefX,
+            "a checked native draw replaces the stale caller position before publishing visibility: " +
+            runtime.LastUnderwaterVisibilityDiagnostic);
+    }
+
+    private static void MovingEmeraldUsesOneCheckedFrameForVisibilityAndNavigation()
+    {
+        if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("FF7_ACCESSIBILITY_SOURCE_ROOT"))) return;
+        var scene = Scene.Standard();
+        var runtime = CreateRuntime(scene.Map);
+        var prior = scene.Entities.ToArray();
+        foreach (var movement in new[] { 60, 120, -60 })
+        {
+            scene.MoveEmeraldBy(movement);
+            runtime.UpdateEntities(scene.State, prior, scene.Memory);
+            var observed = runtime.Entities.Single(e => e.ModelId == 30);
+            var live = scene.Entities.Single(e => e.ModelId == 30);
+            Check(observed.IsVisibleUnderwater && observed.X == live.X && observed.Y == live.Y && observed.Z == live.Z,
+                "Emerald's patrol between the entity scan and draw scan remains visible at the fresh position: " +
+                runtime.LastUnderwaterVisibilityDiagnostic);
+            var target = runtime.Catalog.ReadTargets(WorldMapNavigationCategory.Events, scene.State, runtime.Entities)
+                .SingleOrDefault(t => t.Label == "Emerald Weapon");
+            Check(target is not null && target.X == live.X && target.Z == live.Z,
+                "Events selection uses the same native coordinates that passed the visibility checks");
+            prior = scene.Entities.ToArray();
+        }
+        scene.Memory.PutByte(EmeraldPointer + 0x51, 0x0A);
+        runtime.UpdateEntities(scene.State, prior, scene.Memory);
+        Check(!runtime.Entities.Single(e => e.ModelId == 30).IsVisibleUnderwater &&
+            !runtime.Catalog.ReadTargets(WorldMapNavigationCategory.Events, scene.State, runtime.Entities)
+                .Any(t => t.Label == "Emerald Weapon"),
+            "movement repair does not retain visibility after the native hidden flag is set");
+    }
+
+    private static WorldMapRuntimeContext CreateRuntime(WorldMapData map)
+    {
+        var source = Environment.GetEnvironmentVariable("FF7_ACCESSIBILITY_SOURCE_ROOT")!;
+        var catalog = WorldMapTargetCatalog.Load(map,
+            Path.Combine(source, "external", "kujata", "field-id-to-world-map-coords.json"),
+            Path.Combine(source, "external", "kujata", "wm-field-menu-names.txt"),
+            Path.Combine(source, "Ff7.Accessibility.Reloaded", "Assets", "world", "world-map-location-triggers.json"));
+        return new(map, catalog,
+            null, 256, TimeSpan.FromSeconds(2), TimeSpan.FromMilliseconds(400),
+            TimeSpan.FromMilliseconds(300), 1, 10, TimeSpan.FromSeconds(2));
+    }
+
+    private static void RefreshedPositionsCannotReidentifyANodeAsThePlayerOrAnotherModel()
+    {
+        foreach (var corrupt in new Action<Scene>[]
+        {
+            scene => scene.Memory.PutByte(EmeraldPointer + 0x50, 18),
+            scene => scene.Memory.PutInt(0x00E3A7D0, unchecked((int)EmeraldPointer)),
+            scene =>
+            {
+                scene.Memory.PutInt(GelnikaPointer, 0);
+                scene.Memory.PutInt(EmeraldPointer, unchecked((int)GelnikaPointer));
+                scene.Memory.PutInt(ReactorPointer, unchecked((int)EmeraldPointer));
+            }
+        })
+        {
+            var scene = Scene.Standard();
+            corrupt(scene);
+            Check(!scene.Read().VisibleEntities.Contains(EmeraldPointer),
+                "refreshing movement cannot trust a changed model, player identity or node topology");
+        }
     }
 
     private static void Check(bool condition, string message)
