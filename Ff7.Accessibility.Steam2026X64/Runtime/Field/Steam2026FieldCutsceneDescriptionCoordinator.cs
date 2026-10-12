@@ -14,6 +14,8 @@ internal sealed class Steam2026FieldCutsceneDescriptionCoordinator
     private readonly ILegacyAddressSpace addressSpace;
     private readonly FieldRoomPresentationReader roomPresentation;
     private readonly FieldActivityStateReader activityState;
+    private readonly FieldCreatureApproachNarrationCoordinator creatureDescriptions;
+    private readonly FieldCreatureWarningSpeechGate creatureWarningSpeech;
     private FieldAreaDescriptionHistoryGate historyGate = new(null);
     private readonly FieldCutsceneDescriptionTracker tracker;
     private readonly EchoSFieldCutsceneDescriptionTracker? compatibleTracker;
@@ -55,6 +57,11 @@ internal sealed class Steam2026FieldCutsceneDescriptionCoordinator
         }
         this.narration = narration;
         this.cutsceneVoice = cutsceneVoice;
+        var creatureIdentityReader = new LoadedFieldScriptIdentityReader(addressSpace);
+        creatureDescriptions = new FieldCreatureApproachNarrationCoordinator(new FieldCreatureApproachReader(addressSpace),
+            this.readIdentity ?? (() => creatureIdentityReader.TryRead(out var identity) ? identity : null));
+        creatureWarningSpeech = new FieldCreatureWarningSpeechGate(new FieldCreatureWarningReader(addressSpace,
+            this.readIdentity ?? (() => creatureIdentityReader.TryRead(out var identity) ? identity : null)));
 
         // The priority policy asks the device, not a word-count estimate, whether a
         // recording is still being heard. Without this the only way the game's words
@@ -249,6 +256,50 @@ internal sealed class Steam2026FieldCutsceneDescriptionCoordinator
     /// Attempts the oldest narration once. A thrown or rejected output leaves
     /// it at the head of the queue for the next worker iteration.
     /// </summary>
+    internal void ObserveCreatureDraw(FieldCreatureApproachSample sample, DateTime observedUtc) =>
+        creatureDescriptions.Capture(sample, observedUtc);
+
+    internal void ObserveCreatureLifetime(bool enabled,bool foreground)
+    {
+        lock(sync)
+        {
+            if(!enabled || !foreground || !addressSpace.TryReadByte((uint)FieldPositionReader.AddressCurrentModule,out var module) || module!=1 ||
+                !addressSpace.TryReadUInt16((uint)FieldPositionReader.AddressFieldId,out var field) || field!=767)
+            {
+                creatureDescriptions.Reset();creatureWarningSpeech.Reset();
+                cutsceneVoice?.StopIfOwnedBy(CutsceneVoiceOwner.FieldCreature,"the creature presentation is unavailable");
+            }
+            else if(!creatureDescriptions.IsCurrentDescriptionVisible())
+                cutsceneVoice?.StopIfOwnedBy(CutsceneVoiceOwner.FieldCreature,"the creature is no longer visibly presented");
+        }
+    }
+
+    internal void NoteCreatureWarningSpeechAccepted(int windowId,string text) =>
+        creatureWarningSpeech.NotePrismAccepted(windowId,text);
+
+    internal bool CanStartCreatureDescription(FieldCreatureApproachSample sample, bool dialogueOnScreen, bool? prismSpeaking)
+    {
+        var completed=creatureWarningSpeech.IsCompleted(prismSpeaking);
+        return prismSpeaking!=true && (!dialogueOnScreen || sample.Context.ScriptId==4 && completed);
+    }
+
+    internal bool TrySpeakCreature(DateTime nowUtc, Func<FieldCreatureApproachSample, bool> canStart,
+        Func<string, bool> trySpeak, out FieldCutsceneDescriptionCue spokenCue)
+    {
+        spokenCue = default;
+        lock (sync)
+        {
+            if (!creatureDescriptions.IsCurrentDescriptionVisible())
+                cutsceneVoice?.StopIfOwnedBy(CutsceneVoiceOwner.FieldCreature,"the creature is no longer visibly presented");
+            if (speechPriority.ShouldDeferDialogueDelivery(nowUtc)) return false;
+            TimeSpan? duration = null;
+            if (!creatureDescriptions.TrySpeakPending(nowUtc, canStart,
+                    text => SpeakDescription(trySpeak,text,CutsceneVoiceOwner.FieldCreature,out duration),out spokenCue)) return false;
+            ReserveDescriptionWindow(spokenCue.FieldId,spokenCue.Text,duration,nowUtc);
+            return true;
+        }
+    }
+
     internal bool TrySpeakPending(
         bool isHostForeground,
         Func<bool> hasReadableActiveMessage,
@@ -508,6 +559,8 @@ internal sealed class Steam2026FieldCutsceneDescriptionCoordinator
     {
         lock (sync)
         {
+            creatureDescriptions.Reset();
+            creatureWarningSpeech.Reset();
             narration?.Stop(reason);
 
             // A recorded description plays on the same device and would keep talking
@@ -673,6 +726,9 @@ internal sealed class Steam2026FieldCutsceneDescriptionCoordinator
     /// </summary>
     private void ResetFieldState()
     {
+        creatureDescriptions.Reset();
+        creatureWarningSpeech.Reset();
+        cutsceneVoice?.StopIfOwnedBy(CutsceneVoiceOwner.FieldCreature,"the field changed");
         pending.Clear();
         tracker.Reset();
         compatibleTracker?.Reset();

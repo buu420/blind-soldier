@@ -7,6 +7,19 @@ using Ff7.Accessibility.Steam2026X64.Runtime.Field;
 using Ff7.Accessibility.LegacyLayout;
 using System.Text.Json;
 
+if (args.Contains("--creature-narration-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.CreatureApproachReaderTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.NativeCreatureDrawObservationIngressTests.Run();
+    NativeCreatureDrawHookGuardTests.Run();
+    Steam2026CreatureNarrationLifecycleTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.CreatureApproachNarrationCoordinatorTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.CreatureWarningSpeechGateTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.FieldCreatureWarningReaderTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.FieldRoomPresentationTests.Run();
+    return;
+}
+
 if (args.Contains("--remaining-narration-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.RemainingFieldDescriptionTests.Run();
@@ -914,6 +927,13 @@ const string legacyPath =
     @"C:\Games\Final Fantasy VII\workingdir\ff7_en.exe";
 
 var native = Steam2026Fingerprint.Inspect(nativePath);
+Ff7.Accessibility.Reloaded.Tests.CreatureApproachReaderTests.Run();
+Ff7.Accessibility.Reloaded.Tests.NativeCreatureDrawObservationIngressTests.Run();
+NativeCreatureDrawHookGuardTests.Run(native);
+Steam2026CreatureNarrationLifecycleTests.Run();
+Ff7.Accessibility.Reloaded.Tests.CreatureApproachNarrationCoordinatorTests.Run();
+Ff7.Accessibility.Reloaded.Tests.CreatureWarningSpeechGateTests.Run();
+Ff7.Accessibility.Reloaded.Tests.FieldCreatureWarningReaderTests.Run();
 AssertEqual(true, native.IsSupported, "known native Steam 2026 executable fingerprint");
 AssertEqual(true, native.Identity.Is64Bit, "known native executable architecture");
 AssertEqual(

@@ -119,6 +119,7 @@ public static class FieldCutsceneDescriptionCatalog
         .. FieldLateGameMotionActionDescriptions.CreateAll(),
         .. FieldLifestreamMotionActionDescriptions.CreateAll(),
         .. FieldLateStoryMotionCompletionDescriptions.CreateAll(),
+        .. FieldCreatureApproachDescriptions.CreateAll(),
         .. CreateRemainingVisualActions(),
         .. CreateAllAreaDescriptions().Where(cue => !cue.ObservationOnly)
     ];

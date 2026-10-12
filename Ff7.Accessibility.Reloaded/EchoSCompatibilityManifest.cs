@@ -643,6 +643,8 @@ public static class EchoSCompatibilityManifest
 """;
 
     private const string RawCueMappings = """
+767,12,3,12,12,3,14,196
+767,12,4,22,12,4,22,196
 116,0,0,160,0,0,205,36
 116,0,0,192,0,0,237,36
 116,0,0,204,0,0,246,3

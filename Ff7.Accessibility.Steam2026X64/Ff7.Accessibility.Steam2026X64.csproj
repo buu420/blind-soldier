@@ -7,7 +7,7 @@
     <PlatformTarget>x64</PlatformTarget>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
-    <InformationalVersion>0.9.7</InformationalVersion>
+    <InformationalVersion>0.9.8</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
 
@@ -15,6 +15,9 @@
     <Compile Include="..\Ff7.Accessibility.Reloaded\WholeGameEchoNavigationManifest.cs" Link="Shared\WholeGameEchoNavigationManifest.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\WholeGameEchoFutureMetadata.cs" Link="Shared\WholeGameEchoFutureMetadata.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\EchoSCompatibilityManifest.cs" Link="Shared\EchoSCompatibilityManifest.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldCreatureApproachDescriptions.cs" Link="Shared\FieldCreatureApproachDescriptions.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldCreatureWarningSpeechGate.cs" Link="Shared\FieldCreatureWarningSpeechGate.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\FieldCreatureApproachNarrationCoordinator.cs" Link="Shared\FieldCreatureApproachNarrationCoordinator.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\NativeMoviePlaybackSample.cs" Link="Shared\NativeMoviePlaybackSample.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\EndgameMovieNarrationTracker.cs" Link="Shared\EndgameMovieNarrationTracker.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\WorldMapSubmarineDive.cs" Link="Shared\WorldMapSubmarineDive.cs" />

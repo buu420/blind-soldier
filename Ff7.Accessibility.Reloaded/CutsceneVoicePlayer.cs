@@ -15,6 +15,9 @@ public enum CutsceneVoiceOwner
 
     /// <summary>One timed cue of a film whose recording gave way to dialogue.</summary>
     FilmCue,
+
+    /// <summary>An observed field creature, stopped when its native presentation disappears.</summary>
+    FieldCreature,
 }
 
 /// <summary>What happened when a description was offered to the recorded voice.</summary>

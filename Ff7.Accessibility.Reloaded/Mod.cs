@@ -161,6 +161,13 @@ public sealed class Mod : IModV1, IModV2
     private NativeObservedCaptionNarrator? creditsTitleNarration;
     private NativeCreditsTitleObservationConsumer? creditsTitleConsumer;
     private LegacyNativeCreditsTitleObservationHook? creditsTitleObserver;
+    private FieldCreatureApproachNarrationCoordinator? creatureDescriptions;
+    private FieldCreatureWarningSpeechGate? creatureWarningSpeech;
+    private LegacyNativeCreatureDrawObservationHook? creatureObserver;
+    private bool creatureObserverFailed;
+    private DateTime nextCreatureSetupUtc = DateTime.MinValue;
+    private FfnxCreatureVoiceCompletionReader? creatureVoiceCompletion;
+    private DateTime nextCreatureVoiceSetupUtc = DateTime.MinValue;
     private DateTime nextCreditsTitleSetupUtc;
     private bool creditsTitleObserverFailed;
     private string modDirectory = AppContext.BaseDirectory;
@@ -651,6 +658,9 @@ public sealed class Mod : IModV1, IModV2
         endgameMovieNarration?.Suspend();
         creditsNarration?.Suspend();
         creditsTitleNarration?.Suspend();
+        creatureDescriptions?.Reset();
+        creatureWarningSpeech?.Reset();
+        cutsceneVoicePlayer?.Stop("mod suspended");
         speedSquareCoasterReadout?.Reset();
         submarineAccessibility?.Reset();
         submarineMissionOwnsInput = false;
@@ -709,6 +719,8 @@ public sealed class Mod : IModV1, IModV2
             creditsObserver?.Dispose();
             creditsNarration?.Dispose();
             creditsTitleObserver?.Dispose();
+            creatureObserver?.Dispose();
+            creatureDescriptions?.Reset();
             creditsTitleNarration?.Dispose();
             cutsceneVoicePlayer?.Dispose();
             battleAnimationNarration?.Dispose();
@@ -1306,6 +1318,11 @@ public sealed class Mod : IModV1, IModV2
         fieldOpcodeParameterReader = new FieldOpcodeParameterReader(legacyAddressSpace);
         fieldScriptContextReader = new FieldScriptContextReader(legacyAddressSpace);
         loadedFieldScriptIdentityReader = new LoadedFieldScriptIdentityReader(legacyAddressSpace);
+        creatureDescriptions = new FieldCreatureApproachNarrationCoordinator(
+            new FieldCreatureApproachReader(legacyAddressSpace),
+            () => loadedFieldScriptIdentityReader.TryRead(out var identity) ? identity : null);
+        creatureWarningSpeech = new FieldCreatureWarningSpeechGate(new FieldCreatureWarningReader(legacyAddressSpace,
+            () => loadedFieldScriptIdentityReader.TryRead(out var identity) ? identity : null));
         loadedFieldScriptIdentity = null;
         fieldCutsceneDescriptionTracker = new EchoSFieldCutsceneDescriptionTracker();
         fieldPositionReader = new FieldPositionReader(legacyAddressSpace);
@@ -2455,6 +2472,10 @@ public sealed class Mod : IModV1, IModV2
         while (ffnxVoicePlaybackEventQueue.TryDequeue(out var observation))
         {
             ffnxVoicePlaybackTracker.ObserveVoice(observation);
+            if (observation.Played && observation.WindowId==1 && observation.DialogId==9 && observation.Page==0 &&
+                observation.FieldName.Equals("las4_4",StringComparison.OrdinalIgnoreCase) &&
+                loadedFieldScriptIdentityReader?.TryRead(out var creatureIdentity)==true)
+                creatureWarningSpeech?.NoteOriginalVoice(creatureIdentity);
             Log(
                 $"FFNx voice playback: field={observation.FieldName}, window={observation.WindowId}, " +
                 $"dialog={observation.DialogId}, page={observation.Page}, played={observation.Played}.");
@@ -4415,8 +4436,68 @@ public sealed class Mod : IModV1, IModV2
         }
     }
 
+    private void TickCreatureObservation()
+    {
+        if (creatureDescriptions is null || currentProcessLegacyAddressSpace is not { } memory) return;
+        if (!Volatile.Read(ref keyboardSessionActive) || !config.EnableSpeech || !config.EnableFieldCutsceneDescriptions ||
+            modSettingsMenu?.IsOpen == true || !foregroundProcessGate.IsCurrentProcessForeground() ||
+            !memory.TryReadByte((uint)FieldPositionReader.AddressCurrentModule, out var module) || module != 1 ||
+            !memory.TryReadUInt16((uint)FieldPositionReader.AddressFieldId, out var field) || field != 767)
+        {
+            creatureDescriptions.Reset();
+            creatureWarningSpeech?.Reset();
+            cutsceneVoicePlayer?.StopIfOwnedBy(CutsceneVoiceOwner.FieldCreature,"the creature presentation is unavailable");
+            return;
+        }
+        var now = DateTime.UtcNow;
+        if (ffnxRuntimeLoaded && creatureVoiceCompletion is null && now>=nextCreatureVoiceSetupUtc)
+        {
+            nextCreatureVoiceSetupUtc=now.AddSeconds(5);
+            using var process=Process.GetCurrentProcess();
+            if(FfnxCreatureVoiceCompletionReader.TryCreate(process,memory,out var completion,out var voiceDiagnostic))
+                creatureVoiceCompletion=completion;
+            else if(config.EnableFieldCutsceneDescriptionDiagnostics)Log(voiceDiagnostic);
+        }
+        if (creatureObserver is null && !creatureObserverFailed && hooks is not null && now >= nextCreatureSetupUtc)
+        {
+            nextCreatureSetupUtc = now.AddSeconds(5);
+            using var process = Process.GetCurrentProcess();
+            if (creditsExecutableSha256 is null && process.MainModule?.FileName is { } executable)
+            {
+                using var file = File.OpenRead(executable);
+                creditsExecutableSha256 = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(file));
+            }
+            var installed = LegacyNativeCreatureDrawObservationHook.TryCreate(creditsExecutableSha256 ?? string.Empty,
+                memory, hooks, creatureDescriptions.Capture, Log, out var candidate, out var diagnostic);
+            if (installed) creatureObserver = candidate;
+            else if (candidate is not null) creatureObserverFailed = true;
+            if (!installed) Log(diagnostic);
+        }
+        if (creatureObserver?.HasOriginalFault == true || creatureObserver?.HasCaptureFault == true)
+        {
+            creatureObserver.Dispose(); creatureObserver = null; creatureObserverFailed = true;
+            creatureDescriptions.Reset();
+            Log("Native creature observation retired after a callback fault.");
+        }
+        if (!creatureDescriptions.IsCurrentDescriptionVisible())
+            cutsceneVoicePlayer?.StopIfOwnedBy(CutsceneVoiceOwner.FieldCreature,"the creature is no longer visibly presented");
+    }
+
+    private bool CanStartCreatureDescription(FieldCreatureApproachSample sample, bool dialogueOnScreen, DateTime nowUtc)
+    {
+        if (!Volatile.Read(ref keyboardSessionActive) || !config.EnableSpeech || !config.EnableFieldCutsceneDescriptions ||
+            modSettingsMenu?.IsOpen == true || !foregroundProcessGate.IsCurrentProcessForeground() ||
+            fieldCutsceneSpeechPriority.ShouldDeferDialogueDelivery(nowUtc)) return false;
+        bool? prismSpeaking = speaker?.TryIsSpeaking(out var speaking) == true ? speaking : null;
+        var completed = creatureWarningSpeech?.IsCompleted(prismSpeaking,
+            creatureVoiceCompletion?.IsWarningVoiceFinished(1)) == true;
+        if (prismSpeaking == true) return false;
+        return !dialogueOnScreen || sample.Context.ScriptId == 4 && completed;
+    }
+
     private void TickFieldCutsceneDescriptions()
     {
+        TickCreatureObservation();
         if (!config.EnableFieldCutsceneDescriptions)
         {
             ResetFieldCutsceneDescriptionState();
@@ -4503,6 +4584,16 @@ public sealed class Mod : IModV1, IModV2
         var dialogueIsOnScreen = FieldCutsceneSpeechPriority.ShouldWaitForDialogue(
             ReadByte(FieldAudibleCueStateReader.AddressActiveFieldMessageCount),
             fieldMessageReader?.HasReadableActiveWindow() == true);
+        var creatureNow = DateTime.UtcNow;
+        if (creatureDescriptions?.TrySpeakPending(creatureNow,
+                sample => CanStartCreatureDescription(sample, dialogueIsOnScreen, creatureNow),
+                text => SpeakDescription(text,CutsceneVoiceOwner.FieldCreature), out var creatureCue) == true)
+        {
+            ReserveDescriptionWindow(creatureCue.FieldId, creatureCue.Text, creatureNow);
+            if (config.EnableFieldCutsceneDescriptionDiagnostics)
+                Log($"Native visible creature description: field={creatureCue.FieldId}, script={creatureCue.ScriptId}, text={creatureCue.Text}");
+            return;
+        }
         if (dialogueIsOnScreen)
         {
             // Let the current clip finish. The dialogue delivery paths retain their
@@ -4621,6 +4712,9 @@ public sealed class Mod : IModV1, IModV2
 
     private void ResetFieldCutsceneDescriptionState(bool resetCompatibilityState = false)
     {
+        creatureDescriptions?.Reset();
+        creatureWarningSpeech?.Reset();
+        cutsceneVoicePlayer?.StopIfOwnedBy(CutsceneVoiceOwner.FieldCreature,"the field description state was reset");
         fieldCutsceneDescriptionTracker.Reset();
         fieldAreaDescriptionColdStart.Reset();
         fieldCutsceneSpeechPriority.Reset();
@@ -5027,6 +5121,7 @@ public sealed class Mod : IModV1, IModV2
                     fieldVisibleWindowSpeechCoordinator.AcknowledgePollingSpeech(
                     item.DispatchToken,
                     delivered);
+                if (delivered) creatureWarningSpeech?.NotePrismAccepted(item.WindowId,item.Text);
                 if (delivered && pollingRecoveryIdentity is not null)
                 {
                     HandleNativeAskPollingQuestionRecovered(pollingRecoveryIdentity);
