@@ -19,6 +19,8 @@ public static class WholeGameEchoNavigationManifest
 
     public static SupportedFieldScriptVariant ResolveVariant(LoadedFieldScriptIdentity identity)
     {
+        if (PostscriptFieldCompatibility.IsSupportedOpeningIdentity(identity))
+            return SupportedFieldScriptVariant.Postscript178;
         if (!Layouts.TryGetValue(identity.FieldId, out var row)) return SupportedFieldScriptVariant.Unknown;
         if (row.OfficialStock.Contains(identity.ScriptPrefixSha256, StringComparer.OrdinalIgnoreCase)) return SupportedFieldScriptVariant.Vanilla;
         return row.Echo.Contains(identity.ScriptPrefixSha256, StringComparer.OrdinalIgnoreCase)
@@ -29,6 +31,8 @@ public static class WholeGameEchoNavigationManifest
     // identities do not authorize those action anchors without a separate cue audit.
     public static SupportedFieldScriptVariant ResolveDescriptionVariant(LoadedFieldScriptIdentity identity)
     {
+        if (PostscriptFieldCompatibility.IsSupportedOpeningIdentity(identity))
+            return SupportedFieldScriptVariant.Postscript178;
         if (!Layouts.TryGetValue(identity.FieldId, out var row)) return SupportedFieldScriptVariant.Unknown;
         if (string.Equals(identity.ScriptPrefixSha256, row.Stock, StringComparison.OrdinalIgnoreCase)) return SupportedFieldScriptVariant.Vanilla;
         return row.Echo.Contains(identity.ScriptPrefixSha256, StringComparer.OrdinalIgnoreCase)

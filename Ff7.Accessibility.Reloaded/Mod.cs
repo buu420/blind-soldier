@@ -384,6 +384,8 @@ public sealed class Mod : IModV1, IModV2
     private MagicMenuSelectionReader? magicMenuSelectionReader;
     private ConfigMenuValueReader? configMenuValueReader;
     private Kernel2TextDatabase? kernel2TextDatabase;
+    private bool ffnxKernelTextBindingComplete;
+    private DateTime lastFfnxKernelTextProbeAt;
     private SavemapPartyReader? savemapPartyReader;
     private OrderMenuSelectionReader? orderMenuSelectionReader;
     private EquipmentMenuSelectionReader? equipmentMenuSelectionReader;
@@ -403,6 +405,8 @@ public sealed class Mod : IModV1, IModV2
     private BattleDisplayedStatusReader? battleDisplayedStatusReader;
     private TifaSlotResultReader? tifaSlotResultReader;
     private BattleMenuFrameSpeechCoordinator battleMenuFrameSpeechCoordinator = new();
+    private PostscriptBattleAssistReader? postscriptBattleAssistReader;
+    private readonly PostscriptBattleAssistSpeechTracker postscriptBattleAssistSpeechTracker = new();
     private readonly BattleTargetSpeechTracker battleTargetSpeechTracker = new();
     private BattleSenseSpeechCoordinator battleSenseSpeechCoordinator =
         new(_ => null, _ => null, _ => null);
@@ -1269,6 +1273,9 @@ public sealed class Mod : IModV1, IModV2
                 $"{Math.Max(1, config.FieldFootstepDistanceProbeReportSamples)} accepted samples.");
         }
         fieldMessageReader = new FieldMessageReader(legacyAddressSpace);
+        kernel2TextDatabase?.UseNativeText(legacyAddressSpace, gameLanguage.Descriptor);
+        TryInitializeFfnxKernelTextReader(force: true);
+        postscriptBattleAssistReader = new PostscriptBattleAssistReader(legacyAddressSpace);
         fieldCountdownReader = new FieldCountdownReader(legacyAddressSpace);
         mainMenuStateReader = new MainMenuStateReader(legacyAddressSpace);
         menuGilStateReader = new MenuGilStateReader(legacyAddressSpace);
@@ -1420,9 +1427,11 @@ public sealed class Mod : IModV1, IModV2
             resolveCommandName,
             resolveLimitName,
             resolveLimitDescription);
+        var postscriptMateriaDrops = new PostscriptMateriaDropCompatibility(legacyAddressSpace);
         battleResultsReader = new BattleResultsReader(
             legacyAddressSpace,
-            resolveInventoryObjectName ?? (_ => null));
+            resolveInventoryObjectName ?? (_ => null),
+            postscriptMateriaDrops.HasMateriaDropAliases);
         battleArenaScreenReader = new BattleArenaScreenReader(legacyAddressSpace);
         battleVisibleResultReader = new BattleVisibleResultReader(legacyAddressSpace);
         battleDisplayedStatusReader = new BattleDisplayedStatusReader(legacyAddressSpace);
@@ -1474,6 +1483,7 @@ public sealed class Mod : IModV1, IModV2
         Func<int, string?> resolveNavigationObjectName = resolveInventoryObjectName ?? (_ => null);
         fieldScriptLineStateReader = new FieldScriptLineStateReader(legacyAddressSpace);
         var fieldNavigationObjects = FieldNavigationObjectCatalog.CreateAllFields();
+        var postscriptItemRandomizer = new PostscriptItemRandomizerReader(legacyAddressSpace);
         fieldNavigationObjectReader = new FieldNavigationObjectReader(
             ReadInt32,
             ReadByte,
@@ -1486,7 +1496,8 @@ public sealed class Mod : IModV1, IModV2
             entity => fieldScriptLineStateReader.TryReadSegment(entity, out var segment) ? segment : null,
             // The engine's own LINE OK state, so arrival at an OK machine is the game's verdict.
             entity => fieldScriptLineStateReader.TryReadOkState(entity, out var okState) ? okState : null,
-            definition => fieldScriptNavigationCatalog?.RemapObjectDefinition(definition));
+            definition => fieldScriptNavigationCatalog?.RemapObjectDefinition(definition),
+            postscriptItemRandomizer.RandomizesFieldPickups);
         fieldGatewayTargetReader = new FieldGatewayTargetReader(legacyAddressSpace);
         fieldScriptNavigationCatalog = gameRootDirectory is null
             ? null
@@ -1894,6 +1905,7 @@ public sealed class Mod : IModV1, IModV2
                 navigationProgressController.ApplySettings(config.EnableNavigationProgressIndicators,
                     config.NavigationProgressIntervalPercent);
                 TickRepeatLastSpeech();
+                TryInitializeFfnxKernelTextReader(force: false);
                 SampleMenuGilHotkey();
                 TickNavigationProgressControls();
                 TickNavigationAutoWalkToggleInput();
@@ -1906,6 +1918,7 @@ public sealed class Mod : IModV1, IModV2
                 TickBattleSessionState();
                 TickBattleStatusHotkeys();
                 TickBattleArenaScreen();
+                TickPostscriptBattleAssistSpeech();
                 TickHighwayAccessibility();
                 TickFieldZoneTransitionCue();
                 TickFieldSwingingBarTimingCue();
@@ -2128,6 +2141,31 @@ public sealed class Mod : IModV1, IModV2
         {
             Speak(speech, interrupt: true);
         }
+    }
+
+    private void TryInitializeFfnxKernelTextReader(bool force)
+    {
+        if (ffnxKernelTextBindingComplete || kernel2TextDatabase is null ||
+            currentProcessLegacyAddressSpace is null) return;
+        var now = DateTime.UtcNow;
+        if (!force && now - lastFfnxKernelTextProbeAt < TimeSpan.FromMilliseconds(500)) return;
+        lastFfnxKernelTextProbeAt = now;
+        using var currentProcess = Process.GetCurrentProcess();
+        if (!FfnxRuntimeDetector.IsLoaded(currentProcess)) return;
+        if (FfnxKernel2TextReader.TryCreate(currentProcess, currentProcessLegacyAddressSpace,
+            out var candidate, out var diagnostic))
+        {
+            var reader = candidate!;
+            kernel2TextDatabase.UseVerifiedNativeText(reader.ReadEncoded, () => reader.HasCurrentOwnership);
+        }
+        else
+        {
+            // A recognized driver owns these strings even if its build cannot
+            // be verified. Neither the disk nor stock pool is its current text.
+            kernel2TextDatabase.UseVerifiedNativeText((_, _) => null, () => false);
+        }
+        ffnxKernelTextBindingComplete = true;
+        Log(diagnostic);
     }
 
     private void TryInitializeFfnxPopupReader(bool force)
@@ -10080,6 +10118,32 @@ public sealed class Mod : IModV1, IModV2
         }
     }
 
+    private bool CanObservePostscriptBattleAssist =>
+        config.EnableSpeech && config.EnableBattleMenuSpeech && !battleVictoryActive &&
+        modSettingsMenu?.IsOpen != true && foregroundProcessGate.IsCurrentProcessForeground();
+
+    private void TickPostscriptBattleAssistSpeech()
+    {
+        try
+        {
+            if (!CanObservePostscriptBattleAssist ||
+                postscriptBattleAssistReader?.TryReadAssistOwner(out var owner) != true)
+            {
+                postscriptBattleAssistSpeechTracker.Reset();
+                return;
+            }
+            if (postscriptBattleAssistSpeechTracker.Poll(owner) is { } speech)
+            {
+                Speak(speech, interrupt: false);
+            }
+        }
+        catch (Exception ex)
+        {
+            postscriptBattleAssistSpeechTracker.Reset();
+            LogBattleHookError("Postscript displayed battle help", ex);
+        }
+    }
+
     private void BattleMenuRenderDetour(int context, short rendererState)
     {
         if (battleVictoryActive)
@@ -10089,9 +10153,15 @@ public sealed class Mod : IModV1, IModV2
         }
 
         var tifaSlotsBefore = TifaSlotResultSnapshot.Invalid;
+        PostscriptBattleAssistOwner? assistOwnerBefore = null;
         try
         {
             battleMenuFrameSpeechCoordinator.BeginFrame(rendererState);
+            if (rendererState == 0x17 && CanObservePostscriptBattleAssist &&
+                postscriptBattleAssistReader?.TryReadAssistOwner(out var assistOwner) == true)
+            {
+                assistOwnerBefore = assistOwner;
+            }
             if (rendererState == 0x1B &&
                 config.EnableBattleMessageSpeech &&
                 tifaSlotResultReader is not null)
@@ -10107,6 +10177,15 @@ public sealed class Mod : IModV1, IModV2
         try
         {
             battleMenuRenderHook?.OriginalFunction(context, rendererState);
+            // Capture the formatted help only at its completed native draw.
+            // A later worker must never reread this transient game pointer.
+            if (battleMenuRenderHook is not null && assistOwnerBefore is { } before &&
+                CanObservePostscriptBattleAssist &&
+                postscriptBattleAssistReader?.TryReadDisplayedHpHelp(true, out var help) == true &&
+                postscriptBattleAssistReader.TryReadAssistOwner(out var after) && before == after)
+            {
+                postscriptBattleAssistSpeechTracker.ObserveDisplayedHpHelp(help, after);
+            }
         }
         finally
         {
@@ -10608,6 +10687,7 @@ public sealed class Mod : IModV1, IModV2
     private void ResetBattleInteractionTrackers()
     {
         battleMenuFrameSpeechCoordinator.Reset();
+        postscriptBattleAssistSpeechTracker.Reset();
         battleTargetSpeechTracker.Reset();
         battleSenseSpeechCoordinator.Reset();
         battleDamageSpeechTracker.Reset();
@@ -11677,10 +11757,18 @@ public sealed class Mod : IModV1, IModV2
             return;
         }
 
+        string? completedDrawText = null;
+        PostscriptBattleAssistOwner? assistOwnerBefore = null;
         try
         {
             var now = DateTime.UtcNow;
             var decodedText = ReadFf7EncodedText(text, 128);
+            completedDrawText = decodedText;
+            if (source == NativeTextDrawSource.InGameB && CanObservePostscriptBattleAssist &&
+                postscriptBattleAssistReader?.TryReadAssistOwner(out var assistOwner) == true)
+            {
+                assistOwnerBefore = assistOwner;
+            }
             ProcessInGameMenuTextDraw(source, x, y, decodedText, color, context, currentModule, now);
         }
         catch (Exception ex)
@@ -11694,6 +11782,20 @@ public sealed class Mod : IModV1, IModV2
         finally
         {
             hook?.OriginalFunction(x, y, text, color, context);
+        }
+        try
+        {
+            if (hook is not null && completedDrawText is not null && assistOwnerBefore is { } before &&
+                CanObservePostscriptBattleAssist &&
+                postscriptBattleAssistReader?.TryReadAssistOwner(out var after) == true && before == after)
+            {
+                postscriptBattleAssistSpeechTracker.ObserveDraw("B",
+                    new MenuTextRenderEntry(completedDrawText, unchecked((uint)x), unchecked((uint)y), color, context), after);
+            }
+        }
+        catch (Exception ex)
+        {
+            LogBattleHookError("Postscript completed text draw", ex);
         }
     }
 

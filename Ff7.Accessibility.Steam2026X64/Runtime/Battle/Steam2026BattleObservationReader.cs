@@ -52,7 +52,9 @@ public sealed class Steam2026BattleObservationReader
             textResolvers.ResolveCommandName,
             textResolvers.ResolveLimitName,
             textResolvers.ResolveLimitDescription);
-        resultsReader = new BattleResultsReader(addressSpace, textResolvers.ResolveInventoryObjectName);
+        var postscriptMateriaDrops = new PostscriptMateriaDropCompatibility(addressSpace);
+        resultsReader = new BattleResultsReader(addressSpace, textResolvers.ResolveInventoryObjectName,
+            postscriptMateriaDrops.HasMateriaDropAliases);
         damageReader = new BattleDamagePopupReader(addressSpace);
         displayedStatusReader = new BattleDisplayedStatusReader(addressSpace);
         runtimeTextReader = new BattleRuntimeTextReader(

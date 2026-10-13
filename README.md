@@ -138,6 +138,13 @@ again where one exists.
 Field and world-map navigation, routes, auto walk and the progress indicator
 are described under [Navigation](#navigation).
 
+Version 0.9.9 adds compatibility readers for Postscriptthree's Gameplay Tweaks
+1.78 through 7th Heaven: extra equipment and battle menus, loaded text, displayed
+battle help, and randomized field roles and pickups. See the
+[compatibility guide](docs/compatibility/postscript-1.78.md) and
+[release notes](docs/releases/v0.9.9.md). The native Steam edition retains its
+existing controls; 7th Heaven's gameplay patches run on the legacy edition.
+
 Version 0.9.8 describes the creature approaching at the end of Northern Crater
 when the native renderer actually draws its moving model. It supports stock and
 reviewed Echo-S scripts in both runtimes. See the [release notes](docs/releases/v0.9.8.md).
@@ -457,10 +464,10 @@ instead of reading unverified game memory.
 Choose one download from the
 [Blind Soldier Releases page](https://github.com/buu420/blind-soldier/releases):
 
-- [Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.9.8/Blind-Soldier-Portable.zip)
+- [Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.9.9/Blind-Soldier-Portable.zip)
   is the complete dual-runtime package. Use it for Steam 2026 x64 or when one
   extracted package must support both x86 and x64 installations.
-- [Blind-Soldier-2013-x86-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.9.8/Blind-Soldier-2013-x86-Portable.zip)
+- [Blind-Soldier-2013-x86-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.9.9/Blind-Soldier-2013-x86-Portable.zip)
   is the smaller legacy-only package. Use it for the 2013 x86 game, including
   stock 7th Heaven/FFNx. It deliberately contains no Steam 2026 launcher or
   x64 files.

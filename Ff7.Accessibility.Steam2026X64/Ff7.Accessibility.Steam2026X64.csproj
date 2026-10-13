@@ -7,7 +7,7 @@
     <PlatformTarget>x64</PlatformTarget>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
-    <InformationalVersion>0.9.8</InformationalVersion>
+    <InformationalVersion>0.9.9</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
 
@@ -15,6 +15,7 @@
     <Compile Include="..\Ff7.Accessibility.Reloaded\WholeGameEchoNavigationManifest.cs" Link="Shared\WholeGameEchoNavigationManifest.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\WholeGameEchoFutureMetadata.cs" Link="Shared\WholeGameEchoFutureMetadata.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\EchoSCompatibilityManifest.cs" Link="Shared\EchoSCompatibilityManifest.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\PostscriptFieldCompatibility.cs" Link="Shared\PostscriptFieldCompatibility.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldCreatureApproachDescriptions.cs" Link="Shared\FieldCreatureApproachDescriptions.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldCreatureWarningSpeechGate.cs" Link="Shared\FieldCreatureWarningSpeechGate.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldCreatureApproachNarrationCoordinator.cs" Link="Shared\FieldCreatureApproachNarrationCoordinator.cs" />
@@ -53,6 +54,7 @@
     <Compile Include="..\Ff7.Accessibility.Reloaded\BattleTargetSpeechTracker.cs" Link="Shared\BattleTargetSpeechTracker.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\BattleMessageSpeechTracker.cs" Link="Shared\BattleMessageSpeechTracker.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\BattleSenseSpeechCoordinator.cs" Link="Shared\BattleSenseSpeechCoordinator.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\PostscriptBattleAssistSpeechTracker.cs" Link="Shared\PostscriptBattleAssistSpeechTracker.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\BattleEnemyActionSpeechTracker.cs" Link="Shared\BattleEnemyActionSpeechTracker.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\BattleDamageSpeechTracker.cs" Link="Shared\BattleDamageSpeechTracker.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\BattleStatusSpeechTracker.cs" Link="Shared\BattleStatusSpeechTracker.cs" />

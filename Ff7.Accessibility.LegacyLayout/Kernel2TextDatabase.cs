@@ -1,7 +1,30 @@
+using Ff7.Accessibility.LegacyLayout;
+
 namespace Ff7.Accessibility.Reloaded;
 
 public sealed class Kernel2TextDatabase
 {
+    private Ff7.Accessibility.LegacyLayout.NativeKernel2TextReader? nativeText;
+    private PostscriptMateriaDropCompatibility? materiaDropCompatibility;
+
+    /// <summary>Use the text actually loaded by the game, including virtual-file overrides.</summary>
+    public void UseNativeText(Ff7.Accessibility.LegacyLayout.ILegacyAddressSpace memory,
+        Ff7GameLanguageDescriptor? language = null)
+    {
+        nativeText = new Ff7.Accessibility.LegacyLayout.NativeKernel2TextReader(memory, language);
+        materiaDropCompatibility = new PostscriptMateriaDropCompatibility(memory);
+    }
+
+    public void UseVerifiedNativeText(Func<int, int, byte[]?> readEncoded, Func<bool> ownsLookup)
+    {
+        if (nativeText is null) throw new InvalidOperationException("A native address space must be configured first.");
+        nativeText.BindVerifiedBackend(readEncoded, ownsLookup);
+    }
+
+    private string? ResolveText(int bank, int id, IndexedTextSection disk) =>
+        nativeText is { HasSupportedLookup: true } live
+            ? live.TryRead(bank, id, out var text) ? text : null
+            : disk.Resolve(id);
     private static readonly int[] ExpectedSectionCounts =
     [
         32, 256, 128, 128, 32, 32, 96, 64, 32,
@@ -46,59 +69,79 @@ public sealed class Kernel2TextDatabase
         materiaDescriptions = sections[6];
     }
 
-    public string? ResolveItemName(int id) => itemNames.Resolve(id);
+    public string? ResolveItemName(int id) => ResolveText(10, id, itemNames);
 
-    public string? ResolveItemDescription(int id) => itemDescriptions.Resolve(id);
+    public string? ResolveItemDescription(int id) => ResolveText(2, id, itemDescriptions);
 
-    public string? ResolveSpellName(int id) => spellNames.Resolve(id);
+    public string? ResolveSpellName(int id) => ResolveText(9, id, spellNames);
 
-    public string? ResolveSpellDescription(int id) => spellDescriptions.Resolve(id);
+    public string? ResolveSpellDescription(int id) => ResolveText(1, id, spellDescriptions);
 
     public string? ResolveBattleActionName(int rawActionId) =>
-        ResolveBattleActionText(spellNames, rawActionId);
+        ResolveBattleActionText(spellNames, rawActionId, 9);
 
     public string? ResolveBattleActionDescription(int rawActionId) =>
-        ResolveBattleActionText(spellDescriptions, rawActionId);
+        ResolveBattleActionText(spellDescriptions, rawActionId, 1);
 
-    public string? ResolveWeaponName(int id) => weaponNames.Resolve(id);
+    public string? ResolveWeaponName(int id) => ResolveText(11, id, weaponNames);
 
-    public string? ResolveWeaponDescription(int id) => weaponDescriptions.Resolve(id);
+    public string? ResolveWeaponDescription(int id) => ResolveText(3, id, weaponDescriptions);
 
-    public string? ResolveArmorName(int id) => armorNames.Resolve(id);
+    public string? ResolveArmorName(int id) => ResolveText(12, id, armorNames);
 
-    public string? ResolveArmorDescription(int id) => armorDescriptions.Resolve(id);
+    public string? ResolveArmorDescription(int id) => ResolveText(4, id, armorDescriptions);
 
-    public string? ResolveAccessoryName(int id) => accessoryNames.Resolve(id);
+    public string? ResolveAccessoryName(int id) => ResolveText(13, id, accessoryNames);
 
-    public string? ResolveAccessoryDescription(int id) => accessoryDescriptions.Resolve(id);
+    public string? ResolveAccessoryDescription(int id) => ResolveText(5, id, accessoryDescriptions);
 
-    public string? ResolveCommandName(int id) => commandNames.Resolve(id);
+    public string? ResolveCommandName(int id) => ResolveText(8, id, commandNames);
 
-    public string? ResolveCommandDescription(int id) => commandDescriptions.Resolve(id);
+    public string? ResolveCommandDescription(int id) => ResolveText(0, id, commandDescriptions);
 
-    public string? ResolveMateriaName(int id) => materiaNames.Resolve(id);
+    public string? ResolveMateriaName(int id) => ResolveText(14, id, materiaNames);
 
-    public string? ResolveMateriaDescription(int id) => materiaDescriptions.Resolve(id);
+    public string? ResolveMateriaDescription(int id) => ResolveText(6, id, materiaDescriptions);
 
     public string? ResolveInventoryObjectName(int id) => id switch
     {
-        >= 0 and < 128 => itemNames.Resolve(id),
-        >= 128 and < 256 => weaponNames.Resolve(id - 128),
-        >= 256 and < 288 => armorNames.Resolve(id - 256),
-        >= 288 and < 320 => accessoryNames.Resolve(id - 288),
+        >= 0 and < 128 => ResolveItemName(id),
+        >= 128 and < 256 => ResolveWeaponName(id - 128),
+        >= 256 and < 288 => ResolveArmorName(id - 256),
+        >= 288 and < 320 => ResolveAccessoryName(id - 288),
+        >= PostscriptMateriaDropCompatibility.FirstMateriaRewardId and
+            <= PostscriptMateriaDropCompatibility.LastMateriaRewardId => ResolveMateriaRewardName(id),
         _ => null
     };
+
+    private string? ResolveMateriaRewardName(int id)
+    {
+        if (materiaDropCompatibility?.HasMateriaDropAliases() != true ||
+            nativeText is not { HasSupportedLookup: true } live)
+        {
+            return null;
+        }
+
+        // Ghidra: 00419B73 redirects encoded reward names through 006C6B06,
+        // which calls 0041963C(category 13, index, 8): loaded kernel2 bank 14.
+        // Reading the disk section here could describe a different live mod.
+        var index = id - PostscriptMateriaDropCompatibility.FirstMateriaRewardId;
+        return live.TryRead(14, index, out var name) &&
+               materiaDropCompatibility.HasMateriaDropAliases()
+            ? name
+            : null;
+    }
 
     public string? ResolveInventoryObjectDescription(int id) => id switch
     {
-        >= 0 and < 128 => itemDescriptions.Resolve(id),
-        >= 128 and < 256 => weaponDescriptions.Resolve(id - 128),
-        >= 256 and < 288 => armorDescriptions.Resolve(id - 256),
-        >= 288 and < 320 => accessoryDescriptions.Resolve(id - 288),
+        >= 0 and < 128 => ResolveItemDescription(id),
+        >= 128 and < 256 => ResolveWeaponDescription(id - 128),
+        >= 256 and < 288 => ResolveArmorDescription(id - 256),
+        >= 288 and < 320 => ResolveAccessoryDescription(id - 288),
         _ => null
     };
 
-    public string? ResolveBattleText(int id) => battleTexts.Resolve(id);
+    public string? ResolveBattleText(int id) => ResolveText(16, id, battleTexts);
 
     /// <summary>
     /// The name a summon's attack banner shows for its action, as <c>FUN_006D1CC0</c>
@@ -108,8 +151,8 @@ public sealed class Kernel2TextDatabase
     /// </summary>
     public string? ResolveSummonBannerText(int action) => action switch
     {
-        >= 0 and < 0x10 => NormalizeBattleActionText(summonAttackNames.Resolve(action)),
-        >= 0x10 and <= byte.MaxValue => NormalizeBattleActionText(spellNames.Resolve(action)),
+        >= 0 and < 0x10 => NormalizeBattleActionText(ResolveText(17, action, summonAttackNames)),
+        >= 0x10 and <= byte.MaxValue => NormalizeBattleActionText(ResolveSpellName(action)),
         _ => null,
     };
 
@@ -175,7 +218,7 @@ public sealed class Kernel2TextDatabase
         return new Kernel2TextDatabase(sections);
     }
 
-    private static string? ResolveBattleActionText(IndexedTextSection section, int rawActionId)
+    private string? ResolveBattleActionText(IndexedTextSection section, int rawActionId, int bank)
     {
         if (rawActionId is < 0 or > byte.MaxValue or 0x7f)
         {
@@ -184,7 +227,7 @@ public sealed class Kernel2TextDatabase
 
         var shiftedId = rawActionId + 0x80;
         var textId = shiftedId < 0xe0 ? shiftedId : rawActionId;
-        return NormalizeBattleActionText(section.Resolve(textId));
+        return NormalizeBattleActionText(ResolveText(bank, textId, section));
     }
 
     private static string? NormalizeBattleActionText(string? text)

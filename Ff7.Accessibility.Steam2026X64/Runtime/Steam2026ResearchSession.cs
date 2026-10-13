@@ -652,6 +652,9 @@ internal sealed class Steam2026ResearchSession : IDisposable
         Steam2026FieldFootstepCoordinator? footstepCoordinator = null;
         Steam2026FieldObjectSpatialCoordinator? fieldObjectSpatialCoordinator = null;
         var kernel2TextDatabase = Kernel2TextDatabase.TryCreate(gameLanguage, log);
+        kernel2TextDatabase?.UseNativeText(
+            ValidatedTranslatedX86AddressSpaceFactory.Create(fingerprint, moduleBase, memory),
+            gameLanguage.Descriptor);
         var localizer = BlindSoldierLocalizer.Create(gameLanguage.Descriptor, modDirectory, log);
         if (gameLanguage.Language != Ff7GameLanguage.English && config.EnableOpeningMovieAudioTrack)
         {

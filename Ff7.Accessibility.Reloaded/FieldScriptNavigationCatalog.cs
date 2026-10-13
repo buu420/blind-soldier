@@ -218,7 +218,7 @@ public sealed class FieldScriptNavigationCatalog
     private readonly Dictionary<int, FieldScriptNavigationReadResult> cache = new();
     private readonly object cacheLock = new();
     private readonly LoadedFieldScriptIdentityReader? loadedScripts;
-    private readonly Dictionary<(int FieldId, string Hash), FieldScriptNavigationReadResult> loadedCache = new();
+    private readonly Dictionary<(int FieldId, string Hash, ushort? CharacterSeed), FieldScriptNavigationReadResult> loadedCache = new();
 
     public FieldScriptNavigationCatalog(string gameRootDirectory)
         : this(gameRootDirectory, Ff7GameLanguageDetector.Detect(gameRootDirectory))
@@ -278,8 +278,13 @@ public sealed class FieldScriptNavigationCatalog
     {
         if (!loadedScripts!.TryReadPrefix(out var identity, out var prefix) || identity.FieldId != fieldId)
             return FieldScriptNavigationReadResult.Invalid($"field={fieldId}, loaded script unavailable or changing");
-        var key = (fieldId, identity.ScriptPrefixSha256);
-        if (loadedCache.TryGetValue(key, out var cached)) return cached;
+        if (!loadedScripts.TryReadNavigationMode(out var characterSeed))
+            return FieldScriptNavigationReadResult.Invalid($"field={fieldId}, native character execution mode unavailable or changing");
+        var key = (fieldId, identity.ScriptPrefixSha256, characterSeed);
+        if (loadedCache.TryGetValue(key, out var cached))
+            return loadedScripts.TryReadNavigationMode(out var cachedSeed) && cachedSeed==characterSeed &&
+                loadedScripts.TryRead(out var cachedIdentity) && cachedIdentity==identity ? cached :
+                FieldScriptNavigationReadResult.Invalid($"field={fieldId}, native character execution mode changed");
         if (!fieldNames.TryGetValue(fieldId, out var name) || !flevelDataSource.TryReadField(name, out var encoded))
             return FieldScriptNavigationReadResult.Invalid($"field={fieldId}, native model metadata unavailable");
         try
@@ -288,6 +293,8 @@ public sealed class FieldScriptNavigationCatalog
             if (!TryReadSectionOne(bytes, out var diskSection, out _))
                 return FieldScriptNavigationReadResult.Invalid($"field={fieldId}, invalid disk script section");
             var variant = WholeGameEchoNavigationManifest.ResolveVariant(identity);
+            if (variant == SupportedFieldScriptVariant.Postscript178 && characterSeed is null)
+                return FieldScriptNavigationReadResult.Invalid($"field={fieldId}, randomized opening requires verified native character execution mode");
             var matchesDisk = ScriptPrefixHash(diskSection) == identity.ScriptPrefixSha256;
             if (variant == SupportedFieldScriptVariant.Unknown ||
                 variant == SupportedFieldScriptVariant.Vanilla && !matchesDisk)
@@ -295,7 +302,7 @@ public sealed class FieldScriptNavigationCatalog
             var echo = variant == SupportedFieldScriptVariant.EchoS124;
             var models = echo ? WholeGameEchoNavigationManifest.Models(fieldId) : null;
             var result = ReadFieldFromSection(fieldId, name, prefix,
-                StripFieldPrefix(models ?? ReadModelResourceNames(bytes), name));
+                StripFieldPrefix(models ?? ReadModelResourceNames(bytes), name), characterSeed);
             var mapping = echo ? WholeGameEchoNavigationManifest.EntityMap(fieldId) : WholeGameEchoNavigationManifest.ReviewedOfficialStockEntityMap(identity);
             if (result.IsUsable && mapping is not null)
             {
@@ -312,6 +319,9 @@ public sealed class FieldScriptNavigationCatalog
                         SuppressInstalledDialogueLabels = echo }).ToArray()
                 };
             }
+            if (!loadedScripts.TryReadNavigationMode(out var afterSeed) || afterSeed!=characterSeed ||
+                !loadedScripts.TryRead(out var afterIdentity) || afterIdentity!=identity)
+                return FieldScriptNavigationReadResult.Invalid($"field={fieldId}, loaded character/script execution mode changed during analysis");
             if (result.IsUsable) loadedCache[key] = result;
             return result;
         }
@@ -319,6 +329,31 @@ public sealed class FieldScriptNavigationCatalog
         {
             return FieldScriptNavigationReadResult.Invalid($"field={fieldId}, loaded script read failed: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// Private execution semantics for the verified native patch. Only character-role
+    /// operands and the patched byte-equality RHS change; visual CHAR/HRC binding, raw
+    /// inequalities, public opcode evidence and guard operands remain native originals.
+    /// Both sides are analyzed in actual character IDs before any party-mask collapse.
+    /// </summary>
+    private static byte[] NavigationSemanticSection(byte[] native, ushort seed)
+    {
+        var program = FieldScriptProgram.TryParse(native, out _) ??
+            throw new InvalidDataException("Native character semantic section unavailable.");
+        var semantic = (byte[])native.Clone();
+        byte Map(byte id) => id < 9 ? (byte)Ff7.Accessibility.LegacyLayout.PostscriptCharacterOrderReader.ResolveVerifiedRole(seed,id) : id;
+        foreach (var op in program.LiveInstructions().DistinctBy(op => op.Offset))
+        {
+            if (op.Id is 0xA0 or 0xC8 or 0xC9 && op.Bytes.Length >= 2)
+                semantic[op.Offset+1] = Map(op.Bytes[1]);
+            else if (op.Id == 0xCA && op.Bytes.Length >= 4)
+                for (var operand=1;operand<=3;operand++) semantic[op.Offset+operand] = Map(op.Bytes[operand]);
+            else if (op.Id is 0x14 or 0x15 && op.Bytes.Length >= 6 && op.Bytes[4] == 0 &&
+                (op.Bytes[1] & 15) == 0 && FieldBankByte.BlockOf(op.Bytes[1] >> 4) == 3 && op.Bytes[2] is >= 9 and <= 11)
+                semantic[op.Offset+3] = Map(op.Bytes[3]);
+        }
+        return semantic;
     }
 
     private static string ScriptPrefixHash(byte[] section) =>
@@ -535,19 +570,22 @@ public sealed class FieldScriptNavigationCatalog
     /// synthetic fields and read them through here, so they exercise the same readers the
     /// runtime uses.
     /// </summary>
-    internal static FieldScriptNavigationReadResult ReadFieldFromBytes(int fieldId, string fieldName, byte[] fieldBytes)
+    internal static FieldScriptNavigationReadResult ReadFieldFromBytes(int fieldId, string fieldName, byte[] fieldBytes, ushort? postscriptCharacterSeed = null)
     {
         if (!TryReadSectionOne(fieldBytes, out var section, out var diagnostic))
             return FieldScriptNavigationReadResult.Invalid($"field={fieldId} {fieldName}, {diagnostic}");
         return ReadFieldFromSection(fieldId, fieldName, section,
-            StripFieldPrefix(ReadModelResourceNames(fieldBytes), fieldName));
+            StripFieldPrefix(ReadModelResourceNames(fieldBytes), fieldName), postscriptCharacterSeed);
     }
 
     private static FieldScriptNavigationReadResult ReadFieldFromSection(
-        int fieldId, string fieldName, byte[] section, IReadOnlyList<string> modelResources)
+        int fieldId, string fieldName, byte[] section, IReadOnlyList<string> modelResources,
+        ushort? postscriptCharacterSeed = null)
     {
         {
-            var groups = ParseScriptGroups(section, out var diagnostic);
+            var nativeGroups = ParseScriptGroups(section, out var diagnostic);
+            var groups = postscriptCharacterSeed is { } seed
+                ? ParseScriptGroups(NavigationSemanticSection(section, seed), out diagnostic) : nativeGroups;
             if (groups.Count == 0)
             {
                 return FieldScriptNavigationReadResult.Invalid($"field={fieldId} {fieldName}, {diagnostic}");
@@ -563,10 +601,10 @@ public sealed class FieldScriptNavigationCatalog
             var exitGuards = new Dictionary<string, IReadOnlyList<FieldScriptExitGuard>>(StringComparer.Ordinal);
             var npcs = ReadNpcs(
                 fieldId,
-                groups,
+                nativeGroups,
                 modelResources);
-            var waits = ReadWaits(fieldId, groups);
-            var mapNameDialogIds = ReadMapNameDialogIds(groups);
+            var waits = ReadWaits(fieldId, nativeGroups);
+            var mapNameDialogIds = ReadMapNameDialogIds(nativeGroups);
             var walkLimits = new NavigationLimits();
             // What a walk may assume about the field's values does not depend on where it
             // starts, so every line shares one, and a routine several lines ask for is walked
@@ -702,7 +740,7 @@ public sealed class FieldScriptNavigationCatalog
                 if (destinations.Any(destination => destination != fieldId))
                 {
                     var exitId = $"script-exit:{fieldId}:{group.Index}:{string.Join(',', destinations)}";
-                    if (ExitGuards(walk.Program, actions, fieldId, group.Index) is { Count: > 0 } guards)
+                    if (ExitGuards(nativeGroups[0].Program, actions, fieldId, group.Index) is { Count: > 0 } guards)
                     {
                         exitGuards[exitId] = guards;
                     }
@@ -5081,12 +5119,3 @@ public sealed class FieldScriptNavigationCatalog
             new(ActionKind.MapJump, group, script, 0, 0, null, -1, destinationField, FieldNavigationInput.None, false);
     }
 }
-
-
-
-
-
-
-
-
-

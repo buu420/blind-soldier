@@ -34,6 +34,9 @@ public sealed class LoadedFieldScriptIdentityReader
 
     public bool TryRead(out LoadedFieldScriptIdentity identity) => TryReadPrefix(out identity, out _);
 
+    internal bool TryReadNavigationMode(out ushort? seed) =>
+        new PostscriptCharacterOrderReader(memory).TryReadNavigationMode(out seed);
+
     internal bool? ReadGuard(FieldScriptGuardTest test)
     {
         var block = test.Block switch
@@ -46,7 +49,8 @@ public sealed class LoadedFieldScriptIdentityReader
             15 => FieldScriptExitGuards.AddressSavemapFieldBanks + 0x400,
             _ => -1
         };
-        if (block < 0 || test.Address is < 0 or > 255 || !TryCaptureHeader(out var before) || before.Module != 1)
+        if (block < 0 || test.Address is < 0 or > 255 || !TryCaptureHeader(out var before) || before.Module != 1 ||
+            !TryReadNavigationMode(out var characterSeed))
             return null;
         var address = (uint)(block + test.Address);
         bool Read(out int value)
@@ -62,8 +66,13 @@ public sealed class LoadedFieldScriptIdentityReader
             return true;
         }
         if (!Read(out var first) || !Read(out var second) || first != second ||
-            !TryCaptureHeader(out var after) || before != after) return null;
-        return test.IsMetBy(first);
+            !TryCaptureHeader(out var after) || before != after ||
+            !TryReadNavigationMode(out var afterSeed) || characterSeed!=afterSeed) return null;
+        // 0061182C changes byte equality's RHS, never its actual live bank value.
+        var effective = characterSeed is { } seed && test.Block==3 && test.Address is >=9 and <=11 &&
+            !test.Word && test.Operator==0 && test.Value is >=0 and <=8
+            ? test with { Value = PostscriptCharacterOrderReader.ResolveVerifiedRole(seed,test.Value) } : test;
+        return effective.IsMetBy(first);
     }
 
     /// <summary>The same coherent observation, including the script prefix it identifies.</summary>

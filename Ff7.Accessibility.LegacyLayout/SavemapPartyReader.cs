@@ -13,6 +13,9 @@ public sealed class SavemapPartyReader
     public const int EquippedWeaponOffset = 0x1C;
     public const int EquippedArmorOffset = 0x1D;
     public const int EquippedAccessoryOffset = 0x1E;
+    // Gameplay Tweaks 1.78: native assignment/status paths subtract three
+    // from the accessory field for the fourth Equipment row.
+    public const int EquippedSecondAccessoryOffset = 0x1B;
     // Ghidra: the Order handler at 0x006CA346 XORs bit zero of this byte
     // when the same party member is confirmed twice. Set means front row;
     // clear means back row.
@@ -242,12 +245,18 @@ public sealed class SavemapPartyReader
     public bool TryReadEquipment(int partySlot, int equipmentSlot, out NativeMenuSelection selection)
     {
         selection = default;
+        var compatibility = GetPostscriptCompatibility();
+        var twoAccessories = compatibility.HasTwoAccessories();
+        var bonusDisplay = compatibility.HasEquipmentBonusDisplay();
+        if (equipmentSlot == 3 && !twoAccessories) return false;
         if (!TryReadPartySlot(partySlot, out var member))
         {
             return false;
         }
 
         var characterBase = GetCharacterBase(member.CharacterId);
+        EquipmentPanelStats visiblePanel = default;
+        if (bonusDisplay && equipmentSlot < 2 && !TryReadVisibleBonusPanel(characterBase, out visiblePanel)) return false;
         string label;
         string? name;
         int itemId;
@@ -274,8 +283,11 @@ public sealed class SavemapPartyReader
                 name = resolveArmorName?.Invoke(itemId);
                 break;
             case 2:
-                label = "Accessory";
-                if (!TryReadByte(characterBase + EquippedAccessoryOffset, out var accessoryId))
+            case 3:
+                label = twoAccessories ? $"Accessory {equipmentSlot - 1}" : "Accessory";
+                if (!TryReadByte(characterBase +
+                        (equipmentSlot == 3 ? EquippedSecondAccessoryOffset : EquippedAccessoryOffset), out var accessoryId) ||
+                    (accessoryId >= 32 && accessoryId != 255))
                 {
                     return false;
                 }
@@ -296,7 +308,7 @@ public sealed class SavemapPartyReader
         {
             0 => itemId + 128,
             1 => itemId + 256,
-            2 when itemId != 0xFF => itemId + 288,
+            2 or 3 when itemId != 0xFF => itemId + 288,
             _ => -1
         };
         string? help = null;
@@ -326,7 +338,8 @@ public sealed class SavemapPartyReader
 
                 nativeDetails = string.Join(
                     ". ",
-                    EquipmentStatReader.FormatWeaponPanel(weaponDetails.Stats),
+                    bonusDisplay ? EquipmentStatReader.FormatPanel(visiblePanel)
+                        : EquipmentStatReader.FormatWeaponPanel(weaponDetails.Stats),
                     EquipmentStatReader.FormatMateriaLayout(weaponDetails.MateriaLayout),
                     EquipmentStatReader.FormatGrowth(weaponDetails.Growth));
                 break;
@@ -344,11 +357,13 @@ public sealed class SavemapPartyReader
 
                 nativeDetails = string.Join(
                     ". ",
-                    EquipmentStatReader.FormatArmorPanel(armorDetails.Stats),
+                    bonusDisplay ? EquipmentStatReader.FormatPanel(visiblePanel)
+                        : EquipmentStatReader.FormatArmorPanel(armorDetails.Stats),
                     EquipmentStatReader.FormatMateriaLayout(armorDetails.MateriaLayout),
                     EquipmentStatReader.FormatGrowth(armorDetails.Growth));
                 break;
             case 2:
+            case 3:
                 nativeDetails = null;
                 break;
             default:
@@ -362,11 +377,16 @@ public sealed class SavemapPartyReader
         {
             0 => EquippedWeaponOffset,
             1 => EquippedArmorOffset,
+            3 => EquippedSecondAccessoryOffset,
             _ => EquippedAccessoryOffset
         };
         if (!VerifyPartySlot(partySlot, member.CharacterId) ||
             !TryReadByte(characterBase + selectedOffset, out var selectedBookend) ||
-            selectedBookend != itemId)
+            selectedBookend != itemId ||
+            compatibility.HasTwoAccessories() != twoAccessories ||
+            compatibility.HasEquipmentBonusDisplay() != bonusDisplay ||
+            (bonusDisplay && equipmentSlot < 2 &&
+                (!TryReadVisibleBonusPanel(characterBase, out var panelBookend) || panelBookend != visiblePanel)))
         {
             return false;
         }
@@ -374,7 +394,7 @@ public sealed class SavemapPartyReader
         selection = new NativeMenuSelection(
             $"{label}, {name}",
             description.Length == 0 ? null : description,
-            $"equip:{partySlot}:{equipmentSlot}:{itemId}");
+            $"equip:{partySlot}:{equipmentSlot}:{itemId}" + (bonusDisplay ? $":{visiblePanel}" : string.Empty));
         return true;
     }
 
@@ -397,12 +417,19 @@ public sealed class SavemapPartyReader
     public bool TryReadStatusSummary(int partySlot, out StatusMenuSnapshot snapshot)
     {
         snapshot = default;
+        var compatibility = GetPostscriptCompatibility();
+        var twoAccessories = compatibility.HasTwoAccessories();
         if (!TryReadPartySlot(partySlot, out var member))
         {
             return false;
         }
 
         var characterBase = GetCharacterBase(member.CharacterId);
+        byte secondAccessoryId = 255;
+        if (twoAccessories &&
+            (!TryReadByte(characterBase + EquippedSecondAccessoryOffset, out secondAccessoryId) ||
+             (secondAccessoryId >= 32 && secondAccessoryId != 255))) return false;
+
         if (!TryReadByte(characterBase + EquippedWeaponOffset, out var weaponId) ||
             !TryReadByte(characterBase + EquippedArmorOffset, out var armorId) ||
             !TryReadByte(characterBase + EquippedAccessoryOffset, out var accessoryId) ||
@@ -438,6 +465,17 @@ public sealed class SavemapPartyReader
             return false;
         }
 
+        var secondAccessoryName = twoAccessories
+            ? secondAccessoryId == 255 ? "None" : resolveAccessoryName?.Invoke(secondAccessoryId)
+            : null;
+        if ((twoAccessories && string.IsNullOrWhiteSpace(secondAccessoryName)) ||
+            !TryReadByte(characterBase + EquippedWeaponOffset, out var weaponBookend) || weaponBookend != weaponId ||
+            !TryReadByte(characterBase + EquippedArmorOffset, out var armorBookend) || armorBookend != armorId ||
+            !TryReadByte(characterBase + EquippedAccessoryOffset, out var accessoryBookend) || accessoryBookend != accessoryId ||
+            (twoAccessories && (!TryReadByte(characterBase + EquippedSecondAccessoryOffset, out var secondBookend) || secondBookend != secondAccessoryId)) ||
+            compatibility.HasTwoAccessories() != twoAccessories)
+            return false;
+
         snapshot = new StatusMenuSnapshot(
             partySlot,
             member.CharacterId,
@@ -465,7 +503,9 @@ public sealed class SavemapPartyReader
             limitLevel,
             resolveWeaponName?.Invoke(weaponId),
             resolveArmorName?.Invoke(armorId),
-            accessoryId == 0xFF ? "None" : resolveAccessoryName?.Invoke(accessoryId));
+            accessoryId == 0xFF ? "None" : resolveAccessoryName?.Invoke(accessoryId),
+            secondAccessoryName,
+            twoAccessories);
         return true;
     }
 
@@ -639,7 +679,31 @@ public sealed class SavemapPartyReader
             }
         }
 
-        return EquipmentStatReader.TryDecodeMateriaLayout(slots, out layout);
+        var compatibility = GetPostscriptCompatibility();
+        var chained = compatibility.HasMultiLinkedSlots();
+        if (chained)
+            for (var index = 0; index < slots.Length; index++)
+                if (!TryReadByte(recordAddress + index, out var bookend) || bookend != slots[index])
+                {
+                    layout = default;
+                    return false;
+                }
+        return EquipmentStatReader.TryDecodeMateriaLayout(slots, chained, out layout) &&
+            compatibility.HasMultiLinkedSlots() == chained;
+    }
+
+    private PostscriptEquipmentCompatibility GetPostscriptCompatibility() =>
+        addressSpace is not null
+            ? new PostscriptEquipmentCompatibility(addressSpace)
+            : new PostscriptEquipmentCompatibility(readByte!);
+
+    private bool TryReadVisibleBonusPanel(int characterBase, out EquipmentPanelStats panel)
+    {
+        panel = default;
+        return addressSpace is not null &&
+            TryReadByte(characterBase + EquippedWeaponOffset, out var weapon) &&
+            TryReadByte(characterBase + EquippedArmorOffset, out var armor) &&
+            new EquipmentStatReader(addressSpace).TryReadVisibleBonusPanel(weapon, armor, out panel);
     }
 
     private bool TryReadByte(int address, out byte value)
@@ -756,4 +820,6 @@ public readonly record struct StatusMenuSnapshot(
     int LimitLevel,
     string? WeaponName,
     string? ArmorName,
-    string? AccessoryName);
+    string? AccessoryName,
+    string? SecondAccessoryName = null,
+    bool HasSecondAccessorySlot = false);

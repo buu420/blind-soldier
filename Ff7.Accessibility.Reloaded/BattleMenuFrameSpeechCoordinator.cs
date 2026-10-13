@@ -49,7 +49,7 @@ public sealed class BattleMenuFrameSpeechCoordinator
             if (!snapshot.IsValid || snapshot.RendererState != frameState ||
                 snapshot.Selection is not { } selection)
             {
-                if (!snapshot.IsValid)
+                if (!snapshot.IsValid || snapshot.Selection is null)
                 {
                     lastSelectionKeys.Remove(frameState);
                 }
@@ -57,7 +57,7 @@ public sealed class BattleMenuFrameSpeechCoordinator
                 return;
             }
 
-            var selectionKey = $"{snapshot.PartySlot}\u001f{frameState}\u001f{selection.SlotIndex}\u001f{selection.EntryId}\u001f{selection.Name}\u001f{selection.IsAvailable}";
+            var selectionKey = $"{snapshot.PartySlot}\u001f{frameState}\u001f{selection.CommandId}\u001f{selection.SlotIndex}\u001f{selection.EntryId}\u001f{selection.Name}\u001f{selection.IsAvailable}";
             if (lastSelectionKeys.TryGetValue(frameState, out var lastSelectionKey) &&
                 string.Equals(selectionKey, lastSelectionKey, StringComparison.Ordinal))
             {

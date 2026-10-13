@@ -14,7 +14,8 @@ public readonly record struct EquipmentPanelStats(
 public readonly record struct EquipmentMateriaLayout(
     int SlotCount,
     int LinkedPairCount,
-    int UnlinkedSlotCount);
+    int UnlinkedSlotCount,
+    string? LinkedGroupDescription = null);
 
 public readonly record struct EquipmentDefinitionDetails(
     EquipmentPanelStats Stats,
@@ -84,6 +85,43 @@ public sealed class EquipmentStatReader
                 checked((uint)(AddressWeaponAttackPercent + (weaponId * WeaponRecordSize))),
                 out var percentValue) &&
             SetPair(attackValue, percentValue, out attack, out attackPercent);
+    }
+
+    /// <summary>Mirrors FixEquipDisplay's seven values, including the exact bonus
+    /// types its native renderer applies. These are equipment panel values; the
+    /// Status screen's computed character totals are read separately.</summary>
+    public bool TryReadVisibleBonusPanel(int weaponId, int armorId, out EquipmentPanelStats stats)
+    {
+        stats = default;
+        var compatibility = new PostscriptEquipmentCompatibility(memory);
+        if (!compatibility.HasEquipmentBonusDisplay() || !TryReadPanel(weaponId, armorId, out var basic) ||
+            !TryReadBonusTypes(0x00DBE744 + weaponId * WeaponRecordSize, out var weapon) ||
+            !TryReadBonusTypes(0x00DBCCF8 + armorId * ArmorRecordSize, out var armor) ||
+            !TryReadPanel(weaponId, armorId, out var basicBookend) || basicBookend != basic ||
+            !compatibility.HasEquipmentBonusDisplay()) return false;
+        stats = basic with
+        {
+            Attack = basic.Attack + Bonus(armor, 0),
+            Defense = basic.Defense + Bonus(weapon, 1),
+            MagicAttack = Bonus(weapon, 2) + Bonus(armor, 2),
+            MagicDefense = basic.MagicDefense + Bonus(weapon, 3)
+        };
+        return true;
+    }
+
+    private bool TryReadBonusTypes(int address, out byte[] bonuses)
+    {
+        bonuses = new byte[8];
+        Span<byte> bookend = stackalloc byte[8];
+        return memory.TryRead((uint)address, bonuses) && memory.TryRead((uint)address, bookend) &&
+            bookend.SequenceEqual(bonuses);
+    }
+
+    private static int Bonus(byte[] bonuses, byte type)
+    {
+        for (var index = 0; index < 4; index++)
+            if (bonuses[index] == type) return bonuses[index + 4];
+        return 0;
     }
 
     public bool TryReadArmor(
@@ -243,6 +281,36 @@ public sealed class EquipmentStatReader
         return false;
     }
 
+    public bool TryReadVerifiedMateriaConnections(int row, int equipmentId, int column, out string? description)
+    {
+        description = null;
+        var compatibility = new PostscriptEquipmentCompatibility(memory);
+        if (!compatibility.HasMultiLinkedSlots()) return true;
+        var address = row switch
+        {
+            0 when equipmentId is >= 0 and < 128 => AddressWeaponMateriaSlots + equipmentId * WeaponRecordSize,
+            1 when equipmentId is >= 0 and < 32 => AddressArmorMateriaSlots + equipmentId * ArmorRecordSize,
+            _ => -1
+        };
+        Span<byte> slots = stackalloc byte[MateriaSlotCount];
+        Span<byte> bookend = stackalloc byte[MateriaSlotCount];
+        if (address <= 0 || column is < 0 or >= MateriaSlotCount ||
+            !memory.TryRead((uint)address, slots) ||
+            !TryDecodeMateriaLayout(slots, true, out _) ||
+            !memory.TryRead((uint)address, bookend) || !slots.SequenceEqual(bookend) ||
+            !compatibility.HasMultiLinkedSlots()) return false;
+        var connected = new List<int>();
+        var slot = slots[column];
+        if (slot is 3 or 7 && column > 0 &&
+            (slots[column - 1] == slot || slots[column - 1] == slot - 1)) connected.Add(column);
+        if (slot is 2 or 3 or 6 or 7 && column + 1 < slots.Length &&
+            slots[column + 1] == (slot is 2 or 6 ? slot + 1 : slot)) connected.Add(column + 2);
+        if (connected.Count != 0)
+            description = $"Linked to {(row == 0 ? "weapon" : "armor")} materia " +
+                (connected.Count == 1 ? $"slot {connected[0]}" : $"slots {connected[0]} and {connected[1]}");
+        return true;
+    }
+
     public static string FormatComparison(
         EquipmentPanelStats current,
         EquipmentPanelStats candidate)
@@ -323,6 +391,9 @@ public sealed class EquipmentStatReader
             parts.Add($"{layout.UnlinkedSlotCount} unlinked");
         }
 
+        if (!string.IsNullOrWhiteSpace(layout.LinkedGroupDescription))
+            parts.Add(layout.LinkedGroupDescription);
+
         return string.Join(", ", parts);
     }
 
@@ -339,6 +410,12 @@ public sealed class EquipmentStatReader
     public static bool TryDecodeMateriaLayout(
         ReadOnlySpan<byte> slots,
         out EquipmentMateriaLayout layout)
+        => TryDecodeMateriaLayout(slots, false, out layout);
+
+    public static bool TryDecodeMateriaLayout(
+        ReadOnlySpan<byte> slots,
+        bool allowVerifiedMultiLinkedSlots,
+        out EquipmentMateriaLayout layout)
     {
         layout = default;
         if (slots.Length != MateriaSlotCount)
@@ -348,6 +425,9 @@ public sealed class EquipmentStatReader
 
         var slotCount = 0;
         var linkedPairCount = 0;
+        var unlinkedSlotCount = 0;
+        Span<int> groupsBySize = stackalloc int[MateriaSlotCount + 1];
+        groupsBySize.Clear();
         for (var index = 0; index < slots.Length; index++)
         {
             var slot = slots[index];
@@ -361,6 +441,8 @@ public sealed class EquipmentStatReader
                 slotCount++;
             }
 
+            if (slot is 1 or 5) unlinkedSlotCount++;
+
             if (slot is 2 or 6)
             {
                 var expectedRight = (byte)(slot + 1);
@@ -369,7 +451,13 @@ public sealed class EquipmentStatReader
                     return false;
                 }
 
-                linkedPairCount++;
+                var size = 2;
+                if (allowVerifiedMultiLinkedSlots)
+                    while (index + size < slots.Length && slots[index + size] == expectedRight) size++;
+                if (size == 2) linkedPairCount++;
+                else groupsBySize[size]++;
+                slotCount += size - 1;
+                index += size - 1;
                 continue;
             }
 
@@ -380,10 +468,17 @@ public sealed class EquipmentStatReader
             }
         }
 
+        var groupDescriptions = new List<string>();
+        for (var size = 3; size <= MateriaSlotCount; size++)
+            if (groupsBySize[size] > 0)
+                groupDescriptions.Add(groupsBySize[size] == 1
+                    ? $"one linked group of {size} slots"
+                    : $"{groupsBySize[size]} linked groups of {size} slots");
         layout = new EquipmentMateriaLayout(
             slotCount,
             linkedPairCount,
-            slotCount - (linkedPairCount * 2));
+            unlinkedSlotCount,
+            groupDescriptions.Count == 0 ? null : string.Join(", ", groupDescriptions));
         return true;
     }
 
@@ -436,7 +531,12 @@ public sealed class EquipmentStatReader
             }
         }
 
-        return TryDecodeMateriaLayout(slots, out layout);
+        var compatibility = new PostscriptEquipmentCompatibility(memory);
+        var chained = compatibility.HasMultiLinkedSlots();
+        Span<byte> slotBookend = stackalloc byte[MateriaSlotCount];
+        if (chained && (!memory.TryRead((uint)recordAddress, slotBookend) || !slots.SequenceEqual(slotBookend))) return false;
+        return TryDecodeMateriaLayout(slots, chained, out layout) &&
+            compatibility.HasMultiLinkedSlots() == chained;
     }
 
     private bool TryReadGrowth(
@@ -521,6 +621,8 @@ public sealed class EquipmentMenuSelectionReader
         }
 
         var descriptionParts = new List<string>();
+        var compatibility = new PostscriptEquipmentCompatibility(memory);
+        var bonusDisplay = compatibility.HasEquipmentBonusDisplay();
         if (!string.IsNullOrWhiteSpace(help))
         {
             descriptionParts.Add(help.Trim());
@@ -540,10 +642,13 @@ public sealed class EquipmentMenuSelectionReader
                     return false;
                 }
 
-                descriptionParts.Add(
-                    EquipmentStatReader.FormatWeaponComparison(
-                        currentWeapon.Stats,
-                        candidateWeapon.Stats));
+                if (bonusDisplay)
+                {
+                    if (!statReader.TryReadVisibleBonusPanel(state.CurrentWeaponId, state.CurrentArmorId, out var current) ||
+                        !statReader.TryReadVisibleBonusPanel(state.CandidateId, state.CurrentArmorId, out var candidate)) return false;
+                    descriptionParts.Add(EquipmentStatReader.FormatComparison(current, candidate));
+                }
+                else descriptionParts.Add(EquipmentStatReader.FormatWeaponComparison(currentWeapon.Stats, candidateWeapon.Stats));
                 descriptionParts.Add(
                     EquipmentStatReader.FormatMateriaLayout(candidateWeapon.MateriaLayout));
                 descriptionParts.Add(
@@ -561,10 +666,13 @@ public sealed class EquipmentMenuSelectionReader
                     return false;
                 }
 
-                descriptionParts.Add(
-                    EquipmentStatReader.FormatArmorComparison(
-                        currentArmor.Stats,
-                        candidateArmor.Stats));
+                if (bonusDisplay)
+                {
+                    if (!statReader.TryReadVisibleBonusPanel(state.CurrentWeaponId, state.CurrentArmorId, out var current) ||
+                        !statReader.TryReadVisibleBonusPanel(state.CurrentWeaponId, state.CandidateId, out var candidate)) return false;
+                    descriptionParts.Add(EquipmentStatReader.FormatComparison(current, candidate));
+                }
+                else descriptionParts.Add(EquipmentStatReader.FormatArmorComparison(currentArmor.Stats, candidateArmor.Stats));
                 descriptionParts.Add(
                     EquipmentStatReader.FormatMateriaLayout(candidateArmor.MateriaLayout));
                 descriptionParts.Add(
@@ -572,6 +680,7 @@ public sealed class EquipmentMenuSelectionReader
                 detailKey = candidateArmor.ToString();
                 break;
             case 2:
+            case 3:
                 detailKey = help?.Trim() ?? string.Empty;
                 break;
             default:
@@ -580,7 +689,7 @@ public sealed class EquipmentMenuSelectionReader
 
         var description = string.Join(". ", descriptionParts);
 
-        if (!TryReadState(out var bookend) || bookend != state)
+        if (!TryReadState(out var bookend) || bookend != state || compatibility.HasEquipmentBonusDisplay() != bonusDisplay)
         {
             return false;
         }
@@ -589,7 +698,8 @@ public sealed class EquipmentMenuSelectionReader
             name,
             description.Length == 0 ? null : description,
             $"equip-list:{state.PartySlot}:{state.Category}:{state.AbsoluteIndex}:" +
-            $"{state.CandidateId}:{state.CurrentWeaponId}:{state.CurrentArmorId}:{detailKey}");
+            $"{state.CandidateId}:{state.CurrentWeaponId}:{state.CurrentArmorId}:{detailKey}" +
+            (bonusDisplay ? $":{description}" : string.Empty));
         return true;
     }
 
@@ -603,7 +713,8 @@ public sealed class EquipmentMenuSelectionReader
             !memory.TryReadInt32((uint)AddressEquipmentListActive, out var active) ||
             active != 1 ||
             !memory.TryReadInt32((uint)AddressEquipmentCategory, out var category) ||
-            category is < 0 or > 2 ||
+            category is < 0 or > 3 ||
+            (category == 3 && !new PostscriptEquipmentCompatibility(memory).HasTwoAccessories()) ||
             !memory.TryReadInt32((uint)AddressEquipmentListCursor, out var cursor) ||
             !memory.TryReadInt32((uint)AddressEquipmentListScroll, out var scroll) ||
             !memory.TryReadInt32((uint)AddressEquipmentListCount, out var count) ||
@@ -672,7 +783,7 @@ public sealed class EquipmentMenuSelectionReader
         {
             0 => itemId + 128,
             1 => itemId + 256,
-            2 => itemId + 288,
+            2 or 3 => itemId + 288,
             _ => -1
         };
 
@@ -683,7 +794,7 @@ public sealed class EquipmentMenuSelectionReader
             {
                 0 => resolveWeaponName(itemId),
                 1 => resolveArmorName(itemId),
-                2 => resolveAccessoryName(itemId),
+                2 or 3 => resolveAccessoryName(itemId),
                 _ => null
             };
         }

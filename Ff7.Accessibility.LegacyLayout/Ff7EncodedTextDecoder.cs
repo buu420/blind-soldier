@@ -77,8 +77,9 @@ public static class Ff7EncodedTextDecoder
     /// </summary>
     public static IReadOnlyList<Ff7DecodedTextPage> DecodePages(
         ReadOnlySpan<byte> bytes,
-        Func<int, string?>? partyMemberName) =>
-        DecodeFieldPagesCore(bytes, DefaultLanguage, requireTerminator: true, partyMemberName);
+        Func<int, string?>? partyMemberName,
+        Func<int, string?>? canonicalCharacterName = null) =>
+        DecodeFieldPagesCore(bytes, DefaultLanguage, requireTerminator: true, partyMemberName, canonicalCharacterName);
 
     public static string DecodeKernel(ReadOnlySpan<byte> bytes, Ff7GameLanguageDescriptor language)
     {
@@ -142,7 +143,8 @@ public static class Ff7EncodedTextDecoder
         ReadOnlySpan<byte> bytes,
         Ff7GameLanguageDescriptor language,
         bool requireTerminator,
-        Func<int, string?>? partyMemberName = null)
+        Func<int, string?>? partyMemberName = null,
+        Func<int, string?>? canonicalCharacterName = null)
     {
         var pages = new List<Ff7DecodedTextPage>();
         var lines = new List<Ff7DecodedTextLine>();
@@ -228,7 +230,9 @@ public static class Ff7EncodedTextDecoder
                     FinishPage();
                     break;
                 case >= 0xea and <= 0xf2:
-                    builder.Append(PartyNames[value - 0xea]);
+                    builder.Append(canonicalCharacterName is null
+                        ? PartyNames[value - 0xea]
+                        : canonicalCharacterName(value - 0xea) ?? "\uFFFD");
                     break;
                 case >= 0xf3 and <= 0xf5 when !japanese && partyMemberName?.Invoke(value - 0xf3) is { Length: > 0 } member:
                     builder.Append(member);

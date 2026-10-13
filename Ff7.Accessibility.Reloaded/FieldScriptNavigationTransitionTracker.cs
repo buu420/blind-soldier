@@ -69,6 +69,8 @@ public sealed class FieldScriptNavigationTransitionTracker
     /// </param>
     /// <param name="partyLeaderCharacter">
     /// The character in party slot 0 (0x00DC09E5), or null when it cannot be read. A traversal
+    /// catalogued under a verified Character Order mode already expresses its conditions in
+    /// actual character IDs. Preserve that domain here; the model/HRC identity is separate.
     /// with <see cref="FieldScriptNavigationTransition.Conditions"/> is offered only while one of
     /// them holds as a whole - its model positively controlled and its leader positively leading,
     /// together: controlled Cloud does not stand in for leading Tifa. Left out, nothing is

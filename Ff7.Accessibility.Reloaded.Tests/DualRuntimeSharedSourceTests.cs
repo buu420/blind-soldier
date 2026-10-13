@@ -27,6 +27,7 @@ internal static class DualRuntimeSharedSourceTests
             ["EchoSDisclaimerSpeechTracker.cs"] = "EchoS ships only with the legacy release.",
             ["FfnxPopupSpeechTracker.cs"] = "FFNx is a legacy-executable driver.",
             ["FfnxPopupStateReader.cs"] = "FFNx is a legacy-executable driver.",
+            ["FfnxKernel2TextReader.cs"] = "FFNx owns native x86 DLL heap pointers; they cannot be translated into the Steam x64 guest address space.",
             ["FieldMessageSpeechTracker.cs"] = "x64 reads field messages through its own hook set.",
             ["FieldRunStateReader.cs"] = "x64 reads run state through Steam2026FieldObservationReader.",
             ["NameEntryMenuSpeechTracker.cs"] = "x64 has Steam2026NameEntrySpeechCoordinator.",
@@ -83,6 +84,7 @@ internal static class DualRuntimeSharedSourceTests
         var candidates = Directory
             .EnumerateFiles(legacyDirectory, "*SpeechTracker.cs")
             .Concat(Directory.EnumerateFiles(legacyDirectory, "*StateReader.cs"))
+            .Concat(Directory.EnumerateFiles(legacyDirectory, "FfnxKernel2TextReader.cs"))
             .Concat(Directory.EnumerateFiles(legacyDirectory, "*CueTracker.cs"))
             .Concat(Directory.EnumerateFiles(legacyDirectory, "*CuePlayer.cs"))
             .Concat(Directory.EnumerateFiles(legacyDirectory, "*ObjectCatalog.cs"))
