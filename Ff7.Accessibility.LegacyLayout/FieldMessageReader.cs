@@ -377,9 +377,26 @@ public sealed class FieldMessageReader
     private IReadOnlyList<Ff7DecodedTextPage> DecodeWithParty(byte[] bytes)
     {
         var party = new SavemapPartyReader(addressSpace!);
-        return Ff7EncodedTextDecoder.DecodePages(
+        var characterOrder = new PostscriptCharacterOrderReader(addressSpace!);
+        var unavailableRole = false;
+        Func<int, string?>? resolveRole = null;
+        if (characterOrder.IsRemappingRequested)
+        {
+            resolveRole = canonical =>
+            {
+                if (!characterOrder.TryReadDisplayedCharacter(canonical, out var id))
+                {
+                    unavailableRole = true;
+                    return null;
+                }
+                return party.TryReadCharacter(id, out var character) ? character.Name : null;
+            };
+        }
+        var pages = Ff7EncodedTextDecoder.DecodePages(
             bytes,
-            slot => party.TryReadPartySlot(slot, out var member) ? member.Name : null);
+            slot => party.TryReadPartySlot(slot, out var member) ? member.Name : null,
+            resolveRole);
+        return unavailableRole ? Array.Empty<Ff7DecodedTextPage>() : pages;
     }
 
     private bool TryReadCheckedMessageBytes(int messageId, out byte[] bytes, out CheckedFrame before)

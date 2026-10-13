@@ -70,7 +70,7 @@ public sealed class MateriaMenuSelectionReader
                 : "Empty materia slot";
             selection = new NativeMenuSelection(
                 emptyLabel,
-                null,
+                state.Connections,
                 $"materia:{kind}:empty:{state.Column}:{state.Row}:{state.ListIndex}");
             return TryReadState(kind, out var emptyBookend) && emptyBookend == state;
         }
@@ -90,7 +90,7 @@ public sealed class MateriaMenuSelectionReader
             : name;
         selection = new NativeMenuSelection(
             text,
-            description,
+            string.Join(". ", new[] { description, state.Connections }.Where(value => !string.IsNullOrWhiteSpace(value))),
             $"materia:{kind}:{state.CharacterIndex}:{state.EquipmentId}:" +
             $"{state.Column}:{state.Row}:{state.ListIndex}:{state.RawMateria:X8}");
         return true;
@@ -228,6 +228,8 @@ public sealed class MateriaMenuSelectionReader
                 return false;
             }
 
+            if (!equipmentStats.TryReadVerifiedMateriaConnections(row, equipmentId, column, out var connections))
+                return false;
             state = new MateriaSelectionState(
                 mode,
                 characterRecordAddress,
@@ -237,7 +239,8 @@ public sealed class MateriaMenuSelectionReader
                 -1,
                 equipmentId,
                 slotType,
-                rawMateria);
+                rawMateria,
+                connections);
             return true;
         }
 
@@ -345,7 +348,8 @@ public sealed class MateriaMenuSelectionReader
         int ListIndex,
         int EquipmentId,
         byte SlotType,
-        uint RawMateria);
+        uint RawMateria,
+        string? Connections = null);
 
     private readonly record struct MateriaDetailSnapshot(
         int CurrentLevel,

@@ -143,7 +143,11 @@ public sealed class StatusMenuSpeechTracker
 
         AddEquipment(parts, "Weapon", status.WeaponName);
         AddEquipment(parts, "Armor", status.ArmorName);
-        AddEquipment(parts, "Accessory", status.AccessoryName);
+        AddEquipment(parts, status.HasSecondAccessorySlot ? "Accessory 1" : "Accessory", status.AccessoryName);
+        if (status.HasSecondAccessorySlot)
+        {
+            AddEquipment(parts, "Accessory 2", status.SecondAccessoryName);
+        }
         parts.Add($"Experience {status.Experience}");
         parts.Add($"Next level {status.ExperienceToNextLevel}");
         parts.Add($"Limit level {status.LimitLevel}");

@@ -4,7 +4,8 @@ public enum SupportedFieldScriptVariant
 {
     Unknown,
     Vanilla,
-    EchoS124
+    EchoS124,
+    Postscript178
 }
 
 /// <summary>
@@ -547,6 +548,7 @@ public static class EchoSCompatibilityManifest
         {
             SupportedFieldScriptVariant.Vanilla => key,
             SupportedFieldScriptVariant.EchoS124 => EchoCanonicalKeys.TryGetValue(key,out var canonical) ? canonical : null,
+            SupportedFieldScriptVariant.Postscript178 => PostscriptFieldCompatibility.ResolveCanonicalCueKey(context),
             _ => null
         };
     }
@@ -1602,6 +1604,8 @@ public sealed class EchoSFieldCutsceneDescriptionTracker
         new(FieldCutsceneDescriptionCatalog.CreateEarlyGameDescriptions());
     private readonly FieldCutsceneDescriptionTracker echoS124 =
         new(EchoSCompatibilityManifest.CreateEchoS124Descriptions());
+    private readonly FieldCutsceneDescriptionTracker postscript178 =
+        new(PostscriptFieldCompatibility.CreateOpeningDescriptions());
 
     public FieldCutsceneDescriptionCue? Observe(
         FieldScriptContext context,
@@ -1616,6 +1620,7 @@ public sealed class EchoSFieldCutsceneDescriptionTracker
         {
             SupportedFieldScriptVariant.Vanilla => vanilla.Observe(context),
             SupportedFieldScriptVariant.EchoS124 => echoS124.Observe(context),
+            SupportedFieldScriptVariant.Postscript178 => postscript178.Observe(context),
             _ => null
         };
     }
@@ -1624,5 +1629,6 @@ public sealed class EchoSFieldCutsceneDescriptionTracker
     {
         vanilla.Reset();
         echoS124.Reset();
+        postscript178.Reset();
     }
 }

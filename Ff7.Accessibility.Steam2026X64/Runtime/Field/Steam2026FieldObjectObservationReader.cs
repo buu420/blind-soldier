@@ -57,6 +57,7 @@ public sealed class Steam2026FieldObjectObservationReader
         lineStateReader = new FieldScriptLineStateReader(addressSpace);
         cueReader = new Steam2026FieldAudibleCueStateReader(addressSpace);
         controlReader = new FieldNavigationControlReader(addressSpace);
+        var postscriptItemRandomizer = new PostscriptItemRandomizerReader(addressSpace);
         navigationObjectReader = new FieldNavigationObjectReader(
             ReadCheckedInt32,
             ReadCheckedByte,
@@ -68,7 +69,8 @@ public sealed class Steam2026FieldObjectObservationReader
             readLiveLine: entity => lineStateReader.TryReadSegment(entity, out var segment) ? segment : null,
             // The engine's own LINE OK state (+0x14 angle, +0x15 ready), read checked.
             readLineOkState: entity => lineStateReader.TryReadOkState(entity, out var okState) ? okState : null,
-            remapDefinition: definition => navigationDefinitionRemapper is null ? definition : navigationDefinitionRemapper(definition));
+            remapDefinition: definition => navigationDefinitionRemapper is null ? definition : navigationDefinitionRemapper(definition),
+            randomizesPickups: postscriptItemRandomizer.RandomizesFieldPickups);
         navigationFieldsWithModelDefinitions = allDefinitions
             .Where(definition => definition.TargetKind == FieldNavigationObjectTargetKind.Model)
             .Select(definition => definition.FieldId)

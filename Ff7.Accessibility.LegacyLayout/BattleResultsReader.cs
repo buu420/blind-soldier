@@ -28,27 +28,32 @@ public sealed class BattleResultsReader
     private readonly Func<int, int>? readInt32;
     private readonly ILegacyAddressSpace? addressSpace;
     private readonly Func<int, string?> resolveInventoryObjectName;
+    private readonly Func<bool>? hasMateriaDropAliases;
 
     public BattleResultsReader(
         Func<int, byte> readByte,
         Func<int, ushort> readUInt16,
         Func<int, int> readInt32,
-        Func<int, string?> resolveInventoryObjectName)
+        Func<int, string?> resolveInventoryObjectName,
+        Func<bool>? hasMateriaDropAliases = null)
     {
         this.readByte = readByte ?? throw new ArgumentNullException(nameof(readByte));
         this.readUInt16 = readUInt16 ?? throw new ArgumentNullException(nameof(readUInt16));
         this.readInt32 = readInt32 ?? throw new ArgumentNullException(nameof(readInt32));
         this.resolveInventoryObjectName = resolveInventoryObjectName ??
             throw new ArgumentNullException(nameof(resolveInventoryObjectName));
+        this.hasMateriaDropAliases = hasMateriaDropAliases;
     }
 
     public BattleResultsReader(
         ILegacyAddressSpace addressSpace,
-        Func<int, string?> resolveInventoryObjectName)
+        Func<int, string?> resolveInventoryObjectName,
+        Func<bool>? hasMateriaDropAliases = null)
     {
         this.addressSpace = addressSpace ?? throw new ArgumentNullException(nameof(addressSpace));
         this.resolveInventoryObjectName = resolveInventoryObjectName ??
             throw new ArgumentNullException(nameof(resolveInventoryObjectName));
+        this.hasMateriaDropAliases = hasMateriaDropAliases;
     }
 
     public BattleResultsSnapshot Read()
@@ -58,6 +63,7 @@ public sealed class BattleResultsReader
             return ReadLegacy();
         }
 
+        var aliasesBefore = hasMateriaDropAliases?.Invoke() == true;
         if (!TryReadRaw(out var candidate) ||
             !TryReadRaw(out var bookend) ||
             !RawEquals(candidate, bookend))
@@ -65,11 +71,15 @@ public sealed class BattleResultsReader
             return BattleResultsSnapshot.Invalid;
         }
 
-        return CreateSnapshot(candidate);
+        var snapshot = CreateSnapshot(candidate, aliasesBefore);
+        return aliasesBefore == (hasMateriaDropAliases?.Invoke() == true)
+            ? snapshot
+            : BattleResultsSnapshot.Invalid;
     }
 
     private BattleResultsSnapshot ReadLegacy()
     {
+        var aliasesBefore = hasMateriaDropAliases?.Invoke() == true;
         var module = readByte!(AddressCurrentModule);
         if (module != ResultsModule)
         {
@@ -102,7 +112,7 @@ public sealed class BattleResultsReader
                 readUInt16(address + RewardSelectedOffset));
         }
 
-        return CreateSnapshot(new RawBattleResults(
+        var snapshot = CreateSnapshot(new RawBattleResults(
             module,
             state,
             pageReady,
@@ -115,7 +125,10 @@ public sealed class BattleResultsReader
             inputEdges,
             inputRepeat,
             heldInput,
-            rewards));
+            rewards), aliasesBefore);
+        return aliasesBefore == (hasMateriaDropAliases?.Invoke() == true)
+            ? snapshot
+            : BattleResultsSnapshot.Invalid;
     }
 
     private bool TryReadRaw(out RawBattleResults raw)
@@ -181,7 +194,7 @@ public sealed class BattleResultsReader
         return true;
     }
 
-    private BattleResultsSnapshot CreateSnapshot(RawBattleResults raw)
+    private BattleResultsSnapshot CreateSnapshot(RawBattleResults raw, bool aliasesEnabled)
     {
         if (raw.Module != ResultsModule ||
             raw.State is < 0 or > 5 ||
@@ -210,7 +223,8 @@ public sealed class BattleResultsReader
                 continue;
             }
 
-            if (reward.ItemId >= InventoryObjectCount)
+            var isMateriaAlias = PostscriptMateriaDropCompatibility.IsMateriaRewardId(reward.ItemId);
+            if (reward.ItemId >= InventoryObjectCount && !(aliasesEnabled && isMateriaAlias))
             {
                 return BattleResultsSnapshot.Invalid;
             }
@@ -218,6 +232,10 @@ public sealed class BattleResultsReader
             var name = resolveInventoryObjectName(reward.ItemId);
             if (string.IsNullOrWhiteSpace(name))
             {
+                if (isMateriaAlias)
+                {
+                    return BattleResultsSnapshot.Invalid;
+                }
                 continue;
             }
 

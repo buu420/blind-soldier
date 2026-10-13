@@ -7,6 +7,28 @@ using Ff7.Accessibility.Reloaded.Runtime;
 using Ff7.Accessibility.Runtime.Abstractions;
 using AccessibilityConfig = Ff7.Accessibility.Core.AccessibilityConfig;
 
+if (args.Contains("--postscript-presentation-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.PostscriptPresentationTests.Run();
+    return;
+}
+
+if (args.Contains("--postscript-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.PostscriptEquipmentTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.PostscriptBattleMenuTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.PostscriptCharacterOrderTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.PostscriptPresentationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.NativeKernel2TextTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.FfnxKernel2TextTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.PostscriptBattleAssistTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.PostscriptOpeningFieldTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.PostscriptNavigationRoleTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.PostscriptRandomizedPickupTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.PostscriptMateriaDropTests.Run();
+    return;
+}
+
 if (args.Contains("--creature-narration-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.CreatureApproachReaderTests.Run();
@@ -1147,6 +1169,21 @@ if (args.Contains("--safe-dial-only", StringComparer.OrdinalIgnoreCase))
     Ff7.Accessibility.Reloaded.Tests.ShinraMansionSafeDialTests.RunWithInstalledGameData();
     Console.WriteLine("FFVII Shinra Mansion safe dial tests passed.");
     return;
+}
+
+if (args.Length == 0)
+{
+    Ff7.Accessibility.Reloaded.Tests.PostscriptEquipmentTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.PostscriptBattleMenuTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.PostscriptCharacterOrderTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.PostscriptPresentationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.NativeKernel2TextTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.FfnxKernel2TextTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.PostscriptBattleAssistTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.PostscriptOpeningFieldTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.PostscriptNavigationRoleTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.PostscriptRandomizedPickupTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.PostscriptMateriaDropTests.Run();
 }
 
 var root = FindGameRoot();

@@ -1249,6 +1249,16 @@ public sealed class BattleStateReader
             _ => null
         };
 
+    private PostscriptBattleCompatibility CreatePostscriptCompatibility() => new(
+        readByte, readUInt16, readInt32, IsOptionalMemoryReadable, ReadFixedText,
+        resolveLimitName, resolveLimitDescription);
+
+    private bool IsOptionalMemoryReadable(int address, int length)
+    {
+        try { return addressSpace is null ? isReadableMemory(address, length) : IsAddressSpaceReadable(address, length); }
+        catch { return false; }
+    }
+
     private bool TryReadSelection(
         short rendererState,
         int partySlot,
@@ -1256,6 +1266,12 @@ public sealed class BattleStateReader
         out BattleMenuSelectionSnapshot selection)
     {
         selection = default;
+        if (rendererState is 4 or 6)
+        {
+            var compatibility = CreatePostscriptCompatibility();
+            var success = compatibility.TryReadSelection(rendererState, partySlot, out selection, out var handled);
+            if (handled) return success;
+        }
         if (rendererState == 5)
         {
             return TryReadItemSelection(partySlot, out selection);
@@ -1425,7 +1441,9 @@ public sealed class BattleStateReader
     private bool TryReadRootCommandSelection(int partySlot, out BattleMenuSelectionSnapshot selection)
     {
         selection = default;
-        if (resolveCommandName is null)
+        if (resolveCommandName is null &&
+            CreatePostscriptCompatibility().ReadRootCommandName(29) is null &&
+            CreatePostscriptCompatibility().ReadRootCommandName(30) is null)
         {
             return false;
         }
@@ -1476,7 +1494,8 @@ public sealed class BattleStateReader
             return false;
         }
 
-        var name = resolveCommandName(commandId);
+        var displayedLabel = CreatePostscriptCompatibility().ReadRootCommandName(commandId, out var customLabelOwned);
+        var name = customLabelOwned ? displayedLabel : resolveCommandName?.Invoke(commandId);
         if (string.IsNullOrWhiteSpace(name))
         {
             return false;
@@ -1494,7 +1513,8 @@ public sealed class BattleStateReader
             return false;
         }
 
-        var name = resolveCommandName(commandId);
+        var name = resolveCommandName?.Invoke(commandId);
+
         if (string.IsNullOrWhiteSpace(name))
         {
             return false;
@@ -1682,7 +1702,30 @@ public sealed class BattleStateReader
             partySlot += FirstEnemyActorIndex;
         }
 
-        owner = new BattleMenuOwner(module, windowState, partySlot);
+        var commandType = -1;
+        var commandMode = -1;
+        var nativeTextState = -1;
+        if (rendererState is 4 or 6)
+        {
+            const int commandAddress = 0x00DC3C70;
+            if (addressSpace is not null)
+            {
+                if (addressSpace.TryReadByte(commandAddress, out var value)) commandType = value;
+            }
+            else if (isReadableMemory(commandAddress, 1))
+            {
+                commandType = readByte(commandAddress);
+            }
+            if (commandType is >= 29 and < 128)
+            {
+                if (!TryReadInt32(commandAddress, out var fullCommand) || fullCommand != commandType ||
+                    !TryReadByte(AddressBattleItemUseContext, out var mode) ||
+                    !TryReadUInt16(AddressBattleMenuTextState, out var textState)) return false;
+                commandMode = mode;
+                nativeTextState = textState;
+            }
+        }
+        owner = new BattleMenuOwner(module, windowState, partySlot, commandType, commandMode, nativeTextState);
         return true;
     }
 
@@ -2007,7 +2050,8 @@ public sealed class BattleStateReader
         }
     }
 
-    private readonly record struct BattleMenuOwner(byte Module, byte WindowState, byte PartySlot);
+    private readonly record struct BattleMenuOwner(byte Module, byte WindowState, byte PartySlot,
+        int CommandType, int CommandMode, int NativeTextState);
 
     private readonly record struct AbilitySelectionState(
         int Column,
@@ -2535,7 +2579,8 @@ public readonly record struct BattleMenuSelectionSnapshot(
     int? Quantity,
     int? MpCost,
     bool IsAvailable = true,
-    int SlotIndex = -1);
+    int SlotIndex = -1,
+    int CommandId = -1);
 
 public readonly record struct BattleTargetSnapshot(
     bool IsValid,

@@ -175,6 +175,7 @@ public sealed class FieldNavigationObjectReader
     private readonly Func<int, FieldNavigationTriggerLine?>? readLiveLine;
     private readonly Func<int, FieldNavigationLineOkState?>? readLineOkState;
     private readonly Func<FieldNavigationObjectDefinition, FieldNavigationObjectDefinition?>? remapDefinition;
+    private readonly Func<bool> randomizesPickups;
     private readonly IReadOnlyDictionary<int, IReadOnlyList<FieldNavigationObjectDefinition>> definitionsByField;
 
     public FieldNavigationObjectReader(
@@ -187,7 +188,8 @@ public sealed class FieldNavigationObjectReader
         Func<FieldNavigationObjectDefinition, byte>? resolveCollectedMask = null,
         Func<int, FieldNavigationTriggerLine?>? readLiveLine = null,
         Func<int, FieldNavigationLineOkState?>? readLineOkState = null,
-        Func<FieldNavigationObjectDefinition, FieldNavigationObjectDefinition?>? remapDefinition = null)
+        Func<FieldNavigationObjectDefinition, FieldNavigationObjectDefinition?>? remapDefinition = null,
+        Func<bool>? randomizesPickups = null)
     {
         // A host that can read each LINE's live segment (FieldScriptLineStateReader.TryReadSegment)
         // gives a Line object its segment and the leader's collision radius, and the controller
@@ -196,6 +198,7 @@ public sealed class FieldNavigationObjectReader
         this.readLiveLine = readLiveLine;
         this.readLineOkState = readLineOkState;
         this.remapDefinition = remapDefinition;
+        this.randomizesPickups = randomizesPickups ?? (() => false);
         this.readInt32 = readInt32;
         this.readByte = readByte;
         this.resolveItemName = resolveItemName;
@@ -218,6 +221,9 @@ public sealed class FieldNavigationObjectReader
         }
 
         var targets = new List<FieldNavigationTarget>(definitions.Count);
+        // Sample once for this target snapshot, so every pickup uses the same
+        // verified native mode even if a mod is being enabled or removed.
+        var pickupsRandomized = randomizesPickups();
         var eventTable = 0;
         byte modelCount = 0;
         var modelStateRead = false;
@@ -353,7 +359,7 @@ public sealed class FieldNavigationObjectReader
                 }
             }
 
-            var label = ResolveLabel(definition);
+            var label = ResolveLabel(definition, pickupsRandomized);
             if (string.IsNullOrWhiteSpace(label))
             {
                 continue;
@@ -532,13 +538,23 @@ public sealed class FieldNavigationObjectReader
         return address != 0;
     }
 
-    private string? ResolveLabel(FieldNavigationObjectDefinition definition)
+    private string? ResolveLabel(FieldNavigationObjectDefinition definition, bool pickupsRandomized)
     {
         if (definition.Kind is FieldNavigationObjectKind.Named or FieldNavigationObjectKind.SavePoint)
         {
             return string.IsNullOrWhiteSpace(definition.Label) && definition.Kind == FieldNavigationObjectKind.SavePoint
                 ? "Save Point"
                 : definition.Label;
+        }
+
+        // The script NativeId and Quantity describe the stock reward. The
+        // randomizer replaces the grant at pickup time, so neither is a
+        // reliable pre-receipt label for an available field object.
+        if (pickupsRandomized)
+        {
+            return definition.Kind == FieldNavigationObjectKind.Materia
+                ? "Materia pickup"
+                : "Item pickup";
         }
 
         var name = definition.Kind == FieldNavigationObjectKind.Item
