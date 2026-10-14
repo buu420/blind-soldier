@@ -29,6 +29,7 @@ internal static class Steam2026MansionSecretDoorExitTests
             return;
         }
 
+        NibelheimStoryTests.RunBookcaseRoutes(planner => new Steam2026FailClosedFieldRoutePlanner(planner));
         BothRuntimesKeepTheShutDoorSelectable(createWalkmeshReader);
         TheCheckedWrapperReportsTheNativeBoundaryItsInnerPlannerFound(createWalkmeshReader);
         AReadFailureNeverReportsANativeBoundary(createWalkmeshReader);

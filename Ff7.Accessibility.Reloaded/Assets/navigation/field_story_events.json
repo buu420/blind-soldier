@@ -5,7 +5,7 @@
   "scannedGameMomentWrites": 334,
   "navigableGameMomentWrites": 118,
   "unresolvedAutomaticOrIndirectWrites": 219,
-  "definitionCount": 1449,
+  "definitionCount": 1451,
   "definitions": [
     {
       "fieldId": 115,
@@ -11543,7 +11543,21 @@
       "sourceFieldName": "sinin2_2",
       "sourceEntityName": "",
       "sourceScriptType": "Gateway",
-      "completesOnArrival": true
+      "completesOnArrival": true,
+      "requiredCondition": {
+        "bank": 5,
+        "address": 7,
+        "mask": 255,
+        "value": 1
+      },
+      "triggerLine": {
+        "startX": 911,
+        "startY": 698,
+        "startZ": 339,
+        "endX": 984,
+        "endY": 633,
+        "endZ": 339
+      }
     },
     {
       "fieldId": 300,
@@ -11560,7 +11574,21 @@
       "sourceFieldName": "sinin2_2",
       "sourceEntityName": "",
       "sourceScriptType": "Gateway",
-      "completesOnArrival": true
+      "completesOnArrival": true,
+      "requiredCondition": {
+        "bank": 5,
+        "address": 7,
+        "mask": 255,
+        "value": 1
+      },
+      "triggerLine": {
+        "startX": 911,
+        "startY": 698,
+        "startZ": 339,
+        "endX": 984,
+        "endY": 633,
+        "endZ": 339
+      }
     },
     {
       "fieldId": 301,
@@ -47941,6 +47969,74 @@
         132,
         137
       ]
+    },
+    {
+      "fieldId": 300,
+      "kind": "Location",
+      "label": "Open the bookcase in the mansion upstairs room",
+      "entityId": 7,
+      "x": 906,
+      "y": 623,
+      "z": 339,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 370,
+      "maximumGameMoment": 370,
+      "priority": 0,
+      "sourceFieldName": "sinin2_2",
+      "sourceEntityName": "lin0",
+      "sourceScriptType": "[OK]",
+      "completesOnArrival": false,
+      "requiredCondition": {
+        "bank": 5,
+        "address": 7,
+        "mask": 255,
+        "value": 0
+      },
+      "triggerLine": {
+        "startX": 855,
+        "startY": 658,
+        "startZ": 339,
+        "endX": 958,
+        "endY": 589,
+        "endZ": 339
+      },
+      "requiredEnabledLineEntityId": 7,
+      "usesPlayerCollisionRadius": true,
+      "activatesOnOk": true
+    },
+    {
+      "fieldId": 300,
+      "kind": "Location",
+      "label": "Open the bookcase in the mansion upstairs room",
+      "entityId": 7,
+      "x": 906,
+      "y": 623,
+      "z": 339,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 373,
+      "maximumGameMoment": 373,
+      "priority": 0,
+      "sourceFieldName": "sinin2_2",
+      "sourceEntityName": "lin0",
+      "sourceScriptType": "[OK]",
+      "completesOnArrival": false,
+      "requiredCondition": {
+        "bank": 5,
+        "address": 7,
+        "mask": 255,
+        "value": 0
+      },
+      "triggerLine": {
+        "startX": 855,
+        "startY": 658,
+        "startZ": 339,
+        "endX": 958,
+        "endY": 589,
+        "endZ": 339
+      },
+      "requiredEnabledLineEntityId": 7,
+      "usesPlayerCollisionRadius": true,
+      "activatesOnOk": true
     }
   ]
 }

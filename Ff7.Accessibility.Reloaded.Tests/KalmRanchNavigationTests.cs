@@ -302,11 +302,13 @@ internal static class KalmRanchNavigationTests
             expectedY: -401,
             expectedZ: 186);
 
+        // The bookcase is a native OK LINE, so its target needs the leader's contact radius.
+        memory.WriteByte(EventTable + FieldNavigationNpcReader.CollisionRadiusOffset, 40);
         var firstMansionVisit = new[]
         {
             (282, "Enter Shinra Mansion and find Sephiroth", -601, 1358, 202),
             (297, "Cross the upper hall to the right wing", 448, 855, 311),
-            (300, "Descend through the right wing", 948, 666, 339),
+            (300, "Open the bookcase in the mansion upstairs room", 906, 623, 339),
             (301, "Continue down the spiral stairs", 4, -125, -610),
             (302, "Continue down to the mansion basement", -14, -520, 2),
             (303, "Enter the basement library corridor", -232, -1104, 0),
@@ -347,7 +349,7 @@ internal static class KalmRanchNavigationTests
         {
             (299, "Leave the upstairs room and return to the basement", -304, 753, 277),
             (297, "Cross the upper hall to the right wing", 448, 855, 311),
-            (300, "Descend through the right wing", 948, 666, 339),
+            (300, "Open the bookcase in the mansion upstairs room", 906, 623, 339),
             (301, "Continue down the spiral stairs", 4, -125, -610),
             (302, "Continue down to the mansion basement", -14, -520, 2),
             (303, "Enter the basement library corridor", -232, -1104, 0)
@@ -356,6 +358,10 @@ internal static class KalmRanchNavigationTests
         {
             AssertStoryTarget(memory, fieldId, 373, label, x, y, z);
         }
+
+        memory.WriteByte(FieldNavigationObjectReader.AddressTemporaryFieldBankBase + 7, 1);
+        foreach (var moment in new[] { 370, 373 })
+            AssertStoryTarget(memory, 300, moment, "Descend through the right wing", 948, 666, 339);
 
         AssertStoryTarget(
             memory,
