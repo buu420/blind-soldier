@@ -1132,6 +1132,14 @@ if (args.Contains("--guest-battle-only", StringComparer.OrdinalIgnoreCase))
     return;
 }
 
+if (args.Contains("--mansion-bookcase-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.NibelheimStoryTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.NibelheimStoryTests.RunBookcaseRoutes();
+    Console.WriteLine("FFVII mansion bookcase tests passed.");
+    return;
+}
+
 if (args.Contains("--mansion-exits-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.NibelheimMansionExitTests.Run(CreateInstalledFieldWalkmeshReader);

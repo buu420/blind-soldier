@@ -1648,7 +1648,17 @@ Add-Definition -FieldId 282 -FieldName 'nivl' -Kind 'Location' -Label 'Enter Shi
 Add-Definition -FieldId 297 -FieldName 'sinin1_1' -Kind 'Location' -Label 'Cross the upper hall to the right wing' -X 448 -Y 855 -Z 311 -TargetGameMoment 371 -MinimumGameMoment 370 -MaximumGameMoment 370 -Priority 0 -ScriptType 'Gateway'
 Add-Definition -FieldId 298 -FieldName 'sinin1_2' -Kind 'Location' -Label 'Return to the mansion entrance hall' -X -335 -Y 205 -Z 0 -TargetGameMoment 371 -MinimumGameMoment 370 -MaximumGameMoment 370 -Priority 0 -ScriptType 'Gateway recovery'
 Add-Definition -FieldId 299 -FieldName 'sinin2_1' -Kind 'Location' -Label 'Leave the upstairs room and return to the entrance hall' -X -304 -Y 753 -Z 277 -TargetGameMoment 371 -MinimumGameMoment 370 -MaximumGameMoment 370 -Priority 0 -ScriptType 'Gateway recovery'
-Add-Definition -FieldId 300 -FieldName 'sinin2_2' -Kind 'Location' -Label 'Descend through the right wing' -X 948 -Y 666 -Z 339 -TargetGameMoment 371 -MinimumGameMoment 370 -MaximumGameMoment 370 -Priority 0 -ScriptType 'Gateway'
+# The native bookcase OK handler opens Bank 5 byte 7 and unlocks three floor triangles.
+# Approaching gateway 1 while that flag is zero sends the player behind a shut panel.
+foreach ($mansionBookcaseMoment in @(370, 373)) {
+    Add-Definition -FieldId 300 -FieldName 'sinin2_2' -Kind 'Location' `
+        -Label 'Open the bookcase in the mansion upstairs room' -EntityId 7 -X 906 -Y 623 -Z 339 `
+        -MinimumGameMoment $mansionBookcaseMoment -MaximumGameMoment $mansionBookcaseMoment -Priority 0 `
+        -RequiredCondition (New-Condition 5 7 0xFF 0) -EntityName 'lin0' -ScriptType '[OK]' `
+        -RequiredEnabledLineEntityId 7 -UsesPlayerCollisionRadius -KeepActiveOnArrival -ActivatesOnOk `
+        -TriggerLine ([ordered]@{ startX=855; startY=658; startZ=339; endX=958; endY=589; endZ=339 })
+}
+Add-Definition -FieldId 300 -FieldName 'sinin2_2' -Kind 'Location' -Label 'Descend through the right wing' -X 948 -Y 666 -Z 339 -TargetGameMoment 371 -MinimumGameMoment 370 -MaximumGameMoment 370 -Priority 0 -ScriptType 'Gateway' -RequiredCondition (New-Condition 5 7 0xFF 1) -TriggerLine ([ordered]@{ startX=911; startY=698; startZ=339; endX=984; endY=633; endZ=339 })
 Add-Definition -FieldId 301 -FieldName 'sinin3' -Kind 'Location' -Label 'Continue down the spiral stairs' -X 4 -Y -125 -Z -610 -TargetGameMoment 371 -MinimumGameMoment 370 -MaximumGameMoment 370 -Priority 0 -ScriptType 'Gateway'
 Add-Definition -FieldId 302 -FieldName 'sininb1' -Kind 'Location' -Label 'Continue down to the mansion basement' -X -14 -Y -520 -Z 2 -TargetGameMoment 371 -MinimumGameMoment 370 -MaximumGameMoment 370 -Priority 0 -ScriptType 'Gateway'
 Add-Definition -FieldId 303 -FieldName 'sininb2' -Kind 'Location' -Label 'Enter the basement library corridor' -X -232 -Y -1104 -Z 0 -TargetGameMoment 371 -MinimumGameMoment 370 -MaximumGameMoment 370 -Priority 0 -ScriptType 'Gateway'
@@ -1656,7 +1666,7 @@ Add-Definition -FieldId 304 -FieldName 'sininb31' -Kind 'Location' -Label 'Find 
 Add-Definition -FieldId 304 -FieldName 'sininb31' -Kind 'Location' -Label 'Leave Sephiroth to his research' -EntityId 3 -X -435 -Y -98 -Z 0 -MinimumGameMoment 371 -MaximumGameMoment 371 -Priority 0 -EntityName 'ln0' -ScriptType 'Go 1x' -RequiredEnabledLineEntityId 3 -TriggerLine ([ordered]@{ startX = -463; startY = -135; startZ = 0; endX = -408; endY = -61; endZ = 0 })
 Add-Definition -FieldId 299 -FieldName 'sinin2_1' -Kind 'Location' -Label 'Leave the upstairs room and return to the basement' -X -304 -Y 753 -Z 277 -MinimumGameMoment 373 -MaximumGameMoment 373 -Priority 0 -ScriptType 'Gateway'
 Add-Definition -FieldId 297 -FieldName 'sinin1_1' -Kind 'Location' -Label 'Cross the upper hall to the right wing' -X 448 -Y 855 -Z 311 -MinimumGameMoment 373 -MaximumGameMoment 373 -Priority 0 -ScriptType 'Gateway'
-Add-Definition -FieldId 300 -FieldName 'sinin2_2' -Kind 'Location' -Label 'Descend through the right wing' -X 948 -Y 666 -Z 339 -MinimumGameMoment 373 -MaximumGameMoment 373 -Priority 0 -ScriptType 'Gateway'
+Add-Definition -FieldId 300 -FieldName 'sinin2_2' -Kind 'Location' -Label 'Descend through the right wing' -X 948 -Y 666 -Z 339 -MinimumGameMoment 373 -MaximumGameMoment 373 -Priority 0 -ScriptType 'Gateway' -RequiredCondition (New-Condition 5 7 0xFF 1) -TriggerLine ([ordered]@{ startX=911; startY=698; startZ=339; endX=984; endY=633; endZ=339 })
 Add-Definition -FieldId 301 -FieldName 'sinin3' -Kind 'Location' -Label 'Continue down the spiral stairs' -X 4 -Y -125 -Z -610 -MinimumGameMoment 373 -MaximumGameMoment 373 -Priority 0 -ScriptType 'Gateway'
 Add-Definition -FieldId 302 -FieldName 'sininb1' -Kind 'Location' -Label 'Continue down to the mansion basement' -X -14 -Y -520 -Z 2 -MinimumGameMoment 373 -MaximumGameMoment 373 -Priority 0 -ScriptType 'Gateway'
 Add-Definition -FieldId 303 -FieldName 'sininb2' -Kind 'Location' -Label 'Enter the basement library corridor' -X -232 -Y -1104 -Z 0 -MinimumGameMoment 373 -MaximumGameMoment 373 -Priority 0 -ScriptType 'Gateway'

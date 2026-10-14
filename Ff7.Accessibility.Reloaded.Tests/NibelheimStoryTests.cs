@@ -1,4 +1,4 @@
-﻿using Ff7.Accessibility.Reloaded;
+using Ff7.Accessibility.Reloaded;
 
 namespace Ff7.Accessibility.Reloaded.Tests;
 
@@ -60,6 +60,7 @@ internal static class NibelheimStoryTests
     /// <summary>Everything that needs no installed archive.</summary>
     public static void Run()
     {
+        TheFlashbackBookcasePrecedesTheLockedPassage();
         TheTownOffersTheWayOnTowardMountNibel();
         EveryMansionRoomOffersAWayBackOut();
         EveryTownBuildingGivesTheWayBackOut();
@@ -100,9 +101,11 @@ internal static class NibelheimStoryTests
 
             foreach (var moment in new[] { 370, 374, 376 })
             {
-                Equal(0, ObjectLabels(field, moment: moment).Length,
-                    $"field {field}: nothing optional may appear during the flashback at " +
-                    $"moment {moment}");
+                var flashback = ObjectLabels(field, moment: moment);
+                Equal(field == MansionUpstairsRight ? 1 : 0, flashback.Length,
+                    $"field {field}: only the native bookcase may appear during the flashback at moment {moment}");
+                if (field == MansionUpstairsRight)
+                    Equal("Bookcase in the mansion upstairs room", flashback.Single(), "the flashback exception is only the bookcase");
             }
         }
 
@@ -175,6 +178,7 @@ internal static class NibelheimStoryTests
             return;
         }
 
+        RunBookcaseRoutes();
         TheReunionSceneRunsFromItsOwnDirector();
         TheReunionRoomIsReachedByAnOrdinaryGateway();
         EveryAuthoredTargetRoutesFromItsNativeEntry();
@@ -182,6 +186,100 @@ internal static class NibelheimStoryTests
         VincentQuestInteractionsMatchInstalledScripts();
         QuestRoutesRespectThePassageAndBasementLocks();
         QuestInteractionsCanActuallyStartNavigation();
+    }
+
+    private static void TheFlashbackBookcasePrecedesTheLockedPassage()
+    {
+        foreach (var moment in new[] { 370, 373 })
+        {
+            var memory = PresentDay(moment, MansionUpstairsRight);
+            var position = At(MansionUpstairsRight, 354, 788, 277);
+            var objects = memory.ObjectReader().ReadTargets(position);
+            var bookcase = objects.SingleOrDefault(target => target.Label == "Bookcase in the mansion upstairs room");
+            Equal("Bookcase in the mansion upstairs room", bookcase.Label,
+                $"moment {moment}: the visible bookcase must be in Objects before opening");
+            Equal(true, bookcase.LineActivatesOnOk, "bookcase requires the normal Confirm button");
+            Equal(39, bookcase.InteractionRadius, "bookcase approach uses the readable native player radius");
+            Equal(1, objects.Count, "present-day safe hints must remain absent in the flashback");
+
+            var story = memory.StoryReader().ReadTargets(position).Single();
+            Equal("Open the bookcase in the mansion upstairs room", story.Label,
+                "Story must approach the bookcase rather than the locked staircase");
+            Equal(new FieldNavigationTriggerLine(855, 658, 339, 958, 589, 339), story.TriggerLine,
+                "Story approaches the bookcase's actual interaction line");
+            Equal(true, story.LineActivatesOnOk, "Story uses the native OK/facing readiness rule");
+            Equal(false, story.CompletesOnArrival, "arrival must not retire a still-closed bookcase");
+
+            memory.SetBank5(7, 1);
+            Equal(0, memory.ObjectReader().ReadTargets(position).Count,
+                "the opened bookcase is no longer an interaction");
+            Equal("Descend through the right wing", memory.StoryReader().ReadTargets(position).Single().Label,
+                "the native open flag advances Story to the passage");
+
+            var disabled = new NibelheimMemory(MansionUpstairsRight) { LinesEnabled = false };
+            disabled.SetGameMoment(moment);
+            Equal(0, disabled.ObjectReader().ReadTargets(position).Count,
+                "a disabled native bookcase line cannot offer an interaction");
+            Equal(0, disabled.StoryReader().ReadTargets(position).Count,
+                "a disabled native bookcase line cannot offer the closed passage as Story");
+        }
+    }
+
+    /// <summary>Replays native locks and routes; the x64 host also passes its checked planner.</summary>
+    public static void RunBookcaseRoutes(
+        Func<FieldWalkmeshRoutePlanner, IFieldNavigationRoutePlanner>? wrap = null)
+    {
+        if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("FF7_ACCESSIBILITY_DATA_ROOT"))) return;
+        var scripts = Scripts();
+        AssertOpcode(scripts.ReadScriptOpcodes(300, 7, 0), 0,
+            [0xD0, 0x57, 3, 0x92, 2, 0x53, 1, 0xBE, 3, 0x4D, 2, 0x53, 1], "bookcase native LINE");
+        AssertOpcode(scripts.ReadScriptOpcodes(300, 7, 1), 0,
+            [0x14, 0x50, 7, 0, 0, 0x19], "bookcase OK checks only the temporary open flag");
+        AssertOpcode(scripts.ReadScriptOpcodes(300, 7, 1), 6, [0x80, 0x50, 7, 1], "bookcase marks itself open");
+        foreach (var (offset, triangle) in new[] { (10, 143), (14, 67), (18, 120) })
+            AssertOpcode(scripts.ReadScriptOpcodes(300, 7, 1), offset,
+                [0x6D, (byte)triangle, 0, 0], "bookcase releases a native panel boundary");
+        AssertOpcode(scripts.ReadScriptOpcodes(300, 7, 1), 27, [3, 10, 0x41], "bookcase calls its background animation");
+        AssertOpcode(scripts.ReadScriptOpcodes(300, 10, 1), 0, [0xE1, 0, 1, 0], "bookcase panel visibly opens");
+        AssertOpcode(scripts.ReadScriptOpcodes(300, 0, 0), 42, [0x80, 0x50, 7, 1],
+            "arrival from the staircase opens the panel without another interaction");
+
+        var reader = InstalledWalkmesh(300);
+        var mesh = reader.Read(At(300, 0, 0, 0)).Walkmesh!;
+        var start = MansionSecretDoorExitFixture.Entry(mesh);
+        foreach (var moment in new[] { 370, 373 })
+        {
+            var memory = PresentDay(moment, 300);
+            memory.SetLockedTriangles(143, 67, 120);
+            var inner = new FieldWalkmeshRoutePlanner(reader, memory.BoundaryReader());
+            IFieldNavigationRoutePlanner planner = wrap?.Invoke(inner) ?? inner;
+            Equal(false, planner.TryBuildRoute(start, MansionSecretDoorExitFixture.ToStaircase(), out _),
+                "the closed panel still blocks the stairs");
+            foreach (var target in memory.ObjectReader().ReadTargets(start).Concat(memory.StoryReader().ReadTargets(start)))
+            {
+                Equal(true, planner.TryBuildRoute(start, target, out var route),
+                    $"moment {moment}: the closed bookcase must be approachable: {planner.LastDiagnostic}");
+                Equal(false, route.TrianglePath.Any(MansionSecretDoorExitFixture.LockedTriangles.Contains),
+                    "approaching the bookcase cannot cross its native locked triangles");
+                Equal(true, DistanceSquaredToSegment(route.FinalApproach.X, route.FinalApproach.Y,
+                    new(855, 658, 339, 958, 589, 339)) < PlayerCollisionRadius * PlayerCollisionRadius,
+                    "the approach reaches the native bookcase contact region");
+                var controller = new FieldNavigationController(new FieldNavigationTargetSource([target]), planner);
+                for (var i = 0; i < 12 && controller.CurrentCategory != target.Category; i++)
+                    controller.HandleAction(FieldNavigationAction.NextCategory, start);
+                controller.HandleAction(FieldNavigationAction.ToggleBeacon, start);
+                Equal(true, controller.BeaconEnabled, "the offered bookcase must actually start navigation");
+            }
+            memory.SetBank5(7, 1);
+            memory.SetLockedTriangles();
+            var open = memory.StoryReader().ReadTargets(start).Single();
+            Equal(true, planner.TryBuildRoute(start, open, out _), "opening makes the passage reachable");
+            memory.SetGameMoment(376);
+            var returning = memory.StoryReader().ReadTargets(start).Single();
+            Equal("Return to the mansion entrance hall", returning.Label, "returning Story leads out toward the hall");
+            Equal(true, planner.TryBuildRoute(start, returning, out _), "returning route remains available");
+        }
+        Console.WriteLine("mansion bookcase: closed/open Story and Objects routes passed with native panel locks");
     }
 
     /// <summary>
@@ -293,7 +391,7 @@ internal static class NibelheimStoryTests
                      (299, "Safe"),
                      (300, "Writing"),
                      (300, "Floor beside the secret passage"),
-                     (300, "Secret passage door"),
+                     (300, "Bookcase"),
                      (303, "Coffin"),
                      (305, "Left specimen"),
                      (305, "Right specimen"),
@@ -388,7 +486,7 @@ internal static class NibelheimStoryTests
         var memory = PresentDay(529, MansionUpstairsRight);
         memory.SetBank5(7, 1);
         Equal(false, memory.ObjectReader().ReadTargets(At(MansionUpstairsRight, 0, 0, 0))
-            .Any(target => target.Label.StartsWith("Secret passage door", StringComparison.Ordinal)),
+            .Any(target => target.Label.StartsWith("Bookcase", StringComparison.Ordinal)),
             "an open passage must not keep asking the player to open it");
     }
 
@@ -458,7 +556,7 @@ internal static class NibelheimStoryTests
         var planner = new FieldWalkmeshRoutePlanner(InstalledWalkmesh(MansionUpstairsRight), upstairs.BoundaryReader());
         var start = new FieldPositionSnapshot(1, MansionUpstairsRight, 0, 354, 788, 277, 151, 0);
         var door = upstairs.ObjectReader().ReadTargets(start)
-            .Single(target => target.Label.StartsWith("Secret passage door", StringComparison.Ordinal));
+            .Single(target => target.Label.StartsWith("Bookcase", StringComparison.Ordinal));
         Equal(true, planner.TryBuildRoute(start, door, out var doorPlan),
             "the door interaction must be reachable before the passage unlocks");
         var dx = doorPlan.FinalApproach.X - door.X;
@@ -484,7 +582,7 @@ internal static class NibelheimStoryTests
 
     private static void QuestInteractionsCanActuallyStartNavigation()
     {
-        foreach (var (field, fragment) in new[] { (299, "Safe"), (300, "Secret passage door"), (298, "Piano") })
+        foreach (var (field, fragment) in new[] { (299, "Safe"), (300, "Bookcase"), (298, "Piano") })
         {
             var entry = NativeEntries.Single(row => row.Field == field).Entries[0];
             var reader = InstalledWalkmesh(field);

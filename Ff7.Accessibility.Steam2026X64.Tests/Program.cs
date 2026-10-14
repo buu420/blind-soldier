@@ -7,6 +7,15 @@ using Ff7.Accessibility.Steam2026X64.Runtime.Field;
 using Ff7.Accessibility.LegacyLayout;
 using System.Text.Json;
 
+if (args.Contains("--mansion-bookcase-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.NibelheimStoryTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.NibelheimStoryTests.RunBookcaseRoutes();
+    Steam2026MansionSecretDoorExitTests.Run(CreateInstalledFieldWalkmeshReader);
+    Console.WriteLine("Steam 2026 mansion bookcase tests passed.");
+    return;
+}
+
 if (args.Contains("--creature-narration-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.CreatureApproachReaderTests.Run();

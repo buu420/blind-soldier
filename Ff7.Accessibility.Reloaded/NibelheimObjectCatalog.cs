@@ -1,7 +1,7 @@
 ﻿namespace Ff7.Accessibility.Reloaded;
 
 /// <summary>
-/// The optional things in present-day Nibelheim's Shinra Mansion.
+/// The interactive things in Nibelheim's Shinra Mansion, including the flashback bookcase.
 ///
     /// <para>Most of these are native <c>LINE</c> handlers with no model, so
 /// neither the NPC reader - which needs a model id, an event record and a visibility byte -
@@ -33,7 +33,8 @@ public static class NibelheimObjectCatalog
     /// What sinin1_2 e14 'hint0', sinin2_2 e9 'hint2' and sinin2_1 e9 'lin1' each test:
     /// <c>IFSW Bank[2][0] &gt; 385</c>. The rest of the set carries no GameMoment test at all,
     /// and takes the same lower bound to keep the flashback's own scripted visits clear -
-    /// that part is a deliberate exclusion, not a native gate.
+    /// that part is a deliberate exclusion, not a native gate. The bookcase is the exception:
+    /// its own OK script works in the flashback too, with only Bank[5][7] as its open flag.
     /// </summary>
     private const int PresentDayBegins = 386;
 
@@ -119,13 +120,14 @@ public static class NibelheimObjectCatalog
             MinimumGameMoment: PresentDayBegins,
             UsesTalkInteraction: true),
 
-        // sinin2_2 e7 'lin0' Talk unlocks triangles 143, 67 and 120 and opens the
-        // panel. A route directly to gateway 1 cannot cross those locked triangles yet.
+        // sinin2_2 e7 'lin0' [OK] unlocks triangles 143, 67 and 120 and animates the
+        // bookcase. It has no GameMoment gate, including during the Kalm flashback.
+        // A route directly to gateway 1 cannot cross those locked triangles yet.
         new(
             300,
             7,
             FieldNavigationObjectKind.Named,
-            Label: "Secret passage door in the mansion upstairs room",
+            Label: "Bookcase in the mansion upstairs room",
             RequiredBank: 5,
             RequiredAddress: 7,
             RequiredMask: 255,
@@ -136,8 +138,8 @@ public static class NibelheimObjectCatalog
             StaticX: 906,
             StaticY: 623,
             StaticZ: 339,
-            MinimumGameMoment: PresentDayBegins,
-            UsesPlayerCollisionRadius: true),
+            UsesPlayerCollisionRadius: true,
+            ActivatesOnOk: true),
 
         // sinin2_2 e8 'fl0' Go: the search spot described by the note's third hint.
         // It runs the native search scene; the separate hint2 row reads its writing.
