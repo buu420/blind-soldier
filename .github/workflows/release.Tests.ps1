@@ -21,6 +21,25 @@ Describe 'Blind Soldier release workflow evidence binding' {
         $ghidraIndex | Should BeGreaterThan $verifyIndex
     }
 
+    It 'checks the README download links before spending a build on the release' {
+        # The README names the release it points at, and the release process
+        # rewrites it. A publish that missed the rewrite leaves the repository's
+        # front page offering the previous build, which still installs and still
+        # works and simply does not contain the fix that was just released.
+        # Checking it before the build means a stale README costs seconds rather
+        # than a full package run, and never reaches a player at all.
+        $workflow = [IO.File]::ReadAllText($workflowPath)
+        $readmeIndex = $workflow.IndexOf(
+            './Verify-BlindSoldierReadmeLinks.ps1 -ExpectedVersion $version',
+            [StringComparison]::Ordinal)
+        $buildIndex = $workflow.IndexOf(
+            './Build-BlindSoldierPortablePackage.ps1 -OutputPath ./artifacts/release/Blind-Soldier-Portable.zip',
+            [StringComparison]::Ordinal)
+
+        $readmeIndex | Should BeGreaterThan -1
+        $buildIndex | Should BeGreaterThan $readmeIndex
+    }
+
     It 'derives and verifies the x86-only archive after native source verification' {
         $workflow = [IO.File]::ReadAllText($workflowPath)
         $ghidraIndex = $workflow.IndexOf(
