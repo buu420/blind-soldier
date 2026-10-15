@@ -7,6 +7,14 @@ using Ff7.Accessibility.Steam2026X64.Runtime.Field;
 using Ff7.Accessibility.LegacyLayout;
 using System.Text.Json;
 
+if (args.Contains("--character-interactions-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.FieldCharacterInteractionTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.FieldCharacterInteractionTests.RunWithInstalledGameData(
+        planner => new Ff7.Accessibility.Steam2026X64.Runtime.Field.Steam2026FailClosedFieldRoutePlanner(planner));
+    return;
+}
+
 if (args.Contains("--mansion-bookcase-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.NibelheimStoryTests.Run();
@@ -1265,6 +1273,9 @@ Ff7.Accessibility.Reloaded.Tests.LucreciaCaveObjectTests.RunWithInstalledGameDat
 Ff7.Accessibility.Reloaded.Tests.FieldGatewayLiveSwitchTests.Run();
 Ff7.Accessibility.Reloaded.Tests.FieldContactNpcTests.Run();
 Ff7.Accessibility.Reloaded.Tests.FieldContactNpcTests.RunWithInstalledGameData();
+Ff7.Accessibility.Reloaded.Tests.FieldCharacterInteractionTests.Run();
+Ff7.Accessibility.Reloaded.Tests.FieldCharacterInteractionTests.RunWithInstalledGameData(
+    planner => new Ff7.Accessibility.Steam2026X64.Runtime.Field.Steam2026FailClosedFieldRoutePlanner(planner));
 Ff7.Accessibility.Reloaded.Tests.FieldTriangleExitTests.RunWithInstalledGameData(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.GuideRevisitInteractionTests.Run();
 Ff7.Accessibility.Reloaded.Tests.GuideRevisitInteractionTests.RunWithInstalledGameData();

@@ -13135,7 +13135,8 @@
       "sourceFieldName": "nvmkin21",
       "sourceEntityName": "ti2",
       "sourceScriptType": "Talk",
-      "completesOnArrival": true
+      "completesOnArrival": true,
+      "usesHiddenTalkTarget": true
     },
     {
       "fieldId": 323,
