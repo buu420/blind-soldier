@@ -49,6 +49,10 @@ public sealed class FieldNavigationNpcReader
             [(76, 6)] = "Chocobo handler",
             [(79, 4)] = "Weapon seller",
 
+            // ujunon2 prisl, CHAR 7 (sub_pricilla): Echo-S's MESSAGE indices
+            // cannot be used to name her from the installed stock dialogue table.
+            [(429, 12)] = "Priscilla",
+
             // bonevil: the man seated in the tent's doorway. His own Talk offers the
             // excavation (dialogs 49 and 50) and sends the party to the dig (772); he has
             // no field entity name, and the story step already calls him the foreman.
@@ -768,7 +772,14 @@ public sealed class FieldNavigationNpcReader
             }
 
             var eventAddress = eventTable + modelId * FieldNavigationObjectReader.FieldEventDataStride;
-            if (readByte(eventAddress + FieldNavigationObjectReader.VisibilityOffset) == 0)
+            // nvmkin21 draws wounded Tifa with entity 6 while hidden ti2 (7)
+            // receives Confirm at moment 382. Its native Init/slot 5 enable Talk
+            // without VISI; 00636284 tests TLKON, not the rendering flag. Limit
+            // this reviewed proxy to that scene so it cannot duplicate Tifa at 383.
+            var woundedTifaProxy = definition.FieldId == 323 && CanonicalEntity(definition) == 7 &&
+                readInt16(FieldNavigationObjectReader.AddressFieldBankBase) == 382 &&
+                readByte(eventAddress + TalkDisabledOffset) == 0;
+            if (readByte(eventAddress + FieldNavigationObjectReader.VisibilityOffset) == 0 && !woundedTifaProxy)
             {
                 continue;
             }

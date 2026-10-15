@@ -7,6 +7,13 @@ using Ff7.Accessibility.Reloaded.Runtime;
 using Ff7.Accessibility.Runtime.Abstractions;
 using AccessibilityConfig = Ff7.Accessibility.Core.AccessibilityConfig;
 
+if (args.Contains("--character-interactions-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.FieldCharacterInteractionTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.FieldCharacterInteractionTests.RunWithInstalledGameData();
+    return;
+}
+
 if (args.Contains("--postscript-presentation-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.PostscriptPresentationTests.Run();
@@ -1844,6 +1851,8 @@ AssertMpjpoSwitchesGatewaysOffButKeepsScriptedExits();
 Ff7.Accessibility.Reloaded.Tests.FieldGatewayLiveSwitchTests.Run();
 Ff7.Accessibility.Reloaded.Tests.FieldContactNpcTests.Run();
 Ff7.Accessibility.Reloaded.Tests.FieldContactNpcTests.RunWithInstalledGameData();
+Ff7.Accessibility.Reloaded.Tests.FieldCharacterInteractionTests.Run();
+Ff7.Accessibility.Reloaded.Tests.FieldCharacterInteractionTests.RunWithInstalledGameData();
 Ff7.Accessibility.Reloaded.Tests.FieldTriangleExitTests.RunWithInstalledGameData(CreateInstalledFieldWalkmeshReader);
 AssertReachableFieldExitTargetProviderHidesBlockedGateways();
 AssertFieldStoryReaderFollowsNativeReactorDoorOrder();

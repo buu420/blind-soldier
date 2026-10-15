@@ -218,7 +218,7 @@ internal static class WutaiMateriaQuestTests
         Labels(memory, Town, ["Go back into Yuffie's House"], "the capture ends the pot for good");
     }
 
-    /// <summary>The hidden-talk switch belongs to one row; every other Talk row is unchanged.</summary>
+    /// <summary>Within Wutai, only the shaking pot uses a hidden Talk proxy.</summary>
     private static void AnOrdinaryTalkRowStillNeedsAVisibleModel()
     {
         var memory = Phase(QuestPhase.Arrived, Bar);
@@ -227,9 +227,9 @@ internal static class WutaiMateriaQuestTests
         Equal(0, memory.Story(9).ReadTargets(memory.At(Bar)).Count(t => t.Label.StartsWith("Talk to", StringComparison.Ordinal)),
             "hidden Turks are not offered");
         Equal(true,
-            FieldStoryEventCatalog.CreateAllFields().Where(d => d.UsesHiddenTalkTarget)
+            FieldStoryEventCatalog.CreateAllFields().Where(d => d.FieldId == Town && d.UsesHiddenTalkTarget)
                 .All(d => d.FieldId == Town && d.EntityId == 16 && d.Kind == FieldStoryTargetKind.Model),
-            "only the pot talks through an undrawn model");
+            "only the pot in Wutai talks through an undrawn model");
     }
 
     /// <summary>

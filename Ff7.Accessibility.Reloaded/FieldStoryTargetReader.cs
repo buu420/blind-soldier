@@ -384,11 +384,13 @@ public sealed class FieldStoryTargetReader
         var eventAddress = eventTable + modelId * FieldNavigationObjectReader.FieldEventDataStride;
         if (definition.UsesHiddenTalkTarget)
         {
-            // One step is a Talk with an entity that is not drawn. Wutai's shaking pot is
+            // Reviewed interactions can use an entity that is not drawn. Wutai's shaking pot is
             // uutai1/YUFI placed by XYZI with TLKON on, TALKR 180 and no VISI, and her Talk
             // is the only caller of the capture - whose own VISI 1 is what first shows her.
             // The script cannot work unless the game accepts that Talk while she is hidden,
             // so this row asks only what TLKON says: whether she can be talked to now.
+            // At nvmkin21 moment 382, entity 6 draws injured Tifa while hidden ti2 (7)
+            // receives Confirm. Its Init and slot 5 enable Talk without enabling VISI.
             if (readByte(eventAddress + FieldNavigationNpcReader.TalkDisabledOffset) != 0)
             {
                 return null;
