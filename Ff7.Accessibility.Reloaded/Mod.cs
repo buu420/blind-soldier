@@ -10043,7 +10043,7 @@ public sealed class Mod : IModV1, IModV2
         }
     }
 
-    private unsafe void MenuTextRendererDetour(byte* text, uint x, uint y, int color, int context)
+    private unsafe void MenuTextRendererDetour(nint owner, byte* text, uint x, uint y, int color, int context)
     {
         try
         {
@@ -10051,10 +10051,10 @@ public sealed class Mod : IModV1, IModV2
             if (menuTextRenderDiagnostics?.TryCreateEntry(rawText, x, y, color, context, out var entry) == true)
             {
                 Log(entry.ToLogLine());
-                if (config.EnableRenderedMenuTextSpeech && !saveMenuSpeechTracker.IsActive)
-                {
-                    renderedMenuTextSpeechTracker.Observe(entry, DateTime.UtcNow);
-                }
+                // This is the snowboard font, including glyph digits and pulsing
+                // highlights. Individual draws do not identify a menu selection
+                // or complete score. Keep telemetry out of generic menu speech;
+                // the existing snowboard reader owns the course guidance.
             }
         }
         catch (Exception ex)
@@ -10067,7 +10067,7 @@ public sealed class Mod : IModV1, IModV2
         }
         finally
         {
-            menuTextRendererHook?.OriginalFunction(text, x, y, color, context);
+            menuTextRendererHook?.OriginalFunction(owner, text, x, y, color, context);
         }
     }
 
@@ -13841,9 +13841,11 @@ internal static class FieldWindowPollingOwnership
     }
 }
 
-[global::Reloaded.Hooks.Definitions.X86.Function(global::Reloaded.Hooks.Definitions.X86.CallingConventions.Cdecl)]
-[UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-public unsafe delegate void MenuTextRendererDelegate(byte* text, uint x, uint y, int color, int context);
+// The native snowboard font (0072F9F4) receives its owner in ECX and returns
+// with RET 14h. Both the callback and Original must preserve that thiscall ABI.
+[global::Reloaded.Hooks.Definitions.X86.Function(global::Reloaded.Hooks.Definitions.X86.CallingConventions.MicrosoftThiscall)]
+[UnmanagedFunctionPointer(CallingConvention.ThisCall)]
+public unsafe delegate void MenuTextRendererDelegate(nint owner, byte* text, uint x, uint y, int color, int context);
 
 [global::Reloaded.Hooks.Definitions.X86.Function(global::Reloaded.Hooks.Definitions.X86.CallingConventions.Cdecl)]
 [UnmanagedFunctionPointer(CallingConvention.Cdecl)]

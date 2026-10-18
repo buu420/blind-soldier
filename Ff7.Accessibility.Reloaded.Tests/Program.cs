@@ -7,6 +7,15 @@ using Ff7.Accessibility.Reloaded.Runtime;
 using Ff7.Accessibility.Runtime.Abstractions;
 using AccessibilityConfig = Ff7.Accessibility.Core.AccessibilityConfig;
 
+if (args.Contains("--snowboard-crash-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.SnowboardTextHookAbiTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.SnowboardTextHookAbiTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.SnowboardAccessibilityTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.SnowboardAccessibilityTests.RunWithInstalledGameData();
+    return;
+}
+
 if (args.Contains("--character-interactions-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.FieldCharacterInteractionTests.Run();
@@ -2260,6 +2269,8 @@ AssertLegacyX86CapabilitiesMapEveryRequiredSubsystem();
 AssertLegacyX86CapabilityValidationFailsClosedOnMissingSignal();
 Ff7.Accessibility.Reloaded.Tests.SnowboardAccessibilityTests.Run();
 Ff7.Accessibility.Reloaded.Tests.SnowboardAccessibilityTests.RunWithInstalledGameData();
+Ff7.Accessibility.Reloaded.Tests.SnowboardTextHookAbiTests.Run();
+Ff7.Accessibility.Reloaded.Tests.SnowboardTextHookAbiTests.RunWithInstalledGameData();
 Ff7.Accessibility.Reloaded.Tests.KeyItemsMenuSpeechTests.Run();
 Ff7.Accessibility.Reloaded.Tests.MateriaSubmenuSpeechTests.Run();
 Ff7.Accessibility.Reloaded.Tests.BattleMessageFlickerTests.Run();
@@ -30540,21 +30551,9 @@ static bool IsGameRuntime(string path)
            Directory.Exists(Path.Combine(path, "data"));
 }
 
-static string FindSourceRoot()
-{
-    var dir = new DirectoryInfo(AppContext.BaseDirectory);
-    while (dir is not null)
-    {
-        if (Directory.Exists(Path.Combine(dir.FullName, "accessibility_prototype")))
-        {
-            return dir.FullName;
-        }
-
-        dir = dir.Parent;
-    }
-
-    throw new DirectoryNotFoundException("Could not locate the FFVII accessibility source root.");
-}
+// Optional old visual captures are below this root, but an ignored prototype
+// directory is not a reliable repository sentinel in a clean checkout.
+static string FindSourceRoot() => FindRepositoryRoot();
 
 static string FindRepositoryRoot()
 {
