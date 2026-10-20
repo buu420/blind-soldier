@@ -5,7 +5,7 @@
   "scannedGameMomentWrites": 334,
   "navigableGameMomentWrites": 118,
   "unresolvedAutomaticOrIndirectWrites": 219,
-  "definitionCount": 1451,
+  "definitionCount": 1447,
   "definitions": [
     {
       "fieldId": 115,
@@ -25482,134 +25482,6 @@
         "mask": 64,
         "value": 64
       }
-    },
-    {
-      "fieldId": 542,
-      "kind": "Model",
-      "label": "Go to the second stored materia",
-      "entityId": 11,
-      "x": 0,
-      "y": 0,
-      "z": 0,
-      "targetGameMoment": -1,
-      "minimumGameMoment": 1391,
-      "maximumGameMoment": 1391,
-      "priority": 0,
-      "sourceFieldName": "bugin1b",
-      "sourceEntityName": "HUGEA",
-      "sourceScriptType": "Contact",
-      "completesOnArrival": true,
-      "usesContactRange": true,
-      "requiredConditions": [
-        {
-          "bank": 3,
-          "address": 188,
-          "mask": 8,
-          "value": 0
-        },
-        {
-          "bank": 13,
-          "address": 82,
-          "mask": 16,
-          "value": 16
-        }
-      ]
-    },
-    {
-      "fieldId": 542,
-      "kind": "Model",
-      "label": "Go to the first stored materia",
-      "entityId": 12,
-      "x": 0,
-      "y": 0,
-      "z": 0,
-      "targetGameMoment": -1,
-      "minimumGameMoment": 1391,
-      "maximumGameMoment": 1391,
-      "priority": 0,
-      "sourceFieldName": "bugin1b",
-      "sourceEntityName": "HUGEB",
-      "sourceScriptType": "Contact",
-      "completesOnArrival": true,
-      "usesContactRange": true,
-      "requiredConditions": [
-        {
-          "bank": 3,
-          "address": 188,
-          "mask": 8,
-          "value": 0
-        },
-        {
-          "bank": 15,
-          "address": 145,
-          "mask": 8,
-          "value": 8
-        }
-      ]
-    },
-    {
-      "fieldId": 542,
-      "kind": "Model",
-      "label": "Go to the third stored materia",
-      "entityId": 13,
-      "x": 0,
-      "y": 0,
-      "z": 0,
-      "targetGameMoment": -1,
-      "minimumGameMoment": 1391,
-      "maximumGameMoment": 1391,
-      "priority": 0,
-      "sourceFieldName": "bugin1b",
-      "sourceEntityName": "HUGEC",
-      "sourceScriptType": "Contact",
-      "completesOnArrival": true,
-      "usesContactRange": true,
-      "requiredConditions": [
-        {
-          "bank": 3,
-          "address": 188,
-          "mask": 8,
-          "value": 0
-        },
-        {
-          "bank": 13,
-          "address": 82,
-          "mask": 1,
-          "value": 1
-        }
-      ]
-    },
-    {
-      "fieldId": 542,
-      "kind": "Model",
-      "label": "Go to the fourth stored materia",
-      "entityId": 14,
-      "x": 0,
-      "y": 0,
-      "z": 0,
-      "targetGameMoment": -1,
-      "minimumGameMoment": 1391,
-      "maximumGameMoment": 1391,
-      "priority": 0,
-      "sourceFieldName": "bugin1b",
-      "sourceEntityName": "HUGED",
-      "sourceScriptType": "Contact",
-      "completesOnArrival": true,
-      "usesContactRange": true,
-      "requiredConditions": [
-        {
-          "bank": 3,
-          "address": 188,
-          "mask": 8,
-          "value": 0
-        },
-        {
-          "bank": 13,
-          "address": 82,
-          "mask": 128,
-          "value": 128
-        }
-      ]
     },
     {
       "fieldId": 544,

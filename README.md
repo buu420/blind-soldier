@@ -138,6 +138,11 @@ again where one exists.
 Field and world-map navigation, routes, auto walk and the progress indicator
 are described under [Navigation](#navigation).
 
+Version 0.10.3 repairs the Huge Materia display's exit navigation. Stored Materia
+are listed in Objects. Exits guides you to the native Go back down menu, and Story
+offers the required departure step while Bugenhagen is waiting to leave.
+See the [release notes](docs/releases/v0.10.3.md).
+
 Version 0.10.2 corrects the legacy x86 snowboarding text hook's native calling
 convention, which could crash the game when the snowboard run starts with or
 without Echo-S. See the [release notes](docs/releases/v0.10.2.md).
@@ -477,10 +482,10 @@ instead of reading unverified game memory.
 Choose one download from the
 [Blind Soldier Releases page](https://github.com/buu420/blind-soldier/releases):
 
-- [Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.10.2/Blind-Soldier-Portable.zip)
+- [Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.10.3/Blind-Soldier-Portable.zip)
   is the complete dual-runtime package. Use it for Steam 2026 x64 or when one
   extracted package must support both x86 and x64 installations.
-- [Blind-Soldier-2013-x86-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.10.2/Blind-Soldier-2013-x86-Portable.zip)
+- [Blind-Soldier-2013-x86-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.10.3/Blind-Soldier-2013-x86-Portable.zip)
   is the smaller legacy-only package. Use it for the 2013 x86 game, including
   stock 7th Heaven/FFNx. It deliberately contains no Steam 2026 launcher or
   x64 files.

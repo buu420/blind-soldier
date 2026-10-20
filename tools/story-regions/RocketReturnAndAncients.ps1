@@ -127,16 +127,6 @@ Add-Definition -FieldId 72 -FieldName 'fship_25' -Kind Model -EntityId 16 -Prior
     -EntityName 'crew3' -ScriptType 'Talk'
 
 # --- Bugenhagen and the Capital -------------------------------------------------------------
-$bugenhagenAboard = New-Condition -Bank 3 -Address 188 -Mask 0x08 -Value 0x00
-# bugin1b's four stands are gated by four separate flags, and 566:14:4 shows what
-# those flags are: it walks them in a fixed order and writes the first one that is
-# still clear, so they are storage slots filled in the order the Huge Materia were
-# brought in, not one flag per materia. Nothing in the field ties a stand to a
-# colour or to the mission a materia came from, so neither is named here.
-$firstHugeMateriaSlot = New-Condition -Bank 15 -Address 145 -Mask 0x08 -Value 0x08
-$secondHugeMateriaSlot = New-Condition -Bank 13 -Address 82 -Mask 0x10 -Value 0x10
-$thirdHugeMateriaSlot = New-Condition -Bank 13 -Address 82 -Mask 0x01 -Value 0x01
-$fourthHugeMateriaSlot = New-Condition -Bank 13 -Address 82 -Mask 0x80 -Value 0x80
 $keyNotYetFetched = New-Condition -Bank 13 -Address 82 -Mask 0x02 -Value 0x00
 $keyFetched = New-Condition -Bank 13 -Address 82 -Mask 0x02 -Value 0x02
 
@@ -145,33 +135,8 @@ Add-Definition -FieldId 541 -FieldName 'bugin1a' -Kind Model -EntityId 11 -Prior
     -MinimumGameMoment 1389 -MaximumGameMoment 1390 `
     -EntityName 'bugen' -ScriptType 'Talk'
 
-# The Huge Materia standing in the storage room are reached by walking into them:
-# their Contact script is entity script 2 and they have no Talk script at all, so
-# nothing here is pressed. Each stand is offered only while its own slot flag says a
-# materia is actually on it.
-Add-Definition -FieldId 542 -FieldName 'bugin1b' -Kind Model -EntityId 12 -Priority 0 `
-    -Label 'Go to the first stored materia' `
-    -MinimumGameMoment 1391 -MaximumGameMoment 1391 `
-    -RequiredConditions @($bugenhagenAboard, $firstHugeMateriaSlot) `
-    -EntityName 'HUGEB' -ScriptType 'Contact' -UsesContactRange
-
-Add-Definition -FieldId 542 -FieldName 'bugin1b' -Kind Model -EntityId 11 -Priority 0 `
-    -Label 'Go to the second stored materia' `
-    -MinimumGameMoment 1391 -MaximumGameMoment 1391 `
-    -RequiredConditions @($bugenhagenAboard, $secondHugeMateriaSlot) `
-    -EntityName 'HUGEA' -ScriptType 'Contact' -UsesContactRange
-
-Add-Definition -FieldId 542 -FieldName 'bugin1b' -Kind Model -EntityId 13 -Priority 0 `
-    -Label 'Go to the third stored materia' `
-    -MinimumGameMoment 1391 -MaximumGameMoment 1391 `
-    -RequiredConditions @($bugenhagenAboard, $thirdHugeMateriaSlot) `
-    -EntityName 'HUGEC' -ScriptType 'Contact' -UsesContactRange
-
-Add-Definition -FieldId 542 -FieldName 'bugin1b' -Kind Model -EntityId 14 -Priority 0 `
-    -Label 'Go to the fourth stored materia' `
-    -MinimumGameMoment 1391 -MaximumGameMoment 1391 `
-    -RequiredConditions @($bugenhagenAboard, $fourthHugeMateriaSlot) `
-    -EntityName 'HUGED' -ScriptType 'Contact' -UsesContactRange
+# The repeatable bugin1b stand interactions live in TownInteractionObjectCatalog.
+# They are optional Objects under their own storage-slot flags, including later visits.
 
 Add-Definition -FieldId 630 -FieldName 'lost1' -Kind Location -Priority 0 `
     -Label 'Take the western path' -X -4464 -Y 1512 -Z 149 `

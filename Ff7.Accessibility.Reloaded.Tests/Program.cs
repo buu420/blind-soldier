@@ -7,6 +7,12 @@ using Ff7.Accessibility.Reloaded.Runtime;
 using Ff7.Accessibility.Runtime.Abstractions;
 using AccessibilityConfig = Ff7.Accessibility.Core.AccessibilityConfig;
 
+if (args.Contains("--observatory-storage-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.HugeMateriaContactTests.Run(CreateInstalledFieldWalkmeshReader);
+    return;
+}
+
 if (args.Contains("--snowboard-crash-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.SnowboardTextHookAbiTests.Run();

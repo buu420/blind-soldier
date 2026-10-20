@@ -7,6 +7,13 @@ using Ff7.Accessibility.Steam2026X64.Runtime.Field;
 using Ff7.Accessibility.LegacyLayout;
 using System.Text.Json;
 
+if (args.Contains("--observatory-storage-only", StringComparer.OrdinalIgnoreCase))
+{
+    Steam2026FieldObjectObservationTests.RunStoredMateriaCueRegression();
+    Ff7.Accessibility.Reloaded.Tests.HugeMateriaContactTests.Run(CreateInstalledFieldWalkmeshReader);
+    return;
+}
+
 if (args.Contains("--character-interactions-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.FieldCharacterInteractionTests.Run();
@@ -799,6 +806,7 @@ if (args.Contains("--cosmo-navigation-only", StringComparer.OrdinalIgnoreCase))
     Ff7.Accessibility.Reloaded.Tests.CosmoCanyonNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
     Ff7.Accessibility.Reloaded.Tests.ObservatoryApproachNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
     Ff7.Accessibility.Reloaded.Tests.CosmoObservatoryStoryTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.HugeMateriaContactTests.Run(CreateInstalledFieldWalkmeshReader);
     Ff7.Accessibility.Reloaded.Tests.NibelheimStoryTests.Run();
     Ff7.Accessibility.Reloaded.Tests.NibelheimStoryTests.RunWithInstalledGameData();
     Ff7.Accessibility.Reloaded.Tests.RemainingStoryContinuityTests.Run();
@@ -1262,6 +1270,7 @@ Ff7.Accessibility.Reloaded.Tests.GongagaNavigationTests.Run(CreateInstalledField
 Ff7.Accessibility.Reloaded.Tests.CosmoCanyonNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.ObservatoryApproachNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.CosmoObservatoryStoryTests.Run();
+Ff7.Accessibility.Reloaded.Tests.HugeMateriaContactTests.Run(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.WutaiMateriaQuestTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WutaiMateriaQuestTests.RunWithInstalledGameData();
 Ff7.Accessibility.Reloaded.Tests.WutaiHiddenRoomExitTests.Run();

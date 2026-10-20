@@ -67,6 +67,14 @@ public static class TownInteractionObjectCatalog
         Line(525, 29, "Pub Starlet sign", "cos_btm", "KANBAN", -1307, -986, -2141),
         Line(529, 7, "Turtle's Paradise flyer", "cosin1", "LINEH", 105, -185, -192),
         Line(532, 14, "Turtle's Paradise flyer", "cosin3", "TIRASI", -237, 6, 0),
+        // bugin1b's four stands are repeatable Contact interactions, not Story goals.
+        // Init lights each model under its own storage-slot bit. CHAR 9..12 bind the
+        // yellow/green/red/blue models, corroborated by their actual P vertex colours.
+        // No mission or hidden reward is inferred; visibility/collision is checked live.
+        StoredMateria(12, "Green Huge Materia", "HUGEB", 15, 145, 0x08),
+        StoredMateria(11, "Yellow Huge Materia", "HUGEA", 13, 82, 0x10),
+        StoredMateria(13, "Red Huge Materia", "HUGEC", 13, 82, 0x01),
+        StoredMateria(14, "Blue Huge Materia", "HUGED", 13, 82, 0x80),
         Line(553, 8, "Antique gun display", "rkt_w", "line2", 21, 214, 0),
         Line(555, 5, "Bathroom door", "rktinn1", "benjo", 12, 471, -57) with { RequiredBank = 5, RequiredAddress = 13, RequiredMask = 255 },
         Line(558, 13, "Locked door", "rktsid", "lock", 27, 778, 0) with { MinimumGameMoment = 567 },
@@ -265,6 +273,44 @@ public static class TownInteractionObjectCatalog
             SourceFieldName: fieldName, SourceEntityName: entityName,
             TargetKind: FieldNavigationObjectTargetKind.Line, StaticX: x, StaticY: y, StaticZ: z,
             UsesPlayerCollisionRadius: true);
+
+    /// <summary>
+    /// bugin1b has no walkable doorway. Every stand's Contact opens ASK 23, lines 1..3;
+    /// choosing line 3 (Go back down) requests AD script 3 or Bugenhagen's departure.
+    /// The old gateway is leftover bugin1a geometry. Reuse the same visible stands and
+    /// native reach as Objects, with the menu choice stated before the player arrives.
+    /// Each entry names its stand so the separate approaches are distinguishable.
+    /// </summary>
+    internal static IEnumerable<FieldStoryEventDefinition> StoredMateriaExits() =>
+        Definitions.Where(row => row.FieldId == 542 && row.UsesContactRange).Select(row =>
+            new FieldStoryEventDefinition(row.FieldId, FieldStoryTargetKind.Model,
+                $"Go back down menu at the {row.Label!.Replace("Huge Materia", "materia", StringComparison.Ordinal)}", row.EntityId,
+                RequiredCondition: new FieldStoryStateCondition(row.RequiredBank, row.RequiredAddress,
+                    row.RequiredMask, row.RequiredValue),
+                SourceFieldName: row.SourceFieldName, SourceEntityName: row.SourceEntityName,
+                SourceScriptType: "Contact", UsesContactRange: true, PublishAsExit: true));
+
+    // The first storage visit still needs the departure choice: Bugenhagen's script 4
+    // requests AD script 4, which sets 3[188] bit 3 and transfers the party to field 74.
+    // One available stand supplies that Story objective; priority narrows these alternatives
+    // to one. Inspecting every Materia is optional and stays in Objects.
+    internal static IEnumerable<FieldStoryEventDefinition> StoredMateriaDeparture() =>
+        Definitions.Where(row => row.FieldId == 542 && row.UsesContactRange).Select((row, index) =>
+            new FieldStoryEventDefinition(row.FieldId, FieldStoryTargetKind.Model,
+                "Go back down to leave with Bugenhagen (stored materia menu)", row.EntityId,
+                MinimumGameMoment: 1391, MaximumGameMoment: 1391, Priority: index,
+                RequiredCondition: new FieldStoryStateCondition(row.RequiredBank, row.RequiredAddress,
+                    row.RequiredMask, row.RequiredValue),
+                RequiredConditions: [new FieldStoryStateCondition(3, 188, 0x08, 0x00)],
+                SourceFieldName: row.SourceFieldName, SourceEntityName: row.SourceEntityName,
+                SourceScriptType: "Contact", UsesContactRange: true));
+
+    private static FieldNavigationObjectDefinition StoredMateria(
+        int entity, string label, string entityName, int bank, int address, byte mask) =>
+        new(542, entity, FieldNavigationObjectKind.Named, Label: label,
+            RequiredBank: bank, RequiredAddress: address, RequiredMask: mask, RequiredValue: mask,
+            SourceFieldName: "bugin1b", SourceEntityName: entityName,
+            CueKindOverride: FieldObjectCueKind.Materia, UsesContactRange: true);
 
     private static FieldNavigationObjectDefinition Model(
         int field, int entity, string label, string fieldName, string entityName) =>
