@@ -570,7 +570,7 @@ internal static class FieldContactNpcTests
 
     /// <summary>
     /// cosmo3's stored Huge Materia (542:11-14) are fieldbg_ scenery whose Contact runs the Master
-    /// Materia blend; the Story list already offers each lit stand as a Contact
+    /// Materia blend; the Objects list offers each lit stand as a Contact
     /// (HugeMateriaContactTests). blackbg1's Tifa (93:2) opens a developer warp menu with no
     /// speaker. Neither is offered as a person.
     /// </summary>

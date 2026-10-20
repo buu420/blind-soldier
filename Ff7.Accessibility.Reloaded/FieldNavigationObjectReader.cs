@@ -62,7 +62,10 @@ public readonly record struct FieldNavigationObjectDefinition(
     int[]? WaitingSpot = null,
     // A LINE whose script runs from its OK slot (00637D35), not on touch: the leader must also
     // face the line for OK to work, so auto walk turns to it before saying it has arrived.
-    bool ActivatesOnOk = false);
+    bool ActivatesOnOk = false,
+    // Visible scenery with a native model Contact script, such as stored Huge Materia.
+    // Arrival observes that script starting; it does not ask for or press Confirm.
+    bool UsesContactRange = false);
 
 public static class FieldNavigationObjectCatalog
 {
@@ -336,7 +339,21 @@ public sealed class FieldNavigationObjectReader
                     continue;
                 }
 
-                if (definition.UsesTalkInteraction)
+                if (definition.UsesContactRange)
+                {
+                    if (position.ModelIndex < 0 || position.ModelIndex >= modelCount ||
+                        modelId == position.ModelIndex ||
+                        readByte(eventAddress + FieldNavigationNpcReader.CollisionDisabledOffset) != 0)
+                    {
+                        continue;
+                    }
+
+                    var playerAddress = eventTable + position.ModelIndex * FieldEventDataStride;
+                    interactionRadius = FieldNavigationNpcReader.ContactReach(
+                        ReadUInt16(playerAddress + FieldNavigationNpcReader.CollisionRadiusOffset),
+                        ReadUInt16(eventAddress + FieldNavigationNpcReader.CollisionRadiusOffset));
+                }
+                else if (definition.UsesTalkInteraction)
                 {
                     if (position.ModelIndex < 0 || position.ModelIndex >= modelCount ||
                         readByte(eventAddress + FieldNavigationNpcReader.TalkDisabledOffset) != 0)
@@ -386,9 +403,11 @@ public sealed class FieldNavigationObjectReader
                 LineActivationRadius: lineActivationRadius,
                 LineActivatesOnOk: definition.TargetKind == FieldNavigationObjectTargetKind.Line && definition.ActivatesOnOk,
                 LineOkAccepted: lineOkAccepted,
-                Activation: definition.TargetKind == FieldNavigationObjectTargetKind.Model && definition.UsesTalkInteraction
-                    ? FieldNavigationActivation.Talk
-                    : FieldNavigationActivation.Default));
+                Activation: definition.TargetKind == FieldNavigationObjectTargetKind.Model && definition.UsesContactRange
+                    ? FieldNavigationActivation.Contact
+                    : definition.TargetKind == FieldNavigationObjectTargetKind.Model && definition.UsesTalkInteraction
+                        ? FieldNavigationActivation.Talk
+                        : FieldNavigationActivation.Default));
         }
 
         // Bone Village's dig spot is where the game has buried what the diggers look for, not a

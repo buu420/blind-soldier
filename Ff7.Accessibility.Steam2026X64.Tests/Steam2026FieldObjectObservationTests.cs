@@ -15,6 +15,7 @@ internal static class Steam2026FieldObjectObservationTests
     {
         LoadsTheSharedFullGameCatalog();
         ReadsStableAuthoritativeModelTargets();
+        RunStoredMateriaCueRegression();
         ReadsEveryPersistentAndTemporaryBank();
         RequiresCheckedLineStateForStaticPickups();
         NavigationLineTargetsCarryTheirLiveSegment();
@@ -22,6 +23,33 @@ internal static class Steam2026FieldObjectObservationTests
         RejectsUnreadableRequiredDomains();
         RejectsTornRawEvidenceEvenWhenTargetsWouldMatch();
         PublishesImmutablePointerFreeObservations();
+    }
+
+    internal static void RunStoredMateriaCueRegression()
+    {
+        var memory = CreateBaseMemory(modelCount: 6);
+        memory.WriteUInt16((uint)FieldPositionReader.AddressFieldId, 542);
+        WriteGameMoment(memory, 1391);
+        WriteBankByte(memory, 13, 82, 0x91);
+        WriteBankByte(memory, 15, 145, 0x08);
+        var definitions = FieldNavigationObjectCatalog.CreateAllFields()
+            .Where(definition => definition.FieldId == 542).ToArray();
+        Equal(4, definitions.Length, "four stored Materia definitions");
+        byte model = 2;
+        foreach (var definition in definitions)
+            WriteObjectModel(memory, definition.EntityId, model++, -100 * definition.EntityId, -1200, -1792);
+        var reader = CreateReader(memory, definitions, _ => null, _ => null);
+        Equal(true, reader.TryReadSnapshot(out var snapshot),
+            "named stored Materia must produce a coherent Steam object-sound snapshot");
+        Equal(4, snapshot.Targets.Count, "every visible stored Materia has a sound target");
+        Equal(true, snapshot.Targets.All(target => target.ObjectCueKind == FieldObjectCueKind.Materia),
+            "named stored Materia keep the native Materia sound classification");
+        Equal(true, snapshot.Targets.Select(target => target.Label).Order().SequenceEqual(
+            definitions.Select(definition => definition.Label).Order()), "cue labels use the visible named objects");
+        memory.WriteByte(EventAddress(2) + FieldNavigationObjectReader.VisibilityOffset, 0);
+        Equal(true, reader.TryReadSnapshot(out snapshot), "a hidden stand keeps the snapshot coherent");
+        Equal(3, snapshot.Targets.Count, "a hidden stand has no spatial sound target");
+        Console.WriteLine("PASS Steam stored Materia named-object sound observations");
     }
 
     private static void LoadsTheSharedFullGameCatalog()

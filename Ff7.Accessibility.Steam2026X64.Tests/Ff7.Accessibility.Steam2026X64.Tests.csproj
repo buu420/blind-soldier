@@ -118,6 +118,7 @@
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\WorldMapVehicleApproachReplayTests.cs" Link="SharedTests\WorldMapVehicleApproachReplayTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\CosmoCanyonNavigationTests.cs" Link="SharedTests\CosmoCanyonNavigationTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\CosmoCanyonNavigationCallerTests.cs" Link="SharedTests\CosmoCanyonNavigationCallerTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\HugeMateriaContactTests.cs" Link="SharedTests\HugeMateriaContactTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\ObservatoryApproachNavigationTests.cs" Link="SharedTests\ObservatoryApproachNavigationTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\CosmoObservatoryStoryTests.cs" Link="SharedTests\CosmoObservatoryStoryTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\WutaiMateriaQuestTests.cs" Link="SharedTests\WutaiMateriaQuestTests.cs" />

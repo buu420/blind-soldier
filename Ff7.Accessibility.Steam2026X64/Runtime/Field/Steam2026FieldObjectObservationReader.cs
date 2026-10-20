@@ -614,9 +614,13 @@ public sealed class Steam2026FieldObjectObservationReader
         FieldNavigationObjectDefinition definition,
         int expectedFieldId)
     {
+        var namedModelCue = definition.Kind == FieldNavigationObjectKind.Named &&
+            definition.TargetKind == FieldNavigationObjectTargetKind.Model &&
+            !string.IsNullOrWhiteSpace(definition.Label) &&
+            definition.CueKindOverride is FieldObjectCueKind.Materia or FieldObjectCueKind.Chest or FieldObjectCueKind.Item;
         if (definition.FieldId != expectedFieldId ||
             definition.EntityId is < 0 or > byte.MaxValue ||
-            definition.NativeId < 0 ||
+            definition.NativeId < (namedModelCue ? -1 : 0) ||
             definition.Quantity <= 0 ||
             definition.MinimumGameMoment < -1 ||
             definition.MaximumGameMoment < -1 ||
@@ -636,7 +640,7 @@ public sealed class Steam2026FieldObjectObservationReader
             return false;
         }
 
-        return definition.Kind is FieldNavigationObjectKind.Item or FieldNavigationObjectKind.Materia;
+        return definition.Kind is FieldNavigationObjectKind.Item or FieldNavigationObjectKind.Materia || namedModelCue;
     }
 
     private static bool IsConditionValid(int bank, int index, byte mask)
@@ -674,6 +678,9 @@ public sealed class Steam2026FieldObjectObservationReader
 
     private string? ResolveLabel(FieldNavigationObjectDefinition definition)
     {
+        if (definition.Kind == FieldNavigationObjectKind.Named)
+            return definition.Label;
+
         var name = definition.Kind == FieldNavigationObjectKind.Item
             ? resolveItemName(definition.NativeId)
             : resolveMateriaName(definition.NativeId);

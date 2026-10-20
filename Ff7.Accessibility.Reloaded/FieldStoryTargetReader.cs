@@ -71,9 +71,8 @@ public readonly record struct FieldStoryEventDefinition(
     // A touch LINE whose script runs from its OK slot (00637D35): the leader must also face the
     // line, so auto walk turns to it before saying it has arrived. Go lines run on the touch.
     bool ActivatesOnOk = false,
-    // A way out of the field that no gateway or MAPJUMP names - a MINIGAME that ends in another
-    // field - published with the Exits instead of as a Story step, whenever its own native
-    // conditions and line allow it, whatever the story's current objective is.
+    // A native way out that is not a walkable gateway, such as MINIGAME or a model's return
+    // menu. Published with Exits under its own native conditions, independently of Story.
     bool PublishAsExit = false)
 {
     /// <summary>Current native LINE alternatives, attached only to an exact reviewed loaded layout.</summary>
@@ -84,9 +83,12 @@ public static class FieldStoryEventCatalog
 {
     private const string ResourceName = "Ff7.Accessibility.Reloaded.Assets.navigation.field_story_events.json";
     private static readonly Lazy<FieldStoryEventCatalogDocument> FullCatalog = new(Load);
+    private static readonly Lazy<IReadOnlyList<FieldStoryEventDefinition>> AllDefinitions = new(() =>
+        [.. FullCatalog.Value.Definitions, .. TownInteractionObjectCatalog.StoredMateriaExits(),
+            .. TownInteractionObjectCatalog.StoredMateriaDeparture()]);
 
     public static IReadOnlyList<FieldStoryEventDefinition> CreateAllFields() =>
-        FullCatalog.Value.Definitions;
+        AllDefinitions.Value;
 
     public static IReadOnlyList<FieldStoryEventDefinition> CreateOpeningReactor() =>
         FullCatalog.Value.Definitions

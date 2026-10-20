@@ -51,6 +51,14 @@ public sealed class FieldExitPresentationPolicy
         var addedWorldMapExit = false;
         foreach (var target in targets)
         {
+            // bugin1b is the Huge Materia display: its floor is at -1792, while this
+            // unused gateway retains bugin1a's ordinary door at z=-36. The native way
+            // down is a stand's Contact menu, appended as an exit by the story reader.
+            if (target.FieldId == 542 && target.StableId == "gateway:542:0:544")
+            {
+                continue;
+            }
+
             if (hasHighwindCraterDeparture && target.StableId == "gateway:74:0:66")
             {
                 continue;
