@@ -43,6 +43,7 @@ internal static class GuideRouteRegressionTests
         yield return ("bedroom steps route from each branch's own arrival", BedroomStepsRouteFromEachArrival);
         yield return ("Train Graveyard and Sector 5 Talk pickups use the native talk range", TalkPickupsUseTheNativeTalkRange);
         yield return ("md8 scaffold entrances are scripted ladders, not detour starts", ScaffoldEntrancesAreScriptedLadders);
+        yield return ("md8 ladder exits guide the climb before the field transfer", ScaffoldLadderExitsGuideTheirClimb);
         yield return ("md8 scaffold items are walked to through their native chains", ScaffoldItemsAreWalkedToThroughNativeChains);
         yield return ("Northern Crater jump lines each take their own jump", CraterJumpLinesTakeTheirOwnJump);
         yield return ("Mega All is offered at its take-off lines, not its floating model", MegaAllIsOfferedAtItsTakeOffLines);
@@ -1078,6 +1079,56 @@ internal static class GuideRouteRegressionTests
         ("Elixir", -2136, 1457, 508, 18), ("Aegis Armlet", -3811, 1050, 512, 15),
         ("Max Ray", -528, 1052, 1185, 16), ("Megalixir", 1073, 1528, 508, 17)
     ];
+
+    private static void ScaffoldLadderExitsGuideTheirClimb()
+    {
+        var world = new Caves();
+        // Native LINE -> Cloud LADER -> MAPJUMP. The October 22 log stalls at
+        // (-3658,-977,-986), beside 734's line 8: routing only to that line
+        // never includes the action that mounts its ladder.
+        foreach (var (field, entity, sourceTriangle, landing, input) in new[]
+        {
+            (733, 3, 5, 12, FieldNavigationInput.Down),
+            (733, 4, 151, 16, FieldNavigationInput.Up),
+            (733, 5, 75, 1, FieldNavigationInput.Down),
+            (734, 8, 110, 1, FieldNavigationInput.Up),
+            (734, 9, 58, 5, FieldNavigationInput.Up)
+        })
+        {
+            var exit = world.Exits(field).Single(t => t.TriggerEntityId == entity);
+            var line = world.LineOf(field, entity);
+            var start = world.At(field, (line.StartX + line.EndX) / 2,
+                (line.StartY + line.EndY) / 2, sourceTriangle);
+            Equal(true, world.Planner(field).TryBuildRoute(start, exit, out var route),
+                $"{field} line {entity}: {world.Planner(field).LastDiagnostic}");
+            Equal(true, route.Portals.Any(p => p.TransitionKind == FieldNavigationTransitionKind.Ladder &&
+                p.RequiredInput == input && p.ToTriangle == landing),
+                $"{field} line {entity}: the exit includes its native {input} climb to t{landing}");
+            Equal(false, exit.CompletesOnArrival, "reaching the mount line is not a completed exit");
+
+            var controller = new FieldNavigationController(new FieldNavigationTargetSource([exit]), world.Planner(field));
+            _ = controller.HandleAction(FieldNavigationAction.ToggleBeacon, start, new(-128));
+            var speech = controller.UpdateLiveTracking(start, default, new(-128), false, 80,
+                observedAt: new DateTime(2026, 10, 23, 0, 0, 0, DateTimeKind.Utc))?.Speech ?? "";
+            Equal(true, speech.Contains("Press action", StringComparison.Ordinal),
+                $"{field} line {entity}: mount instruction: {speech}");
+            Equal(false, controller.TryResolveAutomaticInput(start, new(-128), 80, out _),
+                "auto walk waits for the player's mount button");
+            Equal(FieldAutoWalkHoldReason.PlayerAction, controller.LastAutomaticInputHold,
+                "the native mount action owns the input");
+            Equal(true, controller.BeaconEnabled, "the exit remains active for the native transfer");
+            for (var sample = 1; sample <= 8; sample++)
+            {
+                _ = controller.UpdateLiveTracking(start, default, new(-128), false, 80,
+                    observedAt: new DateTime(2026, 10, 23, 0, 0, 0, DateTimeKind.Utc).AddSeconds(sample));
+                Equal(false, controller.TryResolveAutomaticInput(start, new(-128), 80, out _),
+                    "waiting at the native mount does not resume pushing after route refresh");
+                Equal(FieldAutoWalkHoldReason.PlayerAction, controller.LastAutomaticInputHold,
+                    "the mount remains the pending action");
+            }
+        }
+        Console.WriteLine("PASS Sector 8 ladder exits include all five native climbs and manual mount holds.");
+    }
 
     private static FieldNavigationTarget ScaffoldItem(string label)
     {

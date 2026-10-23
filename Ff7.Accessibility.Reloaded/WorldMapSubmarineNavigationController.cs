@@ -7,10 +7,20 @@ public sealed partial class WorldMapNavigationController
     private DateTime submarineEmeraldMissingSince = DateTime.MinValue;
     private string? submarineUnsafeApproach;
 
-    private static bool UnderwaterRouteEndMoved(WorldMapNavigationTarget target, WorldMapRoutePlan route) =>
-        route.Waypoints.Count == 0 ||
-        Math.Abs(WorldMapTargetCatalog.WrappedDelta(route.Waypoints[^1].X, target.X, 0x48000)) +
-        Math.Abs(WorldMapTargetCatalog.WrappedDelta(route.Waypoints[^1].Z, target.Z, 0x38000)) > 128;
+    private static bool UnderwaterRouteEndMoved(WorldMapNavigationTarget target, WorldMapRoutePlan route)
+    {
+        if (route.Waypoints.Count == 0) return true;
+        var endpoint = route.Waypoints[^1];
+        if (target.NativeUnderwaterArrival is { ModelId: 30 } arrival &&
+            arrival.DistanceFrom(endpoint.X, endpoint.Y, endpoint.Z) + WorldMapSubmarineSteering.DepthTolerance +
+                WorldMapSubmarineSteering.HorizontalStopDistance > arrival.ManhattanBound)
+            return true;
+        var point = new WorldMapRouteWaypoint(target.X, target.Y, target.Z);
+        if (target.UnderwaterApproachPoints.Count > 0 &&
+            !target.UnderwaterApproachPoints.TryGetValue(route.TargetTriangleId, out point)) return true;
+        return Math.Abs(WorldMapTargetCatalog.WrappedDelta(endpoint.X, point.X, 0x48000)) +
+            Math.Abs(WorldMapTargetCatalog.WrappedDelta(endpoint.Z, point.Z, 0x38000)) > 128;
+    }
 
     private bool HasFreshEmeraldSighting(WorldMapNavigationTarget target) =>
         entityProvider?.Invoke().Any(e => e.ModelId == 30 && e.IsVisibleUnderwater && !e.IsPlayer &&
@@ -89,7 +99,7 @@ public sealed partial class WorldMapNavigationController
             IsAboveSubmarineDescent(state, target))) return DescribeSubmarineDescent(target);
         var emerald = target.NativeUnderwaterArrival?.ModelId == 30;
         var depth = emerald ? WorldMapSubmarineSteering.EmeraldDepth : WorldMapSubmarineSteering.TravelDepth;
-        if (state.Y < depth - (emerald ? 120 : 0)) return "Rise to travel depth.";
+        if (state.Y < depth - (emerald ? 120 : 0)) return $"Rise to travel depth toward {target.Label}.";
         if (emerald && state.Y > depth + 120) return "Descending toward the selected Emerald Weapon.";
         var aim = activeRoute is { Waypoints.Count: > 0 } route
             ? route.Waypoints[Math.Clamp(waypointIndex, 0, route.Waypoints.Count - 1)]

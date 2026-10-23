@@ -56,9 +56,12 @@ internal sealed record WorldMapUnderwaterArrival(WorldMapData Map, int ModelId, 
             var floor = FloorHeight(Map.Triangles[triangleId], state.X, state.Z);
             return double.IsFinite(floor) && state.Y - floor < 500;
         }
-        return Math.Abs((long)WorldMapTargetCatalog.WrappedDelta(state.X, X, Map.WrapWidth)) +
-            Math.Abs(state.Y - (long)Y) + Math.Abs((long)WorldMapTargetCatalog.WrappedDelta(state.Z, Z, Map.WrapHeight)) <= ManhattanBound;
+        return DistanceFrom(state.X, state.Y, state.Z) <= ManhattanBound;
     }
+
+    internal long DistanceFrom(int x, int y, int z) =>
+        Math.Abs((long)WorldMapTargetCatalog.WrappedDelta(x, X, Map.WrapWidth)) +
+        Math.Abs(y - (long)Y) + Math.Abs((long)WorldMapTargetCatalog.WrappedDelta(z, Z, Map.WrapHeight));
 
     internal static double FloorHeight(WorldMapTriangle t, int x, int z)
     {
@@ -74,6 +77,44 @@ internal sealed record WorldMapUnderwaterArrival(WorldMapData Map, int ModelId, 
 
 public sealed partial class WorldMapTargetCatalog
 {
+    private IReadOnlyDictionary<int, WorldMapRouteWaypoint> ResolveEmeraldApproachPoints(
+        WorldMapEntitySnapshot entity, int observedTriangle)
+    {
+        // A floating creature need not be above terrain the sub can cross. Keep
+        // its observed position as the target, but search the native contact
+        // volume for floor points where the submarine's full footprint fits.
+        // Sampling can withhold an approach; it never licenses a blocked point.
+        if (WorldMapTerrainPassability.CanTraverse(13, 2, map.Triangles[observedTriangle].TerrainId) &&
+            WorldMapRoutePlanner.HasSubmarineFootprint(map, entity.X, entity.Z))
+            return new Dictionary<int, WorldMapRouteWaypoint>();
+
+        const int step = 128;
+        var depth = WorldMapSubmarineSteering.EmeraldDepth;
+        var reach = WorldMapSubmarineSteering.EmeraldEncounterDistance - Math.Abs((long)entity.Y - depth) -
+            WorldMapSubmarineSteering.DepthTolerance - WorldMapSubmarineSteering.HorizontalStopDistance;
+        var points = new Dictionary<int, WorldMapRouteWaypoint>();
+        if (reach < 0) return points;
+        var samples = (int)(reach / step);
+        var offsets = from x in Enumerable.Range(-samples, samples * 2 + 1)
+                      from z in Enumerable.Range(-samples, samples * 2 + 1)
+                      let distance = (Math.Abs(x) + Math.Abs(z)) * step
+                      where distance <= reach
+                      orderby distance
+                      select (X: x * step, Z: z * step);
+        foreach (var offset in offsets)
+        {
+            var x = ((entity.X + offset.X) % map.WrapWidth + map.WrapWidth) % map.WrapWidth;
+            var z = ((entity.Z + offset.Z) % map.WrapHeight + map.WrapHeight) % map.WrapHeight;
+            if (!WorldMapBroncoLanding.TryFindSurface(map, x, z, out var floor) ||
+                points.ContainsKey(floor.Id) || !WorldMapTerrainPassability.CanTraverse(13, 2, floor.TerrainId) ||
+                !WorldMapRoutePlanner.HasSubmarineFootprint(map, x, z)) continue;
+            var floorY = WorldMapUnderwaterArrival.FloorHeight(floor, x, z);
+            if (!double.IsFinite(floorY) || floorY >= depth) continue;
+            points.Add(floor.Id, new(x, depth, z));
+        }
+        return points;
+    }
+
     private static IReadOnlyList<WorldMapNavigationTarget> BuildUnderwaterLocations(WorldMapData map)
     {
         var resolver = new WorldMapRoutePlanner(map);

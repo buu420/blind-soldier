@@ -862,7 +862,9 @@ public sealed class WorldMapRoutePlanner
         // A vehicle's arrival triangle can be a thousand units across, and the only part of
         // it that boards the vehicle is the part inside the native mask. Ending on the
         // centroid would stop the party somewhere Confirm does nothing.
-        var normalizedFinalPoint = target.VehicleContactPoints.TryGetValue(targetTriangle, out var contactPoint)
+        var normalizedFinalPoint = target.UnderwaterApproachPoints.TryGetValue(targetTriangle, out var underwaterPoint)
+            ? underwaterPoint
+            : target.VehicleContactPoints.TryGetValue(targetTriangle, out var contactPoint)
             ? new WorldMapRouteWaypoint(contactPoint.X, contactPoint.Y, contactPoint.Z)
             : nativeArrival is { } resolvedNativeArrival
                 ? new WorldMapRouteWaypoint(
