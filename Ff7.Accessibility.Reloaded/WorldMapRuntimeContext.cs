@@ -1,4 +1,4 @@
-﻿namespace Ff7.Accessibility.Reloaded;
+namespace Ff7.Accessibility.Reloaded;
 
 /// <summary>
 /// Owns the architecture-neutral world-map services for one native map type.
@@ -157,7 +157,8 @@ public sealed class WorldMapRuntimeContext
         emeraldAbsentSince = DateTime.MinValue;
         if (speechReserved || announcedEmerald == pointer) return null;
         announcedEmerald = pointer;
-        return "Emerald Weapon is visible nearby.";
+        Navigation.FocusSightedEmerald(pointer);
+        return "Emerald Weapon is visible nearby. Select it in Events.";
     }
 
     public void Reset()

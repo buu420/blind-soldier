@@ -83,7 +83,11 @@ public readonly record struct FieldNavigationTarget(
     // The engine's own OK verdict for that line on this read, when the reader has it: the LINE's
     // ready byte (+0x15) and stored angle (+0x14) against the leader's event heading (+0x36), as
     // 00637D35 tests them. Null when it could not be read.
-    bool? LineOkAccepted = null);
+    bool? LineOkAccepted = null,
+    // A scripted exit may mount a ladder before its MAPJUMP. Its LINE remains
+    // the live activation/visibility geometry; the route must include this
+    // native traversal rather than finish at the foot of that ladder.
+    string? ExitTraversalId = null);
 
 /// <summary>A LINE's native OK state: the stored angle to its foot (+0x14) and the ready byte (+0x15).</summary>
 public readonly record struct FieldNavigationLineOkState(byte Angle, bool Ready);

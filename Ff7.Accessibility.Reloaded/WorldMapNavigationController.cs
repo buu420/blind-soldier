@@ -89,6 +89,8 @@ public sealed partial class WorldMapNavigationController
     private readonly int distanceUnitsPerCount;
     private readonly TimeSpan guidanceInterval;
     private readonly Dictionary<WorldMapNavigationCategory, int> selectedIndices = new();
+    private UnderwaterEventSelection? selectedUnderwaterEvent;
+    private sealed record UnderwaterEventSelection(string StableId, string Label);
     private readonly WorldMapAutoWalkConvergenceTracker autoWalkConvergence = new();
     private readonly WorldMapSubmarineStagingConvergenceTracker submarineStagingConvergence = new();
 
@@ -1885,6 +1887,7 @@ public sealed partial class WorldMapNavigationController
         glacierRows = null;
         categoryIndex = 0;
         selectedIndices.Clear();
+        selectedUnderwaterEvent = null;
         lastDiagnostic = "reset";
     }
 
@@ -2322,12 +2325,18 @@ public sealed partial class WorldMapNavigationController
     private WorldMapNavigationOutput DescribeSelection(WorldMapStateSnapshot state)
     {
         var targets = GetTargets(state);
-        if (targets.Count == 0)
+        var target = GetSelectedTarget(state, targets);
+        if (target is null)
         {
+            if (state.WorldMapType == 2 && CurrentCategory == WorldMapNavigationCategory.Events &&
+                selectedUnderwaterEvent is { } unavailable)
+                return new($"Events, {unavailable.Label} is no longer available. Choose another target.");
             return new WorldMapNavigationOutput($"{DisplayName(CurrentCategory)}: none available.");
         }
 
-        var target = GetSelectedTarget(state)!;
+        var label = state.WorldMapType == 2 && CurrentCategory == WorldMapNavigationCategory.Events
+            ? $"{target.Label}, {selectedIndices.GetValueOrDefault(CurrentCategory) + 1} of {targets.Count}"
+            : target.Label;
         if (target.NativeEntityModelId == 11 && state.PlayerModelId != 3)
             return new("Events, Ultimate Weapon. Use the Highwind to follow it.");
         if (state.PlayerModelId == 13 && target.Kind == WorldMapTargetKind.Transportation && target.NativeEntityModelId == 3)
@@ -2335,7 +2344,7 @@ public sealed partial class WorldMapNavigationController
         if (IsAwaitingNativeEntry(target, state))
         {
             return new WorldMapNavigationOutput(
-                $"{DisplayName(CurrentCategory)}, {target.Label} entrance. The way in is on foot, so leave the vehicle here.");
+                $"{DisplayName(CurrentCategory)}, {label} entrance. The way in is on foot, so leave the vehicle here.");
         }
 
         // In the Highwind a town is previewed by its landing, not by flying over it.
@@ -2346,8 +2355,8 @@ public sealed partial class WorldMapNavigationController
         {
             return new WorldMapNavigationOutput(
                 ReachedThrough.TryGetValue(target.Label, out var throughWay)
-                    ? $"{DisplayName(CurrentCategory)}, {target.Label}. Reached through {throughWay.Gateway}: {throughWay.Why}."
-                    : $"{DisplayName(CurrentCategory)}, {target.Label}. No grass landing spot that leads there on foot.");
+                    ? $"{DisplayName(CurrentCategory)}, {label}. Reached through {throughWay.Gateway}: {throughWay.Why}."
+                    : $"{DisplayName(CurrentCategory)}, {label}. No grass landing spot that leads there on foot.");
         }
 
         if ((byHighwind ||
@@ -2373,16 +2382,16 @@ public sealed partial class WorldMapNavigationController
                 distanceUnitsPerCount).Speech;
             return new WorldMapNavigationOutput(
                 byHighwind
-                    ? $"{DisplayName(CurrentCategory)}, {target.Label}. {HighwindRouteSummary}. {direction}."
+                    ? $"{DisplayName(CurrentCategory)}, {label}. {HighwindRouteSummary}. {direction}."
                     : byLanding
-                    ? $"{DisplayName(CurrentCategory)}, {target.Label}. {LandingRouteSummary}. {direction}."
-                    : $"{DisplayName(CurrentCategory)}, {target.Label}. {direction}.");
+                    ? $"{DisplayName(CurrentCategory)}, {label}. {LandingRouteSummary}. {direction}."
+                    : $"{DisplayName(CurrentCategory)}, {label}. {direction}.");
         }
 
         return new WorldMapNavigationOutput(
             ReachedThrough.TryGetValue(target.Label, out var gatewayWay)
-                ? $"{DisplayName(CurrentCategory)}, {target.Label}. Reached through {gatewayWay.Gateway}: {gatewayWay.Why}."
-                : $"{DisplayName(CurrentCategory)}, {target.Label}. Route unavailable.");
+                ? $"{DisplayName(CurrentCategory)}, {label}. Reached through {gatewayWay.Gateway}: {gatewayWay.Why}."
+                : $"{DisplayName(CurrentCategory)}, {label}. Route unavailable.");
     }
 
     private const string LandingRouteSummary = "By Tiny Bronco to a shore landing, then on foot";
@@ -3036,21 +3045,57 @@ public sealed partial class WorldMapNavigationController
         }
 
         selectedIndices.TryGetValue(CurrentCategory, out var index);
-        selectedIndices[CurrentCategory] = PositiveModulo(index + delta, targets.Count);
+        if (state.WorldMapType == 2 && CurrentCategory == WorldMapNavigationCategory.Events && selectedUnderwaterEvent is { } selected)
+        {
+            var found = FindTarget(targets, selected.StableId);
+            index = found >= 0 ? found : delta > 0 ? -1 : 0;
+        }
+        index = PositiveModulo(index + delta, targets.Count);
+        selectedIndices[CurrentCategory] = index;
+        RememberUnderwaterEvent(state, targets[index]);
     }
 
-    private WorldMapNavigationTarget? GetSelectedTarget(WorldMapStateSnapshot state)
+    private WorldMapNavigationTarget? GetSelectedTarget(WorldMapStateSnapshot state,
+        IReadOnlyList<WorldMapNavigationTarget>? snapshot = null)
     {
-        var targets = GetTargets(state);
+        var targets = snapshot ?? GetTargets(state);
         if (targets.Count == 0)
         {
             return null;
         }
 
         selectedIndices.TryGetValue(CurrentCategory, out var index);
+        if (state.WorldMapType == 2 && CurrentCategory == WorldMapNavigationCategory.Events && selectedUnderwaterEvent is { } selected)
+        {
+            index = FindTarget(targets, selected.StableId);
+            if (index < 0) return null; // Never start a different row the user has not selected.
+        }
         index = PositiveModulo(index, targets.Count);
         selectedIndices[CurrentCategory] = index;
+        RememberUnderwaterEvent(state, targets[index]);
         return targets[index];
+    }
+
+    private static int FindTarget(IReadOnlyList<WorldMapNavigationTarget> targets, string stableId)
+    {
+        for (var i = 0; i < targets.Count; i++)
+            if (string.Equals(targets[i].StableId, stableId, StringComparison.Ordinal)) return i;
+        return -1;
+    }
+
+    private void RememberUnderwaterEvent(WorldMapStateSnapshot state, WorldMapNavigationTarget target)
+    {
+        if (state.WorldMapType == 2 && CurrentCategory == WorldMapNavigationCategory.Events)
+            selectedUnderwaterEvent = new(target.StableId, target.Label);
+    }
+
+    internal void FocusSightedEmerald(uint pointer)
+    {
+        // Set the next Events preview, without changing category or starting a
+        // route. A currently announced Events selection keeps the player's intent.
+        if (map.WorldMapType == 2 && pointer != 0 && CurrentCategory != WorldMapNavigationCategory.Events &&
+            !beaconEnabled && pendingEntityTarget is null)
+            selectedUnderwaterEvent = new($"world-entity:{pointer:X8}:30", "Emerald Weapon");
     }
 
     private IReadOnlyList<WorldMapNavigationTarget> GetTargets(WorldMapStateSnapshot state)

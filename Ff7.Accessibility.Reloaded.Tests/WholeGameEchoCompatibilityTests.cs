@@ -81,6 +81,27 @@ internal static class WholeGameEchoCompatibilityTests
             var state = new ScriptMemory();
             var catalog = new FieldScriptNavigationCatalog(root, Ff7GameLanguageDetector.Detect(root), new LoadedFieldScriptIdentityReader(state));
             var variant = Path.GetFileName(echo);
+            Case(variant + " Sector 8 ladder exits retain their mount action", () =>
+            {
+                foreach (var (field, entities) in new[] { (733, new[] { 3, 4, 5 }), (734, new[] { 8, 9 }) })
+                {
+                    state.Load(echo, field);
+                    var current = catalog.ReadField(field);
+                    Equal(true, current.IsUsable && current.UsesReviewedEchoLayout, "checked current Echo-S field");
+                    foreach (var entity in entities)
+                    {
+                        var exit = current.Exits.Single(e => e.TriggerEntityId == entity);
+                        Equal(true, current.Transitions.Any(t => t.StableId == exit.ExitTraversalId &&
+                            t.SourceEntityId == entity && t.Kind == FieldNavigationTransitionKind.Ladder && t.RequiresAction),
+                            $"{field} line {entity} routes its native mount before exiting");
+                        Equal(false, exit.CompletesOnArrival, "the mount line does not complete the exit");
+                    }
+                    var future = catalog.ReadFutureFieldMetadata(field, true);
+                    Equal(true, future.Exits.Where(e => entities.Contains(e.TriggerEntityId)).All(e =>
+                        e.ExitTraversalId is { Length: > 0 } && !e.CompletesOnArrival),
+                        "future detours preserve the same ladder-exit semantics");
+                }
+            });
             Case(variant + " Shinra floor 67", () =>
             {
                 state.Load(echo, 256);

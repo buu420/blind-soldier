@@ -271,8 +271,30 @@ public sealed class FieldScriptNavigationCatalog
     }
 
     /// <summary>Audited future-route metadata; never used to authorize a current target.</summary>
-    public FieldScriptNavigationReadResult ReadFutureFieldMetadata(int fieldId, bool reviewedEcho) =>
-        reviewedEcho ? WholeGameEchoFutureMetadata.Read(fieldId) ?? FieldScriptNavigationReadResult.Invalid("Future Echo-S metadata unavailable") : ReadDiskField(fieldId);
+    public FieldScriptNavigationReadResult ReadFutureFieldMetadata(int fieldId, bool reviewedEcho)
+    {
+        var result = reviewedEcho
+            ? WholeGameEchoFutureMetadata.Read(fieldId) ?? FieldScriptNavigationReadResult.Invalid("Future Echo-S metadata unavailable")
+            : ReadDiskField(fieldId);
+        return result with { Exits = ApplyScaffoldExitTraversals(fieldId, result.Exits, result.Transitions) };
+    }
+
+    private static IReadOnlyList<FieldNavigationTarget> ApplyScaffoldExitTraversals(
+        int fieldId,
+        IReadOnlyList<FieldNavigationTarget> exits,
+        IReadOnlyList<FieldScriptNavigationTransition> transitions)
+    {
+        if (fieldId is not (733 or 734)) return exits;
+        return exits.Select(exit =>
+        {
+            var climbs = transitions.Where(t => t.SourceEntityId == exit.TriggerEntityId &&
+                t.Kind == FieldNavigationTransitionKind.Ladder &&
+                t.StableId.StartsWith("ladder:", StringComparison.Ordinal)).ToArray();
+            return climbs.Length == 1
+                ? exit with { ExitTraversalId = climbs[0].StableId, CompletesOnArrival = false }
+                : exit;
+        }).ToArray();
+    }
 
     private FieldScriptNavigationReadResult ReadLoadedField(int fieldId)
     {
@@ -826,7 +848,7 @@ public sealed class FieldScriptNavigationCatalog
             return Sector7NavigationLayout.Apply(fieldId, echo, new FieldScriptNavigationReadResult(
                 true,
                 transitions,
-                exits,
+                ApplyScaffoldExitTraversals(fieldId, exits, transitions),
                 npcs,
                 waits,
                 $"field={fieldId} {fieldName}, groups={groups.Count}, transitions={transitions.Count}, " +

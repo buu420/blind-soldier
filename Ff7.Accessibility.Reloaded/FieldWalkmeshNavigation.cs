@@ -1120,6 +1120,27 @@ public sealed class FieldWalkmeshRoutePlanner :
         }
 
         var scriptedOffMeshLinks = ResolveOffMeshLinks(position.FieldId, result.Walkmesh);
+        var nativeTarget = target;
+        if (target.ExitTraversalId is { Length: > 0 } exitTraversalId)
+        {
+            var traversal = scriptedOffMeshLinks.FirstOrDefault(link => link.StableId == exitTraversalId);
+            if (traversal.StableId != exitTraversalId)
+            {
+                LastDiagnostic = $"{result.Diagnostic}, exit traversal unavailable: {exitTraversalId}";
+                return false;
+            }
+
+            // The native LINE starts this exit; reaching it is only the mount.
+            // Plan through the verified LADER landing so the ordinary route
+            // action supplies its mount prompt, input hold and climb guidance.
+            target = target with
+            {
+                X = traversal.Exit.X,
+                Y = traversal.Exit.Y,
+                Z = traversal.Exit.Z,
+                TriggerLine = null
+            };
+        }
         var targetRouteLinks = ResolveTargetRouteLinks(target);
         IReadOnlyList<FieldWalkmeshOffMeshLink> offMeshLinks =
             targetRouteLinks.Count == 0
@@ -1488,10 +1509,10 @@ public sealed class FieldWalkmeshRoutePlanner :
             finalApproach,
             targetTriangle,
             finalApproachToTargetDistance,
-            target.TriggerLine,
+            nativeTarget.TriggerLine,
             stableWaypointsOverride,
             usesNativeProbeClearance);
-        activeTarget = target;
+        activeTarget = nativeTarget;
         return true;
     }
 

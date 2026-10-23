@@ -50,6 +50,10 @@ internal static class WorldMapUnderwaterVisibilityTests
             ASkewedOrMirroredCameraIsNeverUsable,
             AStaleCallerPositionIsReplacedByTheCheckedDrawPosition,
             MovingEmeraldUsesOneCheckedFrameForVisibilityAndNavigation,
+            VisibleEmeraldOverUntraversableSeabedHasANativeApproach,
+            UnderwaterEventsAnnounceTheirPositionWhenEmeraldJoinsTheList,
+            UnderwaterEventsDoNotSubstituteTheAnnouncedTarget,
+            PatrolDriftReplansBeforeTheContactVolumeIsMissed,
             RefreshedPositionsCannotReidentifyANodeAsThePlayerOrAnotherModel,
             AVerticalTerrainFaceBetweenTheCameraAndEmeraldHidesIt
         })
@@ -59,7 +63,7 @@ internal static class WorldMapUnderwaterVisibilityTests
         }
 
         if (failures.Count != 0) throw new AggregateException(failures);
-        Console.WriteLine("world-map underwater visibility tests passed (28 scenarios).");
+        Console.WriteLine("world-map underwater visibility tests passed (32 scenarios).");
     }
 
     private static void AnEmeraldInFrontOfTheCameraAboveOpenSeabedIsVisible()
@@ -147,7 +151,7 @@ internal static class WorldMapUnderwaterVisibilityTests
             runtime.UpdateEntities(state, nativeEntities.Entities, scene.Memory);
         }
         ObserveFrame();
-        Check(runtime.ObserveUnderwaterSightings(state) == "Emerald Weapon is visible nearby.",
+        Check(runtime.ObserveUnderwaterSightings(state) == "Emerald Weapon is visible nearby. Select it in Events.",
             "a positively drawn Emerald is announced through the runtime: " + scene.Read().Diagnostic);
         var target = catalog.ReadTargets(WorldMapNavigationCategory.Events, state, runtime.Entities)
             .Single(t => t.Label == "Emerald Weapon");
@@ -451,6 +455,187 @@ internal static class WorldMapUnderwaterVisibilityTests
         return new(map, catalog,
             null, 256, TimeSpan.FromSeconds(2), TimeSpan.FromMilliseconds(400),
             TimeSpan.FromMilliseconds(300), 1, 10, TimeSpan.FromSeconds(2));
+    }
+
+    private static void VisibleEmeraldOverUntraversableSeabedHasANativeApproach()
+    {
+        var root = Environment.GetEnvironmentVariable("FF7_ACCESSIBILITY_DATA_ROOT");
+        if (string.IsNullOrWhiteSpace(root) ||
+            string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("FF7_ACCESSIBILITY_SOURCE_ROOT"))) return;
+        var map = WorldMapDataLoader.Load(Path.Combine(root, "data", "wm", "wm2.map"), 2, 0);
+        var runtime = CreateRuntime(map);
+        // Native-map witness near the October 21 log: Emerald can float above
+        // terrain 0 while the submarine must approach on nearby terrain 3.
+        var state = new WorldMapStateSnapshot(3, 2, 0, 1370, 158182, -4250, 150565,
+            1745, 303, 3, 0, 13, 0, 0, new(-109))
+            { HasNativeControlMode = true, NativeCameraMode = 3, NativeFrameMultiplier = 1 };
+        var emerald = new WorldMapEntitySnapshot(EmeraldPointer, 0, false, 167139, -4250, 151447, 0, 0, 30, 0x02)
+            { IsVisibleUnderwater = true };
+        Check(WorldMapBroncoLanding.TryFindSurface(map, emerald.X, emerald.Z, out var beneath) && beneath.TerrainId == 0,
+            "the witness really floats above a non-submarine floor");
+        foreach (var moment in new[] { 1370, 1396, 1620 })
+        {
+            state = state with { GameMoment = moment };
+            runtime.UpdateEntities([emerald]);
+            var target = runtime.Catalog.ReadTargets(WorldMapNavigationCategory.Events, state, runtime.Entities)
+                .Single(t => t.Label == "Emerald Weapon");
+            Check(runtime.Planner.TryBuildRoute(state, target, out var route),
+                "visible Emerald has an approach before and after disc 3: " + runtime.Planner.LastDiagnostic);
+            var end = route.Waypoints[^1];
+            Check(runtime.Planner.HasSubmarineFootprint(end.X, end.Z), "the approach keeps the native submarine footprint");
+            Check(target.HasArrived(state with { X = end.X, Y = end.Y, Z = end.Z }, route.TargetTriangleId),
+                "the approach meets Emerald's native XYZ distance test");
+            Check(target.X == emerald.X && target.Z == emerald.Z, "the target still reports the observed creature");
+            foreach (var point in target.UnderwaterApproachPoints.Values)
+            {
+                var away = Math.Sign(WorldMapTargetCatalog.WrappedDelta(emerald.X, point.X, map.WrapWidth));
+                if (away == 0) away = 1;
+                Check(target.HasArrived(state with { X = point.X + away * 23, Y = point.Y + 120, Z = point.Z }, -1),
+                    "an approach still reaches the native volume at the steering depth/terminal tolerances");
+            }
+        }
+        for (var i = 0; i < 3; i++) runtime.Navigation.HandleAction(FieldNavigationAction.NextCategory, state);
+        runtime.Navigation.HandleAction(FieldNavigationAction.ToggleBeacon, state);
+        Check(runtime.Navigation.BeaconEnabled, "the nearby-water approach starts through the real controller");
+        var committed = runtime.Navigation.Probe.Route;
+        var clock = new DateTime(2026, 10, 23, 0, 0, 0, DateTimeKind.Utc);
+        for (var i = 0; i < 4; i++)
+        {
+            runtime.UpdateEntities([emerald]);
+            runtime.Navigation.Observe(state, clock.AddMilliseconds(i * 300));
+            Check(ReferenceEquals(committed, runtime.Navigation.Probe.Route),
+                "an offset contact approach is not mistaken for a moving creature on every scan");
+        }
+        var moved = emerald with { X = emerald.X + 128 };
+        runtime.UpdateEntities([moved]);
+        runtime.Navigation.Observe(state, clock.AddSeconds(2));
+        var refreshed = runtime.Navigation.Probe.Route;
+        Check(runtime.Navigation.BeaconEnabled && refreshed is not null, "the observed patrol keeps a usable route");
+        var latest = runtime.Catalog.ReadTargets(WorldMapNavigationCategory.Events, state, runtime.Entities)
+            .Single(t => t.Label == "Emerald Weapon");
+        var pointAfterDrift = refreshed!.Waypoints[^1];
+        Check(latest.HasArrived(state with { X = pointAfterDrift.X - 23, Y = pointAfterDrift.Y + 120, Z = pointAfterDrift.Z }, -1),
+            "patrol movement smaller than the replan threshold cannot invalidate native arrival margin");
+        runtime.UpdateEntities([emerald with { IsVisibleUnderwater = false }]);
+        Check(!runtime.Catalog.ReadTargets(WorldMapNavigationCategory.Events, state, runtime.Entities)
+            .Any(t => t.Label == "Emerald Weapon"), "no approach reveals an undrawn Emerald");
+        Console.WriteLine("PASS visible Emerald native terrain-0 approaches at early and later progress.");
+    }
+
+    private static void UnderwaterEventsAnnounceTheirPositionWhenEmeraldJoinsTheList()
+    {
+        if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("FF7_ACCESSIBILITY_SOURCE_ROOT"))) return;
+        var scene = Scene.Standard();
+        var runtime = CreateRuntime(scene.Map);
+        WorldMapNavigationTarget Row(string name) => new(WorldMapNavigationCategory.Events, WorldMapTargetKind.Event,
+            name, RefX, BaseY, RefZ, 0, 0, name, new HashSet<int> { 0 });
+        IReadOnlyList<WorldMapNavigationTarget> rows = [Row("Red submarine wreck"), Row("Sunken Gelnika")];
+        var navigation = new WorldMapNavigationController(scene.Map, runtime.Planner,
+            (_, category) => category == WorldMapNavigationCategory.Events ? rows : []);
+        for (var i = 0; i < 3; i++) navigation.HandleAction(FieldNavigationAction.NextCategory, scene.State);
+        navigation.HandleAction(FieldNavigationAction.NextTarget, scene.State);
+        navigation.HandleAction(FieldNavigationAction.PreviousCategory, scene.State);
+        rows = [Row("Emerald Weapon"), .. rows];
+        runtime.UpdateEntities(scene.State, scene.Entities, scene.Memory);
+        var speech = navigation.HandleAction(FieldNavigationAction.NextCategory, scene.State)?.Speech ?? "";
+        Check(speech.Contains("Sunken Gelnika", StringComparison.Ordinal) && speech.Contains("3 of 3", StringComparison.Ordinal),
+            "a retained event cursor announces that a newly visible creature is another selectable row: " + speech);
+        Check(runtime.ObserveUnderwaterSightings(scene.State)?.Contains("Events", StringComparison.Ordinal) == true,
+            "the sighting says which category contains Emerald");
+    }
+
+    private static void UnderwaterEventsDoNotSubstituteTheAnnouncedTarget()
+    {
+        var scene = Scene.Standard();
+        var planner = new WorldMapRoutePlanner(scene.Map);
+        Check(planner.TryResolvePlayerTriangle(scene.State, out var triangle), "selection test has native floor");
+        var center = scene.Map.Triangles[triangle].Centroid;
+        var state = scene.State with { X = center.X, Z = center.Z, HasNativeControlMode = true,
+            NativeCameraMode = 3, NativeFrameMultiplier = 1 };
+        WorldMapNavigationTarget Row(string label) => new(WorldMapNavigationCategory.Events, WorldMapTargetKind.Event,
+            label, center.X + 500, state.Y, center.Z, triangle, 0, label, new HashSet<int> { triangle })
+            { NativeUnderwaterArrival = new(scene.Map, 17, center.X + 500, state.Y, center.Z, 16, new HashSet<int> { triangle }) };
+        var emerald = Row("Emerald Weapon") with { StableId = $"world-entity:{EmeraldPointer:X8}:30" };
+        var wreck = Row("Red submarine wreck");
+        var ship = Row("Sunken Gelnika");
+        IReadOnlyList<WorldMapNavigationTarget> rows = [wreck, ship];
+        WorldMapNavigationController Controller()
+        {
+            var controller = new WorldMapNavigationController(scene.Map, planner,
+                (_, category) => category == WorldMapNavigationCategory.Events ? rows : []);
+            for (var i = 0; i < 3; i++) controller.HandleAction(FieldNavigationAction.NextCategory, state);
+            return controller;
+        }
+        var navigation = Controller();
+        navigation.HandleAction(FieldNavigationAction.NextTarget, state); // Heard Sunken Gelnika.
+        rows = [emerald, wreck, ship];
+        navigation.FocusSightedEmerald(EmeraldPointer);
+        var started = navigation.HandleAction(FieldNavigationAction.ToggleBeacon, state)?.Speech ?? "";
+        Check(navigation.BeaconEnabled && navigation.Probe.TargetId == "Sunken Gelnika",
+            "an inserted Emerald cannot change which announced destination Pursue starts");
+        Check(started.StartsWith("Navigation on.", StringComparison.Ordinal) && started.Contains("Sunken Gelnika", StringComparison.Ordinal),
+            "the underwater start confirmation names the selected destination: " + started);
+        var deep = state with { Y = -4965 };
+        var repeated = navigation.HandleAction(FieldNavigationAction.RepeatTarget, deep)?.Speech ?? "";
+        Check(repeated.Contains("Sunken Gelnika", StringComparison.Ordinal),
+            "depth guidance still names the active destination when the menu is reopened: " + repeated);
+        var relocked = navigation.HandleAction(FieldNavigationAction.NextTarget, deep)?.Speech ?? "";
+        Check(relocked.Contains("Emerald Weapon", StringComparison.Ordinal),
+            "browsing an engaged route announces the newly selected destination: " + relocked);
+
+        navigation = Controller(); // Heard Emerald.
+        rows = [wreck, ship];
+        var lost = navigation.HandleAction(FieldNavigationAction.ToggleBeacon, state)?.Speech ?? "";
+        Check(!navigation.BeaconEnabled && lost.Contains("Emerald Weapon", StringComparison.Ordinal) &&
+            lost.Contains("no longer", StringComparison.Ordinal), "a vanished selection starts nothing and explains why: " + lost);
+        var next = navigation.HandleAction(FieldNavigationAction.NextTarget, state)?.Speech ?? "";
+        Check(next.Contains("Red submarine wreck", StringComparison.Ordinal), "an explicit next-target action can choose a replacement");
+        navigation.HandleAction(FieldNavigationAction.ToggleBeacon, state);
+        Check(navigation.BeaconEnabled && navigation.Probe.TargetId == "Red submarine wreck", "only that explicit choice starts the replacement");
+
+        rows = [wreck, ship];
+        navigation = Controller();
+        navigation.HandleAction(FieldNavigationAction.NextTarget, state);
+        navigation.HandleAction(FieldNavigationAction.PreviousCategory, state);
+        rows = [emerald, wreck, ship];
+        navigation.FocusSightedEmerald(EmeraldPointer);
+        Check(navigation.CurrentCategory == WorldMapNavigationCategory.Transportation && !navigation.BeaconEnabled,
+            "a sighting changes neither category nor movement");
+        var focus = navigation.HandleAction(FieldNavigationAction.NextCategory, state)?.Speech ?? "";
+        Check(focus.StartsWith("Events, Emerald Weapon, 1 of 3", StringComparison.Ordinal),
+            "the next Events preview focuses the positively sighted creature: " + focus);
+    }
+
+    private static void PatrolDriftReplansBeforeTheContactVolumeIsMissed()
+    {
+        var scene = Scene.Standard();
+        var planner = new WorldMapRoutePlanner(scene.Map);
+        var state = scene.State with { Y = -4250, HasNativeControlMode = true, NativeCameraMode = 3, NativeFrameMultiplier = 1 };
+        var aim = new WorldMapRouteWaypoint(RefX, -4250, RefZ - 1000);
+        Check(planner.TryResolvePlayerTriangle(state with { X = aim.X, Z = aim.Z }, out var goal), "contact approach has native floor");
+        var entity = scene.Entities.Single(e => e.ModelId == 30) with
+            { X = aim.X + 1024, Y = aim.Y, Z = aim.Z, IsVisibleUnderwater = true };
+        WorldMapNavigationTarget Target() => new(WorldMapNavigationCategory.Events, WorldMapTargetKind.Event,
+            "Emerald Weapon", entity.X, entity.Y, entity.Z, goal, 0, "patrol", new HashSet<int> { goal })
+            {
+                NativeUnderwaterArrival = new(scene.Map, 30, entity.X, entity.Y, entity.Z, 1215, new HashSet<int> { goal }),
+                UnderwaterApproachPoints = new Dictionary<int, WorldMapRouteWaypoint> { [goal] = aim }
+            };
+        var target = Target() with { StableId = $"world-entity:{entity.GuestPointer:X8}:30" };
+        var navigation = new WorldMapNavigationController(scene.Map, planner,
+            (_, category) => category == WorldMapNavigationCategory.Events ? [target] : [], entityProvider: () => [entity]);
+        for (var i = 0; i < 3; i++) navigation.HandleAction(FieldNavigationAction.NextCategory, state);
+        navigation.HandleAction(FieldNavigationAction.ToggleBeacon, state);
+        Check(navigation.BeaconEnabled, "the original native approach starts");
+        // 1024 + 120 + 23 is inside 1215. A patrol shift of 128 makes the
+        // old endpoint miss it, even though its point drift is not >128.
+        entity = entity with { X = entity.X + 128 };
+        aim = aim with { X = aim.X + 128 };
+        target = Target() with { StableId = target.StableId };
+        navigation.Observe(state, new DateTime(2026, 10, 23, 0, 0, 0, DateTimeKind.Utc));
+        var endpoint = navigation.Probe.Route!.Waypoints[^1];
+        Check(target.HasArrived(state with { X = endpoint.X - 23, Y = endpoint.Y + 120, Z = endpoint.Z }, -1),
+            "the refreshed route ends inside the current contact volume, including steering tolerances");
     }
 
     private static void RefreshedPositionsCannotReidentifyANodeAsThePlayerOrAnotherModel()

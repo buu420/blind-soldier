@@ -285,6 +285,8 @@ public sealed record WorldMapNavigationTarget(
     internal int? NativeEntityModelId { get; init; }
     internal WorldMapNativeWeaponArrival? NativeWeaponArrival { get; init; }
     internal WorldMapUnderwaterArrival? NativeUnderwaterArrival { get; init; }
+    internal IReadOnlyDictionary<int, WorldMapRouteWaypoint> UnderwaterApproachPoints { get; init; } =
+        new Dictionary<int, WorldMapRouteWaypoint>();
     internal WorldMapSubmarineDiveDestination? SubmarineDiveDestination { get; init; }
     internal WorldMapSubmarineSurfacingPoint? SubmarineSurfacingPoint { get; init; }
 
@@ -1097,12 +1099,17 @@ public sealed partial class WorldMapTargetCatalog
         }
         if (player.WorldMapType == 2 && entity.ModelId == 30)
         {
+            var approaches = ResolveEmeraldApproachPoints(entity, triangleId);
+            var arrivalsUnderwater = approaches.Count == 0
+                ? new HashSet<int> { triangleId }
+                : approaches.Keys.ToHashSet();
             return new WorldMapNavigationTarget(category, WorldMapTargetKind.Event, "Emerald Weapon",
                 entity.X, entity.Y, entity.Z, triangleId, entity.RegionId,
-                $"world-entity:{entity.GuestPointer:X8}:{entity.ModelId}", new HashSet<int> { triangleId })
+                $"world-entity:{entity.GuestPointer:X8}:{entity.ModelId}", arrivalsUnderwater)
             {
                 NativeUnderwaterArrival = new WorldMapUnderwaterArrival(map, 30, entity.X, entity.Y, entity.Z,
-                    WorldMapSubmarineSteering.EmeraldEncounterDistance, new HashSet<int> { triangleId })
+                    WorldMapSubmarineSteering.EmeraldEncounterDistance, arrivalsUnderwater),
+                UnderwaterApproachPoints = approaches
             };
         }
 
