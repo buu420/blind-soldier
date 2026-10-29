@@ -156,7 +156,7 @@ static IReadOnlyList<string> ReadModelResourceNames(byte[] fieldBytes)
 
         var nameLength = BitConverter.ToUInt16(fieldBytes, position);
         position += sizeof(ushort);
-        if (nameLength == 0 || position + nameLength + recordTailSize > end)
+        if (position + nameLength + recordTailSize > end)
         {
             return Array.Empty<string>();
         }

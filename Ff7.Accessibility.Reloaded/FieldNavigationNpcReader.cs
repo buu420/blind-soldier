@@ -53,6 +53,14 @@ public sealed class FieldNavigationNpcReader
             // cannot be used to name her from the installed stock dialogue table.
             [(429, 12)] = "Priscilla",
 
+            // The robed caretaker offers the temple's shop/rest/save choices.
+            // Cloud's confirmation question is a reply, not this actor's name.
+            [(605, 16)] = "Temple caretaker",
+
+            // ithos uses a composite seated Cloud/wheelchair model rather than
+            // a main_ resource. His own live Talk presents Cloud's speech.
+            [(720, 10)] = "Cloud",
+
             // bonevil: the man seated in the tent's doorway. His own Talk offers the
             // excavation (dialogs 49 and 50) and sends the party to the dig (772); he has
             // no field entity name, and the story step already calls him the foreman.
@@ -977,18 +985,47 @@ public sealed class FieldNavigationNpcReader
         {
             return verifiedLabel;
         }
-        if (definition.ReviewedModelLabel is { } nativeKnownLabel) return nativeKnownLabel;
 
-        if (ReviewedLabelFields.Contains(definition.FieldId))
-        {
+        // A character's name in a prop resource or its dialogue does not make
+        // scenery a person. Explicit reviewed interaction labels above remain
+        // the only exceptions.
+        if (IsSceneryModelFamily(definition.ModelResourceName)) return string.Empty;
+
+        // blackbg1 uses Tifa's mesh for a developer warp menu, with no
+        // character conversation. Preserve that reviewed non-person exclusion.
+        if (definition.FieldId == 93 && CanonicalEntity(definition) == 2)
             return string.Empty;
-        }
 
-        // Scenery is settled before a word of its dialogue is read. A scene hangs its
-        // lines on whatever is standing nearest, so the church store room's barrels carry
-        // Aeris's heading and Seventh Heaven's till carries Wedge's; taking those at face
-        // value sends the player across the room to talk to a barrel.
-        if (IsSceneryModelFamily(definition.ModelResourceName))
+        var character = ResolveCharacterModelName(definition.ModelResourceName);
+        var partyIdentity = PartySpeakerNames.Contains(character) ||
+            definition.BoundCharacterId is >= 0 and <= 10 ||
+            definition.ReviewedModelLabel is { } cachedParty && PartySpeakerNames.Contains(cachedParty);
+        // A LINE can ask party actors to climb, jump or perform a scene. That
+        // does not make their empty Talk a conversation. Reviewed counter
+        // proxies above, real Talk responses and Contact interactions remain.
+        if (!definition.HasPerceivableTalk && definition.DialogIds.Count == 0 &&
+            !definition.ContactOnly && !definition.InteractionLineRunsTalk &&
+            (!definition.HasConversationCounter || partyIdentity))
+            return string.Empty;
+
+        // An actor can open another person's reply. Its native CHAR resource is
+        // the identity evidence; a cached or first dialogue heading is not.
+        if (character.Length > 0)
+        {
+            // A reviewed mod can add somebody who merely reuses a party mesh.
+            // Use its reviewed identity unless its native binding or actor
+            // name also corroborates the character identity.
+            if (definition.ReviewedStockEntityId == -1 &&
+                !BindingCorroboratesCharacter(definition.BoundCharacterId, character) &&
+                !EntityCorroboratesCharacter(definition.EntityName, character))
+                return definition.ReviewedModelLabel is { Length: > 0 } ownName &&
+                    !PartySpeakerNames.Contains(ownName) ? ownName : string.Empty;
+            return character;
+        }
+        if (definition.ReviewedModelLabel is { } nativeKnownLabel &&
+            !PartySpeakerNames.Contains(nativeKnownLabel)) return nativeKnownLabel;
+
+        if (ReviewedLabelFields.Contains(definition.FieldId) && definition.ReviewedStockEntityId != -1)
         {
             return string.Empty;
         }
@@ -1019,12 +1056,13 @@ public sealed class FieldNavigationNpcReader
         // This is what names the people the role vocabulary has no word for: the party in
         // a scene, and the story characters who carry their own mesh. It is only trusted
         // where the line beneath the heading is somebody speaking.
-        foreach (var dialogId in definition.DialogIds)
+        foreach (var dialogId in definition.OwnDialogIds ?? definition.DialogIds)
         {
             var lines = resolveDialogLines(definition.FieldId, dialogId);
             if (lines.Count >= 2 &&
                 IsSpokenLine(lines[1]) &&
-                TryNormalizeSpeakerName(lines[0], out var speaker))
+                TryNormalizeSpeakerName(lines[0], out var speaker) &&
+                !PartySpeakerNames.Contains(speaker))
             {
                 return speaker;
             }
@@ -1032,6 +1070,74 @@ public sealed class FieldNavigationNpcReader
 
         return string.Empty;
     }
+
+    private static string ResolveCharacterModelName(string resource)
+    {
+        // The catalog removes the field prefix when binding CHAR to section 3.
+        // Match that complete resource, not a character token inside a prop name.
+        var model = resource.EndsWith(".char", StringComparison.OrdinalIgnoreCase)
+            ? resource[..^5] : resource;
+        foreach (var (name, label) in CharacterModels)
+        {
+            if (string.Equals(model, name, StringComparison.OrdinalIgnoreCase))
+                return label;
+        }
+        return string.Empty;
+    }
+
+    private static bool EntityCorroboratesCharacter(string entity, string character)
+    {
+        var name = entity.Trim().ToLowerInvariant();
+        while (name.Length > 0 && name[^1] is >= '0' and <= '9') name = name[..^1];
+        return character switch
+        {
+            "Cloud" => name is "cloud" or "cl" or "tcl" or "realclou",
+            "Aerith" => name is "aerith" or "earith" or "ea" or "eari",
+            "Tifa" => name is "tifa" or "ti" or "tif",
+            "Barret" => name is "barret" or "barrett" or "ballet" or "ba",
+            "Red XIII" => name is "red" or "redxiii" or "re",
+            "Yuffie" => name is "yuffie" or "yufi" or "yu",
+            "Cait Sith" => name is "caitsith" or "cait" or "ketcy" or "ket",
+            "Vincent" => name is "vincent" or "vince" or "vin",
+            "Cid" => name is "cid" or "ci",
+            "Hojo" => name is "hojo" or "hojyo",
+            "Priscilla" => name is "priscilla" or "pricilla" or "prisl" or "pric" or "pri",
+            _ => false
+        };
+    }
+
+    private static bool BindingCorroboratesCharacter(int? binding, string character) => binding switch
+    {
+        0 => character == "Cloud", 1 => character == "Barret", 2 => character == "Tifa",
+        3 => character == "Aerith", 4 => character == "Red XIII", 5 => character == "Yuffie",
+        6 => character == "Cait Sith", 7 => character == "Vincent", 8 => character == "Cid",
+        _ => false
+    };
+
+    private static readonly (string Resource, string Label)[] CharacterModels =
+    [
+        ("main_n_cloud", "Cloud"), ("main_cloud", "Cloud"),
+        ("main_n_earith", "Aerith"), ("main_earith", "Aerith"),
+        ("main_n_tifa", "Tifa"), ("main_tifa", "Tifa"),
+        ("main_ballet", "Barret"), ("main_red", "Red XIII"),
+        ("main_yufi", "Yuffie"), ("main_ketcy", "Cait Sith"),
+        ("main_vincent", "Vincent"), ("main_cid", "Cid"),
+        ("market_earith", "Aerith"), ("market_tifa", "Tifa"),
+        ("modify_clouds", "Cloud"),
+        ("nible_tifa15", "Tifa"), ("nible_tifas", "Tifa"),
+        ("nible_cloud8", "Cloud"),
+        ("junon_c_red", "Red XIII"), ("junon_c_ballet", "Barret"),
+        ("sub_hojyo", "Hojo"),
+        ("sub_pricilla", "Priscilla")
+    ];
+
+    private static readonly IReadOnlySet<string> PartySpeakerNames =
+        new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "Cloud", "Barret", "Tifa", "Aerith", "Aeris", "Red XIII", "Red",
+            "Yuffie", "Cait Sith", "Vincent", "Cid",
+            "Ballet", "Earith", "Yufi", "Ketcy"
+        };
 
     /// <summary>
     /// The generic role of whoever is standing there, from the mesh the field loads for
@@ -1149,6 +1255,7 @@ public sealed class FieldNavigationNpcReader
         ("dog", "Dog"),
         ("choko", "Chocobo"),
         ("animal_cat", "Cat"),
+        ("sub_cloak", "Cloaked figure"),
 
         // Then age and gender, which is what the player can see from across the room.
         // "oldw" and "obasan" before "woman", and every one of those before "man",

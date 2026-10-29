@@ -1324,7 +1324,7 @@ public sealed class Mod : IModV1, IModV2
         fieldOpcodeAddressResolver = new FieldOpcodeAddressResolver(ReadInt32, ReadByte);
         fieldOpcodeParameterReader = new FieldOpcodeParameterReader(legacyAddressSpace);
         fieldScriptContextReader = new FieldScriptContextReader(legacyAddressSpace);
-        loadedFieldScriptIdentityReader = new LoadedFieldScriptIdentityReader(legacyAddressSpace);
+        loadedFieldScriptIdentityReader = new LoadedFieldScriptIdentityReader(legacyAddressSpace, Log);
         creatureDescriptions = new FieldCreatureApproachNarrationCoordinator(
             new FieldCreatureApproachReader(legacyAddressSpace),
             () => loadedFieldScriptIdentityReader.TryRead(out var identity) ? identity : null);

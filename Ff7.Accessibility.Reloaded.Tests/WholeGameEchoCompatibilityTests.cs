@@ -245,6 +245,8 @@ internal static class WholeGameEchoCompatibilityTests
             Case(variant + " every reviewed visible party identity and known service survives", () =>
             {
                 var count = 0;
+                var conversations = 0;
+                var choreography = 0;
                 var native = new FlevelDataSource(echo);
                 foreach (var field in native.FieldNames.Keys)
                 {
@@ -257,11 +259,19 @@ internal static class WholeGameEchoCompatibilityTests
                     {
                         var definition = current.Npcs.Single(n => n.EntityId == pair.Key);
                         Equal(pair.Value, definition.ReviewedModelLabel, "reviewed current native label survives catalog adaptation");
-                        AssertVisibleNamedNpc(definition, pair.Value);
+                        // A party actor requested for shop-entry choreography is not
+                        // the shopkeeper, even when that LINE also opens a shop menu.
+                        var isConversation = definition.HasPerceivableTalk || definition.DialogIds.Count > 0 ||
+                            definition.ContactOnly || definition.InteractionLineRunsTalk ||
+                            definition.FieldId == 518 && definition.ReviewedStockEntityId is 15 or 16;
+                        AssertVisibleNamedNpc(definition, pair.Value, isConversation);
+                        if (isConversation) conversations++; else choreography++;
                         count++;
                     }
                 }
                 Equal(376, count, "complete reviewed native party inventory");
+                Equal(376, conversations + choreography, "every reviewed identity is checked for conversation availability");
+                Equal(true, choreography >= 6, "ladder and scene-only party identities are not all conversation targets");
                 foreach (var expected in new[] { (70,17,"Pilot"),(72,16,"Pilot"),(73,12,"Operations crew member"),(76,6,"Chocobo handler"),(79,4,"Weapon seller") })
                 {
                     state.Load(echo, expected.Item1);
@@ -269,7 +279,9 @@ internal static class WholeGameEchoCompatibilityTests
                     AssertVisibleNamedNpc(definition, expected.Item3);
                 }
                 state.Load(echo,149);
-                Equal(true, catalog.ReadField(149).Npcs.Single(n => n.EntityName == "Tsuna").ReviewedModelLabel is null, "sharing Cloud's mesh cannot name a new unknown character Cloud");
+                var tsuna = catalog.ReadField(149).Npcs.Single(n => n.EntityName == "Tsuna");
+                Equal("Tsuna", tsuna.ReviewedModelLabel, "the cameo keeps its reviewed own-window name instead of Cloud's mesh identity");
+                AssertVisibleNamedNpc(tsuna, "Tsuna");
                 state.Load(echo,582);
                 Equal(true, catalog.ReadField(582).Npcs.Single(n => n.EntityName == "SWITCH").ReviewedModelLabel is null, "Cloud-shaped scenery does not acquire a party identity");
             });
@@ -364,7 +376,7 @@ internal static class WholeGameEchoCompatibilityTests
         }
     }
 
-    private static void AssertVisibleNamedNpc(FieldScriptNpcDefinition definition, string label)
+    private static void AssertVisibleNamedNpc(FieldScriptNpcDefinition definition, string label, bool isConversation = true)
     {
         const int events = 0x03000000;
         byte visible = 1, talkDisabled = 0, model = 1;
@@ -380,7 +392,9 @@ internal static class WholeGameEchoCompatibilityTests
             (_, _) => { stockReads++; return ["Wrong stock title", "A mismatched old message."]; },
             _ => [definition], isLineEnabled: _ => true, useVerifiedFallback: _ => false);
         var position = new FieldPositionSnapshot(1,definition.FieldId,0,0,0,0,0,0);
-        Equal(true, reader.ReadTargets(position).Any(t => t.Label == label), $"visible native NPC {definition.FieldId}/{definition.EntityId} remains {label}");
+        Equal(isConversation, reader.ReadTargets(position).Any(t => t.Label == label),
+            $"native NPC {definition.FieldId}/{definition.EntityId} offers {label} only for an actual conversation");
+        if (!isConversation) Equal(0, reader.ReadTargets(position).Count, "a choreography LINE cannot create another NPC target");
         Equal(0, stockReads, "current reviewed party identity requires no stale stock dialogue");
         visible = 0;
         Equal(0, reader.ReadTargets(position).Count, "hidden party actor is not announced");
