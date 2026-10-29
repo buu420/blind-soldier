@@ -10,6 +10,9 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\FieldNpcIdentityCoverageTests.cs" Link="SharedTests\FieldNpcIdentityCoverageTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\EchoNpcIdentityCoverageTests.cs" Link="SharedTests\EchoNpcIdentityCoverageTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\LoadedFieldScriptNativeWriteTests.cs" Link="SharedTests\LoadedFieldScriptNativeWriteTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\FieldCharacterInteractionTests.cs" Link="SharedTests\FieldCharacterInteractionTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\CreatureApproachReaderTests.cs" Link="SharedTests\CreatureApproachReaderTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\NativeCreatureDrawObservationIngressTests.cs" Link="SharedTests\NativeCreatureDrawObservationIngressTests.cs" />

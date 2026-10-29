@@ -1,4 +1,4 @@
-﻿using Ff7.Accessibility.Core;
+using Ff7.Accessibility.Core;
 using Ff7.Accessibility.LegacyLayout;
 using Ff7.Accessibility.Reloaded;
 using Ff7.Accessibility.Runtime.Abstractions;
@@ -239,7 +239,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             config.GameLanguage,
             log: log);
         scriptCatalog = new FieldScriptNavigationCatalog(gameRootDirectory, language,
-            new LoadedFieldScriptIdentityReader(addressSpace));
+            new LoadedFieldScriptIdentityReader(addressSpace, log));
         objectReader.SetNavigationDefinitionRemapper(scriptCatalog.RemapObjectDefinition);
 
         routePlanner = new Steam2026FailClosedFieldRoutePlanner(

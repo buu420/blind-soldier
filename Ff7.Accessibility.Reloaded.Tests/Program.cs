@@ -24,6 +24,12 @@ if (args.Contains("--snowboard-crash-only", StringComparer.OrdinalIgnoreCase))
 
 if (args.Contains("--character-interactions-only", StringComparer.OrdinalIgnoreCase))
 {
+    Ff7.Accessibility.Reloaded.Tests.LoadedFieldScriptNativeWriteTests.Run();
+Ff7.Accessibility.Reloaded.Tests.LoadedFieldScriptNativeWriteTests.RunWithInstalledGameData();
+Ff7.Accessibility.Reloaded.Tests.FieldNpcIdentityCoverageTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.FieldNpcIdentityCoverageTests.RunWithInstalledGameData();
+Ff7.Accessibility.Reloaded.Tests.EchoNpcIdentityCoverageTests.Run();
+Ff7.Accessibility.Reloaded.Tests.EchoNpcIdentityCoverageTests.RunWithInstalledGameData();
     Ff7.Accessibility.Reloaded.Tests.FieldCharacterInteractionTests.Run();
     Ff7.Accessibility.Reloaded.Tests.FieldCharacterInteractionTests.RunWithInstalledGameData();
     return;
@@ -1866,6 +1872,12 @@ AssertMpjpoSwitchesGatewaysOffButKeepsScriptedExits();
 Ff7.Accessibility.Reloaded.Tests.FieldGatewayLiveSwitchTests.Run();
 Ff7.Accessibility.Reloaded.Tests.FieldContactNpcTests.Run();
 Ff7.Accessibility.Reloaded.Tests.FieldContactNpcTests.RunWithInstalledGameData();
+Ff7.Accessibility.Reloaded.Tests.LoadedFieldScriptNativeWriteTests.Run();
+Ff7.Accessibility.Reloaded.Tests.LoadedFieldScriptNativeWriteTests.RunWithInstalledGameData();
+Ff7.Accessibility.Reloaded.Tests.FieldNpcIdentityCoverageTests.Run();
+Ff7.Accessibility.Reloaded.Tests.FieldNpcIdentityCoverageTests.RunWithInstalledGameData();
+Ff7.Accessibility.Reloaded.Tests.EchoNpcIdentityCoverageTests.Run();
+Ff7.Accessibility.Reloaded.Tests.EchoNpcIdentityCoverageTests.RunWithInstalledGameData();
 Ff7.Accessibility.Reloaded.Tests.FieldCharacterInteractionTests.Run();
 Ff7.Accessibility.Reloaded.Tests.FieldCharacterInteractionTests.RunWithInstalledGameData();
 Ff7.Accessibility.Reloaded.Tests.FieldTriangleExitTests.RunWithInstalledGameData(CreateInstalledFieldWalkmeshReader);

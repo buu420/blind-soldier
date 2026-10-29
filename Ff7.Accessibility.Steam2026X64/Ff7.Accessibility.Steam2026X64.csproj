@@ -7,12 +7,13 @@
     <PlatformTarget>x64</PlatformTarget>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
-    <InformationalVersion>0.10.4</InformationalVersion>
+    <InformationalVersion>0.10.5</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
 
   <ItemGroup>
     <Compile Include="..\Ff7.Accessibility.Reloaded\WholeGameEchoNavigationManifest.cs" Link="Shared\WholeGameEchoNavigationManifest.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\EchoNpcIdentityCatalog.cs" Link="Shared\EchoNpcIdentityCatalog.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\WholeGameEchoFutureMetadata.cs" Link="Shared\WholeGameEchoFutureMetadata.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\EchoSCompatibilityManifest.cs" Link="Shared\EchoSCompatibilityManifest.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\PostscriptFieldCompatibility.cs" Link="Shared\PostscriptFieldCompatibility.cs" />

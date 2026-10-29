@@ -13,7 +13,7 @@ internal static class CostaDelSolNavigationTests
     {
         HarbourCrewAreOfferedFromTheModelTheGameDraws();
         SceneryAndPartyMembersNeverBecomePeopleToWalkTo();
-        PartyMembersKeepTheNameTheirOwnDialogueGives();
+        PartyMembersKeepTheirNativeIdentity();
         SceneryIsNotNamedByWhoeverSpeaksOverIt();
         TownsfolkAreDescribedByTheMeshTheFieldLoads();
         AFieldNameCannotInventARole();
@@ -206,18 +206,17 @@ internal static class CostaDelSolNavigationTests
     }
 
     /// <summary>
-    /// Reading the mesh may only ever add people. A party member in a scene is named by the
-    /// heading on their own dialogue, and that has to keep working: suppressing the invented
-    /// identity must not also suppress the real one the game already gave.
+    /// The catalog supplies the resource after stripping the field prefix. A visible,
+    /// talkable party member keeps that native identity even when her script opens a reply.
     /// </summary>
-    private static void PartyMembersKeepTheNameTheirOwnDialogueGives()
+    private static void PartyMembersKeepTheirNativeIdentity()
     {
         var memory = new NpcMemory(20, "tifa");
         var reader = memory.Reader(
-            "del1main_n_tifa.char",
-            ["Tifa", "“Something said out loud.”"]);
+            "main_n_tifa.char",
+            ["Cloud", "“A reply opened by Tifa's script.”"]);
         var targets = reader.ReadTargets(new FieldPositionSnapshot(1, 441, 0, 0, 0, 0, 0, 0));
-        Equal(1, targets.Count, "a party member who names herself is still offered");
+        Equal(1, targets.Count, "a visible party member with native Talk is still offered");
         Equal("Tifa", targets[0].Label, "and still under her own name");
     }
 

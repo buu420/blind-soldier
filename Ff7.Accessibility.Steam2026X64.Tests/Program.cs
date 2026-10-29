@@ -16,6 +16,12 @@ if (args.Contains("--observatory-storage-only", StringComparer.OrdinalIgnoreCase
 
 if (args.Contains("--character-interactions-only", StringComparer.OrdinalIgnoreCase))
 {
+    Ff7.Accessibility.Reloaded.Tests.LoadedFieldScriptNativeWriteTests.Run();
+Ff7.Accessibility.Reloaded.Tests.LoadedFieldScriptNativeWriteTests.RunWithInstalledGameData();
+Ff7.Accessibility.Reloaded.Tests.FieldNpcIdentityCoverageTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.FieldNpcIdentityCoverageTests.RunWithInstalledGameData();
+Ff7.Accessibility.Reloaded.Tests.EchoNpcIdentityCoverageTests.Run();
+Ff7.Accessibility.Reloaded.Tests.EchoNpcIdentityCoverageTests.RunWithInstalledGameData();
     Ff7.Accessibility.Reloaded.Tests.FieldCharacterInteractionTests.Run();
     Ff7.Accessibility.Reloaded.Tests.FieldCharacterInteractionTests.RunWithInstalledGameData(
         planner => new Ff7.Accessibility.Steam2026X64.Runtime.Field.Steam2026FailClosedFieldRoutePlanner(planner));
@@ -403,6 +409,7 @@ if (args.Contains("--cutscene-voice-only", StringComparer.OrdinalIgnoreCase))
 
 if (args.Contains("--module-tests-only", StringComparer.OrdinalIgnoreCase))
 {
+    Ff7.Accessibility.Reloaded.Tests.LoadedFieldScriptNativeWriteTests.Run();
     Steam2026TrustSurfaceTests.RunPublicApiContract();
     Ff7.Accessibility.Reloaded.Tests.CostaDelSolNavigationTests.Run();
     Ff7.Accessibility.Reloaded.Tests.GongagaNavigationTests.Run();
@@ -1282,6 +1289,12 @@ Ff7.Accessibility.Reloaded.Tests.LucreciaCaveObjectTests.RunWithInstalledGameDat
 Ff7.Accessibility.Reloaded.Tests.FieldGatewayLiveSwitchTests.Run();
 Ff7.Accessibility.Reloaded.Tests.FieldContactNpcTests.Run();
 Ff7.Accessibility.Reloaded.Tests.FieldContactNpcTests.RunWithInstalledGameData();
+Ff7.Accessibility.Reloaded.Tests.LoadedFieldScriptNativeWriteTests.Run();
+Ff7.Accessibility.Reloaded.Tests.LoadedFieldScriptNativeWriteTests.RunWithInstalledGameData();
+Ff7.Accessibility.Reloaded.Tests.FieldNpcIdentityCoverageTests.Run();
+Ff7.Accessibility.Reloaded.Tests.FieldNpcIdentityCoverageTests.RunWithInstalledGameData();
+Ff7.Accessibility.Reloaded.Tests.EchoNpcIdentityCoverageTests.Run();
+Ff7.Accessibility.Reloaded.Tests.EchoNpcIdentityCoverageTests.RunWithInstalledGameData();
 Ff7.Accessibility.Reloaded.Tests.FieldCharacterInteractionTests.Run();
 Ff7.Accessibility.Reloaded.Tests.FieldCharacterInteractionTests.RunWithInstalledGameData(
     planner => new Ff7.Accessibility.Steam2026X64.Runtime.Field.Steam2026FailClosedFieldRoutePlanner(planner));

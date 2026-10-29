@@ -91,11 +91,23 @@ public readonly record struct FieldScriptNpcDefinition(
     /// <summary>The reviewed stock identity for labels and exclusions; -1 is a new native entity.</summary>
     public int? ReviewedStockEntityId { get; init; }
 
-    /// <summary>A known visible party identity reviewed against this exact current native model/entity layout.</summary>
+    /// <summary>A name or role reviewed against this exact current native model/entity layout.</summary>
     public string? ReviewedModelLabel { get; init; }
 
     /// <summary>Current Echo-S message indices cannot address the installed stock message table.</summary>
     public bool SuppressInstalledDialogueLabels { get; init; }
+
+    /// <summary>The entity's own native PC binding, when it names one character.</summary>
+    public int? BoundCharacterId { get; init; }
+
+    /// <summary>Its own Talk has a visible or audible response, including non-dialogue responses.</summary>
+    public bool HasPerceivableTalk { get; init; }
+
+    /// <summary>A native Confirm counter addresses this actor and presents dialogue or a menu.</summary>
+    public bool HasConversationCounter { get; init; }
+
+    /// <summary>Conversation windows issued by this entity, excluding another entity's requested scripts.</summary>
+    public IReadOnlyList<int>? OwnDialogIds { get; init; }
 
     /// <summary>
     /// Whether <see cref="InteractionLine"/> runs this entity's own Talk script (REQ of
@@ -337,7 +349,8 @@ public sealed class FieldScriptNavigationCatalog
                     UsesReviewedLocalizedStockLayout = !echo,
                     StockToLoadedEntities = entityMap,
                     Npcs = result.Npcs.Select(n => n with { ReviewedStockEntityId = canonical.GetValueOrDefault(n.EntityId, -1),
-                        ReviewedModelLabel = echo ? WholeGameEchoNavigationManifest.NpcLabels(fieldId).GetValueOrDefault(n.EntityId) : null,
+                        ReviewedModelLabel = echo ? EchoNpcIdentityCatalog.Label(fieldId, n.EntityId) ??
+                            WholeGameEchoNavigationManifest.NpcLabels(fieldId).GetValueOrDefault(n.EntityId) : null,
                         SuppressInstalledDialogueLabels = echo }).ToArray()
                 };
             }
@@ -897,12 +910,13 @@ public sealed class FieldScriptNavigationCatalog
             }
 
             var dialogIds = new List<int>();
+            var ownDialogIds = new List<int>();
             CollectTalkDialogIds(
                 groups,
                 group.Index,
                 1,
                 dialogIds,
-                new HashSet<(int Group, int Script)>());
+                new HashSet<(int Group, int Script)>(), group.Index, ownDialogIds);
             var uniqueDialogIds = dialogIds.Distinct().ToArray();
 
             // An entity that says nothing can still be somebody the player talks to. The
@@ -947,7 +961,11 @@ public sealed class FieldScriptNavigationCatalog
                 interactionLine?.Line,
                 ReadModelResourceName(group, modelResources))
             {
-                InteractionLineRunsTalk = interactionLine?.RunsTalk == true
+                InteractionLineRunsTalk = interactionLine?.RunsTalk == true,
+                HasConversationCounter = interactionLine?.HasConversationResponse == true,
+                HasPerceivableTalk = speaks,
+                BoundCharacterId = ReadBoundCharacterId(group),
+                OwnDialogIds = ownDialogIds.Distinct().ToArray()
             });
         }
 
@@ -977,7 +995,8 @@ public sealed class FieldScriptNavigationCatalog
         }
 
         var dialogIds = new List<int>();
-        CollectTalkDialogIds(groups, group.Index, ContactScript, dialogIds, new HashSet<(int Group, int Script)>());
+        var ownDialogIds = new List<int>();
+        CollectTalkDialogIds(groups, group.Index, ContactScript, dialogIds, new HashSet<(int Group, int Script)>(), group.Index, ownDialogIds);
         var menu = group.Program.SlotReach(group.Index, ContactScript).Any(opcode => opcode.Id == MenuOpcode);
         if (dialogIds.Count == 0 && !menu)
         {
@@ -991,7 +1010,8 @@ public sealed class FieldScriptNavigationCatalog
             dialogIds.Distinct().ToArray(),
             ModelResourceName: ReadModelResourceName(group, modelResources))
         {
-            ContactOnly = true
+            ContactOnly = true,
+            OwnDialogIds = ownDialogIds.Distinct().ToArray()
         };
     }
 
@@ -1021,6 +1041,14 @@ public sealed class FieldScriptNavigationCatalog
         }
 
         return string.Empty;
+    }
+
+    private static int? ReadBoundCharacterId(ScriptGroup group)
+    {
+        var characters = group.Script(0)
+            .Where(opcode => opcode.Id == PlayableCharacterBindingOpcode && opcode.Bytes.Length >= 2)
+            .Select(opcode => (int)opcode.Bytes[1]).Distinct().ToArray();
+        return characters.Length == 1 ? characters[0] : null;
     }
 
     /// <summary>
@@ -1110,7 +1138,9 @@ public sealed class FieldScriptNavigationCatalog
 
             var nameLength = BitConverter.ToUInt16(fieldBytes, position);
             position += sizeof(ushort);
-            if (nameLength == 0 || position + nameLength + ModelRecordTailSize > end)
+            // Unnamed placeholders still own a native CHAR slot and a full
+            // record tail. Keep them so later model indices remain aligned.
+            if (position + nameLength + ModelRecordTailSize > end)
             {
                 return Array.Empty<string>();
             }
@@ -1222,20 +1252,42 @@ public sealed class FieldScriptNavigationCatalog
                     continue;
                 }
 
-                if (chosen is null || lineGroup.Index < chosen.Value.EntityId)
+                // Some counters speak through the LINE itself: North Corel's
+                // Ultima seller only turns to face the customer in his requested
+                // script, while kamotu owns the dialogue and purchase menu.
+                var hasResponse = HasConversationResponse(groups, lineGroup.Index, slots[0], []);
+                if (chosen is null || hasResponse && !chosen.Value.HasConversationResponse ||
+                    hasResponse == chosen.Value.HasConversationResponse && lineGroup.Index < chosen.Value.EntityId)
                 {
                     chosen = new NpcInteractionLineDefinition(
                         lineGroup.Index,
                         line.TriggerLine,
                         lineGroup.Program.DistinctEntries(lineGroup.Index).Any(entry =>
-                            RequestsEntityScript(npcGroup, lineGroup.Script(entry.Slots[0]), TalkScript)));
+                            RequestsEntityScript(npcGroup, lineGroup.Script(entry.Slots[0]), TalkScript)),
+                        hasResponse);
                 }
-
-                break;
             }
         }
 
         return chosen;
+    }
+
+    private static bool HasConversationResponse(IReadOnlyList<ScriptGroup> groups, int entity, int slot,
+        HashSet<(int Entity, int Slot)> visited)
+    {
+        if (entity < 0 || entity >= groups.Count) return false;
+        var group = groups[entity];
+        slot = group.Program.CanonicalSlot(entity, slot);
+        if (!group.HasSlot(slot) || !visited.Add((entity, slot))) return false;
+        foreach (var opcode in group.Program.SlotReach(entity, slot))
+        {
+            if (opcode.Id is 0x40 or 0x48 or MenuOpcode) return true;
+            if (opcode.Id is >= EntityRequestOpcode and <= EntityRequestWaitOpcode && opcode.Bytes.Length >= 3 &&
+                HasConversationResponse(groups, opcode.Bytes[1], opcode.Bytes[2] & 0x1F, visited)) return true;
+            if (opcode.Id == ReturnToOpcode && opcode.Bytes.Length >= 2 &&
+                HasConversationResponse(groups, entity, opcode.Bytes[1] & 0x1F, visited)) return true;
+        }
+        return false;
     }
 
     /// <summary>
@@ -1323,7 +1375,9 @@ public sealed class FieldScriptNavigationCatalog
         int groupIndex,
         int scriptIndex,
         ICollection<int> dialogIds,
-        ISet<(int Group, int Script)> visited)
+        ISet<(int Group, int Script)> visited,
+        int namingOwner = -1,
+        ICollection<int>? ownDialogIds = null)
     {
         if (groupIndex < 0 || groupIndex >= groups.Count)
         {
@@ -1344,16 +1398,18 @@ public sealed class FieldScriptNavigationCatalog
             switch (opcode.Id)
             {
                 case >= EntityRequestOpcode and <= EntityRequestWaitOpcode when opcode.Bytes.Length >= 3:
-                    CollectTalkDialogIds(groups, opcode.Bytes[1], opcode.Bytes[2] & 0x1F, dialogIds, visited);
+                    CollectTalkDialogIds(groups, opcode.Bytes[1], opcode.Bytes[2] & 0x1F, dialogIds, visited, namingOwner, ownDialogIds);
                     break;
                 case ReturnToOpcode when opcode.Bytes.Length >= 2:
-                    CollectTalkDialogIds(groups, groupIndex, opcode.Bytes[1] & 0x1F, dialogIds, visited);
+                    CollectTalkDialogIds(groups, groupIndex, opcode.Bytes[1] & 0x1F, dialogIds, visited, namingOwner, ownDialogIds);
                     break;
                 case 0x40 when opcode.Bytes.Length >= 3:
                     dialogIds.Add(opcode.Bytes[2]);
+                    if (groupIndex == namingOwner) ownDialogIds?.Add(opcode.Bytes[2]);
                     break;
                 case 0x48 when opcode.Bytes.Length >= 4:
                     dialogIds.Add(opcode.Bytes[3]);
+                    if (groupIndex == namingOwner) ownDialogIds?.Add(opcode.Bytes[3]);
                     break;
             }
         }
@@ -5064,7 +5120,8 @@ public sealed class FieldScriptNavigationCatalog
     private readonly record struct NpcInteractionLineDefinition(
         int EntityId,
         FieldNavigationTriggerLine Line,
-        bool RunsTalk = false);
+        bool RunsTalk = false,
+        bool HasConversationResponse = false);
 
     private enum ActionKind
     {
