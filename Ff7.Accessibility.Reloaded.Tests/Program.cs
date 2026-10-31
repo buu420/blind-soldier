@@ -7,6 +7,13 @@ using Ff7.Accessibility.Reloaded.Runtime;
 using Ff7.Accessibility.Runtime.Abstractions;
 using AccessibilityConfig = Ff7.Accessibility.Core.AccessibilityConfig;
 
+if (args.Contains("--midgar-scaffold-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.MidgarScaffoldNavigationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.GuideRouteRegressionTests.RunMidgarNative();
+    return;
+}
+
 if (args.Contains("--observatory-storage-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.HugeMateriaContactTests.Run(CreateInstalledFieldWalkmeshReader);
@@ -1880,6 +1887,7 @@ Ff7.Accessibility.Reloaded.Tests.EchoNpcIdentityCoverageTests.Run();
 Ff7.Accessibility.Reloaded.Tests.EchoNpcIdentityCoverageTests.RunWithInstalledGameData();
 Ff7.Accessibility.Reloaded.Tests.FieldCharacterInteractionTests.Run();
 Ff7.Accessibility.Reloaded.Tests.FieldCharacterInteractionTests.RunWithInstalledGameData();
+Ff7.Accessibility.Reloaded.Tests.MidgarScaffoldNavigationTests.Run();
 Ff7.Accessibility.Reloaded.Tests.FieldTriangleExitTests.RunWithInstalledGameData(CreateInstalledFieldWalkmeshReader);
 AssertReachableFieldExitTargetProviderHidesBlockedGateways();
 AssertFieldStoryReaderFollowsNativeReactorDoorOrder();

@@ -65,7 +65,14 @@ public sealed class ReachableFieldExitTargetProvider
         var shut = new List<string>();
         foreach (var target in nativeTargets)
         {
-            if (routePlanner.TryBuildRoute(position, target, out _))
+            if (MidgarLadderNavigation.IsMountedChoice(target))
+            {
+                reachable.Add(target);
+                continue;
+            }
+            if (routePlanner.TryBuildRoute(position, target, out var route) &&
+                (!MidgarLadderNavigation.IsPlatformChoice(target) ||
+                 route.Portals.Any(portal => portal.TransitionId == target.ExitTraversalId)))
             {
                 reachable.Add(target);
                 continue;

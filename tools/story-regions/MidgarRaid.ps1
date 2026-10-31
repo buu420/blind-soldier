@@ -11,8 +11,18 @@
 
 $midgarRaid = @{ MinimumGameMoment = 1601; MaximumGameMoment = 1601; Priority = 0 }
 $midgarTunnels = @{ MinimumGameMoment = 1602; MaximumGameMoment = 1602; Priority = 0 }
-$midgarTunnelVisits = @{ MinimumGameMoment = 1601; MaximumGameMoment = 1602; Priority = 0 }
 $midgarCannon = @{ MinimumGameMoment = 1603; MaximumGameMoment = 1603; Priority = 0 }
+
+# The way back toward the cannon after the bridge battle. md8_6's manhole writes 1601,
+# tunnel_6's Turks write 1602 and md8brdg2's line_rb writes 1603 only after its battle
+# (BITON 15[128] bit 3); canon_2's Hojo writes 1604. None of fields 733-737 or 778 tests the
+# moment, so from 1601 to 1603 these screens run exactly the same script: the collapsed
+# walkway, the settled encounter and the section counter are what lead the party on. A row
+# here already points the way the cannon lies at 1603 (scaffold to subway, subway to tunnels,
+# tunnels to section 3 and the bridge); rows that point anywhere else keep their own range.
+$midgarScaffoldReturn = @{ MinimumGameMoment = 1601; MaximumGameMoment = 1603; Priority = 0 }
+$midgarTunnelVisits = @{ MinimumGameMoment = 1601; MaximumGameMoment = 1603; Priority = 0 }
+$midgarTunnelsOnward = @{ MinimumGameMoment = 1602; MaximumGameMoment = 1603; Priority = 0 }
 
 # 734:3's walkway run only happens while this bit is clear and sets it afterwards, so it
 # separates the floor the party leaves from the floor they land on.
@@ -74,7 +84,7 @@ Add-Definition @midgarRaid -FieldId 734 -FieldName 'md8_b2' -Kind Location -Enti
     -RequiredEnabledLineEntityId 3 `
     -TriggerLine ([ordered]@{ startX = -1709; startY = -248; startZ = -1660; endX = -1661; endY = -520; endZ = -1660 })
 
-Add-Definition @midgarRaid -FieldId 734 -FieldName 'md8_b2' -Kind Location -EntityId 8 `
+Add-Definition @midgarScaffoldReturn -FieldId 734 -FieldName 'md8_b2' -Kind Location -EntityId 8 `
     -Label 'Climb the ladder on the left back up' -X -3661 -Y -996 -Z -986 `
     -RequiredCondition $bridgeCollapsed `
     -RequiredPlayerTriangles $collapsedFloor `
@@ -82,7 +92,7 @@ Add-Definition @midgarRaid -FieldId 734 -FieldName 'md8_b2' -Kind Location -Enti
     -RequiredEnabledLineEntityId 8 `
     -TriggerLine ([ordered]@{ startX = -3676; startY = -1026; startZ = -986; endX = -3646; endY = -966; endZ = -986 })
 
-Add-Definition @midgarRaid -FieldId 733 -FieldName 'md8_b1' -Kind Location -EntityId 11 `
+Add-Definition @midgarScaffoldReturn -FieldId 733 -FieldName 'md8_b1' -Kind Location -EntityId 11 `
     -Label 'Go through the duct' -X -2641 -Y 529 -Z -326 `
     -RequiredCondition $bridgeCollapsed `
     -RequiredPlayerTriangles $upperCatwalkFloor `
@@ -90,14 +100,14 @@ Add-Definition @midgarRaid -FieldId 733 -FieldName 'md8_b1' -Kind Location -Enti
     -RequiredEnabledLineEntityId 11 `
     -TriggerLine ([ordered]@{ startX = -2693; startY = 563; startZ = -326; endX = -2589; endY = 495; endZ = -326 })
 
-Add-Definition @midgarRaid -FieldId 734 -FieldName 'md8_b2' -Kind Location -Priority 0 `
+Add-Definition @midgarScaffoldReturn -FieldId 734 -FieldName 'md8_b2' -Kind Location -Priority 0 `
     -Label 'Take the way up out of the pipes' -X -186 -Y 886 -Z -459 `
     -RequiredCondition $bridgeCollapsed `
     -RequiredPlayerTriangles $pipeFloor `
     -EntityName 'gateway0' -ScriptType 'Gateway' `
     -TriggerLine ([ordered]@{ startX = -248; startY = 886; startZ = -456; endX = -124; endY = 886; endZ = -462 })
 
-Add-Definition @midgarRaid -FieldId 733 -FieldName 'md8_b1' -Kind Location -EntityId 10 `
+Add-Definition @midgarScaffoldReturn -FieldId 733 -FieldName 'md8_b1' -Kind Location -EntityId 10 `
     -Label 'Drop down to the subway' -X -748 -Y 1900 -Z -179 `
     -RequiredCondition $bridgeCollapsed `
     -RequiredPlayerTriangles $subwayCatwalkFloor `
@@ -121,14 +131,14 @@ Add-Definition -FieldId 778 -FieldName 'tunnel_6' -Kind Location -EntityId 18 -P
     -RequiredEnabledLineEntityId 18 `
     -TriggerLine ([ordered]@{ startX = -114; startY = 54; startZ = 0; endX = 467; endY = 54; endZ = 0 })
 
-Add-Definition @midgarTunnels -FieldId 778 -FieldName 'tunnel_6' -Kind Location -EntityId 19 `
+Add-Definition @midgarTunnelsOnward -FieldId 778 -FieldName 'tunnel_6' -Kind Location -EntityId 19 `
     -Label 'Climb on up the tunnel' -X 788 -Y 2576 -Z 4 `
     -RequiredConditions @($turksSettled, $tunnelSectionFour) `
     -EntityName 'jump_u' -ScriptType 'Move' `
     -RequiredEnabledLineEntityId 19 `
     -TriggerLine ([ordered]@{ startX = 890; startY = 3542; startZ = 9; endX = 687; endY = 1611; endZ = 0 })
 
-Add-Definition @midgarTunnels -FieldId 737 -FieldName 'tunnel_5' -Kind Location -EntityId 10 `
+Add-Definition @midgarTunnelsOnward -FieldId 737 -FieldName 'tunnel_5' -Kind Location -EntityId 10 `
     -Label 'Take the passage on the upper left' -X -632 -Y 1834 -Z 0 `
     -RequiredCondition $tunnelSectionThree `
     -EntityName 'jump_ul' -ScriptType 'Move' `

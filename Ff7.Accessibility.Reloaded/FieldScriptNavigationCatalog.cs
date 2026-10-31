@@ -296,7 +296,7 @@ public sealed class FieldScriptNavigationCatalog
         IReadOnlyList<FieldNavigationTarget> exits,
         IReadOnlyList<FieldScriptNavigationTransition> transitions)
     {
-        if (fieldId is not (733 or 734)) return exits;
+        if (fieldId is not (733 or 734 or 736 or 778)) return exits;
         return exits.Select(exit =>
         {
             var climbs = transitions.Where(t => t.SourceEntityId == exit.TriggerEntityId &&

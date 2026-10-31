@@ -40,6 +40,7 @@ public sealed class FieldExitProximityCueTracker
         foreach (var target in targets.Where(target =>
                      target.FieldId == position.FieldId &&
                      target.Category == FieldNavigationCategory.Exits &&
+                     !MidgarLadderNavigation.IsMountedChoice(target) &&
                      FieldProximityElevationPolicy.IsOnCurrentLevel(position, target)))
         {
             var gain = CalculateGain(position, target);
