@@ -926,7 +926,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                 UpdateAutoWalk(
                     position, control, canMove: !navigationSuppressed, nowUtc, input.Direction);
 
-                if (!navigationSuppressed && FieldNavigationSpeechPolicy.IsDue(
+                if (!navigationSuppressed && !controllerMenuIsOpen && !foregroundInput.ModSettingsOwnsInput && FieldNavigationSpeechPolicy.IsDue(
                         nowUtc,
                         lastNavigationSpeechUtc,
                         config.FieldNavigationSpeechIntervalMs,
@@ -935,7 +935,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                         isSuppressed: false,
                         isForeground: true,
                         hasUsableControl: true,
-                        controller.BeaconEnabled))
+                        controller.BeaconEnabled || ladder.IsMounted))
                 {
                     var guidance = controller.CreateSpokenGuidance(
                         position,
@@ -944,7 +944,8 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                         predictionHorizonMs: FieldNavigationSpeechPolicy.ResolveIntervalMs(
                             config.FieldNavigationSpeechIntervalMs,
                             config.FieldNavigationRunningSpeechIntervalMs,
-                            input.IsDirectionalRun));
+                            input.IsDirectionalRun),
+                        ladderState: ladder);
                     if (guidance is { } spokenGuidance &&
                         guidanceRepeatGate.ShouldSpeak(spokenGuidance.Speech, nowUtc))
                     {
@@ -967,7 +968,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             var objectsCoherent = RefreshTargets(position);
             var storyCoherent = TryRefreshStoryTargets(position, out var storyDiagnostic);
             var npcsCoherent = TryRefreshNpcTargets(position, out var npcDiagnostic);
-            var nativeExitsCoherent = TryRefreshExitTargets(position, nowUtc, out var exitDiagnostic);
+            var nativeExitsCoherent = TryRefreshExitTargets(position, ladder, nowUtc, out var exitDiagnostic);
             routePlanner.BeginObservation();
             currentReachableExits = nativeExitsCoherent
                 ? reachableExitProvider.ReadTargets(
@@ -1212,7 +1213,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                     controller.CurrentCategory,
                     controller.BeaconEnabled,
                     coherence with { Route = coherence.Route && !routePlanner.HadReadFailure });
-            if (canCreateGuidance && FieldNavigationSpeechPolicy.IsDue(
+            if (canCreateGuidance && !controllerMenuIsOpen && !foregroundInput.ModSettingsOwnsInput && FieldNavigationSpeechPolicy.IsDue(
                     nowUtc,
                     lastNavigationSpeechUtc,
                     config.FieldNavigationSpeechIntervalMs,
@@ -1221,7 +1222,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                     isSuppressed: false,
                     isForeground: true,
                     hasUsableControl: true,
-                    controller.BeaconEnabled))
+                    controller.BeaconEnabled || ladder.IsMounted))
             {
                 var guidance = controller.CreateSpokenGuidance(
                     position,
@@ -1230,7 +1231,8 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                     predictionHorizonMs: FieldNavigationSpeechPolicy.ResolveIntervalMs(
                         config.FieldNavigationSpeechIntervalMs,
                         config.FieldNavigationRunningSpeechIntervalMs,
-                        input.IsDirectionalRun));
+                        input.IsDirectionalRun),
+                    ladderState: ladder);
                 if (guidance is { } spokenGuidance &&
                     guidanceRepeatGate.ShouldSpeak(spokenGuidance.Speech, nowUtc))
                 {
@@ -2433,6 +2435,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
 
     private bool TryRefreshExitTargets(
         FieldPositionSnapshot position,
+        FieldLadderStateSnapshot ladder,
         DateTime nowUtc,
         out string diagnostic)
     {
@@ -2503,7 +2506,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             // runtime: which side of the door the leader is on must not unsettle the gate.
             // So do the story catalog's exits (Icicle Inn's snowboard run), under their own native
             // conditions and enabled line.
-            currentExits = storyReader.AppendExitTargets(
+            currentExits = MidgarLadderNavigation.AppendTargets(storyReader.AppendExitTargets(
                 FieldRoomDoorExitCatalog.Append(
                     exitPublicationGate.Observe(
                         position.FieldId,
@@ -2511,7 +2514,9 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                         candidateExits,
                         nowUtc),
                     position),
-                position);
+                position), position,
+                position.FieldId is 733 or 734 ? ReadLiveTransitions(position.FieldId) : [],
+                lineStateReader.IsEnabled, ladder);
             diagnostic =
                 $"native={currentExits.Count}, candidates={candidateExits.Count}, " +
                 $"gateways={snapshot.Gateways.Count}, gameMoment={gameMomentBefore}, " +

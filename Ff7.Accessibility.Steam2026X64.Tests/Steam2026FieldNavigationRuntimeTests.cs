@@ -14,7 +14,7 @@ internal static class Steam2026FieldNavigationRuntimeTests
         KeepsNavigationActiveForPermanentNonClosableMessage();
         KeepsNavigationActiveForPermanentNonClosableMessage(backgroundMovie: true);
         SuspendsTemporaryNonFieldOwnershipWithoutDiscardingNavigationIntent();
-        TreatsNativeLadderMovementAsNavigationInsteadOfGenericScriptSuppression();
+        TreatsAutomaticLadderMovementAsScriptOwned();
         RetainsNavigationKeyEdgesUntilAUsableFieldSnapshot();
         RetainsOrderedNavigationActionsUntilTheirTargetDomainIsCoherent();
         BeaconOffPreemptsAndCancelsOlderPendingNavigationEdges();
@@ -106,7 +106,7 @@ internal static class Steam2026FieldNavigationRuntimeTests
             "shutdown still clears field navigation");
     }
 
-    private static void TreatsNativeLadderMovementAsNavigationInsteadOfGenericScriptSuppression()
+    private static void TreatsAutomaticLadderMovementAsScriptOwned()
     {
         var scriptedLock = new FieldAudibleCueState(
             true,
@@ -125,12 +125,15 @@ internal static class Steam2026FieldNavigationRuntimeTests
         };
 
         Equal(
-            false,
+            true,
             Steam2026FieldNavigationCoordinator.IsNavigationSuppressed(
                 scriptedLock,
-                mounted,
+                mounted with {IsPlayerDriven=false},
                 isLadderStateCoherent: true),
-            "checked native LADER movement remains navigation-active during its control lock");
+            "UC1 LADER progresses automatically and keeps native script ownership");
+        Equal(false,Steam2026FieldNavigationCoordinator.IsNavigationSuppressed(
+            scriptedLock with {IsSuppressed=false,UserControl=0},mounted,isLadderStateCoherent:true),
+            "UC0 native ladders retain manual navigation and direction guidance");
         Equal(
             true,
             Steam2026FieldNavigationCoordinator.IsNavigationSuppressed(

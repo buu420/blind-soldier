@@ -18,13 +18,13 @@ public static class FieldNavigationSuppressionPolicy
         FieldAudibleCueState cue,
         FieldLadderStateSnapshot ladder,
         bool isLadderStateCoherent) =>
+        // Use the actual input gate captured with the climb. Its cue mirror
+        // may still be locked after the engine has restored manual control.
+        isLadderStateCoherent && ladder is { IsUsable: true, IsMounted: true, IsPlayerDriven: false } ||
         cue.IsSuppressed &&
-        !(isLadderStateCoherent &&
-          ladder.IsMounted &&
-          cue.Module == FieldPositionReader.FieldModule &&
-          cue.UserControl != 0 &&
-          cue.ActiveMessageCount == 0 &&
-          cue.MovieActive == 0);
+        !(isLadderStateCoherent && ladder is { IsUsable: true, IsMounted: true, IsPlayerDriven: true } &&
+          cue.Module == FieldPositionReader.FieldModule && cue.UserControl != 0 &&
+          cue.ActiveMessageCount == 0 && cue.MovieActive == 0);
 }
 
 public readonly record struct FieldNavigationActionRoutePreview(
@@ -2410,6 +2410,9 @@ public sealed class FieldNavigationController
         int predictionHorizonMs = 0,
         FieldLadderStateSnapshot ladderState = default)
     {
+        if (ladderState is { IsUsable: true, IsMounted: true, IsPlayerDriven: false } ||
+            BeaconEnabled && activeLadderState is { IsMounted: true, IsPlayerDriven: false })
+            return null;
         // Being on a ladder is worth saying whether or not the player asked for a route
         // to it. Some fields start the climb themselves: coming back down from the
         // rocket cabin the party lands on a two-triangle ledge and the field immediately
@@ -2520,6 +2523,15 @@ public sealed class FieldNavigationController
         RetireStaleGlacierLeg();
         if (BeaconEnabled && activeLadderState.IsMounted)
         {
+            // These native Midgar climbs remain on the player's direction buttons,
+            // including entry ladders. Keep their speech and route, resume walking
+            // after the native dismount, and never steer the climb itself.
+            if (!activeLadderState.IsPlayerDriven || position.FieldId is 733 or 734 or 735 or 736 or 778)
+            {
+                automaticWalkDriving = false;
+                LastAutomaticInputHold = FieldAutoWalkHoldReason.PlayerAction;
+                return false;
+            }
             input = activeLadderGuidanceInput;
             if (IsDirectionalInput(input))
             {
@@ -3483,9 +3495,16 @@ public sealed class FieldNavigationController
         FieldLadderStateSnapshot ladderState = default)
     {
         var categoryName = GetCategoryDisplayName(CurrentCategory);
+        if (ladderState is { IsUsable: true, IsMounted: true, IsPlayerDriven: false })
+            return new FieldNavigationActionResult("The game is moving you. Navigation paused.");
         var target = GetSelectedTarget(position);
         if (target is null)
         {
+            if (ladderState is { IsUsable: true, IsMounted: true })
+            {
+                var climb = CreateSpokenGuidance(position, controlTransform ?? default, 0, ladderState: ladderState);
+                return new FieldNavigationActionResult($"{categoryName}: no targets here. You are on a ladder. {climb?.Speech}.");
+            }
             return new FieldNavigationActionResult($"{categoryName}: none for this field yet.");
         }
 
@@ -3503,11 +3522,9 @@ public sealed class FieldNavigationController
 
         if (ladderState.IsUsable && ladderState.IsMounted)
         {
-            var climbDirection = FormatInputDirection(ladderState.RequiredInput);
+            var climb = CreateSpokenGuidance(position, controlTransform ?? default, 0, ladderState: ladderState);
             return new FieldNavigationActionResult(
-                climbDirection is null
-                    ? $"{categoryName}, {target.Value.Label}. climb the ladder."
-                    : $"{categoryName}, {target.Value.Label}. climb {climbDirection}.");
+                $"{categoryName}, {target.Value.Label}. You are on a ladder. {climb?.Speech}. Finish climbing before following a walking route.");
         }
 
         string? spokenOffset = null;
@@ -3851,6 +3868,15 @@ public sealed class FieldNavigationController
             {
                 return target;
             }
+        }
+
+        // A platform ladder is offered only from the side whose route climbs it.
+        // Its row goes away on the landing: retain just the locked endpoint there
+        // so native dismount/arrival can complete without fabricating a fresh row.
+        if (beaconLockedTarget is { } ladderEnd && MidgarLadderNavigation.IsPlatformChoice(ladderEnd) &&
+            IsNear(position, new(ladderEnd.X, ladderEnd.Y, ladderEnd.Z), LadderLandingArrivalDistance))
+        {
+            return ladderEnd;
         }
 
         // A target finished by standing on its own triangles is being completed, not lost, when

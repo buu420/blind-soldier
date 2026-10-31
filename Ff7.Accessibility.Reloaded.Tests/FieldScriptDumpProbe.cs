@@ -30,6 +30,14 @@ internal static class FieldScriptDumpProbe
         var payload = fields.Select(fieldId => new
         {
             fieldId,
+            exits = catalog.ReadDiskField(fieldId).Exits.Select(exit => new
+            {
+                exit.StableId, exit.TriggerEntityId, exit.DestinationFieldIds,
+                exit.X, exit.Y, exit.Z, exit.TriggerLine, exit.ExitTraversalId,
+                exit.CompletesOnArrival
+            }),
+            transitions = catalog.ReadDiskField(fieldId).Transitions,
+            exitGuards = catalog.ReadDiskField(fieldId).ExitGuards,
             entities = catalog.ReadAllScriptOpcodes(fieldId)
                 .GroupBy(definition => definition.EntityId)
                 .OrderBy(group => group.Key)

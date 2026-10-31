@@ -1626,9 +1626,14 @@ public sealed class Mod : IModV1, IModV2
         reachableFieldExitTargetProvider = new ReachableFieldExitTargetProvider(
             // Story-catalog exits (Icicle Inn's snowboard run) join the same way, each under its
             // own native conditions and enabled line.
-            position => fieldStoryTargetReader?.AppendExitTargets(
+            position => MidgarLadderNavigation.AppendTargets(fieldStoryTargetReader?.AppendExitTargets(
                     FieldRoomDoorExitCatalog.Append(nativeFieldExitTargetProvider.ReadTargets(position), position), position) ??
                 FieldRoomDoorExitCatalog.Append(nativeFieldExitTargetProvider.ReadTargets(position), position),
+                position,
+                position.FieldId is 733 or 734 ? ReadNavigationTransitions(position.FieldId) : [],
+                fieldScriptLineStateReader.IsEnabled,
+                position.FieldId is 733 or 734 or 735 or 736 or 778
+                    ? fieldLadderStateReader.Read(position).State : default),
             fieldExitReachabilityPlanner);
         fieldExitProximityCueTracker = new FieldExitProximityCueTracker(
             config.FieldExitCueInnerRangeUnits,

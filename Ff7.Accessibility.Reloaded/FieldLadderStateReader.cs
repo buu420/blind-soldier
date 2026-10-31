@@ -16,7 +16,8 @@ public readonly record struct FieldLadderStateSnapshot(
     FieldNavigationRouteWaypoint Target,
     int TargetTriangle,
     byte MovementMode,
-    ushort Progress)
+    ushort Progress,
+    bool IsPlayerDriven = true)
 {
     public static FieldLadderStateSnapshot NotMounted { get; } =
         new(true, false, FieldLadderPhase.None, FieldNavigationInput.None, default, -1, 0, 0);
@@ -33,6 +34,10 @@ public readonly record struct FieldLadderStateReadResult(
 
 public sealed class FieldLadderStateReader
 {
+    // Native 006342C6 consumes directions only with this gate clear. The
+    // UC opcode mirrors it to 00CC040C, but ASK/JOIN/SPLIT and an interpreter
+    // return path can change only the actual gate. Read it with the climb.
+    public const int AddressControlLock = 0x00CC0DBA;
     public const int FixedPointScale = 4096;
     public const int FieldEventDataStride = 0x88;
     public const int MovementModeOffset = 0x63;
@@ -96,6 +101,7 @@ public sealed class FieldLadderStateReader
                 $"field={position.FieldId}, model={position.ModelIndex}, movementMode={movementMode}, not mounted");
         }
 
+        var controlLock = readByte(AddressControlLock);
         var reverse = readUInt16(eventAddress + LadderReverseOffset);
         var progress = readUInt16(eventAddress + LadderProgressOffset);
         if (reverse > 1 || progress > 2)
@@ -123,6 +129,8 @@ public sealed class FieldLadderStateReader
             readInt32(eventAddress + TargetYOffset) >> 12,
             readInt32(eventAddress + TargetZOffset) >> 12);
         var targetTriangle = readUInt16(eventAddress + TargetTriangleOffset);
+        if (readByte(AddressControlLock) != controlLock)
+            return FieldLadderStateReadResult.Invalid($"field={position.FieldId}, native ladder control changed during read");
         requiredInput = ResolveVerifiedInput(position.FieldId, target, targetTriangle, requiredInput);
         var state = new FieldLadderStateSnapshot(
             true,
@@ -132,12 +140,13 @@ public sealed class FieldLadderStateReader
             target,
             targetTriangle,
             movementMode,
-            progress);
+            progress,
+            IsPlayerDriven: controlLock == 0);
         return new FieldLadderStateReadResult(
             true,
             state,
             $"field={position.FieldId}, model={position.ModelIndex}, event=0x{eventAddress:X8}, " +
-            $"mode={movementMode}, reverse={reverse}, progress={progress}, input={requiredInput}, " +
+            $"mode={movementMode}, reverse={reverse}, progress={progress}, input={requiredInput}, playerDriven={state.IsPlayerDriven}, " +
             $"target={target.X},{target.Y},{target.Z}, triangle={targetTriangle}");
     }
 

@@ -279,6 +279,17 @@ public sealed class FieldExitLabelResolver
             return exactLabel;
         }
 
+        if (LateMidgarExitLabels.Match(target) is { } midgarWay)
+        {
+            // The destination is named only when the guards have left one field whose map
+            // name differs from this screen's own.
+            return midgarWay.NamesDestination &&
+                   target.DestinationFieldIds is { Count: 1 } onlyDestination &&
+                   NameUnlikeOrigin(onlyDestination[0], target.FieldId) is { } destinationName
+                ? $"{midgarWay.Label} to {destinationName}"
+                : midgarWay.Label;
+        }
+
         if (GreatGlacierExitLabels.ResolveLabel(target, readCorridorState) is { } glacierLabel)
         {
             return glacierLabel;
@@ -337,6 +348,22 @@ public sealed class FieldExitLabelResolver
         return resolvedName.Length == 0
             ? null
             : AppendRoomDescriptor(fieldId, resolvedName);
+    }
+
+    /// <summary>The destination's own map name, or null when it is unknown or shared with the origin.</summary>
+    private string? NameUnlikeOrigin(int destinationFieldId, int originFieldId)
+    {
+        var name = ResolveDestinationName(destinationFieldId, string.Empty);
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return null;
+        }
+
+        var origin = resolveMapNames(originFieldId);
+        return origin.IsKnownField &&
+               origin.Names.Select(Normalize).Any(originName => string.Equals(originName, name, StringComparison.OrdinalIgnoreCase))
+            ? null
+            : name;
     }
 
     private string AppendRoomDescriptor(int fieldId, string name)
@@ -634,5 +661,144 @@ public sealed class GreatGlacierCorridorStateReader
         fieldId = 0;
         return addressSpace.TryReadByte(FieldPositionReader.AddressCurrentModule, out module) &&
                addressSpace.TryReadUInt16(FieldPositionReader.AddressFieldId, out fieldId);
+    }
+}
+
+/// <summary>
+/// The late disc-two Midgar raid screens share two map names: md8_b1 (733), md8_b2 (734) and
+/// sbwy4_22 (735) are all "Sector 8, Underground", and tunnel_4 (736), tunnel_5 (737) and
+/// tunnel_6 (778) are all "Winding Tunnel". The generated labels said "Exit to Sector 8,
+/// Underground" for a duct, a ladder, a gateway and the drop to the subway alike (the
+/// 2026-10-31 tester logs), and "Exit to Winding Tunnel" for every passage. Each way out is
+/// named here by what it is and which way it goes: the native LINE entity names (lad_*_u and
+/// lad_*_d, duct_*, jump, jump_u, jump_d, jump_ul, jump_ur), the LADER key each ladder script
+/// climbs with, and the floors the reviewed Midgar raid Story regions name (upper catwalk,
+/// walkway, pipes). The way up from tunnel section 0 and on to the Shinra Building follows the
+/// native chain lad_u, md0 (225) gateway 1, sinbil_1 (227) gateway 3 into blin1 (234).
+///
+/// <para>A label is keyed on the field and the exit's own native line, never on an entity
+/// number: Echo-S inserts tarks2 before tunnel_6's lines, so its script-exit:778:20:737 is the
+/// way up where stock's is the way down. A script exit must carry exactly the installed LINE,
+/// a gateway its installed index and line (or, without a line, a position on it), and every
+/// destination the guards still allow must be one that line leads to; anything else keeps the
+/// ordinary label. The stock archives in all five languages and the five Echo-S variants agree
+/// on every line below. The live guards stay authoritative: a destination's name is added only
+/// when they leave a single field whose map name differs from this screen's.</para>
+/// </summary>
+public static class LateMidgarExitLabels
+{
+    /// <summary>A recognised native way out, and whether its single destination may be named.</summary>
+    public readonly record struct Way(string Label, bool NamesDestination);
+
+    private const int GatewayPositionTolerance = 64;
+
+    private sealed record Feature(
+        int FieldId,
+        string Label,
+        FieldNavigationTriggerLine Line,
+        int[] Destinations,
+        int GatewayIndex = -1,
+        bool NamesDestination = false);
+
+    private static readonly FieldNavigationTriggerLine TunnelWayUp = new(890, 3542, 9, 687, 1611, 0);
+    private static readonly FieldNavigationTriggerLine TunnelWayDown = new(-83, -665, 0, 502, -570, 0);
+    private static readonly FieldNavigationTriggerLine TunnelLadderUp = new(-24, -273, 0, 41, -445, 0);
+
+    private static readonly Feature[] Features =
+    [
+        // md8_b1: lad_0_d (e3) LADER Down from the upper catwalk; lad_1_u (e4) LADER Up through
+        // md8_6's open manhole; lad_2_d (e5) Down onto md8_b2's walkway; jump (e10) the drop
+        // into sbwy4_22; duct_1 (e11) and duct_2 (e12), whose returns climb back up from below.
+        new(733, "Ladder down from the upper catwalk", new(-3717, -919, -326, -3678, -880, -326), [734]),
+        new(733, "Ladder up through the manhole", new(-3880, -449, 512, -3853, -342, 512), [732], NamesDestination: true),
+        new(733, "Ladder down to the walkway", new(-2531, -665, -514, -2525, -578, -514), [734]),
+        new(733, "Drop down to the subway", new(-796, 1948, -179, -700, 1852, -179), [735]),
+        new(733, "Duct down to the pipes", new(-2693, 563, -326, -2589, 495, -326), [734]),
+        new(733, "Duct down to the ledge across the gap", new(1111, 879, 64, 1111, 759, 64), [734]),
+        new(733, "Way down into the pipes", new(-241, 619, -854, -126, 645, -828), [734], GatewayIndex: 0),
+        new(733, "Way back to the walkway", new(-3940, 1205, -1659, -3588, 1205, -1659), [734], GatewayIndex: 1),
+        // md8_b2: lad_0_u (e8) and lad_2_u (e9) LADER Up; duct_1 (e14) on the pipe floor and
+        // duct_2 (e15) on the ledge reached only by the djump JUMPs across the gap, both reachable
+        // from the pipes.
+        new(734, "Ladder up to the upper catwalk", new(-3676, -1026, -986, -3646, -966, -986), [733]),
+        new(734, "Ladder back up toward the manhole", new(-2725, -274, -1660, -2634, -247, -1660), [733]),
+        new(734, "Duct up to the upper catwalk", new(141, 432, -1465, 61, 412, -1468), [733]),
+        new(734, "Duct across the gap", new(1170, -127, -2391, 1232, -300, -2391), [733]),
+        new(734, "Way up out of the pipes", new(-248, 886, -456, -124, 886, -462), [733], GatewayIndex: 0),
+        new(734, "Way to the ladder platform", new(-3920, 1108, -1660, -3588, 1108, -1660), [733], GatewayIndex: 1),
+        // tunnel_4 and tunnel_6 share jump_u, jump_d and lad_u's lines. lad_u climbs to md0
+        // ("sector 0") from tunnel_4 section 0 and to sbwy4_22 from tunnel_6.
+        new(736, "Way up the tunnel", TunnelWayUp, [737]),
+        new(736, "Way down the tunnel", TunnelWayDown, [737]),
+        new(736, "Ladder up", TunnelLadderUp, [225], NamesDestination: true),
+        new(778, "Way up the tunnel", TunnelWayUp, [737]),
+        new(778, "Way down the tunnel", TunnelWayDown, [737]),
+        new(778, "Ladder up", TunnelLadderUp, [735], NamesDestination: true),
+        // tunnel_5: jump_ul leads to tunnel_4 from section 1 and to md8brdg2 from section 3.
+        new(737, "Passage on the upper left", new(-722, 1767, 0, -543, 1902, 0), [736, 738], NamesDestination: true),
+        new(737, "Passage on the upper right", new(550, 1890, 0, 721, 1754, 0), [736, 778]),
+        new(737, "Way down the tunnel", new(-215, 368, 0, 200, 379, 0), [736, 778]),
+        // md0: LINEJ lands at the top of tunnel_4's ladder, which its Main climbs down.
+        new(225, "Way down", new(-4521, -13755, 485, -4688, -13591, 485), [736], NamesDestination: true),
+        // sinbil_1: gateway 3 is the front entrance into blin1; gateway 4 leads to sinbil_2 and
+        // its emergency stairs (blinst_1).
+        new(227, "Front entrance", new(-275, -1976, 0, 289, -1990, 0), [234], GatewayIndex: 3, NamesDestination: true),
+        new(227, "Way to the emergency stairs", new(-1394, -2335, -73, -1439, -1995, -73), [228], GatewayIndex: 4)
+    ];
+
+    /// <summary>The native way <paramref name="target"/> is, or null unless it matches one exactly.</summary>
+    public static Way? Match(FieldNavigationTarget target)
+    {
+        if (string.IsNullOrEmpty(target.StableId) ||
+            target.DestinationFieldIds is not { Count: > 0 } destinations)
+        {
+            return null;
+        }
+
+        var parts = target.StableId.Split(':');
+        if (parts.Length != 4 || !int.TryParse(parts[1], out var fieldId) || fieldId != target.FieldId)
+        {
+            return null;
+        }
+
+        var isScriptExit = parts[0] == "script-exit";
+        var gatewayIndex = -1;
+        if (!isScriptExit && (parts[0] != "gateway" || !int.TryParse(parts[2], out gatewayIndex)))
+        {
+            return null;
+        }
+
+        foreach (var feature in Features)
+        {
+            if (feature.FieldId != fieldId ||
+                feature.GatewayIndex != (isScriptExit ? -1 : gatewayIndex) ||
+                !destinations.All(destination => Array.IndexOf(feature.Destinations, destination) >= 0))
+            {
+                continue;
+            }
+
+            var onLine = target.TriggerLine is { } line
+                ? line == feature.Line
+                : !isScriptExit && IsOnLine(target.X, target.Y, feature.Line);
+            if (onLine)
+            {
+                return new Way(feature.Label, feature.NamesDestination);
+            }
+        }
+
+        return null;
+    }
+
+    private static bool IsOnLine(int x, int y, FieldNavigationTriggerLine line)
+    {
+        double dx = line.EndX - line.StartX;
+        double dy = line.EndY - line.StartY;
+        var lengthSquared = dx * dx + dy * dy;
+        var along = lengthSquared == 0
+            ? 0
+            : Math.Clamp(((x - line.StartX) * dx + (y - line.StartY) * dy) / lengthSquared, 0, 1);
+        var offX = line.StartX + along * dx - x;
+        var offY = line.StartY + along * dy - y;
+        return offX * offX + offY * offY <= GatewayPositionTolerance * GatewayPositionTolerance;
     }
 }

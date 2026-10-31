@@ -31643,114 +31643,6 @@
     {
       "fieldId": 733,
       "kind": "Location",
-      "label": "Drop down to the subway",
-      "entityId": 10,
-      "x": -748,
-      "y": 1900,
-      "z": -179,
-      "targetGameMoment": -1,
-      "minimumGameMoment": 1601,
-      "maximumGameMoment": 1601,
-      "priority": 0,
-      "sourceFieldName": "md8_b1",
-      "sourceEntityName": "jump",
-      "sourceScriptType": "Move",
-      "completesOnArrival": true,
-      "requiredCondition": {
-        "bank": 15,
-        "address": 131,
-        "mask": 8,
-        "value": 8
-      },
-      "triggerLine": {
-        "startX": -796,
-        "startY": 1948,
-        "startZ": -179,
-        "endX": -700,
-        "endY": 1852,
-        "endZ": -179
-      },
-      "requiredPlayerTriangles": [
-        41,
-        42,
-        60,
-        61,
-        76,
-        78,
-        100,
-        101,
-        111,
-        116,
-        117,
-        121,
-        122,
-        123,
-        133,
-        134,
-        135,
-        136,
-        137,
-        141,
-        166
-      ],
-      "requiredEnabledLineEntityId": 10
-    },
-    {
-      "fieldId": 733,
-      "kind": "Location",
-      "label": "Go through the duct",
-      "entityId": 11,
-      "x": -2641,
-      "y": 529,
-      "z": -326,
-      "targetGameMoment": -1,
-      "minimumGameMoment": 1601,
-      "maximumGameMoment": 1601,
-      "priority": 0,
-      "sourceFieldName": "md8_b1",
-      "sourceEntityName": "duct_1",
-      "sourceScriptType": "Move",
-      "completesOnArrival": true,
-      "requiredCondition": {
-        "bank": 15,
-        "address": 131,
-        "mask": 8,
-        "value": 8
-      },
-      "triggerLine": {
-        "startX": -2693,
-        "startY": 563,
-        "startZ": -326,
-        "endX": -2589,
-        "endY": 495,
-        "endZ": -326
-      },
-      "requiredPlayerTriangles": [
-        4,
-        5,
-        87,
-        88,
-        89,
-        90,
-        91,
-        92,
-        93,
-        94,
-        95,
-        96,
-        97,
-        98,
-        99,
-        106,
-        129,
-        130,
-        162
-      ],
-      "requiredEnabledLineEntityId": 11
-    },
-    {
-      "fieldId": 733,
-      "kind": "Location",
       "label": "Take the second ladder down",
       "entityId": 5,
       "x": -2528,
@@ -31853,113 +31745,6 @@
     {
       "fieldId": 734,
       "kind": "Location",
-      "label": "Take the way up out of the pipes",
-      "entityId": -1,
-      "x": -186,
-      "y": 886,
-      "z": -459,
-      "targetGameMoment": -1,
-      "minimumGameMoment": 1601,
-      "maximumGameMoment": 1601,
-      "priority": 0,
-      "sourceFieldName": "md8_b2",
-      "sourceEntityName": "gateway0",
-      "sourceScriptType": "Gateway",
-      "completesOnArrival": true,
-      "requiredCondition": {
-        "bank": 15,
-        "address": 131,
-        "mask": 8,
-        "value": 8
-      },
-      "triggerLine": {
-        "startX": -248,
-        "startY": 886,
-        "startZ": -456,
-        "endX": -124,
-        "endY": 886,
-        "endZ": -462
-      },
-      "requiredPlayerTriangles": [
-        24,
-        25,
-        26,
-        27,
-        31,
-        33,
-        34,
-        36,
-        37,
-        38,
-        39,
-        42,
-        43,
-        44,
-        55,
-        56,
-        57,
-        62,
-        63,
-        64,
-        65,
-        66,
-        67,
-        70,
-        71,
-        73,
-        74,
-        76,
-        77,
-        80,
-        83,
-        84,
-        87,
-        89,
-        91,
-        92,
-        93,
-        94,
-        95,
-        97,
-        99,
-        103,
-        106,
-        112,
-        113,
-        163,
-        177,
-        178,
-        180,
-        181,
-        184,
-        185,
-        186,
-        187,
-        188,
-        189,
-        190,
-        191,
-        192,
-        193,
-        194,
-        195,
-        196,
-        197,
-        198,
-        199,
-        200,
-        207,
-        208,
-        216,
-        219,
-        220,
-        221,
-        228
-      ]
-    },
-    {
-      "fieldId": 734,
-      "kind": "Location",
       "label": "Go out along the walkway",
       "entityId": 3,
       "x": -1685,
@@ -32020,92 +31805,6 @@
         227
       ],
       "requiredEnabledLineEntityId": 3
-    },
-    {
-      "fieldId": 734,
-      "kind": "Location",
-      "label": "Climb the ladder on the left back up",
-      "entityId": 8,
-      "x": -3661,
-      "y": -996,
-      "z": -986,
-      "targetGameMoment": -1,
-      "minimumGameMoment": 1601,
-      "maximumGameMoment": 1601,
-      "priority": 0,
-      "sourceFieldName": "md8_b2",
-      "sourceEntityName": "lad_0_u",
-      "sourceScriptType": "Move",
-      "completesOnArrival": true,
-      "requiredCondition": {
-        "bank": 15,
-        "address": 131,
-        "mask": 8,
-        "value": 8
-      },
-      "triggerLine": {
-        "startX": -3676,
-        "startY": -1026,
-        "startZ": -986,
-        "endX": -3646,
-        "endY": -966,
-        "endZ": -986
-      },
-      "requiredPlayerTriangles": [
-        50,
-        68,
-        146,
-        147,
-        150,
-        151,
-        152,
-        153,
-        154,
-        155,
-        156,
-        157,
-        158,
-        159,
-        160,
-        161,
-        162,
-        164,
-        165,
-        182
-      ],
-      "requiredEnabledLineEntityId": 8
-    },
-    {
-      "fieldId": 737,
-      "kind": "Location",
-      "label": "Take the passage on the upper left",
-      "entityId": 10,
-      "x": -632,
-      "y": 1834,
-      "z": 0,
-      "targetGameMoment": -1,
-      "minimumGameMoment": 1602,
-      "maximumGameMoment": 1602,
-      "priority": 0,
-      "sourceFieldName": "tunnel_5",
-      "sourceEntityName": "jump_ul",
-      "sourceScriptType": "Move",
-      "completesOnArrival": true,
-      "requiredCondition": {
-        "bank": 15,
-        "address": 129,
-        "mask": 255,
-        "value": 3
-      },
-      "triggerLine": {
-        "startX": -722,
-        "startY": 1767,
-        "startZ": 0,
-        "endX": -543,
-        "endY": 1902,
-        "endZ": 0
-      },
-      "requiredEnabledLineEntityId": 10
     },
     {
       "fieldId": 738,
@@ -32503,8 +32202,6 @@
         "endY": -18,
         "endZ": -69
       },
-      "requiredEnabledLineEntityId": 12,
-      "usesPlayerCollisionRadius": true,
       "requiredPlayerTriangles": [
         102,
         104,
@@ -32514,7 +32211,9 @@
         110,
         111,
         112
-      ]
+      ],
+      "requiredEnabledLineEntityId": 12,
+      "usesPlayerCollisionRadius": true
     },
     {
       "fieldId": 749,
@@ -32540,8 +32239,6 @@
         "endY": -20,
         "endZ": 919
       },
-      "requiredEnabledLineEntityId": 13,
-      "usesPlayerCollisionRadius": true,
       "requiredPlayerTriangles": [
         180,
         181,
@@ -32551,7 +32248,9 @@
         185,
         186,
         187
-      ]
+      ],
+      "requiredEnabledLineEntityId": 13,
+      "usesPlayerCollisionRadius": true
     },
     {
       "fieldId": 749,
@@ -32577,8 +32276,6 @@
         "endY": 8,
         "endZ": 554
       },
-      "requiredEnabledLineEntityId": 17,
-      "usesPlayerCollisionRadius": true,
       "requiredPlayerTriangles": [
         10,
         37,
@@ -32593,7 +32290,9 @@
         161,
         162,
         163
-      ]
+      ],
+      "requiredEnabledLineEntityId": 17,
+      "usesPlayerCollisionRadius": true
     },
     {
       "fieldId": 749,
@@ -32619,8 +32318,6 @@
         "endY": -3,
         "endZ": 345
       },
-      "requiredEnabledLineEntityId": 19,
-      "usesPlayerCollisionRadius": true,
       "requiredPlayerTriangles": [
         11,
         28,
@@ -32636,7 +32333,9 @@
         177,
         178,
         179
-      ]
+      ],
+      "requiredEnabledLineEntityId": 19,
+      "usesPlayerCollisionRadius": true
     },
     {
       "fieldId": 749,
@@ -32662,8 +32361,6 @@
         "endY": 14,
         "endZ": -69
       },
-      "requiredEnabledLineEntityId": 21,
-      "usesPlayerCollisionRadius": true,
       "requiredPlayerTriangles": [
         113,
         115,
@@ -32679,7 +32376,9 @@
         125,
         131,
         133
-      ]
+      ],
+      "requiredEnabledLineEntityId": 21,
+      "usesPlayerCollisionRadius": true
     },
     {
       "fieldId": 749,
@@ -32705,14 +32404,14 @@
         "endY": -20,
         "endZ": -278
       },
-      "requiredEnabledLineEntityId": 23,
-      "usesPlayerCollisionRadius": true,
       "requiredPlayerTriangles": [
         82,
         88,
         89,
         138
-      ]
+      ],
+      "requiredEnabledLineEntityId": 23,
+      "usesPlayerCollisionRadius": true
     },
     {
       "fieldId": 749,
@@ -32738,14 +32437,14 @@
         "endY": -19,
         "endZ": -485
       },
-      "requiredEnabledLineEntityId": 25,
-      "usesPlayerCollisionRadius": true,
       "requiredPlayerTriangles": [
         73,
         80,
         81,
         83
-      ]
+      ],
+      "requiredEnabledLineEntityId": 25,
+      "usesPlayerCollisionRadius": true
     },
     {
       "fieldId": 749,
@@ -32771,14 +32470,14 @@
         "endY": -18,
         "endZ": -485
       },
-      "requiredEnabledLineEntityId": 27,
-      "usesPlayerCollisionRadius": true,
       "requiredPlayerTriangles": [
         74,
         76,
         85,
         86
-      ]
+      ],
+      "requiredEnabledLineEntityId": 27,
+      "usesPlayerCollisionRadius": true
     },
     {
       "fieldId": 749,
@@ -32804,8 +32503,6 @@
         "endY": -3,
         "endZ": 762
       },
-      "requiredEnabledLineEntityId": 9,
-      "usesPlayerCollisionRadius": true,
       "requiredPlayerTriangles": [
         31,
         51,
@@ -32833,7 +32530,9 @@
         167,
         173,
         175
-      ]
+      ],
+      "requiredEnabledLineEntityId": 9,
+      "usesPlayerCollisionRadius": true
     },
     {
       "fieldId": 75,
@@ -35735,14 +35434,14 @@
         "endY": 26,
         "endZ": -278
       },
-      "requiredEnabledLineEntityId": 38,
-      "usesPlayerCollisionRadius": true,
       "requiredPlayerTriangles": [
         91,
         95,
         96,
         97
-      ]
+      ],
+      "requiredEnabledLineEntityId": 38,
+      "usesPlayerCollisionRadius": true
     },
     {
       "fieldId": 749,
@@ -35768,8 +35467,6 @@
         "endY": 126,
         "endZ": -693
       },
-      "requiredEnabledLineEntityId": 29,
-      "usesPlayerCollisionRadius": true,
       "requiredPlayerTriangles": [
         40,
         48,
@@ -35777,7 +35474,9 @@
         55,
         56,
         57
-      ]
+      ],
+      "requiredEnabledLineEntityId": 29,
+      "usesPlayerCollisionRadius": true
     },
     {
       "fieldId": 749,
@@ -35803,8 +35502,6 @@
         "endY": -9,
         "endZ": -902
       },
-      "requiredEnabledLineEntityId": 33,
-      "usesPlayerCollisionRadius": true,
       "requiredPlayerTriangles": [
         0,
         1,
@@ -35823,7 +35520,9 @@
         29,
         30,
         53
-      ]
+      ],
+      "requiredEnabledLineEntityId": 33,
+      "usesPlayerCollisionRadius": true
     },
     {
       "fieldId": 749,
@@ -35849,14 +35548,14 @@
         "endY": -17,
         "endZ": -1041
       },
-      "requiredEnabledLineEntityId": 40,
-      "usesPlayerCollisionRadius": true,
       "requiredPlayerTriangles": [
         27,
         32,
         34,
         35
-      ]
+      ],
+      "requiredEnabledLineEntityId": 40,
+      "usesPlayerCollisionRadius": true
     },
     {
       "fieldId": 751,
@@ -47463,138 +47162,6 @@
       "usesPlayerCollisionRadius": true
     },
     {
-      "fieldId": 735,
-      "kind": "Location",
-      "label": "Continue into the tunnels",
-      "entityId": 1,
-      "x": 0,
-      "y": 277,
-      "z": 0,
-      "targetGameMoment": -1,
-      "minimumGameMoment": 1601,
-      "maximumGameMoment": 1602,
-      "priority": 0,
-      "sourceFieldName": "sbwy4_22",
-      "sourceEntityName": "cloud",
-      "sourceScriptType": "Main",
-      "completesOnArrival": true,
-      "manualNavigationGuidance": "Hold Up to continue into the tunnels."
-    },
-    {
-      "fieldId": 778,
-      "kind": "Location",
-      "label": "Climb on up the tunnel",
-      "entityId": 19,
-      "x": 788,
-      "y": 2576,
-      "z": 4,
-      "targetGameMoment": -1,
-      "minimumGameMoment": 1602,
-      "maximumGameMoment": 1602,
-      "priority": 0,
-      "sourceFieldName": "tunnel_6",
-      "sourceEntityName": "jump_u",
-      "sourceScriptType": "Move",
-      "completesOnArrival": true,
-      "requiredConditions": [
-        {
-          "bank": 15,
-          "address": 128,
-          "mask": 4,
-          "value": 4
-        },
-        {
-          "bank": 15,
-          "address": 129,
-          "mask": 255,
-          "value": 4
-        }
-      ],
-      "triggerLine": {
-        "startX": 890,
-        "startY": 3542,
-        "startZ": 9,
-        "endX": 687,
-        "endY": 1611,
-        "endZ": 0
-      },
-      "requiredEnabledLineEntityId": 19
-    },
-    {
-      "fieldId": 736,
-      "kind": "Location",
-      "label": "Climb back up toward the main tunnel",
-      "entityId": 15,
-      "x": 788,
-      "y": 2576,
-      "z": 4,
-      "targetGameMoment": -1,
-      "minimumGameMoment": 1601,
-      "maximumGameMoment": 1602,
-      "priority": 0,
-      "sourceFieldName": "tunnel_4",
-      "sourceEntityName": "jump_u",
-      "sourceScriptType": "Move",
-      "completesOnArrival": true,
-      "requiredConditions": [
-        {
-          "bank": 15,
-          "address": 129,
-          "mask": 1,
-          "value": 0
-        },
-        {
-          "bank": 15,
-          "address": 129,
-          "mask": 255,
-          "value": 0,
-          "minimumValue": 4,
-          "maximumValue": 18
-        }
-      ],
-      "triggerLine": {
-        "startX": 890,
-        "startY": 3542,
-        "startZ": 9,
-        "endX": 687,
-        "endY": 1611,
-        "endZ": 0
-      },
-      "requiredEnabledLineEntityId": 15
-    },
-    {
-      "fieldId": 737,
-      "kind": "Location",
-      "label": "Go back down toward the main tunnel",
-      "entityId": 12,
-      "x": -7,
-      "y": 373,
-      "z": 0,
-      "targetGameMoment": -1,
-      "minimumGameMoment": 1601,
-      "maximumGameMoment": 1602,
-      "priority": 0,
-      "sourceFieldName": "tunnel_5",
-      "sourceEntityName": "jump_d",
-      "sourceScriptType": "Move",
-      "completesOnArrival": true,
-      "requiredCondition": {
-        "bank": 15,
-        "address": 129,
-        "mask": 255,
-        "value": 1
-      },
-      "triggerLine": {
-        "startX": -215,
-        "startY": 368,
-        "startZ": 0,
-        "endX": 200,
-        "endY": 379,
-        "endZ": 0
-      },
-      "requiredEnabledLineEntityId": 12
-    },
-    {
       "fieldId": 737,
       "kind": "Location",
       "label": "Go down toward the main tunnel",
@@ -47625,90 +47192,6 @@
         "endZ": 0
       },
       "requiredEnabledLineEntityId": 12
-    },
-    {
-      "fieldId": 737,
-      "kind": "Location",
-      "label": "Take the passage on the upper right toward the main tunnel",
-      "entityId": 11,
-      "x": 635,
-      "y": 1822,
-      "z": 0,
-      "targetGameMoment": -1,
-      "minimumGameMoment": 1601,
-      "maximumGameMoment": 1602,
-      "priority": 0,
-      "sourceFieldName": "tunnel_5",
-      "sourceEntityName": "jump_ur",
-      "sourceScriptType": "Move",
-      "completesOnArrival": true,
-      "requiredConditions": [
-        {
-          "bank": 15,
-          "address": 129,
-          "mask": 1,
-          "value": 1
-        },
-        {
-          "bank": 15,
-          "address": 129,
-          "mask": 255,
-          "value": 0,
-          "minimumValue": 5,
-          "maximumValue": 17
-        }
-      ],
-      "triggerLine": {
-        "startX": 550,
-        "startY": 1890,
-        "startZ": 0,
-        "endX": 721,
-        "endY": 1754,
-        "endZ": 0
-      },
-      "requiredEnabledLineEntityId": 11
-    },
-    {
-      "fieldId": 736,
-      "kind": "Location",
-      "label": "Go back down toward the main tunnel",
-      "entityId": 16,
-      "x": 209,
-      "y": -617,
-      "z": 0,
-      "targetGameMoment": -1,
-      "minimumGameMoment": 1601,
-      "maximumGameMoment": 1602,
-      "priority": 0,
-      "sourceFieldName": "tunnel_4",
-      "sourceEntityName": "jump_d",
-      "sourceScriptType": "Move",
-      "completesOnArrival": true,
-      "requiredConditions": [
-        {
-          "bank": 15,
-          "address": 129,
-          "mask": 1,
-          "value": 0
-        },
-        {
-          "bank": 15,
-          "address": 129,
-          "mask": 255,
-          "value": 0,
-          "minimumValue": 0,
-          "maximumValue": 2
-        }
-      ],
-      "triggerLine": {
-        "startX": -83,
-        "startY": -665,
-        "startZ": 0,
-        "endX": 502,
-        "endY": -570,
-        "endZ": 0
-      },
-      "requiredEnabledLineEntityId": 16
     },
     {
       "fieldId": 749,
@@ -47910,6 +47393,523 @@
       "requiredEnabledLineEntityId": 7,
       "usesPlayerCollisionRadius": true,
       "activatesOnOk": true
+    },
+    {
+      "fieldId": 734,
+      "kind": "Location",
+      "label": "Climb the ladder on the left back up",
+      "entityId": 8,
+      "x": -3661,
+      "y": -996,
+      "z": -986,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 1601,
+      "maximumGameMoment": 1603,
+      "priority": 0,
+      "sourceFieldName": "md8_b2",
+      "sourceEntityName": "lad_0_u",
+      "sourceScriptType": "Move",
+      "completesOnArrival": true,
+      "requiredCondition": {
+        "bank": 15,
+        "address": 131,
+        "mask": 8,
+        "value": 8
+      },
+      "triggerLine": {
+        "startX": -3676,
+        "startY": -1026,
+        "startZ": -986,
+        "endX": -3646,
+        "endY": -966,
+        "endZ": -986
+      },
+      "requiredPlayerTriangles": [
+        50,
+        68,
+        146,
+        147,
+        150,
+        151,
+        152,
+        153,
+        154,
+        155,
+        156,
+        157,
+        158,
+        159,
+        160,
+        161,
+        162,
+        164,
+        165,
+        182
+      ],
+      "requiredEnabledLineEntityId": 8
+    },
+    {
+      "fieldId": 733,
+      "kind": "Location",
+      "label": "Go through the duct",
+      "entityId": 11,
+      "x": -2641,
+      "y": 529,
+      "z": -326,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 1601,
+      "maximumGameMoment": 1603,
+      "priority": 0,
+      "sourceFieldName": "md8_b1",
+      "sourceEntityName": "duct_1",
+      "sourceScriptType": "Move",
+      "completesOnArrival": true,
+      "requiredCondition": {
+        "bank": 15,
+        "address": 131,
+        "mask": 8,
+        "value": 8
+      },
+      "triggerLine": {
+        "startX": -2693,
+        "startY": 563,
+        "startZ": -326,
+        "endX": -2589,
+        "endY": 495,
+        "endZ": -326
+      },
+      "requiredPlayerTriangles": [
+        4,
+        5,
+        87,
+        88,
+        89,
+        90,
+        91,
+        92,
+        93,
+        94,
+        95,
+        96,
+        97,
+        98,
+        99,
+        106,
+        129,
+        130,
+        162
+      ],
+      "requiredEnabledLineEntityId": 11
+    },
+    {
+      "fieldId": 734,
+      "kind": "Location",
+      "label": "Take the way up out of the pipes",
+      "entityId": -1,
+      "x": -186,
+      "y": 886,
+      "z": -459,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 1601,
+      "maximumGameMoment": 1603,
+      "priority": 0,
+      "sourceFieldName": "md8_b2",
+      "sourceEntityName": "gateway0",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredCondition": {
+        "bank": 15,
+        "address": 131,
+        "mask": 8,
+        "value": 8
+      },
+      "triggerLine": {
+        "startX": -248,
+        "startY": 886,
+        "startZ": -456,
+        "endX": -124,
+        "endY": 886,
+        "endZ": -462
+      },
+      "requiredPlayerTriangles": [
+        24,
+        25,
+        26,
+        27,
+        31,
+        33,
+        34,
+        36,
+        37,
+        38,
+        39,
+        42,
+        43,
+        44,
+        55,
+        56,
+        57,
+        62,
+        63,
+        64,
+        65,
+        66,
+        67,
+        70,
+        71,
+        73,
+        74,
+        76,
+        77,
+        80,
+        83,
+        84,
+        87,
+        89,
+        91,
+        92,
+        93,
+        94,
+        95,
+        97,
+        99,
+        103,
+        106,
+        112,
+        113,
+        163,
+        177,
+        178,
+        180,
+        181,
+        184,
+        185,
+        186,
+        187,
+        188,
+        189,
+        190,
+        191,
+        192,
+        193,
+        194,
+        195,
+        196,
+        197,
+        198,
+        199,
+        200,
+        207,
+        208,
+        216,
+        219,
+        220,
+        221,
+        228
+      ]
+    },
+    {
+      "fieldId": 733,
+      "kind": "Location",
+      "label": "Drop down to the subway",
+      "entityId": 10,
+      "x": -748,
+      "y": 1900,
+      "z": -179,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 1601,
+      "maximumGameMoment": 1603,
+      "priority": 0,
+      "sourceFieldName": "md8_b1",
+      "sourceEntityName": "jump",
+      "sourceScriptType": "Move",
+      "completesOnArrival": true,
+      "requiredCondition": {
+        "bank": 15,
+        "address": 131,
+        "mask": 8,
+        "value": 8
+      },
+      "triggerLine": {
+        "startX": -796,
+        "startY": 1948,
+        "startZ": -179,
+        "endX": -700,
+        "endY": 1852,
+        "endZ": -179
+      },
+      "requiredPlayerTriangles": [
+        41,
+        42,
+        60,
+        61,
+        76,
+        78,
+        100,
+        101,
+        111,
+        116,
+        117,
+        121,
+        122,
+        123,
+        133,
+        134,
+        135,
+        136,
+        137,
+        141,
+        166
+      ],
+      "requiredEnabledLineEntityId": 10
+    },
+    {
+      "fieldId": 735,
+      "kind": "Location",
+      "label": "Continue into the tunnels",
+      "entityId": 1,
+      "x": 0,
+      "y": 277,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 1601,
+      "maximumGameMoment": 1603,
+      "priority": 0,
+      "sourceFieldName": "sbwy4_22",
+      "sourceEntityName": "cloud",
+      "sourceScriptType": "Main",
+      "completesOnArrival": true,
+      "manualNavigationGuidance": "Hold Up to continue into the tunnels."
+    },
+    {
+      "fieldId": 778,
+      "kind": "Location",
+      "label": "Climb on up the tunnel",
+      "entityId": 19,
+      "x": 788,
+      "y": 2576,
+      "z": 4,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 1602,
+      "maximumGameMoment": 1603,
+      "priority": 0,
+      "sourceFieldName": "tunnel_6",
+      "sourceEntityName": "jump_u",
+      "sourceScriptType": "Move",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 15,
+          "address": 128,
+          "mask": 4,
+          "value": 4
+        },
+        {
+          "bank": 15,
+          "address": 129,
+          "mask": 255,
+          "value": 4
+        }
+      ],
+      "triggerLine": {
+        "startX": 890,
+        "startY": 3542,
+        "startZ": 9,
+        "endX": 687,
+        "endY": 1611,
+        "endZ": 0
+      },
+      "requiredEnabledLineEntityId": 19
+    },
+    {
+      "fieldId": 737,
+      "kind": "Location",
+      "label": "Take the passage on the upper left",
+      "entityId": 10,
+      "x": -632,
+      "y": 1834,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 1602,
+      "maximumGameMoment": 1603,
+      "priority": 0,
+      "sourceFieldName": "tunnel_5",
+      "sourceEntityName": "jump_ul",
+      "sourceScriptType": "Move",
+      "completesOnArrival": true,
+      "requiredCondition": {
+        "bank": 15,
+        "address": 129,
+        "mask": 255,
+        "value": 3
+      },
+      "triggerLine": {
+        "startX": -722,
+        "startY": 1767,
+        "startZ": 0,
+        "endX": -543,
+        "endY": 1902,
+        "endZ": 0
+      },
+      "requiredEnabledLineEntityId": 10
+    },
+    {
+      "fieldId": 736,
+      "kind": "Location",
+      "label": "Go back down toward the main tunnel",
+      "entityId": 16,
+      "x": 209,
+      "y": -617,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 1601,
+      "maximumGameMoment": 1603,
+      "priority": 0,
+      "sourceFieldName": "tunnel_4",
+      "sourceEntityName": "jump_d",
+      "sourceScriptType": "Move",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 15,
+          "address": 129,
+          "mask": 1,
+          "value": 0
+        },
+        {
+          "bank": 15,
+          "address": 129,
+          "mask": 255,
+          "value": 0,
+          "minimumValue": 0,
+          "maximumValue": 2
+        }
+      ],
+      "triggerLine": {
+        "startX": -83,
+        "startY": -665,
+        "startZ": 0,
+        "endX": 502,
+        "endY": -570,
+        "endZ": 0
+      },
+      "requiredEnabledLineEntityId": 16
+    },
+    {
+      "fieldId": 736,
+      "kind": "Location",
+      "label": "Climb back up toward the main tunnel",
+      "entityId": 15,
+      "x": 788,
+      "y": 2576,
+      "z": 4,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 1601,
+      "maximumGameMoment": 1603,
+      "priority": 0,
+      "sourceFieldName": "tunnel_4",
+      "sourceEntityName": "jump_u",
+      "sourceScriptType": "Move",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 15,
+          "address": 129,
+          "mask": 1,
+          "value": 0
+        },
+        {
+          "bank": 15,
+          "address": 129,
+          "mask": 255,
+          "value": 0,
+          "minimumValue": 4,
+          "maximumValue": 18
+        }
+      ],
+      "triggerLine": {
+        "startX": 890,
+        "startY": 3542,
+        "startZ": 9,
+        "endX": 687,
+        "endY": 1611,
+        "endZ": 0
+      },
+      "requiredEnabledLineEntityId": 15
+    },
+    {
+      "fieldId": 737,
+      "kind": "Location",
+      "label": "Go back down toward the main tunnel",
+      "entityId": 12,
+      "x": -7,
+      "y": 373,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 1601,
+      "maximumGameMoment": 1603,
+      "priority": 0,
+      "sourceFieldName": "tunnel_5",
+      "sourceEntityName": "jump_d",
+      "sourceScriptType": "Move",
+      "completesOnArrival": true,
+      "requiredCondition": {
+        "bank": 15,
+        "address": 129,
+        "mask": 255,
+        "value": 1
+      },
+      "triggerLine": {
+        "startX": -215,
+        "startY": 368,
+        "startZ": 0,
+        "endX": 200,
+        "endY": 379,
+        "endZ": 0
+      },
+      "requiredEnabledLineEntityId": 12
+    },
+    {
+      "fieldId": 737,
+      "kind": "Location",
+      "label": "Take the passage on the upper right toward the main tunnel",
+      "entityId": 11,
+      "x": 635,
+      "y": 1822,
+      "z": 0,
+      "targetGameMoment": -1,
+      "minimumGameMoment": 1601,
+      "maximumGameMoment": 1603,
+      "priority": 0,
+      "sourceFieldName": "tunnel_5",
+      "sourceEntityName": "jump_ur",
+      "sourceScriptType": "Move",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 15,
+          "address": 129,
+          "mask": 1,
+          "value": 1
+        },
+        {
+          "bank": 15,
+          "address": 129,
+          "mask": 255,
+          "value": 0,
+          "minimumValue": 5,
+          "maximumValue": 17
+        }
+      ],
+      "triggerLine": {
+        "startX": 550,
+        "startY": 1890,
+        "startZ": 0,
+        "endX": 721,
+        "endY": 1754,
+        "endZ": 0
+      },
+      "requiredEnabledLineEntityId": 11
     }
   ]
 }

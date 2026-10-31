@@ -25,6 +25,17 @@ internal static class GuideRouteRegressionTests
         }
     }
 
+    internal static void RunMidgarNative()
+    {
+        if (DataRoot is null) throw new InvalidOperationException("Native Midgar data root required.");
+        ScaffoldEntrancesAreScriptedLadders();
+        ScaffoldLadderExitsGuideTheirClimb();
+        ScaffoldItemsAreWalkedToThroughNativeChains();
+        LiveScaffoldLaddersAreSelectable();
+        ShinraLadderKeepsItsNativeUnlockAndJunction();
+        Console.WriteLine("PASS installed Midgar ladder exits and legitimate Aegis routes.");
+    }
+
     internal static IEnumerable<(string Name, Action Check)> Cases()
     {
         yield return ("bedroom Story follows Corneo's own branches and lines", BedroomStoryFollowsTheBranchesAndLines);
@@ -45,6 +56,8 @@ internal static class GuideRouteRegressionTests
         yield return ("md8 scaffold entrances are scripted ladders, not detour starts", ScaffoldEntrancesAreScriptedLadders);
         yield return ("md8 ladder exits guide the climb before the field transfer", ScaffoldLadderExitsGuideTheirClimb);
         yield return ("md8 scaffold items are walked to through their native chains", ScaffoldItemsAreWalkedToThroughNativeChains);
+        yield return ("live scaffold ladders are selectable without invented paths", LiveScaffoldLaddersAreSelectable);
+        yield return ("Shinra ladder keeps its native unlock and junction", ShinraLadderKeepsItsNativeUnlockAndJunction);
         yield return ("Northern Crater jump lines each take their own jump", CraterJumpLinesTakeTheirOwnJump);
         yield return ("Mega All is offered at its take-off lines, not its floating model", MegaAllIsOfferedAtItsTakeOffLines);
         yield return ("Ancient Forest throwing spots are the lines that write each creature's zone", ForestThrowingSpotsAreTheZoneLines);
@@ -1080,6 +1093,102 @@ internal static class GuideRouteRegressionTests
         ("Max Ray", -528, 1052, 1185, 16), ("Megalixir", 1073, 1528, 508, 17)
     ];
 
+    private static void ShinraLadderKeepsItsNativeUnlockAndJunction()
+    {
+        var world=new Caves();
+        var state=new MidgarGuardMemory();
+        var field=world.Scripts.ReadField(736);
+        var ladder=field.Exits.Single(t => t.TriggerEntityId==18);
+        Equal(true,world.Scripts.ReadScriptOpcodes(736,18,2).Any(o => Hex(o)=="14F083060908"),"Native HQ ladder tests15[131]bit6");
+        Equal(0,FieldScriptExitGuards.Apply([ladder],field.ExitGuards,state).Count,"Invisible HQ ladder stays absent with its flag clear");
+        state.Bytes[FieldNavigationObjectReader.AddressFieldBankBase+0x400+131]=64;
+        Equal(225,FieldScriptExitGuards.Apply([ladder],field.ExitGuards,state).Single().DestinationFieldIds!.Single(),"Native flag opens only the sector0 ladder");
+        var odd=world.Scripts.ReadField(737);
+        var upperLeft=odd.Exits.Single(t => t.TriggerEntityId==10);
+        foreach(var (section,destination) in new[] {(1,736),(3,738)})
+        {
+            state.Bytes[FieldNavigationObjectReader.AddressFieldBankBase+0x400+129]=(byte)section;
+            Equal(destination,FieldScriptExitGuards.Apply([upperLeft],odd.ExitGuards,state).Single().DestinationFieldIds!.Single(),
+                "Upper-left junction retains its native section-dependent destination");
+        }
+        Equal(true,world.Exits(225).Any(t => t.DestinationFieldIds?.Contains(227)==true),"Native sector0 gateway continues to Shinra building");
+        Equal(true,world.Exits(227).Any(t => t.DestinationFieldIds?.Contains(234)==true),"Native Shinra approach continues to the lobby");
+    }
+
+    private sealed class MidgarGuardMemory : Ff7.Accessibility.LegacyLayout.ILegacyAddressSpace
+    {
+        internal readonly Dictionary<int,byte> Bytes=new()
+        {
+            [FieldNavigationObjectReader.AddressFieldBankBase]=(byte)(1603 & 255),
+            [FieldNavigationObjectReader.AddressFieldBankBase+1]=(byte)(1603 >> 8)
+        };
+        public bool TryRead(uint address,Span<byte> destination)
+        {
+            for(var i=0;i<destination.Length;i++) destination[i]=Bytes.GetValueOrDefault((int)address+i);
+            return true;
+        }
+    }
+
+    private static void LiveScaffoldLaddersAreSelectable()
+    {
+        var world = new Caves();
+        foreach (var field in new[] {733,734})
+        {
+            var read = world.Scripts.ReadField(field);
+            var available = new FieldScriptNavigationTransitionTracker().ResolveForNavigation(field, read.Transitions, _ => true, world.Mesh(field));
+            var position = world.Starts(field).First();
+            var rows = MidgarLadderNavigation.AppendTargets(read.Exits, position, available, _ => true, FieldLadderStateSnapshot.NotMounted);
+            var local = rows.Where(t => t.StableId.StartsWith("ladder-end:", StringComparison.Ordinal)).ToArray();
+            Equal(4, local.Length, $"{field}: four native platform ladders join Exits");
+            Equal(read.Exits.Count, MidgarLadderNavigation.AppendTargets(read.Exits, position, available, _ => false, default).Count,
+                "A traversal held in the route grace period never publishes a disabled ladder");
+            foreach (var row in local)
+            {
+                var transition = available.Single(t => t.StableId == row.ExitTraversalId);
+                var sourceTriangle = world.Mesh(field).Triangles.OrderBy(t =>
+                {
+                    var c=t.GetCentroid();
+                    return Math.Pow(c.X-transition.SourceX,2)+Math.Pow(c.Y-transition.SourceY,2)+Math.Pow(c.Z-transition.SourceZ,2);
+                }).First().Index;
+                var centre=world.Mesh(field).Triangles[sourceTriangle].GetCentroid();
+                var start=world.At(field,(int)Math.Round(centre.X),(int)Math.Round(centre.Y),sourceTriangle);
+                Equal(true,world.Planner(field).TryBuildRoute(start,row,out var route),$"{row.StableId}: {world.Planner(field).LastDiagnostic}");
+                Equal(true,route.Portals.Any(p => p.TransitionKind==FieldNavigationTransitionKind.Ladder && p.TransitionId==transition.StableId && p.RequiredInput==transition.RequiredInput && p.RequiresAction),
+                    $"Selecting {row.StableId} from t{sourceTriangle} must include the native climb to {transition.TargetTriangle}; portals: {string.Join(",",route.Portals.Where(p => p.TransitionKind is not null).Select(p => $"{p.TransitionKind}:{p.FromTriangle}->{p.ToTriangle}:{p.RequiredInput}"))}; {world.Planner(field).LastDiagnostic}");
+                var visibleProvider=new ReachableFieldExitTargetProvider(p => MidgarLadderNavigation.AppendTargets(read.Exits,p,available,_=>true,FieldLadderStateSnapshot.NotMounted),world.Planner(field));
+                foreach(var visible in visibleProvider.ReadTargets(start).Where(t=>t.StableId.StartsWith("ladder-end:",StringComparison.Ordinal)))
+                {
+                    Equal(true,world.Planner(field).TryBuildRoute(start,visible,out var visibleRoute),"An offered ladder has a native route");
+                    Equal(true,visibleRoute.Portals.Any(p=>p.TransitionId==visible.ExitTraversalId),
+                        $"Landing-side fake ladder row must be absent: {visible.StableId} from {row.StableId}'s foot");
+                }
+                var portal=route.Portals.Single(p => p.TransitionId==transition.StableId);
+                foreach(var landingTriangle in new[] {transition.TargetTriangle,portal.ToTriangle}.Distinct())
+                {
+                    var liveLadder=FieldLadderStateSnapshot.NotMounted;
+                    var liveProvider=new ReachableFieldExitTargetProvider(p => MidgarLadderNavigation.AppendTargets(read.Exits,p,available,_=>true,liveLadder),world.Planner(field));
+                    var source=new FieldNavigationTargetSource([],exitTargetProvider:p=>liveProvider.ReadTargets(p,liveLadder.IsMounted).Where(t=>t.StableId==row.StableId).ToArray());
+                    var controller=new FieldNavigationController(source,world.Planner(field));
+                    var now=new DateTime(2026,10,31,0,0,0,DateTimeKind.Utc);
+                    _=controller.HandleAction(FieldNavigationAction.ToggleBeacon,start,new(-128));
+                    _=controller.UpdateLiveTracking(start,default,new(-128),false,80,FieldLadderStateSnapshot.NotMounted,now);
+                    Equal(true,controller.BeaconEnabled,"The ladder target never completes on its source platform");
+                    var mounted=new FieldLadderStateSnapshot(true,true,FieldLadderPhase.Mounted,transition.RequiredInput,
+                        new(transition.TargetX,transition.TargetY,transition.TargetZ!.Value),transition.TargetTriangle,4,0);
+                    liveLadder=mounted;
+                    _=controller.UpdateLiveTracking(start,default,new(-128),false,80,mounted,now.AddMilliseconds(100));
+                    Equal(false,controller.TryResolveAutomaticInput(start,new(-128),80,out _),"The local ladder climb stays manual");
+                    var landing=new FieldPositionSnapshot(1,field,0,transition.TargetX,transition.TargetY,transition.TargetZ.Value,(ushort)landingTriangle,0);
+                    liveLadder=FieldLadderStateSnapshot.NotMounted;
+                    Equal(false,liveProvider.ReadTargets(landing).Any(t=>t.StableId==row.StableId),"The completed direction disappears on its landing platform");
+                    for(var sample=2;sample<=5;sample++)
+                        _=controller.UpdateLiveTracking(landing,default,new(-128),false,80,FieldLadderStateSnapshot.NotMounted,now.AddSeconds(sample));
+                    Equal(false,controller.BeaconEnabled,$"{row.StableId} completes at the native endpoint on actual landing triangle{landingTriangle}");
+                }
+            }
+        }
+    }
+
     private static void ScaffoldLadderExitsGuideTheirClimb()
     {
         var world = new Caves();
@@ -1092,7 +1201,9 @@ internal static class GuideRouteRegressionTests
             (733, 4, 151, 16, FieldNavigationInput.Up),
             (733, 5, 75, 1, FieldNavigationInput.Down),
             (734, 8, 110, 1, FieldNavigationInput.Up),
-            (734, 9, 58, 5, FieldNavigationInput.Up)
+            (734, 9, 58, 5, FieldNavigationInput.Up),
+            (736, 18, 199, 2, FieldNavigationInput.Up),
+            (778, 21, 199, 2, FieldNavigationInput.Up)
         })
         {
             var exit = world.Exits(field).Single(t => t.TriggerEntityId == entity);
@@ -1126,8 +1237,16 @@ internal static class GuideRouteRegressionTests
                 Equal(FieldAutoWalkHoldReason.PlayerAction, controller.LastAutomaticInputHold,
                     "the mount remains the pending action");
             }
+            var nativeClimb=world.Scripts.ReadField(field).Transitions.Single(t => t.StableId==exit.ExitTraversalId);
+            var mounted=new FieldLadderStateSnapshot(true,true,FieldLadderPhase.Mounted,input,
+                new(nativeClimb.TargetX,nativeClimb.TargetY,nativeClimb.TargetZ!.Value),landing,4,0);
+            _=controller.UpdateLiveTracking(start,default,new(-128),false,80,mounted,
+                observedAt:new DateTime(2026,10,23,0,0,9,DateTimeKind.Utc));
+            Equal(false,controller.TryResolveAutomaticInput(start,new(-128),80,out _),
+                $"{field} line {entity}: mounted Midgar climbing remains on normal direction buttons");
+            Equal(FieldAutoWalkHoldReason.PlayerAction,controller.LastAutomaticInputHold,"mounted climb holds automatic walking");
         }
-        Console.WriteLine("PASS Sector 8 ladder exits include all five native climbs and manual mount holds.");
+        Console.WriteLine("PASS scaffold and subway ladder exits include native climbs and manual mount holds.");
     }
 
     private static FieldNavigationTarget ScaffoldItem(string label)

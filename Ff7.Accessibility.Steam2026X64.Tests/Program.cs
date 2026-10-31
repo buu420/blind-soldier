@@ -7,6 +7,14 @@ using Ff7.Accessibility.Steam2026X64.Runtime.Field;
 using Ff7.Accessibility.LegacyLayout;
 using System.Text.Json;
 
+if (args.Contains("--midgar-scaffold-only", StringComparer.OrdinalIgnoreCase))
+{
+    AssertTranslatedLadderControlGateSharesCuePage();
+    Ff7.Accessibility.Reloaded.Tests.MidgarScaffoldNavigationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.GuideRouteRegressionTests.RunMidgarNative();
+    return;
+}
+
 if (args.Contains("--observatory-storage-only", StringComparer.OrdinalIgnoreCase))
 {
     Steam2026FieldObjectObservationTests.RunStoredMateriaCueRegression();
@@ -409,6 +417,7 @@ if (args.Contains("--cutscene-voice-only", StringComparer.OrdinalIgnoreCase))
 
 if (args.Contains("--module-tests-only", StringComparer.OrdinalIgnoreCase))
 {
+    Ff7.Accessibility.Reloaded.Tests.MidgarScaffoldNavigationTests.Run();
     Ff7.Accessibility.Reloaded.Tests.LoadedFieldScriptNativeWriteTests.Run();
     Steam2026TrustSurfaceTests.RunPublicApiContract();
     Ff7.Accessibility.Reloaded.Tests.CostaDelSolNavigationTests.Run();
@@ -1218,6 +1227,7 @@ Steam2026NativeMovieHookTests.Run(native);
 NativeCreditsTitleHookGuardTests.Run(native);
 AssertNativeMemoryRegionReportsReadability();
 AssertTranslatedX86AddressSpaceReadsMappedPages();
+AssertTranslatedLadderControlGateSharesCuePage();
 AssertTranslatedX86AddressSpaceReadsAcrossNoncontiguousPages();
 AssertTranslatedX86AddressSpaceRejectsOverflowedPageTableRange();
 AssertTranslatedX86AddressSpaceReadsAllocatorAlignedHostPages();
@@ -1298,6 +1308,7 @@ Ff7.Accessibility.Reloaded.Tests.EchoNpcIdentityCoverageTests.RunWithInstalledGa
 Ff7.Accessibility.Reloaded.Tests.FieldCharacterInteractionTests.Run();
 Ff7.Accessibility.Reloaded.Tests.FieldCharacterInteractionTests.RunWithInstalledGameData(
     planner => new Ff7.Accessibility.Steam2026X64.Runtime.Field.Steam2026FailClosedFieldRoutePlanner(planner));
+Ff7.Accessibility.Reloaded.Tests.MidgarScaffoldNavigationTests.Run();
 Ff7.Accessibility.Reloaded.Tests.FieldTriangleExitTests.RunWithInstalledGameData(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.GuideRevisitInteractionTests.Run();
 Ff7.Accessibility.Reloaded.Tests.GuideRevisitInteractionTests.RunWithInstalledGameData();
@@ -3145,6 +3156,25 @@ static FieldWalkmeshReader CreateInstalledFieldWalkmeshReader(int fieldId)
     }
 
     return new FieldWalkmeshReader(ReadInt32Value, ReadInt16Value);
+}
+
+static void AssertTranslatedLadderControlGateSharesCuePage()
+{
+    const ulong moduleBase=0x0000000140000000, hostPage=0x0000000200100000;
+    var memory=new FakeNativeMemoryReader();
+    var gate=(uint)FieldLadderStateReader.AddressControlLock;
+    var mirror=(uint)FieldAudibleCueStateReader.AddressUserControl;
+    AssertEqual(mirror>>12,gate>>12,"native gate and existing cue mirror use the same translated guest page");
+    memory.MapVirtualPage(moduleBase,gate>>12,hostPage);
+    memory.Write(hostPage+(gate&0xFFF),[1]);
+    memory.Write(hostPage+(mirror&0xFFF),[0]);
+    var space=new TranslatedX86AddressSpace(moduleBase,memory);
+    AssertEqual(true,space.TryReadByte(gate,out var actual),"actual native control gate translates through the validated x64 page mapper");
+    AssertEqual((byte)1,actual,"ASK/JOIN-style actual lock is read independently of its mirror");
+    memory.Write(hostPage+(gate&0xFFF),[0]);
+    memory.Write(hostPage+(mirror&0xFFF),[1]);
+    AssertEqual(true,space.TryReadByte(gate,out actual),"native unlock remains readable with stale cue mirror");
+    AssertEqual((byte)0,actual,"interpreter-cleared native gate remains manual despite stale mirror");
 }
 
 static void AssertTranslatedX86AddressSpaceReadsMappedPages()
