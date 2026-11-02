@@ -81,6 +81,31 @@ internal static class WholeGameEchoCompatibilityTests
             var state = new ScriptMemory();
             var catalog = new FieldScriptNavigationCatalog(root, Ff7GameLanguageDetector.Detect(root), new LoadedFieldScriptIdentityReader(state));
             var variant = Path.GetFileName(echo);
+            Case(variant + " Winding Tunnel section seals and visible ladder cues", () =>
+            {
+                state.Load(echo, 736);
+                var current = catalog.ReadField(736);
+                Equal(true, current.IsUsable && current.UsesReviewedEchoLayout, "exact loaded Echo-S tunnel");
+                foreach (var (section, visible, expected) in new[] { (0, false, 1), (0, true, 2), (2, false, 2), (18, false, 1) })
+                {
+                    state.Bytes[(uint)FieldNavigationObjectReader.AddressFieldBankBase + 0x400 + 129] = (byte)section;
+                    state.Bytes[(uint)FieldNavigationObjectReader.AddressFieldBankBase + 0x400 + 131] = visible ? (byte)64 : (byte)0;
+                    var offered = FieldScriptExitGuards.Apply(current.Exits, current.ExitGuards, state, catalog.ReadNativeGuard);
+                    Equal(expected, offered.Count, "current native section seals and ladder flag decide exits");
+                    var available = FieldScriptExitGuards.ApplyToExitTraversals(current.Transitions, current, state, catalog.ReadNativeGuard);
+                    var cues = new FieldLadderProximityCueTracker(80, 400, TimeSpan.Zero).Update(
+                        new FieldPositionSnapshot(1, 736, 0, 9, -359, 0, 199, 0), available, DateTime.UtcNow);
+                    Equal(visible ? 1 : 0, cues.Count, "hidden ladder and incoming landing never cue as entrances");
+                }
+                state.Load(echo, 778);
+                var onward = catalog.ReadField(778);
+                var nativeLadder = onward.Exits.Single(e => e.TriggerLine == new FieldNavigationTriggerLine(-24, -273, 0, 41, -445, 0));
+                Equal(true, nativeLadder.DestinationFieldIds!.SequenceEqual([735]), "shifted Echo entity still leads to the subway");
+                Equal(1, new FieldLadderProximityCueTracker(80, 400, TimeSpan.Zero).Update(
+                    new FieldPositionSnapshot(1, 778, 0, 9, -359, 0, 199, 0),
+                    FieldScriptExitGuards.ApplyToExitTraversals(onward.Transitions, onward, state, catalog.ReadNativeGuard), DateTime.UtcNow).Count,
+                    "the unconditional return ladder is preserved without bit 6");
+            });
             Case(variant + " Sector 8 ladder exits retain their mount action", () =>
             {
                 foreach (var (field, entities) in new[] { (733, new[] { 3, 4, 5 }), (734, new[] { 8, 9 }) })

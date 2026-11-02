@@ -257,7 +257,7 @@ internal static class MidgarTunnelStoryTests
         (734, 1, new(-3920, 1108, -1660, -3588, 1108, -1660), [733], "Way to the ladder platform"),
         (736, -1, TunnelWayUp, [737], "Way up the tunnel"),
         (736, -1, TunnelWayDown, [737], "Way down the tunnel"),
-        (736, -1, TunnelLadderUp, [225], "Ladder up to sector 0"),
+        (736, -1, TunnelLadderUp, [225], "Ladder up toward Shinra HQ"),
         (737, -1, new(-722, 1767, 0, -543, 1902, 0), [736, 738], "Passage on the upper left"),
         (737, -1, new(550, 1890, 0, 721, 1754, 0), [736, 778], "Passage on the upper right"),
         (737, -1, new(-215, 368, 0, 200, 379, 0), [736, 778], "Way down the tunnel"),

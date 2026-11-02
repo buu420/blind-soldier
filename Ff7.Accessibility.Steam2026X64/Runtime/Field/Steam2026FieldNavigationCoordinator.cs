@@ -2629,6 +2629,8 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                 transition => lineStateReader.IsEnabled(transition.SourceEntityId),
                 controlledEntityReader.IsControlled,
                 controlledEntityReader.ReadPartyLeaderCharacter);
+            transitions = FieldScriptExitGuards.ApplyToExitTraversals(transitions, field, addressSpace,
+                field.UsesReviewedEchoLayout ? scriptCatalog.ReadNativeGuard : null);
             diagnostic = $"live={transitions.Count}";
             return transitions;
         }

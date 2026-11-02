@@ -1568,13 +1568,16 @@ public sealed class Mod : IModV1, IModV2
                     .Read(new FieldPositionSnapshot(FieldPositionReader.FieldModule, fieldId, 0, 0, 0, 0, 0, 0))
                     .Walkmesh
                 : null;
-            return fieldScriptNavigationTransitionTracker.ResolveForNavigation(
+            var transitions = fieldScriptNavigationTransitionTracker.ResolveForNavigation(
                 fieldId,
                 result.Transitions,
                 fieldScriptLineStateReader.IsEnabled,
                 walkmesh,
                 fieldControlledEntityReader.IsControlled,
                 fieldControlledEntityReader.ReadPartyLeaderCharacter);
+            return FieldScriptExitGuards.ApplyToExitTraversals(transitions, result, legacyAddressSpace,
+                result.UsesReviewedEchoLayout && fieldScriptNavigationCatalog is { } guardCatalog
+                    ? guardCatalog.ReadNativeGuard : null);
         }
 
         fieldNavigationTransitionProvider = ReadNavigationTransitions;

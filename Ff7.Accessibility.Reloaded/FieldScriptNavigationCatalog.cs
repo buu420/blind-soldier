@@ -775,7 +775,7 @@ public sealed class FieldScriptNavigationCatalog
                 if (destinations.Any(destination => destination != fieldId))
                 {
                     var exitId = $"script-exit:{fieldId}:{group.Index}:{string.Join(',', destinations)}";
-                    if (ExitGuards(nativeGroups[0].Program, actions, fieldId, group.Index) is { Count: > 0 } guards)
+                    if (ExitGuards(nativeGroups[0].Program, actions, fieldId, group.Index, line.TriggerLine) is { Count: > 0 } guards)
                     {
                         exitGuards[exitId] = guards;
                     }
@@ -4051,7 +4051,8 @@ public sealed class FieldScriptNavigationCatalog
         FieldScriptProgram program,
         IEnumerable<NavigationAction> actions,
         int fieldId,
-        int lineEntity)
+        int lineEntity,
+        FieldNavigationTriggerLine line)
     {
         // Whatever else one crossing of the line can start: its event scripts 1-6 (0060C94D).
         var events = Enumerable.Range(1, LastLineEventScript)
@@ -4121,7 +4122,48 @@ public sealed class FieldScriptNavigationCatalog
             }
         }
 
+        if (TunnelSectionSeal(program, fieldId, line) is { } seal)
+        {
+            var existing = guards.FindIndex(guard => guard.DestinationFieldId == 737);
+            if (existing < 0)
+                guards.Add(new FieldScriptExitGuard(737, [[seal]]));
+            else
+                guards[existing] = guards[existing] with
+                {
+                    Alternatives = guards[existing].Alternatives.Select(way =>
+                        (IReadOnlyList<FieldScriptGuardTest>)way.Append(seal).ToArray()).ToArray()
+                };
+        }
         return guards;
+    }
+
+    private static FieldScriptGuardTest? TunnelSectionSeal(
+        FieldScriptProgram program, int fieldId, FieldNavigationTriggerLine line)
+    {
+        if (fieldId != 736) return null;
+        var section = line == new FieldNavigationTriggerLine(890, 3542, 9, 687, 1611, 0) ? 0 :
+            line == new FieldNavigationTriggerLine(-83, -665, 0, 502, -570, 0) ? 18 : -1;
+        if (section < 0) return null;
+        int[] locked = section == 0 ? [12, 13, 72, 73] : [198, 98, 129, 8, 51, 130, 50, 49, 48, 131];
+        // tunnel_4's initializer removes PATH and seals this end in section zero.
+        // It also seals the opposite end in section eighteen. The jump scripts
+        // themselves have no IF, and the walkmesh's remaining ramp slivers admit
+        // a centre-line route the player's body cannot follow. Require the installed
+        // section test AND its actual lock sequence, rather than infer a seal from an ID.
+        foreach (var entity in Enumerable.Range(0, program.EntityCount))
+        {
+            var init = program.InitAndMainReach(entity);
+            foreach (var test in init.Where(op => op.Id == 0x14 && op.Bytes.Length == 6 &&
+                         op.Bytes[1] == 0xF0 && op.Bytes[2] == 129 && op.Bytes[3] == section && op.Bytes[4] == 0))
+            {
+                if (FieldScriptProgram.FalseTarget(test) is not { } end) continue;
+                var branch = init.Where(op => op.Offset > test.Offset && op.Offset < end).ToArray();
+                if (locked.All(triangle => branch.Any(op => op.Id == 0x6D && op.Bytes.Length == 4 &&
+                        BitConverter.ToUInt16(op.Bytes, 1) == triangle && op.Bytes[3] == 1)))
+                    return new(15, 129, false, false, 0, section, false);
+            }
+        }
+        return null;
     }
 
     /// <summary>
