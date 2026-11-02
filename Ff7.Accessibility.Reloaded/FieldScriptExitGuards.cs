@@ -26,6 +26,28 @@ public static class FieldScriptExitGuards
     /// </summary>
     public const int AddressTemporaryFieldBank = 0x00CC14D0;
 
+    /// <summary>
+    /// A ladder bound to a field exit is available only while that exit is open.
+    /// Apply after LINE grace resolution: tunnel_4 leaves lad_u's LINE enabled even
+    /// when its bit-6 test hides the ladder and prevents the requested climb.
+    /// </summary>
+    public static IReadOnlyList<FieldScriptNavigationTransition> ApplyToExitTraversals(
+        IReadOnlyList<FieldScriptNavigationTransition> transitions,
+        FieldScriptNavigationReadResult field,
+        ILegacyAddressSpace memory,
+        Func<FieldScriptGuardTest, bool?>? checkedNativeGuard = null)
+    {
+        var guarded = field.Exits.Where(exit => !string.IsNullOrEmpty(exit.ExitTraversalId) &&
+            field.ExitGuards.ContainsKey(exit.StableId)).ToArray();
+        if (guarded.Length == 0 || transitions.Count == 0) return transitions;
+        var open = Apply(guarded, field.ExitGuards, memory, checkedNativeGuard)
+            .Select(exit => exit.StableId).ToHashSet(StringComparer.Ordinal);
+        var closed = guarded.Where(exit => !open.Contains(exit.StableId))
+            .Select(exit => (exit.FieldId, exit.TriggerEntityId)).ToHashSet();
+        return closed.Count == 0 ? transitions : transitions.Where(transition =>
+            !closed.Contains((transition.FieldId, transition.SourceEntityId))).ToArray();
+    }
+
     public static IReadOnlyList<FieldNavigationTarget> Apply(
         IReadOnlyList<FieldNavigationTarget> exits,
         IReadOnlyDictionary<string, IReadOnlyList<FieldScriptExitGuard>> guards,

@@ -730,7 +730,7 @@ public static class LateMidgarExitLabels
         // ("sector 0") from tunnel_4 section 0 and to sbwy4_22 from tunnel_6.
         new(736, "Way up the tunnel", TunnelWayUp, [737]),
         new(736, "Way down the tunnel", TunnelWayDown, [737]),
-        new(736, "Ladder up", TunnelLadderUp, [225], NamesDestination: true),
+        new(736, "Ladder up toward Shinra HQ", TunnelLadderUp, [225]),
         new(778, "Way up the tunnel", TunnelWayUp, [737]),
         new(778, "Way down the tunnel", TunnelWayDown, [737]),
         new(778, "Ladder up", TunnelLadderUp, [735], NamesDestination: true),

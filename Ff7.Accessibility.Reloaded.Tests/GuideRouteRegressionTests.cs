@@ -33,6 +33,10 @@ internal static class GuideRouteRegressionTests
         ScaffoldItemsAreWalkedToThroughNativeChains();
         LiveScaffoldLaddersAreSelectable();
         ShinraLadderKeepsItsNativeUnlockAndJunction();
+        WindingTunnelSectionSealsMatchNativeAvailability();
+        WindingTunnelCuesMatchVisibleLadders();
+        WindingTunnelJourneyKeepsTheRealEntranceSelectable();
+        MidgarTunnelStoryTests.Run();
         Console.WriteLine("PASS installed Midgar ladder exits and legitimate Aegis routes.");
     }
 
@@ -58,6 +62,9 @@ internal static class GuideRouteRegressionTests
         yield return ("md8 scaffold items are walked to through their native chains", ScaffoldItemsAreWalkedToThroughNativeChains);
         yield return ("live scaffold ladders are selectable without invented paths", LiveScaffoldLaddersAreSelectable);
         yield return ("Shinra ladder keeps its native unlock and junction", ShinraLadderKeepsItsNativeUnlockAndJunction);
+        yield return ("Winding Tunnel section seals match native availability", WindingTunnelSectionSealsMatchNativeAvailability);
+        yield return ("Winding Tunnel cues match visible ladders", WindingTunnelCuesMatchVisibleLadders);
+        yield return ("Winding Tunnel journey keeps the real entrance selectable", WindingTunnelJourneyKeepsTheRealEntranceSelectable);
         yield return ("Northern Crater jump lines each take their own jump", CraterJumpLinesTakeTheirOwnJump);
         yield return ("Mega All is offered at its take-off lines, not its floating model", MegaAllIsOfferedAtItsTakeOffLines);
         yield return ("Ancient Forest throwing spots are the lines that write each creature's zone", ForestThrowingSpotsAreTheZoneLines);
@@ -1113,6 +1120,128 @@ internal static class GuideRouteRegressionTests
         }
         Equal(true,world.Exits(225).Any(t => t.DestinationFieldIds?.Contains(227)==true),"Native sector0 gateway continues to Shinra building");
         Equal(true,world.Exits(227).Any(t => t.DestinationFieldIds?.Contains(234)==true),"Native Shinra approach continues to the lobby");
+    }
+
+    private static void WindingTunnelSectionSealsMatchNativeAvailability()
+    {
+        foreach (var section in new[] { 0, 2, 18 })
+        {
+            var world = new Caves();
+            var state = new MidgarGuardMemory();
+            state.Bytes[FieldNavigationObjectReader.AddressFieldBankBase + 0x400 + 129] = (byte)section;
+            var field = world.Scripts.ReadField(736);
+            var init = world.Scripts.ReadScriptOpcodes(736, 6, 0);
+            var locks = section == 0 ? new[] { 12, 13, 72, 73 } :
+                section == 18 ? new[] { 198, 98, 129, 8, 51, 130, 50, 49, 48, 131 } : [];
+            foreach (var triangle in locks)
+            {
+                Equal(true, init.Any(op => Hex(op) == $"6D{triangle & 255:X2}{triangle >> 8:X2}01"),
+                    $"native section {section} locks t{triangle}");
+                world.AdditionalLocks.Add(triangle);
+            }
+            var at = world.At(736, 289, -427, 54);
+            var offered = FieldScriptExitGuards.Apply(field.Exits, field.ExitGuards, state);
+            var up = field.Exits.Single(e => e.TriggerEntityId == 15);
+            var down = field.Exits.Single(e => e.TriggerEntityId == 16);
+            var rawRoute = world.Planner(736).TryBuildRoute(at, section == 18 ? down : up, out _);
+            Console.WriteLine($"Native tunnel section {section}: centre-line route={rawRoute}, locks={string.Join(',', locks)}.");
+            Equal(section != 0, offered.Any(e => e.StableId == up.StableId),
+                "section zero removes the walkway: its sealed Way up must not be offered");
+            Equal(section != 18, offered.Any(e => e.StableId == down.StableId),
+                "section eighteen seals the opposite end; the native return elsewhere stays available");
+        }
+    }
+
+    private static void WindingTunnelCuesMatchVisibleLadders()
+    {
+        var world = new Caves();
+        var state = new MidgarGuardMemory();
+        var field = world.Scripts.ReadField(736);
+        var tracker = new FieldScriptNavigationTransitionTracker();
+        var cues = new FieldLadderProximityCueTracker(80, 400, TimeSpan.Zero);
+        var position = world.At(736, 9, -359, 199);
+        var now = new DateTime(2026, 11, 1, 0, 0, 0, DateTimeKind.Utc);
+        foreach (var visible in new[] { false, true, false, true })
+        {
+            state.Bytes[FieldNavigationObjectReader.AddressFieldBankBase + 0x400 + 131] = visible ? (byte)64 : (byte)0;
+            var available = tracker.ResolveForNavigation(736, field.Transitions, _ => true, world.Mesh(736));
+            available = FieldScriptExitGuards.ApplyToExitTraversals(available, field, state);
+            var pulse = cues.Update(position, available, now);
+            Equal(visible ? 1 : 0, pulse.Count, "only the currently visible native ladder entrance may pulse");
+            if (visible)
+                Equal(field.Exits.Single(e => e.TriggerEntityId == 18).ExitTraversalId, pulse.Single().Transition.StableId,
+                    "the incoming top landing is not a second walking entrance");
+            now = now.AddMilliseconds(10);
+        }
+        var unknown = FieldScriptExitGuards.ApplyToExitTraversals(field.Transitions, field, state, _ => null);
+        Equal(0, cues.Update(position, unknown, now).Count, "an unreadable checked native guard cannot authorize the ladder");
+
+        // tunnel_6's ladder is unconditional. Other fields still cue automatic
+        // ladder entrances; only these tunnel incoming landings are excluded.
+        foreach (var (id, expected) in new[] { (778, 1), (88, 2) })
+        {
+            var other = world.Scripts.ReadField(id);
+            var entrance = other.Transitions.First(t => t.Kind == FieldNavigationTransitionKind.Ladder);
+            var at = new FieldPositionSnapshot(1, id, 0, entrance.SourceX, entrance.SourceY, entrance.SourceZ, 0, 0);
+            var transitions = FieldScriptExitGuards.ApplyToExitTraversals(other.Transitions, other, state);
+            Equal(expected, cues.Update(at, transitions, now).Count, $"field {id} keeps its actual ladder entrance(s)");
+        }
+    }
+
+    private static void WindingTunnelJourneyKeepsTheRealEntranceSelectable()
+    {
+        var world = new Caves();
+        var state = new MidgarGuardMemory();
+        world.LiveTransitions = (field, transitions) => FieldScriptExitGuards.ApplyToExitTraversals(
+            transitions, world.Scripts.ReadField(field), state);
+        var upperLeft = world.Scripts.ReadScriptOpcodes(737, 10, 2);
+        Equal(true, upperLeft.Any(op => Hex(op) == "82F08306"), "native section-one upper left reveals the ladder");
+        Equal(true, upperLeft.Any(op => Hex(op) == "7C0F81"), "that branch decrements the section");
+        Equal(true, world.Scripts.ReadScriptOpcodes(736, 16, 2).Any(op => Hex(op) == "83F08306"),
+            "the native return clears the ladder flag again");
+        var labelled = new FieldExitLabelResolver(_ => FieldMapNameResolution.Unknown, () => "Winding Tunnel");
+        IReadOnlyList<FieldNavigationTarget> Targets(FieldPositionSnapshot at)
+        {
+            var field = world.Scripts.ReadField(at.FieldId);
+            return labelled.Resolve(FieldScriptExitGuards.Apply(field.Exits, field.ExitGuards, state));
+        }
+        var reachable = new ReachableFieldExitTargetProvider(Targets, world.SharedPlanner);
+        var source = new FieldNavigationTargetSource([], exitTargetProvider: at => reachable.ReadTargets(at));
+        var controller = new FieldNavigationController(source, world.SharedPlanner);
+
+        // The log's real sequence, including the unproductive right-hand dead end.
+        foreach (var (field, section, flag, entities) in new (int, int, bool, int[])[]
+        {
+            (737, 3, false, [10, 11, 12]), (736, 2, false, [15, 16]),
+            (737, 1, false, [10, 11, 12]), (736, 0, true, [16, 18]),
+            (737, 1, false, [10, 11, 12]), (736, 0, false, [16]),
+            (737, 1, false, [10, 11, 12]), (736, 0, true, [16, 18])
+        })
+        {
+            state.Bytes[FieldNavigationObjectReader.AddressFieldBankBase + 0x400 + 129] = (byte)section;
+            state.Bytes[FieldNavigationObjectReader.AddressFieldBankBase + 0x400 + 131] = flag ? (byte)64 : (byte)0;
+            world.AdditionalLocks.Clear();
+            if (field == 736 && section == 0) world.AdditionalLocks.UnionWith([12, 13, 72, 73]);
+            if (field == 736 && flag) world.AdditionalLocks.Add(215);
+            var at = field == 736 ? world.At(field, 289, -427, 54) : world.At(field, 3, 464, 47);
+            var offered = source.GetTargets(at, FieldNavigationCategory.Exits);
+            Equal(string.Join(',', entities), string.Join(',', offered.Select(e => e.TriggerEntityId).Order()),
+                $"journey field {field} section {section} flag {flag}: only currently available native exits");
+            if (field != 736 || !flag) continue;
+            var ladder = offered.Single(e => e.TriggerEntityId == 18);
+            Equal("Ladder up toward Shinra HQ", ladder.Label, "the actual HQ entrance is named clearly");
+            Equal(true, world.Planner(field).TryBuildRoute(at, ladder, out var route),
+                "HQ ladder routes from the actual arrival with initializer seals and t215 locked");
+            Equal(true, route.Portals.Any(p => p.TransitionId == ladder.ExitTraversalId && p.RequiredInput == FieldNavigationInput.Up && p.RequiresAction),
+                "the arrival route includes the native manual mount and Up climb");
+            SelectCategory(controller, at, FieldNavigationCategory.Exits);
+            var seen = new List<string>();
+            for (var step = 0; step < offered.Count; step++)
+                seen.Add(controller.HandleAction(FieldNavigationAction.NextTarget, at, new(-128))?.Speech ?? "");
+            Equal(true, seen.Any(speech => speech.Contains(ladder.Label, StringComparison.Ordinal)),
+                "the existing menu reaches the ladder while browsing the current two-row set");
+        }
+        Console.WriteLine("PASS native Winding Tunnel journey, section seals, visible ladder and menu selection.");
     }
 
     private sealed class MidgarGuardMemory : Ff7.Accessibility.LegacyLayout.ILegacyAddressSpace
@@ -2256,6 +2385,8 @@ internal static class GuideRouteRegressionTests
 
         public IFieldNavigationRoutePlanner SharedPlanner { get; }
 
+        public Func<int, IReadOnlyList<FieldScriptNavigationTransition>, IReadOnlyList<FieldScriptNavigationTransition>>? LiveTransitions { get; set; }
+
         public byte[] Decoded(int field)
         {
             if (!decoded.TryGetValue(field, out var bytes))
@@ -2289,7 +2420,7 @@ internal static class GuideRouteRegressionTests
                         address => address == FieldBoundaryStateReader.AddressFieldGlobalObjectPtr ? FieldState : 0,
                         address => LockByte(field, address),
                         (_, _) => true),
-                    _ => transitions);
+                    _ => LiveTransitions?.Invoke(field, transitions) ?? transitions);
             }
 
             return planner;
@@ -2428,6 +2559,8 @@ internal static class GuideRouteRegressionTests
         /// </summary>
         public bool PassageShut { get; set; }
 
+        public HashSet<int> AdditionalLocks { get; } = [];
+
         private byte LockByte(int field, int address)
         {
             // The boundary reader first checks that the loaded field is the one being planned.
@@ -2442,7 +2575,10 @@ internal static class GuideRouteRegressionTests
             }
 
             var offset = address - FieldState - FieldBoundaryStateReader.BoundaryBitsOffset;
-            return PassageShut && field == CaveFloor && offset == 16 / 8 ? (byte)(1 << (16 % 8)) : (byte)0;
+            var bits = PassageShut && field == CaveFloor && offset == 16 / 8 ? 1 << (16 % 8) : 0;
+            foreach (var triangle in AdditionalLocks.Where(triangle => triangle / 8 == offset))
+                bits |= 1 << (triangle % 8);
+            return (byte)bits;
         }
 
         private sealed class ByField(Caves world) : IFieldNavigationRoutePlanner

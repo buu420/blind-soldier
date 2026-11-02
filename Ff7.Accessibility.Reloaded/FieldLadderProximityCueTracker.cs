@@ -40,6 +40,10 @@ public sealed class FieldLadderProximityCueTracker
         foreach (var transition in transitions.Where(transition =>
                      transition.FieldId == position.FieldId &&
                      transition.Kind == FieldNavigationTransitionKind.Ladder &&
+                     // These tops are incoming MAPJUMP landings: the initializer
+                     // climbs down automatically, and no walking entrance exists there.
+                     !(transition.FieldId is 736 or 778 &&
+                       transition.StableId.StartsWith("ladder-auto:", StringComparison.Ordinal)) &&
                      (string.IsNullOrWhiteSpace(prioritizedTransitionId) ||
                       string.Equals(
                           transition.StableId,
