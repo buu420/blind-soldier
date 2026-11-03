@@ -207,6 +207,8 @@ internal sealed record WorldMapNativeWeaponArrival(int X, int Y, int Z, int Wrap
           Math.Abs((long)WorldMapTargetCatalog.WrappedDelta(state.Z, Z, WrapHeight))) >> 4) <= 80;
 }
 
+public enum WorldMapTargetLocationKnowledge { Current, LastSeen, Unknown }
+
 public sealed record WorldMapNavigationTarget(
     WorldMapNavigationCategory Category,
     WorldMapTargetKind Kind,
@@ -219,7 +221,11 @@ public sealed record WorldMapNavigationTarget(
     string StableId,
     IReadOnlySet<int> ArrivalTriangleIds)
 {
+    public WorldMapTargetLocationKnowledge LocationKnowledge { get; init; }
+    public bool HasKnownLocation => LocationKnowledge != WorldMapTargetLocationKnowledge.Unknown;
+
     public bool HasArrived(int triangleId) =>
+        LocationKnowledge == WorldMapTargetLocationKnowledge.Current &&
         NativeUnderwaterArrival is null &&
         SubmarineDiveDestination is null && SubmarineSurfacingPoint is null &&
         NativeLocationArrivals.Count == 0 &&
@@ -299,6 +305,8 @@ public sealed record WorldMapNavigationTarget(
 
     public bool HasArrived(WorldMapStateSnapshot state, int triangleId)
     {
+        // Reaching a remembered area cannot confirm that a moving creature is there.
+        if (LocationKnowledge != WorldMapTargetLocationKnowledge.Current) return false;
         if (NativeWeaponArrival is { } weapon)
             return weapon.IsSatisfiedBy(state);
         if (SubmarineDiveDestination is { } dive)

@@ -549,6 +549,11 @@ public sealed partial class WorldMapNavigationController
             ? liveTargets.FirstOrDefault(candidate =>
                 string.Equals(candidate.StableId, priorLiveTarget.StableId, StringComparison.Ordinal))
             : null;
+        if (freshLiveTarget is { HasKnownLocation: false } unlocated)
+        {
+            ResetRoute();
+            return new($"{unlocated.Label}'s location is unknown. Navigation off.", StopAutoWalk: true);
+        }
         if (freshLiveTarget is null && resumedAfterCombat && activeTarget is { NativeEntityModelId: 11 })
         {
             // The native pool is rebuilt when the world reloads after battle. Model11
@@ -1943,6 +1948,11 @@ public sealed partial class WorldMapNavigationController
         // Every start is a current request. A fresh selection must retire any identity
         // that was waiting through an unreadable frame before Observe can resume it.
         pendingEntityTarget = null;
+        if (!target.HasKnownLocation)
+        {
+            ResetRoute();
+            return new($"{target.Label}'s location is unknown. Explore underwater to sight it first. Navigation off.", StopAutoWalk: true);
+        }
         if (target.SubmarineDiveDestination is { } diveDestination && SubmarineJourney is { } journey)
             journey.Start(this, diveDestination, state);
         else SubmarineJourney?.Cancel(this);
@@ -1964,6 +1974,7 @@ public sealed partial class WorldMapNavigationController
         submarineManualDescent = false;
         submarineDepthRecoveryAnnounced = false;
         submarineEmeraldMissingSince = DateTime.MinValue;
+        submarineLastSeenAnnounced = false;
         submarineUnsafeApproach = null;
 
         var continuesProgressRoute =
@@ -2337,6 +2348,10 @@ public sealed partial class WorldMapNavigationController
         var label = state.WorldMapType == 2 && CurrentCategory == WorldMapNavigationCategory.Events
             ? $"{target.Label}, {selectedIndices.GetValueOrDefault(CurrentCategory) + 1} of {targets.Count}"
             : target.Label;
+        if (!target.HasKnownLocation)
+            return new($"{DisplayName(CurrentCategory)}, {label}. Location unknown. Explore underwater to sight it first.");
+        if (target.LocationKnowledge == WorldMapTargetLocationKnowledge.LastSeen)
+            label += ", last-seen location";
         if (target.NativeEntityModelId == 11 && state.PlayerModelId != 3)
             return new("Events, Ultimate Weapon. Use the Highwind to follow it.");
         if (state.PlayerModelId == 13 && target.Kind == WorldMapTargetKind.Transportation && target.NativeEntityModelId == 3)

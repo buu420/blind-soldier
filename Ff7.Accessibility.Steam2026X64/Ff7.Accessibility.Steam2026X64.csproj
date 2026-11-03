@@ -1044,6 +1044,7 @@
     <Compile Include="..\Ff7.Accessibility.Reloaded\WorldMapVehicleDetourPlanner.cs" Link="Shared\WorldMapVehicleDetourPlanner.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\WorldMapEntranceProximityCueTracker.cs" Link="Shared\WorldMapEntranceProximityCueTracker.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\WorldMapRuntimeContext.cs" Link="Shared\WorldMapRuntimeContext.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\WorldMapEmeraldMemory.cs" Link="Shared\WorldMapEmeraldMemory.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\DeferredZoneSpeechTracker.cs" Link="Shared\DeferredZoneSpeechTracker.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldCountdownSpeechCoordinator.cs" Link="Shared\FieldCountdownSpeechCoordinator.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\ShinraMansionSafeDialReadout.cs" Link="Shared\ShinraMansionSafeDialReadout.cs" />

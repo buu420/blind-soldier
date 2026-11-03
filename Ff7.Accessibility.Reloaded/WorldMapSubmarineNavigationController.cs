@@ -6,6 +6,7 @@ public sealed partial class WorldMapNavigationController
     private bool submarineDepthRecoveryAnnounced;
     private DateTime submarineEmeraldMissingSince = DateTime.MinValue;
     private string? submarineUnsafeApproach;
+    private bool submarineLastSeenAnnounced;
 
     private static bool UnderwaterRouteEndMoved(WorldMapNavigationTarget target, WorldMapRoutePlan route)
     {
@@ -26,6 +27,10 @@ public sealed partial class WorldMapNavigationController
         entityProvider?.Invoke().Any(e => e.ModelId == 30 && e.IsVisibleUnderwater && !e.IsPlayer &&
             string.Equals($"world-entity:{e.GuestPointer:X8}:30", target.StableId, StringComparison.Ordinal)) == true;
 
+    private bool HasEmeraldEntity(WorldMapNavigationTarget target) =>
+        entityProvider?.Invoke().Any(e => e.ModelId == 30 && !e.IsPlayer &&
+            string.Equals($"world-entity:{e.GuestPointer:X8}:30", target.StableId, StringComparison.Ordinal)) == true;
+
     private static int UnderwaterHorizontalDistance(WorldMapStateSnapshot state, WorldMapNavigationTarget target) =>
         Math.Abs(WorldMapTargetCatalog.WrappedDelta(state.X, target.X, 0x48000)) +
         Math.Abs(WorldMapTargetCatalog.WrappedDelta(state.Z, target.Z, 0x38000));
@@ -42,19 +47,40 @@ public sealed partial class WorldMapNavigationController
         }
         if (target.NativeUnderwaterArrival?.ModelId == 30)
         {
-            if (HasFreshEmeraldSighting(target))
-            { submarineEmeraldMissingSince = DateTime.MinValue; return null; }
-            ResetAutoWalkConvergence();
-            if (submarineEmeraldMissingSince == DateTime.MinValue) submarineEmeraldMissingSince = now;
-            // Render flags are cleared and repopulated within a native frame. No
-            // positive observation means no input immediately, but a short gap must
-            // not discard the selection or claim the enemy left the screen.
-            if (now - submarineEmeraldMissingSince < TimeSpan.FromMilliseconds(500)) return new(null);
-            ResetRoute();
-            lastDiagnostic = "explicit Emerald approach lost its positive native visibility observation";
-            return new("Cannot confirm Emerald Weapon in the current view. Auto walk stopped. Navigation off.", StopAutoWalk: true);
+            if (target.LocationKnowledge == WorldMapTargetLocationKnowledge.LastSeen)
+            {
+                submarineEmeraldMissingSince = DateTime.MinValue;
+                if (activeRoute is { Waypoints.Count: > 0 } rememberedRoute &&
+                    SubmarineDistance(state, rememberedRoute.Waypoints[^1]) <= WorldMapSubmarineSteering.HorizontalStopDistance &&
+                    state.Y >= WorldMapSubmarineSteering.TravelDepth - WorldMapSubmarineSteering.DepthTolerance)
+                {
+                    ResetRoute();
+                    return new("Reached Emerald Weapon's last-seen area. It is not currently visible. Navigation off.", StopAutoWalk: true);
+                }
+                if (!submarineLastSeenAnnounced)
+                {
+                    submarineLastSeenAnnounced = true;
+                    ResetAutoWalkConvergence();
+                    return new("Emerald Weapon is out of view. Continuing to its last-seen location at normal travel depth.");
+                }
+            }
+            else
+            {
+                submarineLastSeenAnnounced = false;
+                if (HasFreshEmeraldSighting(target))
+                { submarineEmeraldMissingSince = DateTime.MinValue; return null; }
+                ResetAutoWalkConvergence();
+                if (submarineEmeraldMissingSince == DateTime.MinValue) submarineEmeraldMissingSince = now;
+                // Direct live targets without remembered knowledge still need positive
+                // visibility. The runtime replaces its retained target with LastSeen.
+                if (now - submarineEmeraldMissingSince < TimeSpan.FromMilliseconds(500)) return new(null);
+                ResetRoute();
+                lastDiagnostic = "explicit Emerald approach lost its positive native visibility observation";
+                return new("Cannot confirm Emerald Weapon in the current view. Auto walk stopped. Navigation off.", StopAutoWalk: true);
+            }
         }
-        if (target.NativeUnderwaterArrival is not null && !target.HasArrived(state, playerTriangle) &&
+        if (target.LocationKnowledge != WorldMapTargetLocationKnowledge.LastSeen &&
+            target.NativeUnderwaterArrival is not null && !target.HasArrived(state, playerTriangle) &&
             IsAboveSubmarineDescent(state, target))
         {
             ResetAutoWalkConvergence();
@@ -97,7 +123,8 @@ public sealed partial class WorldMapNavigationController
     {
         if (submarineManualDescent || (target.NativeUnderwaterArrival?.ModelId is 17 or 26 or 28 &&
             IsAboveSubmarineDescent(state, target))) return DescribeSubmarineDescent(target);
-        var emerald = target.NativeUnderwaterArrival?.ModelId == 30;
+        var remembered = target.LocationKnowledge == WorldMapTargetLocationKnowledge.LastSeen;
+        var emerald = target.NativeUnderwaterArrival?.ModelId == 30 && !remembered;
         var depth = emerald ? WorldMapSubmarineSteering.EmeraldDepth : WorldMapSubmarineSteering.TravelDepth;
         if (state.Y < depth - (emerald ? 120 : 0)) return $"Rise to travel depth toward {target.Label}.";
         if (emerald && state.Y > depth + 120) return "Descending toward the selected Emerald Weapon.";
@@ -110,7 +137,7 @@ public sealed partial class WorldMapNavigationController
         var turn = ((angle - state.CameraFront + 6144) % 4096) - 2048;
         var heading = Math.Abs(turn) <= 64 ? "Ahead" : turn > 0 ? "Turn right" : "Turn left";
         var counts = Math.Max(1, (int)Math.Ceiling(Math.Sqrt(dx * (double)dx + dz * (double)dz) / distanceUnitsPerCount));
-        return $"{heading}. {target.Label}, {counts} counts to the next waypoint.";
+        return $"{heading}. {target.Label}{(remembered ? " last-seen location" : string.Empty)}, {counts} counts to the next waypoint.";
     }
 
     private bool TryResolveSubmarineInput(WorldMapStateSnapshot state, out FieldNavigationInput input)
@@ -198,7 +225,9 @@ public sealed partial class WorldMapNavigationController
             EndSubmarineTerminal();
             return false;
         }
-        var emerald = activeTarget.NativeUnderwaterArrival?.ModelId == 30;
+        var remembered = activeTarget.LocationKnowledge == WorldMapTargetLocationKnowledge.LastSeen;
+        var emerald = activeTarget.NativeUnderwaterArrival?.ModelId == 30 && !remembered;
+        if (remembered && !HasEmeraldEntity(activeTarget)) return false;
         if (emerald && !HasFreshEmeraldSighting(activeTarget)) return false;
         waypointIndex = ResolveSubmarineWaypoint(state, route, waypointIndex);
         var aim = route.Waypoints[waypointIndex];

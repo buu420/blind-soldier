@@ -11,6 +11,7 @@ public sealed class WorldMapRuntimeContext
     private WorldMapUnderwaterVisibilityReader? underwaterVisibility;
     private uint announcedEmerald;
     private DateTime emeraldAbsentSince = DateTime.MinValue;
+    private readonly WorldMapEmeraldMemory emeraldMemory = new();
 
     public WorldMapRuntimeContext(
         WorldMapData map,
@@ -50,7 +51,7 @@ public sealed class WorldMapRuntimeContext
         Navigation = new WorldMapNavigationController(
             map,
             Planner,
-            (state, category) => Catalog.ReadTargets(category, state, Entities),
+            ReadNavigationTargets,
             progressSink,
             distanceUnitsPerCount,
             guidanceInterval,
@@ -120,8 +121,22 @@ public sealed class WorldMapRuntimeContext
 
     public void UpdateEntities(IReadOnlyList<WorldMapEntitySnapshot>? value)
     {
-        Volatile.Write(ref entities, value ?? Array.Empty<WorldMapEntitySnapshot>());
+        value ??= Array.Empty<WorldMapEntitySnapshot>();
+        if (Map.WorldMapType == 2) emeraldMemory.Observe(value);
+        Volatile.Write(ref entities, value);
         LastUnderwaterVisibilityDiagnostic = string.Empty;
+    }
+
+    private IReadOnlyList<WorldMapNavigationTarget> ReadNavigationTargets(
+        WorldMapStateSnapshot state, WorldMapNavigationCategory category)
+    {
+        var frame = Entities;
+        var current = Catalog.ReadTargets(category, state, frame);
+        if (Map.WorldMapType != 2 || category != WorldMapNavigationCategory.Events ||
+            emeraldMemory.ReadTarget(state, Catalog, frame, current) is not { } emerald) return current;
+        return current.Where(t => t.StableId != emerald.StableId).Append(emerald)
+            .OrderBy(t => t.Label, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(t => t.StableId, StringComparer.Ordinal).ToArray();
     }
 
     public void UpdateEntities(WorldMapStateSnapshot state,
