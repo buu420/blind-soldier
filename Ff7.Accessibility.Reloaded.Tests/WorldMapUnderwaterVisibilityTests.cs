@@ -27,6 +27,7 @@ internal static class WorldMapUnderwaterVisibilityTests
             AnEmeraldInFrontOfTheCameraAboveOpenSeabedIsVisible,
             AllThreeCameraTranslationComponentsUseThePackedNativeLayout,
             TheNativeCameraFrameMakesEmeraldSelectableAndTrackable,
+            EmeraldMenuDelayRetainsOnlyTheLastPositivelySeenLocation,
             RuntimeRetainsVisibilityRejectionReasonsAndResetsThem,
             TheModelRecordIsFoundThroughTheNativeSlotTable,
             ADrawFlagOnAnotherModelsRecordDoesNotMakeEmeraldVisible,
@@ -63,7 +64,170 @@ internal static class WorldMapUnderwaterVisibilityTests
         }
 
         if (failures.Count != 0) throw new AggregateException(failures);
-        Console.WriteLine("world-map underwater visibility tests passed (32 scenarios).");
+        Console.WriteLine("world-map underwater visibility tests passed (33 scenarios).");
+    }
+
+    internal static void RunPersistentEmerald()
+    {
+        EmeraldMenuDelayRetainsOnlyTheLastPositivelySeenLocation();
+        TheNativeCameraFrameMakesEmeraldSelectableAndTrackable();
+    }
+
+    private static void EmeraldMenuDelayRetainsOnlyTheLastPositivelySeenLocation()
+    {
+        var dataRoot = Environment.GetEnvironmentVariable("FF7_ACCESSIBILITY_DATA_ROOT");
+        var sourceRoot = Environment.GetEnvironmentVariable("FF7_ACCESSIBILITY_SOURCE_ROOT");
+        if (dataRoot is null || sourceRoot is null)
+        {
+            Console.WriteLine("installed persistent Emerald checks skipped: data/source roots were not provided.");
+            return;
+        }
+        var scene = Scene.Standard();
+        scene.Map = WorldMapDataLoader.Load(Path.Combine(dataRoot, "data", "wm", "wm2.map"), 2, 0);
+        var catalog = WorldMapTargetCatalog.Load(scene.Map,
+            Path.Combine(sourceRoot, "external", "kujata", "field-id-to-world-map-coords.json"),
+            Path.Combine(sourceRoot, "external", "kujata", "wm-field-menu-names.txt"),
+            Path.Combine(sourceRoot, "Ff7.Accessibility.Reloaded", "Assets", "world", "world-map-location-triggers.json"));
+        var runtime = new WorldMapRuntimeContext(scene.Map, catalog, null, 256, TimeSpan.FromSeconds(2),
+            TimeSpan.FromMilliseconds(400), TimeSpan.FromMilliseconds(300), 1, 10, TimeSpan.FromSeconds(2));
+        var state = scene.State with
+        {
+            GameMoment = 1396, HasNativeControlMode = true, NativeCameraMode = 3,
+            NativeFrameMultiplier = 1, CameraFront = 2048
+        };
+        WorldMapStateSnapshot At(int x, int y, int z)
+        {
+            Check(WorldMapBroncoLanding.TryFindSurface(scene.Map, x, z, out var floor), "test pose has native seabed");
+            return state with { X = x, Y = y, Z = z, TerrainId = floor.TerrainId,
+                TerrainScriptId = floor.TerrainScriptId, RegionId = floor.RegionId & 31 };
+        }
+        state = At(state.X, state.Y, state.Z);
+        void ObserveFrame()
+        {
+            var native = new WorldMapEntityReader(scene.Memory).Read();
+            Check(native.IsUsable, "persistent Emerald native entity scan: " + native.Diagnostic);
+            runtime.UpdateEntities(state, native.Entities, scene.Memory);
+        }
+        scene.Memory.PutInt(Scene.Record(7) + 0x24, 0);
+        ObserveFrame();
+        WorldMapNavigationOutput? menu = null;
+        for (var i = 0; i < 3; i++) menu = runtime.Navigation.HandleAction(FieldNavigationAction.NextCategory, state);
+        Check(menu?.Speech?.Contains("Emerald Weapon", StringComparison.Ordinal) == true &&
+            menu.Value.Speech.Contains("unknown", StringComparison.OrdinalIgnoreCase),
+            "an existing unseen Emerald stays in Events with an explicitly unknown location: " + menu?.Speech);
+        var unknown = runtime.Navigation.HandleAction(FieldNavigationAction.ToggleBeacon, state);
+        Check(!runtime.Navigation.BeaconEnabled && unknown?.Speech?.Contains("unknown", StringComparison.OrdinalIgnoreCase) == true &&
+            !runtime.Navigation.TryResolveAutomaticInput(state, out _), "an unknown row cannot start a fake origin route");
+
+        scene.Memory.PutInt(Scene.Record(7) + 0x24, 1);
+        ObserveFrame();
+        var sighted = runtime.Navigation.HandleAction(FieldNavigationAction.RepeatTarget, state);
+        Check(sighted?.Speech?.Contains("Emerald Weapon", StringComparison.Ordinal) == true,
+            "the same announced Events identity acquires a positive sighting");
+        var visible = runtime.Entities.Single(e => e.ModelId == 30);
+        var recorded = catalog.ReadTargets(WorldMapNavigationCategory.Events, state, runtime.Entities)
+            .Single(t => t.Label == "Emerald Weapon");
+        scene.Memory.PutInt(Scene.Record(7) + 0x24, 0);
+        scene.MoveEmeraldBy(8000);
+        ObserveFrame();
+        var remembered = runtime.Navigation.HandleAction(FieldNavigationAction.RepeatTarget, state);
+        Check(remembered?.Speech?.Contains("last-seen", StringComparison.OrdinalIgnoreCase) == true,
+            "menu delay labels the remembered position rather than dropping or substituting the row: " + remembered?.Speech);
+        runtime.Navigation.HandleAction(FieldNavigationAction.ToggleBeacon, state);
+        Check(runtime.Navigation.BeaconEnabled && runtime.Navigation.Probe.TargetId == recorded.StableId,
+            "pursuit after leaving view starts the announced Emerald's remembered route");
+        var endpoint = runtime.Navigation.Probe.Route!.Waypoints[^1];
+        Check(Math.Abs(endpoint.X - recorded.X) <= 1215 && Math.Abs(endpoint.Z - recorded.Z) <= 1215,
+            "the route uses the last positive sighting, never the hidden patrol coordinates");
+        var deep = state with { Y = -4250 };
+        runtime.Navigation.Observe(deep, automaticWalkActive: true);
+        Check(runtime.Navigation.TryResolveAutomaticInput(deep, out var input) && input == FieldNavigationInput.Down,
+            "remembered navigation rises to normal safe travel depth");
+
+        var stateClock = new DateTime(2026, 11, 3, 21, 0, 0, DateTimeKind.Utc);
+        runtime.ObserveUnavailableState(stateClock);
+        Check(!runtime.Navigation.TryResolveAutomaticInput(deep, out _), "an unavailable state frame releases remembered movement immediately");
+        ObserveFrame();
+        Check(runtime.Navigation.HandleAction(FieldNavigationAction.RepeatTarget, state)?.Speech?.Contains("last-seen", StringComparison.OrdinalIgnoreCase) == true,
+            "one torn state read followed by a valid hidden frame retains last-seen knowledge");
+        Check(runtime.Navigation.Observe(deep, stateClock.AddMilliseconds(50), automaticWalkActive: true)?.StopAutoWalk != true &&
+            runtime.Navigation.BeaconEnabled && runtime.Navigation.TryResolveAutomaticInput(deep, out input) && input == FieldNavigationInput.Down,
+            "the same remembered route resumes after the brief state-read failure");
+
+        runtime.ObserveUnavailableState(stateClock.AddMilliseconds(100));
+        runtime.ObserveUnavailableState(stateClock.AddMilliseconds(599));
+        ObserveFrame();
+        Check(runtime.Navigation.HandleAction(FieldNavigationAction.RepeatTarget, state)?.Speech?.Contains("last-seen", StringComparison.OrdinalIgnoreCase) == true,
+            "an outage shorter than 500ms does not erase the remembered location");
+        runtime.ObserveUnavailableState(stateClock.AddMilliseconds(600));
+        runtime.ObserveUnavailableState(stateClock.AddMilliseconds(1100));
+        ObserveFrame();
+        var stoppedForState = runtime.Navigation.Observe(state, stateClock.AddMilliseconds(1150), automaticWalkActive: true);
+        Check(stoppedForState?.StopAutoWalk == true && stoppedForState.Value.Speech?.Contains("unknown", StringComparison.OrdinalIgnoreCase) == true,
+            "sustained unavailable state cannot resume a route with unknown coordinates");
+        Check(runtime.Navigation.HandleAction(FieldNavigationAction.RepeatTarget, state)?.Speech?.Contains("unknown", StringComparison.OrdinalIgnoreCase) == true,
+            "a sustained 500ms state outage retires the old location even with the same pointer");
+
+        scene.MoveEmeraldBy(-7600);
+        scene.Memory.PutInt(Scene.Record(7) + 0x24, 1);
+        ObserveFrame();
+        Check(runtime.Entities.Any(e => e.ModelId == 30 && e.IsVisibleUnderwater), "the new native frame positively re-sights Emerald");
+        Check(runtime.ObserveUnderwaterSightings(state) is not null, "a positive sighting after sustained unavailability is announced anew");
+        runtime.ObserveUnavailableState(stateClock.AddSeconds(2));
+        ObserveFrame();
+        Check(runtime.ObserveUnderwaterSightings(state) is null,
+            "one torn state read followed by a valid visible frame does not re-announce a continuous sighting");
+        runtime.Navigation.HandleAction(FieldNavigationAction.ToggleBeacon, state);
+        runtime.Navigation.Observe(state, automaticWalkActive: true);
+        Check(runtime.Navigation.Probe.Route!.Waypoints[^1].X == RefX + 400,
+            "a positive resighting refreshes the retained target");
+        scene.Memory.PutInt(Scene.Record(7) + 0x24, 0);
+        ObserveFrame();
+        var gapClock = new DateTime(2026, 11, 3, 20, 0, 0, DateTimeKind.Utc);
+        runtime.Navigation.Observe(state, gapClock, automaticWalkActive: true);
+        runtime.Navigation.Observe(state, gapClock.AddMilliseconds(500), automaticWalkActive: true);
+        endpoint = runtime.Navigation.Probe.Route!.Waypoints[^1];
+        var atRemembered = At(endpoint.X, -3000, endpoint.Z);
+        var arrived = runtime.Navigation.Observe(atRemembered, gapClock.AddMilliseconds(600), automaticWalkActive: true);
+        Check(arrived?.StopAutoWalk == true && arrived.Value.Speech?.Contains("last-seen", StringComparison.OrdinalIgnoreCase) == true &&
+            !runtime.Navigation.BeaconEnabled, "reaching the recorded area stops without claiming Emerald is there: " + arrived?.Speech);
+        Check(!runtime.Navigation.TryResolveAutomaticInput(atRemembered, out _), "the remembered-area handoff releases all movement");
+
+        runtime.Reset();
+        runtime.UpdateEntities([visible with { IsVisibleUnderwater = false }]);
+        for (var i = 0; i < 3; i++) menu = runtime.Navigation.HandleAction(FieldNavigationAction.NextCategory, state);
+        Check(menu?.Speech?.Contains("unknown", StringComparison.OrdinalIgnoreCase) == true,
+            "reset does not reuse knowledge from another native map load or save");
+        runtime.UpdateEntities([visible]);
+        runtime.UpdateEntities([visible with { GuestPointer = EmeraldPointer + 0x1000, IsVisibleUnderwater = false }]);
+        runtime.Navigation.HandleAction(FieldNavigationAction.NextTarget, state);
+        Check(runtime.Navigation.HandleAction(FieldNavigationAction.RepeatTarget, state)?.Speech?.Contains("unknown", StringComparison.OrdinalIgnoreCase) == true,
+            "a replaced native pool starts with unknown location rather than the previous node's position");
+        runtime.UpdateEntities([]);
+        var absent = runtime.Navigation.HandleAction(FieldNavigationAction.RepeatTarget, state);
+        Check(absent?.Speech?.Contains("unknown", StringComparison.OrdinalIgnoreCase) != true && !runtime.Navigation.BeaconEnabled,
+            "a retired or defeated native entity does not leave a remembered route");
+        runtime.Reset();
+        runtime.UpdateEntities([visible]);
+        for (var i = 0; i < 3; i++) runtime.Navigation.HandleAction(FieldNavigationAction.NextCategory, state);
+        runtime.UpdateEntities([visible with { IsVisibleUnderwater = false }]);
+        runtime.Navigation.HandleAction(FieldNavigationAction.ToggleBeacon, state);
+        Check(runtime.Navigation.BeaconEnabled, "a final remembered route is active before retiring its entity");
+        runtime.UpdateEntities([]);
+        Check(!runtime.Navigation.TryResolveAutomaticInput(state, out _), "native pool retirement releases remembered input before the next observation");
+        Check(runtime.Navigation.Observe(state, automaticWalkActive: true)?.StopAutoWalk == true && !runtime.Navigation.BeaconEnabled,
+            "the next observation cancels a retired creature's remembered route");
+        runtime.UpdateEntities([visible]);
+        Check(runtime.ObserveUnderwaterSightings(state) is not null, "a first sighting is announced before the native world is retired");
+        runtime.UpdateEntities([]);
+        runtime.UpdateEntities([visible with { IsVisibleUnderwater = false }]);
+        runtime.Navigation.HandleAction(FieldNavigationAction.NextTarget, state);
+        Check(runtime.Navigation.HandleAction(FieldNavigationAction.RepeatTarget, state)?.Speech?.Contains("unknown", StringComparison.OrdinalIgnoreCase) == true,
+            "retiring a world clears knowledge even when the native pool reuses exactly the same pointer");
+        runtime.UpdateEntities([visible]);
+        Check(runtime.ObserveUnderwaterSightings(state) is not null,
+            "retiring a native world also clears its sighting announcement so a reused pointer can be announced again");
+        Console.WriteLine("persistent Emerald native menu, unknown location, last-seen travel and lifecycle checks passed.");
     }
 
     private static void AnEmeraldInFrontOfTheCameraAboveOpenSeabedIsVisible()
@@ -177,9 +341,37 @@ internal static class WorldMapUnderwaterVisibilityTests
             "an undrawn frame removes Emerald from Events");
         Check(!runtime.Navigation.TryResolveAutomaticInput(state, out _), "loss of sight immediately releases pursuit input");
         var clock = new DateTime(2026, 10, 10, 20, 0, 0, DateTimeKind.Utc);
-        runtime.Navigation.Observe(state, clock, automaticWalkActive: true);
-        Check(runtime.Navigation.Observe(state, clock.AddMilliseconds(600), automaticWalkActive: true)?.StopAutoWalk == true,
-            "sustained loss cancels the stale pursuit");
+        var beforeGap = runtime.Navigation.Probe.Route;
+        var gap = runtime.Navigation.Observe(state, clock, automaticWalkActive: true);
+        Check(gap?.Speech is null && gap?.StopAutoWalk != true && runtime.Navigation.Probe.Route == beforeGap &&
+            !runtime.Navigation.TryResolveAutomaticInput(state, out _),
+            "one runtime render gap silently pauses all input and preserves the encounter route: " + gap?.Speech);
+        for (var frame = 1; frame <= 4; frame++)
+        {
+            scene.Memory.PutInt(Scene.Record(7) + 0x24, 1);
+            ObserveFrame();
+            runtime.Navigation.Observe(state, clock.AddMilliseconds(frame * 100 - 50), automaticWalkActive: true);
+            Check(runtime.Navigation.TryResolveAutomaticInput(state, out direction) && direction == FieldNavigationInput.Up,
+                "a positive frame resumes encounter-depth pursuit without rising to travel depth");
+            scene.Memory.PutInt(Scene.Record(7) + 0x24, 0);
+            ObserveFrame();
+            gap = runtime.Navigation.Observe(state, clock.AddMilliseconds(frame * 100), automaticWalkActive: true);
+            Check(gap?.Speech is null && gap?.StopAutoWalk != true &&
+                !runtime.Navigation.TryResolveAutomaticInput(state, out _),
+                "alternating render gaps cannot repeat lost-sight speech or generate travel-depth input: " + gap?.Speech);
+        }
+        Check(runtime.Navigation.Observe(state, clock.AddMilliseconds(899), automaticWalkActive: true)?.Speech is null &&
+            !runtime.Navigation.TryResolveAutomaticInput(state, out _),
+            "a continuous 499 ms gap still holds all pursuit input");
+        runtime.ObserveUnderwaterSightings(state, nowUtc: clock.AddMilliseconds(400));
+        runtime.ObserveUnderwaterSightings(state, nowUtc: clock.AddMilliseconds(900));
+        var remembered = runtime.Navigation.Observe(state, clock.AddMilliseconds(900), automaticWalkActive: true);
+        Check(remembered?.Speech?.Contains("last-seen", StringComparison.OrdinalIgnoreCase) == true &&
+            runtime.Navigation.Observe(state, clock.AddMilliseconds(950), automaticWalkActive: true)?.Speech is null &&
+            runtime.Navigation.BeaconEnabled,
+            "500 ms of continuous absence announces the safe-depth last-seen route exactly once");
+        Check(runtime.Navigation.TryResolveAutomaticInput(state with { Y = -4250 }, out direction) && direction == FieldNavigationInput.Down,
+            "sustained absence permits rising to safe travel depth only after the grace window");
         scene.Memory.PutInt(Scene.Record(7) + 0x24, 1);
         scene.Memory.PutByte(EmeraldPointer + 0x51, 0x0A);
         ObserveFrame();
@@ -189,6 +381,9 @@ internal static class WorldMapUnderwaterVisibilityTests
         // Ordinary journeys still rise to the safe travel depth even when Emerald is visible.
         scene.Memory.PutByte(EmeraldPointer + 0x51, 0x02);
         ObserveFrame();
+        Check(runtime.ObserveUnderwaterSightings(state, nowUtc: clock.AddMilliseconds(1000)) ==
+            "Emerald Weapon is visible nearby. It remains your navigation target.",
+            "resighting during an active Emerald route does not incorrectly ask the player to select it again");
         var gelnika = catalog.Locations.Single(t => t.Label == "Sunken Gelnika");
         var ordinary = new WorldMapNavigationController(scene.Map, runtime.Planner, (_, _) => [gelnika],
             entityProvider: () => runtime.Entities);

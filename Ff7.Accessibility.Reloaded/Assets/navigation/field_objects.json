@@ -3397,7 +3397,7 @@
                             "entityId":  13,
                             "kind":  "Named",
                             "nativeId":  -1,
-                            "label":  "Excavation treasure chest",
+                            "label":  "Excavation results chest",
                             "quantity":  1,
                             "collectedBank":  -1,
                             "collectedAddress":  -1,
@@ -3413,16 +3413,17 @@
                             "staticX":  0,
                             "staticY":  0,
                             "staticZ":  0,
-                            "cueKindOverride":  null,
+                            "cueKindOverride":  "Chest",
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  617,
                             "entityId":  13,
                             "kind":  "Named",
                             "nativeId":  -1,
-                            "label":  "Excavation treasure chest",
+                            "label":  "Excavation results chest",
                             "quantity":  1,
                             "collectedBank":  -1,
                             "collectedAddress":  -1,
@@ -3438,16 +3439,17 @@
                             "staticX":  0,
                             "staticY":  0,
                             "staticZ":  0,
-                            "cueKindOverride":  null,
+                            "cueKindOverride":  "Chest",
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  617,
                             "entityId":  13,
                             "kind":  "Named",
                             "nativeId":  -1,
-                            "label":  "Excavation treasure chest",
+                            "label":  "Excavation results chest",
                             "quantity":  1,
                             "collectedBank":  -1,
                             "collectedAddress":  -1,
@@ -3463,16 +3465,17 @@
                             "staticX":  0,
                             "staticY":  0,
                             "staticZ":  0,
-                            "cueKindOverride":  null,
+                            "cueKindOverride":  "Chest",
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  617,
                             "entityId":  13,
                             "kind":  "Named",
                             "nativeId":  -1,
-                            "label":  "Excavation treasure chest",
+                            "label":  "Excavation results chest",
                             "quantity":  1,
                             "collectedBank":  -1,
                             "collectedAddress":  -1,
@@ -3488,16 +3491,17 @@
                             "staticX":  0,
                             "staticY":  0,
                             "staticZ":  0,
-                            "cueKindOverride":  null,
+                            "cueKindOverride":  "Chest",
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  617,
                             "entityId":  13,
                             "kind":  "Named",
                             "nativeId":  -1,
-                            "label":  "Excavation treasure chest",
+                            "label":  "Excavation results chest",
                             "quantity":  1,
                             "collectedBank":  -1,
                             "collectedAddress":  -1,
@@ -3513,16 +3517,17 @@
                             "staticX":  0,
                             "staticY":  0,
                             "staticZ":  0,
-                            "cueKindOverride":  null,
+                            "cueKindOverride":  "Chest",
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  617,
                             "entityId":  13,
                             "kind":  "Named",
                             "nativeId":  -1,
-                            "label":  "Excavation treasure chest",
+                            "label":  "Excavation results chest",
                             "quantity":  1,
                             "collectedBank":  -1,
                             "collectedAddress":  -1,
@@ -3538,16 +3543,17 @@
                             "staticX":  0,
                             "staticY":  0,
                             "staticZ":  0,
-                            "cueKindOverride":  null,
+                            "cueKindOverride":  "Chest",
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  617,
                             "entityId":  13,
                             "kind":  "Named",
                             "nativeId":  -1,
-                            "label":  "Excavation treasure chest",
+                            "label":  "Excavation results chest",
                             "quantity":  1,
                             "collectedBank":  -1,
                             "collectedAddress":  -1,
@@ -3563,9 +3569,10 @@
                             "staticX":  0,
                             "staticY":  0,
                             "staticZ":  0,
-                            "cueKindOverride":  null,
+                            "cueKindOverride":  "Chest",
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  609,
@@ -3647,7 +3654,7 @@
                             "entityId":  13,
                             "kind":  "Named",
                             "nativeId":  -1,
-                            "label":  "Excavation treasure chest",
+                            "label":  "Excavation results chest",
                             "quantity":  1,
                             "collectedBank":  -1,
                             "collectedAddress":  -1,
@@ -3663,9 +3670,10 @@
                             "staticX":  0,
                             "staticY":  0,
                             "staticZ":  0,
-                            "cueKindOverride":  null,
+                            "cueKindOverride":  "Chest",
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  609,
@@ -3947,7 +3955,7 @@
                             "entityId":  13,
                             "kind":  "Named",
                             "nativeId":  -1,
-                            "label":  "Excavation treasure chest",
+                            "label":  "Excavation results chest",
                             "quantity":  1,
                             "collectedBank":  -1,
                             "collectedAddress":  -1,
@@ -3963,9 +3971,10 @@
                             "staticX":  0,
                             "staticY":  0,
                             "staticZ":  0,
-                            "cueKindOverride":  null,
+                            "cueKindOverride":  "Chest",
                             "minimumGameMoment":  -1,
-                            "maximumGameMoment":  -1
+                            "maximumGameMoment":  -1,
+                            "usesTalkInteraction":  true
                         },
                         {
                             "fieldId":  247,

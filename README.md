@@ -138,6 +138,14 @@ again where one exists.
 Field and world-map navigation, routes, auto walk and the progress indicator
 are described under [Navigation](#navigation).
 
+Version 0.10.8 adds Ancient Forest to Locations through its native Confirm entrance,
+including legal Highwind landings after Ultimate Weapon and chocobo approaches.
+Emerald stays in underwater Events while it exists: its location is unknown until
+sighted, then current visible or clearly labelled last-seen information. Last-seen
+navigation travels at normal depth and stops at the recorded area. Bone Village's
+Excavation results chest now uses Talk positioning and a chest cue; open it with
+Confirm to collect the dig result. See the [release notes](docs/releases/v0.10.8.md).
+
 Version 0.10.7 repairs the Winding Tunnel approach to Shinra HQ. Sealed tunnel
 ends no longer appear as usable exits, and ladder cues follow the native ladder's
 visibility. The available HQ entrance is labelled clearly in Exits. See the
@@ -503,10 +511,10 @@ instead of reading unverified game memory.
 Choose one download from the
 [Blind Soldier Releases page](https://github.com/buu420/blind-soldier/releases):
 
-- [Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.10.7/Blind-Soldier-Portable.zip)
+- [Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.10.8/Blind-Soldier-Portable.zip)
   is the complete dual-runtime package. Use it for Steam 2026 x64 or when one
   extracted package must support both x86 and x64 installations.
-- [Blind-Soldier-2013-x86-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.10.7/Blind-Soldier-2013-x86-Portable.zip)
+- [Blind-Soldier-2013-x86-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.10.8/Blind-Soldier-2013-x86-Portable.zip)
   is the smaller legacy-only package. Use it for the 2013 x86 game, including
   stock 7th Heaven/FFNx. It deliberately contains no Steam 2026 launcher or
   x64 files.

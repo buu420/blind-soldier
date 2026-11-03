@@ -6,6 +6,7 @@ internal static class WorldMapLocationEntranceTests
 {
     internal static void Run()
     {
+        WorldMapAncientForestTests.Run();
         RoutesJunonToItsNativeTerrainScriptTrigger();
         RoutesCostaDelSolToItsNativeTerrainScriptTrigger();
         ResolvesSleepingForestAndValleyByTheirDistinctNativeScripts();
@@ -98,11 +99,12 @@ internal static class WorldMapLocationEntranceTests
         Equal(installedIds.Count, catalog.Locations.Count + catalog.UnresolvedLocations.Count,
             "every installed location is either native-trigger-backed or named unresolved");
         SequenceEqual(
-            [40, 41, 45, 54, 55, 59],
+            [40, 41, 45, 54, 59],
             catalog.UnresolvedLocations.Select(location => location.LocationId),
             "only locations with no terrain-script entrance remain unresolved");
-        Equal(true, catalog.Locations.All(target => target.NativeLocationArrivals.Count > 0),
-            "no location falls back to coordinate proximity");
+        Equal(true, catalog.Locations.All(target => target.NativeLocationArrivals.Count > 0 ||
+            target.RequiresOnFootEntry && target.NativeVehicleContact?.VehicleModelId == 25),
+            "every location uses its native terrain trigger or model contact, never coordinate proximity");
 
         var rocketNorth = catalog.Locations.Single(target => target.Label == "Rocket Town (North Side)");
         Equal(true, rocketNorth.NativeLocationArrivals.All(arrival =>

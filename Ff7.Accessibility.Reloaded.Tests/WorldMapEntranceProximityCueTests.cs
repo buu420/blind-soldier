@@ -55,7 +55,10 @@ internal static class WorldMapEntranceProximityCueTests
             checkedLocations.Add(target.StableId);
             cases++;
         }
-        Equal(catalog.Locations.Count, checkedLocations.Count, "every catalogued location was exercised");
+        // Model-contact locations require Confirm and have no terrain-script boundary.
+        // Ancient Forest's contact, selection and manual-entry flow have their own replay.
+        Equal(catalog.Locations.Count(t => t.NativeLocationArrivals.Count > 0), checkedLocations.Count,
+            "every catalogued terrain-script location was exercised");
         Console.WriteLine($"PASS world entrance cues: {cases} reachable location/model cases across {checkedLocations.Count} locations.");
     }
 

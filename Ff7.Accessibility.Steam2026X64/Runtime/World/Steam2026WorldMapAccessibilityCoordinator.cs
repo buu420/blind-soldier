@@ -277,6 +277,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
             {
                 foreach (var context in runtimes.Values)
                 {
+                    context.UpdateEntities(Array.Empty<WorldMapEntitySnapshot>());
                     context.Footsteps.Reset();
                     context.EntranceProximityCues.Reset();
                     context.Navigation.PauseForCombat(
@@ -437,6 +438,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         {
             if (!ReferenceEquals(context, runtime))
             {
+                context.UpdateEntities(Array.Empty<WorldMapEntitySnapshot>());
                 context.Footsteps.Reset();
                 context.EntranceProximityCues.Reset();
                 context.TerrainAnnouncements.Reset();
@@ -906,6 +908,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         PublishControllerUnavailable(nowUtc);
         foreach (var runtime in runtimes.Values)
         {
+            runtime.ObserveUnavailableState(nowUtc);
             runtime.Footsteps.Reset();
             runtime.EntranceProximityCues.Reset();
             runtime.TerrainAnnouncements.ObserveUnavailable(nowUtc, higherPrioritySpeech);

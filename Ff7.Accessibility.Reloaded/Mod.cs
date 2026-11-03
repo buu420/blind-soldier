@@ -6045,6 +6045,7 @@ public sealed class Mod : IModV1, IModV2
                 {
                     foreach (var context in worldMapRuntimes.Values)
                     {
+                        context.UpdateEntities(Array.Empty<WorldMapEntitySnapshot>());
                         context.Footsteps.Reset();
                         context.EntranceProximityCues.Reset();
                         context.Navigation.PauseForCombat($"native combat module {module}");
@@ -6124,6 +6125,7 @@ public sealed class Mod : IModV1, IModV2
                 DiscardNavigationAutoWalkToggle(NavigationAutoWalkDomain.WorldMap);
                 foreach (var context in worldMapRuntimes.Values)
                 {
+                    context.ObserveUnavailableState(now);
                     context.Footsteps.Reset();
                     context.EntranceProximityCues.Reset();
                     context.TerrainAnnouncements.ObserveUnavailable(
@@ -6173,6 +6175,7 @@ public sealed class Mod : IModV1, IModV2
             {
                 if (!ReferenceEquals(context, runtime))
                 {
+                    context.UpdateEntities(Array.Empty<WorldMapEntitySnapshot>());
                     context.Footsteps.Reset();
                     context.EntranceProximityCues.Reset();
                     context.TerrainAnnouncements.Reset();

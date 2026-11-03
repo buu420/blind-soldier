@@ -549,6 +549,11 @@ public sealed partial class WorldMapNavigationController
             ? liveTargets.FirstOrDefault(candidate =>
                 string.Equals(candidate.StableId, priorLiveTarget.StableId, StringComparison.Ordinal))
             : null;
+        if (freshLiveTarget is { HasKnownLocation: false } unlocated)
+        {
+            ResetRoute();
+            return new($"{unlocated.Label}'s location is unknown. Navigation off.", StopAutoWalk: true);
+        }
         if (freshLiveTarget is null && resumedAfterCombat && activeTarget is { NativeEntityModelId: 11 })
         {
             // The native pool is rebuilt when the world reloads after battle. Model11
@@ -602,6 +607,20 @@ public sealed partial class WorldMapNavigationController
         var refreshed = glacierLegActive
             ? null
             : freshLiveTarget;
+
+        // Draw flags clear at the start of each native frame. A current pursuit
+        // therefore pauses on a missing sample before becoming a remembered route.
+        // Keep its encounter endpoint and depth through the same 500 ms window
+        // used for direct live targets; input independently requires a fresh sighting.
+        if (state.WorldMapType == 2 && state.PlayerModelId == 13 &&
+            target.NativeUnderwaterArrival?.ModelId == 30 &&
+            target.LocationKnowledge == WorldMapTargetLocationKnowledge.Current &&
+            refreshed?.LocationKnowledge == WorldMapTargetLocationKnowledge.LastSeen)
+        {
+            ResetAutoWalkConvergence();
+            if (submarineEmeraldMissingSince == DateTime.MinValue) submarineEmeraldMissingSince = now;
+            if (now - submarineEmeraldMissingSince < TimeSpan.FromMilliseconds(500)) return new(null);
+        }
 
         if (refreshed is not null && refreshed != target)
         {
@@ -701,7 +720,8 @@ public sealed partial class WorldMapNavigationController
             }
         }
 
-        if (highwindLanding is null && !UsesHighwindLanding(target, state) && target.HasArrived(state, playerTriangle))
+        if (highwindLanding is null && !UsesHighwindLanding(target, state) &&
+            (target.HasArrived(state, playerTriangle) || IsAwaitingNativeEntry(target, state)))
         {
             if (!IsNativeEntryModelSatisfied(target, state.PlayerModelId))
             {
@@ -732,6 +752,8 @@ public sealed partial class WorldMapNavigationController
             else if (state.PlayerModelId == 13 && state.WorldMapType == 0 && state.TerrainId == 18 &&
                 target.Kind == WorldMapTargetKind.TerrainArea)
                 onwards = " Face the shore and press Cancel to get off the submarine.";
+            else if (target.RequiresOnFootEntry)
+                onwards = " Press Confirm to enter.";
             else if (target.NativeVehicleContact is not null && state.PlayerModelId is 0 or 1 or 2)
                 onwards = " Press Confirm to board.";
             ResetRoute(deactivateProgress: false);
@@ -1943,6 +1965,11 @@ public sealed partial class WorldMapNavigationController
         // Every start is a current request. A fresh selection must retire any identity
         // that was waiting through an unreadable frame before Observe can resume it.
         pendingEntityTarget = null;
+        if (!target.HasKnownLocation)
+        {
+            ResetRoute();
+            return new($"{target.Label}'s location is unknown. Explore underwater to sight it first. Navigation off.", StopAutoWalk: true);
+        }
         if (target.SubmarineDiveDestination is { } diveDestination && SubmarineJourney is { } journey)
             journey.Start(this, diveDestination, state);
         else SubmarineJourney?.Cancel(this);
@@ -1964,6 +1991,7 @@ public sealed partial class WorldMapNavigationController
         submarineManualDescent = false;
         submarineDepthRecoveryAnnounced = false;
         submarineEmeraldMissingSince = DateTime.MinValue;
+        submarineLastSeenAnnounced = false;
         submarineUnsafeApproach = null;
 
         var continuesProgressRoute =
@@ -1980,7 +2008,8 @@ public sealed partial class WorldMapNavigationController
             return new WorldMapNavigationOutput($"Route unavailable to {target.Label}. Navigation off.");
         }
 
-        if (target.SubmarineDiveDestination is null && !UsesHighwindLanding(target, state) && target.HasArrived(state, playerTriangle))
+        if (target.SubmarineDiveDestination is null && !UsesHighwindLanding(target, state) &&
+            (target.HasArrived(state, playerTriangle) || IsAwaitingNativeEntry(target, state)))
         {
             if (!IsNativeEntryModelSatisfied(target, state.PlayerModelId))
             {
@@ -2007,7 +2036,8 @@ public sealed partial class WorldMapNavigationController
             progressSink?.Complete();
             ResetRoute(deactivateProgress: false);
             lastDiagnostic = $"already at target triangle {playerTriangle}";
-            return new WorldMapNavigationOutput($"Arrived at {target.Label}. Navigation off.");
+            return new WorldMapNavigationOutput($"Arrived at {target.Label}." +
+                (target.RequiresOnFootEntry ? " Press Confirm to enter." : string.Empty) + " Navigation off.");
         }
 
         WorldMapBroncoLandingPlan? landing = null;
@@ -2337,6 +2367,10 @@ public sealed partial class WorldMapNavigationController
         var label = state.WorldMapType == 2 && CurrentCategory == WorldMapNavigationCategory.Events
             ? $"{target.Label}, {selectedIndices.GetValueOrDefault(CurrentCategory) + 1} of {targets.Count}"
             : target.Label;
+        if (!target.HasKnownLocation)
+            return new($"{DisplayName(CurrentCategory)}, {label}. Location unknown. Explore underwater to sight it first.");
+        if (target.LocationKnowledge == WorldMapTargetLocationKnowledge.LastSeen)
+            label += ", last-seen location";
         if (target.NativeEntityModelId == 11 && state.PlayerModelId != 3)
             return new("Events, Ultimate Weapon. Use the Highwind to follow it.");
         if (state.PlayerModelId == 13 && target.Kind == WorldMapTargetKind.Transportation && target.NativeEntityModelId == 3)
@@ -2571,6 +2605,7 @@ public sealed partial class WorldMapNavigationController
     /// carrying the same label, so the rule has to answer for both.
     /// </summary>
     private static bool IsNativeEntryModelSatisfied(WorldMapNavigationTarget target, int playerModelId) =>
+        target.RequiresOnFootEntry ? playerModelId is 0 or 1 or 2 :
         target.Kind is not (WorldMapTargetKind.Location or WorldMapTargetKind.Story) ||
         !NativeEntryModels.TryGetValue(target.Label, out var allowed) ||
         allowed.Contains(playerModelId);
@@ -2584,7 +2619,7 @@ public sealed partial class WorldMapNavigationController
         !UsesHighwindLanding(target, state) &&
         !IsNativeEntryModelSatisfied(target, state.PlayerModelId) &&
         planner.TryResolvePlayerTriangle(state, out var triangle) &&
-        target.HasArrived(state, triangle);
+        (target.HasArrived(state, triangle) || target.IsAtOnFootEntryApproach(state, triangle));
 
     private bool ShouldHoldNativeEntry(WorldMapNavigationTarget target, WorldMapStateSnapshot state)
     {
@@ -2671,7 +2706,9 @@ public sealed partial class WorldMapNavigationController
         return target.NativeVehicleContact is null
             ? entities
             : entities
-                .Where(entity => !string.Equals(
+                .Where(entity => !(target.NativeVehicleContact.VehicleEntityPointer != 0 &&
+                    entity.GuestPointer == target.NativeVehicleContact.VehicleEntityPointer &&
+                    entity.ModelId == target.NativeVehicleContact.VehicleModelId) && !string.Equals(
                     $"world-entity:{entity.GuestPointer:X8}:{entity.ModelId}",
                     target.StableId,
                     StringComparison.Ordinal))

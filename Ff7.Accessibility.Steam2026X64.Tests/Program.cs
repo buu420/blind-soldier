@@ -121,6 +121,25 @@ if (args.Contains("--chocobo-navigation-only", StringComparer.OrdinalIgnoreCase)
     return;
 }
 
+if (args.Contains("--persistent-emerald-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.WorldMapUnderwaterVisibilityTests.RunPersistentEmerald();
+    return;
+}
+
+if (args.Contains("--ancient-forest-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.WorldMapAncientForestTests.Run();
+    return;
+}
+
+if (args.Contains("--bone-results-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.BoneVillageDigSpotTests.RunResults(CreateInstalledFieldWalkmeshReader,
+        Environment.GetEnvironmentVariable("FF7_ACCESSIBILITY_DATA_ROOT"));
+    return;
+}
+
 if (args.Contains("--emerald-tracking-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.WorldMapUnderwaterVisibilityTests.Run();
@@ -514,6 +533,7 @@ if (args.Contains("--world-map-only", StringComparer.OrdinalIgnoreCase))
     Ff7.Accessibility.Reloaded.Tests.WorldMapHighwindNavigationTests.RunWithInstalledGameData();
     Ff7.Accessibility.Reloaded.Tests.WorldMapWutaiNavigationTests.RunWithInstalledGameData();
     Ff7.Accessibility.Reloaded.Tests.WorldMapTargetCatalogTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.WorldMapAncientForestTests.Run();
     Ff7.Accessibility.Reloaded.Tests.WorldMapTerrainAnnouncementTests.Run();
     Ff7.Accessibility.Reloaded.Tests.NavigationProgressControlTests.Run();
     Steam2026WorldMapTerrainPriorityTests.Run();
@@ -1153,6 +1173,7 @@ Ff7.Accessibility.Reloaded.Tests.WorldMapHighwindNavigationTests.RunWithInstalle
 Ff7.Accessibility.Reloaded.Tests.WorldMapWutaiNavigationTests.RunWithInstalledGameData();
 Ff7.Accessibility.Reloaded.Tests.FieldNpcTalkCounterTests.RunWithInstalledGameData();
 Ff7.Accessibility.Reloaded.Tests.WorldMapTargetCatalogTests.RunWithInstalledGameData();
+    Ff7.Accessibility.Reloaded.Tests.WorldMapAncientForestTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WorldMapTerrainAnnouncementTests.Run();
 Ff7.Accessibility.Reloaded.Tests.NavigationProgressControlTests.Run();
 Steam2026WorldMapTerrainPriorityTests.Run();
