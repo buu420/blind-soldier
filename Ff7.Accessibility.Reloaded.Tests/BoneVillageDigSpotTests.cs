@@ -31,14 +31,47 @@ internal static class BoneVillageDigSpotTests
         OnlyTheDigFieldHasTheSpot();
         RewardsFollowTheBonevilPayout();
         TheSpotIsStableWhileItsNameChanges();
+        if (dataRoot is not null && createWalkmeshReader is not null)
+        {
+            DigSpotIsTheNativeScript(dataRoot);
+            NearButWrongTriangleKeepsWalking(createWalkmeshReader, dataRoot);
+            EverySpotRoutesFromBothLevelsThroughTheLadder(createWalkmeshReader, dataRoot);
+        }
+
+        RunResults(createWalkmeshReader, dataRoot);
+    }
+
+    /// <summary>
+    /// What the dig leaves behind. Nothing is ever picked up at the dig spot: bonevil2's keyc script
+    /// 3 writes the result to Bank[1][234] (8 or 9 from the junk roll, 1..7 for an exact triangle) and
+    /// MAPJUMPs to bonevil at (-206, -161) on triangle 64. There box1 (entity 13, CHAR 10), placed by
+    /// its Init at (-327, -209, -27) on triangle 130, holds it: its Main poses it closed and lit while
+    /// Bank[1][234] is not 0, and its Talk (script 1) runs only then, pays the result - the Key to
+    /// Sector 5 for 5..7 after game moment 1195 until Bank[15][38] bit 3 - and sets Bank[1][234] back
+    /// to 0. The player opens it with Confirm. These pin that chest in Objects: offered while a result
+    /// is waiting, as a Talk at the native talk reach, sounding as a chest, and named without what is
+    /// inside - the game says that only when it is opened. Installed and Echo-S bytes are checked
+    /// first, so a run before the fix still proves them.
+    /// </summary>
+    internal static void RunResults(Func<int, FieldWalkmeshReader>? createWalkmeshReader, string? dataRoot)
+    {
+        if (dataRoot is not null)
+        {
+            ResultsChestIsTheNativeBox(dataRoot);
+            ResultsChestIsBox1InEveryEchoS(dataRoot);
+        }
+
+        EveryPendingResultIsTheChestToOpen();
+        TheChestNeverNamesWhatIsInside();
+        AnEmptyOrUnreadableChestIsNotOffered();
         if (dataRoot is null || createWalkmeshReader is null)
         {
             return;
         }
 
-        DigSpotIsTheNativeScript(dataRoot);
-        NearButWrongTriangleKeepsWalking(createWalkmeshReader, dataRoot);
-        EverySpotRoutesFromBothLevelsThroughTheLadder(createWalkmeshReader, dataRoot);
+        ResultsChestIsOpenedFromTheDigReturn(createWalkmeshReader, dataRoot);
+        EchoSOffersTheSameResultsChest(dataRoot);
+        Console.WriteLine($"Bone Village results chest native pickup, Talk reach and loaded Echo-S checks passed ({EchoSRoots().Length} Echo-S layouts).");
     }
 
     private static readonly DateTime Epoch = new(2026, 9, 27, 12, 0, 0, DateTimeKind.Utc);
@@ -495,6 +528,304 @@ internal static class BoneVillageDigSpotTests
         }
     }
 
+    // --- the results chest (617 bonevil, box1) ---------------------------------------------
+
+    private const int VillageFieldId = 617;
+    private const int ResultsChestEntityId = 13;
+    private const int ResultsChestModelId = 10;
+    private const int ResultIndex = 234;
+
+    // 0060bcfa leaves a model without TALKR at a talk radius of 80 x scale / 512, and bonevil's
+    // scale is 512; the leader's width there is 34 (00633c2f). 00636284 lets the party talk while
+    // the XY distance is below their sum (see BoneVillageForemanTests).
+    private const int ChestTalkRadius = 80;
+    private const int LeaderWidth = 34;
+    private const int NativeChestTalkReach = ChestTalkRadius + LeaderWidth;
+
+    private static readonly (int X, int Y, int Z, int Triangle) ChestPlacement = (-327, -209, -27, 130);
+    private static readonly (int X, int Y, ushort Triangle) DigReturn = (-206, -161, 64);
+
+    // Every name box1's Talk can pay out, and the words a name would use to hint at one.
+    private static readonly string[] PrizeWords =
+    [
+        "Key", "Sector", "Lunar", "Harp", "Buntline", "Phoenix", "Megalixir", "Bahamut", "Mop", "W-Item",
+        "Elixir", "Ether", "Potion", "Materia", "nothing", "no treasure", "chance"
+    ];
+
+    private static string? PrizeIn(string label) =>
+        PrizeWords.FirstOrDefault(word => label.Contains(word, StringComparison.OrdinalIgnoreCase));
+
+    private static FieldNavigationTarget[] ResultsChests(FieldNavigationObjectReader reader, FieldPositionSnapshot position) =>
+        reader.ReadTargets(position)
+            .Where(target => target.Category == FieldNavigationCategory.Objects && target.TriggerEntityId == ResultsChestEntityId)
+            .ToArray();
+
+    /// <summary>
+    /// Every result keyc can write, early in the story and late: exactly one chest, box1's, at its
+    /// model's live position; reached as a Talk is, at the native talk reach; sounding as a chest;
+    /// opened by the player, not by arriving; and under one name for every result.
+    /// </summary>
+    private static void EveryPendingResultIsTheChestToOpen()
+    {
+        string? name = null;
+        foreach (var result in Enumerable.Range(1, 9))
+        {
+            foreach (var moment in new[] { 641, 1620 })
+            {
+                var label = $"results chest, result {result}, moment {moment}";
+                var chests = ResultsChests(Reader(DigSpotMemory.InVillage(result, moment)), Anywhere(VillageFieldId));
+                Equal(1, chests.Length, $"{label}: one chest in Objects ({string.Join("|", chests.Select(c => c.Label))})");
+                var chest = chests[0];
+                Equal((ChestPlacement.X, ChestPlacement.Y, ChestPlacement.Z), (chest.X, chest.Y, chest.Z), $"{label}: at box1's own position");
+                Equal(FieldNavigationActivation.Talk, chest.Activation, $"{label}: box1 is opened by its Talk script, so it is reached as a Talk");
+                Equal(NativeChestTalkReach, chest.InteractionRadius, $"{label}: its reach is its talk radius plus the leader's width");
+                Equal(FieldObjectCueKind.Chest, chest.ObjectCueKind, $"{label}: it sounds as the chest it is");
+                Equal(false, chest.CompletesOnArrival, $"{label}: arriving does not open it, the player's Confirm does");
+                Equal(true, string.IsNullOrWhiteSpace(chest.ManualNavigationGuidance), $"{label}: auto walk can take the player there");
+                name ??= chest.Label;
+                Equal(name, chest.Label, $"{label}: every result has the same name, so the name says nothing of the result");
+            }
+        }
+
+        var moved = DigSpotMemory.InVillage(5);
+        moved.PlaceBuried(ResultsChestEntityId, -300, -190, -27, ChestPlacement.Triangle);
+        Equal((-300, -190, -27), ResultsChests(Reader(moved), Anywhere(VillageFieldId)).Select(c => (c.X, c.Y, c.Z)).Single(),
+            "results chest: it is wherever its model is, read live");
+    }
+
+    /// <summary>
+    /// The game names the prize only when box1's Talk pays it. Before that the chest is the
+    /// excavation's chest and nothing more: not the Key to Sector 5 that results 5..7 hold after
+    /// game moment 1195, nor anything else, and nothing else in the village names the key either.
+    /// </summary>
+    private static void TheChestNeverNamesWhatIsInside()
+    {
+        foreach (var result in Enumerable.Range(1, 9))
+        {
+            foreach (var moment in new[] { 641, 1195, 1196, 1620 })
+            {
+                var label = $"results chest, result {result}, moment {moment}";
+                var targets = Reader(DigSpotMemory.InVillage(result, moment)).ReadTargets(Anywhere(VillageFieldId));
+                var chest = targets.Single(target => target.TriggerEntityId == ResultsChestEntityId);
+                Equal(true, chest.Label.StartsWith("Excavation", StringComparison.Ordinal) &&
+                            chest.Label.Contains("chest", StringComparison.OrdinalIgnoreCase),
+                    $"{label}: named as the excavation's chest ({chest.Label})");
+                Equal(null, PrizeIn(chest.Label), $"{label}: the name gives away nothing it holds ({chest.Label})");
+            }
+        }
+
+        foreach (var result in new[] { 5, 6, 7 })
+        {
+            foreach (var moment in new[] { 1196, 1620 })
+            {
+                var targets = Reader(DigSpotMemory.InVillage(result, moment)).ReadTargets(Anywhere(VillageFieldId));
+                Equal(false, targets.Any(target => target.Label.Contains("Key to Sector 5", StringComparison.OrdinalIgnoreCase) ||
+                                                   target.Label.Contains("Sector 5", StringComparison.OrdinalIgnoreCase)),
+                    $"results chest, result {result}, moment {moment}: the key it holds is not named before box1's Talk gives it");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Nothing waiting is nothing offered: before any dig, and once the Talk has paid the result and
+    /// cleared it. A chest that cannot be read or cannot be talked to is not offered either.
+    /// </summary>
+    private static void AnEmptyOrUnreadableChestIsNotOffered()
+    {
+        static DigSpotMemory With(Action<DigSpotMemory> change)
+        {
+            var waiting = DigSpotMemory.InVillage(5);
+            change(waiting);
+            return waiting;
+        }
+
+        var collected = DigSpotMemory.InVillage(0);
+        collected.SetBank(15, 38, 0x08);
+        collected.SetBank(1, 67, 0x20);
+        var cases = new (string Label, DigSpotMemory State)[]
+        {
+            ("no dig has left anything (Bank[1][234] 0)", DigSpotMemory.InVillage(0, 641)),
+            ("the key taken: the Talk cleared the result and set its flags", collected),
+            ("box1 has no model", With(m => m.Unmap(ResultsChestEntityId))),
+            ("box1's model is past the model count", With(m => m.MapTo(ResultsChestEntityId, 40))),
+            ("the event table is missing", With(m => m.SetInt(FieldNavigationObjectReader.AddressFieldEventDataPtr, 0))),
+            ("box1 is not drawn", With(m => m.ModelByte(ResultsChestModelId, FieldNavigationObjectReader.VisibilityOffset, 0))),
+            ("box1's Talk is switched off", With(m => m.ModelByte(ResultsChestModelId, FieldNavigationNpcReader.TalkDisabledOffset, 1)))
+        };
+        foreach (var (label, state) in cases)
+        {
+            Equal(0, ResultsChests(Reader(state), Anywhere(VillageFieldId)).Length, $"results chest: {label}");
+        }
+    }
+
+    /// <summary>
+    /// The installed bonevil and bonevil2 bytes the cases above rest on: box1's placement and
+    /// model, no TALKR, TLKON or VISI in its Init, its pose and its Talk gated on Bank[1][234], the
+    /// Key to Sector 5's gates and flags, the result cleared afterwards, and the final choice's
+    /// MAPJUMP back to bonevil.
+    /// </summary>
+    private static void ResultsChestIsTheNativeBox(string dataRoot)
+    {
+        var catalog = new FieldScriptNavigationCatalog(dataRoot);
+        ResultsChestScripts(catalog, "installed");
+        var keyc = catalog.ReadScriptOpcodes(772, 2, 3).Select(op => Hex(op.Bytes)).ToArray();
+        Equal(true, keyc.Contains("60 69 02 32 ff 5f ff 40 00 00"),
+            "results chest: the final choice returns the party to bonevil at (-206, -161) on triangle 64");
+    }
+
+    private static void ResultsChestScripts(FieldScriptNavigationCatalog catalog, string layout)
+    {
+        var init = catalog.ReadScriptOpcodes(VillageFieldId, ResultsChestEntityId, 0);
+        Equal("box1", init.FirstOrDefault().EntityName, $"results chest, {layout}: entity 13 is box1");
+        Equal("a1 0a", Hex(init.First(op => op.Opcode == 0xA1).Bytes), $"results chest, {layout}: box1 is CHAR 10");
+        var place = init.First(op => op.Opcode == 0xA5).Bytes.ToArray();
+        Equal((ChestPlacement.X, ChestPlacement.Y, ChestPlacement.Z, ChestPlacement.Triangle),
+            ((int)BitConverter.ToInt16(place, 3), (int)BitConverter.ToInt16(place, 5), (int)BitConverter.ToInt16(place, 7),
+                (int)BitConverter.ToUInt16(place, 9)),
+            $"results chest, {layout}: box1's Init placement");
+        Equal(false, init.Any(op => op.Opcode is 0xC5 or 0x7E or 0xA4),
+            $"results chest, {layout}: no TALKR, TLKON or VISI, so the default talk radius, talkable and drawn");
+        var main = init.Select(op => Hex(op.Bytes)).ToArray();
+        foreach (var expected in new[] { "14 10 ea 00 00 08", "bc 00 1d 1d 01", "28 05 0d 00 00", "28 04 0d 01", "bc 00 00 00 01" })
+        {
+            Equal(true, main.Contains(expected), $"results chest, {layout}: box1's pose follows Bank[1][234]: {expected}");
+        }
+
+        var talk = catalog.ReadScriptOpcodes(VillageFieldId, ResultsChestEntityId, 1).Select(op => Hex(op.Bytes)).ToArray();
+        Equal(true, talk.Length > 0 && talk[0].StartsWith("15 10 ea 00 01", StringComparison.Ordinal),
+            $"results chest, {layout}: the Talk runs only while Bank[1][234] is not 0 ({talk.FirstOrDefault()})");
+        foreach (var gate in new[] { "14 10 ea 05 00", "14 10 ea 06 00", "14 10 ea 07 00", "16 20 00 00 ab 04 02", "14 f0 26 03 0a" })
+        {
+            Equal(true, talk.Any(op => op.StartsWith(gate, StringComparison.Ordinal)), $"results chest, {layout}: the key's gate {gate}");
+        }
+
+        foreach (var write in new[] { "82 10 43 05", "82 f0 26 03", "80 10 ea 00" })
+        {
+            Equal(true, talk.Contains(write), $"results chest, {layout}: the Talk writes {write}");
+        }
+    }
+
+    private static string[] EchoSRoots() =>
+        (Environment.GetEnvironmentVariable("FF7_ACCESSIBILITY_ECHO_S_DATA_ROOTS") ?? "")
+            .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    private static FieldScriptNavigationCatalog LoadedEchoSVillage(string dataRoot, string echo)
+    {
+        var memory = new LoadedFieldMemory();
+        var loaded = new FieldScriptNavigationCatalog(dataRoot, Ff7GameLanguageDetector.Detect(dataRoot), new LoadedFieldScriptIdentityReader(memory));
+        memory.Load(new FlevelDataSource(echo), VillageFieldId);
+        var field = loaded.ReadField(VillageFieldId);
+        Equal(true, field.IsUsable && field.UsesReviewedEchoLayout,
+            $"results chest, {Path.GetFileName(echo)}: bonevil is the reviewed Echo-S layout ({field.Diagnostic})");
+        return loaded;
+    }
+
+    /// <summary>
+    /// Every Echo-S layout keeps box1 as entity 13 with the same placement, pose, Talk gate, key
+    /// gates and writes (only its jumps, dialogue and junk odds move), and the loaded layout maps
+    /// each results chest definition onto it.
+    /// </summary>
+    private static void ResultsChestIsBox1InEveryEchoS(string dataRoot)
+    {
+        foreach (var echo in EchoSRoots())
+        {
+            var name = Path.GetFileName(echo);
+            ResultsChestScripts(new FieldScriptNavigationCatalog(echo), name);
+            var loaded = LoadedEchoSVillage(dataRoot, echo);
+            foreach (var definition in FieldNavigationObjectCatalog.CreateAllFields()
+                         .Where(d => d.FieldId == VillageFieldId && d.EntityId == ResultsChestEntityId))
+            {
+                Equal(ResultsChestEntityId, loaded.RemapObjectDefinition(definition)?.EntityId,
+                    $"results chest, {name}: the chest for result {definition.RequiredValue} stays box1");
+            }
+        }
+    }
+
+    /// <summary>The chest an Echo-S player is offered is the same Talk, chest and name.</summary>
+    private static void EchoSOffersTheSameResultsChest(string dataRoot)
+    {
+        foreach (var echo in EchoSRoots())
+        {
+            var name = Path.GetFileName(echo);
+            var loaded = LoadedEchoSVillage(dataRoot, echo);
+            var state = DigSpotMemory.InVillage(6);
+            var reader = new FieldNavigationObjectReader(state.ReadInt32, state.ReadByte, _ => null, _ => null,
+                FieldNavigationObjectCatalog.CreateAllFields(), isLineEnabled: _ => true, remapDefinition: loaded.RemapObjectDefinition);
+            var chests = ResultsChests(reader, Anywhere(VillageFieldId));
+            Equal(1, chests.Length, $"results chest, {name}: one chest");
+            Equal(FieldNavigationActivation.Talk, chests[0].Activation, $"results chest, {name}: reached as a Talk");
+            Equal(NativeChestTalkReach, chests[0].InteractionRadius, $"results chest, {name}: at the native talk reach");
+            Equal(FieldObjectCueKind.Chest, chests[0].ObjectCueKind, $"results chest, {name}: sounding as a chest");
+            Equal(null, PrizeIn(chests[0].Label), $"results chest, {name}: named without its prize ({chests[0].Label})");
+        }
+    }
+
+    /// <summary>
+    /// Back from the dig the party stands where the MAPJUMP puts it, (-206, -161) on triangle 64,
+    /// on the installed bonevil walkmesh. The route to the chest ends inside box1's native talk
+    /// reach, and with auto walk driving the chest is reached only facing it: with its back to the
+    /// chest the leader is turned to it first, because Confirm would not open it from there.
+    /// </summary>
+    private static void ResultsChestIsOpenedFromTheDigReturn(Func<int, FieldWalkmeshReader> createWalkmeshReader, string dataRoot)
+    {
+        var catalog = new FieldScriptNavigationCatalog(dataRoot);
+        var place = catalog.ReadScriptOpcodes(VillageFieldId, ResultsChestEntityId, 0).First(op => op.Opcode == 0xA5).Bytes.ToArray();
+        var memory = DigSpotMemory.InVillage(5);
+        memory.PlaceBuried(ResultsChestEntityId, BitConverter.ToInt16(place, 3), BitConverter.ToInt16(place, 5),
+            BitConverter.ToInt16(place, 7), BitConverter.ToUInt16(place, 9));
+        var reader = Reader(memory);
+        var mesh = createWalkmeshReader(VillageFieldId);
+        var walkmesh = mesh.Read(new FieldPositionSnapshot(FieldPositionReader.FieldModule, VillageFieldId, 0, 0, 0, 0, 0, 0)).Walkmesh!;
+        var transitions = catalog.ReadField(VillageFieldId).Transitions;
+        var planner = new FieldWalkmeshRoutePlanner(mesh, null, _ => transitions);
+        var start = new FieldPositionSnapshot(FieldPositionReader.FieldModule, VillageFieldId, 0, DigReturn.X, DigReturn.Y,
+            FieldCrossFieldApproachResolver.SurfaceZ(walkmesh.Triangles[DigReturn.Triangle], DigReturn.X, DigReturn.Y), DigReturn.Triangle, 0);
+        var chest = ResultsChests(reader, start).Single();
+        Equal(true, planner.TryBuildRoute(start, chest, out var plan), $"results chest: a route from the dig's return ({planner.LastDiagnostic})");
+        var approach = plan.FinalApproach;
+        var distance = Math.Sqrt(Math.Pow(approach.X - chest.X, 2) + Math.Pow(approach.Y - chest.Y, 2));
+        Equal(true, distance < NativeChestTalkReach, $"results chest: the route ends inside box1's native talk reach ({distance:0.0})");
+        Equal(true, Math.Abs(chest.Z - approach.Z) < 256, "results chest: at a height the talk test accepts");
+
+        // A nearby point in the final triangle gives the native facing test a bearing.
+        // The unobstructed route can end at the chest's identical XY, where none exists.
+        var center = walkmesh.Triangles[plan.TargetTriangle].GetCentroid();
+        var facingX = (int)Math.Round((approach.X + center.X) / 2);
+        var facingY = (int)Math.Round((approach.Y + center.Y) / 2);
+        var facingZ = FieldCrossFieldApproachResolver.SurfaceZ(walkmesh.Triangles[plan.TargetTriangle], facingX, facingY);
+        Equal(true, Math.Pow(facingX - chest.X, 2) + Math.Pow(facingY - chest.Y, 2) is > 0 and < NativeChestTalkReach * NativeChestTalkReach,
+            "results chest: the facing fixture has a nonzero bearing inside native Talk reach");
+        var towards = (byte)((int)Math.Round(Math.Atan2(chest.X - facingX, -(double)(chest.Y - facingY)) * 128d / Math.PI) & 255);
+        var facing = new FieldPositionSnapshot(FieldPositionReader.FieldModule, VillageFieldId, 0, facingX, facingY, facingZ,
+            (ushort)plan.TargetTriangle, towards);
+        // Native directional input updates facing even when a wall refuses translation.
+        var away = facing with { Direction = (byte)(towards + 128) };
+        var controller = new FieldNavigationController(
+            new FieldNavigationTargetSource([], objectTargetProvider: position => ResultsChests(reader, position)), planner);
+        var transform = new FieldNavigationControlTransform(0);
+        for (var index = 0; index < 4 && controller.CurrentCategory != FieldNavigationCategory.Objects; index++)
+        {
+            controller.HandleAction(FieldNavigationAction.NextCategory, start, transform);
+        }
+
+        _ = controller.HandleAction(FieldNavigationAction.ToggleBeacon, start, transform);
+        Equal(true, controller.BeaconEnabled, $"results chest: navigation starts ({controller.LastNavigationDiagnostic})");
+        controller.NoteAutoWalkStarted();
+        _ = controller.UpdateLiveTracking(start, new(0, FieldNavigationInput.None), transform, false, 80, observedAt: Epoch);
+        Equal(true, controller.TryResolveAutomaticInput(start, transform, 80, out var walk) && walk != FieldNavigationInput.None,
+            $"results chest: auto walk sets off ({controller.LastNavigationDiagnostic})");
+        var turned = controller.UpdateLiveTracking(away, new(0, FieldNavigationInput.None), transform, false, 80,
+            observedAt: Epoch.AddSeconds(1));
+        Equal(false, turned?.Speech.Contains("reached", StringComparison.Ordinal) == true,
+            $"results chest: with its back to the chest it is not reached, Confirm would not open it ({turned?.Speech})");
+        Equal(true, controller.TryResolveAutomaticInput(away, transform, 80, out var turn) && turn != FieldNavigationInput.None,
+            $"results chest: auto walk turns the leader to the chest ({controller.LastNavigationDiagnostic})");
+        var reached = controller.UpdateLiveTracking(facing, new(0, FieldNavigationInput.None), transform, false, 80,
+            observedAt: Epoch.AddSeconds(1).AddMilliseconds(100));
+        Equal(true, reached?.Speech.StartsWith($"{chest.Label} reached", StringComparison.Ordinal) == true,
+            $"results chest: facing it, the chest is reached for the player's own Confirm ({reached?.Speech})");
+    }
+
     // The Objects list with only the dig spot left in it, so it is the one selected; the ladders
     // and diggers beside it are covered by ChaseAndExcavationTests.
     private static IReadOnlyList<FieldNavigationTarget> DigSpotsOnly(FieldNavigationObjectReader reader, FieldPositionSnapshot position) =>
@@ -536,6 +867,35 @@ internal static class BoneVillageDigSpotTests
             memory.SetBank(1, 235, (byte)request);
             memory.SetMoment(1000);
             return memory;
+        }
+
+        /// <summary>
+        /// bonevil once a dig's result is waiting in Bank[1][234]: box1 (entity 13, its Init's CHAR
+        /// 10) placed where its Init puts it, drawn and talkable at the default talk radius, and
+        /// Cloud leading at bonevil's width. The rest of the table is the dig's, which bonevil's
+        /// object definitions never look at.
+        /// </summary>
+        public static DigSpotMemory InVillage(int result, int moment = 1620)
+        {
+            var memory = new DigSpotMemory();
+            memory.ModelWord(0, FieldNavigationNpcReader.CollisionRadiusOffset, LeaderWidth);
+            memory.MapTo(ResultsChestEntityId, ResultsChestModelId);
+            memory.ModelByte(ResultsChestModelId, FieldNavigationObjectReader.VisibilityOffset, 1);
+            memory.ModelByte(ResultsChestModelId, FieldNavigationNpcReader.TalkDisabledOffset, 0);
+            memory.ModelWord(ResultsChestModelId, FieldNavigationNpcReader.TalkRadiusOffset, ChestTalkRadius);
+            memory.PlaceBuried(ResultsChestEntityId, ChestPlacement.X, ChestPlacement.Y, ChestPlacement.Z, ChestPlacement.Triangle);
+            memory.SetBank(1, ResultIndex, (byte)result);
+            memory.SetMoment(moment);
+            return memory;
+        }
+
+        public void ModelByte(int model, int offset, byte value) =>
+            bytes[EventTable + model * FieldNavigationObjectReader.FieldEventDataStride + offset] = value;
+
+        public void ModelWord(int model, int offset, int value)
+        {
+            ModelByte(model, offset, (byte)value);
+            ModelByte(model, offset + 1, (byte)(value >> 8));
         }
 
         private DigSpotMemory()
@@ -617,6 +977,50 @@ internal static class BoneVillageDigSpotTests
             ints[address + FieldNavigationObjectReader.PositionXOffset] = x * 4096;
             ints[address + FieldNavigationObjectReader.PositionYOffset] = y * 4096;
             ints[address + FieldNavigationObjectReader.PositionZOffset] = z * 4096;
+        }
+    }
+
+    /// <summary>
+    /// A field's script section placed where the loaded-script identity reader looks for it, as
+    /// the game has it loaded, so the catalog judges an Echo-S layout from its own bytes.
+    /// </summary>
+    private sealed class LoadedFieldMemory : ILegacyAddressSpace
+    {
+        private const uint Script = 0x02000000;
+        private readonly Dictionary<uint, byte> bytes = [];
+
+        public void Load(FlevelDataSource source, int field)
+        {
+            Equal(true, source.TryReadField(field, out var encoded), $"field {field} is installed");
+            var decoded = Ff7LzsDecoder.DecodeFieldFile(encoded);
+            var at = BitConverter.ToInt32(decoded, 6);
+            var length = BitConverter.ToInt32(decoded, at);
+            bytes.Clear();
+            Write(Script, decoded.AsSpan(at + 4, length));
+            bytes[(uint)FieldScriptContextReader.AddressCurrentModule] = 1;
+            Write((uint)FieldScriptContextReader.AddressCurrentFieldId, BitConverter.GetBytes((ushort)field));
+            Write((uint)FieldScriptContextReader.AddressFieldScriptPtr, BitConverter.GetBytes(Script));
+        }
+
+        public bool TryRead(uint address, Span<byte> destination)
+        {
+            for (var index = 0; index < destination.Length; index++)
+            {
+                if (!bytes.TryGetValue(address + (uint)index, out destination[index]))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private void Write(uint address, ReadOnlySpan<byte> data)
+        {
+            for (var index = 0; index < data.Length; index++)
+            {
+                bytes[address + (uint)index] = data[index];
+            }
         }
     }
 }

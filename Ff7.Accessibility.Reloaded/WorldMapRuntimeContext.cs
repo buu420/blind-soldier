@@ -11,6 +11,7 @@ public sealed class WorldMapRuntimeContext
     private WorldMapUnderwaterVisibilityReader? underwaterVisibility;
     private uint announcedEmerald;
     private DateTime emeraldAbsentSince = DateTime.MinValue;
+    private DateTime unavailableStateSince = DateTime.MinValue;
     private readonly WorldMapEmeraldMemory emeraldMemory = new();
 
     public WorldMapRuntimeContext(
@@ -121,10 +122,34 @@ public sealed class WorldMapRuntimeContext
 
     public void UpdateEntities(IReadOnlyList<WorldMapEntitySnapshot>? value)
     {
-        value ??= Array.Empty<WorldMapEntitySnapshot>();
+        unavailableStateSince = DateTime.MinValue;
+        PublishEntities(value ?? Array.Empty<WorldMapEntitySnapshot>());
+    }
+
+    private void PublishEntities(IReadOnlyList<WorldMapEntitySnapshot> value)
+    {
         if (Map.WorldMapType == 2) emeraldMemory.Observe(value);
+        if (value.Count == 0)
+        {
+            announcedEmerald = 0;
+            emeraldAbsentSince = DateTime.MinValue;
+        }
         Volatile.Write(ref entities, value);
         LastUnderwaterVisibilityDiagnostic = string.Empty;
+    }
+
+    /// <summary>
+    /// A moving player's double-sampled state can tear without unloading the world.
+    /// Release entity-dependent input immediately, but keep past positive sightings
+    /// through brief tears. A continuous 500 ms outage retires that knowledge too.
+    /// </summary>
+    public void ObserveUnavailableState(DateTime nowUtc)
+    {
+        if (unavailableStateSince == DateTime.MinValue) unavailableStateSince = nowUtc;
+        if (nowUtc - unavailableStateSince >= TimeSpan.FromMilliseconds(500))
+            PublishEntities(Array.Empty<WorldMapEntitySnapshot>());
+        else
+            Volatile.Write(ref entities, Array.Empty<WorldMapEntitySnapshot>());
     }
 
     private IReadOnlyList<WorldMapNavigationTarget> ReadNavigationTargets(
@@ -172,6 +197,9 @@ public sealed class WorldMapRuntimeContext
         emeraldAbsentSince = DateTime.MinValue;
         if (speechReserved || announcedEmerald == pointer) return null;
         announcedEmerald = pointer;
+        if (Navigation.BeaconEnabled && string.Equals(Navigation.Probe.TargetId,
+            $"world-entity:{pointer:X8}:30", StringComparison.Ordinal))
+            return "Emerald Weapon is visible nearby. It remains your navigation target.";
         Navigation.FocusSightedEmerald(pointer);
         return "Emerald Weapon is visible nearby. Select it in Events.";
     }

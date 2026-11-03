@@ -61,7 +61,7 @@ public sealed partial class WorldMapNavigationController
                 {
                     submarineLastSeenAnnounced = true;
                     ResetAutoWalkConvergence();
-                    return new("Emerald Weapon is out of view. Continuing to its last-seen location at normal travel depth.");
+                    return new("No current Emerald sighting. Continuing to its last-seen location at normal travel depth.");
                 }
             }
             else

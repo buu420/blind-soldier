@@ -223,9 +223,11 @@ public sealed record WorldMapNavigationTarget(
 {
     public WorldMapTargetLocationKnowledge LocationKnowledge { get; init; }
     public bool HasKnownLocation => LocationKnowledge != WorldMapTargetLocationKnowledge.Unknown;
+    public bool RequiresOnFootEntry { get; init; }
 
     public bool HasArrived(int triangleId) =>
         LocationKnowledge == WorldMapTargetLocationKnowledge.Current &&
+        !RequiresOnFootEntry &&
         NativeUnderwaterArrival is null &&
         SubmarineDiveDestination is null && SubmarineSurfacingPoint is null &&
         NativeLocationArrivals.Count == 0 &&
@@ -307,6 +309,8 @@ public sealed record WorldMapNavigationTarget(
     {
         // Reaching a remembered area cannot confirm that a moving creature is there.
         if (LocationKnowledge != WorldMapTargetLocationKnowledge.Current) return false;
+        if (RequiresOnFootEntry)
+            return state.PlayerModelId is 0 or 1 or 2 && IsAtOnFootEntryApproach(state, triangleId);
         if (NativeWeaponArrival is { } weapon)
             return weapon.IsSatisfiedBy(state);
         if (SubmarineDiveDestination is { } dive)
@@ -350,6 +354,15 @@ public sealed record WorldMapNavigationTarget(
             arrival.MeshX == meshX &&
             arrival.MeshZ == meshZ &&
             arrival.TerrainScriptId == state.TerrainScriptId);
+    }
+
+    internal bool IsAtOnFootEntryApproach(WorldMapStateSnapshot state, int triangleId)
+    {
+        if (!RequiresOnFootEntry || NativeVehicleContact is not { } contact) return false;
+        var party = state with { PlayerModelId = 0 };
+        return contact.IsWitnessedBy(party) || ArrivalTriangleIds.Contains(triangleId) &&
+            contact.OccupiesNativeMask(party) &&
+            (contact.VehicleEntityPointer == 0 || contact.IsSomebodyElse(party));
     }
 }
 
@@ -654,8 +667,11 @@ public sealed partial class WorldMapTargetCatalog
             }
         }
 
+        var forest = coordinateIds.Contains(55) && names.ContainsKey(55) ? CreateAncientForestTarget(map) : null;
+        if (forest is not null) locations.Add(forest);
         var tracks = BuildChocoboTrackTargets(map);
         var unresolved = triggerDocument.UnresolvedLocations
+            .Where(location => location.LocationId != 55 || forest is null)
             .Select(location => new WorldMapUnresolvedLocation(
                 location.LocationId,
                 NormalizeLocationName(
@@ -820,6 +836,8 @@ public sealed partial class WorldMapTargetCatalog
     private IReadOnlyList<WorldMapNavigationTarget> ReadNativeTargets(
         WorldMapNavigationCategory category, WorldMapStateSnapshot state, IReadOnlyList<WorldMapEntitySnapshot> entities)
     {
+        if (category == WorldMapNavigationCategory.Locations && map.WorldMapType == 0 && state.WorldMapType == 0)
+            return ReadAncientForestLocations(entities);
         if (state.WorldMapType == 2 && map.WorldMapType == 2 &&
             category is WorldMapNavigationCategory.Locations or WorldMapNavigationCategory.Story)
         {

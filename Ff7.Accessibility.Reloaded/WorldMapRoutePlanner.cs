@@ -337,7 +337,11 @@ public sealed class WorldMapRoutePlanner
         WorldMapNavigationTarget target)
     {
         ArgumentNullException.ThrowIfNull(target);
-        if (!target.HasKnownLocation) return false;
+        if (!target.HasKnownLocation)
+        {
+            LastDiagnostic = $"{target.Label} location is unknown";
+            return false;
+        }
         if (!TryResolvePlayerTriangle(state, out var startTriangle))
         {
             return false;

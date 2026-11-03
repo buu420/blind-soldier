@@ -854,8 +854,9 @@ Add-Definition -FieldId 78 -FieldName 'zz1' -EntityId 5 -EntityName 'l1' -ModelR
 for ($rewardSlot = 1; $rewardSlot -le 9; $rewardSlot++) {
     Add-Definition `
         -FieldId 617 -FieldName 'bonevil' -EntityId 13 -EntityName 'box1' `
-        -ModelResource 'bonevilfieldbg_trb_mety.char' -Kind 'Named' -Label 'Excavation treasure chest' `
-        -RequiredBank 1 -RequiredAddress 234 -RequiredMask 0xFF -RequiredValue $rewardSlot
+        -ModelResource 'bonevilfieldbg_trb_mety.char' -Kind 'Named' -Label 'Excavation results chest' `
+        -RequiredBank 1 -RequiredAddress 234 -RequiredMask 0xFF -RequiredValue $rewardSlot `
+        -CueKindOverride 'Chest' -UsesTalkInteraction $true
 }
 
 # The Ancient Forest reuses one box model for five native branches. Each branch

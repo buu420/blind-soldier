@@ -50,7 +50,11 @@ public static class WorldMapVehicleObstacles
             // read out of the installed ff7_en.exe at 0096DDB0 + 3 * 8. The party is set down
             // 300 units from it (FUN_00766417), inside this reach, and walks off it because
             // FUN_00762A21 refuses only a step that overlaps and closes.
-            [3] = [0x00, 0x00, 0x18, 0x3c, 0x3c, 0x18, 0x00, 0x00]
+            [3] = [0x00, 0x00, 0x18, 0x3c, 0x3c, 0x18, 0x00, 0x00],
+
+            // Ancient Forest: model25's native Confirm entrance uses this same mask,
+            // measured at 0096DDB0 + 25 * 8. It collides; only models26+ are skipped.
+            [25] = [0x00, 0x00, 0x18, 0x3c, 0x3c, 0x18, 0x00, 0x00]
         };
 
     /// <summary>The 8x8 mask the native routine reads for this model, when it has one.</summary>
