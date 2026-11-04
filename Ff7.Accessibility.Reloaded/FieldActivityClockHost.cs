@@ -1,17 +1,14 @@
 namespace Ff7.Accessibility.Reloaded;
 
 /// <summary>
-/// The host's side of the Temple clock, shared by both runtimes so that neither can drift
-/// from the other: when the clock may be watched at all, and when its newest reading may
-/// actually reach the speaker. It touches no other field activity.
+/// Shared delivery for replaceable field readings: clock hands, exchange amounts
+/// and timed Ancient Forest plants. Only the current reading can reach the speaker.
 /// </summary>
 public static class FieldActivityClockHost
 {
     /// <summary>
-    /// Whether the readout may watch this field now. The clock is watched only while the game
-    /// has focus. When it has lost focus, what was seen of the hands and any owed reading are
-    /// forgotten: coming back, the hands are watched afresh rather than trusted from before.
-    /// Every other field is left to the host exactly as it was.
+    /// The clock and forest are watched only while the game has focus. Focus loss
+    /// forgets observed motion and pending speech; returning starts a fresh sample.
     /// </summary>
     public static bool MayObserve(
         int fieldId,
@@ -21,7 +18,7 @@ public static class FieldActivityClockHost
     {
         ArgumentNullException.ThrowIfNull(readout);
         ArgumentNullException.ThrowIfNull(delivery);
-        if (fieldId != FieldActivityReadout.ClockRoomFieldId || isForeground)
+        if ((fieldId != FieldActivityReadout.ClockRoomFieldId && !AncientForestPuzzleReadout.HasPuzzle(fieldId)) || isForeground)
         {
             return true;
         }
@@ -32,9 +29,10 @@ public static class FieldActivityClockHost
     }
 
     /// <summary>
-    /// After the readout has observed: hands the clock's reading to the delivery. The reading
+    /// After the readout has observed: hands its replaceable reading to the delivery. The reading
     /// is spoken only while speech is on and the game still has focus at the moment it would be
     /// spoken; otherwise it stays owed, as the current reading only, and is not counted as said.
+    /// The readout is told when its reading was actually said.
     /// </summary>
     /// <returns>The line spoken this tick, or null.</returns>
     public static string? Deliver(
@@ -52,12 +50,21 @@ public static class FieldActivityClockHost
         ArgumentNullException.ThrowIfNull(isForeground);
         ArgumentNullException.ThrowIfNull(isSpeechEnabled);
         ArgumentNullException.ThrowIfNull(speak);
-        return delivery.Pump(
+        var spoken = delivery.Pump(
             cue.ReplacesEarlierLine ? cue.Speech : null,
             readout.CurrentReplaceableLine,
             now,
             text => isSpeechEnabled() && isForeground() && speak(text),
             isSpeaking,
             interruptProtectedSpeech: readout.CurrentReplaceableLineIsUrgent);
+        if (spoken is not null)
+        {
+            // Only now has the line begun to be heard; a line held back or refused has not. Until
+            // it has been, the readout asks whether anything else was said over it, and whether the
+            // screen reader is still saying it.
+            readout.NoteReplaceableLineSpoken(spoken, now, () => delivery.OtherSpeechSinceDelivery, isSpeaking);
+        }
+
+        return spoken;
     }
 }

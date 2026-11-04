@@ -97,22 +97,22 @@ public static class TownInteractionObjectCatalog
         Model(443, 23, "Beach ball", "del2", "ball"),
         Model(472, 5, "Chest", "jailin1", "hako"),
         Model(473, 17, "Chest", "jail2", "hako"),
-        Model(620, 7, "Insect", "anfrst_1", "bat0"),
-        Model(620, 8, "Insect", "anfrst_1", "bat1"),
-        Model(620, 9, "Frog", "anfrst_1", "fro0"),
-        Model(620, 10, "Frog", "anfrst_1", "fro1"),
+        Model(620, 7, "Insect 1", "anfrst_1", "bat0"),
+        Model(620, 8, "Insect 2", "anfrst_1", "bat1"),
+        Model(620, 9, "Frog 1", "anfrst_1", "fro0"),
+        Model(620, 10, "Frog 2", "anfrst_1", "fro1"),
         Model(620, 16, "Beehive", "anfrst_1", "hanak"),
-        Model(622, 6, "Insect", "anfrst_3", "bat0"),
-        Model(622, 7, "Insect", "anfrst_3", "bat1"),
-        Model(622, 8, "Insect", "anfrst_3", "bat2"),
-        Model(622, 9, "Frog", "anfrst_3", "fro0"),
-        Model(622, 10, "Frog", "anfrst_3", "fro1"),
-        Model(622, 11, "Frog", "anfrst_3", "fro0"),
-        Model(623, 6, "Insect", "anfrst_4", "bat0"),
-        Model(623, 7, "Insect", "anfrst_4", "bat1"),
-        Model(623, 8, "Insect", "anfrst_4", "bat2"),
-        Model(623, 9, "Insect", "anfrst_4", "bat3"),
-        Model(623, 10, "Frog", "anfrst_4", "fro0"),
+        Model(622, 6, "Insect 1", "anfrst_3", "bat0"),
+        Model(622, 7, "Insect 2", "anfrst_3", "bat1"),
+        Model(622, 8, "Insect 3", "anfrst_3", "bat2"),
+        Model(622, 9, "Frog 1", "anfrst_3", "fro0"),
+        Model(622, 10, "Frog 2", "anfrst_3", "fro1"),
+        Model(622, 11, "Frog 3", "anfrst_3", "fro0"),
+        Model(623, 6, "Insect 1", "anfrst_4", "bat0"),
+        Model(623, 7, "Insect 2", "anfrst_4", "bat1"),
+        Model(623, 8, "Insect 3", "anfrst_4", "bat2"),
+        Model(623, 9, "Insect 4", "anfrst_4", "bat3"),
+        Model(623, 10, "Frog 1", "anfrst_4", "fro0"),
         Model(623, 16, "Beehive", "anfrst_4", "hanak"),
         // Where a carried insect, frog or beehive goes when the player presses OK (bpd's Main:
         // IFKEYON OK while 5[9] names what is carried): each creature's script 3 (or 4) reads the
@@ -151,6 +151,11 @@ public static class TownInteractionObjectCatalog
         // ujp0 writes zone 3 while the leader stands on utubo_1's top (t0, t1): a throw from there
         // goes to utubo_2.
         Here(623, 2, Pitcher, "anfrst_4", -1584, -207, 187, [0, 1]),
+        // The leader's landing scripts set these zones. The existing list offered
+        // only the ground throwing lines, leaving no named target for these throws.
+        Here(622, 2, "Pitcher plant 2, throwing spot: press OK to throw", "anfrst_3", 186, -108, 269, [14, 2]),
+        Here(622, 2, "Pitcher plant 3, throwing spot: press OK to throw", "anfrst_3", 310, -145, 364, [29, 25]),
+        Here(622, 2, "Pitcher plant 2, other side, throwing spot: press OK to throw", "anfrst_3", 448, -195, 309, [26, 27]),
 
         // The forest's jumps the player makes: a line or a triangle the leader stands on, a key
         // held (IFKEY) or pressed (IFKEYON), and for most the next pitcher plant closed (its
@@ -212,7 +217,31 @@ public static class TownInteractionObjectCatalog
             RequiredPlayerTriangles: BehindTheHangingScroll),
     ];
 
-    public static IReadOnlyList<FieldNavigationObjectDefinition> Create() => Definitions;
+    public static IReadOnlyList<FieldNavigationObjectDefinition> Create() =>
+        NumberedDefinitions;
+
+    private static readonly IReadOnlyList<FieldNavigationObjectDefinition> NumberedDefinitions =
+        Definitions.Select(NumberForestPlant).ToArray();
+
+    private static FieldNavigationObjectDefinition NumberForestPlant(FieldNavigationObjectDefinition definition)
+    {
+        if (!AncientForestPuzzleReadout.HasPuzzle(definition.FieldId) || definition.Label is not { } label) return definition;
+        var plant = (definition.FieldId, definition.EntityId) switch
+        {
+            (620, 18) or (622, 14) or (623, 18) => 1,
+            (620, 20) or (623, 2) => 2,
+            (620, 22) or (622, 15) or (623, 23 or 25) => 3,
+            (623, 29) => 4,
+            _ => 0
+        };
+        if (plant > 0) label = label.Replace("Pitcher plant,", $"Pitcher plant {plant},", StringComparison.Ordinal);
+        var firstGate = definition.FieldId switch { 620 => 17, 622 => 16, _ => 18 };
+        if (definition.RequiredBank == 5 && definition.RequiredAddress >= firstGate && definition.RequiredAddress <= firstGate + 3)
+            label = label.Replace("closed pitcher plant:", $"closed pitcher plant {definition.RequiredAddress - firstGate + 1}:", StringComparison.Ordinal);
+        if (label.StartsWith("Mutant Flytrap,", StringComparison.Ordinal))
+            label = label.Replace("Mutant Flytrap,", $"Mutant Flytrap {(definition.FieldId == 620 && definition.EntityId == 31 ? 2 : 1)},", StringComparison.Ordinal);
+        return definition with { Label = label };
+    }
 
     private const string Pitcher = "Pitcher plant, throwing spot: press OK to throw";
     private const string PitcherOtherSide = "Pitcher plant, other side, throwing spot: press OK to throw";

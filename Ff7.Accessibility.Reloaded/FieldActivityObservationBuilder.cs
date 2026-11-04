@@ -27,7 +27,9 @@ public static class FieldActivityObservationBuilder
         bool isPlayerControlled,
         int gameMoment,
         int pillarGate,
-        Func<int, int>? readTemporaryByte)
+        Func<int, int>? readTemporaryByte,
+        IReadOnlySet<int>? ancientForestShakingPlants = null,
+        IReadOnlyList<FieldActivityModelReading>? modelOverride = null)
     {
         ArgumentNullException.ThrowIfNull(stateReader);
         var fieldId = position.FieldId;
@@ -36,6 +38,7 @@ public static class FieldActivityObservationBuilder
         {
             models.Add(stateReader.ReadModel(fieldId, entityId));
         }
+        if (modelOverride is not null) models = modelOverride.ToList();
 
         var waits = new Dictionary<int, FieldActivityWaitState>();
         foreach (var entityId in FieldActivityReadout.ObservedWaitEntities(fieldId))
@@ -121,7 +124,8 @@ public static class FieldActivityObservationBuilder
         {
             NumericWindow = numericWindow,
             NumericWindows = numericWindows,
-            ReadTemporaryByte = FieldActivityReadout.NeedsTemporaryBank(fieldId) ? readTemporaryByte : null
+            ReadTemporaryByte = FieldActivityReadout.NeedsTemporaryBank(fieldId) ? readTemporaryByte : null,
+            AncientForestShakingPlants = ancientForestShakingPlants
         };
     }
 }

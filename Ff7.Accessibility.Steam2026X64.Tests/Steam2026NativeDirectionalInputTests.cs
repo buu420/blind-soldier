@@ -53,6 +53,8 @@ internal static class Steam2026NativeDirectionalInputTests
         WhatThePlayerIsHoldingIsNeverTakenAway();
         NothingIsWrittenOnTheCallsThatAreNotOurs();
         AStaleOrUnfocusedDirectionIsNotDelivered();
+        NearAFlytrapTheGuestsOwnPollsEndTheHold();
+        NearAFlytrapASlowScanStillDrivesTheGuest();
         AnInputOwnerCanRetireItsKeysBeforeTheWorkerSeesTheTransition();
         PressesNeedTheOverlayAndReleasesNeverFail();
         TheRealGuestWritePathLandsInTheGamesOwnPage();
@@ -426,6 +428,104 @@ internal static class Steam2026NativeDirectionalInputTests
         Equal(0, background.Overlays, "nothing is delivered while the game is not in front");
     }
 
+    /// <summary>
+    /// Near a Mutant Flytrap a field direction is in the game's keyboard state for the polls its
+    /// decision was given and no more. The worker is silent and no time passes - a sped-up game
+    /// polls faster than any clock - yet it is gone well inside the 500 ms freshness lease; the
+    /// next decision's budget brings it back, and an ordinary direction is unbounded as before.
+    /// </summary>
+    private static void NearAFlytrapTheGuestsOwnPollsEndTheHold()
+    {
+        var host = new FakeHost();
+        Equal(true, host.PollLease.IsPolled, "the overlay spends the lease");
+        host.CommandBounded(FieldNavigationInput.Right, safePolls: 3);
+        var first = host.PollAndObserve(12);
+        Equal(3, first.Count(direction => direction == FieldNavigationInput.Right), "Right for its three polls");
+        Equal(true, first.Skip(3).All(direction => direction == FieldNavigationInput.None),
+            "and then nothing, with the worker silent and the clock still");
+
+        host.CommandBounded(FieldNavigationInput.Right, safePolls: 2);
+        var second = host.PollAndObserve(12);
+        Equal(2, second.Count(direction => direction == FieldNavigationInput.Right), "the next decision's two polls");
+
+        host.Command(FieldNavigationInput.Right);
+        Equal(true, host.PollAndObserve(200).All(direction => direction == FieldNavigationInput.Right),
+            "an unbounded direction is held on every poll, as before");
+    }
+
+    /// <summary>
+    /// The scan that decides a direction spends sixteen of the guest's polls on its route work -
+    /// 0.10.8's 351 to 530 ms in 622 - with two polls to spare where the leader stands, at this
+    /// host's three steps a poll. Counted from a mark taken before that work, as the coordinator
+    /// first did, the budget is spent before the press and the guest never sees the key, scan
+    /// after scan (root's probe, 2026-11-04). Measured as the coordinator now does, just before
+    /// the press, the direction is in the keyboard state for both polls after every scan, and in
+    /// no poll of the next scan's work - with the clock still, so no freshness lease is involved.
+    /// </summary>
+    private static void NearAFlytrapASlowScanStillDrivesTheGuest()
+    {
+        var position = new FieldPositionSnapshot(FieldPositionReader.FieldModule, 622, 0, 353, -937, 40, 24, 0);
+        var planner = new BoundPlanner(2);
+        Equal(Steam2026NativeDirectionalInputSink.UnitsPerPoll, new FakeHost().PollLease.UnitsPerPoll,
+            "the sink's lease budgets three runs' steps a poll");
+        foreach (var fresh in new[] { false, true })
+        {
+            var host = new FakeHost();
+            host.CommandBounded(FieldNavigationInput.Right, safePolls: 0);
+            var duringWork = 0;
+            var afterPress = 0;
+            for (var scan = 0; scan < 8; scan++)
+            {
+                var scanMark = host.PollLease.Mark();
+                duringWork += host.PollAndObserve(16).Count(direction => direction == FieldNavigationInput.Right);
+                if (fresh)
+                {
+                    host.CommandMeasured(FieldNavigationInput.Right, planner, position);
+                }
+                else
+                {
+                    host.CommandFromMark(FieldNavigationInput.Right, scanMark, 2);
+                }
+
+                afterPress += host.PollAndObserve(2).Count(direction => direction == FieldNavigationInput.Right);
+            }
+
+            Equal(0, duringWork, $"{(fresh ? "measured" : "stale")}: no poll of the route work acts on a spent budget");
+            Equal(fresh ? 16 : 0, afterPress, fresh
+                ? "measured just before the press, both polls act after every slow scan"
+                : "counted from before the scan's work, the guest never sees the direction");
+        }
+    }
+
+    /// <summary>A planner whose jaw leaves this many polls at the sink's pace.</summary>
+    private sealed class BoundPlanner(int safe) : IFieldNavigationRoutePlanner, IFieldNavigationFlytrapHoldBound
+    {
+        public string LastDiagnostic => string.Empty;
+
+        public int? FlytrapSafeFrames(FieldPositionSnapshot position, double unitsPerFrame) =>
+            unitsPerFrame == Steam2026NativeDirectionalInputSink.UnitsPerPoll
+                ? safe
+                : throw new InvalidOperationException($"measured at {unitsPerFrame} a poll");
+
+        public bool TryResolvePlayerTriangle(FieldPositionSnapshot position, out int triangle)
+        {
+            triangle = -1;
+            return false;
+        }
+
+        public bool TryBuildRoute(FieldPositionSnapshot position, FieldNavigationTarget target, out FieldNavigationRoutePlan plan)
+        {
+            plan = null!;
+            return false;
+        }
+
+        public bool TryGetNextWaypoint(FieldPositionSnapshot position, FieldNavigationTarget target, out FieldNavigationRouteWaypoint waypoint)
+        {
+            waypoint = default;
+            return false;
+        }
+    }
+
     private static void AnInputOwnerCanRetireItsKeysBeforeTheWorkerSeesTheTransition()
     {
         var allowed = true;
@@ -559,12 +659,27 @@ internal static class Steam2026NativeDirectionalInputTests
 
         var coordinatorSink = Field<Steam2026NativeDirectionalInputSink>(
             coordinator, "directionalInput");
+        var fieldAutoWalk = Field<NavigationAutoWalkController>(coordinator, "autoWalk");
         Equal(
             true,
             ReferenceEquals(
                 coordinatorSink,
-                ResolveSink(Field<NavigationAutoWalkController>(coordinator, "autoWalk"))),
+                ResolveSink(fieldAutoWalk)),
             "the field runtime's own auto walk delivers through the native overlay");
+        Equal(
+            true,
+            ReferenceEquals(coordinatorSink.PollLease, fieldAutoWalk.PollLease),
+            "and arms the lease the overlay's own polls spend");
+
+        // The world map's auto walk shares the sink, never the field's lease: its pauses and
+        // resets cannot lift a field direction's bound.
+        var world = NavigationAutoWalkController.CreateCurrentProcess(new OverlayGuestMemory(), coordinatorSink);
+        Equal(false, ReferenceEquals(coordinatorSink.PollLease, world.PollLease), "another controller has its own lease");
+        coordinatorSink.PollLease.Arm(new AutoWalkPollBudget(coordinatorSink.PollLease.Mark(), 2));
+        world.Suspend();
+        world.Reset();
+        Equal(true, coordinatorSink.PollLease.IsBounded, "and its suspend and reset leave the field's bound");
+        coordinatorSink.PollLease.Disarm();
     }
 
 
@@ -747,7 +862,7 @@ internal static class Steam2026NativeDirectionalInputTests
                 deliveryGate);
             Hook = Steam2026NativeDirectInputKeyboardHook.CreateForOverlayTest(
                 sink, guest, guest, Original, () => Now);
-            autoWalk = NavigationAutoWalkController.CreateCurrentProcess(guest, sink);
+            autoWalk = NavigationAutoWalkController.CreateCurrentProcess(guest, sink, sink.PollLease);
             _ = autoWalk.TryStart(NavigationAutoWalkDomain.Field, routeActive: true);
             consumer = new FieldNavigationInputReader(
                 address => guest.ReadUInt32((uint)address));
@@ -783,6 +898,48 @@ internal static class Steam2026NativeDirectionalInputTests
         }
 
         public void Renew() => sink.Renew(Now);
+
+        public AutoWalkPollLease PollLease => sink.PollLease;
+
+        /// <summary>A decision near a Mutant Flytrap, bounded from a mark taken now.</summary>
+        public void CommandBounded(FieldNavigationInput direction, int safePolls)
+        {
+            var result = autoWalk.Drive(
+                direction,
+                canMove: true,
+                routeActive: true,
+                pollBudget: new AutoWalkPollBudget(sink.PollLease.Mark(), safePolls));
+            Equal(true, result.Success, $"the shared controller accepted {direction} ({result.Diagnostic})");
+            Renew();
+        }
+
+        /// <summary>A decision armed from a mark the caller took earlier: the coordinator's old order.</summary>
+        public void CommandFromMark(FieldNavigationInput direction, AutoWalkPollMark mark, int safePolls)
+        {
+            var result = autoWalk.Drive(direction, canMove: true, routeActive: true,
+                pollBudget: new AutoWalkPollBudget(mark, safePolls));
+            Equal(true, result.Success, $"the shared controller accepted {direction} ({result.Diagnostic})");
+            Renew();
+        }
+
+        /// <summary>A decision measured as the coordinator measures it, just before the press.</summary>
+        public void CommandMeasured(FieldNavigationInput direction, IFieldNavigationRoutePlanner planner, FieldPositionSnapshot position)
+        {
+            var measured = sink.PollLease.ResolveFreshFieldBudget(planner, position, () => position);
+            Equal(true, measured.Blocked is null && measured.Handoff is null && measured.Budget is not null,
+                $"a measured budget ({measured})");
+            var result = autoWalk.Drive(direction, canMove: true, routeActive: true, pollBudget: measured.Budget);
+            Equal(true, result.Success, $"the shared controller accepted {direction} ({result.Diagnostic})");
+            Renew();
+        }
+
+        /// <summary>That many of the game's polls, and the direction it holds after each.</summary>
+        public FieldNavigationInput[] PollAndObserve(int polls) =>
+            Enumerable.Range(0, polls).Select(_ =>
+            {
+                _ = Poll();
+                return ObservedDirection();
+            }).ToArray();
 
         public HighwayAccessibilityCoordinator CreateBikeCoordinator(AccessibilityConfig config, Action<DateTime>? observeRenewal = null)
         {

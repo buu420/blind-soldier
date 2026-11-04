@@ -446,6 +446,10 @@ public sealed class FieldScriptNavigationCatalog
         if (!current.UsesReviewedEchoLayout && !current.UsesReviewedLocalizedStockLayout) return definition;
         var entity = RemapEntity(current, definition.EntityId);
         if (entity is null) return null;
+        // Echo-S changed lfrkjp0's native IFKEYON into IFKEY. Keep the action
+        // label bound to the reviewed loaded layout, without changing the input.
+        if (current.UsesReviewedEchoLayout && definition.FieldId == 620 && definition.EntityId == 33)
+            definition = definition with { Label = definition.Label?.Replace("press Down", "hold Down", StringComparison.Ordinal) };
         if (definition.TargetKind == FieldNavigationObjectTargetKind.Line)
         {
             if (!current.NativeLines.TryGetValue(entity.Value, out var line)) return null;
@@ -4718,6 +4722,14 @@ public sealed class FieldScriptNavigationCatalog
         {
             return true;
         }
+
+        // Echo-S delegates HP loss to its HP entity, leaving only the throw-out
+        // animation in the leader's script. These reviewed jaw LINEs still bite;
+        // losing a local HPD instruction cannot turn them into crossings.
+        if ((fieldId, line.Name) is
+            (622, "bigm0" or "bigm1") or
+            (620, "big0lt" or "big0rt" or "big1lt" or "big1rt") or
+            (623, "big0up" or "big0dn" or "big0dn1")) return true;
 
         for (var slot = 1; slot <= LastLineEventScript; slot++)
         {
