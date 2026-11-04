@@ -7,6 +7,44 @@ using Ff7.Accessibility.Reloaded.Runtime;
 using Ff7.Accessibility.Runtime.Abstractions;
 using AccessibilityConfig = Ff7.Accessibility.Core.AccessibilityConfig;
 
+if (args.Contains("--ancient-forest-interaction-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.AncientForestInteractionTests.Run();
+    return;
+}
+
+if (args.Contains("--ancient-forest-snapshot-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.AncientForestSnapshotCoherenceTests.Run();
+    return;
+}
+
+if (args.Contains("--ancient-forest-warning-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.AncientForestWarningDeliveryTests.Run();
+    return;
+}
+
+if (args.Contains("--ancient-forest-hazards-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.AncientForestRouteHazardTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.AncientForestRouteHazardTests.RunWithInstalledGameData();
+    return;
+}
+
+Ff7.Accessibility.Reloaded.Tests.AncientForestPuzzleTests.Run();
+Ff7.Accessibility.Reloaded.Tests.AncientForestEchoTests.Run();
+Ff7.Accessibility.Reloaded.Tests.AncientForestInteractionTests.Run();
+Ff7.Accessibility.Reloaded.Tests.AncientForestSnapshotCoherenceTests.Run();
+Ff7.Accessibility.Reloaded.Tests.AncientForestWarningDeliveryTests.Run();
+Ff7.Accessibility.Reloaded.Tests.AncientForestRouteHazardTests.Run();
+if (args.Contains("--ancient-forest-puzzle-only", StringComparer.OrdinalIgnoreCase)) return;
+if (args.Contains("--ancient-forest-native-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.GuideRouteRegressionTests.RunAncientForestNative();
+    return;
+}
+
 if (args.Contains("--midgar-scaffold-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.MidgarScaffoldNavigationTests.Run();

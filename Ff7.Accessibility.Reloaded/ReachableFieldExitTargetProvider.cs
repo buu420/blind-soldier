@@ -1,4 +1,4 @@
-﻿namespace Ff7.Accessibility.Reloaded;
+namespace Ff7.Accessibility.Reloaded;
 
 public sealed class ReachableFieldExitTargetProvider
 {
@@ -87,6 +87,14 @@ public sealed class ReachableFieldExitTargetProvider
             {
                 reachable.Add(target);
                 shut.Add(target.Label);
+                continue;
+            }
+
+            // The native exit is still present beyond the jaws. Keep it selectable;
+            // the navigation controller explains why automatic walking cannot pass.
+            if (routePlanner is IFieldNavigationNativeBoundaryStatus { LastFailureWasFlytrap: true })
+            {
+                reachable.Add(target);
                 continue;
             }
 

@@ -40,6 +40,16 @@ internal static class GuideRouteRegressionTests
         Console.WriteLine("PASS installed Midgar ladder exits and legitimate Aegis routes.");
     }
 
+    internal static void RunAncientForestNative()
+    {
+        if (DataRoot is null) throw new InvalidOperationException("Native Ancient Forest data root required.");
+        ForestPlatformThrowsAndCarryIdsMatchNativeScripts();
+        ForestThrowingSpotsAreTheZoneLines();
+        ForestRewardsAreRoutedHonestly();
+        AncientForestRouteHazardTests.RunWithInstalledGameData();
+        Console.WriteLine("PASS installed Ancient Forest puzzle bindings, throwing spots, jumps and rewards.");
+    }
+
     internal static IEnumerable<(string Name, Action Check)> Cases()
     {
         yield return ("bedroom Story follows Corneo's own branches and lines", BedroomStoryFollowsTheBranchesAndLines);
@@ -68,6 +78,8 @@ internal static class GuideRouteRegressionTests
         yield return ("Northern Crater jump lines each take their own jump", CraterJumpLinesTakeTheirOwnJump);
         yield return ("Mega All is offered at its take-off lines, not its floating model", MegaAllIsOfferedAtItsTakeOffLines);
         yield return ("Ancient Forest throwing spots are the lines that write each creature's zone", ForestThrowingSpotsAreTheZoneLines);
+        yield return ("Ancient Forest carried identities and raised throwing spots match native scripts", ForestPlatformThrowsAndCarryIdsMatchNativeScripts);
+        yield return ("Ancient Forest routes keep clear of native flytrap jaws", AncientForestRouteHazardTests.RunWithInstalledGameData);
         yield return ("Ancient Forest rewards: each routed natively or honestly not", ForestRewardsAreRoutedHonestly);
         yield return ("Seventh Heaven and fitting-room steps are offered only while their own line is on", LineStepsFollowTheirOwnLine);
         yield return ("Gongaga jungle's Turks are offered at the line that starts their scene", TurksAreOfferedAtTheirLine);
@@ -1662,6 +1674,37 @@ internal static class GuideRouteRegressionTests
 
     // --- 620-624 anfrst: the Ancient Forest --------------------------------------------------------
 
+    private static void ForestPlatformThrowsAndCarryIdsMatchNativeScripts()
+    {
+        var world = new Caves();
+        foreach (var (field, entities) in new[] { (620, new[] { 7, 8, 9, 10, 16 }),
+                     (622, new[] { 6, 7, 8, 9, 10, 11 }), (623, new[] { 6, 7, 8, 9, 10, 16 }) })
+            for (var i = 0; i < entities.Length; i++)
+                Equal(true, world.Scripts.ReadScriptOpcodes(field, entities[i], 1).Select(Hex).Contains($"805009{i + 1:X2}"),
+                    $"{field} e{entities[i]} pickup supplies carried identity {i + 1}");
+
+        // These throws are selected after a native landing, rather than by a ground LINE.
+        // Each party leader must land on that platform and set the creature's drop zone.
+        foreach (var (field, triangle, zoneByte, zone) in new[] { (622, 14, 19, 3), (622, 29, 19, 4), (622, 26, 19, 5) })
+        {
+            var scripts = world.Scripts.ReadAllScriptOpcodes(field);
+            var target = TownInteractionObjectCatalog.Create().Single(o => o.FieldId == field &&
+                o.RequiredPlayerTriangles?.Contains(triangle) == true && o.Label!.Contains("throwing spot", StringComparison.Ordinal));
+            Equal(true, target.Label!.EndsWith("press OK to throw", StringComparison.Ordinal), "the native action is manual");
+            var leaders = scripts.Where(s => s.ScriptId == 0 && s.Opcodes.Any(op => op.Opcode == 0xA0))
+                .Select(s => s.EntityId).ToHashSet();
+            var matching = scripts.Where(s => leaders.Contains(s.EntityId) && s.Opcodes.Any(op => op.Opcode == 0xC0 &&
+                BitConverter.ToUInt16(op.Bytes.ToArray(), 7) == triangle)).ToArray();
+            Equal(true, matching.Length >= 3, $"{field} all native leaders land on t{triangle}");
+            Equal(true, matching.All(s => s.Opcodes.Select(Hex).Contains($"8050{zoneByte:X2}{zone:X2}")),
+                $"{field} each landing supplies zone {zone}");
+            Equal(true, scripts.Where(s => s.EntityId >= (field == 620 ? 7 : 6) &&
+                    s.EntityId <= (field == 620 ? 10 : 11) && s.ScriptId is 3 or 4)
+                .SelectMany(s => s.Opcodes).Select(Hex).Any(hex => hex.StartsWith($"1450{zoneByte:X2}{zone:X2}00", StringComparison.Ordinal)),
+                $"{field} creature throw consumes that zone");
+        }
+    }
+
     /// <summary>
     /// The throwing spots: field, zone byte, the line that writes the zone, the zone, the
     /// creatures that branch on it, and - for a line that writes only when crossed - the line on
@@ -2138,14 +2181,37 @@ internal static class GuideRouteRegressionTests
         Equal("620:35,620:36,620:36,621:9,622:26,622:27,624:4,624:5",
             string.Join(",", rewards.Select(o => $"{o.FieldId}:{o.EntityId}").Order(StringComparer.Ordinal)), "the seven rewards, Slash-All twice");
 
-        var walked = new[] { (622, 26, 620), (622, 27, 620), (620, 36, 622), (621, 9, 623), (624, 4, 623), (624, 5, 623) };
+        var throatChest = rewards.Single(o => o.FieldId == 622 && o.EntityId == 26);
+        Equal((string?)null, throatChest.ManualNavigationGuidance, "Supershot ST retains route guidance");
+        Equal(true, throatChest.UsesTalkInteraction, "the chest is opened within native Talk reach");
+        var walked = new[] { (622, 26, 620), (622, 26, 623), (622, 27, 620), (620, 36, 622), (621, 9, 623), (624, 4, 623), (624, 5, 623) };
         foreach (var (field, entity, from) in walked)
         {
+            // This row is the closed-mouth Slash-All case, not a route through
+            // the open jaws. Supply both effects of the native beehive script.
+            var closedMouth = field == 620 && entity == 36;
+            if (closedMouth)
+            {
+                var bank = new byte[128]; bank[51] = 1;
+                world.ForestBanks[620] = bank;
+                world.AdditionalLocks.UnionWith([123, 124]);
+            }
             var xyzi = world.Scripts.ReadScriptOpcodes(field, entity, 0).First(op => op.Opcode == 0xA5).Bytes.ToArray();
             var target = new FieldNavigationTarget(field, FieldNavigationCategory.Objects, $"e{entity}", BitConverter.ToInt16(xyzi, 3),
                 BitConverter.ToInt16(xyzi, 5), BitConverter.ToInt16(xyzi, 7), $"object:{field}:{entity}", TriggerEntityId: entity, InteractionRadius: 100);
+            if (field == 622 && entity == 26)
+            {
+                // Native default TALKR80 plus the leader's SLIDR30. Use the real
+                // Talk activation so the approach can end safely outside a jaw.
+                target = target with { InteractionRadius = 110, Activation = FieldNavigationActivation.Talk };
+            }
             Equal(true, world.ArrivalsInto(from, field).Any(a => world.Planner(field).TryBuildRoute(world.At(field, a.X, a.Y, a.Triangle), target, out _)),
                 $"{field} e{entity} is walked to from {from}'s arrival");
+            if (closedMouth)
+            {
+                world.ForestBanks.Remove(620);
+                world.AdditionalLocks.ExceptWith([123, 124]);
+            }
         }
 
         // Slash-All: two definitions, walked to only once the flytrap has shut.
@@ -2374,6 +2440,7 @@ internal static class GuideRouteRegressionTests
         private readonly Dictionary<int, byte[]> decoded = [];
         private readonly Dictionary<int, FieldWalkmeshRoutePlanner> planners = [];
         private readonly Dictionary<int, FieldWalkmesh> meshes = [];
+        public Dictionary<int, byte[]> ForestBanks { get; } = [];
 
         public Caves()
         {
@@ -2420,7 +2487,8 @@ internal static class GuideRouteRegressionTests
                         address => address == FieldBoundaryStateReader.AddressFieldGlobalObjectPtr ? FieldState : 0,
                         address => LockByte(field, address),
                         (_, _) => true),
-                    _ => LiveTransitions?.Invoke(field, transitions) ?? transitions);
+                    _ => LiveTransitions?.Invoke(field, transitions) ?? transitions,
+                    ancientForestBankReader: id => ForestBanks.TryGetValue(id, out var bank) ? bank : null);
             }
 
             return planner;

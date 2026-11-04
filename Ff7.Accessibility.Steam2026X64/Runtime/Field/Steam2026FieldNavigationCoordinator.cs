@@ -69,6 +69,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
     // the altar, the dig, the Corel handcar, the cliff, the wind and the Junon rooms.
     // This runtime never built its observation, so none of those rooms spoke here.
     private readonly FieldActivityStateReader fieldActivityStateReader;
+    private readonly AncientForestPuzzleStateReader ancientForestPuzzleStateReader;
     private readonly GreatGlacierIceFloeReader glacierIceReader;
 
     // The Great Glacier's regional treasure list and routes, shared with the world-map coordinator.
@@ -181,9 +182,11 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         this.speak = speak ?? throw new ArgumentNullException(nameof(speak));
         this.log = log ?? throw new ArgumentNullException(nameof(log));
         this.probe = probe;
+        // The sink's poll lease is the field's alone: the world map's auto walk shares the sink.
         this.autoWalk = autoWalk ?? NavigationAutoWalkController.CreateCurrentProcess(
             addressSpace,
-            this.directionalInput);
+            this.directionalInput,
+            this.directionalInput.PollLease);
 
         int ReadInt32(int address) => ReadCheckedInt32(addressSpace, address);
         short ReadInt16(int address) => ReadCheckedInt16(addressSpace, address);
@@ -248,7 +251,8 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                 boundaryStateReader,
                 ReadLiveTransitions,
                 dynamicObstacleReader.Read,
-                dynamicObstacleReader.ReadPlayerCollisionRadius));
+                dynamicObstacleReader.ReadPlayerCollisionRadius,
+                ancientForestBankReader: fieldId => ancientForestPuzzleStateReader.Read(fieldId)));
         reachableExitProvider = new ReachableFieldExitTargetProvider(
             _ => currentExits,
             routePlanner);
@@ -312,6 +316,8 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                 currentNavigationCadence,
                 probe?.GetFieldSummary(fieldId) ?? default),
             navigationProgressSink);
+        controller.InteractionArrivalInstruction = (position, target) =>
+            AncientForestInteractionGuidance.Describe(target, ancientForestPuzzleStateReader.Read(position.FieldId));
 
         // Same native line state on this runtime: the observatory approach is only
         // offered while the game actually has the opening line switched on.
@@ -368,6 +374,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                 log)
             : null;
         fieldActivityStateReader = new FieldActivityStateReader(addressSpace);
+        ancientForestPuzzleStateReader = new AncientForestPuzzleStateReader(addressSpace);
         glacierIceReader = new GreatGlacierIceFloeReader(addressSpace);
         // Every Great Glacier treasure not yet picked up is listed in Objects on every region
         // screen and the snowfield, and a chosen one is walked to leg by leg. The flags are
@@ -710,6 +717,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         ObserveSquatMinigameCue(frame, nowUtc);
         ObserveJunonMinigameCues(frame, nowUtc);
         ObserveFloor60SoldierTurnCue(frame, nowUtc);
+        ObserveAncientForestNavigationSafety(frame, nowUtc);
         ObserveFieldActivity(frame, nowUtc);
         ObserveGlacierIceFloes(frame, nowUtc);
         ObserveGlacierMapScreen(frame, nowUtc);
@@ -1213,7 +1221,8 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                     controller.CurrentCategory,
                     controller.BeaconEnabled,
                     coherence with { Route = coherence.Route && !routePlanner.HadReadFailure });
-            if (canCreateGuidance && !controllerMenuIsOpen && !foregroundInput.ModSettingsOwnsInput && FieldNavigationSpeechPolicy.IsDue(
+            if (canCreateGuidance && !controllerMenuIsOpen && !foregroundInput.ModSettingsOwnsInput &&
+                !fieldActivityReadout.HasPendingForestSpeech && FieldNavigationSpeechPolicy.IsDue(
                     nowUtc,
                     lastNavigationSpeechUtc,
                     config.FieldNavigationSpeechIntervalMs,
@@ -1588,6 +1597,27 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             control,
             Math.Max(0, config.FieldNavigationArrivalDistanceUnits),
             out direction);
+        // Where a Mutant Flytrap bites, the direction - a turn to face a Talk target included -
+        // is acted on only in the polls the planner can bound from where the leader is now,
+        // measured after this scan's route work rather than before it.
+        var fieldBudget = hasDirection
+            ? autoWalk.PollLease.ResolveFreshFieldBudget(
+                routePlanner,
+                position,
+                () => positionReader.ReadNavigation() is { IsUsable: true } fresh ? fresh.Position : null)
+            : default;
+        if (fieldBudget.Blocked is { } blocked)
+        {
+            LogInputDiagnostic($"auto walk held its press back: {blocked}");
+            hasDirection = false;
+        }
+
+        if (fieldBudget.Handoff is { } handoff)
+        {
+            HandAutoWalkToThePlayer(position, handoff, nowUtc);
+            return;
+        }
+
         StopAutoWalkIfItCannotGetCloser(position, hasDirection, canMove, nowUtc);
 
         // State changes only, never per frame. A stall is diagnosed by whether a
@@ -1607,7 +1637,8 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             hasDirection ? direction : FieldNavigationInput.None,
             canMove: hasDirection,
             routeActive: controller.BeaconEnabled,
-            observedInput: observedInput);
+            observedInput: observedInput,
+            pollBudget: fieldBudget.Budget);
         if (result.Success)
         {
             // Renewed after the drive, never before it, so the renewal always belongs to
@@ -1633,6 +1664,27 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                 + (delivery.Length == 0 ? string.Empty : $" ({delivery})"));
             Speak("Auto walk stopped because directional input failed.", true, nowUtc, "input failure");
         }
+    }
+
+    /// <summary>
+    /// Auto walk let go next to a Mutant Flytrap it cannot bound a step from, or where nothing
+    /// spends the bound: said once, and the walk is the player's, as when it cannot get closer.
+    /// </summary>
+    private void HandAutoWalkToThePlayer(FieldPositionSnapshot position, string handoff, DateTime nowUtc)
+    {
+        autoWalkConvergence.Reset();
+        LogInputDiagnostic(
+            $"auto walk handed to the player: {handoff} target={controller.CurrentTargetLabel}, " +
+            $"position={position.X},{position.Y},{position.Z}");
+        if (!autoWalk.Stop())
+        {
+            return;
+        }
+
+        controller.NoteAutoWalkStopped();
+        pendingAutoWalkStart = false;
+        autoWalkRouteToggleQueued = false;
+        Speak(handoff, interrupt: true, nowUtc, "Mutant Flytrap handoff");
     }
 
     /// <summary>
@@ -1748,6 +1800,29 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         Speak("Jump now.", interrupt: true, nowUtc, "native swinging-bar timing");
     }
 
+    /// <summary>Stops forest navigation on a native bite, independently of narration settings.</summary>
+    private void ObserveAncientForestNavigationSafety(RuntimeFrameObservation frame, DateTime nowUtc)
+    {
+        if (frame.Lifecycle.IsShuttingDown || frame.Lifecycle.ModuleId != FieldPositionReader.FieldModule ||
+            (!controller.BeaconEnabled && !autoWalk.IsEnabledFor(NavigationAutoWalkDomain.Field) && !pendingAutoWalkStart))
+            return;
+        var result = positionReader.ReadNavigation();
+        if (!result.IsUsable || !AncientForestPuzzleReadout.HasPuzzle(result.Position.FieldId) ||
+            !cueReader.TryRead(out var cue) || cue.Module != FieldPositionReader.FieldModule)
+            return;
+        var controlled = cue.UserControl == 0 && cue.MovieActive == 0;
+        if (!AncientForestInteractionGuidance.IsBitePose(result.Position, controlled,
+                ancientForestPuzzleStateReader.Read(result.Position.FieldId))) return;
+
+        controller.Reset();
+        _ = autoWalk.Stop();
+        pendingAutoWalkStart = false;
+        autoWalkRouteToggleQueued = false;
+        pendingActions.Clear();
+        if (frame.Lifecycle.IsForeground && foregroundInput.IsCurrentProcessForeground())
+            Speak("Mutant Flytrap. Navigation off.", true, nowUtc, "native forest bite stopped navigation");
+    }
+
     /// <summary>
     /// The field activity readout, fed from this runtime's checked translated reads.
     ///
@@ -1810,7 +1885,13 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         // Bank[5] is read once, whole, when this room needs it. A byte that could not be
         // read must not become a zero: a zero is "the wind has dropped" in one room.
         byte[]? temporaryBank = null;
-        if (FieldActivityReadout.NeedsTemporaryBank(fieldId) ||
+        AncientForestPuzzleSnapshot? forest = null;
+        if (AncientForestPuzzleReadout.HasPuzzle(fieldId))
+        {
+            forest = ancientForestPuzzleStateReader.ReadState(fieldId);
+            temporaryBank = forest?.Bank;
+        }
+        else if (FieldActivityReadout.NeedsTemporaryBank(fieldId) ||
             fieldId == FieldActivityReadout.PillarApproachFieldId)
         {
             var bank = new byte[TemporaryFieldBankLength];
@@ -1831,7 +1912,9 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             temporaryBank is { } gate ? gate[FieldActivityPillarGateIndex] : -1,
             temporaryBank is { } snapshot
                 ? index => (uint)index < (uint)snapshot.Length ? snapshot[index] : -1
-                : null);
+                : null,
+            ancientForestShakingPlants: forest?.ShakingPlants,
+            modelOverride: forest?.Models);
         var activity = fieldActivityReadout.Observe(observation, nowUtc);
         fieldActivityOwnsInput = activity.IsPending;
         fieldActivityCurrentLine = fieldActivityReadout.Describe(observation);

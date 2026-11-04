@@ -1,4 +1,4 @@
-﻿using Ff7.Accessibility.Core;
+using Ff7.Accessibility.Core;
 using Ff7.Accessibility.Reloaded;
 
 namespace Ff7.Accessibility.Steam2026X64.Runtime.Field;
@@ -414,7 +414,8 @@ internal sealed class Steam2026FailClosedFieldRoutePlanner :
     IFieldNavigationCorridorLookaheadPlanner,
     IFieldNavigationRouteRefreshPlanner,
     IFieldNavigationRouteReadStatus,
-    IFieldNavigationNativeBoundaryStatus
+    IFieldNavigationNativeBoundaryStatus,
+    IFieldNavigationFlytrapHoldBound
 {
     private readonly IFieldNavigationRoutePlanner inner;
     private PreparedActionRoute? preparedActionRoute;
@@ -423,6 +424,15 @@ internal sealed class Steam2026FailClosedFieldRoutePlanner :
     {
         this.inner = inner ?? throw new ArgumentNullException(nameof(inner));
     }
+
+    /// <summary>
+    /// The inner planner's bound on a held direction near a Mutant Flytrap. It reads the
+    /// walkmesh itself and answers no polls when that read fails, so nothing is assumed safe.
+    /// </summary>
+    public int? FlytrapSafeFrames(FieldPositionSnapshot position, double unitsPerFrame) =>
+        inner is IFieldNavigationFlytrapHoldBound bound
+            ? bound.FlytrapSafeFrames(position, unitsPerFrame)
+            : null;
 
     public string LastDiagnostic { get; private set; } = "not read";
 
@@ -449,6 +459,12 @@ internal sealed class Steam2026FailClosedFieldRoutePlanner :
         (preparedActionRoute is { } prepared
             ? prepared.FailedOnNativeBoundary
             : inner is IFieldNavigationNativeBoundaryStatus { LastFailureWasNativeBoundary: true });
+
+    public bool LastFailureWasFlytrap =>
+        !HadReadFailure &&
+        (preparedActionRoute is { } prepared
+            ? prepared.FailedOnFlytrap
+            : inner is IFieldNavigationNativeBoundaryStatus { LastFailureWasFlytrap: true });
 
     public IReadOnlyList<int> LastBlockingBoundaryTriangles =>
         !HadReadFailure && LastFailureWasNativeBoundary
@@ -577,6 +593,8 @@ internal sealed class Steam2026FailClosedFieldRoutePlanner :
         // planner has since overwritten for some other target.
         var boundaryFailure = !built && inner is IFieldNavigationNativeBoundaryStatus
             { LastFailureWasNativeBoundary: true };
+        var flytrapFailure = !built && inner is IFieldNavigationNativeBoundaryStatus
+            { LastFailureWasFlytrap: true };
         preparedActionRoute = new PreparedActionRoute(
             position,
             target,
@@ -586,7 +604,8 @@ internal sealed class Steam2026FailClosedFieldRoutePlanner :
             built,
             built ? plan : null,
             boundaryFailure,
-            boundaryFailure ? InnerBlockingBoundaryTriangles() : Array.Empty<int>());
+            boundaryFailure ? InnerBlockingBoundaryTriangles() : Array.Empty<int>(),
+            flytrapFailure);
         return new Steam2026FieldRoutePreflight(true, built);
     }
 
@@ -846,7 +865,8 @@ internal sealed class Steam2026FailClosedFieldRoutePlanner :
         bool BuildResult,
         FieldNavigationRoutePlan? Plan,
         bool FailedOnNativeBoundary,
-        IReadOnlyList<int> BlockingBoundaryTriangles)
+        IReadOnlyList<int> BlockingBoundaryTriangles,
+        bool FailedOnFlytrap = false)
     {
         internal static PreparedActionRoute Incoherent(
             FieldPositionSnapshot position,

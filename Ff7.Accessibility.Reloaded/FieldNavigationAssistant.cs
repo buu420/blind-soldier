@@ -1,4 +1,4 @@
-﻿namespace Ff7.Accessibility.Reloaded;
+namespace Ff7.Accessibility.Reloaded;
 
 public enum FieldNavigationAction
 {
@@ -784,6 +784,13 @@ public sealed class FieldNavigationController
         routePlanner is IFieldNavigationNativeBoundaryStatus status &&
         status.LastFailureWasNativeBoundary;
 
+    private bool LastRouteFailureWasFlytrap =>
+        routePlanner is IFieldNavigationNativeBoundaryStatus { LastFailureWasFlytrap: true };
+
+    private static string RouteUnavailableSpeech(FieldNavigationTarget target, bool flytrap) => flytrap
+        ? $"Route unavailable to {target.Label}. Automatic walking cannot safely pass the Mutant Flytrap here. Navigation off."
+        : $"Route unavailable to {target.Label}. Navigation off.";
+
     /// <summary>
     /// Whether the game currently has a field's native line switched on: true, false, or
     /// null when the state could not be read. Both runtimes supply this from the shared
@@ -799,6 +806,9 @@ public sealed class FieldNavigationController
     /// it the route goes on guiding into the target rather than stopping at a guess.
     /// </summary>
     public Func<FieldNavigationTarget, bool>? ContactStarted { get; set; }
+
+    /// <summary>Current native interaction context, such as releasing a carried forest creature first.</summary>
+    public Func<FieldPositionSnapshot, FieldNavigationTarget, string?>? InteractionArrivalInstruction { get; set; }
 
     // How far from the target a started Contact may be seen and still be this approach's: the
     // step being taken plus whatever the script's first frames move the party.
@@ -1039,9 +1049,9 @@ public sealed class FieldNavigationController
                 return null;
             }
 
+            var flytrap = LastRouteFailureWasFlytrap;
             CancelHeldBoundaryTarget();
-            return new FieldNavigationActionResult(
-                $"Route unavailable to {held.Label}. Navigation off.");
+            return new FieldNavigationActionResult(RouteUnavailableSpeech(held, flytrap));
         }
 
         pendingBoundaryTarget = null;
@@ -1701,6 +1711,7 @@ public sealed class FieldNavigationController
 
                 if (!TryLockBeacon(target.Value, position, ladderState))
                 {
+                    var flytrap = LastRouteFailureWasFlytrap;
                     if (LastRouteFailureWasNativeBoundary)
                     {
                         // Nothing routes through the lock and nothing pretends it is
@@ -1734,8 +1745,7 @@ public sealed class FieldNavigationController
                         return across;
                     }
 
-                    return new FieldNavigationActionResult(
-                        $"Route unavailable to {target.Value.Label}. Navigation off.");
+                    return new FieldNavigationActionResult(RouteUnavailableSpeech(target.Value, flytrap));
                 }
 
                 CancelHeldBoundaryTarget();
@@ -2267,7 +2277,9 @@ public sealed class FieldNavigationController
                     $"{LastNavigationDiagnostic}, interaction arrival paused at " +
                     $"{interactionArrivalDistance} units";
                 return new FieldNavigationActionResult(
-                    target.Value.Activation == FieldNavigationActivation.Contact
+                    InteractionArrivalInstruction?.Invoke(position, target.Value) is { Length: > 0 } instruction
+                        ? $"{beaconTargetLabel} reached. {instruction} Navigation paused."
+                        : target.Value.Activation == FieldNavigationActivation.Contact
                         // Nothing is pressed here. The script runs because the party
                         // walked into it, which is what a sighted player does when the
                         // materia is the only thing in the room.

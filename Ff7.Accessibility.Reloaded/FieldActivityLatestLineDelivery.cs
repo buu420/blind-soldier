@@ -1,8 +1,8 @@
 namespace Ff7.Accessibility.Reloaded;
 
 /// <summary>
-/// Delivers a field activity line that a newer one makes worthless - today only the Temple
-/// clock's "Moving, ten thirty." - so that the player hears the newest reading and never a
+/// Delivers a field activity line that a newer one makes worthless, such as a clock
+/// time or a timed plant state, so that the player hears the newest reading and never a
 /// queue of old ones.
 ///
 /// <para>Three rules, and nothing else:</para>
@@ -72,7 +72,24 @@ public sealed class FieldActivityLatestLineDelivery
     private DateTime otherSpeechAt = DateTime.MinValue;
     private DateTime otherSpeechEstimatedEnd = DateTime.MinValue;
     private DateTime otherSpeechCeiling = DateTime.MinValue;
+    private DateTime? otherSpeechSinceDelivery;
     private bool delivering;
+
+    /// <summary>
+    /// When anything else was first said after this delivery last said its own line, or null. Both
+    /// hosts speak other lines with interruption, so from then on that line may have been cut off.
+    /// Speech made by this delivery itself is not counted.
+    /// </summary>
+    public DateTime? OtherSpeechSinceDelivery
+    {
+        get
+        {
+            lock (sync)
+            {
+                return otherSpeechSinceDelivery;
+            }
+        }
+    }
 
     /// <summary>Whether a line is still owed.</summary>
     public bool HasPending
@@ -105,6 +122,7 @@ public sealed class FieldActivityLatestLineDelivery
             return;
         }
 
+        otherSpeechSinceDelivery ??= now;
         var words = text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length;
         var estimate = TimeSpan.FromTicks(Math.Max(PerWord.Ticks * words, MinimumProtection.Ticks));
         // A line spoken while an earlier one is still protected does not shorten the earlier
@@ -215,6 +233,7 @@ public sealed class FieldActivityLatestLineDelivery
         var spoken = owed;
         owed = null;
         nextAttempt = DateTime.MinValue;
+        otherSpeechSinceDelivery = null;
         if (interruptProtectedSpeech)
         {
             // A successfully delivered warning interrupted the old speech; there is

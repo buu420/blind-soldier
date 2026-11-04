@@ -22,7 +22,7 @@ public readonly record struct FieldActivityCue(
     /// <summary>
     /// A newer line of this kind makes an older one worthless: it is a reading of something
     /// that keeps changing, and an older reading still playing or still waiting to be said
-    /// would describe what is no longer on screen. Only the Temple clock sets this; the host
+    /// would describe what is no longer on screen. Timed field readouts set this; the host
     /// hands such a line to <see cref="FieldActivityLatestLineDelivery"/> instead of queueing it.
     /// </summary>
     public bool ReplacesEarlierLine { get; init; }
@@ -87,6 +87,9 @@ public readonly record struct FieldActivityObservation(
     /// keeps the climbing bit that decides whether warming is possible at all.
     /// </summary>
     public Func<int, int>? ReadTemporaryByte { get; init; }
+
+    /// <summary>Plants whose native background entity is visibly shaking in this coherent sample.</summary>
+    public IReadOnlySet<int>? AncientForestShakingPlants { get; init; }
 }
 
 /// <summary>
@@ -317,6 +320,7 @@ public sealed class FieldActivityReadout
     private DateTime clockLastSpokenAt = DateTime.MinValue;
     private string? clockCurrentLine;
     private readonly TempleClockSecondHandReadout clockSecondHand = new();
+    private readonly AncientForestPuzzleReadout forestPuzzle = new();
 
     // The Gold Saucer GP exchange's own state, like the clock's: the amount last said and the
     // amount on screen now.
@@ -330,6 +334,7 @@ public sealed class FieldActivityReadout
         ResetChase();
         ResetExcavation();
         ResetGpExchange();
+        forestPuzzle.Reset();
     }
 
     private void ResetShared()
@@ -345,10 +350,22 @@ public sealed class FieldActivityReadout
     /// while crossing, otherwise the time the hands show, or null when no clock is being read. The host
     /// delivers this rather than an older line it could not say at the time.
     /// </summary>
-    public string? CurrentReplaceableLine => clockCurrentLine ?? gpExchangeCurrentLine;
+    public string? CurrentReplaceableLine => clockCurrentLine ?? gpExchangeCurrentLine ?? forestPuzzle.CurrentLine;
 
-    /// <summary>A current visible knock-off hazard takes priority over a lengthy repeat.</summary>
-    public bool CurrentReplaceableLineIsUrgent => clockSecondHand.CurrentIsUrgent;
+    /// <summary>A current visible hazard under the player takes priority over lengthy speech.</summary>
+    public bool CurrentReplaceableLineIsUrgent => clockSecondHand.CurrentIsUrgent || forestPuzzle.CurrentIsUrgent;
+
+    /// <summary>Routine directions may wait while a current forest fact needs to be heard.</summary>
+    public bool HasPendingForestSpeech => forestPuzzle.HasUnheardLine;
+
+    /// <summary>
+    /// The host has just said <paramref name="line"/>, the current replaceable line. The forest says
+    /// what was in it again with its next line until it has been heard, so one line cutting off
+    /// another loses nothing. <paramref name="saidOverSince"/> is when anything else was first said
+    /// after it, and <paramref name="isSpeaking"/> the screen reader's own word, or null.
+    /// </summary>
+    public void NoteReplaceableLineSpoken(string line, DateTime now, Func<DateTime?> saidOverSince, Func<bool?>? isSpeaking) =>
+        forestPuzzle.NoteSpoken(line, now, saidOverSince, isSpeaking);
 
     public FieldActivityCue Observe(FieldActivityObservation observation) =>
         Observe(observation, DateTime.UtcNow);
@@ -361,6 +378,17 @@ public sealed class FieldActivityReadout
     /// </summary>
     public FieldActivityCue Observe(FieldActivityObservation observation, DateTime now)
     {
+        if (AncientForestPuzzleReadout.HasPuzzle(observation.FieldId))
+        {
+            ResetClock();
+            ResetGpExchange();
+            ResetChase();
+            ResetExcavation();
+            ResetShared();
+            return forestPuzzle.Observe(observation, now);
+        }
+        forestPuzzle.Reset();
+
         // The clock keeps its own time: it says whether the hands are moving and what time
         // they show, and a newer reading replaces an older one. Nothing below applies to it,
         // and nothing about it applies to any other room.
@@ -494,7 +522,10 @@ public sealed class FieldActivityReadout
     /// The current line for this field regardless of what was last said, for the repeat
     /// action. Null when this field has no activity or nothing about it can be read.
     /// </summary>
-    public string? Describe(FieldActivityObservation observation) => Compose(observation)?.Text;
+    public string? Describe(FieldActivityObservation observation) =>
+        AncientForestPuzzleReadout.HasPuzzle(observation.FieldId)
+            ? AncientForestPuzzleReadout.Describe(observation)
+            : Compose(observation)?.Text;
 
     /// <summary>Whether the field is stopped waiting for the player right now.</summary>
     public bool IsWaitingForInput(FieldActivityObservation observation) =>
@@ -2293,6 +2324,7 @@ public sealed class FieldActivityReadout
 
     /// <summary>Whether this field's readout needs the field's own temporary bytes.</summary>
     public static bool NeedsTemporaryBank(int fieldId) =>
+        AncientForestPuzzleReadout.HasPuzzle(fieldId) ||
         fieldId is CliffLowerFieldId or CliffMiddleFieldId or CliffUpperFieldId
             or WindFirstFieldId or WindSecondFieldId or WindThirdFieldId
             or CorelPursuitFieldId or ExcavationFieldId;
@@ -2315,6 +2347,7 @@ public sealed class FieldActivityReadout
 
     /// <summary>True when this field has an activity worth reading out at all.</summary>
     public static bool HasActivity(int fieldId) =>
+        AncientForestPuzzleReadout.HasPuzzle(fieldId) ||
         fieldId is RollingCorridorFieldId or ClockRoomFieldId or ChaseChamberFieldId
             or ExcavationFieldId or PillarApproachFieldId or AltarSceneFieldId
             or CliffLowerFieldId or CliffMiddleFieldId or CliffUpperFieldId

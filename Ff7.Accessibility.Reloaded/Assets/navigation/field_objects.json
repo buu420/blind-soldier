@@ -7105,7 +7105,8 @@
                             "cueKindOverride":  null,
                             "minimumGameMoment":  -1,
                             "maximumGameMoment":  -1,
-                            "usesTalkInteraction":  true
+                            "usesTalkInteraction":  true,
+                            "manualNavigationGuidance":  null
                         },
                         {
                             "fieldId":  622,
@@ -10841,7 +10842,7 @@
                             "minimumGameMoment":  -1,
                             "maximumGameMoment":  -1,
                             "usesTalkInteraction":  true,
-                            "manualNavigationGuidance":  "It lies in the Mutant Flytrap\u0027s mouth. While the flytrap is open, stepping in makes it bite the party, which costs HP and throws you back out, so auto walk is unavailable until it has shut."
+                            "manualNavigationGuidance":  "It lies in the Mutant Flytrap\u0027s mouth. While the flytrap is open, touching its jaws makes it bite the party, so auto walk is unavailable. If you are already inside, retreat past an end of a jaw, keeping clear of it. Use your normal Switch button to return to the forest entrance if needed."
                         },
                         {
                             "fieldId":  762,

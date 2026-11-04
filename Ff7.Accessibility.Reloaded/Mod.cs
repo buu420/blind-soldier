@@ -203,6 +203,7 @@ public sealed class Mod : IModV1, IModV2
     private ChocoboSquareReadout? chocoboSquareReadout;
     private SpeedSquareCoasterReadout? speedSquareCoasterReadout;
     private FieldActivityStateReader? fieldActivityStateReader;
+    private AncientForestPuzzleStateReader? ancientForestPuzzleStateReader;
     private GreatGlacierIceFloeReader? glacierIceReader;
 
     // The Great Glacier's regional treasure list and routes, shared by field and world navigation.
@@ -448,6 +449,11 @@ public sealed class Mod : IModV1, IModV2
     private readonly MidgarZolomAreaTracker midgarZolomAreaTracker = new();
     private readonly Dictionary<(int MapType, int ProgressStage), WorldMapRuntimeContext> worldMapRuntimes = [];
     private NavigationAutoWalkController? navigationAutoWalkController;
+
+    // Ends a field direction's hold near a Mutant Flytrap on the field loop's own key read
+    // (FieldKeyPollHook), whatever the monitor is doing. It outlives each auto walk controller.
+    private readonly AutoWalkPollLease fieldAutoWalkPollLease = new(releaseLagsThePoll: true);
+    private FieldKeyPollHook? fieldKeyPollHook;
 
     // The controller navigation menu. The hook decides, inside the game's own
     // XInput read, which buttons the game may see; everything that speaks or walks
@@ -760,6 +766,8 @@ public sealed class Mod : IModV1, IModV2
             // delegate is kept alive by the hook object until this runs.
             controllerCaptureHook?.Dispose();
             controllerCaptureHook = null;
+            fieldKeyPollHook?.Dispose();
+            fieldKeyPollHook = null;
             fieldControllerNavigation = null;
             worldControllerNavigation = null;
             fieldExitCuePlayer?.Dispose();
@@ -1026,6 +1034,7 @@ public sealed class Mod : IModV1, IModV2
                 Log)
             : null;
         fieldActivityStateReader = new FieldActivityStateReader(legacyAddressSpace);
+        ancientForestPuzzleStateReader = new AncientForestPuzzleStateReader(legacyAddressSpace);
         glacierIceReader = new GreatGlacierIceFloeReader(legacyAddressSpace);
         fieldActivityReadout = new FieldActivityReadout();
         fieldActivityBoundaryStateReader = new FieldBoundaryStateReader(legacyAddressSpace);
@@ -1139,7 +1148,7 @@ public sealed class Mod : IModV1, IModV2
             },
             Log);
         navigationAutoWalkController?.Dispose();
-        navigationAutoWalkController = NavigationAutoWalkController.CreateCurrentProcess();
+        navigationAutoWalkController = NavigationAutoWalkController.CreateCurrentProcess(fieldAutoWalkPollLease);
         pendingNavigationAutoWalkToggle = NavigationAutoWalkDomain.None;
         lastNavigationAutoWalkFailure = string.Empty;
         floor60GuardTimingStateReader = new Floor60GuardTimingStateReader(legacyAddressSpace);
@@ -1587,11 +1596,13 @@ public sealed class Mod : IModV1, IModV2
             fieldBoundaryStateReader,
             transitionProvider: ReadNavigationTransitions,
             dynamicObstacleProvider: fieldDynamicObstacleReader.Read,
-            playerCollisionRadiusProvider: fieldDynamicObstacleReader.ReadPlayerCollisionRadius);
+            playerCollisionRadiusProvider: fieldDynamicObstacleReader.ReadPlayerCollisionRadius,
+            ancientForestBankReader: fieldId => ancientForestPuzzleStateReader?.Read(fieldId));
         var fieldExitReachabilityPlanner = new FieldWalkmeshRoutePlanner(
             fieldWalkmeshReader,
             fieldBoundaryStateReader,
-            transitionProvider: ReadNavigationTransitions);
+            transitionProvider: ReadNavigationTransitions,
+            ancientForestBankReader: fieldId => ancientForestPuzzleStateReader?.Read(fieldId));
         nativeFieldExitTargetProvider = new NativeFieldExitTargetProvider(
             fieldGatewayTargetReader,
             scriptExitProvider: position =>
@@ -1694,6 +1705,8 @@ public sealed class Mod : IModV1, IModV2
                 fieldNavigationCadence,
                 fieldFootstepDistanceProbe.GetFieldSummary(fieldId)),
             fieldNavigationProgressSink);
+        fieldNavigationController.InteractionArrivalInstruction = (position, target) =>
+            AncientForestInteractionGuidance.Describe(target, ancientForestPuzzleStateReader?.Read(position.FieldId));
 
         // Every Great Glacier treasure not yet picked up is listed in Objects on every region
         // screen and the snowfield, and a chosen one is walked to leg by leg (see
@@ -1939,6 +1952,7 @@ public sealed class Mod : IModV1, IModV2
                 battleAnimationNarration?.Tick(DateTime.UtcNow,
                     battleAnimationForeground && config.EnableBattleAnimationDescriptions,
                     battleAnimationForeground && config.EnableBattleMessageSpeech);
+                TickAncientForestNavigationSafety();
                 TickFieldActivityReadout();
                 TickGlacierIceFloes();
                 TickGlacierMapScreen();
@@ -2997,6 +3011,29 @@ public sealed class Mod : IModV1, IModV2
     /// The Fort Condor battle is silent because it draws no text the mod can
     /// see. See CondorMinigameProbe for what this samples and why.
     /// </summary>
+    /// <summary>Stops forest navigation on a native bite, independently of narration settings.</summary>
+    private void TickAncientForestNavigationSafety()
+    {
+        if ((fieldNavigationController?.BeaconEnabled != true &&
+             navigationAutoWalkController?.IsEnabledFor(NavigationAutoWalkDomain.Field) != true &&
+             pendingNavigationAutoWalkToggle != NavigationAutoWalkDomain.Field) ||
+            fieldPositionReader is null || ancientForestPuzzleStateReader is null || fieldAudibleCueStateReader is null ||
+            !fieldAudibleCueStateReader.TryRead(out var cue) || cue.Module != FieldPositionReader.FieldModule)
+            return;
+
+        var result = fieldPositionReader.ReadNavigation();
+        if (!result.IsUsable || !AncientForestPuzzleReadout.HasPuzzle(result.Position.FieldId)) return;
+        var controlled = cue.UserControl == 0 && cue.MovieActive == 0;
+        if (!AncientForestInteractionGuidance.IsBitePose(result.Position, controlled,
+                ancientForestPuzzleStateReader.Read(result.Position.FieldId))) return;
+
+        pendingNavigationAutoWalkToggle = NavigationAutoWalkDomain.None;
+        fieldNavigationController?.Reset();
+        StopNavigationAutoWalk(NavigationAutoWalkDomain.Field, announce: false);
+        if (foregroundProcessGate.IsCurrentProcessForeground())
+            Speak("Mutant Flytrap. Navigation off.", true);
+    }
+
     /// <summary>
     /// Speaks the native activities this route passes through - the rolling corridor,
     /// the clock, the chase, the Bone Village dig, the pillar jumps and the altar
@@ -3017,6 +3054,7 @@ public sealed class Mod : IModV1, IModV2
             fieldActivityReadout is null ||
             fieldPositionReader is null)
         {
+            fieldActivityReadout?.Reset();
             fieldActivityLatestLine.Reset();
             return;
         }
@@ -3029,9 +3067,8 @@ public sealed class Mod : IModV1, IModV2
             return;
         }
 
-        // The clock, and only the clock, is watched and spoken only while the game has focus;
-        // losing focus forgets its motion and any owed reading. Every other activity runs as
-        // it always has.
+        // Clock motion and timed forest state are watched only while the game has
+        // focus; losing focus forgets their motion and any owed reading.
         if (!FieldActivityClockHost.MayObserve(
                 result.Position.FieldId,
                 foregroundProcessGate.IsCurrentProcessForeground(),
@@ -3253,6 +3290,9 @@ public sealed class Mod : IModV1, IModV2
     /// </summary>
     private FieldActivityObservation ReadFieldActivityObservation(FieldPositionSnapshot position)
     {
+        var isForest = AncientForestPuzzleReadout.HasPuzzle(position.FieldId);
+        var forest = isForest ? ancientForestPuzzleStateReader?.ReadState(position.FieldId) : null;
+        var forestBank = forest?.Bank;
         var controlResult = fieldNavigationControlReader?.Read(position)
             ?? new FieldNavigationControlReadResult(false, default, "control reader is not initialized");
 
@@ -3273,7 +3313,11 @@ public sealed class Mod : IModV1, IModV2
             isControlled,
             ReadFieldActivityGameMoment(),
             ReadFieldActivityPillarGate(),
-            index => ReadByte(FieldNavigationObjectReader.AddressTemporaryFieldBankBase + index));
+            isForest
+                ? index => forestBank is not null && (uint)index < (uint)forestBank.Length ? forestBank[index] : -1
+                : index => ReadByte(FieldNavigationObjectReader.AddressTemporaryFieldBankBase + index),
+            ancientForestShakingPlants: forest?.ShakingPlants,
+            modelOverride: forest?.Models);
     }
 
     private int ReadFieldActivityGameMoment() =>
@@ -6890,7 +6934,7 @@ public sealed class Mod : IModV1, IModV2
             // Routine route directions stay quiet while the menu is open. The route
             // keeps running; it just stops talking over the item the player is trying
             // to hear. The menu's own announcements are unaffected.
-            if (!controllerMenuIsOpen &&
+            if (!controllerMenuIsOpen && fieldActivityReadout?.HasPendingForestSpeech != true &&
                 FieldNavigationSpeechPolicy.IsDue(
                     now,
                     lastNavigationSpeechAt,
@@ -7478,6 +7522,30 @@ public sealed class Mod : IModV1, IModV2
     }
 
     /// <summary>
+    /// The field loop's key read, where auto walk's hold near a Mutant Flytrap ends. Without
+    /// it nothing bounds that hold, and auto walk hands those fields to the player instead.
+    /// </summary>
+    private void InstallFieldKeyPollHook(IReloadedHooks installedHooks)
+    {
+        if (fieldKeyPollHook is not null || Environment.Is64BitProcess)
+        {
+            return;
+        }
+
+        _ = FieldKeyPollHook.TryInstall(
+            installedHooks,
+            new CurrentProcessLegacyAddressSpace(),
+            fieldAutoWalkPollLease,
+            new NativeFieldKeyGlobals(),
+            out var installed,
+            out var diagnostic);
+        // Kept, and disposed at unload, even when it did not go live: its detour must outlive
+        // any half-applied activation.
+        fieldKeyPollHook = installed;
+        Log(diagnostic);
+    }
+
+    /// <summary>
     /// Ends the automatic walk whatever domain owns it.
     ///
     /// <para>Both the stop button and a plain A press come through here. A is spoken
@@ -7822,11 +7890,40 @@ public sealed class Mod : IModV1, IModV2
                 control.Transform,
                 Math.Max(0, config.FieldNavigationArrivalDistanceUnits),
                 out direction);
+        // Where a Mutant Flytrap bites, the direction - a turn to face a Talk target included -
+        // is acted on only in the polls the planner can bound from where the leader is now,
+        // measured after this scan's route work rather than before it.
+        var fieldBudget = hasDirection && !movementSuppressed
+            ? navigationAutoWalkController.PollLease.ResolveFreshFieldBudget(
+                fieldNavigationRoutePlanner,
+                position,
+                () => fieldPositionReader?.ReadNavigation() is { IsUsable: true } fresh ? fresh.Position : null)
+            : default;
+        if (fieldBudget.Blocked is { } blocked)
+        {
+            Log($"Field auto walk held its press back: {blocked}.");
+            hasDirection = false;
+        }
+
+        if (fieldBudget.Handoff is { } handoff)
+        {
+            Log(
+                $"Field auto walk handed to the player: {handoff} " +
+                $"target={fieldNavigationController.CurrentTargetLabel}, position={position.X},{position.Y},{position.Z}");
+            if (StopNavigationAutoWalk(NavigationAutoWalkDomain.Field, announce: false))
+            {
+                Speak(handoff, interrupt: true);
+            }
+
+            return;
+        }
+
         var result = navigationAutoWalkController.Drive(
             hasDirection ? direction : FieldNavigationInput.None,
             canMove: hasDirection && !movementSuppressed,
             routeActive: fieldNavigationController.BeaconEnabled,
-            observedInput: observedInput);
+            observedInput: observedInput,
+            pollBudget: fieldBudget.Budget);
         LogFieldAutoWalkPace(position, direction, hasDirection, observedInput);
         StopFieldAutoWalkIfItCannotGetCloser(position, control, hasDirection, movementSuppressed);
         HandleNavigationAutoWalkInputResult(result, NavigationAutoWalkDomain.Field);
@@ -9267,6 +9364,7 @@ public sealed class Mod : IModV1, IModV2
                 hooks = target;
                 Log("Reloaded.Hooks controller acquired.");
                 InstallControllerNavigationCapture(target);
+                InstallFieldKeyPollHook(target);
             }
             else
             {

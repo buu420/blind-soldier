@@ -1,4 +1,4 @@
-﻿namespace Ff7.Accessibility.Reloaded;
+namespace Ff7.Accessibility.Reloaded;
 
 public readonly record struct FieldWalkmeshVertex(short X, short Y, short Z);
 
@@ -259,12 +259,25 @@ public interface IFieldNavigationRoutePlanner
 }
 
 /// <summary>
+/// A planner that can bound how long auto walk may keep acting on one direction where a Mutant
+/// Flytrap bites (<see cref="FieldWalkmeshRoutePlanner.FlytrapSafeFrames"/>).
+/// </summary>
+public interface IFieldNavigationFlytrapHoldBound
+{
+    /// <summary>Null where no jaw bites; otherwise the polls any path from here stays out of the touch.</summary>
+    int? FlytrapSafeFrames(FieldPositionSnapshot position, double unitsPerFrame);
+}
+
+/// <summary>
 /// Optional status surface for planners that can tell a route the game is currently
 /// holding shut from a route that does not exist. Only the first is worth waiting for.
 /// </summary>
 public interface IFieldNavigationNativeBoundaryStatus
 {
     bool LastFailureWasNativeBoundary { get; }
+
+    /// <summary>The last failed route crossed an active, observed forest jaw.</summary>
+    bool LastFailureWasFlytrap => false;
 
     IReadOnlyList<int> LastBlockingBoundaryTriangles { get; }
 
@@ -359,7 +372,8 @@ public sealed class FieldWalkmeshRoutePlanner :
     IFieldNavigationRouteRefreshPlanner,
     IFieldNavigationCorridorLookaheadPlanner,
     IFieldNavigationRouteReadStatus,
-    IFieldNavigationAutomaticMovementPlanner
+    IFieldNavigationAutomaticMovementPlanner,
+    IFieldNavigationFlytrapHoldBound
 {
     private const int LadderPairMaximumEndpointDistance = 192;
 
@@ -411,16 +425,31 @@ public sealed class FieldWalkmeshRoutePlanner :
             FieldPositionSnapshot,
             FieldNavigationTarget?,
             IReadOnlyList<FieldNavigationDynamicObstacle>>? dynamicObstacleProvider = null,
-        Func<FieldPositionSnapshot, double>? playerCollisionRadiusProvider = null)
+        Func<FieldPositionSnapshot, double>? playerCollisionRadiusProvider = null,
+        Func<int, byte[]?>? ancientForestBankReader = null)
     {
         this.reader = reader;
         this.boundaryStateReader = boundaryStateReader;
         this.transitionProvider = transitionProvider;
         this.dynamicObstacleProvider = dynamicObstacleProvider;
         this.playerCollisionRadiusProvider = playerCollisionRadiusProvider;
+        this.ancientForestBankReader = ancientForestBankReader;
     }
 
     private readonly Func<FieldPositionSnapshot, double>? playerCollisionRadiusProvider;
+
+    /// <summary>
+    /// The field's temporary bank (5[0..127]) on a coherent read, or null: the Ancient Forest's
+    /// flytrap gates. Null keeps every gated jaw biting (<see cref="AncientForestRouteHazards"/>).
+    /// </summary>
+    private readonly Func<int, byte[]?>? ancientForestBankReader;
+
+    /// <summary>
+    /// Set by the last <see cref="TryBuildRoute"/> refused because the way it found walks into an
+    /// Ancient Forest Mutant Flytrap's bite. Nothing the game does on its own opens that way, so
+    /// it is never also a native boundary to wait for.
+    /// </summary>
+    public bool LastFailureWasFlytrap { get; private set; }
 
     public string LastDiagnostic { get; private set; } = string.Empty;
 
@@ -602,6 +631,7 @@ public sealed class FieldWalkmeshRoutePlanner :
         }
         if (!TryReadBoundaryState(position, result.Walkmesh, out var boundaries, out var boundaryDiagnostic))
         { LastReadWasCoherent = false; LastDiagnostic = boundaryDiagnostic; return false; }
+        if (RefusesFlytrapLeg(position, result.Walkmesh, destination)) return false;
 
         var triangle = FieldWalkmeshPathfinder.ResolveTriangle(result.Walkmesh,
             position.X, position.Y, position.Z, preferredTriangleIndex: -1);
@@ -646,6 +676,7 @@ public sealed class FieldWalkmeshRoutePlanner :
         }
         if (!TryReadBoundaryState(position, result.Walkmesh, out var boundaries, out var boundaryDiagnostic))
         { LastReadWasCoherent = false; LastDiagnostic = boundaryDiagnostic; return false; }
+        if (RefusesFlytrapLeg(position, result.Walkmesh, destination)) return false;
 
         var triangle = FieldWalkmeshPathfinder.ResolveTriangle(result.Walkmesh,
             position.X, position.Y, position.Z, preferredTriangleIndex: -1);
@@ -664,6 +695,11 @@ public sealed class FieldWalkmeshRoutePlanner :
             !TryReadBoundaryState(position, result.Walkmesh, out var boundaries, out _))
         {
             return null;
+        }
+
+        if (WalksIntoFlytrap(position, result.Walkmesh, destination, out _))
+        {
+            return false;
         }
 
         var triangle = FieldWalkmeshPathfinder.ResolveTriangle(result.Walkmesh,
@@ -690,6 +726,7 @@ public sealed class FieldWalkmeshRoutePlanner :
         { LastReadWasCoherent = false; LastDiagnostic = result.Diagnostic; return false; }
         if (!TryReadBoundaryState(position, result.Walkmesh, out var boundaries, out var boundaryDiagnostic))
         { LastReadWasCoherent = false; LastDiagnostic = boundaryDiagnostic; return false; }
+        if (RefusesFlytrapLeg(position, result.Walkmesh, destination)) return false;
         var triangle = FieldWalkmeshPathfinder.ResolveTriangle(result.Walkmesh,
             position.X, position.Y, position.Z, position.TriangleId);
         return triangle >= 0 && AreNativeWallProbesClear(result.Walkmesh, triangle, current, destination,
@@ -709,6 +746,7 @@ public sealed class FieldWalkmeshRoutePlanner :
         if (radius <= 0d) return false;
         if (!TryReadBoundaryState(position, result.Walkmesh, out var boundaries, out var boundaryDiagnostic))
         { LastReadWasCoherent = false; LastDiagnostic = boundaryDiagnostic; return false; }
+        if (RefusesFlytrapLeg(position, result.Walkmesh, destination)) return false;
         return FieldNavigationNativeProbeMovement.IsClear(result.Walkmesh, position.TriangleId,
             new(position.X, position.Y, position.Z), destination, radius, obstacles, boundaries.IsBoundaryEnabled,
             requestedHeading, position.NativeFixedPosition);
@@ -745,6 +783,27 @@ public sealed class FieldWalkmeshRoutePlanner :
         FieldNavigationTarget target,
         out FieldNavigationRoutePlan plan)
     {
+        LastFailureWasFlytrap = false;
+        if (!TryBuildWalkmeshRoute(position, target, avoided: null, out plan))
+        {
+            return false;
+        }
+
+        var jaws = ResolveBitingJaws(position.FieldId);
+        return jaws.Count == 0 || KeepsClearOfFlytraps(position, target, jaws, ref plan);
+    }
+
+    /// <summary>
+    /// The route as the planner has always built it, with <paramref name="avoided"/> closed to
+    /// its searches on top of the native locks. Those are a flytrap's ground, not the game's
+    /// locks: the native boundary classification never sees them.
+    /// </summary>
+    private bool TryBuildWalkmeshRoute(
+        FieldPositionSnapshot position,
+        FieldNavigationTarget target,
+        IReadOnlySet<int>? avoided,
+        out FieldNavigationRoutePlan plan)
+    {
         plan = null!;
         LastReadWasCoherent = true;
         LastFailureWasNativeBoundary = false;
@@ -770,6 +829,8 @@ public sealed class FieldWalkmeshRoutePlanner :
             return false;
         }
 
+        var isBlocked = Avoiding(boundaryState, avoided);
+
         // A portal the leader's body cannot cross is a wall to the game. Measure the portals
         // the route would use, close the ones the body cannot cross and plan again, until the
         // route uses none. If that leaves no way at all, keep the centre-line route the planner
@@ -778,7 +839,7 @@ public sealed class FieldWalkmeshRoutePlanner :
         var body = ResolveBodyClearance(position, result.Walkmesh, boundaryState);
         if (body is null)
         {
-            if (!TryBuildRouteOn(position, target, result, boundaryState, boundaryDiagnostic, out plan))
+            if (!TryBuildRouteOn(position, target, result, boundaryState, boundaryDiagnostic, out plan, avoided))
             {
                 return false;
             }
@@ -794,7 +855,7 @@ public sealed class FieldWalkmeshRoutePlanner :
                 plan = plan with
                 {
                     Portals = InsetPortalCorners(result.Walkmesh!, (int)Math.Round(radius), plan.Portals,
-                        boundaryState.IsBoundaryEnabled, static (_, _) => true, clearWallSegments: true)
+                        isBlocked, static (_, _) => true, clearWallSegments: true)
                 };
                 LastDiagnostic += $", corners kept {radius:0} off the walls (no flat-floor body model)";
             }
@@ -806,7 +867,7 @@ public sealed class FieldWalkmeshRoutePlanner :
         for (var attempt = 0; attempt < MaximumBodyClearanceReplans; attempt++)
         {
             if (!TryBuildRouteOn(position, target, FieldWalkmeshReadResult.Valid(body.Walkmesh, result.Diagnostic),
-                    boundaryState, boundaryDiagnostic, out plan))
+                    boundaryState, boundaryDiagnostic, out plan, avoided))
             {
                 break;
             }
@@ -822,7 +883,7 @@ public sealed class FieldWalkmeshRoutePlanner :
                 {
                     UsesBodyClearance = true,
                     Portals = plan.StableWaypointsOverride is null
-                        ? InsetPortalCornersForBody(body, plan.Portals, boundaryState.IsBoundaryEnabled)
+                        ? InsetPortalCornersForBody(body, plan.Portals, isBlocked)
                         : plan.Portals
                 };
                 RecordRouteGeometry(target, usesBody: true);
@@ -833,7 +894,7 @@ public sealed class FieldWalkmeshRoutePlanner :
 
         LastFailureWasNativeBoundary = false;
         LastBlockingBoundaryTriangles = Array.Empty<int>();
-        if (TryBuildRouteOn(position, target, result, boundaryState, boundaryDiagnostic, out plan))
+        if (TryBuildRouteOn(position, target, result, boundaryState, boundaryDiagnostic, out plan, avoided))
         {
             RecordRouteGeometry(target, usesBody: false);
             LastDiagnostic += $", {body.Diagnostic}, no route the body can walk: centre-line route kept";
@@ -842,6 +903,489 @@ public sealed class FieldWalkmeshRoutePlanner :
 
         LastDiagnostic += $", {body.Diagnostic}";
         return false;
+    }
+
+    /// <summary>
+    /// The Ancient Forest jaws that bite now (<see cref="AncientForestRouteHazards"/>). Without a
+    /// bank reader, or when it cannot read the field coherently, every gated jaw is taken to bite.
+    /// </summary>
+    private IReadOnlyList<AncientForestRouteHazards.Jaw> ResolveBitingJaws(int fieldId) =>
+        AncientForestRouteHazards.Jaws(fieldId).Count == 0
+            ? Array.Empty<AncientForestRouteHazards.Jaw>()
+            : AncientForestRouteHazards.ActiveJaws(fieldId, ancientForestBankReader?.Invoke(fieldId));
+
+    /// <summary>
+    /// For an interaction approach in a field with biting jaws: whether a point keeps the
+    /// margin from every jaw at its own floor height, and whether the walk to it from here (the
+    /// funnel through the route's portals) does. Both null where no jaw bites, so every other
+    /// field's search is the one it always was.
+    /// </summary>
+    private (Func<FieldNavigationRouteWaypoint, bool>? Point,
+        Func<IReadOnlyList<FieldNavigationRoutePortal>, FieldNavigationRouteWaypoint, bool>? Walk)
+        ResolveFlytrapApproachChecks(FieldPositionSnapshot position, FieldWalkmesh walkmesh)
+    {
+        var jaws = ResolveBitingJaws(position.FieldId);
+        if (jaws.Count == 0)
+        {
+            return (null, null);
+        }
+
+        var radius = ResolveFlytrapRadius(position);
+        var start = new FieldNavigationRouteWaypoint(position.X, position.Y, position.Z);
+        return (point => AncientForestRouteHazards.IsClear(point, jaws, radius),
+            (portals, approach) => !AncientForestRouteHazards.TryFindRouteContact(walkmesh, start,
+                FieldWalkmeshPathfinder.BuildStableWaypoints(start.X, start.Y, start.Z, portals, approach),
+                portals, jaws, radius, out _));
+    }
+
+    /// <summary>
+    /// How many frames a direction can be held from here at <paramref name="unitsPerFrame"/>
+    /// (8 running, 4 walking) before any path it could take, a wall slide included, might bring
+    /// the leader into a biting Mutant Flytrap's touch; null where no jaw bites, 0 where the
+    /// walkmesh cannot be read. Each decision checks only its first eight units and keeps the
+    /// route margin past them, so a host holding a direction longer than this between decisions
+    /// has to let it go: replayed with each direction held for the 13 to 16 frames 0.10.8 logged
+    /// between decisions in 622, auto walk walks into both jaws.
+    /// </summary>
+    public int? FlytrapSafeFrames(FieldPositionSnapshot position, double unitsPerFrame)
+    {
+        var jaws = ResolveBitingJaws(position.FieldId);
+        if (jaws.Count == 0)
+        {
+            return null;
+        }
+
+        var result = reader.Read(position);
+        if (!result.IsUsable || result.Walkmesh is null || !(unitsPerFrame > 0d))
+        {
+            return 0;
+        }
+
+        var (x, y, z) = FieldNativeLineContact.NativeCoordinates(position);
+        return AncientForestRouteHazards.SafeFrames(result.Walkmesh, jaws, ResolveFlytrapRadius(position), x, y, z, unitsPerFrame);
+    }
+
+    /// <summary>The leader's live +0x72 where the host reads it, never less than the forest's native 30.</summary>
+    private double ResolveFlytrapRadius(FieldPositionSnapshot position) =>
+        Math.Max(AncientForestRouteHazards.NativeLeaderRadius,
+            playerCollisionRadiusProvider?.Invoke(position) is { } radius && double.IsFinite(radius) ? radius : 0d);
+
+    /// <summary>
+    /// Keeps a route out of every biting Mutant Flytrap, or refuses it: every leg auto walk will
+    /// walk (the tracker's own steps from this position, scripted traversals jumped) has to stay
+    /// <see cref="AncientForestRouteHazards.RouteMargin"/> outside each jaw's touch, on the floor
+    /// under it. A walk that only skirts a jaw is bent round the corner of its margin
+    /// (<see cref="TryBendRoundFlytraps"/>); one that needs other ground is planned again without
+    /// the bitten ground (<see cref="TryRouteRoundFlytraps"/>). The jaws are the only walkable
+    /// links between the forest's regions, so a route that needs one has no way round and is
+    /// refused - as a flytrap, never as a door to wait for. A throwing spot past its zone line is
+    /// never re-routed: a way round sent 623's walk to the bigt1 spot through its bigt3 reset line.
+    /// </summary>
+    private bool KeepsClearOfFlytraps(
+        FieldPositionSnapshot position,
+        FieldNavigationTarget target,
+        IReadOnlyList<AncientForestRouteHazards.Jaw> jaws,
+        ref FieldNavigationRoutePlan plan)
+    {
+        var start = new FieldNavigationRouteWaypoint(position.X, position.Y, position.Z);
+        var steps = StepsOf(position, plan);
+        var builtDiagnostic = LastDiagnostic;
+        var read = reader.Read(position);
+        if (!read.IsUsable || read.Walkmesh is null)
+        {
+            // The game's memory, not the route, failed: an incoherent read, never a bite.
+            return RefuseUnreadable(ref plan, builtDiagnostic, read.Diagnostic);
+        }
+
+        var walkmesh = read.Walkmesh;
+        var radius = ResolveFlytrapRadius(position);
+        if (!AncientForestRouteHazards.TryFindRouteContact(walkmesh, start, steps, plan.Portals, jaws, radius, out var contact))
+        {
+            return true;
+        }
+
+        // A throwing spot past a line works only when that line is the last the walk crosses
+        // (FieldNavigationTarget.ApproachCrossingLine); the reader offers it only from where its
+        // own walk was proven. Any other walk could cross the line that resets the zone after it.
+        if (target.ApproachCrossingLine is null)
+        {
+            if (TryBendRoundFlytraps(position, walkmesh, plan, steps, jaws, radius, out var bent))
+            {
+                plan = plan with { StableWaypointsOverride = bent };
+                LastDiagnostic += $", bent round the Mutant Flytrap's bite ({contact.Jaw}) at " +
+                    string.Join(";", bent.Where(step => !steps.Contains(step)).Select(step => $"{step.Waypoint.X},{step.Waypoint.Y},{step.Waypoint.Z}"));
+                return true;
+            }
+
+            if (TryRouteRoundFlytraps(position, target, walkmesh, plan, jaws, radius, out var around))
+            {
+                plan = around;
+                LastDiagnostic += $", kept clear of the Mutant Flytrap's bite ({contact.Jaw}) by a way round";
+                return true;
+            }
+
+            if (!LastReadWasCoherent)
+            {
+                return RefuseUnreadable(ref plan, builtDiagnostic, LastDiagnostic);
+            }
+        }
+
+        LastDiagnostic = builtDiagnostic;
+        plan = null!;
+        LastFailureWasFlytrap = true;
+        LastFailureWasNativeBoundary = false;
+        LastBlockingBoundaryTriangles = Array.Empty<int>();
+        LastDiagnostic += $", refused: the route walks into the Mutant Flytrap's bite, {contact}";
+        return false;
+    }
+
+    /// <summary>
+    /// A walkmesh read during the Mutant Flytrap check that failed: reported as the incoherent
+    /// read it is, so nothing treats the destination as one the flytrap shuts off.
+    /// </summary>
+    private bool RefuseUnreadable(ref FieldNavigationRoutePlan plan, string builtDiagnostic, string readDiagnostic)
+    {
+        plan = null!;
+        LastReadWasCoherent = false;
+        LastFailureWasFlytrap = false;
+        LastFailureWasNativeBoundary = false;
+        LastBlockingBoundaryTriangles = Array.Empty<int>();
+        LastDiagnostic = $"{builtDiagnostic}, the walkmesh read for the Mutant Flytrap check failed: {readDiagnostic}";
+        return false;
+    }
+
+    private static Func<int, bool> Avoiding(FieldBoundaryState boundaryState, IReadOnlySet<int>? avoided) =>
+        avoided is not { Count: > 0 }
+            ? boundaryState.IsBoundaryEnabled
+            : triangle => boundaryState.IsBoundaryEnabled(triangle) || avoided.Contains(triangle);
+
+    /// <summary>Route searches one build may repeat while closing ground a flytrap's bite reaches.</summary>
+    private const int MaximumFlytrapReplans = 6;
+
+    /// <summary>
+    /// A way round a flytrap that needs other ground: the route planned again with the ground the
+    /// bite reaches closed - first all of it, then only the triangles each failing walk crosses
+    /// inside the margin, a few times over - each answer checked as the first was. The leader's
+    /// own triangle and the route's end are never closed. 623's south-middle needs it: the
+    /// shortest way from bat2 (467,-667) to the hakjp landing (872,-324) runs 17 units from big0dn,
+    /// inside its bite, and the way round the outside of the jaws is all ground the bite leaves.
+    /// </summary>
+    private bool TryRouteRoundFlytraps(
+        FieldPositionSnapshot position,
+        FieldNavigationTarget target,
+        FieldWalkmesh walkmesh,
+        FieldNavigationRoutePlan plan,
+        IReadOnlyList<AncientForestRouteHazards.Jaw> jaws,
+        double radius,
+        out FieldNavigationRoutePlan around)
+    {
+        around = plan;
+        var start = new FieldNavigationRouteWaypoint(position.X, position.Y, position.Z);
+        bool Bites(FieldNavigationRoutePlan candidate) => AncientForestRouteHazards.TryFindRouteContact(walkmesh, start,
+            StepsOf(position, candidate), candidate.Portals, jaws, radius, out _);
+
+        var kept = new HashSet<int> { plan.TargetTriangle };
+        if (plan.TrianglePath.Count > 0)
+        {
+            kept.Add(plan.TrianglePath[0]);
+        }
+
+        var near = AncientForestRouteHazards.TrianglesNear(walkmesh, jaws, radius)
+            .Where(triangle => !kept.Contains(triangle)).ToHashSet();
+        if (near.Count > 0 && CouldReach(position, target, walkmesh, near))
+        {
+            if (TryBuildWalkmeshRoute(position, target, near, out var wide) && !Bites(wide))
+            {
+                around = wide;
+                return true;
+            }
+
+            if (!LastReadWasCoherent)
+            {
+                // An unreadable frame is not a way round that failed; the caller says which.
+                return false;
+            }
+        }
+
+        var avoided = new HashSet<int>();
+        var candidate = plan;
+        for (var attempt = 0; attempt < MaximumFlytrapReplans; attempt++)
+        {
+            var closing = AncientForestRouteHazards.TrianglesUnderContacts(walkmesh, start, StepsOf(position, candidate),
+                    candidate.Portals, jaws, radius)
+                .Where(triangle => !kept.Contains(triangle) && !avoided.Contains(triangle))
+                .ToArray();
+            if (closing.Length == 0)
+            {
+                return false;
+            }
+
+            avoided.UnionWith(closing);
+            if (!CouldReach(position, target, walkmesh, avoided) ||
+                !TryBuildWalkmeshRoute(position, target, avoided, out candidate))
+            {
+                return false;
+            }
+
+            if (!Bites(candidate))
+            {
+                around = candidate;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Whether any ground a route to the target could end on - the triangle the pathfinder would
+    /// take for its point, or any within its interaction or line reach of the point or line, with
+    /// room to spare - is joined to the leader's triangle by triangles and scripted traversals, as
+    /// the route search joins them, with the native locks and <paramref name="avoided"/> shut. A
+    /// search that fails this cannot succeed, so the costly one is not run; a traversal-mounted
+    /// exit is always searched.
+    /// </summary>
+    private bool CouldReach(
+        FieldPositionSnapshot position,
+        FieldNavigationTarget target,
+        FieldWalkmesh walkmesh,
+        IReadOnlySet<int> avoided)
+    {
+        var start = FieldWalkmeshPathfinder.ResolveTriangle(walkmesh, position.X, position.Y, position.Z, preferredTriangleIndex: -1);
+        if (target.ExitTraversalId is { Length: > 0 } || start < 0 ||
+            !TryReadBoundaryState(position, walkmesh, out var boundaries, out _))
+        {
+            return true;
+        }
+
+        var anchor = FieldWalkmeshPathfinder.ResolveTriangle(walkmesh, target.X, target.Y, target.Z, preferredTriangleIndex: -1);
+        var reach = Math.Max(target.InteractionRadius, target.LineActivationRadius) + 64d;
+        bool Ends(int index) =>
+            index == anchor ||
+            AncientForestRouteHazards.TrianglePlanDistance(walkmesh.Triangles[index], target.X, target.Y) <= reach ||
+            target.TriggerLine is { } line && AncientForestRouteHazards.TrianglePlanDistance(walkmesh.Triangles[index], line) <= reach;
+
+        var links = ResolveOffMeshLinks(position.FieldId, walkmesh).Concat(ResolveTargetRouteLinks(target))
+            .ToLookup(link => link.FromTriangle, link => link.ToTriangle);
+        var seen = new bool[walkmesh.Triangles.Count];
+        var queue = new Queue<int>();
+        seen[start] = true;
+        queue.Enqueue(start);
+        while (queue.TryDequeue(out var current))
+        {
+            if (Ends(current))
+            {
+                return true;
+            }
+
+            var triangle = walkmesh.Triangles[current];
+            foreach (var next in new[] { triangle.Adjacent0, triangle.Adjacent1, triangle.Adjacent2 }.Select(edge => (int)edge)
+                         .Concat(links[current]))
+            {
+                if (next < 0 || next >= seen.Length || seen[next] ||
+                    boundaries.IsBoundaryEnabled(next) || avoided.Contains(next))
+                {
+                    continue;
+                }
+
+                seen[next] = true;
+                queue.Enqueue(next);
+            }
+        }
+
+        return false;
+    }
+
+    private static IReadOnlyList<FieldNavigationRouteStep> StepsOf(FieldPositionSnapshot position, FieldNavigationRoutePlan plan) =>
+        plan.StableWaypointsOverride ??
+        FieldWalkmeshPathfinder.BuildStableWaypoints(position.X, position.Y, position.Z, plan.Portals, plan.FinalApproach);
+
+    /// <summary>Bends one route may take round flytrap margins before it is refused.</summary>
+    private const int MaximumFlytrapBends = 4;
+
+    /// <summary>
+    /// A walk that comes within a jaw's margin, bent round it: before the step the offending leg
+    /// walks to, the nearest corner of that jaw's margin rectangle (two units outside it) from
+    /// which both new legs are walkable floor with the native locks shut, on the plan's own mesh,
+    /// and clear of every biting jaw. The bend is kept as the recovery bends are - to be reached
+    /// and left only once the walk on is clear - so the lookahead cannot cut it. The whole walk is
+    /// checked again after each bend; a leg that ends at a traversal the steps do not name, or
+    /// that no corner clears, is not bent.
+    /// </summary>
+    private bool TryBendRoundFlytraps(
+        FieldPositionSnapshot position,
+        FieldWalkmesh walkmesh,
+        FieldNavigationRoutePlan plan,
+        IReadOnlyList<FieldNavigationRouteStep> steps,
+        IReadOnlyList<AncientForestRouteHazards.Jaw> jaws,
+        double radius,
+        out IReadOnlyList<FieldNavigationRouteStep> bent)
+    {
+        bent = steps;
+        if (!TryReadBoundaryState(position, walkmesh, out var boundaries, out _))
+        {
+            return false;
+        }
+
+        var mesh = plan.UsesBodyClearance && ResolveBodyClearance(position, walkmesh, boundaries) is { } body
+            ? body.Walkmesh
+            : walkmesh;
+        bool Walkable(FieldNavigationRouteWaypoint from, FieldNavigationRouteWaypoint to)
+        {
+            var triangle = FieldWalkmeshPathfinder.ResolveTriangle(mesh, from.X, from.Y, from.Z, preferredTriangleIndex: -1);
+            return triangle >= 0 &&
+                   FieldWalkmeshPathfinder.TraceWalkableSegment(mesh, triangle, from, to, boundaries.IsBoundaryEnabled).IsClear;
+        }
+
+        var start = new FieldNavigationRouteWaypoint(position.X, position.Y, position.Z);
+        var current = steps.ToList();
+        for (var bend = 0; bend <= MaximumFlytrapBends; bend++)
+        {
+            if (!AncientForestRouteHazards.TryFindContactLeg(walkmesh, start, current, plan.Portals, jaws, radius,
+                    out var stepIndex, out var from, out var fromLeader, out var contact))
+            {
+                bent = current;
+                return true;
+            }
+
+            if (stepIndex < 0 || bend == MaximumFlytrapBends)
+            {
+                return false;
+            }
+
+            var to = current[stepIndex].Waypoint;
+            var placed = false;
+            foreach (var (x, y) in AncientForestRouteHazards.CornersAround(contact.Jaw, radius, from, to))
+            {
+                var cornerX = (int)Math.Round(x);
+                var cornerY = (int)Math.Round(y);
+                var triangle = FieldWalkmeshPathfinder.ResolveTriangleAtElevation(walkmesh, cornerX, cornerY,
+                    (int)Math.Round(contact.Z), NativeContactVerticalUpperBound);
+                if (triangle < 0 || boundaries.IsBoundaryEnabled(triangle) ||
+                    !ContainsInPlan(walkmesh.Triangles[triangle], cornerX, cornerY))
+                {
+                    continue;
+                }
+
+                var corner = new FieldNavigationRouteWaypoint(cornerX, cornerY,
+                    (int)Math.Round(InterpolateTriangleZ(walkmesh.Triangles[triangle], cornerX, cornerY)));
+                if (!Walkable(from, corner) || !Walkable(corner, to) ||
+                    AncientForestRouteHazards.TryFindContact(walkmesh, from, corner, jaws, radius, fromLeader, out _) ||
+                    AncientForestRouteHazards.TryFindContact(walkmesh, corner, to, jaws, radius, fromLeader: false, out _))
+                {
+                    continue;
+                }
+
+                current.Insert(stepIndex, new FieldNavigationRouteStep(corner, current[stepIndex].RequiredPortalIndex,
+                    MustReach: true, RequiresExplicitArrival: true));
+                placed = true;
+                break;
+            }
+
+            if (!placed)
+            {
+                return false;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Whether walking straight from where the leader stands to <paramref name="destination"/>
+    /// comes within the margin of a biting jaw's touch. Walking out of the margin is allowed.
+    /// </summary>
+    private bool WalksIntoFlytrap(
+        FieldPositionSnapshot position,
+        FieldWalkmesh walkmesh,
+        FieldNavigationRouteWaypoint destination,
+        out AncientForestRouteHazards.Contact contact)
+    {
+        contact = default;
+        var jaws = ResolveBitingJaws(position.FieldId);
+        return jaws.Count > 0 && AncientForestRouteHazards.TryFindContact(walkmesh,
+            new FieldNavigationRouteWaypoint(position.X, position.Y, position.Z), destination, jaws,
+            ResolveFlytrapRadius(position), fromLeader: true, out contact);
+    }
+
+    /// <summary><see cref="WalksIntoFlytrap"/> for a movement check: true, with the bite in the diagnostic, to refuse.</summary>
+    private bool RefusesFlytrapLeg(FieldPositionSnapshot position, FieldWalkmesh walkmesh, FieldNavigationRouteWaypoint destination)
+    {
+        if (!WalksIntoFlytrap(position, walkmesh, destination, out var contact))
+        {
+            return false;
+        }
+
+        LastDiagnostic = $"{LastDiagnostic}, Mutant Flytrap: {contact}";
+        return true;
+    }
+
+    /// <summary>
+    /// The corridor lookahead's answer, kept out of the flytraps: a visible step, held heading or
+    /// recovery bend whose walk (with its continuation and rejoin) comes within a biting jaw's
+    /// margin gives way to the plan's own next corner when the walk to that is clear - the plan
+    /// was built clear of every jaw - and otherwise to a replan.
+    /// </summary>
+    private FieldNavigationCorridorObservation KeepCorridorClearOfFlytraps(
+        FieldPositionSnapshot position,
+        FieldWalkmesh walkmesh,
+        IReadOnlyList<FieldNavigationRouteStep> stableWaypoints,
+        int waypointIndex,
+        FieldNavigationCorridorObservation observation)
+    {
+        var jaws = ResolveBitingJaws(position.FieldId);
+        if (jaws.Count == 0 || observation.Mode == FieldNavigationLookaheadMode.ReplanRequired)
+        {
+            return observation;
+        }
+
+        var radius = ResolveFlytrapRadius(position);
+        var current = new FieldNavigationRouteWaypoint(position.X, position.Y, position.Z);
+        var bites = AncientForestRouteHazards.TryFindContact(walkmesh, current, observation.Waypoint, jaws, radius,
+            fromLeader: true, out var contact);
+        if (!bites && observation.RecoveryContinuation is { } continuation)
+        {
+            bites = AncientForestRouteHazards.TryFindContact(walkmesh, observation.Waypoint, continuation, jaws, radius,
+                fromLeader: false, out contact);
+            if (!bites && stableWaypoints.Count > 0)
+            {
+                var last = stableWaypoints.Count - 1;
+                var rejoin = stableWaypoints[Math.Clamp(observation.StableWaypointIndex, Math.Clamp(waypointIndex, 0, last), last)].Waypoint;
+                bites = AncientForestRouteHazards.TryFindContact(walkmesh, continuation, rejoin, jaws, radius,
+                    fromLeader: false, out contact);
+            }
+        }
+
+        if (!bites)
+        {
+            return observation;
+        }
+
+        if (stableWaypoints.Count > 0)
+        {
+            var index = Math.Clamp(waypointIndex, 0, stableWaypoints.Count - 1);
+            var corner = stableWaypoints[index].Waypoint;
+            if (!AncientForestRouteHazards.TryFindContact(walkmesh, current, corner, jaws, radius, fromLeader: true, out _))
+            {
+                return observation with
+                {
+                    Waypoint = corner,
+                    StableWaypointIndex = index,
+                    Mode = FieldNavigationLookaheadMode.RequiredCorner,
+                    ConfirmsRoute = false,
+                    RecoveryContinuation = null,
+                    Diagnostic = $"{observation.Diagnostic}, Mutant Flytrap: {contact}; held to the planned corner"
+                };
+            }
+        }
+
+        return observation with
+        {
+            Mode = FieldNavigationLookaheadMode.ReplanRequired,
+            ConfirmsRoute = false,
+            RecoveryContinuation = null,
+            Diagnostic = $"{observation.Diagnostic}, Mutant Flytrap: {contact}; replanning"
+        };
     }
 
     /// <summary>
@@ -1104,9 +1648,11 @@ public sealed class FieldWalkmeshRoutePlanner :
         FieldWalkmeshReadResult result,
         FieldBoundaryState boundaryState,
         string boundaryDiagnostic,
-        out FieldNavigationRoutePlan plan)
+        out FieldNavigationRoutePlan plan,
+        IReadOnlySet<int>? avoided = null)
     {
         plan = null!;
+        var isBlocked = Avoiding(boundaryState, avoided);
         var playerTriangle = FieldWalkmeshPathfinder.ResolveTriangle(
             result.Walkmesh!,
             position.X,
@@ -1170,7 +1716,7 @@ public sealed class FieldWalkmeshRoutePlanner :
                         playerTriangle,
                         position,
                         triggerLine,
-                        boundaryState.IsBoundaryEnabled,
+                        isBlocked,
                         offMeshLinks,
                         out trianglePath,
                         out portals,
@@ -1196,7 +1742,7 @@ public sealed class FieldWalkmeshRoutePlanner :
                 target.X,
                 target.Y,
                 target.Z,
-                isTriangleBlocked: boundaryState.IsBoundaryEnabled,
+                isTriangleBlocked: isBlocked,
                 offMeshLinks,
                 out trianglePath,
                 out portals,
@@ -1213,6 +1759,7 @@ public sealed class FieldWalkmeshRoutePlanner :
             ? ResolvePlayerBodyRadius(position, target)
             : 0d;
         var interactionBudget = new InteractionSearchBudget();
+        var (clearOfFlytraps, walkClearOfFlytraps) = ResolveFlytrapApproachChecks(position, result.Walkmesh!);
         if (!found &&
             target.InteractionRadius > 0 &&
             TryBuildInteractionRangeRoute(
@@ -1220,7 +1767,7 @@ public sealed class FieldWalkmeshRoutePlanner :
                 playerTriangle,
                 position,
                 target,
-                boundaryState.IsBoundaryEnabled,
+                isBlocked,
                 offMeshLinks,
                 interactionBodyRadius,
                 interactionBodyRadius <= 0d
@@ -1231,16 +1778,56 @@ public sealed class FieldWalkmeshRoutePlanner :
                         target,
                         waypoint,
                         interactionBodyRadius,
-                        boundaryState.IsBoundaryEnabled),
+                        isBlocked),
                 interactionBudget,
                 out trianglePath,
                 out portals,
                 out targetTriangle,
                 out finalApproach,
-                out finalApproachToTargetDistance))
+                out finalApproachToTargetDistance,
+                clearOfFlytraps,
+                walkClearOfFlytraps))
         {
             found = true;
             usedInteractionApproach = true;
+        }
+
+        // A target reached by its native interaction range whose own point the walk can only
+        // reach through a biting Mutant Flytrap - 622's Supershot ST, in the throat - is
+        // reached from inside that range instead, from ground clear of the jaws and by a walk
+        // that keeps clear of them. Without such ground the walk stands, and is refused later.
+        if (found && !usedInteractionApproach && !usedTriggerLineApproach &&
+            target.InteractionRadius > 0 && walkClearOfFlytraps is not null && !walkClearOfFlytraps(portals, finalApproach))
+        {
+            var bodyRadius = ResolvePlayerBodyRadius(position, target);
+            if (TryBuildInteractionRangeRoute(
+                    result.Walkmesh,
+                    playerTriangle,
+                    position,
+                    target,
+                    isBlocked,
+                    offMeshLinks,
+                    bodyRadius,
+                    bodyRadius <= 0d
+                        ? null
+                        : (triangleIndex, waypoint) => CanBodyStandAtApproach(
+                            result.Walkmesh, triangleIndex, target, waypoint, bodyRadius, isBlocked),
+                    interactionBudget,
+                    out var clearPath,
+                    out var clearPortals,
+                    out var clearTriangle,
+                    out var clearApproach,
+                    out var clearDistance,
+                    clearOfFlytraps,
+                    walkClearOfFlytraps))
+            {
+                trianglePath = clearPath;
+                portals = clearPortals;
+                targetTriangle = clearTriangle;
+                finalApproach = clearApproach;
+                finalApproachToTargetDistance = clearDistance;
+                usedInteractionApproach = true;
+            }
         }
 
         var routeDetours = ResolveRouteDetours(target, trianglePath);
@@ -1252,7 +1839,7 @@ public sealed class FieldWalkmeshRoutePlanner :
                     position,
                     finalApproach,
                     routeDetours,
-                    boundaryState.IsBoundaryEnabled,
+                    isBlocked,
                     offMeshLinks,
                     out var detourTrianglePath,
                     out var detourPortals,
@@ -1336,7 +1923,7 @@ public sealed class FieldWalkmeshRoutePlanner :
                             step.Waypoint,
                             index,
                             routeHeading,
-                            boundaryState.IsBoundaryEnabled,
+                            isBlocked,
                             dynamicObstacles,
                             out var recovery))
                     {
@@ -1348,7 +1935,7 @@ public sealed class FieldWalkmeshRoutePlanner :
                     if (!TryProjectRecoveryBends(
                             result.Walkmesh, playerTriangle, current,
                             recovery.Waypoint, recovery.RecoveryContinuation, routeSteps[rejoinIndex].Waypoint,
-                            boundaryState.IsBoundaryEnabled, dynamicObstacles, out var recoveryBends))
+                            isBlocked, dynamicObstacles, out var recoveryBends))
                     {
                         continue;
                     }
@@ -1372,7 +1959,7 @@ public sealed class FieldWalkmeshRoutePlanner :
                     !routeSteps.Any(step => step.MustReach) &&
                     TryBuildAlternateModelCorridor(
                         result.Walkmesh, playerTriangle, current, targetTriangle, finalApproach,
-                        boundaryState.IsBoundaryEnabled, dynamicObstacles, target.TriggerLine,
+                        isBlocked, dynamicObstacles, target.TriggerLine,
                         position.NativeFixedPosition,
                         out var alternateTriangles, out var alternatePortals, out var alternateSteps,
                         out var alternateApproach, out alternateDiagnostic))
@@ -1400,7 +1987,7 @@ public sealed class FieldWalkmeshRoutePlanner :
                 if (!usedDynamicModelDetour &&
                     TryBuildRouteAroundLiveModels(
                         result.Walkmesh, playerTriangle, position, finalApproach, target.TriggerLine,
-                        boundaryState.IsBoundaryEnabled, offMeshLinks, dynamicObstacles,
+                        isBlocked, offMeshLinks, dynamicObstacles,
                         out var aroundTriangles, out var aroundPortals, out var aroundTarget,
                         out var aroundSteps, out aroundDiagnostic))
                 {
@@ -1433,7 +2020,7 @@ public sealed class FieldWalkmeshRoutePlanner :
                      LaterLegCrossesLiveModel(current, routeSteps, portals, dynamicObstacles) is { } blockedAt &&
                      TryBuildRouteAroundLiveModels(
                          result.Walkmesh, playerTriangle, position, finalApproach, target.TriggerLine,
-                         boundaryState.IsBoundaryEnabled, offMeshLinks, dynamicObstacles,
+                         isBlocked, offMeshLinks, dynamicObstacles,
                          out var laterTriangles, out var laterPortals, out var laterTarget,
                          out var laterSteps, out var laterDiagnostic))
             {
@@ -3159,10 +3746,11 @@ public sealed class FieldWalkmeshRoutePlanner :
             var clear = radius > 0d && !FieldNavigationDynamicObstacleGeometry.IntersectsAny(current, waypoint, dynamicObstacles) &&
                         AreNativeWallProbesClear(corridorWalkmesh, resolvedTriangle, current, waypoint,
                             radius, boundaryState.IsBoundaryEnabled);
-            observation = new FieldNavigationCorridorObservation(
-                resolvedTriangle, waypoint, index,
-                clear ? FieldNavigationLookaheadMode.VisibleStep : FieldNavigationLookaheadMode.RequiredCorner,
-                clear, clear ? "native probe corridor checkpoint" : "native probe corridor checkpoint obstructed");
+            observation = KeepCorridorClearOfFlytraps(position, result.Walkmesh, stableWaypoints, waypointIndex,
+                new FieldNavigationCorridorObservation(
+                    resolvedTriangle, waypoint, index,
+                    clear ? FieldNavigationLookaheadMode.VisibleStep : FieldNavigationLookaheadMode.RequiredCorner,
+                    clear, clear ? "native probe corridor checkpoint" : "native probe corridor checkpoint obstructed"));
             return true;
         }
         var found = FieldNavigationCorridorLookahead.TryResolve(
@@ -3226,6 +3814,12 @@ public sealed class FieldWalkmeshRoutePlanner :
                 };
             }
         }
+
+        if (found)
+        {
+            observation = KeepCorridorClearOfFlytraps(position, result.Walkmesh, stableWaypoints, waypointIndex, observation);
+        }
+
         LastDiagnostic = found
             ? $"{result.Diagnostic}, {boundaryDiagnostic}, dynamicModels={dynamicObstacles?.Count ?? 0}, {observation.Diagnostic}"
             : $"{result.Diagnostic}, {boundaryDiagnostic}, corridor observation unavailable";
@@ -4059,7 +4653,9 @@ public sealed class FieldWalkmeshRoutePlanner :
         out IReadOnlyList<FieldNavigationRoutePortal> bestPortals,
         out int bestTargetTriangle,
         out FieldNavigationRouteWaypoint bestApproach,
-        out double bestApproachToTargetDistance)
+        out double bestApproachToTargetDistance,
+        Func<FieldNavigationRouteWaypoint, bool>? admissible = null,
+        Func<IReadOnlyList<FieldNavigationRoutePortal>, FieldNavigationRouteWaypoint, bool>? walkAdmissible = null)
     {
         bestTrianglePath = Array.Empty<int>();
         bestPortals = Array.Empty<FieldNavigationRoutePortal>();
@@ -4082,7 +4678,8 @@ public sealed class FieldWalkmeshRoutePlanner :
                     canBodyStand,
                     budget,
                     out var approach,
-                    out var approachToTargetDistance))
+                    out var approachToTargetDistance,
+                    admissible))
             {
                 continue;
             }
@@ -4101,7 +4698,8 @@ public sealed class FieldWalkmeshRoutePlanner :
                     out var trianglePath,
                     out var portals,
                     out var resolvedTargetTriangle) ||
-                resolvedTargetTriangle != triangleIndex)
+                resolvedTargetTriangle != triangleIndex ||
+                walkAdmissible?.Invoke(portals, approach) == false)
             {
                 continue;
             }
@@ -4150,7 +4748,8 @@ public sealed class FieldWalkmeshRoutePlanner :
         Func<int, FieldNavigationRouteWaypoint, bool>? canBodyStand,
         InteractionSearchBudget budget,
         out FieldNavigationRouteWaypoint approach,
-        out double approachToTargetDistance)
+        out double approachToTargetDistance,
+        Func<FieldNavigationRouteWaypoint, bool>? admissible = null)
     {
         approach = default;
         approachToTargetDistance = 0d;
@@ -4188,7 +4787,8 @@ public sealed class FieldWalkmeshRoutePlanner :
             }
 
             var waypoint = new FieldNavigationRouteWaypoint(x, y, z);
-            if (canBodyStand is not null && !canBodyStand(triangleIndex, waypoint))
+            if (admissible?.Invoke(waypoint) == false ||
+                (canBodyStand is not null && !canBodyStand(triangleIndex, waypoint)))
             {
                 continue;
             }
@@ -4204,14 +4804,17 @@ public sealed class FieldWalkmeshRoutePlanner :
         // island, and every point of the ground in front of it that the inset reaches looks
         // straight into the tent's edge - so the rest of the triangle is tried, nearest the
         // target first, under the same reach, height and native wall probe.
-        if (canBodyStand is not null &&
-            TryCreateInteriorInteractionApproach(triangle, triangleIndex, target, canBodyStand, out approach, out approachToTargetDistance))
+        // A point check (a flytrap's margin) searches the rest of the triangle too: the ground
+        // the insets reach can all be too near a jaw while the reach still holds further out.
+        var stands = canBodyStand ?? (admissible is null ? null : static (_, _) => true);
+        if (stands is not null &&
+            TryCreateInteriorInteractionApproach(triangle, triangleIndex, target, stands, out approach, out approachToTargetDistance, admissible))
         {
             return true;
         }
 
-        if (canBodyStand is not null &&
-            TryCreateReachBandInteractionApproach(triangle, triangleIndex, target, canBodyStand, budget, out approach, out approachToTargetDistance))
+        if (stands is not null &&
+            TryCreateReachBandInteractionApproach(triangle, triangleIndex, target, stands, budget, out approach, out approachToTargetDistance, admissible))
         {
             return true;
         }
@@ -4300,7 +4903,8 @@ public sealed class FieldWalkmeshRoutePlanner :
         Func<int, FieldNavigationRouteWaypoint, bool> canBodyStand,
         InteractionSearchBudget budget,
         out FieldNavigationRouteWaypoint approach,
-        out double approachToTargetDistance)
+        out double approachToTargetDistance,
+        Func<FieldNavigationRouteWaypoint, bool>? admissible = null)
     {
         approach = default;
         approachToTargetDistance = 0d;
@@ -4358,12 +4962,18 @@ public sealed class FieldWalkmeshRoutePlanner :
                 continue;
             }
 
+            // Ground the point check rules out never costs a body check from the shared budget.
+            var waypoint = new FieldNavigationRouteWaypoint(candidate.X, candidate.Y, z);
+            if (admissible?.Invoke(waypoint) == false)
+            {
+                continue;
+            }
+
             if (!budget.TryTakeBodyCheck())
             {
                 return false;
             }
 
-            var waypoint = new FieldNavigationRouteWaypoint(candidate.X, candidate.Y, z);
             if (!canBodyStand(triangleIndex, waypoint))
             {
                 continue;
@@ -4405,7 +5015,8 @@ public sealed class FieldWalkmeshRoutePlanner :
         FieldNavigationTarget target,
         Func<int, FieldNavigationRouteWaypoint, bool> canBodyStand,
         out FieldNavigationRouteWaypoint approach,
-        out double approachToTargetDistance)
+        out double approachToTargetDistance,
+        Func<FieldNavigationRouteWaypoint, bool>? admissible = null)
     {
         approach = default;
         approachToTargetDistance = 0d;
@@ -4433,7 +5044,7 @@ public sealed class FieldWalkmeshRoutePlanner :
             }
 
             var waypoint = new FieldNavigationRouteWaypoint(candidate.X, candidate.Y, z);
-            if (!canBodyStand(triangleIndex, waypoint))
+            if (admissible?.Invoke(waypoint) == false || !canBodyStand(triangleIndex, waypoint))
             {
                 continue;
             }

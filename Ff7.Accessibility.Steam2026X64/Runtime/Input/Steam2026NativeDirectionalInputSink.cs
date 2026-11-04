@@ -80,6 +80,22 @@ internal sealed class Steam2026NativeDirectionalInputSink : IHighwayKeyboardInpu
     internal long AcceptedPresses => Interlocked.Read(ref acceptedPresses);
 
     /// <summary>
+    /// What one of this host's keyboard polls is budgeted to move the leader: three runs' steps.
+    /// The guest reaches GetDeviceState once per field iteration - FUN_006499F7, FUN_00649876,
+    /// FUN_0041A21E, FUN_0041F55E - but whether the host's 3x speed runs three iterations, each
+    /// with its own poll, or moves three steps on one is not proven; this covers either. Speed
+    /// changes beyond the host's own 3x are not.
+    /// </summary>
+    internal const double UnitsPerPoll = 3 * AutoWalkPollLease.MaximumUnitsPerPoll;
+
+    /// <summary>
+    /// Spent by every keyboard poll the overlay sees, so a field direction armed near a Mutant
+    /// Flytrap is dropped on the guest's own polls, however long the worker takes to come back;
+    /// the release needs no write, as with any other. Only the field's auto walk is handed it.
+    /// </summary>
+    internal AutoWalkPollLease PollLease { get; } = new(unitsPerPoll: UnitsPerPoll);
+
+    /// <summary>
     /// Hands the sink the overlay's liveness. Late-bound because the hook is installed
     /// once the exact supported image is validated, which is after the sink exists.
     /// </summary>
@@ -90,6 +106,8 @@ internal sealed class Steam2026NativeDirectionalInputSink : IHighwayKeyboardInpu
         {
             isOverlayInstalled = overlayIsInstalled;
         }
+
+        PollLease.AttachPoller(overlayIsInstalled);
     }
 
     /// <summary>
@@ -204,11 +222,14 @@ internal sealed class Steam2026NativeDirectionalInputSink : IHighwayKeyboardInpu
     internal bool TryTakeDesired(DateTime nowUtc, Span<byte> tokens, out int count)
     {
         count = 0;
+        // Every poll counts, held or not: a bound is counted from a mark taken before the
+        // position, whatever was being held then.
+        var leaseAllows = PollLease.Poll();
         var foreground = isForeground();
         var deliveryAllowed = MayDeliverNow();
         lock (sync)
         {
-            if (held.Count == 0 || held.Count > tokens.Length)
+            if (held.Count == 0 || held.Count > tokens.Length || !leaseAllows)
             {
                 return false;
             }

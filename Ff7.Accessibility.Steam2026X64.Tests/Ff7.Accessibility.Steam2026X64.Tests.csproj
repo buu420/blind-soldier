@@ -1,4 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\AncientForestPuzzleTests.cs" Link="SharedTests\AncientForestPuzzleTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\AncientForestEchoTests.cs" Link="SharedTests\AncientForestEchoTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\AncientForestInteractionTests.cs" Link="SharedTests\AncientForestInteractionTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\AncientForestRouteHazardTests.cs" Link="SharedTests\AncientForestRouteHazardTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\AncientForestWarningDeliveryTests.cs" Link="SharedTests\AncientForestWarningDeliveryTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\AncientForestSnapshotCoherenceTests.cs" Link="SharedTests\AncientForestSnapshotCoherenceTests.cs" />
+  </ItemGroup>
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
