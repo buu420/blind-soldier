@@ -6,6 +6,8 @@ internal static class AncientForestInteractionTests
 {
     internal static void Run()
     {
+        AssertCreatureSelectionLocation();
+        AssertObjectsPlantSummary();
         AssertFlytrapRefusal();
         AssertVisibleExitSurvivesFlytrap();
         Console.WriteLine("Ancient Forest flytrap refusals name the hazard and retain native exits.");
@@ -52,6 +54,59 @@ internal static class AncientForestInteractionTests
             AncientForestInteractionGuidance.IsBitePose(bitePosition with { Z = 300 }, false, new byte[128]))
             throw new InvalidOperationException("Navigation safety must recognize the bite without constructing or enabling an activity readout.");
         Console.WriteLine("Ancient Forest carrying-aware arrival test passed.");
+    }
+
+    private static void AssertCreatureSelectionLocation()
+    {
+        var position = new FieldPositionSnapshot(FieldPositionReader.FieldModule, 622, 0, -2016, -748, 28, 85, 0);
+        var target = new FieldNavigationTarget(622, FieldNavigationCategory.Objects, "Insect 1",
+            -1810, -665, 28, "object:622:6", TriggerEntityId: 6);
+        var controller = new FieldNavigationController(new FieldNavigationTargetSource([], objectTargetProvider: _ => [target]));
+        var preview = controller.HandleAction(FieldNavigationAction.PreviousCategory, position, new(0));
+        if (preview?.Speech.Contains("near the forest entrance", StringComparison.OrdinalIgnoreCase) != true)
+            throw new InvalidOperationException("The Objects preview must identify the insect's place even without a route: " + preview?.Speech);
+
+        target = target with { X = -848, Y = -735, Z = 17 };
+        preview = controller.HandleAction(FieldNavigationAction.RepeatTarget, position, new(0));
+        if (preview?.Speech.Contains("Insect 1", StringComparison.Ordinal) != true ||
+            !preview.Value.Speech.Contains("lower side of the path", StringComparison.OrdinalIgnoreCase) ||
+            preview.Value.Speech.Contains("near the forest entrance", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Moving the insect must update its place and retain its identity: " + preview?.Speech);
+    }
+
+    private static void AssertObjectsPlantSummary()
+    {
+        var position = new FieldPositionSnapshot(FieldPositionReader.FieldModule, 622, 0, -2016, -748, 28, 85, 0);
+        var throwingSpot = new FieldNavigationTarget(622, FieldNavigationCategory.Objects,
+            "Pitcher plant 1, throwing spot", -56, -155, 228, "throwing-spot");
+        var controller = new FieldNavigationController(new FieldNavigationTargetSource([throwingSpot]));
+        var bank = new byte[128];
+        bank[17] = 1;
+        bank[18] = 1;
+        controller.ForestPlantSummary = field =>
+            AncientForestPuzzleReadout.DescribePitcherPlants(field, new(bank, new HashSet<int> { 2 }, []));
+
+        var preview = controller.HandleAction(FieldNavigationAction.PreviousCategory, position, new(0));
+        if (preview?.Speech.Contains(throwingSpot.Label, StringComparison.Ordinal) != true ||
+            !preview.Value.Speech.Contains("Pitcher plants from left to right. Plant 1 open. Plant 2 shaking. Plant 3 closed.",
+                StringComparison.Ordinal))
+            throw new InvalidOperationException("One reachable throwing spot must still expose all three current plants: " + preview?.Speech);
+
+        bank[18] = 0;
+        preview = controller.HandleAction(FieldNavigationAction.RepeatTarget, position, new(0));
+        if (preview?.Speech.Contains("Plant 3 open", StringComparison.Ordinal) != true)
+            throw new InvalidOperationException("Repeating the Objects selection must read the current plant state.");
+
+        preview = controller.HandleAction(FieldNavigationAction.NextTarget, position, new(0));
+        if (preview?.Speech.Contains("Pitcher plants from left to right", StringComparison.Ordinal) == true)
+            throw new InvalidOperationException("Browsing each target must avoid replaying the whole plant list.");
+
+        bank[17] = 255;
+        preview = controller.HandleAction(FieldNavigationAction.RepeatTarget, position, new(0));
+        if (preview?.Speech.Contains("Pitcher plants from left to right", StringComparison.Ordinal) == true)
+            throw new InvalidOperationException("Unreadable plant state must be omitted from the Objects preview.");
+
+        Console.WriteLine("Ancient Forest Objects previews distinguish creatures and describe all current plants.");
     }
 
     internal static void AssertFlytrapRefusal(Func<IFieldNavigationRoutePlanner, IFieldNavigationRoutePlanner>? wrap = null)

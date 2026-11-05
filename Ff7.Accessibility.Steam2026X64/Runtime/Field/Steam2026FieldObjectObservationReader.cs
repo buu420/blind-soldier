@@ -145,6 +145,9 @@ public sealed class Steam2026FieldObjectObservationReader
         Func<FieldNavigationObjectDefinition, FieldNavigationObjectDefinition?> remapper) =>
         navigationDefinitionRemapper = remapper ?? throw new ArgumentNullException(nameof(remapper));
 
+    internal void SetBoneVillageKeyDigSpotReader(Func<FieldPositionSnapshot, FieldNavigationTarget?> read) =>
+        navigationObjectReader.BoneVillageKeyDigSpot = read;
+
     internal bool TryReadNavigationTargets(
         FieldPositionSnapshot expectedPosition,
         out IReadOnlyList<FieldNavigationTarget> targets)

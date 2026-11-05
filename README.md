@@ -138,16 +138,21 @@ again where one exists.
 Field and world-map navigation, routes, auto walk and the progress indicator
 are described under [Navigation](#navigation).
 
+Version 0.10.11 makes the Key to Sector 5 selectable in Bone Village whenever
+the game can award it. Use Story to find the foreman, choose Normal Treasure,
+then select **Dig spot: Key to Sector 5** in Objects. The target is available
+before the blast. Press Switch there at the final dig prompt, then open the
+results chest with Confirm.
+
+In Ancient Forest, Objects pairs each insect and frog's number with its current
+location. Opening Objects reads the pitcher plants from left to right and says
+which are open, closed, or shaking. See the [release notes](docs/releases/v0.10.11.md).
+
 Version 0.10.10 tracks Emerald Weapon in underwater Events whenever it is active.
 Its position updates through fog and outside the camera view, even before a first
 sighting. Select Emerald to approach it; regular submarine routes still keep
 travel depth and report its proximity when handing off a descent.
 
-For the Key to Sector 5, talk to the man outside Midgar's entrance, then open
-Story in Bone Village. Story guides you to the excavation foreman, a key dig
-site when the game asks where to dig, and the results chest after the dig. Use
-normal game controls for each step. If you heard the clue before this update,
-talk to the man again once and save so the mod can remember it for that save.
 See the [release notes](docs/releases/v0.10.10.md).
 
 Version 0.10.9 adds Ancient Forest puzzle feedback: distinct creature and plant names,
@@ -523,10 +528,10 @@ instead of reading unverified game memory.
 Choose one download from the
 [Blind Soldier Releases page](https://github.com/buu420/blind-soldier/releases):
 
-- [Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.10.10/Blind-Soldier-Portable.zip)
+- [Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.10.11/Blind-Soldier-Portable.zip)
   is the complete dual-runtime package. Use it for Steam 2026 x64 or when one
   extracted package must support both x86 and x64 installations.
-- [Blind-Soldier-2013-x86-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.10.10/Blind-Soldier-2013-x86-Portable.zip)
+- [Blind-Soldier-2013-x86-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.10.11/Blind-Soldier-2013-x86-Portable.zip)
   is the smaller legacy-only package. Use it for the 2013 x86 game, including
   stock 7th Heaven/FFNx. It deliberately contains no Steam 2026 launcher or
   x64 files.

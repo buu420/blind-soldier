@@ -80,13 +80,45 @@ internal static class BoneVillageDigSpotTests
         KeyToSector5ClueObservationTests.Run();
         KeyToSector5StoryTargetTests.Run();
         KeyToSector5SaveBindingTests.Run();
+        NormalTreasureGuidesTheKeyThroughAnEmptyWorkerRoll();
         if (dataRoot is null) return;
 
         var echoes = EchoSRoots();
         CheckKeyStoryLayout(createWalkmeshReader, dataRoot, dataRoot, isEcho: false);
         foreach (var echo in echoes)
             CheckKeyStoryLayout(createWalkmeshReader, dataRoot, echo, isEcho: true);
-        Console.WriteLine($"Key to Sector 5 native clue, foreman, dig routes, results and collection passed (stock and {echoes.Length} Echo-S layouts).");
+        Console.WriteLine($"Key to Sector 5 native availability, foreman, dig routes, results and collection passed (stock and {echoes.Length} Echo-S layouts).");
+    }
+
+    private static void NormalTreasureGuidesTheKeyThroughAnEmptyWorkerRoll()
+    {
+        var memory = DigSpotMemory.AfterInit(request: 3, phase: 7);
+        memory.OwnField(BoneVillageDigSpot.FieldId);
+        memory.SetMoment(BoneVillageDigSpot.KeyMinimumGameMoment);
+        var story = new KeyToSector5StoryTargetReader(memory.ReadInt32,
+            address => (short)(memory.ReadByte(address) | memory.ReadByte(address + 1) << 8),
+            memory.ReadByte, new KeyToSector5StoryKnowledge(null), _ => true);
+        var objects = Reader(memory);
+        objects.BoneVillageKeyDigSpot = story.ReadObjectDigSpot;
+        var position = Anywhere();
+        var beforeBlast = DigSpotsOnly(objects, position).Single();
+        Equal("Dig spot: Key to Sector 5", beforeBlast.Label, "the key has an Objects listing during setup");
+        Equal(60, beforeBlast.CompletionTriangles!.Single(), "the key route finishes on a native lower-level triangle");
+
+        memory.SetTemp(BoneVillageDigSpot.PhaseIndex, 1);
+        memory.SetTemp(BoneVillageDigSpot.RollIndex, 255);
+        Equal(beforeBlast, DigSpotsOnly(objects, position).Single(),
+            "an empty worker roll leaves the available key selected at the same spot");
+
+        memory.SetBank(1, BoneVillageDigSpot.RequestIndex, 2);
+        memory.SetTemp(BoneVillageDigSpot.RollIndex, 10);
+        Equal("Dig spot: Buntline", DigSpotsOnly(objects, position).Single().Label,
+            "Good Treasure keeps its native worker target");
+
+        memory.SetBank(1, BoneVillageDigSpot.RequestIndex, 3);
+        memory.SetBank(1, 67, 0x20);
+        Equal("Dig spot: chance of an Elixir", DigSpotsOnly(objects, position).Single().Label,
+            "the key inventory flag retires the key from Objects");
     }
 
     private static void CheckKeyStoryLayout(Func<int, FieldWalkmeshReader> createWalkmeshReader,
@@ -151,7 +183,7 @@ internal static class BoneVillageDigSpotTests
             BitConverter.ToInt16(foremanPlace, 7), BitConverter.ToUInt16(foremanPlace, 9));
         Load(VillageFieldId);
         var foremanStory = ReaderFor(foremanMemory);
-        Equal(0, foremanStory.ReadTargets(arrival).Count, $"{name}: no quest before the conversation");
+        CheckTalk(villageReader, arrival, foremanStory.ReadTargets(arrival).Single(), foreman);
 
         Load(midgarGate);
         var clueId = KeyToSector5ClueObservationReader.ResolveReviewedClueMessageId(catalog.ReadField(midgarGate));
@@ -196,11 +228,17 @@ internal static class BoneVillageDigSpotTests
             foreach (var other in BoneVillageDigSpot.Sites.Where(other => other.EntityId != site.EntityId))
                 memory.Unmap(other.EntityId);
             var story = ReaderFor(memory);
+            var objects = Reader(memory);
+            objects.BoneVillageKeyDigSpot = story.ReadObjectDigSpot;
+            memory.SetTemp(BoneVillageDigSpot.RollIndex, 255);
             var planner = new FieldWalkmeshRoutePlanner(digReader, null, _ => catalog.ReadField(dig).Transitions);
             foreach (var start in new[] { lower, upper })
             {
                 var target = story.ReadTargets(start).Single();
                 Equal(site.Triangle, target.CompletionTriangles!.Single(), $"{name}: exact native choice triangle");
+                var keyObject = DigSpotsOnly(objects, start).Single();
+                Equal("Dig spot: Key to Sector 5", keyObject.Label, $"{name}: Objects identifies the key after an empty roll");
+                Equal(site.Triangle, keyObject.CompletionTriangles!.Single(), $"{name}: Objects uses the same native choice triangle");
                 Equal(true, planner.TryBuildRoute(start, target, out var plan), $"{name}: key route ({planner.LastDiagnostic})");
                 Equal(site.Triangle, plan!.TargetTriangle, $"{name}: key route ends on the choice triangle");
                 Equal(true, plan.Portals.Where(portal => portal.TransitionKind == FieldNavigationTransitionKind.Ladder)

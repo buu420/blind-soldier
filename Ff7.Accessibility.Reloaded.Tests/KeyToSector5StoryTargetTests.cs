@@ -6,13 +6,13 @@ internal static class KeyToSector5StoryTargetTests
 {
     internal static void Run()
     {
-        TheForemanIsAStoryStepOnlyAfterTheClue();
+        TheForemanIsAStoryStepWhenTheKeyIsAvailable();
         EveryPendingResultIsCollectedBeforeAnotherDig();
         EitherNativeKeyFlagRetiresTheErrand();
         DigTargetsUseNativeKeyTrianglesIndependentlyOfTheWorkersRoll();
         OtherPhasesAndUnreadablePlacementOfferNoDigTarget();
         ChangedStateOrSaveDoesNotPublishAnOldTarget();
-        Console.WriteLine("Key to Sector 5 clue-backed foreman, exact dig sites and results Story stages passed.");
+        Console.WriteLine("Key to Sector 5 native availability, exact dig sites and results Story stages passed.");
     }
 
     private static KeyToSector5StoryKnowledge Known()
@@ -29,14 +29,13 @@ internal static class KeyToSector5StoryTargetTests
         Func<int,bool>? reviewed=null) =>
         new(scene.Int,scene.Short,scene.Byte,knowledge??Known(),reviewed??(_=>true));
 
-    private static void TheForemanIsAStoryStepOnlyAfterTheClue()
+    private static void TheForemanIsAStoryStepWhenTheKeyIsAvailable()
     {
         var scene=Scene.Village(0);
         var knowledge=new KeyToSector5StoryKnowledge(null);
-        Check(Reader(scene,knowledge).ReadTargets(scene.Position).Count==0,"progress alone cannot offer the key quest");
-        var targets=Reader(scene).ReadTargets(scene.Position);
+        var targets=Reader(scene,knowledge).ReadTargets(scene.Position);
         Check(targets.Count==1 && targets[0].TriggerEntityId==4,
-            "the observed clue must offer the native excavation foreman in Story");
+            "native key availability must offer the excavation foreman in Story on a save without a recorded clue");
         Check(targets[0].Category==FieldNavigationCategory.Story && targets[0].Activation==FieldNavigationActivation.Talk,
             "the foreman step must use normal Talk reach and facing");
         scene.Moment(1195);
@@ -76,12 +75,14 @@ internal static class KeyToSector5StoryTargetTests
 
     private static void DigTargetsUseNativeKeyTrianglesIndependentlyOfTheWorkersRoll()
     {
-        foreach(var request in new[]{2,3})foreach(var roll in new[]{0,59,60,119,120,179,180,255})foreach(var upper in new[]{false,true})
+        var knowledge = new KeyToSector5StoryKnowledge(null);
+        foreach(var phase in new[]{7,2,1})foreach(var request in new[]{2,3})
+        foreach(var roll in new[]{0,59,60,119,120,179,180,255})foreach(var upper in new[]{false,true})
         {
-            var scene=Scene.Dig(1,request,upper);
+            var scene=Scene.Dig(phase,request,upper);
             scene.Temp(15,(byte)roll);
-            var targets=Reader(scene).ReadTargets(scene.Position);
-            Check(targets.Count==1,"the key search must offer a deterministic native site after the blast");
+            var targets=Reader(scene,knowledge).ReadTargets(scene.Position);
+            Check(targets.Count==1,"the key search must offer a deterministic native site throughout the dig");
             var target=targets[0];
             Check(target.Category==FieldNavigationCategory.Story && target.CompletesOnArrival,
                 "the site must be a routed Story location, leaving the native choice button to the player");
@@ -92,10 +93,10 @@ internal static class KeyToSector5StoryTargetTests
 
     private static void OtherPhasesAndUnreadablePlacementOfferNoDigTarget()
     {
-        foreach(var phase in new[]{0,2,3,4,5,6,7,8})
+        foreach(var phase in new[]{0,8})
         {
             var scene=Scene.Dig(phase,3,false);
-            Check(Reader(scene).ReadTargets(scene.Position).Count==0,"placement and blast remain under the existing activity controls");
+            Check(Reader(scene).ReadTargets(scene.Position).Count==0,"the key site requires an active excavation");
         }
         var climbing=Scene.Dig(1,3,false);climbing.Temp(43,1);
         Check(Reader(climbing).ReadTargets(climbing.Position).Count==0,"native climbing must finish before a dig choice is targeted");

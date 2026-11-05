@@ -181,6 +181,8 @@ public sealed class FieldNavigationObjectReader
     private readonly Func<bool> randomizesPickups;
     private readonly IReadOnlyDictionary<int, IReadOnlyList<FieldNavigationObjectDefinition>> definitionsByField;
 
+    internal Func<FieldPositionSnapshot, FieldNavigationTarget?>? BoneVillageKeyDigSpot { get; set; }
+
     public FieldNavigationObjectReader(
         Func<int, int> readInt32,
         Func<int, byte> readByte,
@@ -410,10 +412,10 @@ public sealed class FieldNavigationObjectReader
                         : FieldNavigationActivation.Default));
         }
 
-        // Bone Village's dig spot is where the game has buried what the diggers look for, not a
-        // definition: which one it is, and whether it can be named yet, is live state.
+        // Normal Treasure can guide the available key from the start of the excavation.
+        // Other searches use the spot the game has the diggers look for.
         if (position.FieldId == BoneVillageDigSpot.FieldId &&
-            BoneVillageDigSpot.Read(readInt32, readByte) is { } digSpot)
+            (BoneVillageKeyDigSpot?.Invoke(position) ?? BoneVillageDigSpot.Read(readInt32, readByte)) is { } digSpot)
         {
             targets.Add(digSpot);
         }
