@@ -82,6 +82,12 @@ jobs:
           if ([string]::IsNullOrWhiteSpace($version)) {
             throw 'A package version is required.'
           }
+          if ($env:GITHUB_REF_TYPE -eq 'tag') {
+            # Only on a real release. A workflow_dispatch build names its own
+            # version for verification and is not what anyone downloads, so a
+            # README that disagrees with it is not a fault.
+            ./Verify-BlindSoldierReadmeLinks.ps1 -ExpectedVersion $version
+          }
           New-Item -ItemType Directory -Path ./artifacts/release -Force | Out-Null
           ./Build-BlindSoldierPortablePackage.ps1 -OutputPath ./artifacts/release/Blind-Soldier-Portable.zip -Version $version
           ./Verify-BlindSoldierPortablePackage.ps1 -ArchivePath ./artifacts/release/Blind-Soldier-Portable.zip -ExpectedVersion $version
