@@ -448,6 +448,12 @@ internal static class ChaseAndExcavationTests
             new FieldActivityReadout().Describe(Dig(1, Diggers((14, 0, -400, -40, 192)))),
             "after the blast, each digger's facing");
         Equal("The dig is under way.", new FieldActivityReadout().Describe(Dig(0, Diggers())), "after the choice");
+        var keySetup = readout.Describe(waiting with { BoneVillageKeyDigSpotAvailable = true });
+        Equal(true, keySetup?.Contains("Key to Sector 5 is listed in Objects.", StringComparison.Ordinal) == true,
+            "the repeat points to the available key during setup");
+        Equal("Choose the dig point. Follow Key to Sector 5 in Objects and press Switch at the spot. You are on the lower level.",
+            readout.Describe(Dig(1, Diggers((14, 0, -400, -40, 192))) with { BoneVillageKeyDigSpotAvailable = true }),
+            "the final key guidance uses the named site and the native input");
         Equal("Cannot read the dig.", new FieldActivityReadout().Describe(Dig(7, Diggers(), bank: _ => -1)),
             "an unreadable phase is not guessed from the models");
     }

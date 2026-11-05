@@ -287,6 +287,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         keyStoryReader = new KeyToSector5StoryTargetReader(
             ReadInt32, ReadInt16, ReadByte, this.keyStoryKnowledge,
             fieldId => scriptCatalog.ReadField(fieldId).IsUsable, scriptCatalog.RemapStoryDefinition);
+        objectReader.SetBoneVillageKeyDigSpotReader(keyStoryReader.ReadObjectDigSpot);
         var fieldNavigationObjects = FieldNavigationObjectCatalog.CreateAllFields();
         var npcReader = new FieldNavigationNpcReader(
             ReadInt32,
@@ -328,6 +329,8 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             navigationProgressSink);
         controller.InteractionArrivalInstruction = (position, target) =>
             AncientForestInteractionGuidance.Describe(target, ancientForestPuzzleStateReader.Read(position.FieldId));
+        controller.ForestPlantSummary = fieldId =>
+            AncientForestPuzzleReadout.DescribePitcherPlants(fieldId, ancientForestPuzzleStateReader.ReadState(fieldId));
 
         // Same native line state on this runtime: the observatory approach is only
         // offered while the game actually has the opening line switched on.
@@ -1930,7 +1933,11 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                 ? index => (uint)index < (uint)snapshot.Length ? snapshot[index] : -1
                 : null,
             ancientForestShakingPlants: forest?.ShakingPlants,
-            modelOverride: forest?.Models);
+            modelOverride: forest?.Models) with
+        {
+            BoneVillageKeyDigSpotAvailable = fieldId == BoneVillageDigSpot.FieldId &&
+                keyStoryReader.ReadObjectDigSpot(position) is not null
+        };
         var activity = fieldActivityReadout.Observe(observation, nowUtc);
         fieldActivityOwnsInput = activity.IsPending;
         fieldActivityCurrentLine = fieldActivityReadout.Describe(observation);

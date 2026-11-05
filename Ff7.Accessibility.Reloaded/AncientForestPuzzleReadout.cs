@@ -278,18 +278,30 @@ internal sealed class AncientForestPuzzleReadout
             return null;
         }
 
-        var states = facts.Closed
-            .Select((closed, index) => MissingVisualState(observation.FieldId, index, closed, observation.AncientForestShakingPlants) ? PlantState.Unavailable
-                : observation.AncientForestShakingPlants?.Contains(index + 1) == true ? PlantState.Shaking
-                : closed ? PlantState.Closed
-                : PlantState.Open)
-            .ToArray();
+        var states = ReadPlantStates(observation.FieldId, facts.Closed, observation.AncientForestShakingPlants);
         // Confirm picks up, sets down, throws into a plant and uses the beehive, depending on where
         // Cloud stands; Switch gives up. Only the game's own buttons, and no outcome or solution.
         return Whole(new Scene(observation.FieldId, facts.Carried, states, facts.Flytraps)) +
             " Use your normal Confirm button for pickup, release and throws." +
             " Use your normal Switch button to return to the forest entrance.";
     }
+
+    internal static string? DescribePitcherPlants(int field, AncientForestPuzzleSnapshot? snapshot)
+    {
+        if (snapshot is null ||
+            ReadClosedPlants(field, address => address < snapshot.Bank.Length ? snapshot.Bank[address] : -1) is not { } closed)
+            return null;
+
+        var states = ReadPlantStates(field, closed, snapshot.ShakingPlants);
+        var plants = states.Select((state, index) => $"Plant {index + 1} {Word(state)}.");
+        return "Pitcher plants from left to right. " + string.Join(' ', plants);
+    }
+
+    private static PlantState[] ReadPlantStates(int field, IReadOnlyList<bool> closed, IReadOnlySet<int>? seen) =>
+        closed.Select((isClosed, index) => MissingVisualState(field, index, isClosed, seen) ? PlantState.Unavailable
+            : seen?.Contains(index + 1) == true ? PlantState.Shaking
+            : isClosed ? PlantState.Closed
+            : PlantState.Open).ToArray();
 
     internal static IReadOnlyList<(int Number, int Address)> Flytraps(int field) => field switch
     {
@@ -461,18 +473,8 @@ internal sealed class AncientForestPuzzleReadout
             return null;
         }
 
-        var first = observation.FieldId switch { 620 => 17, 622 => 16, _ => 18 };
-        var closed = new bool[observation.FieldId == 623 ? 4 : 3];
-        for (var index = 0; index < closed.Length; index++)
-        {
-            var state = read(first + index);
-            if (state is not (0 or 1))
-            {
-                return null;
-            }
-
-            closed[index] = state == 1;
-        }
+        if (ReadClosedPlants(observation.FieldId, read) is not { } closed)
+            return null;
 
         var flytraps = Flytraps(observation.FieldId);
         var trapped = new bool[flytraps.Count];
@@ -488,6 +490,25 @@ internal sealed class AncientForestPuzzleReadout
         }
 
         return new Facts(carried, closed, trapped);
+    }
+
+    private static bool[]? ReadClosedPlants(int field, Func<int, int> read)
+    {
+        if (!HasPuzzle(field))
+            return null;
+
+        var first = field switch { 620 => 17, 622 => 16, _ => 18 };
+        var closed = new bool[field == 623 ? 4 : 3];
+        for (var index = 0; index < closed.Length; index++)
+        {
+            var state = read(first + index);
+            if (state is not (0 or 1))
+                return null;
+
+            closed[index] = state == 1;
+        }
+
+        return closed;
     }
 
     /// <summary>

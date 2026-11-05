@@ -1,6 +1,6 @@
 namespace Ff7.Accessibility.Reloaded;
 
-/// <summary>The optional, clue-backed native Bone Village key errand.</summary>
+/// <summary>The optional Bone Village key errand, gated by the native payout.</summary>
 public sealed class KeyToSector5StoryTargetReader
 {
     private readonly Func<int, int> readInt32;
@@ -30,26 +30,35 @@ public sealed class KeyToSector5StoryTargetReader
             remapDefinition: remapDefinition);
     }
 
-    public IReadOnlyList<FieldNavigationTarget> ReadTargets(FieldPositionSnapshot position)
+    public IReadOnlyList<FieldNavigationTarget> ReadTargets(FieldPositionSnapshot position) =>
+        ReadTargets(position, FieldNavigationCategory.Story);
+
+    internal FieldNavigationTarget? ReadObjectDigSpot(FieldPositionSnapshot position) =>
+        ReadTargets(position, FieldNavigationCategory.Objects) is [var spot] ? spot : null;
+
+    private IReadOnlyList<FieldNavigationTarget> ReadTargets(
+        FieldPositionSnapshot position, FieldNavigationCategory category)
     {
-        if (!FieldPositionReader.IsUsable(position) || position.FieldId is not (617 or 772) || !knowledge.HasClue)
+        if (!FieldPositionReader.IsUsable(position) || position.FieldId is not (617 or BoneVillageDigSpot.FieldId) ||
+            (category == FieldNavigationCategory.Objects && position.FieldId != BoneVillageDigSpot.FieldId))
             return [];
         var revision = knowledge.History.PlaythroughRevision;
         var before = ReadState();
         if (before.Module != FieldPositionReader.FieldModule || before.Field != position.FieldId ||
-            before.Moment <= 1195 || (before.Inventory & 0x20) != 0 || (before.Reward & 0x08) != 0 ||
+            !BoneVillageDigSpot.IsKeyAvailable(before.Moment, before.Inventory, before.Reward) ||
             !isReviewedLayout(position.FieldId))
             return [];
 
         var targets = position.FieldId == 617
             ? before.Result <= 9 ? village.ReadTargets(position).Where(IsUsableTalkTarget).ToArray() : []
-            : ReadDigSite(position, before);
+            : ReadDigSite(position, before, category);
         return ReadState() == before && knowledge.History.PlaythroughRevision == revision &&
-            knowledge.HasClue && isReviewedLayout(position.FieldId) ? targets : [];
+            isReviewedLayout(position.FieldId) ? targets : [];
     }
 
     private static FieldStoryEventDefinition VillageStep(int entity, string label, int result) =>
-        new(617, FieldStoryTargetKind.Model, label, EntityId: entity, MinimumGameMoment: 1196, Priority: 0,
+        new(617, FieldStoryTargetKind.Model, label, EntityId: entity,
+            MinimumGameMoment: BoneVillageDigSpot.KeyMinimumGameMoment, Priority: 0,
             RequiredCondition: new(1, 234, 0xff, (byte)result), SourceFieldName: "bonevil",
             SourceEntityName: entity == 4 ? "" : "box1", SourceScriptType: "Talk");
 
@@ -64,17 +73,24 @@ public sealed class KeyToSector5StoryTargetReader
             readByte(address + FieldNavigationNpcReader.TalkDisabledOffset) == 0;
     }
 
-    private IReadOnlyList<FieldNavigationTarget> ReadDigSite(FieldPositionSnapshot position, State state)
+    private IReadOnlyList<FieldNavigationTarget> ReadDigSite(
+        FieldPositionSnapshot position, State state, FieldNavigationCategory category)
     {
-        if (state.Phase != 1 || state.Climbing != 0 || state.Request is not (2 or 3)) return [];
-        // Each of these native triangles gives the key before the one-time flag is set,
-        // independently of the workers' random pointing. Prefer a site on the current level.
+        var objectTarget = category == FieldNavigationCategory.Objects;
+        var treasureSearch = state.Request == BoneVillageDigSpot.NormalTreasureRequest ||
+            (!objectTarget && state.Request == BoneVillageDigSpot.GoodTreasureRequest);
+        if (state.Phase is < 1 or > 7 || state.Climbing != 0 || !treasureSearch) return [];
+
+        // These markers are placed during Init, and the final Switch checks their triangles.
+        // Prefer a site on the current level so the player can find it before the blast.
         foreach (var site in BoneVillageDigSpot.Sites.Where(site => site.DigResult is >= 5 and <= 7)
                      .OrderBy(site => Math.Abs(position.Z - site.Z)).ThenBy(site => site.EntityId))
         {
             if (!TryReadSite(site, out var x, out var y, out var z)) continue;
-            return [new(772, FieldNavigationCategory.Story, "Dig for the Key to Sector 5", x, y, z,
-                $"key-story:772:dig:{site.EntityId}", CompletesOnArrival: true,
+            return [new(BoneVillageDigSpot.FieldId, category,
+                objectTarget ? "Dig spot: Key to Sector 5" : "Dig for the Key to Sector 5", x, y, z,
+                objectTarget ? $"object:772:dig-spot:{site.EntityId}" : $"key-story:772:dig:{site.EntityId}",
+                CompletesOnArrival: true,
                 CompletionTriangles: SiteTriangles[site.EntityId])];
         }
         return [];
@@ -111,7 +127,8 @@ public sealed class KeyToSector5StoryTargetReader
         var temporary = FieldNavigationObjectReader.AddressTemporaryFieldBankBase;
         return new(readByte(FieldPositionReader.AddressCurrentModule), Word(FieldPositionReader.AddressFieldId),
             Word(bank), readByte(bank + 67), readByte(bank + 0x400 + 38), readByte(bank + 234),
-            readByte(temporary + 12), readByte(bank + 235), readByte(temporary + 43),
+            readByte(temporary + BoneVillageDigSpot.PhaseIndex), readByte(bank + BoneVillageDigSpot.RequestIndex),
+            readByte(temporary + 43),
             readInt32(FieldNavigationObjectReader.AddressFieldEventDataPtr), readByte(FieldPositionReader.AddressFieldNumModels));
     }
 

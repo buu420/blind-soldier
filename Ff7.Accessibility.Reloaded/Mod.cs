@@ -1569,6 +1569,7 @@ public sealed class Mod : IModV1, IModV2
             ReadInt32, ReadInt16, ReadByte, keyKnowledge,
             fieldId => fieldScriptNavigationCatalog?.ReadField(fieldId).IsUsable == true,
             definition => fieldScriptNavigationCatalog?.RemapStoryDefinition(definition));
+        fieldNavigationObjectReader.BoneVillageKeyDigSpot = keyStoryReader.ReadObjectDigSpot;
         var fieldWalkmeshReader = new FieldWalkmeshReader(ReadInt32, ReadInt16);
         var fieldBoundaryStateReader = new FieldBoundaryStateReader(legacyAddressSpace);
         var fieldDynamicObstacleReader = new FieldNavigationDynamicObstacleReader(
@@ -1721,6 +1722,8 @@ public sealed class Mod : IModV1, IModV2
             fieldNavigationProgressSink);
         fieldNavigationController.InteractionArrivalInstruction = (position, target) =>
             AncientForestInteractionGuidance.Describe(target, ancientForestPuzzleStateReader?.Read(position.FieldId));
+        fieldNavigationController.ForestPlantSummary = fieldId =>
+            AncientForestPuzzleReadout.DescribePitcherPlants(fieldId, ancientForestPuzzleStateReader?.ReadState(fieldId));
 
         // Every Great Glacier treasure not yet picked up is listed in Objects on every region
         // screen and the snowfield, and a chosen one is walked to leg by leg (see
@@ -3331,7 +3334,11 @@ public sealed class Mod : IModV1, IModV2
                 ? index => forestBank is not null && (uint)index < (uint)forestBank.Length ? forestBank[index] : -1
                 : index => ReadByte(FieldNavigationObjectReader.AddressTemporaryFieldBankBase + index),
             ancientForestShakingPlants: forest?.ShakingPlants,
-            modelOverride: forest?.Models);
+            modelOverride: forest?.Models) with
+        {
+            BoneVillageKeyDigSpotAvailable = position.FieldId == BoneVillageDigSpot.FieldId &&
+                keyStoryReader?.ReadObjectDigSpot(position) is not null
+        };
     }
 
     private int ReadFieldActivityGameMoment() =>

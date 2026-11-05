@@ -108,8 +108,12 @@ public static class BoneVillageDigSpot
     private const int PlacementReach = 2;
 
     private const int LunarHarpRequest = 1;
-    private const int GoodTreasureRequest = 2;
-    private const int NormalTreasureRequest = 3;
+    internal const int GoodTreasureRequest = 2;
+    internal const int NormalTreasureRequest = 3;
+    internal const int KeyMinimumGameMoment = 1196;
+
+    internal static bool IsKeyAvailable(int gameMoment, byte inventory, byte reward) =>
+        gameMoment >= KeyMinimumGameMoment && (inventory & 0x20) == 0 && (reward & 0x08) == 0;
 
     /// <summary>
     /// One buried model: its entity, the Bank[6] slot its Init stores its triangle in, where its
@@ -240,7 +244,7 @@ public static class BoneVillageDigSpot
         var moment = readByte(bank) | (readByte(bank + 1) << 8);
         bool Given15(int index, byte mask) => (readByte(bank + 0x400 + index) & mask) != 0;
         bool Given13(int index, byte mask) => (readByte(bank + 0x300 + index) & mask) != 0;
-        var keyStillBuried = moment > 1195 && !Given15(38, 0x08);
+        var keyStillBuried = IsKeyAvailable(moment, readByte(bank + 67), readByte(bank + 0x400 + 38));
         return site.DigResult switch
         {
             1 => "Lunar Harp",

@@ -90,6 +90,8 @@ public readonly record struct FieldActivityObservation(
 
     /// <summary>Plants whose native background entity is visibly shaking in this coherent sample.</summary>
     public IReadOnlySet<int>? AncientForestShakingPlants { get; init; }
+
+    internal bool BoneVillageKeyDigSpotAvailable { get; init; }
 }
 
 /// <summary>
@@ -1773,7 +1775,9 @@ public sealed class FieldActivityReadout
         var list = string.Join(", ", placed.Select(Where));
         var count = placed.Count == 1 ? "1 digger placed" : $"{placed.Count} diggers placed";
         var you = $" You are on the {ExcavationLevel(observation.PlayerZ)}.";
-        const string spotBeforeBlast = " The dig spot is in Objects: the Lunar Harp's from the start, any other treasure's after the blast.";
+        var spotBeforeBlast = observation.BoneVillageKeyDigSpotAvailable
+            ? " Key to Sector 5 is listed in Objects."
+            : " The dig spot is in Objects: the Lunar Harp's from the start, any other treasure's after the blast.";
         const string spotChosen = " The dig spot is in Objects.";
         var text = phase switch
         {
@@ -1782,6 +1786,8 @@ public sealed class FieldActivityReadout
                     spotBeforeBlast,
             2 => "Blast: press Switch to set off the bomb. " + (placed.Count == 0 ? "No diggers placed." : $"{count}: {list}.") + you +
                  spotBeforeBlast,
+            1 when observation.BoneVillageKeyDigSpotAvailable =>
+                "Choose the dig point. Follow Key to Sector 5 in Objects and press Switch at the spot." + you,
             1 when placed.Count == 0 => "Choose the dig point and press Switch. No digger was placed to show it." + you + spotChosen,
             1 => "Choose the dig point: stand where the diggers' lines of sight meet and press Switch. " +
                  string.Join(" ", placed.Select(digger => Capitalise(Where(digger)) +

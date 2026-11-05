@@ -810,6 +810,8 @@ public sealed class FieldNavigationController
     /// <summary>Current native interaction context, such as releasing a carried forest creature first.</summary>
     public Func<FieldPositionSnapshot, FieldNavigationTarget, string?>? InteractionArrivalInstruction { get; set; }
 
+    internal Func<int, string?>? ForestPlantSummary { get; set; }
+
     // How far from the target a started Contact may be seen and still be this approach's: the
     // step being taken plus whatever the script's first frames move the party.
     private const int ContactStartedSlack = 64;
@@ -1634,12 +1636,12 @@ public sealed class FieldNavigationController
                 MoveCategory(-1);
                 DropHeldBoundaryTargetOnSelectionChange(position);
                 RelockBeaconToSelection(position);
-                return DescribeCurrentSelection(position, controlTransform, ladderState);
+                return DescribeSelectionWithForestSummary(position, controlTransform, ladderState);
             case FieldNavigationAction.NextCategory:
                 MoveCategory(1);
                 DropHeldBoundaryTargetOnSelectionChange(position);
                 RelockBeaconToSelection(position);
-                return DescribeCurrentSelection(position, controlTransform, ladderState);
+                return DescribeSelectionWithForestSummary(position, controlTransform, ladderState);
             case FieldNavigationAction.PreviousTarget:
                 MoveTarget(position, -1);
                 DropHeldBoundaryTargetOnSelectionChange(position);
@@ -1666,7 +1668,7 @@ public sealed class FieldNavigationController
                               $"Route progress {CurrentRouteProgressPercent} percent.");
                 }
 
-                return DescribeCurrentSelection(position, controlTransform, ladderState);
+                return DescribeSelectionWithForestSummary(position, controlTransform, ladderState);
             case FieldNavigationAction.ToggleBeacon:
                 if (BeaconEnabled)
                 {
@@ -3501,6 +3503,19 @@ public sealed class FieldNavigationController
         selectedTargetIds[key] = GetTargetId(targets[index]);
     }
 
+    private FieldNavigationActionResult? DescribeSelectionWithForestSummary(
+        FieldPositionSnapshot position, FieldNavigationControlTransform? controlTransform,
+        FieldLadderStateSnapshot ladderState)
+    {
+        var selection = DescribeCurrentSelection(position, controlTransform, ladderState);
+        if (selection is not { } result || CurrentCategory != FieldNavigationCategory.Objects ||
+            ladderState.IsMounted || !AncientForestPuzzleReadout.HasPuzzle(position.FieldId) ||
+            ForestPlantSummary?.Invoke(position.FieldId) is not { } summary)
+            return selection;
+
+        return new FieldNavigationActionResult($"{result.Speech} {summary}");
+    }
+
     private FieldNavigationActionResult? DescribeCurrentSelection(
         FieldPositionSnapshot position,
         FieldNavigationControlTransform? controlTransform,
@@ -3538,6 +3553,12 @@ public sealed class FieldNavigationController
             return new FieldNavigationActionResult(
                 $"{categoryName}, {target.Value.Label}. You are on a ladder. {climb?.Speech}. Finish climbing before following a walking route.");
         }
+
+        var spokenLabel = target.Value.Label;
+        if (AncientForestPuzzleReadout.HasPuzzle(position.FieldId) &&
+            AncientForestInteractionGuidance.DescribeCreatureLocation(
+                position, target.Value, controlTransform, ResolveSpokenDistanceUnits(position.FieldId)) is { } location)
+            spokenLabel += $". {location}";
 
         string? spokenOffset = null;
         double? routeDistance = null;
@@ -3594,7 +3615,7 @@ public sealed class FieldNavigationController
             // No way on this walkmesh, but a native one round through another field: say that,
             // as starting navigation would, rather than "direction unavailable" (gaiin_4's
             // Enhance Sword from the eastern ledge, 2026-09-28 11:58:30).
-            return new FieldNavigationActionResult($"{categoryName}, {target.Value.Label}. {acrossFields}.");
+            return new FieldNavigationActionResult($"{categoryName}, {spokenLabel}. {acrossFields}.");
         }
 
         var distance = routeDistance ?? Math.Sqrt(
@@ -3603,7 +3624,7 @@ public sealed class FieldNavigationController
         var direction = distance <= ResolveArrivalDistance(target.Value, DefaultSelectionArrivalDistance)
             ? "nearby"
             : spokenOffset ?? "direction unavailable";
-        return new FieldNavigationActionResult($"{categoryName}, {target.Value.Label}. {direction}.");
+        return new FieldNavigationActionResult($"{categoryName}, {spokenLabel}. {direction}.");
     }
 
     /// <summary>
