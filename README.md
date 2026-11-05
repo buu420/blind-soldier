@@ -138,6 +138,18 @@ again where one exists.
 Field and world-map navigation, routes, auto walk and the progress indicator
 are described under [Navigation](#navigation).
 
+Version 0.10.10 tracks Emerald Weapon in underwater Events whenever it is active.
+Its position updates through fog and outside the camera view, even before a first
+sighting. Select Emerald to approach it; regular submarine routes still keep
+travel depth and report its proximity when handing off a descent.
+
+For the Key to Sector 5, talk to the man outside Midgar's entrance, then open
+Story in Bone Village. Story guides you to the excavation foreman, a key dig
+site when the game asks where to dig, and the results chest after the dig. Use
+normal game controls for each step. If you heard the clue before this update,
+talk to the man again once and save so the mod can remember it for that save.
+See the [release notes](docs/releases/v0.10.10.md).
+
 Version 0.10.9 adds Ancient Forest puzzle feedback: distinct creature and plant names,
 carrying and plant-state announcements, and the missing raised throwing spots.
 Usable hopping and vine crossings retain their native controls. See the
@@ -145,9 +157,7 @@ Usable hopping and vine crossings retain their native controls. See the
 
 Version 0.10.8 adds Ancient Forest to Locations through its native Confirm entrance,
 including legal Highwind landings after Ultimate Weapon and chocobo approaches.
-Emerald stays in underwater Events while it exists: its location is unknown until
-sighted, then current visible or clearly labelled last-seen information. Last-seen
-navigation travels at normal depth and stops at the recorded area. Bone Village's
+Bone Village's
 Excavation results chest now uses Talk positioning and a chest cue; open it with
 Confirm to collect the dig result. See the [release notes](docs/releases/v0.10.8.md).
 
@@ -230,10 +240,8 @@ controls, then interact with the game's normal Confirm button. See the
 [release notes](docs/releases/v0.9.3.md).
 
 Version 0.9.2 fixes the native underwater visibility check that prevented
-Emerald Weapon from appearing in Events. Select it there while visible to
-track and approach it with the existing navigation controls. Pursuit pauses
-on loss of sight; other submarine journeys retain Emerald avoidance. See the
-[release notes](docs/releases/v0.9.2.md).
+Emerald Weapon from appearing in Events. Current versions track it beyond the
+camera view as described above. See the [release notes](docs/releases/v0.9.2.md).
 
 Version 0.9.1 names the Highwind's bridge, corridor, operations room, outside
 deck and Chocobo hold in Exits, and identifies its pilot and service crew in
@@ -284,11 +292,10 @@ Gelnika, Key of the Ancients or red submarine wreck through
 the existing navigation controls. Automatic travel turns and uses native thrust
 at the entry depth, keeping clear of Emerald Weapon. Above the destination it
 stops and asks you to descend manually; navigation stays on until the native
-arrival condition is met. Emerald is announced and selectable in Events only
-while visibly on screen. Selecting it explicitly allows a deeper approach,
-which releases input immediately on a visibility gap and stops after a sustained
-loss. A deep approach that could enter a known wreck first stops with an
-explanation. See the [release notes](docs/releases/v0.8.6.md).
+arrival condition is met. Emerald's sighting announcement still depends on what is
+visible. Select it in Events for a deliberate deeper approach; input releases if
+the game can no longer provide its live position. A deep approach that could enter
+a known wreck first stops with an explanation. See the [release notes](docs/releases/v0.8.6.md).
 
 Version 0.8.5 fixes submarine pursuit getting stuck in overview: pursuit uses
 the game's configured Target action to return to normal view when close, then
@@ -516,10 +523,10 @@ instead of reading unverified game memory.
 Choose one download from the
 [Blind Soldier Releases page](https://github.com/buu420/blind-soldier/releases):
 
-- [Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.10.9/Blind-Soldier-Portable.zip)
+- [Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.10.10/Blind-Soldier-Portable.zip)
   is the complete dual-runtime package. Use it for Steam 2026 x64 or when one
   extracted package must support both x86 and x64 installations.
-- [Blind-Soldier-2013-x86-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.10.9/Blind-Soldier-2013-x86-Portable.zip)
+- [Blind-Soldier-2013-x86-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.10.10/Blind-Soldier-2013-x86-Portable.zip)
   is the smaller legacy-only package. Use it for the 2013 x86 game, including
   stock 7th Heaven/FFNx. It deliberately contains no Steam 2026 launcher or
   x64 files.

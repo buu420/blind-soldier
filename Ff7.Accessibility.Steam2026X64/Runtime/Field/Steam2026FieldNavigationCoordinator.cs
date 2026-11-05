@@ -41,6 +41,9 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
     private readonly NativeFieldNavigationProgressBar navigationProgressBar;
     private readonly IntervalFieldNavigationProgressSink navigationProgressSink;
     private readonly FieldStoryTargetReader storyReader;
+    private readonly KeyToSector5StoryKnowledge keyStoryKnowledge;
+    private readonly KeyToSector5ClueObservationReader keyClueReader;
+    private readonly KeyToSector5StoryTargetReader keyStoryReader;
     private readonly Steam2026FieldNpcObservationReader npcObservationReader;
     private readonly FieldScriptNavigationCatalog scriptCatalog;
     private readonly FieldScriptLineStateReader lineStateReader;
@@ -161,7 +164,8 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         Steam2026NativeDirectionalInputSink? directionalInput = null,
         Func<bool?>? isSpeechPlaying = null,
         Func<DateTime>? utcClock = null,
-        GreatGlacierRegionalNavigator? glacierRegion = null)
+        GreatGlacierRegionalNavigator? glacierRegion = null,
+        KeyToSector5StoryKnowledge? keyStoryKnowledge = null)
     {
         this.utcClock = utcClock ?? (static () => DateTime.UtcNow);
         // The screen reader's own word on whether it is still speaking; null where it cannot say.
@@ -277,6 +281,12 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             entity => lineStateReader.TryReadOkState(entity, out var storyOkState) ? storyOkState : null,
             scriptCatalog.RemapStoryDefinition,
             scriptCatalog.ReadNativeGuard);
+        this.keyStoryKnowledge = keyStoryKnowledge ?? new KeyToSector5StoryKnowledge(null);
+        keyClueReader = new KeyToSector5ClueObservationReader(addressSpace, fieldId =>
+            KeyToSector5ClueObservationReader.ResolveReviewedClueMessageId(scriptCatalog.ReadField(fieldId)));
+        keyStoryReader = new KeyToSector5StoryTargetReader(
+            ReadInt32, ReadInt16, ReadByte, this.keyStoryKnowledge,
+            fieldId => scriptCatalog.ReadField(fieldId).IsUsable, scriptCatalog.RemapStoryDefinition);
         var fieldNavigationObjects = FieldNavigationObjectCatalog.CreateAllFields();
         var npcReader = new FieldNavigationNpcReader(
             ReadInt32,
@@ -687,6 +697,12 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         pendingAutoWalkStart = false;
         autoWalkRouteToggleQueued = false;
         controller.NoteAutoWalkStopped();
+    }
+
+    internal void ObserveKeyToSector5Clue()
+    {
+        if (keyClueReader.Observe(keyStoryKnowledge))
+            log("Key to Sector 5: observed the Midgar gate clue.");
     }
 
     internal void Observe(RuntimeFrameObservation frame, DateTime nowUtc)
@@ -2487,8 +2503,12 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         currentStory = NoTargets;
         try
         {
+            var targets = storyReader.ReadTargets(position);
+            var keyTargets = keyStoryReader.ReadTargets(position);
+            if (keyTargets.Count > 0)
+                targets = targets.Concat(keyTargets).ToArray();
             currentStory = Floor60NavigationTargetMerger.Merge(
-                storyReader.ReadTargets(position),
+                targets,
                 floor60SoldierTurnCueTracker.CurrentNavigationTarget);
             diagnostic = $"native={currentStory.Count}";
             return true;

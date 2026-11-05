@@ -21,7 +21,7 @@ internal static class WorldMapSubmarineNavigationTests
         SteeringTurnsBeforeThrustAndRecoversSafeDepth();
         SharedNavigatorDrivesTheSubWithThrustAndKeepsRecoveryOwned();
         DeepApproachGuardCoversTheWholeWrappedSegment();
-        InstalledUnderwaterDestinationsUseNativeArrivalAndHideUnseenEmerald();
+        InstalledUnderwaterDestinationsUseNativeArrivalAndTrackTheLiveEmerald();
         Console.WriteLine("world-map submarine navigation tests passed.");
     }
 
@@ -152,7 +152,7 @@ internal static class WorldMapSubmarineNavigationTests
         Equal("Red submarine wreck", site, "red wreck guard uses its fixed place label");
     }
 
-    private static void InstalledUnderwaterDestinationsUseNativeArrivalAndHideUnseenEmerald()
+    private static void InstalledUnderwaterDestinationsUseNativeArrivalAndTrackTheLiveEmerald()
     {
         var dataRoot = Environment.GetEnvironmentVariable("FF7_ACCESSIBILITY_DATA_ROOT");
         var sourceRoot = Environment.GetEnvironmentVariable("FF7_ACCESSIBILITY_SOURCE_ROOT");
@@ -187,9 +187,11 @@ internal static class WorldMapSubmarineNavigationTests
         var keyState = top with { X = key.X, Z = key.Z, Y = key.Y + 501, TerrainId = 15, TerrainScriptId = 3 };
         Equal(false, key.HasArrived(keyState, key.TriangleId), "Key needs native seabed clearance");
         Equal(true, key.HasArrived(keyState with { Y = key.Y + 499 }, key.TriangleId), "Key native clearance handoff");
+        // wm2.ev spawn point 0 for model 30: (18,19) + (4276,4040) at Y -4250.
         var hidden = new WorldMapEntitySnapshot(0x123000, 0, false, 151732, -4250, 159688, 3, 0, 30, 2);
-        Equal(false, catalog.ReadTargets(WorldMapNavigationCategory.Events, top, [hidden]).Any(t => t.Label == "Emerald Weapon"),
-            "loaded/drawable Emerald alone cannot be selected");
+        Equal(true, catalog.ReadTargets(WorldMapNavigationCategory.Events, top, [hidden])
+                .Any(t => t.Label == "Emerald Weapon" && t.X == hidden.X && t.Z == hidden.Z),
+            "the live native Emerald is selectable at its position before any sighting");
         var red = new WorldMapEntitySnapshot(0x124000, 0, false, 143655, -4970, 184718, 3, 0, 28, 2);
         Equal(false, catalog.ReadTargets(WorldMapNavigationCategory.Transportation, top, [red]).Any(),
             "underwater red wreck is a destination rather than a boardable vehicle");
@@ -238,18 +240,19 @@ internal static class WorldMapSubmarineNavigationTests
         pursue.Observe(explicitStart);
         Equal(visible.X + 400, pursue.Probe.Route!.Waypoints[^1].X, "visible movement refreshes Emerald's route endpoint within the same triangle");
         observed = [hidden];
-        Equal(false, pursue.TryResolveAutomaticInput(explicitStart, out _), "loss of sight releases approach input immediately");
+        Equal(true, pursue.TryResolveAutomaticInput(explicitStart, out _), "loss of sight alone keeps the live approach input");
         var visibilityClock = new DateTime(2026, 10, 6, 16, 0, 0, DateTimeKind.Utc);
         Equal(false, pursue.Observe(explicitStart, visibilityClock, automaticWalkActive: true)?.StopAutoWalk == true,
-            "one missing render frame pauses input but keeps the selected approach");
-        observed = [visible];
-        pursue.Observe(explicitStart, visibilityClock.AddMilliseconds(100), automaticWalkActive: true);
-        Equal(true, pursue.TryResolveAutomaticInput(explicitStart, out _), "fresh positive visibility resumes the same approach");
-        observed = [hidden];
-        pursue.Observe(explicitStart, visibilityClock.AddMilliseconds(200), automaticWalkActive: true);
-        var lost = pursue.Observe(explicitStart, visibilityClock.AddMilliseconds(800), automaticWalkActive: true);
-        Equal(true, lost?.StopAutoWalk == true && lost?.Speech?.Contains("confirm", StringComparison.OrdinalIgnoreCase) == true,
-            "sustained loss of positive visibility stops with an explanation");
+            "an undrawn frame keeps the selected approach");
+        Equal(hidden.X, pursue.Probe.Route!.Waypoints[^1].X, "the approach follows the live position back while undrawn");
+        var outOfView = pursue.Observe(explicitStart, visibilityClock.AddMilliseconds(800), automaticWalkActive: true);
+        Equal(false, outOfView?.StopAutoWalk == true, $"800 ms out of view keeps the live approach: {outOfView?.Speech}");
+        Equal(true, pursue.TryResolveAutomaticInput(explicitStart, out _), "the live approach still drives input out of view");
+        observed = [];
+        Equal(false, pursue.TryResolveAutomaticInput(explicitStart, out _), "a retired native node releases approach input at once");
+        var lost = pursue.Observe(explicitStart, visibilityClock.AddMilliseconds(900), automaticWalkActive: true);
+        Equal(true, lost?.StopAutoWalk == true && lost?.Speech?.Contains("no longer there", StringComparison.Ordinal) == true,
+            "the next observation ends the retired approach with an explanation");
         TerminalPlanningIsNeutralBoundedAndFresh(map, catalog);
         // Every directed route at the default world-map scan (AccessibilityConfig
         // WorldMapScanIntervalMs = 50: 1 or 2 native frames a scan at multiplier 2), at

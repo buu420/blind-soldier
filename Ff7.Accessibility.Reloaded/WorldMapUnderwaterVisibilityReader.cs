@@ -30,6 +30,10 @@ namespace Ff7.Accessibility.Reloaded;
 /// claimed only where neither the object's nor the terrain's round-earth drop (FUN_00762F9A,
 /// FUN_0075F0AD) applies, so that flat geometry is the picture; beyond it nothing is claimed.
 /// Anything torn, missing, unreadable or out of range is never visible.</para>
+///
+/// <para>The same checked capture also gives every node it still lists its live position, drawn
+/// or not (<see cref="WorldMapUnderwaterVisibilityReadResult.LiveEntities"/>): C_007641A7 runs
+/// each node's script whether or not it is drawn, so tracking never waits for visibility.</para>
 /// </summary>
 public sealed class WorldMapUnderwaterVisibilityReader
 {
@@ -136,12 +140,35 @@ public sealed class WorldMapUnderwaterVisibilityReader
     {
         if (capture.Module != WorldMapStateReader.WorldModule || capture.MapType != 2)
         {
+            // World changes belong to the hosts' double-sampled state read. This capture of
+            // another map neither confirms nor retires anything in the caller's underwater scan.
             return Unusable($"module {capture.Module}, map {capture.MapType}");
+        }
+
+        // Identity belongs to the caller's scan; coordinates belong to this checked capture.
+        // Emerald patrols between these independent scans and its scripts run whether or not
+        // anything draws it, so every node the capture still lists takes the capture's position,
+        // drawn or not. A node it no longer lists was retired after the scan.
+        var live = new Dictionary<uint, WorldMapEntitySnapshot>();
+        foreach (var candidate in candidates)
+        {
+            if (candidate.GuestPointer == capture.Player ||
+                !capture.Entities.TryGetValue(candidate.GuestPointer, out var native) || native.Model != candidate.ModelId)
+            {
+                continue;
+            }
+
+            live[candidate.GuestPointer] = candidate with
+            {
+                X = native.X, Y = native.Y, Z = native.Z,
+                TerrainId = native.Walkmap & 0x1F, RegionId = (native.Walkmap >> 9) & 0x1F,
+                Flags = native.Flags, IsVisibleUnderwater = false
+            };
         }
 
         if (!capture.Camera.IsRotation())
         {
-            return Unusable("camera rotation is not a rotation");
+            return Unusable("camera rotation is not a rotation") with { LiveEntities = live };
         }
 
         if (capture.Context == 0 || capture.Context > MaximumContextAddress ||
@@ -149,32 +176,25 @@ public sealed class WorldMapUnderwaterVisibilityReader
             capture.Viewport[3] is <= 0 or > MaximumViewportExtent ||
             capture.Projection.Any(value => !float.IsFinite(value)))
         {
-            return Unusable("renderer context unavailable");
+            return Unusable("renderer context unavailable") with { LiveEntities = live };
         }
 
         var visible = new HashSet<uint>();
-        var observations = new Dictionary<uint, WorldMapEntitySnapshot>();
         var notes = new List<string>();
         foreach (var candidate in candidates)
         {
             var reason = Judge(capture, candidate);
             if (reason is null)
             {
-                var native = capture.Entities[candidate.GuestPointer];
                 visible.Add(candidate.GuestPointer);
-                observations[candidate.GuestPointer] = candidate with
-                {
-                    X = native.X, Y = native.Y, Z = native.Z,
-                    TerrainId = native.Walkmap & 0x1F, RegionId = (native.Walkmap >> 9) & 0x1F,
-                    Flags = native.Flags, IsVisibleUnderwater = true
-                };
+                live[candidate.GuestPointer] = live[candidate.GuestPointer] with { IsVisibleUnderwater = true };
             }
             else notes.Add($"{candidate.ModelId}:{reason}");
         }
 
         return new(true, visible,
             $"visible={visible.Count}" + (notes.Count == 0 ? string.Empty : " (" + string.Join(", ", notes) + ")"))
-        { ObservedEntities = observations };
+        { LiveEntities = live };
     }
 
     /// <summary>Null when the entity is visible; otherwise why it is not.</summary>
@@ -186,10 +206,6 @@ public sealed class WorldMapUnderwaterVisibilityReader
         {
             return "not in the live list";
         }
-
-        // Identity belongs to the caller's scan; coordinates belong to this checked draw
-        // capture. Emerald patrols between these independent scans. Publishing the capture's
-        // coordinates with visibility avoids rejecting motion or steering to the older scan.
 
         // Model render records are per model: two live entities sharing one cannot be told apart.
         if (capture.Entities.Values.Count(other => other.Model == entity.Model) != 1)
@@ -672,6 +688,12 @@ public readonly record struct WorldMapUnderwaterVisibilityReadResult(
     IReadOnlySet<uint> VisibleEntities,
     string Diagnostic)
 {
-    /// <summary>Visible target coordinates from the same checked native capture as visibility.</summary>
-    public IReadOnlyDictionary<uint, WorldMapEntitySnapshot>? ObservedEntities { get; init; }
+    /// <summary>
+    /// Every reported caller entity the same coherent native capture of the underwater map
+    /// still lists, at that capture's position, with
+    /// <see cref="WorldMapEntitySnapshot.IsVisibleUnderwater"/> set only for the visible ones.
+    /// Present even when the renderer's own state is unusable; null when no coherent capture
+    /// of the underwater map could be taken.
+    /// </summary>
+    public IReadOnlyDictionary<uint, WorldMapEntitySnapshot>? LiveEntities { get; init; }
 }

@@ -523,8 +523,10 @@ internal sealed class Steam2026ResearchSession : IDisposable
         var roomDescriptionGate = new FieldAreaDescriptionHistoryGate(roomDescriptionHistory);
         var battleDescriptionHistory = new FieldAreaDescriptionHistory(
             Path.Combine(modDirectory, "Configuration", "battle-descriptions.json"), log);
+        var keyStoryKnowledge = new KeyToSector5StoryKnowledge(
+            Path.Combine(modDirectory, "Configuration", "story-knowledge.json"), log);
         var roomDescriptionSaves = new FieldAreaDescriptionSaveTracker(
-            roomDescriptionHistory, log, battleDescriptionHistory);
+            roomDescriptionHistory, log, battleDescriptionHistory, keyStoryKnowledge.History);
         BattleAnimationNarrationRuntime? battleAnimationNarration = null;
         var modSettingsMenu = new ModSettingsMenu(config, playerSettingsStore,
             () => BattleAnimationNarrationRuntime.ResetBattleDescriptions(battleDescriptionHistory, log));
@@ -1163,7 +1165,8 @@ internal sealed class Steam2026ResearchSession : IDisposable
                                 controllerCapture: () => controllerCaptureHook?.Capture,
                                 directionalInput: directionalInput,
                                 isSpeechPlaying: () => output.TryIsSpeaking(out var speaking) ? speaking : null,
-                                glacierRegion: candidateGlacierRegion);
+                                glacierRegion: candidateGlacierRegion,
+                                keyStoryKnowledge: keyStoryKnowledge);
                         }
                         catch (Exception ex)
                         {
@@ -1693,12 +1696,13 @@ avigationield_zone_transition.wav"),
                             : () => cutsceneDialogueProbe.TryRead(out _));
                 }
 
-                // Bind both histories before any description is delivered, including
-                // when field descriptions are disabled.
+                // Bind per-save history before observing clues or delivering descriptions,
+                // even when field descriptions are disabled.
                 ObserveRoomDescriptionSaveIdentity(
                     roomDescriptionSaves, roomDescriptionSaveReader, roomDescriptionLoadReader,
                     roomDescriptionPopupReader, roomDescriptionAddressSpace,
                     inGameMenuBridge?.HasSaveMenuOwnership == true, ref roomDescriptionPlayableSeen);
+                fieldNavigationCoordinator?.ObserveKeyToSector5Clue();
 
                 if (cutsceneHookSet is not null && cutsceneDescriptions is not null)
                 {

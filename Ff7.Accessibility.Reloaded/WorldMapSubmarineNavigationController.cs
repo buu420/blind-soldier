@@ -3,10 +3,20 @@ namespace Ff7.Accessibility.Reloaded;
 public sealed partial class WorldMapNavigationController
 {
     private bool submarineManualDescent;
+    private bool submarineDescentNearEmerald;
     private bool submarineDepthRecoveryAnnounced;
-    private DateTime submarineEmeraldMissingSince = DateTime.MinValue;
     private string? submarineUnsafeApproach;
-    private bool submarineLastSeenAnnounced;
+
+    /// <summary>
+    /// How near the player's own descent the live Emerald must be to be called close: its native
+    /// contact distance (wm2.ev 5E02: the wrapped three-axis Manhattan distance, shifted right by
+    /// four, at most 75 - raw 1215) and as far again, about a second of its 40-unit patrol step
+    /// at the native 30 world frames a second.
+    /// </summary>
+    private const int DescentEmeraldWarningDistance = 2 * WorldMapSubmarineSteering.EmeraldEncounterDistance;
+
+    /// <summary>A close Emerald must be this much further off before it is said to have moved away.</summary>
+    private const int DescentEmeraldClearMargin = 512;
 
     private static bool UnderwaterRouteEndMoved(WorldMapNavigationTarget target, WorldMapRoutePlan route)
     {
@@ -23,20 +33,53 @@ public sealed partial class WorldMapNavigationController
             Math.Abs(WorldMapTargetCatalog.WrappedDelta(endpoint.Z, point.Z, 0x38000)) > 128;
     }
 
-    private bool HasFreshEmeraldSighting(WorldMapNavigationTarget target) =>
-        entityProvider?.Invoke().Any(e => e.ModelId == 30 && e.IsVisibleUnderwater && !e.IsPlayer &&
-            string.Equals($"world-entity:{e.GuestPointer:X8}:30", target.StableId, StringComparison.Ordinal)) == true;
+    /// <summary>
+    /// Whether this frame's single live Emerald node is the one <paramref name="target"/> names.
+    /// Drawn or not does not matter; a retired node, or a second one, releases the pursuit.
+    /// </summary>
+    private bool HasLiveEmerald(WorldMapNavigationTarget target) =>
+        entityProvider?.Invoke() is { } frame && WorldMapLiveEmerald.TryFind(frame, out var emerald) &&
+        string.Equals(WorldMapLiveEmerald.StableId(emerald.GuestPointer), target.StableId, StringComparison.Ordinal);
 
-    private bool HasEmeraldEntity(WorldMapNavigationTarget target) =>
-        entityProvider?.Invoke().Any(e => e.ModelId == 30 && !e.IsPlayer &&
-            string.Equals($"world-entity:{e.GuestPointer:X8}:30", target.StableId, StringComparison.Ordinal)) == true;
+    /// <summary>
+    /// The live Emerald against the column the player descends through, straight down from here
+    /// to the destination's depth: the least native wrapped three-axis Manhattan distance along
+    /// it. <paramref name="known"/> is false when the frame cannot place Emerald (no entity
+    /// source, or two model-30 nodes); <paramref name="distance"/> is null when there is no live
+    /// node at all. True when that is close, keeping a close Emerald close until it is clearly away.
+    /// </summary>
+    private bool IsEmeraldNearDescent(WorldMapStateSnapshot state, WorldMapNavigationTarget target,
+        out bool known, out long? distance)
+    {
+        known = false;
+        distance = null;
+        if (entityProvider?.Invoke() is not { } frame) return false;
+        if (!frame.Any(e => !e.IsPlayer && e.ModelId == WorldMapLiveEmerald.ModelId))
+        {
+            known = true;
+            return false;
+        }
+
+        if (!WorldMapLiveEmerald.TryFind(frame, out var emerald)) return false;
+        known = true;
+        var bottom = Math.Min(state.Y, target.Y);
+        var vertical = emerald.Y > state.Y ? (long)emerald.Y - state.Y
+            : emerald.Y < bottom ? (long)bottom - emerald.Y
+            : 0L;
+        distance = Math.Abs((long)WorldMapTargetCatalog.WrappedDelta(state.X, emerald.X, map.WrapWidth)) +
+            Math.Abs((long)WorldMapTargetCatalog.WrappedDelta(state.Z, emerald.Z, map.WrapHeight)) + vertical;
+        return distance <= DescentEmeraldWarningDistance + (submarineDescentNearEmerald ? DescentEmeraldClearMargin : 0);
+    }
+
+    private int CountsAway(long distance) =>
+        Math.Max(1, (int)Math.Ceiling(distance / (double)distanceUnitsPerCount));
 
     private static int UnderwaterHorizontalDistance(WorldMapStateSnapshot state, WorldMapNavigationTarget target) =>
         Math.Abs(WorldMapTargetCatalog.WrappedDelta(state.X, target.X, 0x48000)) +
         Math.Abs(WorldMapTargetCatalog.WrappedDelta(state.Z, target.Z, 0x38000));
 
     private WorldMapNavigationOutput? ObserveSubmarineApproach(WorldMapStateSnapshot state,
-        WorldMapNavigationTarget target, int playerTriangle, bool automaticWalkActive, DateTime now)
+        WorldMapNavigationTarget target, int playerTriangle, bool automaticWalkActive)
     {
         if (state.PlayerModelId != 13 || state.WorldMapType != 2) return null;
         if (submarineUnsafeApproach is { } unsafeApproach)
@@ -45,42 +88,16 @@ public sealed partial class WorldMapNavigationController
             lastDiagnostic = unsafeApproach;
             return new($"{unsafeApproach} Auto walk stopped. Navigation off.", StopAutoWalk: true);
         }
-        if (target.NativeUnderwaterArrival?.ModelId == 30)
+        if (target.NativeUnderwaterArrival?.ModelId == WorldMapLiveEmerald.ModelId)
         {
-            if (target.LocationKnowledge == WorldMapTargetLocationKnowledge.LastSeen)
-            {
-                submarineEmeraldMissingSince = DateTime.MinValue;
-                if (activeRoute is { Waypoints.Count: > 0 } rememberedRoute &&
-                    SubmarineDistance(state, rememberedRoute.Waypoints[^1]) <= WorldMapSubmarineSteering.HorizontalStopDistance &&
-                    state.Y >= WorldMapSubmarineSteering.TravelDepth - WorldMapSubmarineSteering.DepthTolerance)
-                {
-                    ResetRoute();
-                    return new("Reached Emerald Weapon's last-seen area. It is not currently visible. Navigation off.", StopAutoWalk: true);
-                }
-                if (!submarineLastSeenAnnounced)
-                {
-                    submarineLastSeenAnnounced = true;
-                    ResetAutoWalkConvergence();
-                    return new("No current Emerald sighting. Continuing to its last-seen location at normal travel depth.");
-                }
-            }
-            else
-            {
-                submarineLastSeenAnnounced = false;
-                if (HasFreshEmeraldSighting(target))
-                { submarineEmeraldMissingSince = DateTime.MinValue; return null; }
-                ResetAutoWalkConvergence();
-                if (submarineEmeraldMissingSince == DateTime.MinValue) submarineEmeraldMissingSince = now;
-                // Direct live targets without remembered knowledge still need positive
-                // visibility. The runtime replaces its retained target with LastSeen.
-                if (now - submarineEmeraldMissingSince < TimeSpan.FromMilliseconds(500)) return new(null);
-                ResetRoute();
-                lastDiagnostic = "explicit Emerald approach lost its positive native visibility observation";
-                return new("Cannot confirm Emerald Weapon in the current view. Auto walk stopped. Navigation off.", StopAutoWalk: true);
-            }
+            // A pursuit follows the live node whether or not it is drawn; only its retirement,
+            // or a second node that cannot be told apart from it, ends the pursuit.
+            if (HasLiveEmerald(target)) return null;
+            ResetRoute();
+            lastDiagnostic = "the pursued Emerald is no longer the frame's single live model-30 node";
+            return new($"{target.Label} is no longer there. Navigation off.", StopAutoWalk: true);
         }
-        if (target.LocationKnowledge != WorldMapTargetLocationKnowledge.LastSeen &&
-            target.NativeUnderwaterArrival is not null && !target.HasArrived(state, playerTriangle) &&
+        if (target.NativeUnderwaterArrival is not null && !target.HasArrived(state, playerTriangle) &&
             IsAboveSubmarineDescent(state, target))
         {
             ResetAutoWalkConvergence();
@@ -88,9 +105,22 @@ public sealed partial class WorldMapNavigationController
             submarineManualDescent = true;
             AutomaticInputHoldsSubmarineThrust = false;
             lastDiagnostic = $"above {target.Label}; native arrival requires manual descent";
-            return new(first ? DescribeSubmarineDescent(target) : null, StopAutoWalk: true);
+            // The descent is the player's own: say where the live Emerald is when it starts,
+            // and again whenever it comes close or moves away while they hold here.
+            var speech = first ? DescribeSubmarineDescent(state, target) : null;
+            var near = IsEmeraldNearDescent(state, target, out _, out var distance);
+            if (!first && near != submarineDescentNearEmerald && distance is { } live)
+            {
+                speech = near
+                    ? $"Emerald Weapon is approaching this descent, {CountsAway(live)} counts away. " +
+                      "Descending now could start a battle with it."
+                    : $"Emerald Weapon has moved away from this descent, {CountsAway(live)} counts away.";
+            }
+            submarineDescentNearEmerald = near;
+            return new(speech, StopAutoWalk: true);
         }
         submarineManualDescent = false;
+        submarineDescentNearEmerald = false;
         if (automaticWalkActive && state.Y < WorldMapSubmarineSteering.TravelDepth)
         {
             ResetAutoWalkConvergence();
@@ -115,16 +145,29 @@ public sealed partial class WorldMapNavigationController
         WorldMapBroncoLanding.TryFindSurface(map, state.X, state.Z, out var floor) &&
         floor.TerrainScriptId == 3 && target.NativeTriggerTriangleIds.Contains(floor.Id);
 
-    private static string DescribeSubmarineDescent(WorldMapNavigationTarget target) =>
-        $"Above {target.Label}. Auto walk stopped. Hold Up to descend toward it. " +
-        "Navigation remains on. Emerald Weapon may be nearby at this depth.";
+    /// <summary>
+    /// Ordinary travel keeps entry depth, where Emerald (Y -4250) is beyond its 1215 contact
+    /// distance; the descent below is the player's. It names the live node's distance - a
+    /// close one as a danger - says nothing of an Emerald that is not there, and keeps the
+    /// general warning only when the frame cannot place it.
+    /// </summary>
+    private string DescribeSubmarineDescent(WorldMapStateSnapshot state, WorldMapNavigationTarget target)
+    {
+        var handoff = $"Above {target.Label}. Auto walk stopped. Hold Up to descend toward it. Navigation remains on.";
+        var near = IsEmeraldNearDescent(state, target, out var known, out var distance);
+        if (!known) return handoff + " Emerald Weapon may be nearby at this depth.";
+        if (distance is not { } live) return handoff;
+        return near
+            ? $"{handoff} Emerald Weapon is close to this descent, {CountsAway(live)} counts away. " +
+              "Descending now could start a battle with it."
+            : $"{handoff} Emerald Weapon is {CountsAway(live)} counts away.";
+    }
 
     private string DescribeSubmarineGuidance(WorldMapStateSnapshot state, WorldMapNavigationTarget target)
     {
         if (submarineManualDescent || (target.NativeUnderwaterArrival?.ModelId is 17 or 26 or 28 &&
-            IsAboveSubmarineDescent(state, target))) return DescribeSubmarineDescent(target);
-        var remembered = target.LocationKnowledge == WorldMapTargetLocationKnowledge.LastSeen;
-        var emerald = target.NativeUnderwaterArrival?.ModelId == 30 && !remembered;
+            IsAboveSubmarineDescent(state, target))) return DescribeSubmarineDescent(state, target);
+        var emerald = target.NativeUnderwaterArrival?.ModelId == WorldMapLiveEmerald.ModelId;
         var depth = emerald ? WorldMapSubmarineSteering.EmeraldDepth : WorldMapSubmarineSteering.TravelDepth;
         if (state.Y < depth - (emerald ? 120 : 0)) return $"Rise to travel depth toward {target.Label}.";
         if (emerald && state.Y > depth + 120) return "Descending toward the selected Emerald Weapon.";
@@ -137,7 +180,7 @@ public sealed partial class WorldMapNavigationController
         var turn = ((angle - state.CameraFront + 6144) % 4096) - 2048;
         var heading = Math.Abs(turn) <= 64 ? "Ahead" : turn > 0 ? "Turn right" : "Turn left";
         var counts = Math.Max(1, (int)Math.Ceiling(Math.Sqrt(dx * (double)dx + dz * (double)dz) / distanceUnitsPerCount));
-        return $"{heading}. {target.Label}{(remembered ? " last-seen location" : string.Empty)}, {counts} counts to the next waypoint.";
+        return $"{heading}. {target.Label}, {counts} counts to the next waypoint.";
     }
 
     private bool TryResolveSubmarineInput(WorldMapStateSnapshot state, out FieldNavigationInput input)
@@ -225,10 +268,10 @@ public sealed partial class WorldMapNavigationController
             EndSubmarineTerminal();
             return false;
         }
-        var remembered = activeTarget.LocationKnowledge == WorldMapTargetLocationKnowledge.LastSeen;
-        var emerald = activeTarget.NativeUnderwaterArrival?.ModelId == 30 && !remembered;
-        if (remembered && !HasEmeraldEntity(activeTarget)) return false;
-        if (emerald && !HasFreshEmeraldSighting(activeTarget)) return false;
+        // Pursuit input follows only this frame's single live node: a retired or doubled
+        // node releases it at once, before the next observation can end the route.
+        var emerald = activeTarget.NativeUnderwaterArrival?.ModelId == WorldMapLiveEmerald.ModelId;
+        if (emerald && !HasLiveEmerald(activeTarget)) return false;
         waypointIndex = ResolveSubmarineWaypoint(state, route, waypointIndex);
         var aim = route.Waypoints[waypointIndex];
         int? finalHeading = null;

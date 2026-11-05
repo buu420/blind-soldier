@@ -7,7 +7,7 @@
     <PlatformTarget>x64</PlatformTarget>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
-    <InformationalVersion>0.10.9</InformationalVersion>
+    <InformationalVersion>0.10.10</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
 
@@ -1111,6 +1111,9 @@
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldScriptNavigationTransitionTracker.cs" Link="Shared\FieldScriptNavigationTransitionTracker.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldNavigationSpeechPolicy.cs" Link="Shared\FieldNavigationSpeechPolicy.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldStoryTargetReader.cs" Link="Shared\FieldStoryTargetReader.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\KeyToSector5StoryKnowledge.cs" Link="Shared\KeyToSector5StoryKnowledge.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\KeyToSector5ClueObservationReader.cs" Link="Shared\KeyToSector5ClueObservationReader.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\KeyToSector5StoryTargetReader.cs" Link="Shared\KeyToSector5StoryTargetReader.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\ReachableFieldExitTargetProvider.cs" Link="Shared\ReachableFieldExitTargetProvider.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\MidgarLadderNavigation.cs" Link="Shared\MidgarLadderNavigation.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldExitLabelResolver.cs" Link="Shared\FieldExitLabelResolver.cs" />

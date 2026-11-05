@@ -207,8 +207,6 @@ internal sealed record WorldMapNativeWeaponArrival(int X, int Y, int Z, int Wrap
           Math.Abs((long)WorldMapTargetCatalog.WrappedDelta(state.Z, Z, WrapHeight))) >> 4) <= 80;
 }
 
-public enum WorldMapTargetLocationKnowledge { Current, LastSeen, Unknown }
-
 public sealed record WorldMapNavigationTarget(
     WorldMapNavigationCategory Category,
     WorldMapTargetKind Kind,
@@ -221,12 +219,9 @@ public sealed record WorldMapNavigationTarget(
     string StableId,
     IReadOnlySet<int> ArrivalTriangleIds)
 {
-    public WorldMapTargetLocationKnowledge LocationKnowledge { get; init; }
-    public bool HasKnownLocation => LocationKnowledge != WorldMapTargetLocationKnowledge.Unknown;
     public bool RequiresOnFootEntry { get; init; }
 
     public bool HasArrived(int triangleId) =>
-        LocationKnowledge == WorldMapTargetLocationKnowledge.Current &&
         !RequiresOnFootEntry &&
         NativeUnderwaterArrival is null &&
         SubmarineDiveDestination is null && SubmarineSurfacingPoint is null &&
@@ -307,8 +302,6 @@ public sealed record WorldMapNavigationTarget(
 
     public bool HasArrived(WorldMapStateSnapshot state, int triangleId)
     {
-        // Reaching a remembered area cannot confirm that a moving creature is there.
-        if (LocationKnowledge != WorldMapTargetLocationKnowledge.Current) return false;
         if (RequiresOnFootEntry)
             return state.PlayerModelId is 0 or 1 or 2 && IsAtOnFootEntryApproach(state, triangleId);
         if (NativeWeaponArrival is { } weapon)
@@ -889,8 +882,14 @@ public sealed partial class WorldMapTargetCatalog
             return Array.Empty<WorldMapNavigationTarget>();
         }
 
+        // Underwater, Emerald is the frame's single live model-30 node, drawn or not.
+        var emeraldPointer = map.WorldMapType == 2 && WorldMapLiveEmerald.TryFind(entities, out var emerald)
+            ? emerald.GuestPointer
+            : 0u;
         return entities
             .Where(entity => !entity.IsPlayer)
+            .Where(entity => map.WorldMapType != 2 || entity.ModelId != WorldMapLiveEmerald.ModelId ||
+                emeraldPointer != 0 && entity.GuestPointer == emeraldPointer)
             .Select(entity => CreateEntityTarget(category, state, entity))
             .Where(target => target is not null)
             .Select(target => target!)
@@ -1060,7 +1059,6 @@ public sealed partial class WorldMapTargetCatalog
                 return Locations.FirstOrDefault(t => t.NativeUnderwaterArrival?.ModelId == entity.ModelId) is { } place
                     ? place with { Category = category } : null;
             }
-            if (entity.ModelId == 30 && !entity.IsVisibleUnderwater) return null;
         }
         var label = category switch
         {
@@ -1123,16 +1121,18 @@ public sealed partial class WorldMapTargetCatalog
                 NativeWeaponArrival = new(entity.X, entity.Y, entity.Z, map.WrapWidth, map.WrapHeight)
             };
         }
-        if (player.WorldMapType == 2 && entity.ModelId == 30)
+        if (player.WorldMapType == 2 && entity.ModelId == WorldMapLiveEmerald.ModelId)
         {
+            // The live node's own position, whether or not the renderer drew it this frame.
             var approaches = ResolveEmeraldApproachPoints(entity, triangleId);
             var arrivalsUnderwater = approaches.Count == 0
                 ? new HashSet<int> { triangleId }
                 : approaches.Keys.ToHashSet();
             return new WorldMapNavigationTarget(category, WorldMapTargetKind.Event, "Emerald Weapon",
                 entity.X, entity.Y, entity.Z, triangleId, entity.RegionId,
-                $"world-entity:{entity.GuestPointer:X8}:{entity.ModelId}", arrivalsUnderwater)
+                WorldMapLiveEmerald.StableId(entity.GuestPointer), arrivalsUnderwater)
             {
+                NativeEntityModelId = WorldMapLiveEmerald.ModelId,
                 NativeUnderwaterArrival = new WorldMapUnderwaterArrival(map, 30, entity.X, entity.Y, entity.Z,
                     WorldMapSubmarineSteering.EmeraldEncounterDistance, arrivalsUnderwater),
                 UnderwaterApproachPoints = approaches
