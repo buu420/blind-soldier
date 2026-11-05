@@ -1172,7 +1172,7 @@ Describe 'Install-Ff7DualRuntimePackage' {
             Write-TestTextFile -Path (Join-Path $installedMod 'obsolete.dll') -Content 'old-package'
             $protectedConfigurationHash = (Get-FileHash -LiteralPath $installedConfiguration -Algorithm SHA256).Hash
             $protectedPlayerFiles = @{}
-            foreach ($playerFile in @('player-settings.json', 'room-descriptions.json', 'battle-descriptions.json')) {
+            foreach ($playerFile in @('player-settings.json', 'room-descriptions.json', 'battle-descriptions.json', 'story-knowledge.json')) {
                 $playerPath = Join-Path $installedMod (Join-Path 'Configuration' $playerFile)
                 $playerBytes = [Text.Encoding]::UTF8.GetBytes("{`r`n  `"UserContent`": `"preserve-$playerFile`"`r`n}")
                 [IO.File]::WriteAllBytes($playerPath, $playerBytes)

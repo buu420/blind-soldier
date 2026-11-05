@@ -12,7 +12,6 @@ public sealed class WorldMapRuntimeContext
     private uint announcedEmerald;
     private DateTime emeraldAbsentSince = DateTime.MinValue;
     private DateTime unavailableStateSince = DateTime.MinValue;
-    private readonly WorldMapEmeraldMemory emeraldMemory = new();
 
     public WorldMapRuntimeContext(
         WorldMapData map,
@@ -52,7 +51,7 @@ public sealed class WorldMapRuntimeContext
         Navigation = new WorldMapNavigationController(
             map,
             Planner,
-            ReadNavigationTargets,
+            (state, category) => Catalog.ReadTargets(category, state, Entities),
             progressSink,
             distanceUnitsPerCount,
             guidanceInterval,
@@ -128,7 +127,6 @@ public sealed class WorldMapRuntimeContext
 
     private void PublishEntities(IReadOnlyList<WorldMapEntitySnapshot> value)
     {
-        if (Map.WorldMapType == 2) emeraldMemory.Observe(value);
         if (value.Count == 0)
         {
             announcedEmerald = 0;
@@ -140,8 +138,8 @@ public sealed class WorldMapRuntimeContext
 
     /// <summary>
     /// A moving player's double-sampled state can tear without unloading the world.
-    /// Release entity-dependent input immediately, but keep past positive sightings
-    /// through brief tears. A continuous 500 ms outage retires that knowledge too.
+    /// Release entity-dependent input immediately, but keep the sighting announcement
+    /// through brief tears. A continuous 500 ms outage retires that too.
     /// </summary>
     public void ObserveUnavailableState(DateTime nowUtc)
     {
@@ -152,35 +150,35 @@ public sealed class WorldMapRuntimeContext
             Volatile.Write(ref entities, Array.Empty<WorldMapEntitySnapshot>());
     }
 
-    private IReadOnlyList<WorldMapNavigationTarget> ReadNavigationTargets(
-        WorldMapStateSnapshot state, WorldMapNavigationCategory category)
-    {
-        var frame = Entities;
-        var current = Catalog.ReadTargets(category, state, frame);
-        if (Map.WorldMapType != 2 || category != WorldMapNavigationCategory.Events ||
-            emeraldMemory.ReadTarget(state, Catalog, frame, current) is not { } emerald) return current;
-        return current.Where(t => t.StableId != emerald.StableId).Append(emerald)
-            .OrderBy(t => t.Label, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(t => t.StableId, StringComparer.Ordinal).ToArray();
-    }
-
     public void UpdateEntities(WorldMapStateSnapshot state,
         IReadOnlyList<WorldMapEntitySnapshot>? value, Ff7.Accessibility.LegacyLayout.ILegacyAddressSpace? memory)
     {
         value ??= Array.Empty<WorldMapEntitySnapshot>();
         if (Map.WorldMapType != 2) { UpdateEntities(value); return; }
         WorldMapUnderwaterVisibilityReadResult sighting = default;
-        if (memory is not null && value.Any(e => !e.IsPlayer && e.ModelId is 17 or 26 or 28 or 30))
+        if (memory is not null && value.Any(IsUnderwaterTarget))
         {
             underwaterVisibility ??= new(memory, Map);
             sighting = underwaterVisibility.Read(state, value);
         }
-        UpdateEntities(value.Select(e => sighting.IsUsable &&
-            sighting.ObservedEntities?.TryGetValue(e.GuestPointer, out var observed) == true
-                ? observed : e with { IsVisibleUnderwater = false }).ToArray());
+
+        // Tracking and visibility share one checked capture: each node it still lists takes its
+        // live position there, and only a positive draw makes one visible. A node a coherent
+        // capture no longer lists was retired after the caller's scan. With no coherent capture
+        // of the underwater map the caller's own checked scan is the current position, and
+        // nothing is visible.
+        var live = sighting.LiveEntities;
+        UpdateEntities(value
+            .Where(e => live is null || !IsUnderwaterTarget(e) || live.ContainsKey(e.GuestPointer))
+            .Select(e => live is not null && live.TryGetValue(e.GuestPointer, out var current)
+                ? current : e with { IsVisibleUnderwater = false })
+            .ToArray());
         LastUnderwaterVisibilityDiagnostic = sighting.Diagnostic ??
             (memory is null ? "underwater visibility memory unavailable" : "no live underwater target entities");
     }
+
+    private static bool IsUnderwaterTarget(WorldMapEntitySnapshot entity) =>
+        !entity.IsPlayer && entity.ModelId is 17 or 26 or 28 or 30;
 
     public string? ObserveUnderwaterSightings(WorldMapStateSnapshot state, bool speechReserved = false, DateTime? nowUtc = null)
     {

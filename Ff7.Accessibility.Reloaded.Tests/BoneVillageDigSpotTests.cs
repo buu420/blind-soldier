@@ -74,6 +74,153 @@ internal static class BoneVillageDigSpotTests
         Console.WriteLine($"Bone Village results chest native pickup, Talk reach and loaded Echo-S checks passed ({EchoSRoots().Length} Echo-S layouts).");
     }
 
+    internal static void RunKeyStory(Func<int, FieldWalkmeshReader> createWalkmeshReader, string? dataRoot)
+    {
+        KeyToSector5StoryKnowledgeTests.Run();
+        KeyToSector5ClueObservationTests.Run();
+        KeyToSector5StoryTargetTests.Run();
+        KeyToSector5SaveBindingTests.Run();
+        if (dataRoot is null) return;
+
+        var echoes = EchoSRoots();
+        CheckKeyStoryLayout(createWalkmeshReader, dataRoot, dataRoot, isEcho: false);
+        foreach (var echo in echoes)
+            CheckKeyStoryLayout(createWalkmeshReader, dataRoot, echo, isEcho: true);
+        Console.WriteLine($"Key to Sector 5 native clue, foreman, dig routes, results and collection passed (stock and {echoes.Length} Echo-S layouts).");
+    }
+
+    private static void CheckKeyStoryLayout(Func<int, FieldWalkmeshReader> createWalkmeshReader,
+        string stockRoot, string layoutRoot, bool isEcho)
+    {
+        const int midgarGate = 170;
+        const int foreman = 4;
+        const int dig = 772;
+        var name = Path.GetFileName(layoutRoot);
+        var loaded = new LoadedFieldMemory();
+        var source = new FlevelDataSource(layoutRoot);
+        var catalog = new FieldScriptNavigationCatalog(stockRoot, Ff7GameLanguageDetector.Detect(stockRoot),
+            new LoadedFieldScriptIdentityReader(loaded));
+        var scripts = new FieldScriptNavigationCatalog(layoutRoot);
+        var knowledge = new KeyToSector5StoryKnowledge(null);
+
+        void Load(int field)
+        {
+            loaded.Load(source, field);
+            var result = catalog.ReadField(field);
+            Equal(true, result.IsUsable && result.UsesReviewedEchoLayout == isEcho,
+                $"{name}: native field {field} is the expected layout ({result.Diagnostic})");
+        }
+
+        KeyToSector5StoryTargetReader ReaderFor(DigSpotMemory memory) =>
+            new(memory.ReadInt32, address => (short)(memory.ReadByte(address) | memory.ReadByte(address + 1) << 8),
+                memory.ReadByte, knowledge, field => catalog.ReadField(field).IsUsable, catalog.RemapStoryDefinition);
+
+        FieldPositionSnapshot At(FieldWalkmesh mesh, int field, int x, int y, ushort triangle) =>
+            new(FieldPositionReader.FieldModule, field, 0, x, y,
+                FieldCrossFieldApproachResolver.SurfaceZ(mesh.Triangles[triangle], x, y), triangle, 0);
+
+        void CheckTalk(FieldWalkmeshReader mesh, FieldPositionSnapshot start, FieldNavigationTarget target, int entity)
+        {
+            Equal(entity, target.TriggerEntityId, $"{name}: Story reaches the native Talk actor");
+            Equal(FieldNavigationActivation.Talk, target.Activation, $"{name}: the player uses normal Confirm");
+            var planner = new FieldWalkmeshRoutePlanner(mesh, null, _ => catalog.ReadField(start.FieldId).Transitions);
+            Equal(true, planner.TryBuildRoute(start, target, out var plan), $"{name}: Talk approach ({planner.LastDiagnostic})");
+            var dx = (double)plan!.FinalApproach.X - target.X;
+            var dy = (double)plan.FinalApproach.Y - target.Y;
+            Equal(true, dx * dx + dy * dy < target.InteractionRadius * target.InteractionRadius &&
+                Math.Abs(plan.FinalApproach.Z - target.Z) < 256, $"{name}: endpoint is within native Talk reach");
+        }
+
+        var villageReader = createWalkmeshReader(VillageFieldId);
+        var villageMesh = villageReader.Read(Anywhere(VillageFieldId)).Walkmesh!;
+        var arrival = At(villageMesh, VillageFieldId, -213, -346, 84);
+        var foremanMemory = DigSpotMemory.InVillage(0, moment: 1197);
+        foremanMemory.OwnField(VillageFieldId);
+        var foremanInit = scripts.ReadScriptOpcodes(VillageFieldId, foreman, 0);
+        Equal(string.Empty, foremanInit.FirstOrDefault().EntityName, $"{name}: the foreman has a blank script name");
+        var foremanPlace = foremanInit.First(op => op.Opcode == 0xA5).Bytes.ToArray();
+        var foremanModel = foremanInit.First(op => op.Opcode == 0xA1).Bytes[1];
+        Equal((-283, 63, 18, 28),
+            ((int)BitConverter.ToInt16(foremanPlace, 3), (int)BitConverter.ToInt16(foremanPlace, 5),
+                (int)BitConverter.ToInt16(foremanPlace, 7), (int)BitConverter.ToUInt16(foremanPlace, 9)),
+            $"{name}: native excavation foreman placement");
+        foremanMemory.MapTo(foreman, foremanModel);
+        foremanMemory.ModelByte(foremanModel, FieldNavigationObjectReader.VisibilityOffset, 1);
+        foremanMemory.ModelWord(foremanModel, FieldNavigationNpcReader.TalkRadiusOffset, 80);
+        foremanMemory.PlaceBuried(foreman, BitConverter.ToInt16(foremanPlace, 3), BitConverter.ToInt16(foremanPlace, 5),
+            BitConverter.ToInt16(foremanPlace, 7), BitConverter.ToUInt16(foremanPlace, 9));
+        Load(VillageFieldId);
+        var foremanStory = ReaderFor(foremanMemory);
+        Equal(0, foremanStory.ReadTargets(arrival).Count, $"{name}: no quest before the conversation");
+
+        Load(midgarGate);
+        var clueId = KeyToSector5ClueObservationReader.ResolveReviewedClueMessageId(catalog.ReadField(midgarGate));
+        Equal<int?>(isEcho ? 23 : 141, clueId, $"{name}: native clue from the gate man's Talk");
+        loaded.ShowNativeMessage(clueId!.Value);
+        var clue = new KeyToSector5ClueObservationReader(loaded,
+            field => KeyToSector5ClueObservationReader.ResolveReviewedClueMessageId(catalog.ReadField(field)));
+        Equal(true, clue.Observe(knowledge), $"{name}: the loaded native clue window establishes the quest");
+
+        Load(VillageFieldId);
+        var targets = foremanStory.ReadTargets(arrival);
+        Equal(1, targets.Count, $"{name}: the known quest offers the foreman on arrival");
+        CheckTalk(villageReader, arrival, targets.Single(), foreman);
+
+        Load(dig);
+        var digReader = createWalkmeshReader(dig);
+        var digMesh = digReader.Read(Anywhere(dig)).Walkmesh!;
+        var lower = At(digMesh, dig, -214, 0, 105);
+        var upper = At(digMesh, dig, 104, 566,
+            (ushort)FieldWalkmeshPathfinder.ResolveTriangle(digMesh, 104, 566, 330, 99));
+        var choice = scripts.ReadScriptOpcodes(dig, 2, 3).ToArray();
+        Equal(true, Hex(choice[0].Bytes).StartsWith("14 50 0c 01 00", StringComparison.Ordinal),
+            $"{name}: native final Switch choice");
+        foreach (var site in BoneVillageDigSpot.Sites.Where(site => site.DigResult is >= 5 and <= 7))
+        {
+            var init = scripts.ReadScriptOpcodes(dig, site.EntityId, 0);
+            var place = init.First(op => op.Opcode == 0xA5).Bytes.ToArray();
+            Equal((site.X, site.Y, site.Z, site.Triangle),
+                ((int)BitConverter.ToInt16(place, 3), (int)BitConverter.ToInt16(place, 5),
+                    (int)BitConverter.ToInt16(place, 7), (int)BitConverter.ToUInt16(place, 9)),
+                $"{name}: native key marker {site.EntityId} placement");
+            Equal($"b9 06 {site.EntityId:x2} {site.BankSlot:x2}", Hex(init.First(op => op.Opcode == 0xB9).Bytes),
+                $"{name}: native marker stores the matching triangle");
+            var comparison = Array.FindIndex(choice, op => op.Opcode == 0x16 && op.Bytes.Count >= 8 &&
+                Hex(op.Bytes).StartsWith($"16 66 00 00 {site.BankSlot:x2} 00 00 05", StringComparison.Ordinal));
+            Equal(true, comparison >= 0 && Hex(choice[comparison + 1].Bytes) == $"80 10 ea {site.DigResult:x2}",
+                $"{name}: Switch on the triangle produces native result {site.DigResult}");
+
+            var memory = DigSpotMemory.AfterInit(request: 3, phase: 1);
+            memory.OwnField(dig);
+            memory.SetMoment(1197);
+            foreach (var other in BoneVillageDigSpot.Sites.Where(other => other.EntityId != site.EntityId))
+                memory.Unmap(other.EntityId);
+            var story = ReaderFor(memory);
+            var planner = new FieldWalkmeshRoutePlanner(digReader, null, _ => catalog.ReadField(dig).Transitions);
+            foreach (var start in new[] { lower, upper })
+            {
+                var target = story.ReadTargets(start).Single();
+                Equal(site.Triangle, target.CompletionTriangles!.Single(), $"{name}: exact native choice triangle");
+                Equal(true, planner.TryBuildRoute(start, target, out var plan), $"{name}: key route ({planner.LastDiagnostic})");
+                Equal(site.Triangle, plan!.TargetTriangle, $"{name}: key route ends on the choice triangle");
+                Equal(true, plan.Portals.Where(portal => portal.TransitionKind == FieldNavigationTransitionKind.Ladder)
+                    .All(portal => portal.RequiresAction), $"{name}: climbing uses normal input");
+            }
+        }
+
+        Load(VillageFieldId);
+        ResultsChestScripts(scripts, name);
+        var returned = At(villageMesh, VillageFieldId, DigReturn.X, DigReturn.Y, DigReturn.Triangle);
+        var chestMemory = DigSpotMemory.InVillage(5, moment: 1197);
+        chestMemory.OwnField(VillageFieldId);
+        var chestStory = ReaderFor(chestMemory);
+        var chest = chestStory.ReadTargets(returned).Single();
+        Equal("Check the excavation results", chest.Label, $"{name}: chest name does not reveal its contents");
+        CheckTalk(villageReader, returned, chest, ResultsChestEntityId);
+        chestMemory.SetBank(15, 38, 0x08);
+        Equal(0, chestStory.ReadTargets(returned).Count, $"{name}: native one-time reward retires the quest");
+    }
+
     private static readonly DateTime Epoch = new(2026, 9, 27, 12, 0, 0, DateTimeKind.Utc);
 
     private static FieldPositionSnapshot Anywhere(int field = 772) =>
@@ -948,6 +1095,13 @@ internal static class BoneVillageDigSpotTests
             bytes[FieldNavigationObjectReader.AddressFieldBankBase + 1] = (byte)(moment >> 8);
         }
 
+        public void OwnField(int field)
+        {
+            bytes[FieldPositionReader.AddressCurrentModule] = FieldPositionReader.FieldModule;
+            bytes[FieldPositionReader.AddressFieldId] = (byte)field;
+            bytes[FieldPositionReader.AddressFieldId + 1] = (byte)(field >> 8);
+        }
+
         public void SetInt(int address, int value) => ints[address] = value;
 
         /// <summary>After <paramref name="reads"/> reads of the byte, it reads as <paramref name="value"/>.</summary>
@@ -988,6 +1142,7 @@ internal static class BoneVillageDigSpotTests
     {
         private const uint Script = 0x02000000;
         private readonly Dictionary<uint, byte> bytes = [];
+        private byte[] section = [];
 
         public void Load(FlevelDataSource source, int field)
         {
@@ -996,10 +1151,36 @@ internal static class BoneVillageDigSpotTests
             var at = BitConverter.ToInt32(decoded, 6);
             var length = BitConverter.ToInt32(decoded, at);
             bytes.Clear();
-            Write(Script, decoded.AsSpan(at + 4, length));
+            section = decoded.AsSpan(at + 4, length).ToArray();
+            Write(Script, section);
             bytes[(uint)FieldScriptContextReader.AddressCurrentModule] = 1;
             Write((uint)FieldScriptContextReader.AddressCurrentFieldId, BitConverter.GetBytes((ushort)field));
             Write((uint)FieldScriptContextReader.AddressFieldScriptPtr, BitConverter.GetBytes(Script));
+        }
+
+        public void ShowNativeMessage(int messageId)
+        {
+            var tableOffset = BitConverter.ToUInt16(section, 4);
+            var textOffset = tableOffset + BitConverter.ToUInt16(section, tableOffset + 2 + 2 * messageId);
+            var message = section.AsSpan(textOffset);
+            var terminator = message.IndexOf((byte)0xff);
+            Equal(true, terminator > 0, "native clue message is terminated");
+            var pageBreak = message[..terminator].IndexOf((byte)0xe8);
+            var window = new byte[FieldMessageReader.FieldTextBufferLength];
+            Array.Fill(window, (byte)0xff);
+            message[..(pageBreak < 0 ? terminator : pageBreak)].CopyTo(window);
+            Write(FieldMessageReader.AddressFieldWindowTextBuffers, window);
+            Write(FieldMessageReader.AddressFieldMessageDataPointer, BitConverter.GetBytes(Script + tableOffset));
+            for (var index = 0; index < FieldMessageReader.WindowCount; index++)
+            {
+                bytes[(uint)FieldMessageReader.AddressFieldWindowStates + (uint)index] =
+                    index == 0 ? (byte)1 : FieldMessageReader.FreeWindowState;
+                Write((uint)(FieldMessageReader.AddressFieldWindowMessagePointers + index * 4),
+                    BitConverter.GetBytes(index == 0 ? Script + (uint)textOffset : 0u));
+            }
+            // The native reader bounds its scan within a readable allocated segment.
+            for (var index = section.Length; index < textOffset + 0xe00; index++)
+                bytes[Script + (uint)index] = 0xff;
         }
 
         public bool TryRead(uint address, Span<byte> destination)

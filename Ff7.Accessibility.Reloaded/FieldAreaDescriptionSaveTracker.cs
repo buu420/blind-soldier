@@ -43,6 +43,7 @@ public sealed class FieldAreaDescriptionSaveTracker
 
     private readonly FieldAreaDescriptionHistory history;
     private readonly FieldAreaDescriptionHistory? additionalHistory;
+    private readonly FieldAreaDescriptionHistory? storyKnowledgeHistory;
     private readonly Action<string>? log;
 
     private int pendingSaveFile;
@@ -65,10 +66,12 @@ public sealed class FieldAreaDescriptionSaveTracker
     public FieldAreaDescriptionSaveTracker(
         FieldAreaDescriptionHistory history,
         Action<string>? log = null,
-        FieldAreaDescriptionHistory? additionalHistory = null)
+        FieldAreaDescriptionHistory? additionalHistory = null,
+        FieldAreaDescriptionHistory? storyKnowledgeHistory = null)
     {
         this.history = history ?? throw new ArgumentNullException(nameof(history));
         this.additionalHistory = additionalHistory;
+        this.storyKnowledgeHistory = storyKnowledgeHistory;
         this.log = log;
     }
 
@@ -230,6 +233,7 @@ public sealed class FieldAreaDescriptionSaveTracker
 
         history.LoadSave(pendingLoadFile, pendingLoadGame);
         additionalHistory?.LoadSave(pendingLoadFile, pendingLoadGame);
+        storyKnowledgeHistory?.LoadSave(pendingLoadFile, pendingLoadGame);
         LastDiagnostic = $"bound to loaded save {pendingLoadFile}:{pendingLoadGame}";
         log?.Invoke($"Room description history bound to loaded save {pendingLoadFile}:{pendingLoadGame}.");
         loadingObserved = false;
@@ -246,6 +250,7 @@ public sealed class FieldAreaDescriptionSaveTracker
     {
         history.BeginNewGame();
         additionalHistory?.BeginNewGame();
+        storyKnowledgeHistory?.BeginNewGame();
         pendingSaveFile = 0;
         pendingSaveGame = 0;
         pendingLoadFile = 0;
@@ -293,6 +298,7 @@ public sealed class FieldAreaDescriptionSaveTracker
         {
             history.SaveGame(pendingSaveFile, pendingSaveGame);
             additionalHistory?.SaveGame(pendingSaveFile, pendingSaveGame);
+            storyKnowledgeHistory?.SaveGame(pendingSaveFile, pendingSaveGame);
             LastDiagnostic = $"bound to saved game {pendingSaveFile}:{pendingSaveGame}";
             log?.Invoke($"Room description history bound to saved game {pendingSaveFile}:{pendingSaveGame}.");
             return;

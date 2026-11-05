@@ -506,7 +506,7 @@ public sealed partial class WorldMapNavigationController
         if (submarineUnsafeApproach is not null && state.PlayerModelId == 13 && state.WorldMapType == 2 &&
             activeTarget is { NativeUnderwaterArrival.ModelId: 30 } unsafeTarget)
         {
-            return ObserveSubmarineApproach(state, unsafeTarget, -1, automaticWalkActive, now);
+            return ObserveSubmarineApproach(state, unsafeTarget, -1, automaticWalkActive);
         }
 
         var resumedAfterCombat = combatPaused;
@@ -549,11 +549,6 @@ public sealed partial class WorldMapNavigationController
             ? liveTargets.FirstOrDefault(candidate =>
                 string.Equals(candidate.StableId, priorLiveTarget.StableId, StringComparison.Ordinal))
             : null;
-        if (freshLiveTarget is { HasKnownLocation: false } unlocated)
-        {
-            ResetRoute();
-            return new($"{unlocated.Label}'s location is unknown. Navigation off.", StopAutoWalk: true);
-        }
         if (freshLiveTarget is null && resumedAfterCombat && activeTarget is { NativeEntityModelId: 11 })
         {
             // The native pool is rebuilt when the world reloads after battle. Model11
@@ -608,20 +603,6 @@ public sealed partial class WorldMapNavigationController
             ? null
             : freshLiveTarget;
 
-        // Draw flags clear at the start of each native frame. A current pursuit
-        // therefore pauses on a missing sample before becoming a remembered route.
-        // Keep its encounter endpoint and depth through the same 500 ms window
-        // used for direct live targets; input independently requires a fresh sighting.
-        if (state.WorldMapType == 2 && state.PlayerModelId == 13 &&
-            target.NativeUnderwaterArrival?.ModelId == 30 &&
-            target.LocationKnowledge == WorldMapTargetLocationKnowledge.Current &&
-            refreshed?.LocationKnowledge == WorldMapTargetLocationKnowledge.LastSeen)
-        {
-            ResetAutoWalkConvergence();
-            if (submarineEmeraldMissingSince == DateTime.MinValue) submarineEmeraldMissingSince = now;
-            if (now - submarineEmeraldMissingSince < TimeSpan.FromMilliseconds(500)) return new(null);
-        }
-
         if (refreshed is not null && refreshed != target)
         {
             var movedWhileFlying = highwindLanding is not null &&
@@ -645,6 +626,24 @@ public sealed partial class WorldMapNavigationController
                 // Keep the speech interval and convergence history: an animated target
                 // must not announce/restart a route or reset the timeout every frame.
             }
+            // A pursued Emerald patrols 40 units a native frame (wm2.ev 5E02), drawn or not.
+            // Its route follows the live node the same way, quietly, as soon as the old end
+            // could miss the native contact volume.
+            var emeraldPursuit = refreshed.NativeUnderwaterArrival?.ModelId == WorldMapLiveEmerald.ModelId;
+            if (emeraldPursuit && (!refreshed.ArrivalTriangleIds.Contains(activeRoute.TargetTriangleId) ||
+                                   UnderwaterRouteEndMoved(refreshed, activeRoute)))
+            {
+                if (!planner.TryBuildRoute(state, refreshed, out var pursuit))
+                {
+                    ResetRoute();
+                    return new($"Route unavailable to {refreshed.Label}. Navigation off.", StopAutoWalk: true);
+                }
+                activeRoute = pursuit;
+                routeStart = new(state.X, state.Y, state.Z);
+                progressRouteWaypoints = pursuit.Waypoints;
+                waypointIndex = 0;
+                offRouteSince = DateTime.MinValue;
+            }
             // A landing route ends on water beside the destination by design; its end is
             // never one of the destination's own triangles, and replanning because of that
             // would start the approach over on every sample.
@@ -658,11 +657,9 @@ public sealed partial class WorldMapNavigationController
             // repeated several times a second.
             // A flight also ends at its landing spot, not at the boat's contact
             // triangle. Keep its brake/landing handoff unless the boat actually moves.
-            if (movedWhileFlying || landingPlan is null && highwindLanding is null &&
+            if (movedWhileFlying || landingPlan is null && highwindLanding is null && !emeraldPursuit &&
                 (!refreshed.ArrivalTriangleIds.Contains(activeRoute.TargetTriangleId) ||
-                 HasMovedItsContactPoint(refreshed, activeRoute) ||
-                 (refreshed.NativeUnderwaterArrival?.ModelId == 30 &&
-                  UnderwaterRouteEndMoved(refreshed, activeRoute))))
+                 HasMovedItsContactPoint(refreshed, activeRoute)))
             {
                 var replanned = StartNavigation(refreshed, state, now, announceOn: false);
                 return replanned is null
@@ -686,7 +683,7 @@ public sealed partial class WorldMapNavigationController
             return diveOutput;
         }
 
-        if (ObserveSubmarineApproach(state, target, playerTriangle, automaticWalkActive, now) is { } submarineOutput)
+        if (ObserveSubmarineApproach(state, target, playerTriangle, automaticWalkActive) is { } submarineOutput)
         {
             submarineStagingConvergence.Reset();
             return submarineOutput;
@@ -1965,11 +1962,6 @@ public sealed partial class WorldMapNavigationController
         // Every start is a current request. A fresh selection must retire any identity
         // that was waiting through an unreadable frame before Observe can resume it.
         pendingEntityTarget = null;
-        if (!target.HasKnownLocation)
-        {
-            ResetRoute();
-            return new($"{target.Label}'s location is unknown. Explore underwater to sight it first. Navigation off.", StopAutoWalk: true);
-        }
         if (target.SubmarineDiveDestination is { } diveDestination && SubmarineJourney is { } journey)
             journey.Start(this, diveDestination, state);
         else SubmarineJourney?.Cancel(this);
@@ -1989,9 +1981,8 @@ public sealed partial class WorldMapNavigationController
             throughTarget = null;
         }
         submarineManualDescent = false;
+        submarineDescentNearEmerald = false;
         submarineDepthRecoveryAnnounced = false;
-        submarineEmeraldMissingSince = DateTime.MinValue;
-        submarineLastSeenAnnounced = false;
         submarineUnsafeApproach = null;
 
         var continuesProgressRoute =
@@ -2367,10 +2358,6 @@ public sealed partial class WorldMapNavigationController
         var label = state.WorldMapType == 2 && CurrentCategory == WorldMapNavigationCategory.Events
             ? $"{target.Label}, {selectedIndices.GetValueOrDefault(CurrentCategory) + 1} of {targets.Count}"
             : target.Label;
-        if (!target.HasKnownLocation)
-            return new($"{DisplayName(CurrentCategory)}, {label}. Location unknown. Explore underwater to sight it first.");
-        if (target.LocationKnowledge == WorldMapTargetLocationKnowledge.LastSeen)
-            label += ", last-seen location";
         if (target.NativeEntityModelId == 11 && state.PlayerModelId != 3)
             return new("Events, Ultimate Weapon. Use the Highwind to follow it.");
         if (state.PlayerModelId == 13 && target.Kind == WorldMapTargetKind.Transportation && target.NativeEntityModelId == 3)
@@ -3533,8 +3520,8 @@ public sealed partial class WorldMapNavigationController
         landingOnRunIn = false;
         highwindLanding = null;
         submarineManualDescent = false;
+        submarineDescentNearEmerald = false;
         submarineDepthRecoveryAnnounced = false;
-        submarineEmeraldMissingSince = DateTime.MinValue;
         submarineUnsafeApproach = null;
         ResetHighwindApproach();
         AutomaticInputHoldsFlightAction = false;

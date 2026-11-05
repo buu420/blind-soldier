@@ -49,6 +49,10 @@
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\ControllerAccessibilityWorkerTests.cs" Link="SharedTests\ControllerAccessibilityWorkerTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\BufferedKeyboardInputTests.cs" Link="SharedTests\BufferedKeyboardInputTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\WorldMapSubmarineDiveTests.cs" Link="SharedTests\WorldMapSubmarineDiveTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\KeyToSector5StoryKnowledgeTests.cs" Link="SharedTests\KeyToSector5StoryKnowledgeTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\KeyToSector5ClueObservationTests.cs" Link="SharedTests\KeyToSector5ClueObservationTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\KeyToSector5StoryTargetTests.cs" Link="SharedTests\KeyToSector5StoryTargetTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\KeyToSector5SaveBindingTests.cs" Link="SharedTests\KeyToSector5SaveBindingTests.cs" />
     <ProjectReference Include="..\Ff7.Accessibility.Runtime.Abstractions\Ff7.Accessibility.Runtime.Abstractions.csproj" />
     <ProjectReference Include="..\Ff7.Accessibility.Steam2026X64\Ff7.Accessibility.Steam2026X64.csproj" />
   </ItemGroup>

@@ -7,6 +7,13 @@ using Ff7.Accessibility.Reloaded.Runtime;
 using Ff7.Accessibility.Runtime.Abstractions;
 using AccessibilityConfig = Ff7.Accessibility.Core.AccessibilityConfig;
 
+if (args.Contains("--key-story-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.BoneVillageDigSpotTests.RunKeyStory(CreateInstalledFieldWalkmeshReader,
+        Environment.GetEnvironmentVariable("FF7_ACCESSIBILITY_DATA_ROOT"));
+    return;
+}
+
 if (args.Contains("--ancient-forest-interaction-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.AncientForestInteractionTests.Run();
@@ -1508,6 +1515,8 @@ Ff7.Accessibility.Reloaded.Tests.TempleClockDeliveryTests.Run();
 Ff7.Accessibility.Reloaded.Tests.TempleClockHazardTests.Run();
 Ff7.Accessibility.Reloaded.Tests.TempleClockHazardTests.RunWithInstalledGameData(CreateInstalledFieldWalkmeshReader);
 Ff7.Accessibility.Reloaded.Tests.ChaseAndExcavationTests.Run(CreateInstalledFieldWalkmeshReader);
+Ff7.Accessibility.Reloaded.Tests.BoneVillageDigSpotTests.RunKeyStory(CreateInstalledFieldWalkmeshReader,
+        Environment.GetEnvironmentVariable("FF7_ACCESSIBILITY_DATA_ROOT"));
 Ff7.Accessibility.Reloaded.Tests.GuideRouteRegressionTests.Run();
 Ff7.Accessibility.Reloaded.Tests.FieldNavigationTriggerFallbackTests.Run();
 Ff7.Accessibility.Reloaded.Tests.FieldEntryPlacementSafetyTests.Run();

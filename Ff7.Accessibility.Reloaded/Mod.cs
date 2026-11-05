@@ -430,6 +430,9 @@ public sealed class Mod : IModV1, IModV2
     private NativeFieldExitTargetProvider? nativeFieldExitTargetProvider;
     private ReachableFieldExitTargetProvider? reachableFieldExitTargetProvider;
     private FieldStoryTargetReader? fieldStoryTargetReader;
+    private KeyToSector5StoryKnowledge? keyStoryKnowledge;
+    private KeyToSector5ClueObservationReader? keyClueReader;
+    private KeyToSector5StoryTargetReader? keyStoryReader;
     private FieldWalkmeshRoutePlanner? fieldNavigationRoutePlanner;
     private FieldObjectProximityCueTracker? fieldObjectProximityCueTracker;
     private FieldExitProximityCueTracker? fieldExitProximityCueTracker;
@@ -1297,9 +1300,12 @@ public sealed class Mod : IModV1, IModV2
             Log);
         battleDescriptionHistory = new FieldAreaDescriptionHistory(
             Path.Combine(modDirectory, "Configuration", "battle-descriptions.json"), Log);
+        var keyKnowledge = new KeyToSector5StoryKnowledge(
+            Path.Combine(modDirectory, "Configuration", "story-knowledge.json"), Log);
+        keyStoryKnowledge = keyKnowledge;
         fieldAreaDescriptionSaveTracker = new FieldAreaDescriptionSaveTracker(
             fieldAreaDescriptionHistory,
-            Log, battleDescriptionHistory);
+            Log, battleDescriptionHistory, keyKnowledge.History);
         battleAnimationNarration = BattleAnimationNarrationRuntime.Create(
             legacyAddressSpace, battleDescriptionHistory, config, modDirectory, Log,
             text => Speak(text, false),
@@ -1555,6 +1561,14 @@ public sealed class Mod : IModV1, IModV2
             entity => fieldScriptLineStateReader.TryReadOkState(entity, out var storyOkState) ? storyOkState : null,
             definition => fieldScriptNavigationCatalog?.RemapStoryDefinition(definition),
             nativeGuardReader: guard => fieldScriptNavigationCatalog?.ReadNativeGuard(guard));
+        keyClueReader = new KeyToSector5ClueObservationReader(legacyAddressSpace, fieldId =>
+            fieldScriptNavigationCatalog is { } catalog
+                ? KeyToSector5ClueObservationReader.ResolveReviewedClueMessageId(catalog.ReadField(fieldId))
+                : null);
+        keyStoryReader = new KeyToSector5StoryTargetReader(
+            ReadInt32, ReadInt16, ReadByte, keyKnowledge,
+            fieldId => fieldScriptNavigationCatalog?.ReadField(fieldId).IsUsable == true,
+            definition => fieldScriptNavigationCatalog?.RemapStoryDefinition(definition));
         var fieldWalkmeshReader = new FieldWalkmeshReader(ReadInt32, ReadInt16);
         var fieldBoundaryStateReader = new FieldBoundaryStateReader(legacyAddressSpace);
         var fieldDynamicObstacleReader = new FieldNavigationDynamicObstacleReader(
@@ -6996,6 +7010,8 @@ public sealed class Mod : IModV1, IModV2
     {
         var ordinaryTargets = fieldStoryTargetReader?.ReadTargets(position) ??
             Array.Empty<FieldNavigationTarget>();
+        if (keyStoryReader?.ReadTargets(position) is { Count: > 0 } keyTargets)
+            ordinaryTargets = ordinaryTargets.Concat(keyTargets).ToArray();
         return Floor60NavigationTargetMerger.Merge(
             ordinaryTargets,
             floor60SoldierTurnCueTracker.CurrentNavigationTarget);
@@ -8532,6 +8548,8 @@ public sealed class Mod : IModV1, IModV2
             readiness,
             load,
             ref fieldAreaDescriptionPlayableModuleSeen);
+        if (keyStoryKnowledge is { } knowledge && keyClueReader?.Observe(knowledge) == true)
+            Log("Key to Sector 5: observed the Midgar gate clue.");
     }
 
     private void TickSaveMenuSpeech()

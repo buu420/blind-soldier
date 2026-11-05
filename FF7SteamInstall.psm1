@@ -1472,7 +1472,7 @@ function Install-Ff7DualRuntimePackage {
             throw 'Dual-runtime package validation failed: staged package hashes differ from the verified source package.'
         }
 
-        foreach ($playerFile in @('config.json', 'player-settings.json', 'room-descriptions.json', 'battle-descriptions.json')) {
+        foreach ($playerFile in @('config.json', 'player-settings.json', 'room-descriptions.json', 'battle-descriptions.json', 'story-knowledge.json')) {
             $relativePlayerFile = Join-Path 'Configuration' $playerFile
             $installedConfiguration = Join-Path $target.FullName $relativePlayerFile
             if (Test-Path -LiteralPath $installedConfiguration -PathType Leaf) {
