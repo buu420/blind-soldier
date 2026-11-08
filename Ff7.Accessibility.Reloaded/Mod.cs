@@ -6826,7 +6826,7 @@ public sealed class Mod : IModV1, IModV2
                 result.Position,
                 input,
                 controlResult.Transform,
-                isSuppressed: navigationSuppressed || !controlResult.IsUsable,
+                isSuppressed: navigationSuppressed || !navigationForeground || !controlResult.IsUsable,
                 arrivalDistanceUnits: Math.Max(0, config.FieldNavigationArrivalDistanceUnits),
                 ladderState: ladderState,
                 observedAt: now);
@@ -7015,6 +7015,16 @@ public sealed class Mod : IModV1, IModV2
     private IReadOnlyList<FieldNavigationTarget> ReadFieldStoryTargets(
         FieldPositionSnapshot position)
     {
+        if (AncientForestStoryGuide.IsForest(position.FieldId) &&
+            fieldScriptNavigationCatalog?.ReadField(position.FieldId).IsUsable == true)
+        {
+            if (ancientForestPuzzleStateReader?.ReadStoryState(position.FieldId) is not { } forest)
+                return [];
+            return new AncientForestStoryGuide(position, forest,
+                fieldNavigationObjectReader?.ReadTargets(position) ?? [],
+                reachableFieldExitTargetProvider?.ReadTargets(position, fieldPositionIsScripted) ?? [])
+                .ReadTargets();
+        }
         var ordinaryTargets = fieldStoryTargetReader?.ReadTargets(position) ??
             Array.Empty<FieldNavigationTarget>();
         if (keyStoryReader?.ReadTargets(position) is { Count: > 0 } keyTargets)

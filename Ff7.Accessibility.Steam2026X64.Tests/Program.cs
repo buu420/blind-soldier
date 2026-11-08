@@ -41,6 +41,7 @@ if (args.Contains("--ancient-forest-hazards-only", StringComparer.OrdinalIgnoreC
 }
 
 Ff7.Accessibility.Reloaded.Tests.AncientForestPuzzleTests.Run();
+Ff7.Accessibility.Reloaded.Tests.AncientForestStoryTests.Run();
 Ff7.Accessibility.Reloaded.Tests.AncientForestEchoTests.Run();
 Ff7.Accessibility.Reloaded.Tests.AncientForestInteractionTests.Run();
 Steam2026AncientForestRefusalTests.Run();

@@ -42,6 +42,9 @@ internal static class AncientForestEchoTests
                 }
                 if (field == 620)
                 {
+                    var climb = TownInteractionObjectCatalog.Create().Single(o => o.FieldId == 620 && o.Label == "Vine to pitcher plant 1");
+                    Check(loaded.RemapObjectDefinition(climb) is { EntityId: 16, ActivatesOnOk: false },
+                        $"{echo}: the native vine's walk-on line must survive the entity shift");
                     var down = TownInteractionObjectCatalog.Create().Single(o => o.FieldId == 620 && o.EntityId == 33);
                     Check(loaded.RemapObjectDefinition(down)?.Label?.Contains("hold Down", StringComparison.Ordinal) == true,
                         $"{echo}: the held Down jump is incorrectly called a press");

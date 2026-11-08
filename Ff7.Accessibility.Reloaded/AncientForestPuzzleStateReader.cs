@@ -17,6 +17,8 @@ internal sealed record AncientForestPuzzleSnapshot(
     IReadOnlySet<int>? ShakingPlants,
     IReadOnlyList<FieldActivityModelReading> Models);
 
+internal sealed record AncientForestStoryState(byte[] Bank, int Collected, SupportedFieldScriptVariant Variant);
+
 /// <summary>
 /// A coherent native snapshot, admitted only for reviewed loaded forest scripts.
 ///
@@ -109,6 +111,53 @@ internal sealed class AncientForestPuzzleStateReader
         if (!TryReadBank(fieldId, out var afterScript, out var afterVariant, out var afterBank) ||
             afterScript != script || afterVariant != variant || !SameObservedFacts(fieldId, bank, afterBank)) return null;
         return new AncientForestPuzzleSnapshot(afterBank, shaking, creatures);
+    }
+
+    /// <summary>
+    /// The same on-screen puzzle, plus the seven pickups' native collection bits. Read only
+    /// in reviewed fields while the player controls Cloud, and reject a state change during
+    /// the sample. Bank 15 bytes 37/38 are persistent even when Switch reloads the puzzle.
+    /// </summary>
+    internal AncientForestStoryState? ReadStoryState(int fieldId)
+    {
+        const uint pickupAddress = FieldNavigationObjectReader.AddressFieldBankBase + 0x400 + 37;
+        if (!AncientForestStoryGuide.IsForest(fieldId) || identity() is not { } loaded ||
+            loaded.FieldId != fieldId || !IsSameContext(loaded) || !PlayerHasControl()) return null;
+        var variant = EchoSCompatibilityManifest.ResolveVariant(loaded);
+        if (variant is not (SupportedFieldScriptVariant.Vanilla or SupportedFieldScriptVariant.EchoS124))
+            return null;
+
+        var puzzle = AncientForestPuzzleReadout.HasPuzzle(fieldId);
+        Span<byte> before = stackalloc byte[64];
+        var after = puzzle ? new byte[before.Length] : [];
+        const uint bankAddress = FieldNavigationObjectReader.AddressTemporaryFieldBankBase;
+        if (puzzle && !memory.TryRead(bankAddress, before) ||
+            !memory.TryReadUInt16(pickupAddress, out var collected) ||
+            puzzle && !memory.TryRead(bankAddress, after) ||
+            !memory.TryReadUInt16(pickupAddress, out var collectedAfter) ||
+            (collected & AncientForestStoryGuide.AllTreasures) != (collectedAfter & AncientForestStoryGuide.AllTreasures) ||
+            !PlayerHasControl() || !IsSameContext(loaded)) return null;
+
+        if (puzzle && (!SameObservedFacts(fieldId, before, after) ||
+            !SameStoryFacts(fieldId, before, after))) return null;
+        return new AncientForestStoryState(after, collectedAfter, variant);
+    }
+
+    private bool PlayerHasControl() =>
+        memory.TryReadByte(FieldAudibleCueStateReader.AddressUserControl, out var value) && value == 0;
+
+    private static bool SameStoryFacts(int field, ReadOnlySpan<byte> before, ReadOnlySpan<byte> after)
+    {
+        // Live throw zone, frog occupants for the launch plants, and hive/frog availability.
+        ReadOnlySpan<int> relevant = field switch
+        {
+            620 => [20, 40, 41, 57, 60],
+            622 => [19],
+            _ => [17, 22, 47, 48]
+        };
+        foreach (var address in relevant)
+            if (before[address] != after[address]) return false;
+        return true;
     }
 
     /// <summary>The plant entities, west to east, and each creature's stock and loaded entity.</summary>

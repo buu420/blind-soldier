@@ -46,6 +46,7 @@ internal static class GuideRouteRegressionTests
         ForestPlatformThrowsAndCarryIdsMatchNativeScripts();
         ForestThrowingSpotsAreTheZoneLines();
         ForestRewardsAreRoutedHonestly();
+        ForestStoryApproachesUseNativeGeometry();
         AncientForestRouteHazardTests.RunWithInstalledGameData();
         Console.WriteLine("PASS installed Ancient Forest puzzle bindings, throwing spots, jumps and rewards.");
     }
@@ -81,6 +82,7 @@ internal static class GuideRouteRegressionTests
         yield return ("Ancient Forest carried identities and raised throwing spots match native scripts", ForestPlatformThrowsAndCarryIdsMatchNativeScripts);
         yield return ("Ancient Forest routes keep clear of native flytrap jaws", AncientForestRouteHazardTests.RunWithInstalledGameData);
         yield return ("Ancient Forest rewards: each routed natively or honestly not", ForestRewardsAreRoutedHonestly);
+        yield return ("Ancient Forest Story approaches use the native walkmesh and jumps", ForestStoryApproachesUseNativeGeometry);
         yield return ("Seventh Heaven and fitting-room steps are offered only while their own line is on", LineStepsFollowTheirOwnLine);
         yield return ("Gongaga jungle's Turks are offered at the line that starts their scene", TurksAreOfferedAtTheirLine);
         yield return ("a throwing spot past its line survives its own crossing, and nothing else is kept", CrossingSpotsSurviveTheirOwnCrossing);
@@ -2269,6 +2271,77 @@ internal static class GuideRouteRegressionTests
             FieldEntryPlacement.Place(scripts, -500, -150, 8, new Dictionary<(int, int), int>()), "a key-held jump leaves the party where it lands");
         Equal((FieldEntryPlacementResult?)null,
             FieldEntryPlacement.Place(world.Scripts.ReadAllScriptOpcodes(534), 4, 117, 54, new Dictionary<(int, int), int>()), "a poll behind a story test fails closed");
+    }
+
+    private static void ForestStoryApproachesUseNativeGeometry()
+    {
+        var world = new Caves();
+        var one = AncientForestStoryGuide.EntranceStage1;
+        var two = AncientForestStoryGuide.EntranceStage2;
+        var fork = AncientForestStoryGuide.CanopyStage;
+        CheckStaging(622, world.At(622, -1810, -665, 132), one);
+        CheckStaging(622, world.At(622, -792, -489, 90), two);
+        CheckStaging(623, world.At(623, -1995, -436, 216), fork);
+
+        var vine = world.LineOf(620, 17);
+        var middle = world.At(620, -1677, -616, 56);
+        var vineBank = Bank(620); vineBank[9] = 1;
+        var vineDefinition = TownInteractionObjectCatalog.Create().Single(t => t.FieldId == 620 && t.Label == "Vine to pitcher plant 1");
+        Equal((17, "bleftl", false), (vineDefinition.EntityId, vineDefinition.SourceEntityName, vineDefinition.ActivatesOnOk),
+            "the vine uses the native Go-once line, not a Confirm gate");
+        Equal(true, world.Scripts.ReadScriptOpcodes(620, 17, 5).Any(op => Hex(op) == "0600C4") &&
+            world.Scripts.ReadScriptOpcodes(620, 4, 4).Any(op => op.Opcode == 0x48),
+            "touching the vine opens the native ASK choice");
+        var vineStep = Select(middle, [new(620, FieldNavigationCategory.Objects, vineDefinition.Label!,
+            vineDefinition.StaticX, vineDefinition.StaticY, vineDefinition.StaticZ, "live-vine",
+            TriggerLine: vine, LineActivationRadius: world.CollisionRadius(620))]);
+        Equal(vine, vineStep.TriggerLine!.Value, "the vine uses bleftl's actual Go-once line");
+        Equal(true, world.Planner(620).TryBuildRoute(middle, vineStep, out _),
+            $"a carried insect reaches the vine: {world.Planner(620).LastDiagnostic}");
+
+        var ledge = world.At(620, 954, -1251, 31);
+        var descend = Select(ledge, [], AncientForestStoryGuide.Minerva);
+        Equal(true, world.Planner(620).TryBuildRoute(ledge, descend, out var down) &&
+            down.Portals.Any(p => p.TransitionKind == FieldNavigationTransitionKind.Jump),
+            $"the Minerva drop follows the real keyless jump: {world.Planner(620).LastDiagnostic}");
+
+        var raised = world.At(623, -633, -138, 13);
+        var eastInsect = new FieldNavigationTarget(623, FieldNavigationCategory.Objects, "Insect 3", 467, -667, 20,
+            "object:623:8:Named:0:Model", InteractionRadius: 40);
+        var hive = Select(raised, [eastInsect], AncientForestStoryGuide.Minerva | AncientForestStoryGuide.Typoon);
+        Equal(true, world.Planner(623).TryBuildRoute(raised, hive, out var towardHive) &&
+            towardHive.Portals.Any(p => p.TransitionKind == FieldNavigationTransitionKind.Jump),
+            $"the raised canopy return reaches the insect through kabujp0: {world.Planner(623).LastDiagnostic}");
+
+        var caveMouth = world.At(623, 1571, -585, 56);
+        var intoCave = Select(caveMouth, [], AncientForestStoryGuide.AllTreasures & ~AncientForestStoryGuide.Apocalypse);
+        Equal("gateway:623:2:624", intoCave.StableId, "the cave Story step retains the actual gateway id");
+        Equal(true, world.Planner(623).TryBuildRoute(caveMouth, intoCave, out _),
+            $"the cave entry can be walked to from the frog landing: {world.Planner(623).LastDiagnostic}");
+
+        void CheckStaging(int field, FieldPositionSnapshot from, (int X, int Y, int Z) point)
+        {
+            var target = new FieldNavigationTarget(field, FieldNavigationCategory.Story, "Staging", point.X, point.Y, point.Z,
+                "forest-stage", InteractionRadius: 8);
+            Equal(true, world.Planner(field).TryBuildRoute(from, target, out _),
+                $"{field}: stage at {point} without crossing a jaw: {world.Planner(field).LastDiagnostic}");
+        }
+
+        byte[] Bank(int field)
+        {
+            if (!world.ForestBanks.TryGetValue(field, out var bank))
+            {
+                bank = new byte[128];
+                bank[field == 620 ? 20 : field == 622 ? 19 : 22] = 1;
+                world.ForestBanks[field] = bank;
+            }
+            return bank;
+        }
+
+        FieldNavigationTarget Select(FieldPositionSnapshot at, IReadOnlyList<FieldNavigationTarget> objects, int collected = 0) =>
+            new AncientForestStoryGuide(at, new AncientForestStoryState(Bank(at.FieldId), collected, SupportedFieldScriptVariant.Vanilla),
+                objects, world.Exits(at.FieldId).Where(exit => world.Planner(at.FieldId).TryBuildRoute(at, exit, out _)).ToArray())
+                .ReadTargets().Single();
     }
 
     // --- transfer writes -----------------------------------------------------------------------

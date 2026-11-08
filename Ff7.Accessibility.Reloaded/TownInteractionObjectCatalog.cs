@@ -114,6 +114,7 @@ public static class TownInteractionObjectCatalog
         Model(623, 9, "Insect 4", "anfrst_4", "bat3"),
         Model(623, 10, "Frog 1", "anfrst_4", "fro0"),
         Model(623, 16, "Beehive", "anfrst_4", "hanak"),
+        Line(620, 17, "Vine to pitcher plant 1", "anfrst_1", "bleftl", -839, -562, -12),
         // Where a carried insect, frog or beehive goes when the player presses OK (bpd's Main:
         // IFKEYON OK while 5[9] names what is carried): each creature's script 3 (or 4) reads the
         // zone the leader stands in, 5[20] in anfrst_1, 5[19] in anfrst_3 and 5[22] in anfrst_4,
