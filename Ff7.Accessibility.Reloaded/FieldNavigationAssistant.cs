@@ -324,6 +324,8 @@ public sealed class FieldNavigationController
     private bool automaticMovementStalled;
 
     private bool interactionArrivalPaused;
+    private bool forestStorySelected;
+    private string? lastForestStoryStep;
     private int interactionArrivalDistance;
     private int categoryIndex;
 
@@ -1672,6 +1674,7 @@ public sealed class FieldNavigationController
             case FieldNavigationAction.ToggleBeacon:
                 if (BeaconEnabled)
                 {
+                    forestStorySelected = false;
                     GlacierRegion?.Cancel("navigation switched off");
                     Reset();
                     return new FieldNavigationActionResult("Navigation off.");
@@ -1692,6 +1695,7 @@ public sealed class FieldNavigationController
                 }
 
                 var target = GetSelectedTarget(position);
+                NoteForestStorySelection(position, target);
                 if (target is null)
                 {
                     return DescribeCurrentSelection(position, controlTransform, ladderState);
@@ -1784,9 +1788,30 @@ public sealed class FieldNavigationController
         var beaconBefore = BeaconEnabled;
         var result = UpdateLiveTrackingCore(
             position, input, controlTransform, isSuppressed, arrivalDistanceUnits, ladderState, observedAt);
-        return legBefore is not null && GlacierRegion?.Objective is not null
-            ? AfterGlacierLegTracking(legBefore, beaconBefore, result, observedAt)
-            : result;
+        if (legBefore is not null && GlacierRegion?.Objective is not null)
+            return AfterGlacierLegTracking(legBefore, beaconBefore, result, observedAt);
+        return ReadNextForestStoryStep(position, isSuppressed) ?? result;
+    }
+
+    private void NoteForestStorySelection(FieldPositionSnapshot position, FieldNavigationTarget? target)
+    {
+        forestStorySelected = CurrentCategory == FieldNavigationCategory.Story && AncientForestStoryGuide.IsForest(position.FieldId);
+        lastForestStoryStep = target is { } step ? GetTargetId(step) : null;
+    }
+
+    private FieldNavigationActionResult? ReadNextForestStoryStep(FieldPositionSnapshot position, bool suppressed)
+    {
+        if (!AncientForestStoryGuide.IsForest(position.FieldId) || CurrentCategory != FieldNavigationCategory.Story)
+            forestStorySelected = false;
+        if (!forestStorySelected || suppressed || BeaconEnabled || GetSelectedTarget(position) is not { } step)
+            return null;
+        var id = GetTargetId(step);
+        if (id == lastForestStoryStep) return null;
+        lastForestStoryStep = id;
+        // The short cue keeps the timed plants usable without reopening the menu for
+        // every jump. Selecting the next walking route remains an explicit action.
+        return new FieldNavigationActionResult(step.ManualNavigationGuidance is { } instruction
+            ? $"{step.Label}. {instruction}" : $"{step.Label}.");
     }
 
     private FieldNavigationActionResult? UpdateLiveTrackingCore(
@@ -2279,7 +2304,8 @@ public sealed class FieldNavigationController
                     $"{LastNavigationDiagnostic}, interaction arrival paused at " +
                     $"{interactionArrivalDistance} units";
                 return new FieldNavigationActionResult(
-                    InteractionArrivalInstruction?.Invoke(position, target.Value) is { Length: > 0 } instruction
+                    (target.Value.InteractionInstruction ??
+                        InteractionArrivalInstruction?.Invoke(position, target.Value)) is { Length: > 0 } instruction
                         ? $"{beaconTargetLabel} reached. {instruction} Navigation paused."
                         : target.Value.Activation == FieldNavigationActivation.Contact
                         // Nothing is pressed here. The script runs because the party
@@ -3525,6 +3551,7 @@ public sealed class FieldNavigationController
         if (ladderState is { IsUsable: true, IsMounted: true, IsPlayerDriven: false })
             return new FieldNavigationActionResult("The game is moving you. Navigation paused.");
         var target = GetSelectedTarget(position);
+        NoteForestStorySelection(position, target);
         if (target is null)
         {
             if (ladderState is { IsUsable: true, IsMounted: true })

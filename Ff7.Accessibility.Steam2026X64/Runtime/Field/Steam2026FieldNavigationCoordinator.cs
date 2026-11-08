@@ -993,7 +993,6 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             }
 
             var objectsCoherent = RefreshTargets(position);
-            var storyCoherent = TryRefreshStoryTargets(position, out var storyDiagnostic);
             var npcsCoherent = TryRefreshNpcTargets(position, out var npcDiagnostic);
             var nativeExitsCoherent = TryRefreshExitTargets(position, ladder, nowUtc, out var exitDiagnostic);
             routePlanner.BeginObservation();
@@ -1004,6 +1003,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                         ladder.IsMounted ||
                         (cue.Module == FieldPositionReader.FieldModule && cue.UserControl != 0))
                 : NoTargets;
+            var storyCoherent = TryRefreshStoryTargets(position, objectsCoherent, out var storyDiagnostic);
             var resolvedCoherence = Steam2026FieldNavigationActionGate.ResolveCoherence(
                 nativeExitsCoherent,
                 storyCoherent,
@@ -2505,11 +2505,24 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
 
     private bool TryRefreshStoryTargets(
         FieldPositionSnapshot position,
+        bool objectsCoherent,
         out string diagnostic)
     {
         currentStory = NoTargets;
         try
         {
+            if (AncientForestStoryGuide.IsForest(position.FieldId) &&
+                scriptCatalog.ReadField(position.FieldId).IsUsable)
+            {
+                if (objectsCoherent && ancientForestPuzzleStateReader.ReadStoryState(position.FieldId) is { } forest)
+                {
+                    currentStory = new AncientForestStoryGuide(position, forest, currentObjects, currentReachableExits)
+                        .ReadTargets();
+                }
+                // A declined puzzle sample is not a failure of unrelated NPC or exit navigation.
+                diagnostic = $"forest={currentStory.Count}";
+                return true;
+            }
             var targets = storyReader.ReadTargets(position);
             var keyTargets = keyStoryReader.ReadTargets(position);
             if (keyTargets.Count > 0)

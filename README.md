@@ -144,9 +144,11 @@ then select **Dig spot: Key to Sector 5** in Objects. The target is available
 before the blast. Press Switch there at the final dig prompt, then open the
 results chest with Confirm.
 
-In Ancient Forest, Objects pairs each insect and frog's number with its current
-location. Opening Objects reads the pitcher plants from left to right and says
-which are open, closed, or shaking. See the [release notes](docs/releases/v0.10.11.md).
+In Ancient Forest, open **Story** for the next step toward all seven treasures.
+The guide names the creature or approach to select and announces the next action
+as the puzzle changes. Use the game's normal controls to place creatures, jump
+and collect rewards. Opening **Objects** still reads each creature's location and
+the state of the pitcher plants. See the [release notes](docs/releases/v0.10.12.md).
 
 Version 0.10.10 tracks Emerald Weapon in underwater Events whenever it is active.
 Its position updates through fog and outside the camera view, even before a first
@@ -528,10 +530,10 @@ instead of reading unverified game memory.
 Choose one download from the
 [Blind Soldier Releases page](https://github.com/buu420/blind-soldier/releases):
 
-- [Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.10.11/Blind-Soldier-Portable.zip)
+- [Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.10.12/Blind-Soldier-Portable.zip)
   is the complete dual-runtime package. Use it for Steam 2026 x64 or when one
   extracted package must support both x86 and x64 installations.
-- [Blind-Soldier-2013-x86-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.10.11/Blind-Soldier-2013-x86-Portable.zip)
+- [Blind-Soldier-2013-x86-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.10.12/Blind-Soldier-2013-x86-Portable.zip)
   is the smaller legacy-only package. Use it for the 2013 x86 game, including
   stock 7th Heaven/FFNx. It deliberately contains no Steam 2026 launcher or
   x64 files.
