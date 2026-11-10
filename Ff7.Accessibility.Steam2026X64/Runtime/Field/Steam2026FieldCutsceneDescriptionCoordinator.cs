@@ -29,6 +29,11 @@ internal sealed class Steam2026FieldCutsceneDescriptionCoordinator
         new(FieldCutsceneDescriptionCatalog.CreateAllAreaDescriptions());
     private int currentFieldId = -1;
 
+    // Whether the recording last started for a field cue describes the room itself
+    // rather than something happening in it. It only matters while that recording is
+    // still playing, which is when a field change would otherwise cut it off.
+    private bool recordedDescriptionIsRoom;
+
     internal Steam2026FieldCutsceneDescriptionCoordinator(
         ILegacyAddressSpace addressSpace)
         : this(addressSpace, FieldCutsceneDescriptionCatalog.CreateEarlyGameDescriptions(), useLoadedScriptIdentity: true)
@@ -121,7 +126,7 @@ internal sealed class Steam2026FieldCutsceneDescriptionCoordinator
         {
             if (currentFieldId != snapshot.Context.FieldId)
             {
-                ResetFieldState();
+                LeaveField(snapshot.Context.FieldId);
                 currentFieldId = snapshot.Context.FieldId;
             }
 
@@ -234,13 +239,13 @@ internal sealed class Steam2026FieldCutsceneDescriptionCoordinator
 
             if (module != FieldPositionReader.FieldModule)
             {
-                ResetFieldState();
+                LeaveFieldModule(module);
                 currentFieldId = -1;
                 return;
             }
             if (currentFieldId != fieldId)
             {
-                ResetFieldState();
+                LeaveField(fieldId);
                 currentFieldId = fieldId;
             }
             if (compatibleTracker is not null && ReadSupportedIdentity(fieldId) is null) return;
@@ -351,7 +356,15 @@ internal sealed class Steam2026FieldCutsceneDescriptionCoordinator
             if (module != FieldPositionReader.FieldModule
                 || fieldId != cue.FieldId)
             {
-                ResetFieldState();
+                if (module != FieldPositionReader.FieldModule)
+                {
+                    LeaveFieldModule(module);
+                }
+                else
+                {
+                    LeaveField(fieldId);
+                }
+
                 currentFieldId = module == FieldPositionReader.FieldModule
                     ? fieldId
                     : -1;
@@ -443,6 +456,11 @@ internal sealed class Steam2026FieldCutsceneDescriptionCoordinator
             if (!accepted)
             {
                 return false;
+            }
+
+            if (clipDuration is not null)
+            {
+                recordedDescriptionIsRoom = FieldAreaDescriptionHistoryGate.IsRoomCue(cue);
             }
 
             pending.Dequeue();
@@ -713,6 +731,38 @@ internal sealed class Steam2026FieldCutsceneDescriptionCoordinator
     }
 
     /// <summary>
+    /// The field module has handed the screen to another module. A description already
+    /// being heard finishes over the script's own name-entry screen; any other module
+    /// ends it, as it always has, and also ends one that was finishing across an earlier
+    /// transition. The field's own state is cleared either way.
+    /// </summary>
+    private void LeaveFieldModule(int module)
+    {
+        var request = addressSpace.TryReadByte(
+            (uint)FieldAudibleCueStateReader.AddressFieldMovieCommand, out var value)
+            ? value
+            : -1;
+        CutsceneVoiceTransition.LeaveFieldModule(cutsceneVoice, module, request);
+        ResetFieldState();
+    }
+
+    /// <summary>
+    /// The field module has moved on to another field, or has just been re-entered. On a
+    /// real field change an action description finishes - it is about what took the
+    /// party on - and the next field's descriptions wait behind it. A description of the
+    /// room just left still ends with it, because that room is no longer there.
+    /// </summary>
+    private void LeaveField(int nextFieldId)
+    {
+        if (currentFieldId >= 0 && !recordedDescriptionIsRoom)
+        {
+            cutsceneVoice?.ContinueAcrossTransition($"field {nextFieldId}");
+        }
+
+        ResetFieldState();
+    }
+
+    /// <summary>
     /// Clears the cues that belong to the field the player has left.
     ///
     /// <para>This deliberately does <b>not</b> stop the film narration. Story cues are
@@ -723,6 +773,10 @@ internal sealed class Steam2026FieldCutsceneDescriptionCoordinator
     /// is decided by <see cref="ObserveNativeFilm"/> from the engine's state - it
     /// ends when the film ends, when another film starts, when the module changes or
     /// when the evidence stops reading - and by the explicit stops below.</para>
+    ///
+    /// <para>A field description handed over by <see cref="LeaveField"/> or
+    /// <see cref="LeaveFieldModule"/> is no longer the field's, so it is left to
+    /// finish; one that was not handed over ends here as it always did.</para>
     /// </summary>
     private void ResetFieldState()
     {

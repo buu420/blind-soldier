@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Ff7.Accessibility.Reloaded;
 
 namespace Ff7.Accessibility.Steam2026X64.Runtime.Battle;
@@ -199,6 +200,7 @@ internal sealed class Steam2026BattleAccessibilityCoordinator
         if (ingress.Kind == Steam2026BattleRendererCallbackKind.ResultsUpdate)
         {
             ProcessCapturedResults(ingress.ResultsBefore);
+            ObserveResultsDraws(ingress.ResultsDraws);
             ProcessCapturedResults(ingress.ResultsAfter);
             return;
         }
@@ -451,6 +453,24 @@ internal sealed class Steam2026BattleAccessibilityCoordinator
         }
 
         DrainResultsSpeech();
+    }
+
+    // The text one native results update drew, in draw order: the same frame the
+    // x86 detour gives the shared tracker around its original.
+    private void ObserveResultsDraws(ImmutableArray<MenuTextRenderEntry> draws)
+    {
+        if (!options.Results || draws.IsDefault)
+        {
+            return;
+        }
+
+        resultsTracker.BeginFrame();
+        foreach (var draw in draws)
+        {
+            resultsTracker.ObserveDraw(draw);
+        }
+
+        resultsTracker.CompleteFrame();
     }
 
     private void ObserveCapturedVictory(Steam2026BattleVictoryIngressSnapshot captured)

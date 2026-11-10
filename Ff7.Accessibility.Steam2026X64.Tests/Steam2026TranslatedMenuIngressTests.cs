@@ -6,6 +6,7 @@ using Ff7.Accessibility.Reloaded;
 using Ff7.Accessibility.Runtime.Abstractions;
 using Ff7.Accessibility.Steam2026X64;
 using Ff7.Accessibility.Steam2026X64.Runtime;
+using Ff7.Accessibility.Steam2026X64.Runtime.Battle;
 using Ff7.Accessibility.Steam2026X64.Runtime.Menus;
 
 internal static class Steam2026TranslatedMenuIngressTests
@@ -51,6 +52,7 @@ internal static class Steam2026TranslatedMenuIngressTests
         ActiveLeaseCohortDisableFailsTheRateLimitedHealthProbe(supported);
         HookSetPollsLeaseHealthOutsideTheNativeCallbackPath();
         CapturesEveryGuestPayloadBeforeOriginalAndPublishesAfter(supported);
+        ValidatedEncodedTextJoinsAnOpenResultsFrame(supported);
         ActiveWidgetUsesCheckedPointerFreeNormalization(supported);
         CaptureIdentityClockAndSinkFailuresAreContained(supported);
         QueueOverflowDiscardsIncompleteBatchAndRecovers(supported);
@@ -530,6 +532,53 @@ internal static class Steam2026TranslatedMenuIngressTests
             snapshots.OrderBy(snapshot => snapshot.Sequence).Select(snapshot => snapshot.CallbackKind),
             "snapshot sequence follows serialized completion order");
         Equal(true, snapshots.All(snapshot => snapshot.TimestampUtc.Kind == DateTimeKind.Utc), "all menu ingress timestamps are UTC");
+    }
+
+    // The battle-results page draws its Materia and Limit notices through this
+    // encoded-text cohort. A validated capture is also handed to the results
+    // frame the battle cohort opens around its native update on the same thread.
+    private static void ValidatedEncodedTextJoinsAnOpenResultsFrame(
+        Steam2026FingerprintResult supported)
+    {
+        var fixture = new TranslatedCallCaptureFixture();
+        var frame = new Steam2026BattleResultsTextFrame();
+        var published = new List<TranslatedMenuIngressSnapshot>();
+        using (var coordinator = CreateCoordinator(
+                   CreateExactContract(fixture, supported),
+                   captureSink: published.Add,
+                   resultsTextFrame: frame))
+        {
+            PrepareValidCall(fixture, Steam2026MenuCallbackKind.EncodedTextB);
+            coordinator.OnEncodedTextB();
+            frame.Open();
+            foreach (var kind in CaptureKinds)
+            {
+                PrepareValidCall(fixture, kind);
+                Invoke(coordinator, kind);
+            }
+
+            CorruptIdentity(fixture, Steam2026MenuCallbackKind.EncodedTextA);
+            PrepareValidCall(fixture, Steam2026MenuCallbackKind.EncodedTextA);
+            coordinator.OnEncodedTextA();
+            var draws = frame.Close();
+
+            Equal(
+                "Hi@4294967292,77,34,13124;Hi@4294967292,77,34,13124",
+                string.Join(';', draws.Select(draw => $"{draw.Text}@{draw.X},{draw.Y},{draw.Color},{draw.Context}")),
+                "only validated encoded text drawn while the frame was open joins it");
+            Equal(7, published.Count, "menu publication is unchanged by the results frame");
+        }
+
+        var failingFixture = new TranslatedCallCaptureFixture();
+        var failingFrame = new Steam2026BattleResultsTextFrame();
+        using var failing = CreateCoordinator(
+            CreateExactContract(failingFixture, supported),
+            encodedTextBOriginal: () => throw new InvalidOperationException("native original failed"),
+            resultsTextFrame: failingFrame);
+        failingFrame.Open();
+        PrepareValidCall(failingFixture, Steam2026MenuCallbackKind.EncodedTextB);
+        failing.OnEncodedTextB();
+        Equal(0, failingFrame.Close().Length, "text whose native original failed is not presented");
     }
 
     private static void ActiveWidgetUsesCheckedPointerFreeNormalization(
@@ -1164,7 +1213,8 @@ internal static class Steam2026TranslatedMenuIngressTests
         Func<uint, (bool Success, ActiveMenuWidgetSnapshot Snapshot)>? widgetNormalizer = null,
         Func<DateTime>? clock = null,
         Action<TranslatedMenuIngressSnapshot>? captureSink = null,
-        INativeIngressQueue<TranslatedMenuIngressSnapshot>? captureQueue = null) =>
+        INativeIngressQueue<TranslatedMenuIngressSnapshot>? captureQueue = null,
+        Steam2026BattleResultsTextFrame? resultsTextFrame = null) =>
         new(
             contract,
             cursorBOriginal ?? (() => { }),
@@ -1176,7 +1226,8 @@ internal static class Steam2026TranslatedMenuIngressTests
             widgetNormalizer ?? (address => (true, CreateKnownWidget(address))),
             clock ?? (() => Timestamp),
             captureQueue ?? new DelegatingNativeIngressQueue<TranslatedMenuIngressSnapshot>(
-                captureSink ?? (_ => { })));
+                captureSink ?? (_ => { })),
+            resultsTextFrame);
 
     private static ActiveMenuWidgetSnapshot CreateKnownWidget(uint address)
     {

@@ -4657,9 +4657,14 @@ public sealed class Mod : IModV1, IModV2
                 ReadByte(FieldAudibleCueStateReader.AddressActiveFieldMessageCount),
                 fieldMessageReader?.HasReadableActiveWindow() == true));
 
-        if (ReadByte(FieldScriptContextReader.AddressCurrentModule) != FieldPositionReader.FieldModule)
+        var module = ReadByte(FieldScriptContextReader.AddressCurrentModule);
+        if (module != FieldPositionReader.FieldModule)
         {
-            ResetFieldCutsceneDescriptionState(resetCompatibilityState: true);
+            var request = ReadByte(FieldAudibleCueStateReader.AddressFieldMovieCommand);
+            CutsceneVoiceTransition.LeaveFieldModule(cutsceneVoicePlayer, module, request);
+            ResetFieldCutsceneDescriptionState(
+                resetCompatibilityState: true,
+                preserveTransition: CutsceneVoiceTransition.IsScriptedNameEntry(module, request));
             return;
         }
 
@@ -4832,8 +4837,14 @@ public sealed class Mod : IModV1, IModV2
     private static bool IsPlausibleGuestPointer(uint pointer) =>
         pointer >= 0x00010000u && pointer <= 0x7FFF0000u;
 
-    private void ResetFieldCutsceneDescriptionState(bool resetCompatibilityState = false)
+    private void ResetFieldCutsceneDescriptionState(
+        bool resetCompatibilityState = false, bool preserveTransition = false)
     {
+        if (!preserveTransition)
+        {
+            cutsceneVoicePlayer?.StopIfOwnedBy(
+                CutsceneVoiceOwner.SceneTransition, "the field description state was reset");
+        }
         creatureDescriptions?.Reset();
         creatureWarningSpeech?.Reset();
         cutsceneVoicePlayer?.StopIfOwnedBy(CutsceneVoiceOwner.FieldCreature,"the field description state was reset");
@@ -9252,6 +9263,11 @@ public sealed class Mod : IModV1, IModV2
             return;
         }
 
+        if (state.IsActive && ShouldDeferNameEntrySpeech())
+        {
+            return;
+        }
+
         var nativeSlotSpeech = nameEntryNativeNameTracker.Observe(
             state.IsActive,
             state.Focus,
@@ -9274,6 +9290,13 @@ public sealed class Mod : IModV1, IModV2
         Speak(speech);
     }
 
+    private bool ShouldDeferNameEntrySpeech() =>
+        cutsceneVoicePlayer?.IsContinuingAcrossTransition == true &&
+        CutsceneVoiceTransition.IsScriptedNameEntry(
+            ReadByte(FieldScriptContextReader.AddressCurrentModule),
+            ReadByte(FieldAudibleCueStateReader.AddressFieldMovieCommand)) &&
+        fieldCutsceneSpeechPriority.ShouldDeferDialogueDelivery(DateTime.UtcNow);
+
     private void TickRenderedMenuTextSpeech()
     {
         if (!config.EnableRenderedMenuTextSpeech)
@@ -9284,6 +9307,11 @@ public sealed class Mod : IModV1, IModV2
         if (saveMenuSpeechTracker.IsActive)
         {
             renderedMenuTextSpeechTracker.DiscardPending();
+            return;
+        }
+
+        if (ShouldDeferNameEntrySpeech())
+        {
             return;
         }
 

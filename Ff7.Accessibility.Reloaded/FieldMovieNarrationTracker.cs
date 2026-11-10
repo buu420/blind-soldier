@@ -153,9 +153,11 @@ public sealed class FieldMovieNarrationTracker : IDisposable
     /// </param>
     /// <param name="yieldDescriptionAudio">
     /// Takes the shared audio device back from whatever recorded description is using
-    /// it. Called with <see cref="CutsceneVoiceOwner.FieldAction"/> immediately before
-    /// a film's own recording starts - a field description must not still be talking
-    /// underneath it - and with <see cref="CutsceneVoiceOwner.FilmCue"/> whenever this
+    /// it. Called with <see cref="CutsceneVoiceOwner.FieldAction"/> and
+    /// <see cref="CutsceneVoiceOwner.SceneTransition"/> immediately before a film's own
+    /// recording starts - a field description must not still be talking underneath it,
+    /// whether the field still owns it or it is finishing across the transition that led
+    /// here - and with <see cref="CutsceneVoiceOwner.FilmCue"/> whenever this
     /// film's timed cues stop being valid, because one of them may already be playing
     /// and would otherwise carry on over the next scene.
     /// </param>
@@ -187,6 +189,17 @@ public sealed class FieldMovieNarrationTracker : IDisposable
         {
             log($"Field movie narration could not take the description device back: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// Takes the device back from a field description before a film's own recording
+    /// opens: one the field still owns, and one finishing across the transition that led
+    /// here. Either would otherwise go on talking underneath the film.
+    /// </summary>
+    private void YieldFieldDescriptionAudio(string reason)
+    {
+        YieldDescriptionAudio(CutsceneVoiceOwner.FieldAction, reason);
+        YieldDescriptionAudio(CutsceneVoiceOwner.SceneTransition, reason);
     }
 
     public bool IsPlaying
@@ -498,7 +511,7 @@ public sealed class FieldMovieNarrationTracker : IDisposable
             // The film owns the device from here. A field description still playing
             // is about the room, not the film now on screen, so it gives way before
             // the film's own recording opens rather than overlapping it.
-            YieldDescriptionAudio(CutsceneVoiceOwner.FieldAction, $"the film {track.Label} is starting");
+            YieldFieldDescriptionAudio($"the film {track.Label} is starting");
 
             IFieldMovieNarrationOutput? candidate;
             try
@@ -838,7 +851,7 @@ public sealed class FieldMovieNarrationTracker : IDisposable
         }
 
         // Same rule on the path that needs no anchor at all.
-        YieldDescriptionAudio(CutsceneVoiceOwner.FieldAction, $"the film {film} is starting");
+        YieldFieldDescriptionAudio($"the film {film} is starting");
 
         IFieldMovieNarrationOutput? candidate;
         try

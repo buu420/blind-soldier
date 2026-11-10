@@ -2,6 +2,8 @@ using Ff7.Accessibility.LegacyLayout;
 using Ff7.Accessibility.Reloaded;
 using Ff7.Accessibility.Steam2026X64.Runtime;
 using Ff7.Accessibility.Steam2026X64.Runtime.Field;
+using Ff7.Accessibility.Steam2026X64.Runtime.Menus;
+using Ff7.Accessibility.Steam2026X64.Runtime.NameEntry;
 
 /// <summary>
 /// The recorded voice for scene descriptions, driven through the actual x64 runtime
@@ -52,6 +54,307 @@ internal static class Steam2026CutsceneVoiceAdapterTests
         TheHostSuspendsOffForegroundWhenNoFilmIsPlaying();
         TheHostStartsNoDeferredCueOffForegroundAndKeepsIt();
         ABatch6ArrivalWaitsForTheFilmsOwnRecording();
+        AStartedDescriptionFinishesAcrossTheScriptedNameEntryScreen();
+        EveryOtherWayOutOfTheSceneStillEndsAFieldDescription();
+        AnActionDescriptionFinishesAcrossAScriptedFieldChange();
+        ARoomDescriptionOrAnOverlongClipStillEndsAtAFieldChange();
+        TheNameEntryPromptIsKeptWhileItWaits();
+    }
+
+    /// <summary>md1_1, the first reactor's security gate.</summary>
+    private const int Md1_1 = 117;
+
+    /// <summary>
+    /// The field module's request byte (0x00CC0D89) for the name-entry screen. Ghidra,
+    /// installed ff7_en.exe: the MENU handler FUN_0061F04A takes the opcode's menu type,
+    /// the field driver FUN_0063C17F switches the module to 5 for requests 6, 7, 8, 9,
+    /// 0x0E, 0x12 and 0x13, and the menu driver FUN_006CDA83 runs name entry
+    /// (FUN_006CBD32, FUN_00719C08) for request 6 alone. The player's own menu key
+    /// forces request 9 instead.
+    /// </summary>
+    private const byte ScriptedNameEntryRequest = 6;
+
+    private const byte PlayerMenuRequest = 9;
+
+    /// <summary>
+    /// Issue 57's own case, replayed from the installed field script.
+    ///
+    /// <para>md1_1 director script 0 plays SOUND 0x34 at byte 85, the anchor of "Jessie
+    /// works the controls..." (a 3.4-second recording). Barret's script 4 then opens
+    /// dialog 0x29, waits 8 frames and runs MENU 00 06 01: Barret's name entry. The
+    /// description was queued behind the gate description before it and behind that
+    /// dialog, so it starts as the dialog closes and the module switch arrives a quarter
+    /// of a second later. It used to be cut off there with three seconds still to say.</para>
+    ///
+    /// <para>The name-entry screen is static and waits for its player; the field resumes
+    /// under it afterwards. The sentence finishes, and the screen's own words wait for it
+    /// on the same device-backed hold the game's dialogue already uses.</para>
+    /// </summary>
+    private static void AStartedDescriptionFinishesAcrossTheScriptedNameEntryScreen()
+    {
+        var fixture = SpeakingTheJessieDoorDescription("name entry");
+        var opened = Timestamp.AddMilliseconds(270);
+        fixture.Memory.Module = NameEntryStateReader.NameEntryModule;
+        fixture.Memory.MovieCommand = ScriptedNameEntryRequest;
+        fixture.Coordinator.ObserveNativeFilm(opened);
+        fixture.Coordinator.ObserveStableField(opened);
+
+        Equal(true, fixture.Clip.IsPlaying,
+            "the description keeps going when the script opens the name-entry screen");
+        Equal(0, fixture.Clip.Stops, "nothing cut it off");
+        Equal(true, fixture.Coordinator.ShouldDeferDialogueDelivery(opened),
+            "the name-entry screen's own words wait for it");
+
+        // Every frame of the screen asks again, and none of them stops it.
+        for (var tick = 1; tick <= 60; tick++)
+        {
+            var now = opened.AddMilliseconds(50 * tick);
+            fixture.Coordinator.ObserveCreatureLifetime(true, true);
+            fixture.Coordinator.ObserveNativeFilm(now);
+            fixture.Coordinator.ObserveStableField(now);
+        }
+
+        Equal(true, fixture.Clip.IsPlaying, "it is still going three seconds later");
+        Equal(0, fixture.Clip.Stops, "and has still not been stopped");
+
+        // The recording reaches its own end.
+        fixture.Clip.Finish();
+        var finished = opened.AddSeconds(3.2);
+        Equal(false, fixture.Coordinator.ShouldDeferDialogueDelivery(finished),
+            "the screen's words are released the moment it ends");
+
+        // The name is entered and the field resumes under it.
+        fixture.Memory.Module = FieldPositionReader.FieldModule;
+        fixture.Memory.MovieCommand = 0;
+        fixture.Coordinator.ObserveStableField(finished.AddSeconds(5));
+        Equal(0, fixture.Clip.Stops, "the clip was never cut short");
+        Equal(1, fixture.Clip.Starts, "and was said exactly once");
+    }
+
+    /// <summary>
+    /// Everything that is not the script's own name-entry screen still ends the sentence,
+    /// including everything that can follow one: the player's menu, a battle, the world
+    /// map, the title screen a load goes through, the window losing the foreground, the
+    /// session going away, the native state becoming unreadable, and a film taking the
+    /// device for its own recording.
+    /// </summary>
+    private static void EveryOtherWayOutOfTheSceneStillEndsAFieldDescription()
+    {
+        var later = Timestamp.AddMilliseconds(600);
+        var cases = new (string What, Action<FakeAddressSpace, Fixture> Apply)[]
+        {
+            ("the player opened the menu", (memory, f) =>
+                LeaveTheField(memory, f, NameEntryStateReader.NameEntryModule, PlayerMenuRequest, later)),
+            ("a battle started", (memory, f) => LeaveTheField(memory, f, 2, 0, later)),
+            ("the world map opened", (memory, f) => LeaveTheField(memory, f, 3, 0, later)),
+            ("name entry, then the title screen", (memory, f) =>
+            {
+                OpenNameEntry(memory, f);
+                LeaveTheField(memory, f, 20, 0, later);
+            }),
+            ("name entry, then a battle", (memory, f) =>
+            {
+                OpenNameEntry(memory, f);
+                LeaveTheField(memory, f, 2, 0, later);
+            }),
+            ("name entry, then the window lost the foreground", (memory, f) =>
+            {
+                OpenNameEntry(memory, f);
+                Steam2026FieldCutsceneHostTick.ObserveOrSuspend(f.Coordinator, false, later, null);
+            }),
+            ("name entry, then the session was unloaded", (memory, f) =>
+            {
+                OpenNameEntry(memory, f);
+                f.Coordinator.SuspendNativeFilmNarration(FieldMovieNarrationStopReason.Unloaded);
+            }),
+            ("name entry, then the coordinator was reset", (memory, f) =>
+            {
+                OpenNameEntry(memory, f);
+                f.Coordinator.Reset();
+            }),
+            ("name entry, then the native state stopped reading", (memory, f) =>
+            {
+                OpenNameEntry(memory, f);
+                memory.FilmStateReadable = false;
+                f.Coordinator.ObserveNativeFilm(later);
+            }),
+            ("name entry, back in the field, then a film started", (memory, f) =>
+            {
+                OpenNameEntry(memory, f);
+                memory.Module = FieldPositionReader.FieldModule;
+                memory.MovieCommand = FieldMovieNarrationSample.CommandStartMovie;
+                f.Coordinator.ObserveStableField(later);
+                memory.SetFilm(CatalogFilm, active: true);
+                memory.MovieFrame = 0;
+                f.Coordinator.ObserveNativeFilm(later.AddMilliseconds(50));
+            }),
+        };
+
+        foreach (var (what, apply) in cases)
+        {
+            var fixture = SpeakingTheJessieDoorDescription(what);
+            apply(fixture.Memory, fixture);
+            Equal(false, fixture.Clip.IsPlaying, $"{what}: the description stops");
+            Equal(1, fixture.Clip.Stops, $"{what}: exactly once");
+            Equal(false, fixture.Coordinator.ShouldDeferDialogueDelivery(later.AddSeconds(1)),
+                $"{what}: and nothing is left waiting behind it");
+        }
+    }
+
+    /// <summary>
+    /// The x86 runtime never ended a description at a field change; this one did, so a
+    /// sentence about the story beat that moved the party on was cut off by the move
+    /// itself. An action description now finishes there, and the next field's own
+    /// description waits behind it rather than being lost or spoken over it.
+    /// </summary>
+    private static void AnActionDescriptionFinishesAcrossAScriptedFieldChange()
+    {
+        var fixture = SpeakingAShortDescription(
+            "field change", new FieldCutsceneDescriptionCue(
+                Gldst, 7, 3, 10, First, FieldOpcodeAddressResolver.OpcodeRequestIndex), 4d);
+        var moved = Timestamp.AddSeconds(1);
+        fixture.Memory.FieldId = Nivl;
+        fixture.Coordinator.ObserveNativeFilm(moved);
+        fixture.Coordinator.ObserveStableField(moved);
+
+        Equal(true, fixture.Clip.IsPlaying, "the action description keeps going into the next field");
+        Equal(0, fixture.Clip.Stops, "nothing cut it off");
+
+        var spokenAloud = new List<string>();
+        bool Prism(string text) { spokenAloud.Add(text); return true; }
+        Equal(true, fixture.Coordinator.Observe(Snapshot(Nivl, 20, 2, moved)), "the next field queues its own cue");
+        Equal(false, fixture.Coordinator.TrySpeakPending(true, () => false, Prism, moved, out _),
+            "which waits for the sentence to finish");
+        Equal(1, fixture.Clip.Starts, "nothing was started over it");
+
+        fixture.Clip.Finish();
+        Equal(true,
+            fixture.Coordinator.TrySpeakPending(true, () => false, Prism, moved.AddSeconds(3), out var next),
+            "and is delivered as soon as it has");
+        Equal(Second, next.Text, "it is the next field's cue, unaltered");
+        Equal(2, fixture.Clip.Starts, "in its own recorded voice");
+        Equal(0, spokenAloud.Count, "never by the screen reader");
+    }
+
+    /// <summary>
+    /// The controls. A room description is about the room the player has just left, so
+    /// leaving still ends it; and a clip with more than the longest recorded description
+    /// still to run is not a sentence finishing, so it is not carried anywhere.
+    /// </summary>
+    private static void ARoomDescriptionOrAnOverlongClipStillEndsAtAFieldChange()
+    {
+        var room = SpeakingAShortDescription(
+            "room", new FieldCutsceneDescriptionCue(
+                Gldst, 0, 0, 5, "A quiet room.", FieldOpcodeAddressResolver.OpcodeMapNameIndex), 4d);
+        room.Memory.FieldId = Nivl;
+        room.Coordinator.ObserveStableField(Timestamp.AddSeconds(1));
+        Equal(false, room.Clip.IsPlaying, "a room description ends when the field changes");
+        Equal(1, room.Clip.Stops, "exactly once");
+
+        var overlong = SpeakingAShortDescription(
+            "overlong", new FieldCutsceneDescriptionCue(
+                Gldst, 7, 3, 10, First, FieldOpcodeAddressResolver.OpcodeRequestIndex), 30d);
+        overlong.Memory.FieldId = Nivl;
+        overlong.Coordinator.ObserveStableField(Timestamp.AddSeconds(1));
+        Equal(false, overlong.Clip.IsPlaying, "a clip longer than any description is not carried");
+        Equal(1, overlong.Clip.Stops, "and stops exactly once");
+    }
+
+    /// <summary>
+    /// The host keeps the name-entry prompt's poll back while a description finishes. The
+    /// prompt must survive that wait: it is still on screen and is said once the device is
+    /// free, not dropped because it became stable while nobody was asking.
+    /// </summary>
+    private static void TheNameEntryPromptIsKeptWhileItWaits()
+    {
+        var spoken = new List<string>();
+        var coordinator = new Steam2026NameEntryPromptSpeechCoordinator(
+            enabled: true,
+            stableTime: TimeSpan.FromMilliseconds(100),
+            (text, _) => spoken.Add(text),
+            _ => { });
+        var prompt = new TranslatedMenuTextObservation(
+            Steam2026MenuCallbackKind.EncodedTextB, "Please enter a name.", 53, 30, 7, 0x3DCED917);
+        coordinator.SetOwnership(true);
+
+        // Three seconds of the prompt being drawn while the description finishes.
+        for (var frame = 1; frame <= 90; frame++)
+        {
+            coordinator.Observe(new TranslatedMenuIngressSnapshot(
+                Steam2026MenuCallbackKind.EncodedTextB,
+                frame,
+                Timestamp.AddMilliseconds(frame * 33),
+                null,
+                null,
+                prompt));
+        }
+
+        coordinator.Poll(Timestamp.AddMilliseconds(90 * 33 + 10));
+        Equal(1, spoken.Count, "the prompt is said once the hold ends");
+        Equal("Please enter a name.", spoken[0], "and it is the prompt on screen");
+    }
+
+    private static void OpenNameEntry(FakeAddressSpace memory, Fixture fixture)
+    {
+        var opened = Timestamp.AddMilliseconds(270);
+        memory.Module = NameEntryStateReader.NameEntryModule;
+        memory.MovieCommand = ScriptedNameEntryRequest;
+        fixture.Coordinator.ObserveNativeFilm(opened);
+        fixture.Coordinator.ObserveStableField(opened);
+    }
+
+    private static void LeaveTheField(
+        FakeAddressSpace memory, Fixture fixture, byte module, byte request, DateTime nowUtc)
+    {
+        memory.Module = module;
+        memory.MovieCommand = request;
+        fixture.Coordinator.ObserveNativeFilm(nowUtc);
+        fixture.Coordinator.ObserveStableField(nowUtc);
+    }
+
+    /// <summary>
+    /// The md1_1 security gate with the real catalog cue and its real recording length,
+    /// delivered and playing in field 117.
+    /// </summary>
+    private static Fixture SpeakingTheJessieDoorDescription(string what)
+    {
+        var jessie = FieldCutsceneDescriptionCatalog.CreateOpeningReactorRegroupDescriptions()
+            .Single(cue => cue.FieldId == Md1_1 && cue.ByteIndex == 85);
+        Equal(FieldOpcodeAddressResolver.OpcodeSoundIndex, jessie.Opcode, $"{what}: the door cue is the SOUND anchor");
+        var fixture = SpeakingAShortDescription(what, jessie, 3.4d, Md1_1);
+        return fixture;
+    }
+
+    private static Fixture SpeakingAShortDescription(
+        string what, FieldCutsceneDescriptionCue cue, double seconds, int fieldId = Gldst)
+    {
+        var memory = new FakeAddressSpace { Module = 1, FieldId = (ushort)fieldId };
+        var filmOutput = new FakeOutput();
+        var clip = new FakeOutput();
+        CutsceneVoicePlayer? voice = null;
+        var narration = new FieldMovieNarrationTracker(
+            _ => filmOutput,
+            _ => { },
+            FieldPositionReader.FieldModule,
+            null,
+            (owner, reason) => voice?.StopIfOwnedBy(owner, reason));
+        voice = new CutsceneVoicePlayer(
+            Manifest((cue.Text, seconds), (Second, 2d)), _ => clip, _ => { }, () => narration.IsPlaying);
+        var coordinator = new Steam2026FieldCutsceneDescriptionCoordinator(
+            memory, [cue, .. Cues().Where(other => other.Key != cue.Key)], narration, voice);
+
+        Equal(true,
+            coordinator.Observe(new Steam2026FieldCutsceneIngressSnapshot(
+                1,
+                Timestamp,
+                new FieldScriptContext(cue.FieldId, cue.EntityId, cue.ScriptId, cue.ByteIndex, cue.Opcode))),
+            $"{what}: the cue is queued");
+        Equal(true,
+            coordinator.TrySpeakPending(true, () => false, _ => true, Timestamp, out var spoken),
+            $"{what}: the description is delivered");
+        Equal(cue.Text, spoken.Text, $"{what}: it is the queued cue");
+        Equal(true, clip.IsPlaying, $"{what}: in the recorded voice, and still going");
+        return new Fixture(memory, coordinator, clip, filmOutput);
     }
 
     /// <summary>

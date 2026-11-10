@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using Ff7.Accessibility.Reloaded;
+using Ff7.Accessibility.Steam2026X64.Runtime.Battle;
 
 namespace Ff7.Accessibility.Steam2026X64.Runtime.Menus;
 
@@ -53,6 +54,7 @@ internal sealed class Steam2026TranslatedMenuDetourIngressCoordinator : IDisposa
     private readonly Func<uint, (bool Success, ActiveMenuWidgetSnapshot Snapshot)> widgetNormalizer;
     private readonly Func<DateTime> clock;
     private readonly INativeIngressQueue<TranslatedMenuIngressSnapshot> captureQueue;
+    private readonly Steam2026BattleResultsTextFrame? resultsTextFrame;
     private readonly Steam2026MenuCallbackIdentity cursorBIdentity;
     private readonly Steam2026MenuCallbackIdentity cursorAIdentity;
     private readonly Steam2026MenuCallbackIdentity activeWidgetIdentity;
@@ -75,7 +77,8 @@ internal sealed class Steam2026TranslatedMenuDetourIngressCoordinator : IDisposa
         TranslatedMenuCallbackOriginal asciiRendererOriginal,
         Func<uint, (bool Success, ActiveMenuWidgetSnapshot Snapshot)> widgetNormalizer,
         Func<DateTime> clock,
-        INativeIngressQueue<TranslatedMenuIngressSnapshot> captureQueue)
+        INativeIngressQueue<TranslatedMenuIngressSnapshot> captureQueue,
+        Steam2026BattleResultsTextFrame? resultsTextFrame = null)
     {
         this.contract = contract ?? throw new ArgumentNullException(nameof(contract));
         if (!contract.HasExactSupportedFingerprint)
@@ -93,6 +96,7 @@ internal sealed class Steam2026TranslatedMenuDetourIngressCoordinator : IDisposa
         this.widgetNormalizer = widgetNormalizer ?? throw new ArgumentNullException(nameof(widgetNormalizer));
         this.clock = clock ?? throw new ArgumentNullException(nameof(clock));
         this.captureQueue = captureQueue ?? throw new ArgumentNullException(nameof(captureQueue));
+        this.resultsTextFrame = resultsTextFrame;
 
         cursorBIdentity = ValidateInitialIdentity(Steam2026MenuCallbackKind.CursorB);
         cursorAIdentity = ValidateInitialIdentity(Steam2026MenuCallbackKind.CursorA);
@@ -212,6 +216,7 @@ internal sealed class Steam2026TranslatedMenuDetourIngressCoordinator : IDisposa
                 return;
             }
 
+            AddToResultsTextFrame(kind, payload.Text);
             TryPublish(snapshot);
         }
         finally
@@ -369,6 +374,30 @@ internal sealed class Steam2026TranslatedMenuDetourIngressCoordinator : IDisposa
             WidgetIdentity = expectedGuestAddress
         };
         return true;
+    }
+
+    // The battle-results page draws its Materia and Limit notices with these two
+    // callbacks; an open frame belongs to a results update on this same thread.
+    private void AddToResultsTextFrame(
+        Steam2026MenuCallbackKind kind,
+        TranslatedMenuTextObservation? text)
+    {
+        if (resultsTextFrame is null
+            || text is not { } drawn
+            || kind is not (Steam2026MenuCallbackKind.EncodedTextA
+                or Steam2026MenuCallbackKind.EncodedTextB))
+        {
+            return;
+        }
+
+        try
+        {
+            resultsTextFrame.Observe(drawn);
+        }
+        catch
+        {
+            // The frame is bounded and allocation-free; a failure only drops this draw.
+        }
     }
 
     private void InvokeOriginal(TranslatedMenuCallbackOriginal original)

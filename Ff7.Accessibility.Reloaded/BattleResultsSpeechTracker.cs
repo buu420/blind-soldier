@@ -5,15 +5,32 @@ public sealed class BattleResultsSpeechTracker
     private const int DirectionInputMask = 0x1000 | 0x4000;
     private const int ConfirmInputMask = 0x0800 | 0x0020;
     private const int DirectionRepeatMask = 0x0001 | 0x0002;
+
+    // The 640x480 EXP page (Ghidra: legacy ff7_en.exe; the Steam 2026 translation
+    // keeps these constants). FUN_006c7b54 draws party row s at y = 120 * (s + 1),
+    // the row's character at (0x8D, row + 0x18) and a notice box at (0xFB, row + 9).
+    // FUN_006c8643 puts a levelled Materia at box + (0x28, 0x0B) over "LEVEL UP" at
+    // box + (0x5D, 0x27); FUN_006c87bb puts a learned Limit at box + (0x0D, 0x0B)
+    // over battle text 0x24 at box + (0x4E, 0x27). FUN_006c86f6 puts a newly born
+    // Materia at (0x100, 0x25) over battle text 0x25 at (0x10D, 0x41).
     private const uint LimitNameX = 264;
     private const uint LimitLabelX = 329;
     private const uint MateriaNameX = 291;
     private const uint MateriaLabelX = 344;
+    private const uint BornNameX = 256;
+    private const uint BornLabelX = 269;
+    private const uint RowCharacterX = 141;
     private const uint ProgressLabelYOffset = 28;
+    private const uint RowCharacterLabelYOffset = 24;
+
+    // A row's notice is drawn on 0x50 updates (DAT_00DC12A2 and DAT_00DC12A5) and its
+    // next notice on the update after; a born notice on 0x96 updates (DAT_00DC121C).
+    private const int RowNoticeUpdates = 0x50;
+    private const int BornNoticeUpdates = 0x96;
     private readonly object sync = new();
     private readonly Dictionary<int, BattlePartyProgressSnapshot> baselineByCharacter = new();
     private readonly HashSet<int> spokenLevelChanges = new();
-    private readonly HashSet<string> spokenNotifications = new(StringComparer.Ordinal);
+    private readonly Dictionary<(string? Character, int Row), PresentedNotice> presentedNotices = new();
     private readonly List<MenuTextRenderEntry> frameEntries = new();
     private readonly Queue<BattleResultsPendingSpeech> pending = new();
     private bool inResults;
@@ -47,7 +64,7 @@ public sealed class BattleResultsSpeechTracker
                 victorySignalActive = false;
                 frameActive = false;
                 spokenLevelChanges.Clear();
-                spokenNotifications.Clear();
+                presentedNotices.Clear();
                 frameEntries.Clear();
                 pending.Clear();
             }
@@ -187,7 +204,7 @@ public sealed class BattleResultsSpeechTracker
             frameActive = false;
             baselineByCharacter.Clear();
             spokenLevelChanges.Clear();
-            spokenNotifications.Clear();
+            presentedNotices.Clear();
             frameEntries.Clear();
             pending.Clear();
         }
@@ -340,23 +357,100 @@ public sealed class BattleResultsSpeechTracker
         }
     }
 
+    /// <summary>
+    /// One announcement per presented notice. A notice belongs to its row's character
+    /// (or to the single born box) and stays the same presentation while that channel
+    /// keeps drawing it, through slides and an unseen update, until its native timer
+    /// has run out: the row's next identical notice then starts a new presentation.
+    /// </summary>
     private void QueueFrameNotifications()
     {
         foreach (var label in frameEntries)
         {
-            var name = FindNativeProgressName(label);
-            if (string.IsNullOrWhiteSpace(name))
+            if (!TryReadNativeNotice(label, out var channel, out var notice, out var lifetime))
             {
                 continue;
             }
 
-            var speech = $"{name}. {label.Text}";
-            if (spokenNotifications.Add(speech))
+            if (presentedNotices.TryGetValue(channel, out var presented) &&
+                string.Equals(presented.Notice, notice, StringComparison.Ordinal) &&
+                presented.Updates < lifetime)
             {
-                Enqueue(speech);
+                presentedNotices[channel] = presented with { Updates = presented.Updates + 1 };
+                continue;
             }
+
+            presentedNotices[channel] = new PresentedNotice(notice, 1);
+            Enqueue(notice);
         }
     }
+
+    private bool TryReadNativeNotice(
+        MenuTextRenderEntry label,
+        out (string? Character, int Row) channel,
+        out string notice,
+        out int lifetime)
+    {
+        channel = default;
+        notice = string.Empty;
+        lifetime = 0;
+        uint nameX;
+        var isRowNotice = true;
+        if (label.X == LimitLabelX)
+        {
+            nameX = LimitNameX;
+        }
+        else if (label.X == MateriaLabelX)
+        {
+            nameX = MateriaNameX;
+        }
+        else if (label.X == BornLabelX)
+        {
+            nameX = BornNameX;
+            isRowNotice = false;
+        }
+        else
+        {
+            return false;
+        }
+
+        if (label.Y < ProgressLabelYOffset ||
+            FindFrameText(nameX, label.Y - ProgressLabelYOffset, label.Context) is not { } name)
+        {
+            return false;
+        }
+
+        var shown = JoinNotice(name, label.Text);
+        if (!isRowNotice)
+        {
+            notice = shown;
+            lifetime = BornNoticeUpdates;
+            return true;
+        }
+
+        var characterY = label.Y - RowCharacterLabelYOffset;
+        if (FindFrameText(RowCharacterX, characterY, label.Context) is not { } character)
+        {
+            return false;
+        }
+
+        // Character names are editable. Use their order within the drawn page to
+        // distinguish equal names while keeping each identity through the page slide.
+        var namesAbove = frameEntries
+            .Where(entry => entry.X == RowCharacterX && entry.Y < characterY &&
+                entry.Context == label.Context && entry.Text == character)
+            .Select(entry => entry.Y)
+            .Distinct()
+            .Count();
+        channel = (character, namesAbove);
+        notice = $"{character}. {shown}";
+        lifetime = RowNoticeUpdates;
+        return true;
+    }
+
+    // " gained." and " was born." continue the name drawn above them.
+    private static string JoinNotice(string name, string label) =>
+        char.IsLower(label[0]) ? $"{name} {label}" : $"{name}. {label}";
 
     private void Enqueue(string text, bool interrupt = false)
     {
@@ -378,35 +472,13 @@ public sealed class BattleResultsSpeechTracker
         pending.Enqueue(new BattleResultsPendingSpeech(text.Trim(), interrupt));
     }
 
-    private string? FindNativeProgressName(MenuTextRenderEntry label)
+    private string? FindFrameText(uint x, uint y, int context)
     {
-        uint nameX;
-        if (label.X == LimitLabelX)
-        {
-            nameX = LimitNameX;
-        }
-        else if (label.X == MateriaLabelX)
-        {
-            nameX = MateriaNameX;
-        }
-        else
-        {
-            return null;
-        }
-
-        if (label.Y < ProgressLabelYOffset)
-        {
-            return null;
-        }
-
-        var nameY = label.Y - ProgressLabelYOffset;
         foreach (var candidate in frameEntries)
         {
-            if (candidate.X == nameX &&
-                candidate.Y == nameY &&
-                candidate.Context == label.Context &&
-                candidate.Text.Length > 0 &&
-                candidate.Text.Any(char.IsLetterOrDigit))
+            if (candidate.X == x &&
+                candidate.Y == y &&
+                candidate.Context == context)
             {
                 return candidate.Text;
             }
@@ -414,6 +486,8 @@ public sealed class BattleResultsSpeechTracker
 
         return null;
     }
+
+    private readonly record struct PresentedNotice(string Notice, int Updates);
 }
 
 public readonly record struct BattleResultsPendingSpeech(string Text, bool Interrupt);

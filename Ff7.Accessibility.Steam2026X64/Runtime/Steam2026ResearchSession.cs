@@ -580,6 +580,9 @@ internal sealed class Steam2026ResearchSession : IDisposable
         ImmediateWaveCuePlayer? armWrestlingPushedBackCuePlayer = null;
         Steam2026FieldFootstepNavigationProbe? fieldFootstepNavigationProbe = null;
         Steam2026BattleRendererHookSet? battleRendererHookSet = null;
+        // Shared by the menu text and battle-results cohorts: the results update
+        // draws its Materia and Limit notices through the hooked menu text callback.
+        var battleResultsTextFrame = new Steam2026BattleResultsTextFrame();
         Steam2026BattleAccessibilityCoordinator? battleAccessibilityCoordinator = null;
         Steam2026BattleStatusHotkeyReader? battleStatusHotkeyReader = null;
         BattleArenaScreenReader? battleArenaScreenReader = null;
@@ -1467,7 +1470,8 @@ avigationield_zone_transition.wav"),
                             memory,
                             hooks,
                             out var installed,
-                            out var diagnostic))
+                            out var diagnostic,
+                            battleResultsTextFrame))
                     {
                         hookSet = installed;
                         titleLoadMenuBridge?.ResetIngress();
@@ -1829,7 +1833,8 @@ avigationield_zone_transition.wav"),
                             memory,
                             hooks,
                             out var installed,
-                            out var diagnostic))
+                            out var diagnostic,
+                            battleResultsTextFrame))
                     {
                         battleRendererHookSet = installed;
                     }
@@ -3161,6 +3166,8 @@ avigationield_zone_transition.wav"),
                     && hasCurrentNameEntry
                     && currentNameEntry?.IsActive == true;
                 nameEntryPromptSpeechCoordinator.SetOwnership(ownsNameEntryPrompt);
+                var deferNameEntrySpeech = ownsNameEntryPrompt &&
+                    cutsceneDescriptions?.ShouldDeferDialogueDelivery(now) == true;
 
                 var hasExactShopMenuOwnership = isHostForeground
                     && lifecycle is
@@ -3305,7 +3312,10 @@ avigationield_zone_transition.wav"),
                     }
                     try
                     {
-                        nameEntryPromptSpeechCoordinator.Poll(DateTime.UtcNow);
+                        if (!deferNameEntrySpeech)
+                        {
+                            nameEntryPromptSpeechCoordinator.Poll(DateTime.UtcNow);
+                        }
                     }
                     catch (Exception ex)
                     {
@@ -3500,10 +3510,13 @@ avigationield_zone_transition.wav"),
 
                 try
                 {
-                    nameEntrySpeechCoordinator.Observe(
-                        hasCurrentNameEntry ? currentNameEntry : null,
-                        isHostForeground && lifecycle?.IsShuttingDown != true,
-                        now);
+                    if (!deferNameEntrySpeech)
+                    {
+                        nameEntrySpeechCoordinator.Observe(
+                            hasCurrentNameEntry ? currentNameEntry : null,
+                            isHostForeground && lifecycle?.IsShuttingDown != true,
+                            now);
+                    }
                 }
                 catch (Exception ex)
                 {

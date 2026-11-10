@@ -34,6 +34,211 @@ internal static class CutsceneVoiceTests
         ASecondDescriptionWaitsInTheQueueRatherThanBeingSpokenOver();
         TheDialogueWindowIsHeldForTheClipsRealLength();
         TheDeliveryStepConsumesACueOnlyWhenSomebodySaidIt();
+        AStartedDescriptionFinishesOverTheScriptedNameEntryScreen();
+        OnlyAPlayingFieldDescriptionInsideItsOwnLengthIsHandedOver();
+        AHandedOverDescriptionStillEndsAtEveryDiscontinuity();
+    }
+
+    private const string JessieDoor =
+        "Jessie works the controls. The two heavy doors unlock and slide apart.";
+
+    /// <summary>
+    /// Issue 57, at the decision both runtimes share and in the order the x86 monitor
+    /// loop takes it: on every tick the field module is not current it calls
+    /// <see cref="CutsceneVoiceTransition.LeaveFieldModule"/>, then its own field reset
+    /// stops whatever field description is left and resets the dialogue priority.
+    ///
+    /// <para>md1_1 queues the 3.4-second door description behind the gate description
+    /// and Barret's dialog 0x29; it starts as that dialog closes, and eight frames later
+    /// the script's MENU 00 06 01 opens Barret's name entry - module 5, field request 6.
+    /// The sentence used to be cut off there with three seconds still to say.</para>
+    /// </summary>
+    private static void AStartedDescriptionFinishesOverTheScriptedNameEntryScreen()
+    {
+        var clock = Start;
+        var output = new CountingOutput();
+        var log = new List<string>();
+        var player = new CutsceneVoicePlayer(
+            CutsceneVoiceManifest.Parse(Manifest((JessieDoor, 3.4d))), _ => output, log.Add, null, () => clock);
+        var priority = new FieldCutsceneSpeechPriority();
+        priority.AttachRecordingProbe(() => player.IsPlaying);
+
+        Equal(CutsceneVoiceResult.Played,
+            player.TrySpeak(JessieDoor, CutsceneVoiceOwner.FieldAction, out var length),
+            "the door description plays");
+        priority.BeginNarration(117, length, clock);
+
+        for (var tick = 0; tick < 40; tick++)
+        {
+            clock = Start.AddMilliseconds(270 + tick * 50);
+            CutsceneVoiceTransition.LeaveFieldModule(
+                player, NameEntryStateReader.NameEntryModule, CutsceneVoiceTransition.ScriptedNameEntryRequest);
+            player.StopIfOwnedBy(CutsceneVoiceOwner.FieldAction, "the field description state was reset");
+            priority.Reset();
+            Equal(true, player.IsPlaying, $"tick {tick}: the description is still being heard over the name-entry screen");
+            Equal(true, priority.ShouldDeferDialogueDelivery(clock), $"tick {tick}: and the screen's own words wait for it");
+        }
+
+        Equal(0, output.Stops, "nothing cut it off");
+        Equal(true, player.IsContinuingAcrossTransition, "it now belongs to the transition, not the field");
+        Equal(1, log.Count(line => line.Contains("continues across the name-entry screen", StringComparison.Ordinal)),
+            "the hand-over is logged once");
+
+        // A second description arriving meanwhile waits for it, in its own voice.
+        Equal(CutsceneVoiceResult.Busy,
+            player.TrySpeak(JessieDoor, CutsceneVoiceOwner.FieldAction, out _),
+            "nothing else starts over it");
+
+        output.Finish();
+        Equal(false, player.IsContinuingAcrossTransition, "the recording reached its own end");
+        Equal(false, priority.ShouldDeferDialogueDelivery(clock), "and the screen's words are released at once");
+        Equal(0, output.Stops, "it was never stopped");
+    }
+
+    /// <summary>
+    /// The hand-over is narrow on purpose. Only a field description that is really still
+    /// playing, inside its own declared length, is handed over, and only to the
+    /// script's own name-entry screen when the field module hands the screen away.
+    /// </summary>
+    private static void OnlyAPlayingFieldDescriptionInsideItsOwnLengthIsHandedOver()
+    {
+        // The request byte is what tells the script's name entry from everything else
+        // module 5 shows.
+        Equal(true, CutsceneVoiceTransition.IsScriptedNameEntry(5, 6), "MENU type 6 is the name-entry screen");
+        Equal(false, CutsceneVoiceTransition.IsScriptedNameEntry(5, 9), "the player's own menu is not");
+        Equal(false, CutsceneVoiceTransition.IsScriptedNameEntry(5, 7), "nor another scripted menu");
+        Equal(false, CutsceneVoiceTransition.IsScriptedNameEntry(5, -1), "nor an unreadable request");
+        Equal(false, CutsceneVoiceTransition.IsScriptedNameEntry(2, 6), "a battle is not, whatever the byte says");
+        Equal(false, CutsceneVoiceTransition.IsScriptedNameEntry(1, 6), "and neither is the field itself");
+
+        var manifest = CutsceneVoiceManifest.Parse(Manifest((JessieDoor, 3.4d), (Spoken, 20d)));
+        var clock = Start;
+
+        // Nothing playing: nothing to hand over.
+        var idle = new CutsceneVoicePlayer(manifest, _ => new CountingOutput(), _ => { }, null, () => clock);
+        Equal(false, idle.ContinueAcrossTransition("a test"), "nothing playing is never handed over");
+
+        // A film's cue and a creature's description have lifetimes of their own.
+        foreach (var owner in new[] { CutsceneVoiceOwner.FilmCue, CutsceneVoiceOwner.FieldCreature })
+        {
+            var output = new CountingOutput();
+            var player = new CutsceneVoicePlayer(manifest, _ => output, _ => { }, null, () => clock);
+            player.TrySpeak(JessieDoor, owner, out _);
+            Equal(false, player.ContinueAcrossTransition("a test"), $"{owner}: is not handed over");
+            player.StopIfOwnedBy(CutsceneVoiceOwner.SceneTransition, "a test");
+            Equal(true, player.IsPlaying, $"{owner}: and the transition's lifetime cannot stop it");
+            player.StopIfOwnedBy(owner, "its own lifetime ended");
+            Equal(false, player.IsPlaying, $"{owner}: its own lifetime still does");
+        }
+
+        // A device still reporting playing well past the clip's own length is stuck, not
+        // finishing, and is left to the field reset.
+        var stuck = new CountingOutput();
+        var overrun = new CutsceneVoicePlayer(manifest, _ => stuck, _ => { }, null, () => clock);
+        clock = Start;
+        overrun.TrySpeak(JessieDoor, CutsceneVoiceOwner.FieldAction, out _);
+        clock = Start.AddSeconds(3.4d) + CutsceneVoicePlayer.TransitionOverrunAllowance + TimeSpan.FromMilliseconds(1);
+        Equal(false, overrun.ContinueAcrossTransition("a test"), "a stuck clip is not handed over");
+        overrun.StopIfOwnedBy(CutsceneVoiceOwner.FieldAction, "the field description state was reset");
+        Equal(false, overrun.IsPlaying, "and the field reset ends it");
+
+        // A clip with more to say than any description is not a sentence finishing.
+        var longOutput = new CountingOutput();
+        var tooLong = new CutsceneVoicePlayer(manifest, _ => longOutput, _ => { }, null, () => clock);
+        clock = Start;
+        tooLong.TrySpeak(Spoken, CutsceneVoiceOwner.FieldAction, out _);
+        clock = Start.AddSeconds(1);
+        Equal(false, tooLong.ContinueAcrossTransition("a test"), "a clip with nineteen seconds to go is not handed over");
+
+        // Device latency: a clip just past its declared length, but within the allowance,
+        // is still finishing.
+        var lateOutput = new CountingOutput();
+        var late = new CutsceneVoicePlayer(manifest, _ => lateOutput, _ => { }, null, () => clock);
+        clock = Start;
+        late.TrySpeak(JessieDoor, CutsceneVoiceOwner.FieldAction, out _);
+        clock = Start.AddSeconds(4d);
+        Equal(true, late.ContinueAcrossTransition("a test"), "a clip a moment past its length is still finishing");
+        Equal(true, late.ContinueAcrossTransition("a test again"), "and asking again changes nothing");
+    }
+
+    /// <summary>
+    /// Handed over is not unconditional. The player's own menu, any module that follows
+    /// the name-entry screen, the host taking the device back and a film's own recording
+    /// starting all still end the sentence - and leave nothing waiting behind it.
+    /// </summary>
+    private static void AHandedOverDescriptionStillEndsAtEveryDiscontinuity()
+    {
+        var cases = new (string What, bool HandedOver, Action<CutsceneVoicePlayer> Apply)[]
+        {
+            // Straight from the field: never handed over, and the field reset ends it.
+            ("the player opened the menu instead", false, player =>
+            {
+                CutsceneVoiceTransition.LeaveFieldModule(player, NameEntryStateReader.NameEntryModule, 9);
+                player.StopIfOwnedBy(CutsceneVoiceOwner.FieldAction, "the field description state was reset");
+            }),
+            ("a battle followed", true, player =>
+                CutsceneVoiceTransition.LeaveFieldModule(player, 2, 0)),
+            ("the title screen followed", true, player =>
+                CutsceneVoiceTransition.LeaveFieldModule(player, 20, 0)),
+            ("the window lost the foreground", true, player =>
+                player.Stop("the game is no longer the foreground window")),
+            ("the mod was suspended", true, player => player.Stop("mod suspended")),
+            ("the mod was unloaded", true, player => player.Dispose()),
+            // What a film's start asks of the device through its yield callback.
+            ("a film's own recording started", true, player =>
+            {
+                player.StopIfOwnedBy(CutsceneVoiceOwner.FieldAction, "the film boogdemo.avi is starting");
+                player.StopIfOwnedBy(CutsceneVoiceOwner.SceneTransition, "the film boogdemo.avi is starting");
+            }),
+        };
+
+        foreach (var (what, handedOver, apply) in cases)
+        {
+            var output = new CountingOutput();
+            var player = new CutsceneVoicePlayer(
+                CutsceneVoiceManifest.Parse(Manifest((JessieDoor, 3.4d))), _ => output, _ => { });
+            var priority = new FieldCutsceneSpeechPriority();
+            priority.AttachRecordingProbe(() => player.IsPlaying);
+            player.TrySpeak(JessieDoor, CutsceneVoiceOwner.FieldAction, out var length);
+            priority.BeginNarration(117, length, Start);
+
+            if (handedOver)
+            {
+                CutsceneVoiceTransition.LeaveFieldModule(
+                    player, NameEntryStateReader.NameEntryModule, CutsceneVoiceTransition.ScriptedNameEntryRequest);
+                Equal(true, player.IsContinuingAcrossTransition, $"{what}: the control - it was handed over");
+            }
+
+            apply(player);
+
+            Equal(false, player.IsPlaying, $"{what}: the description stops");
+            Equal(1, output.Stops, $"{what}: exactly once");
+            Equal(false, priority.ShouldDeferDialogueDelivery(Start.AddSeconds(1)),
+                $"{what}: and nothing waits behind it");
+        }
+
+        // The film case through the shared film tracker itself, which both runtimes use:
+        // a film starting after the name-entry screen takes the device back before its
+        // own recording opens.
+        var clip = new CountingOutput();
+        var filmOutput = new CountingOutput();
+        CutsceneVoicePlayer? voice = null;
+        var tracker = new FieldMovieNarrationTracker(
+            _ => filmOutput, _ => { }, FieldPositionReader.FieldModule, null,
+            (owner, reason) => voice?.StopIfOwnedBy(owner, reason));
+        voice = new CutsceneVoicePlayer(
+            CutsceneVoiceManifest.Parse(Manifest((JessieDoor, 3.4d))), _ => clip, _ => { }, () => tracker.IsPlaying);
+        voice.TrySpeak(JessieDoor, CutsceneVoiceOwner.FieldAction, out _);
+        CutsceneVoiceTransition.LeaveFieldModule(
+            voice, NameEntryStateReader.NameEntryModule, CutsceneVoiceTransition.ScriptedNameEntryRequest);
+        Equal(true, voice.IsContinuingAcrossTransition, "the control - the description was handed over");
+        tracker.Observe(
+            new FieldMovieNarrationSample(true, 42, FieldPositionReader.FieldModule, 117,
+                Disc: 1, MovieCommand: FieldMovieNarrationSample.CommandStartMovie, MovieFrame: 0),
+            Start.AddSeconds(1));
+        Equal(true, tracker.IsPlaying, "the film's own recording starts");
+        Equal(false, clip.IsPlaying, "and the finishing description gave the device up first");
+        Equal(1, clip.Stops, "exactly once");
     }
 
     private static void RecordingCompletionAndTimeoutReleaseDialogue()
