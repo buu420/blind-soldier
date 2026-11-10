@@ -1,4 +1,5 @@
 using Ff7.Accessibility.Reloaded;
+using Ff7.Accessibility.Steam2026X64.Runtime.Battle;
 using Reloaded.Hooks.Definitions;
 
 namespace Ff7.Accessibility.Steam2026X64.Runtime.Menus;
@@ -36,7 +37,8 @@ internal sealed class Steam2026TranslatedMenuHookSet : IDisposable
         ulong moduleBase,
         ulong moduleImageSize,
         INativeMemoryReader memory,
-        IReloadedHooks hooks)
+        IReloadedHooks hooks,
+        Steam2026BattleResultsTextFrame? resultsTextFrame)
     {
         ArgumentNullException.ThrowIfNull(fingerprint);
         ArgumentNullException.ThrowIfNull(memory);
@@ -94,7 +96,8 @@ internal sealed class Steam2026TranslatedMenuHookSet : IDisposable
                     ? (true, snapshot)
                     : (false, default),
                 () => DateTime.UtcNow,
-                captureQueue);
+                captureQueue,
+                resultsTextFrame);
 
             cursorBHook.Activate();
             cursorAHook.Activate();
@@ -126,7 +129,8 @@ internal sealed class Steam2026TranslatedMenuHookSet : IDisposable
         INativeMemoryReader memory,
         IReloadedHooks hooks,
         out Steam2026TranslatedMenuHookSet hookSet,
-        out string diagnostic)
+        out string diagnostic,
+        Steam2026BattleResultsTextFrame? resultsTextFrame = null)
     {
         hookSet = null!;
         diagnostic = string.Empty;
@@ -137,7 +141,8 @@ internal sealed class Steam2026TranslatedMenuHookSet : IDisposable
                 moduleBase,
                 moduleImageSize,
                 memory,
-                hooks);
+                hooks,
+                resultsTextFrame);
             diagnostic = "Installed six exact-identity translated menu callbacks.";
             return true;
         }

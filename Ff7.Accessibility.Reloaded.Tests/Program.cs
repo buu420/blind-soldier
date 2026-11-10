@@ -263,6 +263,12 @@ if (args.Contains("--battle-descriptions-only", StringComparer.OrdinalIgnoreCase
     return;
 }
 
+if (args.Contains("--battle-results-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.BattleResultsNotificationTests.Run();
+    return;
+}
+
 if (args.Contains("--glacier-regional-items-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.GreatGlacierRegionalItemsTests.Run();
@@ -389,6 +395,13 @@ if (args.Contains("--prism-abi-probe-only", StringComparer.OrdinalIgnoreCase))
 {
     PrismAbiProbeTests.Run();
     Console.WriteLine("FFVII x86 Prism ABI probe passed.");
+    return;
+}
+
+if (args.Contains("--cutscene-voice-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.CutsceneVoiceTests.Run();
+    Console.WriteLine("FFVII x86 cutscene voice tests passed.");
     return;
 }
 
@@ -1700,7 +1713,7 @@ AssertBattleResultsCombinesConfirmedDispositionAndFocus();
 AssertBattleResultsWaitsForStableExperiencePage();
 AssertBattleResultsSpeaksDelayedNativeLevelChangesOnce();
 AssertBattleResultsRejectsUnpairedProgressLabels();
-AssertBattleResultsPairsNativeProgressNamesWithTheirLabels();
+Ff7.Accessibility.Reloaded.Tests.BattleResultsNotificationTests.Run();
 AssertBattleResultsIgnoresOrdinaryLevelLabels();
 AssertBattleResultsResetsForTheNextBattle();
 AssertBattleDamagePopupReaderReadsOnlyFirstFrameNativePopups();
@@ -6226,40 +6239,6 @@ static void AssertBattleResultsRejectsUnpairedProgressLabels()
     tracker.ObserveDraw(notification);
     tracker.CompleteFrame();
     AssertNull(tracker.Poll(), "unpaired result text must not be treated as a native Limit or Materia panel");
-}
-
-static void AssertBattleResultsPairsNativeProgressNamesWithTheirLabels()
-{
-    var tracker = new BattleResultsSpeechTracker();
-    tracker.ObserveBattleProgress([new BattlePartyProgressSnapshot(0, 0, "Cloud", 7)]);
-    tracker.ObserveResults(
-        new BattleResultsSnapshot(true, 0, 10, 1, 20, []),
-        [new BattlePartyProgressSnapshot(0, 0, "Cloud", 7)]);
-    _ = tracker.Poll();
-
-    tracker.BeginFrame();
-    tracker.ObserveDraw(new MenuTextRenderEntry("Braver", 264, 111, 7, 0x3DCCCCCD));
-    tracker.ObserveDraw(new MenuTextRenderEntry("Limit Break learned", 329, 139, 7, 0x3DCCCCCD));
-    tracker.CompleteFrame();
-    AssertEqual("Braver. Limit Break learned", tracker.Poll(), "native Limit result name and label");
-
-    tracker.BeginFrame();
-    tracker.ObserveDraw(new MenuTextRenderEntry("Fire", 291, 211, 7, 0x3DCCCCCD));
-    tracker.ObserveDraw(new MenuTextRenderEntry("Materia level up", 344, 239, 7, 0x3DCCCCCD));
-    tracker.CompleteFrame();
-    AssertEqual("Fire. Materia level up", tracker.Poll(), "native Materia result name and label");
-
-    tracker.BeginFrame();
-    tracker.ObserveDraw(new MenuTextRenderEntry("Fire", 291, 211, 7, 0x3DCCCCCD));
-    tracker.ObserveDraw(new MenuTextRenderEntry("Materia level up", 344, 239, 7, 0x3DCCCCCD));
-    tracker.CompleteFrame();
-    AssertNull(tracker.Poll(), "stable native progress panel must not repeat");
-
-    tracker.BeginFrame();
-    tracker.ObserveDraw(new MenuTextRenderEntry("Ice", 291, 311, 7, 0x11111111));
-    tracker.ObserveDraw(new MenuTextRenderEntry("Materia level up", 344, 339, 7, 0x22222222));
-    tracker.CompleteFrame();
-    AssertNull(tracker.Poll(), "result name and label from different native draw contexts must not pair");
 }
 
 static void AssertBattleResultsIgnoresOrdinaryLevelLabels()

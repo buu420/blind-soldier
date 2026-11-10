@@ -35,7 +35,8 @@ internal sealed class Steam2026BattleRendererHookSet : IDisposable
         ulong moduleBase,
         ulong moduleImageSize,
         INativeMemoryReader memory,
-        IReloadedHooks hooks)
+        IReloadedHooks hooks,
+        Steam2026BattleResultsTextFrame? resultsTextFrame)
     {
         ArgumentNullException.ThrowIfNull(fingerprint);
         ArgumentNullException.ThrowIfNull(memory);
@@ -90,7 +91,8 @@ internal sealed class Steam2026BattleRendererHookSet : IDisposable
                 damageHook.OriginalFunction,
                 actionTextCommitHook.OriginalFunction,
                 () => DateTime.UtcNow,
-                captureQueue);
+                captureQueue,
+                resultsTextFrame);
 
             rendererHook.Activate();
             updateHook.Activate();
@@ -122,7 +124,8 @@ internal sealed class Steam2026BattleRendererHookSet : IDisposable
         INativeMemoryReader memory,
         IReloadedHooks hooks,
         out Steam2026BattleRendererHookSet hookSet,
-        out string diagnostic)
+        out string diagnostic,
+        Steam2026BattleResultsTextFrame? resultsTextFrame = null)
     {
         hookSet = null!;
         diagnostic = string.Empty;
@@ -133,7 +136,8 @@ internal sealed class Steam2026BattleRendererHookSet : IDisposable
                 moduleBase,
                 moduleImageSize,
                 memory,
-                hooks);
+                hooks,
+                resultsTextFrame);
             diagnostic = "Installed six exact-identity translated battle lifecycle callbacks.";
             return true;
         }

@@ -18,6 +18,15 @@ public enum CutsceneVoiceOwner
 
     /// <summary>An observed field creature, stopped when its native presentation disappears.</summary>
     FieldCreature,
+
+    /// <summary>
+    /// A field description that was already being heard when the story moved on through
+    /// a scripted transition: the name-entry screen a script opens, or the script taking
+    /// the party on to the next field. It no longer belongs to the field, so a field
+    /// reset does not end it. It finishes, and only a discontinuity ends it sooner -
+    /// another module, a film taking the device for its own recording, or the host.
+    /// </summary>
+    SceneTransition,
 }
 
 /// <summary>What happened when a description was offered to the recorded voice.</summary>
@@ -62,30 +71,54 @@ public enum CutsceneVoiceResult
 /// </summary>
 public sealed class CutsceneVoicePlayer : IDisposable
 {
+    /// <summary>
+    /// The most a description may still have to say when the story moves on and it is
+    /// let finish. Every recorded description is shorter - the longest runs a little over
+    /// fourteen seconds - so this only ever refuses a clip that is not a description.
+    /// </summary>
+    public static readonly TimeSpan MaximumTransitionTail = TimeSpan.FromSeconds(15);
+
+    /// <summary>
+    /// How long past its declared length a clip may still report playing and be treated
+    /// as finishing, which covers the device's own start-up latency. Later than that it
+    /// is stuck, not finishing, and is not carried anywhere.
+    /// </summary>
+    public static readonly TimeSpan TransitionOverrunAllowance = TimeSpan.FromSeconds(2);
+
     private readonly CutsceneVoiceManifest manifest;
     private readonly Func<CutsceneVoiceClip, IFieldMovieNarrationOutput?> createOutput;
     private readonly Func<bool> anotherDescriptionIsPlaying;
+    private readonly Func<DateTime> utcNow;
     private readonly Action<string> log;
     private readonly object sync = new();
 
     private IFieldMovieNarrationOutput? output;
     private CutsceneVoiceOwner playingOwner;
+    private TimeSpan playingDuration;
+    private DateTime playingStartedUtc;
 
     /// <param name="anotherDescriptionIsPlaying">
     /// Whether a film's own recording currently owns the independent device. A field
     /// description started over a playing film would be two descriptions at once, so
     /// this refuses and lets the caller speak instead.
     /// </param>
+    /// <param name="utcNow">
+    /// The clock a playing clip's progress is measured on. Only the time left in the
+    /// clip is read from it, when deciding whether a sentence may finish across a scene
+    /// transition.
+    /// </param>
     public CutsceneVoicePlayer(
         CutsceneVoiceManifest manifest,
         Func<CutsceneVoiceClip, IFieldMovieNarrationOutput?> createOutput,
         Action<string> log,
-        Func<bool>? anotherDescriptionIsPlaying = null)
+        Func<bool>? anotherDescriptionIsPlaying = null,
+        Func<DateTime>? utcNow = null)
     {
         this.manifest = manifest ?? CutsceneVoiceManifest.Empty;
         this.createOutput = createOutput;
         this.log = log;
         this.anotherDescriptionIsPlaying = anotherDescriptionIsPlaying ?? (static () => false);
+        this.utcNow = utcNow ?? (static () => DateTime.UtcNow);
     }
 
     /// <summary>How many descriptions have a recording.</summary>
@@ -98,6 +131,19 @@ public sealed class CutsceneVoicePlayer : IDisposable
             lock (sync)
             {
                 return output?.IsPlaying == true;
+            }
+        }
+    }
+
+    /// <summary>Whether a description is finishing across a scene transition right now.</summary>
+    public bool IsContinuingAcrossTransition
+    {
+        get
+        {
+            lock (sync)
+            {
+                return output?.IsPlaying == true &&
+                    playingOwner == CutsceneVoiceOwner.SceneTransition;
             }
         }
     }
@@ -175,8 +221,64 @@ public sealed class CutsceneVoicePlayer : IDisposable
             SafeDispose(output);
             output = candidate;
             playingOwner = owner;
+            playingDuration = clip.Duration;
+            playingStartedUtc = utcNow();
             duration = clip.Duration;
             return CutsceneVoiceResult.Played;
+        }
+    }
+
+    /// <summary>
+    /// Lets the field description already being heard finish across a scripted scene
+    /// transition instead of being cut off by it.
+    ///
+    /// <para>Only a <see cref="CutsceneVoiceOwner.FieldAction"/> clip that is still
+    /// playing, inside its own declared length, with no more than
+    /// <see cref="MaximumTransitionTail"/> left to say, is handed over. From then on it
+    /// belongs to <see cref="CutsceneVoiceOwner.SceneTransition"/>, which no field reset
+    /// stops. Asking again for a clip already handed over changes nothing.</para>
+    ///
+    /// <para>Nothing is stopped here. A clip that does not qualify keeps its owner, and
+    /// the caller's own field reset ends it exactly as it always did.</para>
+    /// </summary>
+    /// <param name="transition">What the story moved on to, for the log.</param>
+    /// <returns>True when a description is now finishing across the transition.</returns>
+    public bool ContinueAcrossTransition(string transition)
+    {
+        lock (sync)
+        {
+            if (output?.IsPlaying != true)
+            {
+                return false;
+            }
+
+            if (playingOwner == CutsceneVoiceOwner.SceneTransition)
+            {
+                return true;
+            }
+
+            if (playingOwner != CutsceneVoiceOwner.FieldAction || playingDuration <= TimeSpan.Zero)
+            {
+                return false;
+            }
+
+            var elapsed = utcNow() - playingStartedUtc;
+            if (elapsed < TimeSpan.Zero)
+            {
+                elapsed = TimeSpan.Zero;
+            }
+
+            var remaining = playingDuration - elapsed;
+            if (remaining > MaximumTransitionTail ||
+                elapsed > playingDuration + TransitionOverrunAllowance)
+            {
+                return false;
+            }
+
+            playingOwner = CutsceneVoiceOwner.SceneTransition;
+            log($"Cutscene description continues across {transition}: " +
+                $"{Math.Max(0d, remaining.TotalSeconds):0.##}s left.");
+            return true;
         }
     }
 
@@ -238,5 +340,69 @@ public sealed class CutsceneVoicePlayer : IDisposable
         {
             log($"Cutscene voice output could not be released: {ex.Message}");
         }
+    }
+}
+
+/// <summary>
+/// What becomes of a field description already being heard when the field module hands
+/// the screen to another module. Both runtimes make this one decision, on every tick the
+/// field module is not current.
+///
+/// <para>The script's own name-entry screen is the one module a sentence may finish
+/// over. It is static, it waits for its player, and the field resumes under it
+/// afterwards; its words wait on the same device-backed hold the game's dialogue already
+/// uses. Every other module - the player's menu, a battle, the world map, the title
+/// screen a load passes through - is a different scene, or one that will not wait, and
+/// it ends the description as it always has, including one that was finishing across an
+/// earlier transition.</para>
+/// </summary>
+public static class CutsceneVoiceTransition
+{
+    /// <summary>
+    /// The field module's request at 0x00CC0D89 for the name-entry screen. The same byte
+    /// is read as <see cref="FieldAudibleCueStateReader.AddressFieldMovieCommand"/>.
+    ///
+    /// <para>Ghidra, installed ff7_en.exe: the MENU opcode handler FUN_0061F04A takes
+    /// the opcode's menu type; the field driver FUN_0063C17F switches the module to 5
+    /// for requests 6, 7, 8, 9, 0x0E, 0x12 and 0x13, and forces request 9 when the
+    /// player opens the menu; the menu driver FUN_006CDA83 runs name entry
+    /// (FUN_006CBD32, FUN_00719C08) for request 6 and nothing else. The request is
+    /// written before the module changes, so it is already there on the first tick of
+    /// the screen - unlike the editor state at 0x00DD45E8, which reads 1 only after
+    /// the screen has faded in.</para>
+    /// </summary>
+    public const int ScriptedNameEntryRequest = 6;
+
+    /// <summary>Whether the field module has handed the screen to the script's name entry.</summary>
+    public static bool IsScriptedNameEntry(int module, int fieldModuleRequest) =>
+        module == NameEntryStateReader.NameEntryModule &&
+        fieldModuleRequest == ScriptedNameEntryRequest;
+
+    /// <summary>
+    /// Lets the description finish over the script's name-entry screen, and ends one that
+    /// was finishing across an earlier transition whenever any other module takes over.
+    /// The caller's field reset runs afterwards, unchanged, and ends a field description
+    /// that was not handed over.
+    /// </summary>
+    /// <param name="fieldModuleRequest">
+    /// The byte at 0x00CC0D89, or -1 when it could not be read; an unknown request is
+    /// never name entry.
+    /// </param>
+    public static void LeaveFieldModule(CutsceneVoicePlayer? player, int module, int fieldModuleRequest)
+    {
+        if (player is null)
+        {
+            return;
+        }
+
+        if (IsScriptedNameEntry(module, fieldModuleRequest))
+        {
+            player.ContinueAcrossTransition("the name-entry screen");
+            return;
+        }
+
+        player.StopIfOwnedBy(
+            CutsceneVoiceOwner.SceneTransition,
+            $"module {module} replaced the scene");
     }
 }

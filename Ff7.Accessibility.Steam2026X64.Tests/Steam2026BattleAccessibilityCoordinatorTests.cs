@@ -4,6 +4,7 @@ using Ff7.Accessibility.Core;
 using Ff7.Accessibility.Steam2026X64;
 using Ff7.Accessibility.Steam2026X64.Runtime;
 using Ff7.Accessibility.Steam2026X64.Runtime.Battle;
+using Ff7.Accessibility.Steam2026X64.Runtime.Menus;
 
 internal static class Steam2026BattleAccessibilityCoordinatorTests
 {
@@ -27,6 +28,7 @@ internal static class Steam2026BattleAccessibilityCoordinatorTests
         OwnershipLossResetsInteractionTrackersButResultsRemainReadable(supportedRuntime);
         BattleUpdateQueuesVictoryWithoutACompleteBattleTrackerSnapshot(supportedRuntime);
         CapturedLifecycleSurvivesWorkerSideMutation(supportedRuntime);
+        ResultsNoticesDrawnInsideTheNativeUpdateAreSpokenInOrder(supportedRuntime);
         TifaSlotsSpeakOnlyAfterTheAlignedSymbolWasRendered(supportedRuntime);
         SessionOptionsAndOwnershipCoverEveryBattleDomain();
     }
@@ -925,6 +927,90 @@ internal static class Steam2026BattleAccessibilityCoordinatorTests
             speech,
             Steam2026BattleSpeechDomain.Results,
             "96 gil. Items available: Phoenix Down x2. Items selected: none. Take everything.");
+    }
+
+    // Steam 0.10.12 spoke the native EXP/AP, level and gil pages but none of the
+    // Materia or Limit notices drawn between them. The results page draws each
+    // notice through the hooked encoded-text callback during the hooked results
+    // update, so both detours run on the game thread within one native update.
+    private static void ResultsNoticesDrawnInsideTheNativeUpdateAreSpokenInOrder(
+        Steam2026FingerprintResult supportedRuntime)
+    {
+        var textFrame = new Steam2026BattleResultsTextFrame();
+        var menuFixture = new TranslatedCallCaptureFixture();
+        using var menuIngress = new Steam2026TranslatedMenuDetourIngressCoordinator(
+            new Steam2026MenuCallbackContract(
+                supportedRuntime,
+                TranslatedCallCaptureFixture.ModuleBase,
+                0x02100000,
+                menuFixture.Native),
+            () => { },
+            () => { },
+            () => { },
+            () => { },
+            () => { },
+            () => { },
+            _ => (false, default),
+            () => Timestamp,
+            new DelegatingNativeIngressQueue<TranslatedMenuIngressSnapshot>(_ => { }),
+            textFrame);
+        var nextTextAddress = 0x00290000u;
+        void DrawEncodedTextB(string text, uint x, uint y, uint color)
+        {
+            var encoded = text.Select(character => (byte)(character - 0x20)).Append((byte)0xFF).ToArray();
+            menuFixture.WriteGuest(nextTextAddress, encoded);
+            menuFixture.WriteCall(0x00192000, [x, y, nextTextAddress, color, 0]);
+            nextTextAddress += 0x100;
+            menuIngress.OnEncodedTextB();
+        }
+
+        var resultsFixture = BattleRendererIngressFixture.Create();
+        resultsFixture.Battle.SwitchToResultsModule();
+        var queue = new BoundedNativeIngressQueue<Steam2026BattleRendererIngressSnapshot>(4);
+        using var resultsIngress = new Steam2026BattleRendererDetourIngressCoordinator(
+            new Steam2026BattleRendererCallbackContract(
+                supportedRuntime,
+                BattleObservationFixture.ModuleBase,
+                0x02100000,
+                resultsFixture.Battle.Native),
+            () => { },
+            () => { },
+            () => { },
+            () =>
+            {
+                // FUN_006c7b54: each row's notice box, then that row's name.
+                DrawEncodedTextB("Fire", 291, 140, 7);
+                DrawEncodedTextB("LEVEL UP", 344, 168, 6);
+                DrawEncodedTextB("Cloud", 141, 144, 7);
+                DrawEncodedTextB(" gained.", 329, 288, 7);
+                DrawEncodedTextB("Mindblow", 264, 260, 6);
+                DrawEncodedTextB("Barret", 141, 264, 7);
+            },
+            () => { },
+            () => { },
+            () => Timestamp,
+            queue,
+            textFrame);
+
+        resultsIngress.OnResultsUpdate();
+        Equal(true, queue.TryDequeue(out var update), "results update with its notices captured");
+        var coordinator = CreateCoordinator(resultsFixture.Battle, supportedRuntime);
+        coordinator.ProcessBatch([update]);
+        var speech = Drain(coordinator);
+
+        Equal(
+            "125 experience. 8 AP.|Cloud. Fire. LEVEL UP|Barret. Mindblow gained.",
+            string.Join('|', speech.Select(item => item.Text)),
+            "totals, then each visible notice in native draw order");
+        Equal(
+            true,
+            speech.All(item => item.Domain == Steam2026BattleSpeechDomain.Results && !item.Interrupt),
+            "notices queue behind the totals as results speech");
+
+        resultsIngress.OnResultsUpdate();
+        Equal(true, queue.TryDequeue(out var repeated), "the next native update draws the same notices");
+        coordinator.ProcessBatch([repeated]);
+        Equal(0, Drain(coordinator).Count, "notices still on screen are not repeated");
     }
 
     private static Steam2026BattleAccessibilityCoordinator CreateCoordinator(

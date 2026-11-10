@@ -6,6 +6,7 @@ using Ff7.Accessibility.Runtime.Abstractions;
 using Ff7.Accessibility.Steam2026X64;
 using Ff7.Accessibility.Steam2026X64.Runtime;
 using Ff7.Accessibility.Steam2026X64.Runtime.Battle;
+using Ff7.Accessibility.Steam2026X64.Runtime.Menus;
 using Reloaded.Hooks.Definitions;
 
 internal static class Steam2026BattleRendererIngressTests
@@ -33,6 +34,7 @@ internal static class Steam2026BattleRendererIngressTests
         IngressCapturesBeforeOriginalAndInvokesItExactlyOnce(supportedRuntime);
         BattleUpdateIngressCapturesEnemyActionBeforeAndAfterOriginal(supportedRuntime);
         LifecycleIngressCapturesVictoryAndResultsAroundOriginal(supportedRuntime);
+        ResultsUpdatePublishesOnlyTheTextItsOriginalDrew(supportedRuntime);
         DamageIngressCopiesThePopupBeforeTheOriginalRetiresIt(supportedRuntime);
         ActionTextIngressCopiesTheVisibleCommitBeforeOriginal(supportedRuntime);
         IngressPublishesTheSixCallbackCohortWithCheckedGuestArguments(supportedRuntime);
@@ -512,11 +514,7 @@ internal static class Steam2026BattleRendererIngressTests
 
     private static void HookSetPollsLeaseHealthOutsideTheNativeCallbackPath()
     {
-        var prototypeRoot = FindPrototypeRoot();
-        var projectRoot = Path.Combine(
-            prototypeRoot,
-            "reloaded",
-            "Ff7.Accessibility.Steam2026X64");
+        var projectRoot = FindRuntimeProjectRoot();
         var hookSetSource = File.ReadAllText(Path.Combine(
             projectRoot,
             "Runtime",
@@ -542,11 +540,7 @@ internal static class Steam2026BattleRendererIngressTests
 
     private static void NativeBattleCallbacksExcludeSemanticSpeechDispatch()
     {
-        var prototypeRoot = FindPrototypeRoot();
-        var projectRoot = Path.Combine(
-            prototypeRoot,
-            "reloaded",
-            "Ff7.Accessibility.Steam2026X64");
+        var projectRoot = FindRuntimeProjectRoot();
         var hookSetSource = File.ReadAllText(Path.Combine(
             projectRoot,
             "Runtime",
@@ -1098,6 +1092,65 @@ internal static class Steam2026BattleRendererIngressTests
         Equal(2, GetProperty<int>(after, "State"), "post-original results page captured");
     }
 
+    // Ghidra (unpacked Steam 2026 copy): the translated results update at host
+    // 0x1410623D0 calls the EXP page at 0x141059560, whose notice boxes draw
+    // through 0x141570730; in the default text mode that wrapper jumps to the
+    // hooked translated FUN_006f5b03 at 0x14115D910, inside this original.
+    private static void ResultsUpdatePublishesOnlyTheTextItsOriginalDrew(
+        Steam2026FingerprintResult supportedRuntime)
+    {
+        static TranslatedMenuTextObservation Draw(string text, int x, int y, int color) =>
+            new(Steam2026MenuCallbackKind.EncodedTextB, text, x, y, color, 0);
+
+        var fixture = BattleRendererIngressFixture.Create();
+        fixture.Battle.SwitchToResultsModule();
+        var textFrame = new Steam2026BattleResultsTextFrame();
+        var queue = new BoundedNativeIngressQueue<Steam2026BattleRendererIngressSnapshot>(4);
+        var drawNotice = true;
+        using var ingress = new Steam2026BattleRendererDetourIngressCoordinator(
+            CreateExactContract(fixture, supportedRuntime),
+            () => { },
+            () => { },
+            () => { },
+            () =>
+            {
+                if (!drawNotice)
+                {
+                    return;
+                }
+
+                textFrame.Observe(Draw("Fire", 291, 140, 7));
+                Task.Run(() => textFrame.Observe(Draw("Elsewhere", 27, 26, 7))).Wait();
+                textFrame.Observe(Draw("LEVEL UP", 344, 168, 6));
+                textFrame.Observe(Draw("Cloud", 141, 144, 7));
+            },
+            () => { },
+            () => { },
+            () => Timestamp,
+            queue,
+            textFrame);
+
+        textFrame.Observe(Draw("Before", 27, 26, 7));
+        ingress.OnResultsUpdate();
+        textFrame.Observe(Draw("After", 27, 26, 7));
+
+        Equal(true, queue.TryDequeue(out var noticeFrame), "results update with its notice published");
+        Equal(
+            "Fire@291,140,7;LEVEL UP@344,168,6;Cloud@141,144,7",
+            Describe(noticeFrame.ResultsDraws),
+            "only game-thread text drawn inside the results original, in native order");
+
+        drawNotice = false;
+        ingress.OnResultsUpdate();
+        Equal(true, queue.TryDequeue(out var emptyFrame), "results update without notices published");
+        Equal(string.Empty, Describe(emptyFrame.ResultsDraws), "a later update does not repeat earlier text");
+
+        static string Describe(System.Collections.Immutable.ImmutableArray<MenuTextRenderEntry> draws) =>
+            draws.IsDefault
+                ? "<default>"
+                : string.Join(';', draws.Select(draw => $"{draw.Text}@{draw.X},{draw.Y},{draw.Color}"));
+    }
+
     private static void ActionTextIngressCopiesTheVisibleCommitBeforeOriginal(
         Steam2026FingerprintResult supportedRuntime)
     {
@@ -1540,22 +1593,23 @@ internal static class Steam2026BattleRendererIngressTests
         return false;
     }
 
-    private static string FindPrototypeRoot()
+    private static string FindRuntimeProjectRoot()
     {
-        var current = new DirectoryInfo(AppContext.BaseDirectory);
-        while (current is not null)
+        const string project = "Ff7.Accessibility.Steam2026X64";
+        var configured = Environment.GetEnvironmentVariable("FF7_ACCESSIBILITY_SOURCE_ROOT");
+        var root = string.IsNullOrWhiteSpace(configured)
+            ? new DirectoryInfo(AppContext.BaseDirectory)
+            : new DirectoryInfo(configured);
+        for (var directory = root; directory is not null; directory = directory.Parent)
         {
-            if (Directory.Exists(Path.Combine(current.FullName, "analysis", "dual_runtime"))
-                && Directory.Exists(Path.Combine(current.FullName, "reloaded")))
+            var candidate = Path.Combine(directory.FullName, project);
+            if (File.Exists(Path.Combine(candidate, project + ".csproj")))
             {
-                return current.FullName;
+                return candidate;
             }
-
-            current = current.Parent;
         }
 
-        throw new DirectoryNotFoundException(
-            "Unable to locate accessibility_prototype root.");
+        throw new DirectoryNotFoundException("Unable to locate the Steam 2026 runtime source.");
     }
 
     private static void Equal<T>(T expected, T actual, string label)

@@ -492,6 +492,7 @@ if (args.Contains("--module-tests-only", StringComparer.OrdinalIgnoreCase))
     GoldSaucerFollowupTests.Run();
     NorthCorelNpcTests.Run();
     Steam2026TranslatedMenuIngressTests.RunPortable();
+    Ff7.Accessibility.Reloaded.Tests.BattleResultsNotificationTests.Run();
     CondorBattleInitializationTests.Run();
     CondorPlacementLineReadoutTests.Run();
     CondorCursorSteeringTests.Run();
@@ -1057,6 +1058,7 @@ AssertEqual(false, legacy.Identity.Is64Bit, "legacy executable architecture");
 if (args.Contains("--battle-feedback-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.BattleVisibleFeedbackTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.BattleResultsNotificationTests.Run();
     Steam2026BattleObservationTests.Run(native, legacy);
     Steam2026BattleRendererIngressTests.Run(native, legacy);
     Steam2026BattleAccessibilityCoordinatorTests.Run(native);
@@ -1487,6 +1489,7 @@ Steam2026BattleObservationTests.Run(native, legacy);
 Steam2026BattleRendererIngressTests.Run(native, legacy);
 Steam2026BattleAccessibilityCoordinatorTests.Run(native);
 Steam2026BattleVisibleFeedbackTests.Run(native);
+Ff7.Accessibility.Reloaded.Tests.BattleResultsNotificationTests.Run();
 Steam2026NameEntryObservationTests.Run(native, legacy);
 Steam2026SaveCandidateDiscoveryTests.Run(native, legacy);
 Steam2026SaveContainerProbeTests.Run(native, legacy);

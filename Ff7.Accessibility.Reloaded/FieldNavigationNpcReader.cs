@@ -1,3 +1,5 @@
+using Ff7.Accessibility.LegacyLayout;
+
 namespace Ff7.Accessibility.Reloaded;
 
 public sealed class FieldNavigationNpcReader
@@ -710,6 +712,7 @@ public sealed class FieldNavigationNpcReader
     private readonly Func<int, bool>? isLineEnabled;
     private readonly Func<int, bool>? useVerifiedFallback;
     private readonly Func<FieldScriptNpcDefinition, FieldScriptNpcDefinition?>? definitionRemapper;
+    private readonly ILegacyAddressSpace? ranchMemory;
 
     public FieldNavigationNpcReader(
         Func<int, int> readInt32,
@@ -720,7 +723,8 @@ public sealed class FieldNavigationNpcReader
         IEnumerable<(int FieldId, int EntityId)>? excludedEntities = null,
         Func<int, bool>? isLineEnabled = null,
         Func<int, bool>? useVerifiedFallback = null,
-        Func<FieldScriptNpcDefinition, FieldScriptNpcDefinition?>? definitionRemapper = null)
+        Func<FieldScriptNpcDefinition, FieldScriptNpcDefinition?>? definitionRemapper = null,
+        ILegacyAddressSpace? ranchMemory = null)
     {
         this.readInt32 = readInt32;
         this.readInt16 = readInt16;
@@ -731,6 +735,7 @@ public sealed class FieldNavigationNpcReader
         this.isLineEnabled = isLineEnabled;
         this.useVerifiedFallback = useVerifiedFallback;
         this.definitionRemapper = definitionRemapper;
+        this.ranchMemory = ranchMemory;
     }
 
     public IReadOnlyList<FieldNavigationTarget> ReadTargets(FieldPositionSnapshot position)
@@ -860,6 +865,11 @@ public sealed class FieldNavigationNpcReader
             }
 
             var label = ResolveLabel(definition);
+            if (ranchMemory is not null &&
+                ChocoboRanchPresentation.ReadStableColor(ranchMemory, definition.FieldId, definition.EntityName) is { } color)
+            {
+                label = $"{color} chocobo";
+            }
             if (label.Length == 0)
             {
                 continue;

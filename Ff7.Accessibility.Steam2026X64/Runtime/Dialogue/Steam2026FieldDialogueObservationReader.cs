@@ -227,6 +227,12 @@ public sealed class Steam2026FieldDialogueObservationReader
                 return true;
             }
 
+            var readyWindow = candidate.Windows.FirstOrDefault(window => window.IsSpeechReady);
+            if (readyWindow.IsSpeechReady)
+            {
+                return PublishReadyWindow(candidate, readyWindow, out update);
+            }
+
             if (candidate.Ownership.ActiveMessageCount == 0 ||
                 candidate.Ownership.MessageDataPointer == 0)
             {
@@ -365,6 +371,30 @@ public sealed class Steam2026FieldDialogueObservationReader
                 $"text={Preview(visibleText)}");
             return genericPublished;
         }
+    }
+
+    private bool PublishReadyWindow(
+        DialogueCompleteFrame candidate,
+        FieldVisibleWindowSnapshot window,
+        out RuntimeDomainUpdate<DialoguePageObservation> update)
+    {
+        var nativeChoice = window.ChoicePage;
+        var choices = nativeChoice is null
+            ? Array.Empty<DialogueChoiceObservation>()
+            : nativeChoice.Rows.Select((row, index) =>
+                new DialogueChoiceObservation(index, row, Enabled: true, Selected: index == nativeChoice.SelectedIndex))
+                .ToArray();
+        var text = nativeChoice is not null ? string.Empty
+            : window.SupplementalSpeech is { } supplement ? $"{window.Text} {supplement}" : window.Text;
+        var identity = new DialoguePageIdentity(
+            candidate.Ownership.FieldId, window.WindowId, window.NativeState, window.GuestPointer, text,
+            NativeMessageDialogId: -1, AskDialogId: nativeChoice?.DialogId ?? -1,
+            AskFirstQuestionLine: nativeChoice is null ? -1 : 0,
+            AskLastQuestionLine: nativeChoice is null ? -1 : choices.Length - 1);
+        selectedWindowId = window.WindowId;
+        ReplaceObservedWindows(candidate.Windows);
+        LastDiagnostic = DescribeOwnership(candidate, $"completed native presentation, window={window.WindowId}");
+        return TryPublishPage(window.WindowId, text, choices, identity, out update, isSpeechReady: true);
     }
 
     private bool TryCreateExactMessagePage(
@@ -512,7 +542,8 @@ public sealed class Steam2026FieldDialogueObservationReader
         string visibleText,
         IReadOnlyList<DialogueChoiceObservation> choices,
         DialoguePageIdentity page,
-        out RuntimeDomainUpdate<DialoguePageObservation> update)
+        out RuntimeDomainUpdate<DialoguePageObservation> update,
+        bool isSpeechReady = false)
     {
         update = RuntimeDomainUpdate<DialoguePageObservation>.Unchanged;
         if (windowId is < 0 or >= FieldMessageReader.WindowCount
@@ -534,7 +565,7 @@ public sealed class Steam2026FieldDialogueObservationReader
                 pageRevision: pageRevision,
                 speaker: string.Empty,
                 visibleText: visibleText,
-                choices: choices));
+                choices: choices) { IsSpeechReady = isSpeechReady });
         return true;
     }
 

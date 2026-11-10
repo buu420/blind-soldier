@@ -35,6 +35,7 @@ public sealed record DialoguePageObservation
     public string Speaker { get; }
 
     public string VisibleText { get; }
+    public bool IsSpeechReady { get; init; }
 
     public ImmutableArray<DialogueChoiceObservation> Choices { get; }
 }

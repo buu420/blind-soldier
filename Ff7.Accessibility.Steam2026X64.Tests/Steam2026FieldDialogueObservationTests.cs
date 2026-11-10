@@ -18,6 +18,13 @@ internal static class Steam2026FieldDialogueObservationTests
         unsupportedFingerprint = unsupported;
         ReadsOneOwnedVisibleWindowEquallyFromDirectAndTranslatedMemory();
         ReadsChangedDialogueBesidePersistentTimer();
+        DeliversTheCompletedSendOffPromptImmediately();
+        ReadsTheCompleteDisplayedHojoReport(42);
+        ReadsTheCompleteDisplayedHojoReport(40);
+        ReadsTheRanchSelectorWithoutItsTextMirror(76);
+        ReadsTheRanchSelectorWithoutItsTextMirror(62);
+        ReadsTheRenderedRanchQuantity();
+        DescribesTheVisibleNewbornAndStableColors();
         DeduplicatesPagesAndResetsRevisionOnlyOnExplicitClosure();
         RejectsZeroMultipleBlankAndStaleOwnedWindows();
         RejectsPreviewTableAndLineBufferOnlyCandidates();
@@ -39,6 +46,139 @@ internal static class Steam2026FieldDialogueObservationTests
         PreservesNativeAskOwnershipAcrossTransientReadsAndPointerChurn();
         PublicReaderRequiresExactTranslatedResolver();
         KeepsDialogueReaderOrdinaryResearchOnly();
+    }
+
+    private static void DeliversTheCompletedSendOffPromptImmediately()
+    {
+        var fixture = DialogueObservationFixture.CreateClosed();
+        fixture.Write((uint)FieldPositionReader.AddressFieldId, BitConverter.GetBytes((ushort)382));
+        fixture.OpenWindow(3, "Face left!");
+        fixture.WriteByte(FieldMessageReader.AddressFieldWindowStates + 3, 7);
+        fixture.WriteWindowLifecyclePhase(3, 4);
+        var reader = CreateTranslatedReader(fixture);
+        var gate = new Steam2026FieldDialogueSpeechStabilityGate(TimeSpan.FromMilliseconds(450));
+        var now = new DateTime(2026, 11, 9, 20, 0, 0, DateTimeKind.Utc);
+
+        Equal(true, reader.TryRead(out var growing), "Junon command visible while rendering");
+        Equal(RuntimeDomainUpdateKind.Unchanged,
+            gate.Observe(RuntimeDomainUpdate<DialoguePageObservation>.Present(growing), now).Kind,
+            "Junon does not announce a partially drawn command");
+
+        fixture.WriteWindowLifecyclePhase(3, 6);
+        Equal(true, reader.TryRead(out var ready), "completed native send-off command is visible");
+        var delivered = gate.Observe(RuntimeDomainUpdate<DialoguePageObservation>.Present(ready),
+            now.AddMilliseconds(50));
+        Equal(RuntimeDomainUpdateKind.Present, delivered.Kind,
+            "completed send-off command is announced without the ordinary dialogue delay");
+        Equal("Face left!", delivered.Value!.VisibleText, "the exact visible command is announced");
+        Equal(true, gate.AcknowledgeDelivery(delivered.Value!), "the player heard this window");
+        Equal(RuntimeDomainUpdateKind.Unchanged,
+            gate.Observe(RuntimeDomainUpdate<DialoguePageObservation>.Present(ready),
+                now.AddMilliseconds(70)).Kind,
+            "an unchanged visible command is not repeated");
+    }
+
+    private static void ReadsTheCompleteDisplayedHojoReport(int dialogId)
+    {
+        var fixture = DialogueObservationFixture.CreateClosed();
+        const string report = "Periodic Report to Professor Hojo. ";
+        var longPage = report + string.Concat(Enumerable.Repeat("A line in the native report. ", 16)).TrimEnd();
+        fixture.Write((uint)FieldPositionReader.AddressFieldId, BitConverter.GetBytes((ushort)287));
+        fixture.OpenOwnedMessage(1, 6, dialogId, Encode(longPage));
+        // The report outgrows the bounded mirror.
+        fixture.WriteVisibleBytes(1, Enumerable.Repeat((byte)0x21, 0x100).ToArray());
+        var reader = CreateTranslatedReader(fixture);
+
+        Equal(true, reader.TryRead(out var page), "completed native Hojo report remains readable");
+        Equal(longPage, page.VisibleText, "all the visible report text is available");
+        fixture.WriteWindowLifecyclePhase(1, 4);
+        Equal(false, reader.TryRead(out _), "an incomplete report cannot reveal the entire page");
+        fixture.WriteWindowLifecyclePhase(1, 6);
+        fixture.WriteByte(FieldMessageReader.AddressFieldWindowStates + 1, 5);
+        Equal(false, reader.TryRead(out _), "an unrelated window owner cannot expose the report");
+    }
+
+    private static void ReadsTheRanchSelectorWithoutItsTextMirror(int dialogId)
+    {
+        string[] rows =
+        [
+            "Gysahl Greens =", "Krakka Greens =", "Tantal Greens =", "Pahsana Greens =",
+            "Curiel Greens =", "Mimett Greens =", "Reagan Greens =", "Sylkis Greens =", "Don't feed it"
+        ];
+        var bytes = rows.SelectMany((row, index) => index == rows.Length - 1
+            ? Encode(row)
+            : Encode(row)[..^1].Append((byte)0xE7)).ToArray();
+        var fixture = DialogueObservationFixture.CreateClosed();
+        fixture.Write((uint)FieldPositionReader.AddressFieldId, BitConverter.GetBytes((ushort)345));
+        fixture.OpenOwnedMessage(1, 6, dialogId, bytes);
+        fixture.WriteVisibleBytes(1, Enumerable.Repeat((byte)0x21, 0x100).ToArray());
+        fixture.Write(0x00CFF60C, BitConverter.GetBytes((ushort)5));
+        fixture.Write(0x00CFF60E, BitConverter.GetBytes((ushort)(6 + 16 * 7)));
+        fixture.WriteByte(0x00CBFBE0 + 8 + 7, 5);
+        fixture.Write(0x00CC08A0 + 16 + 2 * 7, BitConverter.GetBytes((ushort)0x1c));
+        fixture.WriteByte(0x00CC14D0 + 0x1c, 3);
+        var reader = CreateTranslatedReader(fixture);
+
+        Equal(true, reader.TryRead(out var page), "rendered greens cursor is available without its mirror");
+        Equal(9, page.Choices.Length, "eight displayed greens and the native decline option");
+        Equal("Sylkis Greens, 3 available", page.Choices.Single(choice => choice.Selected).Text,
+            "the row and number are the ones rendered by the field");
+        fixture.Write(0x00CFF60E, BitConverter.GetBytes((ushort)(6 + 16 * 8)));
+        Equal(true, reader.TryRead(out var moved), "native cursor movement is reflected");
+        Equal("Don't feed it", moved.Choices.Single(choice => choice.Selected).Text, "ninth option");
+        fixture.Write(0x00CFF60C, BitConverter.GetBytes((ushort)0));
+        Equal(false, reader.TryRead(out _), "an unproven cursor cannot supply ranch choices");
+    }
+
+    private static void ReadsTheRenderedRanchQuantity()
+    {
+        var fixture = DialogueObservationFixture.CreateClosed();
+        fixture.Write((uint)FieldPositionReader.AddressFieldId, BitConverter.GetBytes((ushort)345));
+        fixture.OpenWindow(3, "How many?");
+        fixture.WriteByte(FieldMessageReader.AddressFieldWindowStates + 3, 18);
+        fixture.WriteWindowLifecyclePhase(3, 6);
+        fixture.WriteByte(0x00CFF663, 2);
+        fixture.WriteByte(0x00CFF665, 2);
+        fixture.Write(0x00CFF668, BitConverter.GetBytes(3u));
+        var reader = CreateTranslatedReader(fixture);
+
+        Equal(true, reader.TryRead(out var three), "owned WNUMB window is visible");
+        Equal("How many? Quantity 3.", three.VisibleText, "the displayed quantity is read");
+        fixture.Write(0x00CFF668, BitConverter.GetBytes(4u));
+        Equal(true, reader.TryRead(out var four), "the new displayed quantity is read");
+        Equal("How many? Quantity 4.", four.VisibleText, "native number changes without a new MESSAGE");
+        fixture.WriteByte(0x00CFF663, 0);
+        Equal(true, reader.TryRead(out var textOnly), "ordinary window remains visible");
+        Equal("How many?", textOnly.VisibleText, "a nonnumeric window does not retain the last quantity");
+    }
+
+    private static void DescribesTheVisibleNewbornAndStableColors()
+    {
+        var fixture = DialogueObservationFixture.CreateClosed();
+        const string birth = "You got yourself a new Chocobo!";
+        fixture.Write((uint)FieldPositionReader.AddressFieldId, BitConverter.GetBytes((ushort)345));
+        fixture.OpenOwnedMessage(1, 21, 99, Encode(birth));
+        fixture.WriteVisibleText(1, birth);
+        fixture.WriteByte(0x00CC14D0 + 0x3f, 2);
+        fixture.WriteByte(0x00CBFB70 + 13, 11);
+        fixture.WriteByte(FieldPositionReader.AddressFieldNumModels, 12);
+        const int models = 0x00E00000;
+        fixture.Write(0x00CC0B60, BitConverter.GetBytes(models));
+        fixture.WriteByte(models + 11 * 0x88 + 0x62, 1);
+        var reader = CreateTranslatedReader(fixture);
+        Equal(true, reader.TryRead(out var hatch), "visible newborn and birth announcement agree");
+        Equal(birth + " The newborn is a blue chocobo.", hatch.VisibleText, "the palette displayed for the newborn");
+        fixture.WriteByte(models + 11 * 0x88 + 0x62, 0);
+        Equal(true, reader.TryRead(out var hidden), "the message can exist by itself");
+        Equal(birth, hidden.VisibleText, "a hidden model does not disclose a newborn color");
+        fixture.WriteByte(0x00DC0ADC + 0x2f, 1);
+        fixture.WriteByte(0x00DC0CDC + 0xff, 4);
+        Equal("Green", ChocoboRanchPresentation.ReadStableColor(fixture.Direct, 345, "choko1"), "bank B stable color");
+        Equal("Gold", ChocoboRanchPresentation.ReadStableColor(fixture.Direct, 345, "choko6"), "bank F stable color");
+        Equal<string?>(null, ChocoboRanchPresentation.ReadStableColor(fixture.Direct, 343, "choko1"),
+            "the same name in another field does not use the ranch save");
+        Equal<string?>(null, ChocoboRanchPresentation.ReadStableColor(fixture.Direct, 345, "choko2"),
+            "an unreadable color cannot become a yellow bird");
     }
 
     private static void ReadsExactNativeAskPromptAndChoices()
@@ -1194,6 +1334,24 @@ internal sealed class DialogueObservationFixture
             BitConverter.GetBytes(MessageDataPointer + 0x20u + ((uint)windowId * 0x20u)));
         WriteVisibleText(windowId, text);
         WriteByte(FieldAudibleCueStateReader.AddressActiveFieldMessageCount, 1);
+    }
+
+    public void OpenOwnedMessage(int windowId, byte owner, int dialogId, IReadOnlyList<byte> bytes)
+    {
+        const ushort offset = 0x100;
+        OpenWindow(windowId, string.Empty);
+        Write(MessageDataPointer, BitConverter.GetBytes((ushort)(dialogId + 1)));
+        Write(MessageDataPointer + 2 + (uint)(2 * dialogId), BitConverter.GetBytes(offset));
+        var page = new byte[0x1000 - offset];
+        for (var i = 0; i < bytes.Count; i++)
+        {
+            page[i] = bytes[i];
+        }
+        Write(MessageDataPointer + offset, page);
+        Write((uint)(FieldMessageReader.AddressFieldWindowMessagePointers + 4 * windowId),
+            BitConverter.GetBytes(MessageDataPointer + offset + 1));
+        WriteByte(FieldMessageReader.AddressFieldWindowStates + windowId, owner);
+        WriteWindowLifecyclePhase(windowId, 6);
     }
 
     public void CloseAll()

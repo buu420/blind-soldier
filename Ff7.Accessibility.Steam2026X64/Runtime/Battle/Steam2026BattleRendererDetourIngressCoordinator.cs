@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Runtime.InteropServices;
 using Ff7.Accessibility.Reloaded;
 using Ff7.Accessibility.Steam2026X64.Runtime;
@@ -49,7 +50,8 @@ internal readonly record struct Steam2026BattleRendererIngressSnapshot(
     TifaSlotResultSnapshot TifaSlotsBefore = default,
     TifaSlotResultSnapshot TifaSlotsAfter = default,
     TifaSlotCommittedResultSnapshot TifaSlotsCommittedAfter = default,
-    BattleVisibleResultSnapshot CapturedResult = default)
+    BattleVisibleResultSnapshot CapturedResult = default,
+    ImmutableArray<MenuTextRenderEntry> ResultsDraws = default)
 {
     internal Steam2026BattleRendererIngressSnapshot(
         long sequence,
@@ -91,6 +93,7 @@ internal sealed class Steam2026BattleRendererDetourIngressCoordinator : IDisposa
     private readonly Func<DateTime> clock;
     private readonly ISequencedNativeIngressQueue<Steam2026BattleRendererIngressSnapshot>
         captureQueue;
+    private readonly Steam2026BattleResultsTextFrame? resultsTextFrame;
     private readonly Dictionary<
         Steam2026BattleRendererCallbackKind,
         Steam2026BattleRendererCallbackIdentity> identities;
@@ -133,7 +136,8 @@ internal sealed class Steam2026BattleRendererDetourIngressCoordinator : IDisposa
         TranslatedBattleDamageDisplayCallbackOriginal damageOriginal,
         TranslatedBattleActionTextCommitCallbackOriginal actionTextCommitOriginal,
         Func<DateTime> clock,
-        ISequencedNativeIngressQueue<Steam2026BattleRendererIngressSnapshot> captureQueue)
+        ISequencedNativeIngressQueue<Steam2026BattleRendererIngressSnapshot> captureQueue,
+        Steam2026BattleResultsTextFrame? resultsTextFrame = null)
     {
         this.contract = contract ?? throw new ArgumentNullException(nameof(contract));
         ArgumentNullException.ThrowIfNull(rendererOriginal);
@@ -150,6 +154,7 @@ internal sealed class Steam2026BattleRendererDetourIngressCoordinator : IDisposa
         this.actionTextCommitOriginal = actionTextCommitOriginal.Invoke;
         this.clock = clock ?? throw new ArgumentNullException(nameof(clock));
         this.captureQueue = captureQueue ?? throw new ArgumentNullException(nameof(captureQueue));
+        this.resultsTextFrame = resultsTextFrame;
         identities = ValidateInitialIdentities(contract);
     }
 
@@ -246,6 +251,7 @@ internal sealed class Steam2026BattleRendererDetourIngressCoordinator : IDisposa
         var tifaWindowAfter = byte.MaxValue;
         var captureTifaWindow = false;
         var timestampUtc = default(DateTime);
+        var resultsTextOpen = false;
         try
         {
             canPublish = ownsObservation
@@ -280,6 +286,11 @@ internal sealed class Steam2026BattleRendererDetourIngressCoordinator : IDisposa
                 _ = contract.TryCaptureResults(
                     identities[kind],
                     out resultsBefore);
+                if (resultsTextFrame is not null)
+                {
+                    resultsTextFrame.Open();
+                    resultsTextOpen = true;
+                }
             }
 
             if (canPublish
@@ -301,6 +312,9 @@ internal sealed class Steam2026BattleRendererDetourIngressCoordinator : IDisposa
         }
 
         var originalSucceeded = InvokeOriginal(original);
+        var resultsDraws = resultsTextOpen
+            ? CloseResultsTextFrame()
+            : default;
         try
         {
             if (canPublish
@@ -383,7 +397,8 @@ internal sealed class Steam2026BattleRendererDetourIngressCoordinator : IDisposa
                 tifaSlotsBefore,
                 tifaSlotsAfter,
                 tifaSlotsCommittedAfter,
-                capturedResult);
+                capturedResult,
+                resultsDraws);
             if (!IsObservationCurrent(kind, entryEpoch)
                 || !observationGate.TryCommit())
             {
@@ -509,6 +524,18 @@ internal sealed class Steam2026BattleRendererDetourIngressCoordinator : IDisposa
         catch
         {
             return false;
+        }
+    }
+
+    private ImmutableArray<MenuTextRenderEntry> CloseResultsTextFrame()
+    {
+        try
+        {
+            return resultsTextFrame!.Close();
+        }
+        catch
+        {
+            return default;
         }
     }
 

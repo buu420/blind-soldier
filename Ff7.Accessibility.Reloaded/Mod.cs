@@ -1548,7 +1548,8 @@ public sealed class Mod : IModV1, IModV2
             fieldScriptLineStateReader.IsEnabled,
             useVerifiedFallback: fieldId => !Sector7NavigationLayout.IsField(fieldId) &&
                 fieldScriptNavigationCatalog?.ReadField(fieldId).IsUsable == true,
-            definitionRemapper: definition => fieldScriptNavigationCatalog?.RemapNpcDefinition(definition));
+            definitionRemapper: definition => fieldScriptNavigationCatalog?.RemapNpcDefinition(definition),
+            ranchMemory: legacyAddressSpace);
         var fieldScriptNavigationTransitionTracker = new FieldScriptNavigationTransitionTracker();
         var fieldControlledEntityReader = new FieldControlledEntityReader(legacyAddressSpace);
         var fieldStoryEvents = FieldStoryEventCatalog.CreateAllFields();
@@ -2653,6 +2654,16 @@ public sealed class Mod : IModV1, IModV2
                 out var lines))
         {
             return;
+        }
+
+        if (hookEvent.FieldId == ChocoboRanchPresentation.FieldId &&
+            hookEvent.DialogId is 62 or 71 or 76 or 86 &&
+            fieldMessageReader?.TryReadVisibleWindows(out var ranchWindows) == true &&
+            ranchWindows.FirstOrDefault(window => window.WindowId == hookEvent.WindowId).ChoicePage is { } ranchChoice &&
+            ranchChoice.DialogId == hookEvent.DialogId &&
+            ranchChoice.SelectedIndex == hookEvent.CurrentQuestionLine)
+        {
+            lines = ranchChoice.Rows;
         }
 
         fieldAskChoiceSpeechTracker.Observe(new FieldAskChoiceObservation(
@@ -4646,9 +4657,14 @@ public sealed class Mod : IModV1, IModV2
                 ReadByte(FieldAudibleCueStateReader.AddressActiveFieldMessageCount),
                 fieldMessageReader?.HasReadableActiveWindow() == true));
 
-        if (ReadByte(FieldScriptContextReader.AddressCurrentModule) != FieldPositionReader.FieldModule)
+        var module = ReadByte(FieldScriptContextReader.AddressCurrentModule);
+        if (module != FieldPositionReader.FieldModule)
         {
-            ResetFieldCutsceneDescriptionState(resetCompatibilityState: true);
+            var request = ReadByte(FieldAudibleCueStateReader.AddressFieldMovieCommand);
+            CutsceneVoiceTransition.LeaveFieldModule(cutsceneVoicePlayer, module, request);
+            ResetFieldCutsceneDescriptionState(
+                resetCompatibilityState: true,
+                preserveTransition: CutsceneVoiceTransition.IsScriptedNameEntry(module, request));
             return;
         }
 
@@ -4821,8 +4837,14 @@ public sealed class Mod : IModV1, IModV2
     private static bool IsPlausibleGuestPointer(uint pointer) =>
         pointer >= 0x00010000u && pointer <= 0x7FFF0000u;
 
-    private void ResetFieldCutsceneDescriptionState(bool resetCompatibilityState = false)
+    private void ResetFieldCutsceneDescriptionState(
+        bool resetCompatibilityState = false, bool preserveTransition = false)
     {
+        if (!preserveTransition)
+        {
+            cutsceneVoicePlayer?.StopIfOwnedBy(
+                CutsceneVoiceOwner.SceneTransition, "the field description state was reset");
+        }
         creatureDescriptions?.Reset();
         creatureWarningSpeech?.Reset();
         cutsceneVoicePlayer?.StopIfOwnedBy(CutsceneVoiceOwner.FieldCreature,"the field description state was reset");
@@ -5085,7 +5107,16 @@ public sealed class Mod : IModV1, IModV2
                 .Where(window =>
                     !fieldCountdownSpeechCoordinator.ShouldSuppressWindow(window) &&
                     !shinraMansionSafeDialReadout.OwnsWindow(window.WindowId))
+                .Select(window => window.SupplementalSpeech is { } supplement
+                    ? window with { Text = supplement }
+                    : window)
                 .ToArray();
+            if (activeMessageCount == 0 && ordinaryVisibleWindows.Any(window => window.IsSpeechReady))
+            {
+                // A verified completed window is present even if the aggregate count lags.
+                activeMessageCount = 1;
+            }
+
             var openingMovieBlocked = DeferredZoneSpeechTracker.ShouldBlockForOpeningMovie(
                 fieldId,
                 openingMovieDetected,
@@ -5181,8 +5212,8 @@ public sealed class Mod : IModV1, IModV2
                 ordinaryVisibleWindows,
                 activeMessageCount,
                 now,
-                window =>
-                    FieldWindowPollingOwnership.IsSuppressed(
+                window => window.SupplementalSpeech is null &&
+                    (FieldWindowPollingOwnership.IsSuppressed(
                         window,
                         askIdentity,
                         nativeFieldMessageOwnershipTracker,
@@ -5194,7 +5225,7 @@ public sealed class Mod : IModV1, IModV2
                         window.WindowId,
                         voiceTimestamp,
                         ffnxPlayVoiceHook is not null,
-                        askIdentity is not null),
+                        askIdentity is not null)),
                 askIdentity,
                 nativeFieldMessageOwnershipTracker.WasSpeechDelivered(
                     askIdentity,
@@ -9232,6 +9263,11 @@ public sealed class Mod : IModV1, IModV2
             return;
         }
 
+        if (state.IsActive && ShouldDeferNameEntrySpeech())
+        {
+            return;
+        }
+
         var nativeSlotSpeech = nameEntryNativeNameTracker.Observe(
             state.IsActive,
             state.Focus,
@@ -9254,6 +9290,13 @@ public sealed class Mod : IModV1, IModV2
         Speak(speech);
     }
 
+    private bool ShouldDeferNameEntrySpeech() =>
+        cutsceneVoicePlayer?.IsContinuingAcrossTransition == true &&
+        CutsceneVoiceTransition.IsScriptedNameEntry(
+            ReadByte(FieldScriptContextReader.AddressCurrentModule),
+            ReadByte(FieldAudibleCueStateReader.AddressFieldMovieCommand)) &&
+        fieldCutsceneSpeechPriority.ShouldDeferDialogueDelivery(DateTime.UtcNow);
+
     private void TickRenderedMenuTextSpeech()
     {
         if (!config.EnableRenderedMenuTextSpeech)
@@ -9264,6 +9307,11 @@ public sealed class Mod : IModV1, IModV2
         if (saveMenuSpeechTracker.IsActive)
         {
             renderedMenuTextSpeechTracker.DiscardPending();
+            return;
+        }
+
+        if (ShouldDeferNameEntrySpeech())
+        {
             return;
         }
 
@@ -13932,12 +13980,12 @@ internal sealed class FieldVisibleWindowSpeechCoordinator
             {
                 pendingText = text;
                 pendingSince = now;
-                return WindowReadiness.Waiting;
+                return window.IsSpeechReady ? WindowReadiness.Ready : WindowReadiness.Waiting;
             }
 
-            return now - pendingSince < stableWindow
-                ? WindowReadiness.Waiting
-                : WindowReadiness.Ready;
+            return window.IsSpeechReady || now - pendingSince >= stableWindow
+                ? WindowReadiness.Ready
+                : WindowReadiness.Waiting;
         }
 
         public void MarkDispatched(string text)
