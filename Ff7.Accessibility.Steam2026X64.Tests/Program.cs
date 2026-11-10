@@ -492,6 +492,7 @@ if (args.Contains("--module-tests-only", StringComparer.OrdinalIgnoreCase))
     GoldSaucerFollowupTests.Run();
     NorthCorelNpcTests.Run();
     Steam2026TranslatedMenuIngressTests.RunPortable();
+    Ff7.Accessibility.Reloaded.Tests.BattleResultsNotificationTests.Run();
     CondorBattleInitializationTests.Run();
     CondorPlacementLineReadoutTests.Run();
     CondorCursorSteeringTests.Run();
