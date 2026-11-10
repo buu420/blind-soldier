@@ -42,7 +42,8 @@ public static class TownInteractionObjectCatalog
         Line(243, 18, "Scientific Research Library sign", "blin62_2", "PLINED", 90, -124, 0),
         Line(244, 16, "Public Order and Weapon Development Library sign", "blin62_3", "PLINEC", -94, 979, 0),
         Line(244, 18, "Space Development Research Library sign", "blin62_3", "PLINED", 97, 979, 0),
-        Line(287, 6, "Letter on Tifa's desk", "niv_ti2", "tukue", -303, 171, 0),
+        Line(287, 6, "Letter on Tifa's desk", "niv_ti2", "tukue", -303, 171, 0) with
+        { ActivatesOnOk = true },
         Line(336, 4, "Door", "elmin2_1", "door", 104, 172, 10) with { RequiredBank = 5, RequiredAddress = 7, RequiredMask = 255 },
         Line(337, 5, "Locked chest", "elmin2_2", "box", -47, 119, 0),
         Line(492, 13, "Turtle's Paradise flyer", "ghotin_1", "TIRASI", -514, 478, 0),

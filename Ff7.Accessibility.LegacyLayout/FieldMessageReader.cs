@@ -59,7 +59,7 @@ public sealed class FieldMessageReader
         }
 
         var visible = new List<FieldVisibleWindowSnapshot>(WindowCount);
-        var firstReads = new (bool IsValid, byte[] Bytes, string Text)[WindowCount];
+        var firstReads = new VisibleWindowContent[WindowCount];
         for (var index = 0; index < WindowCount; index++)
         {
             if (before.States[index] == FreeWindowState)
@@ -67,22 +67,20 @@ public sealed class FieldMessageReader
                 continue;
             }
 
-            var bufferAddress = (uint)(AddressFieldWindowTextBuffers + index * WindowTextBufferStride);
-            if (!LegacyFf7TextReader.TryReadTerminated(
-                    addressSpace,
-                    bufferAddress,
-                    FieldTextBufferLength,
-                    out var bytes,
-                    out var text))
+            if (!TryReadWindowContent(before, index, out var content))
             {
                 return false;
             }
 
-            var isValid = text.Length != 0;
-            firstReads[index] = (isValid, bytes, text);
-            if (isValid)
+            firstReads[index] = content;
+            if (content.Text.Length != 0)
             {
-                visible.Add(new FieldVisibleWindowSnapshot(index, before.States[index], text, before.Pointers[index]));
+                visible.Add(new FieldVisibleWindowSnapshot(index, before.States[index], content.Text, before.Pointers[index])
+                {
+                    IsSpeechReady = content.IsSpeechReady,
+                    SupplementalSpeech = content.SupplementalSpeech,
+                    ChoicePage = content.ChoicePage
+                });
             }
         }
 
@@ -93,26 +91,9 @@ public sealed class FieldMessageReader
 
         for (var index = 0; index < WindowCount; index++)
         {
-            if (before.States[index] == FreeWindowState)
-            {
-                continue;
-            }
-
-            var bufferAddress = (uint)(AddressFieldWindowTextBuffers + index * WindowTextBufferStride);
-            if (!LegacyFf7TextReader.TryReadTerminated(
-                    addressSpace,
-                    bufferAddress,
-                    FieldTextBufferLength,
-                    out var bytes,
-                    out var text))
-            {
-                return false;
-            }
-
-            var isValid = text.Length != 0;
-            var first = firstReads[index];
-            if (isValid != first.IsValid ||
-                isValid && (!bytes.AsSpan().SequenceEqual(first.Bytes) || text != first.Text))
+            if (before.States[index] != FreeWindowState &&
+                (!TryReadWindowContent(before, index, out var content) ||
+                 !firstReads[index].Matches(content)))
             {
                 return false;
             }
@@ -125,6 +106,147 @@ public sealed class FieldMessageReader
 
         windows = new ReadOnlyCollection<FieldVisibleWindowSnapshot>(visible);
         return true;
+    }
+
+    private bool TryReadWindowContent(CheckedFrame frame, int window, out VisibleWindowContent content)
+    {
+        // CompletedTextPhase is set by the engine after it has drawn the whole page.
+        // The special presentations below are tied to the native owner and window.
+        var owner = frame.States[window];
+        var isJunonCommand = frame.FieldId == 382 && window == 3 && owner == 7;
+        var isDesk = frame.FieldId == 287 && window == 1 && owner == 6;
+        var isRanch = frame.FieldId == ChocoboRanchPresentation.FieldId;
+        var complete = (isJunonCommand || isDesk || isRanch) &&
+            addressSpace!.TryReadUInt16(
+                FieldAudibleCueOwnershipStateReader.AddressFieldWindowLifecyclePhases +
+                (uint)window * FieldAudibleCueOwnershipStateReader.FieldWindowLifecycleStride,
+                out var phase) &&
+            phase == FieldAudibleCueOwnershipStateReader.CompletedTextPhase;
+
+        if (complete && isDesk &&
+            (TryReadDisplayedDialog(frame, window, 42, out var reportBytes, out var report) ||
+             TryReadDisplayedDialog(frame, window, 40, out reportBytes, out report)) &&
+            report.Length > FieldTextBufferLength)
+        {
+            // The native report is one visible page, longer than the 256-byte mirror.
+            content = new VisibleWindowContent(reportBytes, report, IsSpeechReady: true);
+            return true;
+        }
+
+        if (complete && isRanch && window == 1 &&
+            TryReadRanchChoice(frame, window, owner, out content))
+        {
+            return true;
+        }
+
+        var bufferAddress = (uint)(AddressFieldWindowTextBuffers + window * WindowTextBufferStride);
+        if (!LegacyFf7TextReader.TryReadTerminated(
+                addressSpace!, bufferAddress, FieldTextBufferLength, out var bytes, out var text))
+        {
+            content = default;
+            return false;
+        }
+
+        string? supplement = null;
+        if (complete && isRanch && text.Length != 0)
+        {
+            if (window == 3 && owner == 18 &&
+                ChocoboRanchPresentation.TryReadFeedingQuantity(addressSpace!, out var amount))
+            {
+                supplement = $"Quantity {amount}.";
+            }
+            else if (window == 1 && owner == 21 &&
+                (TryReadDisplayedDialog(frame, window, 99, out _, out _) ||
+                 TryReadDisplayedDialog(frame, window, 83, out _, out _)) &&
+                ChocoboRanchPresentation.ReadVisibleNewbornColor(addressSpace!) is { } color)
+            {
+                supplement = $"The newborn is a {color.ToLowerInvariant()} chocobo.";
+            }
+        }
+
+        content = new VisibleWindowContent(bytes, text, complete && (isJunonCommand || supplement is not null),
+            supplement);
+        return true;
+    }
+
+    private bool TryReadRanchChoice(CheckedFrame frame, int window, byte owner, out VisibleWindowContent content)
+    {
+        content = default;
+        // Echo-S keeps the same owners and window but uses different message IDs.
+        var (stock, echo) = owner switch
+        {
+            6 => (76, 62),  // Feeding greens, sono2.
+            21 => (86, 71), // Breeding nuts, ray.
+            _ => (-1, -1)
+        };
+        if (stock < 0 || !ChocoboRanchPresentation.TryReadFeedOrNutCursor(addressSpace!, out var selected))
+        {
+            return false;
+        }
+
+        var dialog = stock;
+        if (!TryReadDisplayedDialog(frame, window, dialog, out var bytes, out var text))
+        {
+            dialog = echo;
+            if (!TryReadDisplayedDialog(frame, window, dialog, out bytes, out text))
+            {
+                return false;
+            }
+        }
+
+        var pages = Ff7EncodedTextDecoder.DecodePages(bytes);
+        if (pages.Count != 1 || pages[0].Lines.Count != ChocoboRanchPresentation.FeedOrNutChoiceCount)
+        {
+            return false;
+        }
+
+        var rows = pages[0].Lines.Select(line => line.Text).ToArray();
+        if (rows.Any(string.IsNullOrWhiteSpace))
+        {
+            return false;
+        }
+
+        for (var row = 0; row < rows.Length - 1; row++)
+        {
+            // These eight rows display MPARA values. Read the variable actually
+            // bound to this native window rather than querying the inventory.
+            var name = rows[row].TrimEnd(' ', '=');
+            rows[row] = ChocoboRanchPresentation.TryReadChoiceCount(addressSpace!, row, out var count)
+                ? $"{name}, {count} available"
+                : name;
+        }
+
+        content = new VisibleWindowContent(bytes, text, IsSpeechReady: true,
+            ChoicePage: new FieldVisibleChoicePage(dialog, selected, Array.AsReadOnly(rows)));
+        return true;
+    }
+
+    private bool TryReadDisplayedDialog(CheckedFrame frame, int window, int dialog,
+        out byte[] bytes, out string text)
+    {
+        bytes = [];
+        text = string.Empty;
+        if (!TryReadMessageTableEntry(frame.MessageDataPointer, dialog, out _, out var offset, out var start) ||
+            frame.Pointers[window] < start ||
+            !LegacyFf7TextReader.TryReadTerminated(addressSpace!, start,
+                Math.Min(FieldMessageDataRange - offset, 2048), out bytes, out text) ||
+            frame.Pointers[window] - start >= bytes.Length)
+        {
+            return false;
+        }
+
+        return text.Length != 0 && Ff7EncodedTextDecoder.DecodePages(bytes).Count == 1;
+    }
+
+    private readonly record struct VisibleWindowContent(
+        byte[] Bytes, string Text, bool IsSpeechReady,
+        string? SupplementalSpeech = null, FieldVisibleChoicePage? ChoicePage = null)
+    {
+        internal bool Matches(VisibleWindowContent other) =>
+            Text == other.Text && IsSpeechReady == other.IsSpeechReady &&
+            SupplementalSpeech == other.SupplementalSpeech &&
+            (Text.Length == 0 || Bytes.AsSpan().SequenceEqual(other.Bytes)) &&
+            (ChoicePage is null ? other.ChoicePage is null : ChoicePage.Equals(other.ChoicePage));
     }
 
     public bool HasReadableActiveWindow()
@@ -600,7 +722,31 @@ public sealed class FieldMessageReader
     }
 }
 
-public readonly record struct FieldVisibleWindowSnapshot(int WindowId, byte NativeState, string Text, uint GuestPointer);
+public readonly record struct FieldVisibleWindowSnapshot(int WindowId, byte NativeState, string Text, uint GuestPointer)
+{
+    public bool IsSpeechReady { get; init; }
+    public string? SupplementalSpeech { get; init; }
+    public FieldVisibleChoicePage? ChoicePage { get; init; }
+}
+
+public sealed record FieldVisibleChoicePage(int DialogId, int SelectedIndex, IReadOnlyList<string> Rows)
+{
+    public bool Equals(FieldVisibleChoicePage? other) =>
+        other is not null && DialogId == other.DialogId &&
+        SelectedIndex == other.SelectedIndex && Rows.SequenceEqual(other.Rows);
+
+    public override int GetHashCode()
+    {
+        var hash = new HashCode();
+        hash.Add(DialogId);
+        hash.Add(SelectedIndex);
+        foreach (var row in Rows)
+        {
+            hash.Add(row);
+        }
+        return hash.ToHashCode();
+    }
+}
 
 public sealed class FieldMessageDiagnostics
 {

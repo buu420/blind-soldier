@@ -298,7 +298,8 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             fieldNavigationObjects.Select(definition => (definition.FieldId, definition.EntityId)),
             lineStateReader.IsEnabled,
             useVerifiedFallback: fieldId => !Sector7NavigationLayout.IsField(fieldId) && scriptCatalog.ReadField(fieldId).IsUsable,
-            definitionRemapper: scriptCatalog.RemapNpcDefinition);
+            definitionRemapper: scriptCatalog.RemapNpcDefinition,
+            ranchMemory: addressSpace);
         npcObservationReader = new Steam2026FieldNpcObservationReader(
             positionReader.ReadNavigation,
             npcReader.ReadTargets,

@@ -14,6 +14,8 @@ public static class TownInteractionCoverageTests
             Check(FieldNavigationObjectCatalog.CreateAllFields().Any(d => d.FieldId == field && d.EntityId == entity),
                 $"missing optional action {field}/{entity}");
 
+        var desk = TownInteractionObjectCatalog.Create().Single(d => d.FieldId == 287 && d.EntityId == 6);
+        Check(desk.ActivatesOnOk, "Tifa's desk uses the native OK line and facing checks");
         var memory = new Memory();
         var video = TownInteractionObjectCatalog.Create().Single(d => d.FieldId == 657 && d.EntityId == 18);
         Check(memory.Reader(video).ReadTargets(memory.Position(657)).Single().Label == "Video player",

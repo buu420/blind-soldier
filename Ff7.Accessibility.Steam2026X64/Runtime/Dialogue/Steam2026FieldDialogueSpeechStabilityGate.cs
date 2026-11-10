@@ -66,7 +66,10 @@ internal sealed class Steam2026FieldDialogueSpeechStabilityGate
         if (activeCandidate is null || !SamePage(activeCandidate.SourcePage, page))
         {
             activeCandidate = new PendingCandidate(page, nowUtc, sourceGeneration);
-            return NextDeliveryOr(RuntimeDomainUpdateKind.Unchanged);
+            if (!page.IsSpeechReady)
+            {
+                return NextDeliveryOr(RuntimeDomainUpdateKind.Unchanged);
+            }
         }
 
         if (!activeCandidate.IsStable && nowUtc < activeCandidate.SinceUtc)
@@ -75,7 +78,7 @@ internal sealed class Steam2026FieldDialogueSpeechStabilityGate
             return NextDeliveryOr(RuntimeDomainUpdateKind.Unchanged);
         }
 
-        if (!activeCandidate.IsStable && nowUtc - activeCandidate.SinceUtc >= stableWindow)
+        if (!activeCandidate.IsStable && (page.IsSpeechReady || nowUtc - activeCandidate.SinceUtc >= stableWindow))
         {
             activeCandidate.IsStable = true;
             activeCandidate.Page = CreateDeliveryPage(activeCandidate);
