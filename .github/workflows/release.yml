@@ -9,7 +9,7 @@ on:
       version:
         description: Version used for a verification-only package build
         required: true
-        default: "0.10.13"
+        default: "0.10.14"
 
 permissions:
   contents: write

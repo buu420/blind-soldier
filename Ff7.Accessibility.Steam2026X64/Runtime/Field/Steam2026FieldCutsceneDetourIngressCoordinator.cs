@@ -39,6 +39,7 @@ internal sealed class Steam2026FieldCutsceneDetourIngressCoordinator : IDisposab
     private readonly INativeIngressQueue<Steam2026FieldCutsceneIngressSnapshot> captureQueue;
     private readonly NativeIngressObservationGate observationGate = new();
     private readonly Steam2026FieldCutsceneCallbackIdentity callbackIdentity;
+    private readonly AncientForestPlantTiming? plantTiming;
     private long nextSequence;
     private long observationEpoch;
     private int stopped;
@@ -49,13 +50,15 @@ internal sealed class Steam2026FieldCutsceneDetourIngressCoordinator : IDisposab
         Steam2026FieldCutsceneCallbackKind callbackKind,
         TranslatedFieldCutsceneCallbackOriginal original,
         Func<DateTime> clock,
-        INativeIngressQueue<Steam2026FieldCutsceneIngressSnapshot> captureQueue)
+        INativeIngressQueue<Steam2026FieldCutsceneIngressSnapshot> captureQueue,
+        AncientForestPlantTiming? plantTiming = null)
     {
         this.contract = contract ?? throw new ArgumentNullException(nameof(contract));
         this.original = original ?? throw new ArgumentNullException(nameof(original));
         this.clock = clock ?? throw new ArgumentNullException(nameof(clock));
         this.captureQueue = captureQueue ?? throw new ArgumentNullException(nameof(captureQueue));
         callbackIdentity = ValidateInitialIdentity(contract, callbackKind);
+        this.plantTiming = plantTiming;
     }
 
     /// <summary>
@@ -64,7 +67,7 @@ internal sealed class Steam2026FieldCutsceneDetourIngressCoordinator : IDisposab
     /// </summary>
     internal bool IsFatallyDegraded => Volatile.Read(ref fatalIngressFailure) != 0;
 
-    internal void OnCallback()
+    internal void OnCallback(bool captureDescriptions = true)
     {
         var entryEpoch = Volatile.Read(ref observationEpoch);
         var ownsObservation = observationGate.TryEnter();
@@ -72,11 +75,14 @@ internal sealed class Steam2026FieldCutsceneDetourIngressCoordinator : IDisposab
         {
             var context = default(FieldScriptContext);
             var movieSample = default(FieldMovieNarrationSample);
-            var canPublish = ownsObservation
-                             && Volatile.Read(ref stopped) == 0
-                             && !IsFatallyDegraded
-                             && IsCurrentIdentity()
-                             && TryCaptureContext(out context);
+            var observed = ownsObservation
+                           && Volatile.Read(ref stopped) == 0
+                           && !IsFatallyDegraded
+                           && (captureDescriptions || plantTiming is not null)
+                           && IsCurrentIdentity()
+                           && TryCaptureContext(out context);
+            var closing = observed ? plantTiming?.CaptureStart(context) : null;
+            var canPublish = observed && captureDescriptions;
 
             // Both of these are destroyed by the original and cannot be recovered
             // afterwards: the MOVIE handler mutates its own state on this call, and
@@ -90,6 +96,8 @@ internal sealed class Steam2026FieldCutsceneDetourIngressCoordinator : IDisposab
                                  && TryCaptureMovieSample(context.FieldId, out movieSample);
 
             InvokeOriginal();
+            if (closing is { } wait && IsObservationCurrent(entryEpoch))
+                plantTiming?.Extend(wait);
 
             if (!canPublish
                 || !capturedTimestamp

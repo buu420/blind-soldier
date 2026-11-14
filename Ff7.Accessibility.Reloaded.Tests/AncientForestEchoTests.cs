@@ -16,11 +16,14 @@ internal static class AncientForestEchoTests
             "Supershot ST keeps its native Talk approach available outside the jaws");
         var root = Environment.GetEnvironmentVariable("FF7_ACCESSIBILITY_DATA_ROOT");
         if (string.IsNullOrWhiteSpace(root)) return;
+        var timingMemory = new ScriptMemory();
+        AssertPlantWaits(root, timingMemory, echo: false);
         var echoes = (Environment.GetEnvironmentVariable("FF7_ACCESSIBILITY_ECHO_S_DATA_ROOTS") ?? "")
             .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         foreach (var echo in echoes)
         {
             var memory = new ScriptMemory();
+            AssertPlantWaits(echo, timingMemory, echo: true);
             var loaded = new FieldScriptNavigationCatalog(root, Ff7GameLanguageDetector.Detect(root), new(memory));
             foreach (var field in new[] { 620, 622, 623 })
             {
@@ -52,14 +55,52 @@ internal static class AncientForestEchoTests
             }
         }
         Console.WriteLine($"Ancient Forest Echo-S map, bite exclusions and native controls passed on {echoes.Length} layouts.");
+        Console.WriteLine($"Ancient Forest plant timing passed on installed data and {echoes.Length} Echo-S layouts.");
+    }
+
+    private static void AssertPlantWaits(string root, ScriptMemory memory, bool echo)
+    {
+        var timing = new AncientForestPlantTiming(memory, memory);
+        foreach (var field in new[] { 620, 622, 623 })
+        {
+            memory.Load(root, field);
+            var first = field switch { 620 => echo ? 10 : 11, 622 => 17, _ => 11 };
+            var count = field == 623 ? 4 : 3;
+            for (var entity = first; entity < first + count; entity++)
+            {
+                var context = memory.SetPlantWait(field, entity);
+                memory.SetWaitCounter(entity, 300);
+                Check(timing.CaptureStart(context) is null, $"field {field}, entity {entity}: running countdown extended again");
+                memory.SetWaitCounter(entity, 0);
+                memory.SetWaitCounter(entity ^ 1, 17);
+                Check(timing.CaptureStart(context with { ByteIndex = 13 }) is null, $"field {field}: unrelated wait accepted");
+                foreach (var (native, extended) in new (ushort, ushort)[] { (300, 696), (600, 1392) })
+                {
+                    memory.SetWaitCounter(entity, 0);
+                    memory.SetCurrentEntity(entity);
+                    var start = timing.CaptureStart(context) ??
+                        throw new InvalidOperationException($"field {field}, entity {entity}: initial plant wait missing");
+                    memory.SetWaitCounter(entity, native); // The native or FFNx WAIT's first invocation.
+                    Check(timing.Extend(start) && memory.WaitCounter(entity) == extended && memory.WaitCounter(entity ^ 1) == 17,
+                        $"field {field}, entity {entity}: wrong extended wait at native counter {native}");
+                    Check(!timing.Extend(start), $"field {field}, entity {entity}: same start applied twice");
+
+                    memory.SetWaitCounter(entity, native);
+                    memory.SetCurrentEntity(entity ^ 1);
+                    Check(!timing.Extend(start) && memory.WaitCounter(entity) == native, $"field {field}: cursor lifetime check failed");
+                }
+            }
+        }
     }
 
     private static void Check(bool condition, string message)
     { if (!condition) throw new InvalidOperationException(message); }
 
-    private sealed class ScriptMemory : ILegacyAddressSpace
+    private sealed class ScriptMemory : ILegacyAddressSpace, ILegacyMemoryWriter
     {
         private const uint Script = 0x02000000;
+        private const uint WaitCounters = Floor60GuardTimingStateReader.AddressEntityWaitCounters;
+        private readonly byte[] counters = new byte[128], cursors = new byte[128], currentEntity = new byte[1];
         private byte[] section = [];
         private readonly byte[] fieldWord = new byte[2], pointer = new byte[4];
         private readonly byte[] module = [FieldPositionReader.FieldModule];
@@ -74,10 +115,42 @@ internal static class AncientForestEchoTests
             BinaryPrimitives.WriteUInt16LittleEndian(fieldWord, (ushort)field);
             BinaryPrimitives.WriteUInt32LittleEndian(pointer, Script);
         }
+
+        internal FieldScriptContext SetPlantWait(int field, int entity)
+        {
+            SetCurrentEntity(entity);
+            var offsetTable = (BinaryPrimitives.ReadUInt16LittleEndian(section.AsSpan(6)) << 2) +
+                FieldScriptContextReader.ScriptOffsetTableHeaderSize + section[2] * FieldScriptContextReader.ScriptSlotsPerEntity;
+            var slot = offsetTable + entity * FieldScriptContextReader.ScriptOffsetEntityStride + 3 * sizeof(ushort);
+            var cursor = BinaryPrimitives.ReadUInt16LittleEndian(section.AsSpan(slot)) + 12;
+            Check(section.AsSpan(cursor, 3).SequenceEqual(new byte[] { 0x24, 0x2C, 0x01 }),
+                $"field {field}, entity {entity}: expected native WAIT 300");
+            BinaryPrimitives.WriteUInt16LittleEndian(cursors.AsSpan(entity * sizeof(ushort)), (ushort)cursor);
+            return new(field, entity, 3, 12, 0x24);
+        }
+
+        internal ushort WaitCounter(int entity) => BinaryPrimitives.ReadUInt16LittleEndian(counters.AsSpan(entity * sizeof(ushort)));
+
+        internal void SetWaitCounter(int entity, ushort value) =>
+            BinaryPrimitives.WriteUInt16LittleEndian(counters.AsSpan(entity * sizeof(ushort)), value);
+
+        internal void SetCurrentEntity(int entity) => currentEntity[0] = (byte)entity;
+
+        public bool TryWriteInt32(uint address, int value)
+        {
+            if ((address & 3) != 0 || address < WaitCounters || address > WaitCounters + counters.Length - sizeof(int))
+                return false;
+            BinaryPrimitives.WriteInt32LittleEndian(counters.AsSpan((int)(address - WaitCounters)), value);
+            return true;
+        }
+
         public bool TryRead(uint address, Span<byte> destination) =>
             Copy(address, (uint)FieldScriptContextReader.AddressCurrentModule, module, destination) ||
             Copy(address, (uint)FieldPositionReader.AddressFieldId, fieldWord, destination) ||
             Copy(address, (uint)FieldScriptContextReader.AddressFieldScriptPtr, pointer, destination) ||
+            Copy(address, (uint)FieldScriptContextReader.AddressCurrentEntityId, currentEntity, destination) ||
+            Copy(address, (uint)FieldScriptContextReader.AddressFieldCurrScriptPosition, cursors, destination) ||
+            Copy(address, WaitCounters, counters, destination) ||
             Copy(address, Script, section, destination);
         private static bool Copy(uint address, uint start, byte[] data, Span<byte> destination)
         {

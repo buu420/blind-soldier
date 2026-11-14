@@ -1657,8 +1657,7 @@ avigationield_zone_transition.wav"),
                         ref lastSetupLogUtc);
                 }
 
-                if (config.EnableFieldCutsceneDescriptions
-                    && hooks is not null
+                if (hooks is not null
                     && cutsceneDescriptions is not null
                     && cutsceneHookSet is null
                     && !cutsceneHooksPermanentlyDisabled
@@ -1672,7 +1671,8 @@ avigationield_zone_transition.wav"),
                             memory,
                             hooks,
                             out var installed,
-                            out var diagnostic))
+                            out var diagnostic,
+                            captureDescriptions: () => config.EnableFieldCutsceneDescriptions))
                     {
                         cutsceneHookSet = installed;
                     }
@@ -1717,7 +1717,8 @@ avigationield_zone_transition.wav"),
 
                     // A field whose own entry anchor ran before this runtime attached
                     // would otherwise never be described at all.
-                    cutsceneDescriptions.ObserveStableField(now);
+                    if (config.EnableFieldCutsceneDescriptions)
+                        cutsceneDescriptions.ObserveStableField(now);
                     if (config.EnableSpeech && config.EnableFieldCutsceneDescriptions &&
                         roomDescriptionAddressSpace is { } creatureMemory &&
                         creatureMemory.TryReadByte((uint)FieldPositionReader.AddressCurrentModule,out var creatureModule) && creatureModule==1 &&
@@ -1760,7 +1761,8 @@ avigationield_zone_transition.wav"),
                     // the game has stopped talking. Delivery goes through the same
                     // reservation as every other description, and only the speaker
                     // accepting the words advances the film's schedule.
-                    if (!creatureSpoken && Steam2026FieldCutsceneHostTick.TryDeliverDeferredFilmCue(
+                    if (config.EnableFieldCutsceneDescriptions && !creatureSpoken &&
+                        Steam2026FieldCutsceneHostTick.TryDeliverDeferredFilmCue(
                             cutsceneDescriptions,
                             isHostForeground,
                             now,
@@ -1782,7 +1784,7 @@ avigationield_zone_transition.wav"),
                             log($"Native Steam 2026 film cue spoken: {deferredFilmCue}");
                         }
                     }
-                    else if (!creatureSpoken && cutsceneDialogueProbe is not null
+                    else if (config.EnableFieldCutsceneDescriptions && !creatureSpoken && cutsceneDialogueProbe is not null
                         && cutsceneDescriptions.TrySpeakPending(
                             isHostForeground,
                             () => cutsceneDialogueProbe.TryRead(out _),
