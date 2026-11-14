@@ -86,6 +86,10 @@ function Expand-SafeZip {
             [DateTimeKind]::Unspecified)
         foreach ($entry in $zip.Entries) {
             $relative = Assert-SafeZipEntry -Entry $entry -Label $Label
+            if ($RequireDeterministicMetadata -and
+                $relative -match '(?i)(^|/)ff7(?:_en)?\.exe\.local(/|$)') {
+                throw "$Label contains an executable .local entry: $relative"
+            }
             if (-not $members.Add($relative)) {
                 throw "$Label contains a case-insensitive duplicate member: $($entry.FullName)"
             }
@@ -183,11 +187,7 @@ try {
 
     $required = @(
         'version.dll',
-        'ff7_en.exe.local/version.dll',
-        'ff7.exe.local/version.dll',
         'workingdir/version.dll',
-        'workingdir/ff7_en.exe.local/version.dll',
-        'workingdir/ff7.exe.local/version.dll',
         'Blind-Soldier/Bootstrap/x86/Blind-Soldier-Bootstrap-x86.exe',
         'Blind-Soldier/Runtime/dotnet/x86/host/fxr/9.0.8/hostfxr.dll',
         'Blind-Soldier/Runtime/dotnet/x86/shared/Microsoft.NETCore.App/9.0.8/coreclr.dll',
@@ -278,20 +278,20 @@ try {
         throw 'Packaged Blind Soldier mod identity or version is incorrect.'
     }
 
-    $proxyPaths = @(
-        'version.dll',
-        'ff7_en.exe.local/version.dll',
-        'ff7.exe.local/version.dll',
-        'workingdir/version.dll',
-        'workingdir/ff7_en.exe.local/version.dll',
-        'workingdir/ff7.exe.local/version.dll'
-    )
+    $proxyPaths = @('version.dll','workingdir/version.dll')
+    $versionEntries = @($entryNames | Where-Object {
+        [IO.Path]::GetFileName($_) -ieq 'version.dll'
+    })
+    if ($versionEntries.Count -ne $proxyPaths.Count -or
+        @($versionEntries | Where-Object { $proxyPaths -cnotcontains $_ }).Count -ne 0) {
+        throw '2013 portable ZIP must contain exactly the two approved Version proxy paths.'
+    }
     $proxyHashes = @($proxyPaths | ForEach-Object {
         (Get-FileHash -LiteralPath (Join-Path $packageRoot $_.Replace('/','\')) `
             -Algorithm SHA256).Hash.ToUpperInvariant()
     } | Select-Object -Unique)
     if ($proxyHashes.Count -ne 1) {
-        throw 'The six 2013 Version proxy placements are not byte-identical.'
+        throw 'The two 2013 Version proxy placements are not byte-identical.'
     }
 
     foreach ($file in Get-ChildItem -LiteralPath $packageRoot -File -Recurse |
@@ -320,7 +320,7 @@ try {
         New-Item -ItemType Directory -Path $sourceRoot -Force | Out-Null
         [void](Expand-SafeZip -Path $sourceArchive -Destination $sourceRoot `
             -Label 'Expected dual-runtime source ZIP')
-        $sourceProxy = Join-Path $sourceRoot 'ff7_en.exe.local\version.dll'
+        $sourceProxy = Join-Path $sourceRoot 'workingdir\version.dll'
         $sourceBootstrap = Join-Path $sourceRoot `
             $bootstrapRelative.Replace('/','\')
         [void](Assert-OrdinaryFile -Path $sourceProxy `

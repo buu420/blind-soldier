@@ -293,6 +293,9 @@ function Expand-ValidatedArchive {
         $prefix = [IO.Path]::GetFullPath($Destination).TrimEnd('\') + '\'
         foreach ($entry in $archive.Entries) {
             $relative = Assert-SafeZipEntry -Entry $entry
+            if ($relative -match '(?i)(^|/)ff7(?:_en)?\.exe\.local(/|$)') {
+                throw "Portable ZIP contains an executable .local entry: $relative"
+            }
             if (-not $members.Add($relative)) {
                 throw "Portable ZIP contains a duplicate member: $relative"
             }
@@ -700,7 +703,7 @@ try {
         -Policy $policy -PackageRoot $extractRoot)
 
     $externalBefore = @(Get-ExternalOwnershipSnapshot -Root $destinationFull)
-    $packageProxy = Join-Path $extractRoot 'ff7.exe.local\version.dll'
+    $packageProxy = Join-Path $extractRoot 'workingdir\version.dll'
     $packageProxyHash = (Get-FileHash -LiteralPath $packageProxy `
         -Algorithm SHA256).Hash
     $knownProxyHashes = @($packageProxyHash)

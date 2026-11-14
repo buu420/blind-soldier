@@ -183,15 +183,7 @@ function New-PortableArchiveBinding {
     if (-not (Test-Path -LiteralPath $fullPath -PathType Leaf)) {
         throw "Portable archive is unavailable for Ghidra analysis: $fullPath"
     }
-    $proxyNames = @(
-        'ff7_en.exe.local/version.dll',
-        'ff7.exe.local/version.dll',
-        'workingdir/version.dll',
-        'workingdir/ff7_en.exe.local/version.dll',
-        'workingdir/ff7.exe.local/version.dll',
-        'ff7/workingdir/version.dll',
-        'ff7/workingdir/ff7_en.exe.local/version.dll',
-        'ff7/workingdir/ff7.exe.local/version.dll')
+    $proxyNames = @('workingdir/version.dll','ff7/workingdir/version.dll')
     $x86Name = 'Blind-Soldier/Bootstrap/x86/Blind-Soldier-Bootstrap-x86.exe'
     $x64Name = 'Blind-Soldier/Bootstrap/x64/Blind-Soldier-Bootstrap-x64.exe'
     $required = @($proxyNames) + @($x86Name, $x64Name)
@@ -212,6 +204,9 @@ function New-PortableArchiveBinding {
                     ([StringComparer]::OrdinalIgnoreCase)
                 foreach ($entry in $zip.Entries) {
                     $normalized = $entry.FullName.Replace('\','/')
+                    if ($normalized -match '(?i)(^|/)ff7(?:_en)?\.exe\.local(/|$)') {
+                        throw "Portable archive contains an executable .local entry: $normalized"
+                    }
                     if (-not $seen.Add($normalized)) {
                         throw "Portable archive contains duplicate or case-aliased entry: $($entry.FullName)"
                     }

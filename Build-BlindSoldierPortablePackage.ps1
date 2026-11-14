@@ -21,9 +21,9 @@ $reloadedX86Bootstrapper = Join-Path $reloadedX86CompatibilityRoot `
 $reloadedX86RuntimeConfig = Join-Path $reloadedX86CompatibilityRoot `
     'Reloaded.Mod.Loader.runtimeconfig.json'
 $reloadedX86BootstrapperSha256 = `
-    '997A8EC95434239AFEFF0802849043EC49ED51459394D5DC97375D1914606329'
+    'AE4AC3B65804AA5D2CE7360A5A72C5E4F041A9A589B26B4367A5CA685A5746F6'
 $reloadedX86RuntimeConfigSha256 = `
-    '2CD7DD1EBB7A203244AFEF13B91A64780EC0BAEDA3086A6EA3FAD5073531AA3F'
+    'F7639993174A6AD7898FE0EEC4C3A30336D0919B4E57C6A8116E5E6FE9AF4D30'
 $semanticVersionPattern = '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$'
 if ($Version -notmatch $semanticVersionPattern) { throw "Invalid semantic version: $Version" }
 
@@ -367,23 +367,6 @@ try {
         New-Item -ItemType Directory -Path (Split-Path -Parent $destination) -Force | Out-Null
         Copy-Item -LiteralPath $record.Source -Destination $destination
     }
-    foreach ($directory in @(
-        'ff7_en.exe.local', 'ff7.exe.local',
-        'ff7\workingdir\ff7_en.exe.local',
-        'ff7\workingdir\ff7.exe.local')) {
-        $targetDirectory = Join-Path $root $directory
-        New-Item -ItemType Directory -Path $targetDirectory -Force | Out-Null
-        Copy-Item -LiteralPath $VersionProxyPath `
-            -Destination (Join-Path $targetDirectory 'version.dll')
-    }
-
-    foreach ($directory in @(
-        'workingdir\ff7_en.exe.local', 'workingdir\ff7.exe.local')) {
-        $targetDirectory = Join-Path $root $directory
-        New-Item -ItemType Directory -Path $targetDirectory -Force | Out-Null
-        Copy-Item -LiteralPath $VersionProxyPath `
-            -Destination (Join-Path $targetDirectory 'version.dll')
-    }
     foreach ($relative in @(
         'workingdir\version.dll', 'ff7\workingdir\version.dll')) {
         $destination = Join-Path $root $relative
@@ -406,7 +389,7 @@ try {
     [void](Assert-ExactFile -Path $reloadedX86Bootstrapper -Length 132096 `
         -Sha256 $reloadedX86BootstrapperSha256 `
         -Label 'Blind Soldier x86 Reloaded compatibility bootstrapper')
-    [void](Assert-ExactFile -Path $reloadedX86RuntimeConfig -Length 521 `
+    [void](Assert-ExactFile -Path $reloadedX86RuntimeConfig -Length 515 `
         -Sha256 $reloadedX86RuntimeConfigSha256 `
         -Label 'Blind Soldier x86 Reloaded compatibility runtime configuration')
     Copy-Item -LiteralPath $reloadedX86Bootstrapper -Destination (Join-Path `
@@ -581,11 +564,11 @@ No installer is required. No administrator access, registry change, or separate 
 
 Supported layouts
 - Steam 2026 x64: extract beside FFVII.exe and FFVII_LAUNCHER.exe. Use Steam or the included accessible launcher. Its Play button starts the packaged x64 accessibility bootstrap automatically.
-- Stock Steam 2013 without 7th Heaven: use the Blind Soldier (2013) Accessibility Mod Manager entry. Its game-specific package installs the x86 Version proxy directly beside ff7_en.exe.
+- Stock Steam 2013 without 7th Heaven: use the 2013 x86 portable ZIP or the Blind Soldier (2013) Accessibility Mod Manager entry. Both place version.dll directly beside ff7_en.exe.
 - Stock 7th Heaven x86: extract at the directory that contains workingdir, or at the Steam root that contains ff7\workingdir. Blind Soldier's sibling workingdir\version.dll starts accessibility when FFNx loads it; no file in the 7th Heaven installation is replaced or edited.
 - 7th Heaven nested x86: extract at the Steam 2026 root. The copies under ff7\workingdir support 7th Heaven's converted game layout.
 
-Official stable 7th Heaven manages its own FFNx installation; this release is verified against 7th Heaven 4.5.2. Blind Soldier coexists without shipping, replacing, or overwriting any FFNx file. Development builds targeting .NET 10 are outside this release's verified compatibility set.
+7th Heaven manages its FFNx installation. Blind Soldier's x86 loader can use the .NET 10 runtime already loaded by stock 7th Heaven 4.6.1 or its packaged .NET 9 runtime for standalone launches.
 This ZIP contains only manifest-owned Blind Soldier files.
 
 Language support
@@ -598,13 +581,15 @@ Language support
 
 Do not replace an existing layout-scoped version.dll unless it belongs to Blind Soldier. This includes a sibling workingdir\version.dll used with stock 7th Heaven. Move an unknown file aside first so it can be restored. If FFNx redirects the system Version library back to the proxy, Blind Soldier privately caches a byte-for-byte copy of this machine's own Windows version library under Local AppData and loads that distinct copy; no Windows binary is shipped in the ZIP.
 
+When upgrading an older install, close FFVII and 7th Heaven. In the folder containing the x86 game executable, back up old Blind Soldier proxies from ff7_en.exe.local and ff7.exe.local. Remove folders left empty by Blind Soldier and keep the new version.dll beside the executable. Preserve folders and files used by other mods. Windows can remember DLL redirection after a folder is removed. If Play still fails, restart Windows and try again.
+
 Logs are written under Blind-Soldier\Logs. Players never need to run either bootstrap program themselves.
 
 If an older Amethyst mod-manager installation left automatic-launch settings behind, run Remove-Amethyst-Registry-Entries.cmd once. It requests administrator access, removes only matching Blind Soldier entries, and preserves unrelated registry values. New portable installs do not need this cleanup.
 
 Steam Verify Files may restore the stock FFVII launcher. Extract this ZIP again afterward to restore the accessible launcher.
 
-To remove Blind Soldier, close FFVII, read portable-manifest.json from this ZIP, and delete only the Blind Soldier files named in that manifest. Restore any launcher or version.dll you backed up before extraction.
+To remove Blind Soldier, close FFVII, read portable-manifest.json from this ZIP, and delete only the Blind Soldier files named in that manifest. Restore any launcher or version.dll you backed up before extraction. Remove any empty executable .local folders left by older Blind Soldier ZIPs.
 "@
     $readme = ($readme.Trim() -replace "`r?`n", "`r`n") + "`r`n"
     [IO.File]::WriteAllText((Join-Path $root 'README-PORTABLE.txt'),
