@@ -204,6 +204,7 @@ public sealed class Mod : IModV1, IModV2
     private SpeedSquareCoasterReadout? speedSquareCoasterReadout;
     private FieldActivityStateReader? fieldActivityStateReader;
     private AncientForestPuzzleStateReader? ancientForestPuzzleStateReader;
+    private AncientForestPlantTiming? ancientForestPlantTiming;
     private GreatGlacierIceFloeReader? glacierIceReader;
 
     // The Great Glacier's regional treasure list and routes, shared by field and world navigation.
@@ -1038,6 +1039,7 @@ public sealed class Mod : IModV1, IModV2
             : null;
         fieldActivityStateReader = new FieldActivityStateReader(legacyAddressSpace);
         ancientForestPuzzleStateReader = new AncientForestPuzzleStateReader(legacyAddressSpace);
+        ancientForestPlantTiming = new AncientForestPlantTiming(legacyAddressSpace, legacyAddressSpace);
         glacierIceReader = new GreatGlacierIceFloeReader(legacyAddressSpace);
         fieldActivityReadout = new FieldActivityReadout();
         fieldActivityBoundaryStateReader = new FieldBoundaryStateReader(legacyAddressSpace);
@@ -4620,13 +4622,12 @@ public sealed class Mod : IModV1, IModV2
     private void TickFieldCutsceneDescriptions()
     {
         TickCreatureObservation();
+        RefreshFieldCutsceneDescriptionHook();
         if (!config.EnableFieldCutsceneDescriptions)
         {
             ResetFieldCutsceneDescriptionState();
             return;
         }
-
-        RefreshFieldCutsceneDescriptionHook();
 
         // Independent narration outlives a single tick, so its native lifetime is
         // checked before anything else: the film ending, another film starting, and
@@ -9540,14 +9541,7 @@ public sealed class Mod : IModV1, IModV2
 
         TryInstallExperimentalHook("Echo-S reactor timer override hook", InstallEchoSReactorTimerOverrideHook);
 
-        if (config.EnableFieldCutsceneDescriptions)
-        {
-            TryInstallExperimentalHook("field cutscene description hook", InstallFieldCutsceneDescriptionHook);
-        }
-        else
-        {
-            Log("Field cutscene descriptions are disabled in config.");
-        }
+        TryInstallExperimentalHook("field script wait and description hooks", RefreshFieldCutsceneDescriptionHook);
 
         if (config.EnableTitleMenuNativeCursorSpeech ||
             config.EnableTitleMenuNativeCursorDiagnostics ||
@@ -9903,16 +9897,6 @@ public sealed class Mod : IModV1, IModV2
             $"(STTIM opcode 0x{FieldOpcodeAddressResolver.OpcodeTimerIndex:X2}).");
     }
 
-    private void InstallFieldCutsceneDescriptionHook()
-    {
-        if (hooks is null)
-        {
-            return;
-        }
-
-        RefreshFieldCutsceneDescriptionHook();
-    }
-
     private void RefreshFieldCutsceneDescriptionHook()
     {
         var currentHooks = hooks;
@@ -9937,6 +9921,9 @@ public sealed class Mod : IModV1, IModV2
         }
 
         RefreshFieldCutsceneWaitHook(currentHooks, waitOpcodeAddress);
+        if (!config.EnableFieldCutsceneDescriptions)
+            return;
+
         RefreshFieldCutsceneSoundHook(currentHooks, soundOpcodeAddress);
 
         var extraOpcodes = FieldCutsceneDescriptionCatalog.CreateEarlyGameDescriptions()
@@ -10999,11 +10986,13 @@ public sealed class Mod : IModV1, IModV2
     private int FieldOpcodeWaitDetour(IHook<FieldOpcodeWaitDelegate>? activeHook)
     {
         var context = TryReadFieldScriptContext();
+        var closing = context is { } current ? ancientForestPlantTiming?.CaptureStart(current) : null;
         var result = activeHook?.OriginalFunction() ?? 0;
-        if (context is { } value)
-        {
+        if (closing is { } wait)
+            ancientForestPlantTiming?.Extend(wait);
+
+        if (config.EnableFieldCutsceneDescriptions && context is { } value)
             nativeFieldHookEventQueue.TryCaptureCutsceneContext(value);
-        }
 
         return result;
     }

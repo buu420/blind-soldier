@@ -12,9 +12,8 @@ namespace Ff7.Accessibility.Reloaded;
 /// either participant's mask covers the other. The mask bytes live at 0096DDB0 + 8 * model.
 /// </para>
 ///
-/// <para>Only the models this repair was verified against are described here: the party on
-/// foot, and the Buggy they park at the Cosmo Canyon entrance. An unlisted model is not
-/// guessed at - it simply does not block, which is what the mod did before.</para>
+/// <para>Only models with verified masks are described here. An unlisted model does not
+/// block, which is what the mod did before.</para>
 /// </summary>
 public static class WorldMapVehicleObstacles
 {
@@ -42,6 +41,10 @@ public static class WorldMapVehicleObstacles
             // Usable submarine: the same row as the Bronco, measured at
             // 0096DDB0 + 13 * 8 in the licensed executable. Boarding is on foot.
             [13] = [0x00, 0x18, 0x3c, 0x7e, 0x7e, 0x3c, 0x18, 0x00],
+
+            // Owned chocobo: measured at 0096DDB0 + 19 * 8. All colors share model 19
+            // and its mask, including when the party leaves it parked on the surface.
+            [19] = [0x00, 0x00, 0x00, 0x18, 0x18, 0x00, 0x00, 0x00],
 
             // Buggy: 00 00 18 3c 3c 18 00 00.
             [6] = [0x00, 0x00, 0x18, 0x3c, 0x3c, 0x18, 0x00, 0x00],

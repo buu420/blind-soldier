@@ -139,6 +139,7 @@ internal static class WorldMapChocoboNavigationTests
             Path.Combine(source, "external", "kujata", "wm-field-menu-names.txt"),
             Path.Combine(source, "Ff7.Accessibility.Reloaded", "Assets", "world", "world-map-location-triggers.json"));
         var planner = new WorldMapRoutePlanner(map) { EntranceTriangleIds = catalog.EntranceTriangleIds };
+        ReplaysParkedChocobosAtMateriaCaves(map, catalog, planner);
         // Last mounted native position in the newly supplied log: the bird is on shallow water.
         var state = ReadBird(4, 236632, -50, 114494, 6, 1) with { GameMoment = 1580, WorldProgress = 4 };
         foreach (var label in new[] { "Materia Cave (Knights of the Round Materia)", "Materia Cave (Mime Materia)",
@@ -173,6 +174,71 @@ internal static class WorldMapChocoboNavigationTests
         ReplaysGoldBirdCaveJourneys(map, catalog);
         ReplaysMountedWutaiJourneys(map, catalog);
         Console.WriteLine("gold chocobo installed-map cave and destination navigation tests passed.");
+    }
+
+    private static void ReplaysParkedChocobosAtMateriaCaves(
+        WorldMapData map, WorldMapTargetCatalog catalog, WorldMapRoutePlanner planner)
+    {
+        // November 12 Steam 0.10.13 log: the same non-player model-19 node
+        // remains in the list after dismount. The parked X/Z comes from the
+        // matching remount, when that node becomes the player again.
+        (string Cave, WorldMapVertex Bird, WorldMapVertex Party, int Terrain, int Region)[] stops =
+        [
+            ("Knights of the Round", new(263215, 852, 13273), new(263015, 927, 13494), 1, 16),
+            ("Mime", new(52796, 810, 128735), new(52968, 843, 128490), 9, 9),
+            ("HP<->MP", new(274991, 766, 141432), new(274870, 744, 141705), 9, 12),
+            ("Quadra Magic", new(115574, 792, 110066), new(115845, 852, 109938), 8, 13)
+        ];
+        const WorldMapNavigationCategory transportation = WorldMapNavigationCategory.Transportation;
+        foreach (var (cave, birdPosition, party, terrain, region) in stops)
+        {
+            var state = ReadBird(4, party.X, party.Y, party.Z, terrain) with
+            {
+                PlayerModelId = 0,
+                NativePlayerEntityPointer = 0x00E3A1C8,
+                RegionId = region,
+                WorldProgress = 4,
+                GameMoment = 1580
+            };
+            var bird = new WorldMapEntitySnapshot(0x00E39F88, 0, false,
+                birdPosition.X, birdPosition.Y, birdPosition.Z, terrain, region, 19, 0x02);
+            var wild = bird with { GuestPointer = 0x00E3A288, ModelId = 4 };
+            WorldMapEntitySnapshot[] entities = [bird, wild];
+
+            var targets = catalog.ReadTargets(transportation, state, entities);
+            Check(targets.Count == 1 && targets[0].NativeEntityModelId == 19,
+                $"{cave}: Transportation lists the parked owned chocobo and excludes the wild one");
+            var target = targets[0];
+            Check(planner.TryBuildRoute(state, target, out var route),
+                $"{cave}: the party can walk back to the bird: {planner.LastDiagnostic}");
+            Check(target.VehicleContactPoints.TryGetValue(route.TargetTriangleId, out var contact) &&
+                !catalog.EntranceTriangleIds.Contains(route.TargetTriangleId) &&
+                target.NativeVehicleContact?.IsSatisfiedBy(state with { X = contact.X, Y = contact.Y, Z = contact.Z }) == true,
+                $"{cave}: the route ends in native boarding range outside the cave entrance");
+
+            var navigation = new WorldMapNavigationController(map, planner,
+                (player, category) => catalog.ReadTargets(category, player, entities));
+            for (var index = 0; index < WorldMapTargetCatalog.CategoryOrder.Count &&
+                navigation.CurrentCategory != transportation; index++)
+            {
+                navigation.HandleAction(FieldNavigationAction.NextCategory, state);
+            }
+            var speech = navigation.HandleAction(FieldNavigationAction.RepeatTarget, state)?.Speech;
+            Check(speech?.Contains("Parked chocobo", StringComparison.OrdinalIgnoreCase) == true &&
+                !speech.Contains("Route unavailable", StringComparison.OrdinalIgnoreCase),
+                $"{cave}: the menu offers the parked chocobo as a reachable destination: {speech}");
+            var atBird = state with { X = contact.X, Y = contact.Y, Z = contact.Z };
+            var boarding = navigation.HandleAction(FieldNavigationAction.ToggleBeacon, atBird)?.Speech;
+            Check(boarding?.Contains("Press Confirm to board.", StringComparison.Ordinal) == true,
+                $"{cave}: starting navigation already in range gives the normal boarding prompt: {boarding}");
+
+            Check(catalog.ReadTargets(transportation, state, [bird with { Flags = 0x08 }]).Count == 0,
+                $"{cave}: a hidden bird is unavailable");
+            Check(catalog.ReadTargets(transportation, state with { PlayerModelId = 19 },
+                [bird with { IsPlayer = true }]).Count == 0,
+                $"{cave}: remounting removes the parked destination");
+        }
+        Console.WriteLine("parked owned chocobo Transportation and boarding routes passed at all four Materia caves.");
     }
 
     private static void ReplaysMountedWutaiJourneys(WorldMapData map, WorldMapTargetCatalog catalog)

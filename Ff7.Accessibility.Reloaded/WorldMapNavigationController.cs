@@ -2027,8 +2027,11 @@ public sealed partial class WorldMapNavigationController
             progressSink?.Complete();
             ResetRoute(deactivateProgress: false);
             lastDiagnostic = $"already at target triangle {playerTriangle}";
-            return new WorldMapNavigationOutput($"Arrived at {target.Label}." +
-                (target.RequiresOnFootEntry ? " Press Confirm to enter." : string.Empty) + " Navigation off.");
+            var interaction = target.RequiresOnFootEntry ? " Press Confirm to enter."
+                : target.NativeVehicleContact is not null && state.PlayerModelId is 0 or 1 or 2
+                    ? " Press Confirm to board."
+                    : string.Empty;
+            return new WorldMapNavigationOutput($"Arrived at {target.Label}.{interaction} Navigation off.");
         }
 
         WorldMapBroncoLandingPlan? landing = null;

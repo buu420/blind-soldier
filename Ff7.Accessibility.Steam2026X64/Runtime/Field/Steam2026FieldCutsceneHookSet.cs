@@ -1,3 +1,4 @@
+using Ff7.Accessibility.Reloaded;
 using Ff7.Accessibility.Steam2026X64.Runtime;
 using Reloaded.Hooks.Definitions;
 
@@ -22,6 +23,7 @@ internal sealed class Steam2026FieldCutsceneHookSet : IDisposable
     private readonly Dictionary<
         Steam2026FieldCutsceneCallbackKind,
         Steam2026FieldCutsceneDetourIngressCoordinator> coordinators = [];
+    private readonly Func<bool>? captureDescriptions;
     private Steam2026FieldCutsceneCallbackContract? contract;
     private int disposed;
 
@@ -30,11 +32,13 @@ internal sealed class Steam2026FieldCutsceneHookSet : IDisposable
         ulong moduleBase,
         ulong moduleImageSize,
         INativeMemoryReader memory,
-        IReloadedHooks hooks)
+        IReloadedHooks hooks,
+        Func<bool>? captureDescriptions)
     {
         ArgumentNullException.ThrowIfNull(fingerprint);
         ArgumentNullException.ThrowIfNull(memory);
         ArgumentNullException.ThrowIfNull(hooks);
+        this.captureDescriptions = captureDescriptions;
 
         try
         {
@@ -43,6 +47,12 @@ internal sealed class Steam2026FieldCutsceneHookSet : IDisposable
                 moduleBase,
                 moduleImageSize,
                 memory);
+            AncientForestPlantTiming? plantTiming = null;
+            if (memory is INativeMemoryWriter writer)
+            {
+                var writableGuest = ValidatedTranslatedX86AddressSpaceFactory.Create(fingerprint, moduleBase, memory, writer);
+                plantTiming = new AncientForestPlantTiming(writableGuest, writableGuest);
+            }
 
             var identities = new Dictionary<
                 Steam2026FieldCutsceneCallbackKind,
@@ -76,7 +86,8 @@ internal sealed class Steam2026FieldCutsceneHookSet : IDisposable
                         kind,
                         hook.OriginalFunction,
                         () => DateTime.UtcNow,
-                        captureQueue));
+                        captureQueue,
+                        kind == Steam2026FieldCutsceneCallbackKind.Wait ? plantTiming : null));
             }
 
             foreach (var hook in this.hooks.Values)
@@ -105,7 +116,8 @@ internal sealed class Steam2026FieldCutsceneHookSet : IDisposable
         INativeMemoryReader memory,
         IReloadedHooks hooks,
         out Steam2026FieldCutsceneHookSet hookSet,
-        out string diagnostic)
+        out string diagnostic,
+        Func<bool>? captureDescriptions = null)
     {
         hookSet = null!;
         diagnostic = string.Empty;
@@ -116,7 +128,8 @@ internal sealed class Steam2026FieldCutsceneHookSet : IDisposable
                 moduleBase,
                 moduleImageSize,
                 memory,
-                hooks);
+                hooks,
+                captureDescriptions);
             diagnostic =
                 $"Installed {hookSet.hooks.Count} exact translated cutscene opcode callbacks.";
             return true;
@@ -162,7 +175,7 @@ internal sealed class Steam2026FieldCutsceneHookSet : IDisposable
     {
         if (coordinators.TryGetValue(kind, out var coordinator))
         {
-            coordinator.OnCallback();
+            coordinator.OnCallback(captureDescriptions?.Invoke() != false);
         }
     }
 

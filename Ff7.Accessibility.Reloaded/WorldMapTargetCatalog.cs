@@ -1044,9 +1044,11 @@ public sealed partial class WorldMapTargetCatalog
         // The usable submarine is boarded only by Cloud, Tifa or Cid on foot
         // (wm0.ev 4D04). Its submerged and hidden entities are not parked rides.
         var parkedSubmarine = category == WorldMapNavigationCategory.Transportation && entity.ModelId == 13;
+        var parkedChocobo = category == WorldMapNavigationCategory.Transportation && entity.ModelId == 19;
+        var onFootBoarding = parkedSubmarine || parkedChocobo;
         if (entity.ModelId == 11 && (entity.Flags & 0x08) != 0)
             return null; // FUN_007630B3 does not draw a natively hidden model.
-        if (parkedSubmarine && (player.WorldMapType != 0 || (entity.Flags & 0x08) != 0))
+        if (onFootBoarding && (player.WorldMapType != 0 || (entity.Flags & 0x08) != 0))
         {
             return null;
         }
@@ -1074,6 +1076,7 @@ public sealed partial class WorldMapTargetCatalog
                 5 => "Tiny Bronco",
                 6 => "Buggy",
                 13 => "Submarine",
+                19 => "Parked chocobo",
                 28 => "Red submarine",
                 _ => null
             },
@@ -1146,16 +1149,19 @@ public sealed partial class WorldMapTargetCatalog
         // all is inside the boat's mask, while leaving out the bank the party was standing
         // on, because that one is two triangles away across the water the boat floats in.
         // wm0.ev 4304 accepts a party on foot at the parked Highwind's contact.
+        // The owned chocobo's Confirm handler (5304) also requires the party on foot.
         var boardingModel = parkedSubmarine && player.PlayerModelId == WorldMapHighwindLanding.HighwindModelId
             ? 0 : player.PlayerModelId;
-        var canBoardSubmarine = !parkedSubmarine || boardingModel is 0 or 1 or 2;
+        var canBoardOnFoot = !onFootBoarding || boardingModel is 0 or 1 or 2;
         var canBoardHighwind = entity.ModelId != WorldMapHighwindLanding.HighwindModelId ||
             boardingModel is 0 or 1 or 2 && (entity.Flags & 0x10) == 0;
         var nativeFootprint =
             category == WorldMapNavigationCategory.Transportation &&
             WorldMapVehicleObstacles.TryGetNativeMask(entity.ModelId, out _) &&
-            (parkedSubmarine || WorldMapVehicleObstacles.TryGetNativeMask(boardingModel, out _));
-        var vehicleContacts = nativeFootprint && canBoardSubmarine && canBoardHighwind &&
+            // The chocobo mask resolves boarding the bird, not transferring from its saddle.
+            (onFootBoarding ||
+                boardingModel != 19 && WorldMapVehicleObstacles.TryGetNativeMask(boardingModel, out _));
+        var vehicleContacts = nativeFootprint && canBoardOnFoot && canBoardHighwind &&
             (entity.Flags & WorldMapVehicleObstacles.SkippedFlag) == 0
             ? WorldMapVehicleShoreApproach.FindContactPoints(
                 map, boardingModel, entity.ModelId, entity.X, entity.Z)
