@@ -423,14 +423,8 @@ Describe 'Blind Soldier direct-extract portable package' {
         foreach ($required in @(
             'FFVII_LAUNCHER.exe', 'FFVII_LAUNCHER.exe.config',
             'launcher_accessibility/native/x86/FFVII_LAUNCHER.prism.x86.dll',
-            'ff7_en.exe.local/version.dll',
-            'ff7.exe.local/version.dll',
             'workingdir/version.dll',
-            'workingdir/ff7_en.exe.local/version.dll',
-            'workingdir/ff7.exe.local/version.dll',
             'ff7/workingdir/version.dll',
-            'ff7/workingdir/ff7_en.exe.local/version.dll',
-            'ff7/workingdir/ff7.exe.local/version.dll',
             'Blind-Soldier/Bootstrap/x86/Blind-Soldier-Bootstrap-x86.exe',
             'Blind-Soldier/Bootstrap/x64/Blind-Soldier-Bootstrap-x64.exe',
             'Blind-Soldier/Policy/BlindSoldier.ExternalOwnership.json',
@@ -461,6 +455,8 @@ Describe 'Blind Soldier direct-extract portable package' {
             'Blind-Soldier/Tools/Remove-AmethystRegistryEntries.ps1',
             'README-PORTABLE.txt', 'portable-manifest.json'
         )) { ($entries -ccontains $required) | Should Be $true }
+        @($entries | Where-Object { $_ -match '(?i)(^|/)ff7(?:_en)?\.exe\.local(/|$)' }).Count |
+            Should Be 0
 
         foreach ($forbidden in @(
             'Blind-Soldier-Installer.exe', 'Blind-Soldier-Launcher-x86.exe',
@@ -488,17 +484,12 @@ Describe 'Blind Soldier direct-extract portable package' {
         }
     }
 
-    It 'uses eight layout-scoped Version proxies and no root x86 proxy' {
+    It 'uses identical Version proxies in the two 7th Heaven working directories' {
         $fixture = New-PortableFixture
         Invoke-FixtureBuild -Fixture $fixture -Output $fixture.First
         $hashes = @(
-            'ff7_en.exe.local/version.dll', 'ff7.exe.local/version.dll',
             'workingdir/version.dll',
-            'workingdir/ff7_en.exe.local/version.dll',
-            'workingdir/ff7.exe.local/version.dll',
-            'ff7/workingdir/version.dll',
-            'ff7/workingdir/ff7_en.exe.local/version.dll',
-            'ff7/workingdir/ff7.exe.local/version.dll'
+            'ff7/workingdir/version.dll'
         ) | ForEach-Object { Get-PortableEntryHash -Path $fixture.First -EntryPath $_ }
         @($hashes | Select-Object -Unique).Count | Should Be 1
         (Get-PortableEntries -Path $fixture.First) -ccontains 'version.dll' |
@@ -517,24 +508,19 @@ Describe 'Blind Soldier direct-extract portable package' {
             Should Be $true
     }
 
-    It 'contains exactly the eight allowed Windows-canonical Version proxy paths' {
+    It 'contains exactly the two allowed Windows-canonical Version proxy paths' {
         $fixture = New-PortableFixture
         Invoke-FixtureBuild -Fixture $fixture -Output $fixture.First
         $allowed = @(
-            'ff7_en.exe.local/version.dll', 'ff7.exe.local/version.dll',
             'workingdir/version.dll',
-            'workingdir/ff7_en.exe.local/version.dll',
-            'workingdir/ff7.exe.local/version.dll',
-            'ff7/workingdir/version.dll',
-            'ff7/workingdir/ff7_en.exe.local/version.dll',
-            'ff7/workingdir/ff7.exe.local/version.dll'
+            'ff7/workingdir/version.dll'
         )
         $canonicalVersionPaths = @(
             Get-PortableEntries -Path $fixture.First | Where-Object {
                 [IO.Path]::GetFileName($_.Replace('/','\')).TrimEnd(' ','.') -ieq 'version.dll'
             } | Sort-Object
         )
-        $canonicalVersionPaths.Count | Should Be 8
+        $canonicalVersionPaths.Count | Should Be 2
         ($canonicalVersionPaths -join '|') | Should Be (($allowed | Sort-Object) -join '|')
     }
 
@@ -545,7 +531,17 @@ Describe 'Blind Soldier direct-extract portable package' {
         New-PortableArchiveVariant -Source $fixture.First -Destination $variant `
             -AdditionalPath 'hidden/version.dll'
         { & $verifierPath -ArchivePath $variant -ExpectedVersion '0.1.8' } |
-            Should Throw 'exactly eight Version proxy entries'
+            Should Throw 'exactly two Version proxy entries'
+    }
+
+    It 'rejects an old executable redirection marker even without a Version proxy' {
+        $fixture = New-PortableFixture
+        Invoke-FixtureBuild -Fixture $fixture -Output $fixture.First
+        $variant = Join-Path $fixture.Root 'old-marker.zip'
+        New-PortableArchiveVariant -Source $fixture.First -Destination $variant `
+            -AdditionalPath 'workingdir/FF7_EN.EXE.LOCAL'
+        { & $verifierPath -ArchivePath $variant -ExpectedVersion '0.1.8' } |
+            Should Throw 'executable .local entry'
     }
 
     It 'ships the live-tested x86 host compatibility assets without changing x64 Reloaded' {
@@ -553,14 +549,14 @@ Describe 'Blind Soldier direct-extract portable package' {
         Invoke-FixtureBuild -Fixture $fixture -Output $fixture.First
         Get-PortableEntryHash -Path $fixture.First -EntryPath `
             'Reloaded-II/Loader/X86/Bootstrapper/Reloaded.Mod.Loader.Bootstrapper.dll' |
-            Should Be '997A8EC95434239AFEFF0802849043EC49ED51459394D5DC97375D1914606329'
+            Should Be 'AE4AC3B65804AA5D2CE7360A5A72C5E4F041A9A589B26B4367A5CA685A5746F6'
 
         $runtime = Get-PortableEntryText -Path $fixture.First -EntryPath `
             'Reloaded-II/Loader/X86/Reloaded.Mod.Loader.runtimeconfig.json' |
             ConvertFrom-Json
         $runtime.runtimeOptions.framework.name | Should Be 'Microsoft.NETCore.App'
         $runtime.runtimeOptions.framework.version | Should Be '9.0.0'
-        $runtime.runtimeOptions.rollForward | Should Be 'LatestMinor'
+        $runtime.runtimeOptions.rollForward | Should Be 'Major'
         ($null -eq $runtime.runtimeOptions.PSObject.Properties['frameworks']) | Should Be $true
 
         $x64Hash = Get-PortableEntryHash -Path $fixture.First -EntryPath `

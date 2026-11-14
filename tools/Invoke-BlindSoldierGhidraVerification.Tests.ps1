@@ -30,13 +30,8 @@ $expectedVersionExports = @(
     @{ordinal=17;name='VerQueryValueW';noname=$false}
 )
 $expectedArchiveEntries = @(
-    'ff7_en.exe.local/version.dll','ff7.exe.local/version.dll',
     'workingdir/version.dll',
-    'workingdir/ff7_en.exe.local/version.dll',
-    'workingdir/ff7.exe.local/version.dll',
     'ff7/workingdir/version.dll',
-    'ff7/workingdir/ff7_en.exe.local/version.dll',
-    'ff7/workingdir/ff7.exe.local/version.dll',
     'Blind-Soldier/Bootstrap/x86/Blind-Soldier-Bootstrap-x86.exe',
     'Blind-Soldier/Bootstrap/x64/Blind-Soldier-Bootstrap-x64.exe')
 $pinnedDigest = 'B62E81A0390618466C019C60D8C2F796CED2509C4C1AEA4A37644A77272CF99D'
@@ -144,7 +139,7 @@ function New-EvidenceArchive {
                     else { $Fixture.Proxy }
                 $bytes = [IO.File]::ReadAllBytes($source)
                 if ($DivergentProxy -and $name -ceq
-                        'ff7/workingdir/ff7.exe.local/version.dll') {
+                        'ff7/workingdir/version.dll') {
                     $bytes[0x100] = $bytes[0x100] -bxor 0x5A
                 }
                 $entry = $zip.CreateEntry($name)
@@ -154,7 +149,7 @@ function New-EvidenceArchive {
             }
             if ($AliasedProxy) {
                 $bytes = [IO.File]::ReadAllBytes($Fixture.Proxy)
-                $entry = $zip.CreateEntry('FF7_EN.EXE.LOCAL\version.dll')
+                $entry = $zip.CreateEntry('WORKINGDIR\version.dll')
                 $target = $entry.Open()
                 try { $target.Write($bytes, 0, $bytes.Length) }
                 finally { $target.Dispose() }
@@ -331,7 +326,7 @@ try {
     Assert-True ((@($archiveRequests.ArchiveEntry | Sort-Object) -join '|') -ceq
         ((@('Blind-Soldier/Bootstrap/x64/Blind-Soldier-Bootstrap-x64.exe',
             'Blind-Soldier/Bootstrap/x86/Blind-Soldier-Bootstrap-x86.exe',
-            'ff7_en.exe.local/version.dll') | Sort-Object) -join '|')) `
+            'workingdir/version.dll') | Sort-Object) -join '|')) `
         'Archive-bound verification analyzed the wrong package entries.'
     foreach ($request in $archiveRequests) {
         Assert-True (-not (Test-Path -LiteralPath $request.ProgramPath)) `
@@ -341,14 +336,14 @@ try {
         $_.kind -ceq 'version-proxy'
     })[0]
     Assert-True ($archiveVersion.archiveEntry -ceq
-        'ff7_en.exe.local/version.dll') `
+        'workingdir/version.dll') `
         'Version evidence is not bound to its package entry.'
     $summary = [IO.File]::ReadAllText((Join-Path $archiveOutput 'summary.json')) |
         ConvertFrom-Json
     Assert-True ($summary.portableArchiveSha256 -ceq $archiveHash) `
         'Ghidra summary is not bound to the portable archive digest.'
-    Assert-True (@($summary.versionProxyEntries).Count -eq 8) `
-        'Ghidra summary did not record all eight packaged Version proxies.'
+    Assert-True (@($summary.versionProxyEntries).Count -eq 2) `
+        'Ghidra summary did not record both packaged Version proxies.'
     Assert-True (@($summary.versionProxyEntries.sha256 | Select-Object -Unique).Count -eq 1) `
         'Ghidra summary did not prove identical Version proxy bytes.'
 

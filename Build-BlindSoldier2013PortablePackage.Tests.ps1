@@ -37,14 +37,8 @@ function New-DualFixtureArchive {
     New-Item -ItemType Directory -Path $root -Force | Out-Null
 
     foreach ($relative in @(
-        'ff7_en.exe.local\version.dll',
-        'ff7.exe.local\version.dll',
         'workingdir\version.dll',
-        'workingdir\ff7_en.exe.local\version.dll',
-        'workingdir\ff7.exe.local\version.dll',
-        'ff7\workingdir\version.dll',
-        'ff7\workingdir\ff7_en.exe.local\version.dll',
-        'ff7\workingdir\ff7.exe.local\version.dll'
+        'ff7\workingdir\version.dll'
     )) {
         Write-TestPe -Root $root -Relative $relative -Machine 0x014C
     }
@@ -189,11 +183,7 @@ Describe 'Blind Soldier 2013 x86 portable package' {
             $names = @(Get-ZipNames -ArchivePath $output)
             foreach ($required in @(
                 'version.dll',
-                'ff7_en.exe.local/version.dll',
-                'ff7.exe.local/version.dll',
                 'workingdir/version.dll',
-                'workingdir/ff7_en.exe.local/version.dll',
-                'workingdir/ff7.exe.local/version.dll',
                 'Blind-Soldier/Bootstrap/x86/Blind-Soldier-Bootstrap-x86.exe',
                 'Blind-Soldier/Runtime/dotnet/x86/host/fxr/9.0.8/hostfxr.dll',
                 'Reloaded-II/Loader/X86/Reloaded.Mod.Loader.dll',
@@ -205,6 +195,8 @@ Describe 'Blind Soldier 2013 x86 portable package' {
             )) {
                 $names | Should Contain $required
             }
+            @($names | Where-Object { $_ -match '(?i)(^|/)ff7(?:_en)?\.exe\.local(/|$)' }).Count |
+                Should Be 0
             foreach ($forbidden in @(
                 'FFVII_LAUNCHER.exe',
                 'launcher_accessibility/native/x86/FFVII_LAUNCHER.prism.x86.dll',

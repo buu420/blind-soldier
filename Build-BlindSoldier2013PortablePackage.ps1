@@ -323,14 +323,10 @@ try {
             -Destination (Join-Path $staging $relative) -Label $relative
     }
 
-    $proxySource = Join-Path $extracted 'ff7_en.exe.local\version.dll'
+    $proxySource = Join-Path $extracted 'workingdir\version.dll'
     foreach ($relative in @(
         'version.dll',
-        'ff7_en.exe.local\version.dll',
-        'ff7.exe.local\version.dll',
-        'workingdir\version.dll',
-        'workingdir\ff7_en.exe.local\version.dll',
-        'workingdir\ff7.exe.local\version.dll'
+        'workingdir\version.dll'
     )) {
         Copy-RequiredFile -Source $proxySource `
             -Destination (Join-Path $staging $relative) `
@@ -355,6 +351,10 @@ Direct 2013 launch
 This archive contains no Steam 2026 launcher, x64 runtime, x64 Reloaded loader, FFNx file, 7th Heaven file, game executable, or game data. It does not replace dinput.dll or edit FFNx configuration.
 
 Do not overwrite an unknown pre-existing version.dll. Move that file aside first so it can be restored. All version.dll copies in this ZIP belong to Blind Soldier and are byte-identical.
+
+When upgrading an older install, close FFVII and 7th Heaven. In the folder containing the x86 game executable, back up old Blind Soldier proxies from ff7_en.exe.local and ff7.exe.local. Remove folders left empty by Blind Soldier and keep the new version.dll beside the executable. Preserve folders and files used by other mods. Windows can remember DLL redirection after a folder is removed. If Play still fails, restart Windows and try again.
+
+To remove Blind Soldier, close FFVII and delete the mod files listed in portable-manifest.json. Restore any original version.dll you backed up. Remove any empty executable .local folders left by older Blind Soldier ZIPs.
 
 English, French, German, Spanish, and Japanese are supported. GameLanguage defaults to auto. Logs are written under Blind-Soldier\Logs. Players never run the bootstrap executable manually.
 

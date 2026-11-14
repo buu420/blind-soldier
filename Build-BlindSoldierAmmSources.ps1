@@ -96,7 +96,7 @@ try {
     }
 
     Copy-RequiredFile -Source (Join-Path $portable `
-        'ff7_en.exe.local\version.dll') -Destination (Join-Path $old `
+        'workingdir\version.dll') -Destination (Join-Path $old `
         'version.dll') -Label 'x86 sibling Version proxy'
 
     foreach ($modId in @(

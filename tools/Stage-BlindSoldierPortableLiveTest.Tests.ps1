@@ -97,14 +97,8 @@ function New-LiveStageFixture {
     $proxySource = Join-Path $payload 'proxy.dll'
     New-TestPe -Path $proxySource -Machine 0x014C -Marker 6
     foreach ($relative in @(
-        'ff7_en.exe.local\version.dll',
-        'ff7.exe.local\version.dll',
         'workingdir\version.dll',
-        'workingdir\ff7_en.exe.local\version.dll',
-        'workingdir\ff7.exe.local\version.dll',
-        'ff7\workingdir\version.dll',
-        'ff7\workingdir\ff7_en.exe.local\version.dll',
-        'ff7\workingdir\ff7.exe.local\version.dll')) {
+        'ff7\workingdir\version.dll')) {
         $target = Join-Path $payload $relative
         New-Item -ItemType Directory -Path (Split-Path -Parent $target) -Force |
             Out-Null
@@ -210,7 +204,7 @@ if ($ExpectedVersion -cne '0.1.8') { exit 92 }
         PriorProxy=$priorProxy
         PriorProxyHash=$priorProxyHash
         ProxyHash=(Get-FileHash -LiteralPath `
-            (Join-Path $payload 'ff7.exe.local\version.dll') -Algorithm SHA256).Hash
+            (Join-Path $payload 'workingdir\version.dll') -Algorithm SHA256).Hash
         EntryCount=@(Get-ChildItem -LiteralPath $payload -File -Recurse).Count
         ManifestPaths=@($records.path + 'portable-manifest.json' | Sort-Object)
         ExternalRelativePaths=@($externalRelativePaths | Sort-Object)
@@ -414,7 +408,7 @@ Describe 'Blind Soldier portable live staging safety' {
             -NotePropertyValue @($fixture.PriorProxyHash)
         $policy | ConvertTo-Json -Depth 5 |
             Set-Content -LiteralPath $fixture.Supported -Encoding utf8
-        $collision = Join-Path $fixture.Game 'ff7.exe.local\version.dll'
+        $collision = Join-Path $fixture.Game 'workingdir\version.dll'
         New-Item -ItemType Directory -Path (Split-Path -Parent $collision) `
             -Force | Out-Null
         Copy-Item -LiteralPath $fixture.PriorProxy -Destination $collision
@@ -425,7 +419,7 @@ Describe 'Blind Soldier portable live staging safety' {
         (Get-FileHash -LiteralPath $collision -Algorithm SHA256).Hash |
             Should Be $fixture.ProxyHash
         (Get-FileHash -LiteralPath (Join-Path $fixture.Backup `
-            'files\ff7.exe.local\version.dll') -Algorithm SHA256).Hash |
+            'files\workingdir\version.dll') -Algorithm SHA256).Hash |
             Should Be $fixture.PriorProxyHash
     }
 

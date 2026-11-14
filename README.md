@@ -515,10 +515,10 @@ interactions. These checks do not establish a complete live playthrough.
   managed by 7th Heaven, not by Blind Soldier.
 
 **Final Fantasy VII is the only software a native Steam player must install first.**
-Players using legacy x86 through 7th Heaven need the official stable 7th Heaven
-4.5.2 release, which owns its FFNx runtime. The portable ZIP contains Reloaded-II,
-Reloaded Shared Hooks, Prism, and private x86 and x64 .NET runtimes. Development
-builds targeting .NET 10 are not part of this release's verified compatibility set.
+7th Heaven manages its own FFNx runtime. Startup with Blind Soldier has been
+verified on stock 7th Heaven 4.6.1 with ReShade 6.8.0 enabled and disabled. The
+portable ZIP bundles Reloaded-II, Reloaded Shared Hooks, Prism, and private .NET
+runtimes for standalone launches.
 
 Blind Soldier contains separate x86 and x64 backends. Its bootstrap validates
 the legacy Steam 2013 runtime (`ff7_en.exe`), converted x86 runtime (`ff7.exe`),
@@ -530,19 +530,19 @@ instead of reading unverified game memory.
 Choose one download from the
 [Blind Soldier Releases page](https://github.com/buu420/blind-soldier/releases):
 
-- [Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.10.14/Blind-Soldier-Portable.zip)
+- [Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.10.15/Blind-Soldier-Portable.zip)
   is the complete dual-runtime package. Use it for Steam 2026 x64 or when one
   extracted package must support both x86 and x64 installations.
-- [Blind-Soldier-2013-x86-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.10.14/Blind-Soldier-2013-x86-Portable.zip)
+- [Blind-Soldier-2013-x86-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.10.15/Blind-Soldier-2013-x86-Portable.zip)
   is the smaller legacy-only package. Use it for the 2013 x86 game, including
   stock 7th Heaven/FFNx. It deliberately contains no Steam 2026 launcher or
   x64 files.
 
 1. Close Final Fantasy VII and 7th Heaven.
 2. For Steam 2026 or direct 2013 launch, extract every file in the selected ZIP
-   directly into the Final Fantasy VII game folder. Do not extract it into a
-   separate subfolder. For 7th Heaven, extract the x86 ZIP into the directory
-   that contains its `workingdir` folder, not inside `workingdir` itself.
+   directly into the Final Fantasy VII game folder. For direct 2013 launch,
+   choose the x86-only ZIP and extract it beside `ff7_en.exe`. For 7th Heaven,
+   extract the x86 ZIP one level above its `workingdir` folder.
 3. Start the game normally from Steam or 7th Heaven.
 
 There is no installer to run, no administrator prompt, and no registry change.
@@ -556,10 +556,8 @@ edits a 7th Heaven or FFNx file. Never run a file under
 
 > [!WARNING]
 > If a supported layout-scoped path already contains an unknown
-> `version.dll`, move it to a safe backup before extraction. These paths include
-> the executable-specific `.local` folders and the stock 7th Heaven sibling
-> `workingdir`. Blind Soldier does not merge with or overwrite another Version
-> proxy safely.
+> `version.dll` beside the x86 game executable, back it up before extraction.
+> Blind Soldier needs its own Version proxy at that path.
 
 For x86 FF7, the proxy forwards all 17 Windows Version APIs. If FFNx redirects
 the system request back to the proxy, Blind Soldier makes a private byte-for-byte
@@ -571,15 +569,22 @@ release does not ship a Windows system DLL.
 
 - To update or repair, close the game and extract the newer ZIP over the same
   game folder.
+- When updating an older install, close the game and 7th Heaven.
+  Back up any old Blind Soldier `version.dll` inside `ff7_en.exe.local` or
+  `ff7.exe.local` beside the x86 executable. Remove those folders if Blind
+  Soldier created them and they are empty. Keep other mods' files and the new
+  `version.dll` beside the executable. Windows can remember DLL redirection
+  after a folder is removed. If Play still fails, restart Windows and try again.
 - **Keep your settings and room history when updating.** Copy the entire
   `Reloaded-II\Mods\ff7.accessibility.reloaded\Configuration` folder somewhere
   safe, extract the new ZIP, then restore your saved folder. The ZIP includes
   default settings that can overwrite your language, feature toggles, volumes
   and timing choices in `config.json`. The `room-descriptions.json` file stores
   which rooms have already been described for each save.
-- To remove the mod, close the game and delete the files listed by
-  `portable-manifest.json`, then restore any launcher or `.local\version.dll` you
-  backed up before extraction.
+- To remove the mod, close the game and delete its files listed by
+  `portable-manifest.json`. Remove any empty executable `.local` folders
+  created by older Blind Soldier ZIPs. Restore any launcher or Version DLL
+  you backed up before extraction.
 - Logs are written beneath `Blind-Soldier\Logs` in the game folder.
 - Steam **Verify integrity of game files** may restore the stock launcher.
   Extract Blind Soldier again afterward to restore launcher accessibility.
