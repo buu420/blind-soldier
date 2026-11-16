@@ -245,6 +245,7 @@ public sealed class ControllerAccessibilityMenu : IControllerNavigationMenu
         Has(pressed, GamepadButton.DPadRight) ? ControllerNavigationCommand.NextCategory :
         Has(pressed, GamepadButton.DPadUp) ? ControllerNavigationCommand.PreviousTarget :
         Has(pressed, GamepadButton.DPadDown) ? ControllerNavigationCommand.NextTarget :
+        Has(pressed, GamepadButton.Y) ? ControllerNavigationCommand.FieldActivityStatus :
         ControllerNavigationCommand.None;
 
     private static ControllerNavigationCommand MapParty(GamepadButton pressed) =>

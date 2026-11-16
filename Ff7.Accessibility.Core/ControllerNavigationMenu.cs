@@ -40,6 +40,7 @@ public enum ControllerNavigationCommand
     PartySummary,
     PartyStatuses,
     PartyLimit,
+    FieldActivityStatus,
 }
 
 /// <summary>

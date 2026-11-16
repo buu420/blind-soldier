@@ -358,13 +358,11 @@ public sealed class FieldActivityReadout
     public bool CurrentReplaceableLineIsUrgent => clockSecondHand.CurrentIsUrgent || forestPuzzle.CurrentIsUrgent;
 
     /// <summary>Routine directions may wait while a current forest fact needs to be heard.</summary>
-    public bool HasPendingForestSpeech => forestPuzzle.HasUnheardLine;
+    public bool HasPendingForestSpeech => forestPuzzle.HasPendingSpeech;
 
     /// <summary>
-    /// The host has just said <paramref name="line"/>, the current replaceable line. The forest says
-    /// what was in it again with its next line until it has been heard, so one line cutting off
-    /// another loses nothing. <paramref name="saidOverSince"/> is when anything else was first said
-    /// after it, and <paramref name="isSpeaking"/> the screen reader's own word, or null.
+    /// The speaker accepted the current replaceable line. The forest uses this to give the
+    /// cue time to play before routine guidance resumes.
     /// </summary>
     public void NoteReplaceableLineSpoken(string line, DateTime now, Func<DateTime?> saidOverSince, Func<bool?>? isSpeaking) =>
         forestPuzzle.NoteSpoken(line, now, saidOverSince, isSpeaking);

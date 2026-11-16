@@ -812,7 +812,7 @@ public sealed class FieldNavigationController
     /// <summary>Current native interaction context, such as releasing a carried forest creature first.</summary>
     public Func<FieldPositionSnapshot, FieldNavigationTarget, string?>? InteractionArrivalInstruction { get; set; }
 
-    internal Func<int, string?>? ForestPlantSummary { get; set; }
+    internal Func<FieldNavigationTarget, string?>? ForestPlantStatus { get; set; }
 
     // How far from the target a started Contact may be seen and still be this approach's: the
     // step being taken plus whatever the script's first frames move the party.
@@ -1638,12 +1638,12 @@ public sealed class FieldNavigationController
                 MoveCategory(-1);
                 DropHeldBoundaryTargetOnSelectionChange(position);
                 RelockBeaconToSelection(position);
-                return DescribeSelectionWithForestSummary(position, controlTransform, ladderState);
+                return DescribeCurrentSelection(position, controlTransform, ladderState);
             case FieldNavigationAction.NextCategory:
                 MoveCategory(1);
                 DropHeldBoundaryTargetOnSelectionChange(position);
                 RelockBeaconToSelection(position);
-                return DescribeSelectionWithForestSummary(position, controlTransform, ladderState);
+                return DescribeCurrentSelection(position, controlTransform, ladderState);
             case FieldNavigationAction.PreviousTarget:
                 MoveTarget(position, -1);
                 DropHeldBoundaryTargetOnSelectionChange(position);
@@ -1670,7 +1670,7 @@ public sealed class FieldNavigationController
                               $"Route progress {CurrentRouteProgressPercent} percent.");
                 }
 
-                return DescribeSelectionWithForestSummary(position, controlTransform, ladderState);
+                return DescribeCurrentSelection(position, controlTransform, ladderState);
             case FieldNavigationAction.ToggleBeacon:
                 if (BeaconEnabled)
                 {
@@ -3529,19 +3529,6 @@ public sealed class FieldNavigationController
         selectedTargetIds[key] = GetTargetId(targets[index]);
     }
 
-    private FieldNavigationActionResult? DescribeSelectionWithForestSummary(
-        FieldPositionSnapshot position, FieldNavigationControlTransform? controlTransform,
-        FieldLadderStateSnapshot ladderState)
-    {
-        var selection = DescribeCurrentSelection(position, controlTransform, ladderState);
-        if (selection is not { } result || CurrentCategory != FieldNavigationCategory.Objects ||
-            ladderState.IsMounted || !AncientForestPuzzleReadout.HasPuzzle(position.FieldId) ||
-            ForestPlantSummary?.Invoke(position.FieldId) is not { } summary)
-            return selection;
-
-        return new FieldNavigationActionResult($"{result.Speech} {summary}");
-    }
-
     private FieldNavigationActionResult? DescribeCurrentSelection(
         FieldPositionSnapshot position,
         FieldNavigationControlTransform? controlTransform,
@@ -3582,6 +3569,8 @@ public sealed class FieldNavigationController
         }
 
         var spokenLabel = target.Value.Label;
+        if (ForestPlantStatus?.Invoke(target.Value) is { } plantStatus)
+            spokenLabel += $". {plantStatus}";
         if (AncientForestPuzzleReadout.HasPuzzle(position.FieldId) &&
             AncientForestInteractionGuidance.DescribeCreatureLocation(
                 position, target.Value, controlTransform, ResolveSpokenDistanceUnits(position.FieldId)) is { } location)

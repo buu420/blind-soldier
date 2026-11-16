@@ -59,15 +59,18 @@ public sealed class ControllerNavigationDispatcher
     private readonly IControllerNavigationTarget target;
     private readonly Func<string, bool> speak;
     private readonly Action<string>? log;
+    private readonly Func<string?>? fieldActivityStatus;
 
     public ControllerNavigationDispatcher(
         IControllerNavigationTarget target,
         Func<string, bool> speak,
-        Action<string>? log = null)
+        Action<string>? log = null,
+        Func<string?>? fieldActivityStatus = null)
     {
         this.target = target ?? throw new ArgumentNullException(nameof(target));
         this.speak = speak ?? throw new ArgumentNullException(nameof(speak));
         this.log = log;
+        this.fieldActivityStatus = fieldActivityStatus;
     }
 
     /// <summary>How many commands one drain will take, so a backlog cannot stall a frame.</summary>
@@ -183,6 +186,8 @@ public sealed class ControllerNavigationDispatcher
                 return Say(target.Apply(FieldNavigationAction.PreviousTarget));
             case ControllerNavigationCommand.NextTarget:
                 return Say(target.Apply(FieldNavigationAction.NextTarget));
+            case ControllerNavigationCommand.FieldActivityStatus:
+                return Say(fieldActivityStatus?.Invoke());
 
             case ControllerNavigationCommand.StartNavigation:
                 return Say(target.StartNavigation());

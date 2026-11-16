@@ -208,6 +208,10 @@ internal static class WholeGameEchoCompatibilityTests
                 var row = FieldNavigationObjectCatalog.CreateAllFields().First(d => d.FieldId == 132 && d.EntityId == 5);
                 Equal(true, catalog.RemapObjectDefinition(row) is null, "removed mtr cannot select smoke1 at entity 5");
             });
+            Case(variant + " Reactor 1 visible chest when item text is unavailable", () =>
+                AssertEchoChestAvailability(state, catalog, root, echo, 120, 11, 32, 8, "Phoenix Down"));
+            Case(variant + " Northern Crater unnamed chest", () =>
+                AssertEchoChestAvailability(state, catalog, root, echo, 758, 20, 147, 8, "Medicine"));
             Case(variant + " Northern Crater line", () =>
             {
                 state.Load(echo, 749);
@@ -436,6 +440,48 @@ internal static class WholeGameEchoCompatibilityTests
     private static void Equal<T>(T expected, T actual, string why)
     {
         if (!EqualityComparer<T>.Default.Equals(expected, actual)) throw new InvalidOperationException($"{why}: expected {expected}; actual {actual}");
+    }
+
+    private static void AssertEchoChestAvailability(
+        ScriptMemory state, FieldScriptNavigationCatalog catalog, string stockRoot, string echoRoot,
+        int field, int entity, int collectedAddress, byte collectedMask, string itemName)
+    {
+        const int eventTable = 0x02000000;
+        var chest = eventTable + FieldNavigationObjectReader.FieldEventDataStride;
+        var row = FieldNavigationObjectCatalog.CreateAllFields().Single(d => d.FieldId == field && d.EntityId == entity);
+        var visible = true;
+        byte collected = 0;
+        string? itemText = itemName;
+        var objects = new FieldNavigationObjectReader(
+            address => address == FieldNavigationObjectReader.AddressFieldEventDataPtr ? eventTable : 0,
+            address => address switch
+            {
+                FieldPositionReader.AddressFieldNumModels => 2,
+                _ when address == FieldNavigationObjectReader.AddressFieldModelIdArray + entity => 1,
+                _ when address == chest + FieldNavigationObjectReader.VisibilityOffset => visible ? (byte)1 : (byte)0,
+                _ when address == FieldNavigationObjectReader.AddressFieldBankBase + 0x400 + collectedAddress => collected,
+                _ => 0,
+            },
+            _ => itemText, _ => null, [row], remapDefinition: catalog.RemapObjectDefinition);
+        var position = new FieldPositionSnapshot(FieldPositionReader.FieldModule, field, 0, 0, 0, 0, 81, 0);
+        state.Load(echoRoot, field);
+        Equal(entity, catalog.RemapObjectDefinition(row)?.EntityId, "the chest retained its native identity");
+        Equal(itemName, objects.ReadTargets(position).Single().Label, "Objects lists the visible unopened chest");
+        itemText = null;
+        var unnamed = objects.ReadTargets(position);
+        Equal(1, unnamed.Count, "a missing text lookup cannot hide a visible unopened chest");
+        Equal("Chest", unnamed.Single().Label, "the visible model supplies a neutral label");
+        collected = (byte)(collectedMask << 1);
+        Equal(1, objects.ReadTargets(position).Count, "the neighbouring flag does not hide this chest");
+        collected = collectedMask;
+        Equal(0, objects.ReadTargets(position).Count, "the native collected bit retires the target");
+        collected = 0;
+        visible = false;
+        Equal(0, objects.ReadTargets(position).Count, "a hidden model is unavailable");
+        visible = true;
+        itemText = itemName;
+        state.Load(stockRoot, field);
+        Equal(entity, objects.ReadTargets(position).Single().TriggerEntityId, "stock chest is selectable");
     }
 
     private sealed class ScriptMemory : ILegacyAddressSpace

@@ -59,9 +59,8 @@ public static class FieldActivityClockHost
             interruptProtectedSpeech: readout.CurrentReplaceableLineIsUrgent);
         if (spoken is not null)
         {
-            // Only now has the line begun to be heard; a line held back or refused has not. Until
-            // it has been, the readout asks whether anything else was said over it, and whether the
-            // screen reader is still saying it.
+            // A held or refused line is still pending. An accepted cue only needs playback
+            // protection while it is the current speech.
             readout.NoteReplaceableLineSpoken(spoken, now, () => delivery.OtherSpeechSinceDelivery, isSpeaking);
         }
 
