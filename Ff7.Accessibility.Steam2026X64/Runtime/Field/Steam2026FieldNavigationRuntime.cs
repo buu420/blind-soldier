@@ -342,7 +342,7 @@ internal static class Steam2026FieldNavigationPendingActionExecutor
                 candidate => Steam2026FieldNavigationActionGate.IsReady(
                     candidate,
                     controller.CurrentCategory,
-                    controller.BeaconEnabled,
+                    candidate == FieldNavigationAction.ToggleBeacon ? controller.HasActiveNavigation : controller.BeaconEnabled,
                     checkedCoherence,
                     requiresCoherentRoute: controller.PreviewActionRoute(
                         candidate, planningPosition, includeSelectionRoute: false).Target is { } target &&

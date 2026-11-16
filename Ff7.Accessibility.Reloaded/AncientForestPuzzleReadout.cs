@@ -7,8 +7,11 @@ namespace Ff7.Accessibility.Reloaded;
 /// </summary>
 internal sealed class AncientForestPuzzleReadout
 {
-    /// <summary>A released creature this close to the leader was set down where he stood.</summary>
-    private const int FeetRadius = 64;
+    // The model must still be beside the leader and on the same level. The native
+    // drop samples the leader's position, then the player can move before we read it.
+    private const int FeetRadius = 12;
+    private const int FeetHeightTolerance = 16;
+    private const int ReleaseDistanceUnitsPerCount = 24;
 
     /// <summary>How close the leader must be to a jaw's native placement point to be in its mouth.</summary>
     private const int JawRadius = 24;
@@ -356,12 +359,11 @@ internal sealed class AncientForestPuzzleReadout
         {
             if (model.EntityId == part.Creature)
             {
-                // Retain an observed release as a past event, but do not keep claiming
-                // its current place once that place is unreadable or the leader has left it.
                 return model.Status switch
                 {
                     FieldActivityReadStatus.Hidden => null,
-                    FieldActivityReadStatus.Visible when part.AtFeet && !IsNear(model, observation) => WithoutCurrentPlace(part),
+                    FieldActivityReadStatus.Visible when part.ReleaseLabel is { } label =>
+                        part with { Text = DescribeRelease(label, model, observation) },
                     FieldActivityReadStatus.Unreadable => WithoutCurrentPlace(part),
                     _ => part
                 };
@@ -371,10 +373,9 @@ internal sealed class AncientForestPuzzleReadout
         return WithoutCurrentPlace(part);
     }
 
-    private Part? WithoutCurrentPlace(Part part) => !part.AtFeet ? part :
-        Creatures(fieldId).FirstOrDefault(creature => creature.Entity == part.Creature).Label is { } label
-            ? part with { Text = $"{label} landed.", AtFeet = false }
-            : null;
+    // Keep the observed release if its current place can no longer be read.
+    private static Part WithoutCurrentPlace(Part part) =>
+        part.ReleaseLabel is { } label ? part with { Text = $"{label} landed." } : part;
 
     private static Facts? ReadFacts(FieldActivityObservation observation)
     {
@@ -522,11 +523,10 @@ internal sealed class AncientForestPuzzleReadout
                 pendingRelease = -1;
                 if (isVisible)
                 {
-                    var atFeet = IsNear(model, observation);
-                    lines.Add(new(held < 0 ? "carrying" : subject, atFeet ? $"{label} is at your feet." : $"{label} landed.")
+                    lines.Add(new(held < 0 ? "carrying" : subject, $"{label} landed.")
                     {
                         Creature = model.EntityId,
-                        AtFeet = atFeet,
+                        ReleaseLabel = label,
                         NewsUntil = newsUntil
                     });
                 }
@@ -558,11 +558,25 @@ internal sealed class AncientForestPuzzleReadout
     private static int Carried(IReadOnlyList<(int Entity, string Label)> creatures, int code) =>
         code >= 1 && code <= creatures.Count ? creatures[code - 1].Entity : -1;
 
-    private static bool IsNear(FieldActivityModelReading model, FieldActivityObservation observation)
+    private static string DescribeRelease(string label, FieldActivityModelReading model, FieldActivityObservation observation)
     {
-        var dx = (long)model.Model.X - observation.PlayerX;
-        var dy = (long)model.Model.Y - observation.PlayerY;
-        return dx * dx + dy * dy <= (long)FeetRadius * FeetRadius;
+        var dx = model.Model.X - observation.PlayerX;
+        var dy = model.Model.Y - observation.PlayerY;
+        var height = model.Model.Z - observation.PlayerZ;
+        var heightDifference = Math.Abs(height) > FeetHeightTolerance;
+        if ((long)dx * dx + (long)dy * dy <= FeetRadius * FeetRadius && !heightDifference)
+            return $"{label} is at your feet.";
+
+        var landed = $"{label} landed.";
+        var vertical = heightDifference ? height > 0 ? "above you" : "below you" : null;
+        var offset = observation.IsTransformUsable
+            ? FieldNavigationSpokenCueFormatter.Format(dx, dy, observation.Transform, ReleaseDistanceUnitsPerCount)
+            : "at destination";
+        if (offset == "at destination")
+            return vertical is null ? landed : $"{landed} {char.ToUpperInvariant(vertical[0])}{vertical[1..]}.";
+
+        return $"{landed} {char.ToUpperInvariant(offset[0])}{offset[1..]}" +
+            (vertical is null ? "." : $", {vertical}.");
     }
 
     private static IEnumerable<Part> Changes(Scene before, Scene now, int openedUnder, bool describedRelease)
@@ -652,7 +666,7 @@ internal sealed class AncientForestPuzzleReadout
     private sealed record Part(string Subject, string Text)
     {
         public int Creature { get; init; } = -1;
-        public bool AtFeet { get; init; }
+        public string? ReleaseLabel { get; init; }
         public int PlantNumber { get; init; }
         public PlantState PlantPose { get; init; }
         public DateTime? NewsUntil { get; init; }

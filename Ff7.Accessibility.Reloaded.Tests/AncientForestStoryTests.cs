@@ -6,6 +6,9 @@ internal static class AncientForestStoryTests
 {
     internal static void Run()
     {
+        ActiveStoryResumesAfterNativeActions();
+        StagingUsesTwoDistinctSafeSpots();
+
         var forest = new Replay();
         var first = AncientForestStoryGuide.EntranceStage1;
         var second = AncientForestStoryGuide.EntranceStage2;
@@ -250,6 +253,107 @@ internal static class AncientForestStoryTests
         if (forest.Read([insect1]).Count != 0) throw new InvalidOperationException("No directions while a native jump is taking control.");
         StoryCuesFollowNativeChanges();
         Console.WriteLine("Ancient Forest Story replay passed: every reward, crossing, creature and the native reset.");
+    }
+
+    private static void ActiveStoryResumesAfterNativeActions()
+    {
+        var forest = new Replay();
+        forest.Enter(622, -1840, -665, 132);
+        forest.Collect(AncientForestStoryGuide.Supershot);
+        var insect1 = Object("Insect 1", -1810, -665, 28);
+        var insect2 = Object("Insect 2", -792, -489, 6);
+        var insect3 = Object("Insect 3", -848, -735, 17);
+        FieldNavigationTarget[] insects = [insect1, insect2, insect3];
+        var source = new FieldNavigationTargetSource([], storyTargetProvider: _ => forest.Read(insects));
+        var controller = new FieldNavigationController(source, new AncientForestInteractionTests.StraightRoute());
+        var now = new DateTime(2026, 11, 16, 23, 13, 35, DateTimeKind.Utc);
+        FieldNavigationActionResult? Tick(bool suppressed = false) =>
+            controller.UpdateLiveTracking(forest.Position, default, new(0), suppressed,
+                observedAt: now = now.AddMilliseconds(160));
+        void Require(bool condition, string failure)
+        {
+            if (!condition) throw new InvalidOperationException(failure);
+        }
+        bool CanDrive() => controller.TryResolveAutomaticInput(forest.Position, new(0), 0, out _);
+
+        controller.HandleAction(FieldNavigationAction.NextCategory, forest.Position);
+        controller.HandleAction(FieldNavigationAction.ToggleBeacon, forest.Position, new(0));
+        Require(controller.BeaconEnabled, "The player opted in to the Story pickup route.");
+        controller.NoteAutoWalkStarted();
+        forest.At(insect1.X, insect1.Y, 132, insect1.Z);
+        Require(Tick()?.Speech.Contains("Press Confirm to pick it up", StringComparison.Ordinal) == true,
+            "The route waits for native Confirm at the insect.");
+
+        // The report sampled zone zero and no Story row before the native tutorial
+        // control lock was visible to the host.
+        insects = [insect2, insect3];
+        forest.Bank[9] = 1;
+        forest.Bank[19] = 0;
+        Require(Tick() is null && !CanDrive(), "A missing Story row must suspend the pickup, not end it.");
+        Require(Tick(suppressed: true) is null && !CanDrive(), "Do not speak or steer through the pickup tutorial.");
+        forest.Bank[19] = 1;
+        Tick();
+        Require(Tick()?.Speech.StartsWith("Stage the insect by the crossing.", StringComparison.Ordinal) == true &&
+            controller.BeaconEnabled, "After the tutorial, start guiding to the staging spot automatically.");
+
+        var first = AncientForestStoryGuide.EntranceStage1;
+        forest.At(first.X, first.Y, 114, first.Z);
+        Require(Tick()?.Speech.Contains("Press Confirm to set it down here", StringComparison.Ordinal) == true &&
+            !CanDrive(), "At the staging spot, stop movement and tell the player how to drop the insect.");
+        Require(Tick() is null, "Keep the player's manual action quiet while waiting for it.");
+        insects = [insect1 with { X = first.X + 33, Y = first.Y, Z = first.Z }, insect2, insect3];
+        forest.Bank[9] = 0;
+        forest.Bank[19] = 0;
+        Require(Tick() is null && !CanDrive(), "Do not pursue another creature before the drop completes.");
+        forest.Bank[19] = 1;
+        Tick();
+        Require(Tick()?.Speech.StartsWith("Pick up Insect 2 to stage by the crossing.", StringComparison.Ordinal) == true &&
+            controller.BeaconEnabled, "Accept the staged drop and start the next pickup route.");
+
+        var second = AncientForestStoryGuide.EntranceStage2;
+        insects = [insects[0], insect2 with { X = second.X, Y = second.Y, Z = second.Z }];
+        forest.At(-60, -128, 4);
+        forest.Bank[9] = 3;
+        forest.Bank[19] = 2;
+        Require(Tick()?.Speech == "Feed pitcher plant 1. Press Confirm to throw." && !CanDrive(),
+            "The next throw stays on the native button.");
+        forest.Bank[19] = 0;
+        forest.Bank[9] = 0;
+        forest.Bank[16] = 1;
+        Require(Tick(suppressed: true) is null && !CanDrive(), "Hold directions while the plant takes the insect.");
+        forest.Bank[19] = 2;
+        Tick();
+        Require(Tick()?.Speech.StartsWith("Pick up Insect 1 for the next pitcher plant.", StringComparison.Ordinal) == true &&
+            controller.BeaconEnabled, "The next insect is guided immediately after control returns.");
+
+        forest.At(193, -114, 14);
+        forest.Bank[17] = 1;
+        Require(Tick()?.Speech == "Return for the staged insect. Hold Left." && !CanDrive(),
+            "Do not automate the native jump back to the bank.");
+        Require(controller.HandleAction(FieldNavigationAction.ToggleBeacon, forest.Position)?.Speech == "Navigation off.",
+            "The player can turn Story following off during a manual action.");
+        forest.At(first.X, first.Y, 114, first.Z);
+        forest.Bank[19] = 1;
+        Require(Tick() is null && !controller.BeaconEnabled && !CanDrive(),
+            "After explicit cancellation, do not start another route.");
+    }
+
+    private static void StagingUsesTwoDistinctSafeSpots()
+    {
+        var forest = new Replay();
+        var first = AncientForestStoryGuide.EntranceStage1;
+        var second = AncientForestStoryGuide.EntranceStage2;
+        forest.Enter(622, first.X, first.Y, 114);
+        forest.At(first.X, first.Y, 114, first.Z);
+        forest.Collect(AncientForestStoryGuide.Supershot);
+        var insect1 = Object("Insect 1", first.X + 33, first.Y - 4, first.Z);
+        var insect2 = Object("Insect 2", -792, -489, 6);
+        var insect3 = Object("Insect 3", -848, -735, 17);
+        forest.Expect("Pick up Insect 2 to stage by the crossing", [insect1, insect2, insect3]);
+
+        insect2 = insect2 with { X = first.X, Y = first.Y, Z = first.Z };
+        forest.Bank[9] = 3;
+        forest.Expect("Stage the insect by the crossing", [insect1, insect2], destination: second);
     }
 
     private static void StoryCuesFollowNativeChanges()

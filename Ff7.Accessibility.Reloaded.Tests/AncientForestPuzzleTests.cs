@@ -413,6 +413,22 @@ internal static class AncientForestPuzzleTests
         Check(dropped.Speech == "Insect 2 is at your feet.", "the location already communicates the release");
 
         readout = new FieldActivityReadout();
+        readout.Observe(Look(held: 2, models: [Hidden(7)], x: 100, y: 100), Epoch);
+        var offset = readout.Observe(Look(models: [Seen(7, 100, 60)], x: 100, y: 100), Epoch.AddMilliseconds(100));
+        Contains(offset.Speech, "Insect 2 landed. Up", "a visible release forty units away needs a direction");
+
+        readout = new FieldActivityReadout();
+        readout.Observe(Look(held: 2, models: [Hidden(7)], x: 100, y: 100, z: 77), Epoch);
+        var lower = readout.Observe(Look(models: [Seen(7, 100, 100)], x: 100, y: 100, z: 77), Epoch.AddMilliseconds(100));
+        Contains(lower.Speech, "Insect 2 landed. Below you.", "a release on a lower ledge is not at the leader's feet");
+
+        readout = new FieldActivityReadout();
+        readout.Observe(Look(held: 2, models: [Hidden(7)], x: 100, y: 100), Epoch);
+        var noDirection = Look(models: [Seen(7, 100, 60)], x: 100, y: 100) with { IsTransformUsable = false };
+        Check(readout.Observe(noDirection, Epoch.AddMilliseconds(100)).Speech == "Insect 2 landed.",
+            "a visible landing needs a checked control transform for a direction");
+
+        readout = new FieldActivityReadout();
         readout.Observe(Look(held: 2, models: [Hidden(7)], x: 0, y: -126), Epoch);
         Contains(readout.Observe(Look(models: [Seen(7, 171, -254)], x: 0, y: -126), Epoch.AddMilliseconds(100)).Speech,
             "Insect 2 landed", "a throw at a shut plant is seen landing away from the leader");

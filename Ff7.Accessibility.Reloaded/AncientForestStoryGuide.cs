@@ -12,10 +12,14 @@ internal sealed class AncientForestStoryGuide(
     IReadOnlyList<FieldNavigationTarget> objects,
     IReadOnlyList<FieldNavigationTarget> exits)
 {
-    // On the neutral (zone 1) side of bdl8/rk0lt, before the throw line.
-    // Two separate spots keep the entrance insects from overlapping.
-    internal static readonly (int X, int Y, int Z) EntranceStage1 = (-170, -145, 164);
-    internal static readonly (int X, int Y, int Z) EntranceStage2 = (-165, -220, 119);
+    // On the broad, neutral side of bdl8/rk0lt, before the throw line. The two
+    // placements are far enough apart that their acceptance areas never overlap.
+    internal static readonly (int X, int Y, int Z) EntranceStage1 = (-210, -220, 105);
+    internal static readonly (int X, int Y, int Z) EntranceStage2 = (-210, -326, 80);
+    // Accept a safe area on each bank approach. A running step can pass a tight
+    // waypoint between samples, especially at Steam's faster field pace.
+    private const int EntranceStageReadyRadius = 44;
+    private const int EntranceStagedRadius = 52;
     internal static readonly (int X, int Y, int Z) CanopyStage = (-1940, -270, 61);
 
     internal const int Typoon = 0x04;
@@ -89,12 +93,16 @@ internal sealed class AncientForestStoryGuide(
 
         if (!Has(Supershot))
         {
-            if (Carry != 0) return Stage(EntranceStage1, "Set down the creature before taking Supershot ST");
+            if (Carry != 0)
+                return Stage(EntranceStage1, "Set down the creature before taking Supershot ST", EntranceStageReadyRadius);
             return Reward("Item", 252);
         }
 
         var insects = Named("Insect ").Where(t => t.X < 400).ToArray();
-        var staged = insects.Where(t => At(t, EntranceStage1, 22) || At(t, EntranceStage2, 22)).ToArray();
+        var staged = new[] { EntranceStage1, EntranceStage2 }
+            .Select(point => insects.FirstOrDefault(t => At(t, point, EntranceStagedRadius)))
+            .Where(t => t.StableId is not null)
+            .ToArray();
         if (!one)
         {
             // Insects are eaten. Set the other two down first so the player won't need to
@@ -105,11 +113,13 @@ internal sealed class AncientForestStoryGuide(
             {
                 if (Carry == 0)
                     return Pickup(insects.Except(staged), "to stage by the crossing");
-                var point = staged.Any(t => At(t, EntranceStage1, 22)) ? EntranceStage2 : EntranceStage1;
-                return Stage(point, "Stage the insect by the crossing");
+                var point = staged.Any(t => At(t, EntranceStage1, EntranceStagedRadius)) ? EntranceStage2 : EntranceStage1;
+                if (Carry > 3 && Zone == 1) return DropAtCurrentSpot();
+                return Stage(point, Carry <= 3 ? "Stage the insect by the crossing" : "Set down the frog",
+                    EntranceStageReadyRadius);
             }
             if (Carry != 0) return Feed(1, 2);
-            return Pickup(insects.OrderBy(t => At(t, EntranceStage1, 22) || At(t, EntranceStage2, 22)))
+            return Pickup(insects.OrderBy(t => staged.Contains(t)))
                 ?? Pickup(Named("Frog ").Where(t => t.X < 400))
                 ?? Restart("There is no creature left on this bank to feed pitcher plant 1");
         }
@@ -341,9 +351,13 @@ internal sealed class AncientForestStoryGuide(
             $"Pick up {target.Label}{(purpose is null ? "" : $" {purpose}")}", "Press Confirm to pick it up.");
     }
 
-    private FieldNavigationTarget Stage((int X, int Y, int Z) point, string action) =>
-        Zone == 1 && Near(point, 13) ? Cue(action, "Press Confirm to set it down here.")
-        : Point(point, action, "Check the next Story instruction before setting it down.", 8);
+    private FieldNavigationTarget Stage((int X, int Y, int Z) point, string action, int readyRadius = 13) =>
+        Zone == 1 && Near(point, readyRadius)
+            ? Cue(action, "Press Confirm to set it down here.")
+            : Point(point, action, "Check the next Story instruction before setting it down.", 8) with
+            {
+                StableId = $"forest-story:{action}:{point.X}:{point.Y}:{point.Z}"
+            };
 
     private FieldNavigationTarget? DropAtCurrentSpot() =>
         Zone == 1 ? Cue("Set down the carried creature", "Press Confirm to set it down here.")

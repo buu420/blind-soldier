@@ -85,6 +85,7 @@ internal static class AncientForestRouteHazardTests
         yield return ("620's flytraps open the way only when shut", () => Field620OpensOnlyWhenShut(forest));
         yield return ("623's flytrap opens the way only when shut", () => Field623OpensOnlyWhenShut(forest));
         yield return ("a throwing spot past its line is never walked round", () => ThrowingSpotsAreNeverWalkedRound(forest));
+        yield return ("auto walk reaches the two entrance staging spots on the native floor", () => EntranceStagingWalks(forest));
         yield return ("Supershot ST is walked to within its native Talk reach, clear of both jaws", () => SupershotIsWalkedToWithinItsTalkReach(forest));
         yield return ("auto walk reaches Supershot ST at the scan cadence, clear of both jaws", () => AutoWalkReachesSupershotAtTheScanCadence(forest));
         yield return ("held within its safe frames, no logged decision cadence bites", () => HeldWithinItsSafeFramesNoLoggedCadenceBites(forest));
@@ -690,6 +691,36 @@ internal static class AncientForestRouteHazardTests
     /// was, auto walk arrives within the Talk reach from both halves and from the entrance, and on
     /// no frame does the engine's own touch (radius 30, the real floor's height) fire on either jaw.
     /// </summary>
+    private static void EntranceStagingWalks(Forest forest)
+    {
+        var first = AncientForestStoryGuide.EntranceStage1;
+        var insect = new FieldNavigationTarget(622, FieldNavigationCategory.Objects, "Insect 1",
+            first.X, first.Y, first.Z, "insect-1");
+        var reserve = new FieldNavigationTarget(622, FieldNavigationCategory.Objects, "Insect 3",
+            -848, -735, 17, "insect-3");
+        var bank = new byte[64];
+        bank[9] = bank[19] = 1;
+        var state = new AncientForestStoryState(bank, AncientForestStoryGuide.Supershot, SupportedFieldScriptVariant.Vanilla);
+        foreach (var (start, objects) in new[]
+        {
+            ((-1810, -665, 132), new[] { reserve, insect with { X = -792, Y = -489, Z = 6, Label = "Insect 2" } }),
+            ((-792, -489, 90), new[] { insect, reserve }),
+        })
+        {
+            IReadOnlyList<FieldNavigationTarget> Story(FieldPositionSnapshot position) =>
+                new AncientForestStoryGuide(position, state, objects, []).ReadTargets();
+            var target = Story(forest.At(622, start)).Single();
+            foreach (var (frames, steps, speed) in new[] { (2, 1, (ushort)1024), (4, 3, (ushort)2048) })
+            {
+                var (reached, bite, detail, last) = forest.Replay(target, start, speed, frames,
+                    scanFrames: frames / 2, stepsPerPoll: steps, story: Story);
+                Equal(null, bite, detail);
+                Equal(true, reached, detail);
+                Equal("Press Confirm to set it down here.", Story(last).Single().ManualNavigationGuidance, detail);
+            }
+        }
+    }
+
     private static void AutoWalkReachesSupershotAtTheScanCadence(Forest forest)
     {
         var chest = forest.Talk(622, 26, "Supershot ST");
@@ -1132,11 +1163,13 @@ internal static class AncientForestRouteHazardTests
         public (bool Reached, string? Bite, string Detail, FieldPositionSnapshot Last) Replay(
             FieldNavigationTarget target, (int X, int Y, int Triangle) from, ushort speed, int framesPerDecision,
             bool leased = true, int scanFrames = 0, bool staleMark = false,
-            double unitsPerPoll = AutoWalkPollLease.MaximumUnitsPerPoll, int stepsPerPoll = 1)
+            double unitsPerPoll = AutoWalkPollLease.MaximumUnitsPerPoll, int stepsPerPoll = 1,
+            Func<FieldPositionSnapshot, IReadOnlyList<FieldNavigationTarget>>? story = null)
         {
             var field = target.FieldId;
             var planner = Planner(field);
-            var controller = new FieldNavigationController(new FieldNavigationTargetSource([], objectTargetProvider: _ => [target]), planner);
+            var controller = new FieldNavigationController(
+                new FieldNavigationTargetSource([], objectTargetProvider: _ => [target], storyTargetProvider: story), planner);
             var transform = new FieldNavigationControlTransform(ControlDirection(field));
             var flat = Flat(field);
             var jaws = NativeJaws.Where(jaw => jaw.Field == field).ToArray();
@@ -1151,7 +1184,7 @@ internal static class AncientForestRouteHazardTests
                     { NativeFixedPosition = new(state.FixedX, state.FixedY, z * 4096) };
             }
 
-            for (var guard = 0; guard < 8 && controller.CurrentCategory != FieldNavigationCategory.Objects; guard++)
+            for (var guard = 0; guard < 8 && controller.CurrentCategory != target.Category; guard++)
             {
                 controller.HandleAction(FieldNavigationAction.NextCategory, Here(), transform);
             }
@@ -1206,6 +1239,8 @@ internal static class AncientForestRouteHazardTests
                 var position = Here();
                 var spoken = controller.UpdateLiveTracking(position, new(0, input), transform, false, 80,
                     observedAt: DateTime.UnixEpoch.AddMilliseconds(tick * framesPerDecision * 1000d / 30d))?.Speech;
+                if (story is not null && controller.HasActiveNavigation && !controller.BeaconEnabled)
+                    return (true, null, $"Story is waiting for the player at {position.X},{position.Y},{position.Z}", position);
                 if (spoken is not null && spoken.Contains("reached", StringComparison.Ordinal))
                 {
                     var distance = Math.Sqrt(Math.Pow(position.X - target.X, 2) + Math.Pow(position.Y - target.Y, 2));
@@ -1237,8 +1272,8 @@ internal static class AncientForestRouteHazardTests
                 }
 
                 var pressing = moving && fieldBudget.Blocked is null;
-                _ = walk.Drive(pressing ? input : FieldNavigationInput.None, canMove: pressing, routeActive: true,
-                    pollBudget: fieldBudget.Budget);
+                _ = walk.Drive(pressing ? input : FieldNavigationInput.None, canMove: pressing,
+                    routeActive: controller.HasActiveNavigation, pollBudget: fieldBudget.Budget);
                 var (dx, dy) = FieldNavigationMovementObserver.PredictWorldDirection(input, transform);
                 pressed = pressing ? unchecked((byte)(int)Math.Round(Math.Atan2(dx, -dy) * 128 / Math.PI)) : null;
                 trail.Add($"{position.X},{position.Y}:{(pressing ? input : FieldNavigationInput.None)}/{fieldBudget.Budget?.SafePolls.ToString() ?? "-"}");

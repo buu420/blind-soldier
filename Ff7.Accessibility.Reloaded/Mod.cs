@@ -3045,7 +3045,7 @@ public sealed class Mod : IModV1, IModV2
     /// <summary>Stops forest navigation on a native bite, independently of narration settings.</summary>
     private void TickAncientForestNavigationSafety()
     {
-        if ((fieldNavigationController?.BeaconEnabled != true &&
+        if ((fieldNavigationController?.HasActiveNavigation != true &&
              navigationAutoWalkController?.IsEnabledFor(NavigationAutoWalkDomain.Field) != true &&
              pendingNavigationAutoWalkToggle != NavigationAutoWalkDomain.Field) ||
             fieldPositionReader is null || ancientForestPuzzleStateReader is null || fieldAudibleCueStateReader is null ||
@@ -6867,7 +6867,7 @@ public sealed class Mod : IModV1, IModV2
             {
                 fieldNavigationGuidanceRepeatGate.Reset();
                 Log($"Field navigation live tracking: {liveTrackingSpeech.Value.Speech}");
-                Speak(liveTrackingSpeech.Value.Speech);
+                Speak(liveTrackingSpeech.Value.Speech, interrupt: !fieldNavigationController.IsFollowingForestStory);
                 lastNavigationSpeechAt = now;
             }
 
@@ -7533,7 +7533,7 @@ public sealed class Mod : IModV1, IModV2
 
         fieldControllerNavigation = new ControllerNavigationDispatcher(
             new ControllerNavigationServices(
-                () => fieldNavigationController.BeaconEnabled,
+                () => fieldNavigationController.HasActiveNavigation,
                 action => fieldNavigationController.HandleAction(
                     action,
                     controllerFieldPosition,
@@ -7854,7 +7854,7 @@ public sealed class Mod : IModV1, IModV2
             return;
         }
 
-        if (!fieldNavigationController.BeaconEnabled)
+        if (!fieldNavigationController.HasActiveNavigation)
         {
             var speech = fieldNavigationController.HandleAction(
                 FieldNavigationAction.ToggleBeacon,
@@ -7878,15 +7878,15 @@ public sealed class Mod : IModV1, IModV2
             return;
         }
 
-        if (fieldNavigationController.BeaconEnabled &&
+        if (fieldNavigationController.HasActiveNavigation &&
             navigationAutoWalkController?.TryStart(
                 NavigationAutoWalkDomain.Field,
                 routeActive: true) == true)
         {
             fieldAutoWalkConvergence.Reset();
-            fieldNavigationController?.NoteAutoWalkStarted();
+            fieldNavigationController.NoteAutoWalkStarted();
             Log("Field navigation auto walk started for the selected target.");
-            Speak("Auto walk on.", interrupt: true);
+            Speak("Auto walk on.", interrupt: !fieldNavigationController.IsFollowingForestStory);
         }
     }
 
@@ -7990,7 +7990,7 @@ public sealed class Mod : IModV1, IModV2
         var result = navigationAutoWalkController.Drive(
             hasDirection ? direction : FieldNavigationInput.None,
             canMove: hasDirection && !movementSuppressed,
-            routeActive: fieldNavigationController.BeaconEnabled,
+            routeActive: fieldNavigationController.HasActiveNavigation,
             observedInput: observedInput,
             pollBudget: fieldBudget.Budget);
         LogFieldAutoWalkPace(position, direction, hasDirection, observedInput);
