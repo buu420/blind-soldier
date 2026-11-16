@@ -1725,8 +1725,8 @@ public sealed class Mod : IModV1, IModV2
             fieldNavigationProgressSink);
         fieldNavigationController.InteractionArrivalInstruction = (position, target) =>
             AncientForestInteractionGuidance.Describe(target, ancientForestPuzzleStateReader?.Read(position.FieldId));
-        fieldNavigationController.ForestPlantSummary = fieldId =>
-            AncientForestPuzzleReadout.DescribePitcherPlants(fieldId, ancientForestPuzzleStateReader?.ReadState(fieldId));
+        fieldNavigationController.ForestPlantStatus = target =>
+            AncientForestPuzzleReadout.DescribeSelectedPlant(target, fieldId => ancientForestPuzzleStateReader?.ReadState(fieldId));
 
         // Every Great Glacier treasure not yet picked up is listed in Objects on every region
         // screen and the snowfield, and a chosen one is walked to leg by leg (see
@@ -2290,27 +2290,28 @@ public sealed class Mod : IModV1, IModV2
         if (modSettingsMenu?.IsOpen == true) return;
         try
         {
-            repeatLastSpeechController.Poll(
-                virtualKey => ObserveKeyboardPress(virtualKey,
-                    foregroundProcessGate.IsCurrentProcessForeground() && !Volatile.Read(ref keyboardSettingsOwnsInput),
-                    repeatLastSpeechKeyTracker),
-                text =>
-                {
-                    // While a native activity is on screen, asking again means asking
-                    // about it. Replaying whatever happened to be said last would hand
-                    // back a line of dialogue that has already gone by, which is not
-                    // what the player is asking for with a clock in front of them.
-                    var spoken = fieldActivityCurrentLine ?? text;
-                    Log($"Repeat last speech: {spoken}");
-                    var repeated = config.EnableSpeech && speaker?.Speak(spoken, interrupt: true) == true;
-                    if (repeated)
-                    {
-                        // The clock's next reading waits for the repeat rather than cutting it off.
-                        fieldActivityLatestLine.NoteOtherSpeech(spoken, DateTime.UtcNow);
-                    }
+            if (!ObserveKeyboardPress(RepeatLastSpeechController.VirtualKeyR,
+                foregroundProcessGate.IsCurrentProcessForeground() && !Volatile.Read(ref keyboardSettingsOwnsInput),
+                repeatLastSpeechKeyTracker))
+            {
+                return;
+            }
 
-                    return repeated;
-                });
+            if (fieldActivityCurrentLine is { } activity)
+                Repeat(activity);
+            else
+                repeatLastSpeechController.Repeat(Repeat);
+
+            bool Repeat(string text)
+            {
+                Log($"Repeat last speech: {text}");
+                var repeated = config.EnableSpeech && speaker?.Speak(text, interrupt: true) == true;
+                if (repeated)
+                {
+                    fieldActivityLatestLine.NoteOtherSpeech(text, DateTime.UtcNow);
+                }
+                return repeated;
+            }
         }
         catch (Exception ex)
         {
@@ -7556,7 +7557,10 @@ public sealed class Mod : IModV1, IModV2
                 () => fieldNavigationController.IsHoldingForNativeBoundary,
                 fieldNavigationController.RequestAutoWalkForHeldRoute),
             speech => Speak(speech, interrupt: true),
-            Log);
+            Log,
+            fieldActivityStatus: () => AncientForestPuzzleReadout.HasPuzzle(controllerFieldPosition.FieldId)
+                ? fieldActivityCurrentLine ?? "Puzzle status unavailable."
+                : null);
 
         worldControllerNavigation = new ControllerNavigationDispatcher(
             new ControllerNavigationServices(

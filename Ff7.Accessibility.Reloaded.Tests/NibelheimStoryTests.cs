@@ -200,7 +200,7 @@ internal static class NibelheimStoryTests
                 $"moment {moment}: the visible bookcase must be in Objects before opening");
             Equal(true, bookcase.LineActivatesOnOk, "bookcase requires the normal Confirm button");
             Equal(39, bookcase.InteractionRadius, "bookcase approach uses the readable native player radius");
-            Equal(1, objects.Count, "present-day safe hints must remain absent in the flashback");
+            Equal(1, objects.Count, "the hidden chest and present-day hints must remain absent in the flashback");
 
             var story = memory.StoryReader().ReadTargets(position).Single();
             Equal("Open the bookcase in the mansion upstairs room", story.Label,
@@ -231,6 +231,9 @@ internal static class NibelheimStoryTests
     {
         if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("FF7_ACCESSIBILITY_DATA_ROOT"))) return;
         var scripts = Scripts();
+        var chestInit = scripts.ReadScriptOpcodes(300, 6, 0);
+        AssertOpcode(chestInit, 16, [0x16, 0x20, 0, 0, 0x81, 1, 3, 7], "chest Init tests GameMoment below 385");
+        AssertOpcode(chestInit, 28, [0xA4, 0], "chest Init hides its model during the flashback");
         AssertOpcode(scripts.ReadScriptOpcodes(300, 7, 0), 0,
             [0xD0, 0x57, 3, 0x92, 2, 0x53, 1, 0xBE, 3, 0x4D, 2, 0x53, 1], "bookcase native LINE");
         AssertOpcode(scripts.ReadScriptOpcodes(300, 7, 1), 0,
@@ -438,16 +441,20 @@ internal static class NibelheimStoryTests
 
     /// <summary>
     /// A LINE the script has switched off opens nothing, so the Objects reader must not
-    /// offer it. Every row here except the note is a LINE.
+    /// offer it. Visible models keep their own availability.
     /// </summary>
     private static void ADisabledLineHidesItsObject()
     {
         foreach (var field in new[] { 298, 299, 300, 303, 305, 310 })
         {
-            Equal(0, ObjectLabels(field, linesEnabled: false).Length,
-                $"field {field}: nothing may be offered while its lines are switched off");
-            Equal(true, ObjectLabels(field).Length > 0,
-                $"field {field}: and it must come back when they are on");
+            var lineLabels = NibelheimObjectCatalog.Create()
+                .Where(definition => definition.FieldId == field && definition.TargetKind == FieldNavigationObjectTargetKind.Line)
+                .Select(definition => definition.Label)
+                .ToHashSet(StringComparer.Ordinal);
+            Equal(false, ObjectLabels(field, linesEnabled: false).Any(lineLabels.Contains),
+                $"field {field}: disabled lines must not be offered");
+            Equal(true, ObjectLabels(field).Any(lineLabels.Contains),
+                $"field {field}: an enabled line must be offered");
         }
     }
 
@@ -1006,6 +1013,8 @@ internal static class NibelheimStoryTests
     {
         private const int FieldState = 0x02800000;
         private const int EventTable = 0x03300000;
+        private const int UpstairsLeftChestModel = 4;
+        private const int UpstairsRightChestModel = 5;
 
         private readonly Dictionary<int, byte> bytes = [];
 
@@ -1018,13 +1027,20 @@ internal static class NibelheimStoryTests
             }
 
             // sinin1_1 entity 6 'let', CHAR 4, placed by its own Init at (-550,89,0).
-            bytes[FieldNavigationObjectReader.AddressFieldModelIdArray + 6] = 4;
-            SetModel(4, -550, 89, 0);
-            if (field == MansionUpstairsLeft)
+            if (field == MansionHall)
             {
-                bytes[FieldNavigationObjectReader.AddressFieldModelIdArray + 6] = 0xFF;
-                bytes[FieldNavigationObjectReader.AddressFieldModelIdArray + 7] = 4;
-                SetModel(4, -1037, 826, 452);
+                bytes[FieldNavigationObjectReader.AddressFieldModelIdArray + 6] = 4;
+                SetModel(4, -550, 89, 0);
+            }
+            else if (field == MansionUpstairsLeft)
+            {
+                bytes[FieldNavigationObjectReader.AddressFieldModelIdArray + 7] = UpstairsLeftChestModel;
+                SetModel(UpstairsLeftChestModel, -1037, 826, 452);
+            }
+            else if (field == MansionUpstairsRight)
+            {
+                bytes[FieldNavigationObjectReader.AddressFieldModelIdArray + 6] = UpstairsRightChestModel;
+                SetModel(UpstairsRightChestModel, 787, 987, 339);
             }
             SetModel(0, 0, 0, 0);
 
@@ -1048,6 +1064,18 @@ internal static class NibelheimStoryTests
         {
             bytes[FieldNavigationObjectReader.AddressFieldBankBase] = (byte)moment;
             bytes[FieldNavigationObjectReader.AddressFieldBankBase + 1] = (byte)(moment >> 8);
+            var chestModel = ReadInt16(FieldPositionReader.AddressFieldId) switch
+            {
+                MansionUpstairsLeft => UpstairsLeftChestModel,
+                MansionUpstairsRight => UpstairsRightChestModel,
+                _ => -1,
+            };
+            if (chestModel >= 0)
+            {
+                // The upstairs chest scripts hide their models while GameMoment is below 385.
+                var chest = EventTable + chestModel * FieldNavigationObjectReader.FieldEventDataStride;
+                bytes[chest + FieldNavigationObjectReader.VisibilityOffset] = moment < 385 ? (byte)0 : (byte)1;
+            }
         }
 
         /// <summary>Bank 1 lives at the field bank base, the same place the GameMoment does.</summary>

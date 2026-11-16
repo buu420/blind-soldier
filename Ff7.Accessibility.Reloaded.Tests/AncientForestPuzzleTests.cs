@@ -17,16 +17,16 @@ internal static class AncientForestPuzzleTests
                      LosingFocusRetiresPendingState,
                      ShakingIsReadFromThePlantsOwnScriptOnTheFirstPass, ShakingReadRejectsTearsAndForeignScripts,
                      EchoLayoutsUseTheirOwnEntities, NativeLayoutsMapEveryPlantAndCreature,
-                     ShakingIsSpokenUntilThePlantOpens, ShakingIsWhatThePlantShowsEvenAfterItsFlagClears, EveryCarriedCodeNamesItsObjectsTarget,
-                     ReleaseOutcomesComeFromVisibleModels, FrogsAppearingAreSpoken, FlytrapBiteIsSpokenAfterControlReturns,
+                     StandingPlantShakingFollowsNativePose, ShakingIsWhatThePlantShowsEvenAfterItsFlagClears, EveryCarriedCodeNamesItsObjectsTarget,
+                     ReleaseOutcomesComeFromVisibleModels, FrogEmergenceDoesNotReadModelSpawns, FlytrapBiteIsSpokenAfterControlReturns,
                      PlantOpeningUnderTheLeaderIsSaid,
                      ScriptedMovementOnlyReportsChanges, RepeatOffersOnlyRealControls, ResetForgetsLatchesAndPendingOutcomes,
                      ClosingIsHeardWhenTheHandsEmptyAFrameLater, FlytrapShutIsHeardWhenTheHandsEmptyAFrameLater,
-                     AdjacentPlantChangesAreBothHeard, EachSubjectIsSaidAtItsNewestState, HeardLinesAreNotRepeated,
-                     HeldLinesKeepEveryUnheardSubject, ExpiredWarningsAndOldPlacesAreNotRetained, UrgentWarningLeadsAMergedLine,
+                     AwayFromAShakeTheStatusRemainsAvailable, EachSubjectIsSaidAtItsNewestState, HeardLinesAreNotRepeated,
+                     HeldLinesKeepTwoNewestCurrentFacts, ExpiredWarningsAndOldPlacesAreNotRetained, UrgentWarningStaysShort,
                      UnsaidLineIsOfferedAgainWhenControlReturns, OldEventsAreNotNewsAfterALongMute, OldReleaseIsNotNewsAfterALongMute,
-                     UnreadCreatureDoesNotKeepACurrentPlaceClaim, LinesCutOffByOtherSpeechAreSaidAgain,
-                     SlowSpeakerKeepsTheLineUntilItHasSaidIt, RoutineDirectionsAllowForestSpeechToFinish })
+                     UnreadCreatureDoesNotKeepACurrentPlaceClaim, ExplicitSpeechDoesNotRequeueAcceptedCues,
+                     SlowSpeakerIsProtectedForABoundedTime, RoutineDirectionsAllowForestSpeechToFinish })
         {
             try { test(); }
             catch (Exception ex) { failures.Add(test.Method.Name + ": " + ex.Message); }
@@ -112,11 +112,12 @@ internal static class AncientForestPuzzleTests
     private static void UnknownReadsAreNotEmptyHands()
     {
         var readout = new FieldActivityReadout();
-        readout.Observe(Look(held: 4), Epoch);
+        Check(readout.Observe(Look(held: 4), Epoch).Speech is null, "entering the room does not read its inventory");
         var unknown = readout.Describe(Look(readable: false));
         Check(unknown is null || !unknown.Contains("Carrying nothing", StringComparison.OrdinalIgnoreCase), "read failure became empty hands");
         Check(readout.Observe(Look(readable: false), Epoch.AddMilliseconds(20)).Speech is null, "unreadable state must retire stale speech");
-        Contains(readout.Observe(Look(held: 4), Epoch.AddMilliseconds(40)).Speech, "frog 1", "coherent recovery is reannounced");
+        Check(readout.Observe(Look(held: 4), Epoch.AddMilliseconds(40)).Speech is null, "recovery does not replay the baseline");
+        Contains(readout.Describe(Look(held: 4)), "frog 1", "the recovered state is available on request");
         Check(readout.Describe(Look(held: 255)) is null, "invalid held ID must not become a guessed creature");
     }
 
@@ -134,9 +135,10 @@ internal static class AncientForestPuzzleTests
         var readout = new FieldActivityReadout();
         var delivery = new FieldActivityLatestLineDelivery();
         var spoken = new List<string>();
-        var first = readout.Observe(Look(first: 1), Epoch);
+        readout.Observe(Look(), Epoch);
+        var first = readout.Observe(Look(first: 1), Epoch.AddMilliseconds(20));
         Check(first.ReplacesEarlierLine, "timed plant speech must use newest-only delivery");
-        FieldActivityClockHost.Deliver(first, readout, delivery, Epoch, () => true, () => false,
+        FieldActivityClockHost.Deliver(first, readout, delivery, Epoch.AddMilliseconds(20), () => true, () => false,
             s => { spoken.Add(s); return true; }, () => false);
         var reopened = readout.Observe(Look(), Epoch.AddSeconds(1));
         FieldActivityClockHost.Deliver(reopened, readout, delivery, Epoch.AddSeconds(1), () => true, () => true,
@@ -148,10 +150,11 @@ internal static class AncientForestPuzzleTests
     private static void LeavingAndResetDiscardState()
     {
         var readout = new FieldActivityReadout();
-        readout.Observe(Look(held: 1), Epoch);
+        readout.Observe(Look(), Epoch);
+        readout.Observe(Look(held: 1), Epoch.AddMilliseconds(5));
         readout.Observe(Look(field: 116), Epoch.AddMilliseconds(10));
         Check(readout.CurrentReplaceableLine is null, "leaving retained a forest line");
-        Contains(readout.Observe(Look(), Epoch.AddMilliseconds(20)).Speech, "Carrying nothing", "return is a fresh observation");
+        Check(readout.Observe(Look(), Epoch.AddMilliseconds(20)).Speech is null, "return establishes a quiet baseline");
         readout.Reset();
         Check(readout.CurrentReplaceableLine is null, "reset retained a line");
         Check(readout.Describe(Look(controlled: false)) is null, "native scripted movement should not invite a puzzle action");
@@ -161,7 +164,8 @@ internal static class AncientForestPuzzleTests
     {
         var readout = new FieldActivityReadout();
         var delivery = new FieldActivityLatestLineDelivery();
-        readout.Observe(Look(held: 1), Epoch);
+        readout.Observe(Look(), Epoch);
+        readout.Observe(Look(held: 1), Epoch.AddMilliseconds(20));
         Check(!FieldActivityClockHost.MayObserve(622, false, readout, delivery), "forest must stop observing without focus");
         Check(readout.CurrentReplaceableLine is null, "focus loss retained puzzle speech");
     }
@@ -339,15 +343,15 @@ internal static class AncientForestPuzzleTests
     // ---------------------------------------------------------------------------------------------
     // Readout.
 
-    private static void ShakingIsSpokenUntilThePlantOpens()
+    private static void StandingPlantShakingFollowsNativePose()
     {
-        var (readout, now) = Settled(Look(first: 1));
-        var shaking = readout.Observe(Look(first: 1, shaking: Set(1)), now.AddMilliseconds(100));
+        var (readout, now) = Settled(Look(first: 1, triangle: 14));
+        var shaking = readout.Observe(Look(first: 1, shaking: Set(1), triangle: 14), now.AddMilliseconds(100));
         Contains(shaking.Speech, "Pitcher plant 1 shaking", "the visible shake is spoken before the plant opens");
         Check(shaking.Speech?.Contains("Carrying", StringComparison.Ordinal) == false, "only what changed is spoken");
-        Check(readout.Observe(Look(first: 1, shaking: Set()), now.AddMilliseconds(200)).Speech is null,
+        Check(readout.Observe(Look(first: 1, shaking: Set(), triangle: 14), now.AddMilliseconds(200)).Speech is null,
             "the gap between the two native shake passes does not flap");
-        Check(readout.Observe(Look(first: 1, shaking: null), now.AddMilliseconds(300)).Speech is null, "an unknown shake is not news");
+        Check(readout.Observe(Look(first: 1, shaking: null, triangle: 14), now.AddMilliseconds(300)).Speech is null, "an unknown shake is not news");
         Contains(readout.Describe(Look(first: 1, shaking: Set(1))), "Pitcher plant 1 shaking", "repeat says the plant is shaking");
         // The reader reports a known empty set once nothing shakes; null means it could not tell.
         var open = readout.Observe(Look(shaking: Set()), now.AddMilliseconds(400));
@@ -358,7 +362,7 @@ internal static class AncientForestPuzzleTests
 
         var fourth = new FieldActivityReadout();
         fourth.Observe(Look(field: 623, fourth: 1), Epoch);
-        Contains(fourth.Observe(Look(field: 623, fourth: 1, shaking: Set(4)), Epoch.AddMilliseconds(100)).Speech,
+        Contains(fourth.Observe(Look(field: 623, fourth: 1, shaking: Set(4), triangle: 44), Epoch.AddMilliseconds(100)).Speech,
             "Pitcher plant 4 shaking", "623's fourth plant");
     }
 
@@ -370,13 +374,14 @@ internal static class AncientForestPuzzleTests
     private static void ShakingIsWhatThePlantShowsEvenAfterItsFlagClears()
     {
         var readout = new FieldActivityReadout();
-        readout.Observe(Look(field: 620, first: 1), Epoch);
-        Contains(readout.Observe(Look(field: 620, first: 1, shaking: Set(1)), Epoch.AddMilliseconds(100)).Speech,
+        readout.Observe(Look(field: 620, first: 1, triangle: 8), Epoch);
+        Contains(readout.Observe(Look(field: 620, first: 1, shaking: Set(1), triangle: 8), Epoch.AddMilliseconds(100)).Speech,
             "Pitcher plant 1 shaking", "the first pass");
-        Check(readout.Observe(Look(field: 620, shaking: Set(1)), Epoch.AddMilliseconds(200)).Speech is null,
+        Check(readout.Observe(Look(field: 620, shaking: Set(1), triangle: 8), Epoch.AddMilliseconds(200)).Speech is null,
             "the second pass clears the flag but is still the shake, not an open plant");
-        Contains(readout.Observe(Look(field: 620, shaking: null), Epoch.AddMilliseconds(300)).Speech,
-            "Pitcher plant 1 state unavailable", "a cleared flag and unknown motion cannot prove open or still shaking");
+        Check(readout.Observe(Look(field: 620, shaking: null, triangle: 8), Epoch.AddMilliseconds(300)).Speech is null &&
+            !readout.CurrentReplaceableLineIsUrgent, "a cleared flag and unknown motion cannot prove an immediate hazard");
+        Contains(readout.Describe(Look(field: 620, shaking: null)), "Pitcher plant 1 state unavailable", "the status reports unknown motion");
         Contains(readout.Describe(Look(field: 620, shaking: Set(1))), "Pitcher plant 1 shaking", "repeat shows the shake too");
         Contains(readout.Observe(Look(field: 620, shaking: Set()), Epoch.AddMilliseconds(400)).Speech, "Pitcher plant 1 open",
             "it is open once the shake ends");
@@ -405,7 +410,7 @@ internal static class AncientForestPuzzleTests
         readout.Observe(Look(held: 2, models: [Hidden(7)], x: 100, y: 100), Epoch);
         var dropped = readout.Observe(Look(models: [Seen(7, 108, 96)], x: 100, y: 100), Epoch.AddMilliseconds(100));
         Contains(dropped.Speech, "Insect 2 is at your feet", "a release on open ground is seen at the leader's feet");
-        Contains(dropped.Speech, "Carrying nothing", "and the hands are empty");
+        Check(dropped.Speech == "Insect 2 is at your feet.", "the location already communicates the release");
 
         readout = new FieldActivityReadout();
         readout.Observe(Look(held: 2, models: [Hidden(7)], x: 0, y: -126), Epoch);
@@ -428,15 +433,15 @@ internal static class AncientForestPuzzleTests
             "the outcome follows once the model is readable");
     }
 
-    private static void FrogsAppearingAreSpoken()
+    private static void FrogEmergenceDoesNotReadModelSpawns()
     {
         var readout = new FieldActivityReadout();
         readout.Observe(Look(field: 620, models: [Hidden(9)]), Epoch);
-        Contains(readout.Observe(Look(field: 620, models: [Seen(9, -669, 22)]), Epoch.AddMilliseconds(100)).Speech,
-            "Frog 1 appeared", "620's hidden frog coming out is spoken");
+        Check(readout.Observe(Look(field: 620, models: [Seen(9, -669, 22), Seen(7, 4, 4)]), Epoch.AddMilliseconds(100)).Speech is null,
+            "model visibility alone does not start a list of creatures");
 
         var fresh = new FieldActivityReadout().Observe(Look(field: 620, models: [Seen(9, -669, 22)]), Epoch);
-        Check(fresh.Speech?.Contains("appeared", StringComparison.Ordinal) == false, "a frog already out is not news");
+        Check(fresh.Speech is null, "a frog already out is not news");
 
         readout = new FieldActivityReadout();
         readout.Observe(Look(field: 620, models: [Unread(9)]), Epoch);
@@ -462,23 +467,23 @@ internal static class AncientForestPuzzleTests
         var forest = new Listener();
         forest.At(Look(x: 300, y: -900), Epoch);
         forest.At(Look(controlled: false, x: 441, y: -914), Epoch.AddMilliseconds(100));
-        Check(forest.Said.Count == 1 && forest.Readout.CurrentReplaceableLine is null, "nothing is said while the field holds the party");
+        Check(forest.Said.Count == 0 && forest.Readout.CurrentReplaceableLine is null, "nothing is said while the field holds the party");
         forest.At(Look(controlled: false, x: 179, y: -962), Epoch.AddMilliseconds(200));
         forest.At(Look(x: 179, y: -962), Epoch.AddMilliseconds(300));
-        Check(forest.Said.Count == 2, "the bite is said once control returns");
+        Check(forest.Said.Count == 1, "the bite is said once control returns");
         Contains(forest.Last, "Mutant Flytrap bit the party", "the bite");
         forest.At(Look(x: 179, y: -962), Epoch.AddMilliseconds(400));
-        Check(forest.Said.Count == 2, "said once");
+        Check(forest.Said.Count == 1, "said once");
         forest.At(Look(controlled: false, x: 255, y: -254), Epoch.AddMilliseconds(500));
         forest.At(Look(x: 255, y: -254), Epoch.AddMilliseconds(600));
-        Check(forest.Said.Count == 2, $"a plant jump is not a bite: {forest.Last}");
+        Check(forest.Said.Count == 1, $"a plant jump is not a bite: {forest.Last}");
         forest.At(Look(controlled: false, x: 441, y: -914, zone: 1), Epoch.AddMilliseconds(700));
         forest.At(Look(x: 441, y: -914, zone: 1), Epoch.AddMilliseconds(800));
-        Check(forest.Said.Count == 2,
+        Check(forest.Said.Count == 1,
             "held still in the open strip while the zone byte is set is not a bite; every bite clears the zone first");
         forest.At(Look(controlled: false, x: 441, y: -914, z: 120), Epoch.AddMilliseconds(900));
         forest.At(Look(x: 441, y: -914, z: 120), Epoch.AddMilliseconds(1000));
-        Check(forest.Said.Count == 2, "another floor above the jaw is not its mouth");
+        Check(forest.Said.Count == 1, "another floor above the jaw is not its mouth");
 
         var readout = new FieldActivityReadout();
         readout.Observe(Look(field: 620), Epoch);
@@ -561,18 +566,18 @@ internal static class AncientForestPuzzleTests
     {
         var readout = new FieldActivityReadout();
         readout.Observe(Look(first: 1), Epoch);
-        readout.Observe(Look(first: 1, shaking: Set(1)), Epoch.AddMilliseconds(100));
+        readout.Observe(Look(first: 1, shaking: Set(1), triangle: 14), Epoch.AddMilliseconds(100));
         readout.Reset();
         var fresh = readout.Observe(Look(first: 1, shaking: Set()), Epoch.AddMilliseconds(200));
-        Contains(fresh.Speech, "Pitcher plant 1 closed", "after reset the plant is read again");
-        Check(fresh.Speech?.Contains("shaking", StringComparison.Ordinal) == false, "reset forgets the shake");
+        Check(fresh.Speech is null, "reset forgets the shake and starts a quiet baseline");
+        Contains(readout.Describe(Look(first: 1, shaking: Set())), "Pitcher plant 1 closed", "the status is still available");
 
         readout = new FieldActivityReadout();
         readout.Observe(Look(first: 1), Epoch);
         readout.Observe(Look(first: 1, shaking: Set(1)), Epoch.AddMilliseconds(100));
         readout.Observe(Look(first: 1, readable: false), Epoch.AddMilliseconds(200));
         var recovered = readout.Observe(Look(first: 1, shaking: Set()), Epoch.AddMilliseconds(300));
-        Check(recovered.Speech?.Contains("shaking", StringComparison.Ordinal) == false, "an unknown sample forgets the shake");
+        Check(recovered.Speech is null, "an unknown sample forgets the shake");
 
         readout = new FieldActivityReadout();
         readout.Observe(Look(held: 2, models: [Hidden(7)]), Epoch);
@@ -607,8 +612,8 @@ internal static class AncientForestPuzzleTests
         forest.Hold(Look(first: 1, models: [Hidden(6)]), thrown.AddMilliseconds(100), 5);
         Contains(forest.Heard(), "Pitcher plant 1 closed", "the closing is not cut off by the empty hands");
         Contains(forest.Heard(), "Carrying nothing", "and the empty hands are heard too");
-        Check(forest.Last == "Carrying nothing. Pitcher plant 1 closed.",
-            $"the newest first, then the closing it cut off, and not the whole forest again: {forest.Last}");
+        Check(forest.Said.Select(item => item.Line).SequenceEqual(["Pitcher plant 1 closed.", "Carrying nothing."]),
+            $"each change is submitted once: {forest.Heard()}");
     }
 
     /// <summary>620's beehive, in native order: its script sets the flytrap's flag 5[51], then bpd clears 5[9].</summary>
@@ -621,19 +626,21 @@ internal static class AncientForestPuzzleTests
         forest.Hold(Look(field: 620, shaking: Set(), trap: 1), thrown.AddMilliseconds(100), 5);
         Contains(forest.Heard(), "Mutant Flytrap 1 closed", "the flytrap shutting is not cut off by the empty hands");
         Contains(forest.Heard(), "Carrying nothing", "and the empty hands are heard too");
-        Check(forest.Last == "Carrying nothing. Mutant Flytrap 1 closed.", $"one line says both: {forest.Last}");
+        Check(forest.Said.Select(item => item.Line).SequenceEqual(["Mutant Flytrap 1 closed.", "Carrying nothing."]),
+            $"each change is submitted once: {forest.Heard()}");
     }
 
-    /// <summary>Two timed plant changes a sample apart: one plant opening as another starts to shake.</summary>
-    private static void AdjacentPlantChangesAreBothHeard()
+    private static void AwayFromAShakeTheStatusRemainsAvailable()
     {
         var forest = new Listener();
         forest.At(Look(field: 623, first: 1, second: 1, shaking: Set(1), triangle: 100), Epoch);
         var later = Epoch.AddSeconds(10);
         forest.At(Look(field: 623, second: 1, shaking: Set(), triangle: 100), later);
-        forest.Hold(Look(field: 623, second: 1, shaking: Set(2), triangle: 100), later.AddMilliseconds(100), 5);
+        var secondShaking = Look(field: 623, second: 1, shaking: Set(2), triangle: 100);
+        forest.Hold(secondShaking, later.AddMilliseconds(100), 5);
         Contains(forest.Heard(), "Pitcher plant 1 open", "the first plant opening");
-        Contains(forest.Heard(), "Pitcher plant 2 shaking", "and the second shaking");
+        Check(forest.Said.Count == 1, "a shake away from the player does not add another automatic cue");
+        Contains(forest.Readout.Describe(secondShaking), "Plant 2 shaking", "status still reads the visible shake");
     }
 
     /// <summary>Each subject is said at its newest state: a plant that has opened is not still closed.</summary>
@@ -642,7 +649,9 @@ internal static class AncientForestPuzzleTests
         var forest = new Listener();
         forest.At(Look(held: 1), Epoch);
         var later = Epoch.AddSeconds(10);
+        forest.Muted = true;
         forest.At(Look(held: 1, first: 1), later);
+        forest.Muted = false;
         forest.Hold(Look(shaking: Set()), later.AddMilliseconds(100), 5);
         Contains(forest.Last, "Pitcher plant 1 open", "the plant's newest state");
         Contains(forest.Last, "Carrying nothing", "with the other change");
@@ -660,11 +669,7 @@ internal static class AncientForestPuzzleTests
         Check(forest.Last == "Carrying nothing.", $"only the new change: {forest.Last}");
     }
 
-    /// <summary>
-    /// A line held back, behind other speech or with speech off, has not been heard either: it keeps
-    /// every subject that changed until it is said.
-    /// </summary>
-    private static void HeldLinesKeepEveryUnheardSubject()
+    private static void HeldLinesKeepTwoNewestCurrentFacts()
     {
         var forest = new Listener();
         forest.At(Look(held: 1), Epoch);
@@ -675,11 +680,11 @@ internal static class AncientForestPuzzleTests
         forest.At(Look(held: 1, first: 1), later.AddMilliseconds(100));
         forest.At(Look(first: 1), later.AddMilliseconds(200));
         forest.At(Look(first: 1, second: 1), later.AddSeconds(3));
-        Check(forest.Said.Count == 1, "nothing cuts into the other speech");
+        Check(forest.Said.Count == 0, "nothing cuts into the other speech");
         forest.Speaking = false;
         forest.At(Look(first: 1, second: 1), later.AddSeconds(4));
-        foreach (var fact in new[] { "Pitcher plant 1 closed", "Carrying nothing", "Pitcher plant 2 closed" })
-            Contains(forest.Last, fact, "a held line keeps every subject that changed");
+        Check(forest.Last == "Pitcher plant 2 closed. Carrying nothing.", $"two recent facts, not a backlog: {forest.Last}");
+        Contains(forest.Readout.Describe(Look(first: 1, second: 1)), "Pitcher plant 1 closed", "the first plant is still available on demand");
 
         var muted = new Listener();
         muted.At(Look(held: 1), Epoch);
@@ -698,46 +703,44 @@ internal static class AncientForestPuzzleTests
     /// </summary>
     private static void ExpiredWarningsAndOldPlacesAreNotRetained()
     {
+        var later = Epoch.AddSeconds(10);
         var forest = new Listener();
         forest.At(Look(first: 1, shaking: Set(1), triangle: 40), Epoch);
-        var later = Epoch.AddSeconds(10);
+        forest.Muted = true;
         forest.At(Look(first: 1, shaking: Set(1), triangle: 14), later);
-        Contains(forest.Last, "Pitcher plant 1 shaking under you", "stepping onto the shaking plant");
-        forest.At(Look(held: 2, first: 1, shaking: Set(1), triangle: 40), later.AddMilliseconds(100));
-        Contains(forest.Last, "Pitcher plant 1 shaking", "it is still shaking, and that was cut off");
-        Check(!forest.Last.Contains("under you", StringComparison.Ordinal), $"the leader is no longer on it: {forest.Last}");
-        Check(!forest.Readout.CurrentReplaceableLineIsUrgent, "so it is no longer a warning");
+        Check(forest.Readout.CurrentReplaceableLineIsUrgent, "stepping onto the shaking plant queues a warning");
+        forest.Muted = false;
+        forest.At(Look(first: 1, shaking: Set(1), triangle: 40), later.AddMilliseconds(100));
+        Check(forest.Said.Count == 0 && !forest.Readout.CurrentReplaceableLineIsUrgent, "leaving drops the undelivered warning");
 
         var pickedUp = new Listener();
         pickedUp.At(Look(held: 2, models: [Hidden(7)], x: 100, y: 100), Epoch);
+        pickedUp.Muted = true;
         pickedUp.At(Look(models: [Seen(7, 108, 96)], x: 100, y: 100), later);
-        Contains(pickedUp.Last, "Insect 2 is at your feet", "the release");
+        pickedUp.Muted = false;
         pickedUp.At(Look(held: 2, models: [Hidden(7)], x: 100, y: 100), later.AddMilliseconds(300));
-        Contains(pickedUp.Last, "Carrying insect 2", "picked up again");
-        Check(!pickedUp.Last.Contains("feet", StringComparison.Ordinal), $"a creature carried is not at your feet: {pickedUp.Last}");
+        Check(pickedUp.Last == "Carrying insect 2.", $"picked up again, so its previous position has expired: {pickedUp.Last}");
 
         var walked = new Listener();
         walked.At(Look(held: 2, models: [Hidden(7)], x: 100, y: 100), Epoch);
+        walked.Muted = true;
         walked.At(Look(models: [Seen(7, 108, 96)], x: 100, y: 100), later);
+        walked.Muted = false;
         walked.At(Look(first: 1, models: [Seen(7, 108, 96)], x: 400, y: 400), later.AddMilliseconds(300));
         Contains(walked.Last, "Pitcher plant 1 closed", "the new change");
-        Contains(walked.Last, "Carrying nothing", "with the release that was cut off");
         Check(!walked.Last.Contains("feet", StringComparison.Ordinal), $"a creature left behind is not at your feet: {walked.Last}");
         Contains(walked.Last, "Insect 2 landed.", "the release that was seen is kept, without its old place");
 
-        Check(!pickedUp.Last.Contains("landed", StringComparison.Ordinal), $"a creature carried again has no release left to tell: {pickedUp.Last}");
         var eaten = new Listener();
         eaten.At(Look(held: 2, models: [Hidden(7)], x: 100, y: 100), Epoch);
+        eaten.Muted = true;
         eaten.At(Look(models: [Seen(7, 108, 96)], x: 100, y: 100), later);
+        eaten.Muted = false;
         eaten.At(Look(first: 1, models: [Hidden(7)], x: 100, y: 100), later.AddMilliseconds(300));
         Check(!eaten.Last.Contains("Insect 2", StringComparison.Ordinal), $"a creature out of sight is not described: {eaten.Last}");
     }
 
-    /// <summary>
-    /// The warning that the plant under the leader is shaking still interrupts at once, and it comes
-    /// first, ahead of anything earlier that has not been heard.
-    /// </summary>
-    private static void UrgentWarningLeadsAMergedLine()
+    private static void UrgentWarningStaysShort()
     {
         var forest = new Listener();
         forest.At(Look(first: 1, shaking: Set(1), triangle: 40), Epoch);
@@ -745,15 +748,13 @@ internal static class AncientForestPuzzleTests
         forest.At(Look(held: 2, first: 1, shaking: Set(1), triangle: 40), later);
         forest.Delivery.NoteOtherSpeech("Pitcher plant 1, 2 meters north.", later.AddMilliseconds(50));
         forest.At(Look(held: 2, first: 1, shaking: Set(1), triangle: 14), later.AddMilliseconds(100));
-        Check(forest.Last.StartsWith("Pitcher plant 1 shaking under you.", StringComparison.Ordinal), $"the warning comes first, at once: {forest.Last}");
-        Contains(forest.Last, "Carrying insect 2", "followed by the pickup it cut off");
-        Check(forest.Readout.CurrentReplaceableLineIsUrgent, "and it is urgent");
+        Check(forest.Last == "Pitcher plant 1 shaking under you.", $"the warning interrupts with only the hazard: {forest.Last}");
+        Check(forest.Said.Count == 2, "an accepted pickup cue is not attached to the warning");
     }
 
     /// <summary>
-    /// The field moving the party retires a line still waiting to be said. When control returns,
-    /// what in it still holds is offered at once, even though nothing else has changed; a warning
-    /// the movement retired is not offered as a warning again.
+    /// An unsubmitted action result can still be useful after a jump. A warning about a plant
+    /// the player is no longer on expires instead.
     /// </summary>
     private static void UnsaidLineIsOfferedAgainWhenControlReturns()
     {
@@ -767,10 +768,10 @@ internal static class AncientForestPuzzleTests
         Check(forest.Readout.CurrentReplaceableLine is null, "nothing is owed while the field moves the party");
         forest.Speaking = false;
         forest.At(Look(held: 1, first: 1), later.AddSeconds(2));
-        Check(forest.Said.Count == 2, $"the closing is offered when control returns: {forest.Heard()}");
+        Check(forest.Said.Count == 1, $"the closing is offered when control returns: {forest.Heard()}");
         Check(forest.Last == "Pitcher plant 1 closed.", $"only what was never said: {forest.Last}");
         forest.Hold(Look(held: 1, first: 1), later.AddSeconds(2.1), 5);
-        Check(forest.Said.Count == 2, "and only once");
+        Check(forest.Said.Count == 1, "and only once");
 
         var warned = new Listener();
         warned.At(Look(first: 1, shaking: Set(1), triangle: 40), Epoch);
@@ -781,15 +782,11 @@ internal static class AncientForestPuzzleTests
         Check(!warned.Readout.CurrentReplaceableLineIsUrgent, "the field moving the party retires it");
         warned.Muted = false;
         warned.At(Look(first: 1, shaking: Set(1), triangle: 40), later.AddSeconds(1));
-        Check(warned.Said.Count == 2, "the plant still shaking is offered when control returns");
-        Check(warned.Last == "Pitcher plant 1 shaking.", $"as it is now, not as a warning about where the leader was: {warned.Last}");
-        Check(!warned.Readout.CurrentReplaceableLineIsUrgent, "and not urgent");
+        Check(warned.Said.Count == 0 && !warned.Readout.CurrentReplaceableLineIsUrgent, "there is no longer a hazard under the player");
     }
 
     /// <summary>
-    /// A bite, or a creature seen landing, set down at the leader's feet or appearing, is news for a
-    /// short while and only while it still holds. What Cloud carries and how the plants stand are
-    /// kept until they are heard.
+    /// A bite or creature release is useful for a short while. Plant states can be checked later.
     /// </summary>
     private static void OldEventsAreNotNewsAfterALongMute()
     {
@@ -803,7 +800,7 @@ internal static class AncientForestPuzzleTests
         bitten.Hold(Look(first: 1, x: 179, y: -962), later.AddSeconds(6), 30);
         bitten.Muted = false;
         bitten.At(Look(first: 1, x: 179, y: -962), later.AddSeconds(40));
-        Check(bitten.Said.Count == 2, "speech back on says what is still news");
+        Check(bitten.Said.Count == 1, "speech back on says what is still news");
         Check(bitten.Last == "Pitcher plant 1 closed.", $"the plant, not an old bite: {bitten.Last}");
     }
 
@@ -817,7 +814,8 @@ internal static class AncientForestPuzzleTests
         dropped.Hold(Look(models: [Seen(7, 108, 96)], x: 100, y: 100), later.AddSeconds(1), 30);
         dropped.Muted = false;
         dropped.At(Look(models: [Seen(7, 108, 96)], x: 100, y: 100), later.AddSeconds(32));
-        Check(dropped.Last == "Carrying nothing.", $"the empty hands, not an old release: {dropped.Last}");
+        Check(dropped.Said.Count == 0, "an old release is no longer announced");
+        Contains(dropped.Readout.Describe(Look()), "Carrying nothing", "empty hands are available in status");
 
         var brief = new Listener();
         brief.At(Look(held: 2, models: [Hidden(7)], x: 100, y: 100), Epoch);
@@ -825,7 +823,7 @@ internal static class AncientForestPuzzleTests
         brief.At(Look(models: [Seen(7, 108, 96)], x: 100, y: 100), later);
         brief.Muted = false;
         brief.At(Look(models: [Seen(7, 108, 96)], x: 100, y: 100), later.AddSeconds(3));
-        Check(brief.Last == "Insect 2 is at your feet. Carrying nothing.", $"a recent release that still holds is said: {brief.Last}");
+        Check(brief.Last == "Insect 2 is at your feet.", $"a recent release that still holds is said: {brief.Last}");
     }
 
     private static void UnreadCreatureDoesNotKeepACurrentPlaceClaim()
@@ -845,81 +843,46 @@ internal static class AncientForestPuzzleTests
         }
     }
 
-    /// <summary>
-    /// Guidance, dialogue or anything else the hosts say over a forest line cuts it off, as both hosts
-    /// speak it with interruption. What the line said is offered again once that speech is over, with
-    /// anything newer, as it is now.
-    /// </summary>
-    private static void LinesCutOffByOtherSpeechAreSaidAgain()
+    private static void ExplicitSpeechDoesNotRequeueAcceptedCues()
     {
         var later = Epoch.AddSeconds(10);
         var forest = new Listener();
         forest.At(Look(held: 1), Epoch);
         forest.At(Look(held: 1, first: 1), later);
-        Check(forest.Last == "Pitcher plant 1 closed.", $"the closing is said: {forest.Last}");
+        Check(forest.Last == "Pitcher plant 1 closed.", $"the closing is submitted: {forest.Last}");
+
         forest.Speaking = true;
-        forest.Delivery.NoteOtherSpeech("Right 3.", later.AddMilliseconds(100));
-        forest.Hold(Look(held: 1, first: 1), later.AddMilliseconds(100), 1.5);
-        Check(forest.Said.Count == 2, "the guidance is not cut off in turn");
+        forest.Delivery.NoteOtherSpeech("Objects, Insect 2.", later.AddMilliseconds(100));
+        forest.Hold(Look(held: 1, first: 1), later.AddMilliseconds(200), 1.5);
+        Check(forest.Said.Count == 1, "the accepted closing does not cut off the requested speech");
+
+        forest.At(Look(first: 1), later.AddSeconds(2));
         forest.Speaking = false;
-        forest.Hold(Look(held: 1, first: 1), later.AddSeconds(1.7), 5);
-        Check(forest.Said.Count == 3, $"the closing the guidance cut off is said again once it is over: {forest.Heard()}");
-        Check(forest.Last == "Pitcher plant 1 closed.", $"as it was: {forest.Last}");
-
-        var merged = new Listener();
-        merged.At(Look(held: 1), Epoch);
-        merged.At(Look(held: 1, first: 1), later);
-        merged.Speaking = true;
-        merged.Delivery.NoteOtherSpeech("Right 3.", later.AddMilliseconds(300));
-        merged.Hold(Look(held: 1, first: 1), later.AddMilliseconds(300), 1.6);
-        merged.At(Look(first: 1), later.AddSeconds(2));
-        merged.Speaking = false;
-        merged.Hold(Look(first: 1), later.AddSeconds(2.5), 5);
-        Check(merged.Said.Count == 3, $"one line after the guidance: {merged.Heard()}");
-        Check(merged.Last == "Carrying nothing. Pitcher plant 1 closed.", $"what changed meanwhile, then what was cut off: {merged.Last}");
-
-        var warned = new Listener();
-        warned.At(Look(first: 1, shaking: Set(1), triangle: 40), Epoch);
-        warned.At(Look(first: 1, shaking: Set(1), triangle: 14), later);
-        Check(warned.Last == "Pitcher plant 1 shaking under you.", $"the warning: {warned.Last}");
-        warned.Speaking = true;
-        warned.Delivery.NoteOtherSpeech("Right 3.", later.AddMilliseconds(100));
-        warned.At(Look(first: 1, shaking: Set(1), triangle: 40), later.AddMilliseconds(200));
-        warned.Speaking = false;
-        warned.Hold(Look(first: 1, shaking: Set(1), triangle: 40), later.AddSeconds(1.5), 3);
-        Check(warned.Said.Count == 3 && warned.Last == "Pitcher plant 1 shaking.",
-            $"a cut-off warning the leader has since stepped away from is offered as the plant's state: {warned.Heard()}");
-        Check(!warned.Readout.CurrentReplaceableLineIsUrgent, "and not as a warning");
+        forest.Hold(Look(first: 1), later.AddSeconds(2.5), 5);
+        Check(forest.Said.Count == 2 && forest.Last == "Carrying nothing.",
+            $"only the genuinely new change is read after the selection: {forest.Heard()}");
     }
 
-    /// <summary>
-    /// A screen reader that can tell is believed while it says it is still speaking the line, however
-    /// long the words take at the estimated rate; one that never stops saying so is believed only as
-    /// long as the delivery believes any line.
-    /// </summary>
-    private static void SlowSpeakerKeepsTheLineUntilItHasSaidIt()
+    private static void SlowSpeakerIsProtectedForABoundedTime()
     {
         var later = Epoch.AddSeconds(10);
-        var slow = new Listener();
+        var slow = new Listener { Speaking = true };
         slow.At(Look(held: 1), Epoch);
         slow.At(Look(held: 1, first: 1), later);
-        slow.Speaking = true;
-        slow.Hold(Look(held: 1, first: 1), later.AddMilliseconds(100), 2.2);
-        slow.At(Look(first: 1), later.AddSeconds(2.5));
-        Check(slow.Last == "Carrying nothing. Pitcher plant 1 closed.", $"a line still being said is not yet heard: {slow.Last}");
+        slow.Hold(Look(first: 1), later.AddMilliseconds(100), 3);
+        Check(slow.Said.Count == 1 && slow.Readout.HasPendingForestSpeech,
+            $"protect a cue while a slow screen reader is still speaking it: {slow.Heard()}");
         slow.Speaking = false;
-        slow.Hold(Look(first: 1), later.AddSeconds(2.6), 4);
-        slow.At(Look(first: 1, second: 1), later.AddSeconds(7));
-        Check(slow.Last == "Pitcher plant 2 closed.", $"once it has stopped, it has been heard: {slow.Last}");
+        slow.At(Look(first: 1), later.AddSeconds(3.2));
+        Check(slow.Said.Count == 2 && slow.Last == "Carrying nothing.",
+            $"the next cue does not repeat the first: {slow.Heard()}");
 
         var stuck = new Listener { Speaking = true };
         stuck.At(Look(held: 1), Epoch);
-        stuck.Hold(Look(held: 1), Epoch.AddMilliseconds(100), 9.8);
         stuck.At(Look(held: 1, first: 1), later);
-        Contains(stuck.Last, "Carrying insect 1", "past its estimate, a line the device says it is still speaking is said again");
-        stuck.Hold(Look(held: 1, first: 1), later.AddMilliseconds(100), 20);
-        stuck.At(Look(first: 1), later.AddSeconds(21));
-        Check(stuck.Last == "Carrying nothing.", $"a device that never stops is not believed for ever: {stuck.Last}");
+        stuck.Hold(Look(first: 1), later.AddMilliseconds(100), 10);
+        Check(stuck.Said.Count == 2 && stuck.Last == "Carrying nothing.",
+            $"a device reporting speech forever only holds up a cue for a bounded time: {stuck.Heard()}");
     }
 
     private static void RoutineDirectionsAllowForestSpeechToFinish()
@@ -951,7 +914,7 @@ internal static class AncientForestPuzzleTests
         Check(!new FieldActivityReadout().HasPendingForestSpeech, "other fields do not defer directions");
     }
 
-    /// <summary>A readout that has said its first look and given it time to be heard, and the time then.</summary>
+    /// <summary>A readout with a baseline snapshot and a later test clock.</summary>
     private static (FieldActivityReadout Readout, DateTime Now) Settled(FieldActivityObservation look)
     {
         var forest = new Listener();

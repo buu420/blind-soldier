@@ -7,7 +7,7 @@ internal static class AncientForestInteractionTests
     internal static void Run()
     {
         AssertCreatureSelectionLocation();
-        AssertObjectsPlantSummary();
+        AssertOnlySelectedPlantIsDescribed();
         AssertFlytrapRefusal();
         AssertVisibleExitSurvivesFlytrap();
         Console.WriteLine("Ancient Forest flytrap refusals name the hazard and retain native exits.");
@@ -74,39 +74,56 @@ internal static class AncientForestInteractionTests
             throw new InvalidOperationException("Moving the insect must update its place and retain its identity: " + preview?.Speech);
     }
 
-    private static void AssertObjectsPlantSummary()
+    private static void AssertOnlySelectedPlantIsDescribed()
     {
-        var position = new FieldPositionSnapshot(FieldPositionReader.FieldModule, 622, 0, -2016, -748, 28, 85, 0);
+        var position = new FieldPositionSnapshot(FieldPositionReader.FieldModule, 622, 0, -100, -160, 228, 85, 0);
         var throwingSpot = new FieldNavigationTarget(622, FieldNavigationCategory.Objects,
             "Pitcher plant 1, throwing spot", -56, -155, 228, "throwing-spot");
-        var controller = new FieldNavigationController(new FieldNavigationTargetSource([throwingSpot]));
+        var insect = new FieldNavigationTarget(622, FieldNavigationCategory.Objects, "Insect 1",
+            -1810, -665, 28, "object:622:6", TriggerEntityId: 6);
+        var story = throwingSpot with { Category = FieldNavigationCategory.Story, Label = "Feed pitcher plant 1" };
+        var controller = new FieldNavigationController(new FieldNavigationTargetSource([throwingSpot, insect, story]));
         var bank = new byte[128];
         bank[17] = 1;
         bank[18] = 1;
-        controller.ForestPlantSummary = field =>
-            AncientForestPuzzleReadout.DescribePitcherPlants(field, new(bank, new HashSet<int> { 2 }, []));
+        var samples = 0;
+        controller.ForestPlantStatus = target => AncientForestPuzzleReadout.DescribeSelectedPlant(target, _ =>
+        {
+            samples++;
+            return new(bank, new HashSet<int> { 2 }, []);
+        });
 
         var preview = controller.HandleAction(FieldNavigationAction.PreviousCategory, position, new(0));
         if (preview?.Speech.Contains(throwingSpot.Label, StringComparison.Ordinal) != true ||
-            !preview.Value.Speech.Contains("Pitcher plants from left to right. Plant 1 open. Plant 2 shaking. Plant 3 closed.",
-                StringComparison.Ordinal))
-            throw new InvalidOperationException("One reachable throwing spot must still expose all three current plants: " + preview?.Speech);
+            !preview.Value.Speech.Contains("Plant 1 open", StringComparison.Ordinal) ||
+            preview.Value.Speech.Contains("Plant 2", StringComparison.Ordinal) ||
+            preview.Value.Speech.Contains("Plant 3", StringComparison.Ordinal))
+            throw new InvalidOperationException("Objects must describe only the selected plant's state: " + preview?.Speech);
 
-        bank[18] = 0;
+        bank[16] = 1;
         preview = controller.HandleAction(FieldNavigationAction.RepeatTarget, position, new(0));
-        if (preview?.Speech.Contains("Plant 3 open", StringComparison.Ordinal) != true)
-            throw new InvalidOperationException("Repeating the Objects selection must read the current plant state.");
+        if (preview?.Speech.Contains("Plant 1 closed", StringComparison.Ordinal) != true)
+            throw new InvalidOperationException("Repeating the selected plant must report its current state.");
 
         preview = controller.HandleAction(FieldNavigationAction.NextTarget, position, new(0));
-        if (preview?.Speech.Contains("Pitcher plants from left to right", StringComparison.Ordinal) == true)
-            throw new InvalidOperationException("Browsing each target must avoid replaying the whole plant list.");
+        if (preview?.Speech.Contains("Insect 1", StringComparison.Ordinal) != true ||
+            preview.Value.Speech.Contains("Plant", StringComparison.Ordinal) || samples != 2)
+            throw new InvalidOperationException("A creature selection must not read or announce plant states: " + preview?.Speech);
 
-        bank[17] = 255;
-        preview = controller.HandleAction(FieldNavigationAction.RepeatTarget, position, new(0));
-        if (preview?.Speech.Contains("Pitcher plants from left to right", StringComparison.Ordinal) == true)
-            throw new InvalidOperationException("Unreadable plant state must be omitted from the Objects preview.");
+        bank[16] = 255;
+        preview = controller.HandleAction(FieldNavigationAction.PreviousTarget, position, new(0));
+        if (preview?.Speech.Contains(throwingSpot.Label, StringComparison.Ordinal) != true ||
+            preview.Value.Speech.Contains("Plant 1 open", StringComparison.Ordinal) ||
+            preview.Value.Speech.Contains("Plant 1 closed", StringComparison.Ordinal))
+            throw new InvalidOperationException("An unreadable plant state must not be guessed: " + preview?.Speech);
 
-        Console.WriteLine("Ancient Forest Objects previews distinguish creatures and describe all current plants.");
+        for (var i = 0; i < 4 && controller.CurrentCategory != FieldNavigationCategory.Story; i++)
+            preview = controller.HandleAction(FieldNavigationAction.NextCategory, position, new(0));
+        if (preview?.Speech.Contains(story.Label, StringComparison.Ordinal) != true ||
+            preview.Value.Speech.Contains("Plant 2", StringComparison.Ordinal) || samples != 3)
+            throw new InvalidOperationException("Story must read the next step without polling a room summary: " + preview?.Speech);
+
+        Console.WriteLine("Ancient Forest Objects and Story previews read the selected target.");
     }
 
     internal static void AssertFlytrapRefusal(Func<IFieldNavigationRoutePlanner, IFieldNavigationRoutePlanner>? wrap = null)

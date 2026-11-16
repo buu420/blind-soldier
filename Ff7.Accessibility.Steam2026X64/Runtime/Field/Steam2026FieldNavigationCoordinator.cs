@@ -330,8 +330,8 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             navigationProgressSink);
         controller.InteractionArrivalInstruction = (position, target) =>
             AncientForestInteractionGuidance.Describe(target, ancientForestPuzzleStateReader.Read(position.FieldId));
-        controller.ForestPlantSummary = fieldId =>
-            AncientForestPuzzleReadout.DescribePitcherPlants(fieldId, ancientForestPuzzleStateReader.ReadState(fieldId));
+        controller.ForestPlantStatus = target =>
+            AncientForestPuzzleReadout.DescribeSelectedPlant(target, fieldId => ancientForestPuzzleStateReader.ReadState(fieldId));
 
         // Same native line state on this runtime: the observatory approach is only
         // offered while the game actually has the opening line switched on.
@@ -525,7 +525,10 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                 () => controller.IsHoldingForNativeBoundary,
                 controller.RequestAutoWalkForHeldRoute),
             speech => { Speak(speech, interrupt: true, controllerNowUtc, "controller"); return true; },
-            log);
+            log,
+            fieldActivityStatus: () => AncientForestPuzzleReadout.HasPuzzle(controllerPosition.FieldId)
+                ? fieldActivityCurrentLine ?? "Puzzle status unavailable."
+                : null);
 
         _ = controllerNavigation.Drain(capture, ControllerNavigationDomain.Field, publishedAt);
         controllerMenuIsOpen = capture.IsOpen;

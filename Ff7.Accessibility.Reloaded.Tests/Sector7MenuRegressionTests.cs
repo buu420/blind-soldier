@@ -419,6 +419,31 @@ internal static class Sector7MenuRegressionTests
         Contains(ReadShopSpeech(reader), "Cannot carry another", "Shop object cap");
     }
 
+    internal static void VerifyEchoShopRows(Kernel2TextDatabase database)
+    {
+        const int assaultGun = 161;
+        const int assaultGunOffset = (assaultGun - 128) * EquipmentStatReader.WeaponRecordSize;
+        var memory = CreateShopMemory();
+        var definition = ShopMenuStateReader.AddressShopDefinitions;
+        memory.WriteUInt16(definition + 2, 3);
+        WriteShopStock(memory, definition, 0, type: 0, nativeId: 257);
+        WriteShopStock(memory, definition, 1, type: 0, nativeId: assaultGun);
+        WriteShopStock(memory, definition, 2, type: 0, nativeId: 20);
+        memory.WriteUInt32(ShopMenuStateReader.AddressPriceTable + (assaultGun * 4), 350);
+        memory.WriteUInt32(ShopMenuStateReader.AddressPriceTable + (20 * 4), 80);
+        memory.WriteByte(EquipmentStatReader.AddressWeaponAttack + assaultGunOffset, 18);
+        memory.WriteUInt16(ShopMenuStateReader.AddressWeaponEquipMask + assaultGunOffset, 2);
+        var reader = new ShopMenuStateReader(memory,
+            database.ResolveInventoryObjectName, database.ResolveInventoryObjectDescription,
+            database.ResolveMateriaName, database.ResolveMateriaDescription);
+        memory.WriteInt32(ShopMenuStateReader.AddressMenuState, 1);
+        Contains(ReadShopSpeech(reader), "Buy, Iron Bangle", "FFNx Echo-S weapon shop armor");
+        memory.WriteInt32(ShopMenuStateReader.AddressBuyListCursor, 1);
+        Contains(ReadShopSpeech(reader), "Buy, Assault Gun", "FFNx Echo-S weapon shop weapon");
+        memory.WriteInt32(ShopMenuStateReader.AddressBuyListCursor, 2);
+        Contains(ReadShopSpeech(reader), "Buy, Grenade", "FFNx Echo-S weapon shop item");
+    }
+
     private static void ShopReadsSellListsAndQuantityPanels()
     {
         var memory = CreateShopMemory();

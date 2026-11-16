@@ -341,7 +341,7 @@ public sealed class ControllerNavigationCapture : IGameInputSuppressor
             // under. Doing this after releasing would let a command land in a queue
             // that a newly published context had just cleared.
             generationId = current.Id;
-            if (result.Command >= ControllerNavigationCommand.SettingsOpen)
+            if (result.Command is >= ControllerNavigationCommand.SettingsOpen and <= ControllerNavigationCommand.PartyLimit)
                 AccessibilityCommands.Enqueue(result.Command, generationId);
             else
                 Commands.Enqueue(result.Command, generationId);

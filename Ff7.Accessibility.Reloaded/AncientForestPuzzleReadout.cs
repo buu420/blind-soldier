@@ -1,31 +1,9 @@
 namespace Ff7.Accessibility.Reloaded;
 
 /// <summary>
-/// What a sighted player sees of the Ancient Forest puzzle, said as it changes: what Cloud is
-/// carrying, each pitcher plant open, closed or visibly shaking, each Mutant Flytrap open or
-/// closed, and the one-off things that happen in plain view - a frog coming out, a released
-/// creature landing, the flytrap biting the party.
-///
-/// <para>Only visible facts are read. A plant's flag is the closed shape its director draws; the
-/// shake is the plant's own entity running its shake script
-/// (<see cref="AncientForestPuzzleStateReader"/>); creatures are their models. Nothing hidden is
-/// said: no countdown, no solution, nothing about where a creature thrown out of sight went. A
-/// creature that vanishes is never said to have been eaten; the plant closing says what a sighted
-/// player sees.</para>
-///
-/// <para>A line names what changed since the last one. The whole state is said on the first
-/// coherent look, and again after a look that could not be read. Lines replace each other, so
-/// nothing queues. Each line interrupts the one before it, so whatever the last line said that has
-/// not had time to be heard - it is still being said, or it was held back unsaid - is said again in
-/// the next, after what is new. Each subject (what Cloud carries, a plant, a flytrap, a creature,
-/// the bite) is said once, at its newest. A state is kept until it has been heard; a one-off event -
-/// the bite, a creature landing, set down or appearing - is news only for a short while. What no
-/// longer holds is dropped: a plant that has opened is not still closed, the warning about the plant
-/// underfoot ends when the leader leaves it, and a creature picked up, out of sight or left behind is
-/// no longer where it was seen. While the field moves the party - a jump, a bite, a launch - nothing
-/// is said and nothing is forgotten, and a line it kept from being said is offered again when control
-/// returns. Afterwards only what really changed is said, together with a bite seen meanwhile. Local
-/// numbers match the Objects targets.</para>
+/// Announces short changes in the visible Ancient Forest puzzle. The full room state is
+/// available through <see cref="Describe"/>. Local numbers match the Objects targets.
+/// A shaking plant under the player takes priority once per continuous exposure.
 /// </summary>
 internal sealed class AncientForestPuzzleReadout
 {
@@ -36,69 +14,59 @@ internal sealed class AncientForestPuzzleReadout
     private const int JawRadius = 24;
 
     /// <summary>
-    /// How long a one-off event - the bite, a creature landing, set down or appearing - stays news
-    /// while it waits to be said: the same ten seconds the creature-approach narration allows an
-    /// episode. Long enough to outlast speech it waits behind, not a long mute.
+    /// How long an observed bite or creature release stays relevant while it waits for speech.
     /// </summary>
     private static readonly TimeSpan EventLifetime = TimeSpan.FromSeconds(10);
 
     private int fieldId = -1;
-    private Scene? said;
+    private Scene? previousScene;
     private readonly HashSet<int> shaking = [];
     private readonly Dictionary<int, bool> visible = [];
     private int pendingRelease = -1;
     private int bitten;
     private int standingOn;
-    private int warningPlant;
+    private int warnedPlant;
+    private int pendingWarning;
 
-    // What the current line says, part by part, until it has been heard (see Hear). heardBy is when
-    // its words will have had time to be said at the delivery's own slow rate, from when the host
-    // said it, and is null while the line has not been said, or was cut off. believedUntil bounds
-    // how long a screen reader still saying so is believed; stillSaying is that it said so past
-    // heardBy. saidOverSince and isSpeaking are the host's delivery's, asked on this thread only.
-    private readonly List<Part> unheard = [];
-    private DateTime? heardBy;
-    private DateTime? believedUntil;
-    private bool stillSaying;
+    // Keep only the latest useful facts while the speaker is busy. Once submitted, a cue can
+    // protect its playback briefly, but a player action can interrupt it without requeuing it.
+    private readonly List<Part> pending = [];
+    private DateTime? protectUntil;
+    private DateTime protectionCeiling;
     private Func<DateTime?>? saidOverSince;
     private Func<bool?>? isSpeaking;
 
     public string? CurrentLine { get; private set; }
-    public bool CurrentIsUrgent { get; private set; }
+    public bool CurrentIsUrgent => pendingWarning != 0 && CurrentLine is not null;
 
-    /// <summary>Give a valid pending fact a gap in routine navigation speech.</summary>
-    public bool HasUnheardLine => CurrentLine is not null && unheard.Count != 0;
+    /// <summary>Give a valid cue a gap in routine navigation speech.</summary>
+    public bool HasPendingSpeech => CurrentLine is not null || protectUntil is not null;
 
     internal static bool HasPuzzle(int field) => field is 620 or 622 or 623;
 
     public void Reset()
     {
         fieldId = -1;
+        warnedPlant = 0;
         Forget();
     }
 
     private void Forget()
     {
-        said = null;
+        previousScene = null;
         shaking.Clear();
         visible.Clear();
         pendingRelease = -1;
         bitten = 0;
         standingOn = 0;
-        warningPlant = 0;
-        unheard.Clear();
-        Unsaid();
-        saidOverSince = null;
-        isSpeaking = null;
-        CurrentIsUrgent = false;
+        pendingWarning = 0;
+        pending.Clear();
+        EndProtection();
         CurrentLine = null;
     }
 
     /// <summary>
-    /// The host has just said <paramref name="line"/>. If it is the current line, all of it is heard
-    /// once it has been said through (see <see cref="Hear"/>); until then the next line says it again.
-    /// <paramref name="saidOverSince"/> is when anything else was first said after it, and
-    /// <paramref name="isSpeaking"/> the screen reader's own word, or null when it cannot say.
+    /// The speaker accepted this cue. Routine speech can wait for it while it plays.
     /// </summary>
     public void NoteSpoken(string line, DateTime now, Func<DateTime?> saidOverSince, Func<bool?>? isSpeaking)
     {
@@ -107,61 +75,38 @@ internal sealed class AncientForestPuzzleReadout
             return;
         }
 
+        if (pendingWarning != 0)
+        {
+            warnedPlant = pendingWarning;
+            pendingWarning = 0;
+        }
+        pending.Clear();
+        CurrentLine = null;
+
         var words = line.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
-        heardBy = now + TimeSpan.FromTicks(Math.Max(
+        protectUntil = now + TimeSpan.FromTicks(Math.Max(
             FieldActivityLatestLineDelivery.PerWord.Ticks * words,
             FieldActivityLatestLineDelivery.MinimumProtection.Ticks));
-        believedUntil = now + FieldActivityLatestLineDelivery.CeilingFor(words);
-        stillSaying = false;
+        protectionCeiling = now + FieldActivityLatestLineDelivery.CeilingFor(words);
         this.saidOverSince = saidOverSince;
         this.isSpeaking = isSpeaking;
     }
 
-    /// <summary>
-    /// Whether the line the host said has been heard, asked before each look so that nothing is let go
-    /// on time alone. Anything else said over it before then cut it off - both hosts speak with
-    /// interruption - and none of it counts as heard: what of it still holds is offered again, and
-    /// waits for that speech like any line. Otherwise it is heard once its words have had time to be
-    /// said, or, where the screen reader can tell, once it stops saying it, though no longer than the
-    /// delivery believes any line. Speech that starts after that is not this line's, and does not
-    /// hold it up.
-    /// </summary>
-    private void Hear(DateTime now)
+    private void UpdateProtection(DateTime now)
     {
-        if (heardBy is not { } estimate)
+        if (protectUntil is { } end &&
+            (saidOverSince?.Invoke() is not null ||
+                (now >= end && (now >= protectionCeiling || Speaking() != true))))
         {
-            return;
+            EndProtection();
         }
-
-        var over = saidOverSince?.Invoke();
-        if (over is { } cut && (cut < estimate || stillSaying))
-        {
-            Unsaid();
-            CurrentLine = null;
-            return;
-        }
-
-        if (now < estimate)
-        {
-            return;
-        }
-
-        if (over is null && now < believedUntil && Speaking() == true)
-        {
-            stillSaying = true;
-            return;
-        }
-
-        unheard.Clear();
-        Unsaid();
-        CurrentLine = null;
     }
 
-    private void Unsaid()
+    private void EndProtection()
     {
-        heardBy = null;
-        believedUntil = null;
-        stillSaying = false;
+        protectUntil = null;
+        saidOverSince = null;
+        isSpeaking = null;
     }
 
     private bool? Speaking()
@@ -191,15 +136,20 @@ internal sealed class AncientForestPuzzleReadout
             fieldId = observation.FieldId;
         }
 
+        var under = PlantUnder(observation);
+        if (observation.IsPlayerControlled && observation.PlayerTriangle >= 0 && warnedPlant != under)
+        {
+            warnedPlant = 0;
+        }
         if (ReadFacts(observation) is not { } facts)
         {
-            // Nothing is known. An older line is not current either, and the next coherent look
-            // starts again from the whole state.
+            // Start from a fresh baseline when coherent data returns. Keep the submission
+            // marker for a warning if the player is still on the same plant.
             Forget();
             return Silent;
         }
 
-        Hear(now);
+        UpdateProtection(now);
         LatchShaking(facts, observation.AncientForestShakingPlants);
         if (!observation.IsPlayerControlled)
         {
@@ -208,67 +158,45 @@ internal sealed class AncientForestPuzzleReadout
                 bitten = flytrap;
             }
 
-            CurrentLine = null;
-            warningPlant = 0;
-            CurrentIsUrgent = false;
-            return Silent;
+            EndProtection();
+            pendingWarning = 0;
+            return Publish(null);
         }
 
         var scene = SceneOf(facts, observation.AncientForestShakingPlants);
-        var under = PlantUnder(observation);
-        CurrentIsUrgent = warningPlant != 0 && warningPlant == under &&
-            scene.Plants[under - 1] == PlantState.Shaking;
-        if (!CurrentIsUrgent) warningPlant = 0;
-        if (said is not { } before)
+        if (warnedPlant != 0 && scene.Plants[warnedPlant - 1] is PlantState.Open or PlantState.Closed)
         {
-            said = scene;
-            bitten = 0;
-            standingOn = under;
-            Remember(observation);
-            warningPlant = under != 0 && scene.Plants[under - 1] == PlantState.Shaking ? under : 0;
-            CurrentIsUrgent = warningPlant != 0;
-            return Say(WholeParts(scene), scene, observation, now);
+            warnedPlant = 0;
         }
-
-        // The plant the party stood on when the field last let go of it, now open with the party
-        // off it: it opened under them, and its own jump or launch moved them.
-        var openedUnder = standingOn != 0 && standingOn != under &&
-            before.Plants[standingOn - 1] is PlantState.Closed or PlantState.Shaking &&
-            scene.Plants[standingOn - 1] == PlantState.Open
-            ? standingOn
+        pendingWarning = under != 0 && warnedPlant != under && scene.Plants[under - 1] == PlantState.Shaking
+            ? under
             : 0;
-        var arrivedOnPlant = under != 0 && standingOn != under;
-        standingOn = under;
 
-        var parts = new List<Part>();
+        var changes = new List<Part>();
         var newsUntil = now + EventLifetime;
         if (bitten != 0)
         {
-            parts.Add(new("bite", BiteLine(bitten)) { NewsUntil = newsUntil });
+            changes.Add(new("bite", BiteLine(bitten)) { NewsUntil = newsUntil });
             bitten = 0;
         }
 
-        parts.AddRange(Outcomes(before, scene, observation, newsUntil));
+        if (previousScene is { } before)
+        {
+            var openedUnder = standingOn != 0 && standingOn != under &&
+                before.Plants[standingOn - 1] is PlantState.Closed or PlantState.Shaking &&
+                scene.Plants[standingOn - 1] == PlantState.Open
+                ? standingOn
+                : 0;
+            var plantOpened = scene.Plants.Where((state, index) =>
+                state == PlantState.Open && before.Plants[index] is PlantState.Closed or PlantState.Shaking).Any();
+            var outcomes = Outcomes(before, scene, observation, newsUntil, plantOpened);
+            changes.AddRange(Changes(before, scene, openedUnder, outcomes.Any(part => part.Subject == "carrying")));
+            changes.AddRange(outcomes);
+        }
         Remember(observation);
-        parts.AddRange(Changes(before, scene, openedUnder));
-        said = scene;
-        if (under != 0 && scene.Plants[under - 1] == PlantState.Shaking && (parts.Count > 0 || arrivedOnPlant))
-        {
-            var subject = Plant(under);
-            parts.RemoveAll(part => part.Subject == subject);
-            parts.Add(new(subject, $"Pitcher plant {under} shaking under you.") { UnderYou = under });
-            warningPlant = under;
-        }
-        else if (parts.Count > 0) warningPlant = 0;
-        CurrentIsUrgent = warningPlant != 0;
-        if (parts.Count == 0 && unheard.Count == 0)
-        {
-            return Silent;
-        }
-
-        // The warning about the plant underfoot leads, whatever else it is said with.
-        var warning = Plant(warningPlant);
-        return Say(parts.OrderBy(part => part.Subject == warning ? 0 : 1).ToList(), scene, observation, now);
+        standingOn = under;
+        previousScene = scene;
+        return Say(changes, scene, observation, now);
     }
 
     public static string? Describe(FieldActivityObservation observation)
@@ -281,20 +209,29 @@ internal sealed class AncientForestPuzzleReadout
         var states = ReadPlantStates(observation.FieldId, facts.Closed, observation.AncientForestShakingPlants);
         // Confirm picks up, sets down, throws into a plant and uses the beehive, depending on where
         // Cloud stands; Switch gives up. Only the game's own buttons, and no outcome or solution.
-        return Whole(new Scene(observation.FieldId, facts.Carried, states, facts.Flytraps)) +
+        return string.Join(' ', StatusParts(new Scene(observation.FieldId, facts.Carried, states, facts.Flytraps))) +
             " Use your normal Confirm button for pickup, release and throws." +
             " Use your normal Switch button to return to the forest entrance.";
     }
 
-    internal static string? DescribePitcherPlants(int field, AncientForestPuzzleSnapshot? snapshot)
+    internal static string? DescribeSelectedPlant(
+        FieldNavigationTarget target, Func<int, AncientForestPuzzleSnapshot?> readState)
     {
-        if (snapshot is null ||
-            ReadClosedPlants(field, address => address < snapshot.Bank.Length ? snapshot.Bank[address] : -1) is not { } closed)
+        const string plantLabel = "Pitcher plant ";
+        if (target.Category != FieldNavigationCategory.Objects || !HasPuzzle(target.FieldId) ||
+            !target.Label.StartsWith(plantLabel, StringComparison.Ordinal))
             return null;
 
-        var states = ReadPlantStates(field, closed, snapshot.ShakingPlants);
-        var plants = states.Select((state, index) => $"Plant {index + 1} {Word(state)}.");
-        return "Pitcher plants from left to right. " + string.Join(' ', plants);
+        var suffix = target.Label.AsSpan(plantLabel.Length);
+        var comma = suffix.IndexOf(',');
+        if (comma < 0 || !int.TryParse(suffix[..comma], out var number) ||
+            readState(target.FieldId) is not { } snapshot ||
+            ReadClosedPlants(target.FieldId, address => address < snapshot.Bank.Length ? snapshot.Bank[address] : -1) is not { } closed ||
+            number < 1 || number > closed.Length)
+            return null;
+
+        var state = ReadPlantStates(target.FieldId, closed, snapshot.ShakingPlants)[number - 1];
+        return state == PlantState.Unavailable ? null : $"Plant {number} {Word(state)}";
     }
 
     private static PlantState[] ReadPlantStates(int field, IReadOnlyList<bool> closed, IReadOnlySet<int>? seen) =>
@@ -365,54 +302,33 @@ internal sealed class AncientForestPuzzleReadout
 
     private static FieldActivityCue Silent => new(null, false, false) { ReplacesEarlierLine = true };
 
-    /// <summary>
-    /// The line for this look: what is new, then whatever of the current line has not been heard and
-    /// still holds, each subject once and at its newest. With nothing new nothing is said, but a line
-    /// still waiting to be said loses what no longer holds, and a line retired before it was heard -
-    /// cut off by other speech, or by the field's own movement before it was said at all - is offered
-    /// again at once, or as soon as control returns.
-    /// </summary>
+    /// <summary>While speech is busy, retain up to two current, as yet unsubmitted facts.</summary>
     private FieldActivityCue Say(IReadOnlyList<Part> news, Scene scene, FieldActivityObservation observation, DateTime now)
     {
-        var kept = unheard
-            .Where(part => news.All(newer => newer.Subject != part.Subject))
+        var kept = news.Concat(pending).DistinctBy(part => part.Subject)
             .Select(part => StillHolding(part, scene, observation, now))
             .OfType<Part>()
-            .ToList();
-        var changed = news.Count > 0 || !kept.SequenceEqual(unheard);
-        // Only the field moving the party and other speech cutting the line off retire it and keep
-        // what it says; then nothing of it has been heard.
-        var retiredUnsaid = CurrentLine is null && heardBy is null;
-        unheard.Clear();
-        unheard.AddRange(news);
-        unheard.AddRange(kept);
-        if (unheard.Count == 0)
-        {
-            CurrentLine = null;
-            return Silent;
-        }
+            .Take(2)
+            .ToArray();
+        pending.Clear();
+        pending.AddRange(kept);
+        if (pendingWarning != 0)
+            return Publish($"Pitcher plant {pendingWarning} shaking under you.");
 
-        if (news.Count == 0 && !retiredUnsaid)
-        {
-            // Said, or still waiting to be: only what no longer holds changes.
-            if (changed && CurrentLine is not null)
-            {
-                CurrentLine = string.Join(' ', unheard.Select(part => part.Text));
-            }
+        return Publish(protectUntil is null && kept.Length > 0
+            ? string.Join(' ', kept.Select(part => part.Text))
+            : null);
+    }
 
-            return Silent;
-        }
-
-        Unsaid();
-        CurrentLine = string.Join(' ', unheard.Select(part => part.Text));
-        return new(CurrentLine, false, false) { ReplacesEarlierLine = true };
+    private FieldActivityCue Publish(string? line)
+    {
+        var changed = line != CurrentLine;
+        CurrentLine = line;
+        return changed ? new(line, false, false) { ReplacesEarlierLine = true } : Silent;
     }
 
     /// <summary>
-    /// An unheard part as it is now, or null once it no longer holds. The warning about the plant
-    /// underfoot is only the plant's state once the leader is off it; a one-off event is news only
-    /// for <see cref="EventLifetime"/>; a creature seen somewhere is gone once it is carried or out of
-    /// sight, and one no longer known to be at the leader's feet keeps only its release, as a past event.
+    /// Retire obsolete states, older events, and stale creature positions before delivery.
     /// </summary>
     private Part? StillHolding(Part part, Scene scene, FieldActivityObservation observation, DateTime now)
     {
@@ -421,9 +337,9 @@ internal sealed class AncientForestPuzzleReadout
             return null;
         }
 
-        if (part.UnderYou != 0 && part.UnderYou != warningPlant)
+        if (part.PlantNumber != 0 && scene.Plants[part.PlantNumber - 1] != part.PlantPose)
         {
-            return new(part.Subject, $"Pitcher plant {part.UnderYou} {Word(scene.Plants[part.UnderYou - 1])}.");
+            return null;
         }
 
         if (part.Creature < 0)
@@ -572,12 +488,10 @@ internal sealed class AncientForestPuzzleReadout
         : "The Mutant Flytrap bit the party.";
 
     /// <summary>
-    /// What is visibly different about the creatures. A creature just released is described where
-    /// it is seen: at the leader's feet, landed elsewhere, or nothing when it is out of sight. Any
-    /// other creature that comes into view appeared. An unreadable model says nothing, and a release
-    /// waits for its model.
+    /// Report a visible release and frogs that reappear as plants open.
     /// </summary>
-    private IEnumerable<Part> Outcomes(Scene before, Scene now, FieldActivityObservation observation, DateTime newsUntil)
+    private List<Part> Outcomes(
+        Scene before, Scene now, FieldActivityObservation observation, DateTime newsUntil, bool plantOpened)
     {
         var creatures = Creatures(fieldId);
         var held = Carried(creatures, now.Carried);
@@ -609,7 +523,7 @@ internal sealed class AncientForestPuzzleReadout
                 if (isVisible)
                 {
                     var atFeet = IsNear(model, observation);
-                    lines.Add(new(subject, atFeet ? $"{label} is at your feet." : $"{label} landed.")
+                    lines.Add(new(held < 0 ? "carrying" : subject, atFeet ? $"{label} is at your feet." : $"{label} landed.")
                     {
                         Creature = model.EntityId,
                         AtFeet = atFeet,
@@ -620,7 +534,7 @@ internal sealed class AncientForestPuzzleReadout
                 continue;
             }
 
-            if (isVisible && model.EntityId != held &&
+            if (plantOpened && isVisible && model.EntityId != held && label.StartsWith("Frog ", StringComparison.Ordinal) &&
                 visible.TryGetValue(model.EntityId, out var wasVisible) && !wasVisible)
             {
                 lines.Add(new(subject, $"{label} appeared.") { Creature = model.EntityId, NewsUntil = newsUntil });
@@ -651,20 +565,27 @@ internal sealed class AncientForestPuzzleReadout
         return dx * dx + dy * dy <= (long)FeetRadius * FeetRadius;
     }
 
-    private static IEnumerable<Part> Changes(Scene before, Scene now, int openedUnder)
+    private static IEnumerable<Part> Changes(Scene before, Scene now, int openedUnder, bool describedRelease)
     {
-        if (before.Carried != now.Carried)
+        if (openedUnder != 0)
         {
-            yield return new("carrying", $"Carrying {CarriedName(now.FieldId, now.Carried)}.");
+            yield return new(Plant(openedUnder), $"Pitcher plant {openedUnder} opened under you.")
+            {
+                PlantNumber = openedUnder,
+                PlantPose = PlantState.Open
+            };
         }
 
         for (var index = 0; index < now.Plants.Count; index++)
         {
-            if (before.Plants[index] != now.Plants[index])
+            var state = now.Plants[index];
+            if (index + 1 != openedUnder && before.Plants[index] != state && state is PlantState.Open or PlantState.Closed)
             {
-                yield return new(Plant(index + 1), index + 1 == openedUnder
-                    ? $"Pitcher plant {index + 1} opened under you."
-                    : $"Pitcher plant {index + 1} {Word(now.Plants[index])}.");
+                yield return new(Plant(index + 1), $"Pitcher plant {index + 1} {Word(state)}.")
+                {
+                    PlantNumber = index + 1,
+                    PlantPose = state
+                };
             }
         }
 
@@ -677,33 +598,33 @@ internal sealed class AncientForestPuzzleReadout
                     $"Mutant Flytrap {flytraps[index].Number} {(now.Flytraps[index] ? "closed" : "open")}.");
             }
         }
+
+        if (!describedRelease && before.Carried != now.Carried)
+        {
+            yield return new("carrying", $"Carrying {CarriedName(now.FieldId, now.Carried)}.");
+        }
     }
 
-    private static string Whole(Scene scene) => string.Join(' ', WholeParts(scene).Select(part => part.Text));
-
-    private static List<Part> WholeParts(Scene scene)
+    private static IEnumerable<string> StatusParts(Scene scene)
     {
-        var parts = new List<Part> { new("carrying", $"Carrying {CarriedName(scene.FieldId, scene.Carried)}.") };
+        yield return $"Carrying {CarriedName(scene.FieldId, scene.Carried)}.";
         for (var index = 0; index < scene.Plants.Count; index++)
         {
-            parts.Add(new(Plant(index + 1), $"{(index == 0 ? "Pitcher plant" : "Plant")} {index + 1} {Word(scene.Plants[index])}."));
+            yield return $"{(index == 0 ? "Pitcher plant" : "Plant")} {index + 1} {Word(scene.Plants[index])}.";
         }
 
         var flytraps = Flytraps(scene.FieldId);
         for (var index = 0; index < flytraps.Count; index++)
         {
-            parts.Add(new($"flytrap {flytraps[index].Number}",
-                $"Mutant Flytrap {flytraps[index].Number} {(scene.Flytraps[index] ? "closed" : "open")}."));
+            yield return $"Mutant Flytrap {flytraps[index].Number} {(scene.Flytraps[index] ? "closed" : "open")}.";
         }
 
         // 622's mouth closes only during its native bite, while the field holds the party; the two
         // beehive fields keep their visible permanent closure in the flags above.
         if (scene.FieldId == 622)
         {
-            parts.Add(new("flytrap", "Mutant Flytrap open."));
+            yield return "Mutant Flytrap open.";
         }
-
-        return parts;
     }
 
     private static string Plant(int number) => $"plant {number}";
@@ -726,17 +647,14 @@ internal sealed class AncientForestPuzzleReadout
     private sealed record Scene(int FieldId, int Carried, IReadOnlyList<PlantState> Plants, IReadOnlyList<bool> Flytraps);
 
     /// <summary>
-    /// One thing a line says, by its subject: what is carried, a plant, a flytrap, the bite or one
-    /// creature. A newer part about the same subject replaces it. <see cref="Creature"/> is the
-    /// creature a release or appearance was seen of, and <see cref="UnderYou"/> the plant a warning
-    /// is about. A one-off event is news until <see cref="NewsUntil"/>; a state has no such limit
-    /// and is kept until it has been heard.
+    /// One current fact. A newer fact about the same subject replaces it.
     /// </summary>
     private sealed record Part(string Subject, string Text)
     {
         public int Creature { get; init; } = -1;
         public bool AtFeet { get; init; }
-        public int UnderYou { get; init; }
+        public int PlantNumber { get; init; }
+        public PlantState PlantPose { get; init; }
         public DateTime? NewsUntil { get; init; }
     }
 }

@@ -12,6 +12,7 @@ internal static class ControllerModifierNavigationTests
     {
         StandaloneStickClickDoesNotOpenNavigation();
         EitherHeldTriggerBrowsesAndCapturesItsCommands();
+        SingleTriggerAndYReadTheCurrentPuzzleOnDemand();
         ReleasingModifierBeforeStickClickDoesNotLeakTheTail();
 #if BLIND_SOLDIER_LEGACY_TESTS
         TheXInputDetourReadsAndSuppressesActualTriggerAndStickFields();
@@ -89,6 +90,36 @@ internal static class ControllerModifierNavigationTests
             "R3 stays captured after the trigger is released");
         strip = capture.ObserveRawPoll(new(true, 0, 4, GamepadButton.None), Now);
         Equal(GamepadButton.None, strip, "controls return after the complete chord releases");
+    }
+
+    private static void SingleTriggerAndYReadTheCurrentPuzzleOnDemand()
+    {
+        foreach (var modifier in new[] { LeftTrigger, RightTrigger })
+        {
+            var capture = Create();
+            capture.PublishContext(ControllerNavigationDomain.Field, true, true, false, Now, 622);
+            var lines = new List<string>();
+            var target = new DelegatedControllerNavigationTarget(() => false, () => false, _ => "Objects, Insect 1.",
+                () => throw new InvalidOperationException("The status started guidance."),
+                () => throw new InvalidOperationException("The status started auto walk."), () => null, () => { });
+            var dispatcher = new ControllerNavigationDispatcher(target, line => { lines.Add(line); return true; },
+                fieldActivityStatus: () => "Carrying insect 2. Plant 1 open. Plant 2 closed.");
+            _ = capture.ObserveRawPoll(new(true, 0, 0, GamepadButton.None), Now);
+            var nativeY = capture.ObserveRawPoll(new(true, 0, 1, GamepadButton.Y), Now);
+            Equal(GamepadButton.None, nativeY & GamepadButton.Y, "The native Y button works without a trigger.");
+            _ = capture.ObserveRawPoll(new(true, 0, 2, GamepadButton.None), Now);
+            _ = capture.ObserveRawPoll(new(true, 0, 3, modifier), Now);
+            dispatcher.Drain(capture, ControllerNavigationDomain.Field, Now);
+            Equal(1, lines.Count, "Opening navigation reads the selected target only.");
+            var chord = modifier | GamepadButton.Y;
+            var suppressed = capture.ObserveRawPoll(new(true, 0, 4, chord), Now);
+            Equal(GamepadButton.None, chord & ~suppressed, "The requested status chord stays private.");
+            dispatcher.Drain(capture, ControllerNavigationDomain.Field, Now);
+            _ = capture.ObserveRawPoll(new(true, 0, 5, chord), Now.AddMilliseconds(300));
+            dispatcher.Drain(capture, ControllerNavigationDomain.Field, Now.AddMilliseconds(300));
+            Equal(2, lines.Count, "Holding Y does not repeat the requested puzzle status.");
+            Equal("Carrying insect 2. Plant 1 open. Plant 2 closed.", lines[^1], "The status is spoken verbatim.");
+        }
     }
 
     private static void Expect(ControllerNavigationCapture capture, ControllerNavigationCommand wanted)

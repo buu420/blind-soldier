@@ -583,7 +583,11 @@ public sealed class FieldNavigationObjectReader
             : resolveMateriaName(definition.NativeId);
         if (string.IsNullOrWhiteSpace(name))
         {
-            return null;
+            // The visible model identifies an unopened chest even without its reward name.
+            return definition.TargetKind == FieldNavigationObjectTargetKind.Model &&
+                   FieldNavigationObjectCueClassifier.Classify(definition) == FieldObjectCueKind.Chest
+                ? "Chest"
+                : null;
         }
 
         var label = definition.Kind == FieldNavigationObjectKind.Materia
