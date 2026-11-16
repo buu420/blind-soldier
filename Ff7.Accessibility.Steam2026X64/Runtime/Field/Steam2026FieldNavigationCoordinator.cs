@@ -505,7 +505,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
 
         controllerNavigation ??= new ControllerNavigationDispatcher(
             new ControllerNavigationServices(
-                () => controller.BeaconEnabled,
+                () => controller.HasActiveNavigation,
                 action => controller
                     .HandleAction(action, controllerPosition, controllerControl, controllerLadder)?.Speech,
                 () => autoWalk.IsEnabledFor(NavigationAutoWalkDomain.Field),
@@ -949,7 +949,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                 if (!navigationSuppressed && liveSpeech is { } live)
                 {
                     guidanceRepeatGate.Reset();
-                    Speak(live.Speech, interrupt: true, nowUtc, "native ladder tracking");
+                    Speak(live.Speech, interrupt: !controller.IsFollowingForestStory, nowUtc, "native ladder tracking");
                 }
 
                 StopAutoWalkIfGlacierRouteEnded();
@@ -1128,7 +1128,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
 
             if (FieldNavigationAutoWalkIntent.ShouldQueueAutoWalkToggle(
                     pendingAutoWalkStart,
-                    controller.BeaconEnabled,
+                    controller.HasActiveNavigation,
                     controller.IsHoldingForNativeBoundary,
                     autoWalkRouteToggleQueued))
             {
@@ -1137,7 +1137,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             }
             if (pendingActions.TryTakeEmergencyBeaconOff(
                     position.FieldId,
-                    controller.BeaconEnabled || controller.IsHoldingForNativeBoundary,
+                    controller.HasActiveNavigation || controller.IsHoldingForNativeBoundary,
                     out var beaconOffAction))
             {
                 var beaconOff = controller.HandleAction(beaconOffAction, position, control);
@@ -1184,7 +1184,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                         controller.RequestAutoWalkForHeldRoute();
                     }
 
-                    if (!controller.BeaconEnabled)
+                    if (!controller.HasActiveNavigation)
                     {
                         pendingAutoWalkStart = false;
                     }
@@ -1193,14 +1193,14 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
 
             var heldAutoWalkStart = controller.TryConsumeHeldAutoWalkRequest();
             if ((pendingAutoWalkStart || heldAutoWalkStart) &&
-                controller.BeaconEnabled &&
+                controller.HasActiveNavigation &&
                 autoWalk.TryStart(NavigationAutoWalkDomain.Field, routeActive: true))
             {
                 autoWalkConvergence.Reset();
                 controller.NoteAutoWalkStarted();
                 pendingAutoWalkStart = false;
                 autoWalkRouteToggleQueued = false;
-                Speak("Auto walk on.", interrupt: true, nowUtc, "P toggle");
+                Speak("Auto walk on.", interrupt: !controller.IsFollowingForestStory, nowUtc, "P toggle");
             }
 
             controllerPosition = position;
@@ -1229,7 +1229,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                 if (liveSpeech is { } live)
                 {
                     guidanceRepeatGate.Reset();
-                    Speak(live.Speech, interrupt: true, nowUtc, "live tracking");
+                    Speak(live.Speech, interrupt: !controller.IsFollowingForestStory, nowUtc, "live tracking");
                 }
 
                 StopAutoWalkIfGlacierRouteEnded();
@@ -1659,7 +1659,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         var result = autoWalk.Drive(
             hasDirection ? direction : FieldNavigationInput.None,
             canMove: hasDirection,
-            routeActive: controller.BeaconEnabled,
+            routeActive: controller.HasActiveNavigation,
             observedInput: observedInput,
             pollBudget: fieldBudget.Budget);
         if (result.Success)
@@ -1827,7 +1827,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
     private void ObserveAncientForestNavigationSafety(RuntimeFrameObservation frame, DateTime nowUtc)
     {
         if (frame.Lifecycle.IsShuttingDown || frame.Lifecycle.ModuleId != FieldPositionReader.FieldModule ||
-            (!controller.BeaconEnabled && !autoWalk.IsEnabledFor(NavigationAutoWalkDomain.Field) && !pendingAutoWalkStart))
+            (!controller.HasActiveNavigation && !autoWalk.IsEnabledFor(NavigationAutoWalkDomain.Field) && !pendingAutoWalkStart))
             return;
         var result = positionReader.ReadNavigation();
         if (!result.IsUsable || !AncientForestPuzzleReadout.HasPuzzle(result.Position.FieldId) ||

@@ -173,7 +173,7 @@ internal static class AncientForestInteractionTests
         public bool TryGetNextWaypoint(FieldPositionSnapshot position, FieldNavigationTarget target, out FieldNavigationRouteWaypoint waypoint) { waypoint = default; return false; }
     }
 
-    private sealed class StraightRoute : IFieldNavigationRoutePlanner
+    internal sealed class StraightRoute : IFieldNavigationRoutePlanner
     {
         public string LastDiagnostic => "straight test floor";
         public bool TryResolvePlayerTriangle(FieldPositionSnapshot position, out int triangle)
