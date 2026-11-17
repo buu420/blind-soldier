@@ -6,6 +6,7 @@ internal static class AncientForestStoryTests
 {
     internal static void Run()
     {
+        ObjectRouteResumesAfterManualReturn();
         ActiveStoryResumesAfterNativeActions();
         StagingUsesTwoDistinctSafeSpots();
 
@@ -46,9 +47,9 @@ internal static class AncientForestStoryTests
         forest.Expect("Feed pitcher plant 2", [], "Press Confirm to throw.");
         forest.Bank[17] = 1;
         forest.Bank[9] = 0;
-        forest.Expect("Return for the staged insect", [], "Hold Left.");
-        forest.At(-170, -145, 30);
-        forest.Bank[19] = 1;
+        forest.Expect("Return for the staged insect", [], "Hold Left to jump back to the bank.");
+        forest.At(37, -126, 32, 239);
+        forest.Bank[19] = 2;
         forest.Expect("Pick up Insect 2 for the next pitcher plant", [insect2, p1]);
         forest.Bank[9] = 2;
         forest.At(193, -114, 14);
@@ -326,16 +327,115 @@ internal static class AncientForestStoryTests
         Require(Tick()?.Speech.StartsWith("Pick up Insect 1 for the next pitcher plant.", StringComparison.Ordinal) == true &&
             controller.BeaconEnabled, "The next insect is guided immediately after control returns.");
 
-        forest.At(193, -114, 14);
+        forest.At(193, -114, 14, 269);
+        forest.Bank[19] = 3;
+        forest.Bank[9] = 1;
+        Require(Tick()?.Speech == "Feed pitcher plant 2. Press Confirm to throw." && !CanDrive(),
+            "The player feeds the second plant from the first plant's top.");
+        insects = [insects[1]];
+        forest.Bank[9] = 0;
         forest.Bank[17] = 1;
-        Require(Tick()?.Speech == "Return for the staged insect. Hold Left." && !CanDrive(),
-            "Do not automate the native jump back to the bank.");
+        Require(Tick()?.Speech == "Return for the staged insect. Hold Left to jump back to the bank." &&
+            controller.HasActiveNavigation && !CanDrive(),
+            "The next step must explain the manual return and keep the route selected.");
+        Require(controller.IsForestStoryTargetCycle(FieldNavigationAction.NextTarget) &&
+            controller.IsForestStoryTargetCycle(FieldNavigationAction.PreviousTarget) &&
+            !controller.IsForestStoryTargetCycle(FieldNavigationAction.NextCategory),
+            "Both runtimes can distinguish re-reading the single Story row from leaving the category.");
+        Require(controller.HandleAction(FieldNavigationAction.NextTarget, forest.Position)?.Speech.Contains(
+            "Hold Left to jump back to the bank", StringComparison.Ordinal) == true && controller.HasActiveNavigation,
+            "Cycling the single Story row still gives the return instruction.");
+
+        forest.Bank[19] = 0;
+        Require(Tick(suppressed: true) is null && !CanDrive(), "The native jump owns movement.");
+        forest.At(37, -126, 32, 239);
+        forest.Bank[19] = 2;
+        Tick();
+        Require(Tick()?.Speech.StartsWith("Pick up Insect 2 for the next pitcher plant.", StringComparison.Ordinal) == true &&
+            controller.BeaconEnabled && CanDrive(), "Story resumes from the game's real Left-jump landing.");
+
+        forest.At(193, -114, 14, 269);
+        forest.Bank[19] = 3;
+        Tick();
         Require(controller.HandleAction(FieldNavigationAction.ToggleBeacon, forest.Position)?.Speech == "Navigation off.",
             "The player can turn Story following off during a manual action.");
-        forest.At(first.X, first.Y, 114, first.Z);
-        forest.Bank[19] = 1;
-        Require(Tick() is null && !controller.BeaconEnabled && !CanDrive(),
+        forest.At(37, -126, 32, 239);
+        forest.Bank[19] = 2;
+        Require(Tick() is null && !controller.HasActiveNavigation && !CanDrive(),
             "After explicit cancellation, do not start another route.");
+    }
+
+    private static void ObjectRouteResumesAfterManualReturn()
+    {
+        var first = AncientForestStoryGuide.EntranceStage1;
+        var insect = Object("Insect 1", first.X, first.Y, first.Z, "Named:6") with { FieldId = 622 };
+        var other = Object("Insect 2", -792, -489, 6, "Named:7") with { FieldId = 622 };
+        FieldNavigationTarget[] visible = [insect, other];
+        var controller = new FieldNavigationController(new([], objectTargetProvider: _ => visible), new ReturnBankRoute());
+        var position = new FieldPositionSnapshot(FieldPositionReader.FieldModule, 622, 0, 193, -114, 269, 14, 0);
+        var now = DateTime.UnixEpoch;
+        FieldNavigationActionResult? Tick(bool suppressed = false) =>
+            controller.UpdateLiveTracking(position, default, new(0), suppressed,
+                observedAt: now = now.AddMilliseconds(160));
+        bool CanDrive() => controller.TryResolveAutomaticInput(position, new(0), 0, out _);
+        void Require(bool condition, string failure)
+        {
+            if (!condition) throw new InvalidOperationException(failure);
+        }
+
+        var selection = controller.HandleAction(FieldNavigationAction.PreviousCategory, position, new(0));
+        Require(selection?.Speech == "Objects, Insect 1. Hold Left to jump back to the bank.",
+            "Objects must explain the return instead of reporting the staged insect as unreachable.");
+        var preview = controller.PreviewActionRoute(FieldNavigationAction.ToggleBeacon, position, includeSelectionRoute: true);
+        Require(!preview.UsesRoute && preview.Target?.Label == "Insect 1",
+            "Starting the manual step must not require a walking route from the plant.");
+        var start = controller.HandleAction(FieldNavigationAction.ToggleBeacon, position, new(0));
+        Require(start?.Speech == selection?.Speech && controller.HasActiveNavigation && !controller.BeaconEnabled,
+            "The selected visible insect must stay the destination while the player jumps.");
+        controller.NoteAutoWalkStarted();
+        Require(Tick() is null && !CanDrive(), "The return never presses Left for the player.");
+
+        visible = [];
+        Require(Tick(suppressed: true) is null && controller.HasActiveNavigation && !CanDrive(),
+            "Temporary loss of the current object list during the native jump must not cancel Auto Walk.");
+        position = position with { X = 37, Y = -126, Z = 239, TriangleId = 32 };
+        visible = [other];
+        Require(Tick() is null && controller.HasActiveNavigation && !CanDrive(),
+            "A different visible insect must never replace the selected insect.");
+        visible = [other, insect];
+        Tick();
+        Require(Tick()?.Speech.StartsWith("Insect 1.", StringComparison.Ordinal) == true &&
+            controller.BeaconEnabled && controller.CurrentTargetLabel == "Insect 1" && CanDrive(),
+            "After landing, walk toward the same insect when its live model is available again.");
+
+        controller.Reset();
+        position = position with { X = 193, Y = -114, Z = 269, TriangleId = 14 };
+        controller.HandleAction(FieldNavigationAction.ToggleBeacon, position, new(0));
+        controller.HandleAction(FieldNavigationAction.NextTarget, position, new(0));
+        Require(!controller.HasActiveNavigation && !CanDrive(),
+            "Selecting a different object cancels the pending return route.");
+        position = position with { X = 37, Y = -126, Z = 239, TriangleId = 32 };
+        Require(Tick() is null && !CanDrive(), "A cancelled Objects route must not restart on the bank.");
+    }
+
+    private sealed class ReturnBankRoute : IFieldNavigationRoutePlanner
+    {
+        private readonly AncientForestInteractionTests.StraightRoute walking = new();
+        public string LastDiagnostic => "the native Left jump is needed to leave the plant";
+        public bool TryResolvePlayerTriangle(FieldPositionSnapshot position, out int triangle) =>
+            walking.TryResolvePlayerTriangle(position, out triangle);
+
+        public bool TryBuildRoute(FieldPositionSnapshot position, FieldNavigationTarget target, out FieldNavigationRoutePlan plan)
+        {
+            plan = null!;
+            return position.TriangleId == 32 && walking.TryBuildRoute(position, target, out plan);
+        }
+
+        public bool TryGetNextWaypoint(FieldPositionSnapshot position, FieldNavigationTarget target, out FieldNavigationRouteWaypoint waypoint)
+        {
+            waypoint = default;
+            return position.TriangleId == 32 && walking.TryGetNextWaypoint(position, target, out waypoint);
+        }
     }
 
     private static void StagingUsesTwoDistinctSafeSpots()
@@ -371,7 +471,7 @@ internal static class AncientForestStoryTests
         if (controller.UpdateLiveTracking(r.Position, default, default, isSuppressed: true) is not null)
             throw new InvalidOperationException("The guide must not speak through a native script.");
         var next = controller.UpdateLiveTracking(r.Position, default, default, isSuppressed: false);
-        if (next?.Speech != "Return for the staged insect. Hold Left." || controller.BeaconEnabled)
+        if (next?.Speech != "Return for the staged insect. Hold Left to jump back to the bank." || controller.BeaconEnabled)
             throw new InvalidOperationException("A change must announce the next action without starting movement.");
         if (controller.UpdateLiveTracking(r.Position, default, default, isSuppressed: false) is not null)
             throw new InvalidOperationException("The next action must not repeat continuously.");

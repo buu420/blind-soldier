@@ -327,9 +327,10 @@ public sealed class FieldNavigationController
     private bool forestStorySelected;
     private string? lastForestStoryStep;
     private int followedForestFieldId = -1;
+    private string? followedForestInsectId;
     private string? followedForestCue;
-    private string? forestStoryRetryTarget;
-    private DateTime forestStoryRetryAt;
+    private string? forestRouteRetryTarget;
+    private DateTime forestRouteRetryAt;
     private int interactionArrivalDistance;
     private int categoryIndex;
 
@@ -363,8 +364,13 @@ public sealed class FieldNavigationController
 
     // A manual Forest step can hold the player's route choice without having a
     // waypoint for the input driver to follow.
-    internal bool HasActiveNavigation => BeaconEnabled || IsFollowingForestStory;
-    internal bool IsFollowingForestStory => followedForestFieldId >= 0;
+    internal bool HasActiveNavigation => BeaconEnabled || IsFollowingForestRoute;
+    internal bool IsFollowingForestRoute => followedForestFieldId >= 0;
+
+    // Forest Story exposes one live step. Moving one row here just repeats that step.
+    internal bool IsForestStoryTargetCycle(FieldNavigationAction action) =>
+        IsFollowingForestRoute && CurrentCategory == FieldNavigationCategory.Story &&
+        action is FieldNavigationAction.PreviousTarget or FieldNavigationAction.NextTarget;
 
     public FieldNavigationCategory CurrentCategory => CategoryOrder[categoryIndex];
 
@@ -533,9 +539,11 @@ public sealed class FieldNavigationController
                 return default;
         }
 
-        if (target is { } manualTarget && !string.IsNullOrWhiteSpace(manualTarget.ManualNavigationGuidance))
+        if (target is { } selected)
         {
-            return new FieldNavigationActionRoutePreview(false, false, target);
+            var guided = AncientForestInteractionGuidance.AddBankReturnInstruction(position, selected);
+            if (!string.IsNullOrWhiteSpace(guided.ManualNavigationGuidance))
+                return new FieldNavigationActionRoutePreview(false, false, guided);
         }
 
         return new FieldNavigationActionRoutePreview(
@@ -568,7 +576,7 @@ public sealed class FieldNavigationController
 
     public void Reset()
     {
-        StopFollowingForestStory();
+        StopFollowingForestRoute();
         CancelHeldBoundaryTarget();
         CancelCrossFieldApproach();
         // The leg being walked ends; the treasure it serves does not. Leaving the field module
@@ -1645,13 +1653,13 @@ public sealed class FieldNavigationController
         switch (action)
         {
             case FieldNavigationAction.PreviousCategory:
-                if (IsFollowingForestStory) Reset();
+                if (IsFollowingForestRoute) Reset();
                 MoveCategory(-1);
                 DropHeldBoundaryTargetOnSelectionChange(position);
                 RelockBeaconToSelection(position);
                 return DescribeCurrentSelection(position, controlTransform, ladderState);
             case FieldNavigationAction.NextCategory:
-                if (IsFollowingForestStory) Reset();
+                if (IsFollowingForestRoute) Reset();
                 MoveCategory(1);
                 DropHeldBoundaryTargetOnSelectionChange(position);
                 RelockBeaconToSelection(position);
@@ -1724,7 +1732,7 @@ public sealed class FieldNavigationController
                 if (!string.IsNullOrWhiteSpace(target.Value.ManualNavigationGuidance))
                 {
                     Reset();
-                    StartFollowingForestStory(target.Value);
+                    StartFollowingForestRoute(position, target.Value);
                     return DescribeManualTarget(target.Value);
                 }
 
@@ -1768,7 +1776,7 @@ public sealed class FieldNavigationController
                 }
 
                 CancelHeldBoundaryTarget();
-                StartFollowingForestStory(target.Value);
+                StartFollowingForestRoute(position, target.Value);
 
                 var initialGuidance = controlTransform is null
                     ? null
@@ -1799,17 +1807,17 @@ public sealed class FieldNavigationController
         }
 
         FieldNavigationTarget? forestStep = null;
-        if (IsFollowingForestStory && FieldPositionReader.IsUsable(position))
+        if (IsFollowingForestRoute && FieldPositionReader.IsUsable(position))
         {
             if (position.FieldId != followedForestFieldId)
             {
-                StopFollowingForestStory();
+                StopFollowingForestRoute();
             }
             else
             {
-                forestStep = isSuppressed ? null : GetSelectedTarget(position);
+                forestStep = isSuppressed ? null : GetFollowedForestStep(position);
                 var now = observedAt == default ? DateTime.UtcNow : observedAt;
-                if (TryAdvanceForestStory(position, controlTransform, ladderState, forestStep, now, out var next))
+                if (TryAdvanceForestRoute(position, controlTransform, ladderState, forestStep, now, out var next))
                     return next;
             }
         }
@@ -1820,37 +1828,56 @@ public sealed class FieldNavigationController
             position, input, controlTransform, isSuppressed, arrivalDistanceUnits, ladderState, observedAt, forestStep);
         if (legBefore is not null && GlacierRegion?.Objective is not null)
             return AfterGlacierLegTracking(legBefore, beaconBefore, result, observedAt);
-        return IsFollowingForestStory ? result : ReadNextForestStoryStep(position, isSuppressed) ?? result;
+        return IsFollowingForestRoute ? result : ReadNextForestStoryStep(position, isSuppressed) ?? result;
     }
 
-    private void StartFollowingForestStory(FieldNavigationTarget step)
+    private void StartFollowingForestRoute(FieldPositionSnapshot position, FieldNavigationTarget step)
     {
-        if (step.Category == FieldNavigationCategory.Story && AncientForestStoryGuide.IsForest(step.FieldId))
+        var isStory = step.Category == FieldNavigationCategory.Story && AncientForestStoryGuide.IsForest(step.FieldId);
+        if (!isStory && !AncientForestInteractionGuidance.RequiresBankReturn(position, step))
+            return;
+
+        followedForestFieldId = step.FieldId;
+        followedForestInsectId = isStory ? null : GetTargetId(step);
+        followedForestCue = step.ManualNavigationGuidance is { } instruction ? $"{step.Label}. {instruction}" : null;
+    }
+
+    private FieldNavigationTarget? GetFollowedForestStep(FieldPositionSnapshot position)
+    {
+        if (followedForestInsectId is not { } id)
+            return GetSelectedTarget(position);
+
+        // The native jump can temporarily hide the selected row. Keep its
+        // identity and wait for a fresh model instead of switching creatures.
+        foreach (var target in source.GetTargets(position, FieldNavigationCategory.Objects))
         {
-            followedForestFieldId = step.FieldId;
-            followedForestCue = step.ManualNavigationGuidance is { } instruction ? $"{step.Label}. {instruction}" : null;
+            if (GetTargetId(target) == id)
+                return AncientForestInteractionGuidance.AddBankReturnInstruction(position, target);
         }
+
+        return null;
     }
 
-    private void StopFollowingForestStory()
+    private void StopFollowingForestRoute(bool preserveAutoWalk = false)
     {
-        if (!IsFollowingForestStory) return;
+        if (!IsFollowingForestRoute) return;
         followedForestFieldId = -1;
+        followedForestInsectId = null;
         followedForestCue = null;
-        forestStoryRetryTarget = null;
-        forestStoryRetryAt = default;
+        forestRouteRetryTarget = null;
+        forestRouteRetryAt = default;
         forestStorySelected = false;
-        automaticWalkDriving = false;
+        if (!preserveAutoWalk) automaticWalkDriving = false;
     }
 
-    private void ResetForestStoryRoute()
+    private void ResetForestWalkingRoute()
     {
         var walk = automaticWalkDriving;
         ResetCore(deactivateProgress: true);
         automaticWalkDriving = walk;
     }
 
-    private bool TryAdvanceForestStory(
+    private bool TryAdvanceForestRoute(
         FieldPositionSnapshot position,
         FieldNavigationControlTransform controlTransform,
         FieldLadderStateSnapshot ladderState,
@@ -1863,7 +1890,7 @@ public sealed class FieldNavigationController
         {
             // During a pickup, throw or jump the game can invalidate the puzzle bank
             // before the host sees its control lock. Neither loss means the route ended.
-            BeginPositionRecovery("waiting for current Ancient Forest Story state");
+            BeginPositionRecovery("waiting for current Ancient Forest route state");
             currentGuidance = null;
             return true;
         }
@@ -1873,8 +1900,8 @@ public sealed class FieldNavigationController
 
         if (step.ManualNavigationGuidance is { } instruction)
         {
-            if (BeaconEnabled) ResetForestStoryRoute();
-            forestStoryRetryTarget = null;
+            if (BeaconEnabled) ResetForestWalkingRoute();
+            forestRouteRetryTarget = null;
             var cue = $"{step.Label}. {instruction}";
             if (cue != followedForestCue)
             {
@@ -1890,10 +1917,10 @@ public sealed class FieldNavigationController
             return false;
 
         followedForestCue = null;
-        if (id == forestStoryRetryTarget && observedAt < forestStoryRetryAt)
+        if (id == forestRouteRetryTarget && observedAt < forestRouteRetryAt)
             return true;
 
-        if (!TryLockBeacon(step, position, ladderState, keepForestStory: true))
+        if (!TryLockBeacon(step, position, ladderState, keepForestRoute: true))
         {
             if (LastRouteFailureWasFlytrap)
             {
@@ -1904,15 +1931,18 @@ public sealed class FieldNavigationController
 
             // Native geometry can still be settling. Try again with fresh data without
             // repeating the same refusal on every scan.
-            if (id != forestStoryRetryTarget &&
+            if (id != forestRouteRetryTarget &&
                 routePlanner is not IFieldNavigationRouteReadStatus { LastReadWasCoherent: false })
                 result = new($"Route unavailable to {step.Label}.");
-            forestStoryRetryTarget = id;
-            forestStoryRetryAt = observedAt.AddMilliseconds(250);
+            forestRouteRetryTarget = id;
+            forestRouteRetryAt = observedAt.AddMilliseconds(250);
             return true;
         }
 
-        forestStoryRetryTarget = null;
+        forestRouteRetryTarget = null;
+        // Once the insect is walkable again, its ordinary route handles arrival
+        // and finishes when the game removes it on pickup.
+        if (followedForestInsectId is not null) StopFollowingForestRoute(preserveAutoWalk: true);
         var guidance = CreateSpokenGuidance(position, controlTransform, arrivalDistanceUnits: 0);
         result = new(guidance is { } route ? $"{step.Label}. {route.Speech}." : $"{step.Label}.");
         return true;
@@ -2431,7 +2461,7 @@ public sealed class FieldNavigationController
                 return new FieldNavigationActionResult(
                     (target.Value.InteractionInstruction ??
                         InteractionArrivalInstruction?.Invoke(position, target.Value)) is { Length: > 0 } instruction
-                        ? $"{beaconTargetLabel} reached. {instruction}" + (IsFollowingForestStory ? "" : " Navigation paused.")
+                        ? $"{beaconTargetLabel} reached. {instruction}" + (IsFollowingForestRoute ? "" : " Navigation paused.")
                         : target.Value.Activation == FieldNavigationActivation.Contact
                         // Nothing is pressed here. The script runs because the party
                         // walked into it, which is what a sighted player does when the
@@ -2734,7 +2764,7 @@ public sealed class FieldNavigationController
         }
 
         var target = GetBeaconTarget(position);
-        if (target is null || IsFollowingForestStory && target.Value.ManualNavigationGuidance is not null)
+        if (target is null || IsFollowingForestRoute && target.Value.ManualNavigationGuidance is not null)
         {
             return false;
         }
@@ -3841,7 +3871,7 @@ public sealed class FieldNavigationController
             return null;
         }
 
-        return targets[GetSelectedIndex(position, targets)];
+        return AncientForestInteractionGuidance.AddBankReturnInstruction(position, targets[GetSelectedIndex(position, targets)]);
     }
 
     private int GetSelectedIndex(FieldPositionSnapshot position, IReadOnlyList<FieldNavigationTarget> targets)
@@ -3874,7 +3904,15 @@ public sealed class FieldNavigationController
 
     private void RelockBeaconToSelection(FieldPositionSnapshot position)
     {
-        if (!BeaconEnabled || IsFollowingForestStory)
+        if (IsFollowingForestRoute)
+        {
+            if (followedForestInsectId is { } id &&
+                GetSelectedTarget(position) is { } selected && GetTargetId(selected) != id)
+                Reset();
+            return;
+        }
+
+        if (!BeaconEnabled)
         {
             return;
         }
@@ -3919,9 +3957,9 @@ public sealed class FieldNavigationController
         FieldNavigationTarget target,
         FieldPositionSnapshot position,
         FieldLadderStateSnapshot ladderState = default,
-        bool keepForestStory = false)
+        bool keepForestRoute = false)
     {
-        if (keepForestStory) ResetForestStoryRoute();
+        if (keepForestRoute) ResetForestWalkingRoute();
         else Reset();
         if (!string.IsNullOrWhiteSpace(target.ManualNavigationGuidance))
         {

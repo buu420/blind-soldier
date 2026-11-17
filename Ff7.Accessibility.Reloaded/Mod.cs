@@ -6867,7 +6867,7 @@ public sealed class Mod : IModV1, IModV2
             {
                 fieldNavigationGuidanceRepeatGate.Reset();
                 Log($"Field navigation live tracking: {liveTrackingSpeech.Value.Speech}");
-                Speak(liveTrackingSpeech.Value.Speech, interrupt: !fieldNavigationController.IsFollowingForestStory);
+                Speak(liveTrackingSpeech.Value.Speech, interrupt: !fieldNavigationController.IsFollowingForestRoute);
                 lastNavigationSpeechAt = now;
             }
 
@@ -6917,7 +6917,8 @@ public sealed class Mod : IModV1, IModV2
             var actions = navigationSuppressed || !navigationForeground || !controlResult.IsUsable
                 ? Array.Empty<FieldNavigationAction>()
                 : ReadFieldNavigationActions(FieldPositionReader.FieldModule).ToArray();
-            if (actions.Any(IsNavigationSelectionAction))
+            if (actions.Any(action => IsNavigationSelectionAction(action) &&
+                !fieldNavigationController.IsForestStoryTargetCycle(action)))
             {
                 StopNavigationAutoWalk(NavigationAutoWalkDomain.Field, announce: true);
             }
@@ -7886,7 +7887,7 @@ public sealed class Mod : IModV1, IModV2
             fieldAutoWalkConvergence.Reset();
             fieldNavigationController.NoteAutoWalkStarted();
             Log("Field navigation auto walk started for the selected target.");
-            Speak("Auto walk on.", interrupt: !fieldNavigationController.IsFollowingForestStory);
+            Speak("Auto walk on.", interrupt: !fieldNavigationController.IsFollowingForestRoute);
         }
     }
 
