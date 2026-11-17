@@ -1971,8 +1971,14 @@ internal static class GuideRouteRegressionTests
                     var definition = jumps.SingleOrDefault(o => o.FieldId == field && o.RequiredPlayerTriangles is { } required &&
                                                                  required.Order().SequenceEqual(set) &&
                                                                  o.RequiredAddress == (pendingGate ?? -1) &&
-                                                                 o.Label!.Contains(pendingKey, StringComparison.Ordinal));
+                                                                 (o.Label!.Contains(pendingKey, StringComparison.Ordinal) ||
+                                                                  o.ManualNavigationGuidance?.Contains(pendingKey, StringComparison.Ordinal) == true));
                     Equal(true, definition.Label is not null, $"{field} t{string.Join("/", set)}: hold {pendingKey} is offered");
+                    if (field == 622 && set.SequenceEqual(new[] { 2, 14 }) && pendingKey == "Left")
+                    {
+                        Equal("Hold Left.", definition.ManualNavigationGuidance,
+                            "the bank jump in Objects is a manual action, even when no insect row is available");
+                    }
                     covered.Add(definition);
                     var live = new LiveObjects(radius);
                     if (definition.RequiredAddress >= 0)
@@ -2282,6 +2288,18 @@ internal static class GuideRouteRegressionTests
         CheckStaging(622, world.At(622, -1810, -665, 132), one);
         CheckStaging(622, world.At(622, -792, -489, 90), two);
         CheckStaging(623, world.At(623, -1995, -436, 216), fork);
+
+        var stageInsect = new FieldNavigationTarget(622, FieldNavigationCategory.Objects, "Insect 1",
+            one.X, one.Y, one.Z, "object:622:6:Named:0:Model", InteractionRadius: 30);
+        Equal("C00000250082FF20000F00",
+            Hex(world.Scripts.ReadScriptOpcodes(622, 3, 4).Single(op => op.Opcode == 0xC0)),
+            "the native Left jump from plant 1 lands at X 37, Y -126, triangle 32");
+        var fromPlant = world.At(622, 193, -114, 14);
+        var bankLanding = world.At(622, 37, -126, 32) with { Z = 239 };
+        Equal(false, world.Planner(622).TryBuildRoute(fromPlant, stageInsect, out _),
+            "a walking route must not fake the keyed jump off plant 1");
+        Equal(true, world.Planner(622).TryBuildRoute(bankLanding, stageInsect, out _),
+            $"the same staged insect is walkable immediately after the native landing: {world.Planner(622).LastDiagnostic}");
 
         var vine = world.LineOf(620, 17);
         var middle = world.At(620, -1677, -616, 56);

@@ -180,7 +180,10 @@ public static class TownInteractionObjectCatalog
         Polled(620, 3, "Jump from here: hold Right", "anfrst_1", -361, -131, 345, [9, 10], null),
         Polled(620, 3, "Jump from here: hold Right", "anfrst_1", 732, -152, 267, [19, 20], null),
         Polled(620, 3, "Jump from here: hold Left", "anfrst_1", 1079, 41, 252, [21, 22], null),
-        Polled(622, 2, "Jump from here: hold Left", "anfrst_3", 186, -108, 269, [14, 2], null),
+        Polled(622, 2, "Jump back to the bank", "anfrst_3", 186, -108, 269, [14, 2], null) with
+        {
+            ManualNavigationGuidance = "Hold Left."
+        },
         Polled(622, 2, OntoPlant("Right"), "anfrst_3", 186, -108, 269, [14, 2], 17),
         Polled(622, 2, OntoPlant("Left"), "anfrst_3", 310, -145, 364, [29, 25], 16),
         Polled(622, 2, OntoPlant("Right"), "anfrst_3", 310, -145, 364, [29, 25], 18),

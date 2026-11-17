@@ -71,15 +71,14 @@ internal sealed class AncientForestStoryGuide(
         if (Triangle is 2 or 14)
         {
             if (two && (Carry != 0 || three)) return Hold("Cross pitcher plant 2", "Right");
-            if (two) return Hold("Return for the staged insect", "Left");
-            if (Carry != 0) return Feed(2, 3);
-            return Hold("Return for the staged insect", "Left");
+            if (!two && Carry != 0) return Feed(2, 3);
+            return Cue("Return for the staged insect", AncientForestInteractionGuidance.BankReturnInstruction);
         }
         if (Triangle is 25 or 29)
         {
             if (three) return Hold("Cross pitcher plant 3", "Right");
             if (Carry != 0) return Feed(3, 4);
-            return one ? Hold("Return for another insect", "Left")
+            return one ? Cue("Return for another insect", "Hold Left to jump back across pitcher plant 1.")
                 : Wait("Wait for pitcher plant 2 to reopen", "It will drop you back on the west bank.");
         }
         if (Triangle is 26 or 27)

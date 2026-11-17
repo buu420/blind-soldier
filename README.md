@@ -147,11 +147,14 @@ results chest with Confirm.
 In Ancient Forest, open **Story** for the next step toward all seven treasures.
 Start Story navigation once per room. After the game hands control back, Story
 resumes and guides you to the next step. Auto Walk resumes if you started it.
-Use the game's normal controls to handle creatures, jump and collect rewards. **Objects** reads the selected creature's location or the
+After feeding pitcher plant 2, release the navigation trigger if you use a
+controller, then hold Left to jump back to the bank. Objects also offers
+**Jump back to the bank**. Use the game's normal controls to handle creatures,
+jump and collect rewards. **Objects** reads the selected creature's location or the
 selected plant's state. Press `R`, or hold one trigger and press Y/Triangle, to
 hear what you are carrying and the state of all the plants in the room. During
 play, Blind Soldier announces brief puzzle changes and warns once when the
-plant under you starts shaking. See the [release notes](docs/releases/v0.10.17.md).
+plant under you starts shaking. See the [release notes](docs/releases/v0.10.18.md).
 
 Version 0.10.10 tracks Emerald Weapon in underwater Events whenever it is active.
 Its position updates through fog and outside the camera view, even before a first
@@ -533,10 +536,10 @@ instead of reading unverified game memory.
 Choose one download from the
 [Blind Soldier Releases page](https://github.com/buu420/blind-soldier/releases):
 
-- [Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.10.17/Blind-Soldier-Portable.zip)
+- [Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.10.18/Blind-Soldier-Portable.zip)
   is the complete dual-runtime package. Use it for Steam 2026 x64 or when one
   extracted package must support both x86 and x64 installations.
-- [Blind-Soldier-2013-x86-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.10.17/Blind-Soldier-2013-x86-Portable.zip)
+- [Blind-Soldier-2013-x86-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.10.18/Blind-Soldier-2013-x86-Portable.zip)
   is the smaller legacy-only package. Use it for the 2013 x86 game, including
   stock 7th Heaven/FFNx. It deliberately contains no Steam 2026 launcher or
   x64 files.

@@ -22,6 +22,19 @@ internal static class AncientForestInteractionGuidance
         (target.Label.StartsWith("Insect ", StringComparison.Ordinal) ||
          target.Label.StartsWith("Frog ", StringComparison.Ordinal));
 
+    internal const string BankReturnInstruction = "Hold Left to jump back to the bank.";
+
+    // ujp0 calls the native Left jump from either triangle on plant 1. Its
+    // landing at X 37 is above the west-side insect staging area.
+    internal static bool RequiresBankReturn(FieldPositionSnapshot position, FieldNavigationTarget target) =>
+        position.FieldId == 622 && position.TriangleId is 2 or 14 &&
+        target.FieldId == 622 && target.Category == FieldNavigationCategory.Objects &&
+        target.StableId is not null && target.X < 37 &&
+        target.Label.StartsWith("Insect ", StringComparison.Ordinal);
+
+    internal static FieldNavigationTarget AddBankReturnInstruction(FieldPositionSnapshot position, FieldNavigationTarget target) =>
+        RequiresBankReturn(position, target) ? target with { ManualNavigationGuidance = BankReturnInstruction } : target;
+
     internal static string? DescribeCreatureLocation(FieldPositionSnapshot position, FieldNavigationTarget target,
         FieldNavigationControlTransform? controlTransform, int unitsPerCount)
     {

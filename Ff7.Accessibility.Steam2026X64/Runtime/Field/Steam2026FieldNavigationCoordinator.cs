@@ -821,7 +821,8 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
         }
 
         if (autoWalk.IsEnabledFor(NavigationAutoWalkDomain.Field) &&
-            observedActions.Any(action => action != FieldNavigationAction.RepeatTarget))
+            observedActions.Any(action => action != FieldNavigationAction.RepeatTarget &&
+                !controller.IsForestStoryTargetCycle(action)))
         {
             _ = autoWalk.Stop();
             controller.NoteAutoWalkStopped();
@@ -949,7 +950,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                 if (!navigationSuppressed && liveSpeech is { } live)
                 {
                     guidanceRepeatGate.Reset();
-                    Speak(live.Speech, interrupt: !controller.IsFollowingForestStory, nowUtc, "native ladder tracking");
+                    Speak(live.Speech, interrupt: !controller.IsFollowingForestRoute, nowUtc, "native ladder tracking");
                 }
 
                 StopAutoWalkIfGlacierRouteEnded();
@@ -1200,7 +1201,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                 controller.NoteAutoWalkStarted();
                 pendingAutoWalkStart = false;
                 autoWalkRouteToggleQueued = false;
-                Speak("Auto walk on.", interrupt: !controller.IsFollowingForestStory, nowUtc, "P toggle");
+                Speak("Auto walk on.", interrupt: !controller.IsFollowingForestRoute, nowUtc, "P toggle");
             }
 
             controllerPosition = position;
@@ -1229,7 +1230,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                 if (liveSpeech is { } live)
                 {
                     guidanceRepeatGate.Reset();
-                    Speak(live.Speech, interrupt: !controller.IsFollowingForestStory, nowUtc, "live tracking");
+                    Speak(live.Speech, interrupt: !controller.IsFollowingForestRoute, nowUtc, "live tracking");
                 }
 
                 StopAutoWalkIfGlacierRouteEnded();

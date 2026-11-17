@@ -6,7 +6,7 @@ public static class TownInteractionCoverageTests
 {
     public static void Run()
     {
-        WalkableControlsCanStartNavigation();
+        ControlsUseTheirNativeApproach();
         // These are independently identified native player actions, not all the models
         // or automatic callbacks appearing in a field script.
         foreach (var (field, entity) in new[] { (578,16), (582,11), (587,14), (588,14),
@@ -157,7 +157,7 @@ public static class TownInteractionCoverageTests
         Console.WriteLine("Town interaction bindings match the installed native archive.");
     }
 
-    private static void WalkableControlsCanStartNavigation()
+    private static void ControlsUseTheirNativeApproach()
     {
         foreach (var row in TownInteractionObjectCatalog.Create().Where(d =>
                      d.TargetKind == FieldNavigationObjectTargetKind.Location || d.FieldId is >= 620 and <= 623))
@@ -190,7 +190,13 @@ public static class TownInteractionCoverageTests
             var transform = new FieldNavigationControlTransform(0);
             while (controller.CurrentCategory != FieldNavigationCategory.Objects)
                 controller.HandleAction(FieldNavigationAction.NextCategory, position, transform);
-            controller.HandleAction(FieldNavigationAction.ToggleBeacon, position, transform);
+            var result = controller.HandleAction(FieldNavigationAction.ToggleBeacon, position, transform);
+            if (row is { FieldId: 622, EntityId: 2, Label: "Jump back to the bank" })
+            {
+                Check(!controller.BeaconEnabled && result?.Speech == "Objects, Jump back to the bank. Hold Left.",
+                    "the bank return must explain the native Left jump without starting a walking route");
+                continue;
+            }
             Check(controller.BeaconEnabled,
                 $"walkable {row.FieldId}/{row.EntityId} must allow navigation to its interaction approach");
         }
