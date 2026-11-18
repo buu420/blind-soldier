@@ -21,6 +21,8 @@ internal sealed class AncientForestStoryGuide(
     private const int EntranceStageReadyRadius = 44;
     private const int EntranceStagedRadius = 52;
     internal static readonly (int X, int Y, int Z) CanopyStage = (-1940, -270, 61);
+    private static readonly FieldNavigationTriggerLine MiddleEastJaw =
+        AncientForestRouteHazards.Jaws(620).Single(jaw => jaw.Name == "big1rt").Line;
 
     internal const int Typoon = 0x04;
     internal const int Supershot = 0x08;
@@ -170,8 +172,11 @@ internal sealed class AncientForestStoryGuide(
             return TakeOff(-677, 10, "Jump back for an insect", press: true);
         }
 
-        if (ReachableExit(623) is { } east)
-            return Has(SlashAll) ? Traverse(east, "Continue to the fork")
+        // Exits beyond a flytrap stay listed so players can hear why they are blocked.
+        // Only the far side of big1rt is beyond the frog launch. Native cl s17 lands
+        // there at (1698, -514), t236; entering from screen 3 is on this side too.
+        if (FieldNavigationObjectReader.SideOf(MiddleEastJaw, position.X, position.Y) > 0)
+            return Has(SlashAll) ? Exit(623, "Continue to the fork")
                 : Restart("Slash-All is still behind the west flytrap");
         if (position.X < -125 && !westJawClosed)
         {
