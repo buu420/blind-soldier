@@ -9,6 +9,7 @@ internal static class AncientForestStoryTests
         ObjectRouteResumesAfterManualReturn();
         ActiveStoryResumesAfterNativeActions();
         StagingUsesTwoDistinctSafeSpots();
+        MiddleStoryResumesAfterCrossingActions();
 
         var forest = new Replay();
         var first = AncientForestStoryGuide.EntranceStage1;
@@ -254,6 +255,72 @@ internal static class AncientForestStoryTests
         if (forest.Read([insect1]).Count != 0) throw new InvalidOperationException("No directions while a native jump is taking control.");
         StoryCuesFollowNativeChanges();
         Console.WriteLine("Ancient Forest Story replay passed: every reward, crossing, creature and the native reset.");
+    }
+
+    private static void MiddleStoryResumesAfterCrossingActions()
+    {
+        var forest = new Replay();
+        forest.Enter(620, -2043, -586, 44);
+        var insect = Object("Insect 1", -1677, -616, -12);
+        var frog = Object("Frog 2", 501, -728, -12);
+        var vine = Object("Vine to pitcher plant 1", -839, -562, -12) with
+        {
+            TriggerLine = new(-839, -446, -12, -839, -678, -12), LineActivationRadius = 30
+        };
+        FieldNavigationTarget[] objects = [insect, frog, vine, Jump("Right", -666, 1, 334)];
+        var source = new FieldNavigationTargetSource([], storyTargetProvider: _ => forest.Read(objects));
+        var controller = new FieldNavigationController(source, new AncientForestInteractionTests.StraightRoute());
+        var now = new DateTime(2026, 11, 18, 14, 16, 29, DateTimeKind.Utc);
+        FieldNavigationActionResult? Tick(bool suppressed = false) =>
+            controller.UpdateLiveTracking(forest.Position, default, new(0), suppressed,
+                observedAt: now = now.AddMilliseconds(160));
+
+        controller.HandleAction(FieldNavigationAction.NextCategory, forest.Position, new(0));
+        controller.HandleAction(FieldNavigationAction.ToggleBeacon, forest.Position, new(0));
+        controller.NoteAutoWalkStarted();
+        if (!controller.TryResolveAutomaticInput(forest.Position, new(0), 0, out _))
+            throw new InvalidOperationException("Screen two's Story must start movement toward the first insect.");
+
+        forest.At(insect.X, insect.Y, 56, insect.Z);
+        if (Tick()?.Speech.Contains("Press Confirm to pick it up", StringComparison.Ordinal) != true)
+            throw new InvalidOperationException("Screen two must stop for the player's insect pickup.");
+        objects = objects.Except([insect]).ToArray();
+        forest.Bank[9] = 1;
+        forest.Bank[20] = 0;
+        if (Tick() is not null || Tick(suppressed: true) is not null)
+            throw new InvalidOperationException("Story must wait through the native pickup.");
+        forest.Bank[20] = 1;
+        Tick();
+        var next = Tick();
+        if (!controller.BeaconEnabled ||
+            next?.Speech.StartsWith("Walk to the vine and choose Jump.", StringComparison.Ordinal) != true)
+            throw new InvalidOperationException("Story must resume toward the vine after picking up the insect.");
+
+        // cl s4, then cl s6..8. The player chooses Jump and holds the native
+        // directions across the plant and stamen before landing on the middle bank.
+        forest.Bank[20] = 0;
+        Tick(suppressed: true);
+        forest.At(-719, 0, 3, 334);
+        forest.Bank[20] = 3;
+        Tick(); // Confirm the native landing before resuming the route.
+        if (Tick()?.Speech != "Feed pitcher plant 1. Press Confirm to throw." ||
+            controller.TryResolveAutomaticInput(forest.Position, new(0), 0, out _))
+            throw new InvalidOperationException("The native vine landing must give the player the throw instruction.");
+        forest.Bank[9] = 0;
+        forest.Bank[17] = 1;
+        Tick();
+        forest.At(-489, -155, 8, 410);
+        if (Tick()?.Speech != "Jump from pitcher plant 1 to the stamen. Hold Right.")
+            throw new InvalidOperationException("The player must hear the stamen jump after feeding plant 1.");
+        forest.At(-361, -131, 9, 345);
+        if (Tick()?.Speech != "Jump from the stamen to the middle bank. Hold Right.")
+            throw new InvalidOperationException("The stamen must explain the second Right jump.");
+        forest.At(153, -517, 141, -12);
+        forest.Bank[20] = 1;
+        var frogStep = Tick() ?? Tick();
+        if (frogStep?.Speech.StartsWith("Pick up Frog 2.", StringComparison.Ordinal) != true ||
+            !controller.TryResolveAutomaticInput(forest.Position, new(0), 0, out _))
+            throw new InvalidOperationException("Story must resume walking to the frog after the native bank landing.");
     }
 
     private static void ActiveStoryResumesAfterNativeActions()
@@ -502,8 +569,9 @@ internal static class AncientForestStoryTests
         internal IReadOnlyList<FieldNavigationTarget> Read(FieldNavigationTarget[] objects, int? exit = null) =>
             new AncientForestStoryGuide(Position, new AncientForestStoryState(Bank, collected, SupportedFieldScriptVariant.Vanilla),
                 objects.Select(t => t with { FieldId = Position.FieldId }).ToArray(),
-                exit is { } field ? [new(Position.FieldId, FieldNavigationCategory.Exits, "Gateway", 0, 0, 0,
-                    $"gateway:{Position.FieldId}:0:{field}", DestinationFieldIds: [field])] : []).ReadTargets();
+                (Position.FieldId == 620 ? new[] { 622, 623 } : exit is { } field ? [field] : Array.Empty<int>())
+                .Select(field => new FieldNavigationTarget(Position.FieldId, FieldNavigationCategory.Exits, "Gateway", 0, 0, 0,
+                    $"gateway:{Position.FieldId}:0:{field}", DestinationFieldIds: [field])).ToArray()).ReadTargets();
         internal void Expect(string label, FieldNavigationTarget[] objects, string? instruction = null,
             (int X, int Y, int Z)? destination = null, int? exit = null, int? exitOffered = null)
         {
