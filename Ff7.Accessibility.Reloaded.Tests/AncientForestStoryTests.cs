@@ -10,6 +10,8 @@ internal static class AncientForestStoryTests
         ActiveStoryResumesAfterNativeActions();
         StagingUsesTwoDistinctSafeSpots();
         MiddleStoryResumesAfterCrossingActions();
+        ForkKeepsTheNearInsectForTheTimedPlant();
+        ForkReturnsFromTheSecondInsectToTheThrowApproach();
 
         var forest = new Replay();
         var first = AncientForestStoryGuide.EntranceStage1;
@@ -127,15 +129,12 @@ internal static class AncientForestStoryTests
         forest.Enter(623, -2303, -492, 224);
         var fork1 = Object("Insect 1", -1995, -436, 26);
         var fork2 = Object("Insect 2", -979, -762, 0);
-        var stage = AncientForestStoryGuide.CanopyStage;
-        forest.Expect("Pick up Insect 1 to stage by the crossing", [fork1, fork2]);
-        forest.Bank[9] = 1;
-        forest.Expect("Stage the insect by the crossing", [fork2], destination: stage);
-        forest.Bank[9] = 0;
-        fork1 = fork1 with { X = stage.X, Y = stage.Y, Z = stage.Z };
-        forest.Expect("Pick up Insect 2", [fork1, fork2]);
+        var approach = AncientForestStoryGuide.CanopyApproach;
+        forest.Expect("Pick up Insect 2 for pitcher plant 1", [fork1, fork2]);
         forest.At(-979, -762, 179);
         forest.Bank[9] = 2;
+        forest.Expect("Return to pitcher plant 1's approach", [fork1], destination: approach);
+        forest.At(approach.X, approach.Y, 211, approach.Z);
         forest.Expect("Feed pitcher plant 1", [Object("Pitcher plant 1, throwing spot", -1772, -253, 80)]);
         forest.Bank[9] = 0;
         forest.Bank[18] = 1;
@@ -255,6 +254,57 @@ internal static class AncientForestStoryTests
         if (forest.Read([insect1]).Count != 0) throw new InvalidOperationException("No directions while a native jump is taking control.");
         StoryCuesFollowNativeChanges();
         Console.WriteLine("Ancient Forest Story replay passed: every reward, crossing, creature and the native reset.");
+    }
+
+    private static void ForkKeepsTheNearInsectForTheTimedPlant()
+    {
+        var forest = new Replay();
+        var approach = AncientForestStoryGuide.CanopyApproach;
+        var farther = Object("Insect 2", -979, -762, 0);
+        foreach (var nearby in new[]
+        {
+            Object("Insect 1", -1995, -436, 26),
+            Object("Insect 1", approach.X + 30, approach.Y - 8, 56)
+        })
+        {
+            forest.Enter(623, -2303, -492, 224);
+            forest.Expect("Pick up Insect 2 for pitcher plant 1", [nearby, farther]);
+            forest.At(nearby.X, nearby.Y, 211, nearby.Z);
+            forest.Expect("Pick up Insect 2 for pitcher plant 1", [nearby, farther]);
+        }
+    }
+
+    private static void ForkReturnsFromTheSecondInsectToTheThrowApproach()
+    {
+        var forest = new Replay();
+        forest.Enter(623, -979, -762, 179);
+        forest.Bank[9] = 2;
+        var approach = AncientForestStoryGuide.CanopyApproach;
+        var nearby = Object("Insect 1", approach.X, approach.Y, approach.Z);
+        var definitions = TownInteractionObjectCatalog.Create().Where(row => row.FieldId == 623 && row.EntityId == 18).ToArray();
+        var reader = new FieldNavigationObjectReader(_ => 0,
+            address => address >= FieldNavigationObjectReader.AddressTemporaryFieldBankBase &&
+                       address < FieldNavigationObjectReader.AddressTemporaryFieldBankBase + forest.Bank.Length
+                ? forest.Bank[address - FieldNavigationObjectReader.AddressTemporaryFieldBankBase] : (byte)0,
+            _ => null, _ => null, definitions);
+        FieldNavigationTarget[] Objects() => [nearby, .. reader.ReadTargets(forest.Position)];
+        if (reader.ReadTargets(forest.Position).Count != 0)
+            throw new InvalidOperationException("The second insect's native landing is beyond the plant's offered approach side.");
+        forest.Expect("Return to pitcher plant 1's approach", Objects(), destination: approach);
+        var source = new FieldNavigationTargetSource([], storyTargetProvider: _ => forest.Read(Objects()));
+        var controller = new FieldNavigationController(source, new AncientForestInteractionTests.StraightRoute());
+        controller.HandleAction(FieldNavigationAction.NextCategory, forest.Position, new(0));
+        controller.HandleAction(FieldNavigationAction.ToggleBeacon, forest.Position, new(0));
+        controller.NoteAutoWalkStarted();
+        if (!controller.TryResolveAutomaticInput(forest.Position, new(0), 0, out _))
+            throw new InvalidOperationException("Story must start the return route while the throwing spot is unavailable.");
+        forest.At(approach.X, approach.Y, 211, approach.Z);
+        if (reader.ReadTargets(forest.Position).Count != 1)
+            throw new InvalidOperationException("The plant's native approach must be selectable from the west bank.");
+        forest.Expect("Feed pitcher plant 1", Objects());
+        forest.At(-1772, -253, 207, 80);
+        forest.Bank[22] = 2;
+        forest.Expect("Feed pitcher plant 1", Objects(), "Press Confirm to throw.");
     }
 
     private static void MiddleStoryResumesAfterCrossingActions()
