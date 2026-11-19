@@ -20,7 +20,7 @@ internal sealed class AncientForestStoryGuide(
     // waypoint between samples, especially at Steam's faster field pace.
     private const int EntranceStageReadyRadius = 44;
     private const int EntranceStagedRadius = 52;
-    internal static readonly (int X, int Y, int Z) CanopyStage = (-1940, -270, 61);
+    internal static readonly (int X, int Y, int Z) CanopyApproach = (-1940, -270, 61);
     private static readonly FieldNavigationTriggerLine MiddleEastJaw =
         AncientForestRouteHazards.Jaws(620).Single(jaw => jaw.Name == "big1rt").Line;
 
@@ -231,17 +231,21 @@ internal sealed class AncientForestStoryGuide(
         if (west && !jawClosed)
         {
             var insects = Named("Insect ").Where(t => t.X < 80).ToArray();
-            var staged = insects.Where(t => At(t, CanopyStage, 22)).ToArray();
             if (!one)
             {
-                if (staged.Length == 0 && insects.Length + (Carry is >= 1 and <= 4 ? 1 : 0) >= 2)
-                    return Carry == 0 ? Pickup(insects, "to stage by the crossing")
-                        : Stage(CanopyStage, "Stage the insect by the crossing");
-                if (Carry != 0) return Feed(1, 2);
-                return Pickup(insects.Except(staged).Concat(staged)) ?? Restart("The two treetop pitchers need insects");
+                // The other insect starts beyond rk0rt's offered approach side.
+                // Return toward the west bank until the native throwing target
+                // or its live zone is available again.
+                if (Carry != 0) return Feed(1, 2) ?? Point(CanopyApproach,
+                    "Return to pitcher plant 1's approach", "Check the next Story instruction before throwing.", 8);
+                // Fetch the farther insect before starting the timer. Leave the
+                // nearby one for plant 2, so no precise staging drop is needed.
+                return Pickup(insects.OrderByDescending(t =>
+                    Square((long)t.X - CanopyApproach.X) + Square((long)t.Y - CanopyApproach.Y)),
+                    "for pitcher plant 1") ?? Restart("The two treetop pitchers need insects");
             }
             if (!two && Carry == 0)
-                return Pickup(staged.Length > 0 ? staged : insects, "for pitcher plant 2")
+                return Pickup(insects, "for pitcher plant 2")
                     ?? Wait("Wait for pitcher plant 1 to reopen", "Then try the crossing again.");
             return TakeOff(-1736, -236, "Jump onto pitcher plant 1");
         }

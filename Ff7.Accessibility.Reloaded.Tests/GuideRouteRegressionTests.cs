@@ -2284,10 +2284,11 @@ internal static class GuideRouteRegressionTests
         var world = new Caves();
         var one = AncientForestStoryGuide.EntranceStage1;
         var two = AncientForestStoryGuide.EntranceStage2;
-        var fork = AncientForestStoryGuide.CanopyStage;
+        var fork = AncientForestStoryGuide.CanopyApproach;
         CheckStaging(622, world.At(622, -1810, -665, 132), one);
         CheckStaging(622, world.At(622, -792, -489, 90), two);
         CheckStaging(623, world.At(623, -1995, -436, 216), fork);
+        CheckStaging(623, world.At(623, -979, -762, 179), fork);
 
         var stageInsect = new FieldNavigationTarget(622, FieldNavigationCategory.Objects, "Insect 1",
             one.X, one.Y, one.Z, "object:622:6:Named:0:Model", InteractionRadius: 30);
