@@ -161,7 +161,7 @@ Describe 'Blind Soldier native bootstrap workflow' {
     It 'passes broker behavior tests in both architectures' {
         $msbuild = Get-TestMsBuild
         foreach ($platform in @('Win32','x64')) {
-            & $msbuild $bootstrapBehaviorProject /nologo /m /t:Rebuild /p:Configuration=Release /p:Platform=$platform /v:minimal
+            & $msbuild $bootstrapBehaviorProject /nologo /m /t:Rebuild /p:Configuration=Release /p:Platform=$platform /p:PreferredToolArchitecture=x64 /v:minimal
             $LASTEXITCODE | Should Be 0
             $executable = Join-Path (Split-Path -Parent $bootstrapBehaviorProject) `
                 "bin\Release\$platform\BlindSoldier.Bootstrap.Tests.exe"
