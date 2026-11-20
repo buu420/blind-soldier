@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\ChocoboRegistrationTests.cs" Link="SharedTests\ChocoboRegistrationTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\AncientForestPuzzleTests.cs" Link="SharedTests\AncientForestPuzzleTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\AncientForestStoryTests.cs" Link="SharedTests\AncientForestStoryTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\AncientForestEchoTests.cs" Link="SharedTests\AncientForestEchoTests.cs" />

@@ -389,14 +389,14 @@ public sealed class FieldMessageReader
     public bool TryReadMessageById(int messageId, out FieldMessageCandidate candidate)
     {
         candidate = new FieldMessageCandidate(string.Empty, string.Empty);
-        if (!TryReadCheckedMessageBytes(messageId, out var bytes, out var before))
+        if (!TryReadMessagePagesById(messageId, out var pages))
         {
             return false;
         }
 
         var text = Ff7EncodedTextDecoder.NormalizeWhitespace(string.Join(
             " ",
-            DecodeWithParty(bytes).SelectMany(page => page.Lines).Select(line => line.Text)));
+            pages.SelectMany(page => page.Lines).Select(line => line.Text)));
         if (text.Length == 0)
         {
             return false;
@@ -467,12 +467,12 @@ public sealed class FieldMessageReader
     public bool TryReadMessageLinesById(int messageId, out IReadOnlyList<string> lines)
     {
         lines = Array.Empty<string>();
-        if (!TryReadCheckedMessageBytes(messageId, out var bytes, out _))
+        if (!TryReadMessagePagesById(messageId, out var pages))
         {
             return false;
         }
 
-        lines = DecodeWithParty(bytes).SelectMany(page => page.Lines).Select(line => line.Text).ToArray();
+        lines = pages.SelectMany(page => page.Lines).Select(line => line.Text).ToArray();
         return true;
     }
 
@@ -481,12 +481,16 @@ public sealed class FieldMessageReader
         out IReadOnlyList<Ff7DecodedTextPage> pages)
     {
         pages = Array.Empty<Ff7DecodedTextPage>();
-        if (!TryReadCheckedMessageBytes(messageId, out var bytes, out _))
+        if (!TryReadCheckedMessageBytes(messageId, out var bytes, out var before))
         {
             return false;
         }
 
         pages = DecodeWithParty(bytes);
+        if (!TryCaptureFrame(out var after) || !before.Equals(after))
+        {
+            pages = Array.Empty<Ff7DecodedTextPage>();
+        }
         return pages.Count != 0;
     }
 
@@ -501,6 +505,33 @@ public sealed class FieldMessageReader
         var party = new SavemapPartyReader(addressSpace!);
         var characterOrder = new PostscriptCharacterOrderReader(addressSpace!);
         var unavailableRole = false;
+        var variableStrings = new Dictionary<(int Offset, int Length), byte[]>();
+        string? ResolveVariableString(int offset, int length)
+        {
+            // Ghidra 00631945 / FE E2: the window copies exactly this many
+            // encoded bytes from scenario memory, then appends FF. These are
+            // the live registration rows, not a scan of the owned chocobos.
+            if (length > FieldTextBufferLength)
+            {
+                unavailableRole = true;
+                return null;
+            }
+
+            var key = (offset, length);
+            if (!variableStrings.TryGetValue(key, out var value))
+            {
+                value = new byte[length];
+                if (length != 0 && !addressSpace!.TryRead(0x00DC08DCu + (uint)offset, value))
+                {
+                    unavailableRole = true;
+                    return null;
+                }
+                variableStrings.Add(key, value);
+            }
+
+            return Ff7EncodedTextDecoder.DecodeTerminated([.. value, 0xff]);
+        }
+
         Func<int, string?>? resolveRole = null;
         if (characterOrder.IsRemappingRequested)
         {
@@ -517,7 +548,18 @@ public sealed class FieldMessageReader
         var pages = Ff7EncodedTextDecoder.DecodePages(
             bytes,
             slot => party.TryReadPartySlot(slot, out var member) ? member.Name : null,
-            resolveRole);
+            resolveRole,
+            ResolveVariableString);
+        foreach (var (key, value) in variableStrings)
+        {
+            var after = new byte[value.Length];
+            if (after.Length != 0 &&
+                (!addressSpace!.TryRead(0x00DC08DCu + (uint)key.Offset, after) ||
+                 !value.AsSpan().SequenceEqual(after)))
+            {
+                unavailableRole = true;
+            }
+        }
         return unavailableRole ? Array.Empty<Ff7DecodedTextPage>() : pages;
     }
 

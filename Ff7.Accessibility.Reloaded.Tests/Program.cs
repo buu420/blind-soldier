@@ -7,6 +7,12 @@ using Ff7.Accessibility.Reloaded.Runtime;
 using Ff7.Accessibility.Runtime.Abstractions;
 using AccessibilityConfig = Ff7.Accessibility.Core.AccessibilityConfig;
 
+if (args.Contains("--chocobo-registration-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.ChocoboRegistrationTests.Run();
+    return;
+}
+
 if (args.Contains("--key-story-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.BoneVillageDigSpotTests.RunKeyStory(CreateInstalledFieldWalkmeshReader,
@@ -1637,6 +1643,7 @@ AssertFf7EncodedTextRequiresTerminatorForBufferReads();
 AssertFf7EncodedAskTextPreservesNativeChoiceLines();
 AssertFf7EncodedAskTextPreservesNativePages();
 Ff7.Accessibility.Reloaded.Tests.NativeAskChoicePageTests.Run();
+Ff7.Accessibility.Reloaded.Tests.ChocoboRegistrationTests.Run();
 AssertInventoryItemReaderReadsNativeSlotWord();
 AssertInventoryItemReaderRejectsEmptyAndInvalidSlots();
 AssertInventoryItemReaderDistinguishesStableEmptySlots();
