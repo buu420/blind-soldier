@@ -56,7 +56,7 @@ public static class FieldAskTextFormatter
         // Callers still require that this complete page is actually visible before
         // publishing it. Blank rows are real selectable rows (the Mansion safe).
         var resolved = pages[^1];
-        if (lastQuestionLine >= resolved.Lines.Count)
+        if (resolved.HasUnresolvedVariableStrings || lastQuestionLine >= resolved.Lines.Count)
         {
             return false;
         }

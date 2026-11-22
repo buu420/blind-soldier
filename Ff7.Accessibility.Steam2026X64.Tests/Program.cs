@@ -7,6 +7,12 @@ using Ff7.Accessibility.Steam2026X64.Runtime.Field;
 using Ff7.Accessibility.LegacyLayout;
 using System.Text.Json;
 
+if (args.Contains("--chocobo-registration-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.ChocoboRegistrationTests.Run();
+    return;
+}
+
 if (args.Contains("--key-story-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.BoneVillageDigSpotTests.RunKeyStory(CreateInstalledFieldWalkmeshReader,
@@ -1403,6 +1409,7 @@ Ff7.Accessibility.Reloaded.Tests.KeyItemsMenuSpeechTests.Run();
 Ff7.Accessibility.Reloaded.Tests.MateriaSubmenuSpeechTests.Run();
 Ff7.Accessibility.Reloaded.Tests.BattleMessageFlickerTests.Run();
 Ff7.Accessibility.Reloaded.Tests.NativeAskChoicePageTests.Run();
+Ff7.Accessibility.Reloaded.Tests.ChocoboRegistrationTests.Run();
 Ff7.Accessibility.Reloaded.Tests.NorthernCraterNavigationTests.Run(CreateInstalledFieldWalkmeshReader);
     Ff7.Accessibility.Reloaded.Tests.MainStoryCoverageTests.Run();
 Ff7.Accessibility.Reloaded.Tests.CosmoNibelheimDescriptionTests.Run();

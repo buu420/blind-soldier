@@ -32,6 +32,7 @@ internal static class Steam2026FieldDialogueObservationTests
         RejectsTranslatedDialoguePageRemapping();
         RejectsTornDialogueState();
         ReadsExactNativeAskPromptAndChoices();
+        ReadsChocoboRegistrationNames();
         ReadsMultiPageAskFromExactChoicePage();
         TransfersAskOwnershipToCrossWindowMessageSuccessor();
         KeepsTheBattleSquareAskBesideItsCurrentGpWindow();
@@ -179,6 +180,40 @@ internal static class Steam2026FieldDialogueObservationTests
             "the same name in another field does not use the ranch save");
         Equal<string?>(null, ChocoboRanchPresentation.ReadStableColor(fixture.Direct, 345, "choko2"),
             "an unreadable color cannot become a yellow bird");
+    }
+
+    private static void ReadsChocoboRegistrationNames()
+    {
+        const uint scriptPointer = 0x00400000;
+        string[] names = ["Rosa", "Rydia", "Edge", "Celes", "Locke", "Boco"];
+        var fixture = DialogueObservationFixture.CreateOpen("Rosa Rydia Edge Celes Locke Boco Never mind");
+        fixture.Write((uint)FieldPositionReader.AddressFieldId, BitConverter.GetBytes((ushort)511));
+        fixture.WriteMessageTableBytes(Convert.FromHexString(
+            "E0FEE220030600E7E0FEE226030600E7E0FEE22C030600E7E0FEE232030600E7E0FEE238030600E7E0FEE23E030600E7E02E45564552004D494E44FF"));
+        for (var slot = 0; slot < names.Length; slot++)
+        {
+            var encoded = Enumerable.Repeat((byte)0xff, 6).ToArray();
+            for (var i = 0; i < names[slot].Length; i++) encoded[i] = (byte)(names[slot][i] - 0x20);
+            fixture.Write(0x00DC0BFCu + (uint)slot * 6, encoded);
+        }
+        fixture.Write((uint)FieldOpcodeParameterReader.AddressFieldScriptPtr, BitConverter.GetBytes(scriptPointer));
+        fixture.Write(scriptPointer + 2, [1]);
+        fixture.WriteByte(FieldOpcodeParameterReader.AddressCurrentEntityId, 0);
+        fixture.Write((uint)FieldOpcodeParameterReader.AddressFieldCurrScriptPosition, BitConverter.GetBytes((ushort)0x20));
+        fixture.Write(scriptPointer + 0x20, [FieldOpcodeParameterReader.AskOpcode, 0, 0, 0, 0, 6, 6]);
+        fixture.WriteWindowLifecyclePhase(0, 6);
+        var reader = CreateTranslatedReader(fixture);
+        for (var selected = 0; selected < 7; selected++)
+        {
+            reader.ObserveAskCursorCapture(new Steam2026AskCursorIngressSnapshot(
+                selected + 1, DateTime.UnixEpoch.AddSeconds(selected),
+                new Steam2026AskCursorCapture(511, 0, 0, 0, 6, selected)));
+            Equal(true, reader.TryRead(out var page), "translated registration ASK remains readable");
+            Equal(7, page.Choices.Length, "registration retains every native row");
+            Equal(selected < 6 ? names[selected] : "Never mind", page.Choices[selected].Text,
+                "translated cursor names the selected registration row");
+            Equal(true, page.Choices[selected].Selected, "native cursor selection is retained");
+        }
     }
 
     private static void ReadsExactNativeAskPromptAndChoices()

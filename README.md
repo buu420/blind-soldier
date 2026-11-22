@@ -12,24 +12,23 @@ is not tied to one particular screen reader.
 
 > [!IMPORTANT]
 > This project is for the original Final Fantasy VII PC game, not Final
-> Fantasy VII Remake or Rebirth. It is a pre-release project under active
-> development. Tester logs now include travel toward Wutai, including
-> navigation failures worked around manually. Support extends beyond that point,
-> but it has not been validated by a complete playthrough. See
+> Fantasy VII Remake or Rebirth. Blind Soldier 1.0 is a stable release for
+> the legacy x86 and current Steam x64 games, including 7th Heaven.
+> Community testers have completed the game and many side activities. See
 > [Coverage and testing status](#coverage-and-testing-status).
 
 ## Coverage and testing status
 
-Blind Soldier is a pre-release project. This section separates what is
-**implemented** from what has been **played**, because those are not the same
-thing and only the second one finds the problems a real session finds.
+Blind Soldier 1.0 combines community playthrough reports with automated checks
+against the native game data. The sections below describe the available features
+and distinguish automated coverage from in-game testing.
 
-**Live evidence:** tester logs include the opening, the first Gold Saucer visit,
-Corel Prison, Cosmo Canyon, Nibelheim, Rocket Town, the weapon seller's house and
-the approach to Wutai. These are recorded sessions,
-including navigation failures and manual workarounds, rather than certification
-that every route in those chapters works. Later guidance has offline checks;
-a complete supported playthrough has not been recorded.
+**Community testing:** players have reported finishing the main story and many
+side activities. The Ancient Forest puzzle has also been confirmed completable.
+Their reports and logs have driven fixes throughout the game, including late
+Midgar, the Northern Crater, chocobo breeding and racing, and Echo-S compatibility.
+Individual routes and combinations of other mods can still reveal issues;
+please include a log when reporting a problem.
 
 ### Story guidance
 
@@ -50,10 +49,9 @@ A definition tells Blind Soldier where the next required interaction or
 destination is for the progress state you are actually in. It is not a
 walkthrough and it does not make story or party choices for you.
 
-**This is not a full-game validation.** The catalog and the state transitions
-around it are checked by automated tests against the installed field scripts.
-Nobody has played the whole game with it. Expect gaps, especially in optional
-exploration, and please report them.
+The catalog and its state transitions are also checked by automated tests
+against the installed field scripts. These checks complement the community
+playthroughs; please report any missing targets or inaccessible interactions.
 
 ### Regions and set pieces
 
@@ -158,7 +156,7 @@ jump and collect rewards. **Objects** reads the selected creature's location or 
 selected plant's state. Press `R`, or hold one trigger and press Y/Triangle, to
 hear what you are carrying and the state of all the plants in the room. During
 play, Blind Soldier announces brief puzzle changes and warns once when the
-plant under you starts shaking. See the [release notes](docs/releases/v0.10.20.md).
+plant under you starts shaking. See the [release notes](docs/releases/v1.0.0.md).
 
 Version 0.10.10 tracks Emerald Weapon in underwater Events whenever it is active.
 Its position updates through fog and outside the camera view, even before a first
@@ -500,8 +498,8 @@ interactions. These checks do not establish a complete live playthrough.
 
 ### Known gaps
 
-- No complete playthrough has been done. Later story guidance has offline
-  checks, but later chapters still need playtesting and further accessibility work.
+- Community testers have completed the game, but individual routes and optional
+  content still benefit from further reports and testing.
 - The Steam 2026 x64 runtime shares its code and its regressions with the x86
   runtime but has had much less live play. It needs broader testing.
 - Auto walk's improvements are proved by offline route and movement fixtures,
@@ -540,13 +538,16 @@ instead of reading unverified game memory.
 Choose one download from the
 [Blind Soldier Releases page](https://github.com/buu420/blind-soldier/releases):
 
-- [Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.10.20/Blind-Soldier-Portable.zip)
+- [Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v1.0.0/Blind-Soldier-Portable.zip)
   is the complete dual-runtime package. Use it for Steam 2026 x64 or when one
   extracted package must support both x86 and x64 installations.
-- [Blind-Soldier-2013-x86-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v0.10.20/Blind-Soldier-2013-x86-Portable.zip)
+- [Blind-Soldier-2013-x86-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v1.0.0/Blind-Soldier-2013-x86-Portable.zip)
   is the smaller legacy-only package. Use it for the 2013 x86 game, including
   stock 7th Heaven/FFNx. It deliberately contains no Steam 2026 launcher or
   x64 files.
+
+If you use Cosmo Memory, open the mod configuration and disable both normal
+footsteps and world-map footsteps.
 
 1. Close Final Fantasy VII and 7th Heaven.
 2. For Steam 2026 or direct 2013 launch, extract every file in the selected ZIP

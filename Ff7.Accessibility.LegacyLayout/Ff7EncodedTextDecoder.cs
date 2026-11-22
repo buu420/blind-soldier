@@ -4,7 +4,10 @@ namespace Ff7.Accessibility.Reloaded;
 
 public readonly record struct Ff7DecodedTextLine(string Text, bool IsChoice);
 
-public sealed record Ff7DecodedTextPage(IReadOnlyList<Ff7DecodedTextLine> Lines);
+public sealed record Ff7DecodedTextPage(IReadOnlyList<Ff7DecodedTextLine> Lines)
+{
+    public bool HasUnresolvedVariableStrings { get; init; }
+}
 
 public static class Ff7EncodedTextDecoder
 {
@@ -81,6 +84,14 @@ public static class Ff7EncodedTextDecoder
         Func<int, string?>? canonicalCharacterName = null) =>
         DecodeFieldPagesCore(bytes, DefaultLanguage, requireTerminator: true, partyMemberName, canonicalCharacterName);
 
+    /// <summary>Resolves FE E2 strings using their native scenario offset and byte length.</summary>
+    public static IReadOnlyList<Ff7DecodedTextPage> DecodePages(
+        ReadOnlySpan<byte> bytes,
+        Func<int, string?>? partyMemberName,
+        Func<int, string?>? canonicalCharacterName,
+        Func<int, int, string?> variableString) =>
+        DecodeFieldPagesCore(bytes, DefaultLanguage, requireTerminator: true, partyMemberName, canonicalCharacterName, variableString);
+
     public static string DecodeKernel(ReadOnlySpan<byte> bytes, Ff7GameLanguageDescriptor language)
     {
         var builder = new StringBuilder(bytes.Length);
@@ -144,13 +155,15 @@ public static class Ff7EncodedTextDecoder
         Ff7GameLanguageDescriptor language,
         bool requireTerminator,
         Func<int, string?>? partyMemberName = null,
-        Func<int, string?>? canonicalCharacterName = null)
+        Func<int, string?>? canonicalCharacterName = null,
+        Func<int, int, string?>? variableString = null)
     {
         var pages = new List<Ff7DecodedTextPage>();
         var lines = new List<Ff7DecodedTextLine>();
         var builder = new StringBuilder(bytes.Length);
         var isChoice = false;
         var terminated = false;
+        var unresolvedVariableStrings = false;
         var japanese = language.UsesJapaneseEncoding;
         var encodingProfile = language.TextEncodingProfile;
 
@@ -164,7 +177,11 @@ public static class Ff7EncodedTextDecoder
         void FinishPage()
         {
             FinishLine();
-            pages.Add(new Ff7DecodedTextPage(lines.ToArray()));
+            pages.Add(new Ff7DecodedTextPage(lines.ToArray())
+            {
+                HasUnresolvedVariableStrings = unresolvedVariableStrings
+            });
+            unresolvedVariableStrings = false;
             lines.Clear();
         }
 
@@ -274,8 +291,23 @@ public static class Ff7EncodedTextDecoder
                     {
                         AppendKanji(builder, 0xfe, subcode);
                     }
+                    else if (subcode == 0xe2 && variableString is not null)
+                    {
+                        if (index + 4 >= bytes.Length)
+                        {
+                            return Array.Empty<Ff7DecodedTextPage>();
+                        }
+
+                        var offset = bytes[index + 1] | bytes[index + 2] << 8;
+                        var length = bytes[index + 3] | bytes[index + 4] << 8;
+                        var resolved = variableString(offset, length);
+                        unresolvedVariableStrings |= resolved is null;
+                        builder.Append(resolved ?? "\uFFFD");
+                        index += 4;
+                    }
                     else
                     {
+                        unresolvedVariableStrings |= subcode == 0xe2;
                         SkipExtendedControl(bytes, ref index, subcode);
                     }
                     break;
