@@ -25,14 +25,27 @@ internal sealed class FfnxCreatureVoiceCompletionReader
         (0x015FD050, Convert.FromHexString("558BEC568B75088BC62500F0FFFF578BF93D00F0FFFF7450")),
         (0x015FCBD0, Convert.FromHexString("558BEC56578BF9E814BCFFFF8B75088BCF56E889210000")),
     ];
+    private sealed record ModuleLayout(uint AudioEngine, uint VoiceSlots, uint MessageStatus,
+        (uint Rva, byte[] Prefix)[] Cohort);
+    private static readonly ModuleLayout LegacyLayout = new(AudioEngineRva, VoiceSlotsRva, MessageStatusRva, cohort);
+    // Official 1.25.2 PDB globals; Ghidra confirms the voice map at nxAudioEngine+0x70E30,
+    // the Soloud member at +8, ordinary handle generations and pause flag 4.
+    private static readonly ModuleLayout Ffnx1252Layout = new(0x027AA270, 0x0281B0A0, 0x02839900,
+    [
+        (0x00308280, Convert.FromHexString("558BEC568BF18D450857508D8E300E0700E8BA93FFFF8D4E08")),
+        (0x019577D0, Convert.FromHexString("558BEC568B75088BC62500F0FFFF578BF93D00F0FFFF7452")),
+        (0x01957350, Convert.FromHexString("558BEC56578BF9E8B4BCFFFF8B75088BCF56E899210000")),
+    ]);
     private readonly uint moduleBase;
+    private readonly ModuleLayout layout;
     private readonly ILegacyAddressSpace memory;
     private readonly Func<uint, int, bool, bool> isCommittedRegion;
 
-    private FfnxCreatureVoiceCompletionReader(uint moduleBase, ILegacyAddressSpace memory,
+    private FfnxCreatureVoiceCompletionReader(uint moduleBase, ModuleLayout layout, ILegacyAddressSpace memory,
         Func<uint, int, bool, bool> isCommittedRegion)
     {
         this.moduleBase = moduleBase;
+        this.layout = layout;
         this.memory = memory;
         this.isCommittedRegion = isCommittedRegion;
     }
@@ -76,16 +89,19 @@ internal sealed class FfnxCreatureVoiceCompletionReader
     {
         reader = null;
         diagnostic = "The exact FFNx warning voice cohort or committed state is unavailable.";
-        if (memory is null || isCommittedRegion is null || moduleBase < 0x10000 || (moduleBase & 0xFFF) != 0
-            || imageSize < MessageStatusRva + 8 || (ulong)moduleBase + (uint)imageSize > 0x80000000UL
-            || !string.Equals(moduleSha256, SupportedModuleSha256, StringComparison.OrdinalIgnoreCase)) return false;
+        var layout = string.Equals(moduleSha256, SupportedModuleSha256, StringComparison.OrdinalIgnoreCase)
+            ? LegacyLayout : string.Equals(moduleSha256,
+                "9C9859B1F66EE3A25D29BD5FC43171A3C298F4372A6AEE589808E8EC7431C77B", StringComparison.OrdinalIgnoreCase)
+                ? Ffnx1252Layout : null;
+        if (layout is null || memory is null || isCommittedRegion is null || moduleBase < 0x10000 || (moduleBase & 0xFFF) != 0
+            || imageSize < layout.MessageStatus + 8 || (ulong)moduleBase + (uint)imageSize > 0x80000000UL) return false;
         try
         {
-            var candidate = new FfnxCreatureVoiceCompletionReader(moduleBase, memory, isCommittedRegion);
+            var candidate = new FfnxCreatureVoiceCompletionReader(moduleBase, layout, memory, isCommittedRegion);
             Span<byte> state = stackalloc byte[8];
             if (!candidate.MatchesNativeCohort()
-                || !candidate.Read(moduleBase + VoiceSlotsRva, state)
-                || !candidate.Read(moduleBase + MessageStatusRva, state)) return false;
+                || !candidate.Read(moduleBase + layout.VoiceSlots, state)
+                || !candidate.Read(moduleBase + layout.MessageStatus, state)) return false;
             reader = candidate;
             diagnostic = "Verified read-only FFNx window1 voice handle and native validity cohort.";
             return true;
@@ -120,8 +136,8 @@ internal sealed class FfnxCreatureVoiceCompletionReader
     {
         observation = default;
         var evidence = new List<byte>();
-        if (!TryFindSlot(moduleBase + VoiceSlotsRva, windowId, 0x20, evidence, out var voiceSlot)
-            || !TryFindSlot(moduleBase + MessageStatusRva, windowId, 0x48, evidence, out var status)) return false;
+        if (!TryFindSlot(moduleBase + layout.VoiceSlots, windowId, 0x20, evidence, out var voiceSlot)
+            || !TryFindSlot(moduleBase + layout.MessageStatus, windowId, 0x48, evidence, out var status)) return false;
         var handle = BinaryPrimitives.ReadUInt32LittleEndian(voiceSlot.AsSpan(0x14));
         var acting = status[0x18];
         // FFNx's unused voice slot sentinel is not a completed successful play.
@@ -129,7 +145,7 @@ internal sealed class FfnxCreatureVoiceCompletionReader
         if (acting > 1 || handle == 0 || index == 0 || (handle & 0xFFFFF000) == 0xFFFFF000) return false;
         // Native getVoiceFromHandle_internal uses mVoice at +0x50 and index-1.
         // This equivalent +0x4C/index form is also in installed isValidVoiceHandle.
-        var entry = moduleBase + AudioEngineRva + 8 + 0x50 + (index - 1) * 4;
+        var entry = moduleBase + layout.AudioEngine + 8 + 0x50 + (index - 1) * 4;
         if (!ReadEvidence(entry, 4, evidence, out var pointerBytes)) return false;
         var voicePointer = BinaryPrimitives.ReadUInt32LittleEndian(pointerBytes);
         bool? result;
@@ -193,7 +209,7 @@ internal sealed class FfnxCreatureVoiceCompletionReader
     {
         Span<byte> firstBuffer = stackalloc byte[32];
         Span<byte> secondBuffer = stackalloc byte[32];
-        foreach (var (rva, prefix) in cohort)
+        foreach (var (rva, prefix) in layout.Cohort)
         {
             var address = moduleBase + rva;
             var first = firstBuffer[..prefix.Length];

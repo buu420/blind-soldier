@@ -529,7 +529,9 @@ internal sealed class Steam2026ResearchSession : IDisposable
             roomDescriptionHistory, log, battleDescriptionHistory, keyStoryKnowledge.History);
         BattleAnimationNarrationRuntime? battleAnimationNarration = null;
         var modSettingsMenu = new ModSettingsMenu(config, playerSettingsStore,
-            () => BattleAnimationNarrationRuntime.ResetBattleDescriptions(battleDescriptionHistory, log));
+            () => BattleAnimationNarrationRuntime.ResetBattleDescriptions(battleDescriptionHistory, log),
+            resetAllDescriptions: () => BattleAnimationNarrationRuntime.ResetAllDescriptions(
+                roomDescriptionHistory, battleDescriptionHistory, log));
         ControllerAccessibilityDispatcher? controllerAccessibility = null;
         SaveMenuStateReader? roomDescriptionSaveReader = null;
         TitleLoadMenuDataReader? roomDescriptionLoadReader = null;

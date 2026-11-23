@@ -6,6 +6,7 @@ public sealed class AccessibilityConfig
     public bool EnableSpeech { get; set; } = true;
     public bool EnableRuntimeMenuSpeech { get; set; } = true;
     public bool EnableRuntimeDialogueSpeech { get; set; } = true;
+    public bool ReadVoicedDialogue { get; set; } = false;
     public bool EnableNativeSystemMenuSpeech { get; set; } = true;
     public int NativeSystemMenuHelpDelayMs { get; set; } = 500;
     public bool EnableFfnxPopupSpeech { get; set; } = true;

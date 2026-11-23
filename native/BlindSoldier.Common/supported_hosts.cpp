@@ -215,13 +215,15 @@ HostValidationResult ValidateSupportedHostEvidence(
             result.diagnostic = L"Steam 2026 host must be named FFVII.exe.";
             return result;
         }
-        if (sha256 != Steam2026Sha256()) {
-            result.diagnostic = L"Steam 2026 SHA-256 is not in the supported allowlist.";
+        if (sha256 != Steam2026Sha256() && sha256 != generated::kGog2026Sha256) {
+            result.diagnostic = L"Native x64 SHA-256 is not in the supported allowlist.";
             return result;
         }
         result.kind = SupportedHostKind::Steam2026X64;
         result.supported = true;
-        result.diagnostic = L"Supported Steam 2026 x64 FFVII executable.";
+        result.diagnostic = sha256 == generated::kGog2026Sha256
+            ? L"Supported GOG x64 FFVII executable."
+            : L"Supported Steam 2026 x64 FFVII executable.";
         return result;
     }
 

@@ -171,6 +171,7 @@ function Write-GeneratedCpp {
     $lines.Add('struct StructuralProfileEvidence { const char* id; uint64_t imageBase; const SectionEvidence* sections; size_t sectionCount; const SignatureEvidence* signatures; size_t signatureCount; };')
     $lines.Add(('inline constexpr wchar_t kLegacyStockSha256[] = L"{0}";' -f $Manifest.legacyStockX86.sha256))
     $lines.Add(('inline constexpr wchar_t kSteam2026Sha256[] = L"{0}";' -f $Manifest.steam2026X64.sha256))
+    $lines.Add(('inline constexpr wchar_t kGog2026Sha256[] = L"{0}";' -f $Manifest.gog2026X64.sha256))
     foreach ($profileIndex in 0..($Manifest.sevenHeavenX86.profiles.Count - 1)) {
         $profile = $Manifest.sevenHeavenX86.profiles[$profileIndex]
         $lines.Add(('inline constexpr SectionEvidence kProfile{0}Sections[] = {{' -f $profileIndex))
@@ -253,6 +254,12 @@ $manifest = [ordered]@{
         name = 'FFVII.exe'
         machine = 34404
         sha256 = '57A23D166D69E46B9E3339F779D4A3C4FEB402A989FA7291D0D9B4A1953ABB4B'
+    }
+    # Exact GOG identity from the reviewed portable contribution, not a local binary sample.
+    gog2026X64 = [ordered]@{
+        name = 'FFVII.exe'
+        machine = 34404
+        sha256 = '458539466A971406C5BFA2D02645DE7E5D6DC536463BC6434ECF9EDAB6C527A6'
     }
 }
 

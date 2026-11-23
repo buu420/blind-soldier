@@ -13,6 +13,13 @@ if (args.Contains("--chocobo-registration-only", StringComparer.OrdinalIgnoreCas
     return;
 }
 
+if (args.Contains("--echo-gog-update-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.EchoDialoguePreferencesTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.FfnxVoiceSpeechTests.Run();
+    return;
+}
+
 if (args.Contains("--key-story-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.BoneVillageDigSpotTests.RunKeyStory(CreateInstalledFieldWalkmeshReader,
@@ -220,6 +227,7 @@ if (args.Contains("--highwind-interior-only", StringComparer.OrdinalIgnoreCase))
 if (args.Contains("--mod-settings-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.ModSettingsTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.EchoDialoguePreferencesTests.Run();
     Ff7.Accessibility.Reloaded.Tests.BattleDescriptionResetTests.Run();
     Ff7.Accessibility.Reloaded.Tests.AudioDescriptionVolumeTests.Run();
     Ff7.Accessibility.Reloaded.Tests.ControllerModifierNavigationTests.Run();
@@ -1916,6 +1924,7 @@ AssertFieldGatewayTargetReaderRejectsInvalidState();
 AssertFieldActivityReadoutSpeaksTheNativeActivities();
 Ff7.Accessibility.Reloaded.Tests.FieldAreaDescriptionHistoryTests.Run();
 Ff7.Accessibility.Reloaded.Tests.ModSettingsTests.Run();
+Ff7.Accessibility.Reloaded.Tests.EchoDialoguePreferencesTests.Run();
 Ff7.Accessibility.Reloaded.Tests.BattleDescriptionResetTests.Run();
 Ff7.Accessibility.Reloaded.Tests.AudioDescriptionVolumeTests.Run();
 Ff7.Accessibility.Reloaded.Tests.BattleAnimationNarrationTests.Run();
@@ -30636,6 +30645,10 @@ static string FindSourceRoot() => FindRepositoryRoot();
 
 static string FindRepositoryRoot()
 {
+    var configured = Environment.GetEnvironmentVariable("FF7_ACCESSIBILITY_SOURCE_ROOT");
+    if (!string.IsNullOrWhiteSpace(configured) && File.Exists(Path.Combine(
+            configured, "Ff7.Accessibility.Reloaded", "ModConfig.json")))
+        return Path.GetFullPath(configured);
     var dir = new DirectoryInfo(AppContext.BaseDirectory);
     while (dir is not null)
     {

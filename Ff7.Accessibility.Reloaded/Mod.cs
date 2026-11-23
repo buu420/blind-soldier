@@ -1316,7 +1316,9 @@ public sealed class Mod : IModV1, IModV2
             kernel2TextDatabase);
         fieldAreaDescriptionGate = new FieldAreaDescriptionHistoryGate(fieldAreaDescriptionHistory);
         modSettingsMenu = new ModSettingsMenu(config, playerSettingsStore!,
-            () => BattleAnimationNarrationRuntime.ResetBattleDescriptions(battleDescriptionHistory, Log));
+            () => BattleAnimationNarrationRuntime.ResetBattleDescriptions(battleDescriptionHistory, Log),
+            resetAllDescriptions: () => BattleAnimationNarrationRuntime.ResetAllDescriptions(
+                fieldAreaDescriptionHistory, battleDescriptionHistory, Log));
         controllerAccessibility = new ControllerAccessibilityDispatcher(
             () => controllerCaptureHook?.Capture, () => modSettingsMenu.IsOpen,
             HandleModSettingsInput,
@@ -2558,7 +2560,7 @@ public sealed class Mod : IModV1, IModV2
                 loadedFieldScriptIdentityReader?.TryRead(out var creatureIdentity)==true)
                 creatureWarningSpeech?.NoteOriginalVoice(creatureIdentity);
             Log(
-                $"FFNx voice playback: field={observation.FieldName}, window={observation.WindowId}, " +
+                $"FFNx voice playback: field={observation.FieldName}, fieldId={observation.FieldId}, window={observation.WindowId}, " +
                 $"dialog={observation.DialogId}, page={observation.Page}, played={observation.Played}.");
         }
 
@@ -5227,7 +5229,8 @@ public sealed class Mod : IModV1, IModV2
                         window.WindowId,
                         voiceTimestamp,
                         ffnxPlayVoiceHook is not null,
-                        askIdentity is not null)),
+                        askIdentity is not null,
+                        config.ReadVoicedDialogue)),
                 askIdentity,
                 nativeFieldMessageOwnershipTracker.WasSpeechDelivered(
                     askIdentity,
@@ -9245,6 +9248,16 @@ public sealed class Mod : IModV1, IModV2
             return;
         }
 
+        if (fieldMessageReader?.TryReadVisibleWindows(out var windows) == true &&
+            ffnxVoicePlaybackTracker.ShouldSuppressDraw(
+                ReadUInt16(FieldPositionReader.AddressFieldId), speech, windows, Stopwatch.GetTimestamp(),
+                ffnxPlayVoiceHook is not null, Volatile.Read(ref activeFieldAskIdentity) is not null,
+                config.ReadVoicedDialogue))
+        {
+            Log("Field dialogue draw speech suppressed for verified voiced window.");
+            return;
+        }
+
         Log($"Field dialogue draw speech: {speech}");
         SpeakFieldDialogue(speech);
     }
@@ -10964,13 +10977,17 @@ public sealed class Mod : IModV1, IModV2
         byte page)
     {
         var played = ffnxPlayVoiceHook?.OriginalFunction(fieldName, windowId, dialogId, page) == true;
+        ushort currentField = 0;
+        var fieldKnown = currentProcessLegacyAddressSpace?.TryReadUInt16(
+            (uint)FieldPositionReader.AddressFieldId, out currentField) == true;
         ffnxVoicePlaybackEventQueue.TryCapture(
             fieldName,
             windowId,
             dialogId,
             page,
-            played,
-            Stopwatch.GetTimestamp());
+            played && fieldKnown,
+            Stopwatch.GetTimestamp(),
+            fieldKnown ? currentField : -1);
         return played;
     }
 

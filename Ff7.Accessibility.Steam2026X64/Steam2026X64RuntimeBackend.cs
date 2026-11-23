@@ -54,10 +54,7 @@ public sealed class Steam2026X64RuntimeBackend : IFf7RuntimeBackend
                 identity.RuntimeId,
                 Steam2026Fingerprint.SupportedRuntimeId,
                 StringComparison.Ordinal)
-            || !string.Equals(
-                identity.Sha256,
-                Steam2026Fingerprint.SupportedSha256,
-                StringComparison.Ordinal))
+            || !Steam2026Fingerprint.IsSupportedSha256(identity.Sha256))
         {
             throw new ArgumentException(
                 $"The Steam 2026 x64 backend requires a validated supported fingerprint. {fingerprint.Diagnostic}",

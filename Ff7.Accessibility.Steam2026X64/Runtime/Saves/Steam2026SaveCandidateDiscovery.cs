@@ -10,6 +10,7 @@ namespace Ff7.Accessibility.Steam2026X64.Runtime.Saves;
 public sealed class Steam2026SaveCandidateDiscovery
 {
     public const string GameDirectoryName = "FINAL FANTASY VII Steam Edition";
+    public const string GogGameDirectoryName = "FINAL FANTASY VII GOG Edition";
     public const int ContainerCount = 10;
     public const int StaticAutosaveContainerIndex = 9;
     public const int StaticAutosaveSlotIndex = 14;
@@ -23,17 +24,21 @@ public sealed class Steam2026SaveCandidateDiscovery
         : this(
             ValidateAndGetLocalAppData(fingerprint, steamId64),
             steamId64.ToString(CultureInfo.InvariantCulture),
-            File.Exists)
+            File.Exists,
+            Steam2026Fingerprint.IsGogSha256(fingerprint.Identity.Sha256) ? GogGameDirectoryName : GameDirectoryName)
     {
     }
 
     internal Steam2026SaveCandidateDiscovery(
         string localAppDataRoot,
         string steamId64,
-        Func<string, bool> fileExists)
+        Func<string, bool> fileExists,
+        string gameDirectoryName = GameDirectoryName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(localAppDataRoot);
         ArgumentException.ThrowIfNullOrWhiteSpace(steamId64);
+        if (gameDirectoryName is not (GameDirectoryName or GogGameDirectoryName))
+            throw new ArgumentException("Unknown native save directory.", nameof(gameDirectoryName));
         if (steamId64.Length > 20 || steamId64.Any(character => !char.IsAsciiDigit(character)))
         {
             throw new ArgumentException("The SteamID64 directory component must contain only decimal digits.", nameof(steamId64));
@@ -43,7 +48,7 @@ public sealed class Steam2026SaveCandidateDiscovery
         var canonicalLocalRoot = Path.GetFullPath(localAppDataRoot);
         saveRoot = Path.GetFullPath(Path.Combine(
             canonicalLocalRoot,
-            GameDirectoryName,
+            gameDirectoryName,
             steamId64));
         var expectedPrefix = canonicalLocalRoot.EndsWith(Path.DirectorySeparatorChar)
             ? canonicalLocalRoot
@@ -119,10 +124,7 @@ public sealed class Steam2026SaveCandidateDiscovery
                 fingerprint.Identity.RuntimeId,
                 Steam2026Fingerprint.SupportedRuntimeId,
                 StringComparison.Ordinal) ||
-            !string.Equals(
-                fingerprint.Identity.Sha256,
-                Steam2026Fingerprint.SupportedSha256,
-                StringComparison.Ordinal))
+            !Steam2026Fingerprint.IsSupportedSha256(fingerprint.Identity.Sha256))
         {
             throw new ArgumentException(
                 "Native save discovery requires the exact supported Steam 2026 x64 executable fingerprint.",

@@ -15,4 +15,7 @@ Blind Soldier cutscene description voice clips
 
 Narration generated locally from the supplied opening narrator recording with the performer's explicit permission for voice cloning and distribution with this mod. Voice model: Qwen/Qwen3-TTS-12Hz-1.7B-Base (https://github.com/QwenLM/Qwen3-TTS).
 
-Existing action-description wording is retained. Timed movie clips reuse validated recordings whose script attribution is preserved beside the corresponding film in Assets/movies. No original game dialogue is replaced. These files contain narration only.
+Existing action-description wording is retained. Timed movie clips reuse validated recordings whose script attribution is preserved beside the corresponding film in Assets/movies. No original game dialogue is replaced. These files contain narration only.
+
+Honeybee Inn lobby script draft: Audio descriptions generated with ViddyScribe (https://viddyscribe.com).
+The draft was reviewed and edited against the native room artwork before narration.

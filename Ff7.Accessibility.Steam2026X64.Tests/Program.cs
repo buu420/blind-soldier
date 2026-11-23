@@ -13,6 +13,13 @@ if (args.Contains("--chocobo-registration-only", StringComparer.OrdinalIgnoreCas
     return;
 }
 
+if (args.Contains("--echo-gog-update-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.EchoDialoguePreferencesTests.Run();
+    GogCompatibilityTests.Run();
+    return;
+}
+
 if (args.Contains("--key-story-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.BoneVillageDigSpotTests.RunKeyStory(CreateInstalledFieldWalkmeshReader,
@@ -216,6 +223,8 @@ if (args.Contains("--highwind-interior-only", StringComparer.OrdinalIgnoreCase))
 if (args.Contains("--mod-settings-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.ModSettingsTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.EchoDialoguePreferencesTests.Run();
+    GogCompatibilityTests.Run();
     Ff7.Accessibility.Reloaded.Tests.BattleDescriptionResetTests.Run();
     Ff7.Accessibility.Reloaded.Tests.AudioDescriptionVolumeTests.Run();
     Ff7.Accessibility.Reloaded.Tests.ControllerModifierNavigationTests.Run();
@@ -539,6 +548,8 @@ if (args.Contains("--module-tests-only", StringComparer.OrdinalIgnoreCase))
     // in --world-map-only and in the full suite.
     Ff7.Accessibility.Reloaded.Tests.ReviewedFilmNarrationTests.Run();
     Ff7.Accessibility.Reloaded.Tests.ModSettingsTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.EchoDialoguePreferencesTests.Run();
+    GogCompatibilityTests.Run();
     Ff7.Accessibility.Reloaded.Tests.BattleDescriptionResetTests.Run();
     Ff7.Accessibility.Reloaded.Tests.AudioDescriptionVolumeTests.Run();
     Ff7.Accessibility.Reloaded.Tests.FilmNarrationSeamTests.Run();
@@ -1246,6 +1257,8 @@ Ff7.Accessibility.Reloaded.Tests.MenuGilReadoutTests.Run();
 Steam2026MenuGilReadoutTests.Run();
 Ff7.Accessibility.Reloaded.Tests.FieldAreaDescriptionHistoryTests.Run();
 Ff7.Accessibility.Reloaded.Tests.ModSettingsTests.Run();
+Ff7.Accessibility.Reloaded.Tests.EchoDialoguePreferencesTests.Run();
+GogCompatibilityTests.Run();
 Ff7.Accessibility.Reloaded.Tests.BattleDescriptionResetTests.Run();
 Ff7.Accessibility.Reloaded.Tests.AudioDescriptionVolumeTests.Run();
 Ff7.Accessibility.Reloaded.Tests.ControllerModifierNavigationTests.Run();

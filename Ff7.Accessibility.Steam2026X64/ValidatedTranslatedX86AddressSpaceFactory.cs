@@ -20,10 +20,7 @@ internal static class ValidatedTranslatedX86AddressSpaceFactory
                 fingerprint.Identity.RuntimeId,
                 Steam2026Fingerprint.SupportedRuntimeId,
                 StringComparison.Ordinal) ||
-            !string.Equals(
-                fingerprint.Identity.Sha256,
-                Steam2026Fingerprint.SupportedSha256,
-                StringComparison.Ordinal))
+            !Steam2026Fingerprint.IsSupportedSha256(fingerprint.Identity.Sha256))
         {
             throw new ArgumentException(
                 "The translated x86 address space requires the exact supported Steam 2026 x64 executable fingerprint.",

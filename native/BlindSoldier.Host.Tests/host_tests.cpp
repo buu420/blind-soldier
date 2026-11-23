@@ -126,6 +126,15 @@ int wmain() {
     CHECK(steamResult.supported);
     CHECK(steamResult.kind == SupportedHostKind::Steam2026X64);
 
+    auto gogResult = ValidateSupportedHostEvidence(
+        L"FFVII.exe", ExpectedHostArchitecture::X64, steam,
+        L"458539466A971406C5BFA2D02645DE7E5D6DC536463BC6434ECF9EDAB6C527A6");
+    CHECK(gogResult.supported);
+    CHECK(gogResult.kind == SupportedHostKind::Steam2026X64);
+    CHECK(!ValidateSupportedHostEvidence(
+        L"FFVII.exe", ExpectedHostArchitecture::X64, steam,
+        L"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA").supported);
+
     auto malformedPath = NewMalformedPe();
     auto malformed = ValidateSupportedHost(malformedPath, ExpectedHostArchitecture::X86);
     CHECK(!malformed.supported);
