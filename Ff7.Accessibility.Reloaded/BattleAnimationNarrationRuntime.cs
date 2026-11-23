@@ -308,6 +308,26 @@ internal sealed class BattleAnimationNarrationRuntime : IDisposable
         return speech;
     }
 
+    internal static string ResetAllDescriptions(FieldAreaDescriptionHistory roomHistory,
+        FieldAreaDescriptionHistory battleHistory, Action<string>? log = null)
+    {
+        ArgumentNullException.ThrowIfNull(roomHistory);
+        ArgumentNullException.ThrowIfNull(battleHistory);
+        var battleSpeech = ResetBattleDescriptions(battleHistory, log);
+        var rooms = roomHistory.ResetActiveSave();
+        log?.Invoke($"Room description history reset: {rooms.Scope}, save {rooms.SaveFile}, game {rooms.GameSlot}, " +
+            $"{rooms.ClearedCount} heard entries cleared; persisted={rooms.Persisted}.");
+        var roomSpeech = rooms.Scope switch
+        {
+            DescriptionHistoryResetScope.NoGame => "No game is loaded, so there are no room descriptions to reset.",
+            DescriptionHistoryResetScope.UnsavedGame => "Room descriptions reset for this unsaved game.",
+            _ when rooms.Persisted => $"Room descriptions reset for save {rooms.SaveFile}, game {rooms.GameSlot}.",
+            _ => $"Room descriptions reset for this session only; the change could not be saved ({rooms.PersistenceFailure}).",
+        };
+        return $"{battleSpeech} {roomSpeech} Room arrivals will be described on your next visit. " +
+            "Films and other scene actions already replay at their next occurrence.";
+    }
+
     internal bool IsPlaying => narration?.IsPlaying == true;
 
     internal void Tick(DateTime nowUtc, bool enabledAndFocused) =>

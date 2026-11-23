@@ -245,6 +245,7 @@ public sealed class ModSettingsCatalogue
 {
     /// <summary>The action that resets the save's battle descriptions.</summary>
     public const string ResetBattleDescriptionsKey = "ResetBattleDescriptions";
+    public const string ResetAllDescriptionsKey = "ResetAllDescriptions";
 
     private const string Descriptions = "Recorded descriptions";
     private const string Speech = "Speech";
@@ -330,6 +331,8 @@ public sealed class ModSettingsCatalogue
             Now, Now);
         yield return ModSettingDefinition.Action(
             ResetBattleDescriptionsKey, Descriptions, "Reset battle descriptions for this save");
+        yield return ModSettingDefinition.Action(
+            ResetAllDescriptionsKey, Descriptions, "Reset all descriptions for this save");
         yield return ModSettingDefinition.Toggle(
             nameof(AccessibilityConfig.EnableBattleAnimationDescriptions), Descriptions, "Limit break and summon descriptions",
             c => c.EnableBattleAnimationDescriptions, (c, v) => c.EnableBattleAnimationDescriptions = v, Now, Now);
@@ -351,6 +354,11 @@ public sealed class ModSettingsCatalogue
             new(Now, "It plays alongside the recorded opening narration when both are on."));
 
         // Speech.
+        yield return ModSettingDefinition.Toggle(
+            nameof(AccessibilityConfig.ReadVoicedDialogue), Speech, "Read voiced dialogue",
+            c => c.ReadVoicedDialogue, (c, v) => c.ReadVoicedDialogue = v,
+            new(Now, "Off skips lines with verified recorded voice playback. Unvoiced lines and choices still read."),
+            new(NotHere, "Applies to FFNx voice mods on the legacy game."));
         yield return ModSettingDefinition.Toggle(
             nameof(AccessibilityConfig.EnableSpeech), Speech, "Mod speech",
             c => c.EnableSpeech, (c, v) => c.EnableSpeech = v,

@@ -229,6 +229,8 @@ public static class RemainingFieldAreaDescriptions
         new(214, 2, 0, 0, "An elaborately decorated building entrance is surrounded by illuminated signs, lanterns, and ornamental fixtures. A short path leads between its glowing pillars.", FieldOpcodeAddressResolver.OpcodeMapNameIndex),
         // 216 onna_2: native base image reviewed; no inferred actor or item state.
         new(216, 1, 0, 0, "A round table and chairs stand in a richly decorated room. Three mirrors line a dressing counter, with a barred doorway beside them.", FieldOpcodeAddressResolver.OpcodeMapNameIndex),
+        // 218 onna_4: native lobby artwork, ViddyScribe draft reviewed against the base image.
+        new(218, -1, -1, -1, "A hexagonal lobby has striped walls and recessed doorways lit by wall lamps. A large golden bee emblem fills a blue circle at the center of the floor.", -1, ObservationOnly: true),
         // 219 onna_5: native base image reviewed; no inferred actor or item state.
         new(219, 1, 0, 0, "A circular bed stands beside a small tiled bath. Draped curtains, mirrors, and an ornate doorway decorate the surrounding room.", FieldOpcodeAddressResolver.OpcodeMapNameIndex),
         // 220 onna_52: native base image reviewed; no inferred actor or item state.

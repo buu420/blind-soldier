@@ -156,7 +156,9 @@ internal sealed class PrismNativeSpeaker : IDisposable
                 return false;
             }
 
-            var bytes = Encoding.UTF8.GetBytes(text + "\0");
+            // Keep native text and page identities untouched. Echo-S's speaker
+            // decoration is removed only from the bytes delivered to the reader.
+            var bytes = Encoding.UTF8.GetBytes(WithoutSpeakerDecoration(text) + "\0");
             unsafe
             {
                 fixed (byte* pText = bytes)
@@ -194,6 +196,17 @@ internal sealed class PrismNativeSpeaker : IDisposable
                 return false;
             }
         }
+    }
+
+    private static string WithoutSpeakerDecoration(string text)
+    {
+        if (text.Length < 3 || text[0] != '≠' || !char.IsLetter(text[1])) return text;
+        var quote = text.IndexOfAny(['“', '「', '『', '"', '„', '«']);
+        if (quote < 2) return text;
+        var name = text[1..quote].TrimEnd();
+        return name.Length is > 0 and <= 40 && name.All(ch => char.IsLetterOrDigit(ch) ||
+            char.IsWhiteSpace(ch) || ch is '\'' or '-' or '.' or '_' or '!' or '?' or ':')
+            ? text[1..] : text;
     }
 
     public void Dispose()

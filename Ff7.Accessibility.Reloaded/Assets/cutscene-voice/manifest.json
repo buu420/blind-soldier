@@ -1,5 +1,5 @@
 {
-  "sourceHash": "bd9ad4d94ed607924bf507770b8f6b4174f93b8d5e53245a5ccd012c545f1659",
+  "sourceHash": "3253e8a685f1e2e7b8dbad36b5fed32237600c402de2849cdcdaa4070928cc89",
   "entries": [
     {
       "text": "A Japanese dealer list appears. Welcome to Shinra M M.",
@@ -7570,6 +7570,11 @@
       "text": "The huge creature glides closer.",
       "file": "8036c212d7b5af867f754965d2407c5743303fbc1e9794328ffaad27984c1a2d.ogg",
       "duration_seconds": 1.95
+    },
+    {
+      "text": "A hexagonal lobby has striped walls and recessed doorways lit by wall lamps. A large golden bee emblem fills a blue circle at the center of the floor.",
+      "file": "291ad8fdb717e1f725cae7bc250835d4937ebc8ed0cdec1e7eb13f639176ab5f.ogg",
+      "duration_seconds": 8.8
     }
   ]
 }

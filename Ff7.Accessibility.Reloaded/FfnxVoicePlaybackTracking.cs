@@ -8,7 +8,10 @@ public readonly record struct FfnxVoicePlaybackEvent(
     int DialogId,
     int Page,
     bool Played,
-    long Timestamp);
+    long Timestamp)
+{
+    public int FieldId { get; init; } = -1;
+}
 
 /// <summary>
 /// Allocation-free capture queue used by the FFNx play_voice detour.
@@ -24,6 +27,7 @@ public sealed class FfnxVoicePlaybackEventQueue
         public int Page;
         public bool Played;
         public long Timestamp;
+        public int FieldId;
 
         public Slot(int maxFieldNameBytes)
         {
@@ -62,7 +66,8 @@ public sealed class FfnxVoicePlaybackEventQueue
         byte dialogId,
         byte page,
         bool played,
-        long timestamp)
+        long timestamp,
+        int fieldId = -1)
     {
         if (fieldName is null || Interlocked.Exchange(ref captureGate, 1) != 0)
         {
@@ -99,6 +104,7 @@ public sealed class FfnxVoicePlaybackEventQueue
             slot.Page = page;
             slot.Played = played;
             slot.Timestamp = timestamp;
+            slot.FieldId = fieldId;
             Volatile.Write(ref writeSequence, write + 1);
             return true;
         }
@@ -124,7 +130,7 @@ public sealed class FfnxVoicePlaybackEventQueue
             slot.DialogId,
             slot.Page,
             slot.Played,
-            slot.Timestamp);
+            slot.Timestamp) { FieldId = slot.FieldId };
         Volatile.Write(ref readSequence, read + 1);
         return true;
     }
@@ -142,7 +148,8 @@ public sealed class FfnxVoicePlaybackTracker
 {
     private readonly long maximumAgeTicks;
     private readonly Dictionary<(int WindowId, int DialogId), FfnxVoicePlaybackEvent> voices = [];
-    private ActiveMessage? activeMessage;
+    private readonly Dictionary<int, ActiveMessage> activeMessages = [];
+    private int currentFieldId = -1;
 
     public FfnxVoicePlaybackTracker(TimeSpan maximumAge, long timestampFrequency)
     {
@@ -161,34 +168,38 @@ public sealed class FfnxVoicePlaybackTracker
 
     public void ObserveVoice(FfnxVoicePlaybackEvent observation)
     {
+        // World messages use another native reader and cannot own a field window.
+        if (observation.FieldName.Equals("_world", StringComparison.OrdinalIgnoreCase)) return;
         voices[(observation.WindowId, observation.DialogId)] = observation;
     }
 
     public void ObserveMessage(int fieldId, int windowId, int dialogId, long timestamp)
     {
         ObserveFieldTransition(fieldId);
-        activeMessage = new ActiveMessage(fieldId, windowId, dialogId, timestamp);
+        activeMessages[windowId] = new ActiveMessage(fieldId, windowId, dialogId, timestamp);
     }
 
     public void ObserveFieldTransition(int fieldId)
     {
-        if (activeMessage is { } active && active.FieldId == fieldId)
+        if (currentFieldId == fieldId)
         {
             return;
         }
 
         // Retain the bounded voice observations because play_voice can be
         // captured just before the native MESSAGE event on the same frame.
-        activeMessage = null;
+        currentFieldId = fieldId;
+        activeMessages.Clear();
     }
 
     public bool ShouldSuppressPrism(int fieldId, int windowId, long timestamp)
     {
-        if (activeMessage is not { } message ||
+        if (!activeMessages.TryGetValue(windowId, out var message) ||
             message.FieldId != fieldId ||
             message.WindowId != windowId ||
             !voices.TryGetValue((message.WindowId, message.DialogId), out var voice) ||
-            !voice.Played)
+            !voice.Played ||
+            (voice.FieldId >= 0 && voice.FieldId != fieldId))
         {
             return false;
         }
@@ -202,20 +213,33 @@ public sealed class FfnxVoicePlaybackTracker
         int windowId,
         long timestamp,
         bool verifiedVoiceHookInstalled,
-        bool hasActiveAsk)
+        bool hasActiveAsk,
+        bool readVoicedDialogue = false)
     {
         // Playback is observed through a separately verified FFNx hook. A field
         // need not have a reviewed description-script fingerprint to own its voice.
-        return verifiedVoiceHookInstalled &&
+        return !readVoicedDialogue && verifiedVoiceHookInstalled &&
             !hasActiveAsk &&
             ShouldSuppressPrism(fieldId, windowId, timestamp);
     }
 
-    public void ObserveNoMessages() => activeMessage = null;
+    public bool ShouldSuppressDraw(int fieldId, string text, IReadOnlyList<FieldVisibleWindowSnapshot> windows,
+        long timestamp, bool verifiedVoiceHookInstalled, bool hasActiveAsk, bool readVoicedDialogue)
+    {
+        // A raw draw has no window ID. Match it to the currently displayed text,
+        // and keep it readable if any matching window lacks voice evidence.
+        var matching = windows.Where(window => window.ChoicePage is null &&
+            window.SupplementalSpeech is null && window.Text.Contains(text, StringComparison.Ordinal)).ToArray();
+        return matching.Length > 0 && matching.All(window => ShouldSuppressPolling(
+            fieldId, window.WindowId, timestamp, verifiedVoiceHookInstalled, hasActiveAsk, readVoicedDialogue));
+    }
+
+    public void ObserveNoMessages() => activeMessages.Clear();
 
     public void Reset()
     {
-        activeMessage = null;
+        activeMessages.Clear();
+        currentFieldId = -1;
         voices.Clear();
     }
 

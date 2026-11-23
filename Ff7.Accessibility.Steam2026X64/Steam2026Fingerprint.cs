@@ -33,6 +33,16 @@ public static class Steam2026Fingerprint
     public const string SupportedSha256 =
         "57A23D166D69E46B9E3339F779D4A3C4FEB402A989FA7291D0D9B4A1953ABB4B";
     public const string SupportedRuntimeId = "ff7-steam-2026-x64";
+    // Exact executable identity supplied with the reviewed 1.0.0-gog.1 contribution.
+    // Native resolver and callback prologue checks remain mandatory on this build.
+    public const string GogSha256 =
+        "458539466A971406C5BFA2D02645DE7E5D6DC536463BC6434ECF9EDAB6C527A6";
+
+    public static bool IsSupportedSha256(string? sha256) =>
+        string.Equals(sha256, SupportedSha256, StringComparison.Ordinal) || IsGogSha256(sha256);
+
+    public static bool IsGogSha256(string? sha256) =>
+        string.Equals(sha256, GogSha256, StringComparison.Ordinal);
 
     public static Steam2026FingerprintResult Inspect(string executablePath)
     {
@@ -57,7 +67,7 @@ public static class Steam2026Fingerprint
         var sha256 = Convert.ToHexString(SHA256.HashData(snapshot));
         var is64Bit = machine == ImageFileMachineAmd64;
         var isSupported = is64Bit
-                          && string.Equals(sha256, SupportedSha256, StringComparison.Ordinal);
+                          && IsSupportedSha256(sha256);
         // FileVersionInfo is path-based and would require reopening a name that is not
         // part of the trusted snapshot. Version text is therefore intentionally omitted.
         const string version = "";
@@ -74,7 +84,9 @@ public static class Steam2026Fingerprint
             is64Bit,
             version);
         var diagnostic = isSupported
-            ? "Supported native Steam 2026 x64 FFVII executable."
+            ? IsGogSha256(sha256)
+                ? "Supported native GOG x64 FFVII executable."
+                : "Supported native Steam 2026 x64 FFVII executable."
             : machine != ImageFileMachineAmd64
                 ? $"PE machine 0x{machine:X4} is not the supported x64 machine 0x{ImageFileMachineAmd64:X4}."
                 : $"Native x64 SHA-256 {sha256} is not in the supported-build allowlist.";

@@ -7,6 +7,8 @@ namespace Ff7.Accessibility.Reloaded;
 internal static class FfnxVoicePlaybackHookTarget
 {
     internal const uint PlayVoiceRva = 0x004187E0;
+    internal const string Ffnx1252Sha256 = "9C9859B1F66EE3A25D29BD5FC43171A3C298F4372A6AEE589808E8EC7431C77B";
+    internal const uint Ffnx1252PlayVoiceRva = 0x00442C50;
     private static ReadOnlySpan<byte> PristinePrefix =>
     [
         // Stop before the following relocated absolute address.
@@ -44,32 +46,8 @@ internal static class FfnxVoicePlaybackHookTarget
                 }
 
                 var hash = ComputeSha256(module.FileName);
-                if (!string.Equals(hash, FfnxPopupStateReader.SupportedModuleSha256, StringComparison.Ordinal))
-                {
-                    diagnostic = $"FFNx play_voice hook disabled for unsupported module SHA-256 {hash}.";
-                    return false;
-                }
-
                 var baseAddress = unchecked((ulong)(nuint)module.BaseAddress);
-                var target = baseAddress + PlayVoiceRva;
-                if (baseAddress == 0 || target > int.MaxValue)
-                {
-                    diagnostic = "Verified FFNx play_voice target is outside the 32-bit hook address range.";
-                    return false;
-                }
-
-                Span<byte> actual = stackalloc byte[PristinePrefix.Length];
-                if (!memory.TryRead((uint)target, actual) || !actual.SequenceEqual(PristinePrefix))
-                {
-                    diagnostic =
-                        $"Verified FFNx play_voice prefix mismatch at RVA 0x{PlayVoiceRva:X8}; hook not installed.";
-                    return false;
-                }
-
-                absoluteAddress = (int)target;
-                diagnostic =
-                    $"Verified FFNx play_voice at module base 0x{baseAddress:X8}, RVA 0x{PlayVoiceRva:X8}.";
-                return true;
+                return TryResolveModule(hash, baseAddress, memory, out absoluteAddress, out diagnostic);
             }
         }
         catch (Exception ex)
@@ -79,6 +57,40 @@ internal static class FfnxVoicePlaybackHookTarget
         }
 
         return false;
+    }
+
+    internal static bool TryResolveModule(string hash, ulong baseAddress, ILegacyAddressSpace memory,
+        out int absoluteAddress, out string diagnostic)
+    {
+        absoluteAddress = 0;
+        // Both release profiles have a PDB-confirmed bool __cdecl(char*,byte,byte,byte)
+        // ABI and the same non-relocated prologue. Unknown builds remain disabled.
+        var rva = hash switch
+        {
+            FfnxPopupStateReader.SupportedModuleSha256 => PlayVoiceRva,
+            Ffnx1252Sha256 => Ffnx1252PlayVoiceRva,
+            _ => 0u,
+        };
+        if (rva == 0)
+        {
+            diagnostic = $"FFNx play_voice hook disabled for unsupported module SHA-256 {hash}.";
+            return false;
+        }
+        if (baseAddress == 0 || baseAddress > (ulong)int.MaxValue - rva)
+        {
+            diagnostic = "Verified FFNx play_voice target is outside the 32-bit hook address range.";
+            return false;
+        }
+        var target = (uint)(baseAddress + rva);
+        Span<byte> actual = stackalloc byte[PristinePrefix.Length];
+        if (!memory.TryRead(target, actual) || !actual.SequenceEqual(PristinePrefix))
+        {
+            diagnostic = $"Verified FFNx play_voice prefix mismatch at RVA 0x{rva:X8}; hook not installed.";
+            return false;
+        }
+        absoluteAddress = (int)target;
+        diagnostic = $"Verified FFNx play_voice at module base 0x{baseAddress:X8}, RVA 0x{rva:X8}.";
+        return true;
     }
 
     private static string ComputeSha256(string path)

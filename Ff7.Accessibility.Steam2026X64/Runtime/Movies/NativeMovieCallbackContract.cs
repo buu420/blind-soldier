@@ -153,6 +153,7 @@ public sealed class NativeMovieCallbackContract
     private readonly ulong moduleBase;
     private readonly ulong moduleImageEndExclusive;
     private readonly INativeMemoryReader memory;
+    private readonly string runtimeSha256;
     private ActiveHookLease? activeHookLease;
     private long nextCaptureSequence;
 
@@ -169,10 +170,7 @@ public sealed class NativeMovieCallbackContract
                 fingerprint.Identity.RuntimeId,
                 Steam2026Fingerprint.SupportedRuntimeId,
                 StringComparison.Ordinal)
-            || !string.Equals(
-                fingerprint.Identity.Sha256,
-                Steam2026Fingerprint.SupportedSha256,
-                StringComparison.Ordinal))
+            || !Steam2026Fingerprint.IsSupportedSha256(fingerprint.Identity.Sha256))
         {
             throw new ArgumentException(
                 "The native movie callback contract requires the exact supported Steam 2026 x64 fingerprint.",
@@ -190,6 +188,7 @@ public sealed class NativeMovieCallbackContract
         }
 
         this.moduleBase = moduleBase;
+        runtimeSha256 = fingerprint.Identity.Sha256;
         moduleImageEndExclusive = moduleBase + moduleImageSize;
         this.memory = memory ?? throw new ArgumentNullException(nameof(memory));
     }
@@ -438,7 +437,7 @@ public sealed class NativeMovieCallbackContract
             validationOwner,
             definition.Metadata,
             address,
-            Steam2026Fingerprint.SupportedSha256);
+            runtimeSha256);
         return true;
     }
 
@@ -450,7 +449,7 @@ public sealed class NativeMovieCallbackContract
             || identity.Metadata.Kind != expectedKind
             || !string.Equals(
                 identity.RuntimeSha256,
-                Steam2026Fingerprint.SupportedSha256,
+                runtimeSha256,
                 StringComparison.Ordinal)
             || !TryGetDefinition(expectedKind, out var definition)
             || identity.Metadata != definition.Metadata

@@ -213,10 +213,7 @@ public sealed class Steam2026FieldNavigationObservationReader
                 fingerprint.Identity.RuntimeId,
                 Steam2026Fingerprint.SupportedRuntimeId,
                 StringComparison.Ordinal) ||
-            !string.Equals(
-                fingerprint.Identity.Sha256,
-                Steam2026Fingerprint.SupportedSha256,
-                StringComparison.Ordinal))
+            !Steam2026Fingerprint.IsSupportedSha256(fingerprint.Identity.Sha256))
         {
             throw new ArgumentException(
                 "The field-navigation observation facade requires the exact supported Steam 2026 x64 fingerprint.",

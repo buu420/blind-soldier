@@ -9,6 +9,7 @@ struct SignatureEvidence { uint32_t rva; const uint8_t* bytes; const uint8_t* ma
 struct StructuralProfileEvidence { const char* id; uint64_t imageBase; const SectionEvidence* sections; size_t sectionCount; const SignatureEvidence* signatures; size_t signatureCount; };
 inline constexpr wchar_t kLegacyStockSha256[] = L"4274AB2D52B67E547786FD959474E020FD3052A34DBCD7DA708F86BCF5E48225";
 inline constexpr wchar_t kSteam2026Sha256[] = L"57A23D166D69E46B9E3339F779D4A3C4FEB402A989FA7291D0D9B4A1953ABB4B";
+inline constexpr wchar_t kGog2026Sha256[] = L"458539466A971406C5BFA2D02645DE7E5D6DC536463BC6434ECF9EDAB6C527A6";
 inline constexpr SectionEvidence kProfile0Sections[] = {
     {".text", 0x00001000, 0x003B4635, 0x003B4800, 0x60000020},
     {".rdata", 0x003B6000, 0x00003CBE, 0x00003E00, 0x40000040},

@@ -1,0 +1,15 @@
+Honeybee Inn lobby arrival, field 218 / onna_4
+
+Audio descriptions generated with ViddyScribe (https://viddyscribe.com).
+Job be1b1f77-ff0f-473c-9e77-0307771f2e7a; Standard AD text output.
+The selected reference contains only the native lobby background. Its static
+architecture was checked with native texture/FX page selection; no actor state,
+hidden rewards or inferred actions are described. The draft was shortened and
+its uncertain doorway count and lettering identification were omitted.
+
+Narration uses Brice's previously approved own voice and the established local
+Qwen3-TTS-12Hz-1.7B-Base pipeline at natural tempo. Reference SHA-256:
+2ede6b6c6c27938e7a63f3ea0c64b533ca0fd6f4c6a9cd0fa5110e2153a070a5
+Recording: 291ad8fdb717e1f725cae7bc250835d4937ebc8ed0cdec1e7eb13f639176ab5f.ogg
+Duration: 8.8 seconds. Loudness target: -18 LUFS, true peak -2 dBTP.
+No reference voice, game artwork or original game audio is included.

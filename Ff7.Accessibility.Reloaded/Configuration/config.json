@@ -3,6 +3,7 @@
   "EnableSpeech": true,
   "EnableRuntimeMenuSpeech": true,
   "EnableRuntimeDialogueSpeech": true,
+  "ReadVoicedDialogue": false,
   "EnableSnowboardReadout": true,
   "EnableNativeSystemMenuSpeech": true,
   "NativeSystemMenuHelpDelayMs": 500,

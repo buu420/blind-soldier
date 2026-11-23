@@ -49,9 +49,13 @@ public class FF7ConfigFile
 		get
 		{
 			string folderPath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-			return Path.Combine(folderPath, "FINAL FANTASY VII Steam Edition");
+			return Path.Combine(folderPath, SettingsDirectoryName(AppDomain.CurrentDomain.BaseDirectory));
 		}
 	}
+
+	internal static string SettingsDirectoryName(string gameDirectory) =>
+		File.Exists(Path.Combine(gameDirectory, "goggame-1698970154.info"))
+			? "FINAL FANTASY VII GOG Edition" : "FINAL FANTASY VII Steam Edition";
 
 	public string SteamIDFolder => GameSettingFolder;
 

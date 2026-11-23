@@ -34,6 +34,7 @@ internal static class Program
         Run("Prism dependency path must be absolute", PrismDependencyPathMustBeAbsolute);
         Run("Prism ABI round-trips through the launcher binding against the shipped library", PrismAbiRoundTripsAgainstTheShippedLibrary);
         Run("settings controls expose visible labels and values", SettingsControlsExposeVisibleLabelsAndValues);
+        Run("GOG settings stay separate from Steam settings", GogSettingsStaySeparate);
         Run("Play launches only the x64 Blind Soldier broker", PlayLaunchesOnlyTheX64Broker);
         Run("missing launch files fail closed with an accessible error", MissingLaunchFilesFailClosed);
         Run("broker failures include cause action and absolute log", BrokerFailuresAreActionable);
@@ -59,6 +60,22 @@ internal static class Program
         AssertEqual("Play", LauncherAccessibilityText.GetButtonName(0, new CultureInfo("ja")));
         AssertEqual("Setting", LauncherAccessibilityText.GetButtonName(1, new CultureInfo("ja")));
         AssertEqual("Exit", LauncherAccessibilityText.GetButtonName(2, new CultureInfo("ja")));
+    }
+
+    private static void GogSettingsStaySeparate()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "BlindSoldier-GogLauncher-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            AssertEqual("FINAL FANTASY VII Steam Edition", FF7ConfigFile.SettingsDirectoryName(directory));
+            File.WriteAllText(Path.Combine(directory, "goggame-1698970154.info"), "{}");
+            AssertEqual("FINAL FANTASY VII GOG Edition", FF7ConfigFile.SettingsDirectoryName(directory));
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
     }
 
     private static void FailedDeliveryIsRetried()

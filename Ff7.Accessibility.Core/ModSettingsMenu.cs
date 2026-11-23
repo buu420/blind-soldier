@@ -49,6 +49,7 @@ public sealed class ModSettingsMenu
     private readonly AccessibilityConfig config;
     private readonly PlayerSettingsStore store;
     private readonly Func<string> resetBattleDescriptions;
+    private readonly Func<string>? resetAllDescriptions;
     private readonly Func<DateTime> utcNow;
     private readonly IReadOnlyList<ModSettingDefinition> entries;
     private readonly object sync = new();
@@ -63,15 +64,18 @@ public sealed class ModSettingsMenu
     /// Resets the battle descriptions of the save being played and returns what to say.
     /// </param>
     /// <param name="utcNow">The clock for the confirmation window.</param>
+    /// <param name="resetAllDescriptions">Resets room and battle history for the current save.</param>
     public ModSettingsMenu(
         AccessibilityConfig config,
         PlayerSettingsStore store,
         Func<string> resetBattleDescriptions,
-        Func<DateTime>? utcNow = null)
+        Func<DateTime>? utcNow = null,
+        Func<string>? resetAllDescriptions = null)
     {
         this.config = config ?? throw new ArgumentNullException(nameof(config));
         this.store = store ?? throw new ArgumentNullException(nameof(store));
         this.resetBattleDescriptions = resetBattleDescriptions ?? throw new ArgumentNullException(nameof(resetBattleDescriptions));
+        this.resetAllDescriptions = resetAllDescriptions;
         this.utcNow = utcNow ?? (static () => DateTime.UtcNow);
         if (!ReferenceEquals(store.Config, config))
         {
@@ -337,23 +341,33 @@ public sealed class ModSettingsMenu
             ? "Reset battle descriptions for the save you are playing? Every limit break and summon, and the summoning " +
               "opening, will be described again the next time it plays. Other saves and room descriptions keep their " +
               $"history. Press {ActivateKey} again to confirm; anything else cancels."
-            : $"{entry.Label}? Press {ActivateKey} again to confirm; anything else cancels.";
+            : entry.Key == ModSettingsCatalogue.ResetAllDescriptionsKey
+                ? "Reset all descriptions for the save you are playing? Room arrivals, every limit break and summon " +
+                  "will be described again at their next occurrence. Other saves keep their history. " +
+                  $"Press {ActivateKey} again to confirm; anything else cancels."
+                : $"{entry.Label}? Press {ActivateKey} again to confirm; anything else cancels.";
 
     private string CarryOut(ModSettingDefinition entry)
     {
-        if (entry.Key != ModSettingsCatalogue.ResetBattleDescriptionsKey)
+        var reset = entry.Key switch
+        {
+            ModSettingsCatalogue.ResetBattleDescriptionsKey => resetBattleDescriptions,
+            ModSettingsCatalogue.ResetAllDescriptionsKey => resetAllDescriptions,
+            _ => null,
+        };
+        if (reset is null)
         {
             return $"{entry.Label} is not available.";
         }
 
         try
         {
-            var result = resetBattleDescriptions();
-            return string.IsNullOrWhiteSpace(result) ? "Battle descriptions reset." : result;
+            var result = reset();
+            return string.IsNullOrWhiteSpace(result) ? "Descriptions reset." : result;
         }
         catch (Exception ex)
         {
-            return $"Battle descriptions could not be reset: {ex.Message.TrimEnd('.')}.";
+            return $"Descriptions could not be reset: {ex.Message.TrimEnd('.')}.";
         }
     }
 
