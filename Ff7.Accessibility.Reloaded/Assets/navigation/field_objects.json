@@ -4345,6 +4345,7 @@
                             "requiredValue":  0,
                             "sourceFieldName":  "ealin_2",
                             "sourceEntityName":  "bedsen",
+                            "inactiveLineLabel":  "Bed (resting unavailable)",
                             "sourceModelResource":  "",
                             "targetKind":  "Line",
                             "staticX":  -192,

@@ -155,6 +155,8 @@
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\TownInteractionCoverageTests.cs" Link="SharedTests\TownInteractionCoverageTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\WeaponSellerNavigationTests.cs" Link="SharedTests\WeaponSellerNavigationTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\ReportedNavigationRegressionTests.cs" Link="SharedTests\ReportedNavigationRegressionTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\AerisWallClimbRegressionTests.cs" Link="SharedTests\AerisWallClimbRegressionTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\NavigationCueOutputTests.cs" Link="SharedTests\NavigationCueOutputTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\GoldSaucerPlatformExitTests.cs" Link="SharedTests\GoldSaucerPlatformExitTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\GlacierSnowfieldNavigationTests.cs" Link="SharedTests\GlacierSnowfieldNavigationTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\GreatGlacierStoryTests.cs" Link="SharedTests\GreatGlacierStoryTests.cs" />

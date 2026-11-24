@@ -65,7 +65,10 @@ public readonly record struct FieldNavigationObjectDefinition(
     bool ActivatesOnOk = false,
     // Visible scenery with a native model Contact script, such as stored Huge Materia.
     // Arrival observes that script starting; it does not ask for or press Confirm.
-    bool UsesContactRange = false);
+    bool UsesContactRange = false,
+    // A visible background fixture can remain a scenery destination when its
+    // native LINE is disabled, without offering a disabled interaction.
+    string? InactiveLineLabel = null);
 
 public static class FieldNavigationObjectCatalog
 {
@@ -236,6 +239,11 @@ public sealed class FieldNavigationObjectReader
         {
             if ((remapDefinition is null ? original : remapDefinition(original)) is not { } definition)
                 continue;
+            if (definition.TargetKind == FieldNavigationObjectTargetKind.Line && !isLineEnabled(definition.EntityId))
+            {
+                if (string.IsNullOrWhiteSpace(definition.InactiveLineLabel)) continue;
+                definition = definition with { TargetKind = FieldNavigationObjectTargetKind.Location, Label = definition.InactiveLineLabel };
+            }
             if (!MeetsRequiredState(definition) ||
                 !MeetsPlayerTriangleConditions(definition, position.TriangleId) ||
                 !MeetsPlayerSide(definition, position) ||
@@ -255,11 +263,6 @@ public sealed class FieldNavigationObjectReader
                 : DefaultInteractionRadius;
             if (definition.TargetKind == FieldNavigationObjectTargetKind.Line)
             {
-                if (!isLineEnabled(definition.EntityId))
-                {
-                    continue;
-                }
-
                 if (readLiveLine is not null)
                 {
                     if (readLiveLine(definition.EntityId) is not { } segment ||

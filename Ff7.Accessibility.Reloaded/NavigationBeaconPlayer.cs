@@ -1,4 +1,5 @@
 using NAudio.Wave;
+using NAudio.Wave.SampleProviders;
 
 namespace Ff7.Accessibility.Reloaded;
 
@@ -12,13 +13,22 @@ internal sealed class NavigationBeaconPlayer : IDisposable
     private readonly Action<string> log;
     private readonly object sync = new();
     private readonly object renderSync = new();
-    private readonly List<ActivePlayback> activePlaybacks = new();
+    private readonly Queue<StereoFloatBufferSampleProvider> activeSamples = new();
+    private readonly MixingSampleProvider mixer = new(WaveFormat.CreateIeeeFloatWaveFormat(SampleRate, 2)) { ReadFully = true };
+    private IWavePlayer? output;
+    private volatile bool playbackFailed;
+    private bool disposed;
     private readonly float[]? monoSamples;
     private readonly SteamAudioNavigationBeaconRenderer? renderer;
     private bool missingHrtfLogged;
     private bool missingSoundLogged;
 
     public NavigationBeaconPlayer(string soundPath, int volumePercent, Action<string> log)
+        : this(soundPath, volumePercent, log, () => new WaveOutEvent { DesiredLatency = 80 })
+    {
+    }
+
+    internal NavigationBeaconPlayer(string soundPath, int volumePercent, Action<string> log, Func<IWavePlayer> createOutput)
     {
         this.volumePercent = FootstepVolumePolicy.ClampVolumePercent(volumePercent);
         volume = FootstepVolumePolicy.ToGain(volumePercent);
@@ -38,6 +48,28 @@ internal sealed class NavigationBeaconPlayer : IDisposable
             ? null
             : SteamAudioNavigationBeaconRenderer.TryCreate(SampleRate, SteamAudioFrameSize, log);
         log($"Navigation beacon player initialized: volume={this.volumePercent}%, sound={(monoSamples is null ? "unavailable" : Path.GetFileName(soundPath))}, hrtf={(renderer is null ? "unavailable" : "Steam Audio")}.");
+        if (renderer is null || volume <= 0f) return;
+        try
+        {
+            // Keep one output ready. Opening/closing WinMM devices for every
+            // nearby ladder used to run synchronously inside the game update.
+            output = createOutput();
+            output.PlaybackStopped += OnPlaybackStopped;
+            output.Init(mixer.ToWaveProvider());
+            output.Play();
+            log("Navigation beacon output ready; cues reuse the existing audio device.");
+        }
+        catch (Exception ex)
+        {
+            playbackFailed = true;
+            if (output is not null)
+            {
+                output.PlaybackStopped -= OnPlaybackStopped;
+                output.Dispose();
+                output = null;
+            }
+            log($"Navigation beacon output unavailable: {ex.Message}.");
+        }
     }
 
     public bool Play(NavigationBeaconCue cue, float gainMultiplier = 1f)
@@ -76,33 +108,21 @@ internal sealed class NavigationBeaconPlayer : IDisposable
             float[] samples;
             lock (renderSync)
             {
+                if (disposed || playbackFailed || output is null) return false;
                 samples = renderer.Render(cue, monoSamples, Math.Min(volume, 4f) * distanceGain);
+                lock (sync)
+                {
+                    if (playbackFailed || output.PlaybackState != PlaybackState.Playing) return false;
+                    while (activeSamples.Count > 0 && activeSamples.Peek().IsComplete) activeSamples.Dequeue();
+                    // Bound queued voices even if a device stops consuming.
+                    while (activeSamples.Count >= 8) mixer.RemoveMixerInput(activeSamples.Dequeue());
+                    var provider = new StereoFloatBufferSampleProvider(samples, SampleRate);
+                    activeSamples.Enqueue(provider);
+                    mixer.AddMixerInput(provider);
+                }
             }
-
             var stats = SampleStats.Calculate(samples);
             log($"Navigation beacon render: target={cue.TargetLabel}, samples={samples.Length}, peak={stats.Peak:0.000000}, rms={stats.Rms:0.000000}, volume={volumePercent}%, gain={distanceGain:0.000}.");
-            var output = new WaveOutEvent
-            {
-                DesiredLatency = 80
-            };
-            var provider = new StereoFloatBufferSampleProvider(samples, SampleRate);
-            var playback = new ActivePlayback(output, provider);
-            output.PlaybackStopped += (_, args) =>
-            {
-                if (args.Exception is not null)
-                {
-                    log($"Navigation beacon playback stopped with error: {args.Exception.Message}");
-                }
-
-                RemovePlayback(playback);
-            };
-            output.Init(provider);
-            lock (sync)
-            {
-                activePlaybacks.Add(playback);
-            }
-
-            output.Play();
             log($"Navigation beacon playback started: target={cue.TargetLabel}, direction={cue.Direction}.");
             log($"Navigation beacon played: target={cue.TargetLabel}, direction={cue.Direction}, steamAudio=({cue.SteamAudioX:0.00},{cue.SteamAudioY:0.00},{cue.SteamAudioZ:0.00}), distance={cue.DistanceUnits:0}.");
             return true;
@@ -116,33 +136,34 @@ internal sealed class NavigationBeaconPlayer : IDisposable
 
     public void Dispose()
     {
-        StopAll();
-        renderer?.Dispose();
+        lock (renderSync)
+        {
+            if (disposed) return;
+            disposed = true;
+            StopAll();
+            if (output is not null)
+            {
+                output.PlaybackStopped -= OnPlaybackStopped;
+                output.Dispose();
+                output = null;
+            }
+            renderer?.Dispose();
+        }
     }
 
     public void StopAll()
     {
-        ActivePlayback[] playbacks;
         lock (sync)
         {
-            playbacks = activePlaybacks.ToArray();
-            activePlaybacks.Clear();
-        }
-
-        foreach (var playback in playbacks)
-        {
-            playback.Dispose();
+            mixer.RemoveAllMixerInputs();
+            activeSamples.Clear();
         }
     }
 
-    private void RemovePlayback(ActivePlayback playback)
+    private void OnPlaybackStopped(object? sender, StoppedEventArgs args)
     {
-        lock (sync)
-        {
-            activePlaybacks.Remove(playback);
-        }
-
-        playback.Dispose();
+        playbackFailed = true;
+        log($"Navigation beacon playback stopped: {args.Exception?.Message ?? "audio output ended"}.");
     }
 
     private readonly record struct SampleStats(float Peak, double Rms)
@@ -171,31 +192,6 @@ internal sealed class NavigationBeaconPlayer : IDisposable
         }
     }
 
-    private sealed class ActivePlayback : IDisposable
-    {
-        private readonly WaveOutEvent output;
-        private readonly StereoFloatBufferSampleProvider provider;
-        private bool disposed;
-
-        public ActivePlayback(WaveOutEvent output, StereoFloatBufferSampleProvider provider)
-        {
-            this.output = output;
-            this.provider = provider;
-        }
-
-        public void Dispose()
-        {
-            if (disposed)
-            {
-                return;
-            }
-
-            disposed = true;
-            _ = provider;
-            output.Dispose();
-        }
-    }
-
     private sealed class StereoFloatBufferSampleProvider : ISampleProvider
     {
         private readonly float[] samples;
@@ -208,6 +204,8 @@ internal sealed class NavigationBeaconPlayer : IDisposable
         }
 
         public WaveFormat WaveFormat { get; }
+
+        public bool IsComplete => Volatile.Read(ref position) >= samples.Length;
 
         public int Read(float[] buffer, int offset, int count)
         {

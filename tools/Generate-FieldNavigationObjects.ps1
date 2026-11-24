@@ -120,7 +120,8 @@ function Add-Definition {
         [bool] $UsesTalkInteraction = $false,
         [string] $ManualNavigationGuidance = '',
         [bool] $UsesPlayerCollisionRadius = $false,
-        [bool] $ActivatesOnOk = $false
+        [bool] $ActivatesOnOk = $false,
+        [string] $InactiveLineLabel = ''
     )
 
     # These Kujata object entity indices differ from the native PC archive.
@@ -172,6 +173,9 @@ function Add-Definition {
     }
     if ($ActivatesOnOk) {
         $definitions[$definitions.Count - 1]['activatesOnOk'] = $true
+    }
+    if ($InactiveLineLabel) {
+        $definitions[$definitions.Count - 1]['inactiveLineLabel'] = $InactiveLineLabel
     }
 }
 
@@ -643,7 +647,7 @@ Add-Definition -FieldId 174 -FieldName 'min51_1' -EntityId 7 -EntityName 'TV' -M
 Add-Definition -FieldId 175 -FieldName 'min51_2' -EntityId 6 -EntityName 'CLINE' -ModelResource '' -Kind 'Named' -Label 'Dresser with hidden drawer' -TargetKind 'Line' -StaticX 3 -StaticY 132 -StaticZ -168
 Add-Definition -FieldId 175 -FieldName 'min51_2' -EntityId 8 -EntityName 'TIRASI' -ModelResource '' -Kind 'Named' -Label "Turtle's Paradise flyer No. 1" -TargetKind 'Line' -StaticX -138 -StaticY 146 -StaticZ -169
 Add-Definition -FieldId 180 -FieldName 'mds5_m' -EntityId 8 -EntityName 'LINEB' -ModelResource '' -Kind 'Named' -Label 'Freezer' -TargetKind 'Line' -StaticX 119 -StaticY 66 -StaticZ -106
-Add-Definition -FieldId 190 -FieldName 'ealin_2' -EntityId 9 -EntityName 'bedsen' -ModelResource '' -Kind 'Named' -Label 'Bed' -TargetKind 'Line' -StaticX -192 -StaticY 145 -StaticZ 298
+Add-Definition -FieldId 190 -FieldName 'ealin_2' -EntityId 9 -EntityName 'bedsen' -ModelResource '' -Kind 'Named' -Label 'Bed' -TargetKind 'Line' -StaticX -192 -StaticY 145 -StaticZ 298 -InactiveLineLabel 'Bed (resting unavailable)'
 
 # Wall Market has several visible, actionable background fixtures whose native
 # interaction is carried by LINE entities rather than field models. Keep those
