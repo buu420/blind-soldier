@@ -7,6 +7,18 @@ using Ff7.Accessibility.Steam2026X64.Runtime.Field;
 using Ff7.Accessibility.LegacyLayout;
 using System.Text.Json;
 
+if (args.Contains("--aeris-wall-climb-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.AerisWallClimbRegressionTests.Run();
+    return;
+}
+
+if (args.Contains("--navigation-cue-output-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.NavigationCueOutputTests.Run();
+    return;
+}
+
 if (args.Contains("--chocobo-registration-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.ChocoboRegistrationTests.Run();
@@ -1258,6 +1270,8 @@ Steam2026MenuGilReadoutTests.Run();
 Ff7.Accessibility.Reloaded.Tests.FieldAreaDescriptionHistoryTests.Run();
 Ff7.Accessibility.Reloaded.Tests.ModSettingsTests.Run();
 Ff7.Accessibility.Reloaded.Tests.EchoDialoguePreferencesTests.Run();
+Ff7.Accessibility.Reloaded.Tests.AerisWallClimbRegressionTests.Run();
+Ff7.Accessibility.Reloaded.Tests.NavigationCueOutputTests.Run();
 GogCompatibilityTests.Run();
 Ff7.Accessibility.Reloaded.Tests.BattleDescriptionResetTests.Run();
 Ff7.Accessibility.Reloaded.Tests.AudioDescriptionVolumeTests.Run();

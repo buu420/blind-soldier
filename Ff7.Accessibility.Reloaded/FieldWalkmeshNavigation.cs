@@ -5378,6 +5378,19 @@ public sealed class FieldWalkmeshRoutePlanner :
     {
         targetTriangle = -1;
         landing = default;
+        // A cleanup JUMP explicitly supplies its landing triangle even though it
+        // omits Z. If its X/Y are on a different walkmesh component, keep that
+        // native destination. Collapsed endpoints that still name their source
+        // component continue to need the original opposite-entrance inference.
+        // The third battery's descent ends on triangle 81; pairing it with the
+        // nearby upward ladder incorrectly replaces it with triangle 99.
+        if (transition.TargetZ is null &&
+            transition.TargetTriangle >= 0 && transition.TargetTriangle < walkmesh.Triangles.Count &&
+            ContainsPoint2D(walkmesh.Triangles[transition.TargetTriangle], transition.TargetX, transition.TargetY) &&
+            !AreWalkmeshTrianglesConnected(walkmesh, sourceTriangle, transition.TargetTriangle))
+        {
+            return false;
+        }
         if (transition.RequiredInput == FieldNavigationInput.None)
         {
             return false;

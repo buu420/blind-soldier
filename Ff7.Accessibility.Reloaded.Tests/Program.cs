@@ -7,6 +7,18 @@ using Ff7.Accessibility.Reloaded.Runtime;
 using Ff7.Accessibility.Runtime.Abstractions;
 using AccessibilityConfig = Ff7.Accessibility.Core.AccessibilityConfig;
 
+if (args.Contains("--navigation-cue-output-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.NavigationCueOutputTests.Run();
+    return;
+}
+
+if (args.Contains("--aeris-wall-climb-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.AerisWallClimbRegressionTests.Run();
+    return;
+}
+
 if (args.Contains("--chocobo-registration-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.ChocoboRegistrationTests.Run();
@@ -1925,6 +1937,8 @@ AssertFieldActivityReadoutSpeaksTheNativeActivities();
 Ff7.Accessibility.Reloaded.Tests.FieldAreaDescriptionHistoryTests.Run();
 Ff7.Accessibility.Reloaded.Tests.ModSettingsTests.Run();
 Ff7.Accessibility.Reloaded.Tests.EchoDialoguePreferencesTests.Run();
+Ff7.Accessibility.Reloaded.Tests.AerisWallClimbRegressionTests.Run();
+Ff7.Accessibility.Reloaded.Tests.NavigationCueOutputTests.Run();
 Ff7.Accessibility.Reloaded.Tests.BattleDescriptionResetTests.Run();
 Ff7.Accessibility.Reloaded.Tests.AudioDescriptionVolumeTests.Run();
 Ff7.Accessibility.Reloaded.Tests.BattleAnimationNarrationTests.Run();
