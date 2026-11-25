@@ -507,6 +507,13 @@ PowerShell 7.6.9 (`pester-native-parity-ps51.log`, `pester-native-parity-ps7.log
   recorded text.
 - The install tests refuse to run while any `ff7_en` process exists, by design.
 
+A fresh redirected Windows PowerShell process then exposed a dependency hidden
+by Pester's preloaded commands: `Get-FileHash` was unavailable inside bundle
+validation. The installer now hashes with the framework's SHA-256 stream API and
+disposes both objects. A new test starts an isolated process, validates the real
+bundle, then verifies that a changed configuration is rejected. The combined
+bundle, install and manager suites now have 22 tests.
+
 Fixture proofs: the two Version proxy loads described above, and the decompiled
 contract.
 
@@ -536,8 +543,9 @@ The 2013 ZIP and the manager's `ffviiold` source carry:
 
 - The launcher bundle under `Blind-Soldier\Launcher2013\`:
   `FF7_Launcher.exe`, `FF7_Launcher.exe.config` and `launcher-2013-bundle.json`.
-  The current build is `FF7_Launcher.exe` `31979B39…` (198144 bytes), the same
-  bytes the C# suite ran against (`launcher-2013-bundle-native-parity.json`). It
+  A reviewed development build was `FF7_Launcher.exe` `31979B39…` (198144 bytes),
+  the bytes the native-parity C# suite ran against. Final archive hashes are
+  recorded by the bundle manifest and exact-archive verification. The launcher
   adds no files. The default controls and the original launcher's source
   texts are compiled in, and translations are read from the installed
   `strings.dat`.
