@@ -85,7 +85,7 @@ public static class FieldStoryEventCatalog
     private static readonly Lazy<FieldStoryEventCatalogDocument> FullCatalog = new(Load);
     private static readonly Lazy<IReadOnlyList<FieldStoryEventDefinition>> AllDefinitions = new(() =>
         [.. FullCatalog.Value.Definitions, .. TownInteractionObjectCatalog.StoredMateriaExits(),
-            .. TownInteractionObjectCatalog.StoredMateriaDeparture()]);
+            .. TownInteractionObjectCatalog.StoredMateriaDeparture(), .. MidgarModelNavigationCatalog.EmptySlots()]);
 
     public static IReadOnlyList<FieldStoryEventDefinition> CreateAllFields() =>
         AllDefinitions.Value;

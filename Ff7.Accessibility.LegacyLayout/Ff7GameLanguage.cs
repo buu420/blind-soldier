@@ -23,7 +23,8 @@ public enum Ff7GameLanguageDetectionSource
     Executable,
     SteamManifest,
     SingleInstalledLanguage,
-    EnglishFallback
+    EnglishFallback,
+    FfnxConfiguration
 }
 
 public sealed record Ff7GameLanguageDescriptor(

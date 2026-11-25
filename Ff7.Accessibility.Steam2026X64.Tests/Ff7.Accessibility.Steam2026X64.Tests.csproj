@@ -1,5 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\AudioDescriptionLocalizationTests.cs" Link="SharedTests\AudioDescriptionLocalizationTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\MidgarModelPlacementTests.cs" Link="SharedTests\MidgarModelPlacementTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\EchoDialoguePreferencesTests.cs" Link="SharedTests\EchoDialoguePreferencesTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\ChocoboRegistrationTests.cs" Link="SharedTests\ChocoboRegistrationTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\AncientForestPuzzleTests.cs" Link="SharedTests\AncientForestPuzzleTests.cs" />
@@ -30,6 +32,7 @@
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\CreatureApproachNarrationCoordinatorTests.cs" Link="SharedTests\CreatureApproachNarrationCoordinatorTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\CreatureWarningSpeechGateTests.cs" Link="SharedTests\CreatureWarningSpeechGateTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\FieldCreatureWarningReaderTests.cs" Link="SharedTests\FieldCreatureWarningReaderTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\LocalizedDescriptionDeliveryTests.cs" Link="SharedTests\LocalizedDescriptionDeliveryTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\RemainingFieldDescriptionTests.cs" Link="SharedTests\RemainingFieldDescriptionTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\LateGameMotionActionDescriptionTests.cs" Link="SharedTests\LateGameMotionActionDescriptionTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\LifestreamMotionActionDescriptionTests.cs" Link="SharedTests\LifestreamMotionActionDescriptionTests.cs" />

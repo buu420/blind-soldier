@@ -91,7 +91,7 @@ internal sealed class Steam2026ResearchAccessibilityOutput : IAccessibilityOutpu
     {
     }
 
-    private Steam2026ResearchAccessibilityOutput(
+    internal Steam2026ResearchAccessibilityOutput(
         PrismNativeSpeaker speaker,
         BlindSoldierLocalizer localizer,
         Action<string> log,
@@ -105,7 +105,8 @@ internal sealed class Steam2026ResearchAccessibilityOutput : IAccessibilityOutpu
         // Warmed at construction for the same reason the classic runtime warms it at mod
         // initialization: opening the track and the device is the slowest part, and the
         // opening film cannot wait for it.
-        this.movieNarrationPlayback?.Prepare("runtime initialization");
+        if (localizer.UseRecordedAudioDescriptions)
+            this.movieNarrationPlayback?.Prepare("runtime initialization");
     }
 
     public void Speak(string text, bool interrupt)
@@ -150,6 +151,7 @@ internal sealed class Steam2026ResearchAccessibilityOutput : IAccessibilityOutpu
         ArgumentNullException.ThrowIfNull(cue);
         if (cue.Kind == AccessibilityCueKind.MovieNarration)
         {
+            if (!localizer.UseRecordedAudioDescriptions) return;
             if (movieNarrationPlayback is null)
             {
                 log("Research x64 movie narration playback is not configured.");

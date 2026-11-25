@@ -7,6 +7,7 @@ param(
     [string] $BootstrapBinaryPath,
     [string] $VersionProxyPath,
     [string] $LauncherBundlePath,
+    [string] $Launcher2013BundlePath,
     [string] $DependencyCachePath,
     [string] $DependencyLockPath
 )
@@ -20,6 +21,10 @@ $reloadedX86Bootstrapper = Join-Path $reloadedX86CompatibilityRoot `
     'Reloaded.Mod.Loader.Bootstrapper.dll'
 $reloadedX86RuntimeConfig = Join-Path $reloadedX86CompatibilityRoot `
     'Reloaded.Mod.Loader.runtimeconfig.json'
+$reloadedX86Loader = Join-Path $reloadedX86CompatibilityRoot `
+    'Reloaded.Mod.Loader.dll'
+$reloadedX86LoaderSha256 = `
+    '9910FED400FFAE2CEFA45427E897981E45688660A54BB97B568467AD4ABE7757'
 $reloadedX86BootstrapperSha256 = `
     'AE4AC3B65804AA5D2CE7360A5A72C5E4F041A9A589B26B4367A5CA685A5746F6'
 $reloadedX86RuntimeConfigSha256 = `
@@ -308,6 +313,11 @@ try {
             -OutputPath $LauncherBundlePath -Configuration Release | Out-Null
         if ($LASTEXITCODE -ne 0) { throw "Accessible launcher builder exited with code $LASTEXITCODE." }
     }
+    if ([string]::IsNullOrWhiteSpace($Launcher2013BundlePath)) {
+        $Launcher2013BundlePath = Join-Path $inputs 'launcher-2013'
+        & (Join-Path $scriptRoot 'Build-Accessible2013LauncherBundle.ps1') `
+            -OutputPath $Launcher2013BundlePath -Configuration Release | Out-Null
+    }
 
     if ([string]::IsNullOrWhiteSpace($BootstrapBinaryPath) -or
         [string]::IsNullOrWhiteSpace($VersionProxyPath)) {
@@ -392,6 +402,11 @@ try {
     [void](Assert-ExactFile -Path $reloadedX86RuntimeConfig -Length 515 `
         -Sha256 $reloadedX86RuntimeConfigSha256 `
         -Label 'Blind Soldier x86 Reloaded compatibility runtime configuration')
+    [void](Assert-ExactFile -Path $reloadedX86Loader -Length 81920 `
+        -Sha256 $reloadedX86LoaderSha256 `
+        -Label 'Blind Soldier x86 Reloaded delayed-initialization correction')
+    Copy-Item -LiteralPath $reloadedX86Loader -Destination (Join-Path `
+        $targetReloaded 'Loader\X86\Reloaded.Mod.Loader.dll') -Force
     Copy-Item -LiteralPath $reloadedX86Bootstrapper -Destination (Join-Path `
         $targetReloaded `
         'Loader\X86\Bootstrapper\Reloaded.Mod.Loader.Bootstrapper.dll') -Force
@@ -479,6 +494,8 @@ try {
     }
 
     Import-Module (Join-Path $scriptRoot 'PortableDotNetRuntime.psm1') -Force
+    & (Join-Path $scriptRoot 'Add-Accessible2013LauncherPayload.ps1') `
+        -DestinationRoot $root -BundlePath $Launcher2013BundlePath
     foreach ($architecture in @('x86','x64')) {
         $runtimeTarget = Join-Path $root "Blind-Soldier\Runtime\dotnet\$architecture"
         Expand-VerifiedPortableDotNetRuntime -Architecture $architecture `
@@ -508,6 +525,10 @@ try {
         [pscustomobject]@{
             Source='Reloaded-II-1.30.3-hostfxr.patch'
             Target='Reloaded-II-1.30.3-hostfxr.patch'
+        },
+        [pscustomobject]@{
+            Source='Reloaded-II-1.30.3-delay-injection.patch'
+            Target='Reloaded-II-1.30.3-delay-injection.patch'
         }
     )) {
         $source = Join-Path $reloadedX86CompatibilityRoot $record.Source
@@ -565,7 +586,7 @@ No installer is required. No administrator access, registry change, or separate 
 Supported layouts
 - Steam 2026 x64: extract beside FFVII.exe and FFVII_LAUNCHER.exe. Use Steam or the included accessible launcher. Its Play button starts the packaged x64 accessibility bootstrap automatically.
 - GOG x64: use this same portable package beside FFVII.exe and FFVII_LAUNCHER.exe. The exact supported GOG build is recognized separately, and its settings and saves use FINAL FANTASY VII GOG Edition. Keep the game's GOG metadata file beside the launcher. GOG launch and live save behavior still need tester validation.
-- Stock Steam 2013 without 7th Heaven: use the 2013 x86 portable ZIP or the Blind Soldier (2013) Accessibility Mod Manager entry. Both place version.dll directly beside ff7_en.exe.
+- Stock Steam 2013 without 7th Heaven: use the 2013 x86 portable ZIP or the Blind Soldier (2013) Accessibility Mod Manager entry. Both place version.dll directly beside ff7_en.exe. For the accessible 2013 launcher, run Install-2013-Accessible-Launcher.cmd once; the manager does this automatically. Your original launcher is preserved. Use Restore-2013-Original-Launcher.cmd before removing a portable install.
 - Stock 7th Heaven x86: extract at the directory that contains workingdir, or at the Steam root that contains ff7\workingdir. Blind Soldier's sibling workingdir\version.dll starts accessibility when FFNx loads it; no file in the 7th Heaven installation is replaced or edited.
 - 7th Heaven nested x86: extract at the Steam 2026 root. The copies under ff7\workingdir support 7th Heaven's converted game layout.
 
@@ -573,11 +594,11 @@ Supported layouts
 This ZIP contains only manifest-owned Blind Soldier files.
 
 Language support
-- English, French, German, Spanish, and Japanese are supported on both backends.
+- The validated engine profiles support English, French, German, Spanish, Japanese and Bunio's Polish text data. Original 2013 ff7_fr.exe, ff7_de.exe and ff7_es.exe engine profiles remain unsupported; their offsets differ from ff7_en.exe. Multilingual data on the supported English engine and the native 2026 engine are separate supported layouts.
 - The default GameLanguage value is auto. Blind Soldier detects the active FFVII language and reads native menu, dialogue, item, and spell text from that language's game files.
 - Generated navigation, battle-status, and accessibility messages are localized. A missing individual translation falls back to English so visual information is not omitted.
-- The opening movie's recorded audio description is English in this multilingual test build.
-- To override detection, set GameLanguage in Reloaded-II\Mods\ff7.accessibility.reloaded\Configuration\config.json to en, fr, de, es, ja, or auto.
+- English uses the included recorded descriptions. Other supported languages use translated descriptions through Prism and your screen reader, including the opening, field scenes, summons, limits, ending and post-credits scene. Set the matching screen-reader voice and volume.
+- To override detection, set GameLanguage in Reloaded-II\Mods\ff7.accessibility.reloaded\Configuration\config.json to en, fr, de, es, ja, pl, or auto.
 - Translators may add Reloaded-II\Mods\ff7.accessibility.reloaded\Languages\CODE.json using English source messages as JSON keys and translations as values.
 
 Do not replace an existing layout-scoped version.dll unless it belongs to Blind Soldier. This includes a sibling workingdir\version.dll used with stock 7th Heaven. Move an unknown file aside first so it can be restored. If FFNx redirects the system Version library back to the proxy, Blind Soldier privately caches a byte-for-byte copy of this machine's own Windows version library under Local AppData and loads that distinct copy; no Windows binary is shipped in the ZIP.

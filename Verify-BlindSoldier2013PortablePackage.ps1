@@ -187,6 +187,15 @@ try {
 
     $required = @(
         'version.dll',
+        'Blind-Soldier/Launcher2013/bundle/FF7_Launcher.exe',
+        'Blind-Soldier/Launcher2013/bundle/FF7_Launcher.exe.config',
+        'Blind-Soldier/Launcher2013/bundle/launcher-2013-bundle.json',
+        'Blind-Soldier/Launcher2013/FF7Launcher2013Install.psm1',
+        'Blind-Soldier/Launcher2013/Manage-2013Launcher.ps1',
+        'Blind-Soldier/Launcher2013/Manager-Install2013Launcher.ps1',
+        'Blind-Soldier/Launcher2013/Manager-Restore2013Launcher.ps1',
+        'Install-2013-Accessible-Launcher.cmd',
+        'Restore-2013-Original-Launcher.cmd',
         'workingdir/version.dll',
         'Blind-Soldier/Bootstrap/x86/Blind-Soldier-Bootstrap-x86.exe',
         'Blind-Soldier/Runtime/dotnet/x86/host/fxr/9.0.8/hostfxr.dll',
@@ -209,6 +218,7 @@ try {
         'LICENSES/dotnet-THIRD-PARTY-NOTICES.txt',
         'LICENSES/Reloaded-II-1.30.3-Blind-Soldier-source.md',
         'LICENSES/Reloaded-II-1.30.3-hostfxr.patch',
+        'LICENSES/Reloaded-II-1.30.3-delay-injection.patch',
         'LICENSES/FF7Tools-text-table-notice.md',
         'Remove-Amethyst-Registry-Entries.cmd',
         'README-2013-PORTABLE.txt',
@@ -226,7 +236,9 @@ try {
             [IO.Path]::GetFileName($relative) -ieq 'FASMX64.DLL') {
             throw "2013 portable ZIP contains an x64 file: $relative"
         }
-        if ($relative -ieq 'FFVII_LAUNCHER.exe' -or
+        if ($relative -ieq 'FF7_Launcher.exe' -or
+            $relative -ieq 'FF7_Launcher.exe.config' -or
+            $relative -ieq 'FFVII_LAUNCHER.exe' -or
             $relative -ieq 'FFVII_LAUNCHER.exe.config' -or
             $relative.StartsWith('launcher_accessibility/',
                 [StringComparison]::OrdinalIgnoreCase) -or
@@ -277,6 +289,9 @@ try {
         [string]$modConfig.ModVersion -cne $ExpectedVersion) {
         throw 'Packaged Blind Soldier mod identity or version is incorrect.'
     }
+    Import-Module (Join-Path $PSScriptRoot 'FF7Launcher2013Install.psm1') -Force
+    Test-Ff7Accessible2013LauncherBundle -BundlePath (Join-Path $packageRoot `
+        'Blind-Soldier\Launcher2013\bundle') | Out-Null
 
     $proxyPaths = @('version.dll','workingdir/version.dll')
     $versionEntries = @($entryNames | Where-Object {
@@ -334,6 +349,17 @@ try {
         if ($sourceProxyHash -cne $proxyHashes[0] -or
             $sourceBootstrapHash -cne $bootstrapHash) {
             throw '2013 portable proxy or bootstrap does not match the verified dual-runtime source archive.'
+        }
+        foreach ($relative in $entryNames | Where-Object {
+            $_.StartsWith('Blind-Soldier/Launcher2013/', [StringComparison]::Ordinal) -or
+            $_ -cin @('Install-2013-Accessible-Launcher.cmd','Restore-2013-Original-Launcher.cmd')
+        }) {
+            $sourceFile = Join-Path $sourceRoot $relative.Replace('/','\')
+            [void](Assert-OrdinaryFile -Path $sourceFile -Label 'Source 2013 launcher payload')
+            if ((Get-FileHash -LiteralPath $sourceFile -Algorithm SHA256).Hash -cne
+                (Get-FileHash -LiteralPath (Join-Path $packageRoot $relative.Replace('/','\')) -Algorithm SHA256).Hash) {
+                throw "2013 launcher payload differs from the verified source archive: $relative"
+            }
         }
     }
 

@@ -7,10 +7,43 @@ using Ff7.Accessibility.Reloaded.Runtime;
 using Ff7.Accessibility.Runtime.Abstractions;
 using AccessibilityConfig = Ff7.Accessibility.Core.AccessibilityConfig;
 
+if (args is ["--export-description-texts", var descriptionTextsPath])
+{
+    Ff7.Accessibility.Reloaded.Tests.AudioDescriptionLocalizationTests.Export(descriptionTextsPath);
+    return;
+}
+if (args.Contains("--localized-descriptions-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.AudioDescriptionLocalizationTests.Run();
+    return;
+}
+if (args.Contains("--midgar-model-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.MidgarModelPlacementTests.Run();
+    AssertFieldStoryReaderSequencesFloor65MidgarModelFromNativeFlags();
+    return;
+}
+
+if (args.Contains("--localized-cues-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.LocalizedDescriptionCueTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.LocalizedDescriptionDeliveryTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.CreatureApproachNarrationCoordinatorTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.FieldCreatureWarningReaderTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.PostscriptOpeningFieldTests.Run();
+    return;
+}
+
 if (args.Contains("--navigation-cue-output-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.NavigationCueOutputTests.Run();
     return;
+}
+
+if (args.Length == 0)
+{
+    Ff7.Accessibility.Reloaded.Tests.AudioDescriptionLocalizationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.MidgarModelPlacementTests.Run();
 }
 
 if (args.Contains("--aeris-wall-climb-only", StringComparer.OrdinalIgnoreCase))
@@ -1777,6 +1810,8 @@ Ff7.Accessibility.Reloaded.Tests.CreatureWarningSpeechGateTests.Run();
 Ff7.Accessibility.Reloaded.Tests.FieldCreatureWarningReaderTests.Run();
 Ff7.Accessibility.Reloaded.Tests.FfnxCreatureVoiceCompletionReaderTests.Run();
 Ff7.Accessibility.Reloaded.Tests.WholeGameEchoCompatibilityTests.Run();
+Ff7.Accessibility.Reloaded.Tests.LocalizedDescriptionCueTests.Run();
+Ff7.Accessibility.Reloaded.Tests.LocalizedDescriptionDeliveryTests.Run();
 Ff7.Accessibility.Reloaded.Tests.RemainingFieldDescriptionTests.Run();
     Ff7.Accessibility.Reloaded.Tests.LateGameMotionActionDescriptionTests.Run();
     Ff7.Accessibility.Reloaded.Tests.LifestreamMotionActionDescriptionTests.Run();
@@ -14216,14 +14251,13 @@ static void AssertFieldStoryReaderSequencesFloor65MidgarModelFromNativeFlags()
         "floor 65 after fourth model placement");
 
     memory[persistentBank + 57] = 0x07;
-    // The live Floor 65 trace showed the carried-part byte clear during the
-    // transition into blin65_2.  The final target must survive that transient
-    // read by using the persistent final-chest and prior-slot state.
-    memory[persistentBank + 68] = 0;
+    // PARTE sets bit 7; CITYA-E accept a currently carried piece, not the
+    // persistent collected-chest flag after the piece has already been used.
+    memory[persistentBank + 68] = 0x80;
     AssertOnlyTarget(
         modelPosition,
         "Place the final Midgar part in the last model slot",
-        "floor 65 final model placement after the carried flag clears");
+        "floor 65 final model placement");
 
     memory[persistentBank + 68] = 0;
     memory[modelBank + 180] = 0xF8;

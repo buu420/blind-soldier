@@ -8,6 +8,7 @@ public sealed class NativeCreditsNarrator : IDisposable
     public const string Introduction = "Names and production credits scroll upward across the screen.";
     private readonly Func<IFieldMovieNarrationOutput?> createIntroduction;
     private readonly Func<string, bool> speak;
+    private readonly Func<string, bool> speakDescription;
     private readonly Action<string> log;
     private readonly object sync = new();
     private readonly HashSet<int> acceptedRows = [];
@@ -20,10 +21,11 @@ public sealed class NativeCreditsNarrator : IDisposable
     private DateTime nextSpeechUtc;
 
     public NativeCreditsNarrator(Func<IFieldMovieNarrationOutput?> createIntroduction,
-        Func<string, bool> speak, Action<string> log)
+        Func<string, bool> speak, Action<string> log, Func<string, bool>? speakDescription = null)
     {
         this.createIntroduction = createIntroduction ?? throw new ArgumentNullException(nameof(createIntroduction));
         this.speak = speak ?? throw new ArgumentNullException(nameof(speak));
+        this.speakDescription = speakDescription ?? speak;
         this.log = log ?? throw new ArgumentNullException(nameof(log));
     }
 
@@ -77,7 +79,7 @@ public sealed class NativeCreditsNarrator : IDisposable
                     }
                     textOnly = true;
                 }
-                introductionHeard = TrySpeak(Introduction, nowUtc);
+                introductionHeard = TrySpeak(Introduction, nowUtc, description: true);
                 return;
             }
 
@@ -90,10 +92,10 @@ public sealed class NativeCreditsNarrator : IDisposable
         }
     }
 
-    private bool TrySpeak(string text, DateTime nowUtc)
+    private bool TrySpeak(string text, DateTime nowUtc, bool description = false)
     {
         bool accepted;
-        try { accepted = speak(text); }
+        try { accepted = (description ? speakDescription : speak)(text); }
         catch (Exception ex) { SafeLog("Credits speech declined: " + ex.Message); accepted = false; }
         nextSpeechUtc = nowUtc.AddSeconds(accepted ? Math.Max(0.8d, text.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length / 3d) : 0.5d);
         return accepted;

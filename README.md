@@ -104,12 +104,16 @@ alignment assists are available where listed; other actions remain under your co
 
 ### Descriptions and movies
 
-Recorded audio description ships for the opening movie and 99 other movie
-tracks, unchanged since 0.5.11, plus 846 short clips covering cutscene actions
-and area arrivals. Version 0.6.1 added eight action descriptions at the Cosmo
-Canyon bonfire, Shinra Mansion, Rocket Town, and Temple of the Ancients.
-Version 0.6.2 preserves those recordings and adds no new narration.
-All packaged narration uses Brice's approved voice.
+English audio description includes the opening movie, 99 other movie tracks,
+and 1,515 short clips covering areas, cutscene actions, films, and battle
+animations. These recordings use Brice's approved voice.
+
+French, German, Spanish, Japanese, and Polish descriptions use translated text
+through your screen reader. This includes movies, summons, Limit Breaks, the
+ending, credits introduction, and post-credits scene. The language follows
+`GameLanguage` below. Set your screen reader's voice and volume for that
+language; the mod's recording-volume setting controls the English recordings.
+The existing per-save description history and reset options apply in every language.
 
 Battle descriptions cover 93 distinct Limit Break and summon animations, including
 Tifa's successful chain moves, Vincent's forms and attacks, and Cait Sith's Slots
@@ -538,10 +542,10 @@ instead of reading unverified game memory.
 Choose one download from the
 [Blind Soldier Releases page](https://github.com/buu420/blind-soldier/releases):
 
-- [Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v1.0.2/Blind-Soldier-Portable.zip)
+- [Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v1.0.3/Blind-Soldier-Portable.zip)
   is the complete dual-runtime package. Use it for Steam 2026 x64 or when one
   extracted package must support both x86 and x64 installations.
-- [Blind-Soldier-2013-x86-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v1.0.2/Blind-Soldier-2013-x86-Portable.zip)
+- [Blind-Soldier-2013-x86-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v1.0.3/Blind-Soldier-2013-x86-Portable.zip)
   is the smaller legacy-only package. Use it for the 2013 x86 game, including
   stock 7th Heaven/FFNx. It deliberately contains no Steam 2026 launcher or
   x64 files.
@@ -554,9 +558,13 @@ footsteps and world-map footsteps.
    directly into the Final Fantasy VII game folder. For direct 2013 launch,
    choose the x86-only ZIP and extract it beside `ff7_en.exe`. For 7th Heaven,
    extract the x86 ZIP one level above its `workingdir` folder.
-3. Start the game normally from Steam or 7th Heaven.
+3. For standalone 2013, run `Install-2013-Accessible-Launcher.cmd` once. It
+   preserves the original launcher before installing the accessible one. The
+   mod manager performs this step automatically. Skip it for 7th Heaven.
+4. Start the game normally from Steam or 7th Heaven.
 
-There is no installer to run, no administrator prompt, and no registry change.
+The portable runtime and launcher setup need no administrator access or
+registry change.
 The dual-runtime archive supports Steam 2026 x64, stock 7th Heaven's sibling
 `workingdir` layout, and 7th Heaven's nested `ff7\workingdir` layout. The x86
 archive supports direct 2013 launch and the sibling `workingdir` layout while
@@ -593,7 +601,8 @@ release does not ship a Windows system DLL.
   and timing choices in `config.json`. The `room-descriptions.json` file stores
   which rooms have already been described for each save.
 - To remove the mod, close the game and delete its files listed by
-  `portable-manifest.json`. Remove any empty executable `.local` folders
+  `portable-manifest.json`. On standalone 2013, run
+  `Restore-2013-Original-Launcher.cmd` first. Remove any empty executable `.local` folders
   created by older Blind Soldier ZIPs. Restore any launcher or Version DLL
   you backed up before extraction.
 - Logs are written beneath `Blind-Soldier\Logs` in the game folder.
@@ -611,29 +620,43 @@ release does not ship a Windows system DLL.
   Soldier never ships or overwrites FFNx files, and its compatibility path does
   not modify the stock 7th Heaven application.
 - **Legacy x86 without 7th Heaven:** extract the x86-only ZIP beside
-  `ff7_en.exe`, then launch the legacy game normally. Its sibling `version.dll`
-  loads the accessibility backend without a registry change.
+  `ff7_en.exe`, run the backed-up launcher setup once, then start from Steam.
+  The launcher has accessible Play, Settings and status controls and preserves
+  an Original launcher button for Square Enix online features. Accessible Play
+  uses local saves. Its sibling `version.dll` loads the accessibility backend
+  without a registry change.
 
 On a successful load, Prism announces that Final Fantasy VII accessibility is
 active.
 
 ## Language support
 
-Blind Soldier supports the current Windows game's English, French, German,
-Spanish, and Japanese releases on both the x86 and x64 backends. It also
-supports the Bunio Polish fan translation's native dialogue and item text. With the
+Blind Soldier reads English, French, German, Spanish and Japanese text on its
+validated engine profiles. The x86 profiles cover `ff7_en.exe` and supported
+converted `ff7.exe` builds, including multilingual data on the English engine.
+Original 2013 `ff7_fr.exe`, `ff7_de.exe` and `ff7_es.exe` use different engine
+offsets and remain unsupported by the reader. The native 2026 x64 engine has
+separate profiles. Blind Soldier also reads the Bunio Polish fan translation's
+native dialogue and item text. With the
 default `"GameLanguage": "auto"` setting, it detects the active language from
 the game executable, Steam manifest, installed language data, and the known
 Polish translation font or kernel text. Menus, dialogue, item names, spell
 names, and other native game text are read from the matching localized FFVII
 data rather than translated or guessed by the mod.
 
+In FFNx's multilingual `workingdir` mode, its active `game_language` setting
+selects English, French, German, or Spanish data even though the process is
+called `ff7_en.exe`. Blind Soldier follows that setting when FFNx is loaded.
+An explicit `GameLanguage` override still takes precedence.
+
 Blind Soldier's own generated messages—such as navigation, battle status, and
 accessibility prompts—use its matching `en`, `fr`, `de`, `es`, or `ja`
-translation catalog. If an individual generated description has not been
+translation catalog. If an individual generated message has not been
 translated yet, Blind Soldier speaks that message in English so the player
-still receives the visual information. The opening movie's recorded audio
-description is English in this first multilingual test build.
+still receives the information. Audio descriptions have separate, packaged
+text catalogs for all five supported non-English languages and use Prism
+instead of the English recordings. They work offline and preserve the native
+description triggers and reset history.
 
 To override automatic detection, edit
 `Reloaded-II\Mods\ff7.accessibility.reloaded\Configuration\config.json` and set
@@ -641,8 +664,11 @@ To override automatic detection, edit
 `English`, `French`, `German`, `Spanish`, `Japanese`, and `Polish` are also
 accepted. Use `auto` to restore detection. The Polish profile deliberately uses
 the translation's English asset paths while applying its Polish font mapping;
-Blind Soldier's generated prompts and recorded opening description remain in
-English unless a Polish override catalog or recording is supplied.
+Blind Soldier's generated interface prompts remain in English unless a Polish
+override catalog is supplied. Polish audio descriptions use their packaged
+Polish text through the screen reader.
+Its reviewed field-description triggers include the Bunio V1.05 scripts;
+navigation in that translation's altered fields still needs separate mapping.
 
 Translators can override or extend generated messages without rebuilding the
 mod by creating

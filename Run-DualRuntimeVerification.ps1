@@ -251,6 +251,7 @@ else {
         '--runtime-lease-only','--host-validation-only',
         '--7h-compatibility-only','--prism-abi-probe-only',
         '--condor-probe-silence-only',
+        '--localized-descriptions-only','--localized-cues-only','--midgar-model-only',
         # Reads only source files and needs no game data, yet it had never once run
         # on a release build - which is how a shared reader reached players on one
         # runtime only in the first place.
@@ -281,7 +282,8 @@ $commands.Add((New-VerificationCommand -Name 'Steam2026X64.Tests' `
     -WorkingDirectory $scriptRoot))
 foreach ($managed in @(
     @('Parity.Tests', 'Ff7.Accessibility.Parity.Tests\Ff7.Accessibility.Parity.Tests.csproj'),
-    @('AccessibleLauncher.Tests', 'launcher\Ff7.Launcher.Accessible.Tests\FFVII_LAUNCHER.Accessibility.Tests.csproj')
+    @('AccessibleLauncher.Tests', 'launcher\Ff7.Launcher.Accessible.Tests\FFVII_LAUNCHER.Accessibility.Tests.csproj'),
+    @('Accessible2013Launcher.Tests', 'launcher\Ff7.Launcher2013.Accessible.Tests\FF7_Launcher.Accessibility2013.Tests.csproj')
 )) {
     $commands.Add((New-VerificationCommand -Name $managed[0] `
         -FilePath 'dotnet' -Arguments @('run','--project',
@@ -294,6 +296,14 @@ $commands.Add((New-PesterCommand -Name 'PrismAbiContract.Tests' `
     -Path (Join-Path $scriptRoot 'PrismAbiContract.Tests.ps1')))
 $commands.Add((New-PesterCommand -Name 'AccessibleLauncherBundle.Tests' `
     -Path (Join-Path $scriptRoot 'Build-AccessibleLauncherBundle.Tests.ps1')))
+$commands.Add((New-PesterCommand -Name 'Accessible2013LauncherBundle.Tests' `
+    -Path (Join-Path $scriptRoot 'Build-Accessible2013LauncherBundle.Tests.ps1')))
+$commands.Add((New-PesterCommand -Name 'Accessible2013LauncherInstall.Tests' `
+    -Path (Join-Path $scriptRoot 'FF7Launcher2013Install.Tests.ps1')))
+$commands.Add((New-PesterCommand -Name 'Accessible2013LauncherLifecycle.Tests' `
+    -Path (Join-Path $scriptRoot 'Amm2013LauncherLifecycle.Tests.ps1')))
+$commands.Add((New-PesterCommand -Name 'AmmSources.Tests' `
+    -Path (Join-Path $scriptRoot 'Build-BlindSoldierAmmSources.Tests.ps1')))
 $commands.Add((New-PesterCommand -Name 'NativeHost.Tests' `
     -Path (Join-Path $scriptRoot 'native\BlindSoldier.Native.Tests.ps1')))
 $bootstrapTestPaths = @(

@@ -24,6 +24,15 @@ $allowedVersionProxyPaths = @('workingdir/version.dll','ff7/workingdir/version.d
 $required = @(
     'FFVII_LAUNCHER.exe',
     'FFVII_LAUNCHER.exe.config',
+    'Blind-Soldier/Launcher2013/bundle/FF7_Launcher.exe',
+    'Blind-Soldier/Launcher2013/bundle/FF7_Launcher.exe.config',
+    'Blind-Soldier/Launcher2013/bundle/launcher-2013-bundle.json',
+    'Blind-Soldier/Launcher2013/FF7Launcher2013Install.psm1',
+    'Blind-Soldier/Launcher2013/Manage-2013Launcher.ps1',
+    'Blind-Soldier/Launcher2013/Manager-Install2013Launcher.ps1',
+    'Blind-Soldier/Launcher2013/Manager-Restore2013Launcher.ps1',
+    'Install-2013-Accessible-Launcher.cmd',
+    'Restore-2013-Original-Launcher.cmd',
     'launcher_accessibility/native/x86/FFVII_LAUNCHER.prism.x86.dll',
     'Blind-Soldier/Bootstrap/x86/Blind-Soldier-Bootstrap-x86.exe',
     'Blind-Soldier/Bootstrap/x64/Blind-Soldier-Bootstrap-x64.exe',
@@ -42,6 +51,7 @@ $required = @(
     'LICENSES/dotnet-THIRD-PARTY-NOTICES.txt',
     'LICENSES/Reloaded-II-1.30.3-Blind-Soldier-source.md',
     'LICENSES/Reloaded-II-1.30.3-hostfxr.patch',
+    'LICENSES/Reloaded-II-1.30.3-delay-injection.patch',
     'LICENSES/FF7Tools-text-table-notice.md',
     'Remove-Amethyst-Registry-Entries.cmd',
     'Blind-Soldier/Tools/Remove-AmethystRegistryEntries-Automatic.cmd',
@@ -371,8 +381,18 @@ try {
                 'F7639993174A6AD7898FE0EEC4C3A30336D0919B4E57C6A8116E5E6FE9AF4D30') {
                 throw 'x86 Reloaded compatibility runtime configuration has an unexpected SHA-256 hash.'
             }
+            $loaderHash = (Get-FileHash -LiteralPath (Join-Path `
+                $loaderRoot 'Reloaded.Mod.Loader.dll') -Algorithm SHA256).Hash
+            if ($loaderHash -cne
+                '9910FED400FFAE2CEFA45427E897981E45688660A54BB97B568467AD4ABE7757') {
+                throw 'x86 Reloaded delayed-initialization correction has an unexpected SHA-256 hash.'
+            }
         }
     }
+
+    Import-Module (Join-Path $scriptRoot 'FF7Launcher2013Install.psm1') -Force
+    Test-Ff7Accessible2013LauncherBundle -BundlePath (Join-Path $verificationRoot `
+        'Blind-Soldier\Launcher2013\bundle') | Out-Null
 
     $forbidden = @(Get-ChildItem -LiteralPath $verificationRoot -File -Recurse |
         Where-Object {
@@ -388,7 +408,7 @@ try {
             $_.Name -match '^windowsdesktop-runtime-.+\.exe$' -or
             $_.Extension -in @('.pdb','.obj','.iobj','.ipdb')
         })
-    foreach ($rootForbidden in @('version.dll')) {
+    foreach ($rootForbidden in @('version.dll','FF7_Launcher.exe','FF7_Launcher.exe.config')) {
         if (Test-Path -LiteralPath (Join-Path $verificationRoot $rootForbidden)) {
             $forbidden += Get-Item -LiteralPath (Join-Path $verificationRoot $rootForbidden)
         }

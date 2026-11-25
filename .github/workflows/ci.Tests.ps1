@@ -2,6 +2,53 @@ $ErrorActionPreference = 'Stop'
 
 $workflowPath = Join-Path $PSScriptRoot 'ci.yml'
 
+function Invoke-StaticGuardHostFixture {
+    param([int]$FailedCount, [int]$NativeExitCode)
+    $workflow = [IO.File]::ReadAllText($workflowPath)
+    $match = [regex]::Match($workflow, '(?ms)^      - name: Run the static guards and workflow contracts\r?\n        shell: powershell\r?\n        run: \|\r?\n(?<body>.*?)(?=^      - name:)')
+    if (-not $match.Success) { throw 'Cannot find the actual static-guard workflow step.' }
+    $body = [regex]::Replace($match.Groups['body'].Value, '(?m)^          ', '')
+    $temporaryRoot = [IO.Path]::GetFullPath([IO.Path]::GetTempPath())
+    $fixtureRoot = Join-Path $temporaryRoot ('blind-soldier-ci-exit-' + [guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Path $fixtureRoot | Out-Null
+    try {
+        $scriptPath = Join-Path $fixtureRoot 'guard.ps1'
+        # Only the external Pester dependency is controlled. Execute the real
+        # workflow body and GitHub Actions' native-exit footer in a fresh host.
+        $preamble = @'
+$ErrorActionPreference = 'Stop'
+function Import-Module { param($Name, $RequiredVersion, [switch]$Force) }
+function Invoke-Pester {
+    param($Script, [switch]$PassThru)
+    $global:LASTEXITCODE = NATIVE_EXIT_CODE
+    [pscustomobject]@{FailedCount=FAILED_COUNT}
+}
+'@
+        $preamble = $preamble.Replace('NATIVE_EXIT_CODE', [string]$NativeExitCode).Replace('FAILED_COUNT', [string]$FailedCount)
+        $footer = "`nif (Test-Path -LiteralPath variable:LASTEXITCODE) { exit `$LASTEXITCODE }`n"
+        [IO.File]::WriteAllText($scriptPath, $preamble + "`n" + $body + $footer, (New-Object Text.UTF8Encoding($false)))
+        $start = New-Object Diagnostics.ProcessStartInfo
+        $start.FileName = (Get-Command powershell.exe -CommandType Application).Source
+        $start.Arguments = '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + $scriptPath + '"'
+        $start.UseShellExecute = $false
+        $start.CreateNoWindow = $true
+        $start.RedirectStandardOutput = $true
+        $start.RedirectStandardError = $true
+        $process = [Diagnostics.Process]::Start($start)
+        try {
+            $null = $process.StandardOutput.ReadToEnd()
+            $null = $process.StandardError.ReadToEnd()
+            $process.WaitForExit()
+            return $process.ExitCode
+        } finally { $process.Dispose() }
+    } finally {
+        $resolved = [IO.Path]::GetFullPath($fixtureRoot)
+        if (-not $resolved.StartsWith($temporaryRoot.TrimEnd('\') + '\', [StringComparison]::OrdinalIgnoreCase) -or
+            -not (Split-Path -Leaf $resolved).StartsWith('blind-soldier-ci-exit-')) { throw 'Unexpected CI fixture cleanup target.' }
+        Remove-Item -LiteralPath $resolved -Recurse -Force
+    }
+}
+
 # The release workflow only fires on a v* tag, so until this job existed nothing
 # ran on a push or a pull request. A stale branch carrying the one-byte
 # PrismConfig could merge without a single check, and the regression would stay
@@ -37,6 +84,10 @@ Describe 'Blind Soldier merge-time CI contract' {
             './PrismAbiContract.Tests.ps1',
             './Run-DualRuntimeVerification.Tests.ps1',
             './Build-AccessibleLauncherBundle.Tests.ps1',
+            './Build-Accessible2013LauncherBundle.Tests.ps1',
+            './FF7Launcher2013Install.Tests.ps1',
+            './Amm2013LauncherLifecycle.Tests.ps1',
+            './Build-BlindSoldierAmmSources.Tests.ps1',
             './.github/workflows/release.Tests.ps1',
             './.github/workflows/ci.Tests.ps1')) {
             $workflow | Should Match ([regex]::Escape($suite))
@@ -50,6 +101,8 @@ Describe 'Blind Soldier merge-time CI contract' {
         # reader or tracker is compiled into one runtime and not the other.
         $workflow | Should Match ([regex]::Escape(
             'launcher/Ff7.Launcher.Accessible.Tests/FFVII_LAUNCHER.Accessibility.Tests.csproj'))
+        $workflow | Should Match ([regex]::Escape(
+            'launcher/Ff7.Launcher2013.Accessible.Tests/FF7_Launcher.Accessibility2013.Tests.csproj'))
         $workflow | Should Match ([regex]::Escape('--dual-runtime-sources-only'))
     }
 
@@ -69,6 +122,14 @@ Describe 'Blind Soldier merge-time CI contract' {
     It 'fails the job when any Pester suite fails' {
         $workflow = [IO.File]::ReadAllText($workflowPath)
         $workflow | Should Match 'FailedCount'
+    }
+
+    It 'returns success when every Pester suite passes after an expected failing native fixture' {
+        (Invoke-StaticGuardHostFixture -FailedCount 0 -NativeExitCode 1) | Should Be 0
+    }
+
+    It 'still fails when a Pester suite fails even if the last native fixture passed' {
+        (Invoke-StaticGuardHostFixture -FailedCount 1 -NativeExitCode 0) | Should Not Be 0
     }
 
     It 'runs story state coverage in both shipping assemblies' {

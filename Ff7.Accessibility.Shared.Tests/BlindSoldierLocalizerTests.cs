@@ -8,8 +8,10 @@ internal static class BlindSoldierLocalizerTests
         LocalizesTemplatesWithoutChangingCapturedNativeNames();
         LocalizesGeneratedMenuSummaries();
         LeavesUnknownNativeTextUntouched();
+        LeavesNativeDialogueUntouchedWhenItAlsoAppearsInADescriptionCatalog();
         FallsBackToEnglishForAMissingKnownTranslation();
         LoadsAValidBoundedExternalOverride();
+        DescriptionOverridesDoNotRewriteNativeDialogue();
         LoadsAPolishExternalOverrideWithoutChangingNativeDialogue();
         RejectsInvalidAndOversizedOverrides();
     }
@@ -51,6 +53,13 @@ internal static class BlindSoldierLocalizerTests
     {
         const string nativeText = "Épée broyante";
         Equal(nativeText, Create(Ff7GameLanguage.French).Localize(nativeText), "native text pass-through");
+    }
+
+    private static void LeavesNativeDialogueUntouchedWhenItAlsoAppearsInADescriptionCatalog()
+    {
+        const string nativeLine = "Cloud: Lifestream.";
+        Equal(nativeLine, Create(Ff7GameLanguage.French).Localize(nativeLine),
+            "native dialogue does not acquire description-only translations");
     }
 
     private static void LocalizesGeneratedMenuSummaries()
@@ -97,6 +106,20 @@ internal static class BlindSoldierLocalizerTests
             Ff7GameLanguages.Get(Ff7GameLanguage.French),
             directory.Path);
         Equal("Trajet terminé.", localizer.Localize("Route complete."), "external override");
+    }
+
+    private static void DescriptionOverridesDoNotRewriteNativeDialogue()
+    {
+        using var directory = TemporaryDirectory.Create();
+        var languageDirectory = Path.Combine(directory.Path, "Languages");
+        Directory.CreateDirectory(languageDirectory);
+        File.WriteAllText(Path.Combine(languageDirectory, "fr.json"),
+            "{\"Cloud: Lifestream.\":\"Cloud : Rivière de la vie.\"}");
+        var localizer = BlindSoldierLocalizer.Create(Ff7GameLanguages.Get(Ff7GameLanguage.French), directory.Path);
+        Equal("Cloud : Rivière de la vie.", localizer.LocalizeDescription("Cloud: Lifestream."),
+            "a translator can correct a description");
+        Equal("Cloud: Lifestream.", localizer.Localize("Cloud: Lifestream."),
+            "a description override does not rewrite a native line");
     }
 
     private static void LoadsAPolishExternalOverrideWithoutChangingNativeDialogue()

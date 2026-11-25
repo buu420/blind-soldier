@@ -31,13 +31,14 @@ public static class FieldAreaDescriptionStatus
     /// unchanged where the field has none, and the description alone where the
     /// status is empty.
     /// </summary>
-    public static string Append(string? status, int fieldId)
+    public static string Append(string? status, int fieldId, Func<string, string>? localizeDescription = null)
     {
         var description = Describe(fieldId);
         if (description is null)
         {
             return status ?? string.Empty;
         }
+        description = localizeDescription?.Invoke(description) ?? description;
 
         return string.IsNullOrWhiteSpace(status) ? description : $"{status} {description}";
     }

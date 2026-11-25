@@ -10,6 +10,7 @@ if ($MyInvocation.InvocationName -ne '&') {
     exit 0
 }
 $ErrorActionPreference = 'Stop'
+$script:portableTest2013LauncherRoot = $null
 
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $builderPath = Join-Path $scriptRoot 'Build-BlindSoldierPortablePackage.ps1'
@@ -271,12 +272,20 @@ function New-PortableFixture {
     New-PortableTestPe -Path (Join-Path $bootstrap 'Blind-Soldier-Bootstrap-x86.exe') -Machine 0x014C
     New-PortableTestPe -Path (Join-Path $bootstrap 'Blind-Soldier-Bootstrap-x64.exe') -Machine 0x8664
     $versionProxy = Get-PortableTestVersionProxy
+    if ([string]::IsNullOrEmpty($script:portableTest2013LauncherRoot)) {
+        $script:portableTest2013LauncherRoot = Join-Path ([IO.Path]::GetTempPath()) `
+            ('blind-soldier-2013-launcher-package-test-' + [Guid]::NewGuid().ToString('N'))
+        & (Join-Path $scriptRoot 'Build-Accessible2013LauncherBundle.ps1') `
+            -OutputPath (Join-Path $script:portableTest2013LauncherRoot 'bundle') `
+            -ArtifactsPath (Join-Path $script:portableTest2013LauncherRoot 'artifacts') | Out-Null
+    }
     $runtime = New-RuntimeFixture -Root $root
 
     [pscustomobject]@{
         Root=$root; Prerequisites=$prerequisites; Mod=$mod; Launcher=$launcher
         Bootstrap=$bootstrap; VersionProxy=$versionProxy; VersionProxyBuildRoot=$script:portableTestVersionProxyRoot; RuntimeCache=$runtime.Cache
         RuntimeLock=$runtime.Lock
+        Launcher2013=(Join-Path $script:portableTest2013LauncherRoot 'bundle')
         First=(Join-Path $root 'Blind-Soldier-Portable-1.zip')
         Second=(Join-Path $root 'Blind-Soldier-Portable-2.zip')
     }
@@ -288,6 +297,7 @@ function Invoke-FixtureBuild {
         -PrerequisiteBundlePath $Fixture.Prerequisites `
         -ModPackagePath $Fixture.Mod `
         -LauncherBundlePath $Fixture.Launcher `
+        -Launcher2013BundlePath $Fixture.Launcher2013 `
         -BootstrapBinaryPath $Fixture.Bootstrap `
         -VersionProxyPath $Fixture.VersionProxy `
         -DependencyCachePath $Fixture.RuntimeCache `
@@ -414,6 +424,12 @@ Describe 'Blind Soldier direct-extract portable package' {
 
     AfterAll {
         Remove-PortableTestVersionProxy
+        if ($null -ne $script:portableTest2013LauncherRoot -and
+            [IO.Path]::GetFullPath($script:portableTest2013LauncherRoot).StartsWith(
+                (Join-Path ([IO.Path]::GetTempPath()) 'blind-soldier-2013-launcher-package-test-'),
+                [StringComparison]::OrdinalIgnoreCase)) {
+            Remove-Item -LiteralPath $script:portableTest2013LauncherRoot -Recurse -Force
+        }
     }
 
     It 'ships the complete no-installer accessibility payload in all supported layouts' {
@@ -422,6 +438,12 @@ Describe 'Blind Soldier direct-extract portable package' {
         $entries = @(Get-PortableEntries -Path $fixture.First)
         foreach ($required in @(
             'FFVII_LAUNCHER.exe', 'FFVII_LAUNCHER.exe.config',
+            'Blind-Soldier/Launcher2013/bundle/FF7_Launcher.exe',
+            'Blind-Soldier/Launcher2013/bundle/launcher-2013-bundle.json',
+            'Blind-Soldier/Launcher2013/FF7Launcher2013Install.psm1',
+            'Blind-Soldier/Launcher2013/Manage-2013Launcher.ps1',
+            'Install-2013-Accessible-Launcher.cmd',
+            'Restore-2013-Original-Launcher.cmd',
             'launcher_accessibility/native/x86/FFVII_LAUNCHER.prism.x86.dll',
             'workingdir/version.dll',
             'ff7/workingdir/version.dll',
@@ -449,6 +471,7 @@ Describe 'Blind Soldier direct-extract portable package' {
             'LICENSES/dotnet-THIRD-PARTY-NOTICES.txt',
             'LICENSES/Reloaded-II-1.30.3-Blind-Soldier-source.md',
             'LICENSES/Reloaded-II-1.30.3-hostfxr.patch',
+            'LICENSES/Reloaded-II-1.30.3-delay-injection.patch',
             'LICENSES/FF7Tools-text-table-notice.md',
             'Remove-Amethyst-Registry-Entries.cmd',
             'Blind-Soldier/Tools/Remove-AmethystRegistryEntries-Automatic.cmd',
@@ -461,6 +484,7 @@ Describe 'Blind Soldier direct-extract portable package' {
         foreach ($forbidden in @(
             'Blind-Soldier-Installer.exe', 'Blind-Soldier-Launcher-x86.exe',
             'Blind-Soldier-Launcher-x64.exe', 'winmm.dll', 'version.dll',
+            'FF7_Launcher.exe', 'FF7_Launcher.exe.config',
             'dinput.dll',
             'Reloaded-II/ReloadedII.json')) {
             ($entries -ccontains $forbidden) | Should Be $false
@@ -550,6 +574,9 @@ Describe 'Blind Soldier direct-extract portable package' {
         Get-PortableEntryHash -Path $fixture.First -EntryPath `
             'Reloaded-II/Loader/X86/Bootstrapper/Reloaded.Mod.Loader.Bootstrapper.dll' |
             Should Be 'AE4AC3B65804AA5D2CE7360A5A72C5E4F041A9A589B26B4367A5CA685A5746F6'
+        Get-PortableEntryHash -Path $fixture.First -EntryPath `
+            'Reloaded-II/Loader/X86/Reloaded.Mod.Loader.dll' |
+            Should Be '9910FED400FFAE2CEFA45427E897981E45688660A54BB97B568467AD4ABE7757'
 
         $runtime = Get-PortableEntryText -Path $fixture.First -EntryPath `
             'Reloaded-II/Loader/X86/Reloaded.Mod.Loader.runtimeconfig.json' |
@@ -565,6 +592,10 @@ Describe 'Blind Soldier direct-extract portable package' {
             'reloaded\Loader\X64\Bootstrapper\Reloaded.Mod.Loader.Bootstrapper.dll') `
             -Algorithm SHA256).Hash
         $x64Hash | Should Be $fixtureX64Hash
+        Get-PortableEntryHash -Path $fixture.First -EntryPath `
+            'Reloaded-II/Loader/X64/Reloaded.Mod.Loader.dll' |
+            Should Be (Get-FileHash -LiteralPath (Join-Path $fixture.Prerequisites `
+                'reloaded\Loader\X64\Reloaded.Mod.Loader.dll') -Algorithm SHA256).Hash
     }
 
     It 'rejects every recognized external FFNx runtime entry point' {
@@ -678,7 +709,9 @@ Describe 'Blind Soldier direct-extract portable package' {
         $readme | Should Not Match '(?i)winmm\.dll'
         $readme | Should Match '(?i)7th Heaven manages.*FFNx'
         $readme | Should Not Match '(?i)FFNx 1\.24\.3\.0.*included'
-        $readme | Should Match '(?i)English, French, German, Spanish, and Japanese'
+        $readme | Should Match '(?i)English, French, German, Spanish, Japanese and Bunio.s Polish text data'
+        $readme | Should Match '(?i)Original 2013 ff7_fr\.exe, ff7_de\.exe and ff7_es\.exe engine profiles remain unsupported'
+        $readme | Should Match '(?i)Other supported languages use translated descriptions through Prism'
         $readme | Should Match '(?i)GameLanguage value is auto'
         $readme | Should Match '(?i)missing individual translation falls back to English'
     }

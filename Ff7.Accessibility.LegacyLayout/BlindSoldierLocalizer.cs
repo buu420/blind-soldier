@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
@@ -13,6 +14,9 @@ public sealed partial class BlindSoldierLocalizer
     private readonly Ff7GameLanguageDescriptor language;
     private readonly IReadOnlyDictionary<string, string> english;
     private readonly IReadOnlyDictionary<string, string> localized;
+    private readonly IReadOnlyDictionary<string, string> descriptionSources;
+    private readonly IReadOnlyDictionary<string, string> descriptions;
+    private static readonly ConcurrentDictionary<string, IReadOnlyDictionary<string, string>> DescriptionCatalogs = new(StringComparer.Ordinal);
     private readonly IReadOnlyList<TemplateTranslation> templates;
     private readonly Action<string>? log;
     private readonly HashSet<string> loggedFallbacks = new(StringComparer.Ordinal);
@@ -21,11 +25,15 @@ public sealed partial class BlindSoldierLocalizer
         Ff7GameLanguageDescriptor language,
         IReadOnlyDictionary<string, string> english,
         IReadOnlyDictionary<string, string> localized,
-        Action<string>? log)
+        Action<string>? log,
+        IReadOnlyDictionary<string, string>? descriptionSources = null,
+        IReadOnlyDictionary<string, string>? descriptions = null)
     {
         this.language = language;
         this.english = english;
         this.localized = localized;
+        this.descriptionSources = descriptionSources ?? new Dictionary<string, string>(StringComparer.Ordinal);
+        this.descriptions = descriptions ?? new Dictionary<string, string>(StringComparer.Ordinal);
         this.log = log;
         templates = english.Keys
             .Concat(localized.Keys)
@@ -38,6 +46,11 @@ public sealed partial class BlindSoldierLocalizer
 
     public string LanguageCode => language.Code;
 
+    // Polish uses the English game enum and a separate text encoding. The code,
+    // not that enum, determines whether the packaged English recordings fit.
+    public bool UseRecordedAudioDescriptions =>
+        string.Equals(language.Code, "en", StringComparison.OrdinalIgnoreCase);
+
     public static BlindSoldierLocalizer Create(
         Ff7GameLanguageDescriptor language,
         string? modDirectory,
@@ -45,20 +58,32 @@ public sealed partial class BlindSoldierLocalizer
     {
         ArgumentNullException.ThrowIfNull(language);
         var english = LoadEmbedded("en");
-        var localized = language.Language == Ff7GameLanguage.English
+        var localized = string.Equals(language.Code, "en", StringComparison.OrdinalIgnoreCase)
             ? new Dictionary<string, string>(english, StringComparer.Ordinal)
             : LoadEmbedded(language.Code);
+        var useDescriptions = !string.Equals(language.Code, "en", StringComparison.OrdinalIgnoreCase);
+        IReadOnlyDictionary<string, string> descriptionSources = useDescriptions
+            ? LoadEmbeddedDescriptions("en") : new Dictionary<string, string>(StringComparer.Ordinal);
+        IReadOnlyDictionary<string, string> descriptions = useDescriptions
+            ? LoadEmbeddedDescriptions(language.Code) : new Dictionary<string, string>(StringComparer.Ordinal);
+        Dictionary<string, string>? descriptionOverrides = null;
 
         if (!string.IsNullOrWhiteSpace(modDirectory))
         {
             var overridePath = Path.Combine(modDirectory, "Languages", $"{language.Code}.json");
             foreach (var pair in LoadOverride(overridePath, log))
             {
-                localized[pair.Key] = pair.Value;
+                if (descriptionSources.ContainsKey(pair.Key))
+                {
+                    descriptionOverrides ??= new Dictionary<string, string>(descriptions, StringComparer.Ordinal);
+                    descriptionOverrides[pair.Key] = pair.Value;
+                }
+                else localized[pair.Key] = pair.Value;
             }
         }
 
-        return new BlindSoldierLocalizer(language, english, localized, log);
+        return new BlindSoldierLocalizer(language, english, localized, log,
+            descriptionSources, descriptionOverrides ?? descriptions);
     }
 
     internal static BlindSoldierLocalizer CreateForTesting(
@@ -112,6 +137,18 @@ public sealed partial class BlindSoldierLocalizer
         return text;
     }
 
+    // Only description delivery calls this. Movie sidecars can contain a line
+    // that is also native dialogue; merely loading their translations must not
+    // rewrite that dialogue or displayed production-credit rows.
+    public string LocalizeDescription(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text) || UseRecordedAudioDescriptions) return text;
+        if (localized.TryGetValue(text, out var overridden)) return overridden;
+        if (descriptions.TryGetValue(text, out var translated)) return translated;
+        if (descriptionSources.ContainsKey(text)) LogEnglishFallback(text);
+        return Localize(text);
+    }
+
     private string LocalizeCapturedValue(string value) =>
         localized.TryGetValue(value, out var translation) ? translation : value;
 
@@ -124,9 +161,14 @@ public sealed partial class BlindSoldierLocalizer
     }
 
     private static Dictionary<string, string> LoadEmbedded(string code)
+        => LoadResourceCatalog($".Localization.{code}.json");
+
+    private static IReadOnlyDictionary<string, string> LoadEmbeddedDescriptions(string code)
+        => DescriptionCatalogs.GetOrAdd(code, static key => LoadResourceCatalog($".AudioDescriptionLocalization.{key}.json"));
+
+    private static Dictionary<string, string> LoadResourceCatalog(string suffix)
     {
         var assembly = typeof(BlindSoldierLocalizer).Assembly;
-        var suffix = $".Localization.{code}.json";
         var resourceName = assembly.GetManifestResourceNames()
             .SingleOrDefault(name => name.EndsWith(suffix, StringComparison.OrdinalIgnoreCase));
         if (resourceName is null)

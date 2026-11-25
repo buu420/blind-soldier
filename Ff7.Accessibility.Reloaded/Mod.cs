@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Reflection;
 using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -916,27 +917,29 @@ public sealed class Mod : IModV1, IModV2
             $"results=0x{AddressBattleResultsUpdate:X8}");
         Log($"Mod directory: {modDirectory}");
         Log($"Log path: {logPath}");
+        Log($"Blind Soldier {typeof(Mod).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "unknown"} (x86).");
         gameRootDirectory = ResolveGameRootDirectory();
         Log($"Game root directory: {gameRootDirectory ?? "<unknown>"}");
         var executablePath = Process.GetCurrentProcess().MainModule?.FileName;
+        ffnxRuntimeLoaded = FfnxRuntimeDetector.IsLoaded(Process.GetCurrentProcess());
         gameLanguage = Ff7GameLanguageDetector.Detect(
             gameRootDirectory ?? AppContext.BaseDirectory,
             config.GameLanguage,
             executablePath,
             steamManifestPaths: null,
-            log: Log);
+            log: Log,
+            ffnxLoaded: ffnxRuntimeLoaded);
         Ff7EncodedTextDecoder.SetDefaultLanguage(gameLanguage.Descriptor);
         localizer = BlindSoldierLocalizer.Create(gameLanguage.Descriptor, modDirectory, Log);
-        if (gameLanguage.Language != Ff7GameLanguage.English && config.EnableOpeningMovieAudioTrack)
+        if (!localizer.UseRecordedAudioDescriptions)
         {
-            Log("The packaged opening-movie audio description is English; localized Prism cues remain available as fallback.");
+            Log($"Audio descriptions use {gameLanguage.Code} text through Prism; English recordings are bypassed.");
         }
-        ffnxRuntimeLoaded = FfnxRuntimeDetector.IsLoaded(Process.GetCurrentProcess());
         Log($"Opening movie audio backend: Reloaded synchronized track (FFNx loaded={ffnxRuntimeLoaded}).");
 
         var prismStart = Stopwatch.StartNew();
         speaker = new PrismNativeSpeaker(Log);
-        openingMovieDescription = new OpeningMovieDescription((text, interrupt) => Speak(text, interrupt));
+        openingMovieDescription = new OpeningMovieDescription((text, interrupt) => Speak(localizer.LocalizeDescription(text), interrupt));
         openingMovieAudioTrackPlayer = new OpeningMovieAudioTrackPlayer(
             ResolveOpeningMovieAudioTrackPath(),
             config.OpeningMovieAudioTrackVolumePercent,
@@ -948,7 +951,7 @@ public sealed class Mod : IModV1, IModV2
         // without it ever playing.
         if (OpeningMovieAudioTrackPolicy.ShouldUseReloadedPlayback(
                 config.EnableOpeningMovieAudioTrack,
-                ffnxRuntimeLoaded))
+                ffnxRuntimeLoaded, localizer.UseRecordedAudioDescriptions))
         {
             openingMovieAudioTrackPlayer.Prepare("mod initialization");
         }
@@ -973,13 +976,14 @@ public sealed class Mod : IModV1, IModV2
             film => ReadFieldMovieNarrationCues(new(-1, -1, -1, -1, -1,
                 MovieFilmDescriptionCatalog.RecordingFileName(film), film, 0)),
             text => endgameVoice.TryGet(text, out var clip) ? CreateCutsceneVoiceOutput(clip) : null,
-            text => Speak(text, interrupt: false), Log);
+            text => Speak(localizer.LocalizeDescription(text), interrupt: false), Log);
         creditsNarration = new NativeCreditsNarrator(
             () => endgameVoice.TryGet(NativeCreditsNarrator.Introduction, out var clip) ? CreateCutsceneVoiceOutput(clip) : null,
-            text => Speak(text, interrupt: false), Log);
+            text => Speak(text, interrupt: false), Log,
+            text => Speak(localizer.LocalizeDescription(text), interrupt: false));
         creditsTitleNarration = new NativeObservedCaptionNarrator(
             text => endgameVoice.TryGet(text, out var clip) ? CreateCutsceneVoiceOutput(clip) : null,
-            text => Speak(text, interrupt: false), Log);
+            text => Speak(localizer.LocalizeDescription(text), interrupt: false), Log);
 
         // The device is the only thing that knows a recording is still being heard: it
         // plays outside the screen reader, so neither Prism nor the word-count estimate
@@ -1313,7 +1317,7 @@ public sealed class Mod : IModV1, IModV2
             text => Speak(text, false),
             () => cutsceneVoicePlayer?.IsPlaying == true || fieldMovieNarrationTracker?.IsPlaying == true,
             IsScreenReaderSpeaking,
-            kernel2TextDatabase);
+            kernel2TextDatabase, localizer.UseRecordedAudioDescriptions, localizer.LocalizeDescription);
         fieldAreaDescriptionGate = new FieldAreaDescriptionHistoryGate(fieldAreaDescriptionHistory);
         modSettingsMenu = new ModSettingsMenu(config, playerSettingsStore!,
             () => BattleAnimationNarrationRuntime.ResetBattleDescriptions(battleDescriptionHistory, Log),
@@ -4357,7 +4361,8 @@ public sealed class Mod : IModV1, IModV2
             return;
         }
 
-        if (config.EnableOpeningMovieDescription)
+        if (OpeningMovieAudioTrackPolicy.ShouldUseScreenReader(config.EnableOpeningMovieAudioTrack,
+                config.EnableOpeningMovieDescription, localizer.UseRecordedAudioDescriptions))
         {
             openingMovieDescription.Tick();
         }
@@ -4474,7 +4479,7 @@ public sealed class Mod : IModV1, IModV2
                 : null);
         var reloadedPlayback = OpeningMovieAudioTrackPolicy.ShouldUseReloadedPlayback(
             config.EnableOpeningMovieAudioTrack,
-            ffnxRuntimeLoaded);
+            ffnxRuntimeLoaded, localizer.UseRecordedAudioDescriptions);
         if (gate.Action == OpeningMovieStartAction.Arm)
         {
             if (openingMovieArmedAtUtc is null)
@@ -4497,7 +4502,8 @@ public sealed class Mod : IModV1, IModV2
             Log(
                 $"Detected active opening movie: signal={activity.Signal}, " +
                 $"anchor={gate.Anchor}, path={openingPath}");
-            if (config.EnableOpeningMovieDescription)
+            if (OpeningMovieAudioTrackPolicy.ShouldUseScreenReader(config.EnableOpeningMovieAudioTrack,
+                    config.EnableOpeningMovieDescription, localizer.UseRecordedAudioDescriptions))
             {
                 openingMovieDescription.Start();
             }
@@ -4679,10 +4685,11 @@ public sealed class Mod : IModV1, IModV2
         }
 
         // Scenery can be offered from a stable native room even when its language
-        // has separately verified navigation offsets. Unknown overrides stay silent.
+        // has separately verified navigation offsets, or exact reviewed description
+        // cues (the Polish V1.05 scripts). Unknown overrides stay silent.
         var observedAreaKnown = loadedFieldScriptIdentityReader?.TryRead(out var areaIdentity) == true
             && areaIdentity.FieldId == fieldId
-            && WholeGameEchoNavigationManifest.ResolveVariant(areaIdentity) != SupportedFieldScriptVariant.Unknown;
+            && LocalizedFieldScriptIdentityPolicy.AllowsDescriptions(areaIdentity);
         if (!observedAreaKnown)
         {
             fieldAreaDescriptionColdStart.Reset();
@@ -4768,14 +4775,23 @@ public sealed class Mod : IModV1, IModV2
         // tested apart from the monitor loop.
         var outcome = fieldCutsceneDescriptionDelivery.Deliver(
             fieldId,
-            candidate => fieldMovieNarrationTracker?.Begin(
-                    candidate.FieldId,
-                    candidate.EntityId,
-                    candidate.ScriptId,
-                    candidate.ByteIndex,
-                    sample,
-                    now)
-                ?? FieldMovieNarrationStartResult.NotDescribed,
+            candidate =>
+            {
+                // A reviewed localized cue carries the coordinates its script runs it at;
+                // the film policy is asked about the English anchor that is.
+                var filmAnchor = LocalizedFieldScriptIdentityPolicy.FilmAnchor(
+                    new FieldScriptContext(candidate.FieldId, candidate.EntityId, candidate.ScriptId,
+                        candidate.ByteIndex, candidate.Opcode),
+                    TryGetLoadedFieldScriptIdentity(candidate.FieldId, out var candidateIdentity) ? candidateIdentity : null);
+                return fieldMovieNarrationTracker?.Begin(
+                        filmAnchor.FieldId,
+                        filmAnchor.EntityId,
+                        filmAnchor.ScriptId,
+                        filmAnchor.ByteIndex,
+                        sample,
+                        now)
+                    ?? FieldMovieNarrationStartResult.NotDescribed;
+            },
             SpeakDescription,
             candidate =>
             {
@@ -4907,7 +4923,11 @@ public sealed class Mod : IModV1, IModV2
         identity = observed;
         var variant = EchoSCompatibilityManifest.ResolveVariant(observed);
         var isSupportedDisclaimer = EchoSCompatibilityManifest.IsSupportedDisclaimer(observed);
-        if (variant != SupportedFieldScriptVariant.Unknown || isSupportedDisclaimer)
+        // An exact reviewed localized prefix is as stable as a stock one, so the description
+        // hook need not re-hash the loaded script on every opcode. Unknown prefixes are re-read.
+        var reviewedLocalized = variant == SupportedFieldScriptVariant.Unknown &&
+                                LocalizedFieldDescriptionCueManifest.IsReviewedIdentity(observed);
+        if (LocalizedFieldScriptIdentityPolicy.IsReviewedLoadedIdentity(observed))
         {
             loadedFieldScriptIdentity = observed;
         }
@@ -4922,9 +4942,11 @@ public sealed class Mod : IModV1, IModV2
 
         var label = isSupportedDisclaimer
             ? $"{EchoSCompatibilityManifest.VersionLabel} disclaimer"
-            : variant.ToString();
+            : reviewedLocalized
+                ? "Localized " + string.Join('|', LocalizedFieldDescriptionCueManifest.ResolveLanguages(observed))
+                : variant.ToString();
         var diagnosticKey = $"{observed.FieldId}:{observed.ScriptPrefixSha256}";
-        if ((variant != SupportedFieldScriptVariant.Unknown || isSupportedDisclaimer ||
+        if ((variant != SupportedFieldScriptVariant.Unknown || isSupportedDisclaimer || reviewedLocalized ||
              config.EnableFieldCutsceneDescriptionDiagnostics) &&
             loggedLoadedFieldScriptIdentities.Add(diagnosticKey))
         {
@@ -6947,8 +6969,9 @@ public sealed class Mod : IModV1, IModV2
                     && new FieldRoomPresentationReader(statusMemory).IsRoomVisible(result.Position.FieldId)
                     && loadedFieldScriptIdentityReader?.TryRead(out var statusIdentity) == true
                     && statusIdentity.FieldId == result.Position.FieldId
-                    && WholeGameEchoNavigationManifest.ResolveVariant(statusIdentity) != SupportedFieldScriptVariant.Unknown
-                    ? FieldAreaDescriptionStatus.Append(speech.Value.Speech, result.Position.FieldId)
+                    && LocalizedFieldScriptIdentityPolicy.AllowsDescriptions(statusIdentity)
+                    ? FieldAreaDescriptionStatus.Append(localizer.Localize(speech.Value.Speech), result.Position.FieldId,
+                        localizer.LocalizeDescription)
                     : speech.Value.Speech;
 
                 Log($"Field navigation speech: {line}");
@@ -11155,11 +11178,20 @@ public sealed class Mod : IModV1, IModV2
                 ? new DateTime(hookEvent.IngressTimestampTicks, DateTimeKind.Utc)
                 : DateTime.UtcNow;
 
+            // A reviewed localized prefix starts its films from its own bytes; the film
+            // policy is asked about the English anchor that instruction is, never about
+            // raw localized offsets. Every other identity keeps its raw coordinates.
+            var filmAnchor = LocalizedFieldScriptIdentityPolicy.FilmAnchor(
+                context.Value,
+                context.Value.Opcode == FieldOpcodeAddressResolver.OpcodeMovieIndex &&
+                TryGetLoadedFieldScriptIdentity(context.Value.FieldId, out var filmIdentity)
+                    ? filmIdentity
+                    : null);
             fieldMovieNarrationTracker?.NoteIngress(
-                context.Value.FieldId,
-                context.Value.EntityId,
-                context.Value.ScriptId,
-                context.Value.ByteIndex,
+                filmAnchor.FieldId,
+                filmAnchor.EntityId,
+                filmAnchor.ScriptId,
+                filmAnchor.ByteIndex,
                 context.Value.Opcode,
                 ingressSample,
                 ingressUtc,
@@ -12401,7 +12433,7 @@ public sealed class Mod : IModV1, IModV2
             cutsceneVoicePlayer,
             text,
             owner,
-            spoken => Speak(spoken, false),
+            spoken => Speak(localizer.LocalizeDescription(spoken), false),
             (spoken, length) =>
             {
                 if (config.EnableFieldCutsceneDescriptionDiagnostics)
@@ -12432,7 +12464,7 @@ public sealed class Mod : IModV1, IModV2
 
     private IFieldMovieNarrationOutput? CreateCutsceneVoiceOutput(CutsceneVoiceClip clip)
     {
-        if (!config.EnableFieldCutsceneDescriptions)
+        if (!config.EnableFieldCutsceneDescriptions || !localizer.UseRecordedAudioDescriptions)
         {
             return null;
         }
@@ -12453,6 +12485,7 @@ public sealed class Mod : IModV1, IModV2
 
     private CutsceneVoiceManifest LoadCutsceneVoiceManifest()
     {
+        if (!localizer.UseRecordedAudioDescriptions) return CutsceneVoiceManifest.Empty;
         try
         {
             var path = Path.Combine(modDirectory, CutsceneVoiceDirectory, "manifest.json");
@@ -12476,7 +12509,7 @@ public sealed class Mod : IModV1, IModV2
 
     private IFieldMovieNarrationOutput? CreateFieldMovieNarrationOutput(FieldMovieNarrationTrack track)
     {
-        if (!config.EnableFieldMovieNarrationTracks)
+        if (!config.EnableFieldMovieNarrationTracks || !localizer.UseRecordedAudioDescriptions)
         {
             Log($"Field movie narration disabled in config; {track.Label} falls back to speech.");
             return null;

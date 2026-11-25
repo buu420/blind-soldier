@@ -11,6 +11,9 @@ internal static class GameLanguageDetectorTests
         ExplicitOverrideWinsWhenItsDataExists();
         ExplicitPolishOverrideUsesEnglishAssetPaths();
         ExecutableSuffixWinsDuringAutomaticDetection();
+        ActiveFfnxMultilingualLanguageWinsOverTheEnglishExecutable();
+        AnInactiveFfnxConfigCannotChangeTheLanguage();
+        FfnxEnglishPreservesThePolishProfileAndOtherLanguagesIgnoreIt();
         MatchingSteamManifestSuppliesTheLanguage();
         AStaleOverrideFallsThroughInsteadOfSelectingMissingData();
         AStaleManifestFallsThroughToTheOnlyUsableLanguage();
@@ -29,6 +32,73 @@ internal static class GameLanguageDetectorTests
         Equal(Ff7TextEncodingProfile.PolishFanTranslation, descriptor.TextEncodingProfile, "Polish text encoding");
         Equal(false, descriptor.UsesJapaneseEncoding, "Polish Japanese encoding flag");
         Equal(5, Ff7GameLanguages.All.Count, "official language enumeration excludes fan profiles");
+    }
+
+    private static void ActiveFfnxMultilingualLanguageWinsOverTheEnglishExecutable()
+    {
+        using var game = TestGame.Create();
+        var working = CreateWorkingDirectory(game.Root);
+        foreach (var (value, code) in new[] { (2, "fr"), (3, "de"), (4, "es") })
+        {
+            File.WriteAllText(Path.Combine(working, "FFNx.toml"), $"# active native driver\r\ngame_language = {value} # multilingual\r\n");
+            var context = Ff7GameLanguageDetector.Detect(working, "auto", Path.Combine(working, "ff7_en.exe"),
+                Array.Empty<string>(), ffnxLoaded: true);
+            Equal(code, context.Code, "FFNx language instead of English executable");
+            Equal(Ff7GameLanguageDetectionSource.FfnxConfiguration, context.Source, "active driver source");
+            Equal(code, Ff7GameLanguageDetector.Detect(working, "auto", Path.Combine(working, "ff7.exe"),
+                Array.Empty<string>(), ffnxLoaded: true).Code, "converted English filename follows active FFNx language too");
+            var overridden = Ff7GameLanguageDetector.Detect(working, "en", Path.Combine(working, "ff7_en.exe"),
+                Array.Empty<string>(), ffnxLoaded: true);
+            Equal("en", overridden.Code, "explicit mod language still wins");
+        }
+    }
+
+    private static void AnInactiveFfnxConfigCannotChangeTheLanguage()
+    {
+        using var game = TestGame.Create("en", "fr");
+        File.WriteAllText(Path.Combine(game.Root, "FFNx.toml"), "game_language = 2\n");
+        var context = Ff7GameLanguageDetector.Detect(game.Root, "auto", Path.Combine(game.Root, "ff7_en.exe"),
+            Array.Empty<string>());
+        Equal("en", context.Code, "a stale FFNx file cannot override the running native game");
+        var stock = Ff7GameLanguageDetector.Detect(game.Root, "auto", Path.Combine(game.Root, "ff7_en.exe"),
+            Array.Empty<string>(), ffnxLoaded: true);
+        Equal("en", stock.Code, "the 2013 layout does not apply the rerelease-only language switch");
+        var working = CreateWorkingDirectory(game.Root);
+        File.WriteAllText(Path.Combine(working, "FFNx.toml"), "game_language = 2\n");
+        Equal("en", Ff7GameLanguageDetector.Detect(working, "auto", Path.Combine(working, "ff7_en.exe"),
+            Array.Empty<string>()).Code, "an inactive driver is ignored even in workingdir");
+        foreach (var invalid in new[] { "game_language = 0\n", "game_language = 5\n", "game_language = 6\n",
+                     "game_language = 2\ngame_language = 3\n", "# game_language = 2\n", "game_language = '2'\n" })
+        {
+            File.WriteAllText(Path.Combine(working, "FFNx.toml"), invalid);
+            Equal("en", Ff7GameLanguageDetector.Detect(working, "auto", Path.Combine(working, "ff7_en.exe"),
+                Array.Empty<string>(), ffnxLoaded: true).Code, "unsupported, inactive or ambiguous FFNx language stays automatic");
+        }
+    }
+
+    private static void FfnxEnglishPreservesThePolishProfileAndOtherLanguagesIgnoreIt()
+    {
+        using var game = TestGame.Create();
+        var working = CreateWorkingDirectory(game.Root);
+        File.WriteAllBytes(Path.Combine(working, "data", "lang-en", "kernel", "kernel2.bin"), BuildPolishKernel2());
+        File.WriteAllText(Path.Combine(working, "FFNx.toml"), "game_language = 1\n");
+        Equal("pl", Ff7GameLanguageDetector.Detect(working, "auto", Path.Combine(working, "ff7_en.exe"),
+            Array.Empty<string>(), ffnxLoaded: true).Code, "Polish modifies the active English asset path");
+        File.WriteAllText(Path.Combine(working, "FFNx.toml"), "game_language = 2\n");
+        Equal("fr", Ff7GameLanguageDetector.Detect(working, "auto", Path.Combine(working, "ff7_en.exe"),
+            Array.Empty<string>(), ffnxLoaded: true).Code, "inactive Polish assets do not override the active French data");
+    }
+
+    private static string CreateWorkingDirectory(string root)
+    {
+        var working = Path.Combine(root, "workingdir");
+        foreach (var code in new[] { "en", "fr", "de", "es", "ja" })
+        {
+            var kernel = Path.Combine(working, "data", "lang-" + code, "kernel");
+            Directory.CreateDirectory(kernel);
+            File.WriteAllBytes(Path.Combine(kernel, "kernel2.bin"), [1]);
+        }
+        return working;
     }
 
     private static void RecognizesKnownPolishTranslationFingerprint()

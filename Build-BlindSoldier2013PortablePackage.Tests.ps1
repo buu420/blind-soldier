@@ -5,6 +5,7 @@ $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $builderPath = Join-Path $scriptRoot 'Build-BlindSoldier2013PortablePackage.ps1'
 $verifierPath = Join-Path $scriptRoot 'Verify-BlindSoldier2013PortablePackage.ps1'
 $testVersion = '0.4.1'
+$script:legacyLauncherTestRoot = $null
 
 function Write-TestFile {
     param([string] $Root, [string] $Relative, [string] $Content = 'fixture')
@@ -88,6 +89,7 @@ function New-DualFixtureArchive {
         'LICENSES\Reloaded-Shared-Hooks-LGPL-3.0.txt',
         'LICENSES\Reloaded-II-1.30.3-Blind-Soldier-source.md',
         'LICENSES\Reloaded-II-1.30.3-hostfxr.patch',
+        'LICENSES\Reloaded-II-1.30.3-delay-injection.patch',
         'LICENSES\FF7Tools-text-table-notice.md',
         'Remove-Amethyst-Registry-Entries.cmd',
         'FFVII_LAUNCHER.exe',
@@ -107,6 +109,16 @@ function New-DualFixtureArchive {
     Write-TestFile -Root $root `
         -Relative 'Reloaded-II\Mods\reloaded.sharedlib.hooks\ModConfig.json' `
         -Content '{"ModId":"reloaded.sharedlib.hooks"}'
+
+    if ([string]::IsNullOrEmpty($script:legacyLauncherTestRoot)) {
+        $script:legacyLauncherTestRoot = Join-Path ([IO.Path]::GetTempPath()) `
+            ('blind-soldier-2013-launcher-profile-test-' + [Guid]::NewGuid().ToString('N'))
+        & (Join-Path $scriptRoot 'Build-Accessible2013LauncherBundle.ps1') `
+            -OutputPath (Join-Path $script:legacyLauncherTestRoot 'bundle') `
+            -ArtifactsPath (Join-Path $script:legacyLauncherTestRoot 'artifacts') | Out-Null
+    }
+    & (Join-Path $scriptRoot 'Add-Accessible2013LauncherPayload.ps1') `
+        -DestinationRoot $root -BundlePath (Join-Path $script:legacyLauncherTestRoot 'bundle')
 
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     $archive = Join-Path $TemporaryRoot 'dual.zip'
@@ -162,6 +174,14 @@ function Get-TestPeBytes {
 }
 
 Describe 'Blind Soldier 2013 x86 portable package' {
+    AfterAll {
+        if ($null -ne $script:legacyLauncherTestRoot -and
+            [IO.Path]::GetFullPath($script:legacyLauncherTestRoot).StartsWith(
+                (Join-Path ([IO.Path]::GetTempPath()) 'blind-soldier-2013-launcher-profile-test-'),
+                [StringComparison]::OrdinalIgnoreCase)) {
+            Remove-Item -LiteralPath $script:legacyLauncherTestRoot -Recurse -Force
+        }
+    }
     It 'keeps the complete x86 runtime and excludes 2026 and x64 files' {
         $temp = Join-Path ([IO.Path]::GetTempPath()) `
             ('blind-soldier-2013-package-' + [Guid]::NewGuid().ToString('N'))
@@ -183,6 +203,11 @@ Describe 'Blind Soldier 2013 x86 portable package' {
             $names = @(Get-ZipNames -ArchivePath $output)
             foreach ($required in @(
                 'version.dll',
+                'Blind-Soldier/Launcher2013/bundle/FF7_Launcher.exe',
+                'Blind-Soldier/Launcher2013/FF7Launcher2013Install.psm1',
+                'Blind-Soldier/Launcher2013/Manage-2013Launcher.ps1',
+                'Install-2013-Accessible-Launcher.cmd',
+                'Restore-2013-Original-Launcher.cmd',
                 'workingdir/version.dll',
                 'Blind-Soldier/Bootstrap/x86/Blind-Soldier-Bootstrap-x86.exe',
                 'Blind-Soldier/Runtime/dotnet/x86/host/fxr/9.0.8/hostfxr.dll',

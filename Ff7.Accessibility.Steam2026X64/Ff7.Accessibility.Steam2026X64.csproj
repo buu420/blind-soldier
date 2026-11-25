@@ -7,7 +7,7 @@
     <PlatformTarget>x64</PlatformTarget>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
-    <InformationalVersion>1.0.2</InformationalVersion>
+    <InformationalVersion>1.0.3</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
 
@@ -16,6 +16,8 @@
     <Compile Include="..\Ff7.Accessibility.Reloaded\EchoNpcIdentityCatalog.cs" Link="Shared\EchoNpcIdentityCatalog.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\WholeGameEchoFutureMetadata.cs" Link="Shared\WholeGameEchoFutureMetadata.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\EchoSCompatibilityManifest.cs" Link="Shared\EchoSCompatibilityManifest.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\LocalizedFieldDescriptionCueManifest.cs" Link="Shared\LocalizedFieldDescriptionCueManifest.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\LocalizedFieldDescriptionCueManifest.Generated.cs" Link="Shared\LocalizedFieldDescriptionCueManifest.Generated.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\PostscriptFieldCompatibility.cs" Link="Shared\PostscriptFieldCompatibility.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldCreatureApproachDescriptions.cs" Link="Shared\FieldCreatureApproachDescriptions.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldCreatureWarningSpeechGate.cs" Link="Shared\FieldCreatureWarningSpeechGate.cs" />
@@ -93,6 +95,7 @@
       detector racing the good one.
     -->
     <Compile Include="..\Ff7.Accessibility.Reloaded\OpeningMovieDescription.cs" Link="Shared\OpeningMovieDescription.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\OpeningMovieAudioTrackPolicy.cs" Link="Shared\OpeningMovieAudioTrackPolicy.cs" />
     <!--
       This runtime loads the opening audio-description track (Mod.cs resolves
       OpeningMovieAudioTrackPath against it) but declared it nowhere, so it reached
@@ -1113,6 +1116,7 @@
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldScriptNavigationTransitionTracker.cs" Link="Shared\FieldScriptNavigationTransitionTracker.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldNavigationSpeechPolicy.cs" Link="Shared\FieldNavigationSpeechPolicy.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldStoryTargetReader.cs" Link="Shared\FieldStoryTargetReader.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\MidgarModelNavigationCatalog.cs" Link="Shared\MidgarModelNavigationCatalog.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\KeyToSector5StoryKnowledge.cs" Link="Shared\KeyToSector5StoryKnowledge.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\KeyToSector5ClueObservationReader.cs" Link="Shared\KeyToSector5ClueObservationReader.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\KeyToSector5StoryTargetReader.cs" Link="Shared\KeyToSector5StoryTargetReader.cs" />

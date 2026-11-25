@@ -13,7 +13,7 @@ internal static class FieldCreatureWarningReaderTests
     {
         foreach (var variant in new[] { "stock", "base", "Aavock", "ESUI", "FT", "Retouch" })
         {
-            var m = new Memory(variant);
+            var m = Memory.FromFixture(variant);
             var identity = new LoadedFieldScriptIdentityReader(m);
             var reader = new FieldCreatureWarningReader(m, () => identity.TryRead(out var value) ? value : null);
             Check(reader.TryRead(out var full), $"{variant}: real native MESSAGE44 full page");
@@ -102,6 +102,22 @@ internal static class FieldCreatureWarningReaderTests
         if (!condition) throw new InvalidOperationException(reason);
     }
 
+    /// <summary>
+    /// The same native MESSAGE44 reading for an installed field 767 section: the official
+    /// localized archives and Polish V1.05 keep stock dialog 10 at entity 3 slot 6 byte 44.
+    /// </summary>
+    internal static FieldCreatureWarning? ReadInstalledWarning(byte[] section, string label)
+    {
+        var m = new Memory(section, 10, label);
+        var identity = new LoadedFieldScriptIdentityReader(m);
+        var reader = new FieldCreatureWarningReader(m, () => identity.TryRead(out var value) ? value : null);
+        if (!reader.TryRead(out var full)) return null;
+        Check(full.WindowPointer == m.MessageStart, $"{label}: normalized page identity uses the table start");
+        m.Byte(Memory.Script + (uint)m.ScriptEntry + 46, 11);
+        Check(!reader.TryRead(out _), $"{label}: a changed dialog operand of a reviewed localized prefix fails closed");
+        return full;
+    }
+
     private sealed class Memory : ILegacyAddressSpace
     {
         internal const uint Script = 0x02000000;
@@ -112,21 +128,27 @@ internal static class FieldCreatureWarningReaderTests
         internal readonly byte[] RawMessage;
         internal bool TearPointer;
 
-        internal Memory(string variant)
+        internal static Memory FromFixture(string variant)
         {
             using var json = JsonDocument.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory,
                 "Fixtures", "Field767Warning", variant + ".json")));
             var section = Convert.FromBase64String(json.RootElement.GetProperty("sectionBase64").GetString()!);
             Check(Convert.ToHexString(SHA256.HashData(section)).Equals(json.RootElement.GetProperty("sha256").GetString(),
                 StringComparison.OrdinalIgnoreCase), $"{variant}: fixture hash");
-            // Exact section bytes, with mapped readable native text-range padding for the chunked reader.
-            Put(Script, Enumerable.Repeat((byte)0xff, 0x10000 + section.Length).ToArray());
-            Put(Script, section);
-            Dialog = variant == "stock" ? 10 : 9;
             var textOffset = BinaryPrimitives.ReadUInt16LittleEndian(section.AsSpan(4));
             Check(Convert.ToHexString(SHA256.HashData(section.AsSpan(0, textOffset)))
                 .Equals(json.RootElement.GetProperty("scriptPrefixSha256").GetString(), StringComparison.OrdinalIgnoreCase),
                 $"{variant}: actual loaded-prefix identity");
+            return new Memory(section, variant == "stock" ? 10 : 9, variant);
+        }
+
+        internal Memory(byte[] section, int dialog, string variant)
+        {
+            // Exact section bytes, with mapped readable native text-range padding for the chunked reader.
+            Put(Script, Enumerable.Repeat((byte)0xff, 0x10000 + section.Length).ToArray());
+            Put(Script, section);
+            Dialog = dialog;
+            var textOffset = BinaryPrimitives.ReadUInt16LittleEndian(section.AsSpan(4));
             var entryTable = 32 + section[2] * 8 + BinaryPrimitives.ReadUInt16LittleEndian(section.AsSpan(6)) * 4;
             ScriptEntry = BinaryPrimitives.ReadUInt16LittleEndian(section.AsSpan(entryTable + (3 * 32 + 6) * 2));
             Check(section.AsSpan(ScriptEntry + 44, 3).SequenceEqual(new byte[] { 0x40, 1, (byte)Dialog }),
