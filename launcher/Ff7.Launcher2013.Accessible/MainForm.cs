@@ -218,7 +218,6 @@ namespace BlindSoldier.Ff7Launcher2013
 				Installation = model.Installation,
 				SaveProfile = selectedProfile,
 				DocumentDirectory = model.DocumentDirectory,
-				GameVersionText = model.GameVersionText,
 				Cancellation = launchCancellation.Token
 			};
 

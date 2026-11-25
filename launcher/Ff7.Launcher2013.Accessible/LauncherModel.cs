@@ -121,8 +121,6 @@ namespace BlindSoldier.Ff7Launcher2013
 
 		internal string LogPath { get; set; } = string.Empty;
 
-		internal string GameVersionText { get; set; } = "Blind Soldier FF7 2013 Launcher 1.0.0";
-
 		internal TimeSpan EarlyExitWindow { get; set; } = TimeSpan.FromSeconds(15);
 
 		internal Func<DateTime> UtcNow { get; set; } = () => DateTime.UtcNow;

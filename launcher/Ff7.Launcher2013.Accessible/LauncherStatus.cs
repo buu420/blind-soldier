@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 
 namespace BlindSoldier.Ff7Launcher2013
@@ -88,6 +89,22 @@ namespace BlindSoldier.Ff7Launcher2013
 			{
 				lines.Add(Information(text[TextKey.StatusMetadataKept]));
 			}
+			StatusLine controls = ControlsLine(installation, documentDirectory, text);
+			if (controls != null)
+			{
+				lines.Add(controls);
+			}
+			if (original)
+			{
+				try
+				{
+					LegacyNativeTexts.Load(installation.Root, executable.LanguageCode);
+				}
+				catch (Exception exception) when (exception is IOException || exception is UnauthorizedAccessException || exception is InvalidDataException)
+				{
+					lines.Add(Warning(text.Format(TextKey.StatusNativeTextsMissing, exception.Message.TrimEnd('.'))));
+				}
+			}
 
 			if (installation.BlindSoldierInstalled)
 			{
@@ -115,6 +132,51 @@ namespace BlindSoldier.Ff7Launcher2013
 				lines.Add(Information(text[TextKey.StatusOriginalAvailable]));
 			}
 			return lines;
+		}
+
+		// What the game will read for its controls, as ff7_en.exe treats the
+		// file the driver opens.
+		private static StatusLine ControlsLine(LegacyInstallation installation, string documentDirectory, LauncherText text)
+		{
+			if (installation.Driver.Kind == LegacyDriverKind.Missing || string.IsNullOrEmpty(documentDirectory))
+			{
+				return null;
+			}
+			LegacyControlsLocation location = LegacyControlsFile.Resolve(installation, documentDirectory);
+			if (location == null)
+			{
+				return Information(text[TextKey.StatusControlsUnknownDriver]);
+			}
+			string place;
+			switch (location.Place)
+			{
+				case LegacyControlsPlace.GameFolder:
+					place = text[TextKey.ControlsPlaceGameFolder];
+					break;
+				case LegacyControlsPlace.LanguageFolder:
+					place = text.Format(TextKey.ControlsPlaceLanguageFolder, installation.Selected.LanguageCode);
+					break;
+				default:
+					place = text[TextKey.ControlsPlaceDocuments];
+					break;
+			}
+			LegacyControlsReading reading = LegacyControlsFile.Read(location.Path);
+			switch (reading.Kind)
+			{
+				case LegacyControlsFileKind.Missing:
+					// Play creates the original launcher's default in Documents.
+					return Information(text[TextKey.StatusControlsDefault]);
+				case LegacyControlsFileKind.OfficialDefaults:
+					return Information(text.Format(TextKey.StatusControlsOfficial, place));
+				case LegacyControlsFileKind.Custom:
+					return Information(text.Format(TextKey.StatusControlsCustom, place));
+				case LegacyControlsFileKind.NativeFallback:
+					return Warning(text.Format(TextKey.StatusControlsNativeFallback, place));
+				case LegacyControlsFileKind.Unverified:
+					return Warning(text.Format(TextKey.StatusControlsUnverified, place, reading.Length));
+				default:
+					return Warning(text.Format(TextKey.StatusControlsUnreadable, place));
+			}
 		}
 
 		private static StatusLine DriverLine(LegacyDriverInfo driver, LauncherText text)

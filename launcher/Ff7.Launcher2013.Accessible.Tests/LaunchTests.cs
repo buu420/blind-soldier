@@ -18,6 +18,12 @@ namespace BlindSoldier.Ff7Launcher2013.Tests
 			runner.Add("the original driver without a save profile fails before any write", OriginalWithoutProfileFailsBeforeWrites);
 			runner.Add("the original driver launch creates missing settings and completes the handshake", OriginalLaunchCreatesSettingsAndHandshakes);
 			runner.Add("the original driver launch keeps existing settings files", OriginalLaunchKeepsExistingSettings);
+			runner.Add("every start path keeps an existing ff7input.cfg byte for byte", EveryStartPathKeepsExistingControls);
+			runner.Add("controls that cannot be created stop the start before the game runs", UnwritableControlsStopTheStart);
+			runner.Add("the original driver receives the bindings the game will use, or no key table", OriginalDriverReceivesEffectiveBindings);
+			runner.Add("a missing or damaged strings.dat stops the original driver before anything starts", BrokenStringsDatStopsOriginalStart);
+			runner.Add("FFNx keeps a game-folder or language-folder ff7input.cfg and needs no Documents copy", FfnxHigherPriorityControlsNeedNoDocuments);
+			runner.Add("an unrecognized driver starts without any Documents write", UnrecognizedDriverNeedsNoDocuments);
 			runner.Add("a game that exits during the handshake is reported and objects are released", GameExitDuringHandshakeIsReported);
 			runner.Add("a handshake timeout stops only the game it started and Play works again", HandshakeTimeoutStopsOwnedGame);
 			runner.Add("a stuck real game is stopped after the handshake timeout, sparing other games", StuckRealGameIsStoppedAndRetryWorks);
@@ -45,7 +51,6 @@ namespace BlindSoldier.Ff7Launcher2013.Tests
 				Installation = installation,
 				SaveProfile = profile,
 				DocumentDirectory = game.DocumentDirectory,
-				GameVersionText = "Blind Soldier FF7 2013 Launcher 1.0.0",
 				ChannelPrefix = prefix,
 				MessageTimeout = TimeSpan.FromSeconds(10)
 			};
@@ -62,13 +67,19 @@ namespace BlindSoldier.Ff7Launcher2013.Tests
 			{
 				AssemblyFactory.CompileLibraryWithProduct(Path.Combine(game.Root, "AF3DN.P"), "FFNx", "1.25.2.0");
 				string prefix = ProtocolTests.UniquePrefix();
-				var starter = new FakeStarter(runGameSide: false, exitImmediately: false);
+				string controls = ControlsTests.ControlsPath(game);
+				bool controlsAtStart = false;
+				var starter = new FakeStarter(runGameSide: false, exitImmediately: false) { OnStart = () => controlsAtStart = File.Exists(controls) };
 				using (var result = new LegacyGameLauncher(starter, _ => { }).Launch(Request(game, Detect(game), null, prefix)))
 				{
 					Check.True(result.Started, "started: " + result.Failure + " " + result.Detail);
 					Check.Sequence(new[] { Path.Combine(game.Root, "ff7_en.exe") + "|" + game.Root }, starter.Starts, "start calls");
 					Check.False(Semaphore.TryOpenExisting(LegacyLauncherProtocol.GameCanReadName(prefix), out _), "no launcher objects");
-					Check.False(Directory.Exists(game.DocumentDirectory), "documents untouched");
+					// Without ff7input.cfg the game keeps its numpad-only layout, so
+					// Enter and X do nothing; FFNx reads this folder's copy.
+					Check.True(controlsAtStart, "controls exist before the game starts");
+					ControlsTests.CheckOfficialDefaults(File.ReadAllBytes(controls), "FFNx controls");
+					Check.Sequence(new[] { controls }, Directory.GetFileSystemEntries(game.DocumentDirectory), "only the controls file is written");
 				}
 			}
 		}
@@ -84,7 +95,217 @@ namespace BlindSoldier.Ff7Launcher2013.Tests
 					Check.True(result.Started, "started");
 					Check.Equal(1, starter.Starts.Count, "start calls");
 					Check.False(Semaphore.TryOpenExisting(LegacyLauncherProtocol.GameCanReadName(prefix), out _), "no launcher objects");
+					// Where such a driver reads controls is unknown, so nothing is written.
+					Check.False(Directory.Exists(game.DocumentDirectory), "documents untouched");
 				}
+			}
+		}
+
+		private static void EveryStartPathKeepsExistingControls()
+		{
+			using (var original = new LegacyGameTree("launch-controls-original").WithStandard2013Files().WithDriverBytes(1000))
+			using (var ffnx = new LegacyGameTree("launch-controls-ffnx").WithStandard2013Files())
+			using (var unknown = new LegacyGameTree("launch-controls-unknown").WithStandard2013Files().WithDriverBytes(1048577))
+			{
+				original.CreateProfile("user_5");
+				AssemblyFactory.CompileLibraryWithProduct(Path.Combine(ffnx.Root, "AF3DN.P"), "FFNx", "1.25.2.0");
+				// An empty file: the original launcher would replace it, but a file
+				// the player already has is never changed here.
+				foreach (var game in new[] { original, ffnx, unknown })
+				{
+					Directory.CreateDirectory(game.DocumentDirectory);
+					File.WriteAllBytes(ControlsTests.ControlsPath(game), new byte[0]);
+					string prefix = ProtocolTests.UniquePrefix();
+					var starter = game == original
+						? new FakeStarter(runGameSide: true, exitImmediately: false) { Prefix = prefix }
+						: new FakeStarter(runGameSide: false, exitImmediately: false);
+					using (var result = new LegacyGameLauncher(starter, _ => { }).Launch(Request(game, Detect(game), LegacySaveProfiles.Find(game.DocumentDirectory).SingleOrDefault(), prefix)))
+					{
+						Check.True(result.Started, game.Root + " started: " + result.Failure + " " + result.Detail);
+						starter.Game?.Join(TimeSpan.FromSeconds(10));
+					}
+					Check.Bytes(new byte[0], File.ReadAllBytes(ControlsTests.ControlsPath(game)), game.Root + " controls kept");
+				}
+			}
+		}
+
+		private static void UnwritableControlsStopTheStart()
+		{
+			using (var ffnx = new LegacyGameTree("launch-controls-blocked").WithStandard2013Files())
+			{
+				AssemblyFactory.CompileLibraryWithProduct(Path.Combine(ffnx.Root, "AF3DN.P"), "FFNx", "1.25.2.0");
+				File.WriteAllBytes(Path.Combine(ffnx.DocumentsRoot, "Square Enix"), new byte[] { 7 });
+				var starter = new FakeStarter(runGameSide: false, exitImmediately: false);
+				using (var result = new LegacyGameLauncher(starter, _ => { }).Launch(Request(ffnx, Detect(ffnx), null, ProtocolTests.UniquePrefix())))
+				{
+					Check.Equal(LegacyLaunchFailure.SettingsUnavailable, result.Failure, "FFNx failure");
+					Check.Equal(0, starter.Starts.Count, "FFNx game not started");
+				}
+			}
+			using (var original = new LegacyGameTree("launch-controls-denied").WithStandard2013Files().WithDriverBytes(1000))
+			{
+				original.CreateProfile("user_5");
+				File.WriteAllBytes(Path.Combine(original.DocumentDirectory, "ff7video.cfg"), new byte[32]);
+				File.WriteAllBytes(Path.Combine(original.DocumentDirectory, "ff7sound.cfg"), new byte[] { 100, 0, 0, 0, 100, 0, 0, 0 });
+				string prefix = ProtocolTests.UniquePrefix();
+				var starter = new FakeStarter(runGameSide: false, exitImmediately: false);
+				using (DenyNewFiles(original.DocumentDirectory))
+				using (var result = new LegacyGameLauncher(starter, _ => { }).Launch(Request(original, Detect(original), LegacySaveProfiles.Find(original.DocumentDirectory).Single(), prefix)))
+				{
+					Check.Equal(LegacyLaunchFailure.SettingsUnavailable, result.Failure, "original driver failure");
+					Check.Equal(0, starter.Starts.Count, "original game not started");
+					Check.False(Semaphore.TryOpenExisting(LegacyLauncherProtocol.GameCanReadName(prefix), out _), "launcher objects released");
+				}
+				Check.False(File.Exists(ControlsTests.ControlsPath(original)), "nothing half written");
+			}
+		}
+
+		private static IReadOnlyList<string> Handshake(LegacyGameTree game, byte[] controls)
+		{
+			if (!LegacySaveProfiles.Find(game.DocumentDirectory).Any())
+			{
+				game.CreateProfile("user_5");
+			}
+			if (controls != null)
+			{
+				File.WriteAllBytes(ControlsTests.ControlsPath(game), controls);
+			}
+			string prefix = ProtocolTests.UniquePrefix();
+			var starter = new FakeStarter(runGameSide: true, exitImmediately: false) { Prefix = prefix, AfterHandshake = _ => Enumerable.Empty<byte[]>() };
+			using (var result = new LegacyGameLauncher(starter, _ => { }).Launch(Request(game, Detect(game), LegacySaveProfiles.Find(game.DocumentDirectory).Single(), prefix)))
+			{
+				Check.True(result.Started, "started: " + result.Failure + " " + result.Detail);
+				Check.True(starter.Game.Join(TimeSpan.FromSeconds(10)), "game side finished");
+				return starter.Game.Received;
+			}
+		}
+
+		private static void OriginalDriverReceivesEffectiveBindings()
+		{
+			using (var game = new LegacyGameTree("launch-keys").WithStandard2013Files().WithDriverBytes(1000))
+			{
+				Directory.CreateDirectory(game.DocumentDirectory);
+				// The player's own map: OK on Enter, Camera on Space.
+				byte[] custom = new byte[301];
+				custom[0] = 1;
+				custom[1 + 4 * 5] = 0x1C;
+				custom[1 + 4 * 0] = 0x39;
+				var received = Handshake(game, custom);
+				Check.Equal("16:1C,00,00,00,00,00,00,00,00,00,00,00,00,39", received[2], "custom bindings");
+				Check.Bytes(custom, File.ReadAllBytes(ControlsTests.ControlsPath(game)), "custom file kept");
+
+				byte[] wrongFormat = (byte[])custom.Clone();
+				wrongFormat[0] = 0;
+				received = Handshake(game, wrongFormat);
+				Check.Equal("16:" + string.Join(",", ControlsTests.NumpadKeys.Select(key => key.ToString("X2"))), received[2], "the game's numpad map");
+
+				received = Handshake(game, new byte[] { 1, 2, 3 });
+				Check.False(received.Any(entry => entry.StartsWith("16:", StringComparison.Ordinal)), "no key table for a file whose effect is not verified");
+				Check.Equal(9, received.Count, "the other nine messages");
+				Check.Bytes(new byte[] { 1, 2, 3 }, File.ReadAllBytes(ControlsTests.ControlsPath(game)), "unverified file kept");
+			}
+		}
+
+		private static void BrokenStringsDatStopsOriginalStart()
+		{
+			using (var game = new LegacyGameTree("launch-strings").WithStandard2013Files().WithDriverBytes(1000))
+			{
+				game.CreateProfile("user_5");
+				string strings = Path.Combine(game.Root, "strings.dat");
+				foreach (string state in new[] { "damaged", "missing" })
+				{
+					if (state == "damaged")
+					{
+						File.WriteAllBytes(strings, new byte[] { 4, 0, 0, 0, 0xE8, 3, 0, 0 });
+					}
+					else
+					{
+						File.Delete(strings);
+					}
+					string prefix = ProtocolTests.UniquePrefix();
+					var starter = new FakeStarter(runGameSide: false, exitImmediately: false);
+					using (var result = new LegacyGameLauncher(starter, _ => { }).Launch(Request(game, Detect(game), LegacySaveProfiles.Find(game.DocumentDirectory).Single(), prefix)))
+					{
+						Check.Equal(LegacyLaunchFailure.NativeTextsUnavailable, result.Failure, state + " failure");
+						Check.True(result.Detail.Length > 0, state + " detail");
+						Check.Equal(0, starter.Starts.Count, state + " nothing started");
+						Check.False(Semaphore.TryOpenExisting(LegacyLauncherProtocol.GameCanReadName(prefix), out _), state + " no launcher objects");
+					}
+				}
+				Check.False(File.Exists(ControlsTests.ControlsPath(game)), "nothing written before the refusal");
+			}
+		}
+
+		private static void FfnxHigherPriorityControlsNeedNoDocuments()
+		{
+			foreach (string file in new[] { "ff7input.cfg", @"data\lang-en\ff7input.cfg" })
+			{
+				using (var game = new LegacyGameTree("launch-ffnx-root").WithStandard2013Files())
+				{
+					AssemblyFactory.CompileLibraryWithProduct(Path.Combine(game.Root, "AF3DN.P"), "FFNx", "1.25.2.0");
+					byte[] custom = new byte[301];
+					custom[0] = 1;
+					custom[1 + 4 * 5] = 0x1C;
+					string path = Path.Combine(game.Root, file);
+					Directory.CreateDirectory(Path.GetDirectoryName(path));
+					File.WriteAllBytes(path, custom);
+					// Documents is unavailable: a file stands where its folder belongs.
+					File.WriteAllBytes(Path.Combine(game.DocumentsRoot, "Square Enix"), new byte[] { 7 });
+					var starter = new FakeStarter(runGameSide: false, exitImmediately: false);
+					using (var result = new LegacyGameLauncher(starter, _ => { }).Launch(Request(game, Detect(game), null, ProtocolTests.UniquePrefix())))
+					{
+						Check.True(result.Started, file + " started: " + result.Failure + " " + result.Detail);
+					}
+					Check.Bytes(custom, File.ReadAllBytes(path), file + " kept");
+					Check.False(Directory.Exists(game.DocumentDirectory), file + " no unused Documents copy");
+				}
+			}
+		}
+
+		private static void UnrecognizedDriverNeedsNoDocuments()
+		{
+			using (var game = new LegacyGameTree("launch-unknown-nodocs").WithStandard2013Files().WithDriverBytes(1048577))
+			{
+				File.WriteAllBytes(Path.Combine(game.DocumentsRoot, "Square Enix"), new byte[] { 7 });
+				var starter = new FakeStarter(runGameSide: false, exitImmediately: false);
+				using (var result = new LegacyGameLauncher(starter, _ => { }).Launch(Request(game, Detect(game), null, ProtocolTests.UniquePrefix())))
+				{
+					Check.True(result.Started, "started: " + result.Failure + " " + result.Detail);
+					Check.Equal(1, starter.Starts.Count, "started once");
+				}
+			}
+		}
+
+		// Denies creating files in the folder, as an unwritable Documents folder does.
+		private static IDisposable DenyNewFiles(string directory)
+		{
+			var rule = new System.Security.AccessControl.FileSystemAccessRule(
+				System.Security.Principal.WindowsIdentity.GetCurrent().User,
+				System.Security.AccessControl.FileSystemRights.CreateFiles,
+				System.Security.AccessControl.AccessControlType.Deny);
+			var security = Directory.GetAccessControl(directory);
+			security.AddAccessRule(rule);
+			Directory.SetAccessControl(directory, security);
+			return new Undo(() =>
+			{
+				var restored = Directory.GetAccessControl(directory);
+				restored.RemoveAccessRule(rule);
+				Directory.SetAccessControl(directory, restored);
+			});
+		}
+
+		private sealed class Undo : IDisposable
+		{
+			private readonly Action action;
+
+			internal Undo(Action action)
+			{
+				this.action = action;
+			}
+
+			public void Dispose()
+			{
+				action();
 			}
 		}
 
@@ -109,21 +330,36 @@ namespace BlindSoldier.Ff7Launcher2013.Tests
 				string profilePath = game.CreateProfile("user_123", "save00.ff7");
 				var profile = LegacySaveProfiles.Find(game.DocumentDirectory).Single();
 				string prefix = ProtocolTests.UniquePrefix();
-				var starter = new FakeStarter(runGameSide: true, exitImmediately: false) { Prefix = prefix };
+				string controls = ControlsTests.ControlsPath(game);
+				bool controlsAtStart = false;
+				var starter = new FakeStarter(runGameSide: true, exitImmediately: false) { Prefix = prefix, OnStart = () => controlsAtStart = File.Exists(controls) };
 				using (var result = new LegacyGameLauncher(starter, _ => { }).Launch(Request(game, Detect(game), profile, prefix)))
 				{
 					Check.True(result.Started, "started: " + result.Failure + " " + result.Detail);
+					// The original driver opens ff7input.cfg in the folder of message 11.
+					Check.True(controlsAtStart, "controls exist before the game starts");
+					ControlsTests.CheckOfficialDefaults(File.ReadAllBytes(controls), "original driver controls");
 					Check.True(starter.Game.Join(TimeSpan.FromSeconds(10)), "game side finished");
 					Check.Sequence(new[]
 					{
 						"13:lang-en\0",
+						"15:165 records",
+						"16:" + string.Join(",", ProtocolTests.OfficialKeys.Select(key => key.ToString("X2"))),
 						"10:" + profilePath,
 						"11:" + game.DocumentDirectory,
 						"12:" + game.Root,
-						"18:Blind Soldier FF7 2013 Launcher 1.0.0",
+						"14:36 records",
+						"18:v1.0.9 English Steam",
 						"22:<none>",
 						"24:<none>"
-					}, starter.Game.Received, "handshake");
+					}, starter.Game.Received.Select(NativeReaders.Brief), "handshake");
+					string[] strings = NativeReaders.Strings(starter.Game.Received[1]);
+					Check.Equal("Achievement Unlocked", strings[0], "notice from strings.dat");
+					Check.Equal("Esc", strings[21], "key name from strings.dat");
+					Check.Equal("Save file has been locally saved", strings[4], "untranslated notice keeps its source");
+					string[] achievements = NativeReaders.Strings(starter.Game.Received[6]);
+					Check.Equal("Part I en\u001EFirst part en\u001E48464.fgt", achievements[0], "first achievement");
+					Check.Equal("End of Part II\u001EComplete the second part of the game\u001E86789746.fgt", achievements[1], "untranslated achievement");
 					Check.True(starter.Game.LauncherAcknowledged, "game message acknowledged while running");
 					Check.False(starter.LastProcess.Killed, "a started game keeps running");
 					Check.Bytes(new byte[32], File.ReadAllBytes(Path.Combine(game.DocumentDirectory, "ff7video.cfg")), "default display file");
@@ -143,8 +379,13 @@ namespace BlindSoldier.Ff7Launcher2013.Tests
 				byte[] display = new byte[32];
 				display[15] = 1;
 				byte[] sound = { 10, 0, 0, 0, 20, 0, 0, 0 };
+				// The player's own controls, with OK moved to Enter.
+				byte[] controls = new byte[301];
+				controls[0] = 1;
+				controls[1 + 4 * 5] = 0x1C;
 				File.WriteAllBytes(Path.Combine(game.DocumentDirectory, "ff7video.cfg"), display);
 				File.WriteAllBytes(Path.Combine(game.DocumentDirectory, "ff7sound.cfg"), sound);
+				File.WriteAllBytes(ControlsTests.ControlsPath(game), controls);
 				string prefix = ProtocolTests.UniquePrefix();
 				var starter = new FakeStarter(runGameSide: true, exitImmediately: false) { Prefix = prefix };
 				using (var result = new LegacyGameLauncher(starter, _ => { }).Launch(Request(game, Detect(game), LegacySaveProfiles.Find(game.DocumentDirectory).Single(), prefix)))
@@ -154,7 +395,8 @@ namespace BlindSoldier.Ff7Launcher2013.Tests
 				}
 				Check.Bytes(display, File.ReadAllBytes(Path.Combine(game.DocumentDirectory, "ff7video.cfg")), "display preserved");
 				Check.Bytes(sound, File.ReadAllBytes(Path.Combine(game.DocumentDirectory, "ff7sound.cfg")), "sound preserved");
-				Check.Equal(3, Directory.GetFileSystemEntries(game.DocumentDirectory).Length, "no backups or extra files");
+				Check.Bytes(controls, File.ReadAllBytes(ControlsTests.ControlsPath(game)), "controls preserved");
+				Check.Equal(4, Directory.GetFileSystemEntries(game.DocumentDirectory).Length, "no backups or extra files");
 			}
 		}
 
@@ -340,8 +582,8 @@ namespace BlindSoldier.Ff7Launcher2013.Tests
 				string prefix = ProtocolTests.UniquePrefix();
 				var starter = new FakeStarter(runGameSide: false, exitImmediately: false);
 				var request = Request(game, Detect(game), LegacySaveProfiles.Find(game.DocumentDirectory).Single(), prefix);
-				request.GameVersionText = string.Empty;
-				Check.Throws<ArgumentException>(() => new LegacyGameLauncher(starter, _ => { }).Launch(request), "missing version text");
+				request.DocumentDirectory = string.Empty;
+				Check.Throws<ArgumentException>(() => new LegacyGameLauncher(starter, _ => { }).Launch(request), "missing documents folder");
 				Check.Equal(0, starter.Starts.Count, "nothing started");
 				Check.False(Semaphore.TryOpenExisting(LegacyLauncherProtocol.GameCanReadName(prefix), out _), "no launcher objects left");
 			}
@@ -404,14 +646,17 @@ namespace BlindSoldier.Ff7Launcher2013.Tests
 					"cwd:" + game.Root,
 					"args:",
 					"13:lang-en\0",
+					"15:165 records",
+					"16:" + string.Join(",", ProtocolTests.OfficialKeys.Select(key => key.ToString("X2"))),
 					"10:" + profilePath,
 					"11:" + game.DocumentDirectory,
 					"12:" + game.Root,
-					"18:Blind Soldier FF7 2013 Launcher 1.0.0",
+					"14:36 records",
+					"18:v1.0.9 English Steam",
 					"22:<none>",
 					"24:<none>",
 					"acknowledged:True"
-				}, transcript, "transcript");
+				}, transcript.Select(NativeReaders.Brief), "transcript");
 			}
 		}
 
@@ -518,7 +763,7 @@ namespace BlindSoldier.Ff7Launcher2013.Tests
 				{
 					Check.True(result.Started, "started: " + result.Failure + " " + result.Detail);
 					Check.Equal(1, loader.Calls.Count, "checked once");
-					Check.Equal(7, loader.Calls[0], "checked after all seven start-up messages were read");
+					Check.Equal(10, loader.Calls[0], "checked after all ten start-up messages were read");
 					Check.True(ReferenceEquals(starter.LastProcess, loader.Processes[0]), "checked the started game");
 					Check.False(starter.LastProcess.Killed, "a loaded game keeps running");
 					starter.Game.Join(TimeSpan.FromSeconds(10));

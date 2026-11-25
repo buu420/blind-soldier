@@ -134,7 +134,8 @@ namespace BlindSoldier.Ff7Launcher2013
 		GameExitedDuringHandshake,
 		HandshakeTimedOut,
 		BlindSoldierLoadFailed,
-		Cancelled
+		Cancelled,
+		NativeTextsUnavailable
 	}
 
 	internal sealed class LegacyLaunchRequest
@@ -144,8 +145,6 @@ namespace BlindSoldier.Ff7Launcher2013
 		internal LegacySaveProfile SaveProfile { get; set; }
 
 		internal string DocumentDirectory { get; set; }
-
-		internal string GameVersionText { get; set; }
 
 		internal string ChannelPrefix { get; set; } = LegacyLauncherProtocol.DefaultPrefix;
 
@@ -218,8 +217,13 @@ namespace BlindSoldier.Ff7Launcher2013
 	// original driver gets the launcher handshake with cloud saving off; this
 	// launcher never writes saves, updates metadata.xml after the game reports
 	// a save as the original launcher does, and only creates settings files
-	// that do not exist yet. With Blind Soldier installed it then makes sure
-	// the Version proxy is loaded, and closes a game that would stay silent.
+	// that do not exist yet. When the game would otherwise find no
+	// ff7input.cfg, a start first creates the original launcher's default in
+	// Documents, as that launcher does each time it opens; an unrecognized
+	// driver's controls are left alone. The original driver also receives the
+	// original launcher's texts from strings.dat and the keyboard bindings the
+	// game will use. With Blind Soldier installed it then makes sure the
+	// Version proxy is loaded, and closes a game that would stay silent.
 	// A start that fails, times out or is cancelled stops the one process it
 	// started and releases its launcher objects, so Play can be pressed again.
 	internal sealed class LegacyGameLauncher : ILegacyLaunchService
@@ -269,6 +273,26 @@ namespace BlindSoldier.Ff7Launcher2013
 
 		private LegacyLaunchResult StartDirectly(LegacyLaunchRequest request, LegacyInstallation installation)
 		{
+			// FFNx reads Documents\Square Enix\FINAL FANTASY VII Steam\ff7input.cfg
+			// only when the game folder and its data\lang- folder have none. Where
+			// an unrecognized driver reads is not known, so its start writes nothing.
+			LegacyControlsLocation controls = LegacyControlsFile.Resolve(installation, request.DocumentDirectory);
+			if (controls != null && controls.Place == LegacyControlsPlace.Documents)
+			{
+				try
+				{
+					CreateMissingControls(request.DocumentDirectory);
+				}
+				catch (Exception exception) when (exception is IOException || exception is UnauthorizedAccessException)
+				{
+					return Fail(LegacyLaunchFailure.SettingsUnavailable, exception.Message);
+				}
+			}
+			else if (controls != null)
+			{
+				log("FFNx reads " + controls.Path + "; no Documents copy is needed.");
+			}
+
 			log("Starting " + installation.Selected.FullPath + " directly for the " + installation.Driver.Kind + " driver.");
 			ILegacyGameProcess process;
 			try
@@ -295,12 +319,17 @@ namespace BlindSoldier.Ff7Launcher2013
 			}
 
 			// Invalid start-up information is refused before anything starts.
-			var messages = LegacyLauncherProtocol.BuildStartupSequence(
-				installation.Selected.LanguageCode,
-				request.SaveProfile.FullPath,
-				request.DocumentDirectory,
-				installation.Root,
-				request.GameVersionText);
+			LegacyLauncherProtocol.ValidateStartupPaths(installation.Selected.LanguageCode, request.SaveProfile.FullPath, request.DocumentDirectory, installation.Root);
+			LegacyNativeTexts texts;
+			try
+			{
+				texts = LegacyNativeTexts.Load(installation.Root, installation.Selected.LanguageCode);
+			}
+			catch (Exception exception) when (exception is IOException || exception is UnauthorizedAccessException || exception is InvalidDataException)
+			{
+				// The original launcher refuses to open without these texts too.
+				return Fail(LegacyLaunchFailure.NativeTextsUnavailable, exception.Message);
+			}
 
 			var recorder = new LegacySaveRecorder(new LegacySaveMetadataStore(request.SaveProfile.FullPath), utcNow, log);
 			LegacyLaunchSession session;
@@ -321,6 +350,27 @@ namespace BlindSoldier.Ff7Launcher2013
 			{
 				session.Dispose();
 				return Fail(LegacyLaunchFailure.SettingsUnavailable, exception.Message);
+			}
+
+			// The bindings of the file the driver will open, read after any
+			// default was created; without known bindings message 16 is not sent.
+			LegacyControlsReading controls = LegacyControlsFile.Read(LegacyControlsFile.PathIn(request.DocumentDirectory));
+			log("Controls for the keyboard overlay: " + controls.Kind + (controls.KeyTable == null ? "; no key table is sent." : "."));
+			IReadOnlyList<LegacyLauncherMessage> messages;
+			try
+			{
+				messages = LegacyLauncherProtocol.BuildStartupSequence(
+					installation.Selected.LanguageCode,
+					request.SaveProfile.FullPath,
+					request.DocumentDirectory,
+					installation.Root,
+					texts,
+					controls.KeyTable);
+			}
+			catch (InvalidDataException exception)
+			{
+				session.Dispose();
+				return Fail(LegacyLaunchFailure.NativeTextsUnavailable, exception.Message);
 			}
 
 			if (request.Cancellation.IsCancellationRequested)
@@ -443,6 +493,16 @@ namespace BlindSoldier.Ff7Launcher2013
 				store.WriteSound(sound);
 				log("Created default sound settings: " + store.SoundPath);
 			}
+			// The original driver opens ff7input.cfg in the folder of message 11.
+			CreateMissingControls(documentDirectory);
+		}
+
+		private void CreateMissingControls(string documentDirectory)
+		{
+			LegacyControlsFileState state = LegacyControlsFile.CreateIfMissing(documentDirectory);
+			log((state == LegacyControlsFileState.Created
+				? "Created the original launcher's default controls: "
+				: "Kept the existing controls file: ") + LegacyControlsFile.PathIn(documentDirectory));
 		}
 
 		private LegacyLaunchResult Fail(LegacyLaunchFailure failure, string detail)

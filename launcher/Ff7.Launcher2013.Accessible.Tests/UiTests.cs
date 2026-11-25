@@ -17,6 +17,9 @@ namespace BlindSoldier.Ff7Launcher2013.Tests
 			runner.Add("status warns about the executable, driver, Steam and lists the original launcher", StatusWarnsAboutLimits);
 			runner.Add("status explains a missing save folder and Blind Soldier", StatusExplainsMissingSaveFolder);
 			runner.Add("status names each unsupported folder", StatusNamesUnsupportedFolders);
+			runner.Add("status names the default controls only while ff7input.cfg is missing", StatusNamesDefaultControlsWhileMissing);
+			runner.Add("status names the controls file the game reads and what it holds", StatusNamesControlsTheGameReads);
+			runner.Add("status warns when strings.dat cannot supply the original driver's texts", StatusWarnsAboutStringsDat);
 			runner.Add("profile choice honors a preference only for the original driver", ProfileChoice);
 			runner.Add("every language defines every text with the same placeholders and mnemonics", EveryLanguageDefinesEveryText);
 			runner.Add("mnemonics are unique within each window in every language", MnemonicsAreUnique);
@@ -100,6 +103,7 @@ namespace BlindSoldier.Ff7Launcher2013.Tests
 					"I Graphics driver: FFNx 1.25.2.0. The game starts without the original launcher handshake.",
 					"I Save folder: user_1. Save files: 2.",
 					"I Cloud saving: off. Saves stay on this PC, and this launcher does not sign in to Square Enix.",
+					"I Controls: ff7input.cfg does not exist yet. Play creates it with the original launcher's default controls: X is OK, C is Cancel, V is Menu, B is Start, and the arrow keys move.",
 					"I Blind Soldier accessibility is installed in this game folder."
 				}, Lines(lines), "status lines");
 			}
@@ -124,6 +128,7 @@ namespace BlindSoldier.Ff7Launcher2013.Tests
 					"I 2 save folders were found. Choose one in Settings.",
 					"I Cloud saving: off. Saves stay on this PC, and this launcher does not sign in to Square Enix.",
 					"I After each save, this launcher updates metadata.xml as the original launcher does, so the original launcher keeps these saves.",
+					"I Controls: ff7input.cfg does not exist yet. Play creates it with the original launcher's default controls: X is OK, C is Cancel, V is Menu, B is Start, and the arrow keys move.",
 					"I Blind Soldier accessibility is installed in this game folder.",
 					"W Blind Soldier speaks only with the English executable, ff7_en.exe. It does not start with ff7_fr.exe.",
 					"W Blind Soldier has not been confirmed with the original 2013 graphics driver. If the game stays silent, install FFNx.",
@@ -145,6 +150,7 @@ namespace BlindSoldier.Ff7Launcher2013.Tests
 					"I Graphics driver: original 2013 driver. This launcher sends the start-up information it needs.",
 					"W No save folder was found in " + game.DocumentDirectory + ". Create local save folder makes one on this PC, or sign in once with the original launcher.",
 					"I Cloud saving: off. Saves stay on this PC, and this launcher does not sign in to Square Enix.",
+					"I Controls: ff7input.cfg does not exist yet. Play creates it with the original launcher's default controls: X is OK, C is Cancel, V is Menu, B is Start, and the arrow keys move.",
 					"W Blind Soldier accessibility was not found in this game folder."
 				}, Lines(lines), "status lines");
 			}
@@ -167,6 +173,88 @@ namespace BlindSoldier.Ff7Launcher2013.Tests
 			{
 				var lines = LauncherStatus.Describe(LegacyInstallation.Detect(game.Root, game.ManifestPath, true), Array.Empty<LegacySaveProfile>(), null, game.DocumentDirectory, English);
 				Check.Sequence(new[] { "W Only ff7_ja.exe was found. The Steam 2013 edition uses ff7_en.exe, ff7_fr.exe, ff7_de.exe or ff7_es.exe." }, Lines(lines), "Japanese only");
+			}
+		}
+
+		private static void StatusNamesDefaultControlsWhileMissing()
+		{
+			using (var game = WithProfile(FfnxGame("status-controls", blindSoldier: true)))
+			{
+				var installation = LegacyInstallation.Detect(game.Root, game.ManifestPath, true);
+				var profiles = LegacySaveProfiles.Find(game.DocumentDirectory);
+				Check.True(Lines(LauncherStatus.Describe(installation, profiles, profiles[0], game.DocumentDirectory, English)).Contains("I Controls: ff7input.cfg does not exist yet. Play creates it with the original launcher's default controls: X is OK, C is Cancel, V is Menu, B is Start, and the arrow keys move."), "named while missing");
+				// Any existing file, even an empty one, is what the game reads.
+				File.WriteAllBytes(Path.Combine(game.DocumentDirectory, "ff7input.cfg"), new byte[0]);
+				Check.False(Lines(LauncherStatus.Describe(installation, profiles, profiles[0], game.DocumentDirectory, English)).Contains("I Controls: ff7input.cfg does not exist yet. Play creates it with the original launcher's default controls: X is OK, C is Cancel, V is Menu, B is Start, and the arrow keys move."), "no creation promised once it exists");
+			}
+			using (var game = new LegacyGameTree("status-controls-nodriver").WithStandard2013Files())
+			{
+				// Without AF3DN.P, Play cannot start, so it creates nothing either.
+				var lines = LauncherStatus.Describe(LegacyInstallation.Detect(game.Root, game.ManifestPath, true), Array.Empty<LegacySaveProfile>(), null, game.DocumentDirectory, English);
+				Check.False(Lines(lines).Any(line => line.Contains("ff7input.cfg")), "no promise without a driver");
+			}
+		}
+
+		private static string ControlsLine(LegacyGameTree game)
+		{
+			var installation = LegacyInstallation.Detect(game.Root, game.ManifestPath, true);
+			var profiles = LegacySaveProfiles.Find(game.DocumentDirectory);
+			return Lines(LauncherStatus.Describe(installation, profiles, profiles.FirstOrDefault(), game.DocumentDirectory, English))
+				.Single(line => line.Substring(2).StartsWith("Controls:", StringComparison.Ordinal));
+		}
+
+		private static void StatusNamesControlsTheGameReads()
+		{
+			byte[] custom = new byte[301];
+			custom[0] = 1;
+			custom[1 + 4 * 5] = 0x1C;
+			byte[] wrongFormat = (byte[])custom.Clone();
+			wrongFormat[0] = 0;
+			using (var game = WithProfile(new LegacyGameTree("status-controls-original").WithStandard2013Files().WithDriverBytes(700000)))
+			{
+				string path = Path.Combine(game.DocumentDirectory, "ff7input.cfg");
+				LegacyControlsFile.CreateIfMissing(game.DocumentDirectory);
+				Check.Equal("I Controls: ff7input.cfg in the Documents folder holds the original launcher's default controls: X is OK, C is Cancel, V is Menu, B is Start, and the arrow keys move.", ControlsLine(game), "official");
+				File.WriteAllBytes(path, custom);
+				Check.Equal("I Controls: ff7input.cfg in the Documents folder holds custom controls. This launcher keeps it unchanged.", ControlsLine(game), "custom");
+				File.WriteAllBytes(path, wrongFormat);
+				Check.Equal("W Controls: ff7input.cfg in the Documents folder does not start with the byte the game reads, so the game uses its built-in numpad keys: numpad Enter is OK, numpad 0 is Cancel, numpad plus is Menu, numpad 5 is Start, and numpad 8, 2, 4 and 6 move. This launcher keeps the file unchanged.", ControlsLine(game), "native fallback");
+				File.WriteAllBytes(path, new byte[] { 1, 2, 3 });
+				Check.Equal("W Controls: ff7input.cfg in the Documents folder is 3 bytes, not the 301 bytes the game reads. This launcher keeps it unchanged; which keys the game then uses has not been verified.", ControlsLine(game), "unverified");
+			}
+			using (var game = WithProfile(FfnxGame("status-controls-ffnx", blindSoldier: false)))
+			{
+				File.WriteAllBytes(Path.Combine(game.Root, "ff7input.cfg"), custom);
+				Check.Equal("I Controls: ff7input.cfg in the game folder holds custom controls. This launcher keeps it unchanged.", ControlsLine(game), "FFNx game folder");
+				File.Delete(Path.Combine(game.Root, "ff7input.cfg"));
+				Directory.CreateDirectory(Path.Combine(game.Root, "data", "lang-en"));
+				LegacyControlsFile.CreateIfMissing(Path.Combine(game.Root, "data", "lang-en"));
+				Check.Equal("I Controls: ff7input.cfg in data\\lang-en holds the original launcher's default controls: X is OK, C is Cancel, V is Menu, B is Start, and the arrow keys move.", ControlsLine(game), "FFNx language folder");
+			}
+			using (var game = WithProfile(new LegacyGameTree("status-controls-unknown").WithStandard2013Files().WithDriverBytes(1048577)))
+			{
+				Check.Equal("I Controls: this graphics driver may read ff7input.cfg from another place, so this launcher does not create or change it.", ControlsLine(game), "unrecognized driver");
+			}
+		}
+
+		private static void StatusWarnsAboutStringsDat()
+		{
+			using (var game = WithProfile(new LegacyGameTree("status-strings").WithStandard2013Files().WithDriverBytes(700000)))
+			{
+				var installation = LegacyInstallation.Detect(game.Root, game.ManifestPath, true);
+				var profiles = LegacySaveProfiles.Find(game.DocumentDirectory);
+				Check.False(Lines(LauncherStatus.Describe(installation, profiles, profiles[0], game.DocumentDirectory, English)).Any(line => line.Contains("strings.dat")), "no warning for a readable file");
+				File.Delete(Path.Combine(game.Root, "strings.dat"));
+				string warning = Lines(LauncherStatus.Describe(installation, profiles, profiles[0], game.DocumentDirectory, English)).Single(line => line.Contains("strings.dat"));
+				Check.True(warning.StartsWith("W The game's notice, keyboard-help and achievement texts could not be read from strings.dat: ", StringComparison.Ordinal), "warning: " + warning);
+				Check.True(warning.EndsWith(". Play stops until Steam's Verify integrity of game files repairs it.", StringComparison.Ordinal), "action: " + warning);
+			}
+			using (var game = WithProfile(FfnxGame("status-strings-ffnx", blindSoldier: false)))
+			{
+				File.Delete(Path.Combine(game.Root, "strings.dat"));
+				var installation = LegacyInstallation.Detect(game.Root, game.ManifestPath, true);
+				var profiles = LegacySaveProfiles.Find(game.DocumentDirectory);
+				Check.False(Lines(LauncherStatus.Describe(installation, profiles, profiles[0], game.DocumentDirectory, English)).Any(line => line.Contains("strings.dat")), "FFNx needs no launcher texts");
 			}
 		}
 
@@ -390,6 +478,7 @@ namespace BlindSoldier.Ff7Launcher2013.Tests
 						"Graphics driver: FFNx 1.25.2.0. The game starts without the original launcher handshake.",
 						"Save folder: user_1. Save files: 1.",
 						"Cloud saving: off. Saves stay on this PC, and this launcher does not sign in to Square Enix.",
+						"Controls: ff7input.cfg does not exist yet. Play creates it with the original launcher's default controls: X is OK, C is Cancel, V is Menu, B is Start, and the arrow keys move.",
 						"Blind Soldier accessibility is installed in this game folder."), form.StatusBox.Text, "status text");
 						Check.False(form.CreateLocalSaveFolderButton.Visible, "no local save folder offer when a folder exists");
 					Check.True(ReferenceEquals(form.PlayButton, form.AcceptButton), "Enter plays");
@@ -794,7 +883,7 @@ namespace BlindSoldier.Ff7Launcher2013.Tests
 						Check.Sequence(new[] { "user_1, save files: 0", "user_2, save files: 2" }, form.SaveFolderBox.Items.Cast<object>().Select(item => item.ToString()), "save folders");
 						Check.Equal("user_2, save files: 2", form.SaveFolderBox.SelectedItem.ToString(), "selected save folder");
 						Check.True(form.NotesBox.ReadOnly && form.NotesBox.TabStop, "notes readable");
-						Check.Equal("Controls are changed in the game's own Config menu. This launcher leaves ff7input.cfg unchanged.", form.NotesBox.Text, "notes");
+						Check.Equal("Controls are changed in the game's own Config menu. If ff7input.cfg is missing, Play creates it with the original launcher's default controls. An existing ff7input.cfg is never changed.", form.NotesBox.Text, "notes");
 						Check.True(ReferenceEquals(form.OkButton, form.AcceptButton), "Enter saves");
 						Check.True(ReferenceEquals(form.CancelButtonControl, form.CancelButton), "Escape cancels");
 						Check.Equal("OK", form.OkButton.AccessibleName, "OK name");
@@ -896,7 +985,7 @@ namespace BlindSoldier.Ff7Launcher2013.Tests
 						Check.Null(form.SaveFolderBox, "FFNx chooses its own save folder");
 						Check.Equal(string.Join(Environment.NewLine,
 							"FFNx manages resolution and full screen in FFNx.toml, so display settings are not shown here.",
-							"Controls are changed in the game's own Config menu. This launcher leaves ff7input.cfg unchanged."), form.NotesBox.Text, "notes");
+							"Controls are changed in the game's own Config menu. If ff7input.cfg is missing, Play creates it with the original launcher's default controls. An existing ff7input.cfg is never changed."), form.NotesBox.Text, "notes");
 						form.MusicSlider.Value = 20;
 						return form.BuildResult();
 					});

@@ -52,6 +52,10 @@ namespace BlindSoldier.Ff7Launcher2013
 					cause = text[TextKey.CauseStartCancelled];
 					action = text[TextKey.ActionStartCancelled];
 					break;
+				case LegacyLaunchFailure.NativeTextsUnavailable:
+					cause = text.Format(TextKey.CauseNativeTexts, result.Detail);
+					action = text[TextKey.ActionNativeTexts];
+					break;
 				default:
 					throw new ArgumentException("A started game is not a failure.", nameof(result));
 			}

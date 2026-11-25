@@ -61,6 +61,8 @@ namespace BlindSoldier.Ff7Launcher2013.Tests
 		{
 			var runner = new TestRunner();
 			CoreTests.Register(runner);
+			ControlsTests.Register(runner);
+			NativeTextsTests.Register(runner);
 			ProtocolTests.Register(runner);
 			SaveMetadataTests.Register(runner);
 			LaunchTests.Register(runner);

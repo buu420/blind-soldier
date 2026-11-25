@@ -166,6 +166,9 @@ namespace BlindSoldier.Ff7Launcher2013.Tests
 		{
 			WriteFile("FF7_Launcher.exe", 4096);
 			Directory.CreateDirectory(Path.Combine(Root, "data"));
+			// Every 2013 install carries strings.dat, the original launcher's
+			// translations in four languages.
+			File.WriteAllBytes(Path.Combine(Root, "strings.dat"), NativeFixtures.StandardStringsDat());
 			foreach (string executable in executables.Length == 0 ? new[] { "ff7_en.exe" } : executables)
 			{
 				WriteFile(executable, 2048);

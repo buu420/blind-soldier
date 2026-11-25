@@ -99,8 +99,7 @@ namespace BlindSoldier.Ff7Launcher2013
 				DisplayModes = new SystemDisplayModes(),
 				Preferences = new LauncherPreferences(Path.Combine(root, "Blind-Soldier", "Launcher2013", "save-folder.txt")),
 				Log = log.Write,
-				LogPath = log.Path,
-				GameVersionText = "Blind Soldier FF7 2013 Launcher " + version.ToString(3)
+				LogPath = log.Path
 			};
 			Application.Run(new MainForm(model));
 			log.Write("Accessible 2013 launcher closed.");

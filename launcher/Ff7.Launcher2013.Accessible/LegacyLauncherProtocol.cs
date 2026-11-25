@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Text;
 
 namespace BlindSoldier.Ff7Launcher2013
@@ -11,6 +12,9 @@ namespace BlindSoldier.Ff7Launcher2013
 		DocumentDirectory = 11,
 		InstallDirectory = 12,
 		LocaleDataDirectory = 13,
+		AchievementTexts = 14,
+		InGameTexts = 15,
+		KeyTable = 16,
 		GameVersion = 18,
 		DisableCloud = 22,
 		EndUserInfo = 24
@@ -63,10 +67,24 @@ namespace BlindSoldier.Ff7Launcher2013
 			Text = text;
 		}
 
+		private LegacyLauncherMessage(LegacyLauncherMessageId id, byte[] payload)
+		{
+			Id = id;
+			Payload = payload;
+		}
+
+		internal static LegacyLauncherMessage WithPayload(LegacyLauncherMessageId id, byte[] payload)
+		{
+			return new LegacyLauncherMessage(id, payload ?? throw new ArgumentNullException(nameof(payload)));
+		}
+
 		internal LegacyLauncherMessageId Id { get; }
 
 		// Null for messages that carry only their identifier.
 		internal string Text { get; }
+
+		// The bytes after the identifier of a table message (14, 15 and 16).
+		internal byte[] Payload { get; }
 	}
 
 	// The launcher-to-game contract of the original FF7_Launcher.exe, as
@@ -101,30 +119,160 @@ namespace BlindSoldier.Ff7Launcher2013
 
 		internal static string SharedMemoryName(string prefix) => prefix + "_sharedMemoryWithLauncher";
 
-		internal static IReadOnlyList<LegacyLauncherMessage> BuildStartupSequence(
-			string languageCode,
-			string userSaveDirectory,
-			string documentDirectory,
-			string installDirectory,
-			string gameVersion)
+		// The record counts the original driver's readers expect: they read
+		// exactly this many records, so a payload must hold exactly these.
+		internal const int InGameTextCount = 165;
+		internal const int AchievementCount = 36;
+		internal const int KeyTableCount = 14;
+		internal const int MaximumTableTextLength = 4096;
+
+		internal static void ValidateStartupPaths(string languageCode, string userSaveDirectory, string documentDirectory, string installDirectory)
 		{
 			if (languageCode == null || !LanguageCodes.Contains(languageCode))
 			{
 				throw new ArgumentException("The 2013 Steam edition has no " + (languageCode ?? "null") + " executable.", nameof(languageCode));
 			}
+			Required(userSaveDirectory, nameof(userSaveDirectory));
+			Required(documentDirectory, nameof(documentDirectory));
+			Required(installDirectory, nameof(installDirectory));
+		}
 
-			return new[]
+		// The original launcher's order (FF7_Launcher.exe FUN_00413F90): locale,
+		// in-game strings, key table, the three folders, achievement texts, game
+		// version, the cloud choice and the end. Message 16 is left out when the
+		// bindings the game will use are not known. The original also sends
+		// message 1 for each achievement its sign-in data lists as earned; the
+		// driver reads those from Steam itself (AF3DN.P FUN_1001EE70).
+		internal static IReadOnlyList<LegacyLauncherMessage> BuildStartupSequence(
+			string languageCode,
+			string userSaveDirectory,
+			string documentDirectory,
+			string installDirectory,
+			LegacyNativeTexts texts,
+			IReadOnlyList<int> keyTable)
+		{
+			ValidateStartupPaths(languageCode, userSaveDirectory, documentDirectory, installDirectory);
+			if (texts == null)
+			{
+				throw new ArgumentNullException(nameof(texts));
+			}
+
+			var messages = new List<LegacyLauncherMessage>
 			{
 				// FF78Launcher sends the locale with its terminating NUL counted in
 				// the length; that exact form is what the original driver has read.
 				new LegacyLauncherMessage(LegacyLauncherMessageId.LocaleDataDirectory, "lang-" + languageCode + "\0"),
-				new LegacyLauncherMessage(LegacyLauncherMessageId.UserSaveDirectory, Required(userSaveDirectory, nameof(userSaveDirectory))),
-				new LegacyLauncherMessage(LegacyLauncherMessageId.DocumentDirectory, Required(documentDirectory, nameof(documentDirectory))),
-				new LegacyLauncherMessage(LegacyLauncherMessageId.InstallDirectory, Required(installDirectory, nameof(installDirectory))),
-				new LegacyLauncherMessage(LegacyLauncherMessageId.GameVersion, Required(gameVersion, nameof(gameVersion))),
-				new LegacyLauncherMessage(LegacyLauncherMessageId.DisableCloud, null),
-				new LegacyLauncherMessage(LegacyLauncherMessageId.EndUserInfo, null)
+				InGameTexts(texts.InGame)
 			};
+			if (keyTable != null)
+			{
+				messages.Add(KeyTable(keyTable));
+			}
+			messages.Add(new LegacyLauncherMessage(LegacyLauncherMessageId.UserSaveDirectory, userSaveDirectory));
+			messages.Add(new LegacyLauncherMessage(LegacyLauncherMessageId.DocumentDirectory, documentDirectory));
+			messages.Add(new LegacyLauncherMessage(LegacyLauncherMessageId.InstallDirectory, installDirectory));
+			messages.Add(AchievementTexts(texts.Achievements));
+			messages.Add(new LegacyLauncherMessage(LegacyLauncherMessageId.GameVersion, Bounded(texts.GameVersion, "the game version")));
+			messages.Add(new LegacyLauncherMessage(LegacyLauncherMessageId.DisableCloud, null));
+			messages.Add(new LegacyLauncherMessage(LegacyLauncherMessageId.EndUserInfo, null));
+			foreach (LegacyLauncherMessage message in messages)
+			{
+				if (EncodeBytes(message).Length > LauncherRegionSize)
+				{
+					throw new InvalidDataException("Launcher message " + (uint)message.Id + " does not fit the shared launcher region.");
+				}
+			}
+			return messages;
+		}
+
+		// Message 15 (writer FUN_0042F910, reader FUN_0042F840): for index 0 to
+		// 164, the index, the UTF-16 length and the UTF-16LE text, with no count,
+		// terminator or padding.
+		internal static LegacyLauncherMessage InGameTexts(IReadOnlyList<string> texts)
+		{
+			if (texts == null || texts.Count != InGameTextCount)
+			{
+				throw new InvalidDataException("Message 15 needs exactly " + InGameTextCount + " strings, not " + (texts?.Count ?? 0) + ".");
+			}
+			var payload = new List<byte>();
+			for (int index = 0; index < texts.Count; index++)
+			{
+				payload.AddRange(BitConverter.GetBytes(index));
+				AddString(payload, Bounded(texts[index], "in-game string " + index));
+			}
+			return Table(LegacyLauncherMessageId.InGameTexts, payload);
+		}
+
+		// Message 14 (writer FUN_0042F720, reader FUN_0042F570): for achievement
+		// 0 to 35, the index, then the name, the description and the icon file,
+		// each as a UTF-16 length and UTF-16LE text.
+		internal static LegacyLauncherMessage AchievementTexts(IReadOnlyList<LegacyAchievementText> achievements)
+		{
+			if (achievements == null || achievements.Count != AchievementCount)
+			{
+				throw new InvalidDataException("Message 14 needs exactly " + AchievementCount + " achievements, not " + (achievements?.Count ?? 0) + ".");
+			}
+			var payload = new List<byte>();
+			for (int index = 0; index < achievements.Count; index++)
+			{
+				LegacyAchievementText achievement = achievements[index] ?? throw new InvalidDataException("Achievement " + index + " is missing.");
+				payload.AddRange(BitConverter.GetBytes(index));
+				AddString(payload, Bounded(achievement.Name, "achievement name " + index));
+				AddString(payload, Bounded(achievement.Description, "achievement description " + index));
+				AddString(payload, Bounded(achievement.Icon, "achievement icon " + index));
+			}
+			return Table(LegacyLauncherMessageId.AchievementTexts, payload);
+		}
+
+		// Message 16 (writer FUN_0042F180, reader FUN_0042FA30): the count, then
+		// the keyboard binding of OK, Cancel, Menu, Up, Left, Right, Down, Start,
+		// Switch, Page Up, Page Down, Target, Assist and Camera. The original
+		// launcher reads each binding as one byte; the driver stores them under
+		// keys 7 to 20, beside labels 7 to 20 of message 15.
+		internal static LegacyLauncherMessage KeyTable(IReadOnlyList<int> keys)
+		{
+			if (keys == null || keys.Count != KeyTableCount)
+			{
+				throw new InvalidDataException("Message 16 needs exactly " + KeyTableCount + " bindings, not " + (keys?.Count ?? 0) + ".");
+			}
+			var payload = new List<byte>(BitConverter.GetBytes(keys.Count));
+			foreach (int key in keys)
+			{
+				if (key < 0 || key > 0xFF)
+				{
+					throw new InvalidDataException("Keyboard binding " + key + " is not a one-byte key code.");
+				}
+				payload.AddRange(BitConverter.GetBytes(key));
+			}
+			return Table(LegacyLauncherMessageId.KeyTable, payload);
+		}
+
+		private static LegacyLauncherMessage Table(LegacyLauncherMessageId id, List<byte> payload)
+		{
+			if (4L + payload.Count > LauncherRegionSize)
+			{
+				throw new InvalidDataException("Launcher message " + (uint)id + " needs " + (4 + payload.Count) + " bytes, more than the " + LauncherRegionSize + "-byte launcher region.");
+			}
+			return LegacyLauncherMessage.WithPayload(id, payload.ToArray());
+		}
+
+		private static void AddString(List<byte> payload, string text)
+		{
+			payload.AddRange(BitConverter.GetBytes(text.Length));
+			payload.AddRange(Encoding.Unicode.GetBytes(text));
+		}
+
+		private static string Bounded(string text, string name)
+		{
+			if (text == null)
+			{
+				throw new InvalidDataException("The text for " + name + " is missing.");
+			}
+			if (text.Length > MaximumTableTextLength)
+			{
+				throw new InvalidDataException("The text for " + name + " is longer than " + MaximumTableTextLength + " characters.");
+			}
+			return text;
 		}
 
 		// The bytes written at the start of the launcher region: the identifier,
@@ -134,6 +282,13 @@ namespace BlindSoldier.Ff7Launcher2013
 			if (message == null)
 			{
 				throw new ArgumentNullException(nameof(message));
+			}
+			if (message.Payload != null)
+			{
+				var table = new byte[4 + message.Payload.Length];
+				Array.Copy(BitConverter.GetBytes((uint)message.Id), table, 4);
+				Array.Copy(message.Payload, 0, table, 4, message.Payload.Length);
+				return table;
 			}
 			if (message.Text == null)
 			{

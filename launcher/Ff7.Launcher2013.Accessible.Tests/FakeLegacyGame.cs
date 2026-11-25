@@ -45,6 +45,15 @@ namespace BlindSoldier.Ff7Launcher2013.Tests
 					{
 						record(id + ":<none>");
 					}
+					else if (id == 14 || id == 15 || id == 16)
+					{
+						record(NativeReaders.Read(id, offset => view.ReadInt32(LauncherOffset + offset), (offset, length) =>
+						{
+							var text = new char[length];
+							view.ReadArray(LauncherOffset + offset, text, 0, length);
+							return new string(text);
+						}, 4, 0x10000));
+					}
 					else
 					{
 						int length = view.ReadInt32(LauncherOffset + 4);
