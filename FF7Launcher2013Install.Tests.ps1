@@ -97,6 +97,41 @@ Describe 'Accessible FINAL FANTASY VII (2013) launcher lifecycle' {
         }
     }
 
+    It 'validates and rejects bundles in a fresh redirected Windows PowerShell process' {
+        function Invoke-FreshBundleCheck {
+            $moduleLiteral = $modulePath.Replace("'", "''")
+            $bundleLiteral = $fixture.Bundle.Replace("'", "''")
+            $code = "`$ErrorActionPreference='Stop'; Import-Module '$moduleLiteral' -Force; Test-Ff7Accessible2013LauncherBundle -BundlePath '$bundleLiteral' | Out-Null"
+            $start = New-Object Diagnostics.ProcessStartInfo
+            $start.FileName = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+            $start.Arguments = '-NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand ' + [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($code))
+            $start.UseShellExecute = $false
+            $start.CreateNoWindow = $true
+            $start.RedirectStandardOutput = $true
+            $start.RedirectStandardError = $true
+            $process = New-Object Diagnostics.Process
+            $process.StartInfo = $start
+            try {
+                [void]$process.Start()
+                $output = $process.StandardOutput.ReadToEndAsync()
+                $errors = $process.StandardError.ReadToEndAsync()
+                if (-not $process.WaitForExit(30000)) {
+                    $process.Kill()
+                    throw 'The fresh bundle check did not finish.'
+                }
+                return [pscustomobject]@{ ExitCode=$process.ExitCode; Output=$output.GetAwaiter().GetResult(); Error=$errors.GetAwaiter().GetResult() }
+            }
+            finally { $process.Dispose() }
+        }
+        $valid = Invoke-FreshBundleCheck
+        if ($valid.ExitCode -ne 0) { throw ('Fresh bundle validation failed: ' + $valid.Error) }
+        [IO.File]::AppendAllText((Join-Path $fixture.Bundle 'FF7_Launcher.exe.config'), ' ')
+        $invalid = Invoke-FreshBundleCheck
+        $invalid.ExitCode | Should Not Be 0
+        $invalid.Error | Should Match 'does not match its manifest'
+        (Get-Sha256 $fixture.Launcher) | Should Be $fixture.OriginalHash
+    }
+
     It 'rejects a tampered bundle before touching the game' {
         [IO.File]::AppendAllText((Join-Path $fixture.Bundle 'FF7_Launcher.exe.config'), ' ')
         { Install-Ff7Accessible2013Launcher -GameRoot $fixture.Game -BundlePath $fixture.Bundle } |

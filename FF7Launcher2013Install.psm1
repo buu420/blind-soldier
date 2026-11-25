@@ -19,7 +19,20 @@ $script:GameProcesses = @('FF7_Launcher', 'FF7_Launcher.original', 'ff7_de', 'ff
 
 function Get-Legacy2013Sha256 {
     param([Parameter(Mandatory=$true)] [string] $Path)
-    return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToUpperInvariant()
+    # A redirected, fresh Windows PowerShell host may not have imported the
+    # utility module's Get-FileHash function. Hash through the framework so
+    # validation does not depend on commands preloaded by a caller or Pester.
+    $stream = $null
+    $hasher = $null
+    try {
+        $stream = [IO.File]::OpenRead($Path)
+        $hasher = [Security.Cryptography.SHA256]::Create()
+        return [BitConverter]::ToString($hasher.ComputeHash($stream)).Replace('-', '')
+    }
+    finally {
+        if ($null -ne $hasher) { $hasher.Dispose() }
+        if ($null -ne $stream) { $stream.Dispose() }
+    }
 }
 
 function Test-Legacy2013HashEqual {
