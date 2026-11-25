@@ -30,3 +30,52 @@ Describe 'Story catalog regeneration' {
         $result.Definitions[0].label | Should -Be 'valid'
     }
 }
+Describe 'Midgar model Story generator consistency' {
+    It 'regenerates the reviewed chest, placement and return targets exactly' {
+        $sourceRoot = Split-Path -Parent $PSScriptRoot
+        $generator = Join-Path $PSScriptRoot 'Generate-FieldStoryEvents.ps1'
+        $tokens = $null
+        $errors = $null
+        $ast = [Management.Automation.Language.Parser]::ParseFile($generator, [ref]$tokens, [ref]$errors)
+        @($errors).Count | Should Be 0
+        foreach ($function in $ast.FindAll({ param($node)
+            $node -is [Management.Automation.Language.FunctionDefinitionAst] -and
+            $node.Name -in @('New-Condition','ConvertTo-OrderedShape','Add-Definition')
+        }, $false)) {
+            . ([scriptblock]::Create($function.Extent.Text))
+        }
+        $definitions = New-Object 'Collections.Generic.List[object]'
+        $commands = @($ast.FindAll({ param($node)
+            $node -is [Management.Automation.Language.CommandAst] -and
+            $node.Extent.Text -match '^Add-Definition -FieldId (248|249) '
+        }, $false))
+        foreach ($command in $commands) { & ([scriptblock]::Create($command.Extent.Text)) }
+        $catalog = Get-Content -LiteralPath (Join-Path $sourceRoot `
+            'Ff7.Accessibility.Reloaded\Assets\navigation\field_story_events.json') -Raw | ConvertFrom-Json
+        $expected = @($catalog.definitions | Where-Object { $_.fieldId -in 248,249 })
+        $definitions.Count | Should Be $expected.Count
+        function ConvertTo-CanonicalShape([object]$value) {
+            if ($null -eq $value) { return $null }
+            if ($value -is [Collections.IDictionary]) {
+                $result = [ordered]@{}
+                foreach ($key in @($value.Keys | Sort-Object)) { $result[$key] = ConvertTo-CanonicalShape $value[$key] }
+                return $result
+            }
+            if ($value -is [pscustomobject]) {
+                $result = [ordered]@{}
+                foreach ($key in @($value.PSObject.Properties.Name | Sort-Object)) { $result[$key] = ConvertTo-CanonicalShape $value.$key }
+                return $result
+            }
+            if ($value -is [Collections.IEnumerable] -and $value -isnot [string]) {
+                return ,@($value | ForEach-Object { ConvertTo-CanonicalShape $_ })
+            }
+            return $value
+        }
+        foreach ($row in $expected) {
+            $actual = @($definitions | Where-Object { $_.fieldId -eq $row.fieldId -and $_.label -ceq $row.label })
+            $actual.Count | Should Be 1
+            (ConvertTo-CanonicalShape $actual[0] | ConvertTo-Json -Depth 20 -Compress) |
+                Should Be (ConvertTo-CanonicalShape $row | ConvertTo-Json -Depth 20 -Compress)
+        }
+    }
+}

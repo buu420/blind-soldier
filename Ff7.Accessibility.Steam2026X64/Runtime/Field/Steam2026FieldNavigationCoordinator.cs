@@ -146,6 +146,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
     private bool controllerMenuIsOpen;
     private bool junonParadeClaimsFieldInput;
     private int disposed;
+    private readonly BlindSoldierLocalizer descriptionLocalizer;
 
     internal Steam2026FieldNavigationCoordinator(
         AccessibilityConfig config,
@@ -245,6 +246,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             gameRootDirectory,
             config.GameLanguage,
             log: log);
+        descriptionLocalizer = BlindSoldierLocalizer.Create(language.Descriptor, modDirectory, log);
         scriptCatalog = new FieldScriptNavigationCatalog(gameRootDirectory, language,
             new LoadedFieldScriptIdentityReader(addressSpace, log));
         objectReader.SetNavigationDefinitionRemapper(scriptCatalog.RemapObjectDefinition);
@@ -1165,7 +1167,8 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
                        out var action,
                        out var result,
                        areaKnown: scriptCatalog.ReadField(position.FieldId).IsUsable,
-                       roomVisible: new FieldRoomPresentationReader(addressSpace).IsRoomVisible(position.FieldId)))
+                       roomVisible: new FieldRoomPresentationReader(addressSpace).IsRoomVisible(position.FieldId),
+                       localizer: descriptionLocalizer))
             {
                 LogInputDiagnostic(
                     $"executed={action}, speech={(result is null ? "none" : "present")}");

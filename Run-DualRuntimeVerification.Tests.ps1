@@ -264,9 +264,10 @@ Describe 'Blind Soldier aggregate portable release gate' {
                 '-ExpectedSourceArchivePath') + 1)] | Should Be $builtArchive
             @($invocations.Name) | Should Be @(
                 'Shared.Tests','Reloaded.Tests','Steam2026X64.Tests',
-                'Parity.Tests','AccessibleLauncher.Tests',
+                'Parity.Tests','AccessibleLauncher.Tests','Accessible2013Launcher.Tests',
                 'VerificationGate.Tests','PrismAbiContract.Tests',
                 'AccessibleLauncherBundle.Tests',
+                'Accessible2013LauncherBundle.Tests','Accessible2013LauncherInstall.Tests','Accessible2013LauncherLifecycle.Tests','AmmSources.Tests',
                 'NativeHost.Tests','Bootstrap.Tests x86/x64',
                 'NativeProxy.Tests','PortableDotNetRuntime.Tests',
                 'PortablePackage.Tests','PortablePackage.Build',
@@ -275,7 +276,7 @@ Describe 'Blind Soldier aggregate portable release gate' {
                 'LegacyPortablePackage.Verify')
             $result.VerificationSucceeded | Should Be $true
             $result.Mode | Should Be 'Research'
-            $result.Steps.Count | Should Be 19
+            $result.Steps.Count | Should Be 24
             $result.PackageStagingCleaned | Should Be $true
             $result.PortableArchiveSha256 | Should Be $null
             $result.LegacyPortableArchiveSha256 | Should Be $null
@@ -358,8 +359,9 @@ Describe 'Blind Soldier aggregate portable release gate' {
             $content | Should Not Match $forbidden
         }
         foreach ($required in @(
-            'AccessibleLauncher.Tests','PrismAbiContract.Tests',
+            'AccessibleLauncher.Tests','Accessible2013Launcher.Tests','PrismAbiContract.Tests',
             'AccessibleLauncherBundle.Tests',
+            'Accessible2013LauncherBundle.Tests','Accessible2013LauncherInstall.Tests','Accessible2013LauncherLifecycle.Tests','AmmSources.Tests',
             'NativeHost.Tests','Bootstrap.Tests x86/x64','NativeProxy.Tests',
             'PortableDotNetRuntime.Tests','PortablePackage.Tests',
             'PortablePackage.Verify','Ghidra.NativeEvidence',

@@ -12,6 +12,7 @@ using Ff7.Accessibility.Steam2026X64.Runtime.NameEntry;
 using Ff7.Accessibility.Steam2026X64.Runtime.SystemMenu;
 using Ff7.Accessibility.Steam2026X64.Runtime.World;
 using Reloaded.Hooks.Definitions;
+using System.Reflection;
 
 namespace Ff7.Accessibility.Steam2026X64.Runtime;
 
@@ -194,11 +195,12 @@ internal sealed class Steam2026ResearchSession : IDisposable
         AccessibilityConfig config,
         string modDirectory,
         FieldMovieNarrationTrack track,
-        Action<string> log)
+        Action<string> log,
+        bool useRecordedDescriptions = true)
     {
         try
         {
-            if (!config.EnableFieldMovieNarrationTracks)
+            if (!config.EnableFieldMovieNarrationTracks || !useRecordedDescriptions)
             {
                 log($"Field movie narration disabled in config; {track.Label} falls back to speech.");
                 return null;
@@ -237,11 +239,12 @@ internal sealed class Steam2026ResearchSession : IDisposable
         AccessibilityConfig config,
         string modDirectory,
         CutsceneVoiceClip clip,
-        Action<string> log)
+        Action<string> log,
+        bool useRecordedDescriptions = true)
     {
         try
         {
-            if (!config.EnableFieldCutsceneDescriptions)
+            if (!config.EnableFieldCutsceneDescriptions || !useRecordedDescriptions)
             {
                 return null;
             }
@@ -269,8 +272,10 @@ internal sealed class Steam2026ResearchSession : IDisposable
     internal static CutsceneVoiceManifest LoadCutsceneVoiceManifest(
         AccessibilityConfig config,
         string modDirectory,
-        Action<string> log)
+        Action<string> log,
+        bool useRecordedDescriptions = true)
     {
+        if (!useRecordedDescriptions) return CutsceneVoiceManifest.Empty;
         try
         {
             if (!config.EnableFieldCutsceneDescriptions)
@@ -663,9 +668,10 @@ internal sealed class Steam2026ResearchSession : IDisposable
             ValidatedTranslatedX86AddressSpaceFactory.Create(fingerprint, moduleBase, memory),
             gameLanguage.Descriptor);
         var localizer = BlindSoldierLocalizer.Create(gameLanguage.Descriptor, modDirectory, log);
-        if (gameLanguage.Language != Ff7GameLanguage.English && config.EnableOpeningMovieAudioTrack)
+        log($"Blind Soldier {typeof(Steam2026ResearchSession).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "unknown"} (x64).");
+        if (!localizer.UseRecordedAudioDescriptions)
         {
-            log("The packaged opening-movie audio description is English; localized Prism cues remain available as fallback.");
+            log($"Audio descriptions use {gameLanguage.Code} text through Prism; English recordings are bypassed.");
         }
 
         using var speaker = new PrismNativeSpeaker(log);
@@ -727,7 +733,7 @@ internal sealed class Steam2026ResearchSession : IDisposable
 
             try
             {
-                output.Speak(text, interrupt);
+                output.Speak(localizer.LocalizeDescription(text), interrupt);
             }
             catch (Exception ex)
             {
@@ -1056,20 +1062,21 @@ internal sealed class Steam2026ResearchSession : IDisposable
                                 moduleBase,
                                 memory);
                         endgameMovieReader ??= new Steam2026NativeMovieStateReader(fingerprint, moduleBase, moduleImageSize, memory);
-                        var endgameVoice = LoadCutsceneVoiceManifest(config, modDirectory, log);
+                        var endgameVoice = LoadCutsceneVoiceManifest(config, modDirectory, log, localizer.UseRecordedAudioDescriptions);
                         endgameMovieNarration ??= new EndgameMovieNarrationTracker(
                             film => ReadFieldMovieNarrationCues(config, modDirectory,
                                 new(-1, -1, -1, -1, -1, MovieFilmDescriptionCatalog.RecordingFileName(film), film, 0), log),
                             text => endgameVoice.TryGet(text, out var clip) ? CreateCutsceneVoiceOutput(config, modDirectory, clip, log) : null,
-                            text => { output.Speak(text, interrupt: false); return true; }, log);
+                            text => { output.Speak(localizer.LocalizeDescription(text), interrupt: false); return true; }, log);
                         creditsNarration ??= new NativeCreditsNarrator(
                             () => endgameVoice.TryGet(NativeCreditsNarrator.Introduction, out var clip)
                                 ? CreateCutsceneVoiceOutput(config, modDirectory, clip, log) : null,
-                            text => { output.Speak(text, interrupt: false); return true; }, log);
+                            text => { output.Speak(text, interrupt: false); return true; }, log,
+                            text => { output.Speak(localizer.LocalizeDescription(text), interrupt: false); return true; });
                         creditsConsumer ??= new NativeCreditsObservationConsumer(sharedFieldAddressSpace, creditsNarration);
                         creditsTitleNarration ??= new NativeObservedCaptionNarrator(
                             text => endgameVoice.TryGet(text, out var clip) ? CreateCutsceneVoiceOutput(config, modDirectory, clip, log) : null,
-                            text => { output.Speak(text, interrupt: false); return true; }, log);
+                            text => { output.Speak(localizer.LocalizeDescription(text), interrupt: false); return true; }, log);
                         creditsTitleConsumer ??= new NativeCreditsTitleObservationConsumer(sharedFieldAddressSpace, creditsTitleNarration);
                         PublishNarrationOwners(endgameMovieNarration, creditsNarration, creditsTitleNarration);
                         foregroundInput.EnableBufferedKeyboard(sharedFieldAddressSpace, log,
@@ -1084,7 +1091,7 @@ internal sealed class Steam2026ResearchSession : IDisposable
                         try
                         {
                             candidateFilmNarration = new FieldMovieNarrationTracker(
-                                track => CreateFieldMovieNarrationOutput(config, modDirectory, track, log),
+                                track => CreateFieldMovieNarrationOutput(config, modDirectory, track, log, localizer.UseRecordedAudioDescriptions),
                                 log,
                                 FieldPositionReader.FieldModule,
                                 track => ReadFieldMovieNarrationCues(config, modDirectory, track, log),
@@ -1103,7 +1110,7 @@ internal sealed class Steam2026ResearchSession : IDisposable
                         try
                         {
                             candidateCutsceneVoice = new CutsceneVoicePlayer(
-                                LoadCutsceneVoiceManifest(config, modDirectory, log),
+                                LoadCutsceneVoiceManifest(config, modDirectory, log, localizer.UseRecordedAudioDescriptions),
                                 clip => CreateCutsceneVoiceOutput(config, modDirectory, clip, log),
                                 log,
                                 () => candidateFilmNarration?.IsPlaying == true ||
@@ -1353,7 +1360,7 @@ avigationield_zone_transition.wav"),
                             text => { output.Speak(text, interrupt: false); return true; },
                             () => candidateCutsceneVoice?.IsPlaying == true || candidateFilmNarration?.IsPlaying == true,
                             () => output.TryIsSpeaking(out var speaking) ? speaking : null,
-                            kernel2TextDatabase);
+                            kernel2TextDatabase, localizer.UseRecordedAudioDescriptions, localizer.LocalizeDescription);
                         cutsceneDialogueProbe = candidateCutsceneDialogueProbe;
                         fieldZoneSpeechCoordinator = candidateFieldZoneSpeechCoordinator;
 
@@ -1748,7 +1755,7 @@ avigationield_zone_transition.wav"),
                         bool? prismSpeaking=output.TryIsSpeaking(out var activeSpeech)?activeSpeech:null;
                         creatureSpoken=cutsceneDescriptions.TrySpeakCreature(now,
                             sample=>cutsceneDescriptions.CanStartCreatureDescription(sample,dialogueOnScreen,prismSpeaking),
-                            text=>{output.Speak(text,interrupt:false);return true;},out var creatureCue);
+                            text=>{output.Speak(localizer.LocalizeDescription(text),interrupt:false);return true;},out var creatureCue);
                         if(creatureSpoken)
                         {
                             lastCutsceneNarrationFieldId=creatureCue.FieldId;
@@ -1773,7 +1780,7 @@ avigationield_zone_transition.wav"),
                                 : () => cutsceneDialogueProbe.TryRead(out _),
                             text =>
                             {
-                                output.Speak(text, interrupt: false);
+                                output.Speak(localizer.LocalizeDescription(text), interrupt: false);
                                 return true;
                             },
                             out var deferredFilmCue,
@@ -1792,7 +1799,7 @@ avigationield_zone_transition.wav"),
                             () => cutsceneDialogueProbe.TryRead(out _),
                             text =>
                             {
-                                output.Speak(text, interrupt: false);
+                                output.Speak(localizer.LocalizeDescription(text), interrupt: false);
                                 return true;
                             },
                             now,
@@ -2924,7 +2931,8 @@ avigationield_zone_transition.wav"),
 
                                 if (openingMovieActive)
                                 {
-                                    if (config.EnableOpeningMovieDescription)
+                                    if (OpeningMovieAudioTrackPolicy.ShouldUseScreenReader(config.EnableOpeningMovieAudioTrack,
+                                            config.EnableOpeningMovieDescription, localizer.UseRecordedAudioDescriptions))
                                     {
                                         openingMovieDescription.Start();
                                     }
@@ -2987,7 +2995,8 @@ avigationield_zone_transition.wav"),
                 // inside the frame branch, a momentarily unreadable guest frame
                 // would stall the description mid-sentence and drop the cues that
                 // fell during it - the movie does not pause for our read failures.
-                if (config.EnableOpeningMovieDescription)
+                if (OpeningMovieAudioTrackPolicy.ShouldUseScreenReader(config.EnableOpeningMovieAudioTrack,
+                        config.EnableOpeningMovieDescription, localizer.UseRecordedAudioDescriptions))
                 {
                     openingMovieDescription.Tick();
                 }

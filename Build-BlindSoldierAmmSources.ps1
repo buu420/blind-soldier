@@ -88,6 +88,7 @@ try {
         'Blind-Soldier\Runtime\dotnet\x86',
         'Blind-Soldier\Tools',
         'Blind-Soldier\Policy',
+        'Blind-Soldier\Launcher2013',
         'LICENSES',
         'Reloaded-II\Loader\X86'
     )) {
@@ -121,6 +122,11 @@ try {
         'Reloaded-II\portable.txt') -Label 'Reloaded portable marker'
     Copy-RequiredFile -Source $readme -Destination (Join-Path $old `
         'README-Blind-Soldier.md') -Label 'Blind Soldier README'
+    foreach ($relative in @('Install-2013-Accessible-Launcher.cmd',
+            'Restore-2013-Original-Launcher.cmd')) {
+        Copy-RequiredFile -Source (Join-Path $portable $relative) `
+            -Destination (Join-Path $old $relative) -Label $relative
+    }
 
     [pscustomobject]@{
         OldSource = $old

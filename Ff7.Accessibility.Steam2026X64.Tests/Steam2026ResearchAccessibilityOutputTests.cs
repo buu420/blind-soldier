@@ -13,8 +13,24 @@ internal static class Steam2026ResearchAccessibilityOutputTests
         ReportsPrismSpeechCompletionWhenTheBackendSupportsIt();
         RepeatsLastDeliveredSpeechWithoutReplacingIt();
         LocalizesBeforePrismAndRepeatStorage();
+        NonEnglishOpeningNeverPreparesOrStartsEnglishPlayback();
         NarrationCompletionReleasesDialogueWithoutReprotectingIt();
         PrismCompletionCannotReleaseAnIndependentRecording();
+    }
+
+    private static void NonEnglishOpeningNeverPreparesOrStartsEnglishPlayback()
+    {
+        foreach (var language in Ff7GameLanguages.All.Where(language => language.Code != "en")
+                     .Append(Ff7GameLanguages.PolishFanTranslation))
+        {
+            using var speaker = CreateUnavailableSpeaker();
+            var playback = new RecordingNarrationPlayback();
+            using var output = new Steam2026ResearchAccessibilityOutput(speaker,
+                BlindSoldierLocalizer.Create(language, null), _ => { }, playback);
+            output.PlayCue(new AccessibilityCue(AccessibilityCueKind.MovieNarration, "opening.avi", 1, 0, false));
+            Equal(0, playback.PrepareReasons.Count, $"{language.Code}: no English device warmup");
+            Equal(0, playback.StartReasons.Count, $"{language.Code}: no English opening track");
+        }
     }
 
     private static void ForwardsMovieNarrationLifecycleAndOwnsPlayback()
@@ -166,6 +182,10 @@ internal static class Steam2026ResearchAccessibilityOutputTests
         Equal("Itinéraire terminé.", spoken[0], "localized x64 Prism speech");
         Equal(true, output.RepeatLast(), "localized speech is repeatable");
         Equal("Itinéraire terminé.", spoken[1], "repeat stores localized x64 speech");
+        output.Speak(localizer.LocalizeDescription("A door opens."), interrupt: false);
+        Equal("Une porte s'ouvre.", spoken[2], "description text reaches Prism in French");
+        output.Speak("Cloud: Lifestream.", interrupt: false);
+        Equal("Cloud: Lifestream.", spoken[3], "native dialogue does not inherit description translations");
     }
 
     private static void PrismCompletionCannotReleaseAnIndependentRecording()

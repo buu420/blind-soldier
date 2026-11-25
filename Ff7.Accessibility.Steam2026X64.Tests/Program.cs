@@ -7,10 +7,35 @@ using Ff7.Accessibility.Steam2026X64.Runtime.Field;
 using Ff7.Accessibility.LegacyLayout;
 using System.Text.Json;
 
+if (args.Contains("--localized-descriptions-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.AudioDescriptionLocalizationTests.Run();
+    Steam2026ResearchAccessibilityOutputTests.Run();
+    return;
+}
+if (args.Contains("--midgar-model-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.MidgarModelPlacementTests.Run();
+    return;
+}
+
 if (args.Contains("--aeris-wall-climb-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.AerisWallClimbRegressionTests.Run();
     return;
+}
+
+if (args.Contains("--localized-cues-only", StringComparer.OrdinalIgnoreCase))
+{
+    Steam2026LocalizedDeliveryTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.LocalizedDescriptionDeliveryTests.Run();
+    return;
+}
+
+if (args.Length == 0)
+{
+    Ff7.Accessibility.Reloaded.Tests.AudioDescriptionLocalizationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.MidgarModelPlacementTests.Run();
 }
 
 if (args.Contains("--navigation-cue-output-only", StringComparer.OrdinalIgnoreCase))
@@ -1319,6 +1344,8 @@ Ff7.Accessibility.Reloaded.Tests.NativeCreditsNarratorTests.Run();
     Ff7.Accessibility.Reloaded.Tests.FieldRoomPresentationTests.Run();
     Steam2026FieldRoomDescriptionTests.Run();
     Steam2026NarrationLifecycleTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.LocalizedDescriptionDeliveryTests.Run();
+    Steam2026LocalizedDeliveryTests.Run();
 Ff7.Accessibility.Reloaded.Tests.EndgameMovieNarrationTests.Run();
 HighwayAutoSteeringModeTrackerTests.Run();
 HighwayAccessibilityCoordinatorTests.Run();

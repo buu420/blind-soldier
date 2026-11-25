@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
+  <!-- Accessible replacement for the FINAL FANTASY VII (2013) Steam launcher.
+       Steam app 39140 starts FF7_Launcher.exe from the game folder, so the
+       assembly keeps that file name. It is not derived from Square Enix code. -->
+  <PropertyGroup>
+    <AssemblyName>FF7_Launcher</AssemblyName>
+    <RootNamespace>BlindSoldier.Ff7Launcher2013</RootNamespace>
+    <GenerateAssemblyInfo>False</GenerateAssemblyInfo>
+    <OutputType>WinExe</OutputType>
+    <UseWindowsForms>True</UseWindowsForms>
+    <TargetFramework>net48</TargetFramework>
+    <PlatformTarget>x86</PlatformTarget>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <Deterministic>True</Deterministic>
+    <AutoGenerateBindingRedirects>False</AutoGenerateBindingRedirects>
+    <GenerateBindingRedirectsOutputType>False</GenerateBindingRedirectsOutputType>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- The same server-side UI Automation button and slider providers that the
+         verified 2026 accessible launcher uses for its settings window. -->
+    <Compile Include="..\Ff7.Launcher.Accessible\FF7_Launcher\AccessibleSettingsControls.cs" Link="Shared\AccessibleSettingsControls.cs" />
+    <Compile Include="..\Ff7.Launcher.Accessible\FF7_Launcher\SettingsAccessibility.cs" Link="Shared\SettingsAccessibility.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="System.Core" />
+    <Reference Include="UIAutomationProvider" />
+    <Reference Include="UIAutomationTypes" />
+    <Reference Include="WindowsBase" />
+  </ItemGroup>
+</Project>

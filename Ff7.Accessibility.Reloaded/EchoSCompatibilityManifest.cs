@@ -549,7 +549,7 @@ public static class EchoSCompatibilityManifest
             SupportedFieldScriptVariant.Vanilla => key,
             SupportedFieldScriptVariant.EchoS124 => EchoCanonicalKeys.TryGetValue(key,out var canonical) ? canonical : null,
             SupportedFieldScriptVariant.Postscript178 => PostscriptFieldCompatibility.ResolveCanonicalCueKey(context),
-            _ => null
+            _ => LocalizedFieldDescriptionCueManifest.ResolveCanonicalCueKey(context, identity)
         };
     }
 
@@ -1606,6 +1606,9 @@ public sealed class EchoSFieldCutsceneDescriptionTracker
         new(EchoSCompatibilityManifest.CreateEchoS124Descriptions());
     private readonly FieldCutsceneDescriptionTracker postscript178 =
         new(PostscriptFieldCompatibility.CreateOpeningDescriptions());
+    private readonly LocalizedFieldCutsceneDescriptionTracker localized = new();
+    private readonly object visitSync = new();
+    private int observedFieldId = -1;
 
     public FieldCutsceneDescriptionCue? Observe(
         FieldScriptContext context,
@@ -1616,19 +1619,41 @@ public sealed class EchoSFieldCutsceneDescriptionTracker
             return null;
         }
 
+        // A visit's once-only state belongs to the visit, not to one catalog: with localized
+        // archives neighbouring rooms can be read through different catalogs, and a catalog that
+        // never saw the room in between must still treat the player's return as a new visit.
+        lock (visitSync)
+        {
+            if (context.FieldId != observedFieldId)
+            {
+                ResetCatalogs();
+                observedFieldId = context.FieldId;
+            }
+        }
+
         return EchoSCompatibilityManifest.ResolveVariant(identity) switch
         {
             SupportedFieldScriptVariant.Vanilla => vanilla.Observe(context),
             SupportedFieldScriptVariant.EchoS124 => echoS124.Observe(context),
             SupportedFieldScriptVariant.Postscript178 => postscript178.Observe(context),
-            _ => null
+            _ => localized.Observe(context, identity)
         };
     }
 
     public void Reset()
     {
+        lock (visitSync)
+        {
+            ResetCatalogs();
+            observedFieldId = -1;
+        }
+    }
+
+    private void ResetCatalogs()
+    {
         vanilla.Reset();
         echoS124.Reset();
         postscript178.Reset();
+        localized.Reset();
     }
 }

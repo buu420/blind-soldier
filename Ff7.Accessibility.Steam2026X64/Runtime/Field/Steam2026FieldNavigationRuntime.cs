@@ -324,7 +324,8 @@ internal static class Steam2026FieldNavigationPendingActionExecutor
         out FieldNavigationAction action,
         out FieldNavigationActionResult? result,
         bool areaKnown = true,
-        bool roomVisible = false)
+        bool roomVisible = false,
+        BlindSoldierLocalizer? localizer = null)
     {
         ArgumentNullException.ThrowIfNull(pendingActions);
         ArgumentNullException.ThrowIfNull(controller);
@@ -387,7 +388,10 @@ internal static class Steam2026FieldNavigationPendingActionExecutor
             {
                 result = spoken with
                 {
-                    Speech = FieldAreaDescriptionStatus.Append(spoken.Speech, fieldId)
+                    Speech = localizer is null
+                        ? FieldAreaDescriptionStatus.Append(spoken.Speech, fieldId)
+                        : FieldAreaDescriptionStatus.Append(localizer.Localize(spoken.Speech), fieldId,
+                            localizer.LocalizeDescription)
                 };
             }
         }

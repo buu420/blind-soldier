@@ -26,6 +26,11 @@ Describe 'Blind Soldier Accessibility Mod Manager source staging' {
                 @('Blind-Soldier\Runtime\dotnet\x64\runtime.dll', 'x64 runtime'),
                 @('Blind-Soldier\Tools\cleanup.cmd', 'cleanup'),
                 @('Blind-Soldier\Policy\policy.json', 'policy'),
+                @('Blind-Soldier\Launcher2013\bundle\FF7_Launcher.exe', '2013 launcher'),
+                @('Blind-Soldier\Launcher2013\FF7Launcher2013Install.psm1', '2013 install module'),
+                @('Blind-Soldier\Launcher2013\Manage-2013Launcher.ps1', '2013 install entrypoint'),
+                @('Install-2013-Accessible-Launcher.cmd', '2013 install command'),
+                @('Restore-2013-Original-Launcher.cmd', '2013 restore command'),
                 @('workingdir\version.dll', 'x86 version proxy'),
                 @('ff7\workingdir\version.dll', 'x86 version proxy'),
                 @('FFVII_LAUNCHER.exe', 'launcher'),
@@ -80,6 +85,13 @@ Describe 'Blind Soldier Accessibility Mod Manager source staging' {
                 Should Be $false
             Test-Path -LiteralPath (Join-Path $old 'FFVII_LAUNCHER.exe') |
                 Should Be $false
+            Test-Path -LiteralPath (Join-Path $old 'FF7_Launcher.exe') |
+                Should Be $false
+            (Get-Content -LiteralPath (Join-Path $old `
+                'Blind-Soldier\Launcher2013\bundle\FF7_Launcher.exe') -Raw) |
+                Should Be '2013 launcher'
+            Test-Path -LiteralPath (Join-Path $old `
+                'Install-2013-Accessible-Launcher.cmd') | Should Be $true
             (Get-Content -LiteralPath (Join-Path $old `
                 'README-Blind-Soldier.md') -Raw) | Should Be '# Blind Soldier'
 

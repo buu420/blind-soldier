@@ -300,6 +300,7 @@ try {
         'Blind-Soldier\Runtime\dotnet\x86',
         'Blind-Soldier\Policy',
         'Blind-Soldier\Tools',
+        'Blind-Soldier\Launcher2013',
         'Reloaded-II\Loader\X86',
         'Reloaded-II\Apps',
         'Reloaded-II\User',
@@ -317,7 +318,9 @@ try {
     }
     foreach ($relative in @(
         'Reloaded-II\portable.txt',
-        'Remove-Amethyst-Registry-Entries.cmd'
+        'Remove-Amethyst-Registry-Entries.cmd',
+        'Install-2013-Accessible-Launcher.cmd',
+        'Restore-2013-Original-Launcher.cmd'
     )) {
         Copy-RequiredFile -Source (Join-Path $extracted $relative) `
             -Destination (Join-Path $staging $relative) -Label $relative
@@ -341,7 +344,8 @@ Choose this ZIP only for the 2013 x86 game or an x86 game launched through 7th H
 Direct 2013 launch
 1. Close Final Fantasy VII and 7th Heaven.
 2. Extract every file beside ff7_en.exe.
-3. Start Final Fantasy VII normally.
+3. Run Install-2013-Accessible-Launcher.cmd once to install the accessible launcher with a backup of the original. The mod manager does this automatically.
+4. Start Final Fantasy VII normally. Play and Settings are keyboard and screen-reader accessible. Original launcher opens the preserved Square Enix launcher for its online features.
 
 7th Heaven / FFNx
 1. Close Final Fantasy VII and 7th Heaven.
@@ -354,9 +358,9 @@ Do not overwrite an unknown pre-existing version.dll. Move that file aside first
 
 When upgrading an older install, close FFVII and 7th Heaven. In the folder containing the x86 game executable, back up old Blind Soldier proxies from ff7_en.exe.local and ff7.exe.local. Remove folders left empty by Blind Soldier and keep the new version.dll beside the executable. Preserve folders and files used by other mods. Windows can remember DLL redirection after a folder is removed. If Play still fails, restart Windows and try again.
 
-To remove Blind Soldier, close FFVII and delete the mod files listed in portable-manifest.json. Restore any original version.dll you backed up. Remove any empty executable .local folders left by older Blind Soldier ZIPs.
+To remove Blind Soldier, close FFVII, run Restore-2013-Original-Launcher.cmd, then delete the mod files listed in portable-manifest.json. Restore any original version.dll you backed up. Remove any empty executable .local folders left by older Blind Soldier ZIPs.
 
-English, French, German, Spanish, and Japanese are supported. GameLanguage defaults to auto. Logs are written under Blind-Soldier\Logs. Players never run the bootstrap executable manually.
+The x86 reader supports the validated ff7_en.exe/converted ff7.exe engine profiles. Original 2013 French, German and Spanish executables use different native offsets and remain unsupported. Multilingual text data on the supported English engine is a separate supported setup. GameLanguage defaults to auto; en, fr, de, es, ja and pl are available as overrides. English descriptions use the included recordings; other supported languages use translated screen-reader descriptions. Logs are written under Blind-Soldier\Logs. Players never run the bootstrap executable manually.
 
 If an older Amethyst install left launch registry entries, run Remove-Amethyst-Registry-Entries.cmd once. New portable installs do not require registry changes.
 "@

@@ -135,7 +135,8 @@ public sealed class FieldCreatureApproachNarrationCoordinator
         {
             if (readIdentity() is not { } current || current.FieldId != 767 ||
                 (current.ScriptPointer != 0 && current.ScriptPointer != sample.ScriptPointer) ||
-                WholeGameEchoNavigationManifest.ResolveDescriptionVariant(current) == SupportedFieldScriptVariant.Unknown) return false;
+                WholeGameEchoNavigationManifest.ResolveDescriptionVariant(current) == SupportedFieldScriptVariant.Unknown &&
+                !LocalizedFieldDescriptionCueManifest.IsReviewedIdentity(current)) return false;
             identity = current; return true;
         }
         catch { return false; }

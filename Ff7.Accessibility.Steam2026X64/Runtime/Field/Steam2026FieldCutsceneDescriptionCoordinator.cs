@@ -149,11 +149,16 @@ internal sealed class Steam2026FieldCutsceneDescriptionCoordinator
                         MovieHandlerState = FieldMovieNarrationPolicy.MovieHandlerStateUnknown,
                         MovieHandlerPhase = FieldMovieNarrationPolicy.MovieHandlerStateUnknown
                     };
+                // A reviewed localized prefix starts its films from its own bytes; the film policy
+                // is asked about the English anchor that instruction is, never about raw localized
+                // offsets. Every other identity keeps its raw coordinates.
+                var filmAnchor = LocalizedFieldScriptIdentityPolicy.FilmAnchor(snapshot.Context,
+                    snapshot.Context.Opcode == FieldOpcodeAddressResolver.OpcodeMovieIndex ? readIdentity?.Invoke() : null);
                 narration.NoteIngress(
-                    snapshot.Context.FieldId,
-                    snapshot.Context.EntityId,
-                    snapshot.Context.ScriptId,
-                    snapshot.Context.ByteIndex,
+                    filmAnchor.FieldId,
+                    filmAnchor.EntityId,
+                    filmAnchor.ScriptId,
+                    filmAnchor.ByteIndex,
                     snapshot.Context.Opcode,
                     ingressSample,
                     snapshot.TimestampUtc,
@@ -342,7 +347,8 @@ internal sealed class Steam2026FieldCutsceneDescriptionCoordinator
             if (FieldAreaDescriptionHistoryGate.IsRoomCue(pending.Peek()) &&
                 !roomPresentation.IsRoomVisible(pending.Peek().FieldId)) return false;
             var cue = pending.Peek();
-            if (compatibleTracker is not null && (ReadSupportedIdentity(cue.FieldId) is null || pending.Count == 0)) return false;
+            var deliveryIdentity = compatibleTracker is not null ? ReadSupportedIdentity(cue.FieldId) : null;
+            if (compatibleTracker is not null && (deliveryIdentity is null || pending.Count == 0)) return false;
 
             // A room this playthrough has already heard leaves the queue here, before
             // anything is started or reserved, so it costs no narration track, no speech
@@ -389,8 +395,10 @@ internal sealed class Steam2026FieldCutsceneDescriptionCoordinator
                 FieldMovieNarrationStartResult result;
                 try
                 {
+                    var filmAnchor = LocalizedFieldScriptIdentityPolicy.FilmAnchor(
+                        new FieldScriptContext(cue.FieldId, cue.EntityId, cue.ScriptId, cue.ByteIndex, cue.Opcode), deliveryIdentity);
                     result = narration.Begin(
-                        cue.FieldId, cue.EntityId, cue.ScriptId, cue.ByteIndex, deliverySample, nowUtc);
+                        filmAnchor.FieldId, filmAnchor.EntityId, filmAnchor.ScriptId, filmAnchor.ByteIndex, deliverySample, nowUtc);
                 }
                 catch
                 {
@@ -794,7 +802,7 @@ internal sealed class Steam2026FieldCutsceneDescriptionCoordinator
     private LoadedFieldScriptIdentity? ReadSupportedIdentity(int fieldId)
     {
         if (readIdentity?.Invoke() is not { } identity || identity.FieldId != fieldId ||
-            WholeGameEchoNavigationManifest.ResolveVariant(identity) == SupportedFieldScriptVariant.Unknown)
+            !LocalizedFieldScriptIdentityPolicy.AllowsDescriptions(identity))
         {
             ResetFieldState();
             return null;

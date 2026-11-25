@@ -5,7 +5,7 @@
   "scannedGameMomentWrites": 334,
   "navigableGameMomentWrites": 118,
   "unresolvedAutomaticOrIndirectWrites": 219,
-  "definitionCount": 1447,
+  "definitionCount": 1448,
   "definitions": [
     {
       "fieldId": 115,
@@ -8861,13 +8861,21 @@
       "sourceEntityName": "PARTA",
       "sourceScriptType": "Talk",
       "completesOnArrival": true,
-      "requiredCondition": {
-        "bank": 3,
-        "address": 180,
-        "mask": 136,
-        "value": 0,
-        "anyBitSet": true
-      },
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 180,
+          "mask": 136,
+          "value": 0,
+          "anyBitSet": true
+        },
+        {
+          "bank": 1,
+          "address": 68,
+          "mask": 248,
+          "value": 0
+        }
+      ],
       "completedCondition": {
         "bank": 1,
         "address": 56,
@@ -8891,13 +8899,21 @@
       "sourceEntityName": "PARTB",
       "sourceScriptType": "Talk",
       "completesOnArrival": true,
-      "requiredCondition": {
-        "bank": 3,
-        "address": 180,
-        "mask": 192,
-        "value": 0,
-        "anyBitSet": true
-      },
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 180,
+          "mask": 192,
+          "value": 0,
+          "anyBitSet": true
+        },
+        {
+          "bank": 1,
+          "address": 68,
+          "mask": 248,
+          "value": 0
+        }
+      ],
       "completedCondition": {
         "bank": 1,
         "address": 56,
@@ -8921,13 +8937,21 @@
       "sourceEntityName": "PARTC",
       "sourceScriptType": "Talk",
       "completesOnArrival": true,
-      "requiredCondition": {
-        "bank": 3,
-        "address": 180,
-        "mask": 160,
-        "value": 0,
-        "anyBitSet": true
-      },
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 180,
+          "mask": 160,
+          "value": 0,
+          "anyBitSet": true
+        },
+        {
+          "bank": 1,
+          "address": 68,
+          "mask": 248,
+          "value": 0
+        }
+      ],
       "completedCondition": {
         "bank": 1,
         "address": 57,
@@ -8974,13 +8998,21 @@
       "sourceEntityName": "PARTE",
       "sourceScriptType": "Talk",
       "completesOnArrival": true,
-      "requiredCondition": {
-        "bank": 3,
-        "address": 180,
-        "mask": 144,
-        "value": 0,
-        "anyBitSet": true
-      },
+      "requiredConditions": [
+        {
+          "bank": 3,
+          "address": 180,
+          "mask": 144,
+          "value": 0,
+          "anyBitSet": true
+        },
+        {
+          "bank": 1,
+          "address": 68,
+          "mask": 248,
+          "value": 0
+        }
+      ],
       "completedCondition": {
         "bank": 1,
         "address": 57,
@@ -9033,6 +9065,7 @@
       "sourceEntityName": "",
       "sourceScriptType": "Native triangle 68",
       "completesOnArrival": false,
+      "completionPlayerTriangles": [68, 16],
       "requiredCondition": {
         "bank": 1,
         "address": 68,
@@ -9062,6 +9095,7 @@
       "sourceEntityName": "",
       "sourceScriptType": "Native triangle 75",
       "completesOnArrival": false,
+      "completionPlayerTriangles": [75, 31],
       "requiredCondition": {
         "bank": 1,
         "address": 68,
@@ -9104,6 +9138,43 @@
           "mask": 248,
           "value": 248
         }
+      ],
+      "completedCondition": {
+        "bank": 1,
+        "address": 224,
+        "mask": 255,
+        "value": 66
+      }
+    },
+    {
+      "fieldId": 249,
+      "kind": "Location",
+      "label": "Return to the outer floor and continue to floor 66",
+      "entityId": -1,
+      "x": 1,
+      "y": -455,
+      "z": 0,
+      "targetGameMoment": 264,
+      "minimumGameMoment": 263,
+      "maximumGameMoment": 263,
+      "priority": 0,
+      "sourceFieldName": "blin65_2",
+      "sourceEntityName": "",
+      "sourceScriptType": "Gateway",
+      "completesOnArrival": true,
+      "requiredConditions": [
+        {
+          "bank": 1,
+          "address": 224,
+          "mask": 255,
+          "value": 66
+        },
+        {
+          "bank": 3,
+          "address": 180,
+          "mask": 248,
+          "value": 248
+        }
       ]
     },
     {
@@ -9128,20 +9199,13 @@
           "address": 68,
           "mask": 248,
           "value": 0
-        },
-        {
-          "bank": 3,
-          "address": 180,
-          "mask": 248,
-          "value": 0,
-          "anyBitSet": true
         }
       ],
       "completedCondition": {
-        "bank": 1,
-        "address": 57,
-        "mask": 4,
-        "value": 4
+        "bank": 3,
+        "address": 180,
+        "mask": 248,
+        "value": 248
       }
     },
     {
@@ -9160,20 +9224,13 @@
       "sourceEntityName": "",
       "sourceScriptType": "Native triangle 26",
       "completesOnArrival": false,
-      "requiredConditions": [
-        {
-          "bank": 1,
-          "address": 57,
-          "mask": 4,
-          "value": 4
-        },
-        {
-          "bank": 3,
-          "address": 180,
-          "mask": 120,
-          "value": 120
-        }
-      ],
+      "completionPlayerTriangles": [26],
+      "requiredCondition": {
+        "bank": 1,
+        "address": 68,
+        "mask": 128,
+        "value": 128
+      },
       "completedCondition": {
         "bank": 3,
         "address": 180,
@@ -9197,6 +9254,7 @@
       "sourceEntityName": "",
       "sourceScriptType": "Native triangle 33",
       "completesOnArrival": false,
+      "completionPlayerTriangles": [33, 6],
       "requiredCondition": {
         "bank": 1,
         "address": 68,
@@ -9226,6 +9284,7 @@
       "sourceEntityName": "",
       "sourceScriptType": "Native triangle 70",
       "completesOnArrival": false,
+      "completionPlayerTriangles": [70, 34],
       "requiredCondition": {
         "bank": 1,
         "address": 68,

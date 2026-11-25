@@ -12,6 +12,7 @@ internal static class NativeCreditsNarratorTests
         OwnedIntroductionStopsOnSuspensionAndFailureFallsBack();
         ThrownStartCannotOrphanAudioEvenWhenLoggingFails();
         EmptyViewportDoesNotDescribeInvisibleCredits();
+        TranslatesOnlyTheDescriptionNotNativeCreditRows();
     }
 
     private static void ReadsOnlyCurrentlyVisibleRowsWithoutRepeating()
@@ -27,6 +28,25 @@ internal static class NativeCreditsNarratorTests
         Equal("VISIBLE NAME", f.Accepted.Last(), "a new visible row is read as it scrolls into view");
         f.Tracker.Observe(null, f.Now, true, true);
         Equal(3, f.Accepted.Count, "unreadable or absent renderer does not invent credits");
+    }
+
+    private static void TranslatesOnlyTheDescriptionNotNativeCreditRows()
+    {
+        var ordinary = new List<string>();
+        var descriptions = new List<string>();
+        var localizer = BlindSoldierLocalizer.Create(Ff7GameLanguages.Get(Ff7GameLanguage.French), null);
+        using var tracker = new NativeCreditsNarrator(() => null,
+            text => { ordinary.Add(localizer.Localize(text)); return true; }, _ => { },
+            text => { descriptions.Add(localizer.LocalizeDescription(text)); return true; });
+        var now = new DateTime(2026, 11, 25, 0, 0, 0, DateTimeKind.Utc);
+        const string visibleRow = "Cloud: Lifestream.";
+        var snapshot = new NativeCreditsSnapshot(0, 0, [new(0, 0, visibleRow, 30)]);
+        tracker.Observe(snapshot, now, true, true);
+        Equal(localizer.LocalizeDescription(NativeCreditsNarrator.Introduction), descriptions.Single(),
+            "credits introduction takes the explicit description translation path");
+        tracker.Observe(snapshot, now.AddSeconds(10), true, true);
+        Equal(visibleRow, ordinary.Single(), "visible native rows stay native even when a description catalog shares their text");
+        Equal(1, descriptions.Count, "credit rows are not narration");
     }
 
     private static void RefusalDoesNotConsumeOrQueueOffscreenRows()

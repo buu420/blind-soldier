@@ -14,7 +14,8 @@ public static partial class Ff7GameLanguageDetector
         string? configuredLanguage = "auto",
         string? executablePath = null,
         IReadOnlyList<string>? steamManifestPaths = null,
-        Action<string>? log = null)
+        Action<string>? log = null,
+        bool ffnxLoaded = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(gameRootDirectory);
 
@@ -38,6 +39,13 @@ public static partial class Ff7GameLanguageDetector
             }
         }
 
+        var ffnxLanguage = TryReadFfnxMultilingualLanguage(gameRootDirectory, executablePath, ffnxLoaded);
+        if (ffnxLanguage is { Code: not "en" } && HasUsableKernel(dataDirectory, ffnxLanguage))
+        {
+            return Select(ffnxLanguage, dataDirectory, Ff7GameLanguageDetectionSource.FfnxConfiguration,
+                "active FFNx multilingual game_language", log);
+        }
+
         if (TryReadFanTranslationFingerprint(dataDirectory, out var translatedLanguage) &&
             HasUsableKernel(dataDirectory, translatedLanguage))
         {
@@ -47,6 +55,12 @@ public static partial class Ff7GameLanguageDetector
                 Ff7GameLanguageDetectionSource.TranslationFingerprint,
                 "installed Polish translation data",
                 log);
+        }
+
+        if (ffnxLanguage is { Code: "en" } && HasUsableKernel(dataDirectory, ffnxLanguage))
+        {
+            return Select(ffnxLanguage, dataDirectory, Ff7GameLanguageDetectionSource.FfnxConfiguration,
+                "active FFNx multilingual game_language", log);
         }
 
         if (TryReadExecutableLanguage(executablePath, out var executableLanguage) &&
@@ -96,6 +110,39 @@ public static partial class Ff7GameLanguageDetector
                    Directory.Exists(candidate)) ??
                Path.Combine(normalizedRoot, "data");
     }
+
+    private static Ff7GameLanguageDescriptor? TryReadFfnxMultilingualLanguage(
+        string root, string? executablePath, bool ffnxLoaded)
+    {
+        // FFNx common.cpp applies this switch only to the English legacy engine
+        // in its workingdir rerelease mode. A stale TOML beside native FFVII.exe,
+        // or the original 2013/1998 layout, does not establish the active language.
+        var executableName = Path.GetFileName(executablePath);
+        var englishEngine = string.Equals(executableName, "ff7_en.exe", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(executableName, "ff7.exe", StringComparison.OrdinalIgnoreCase);
+        if (!ffnxLoaded || !Path.GetFullPath(root).Contains("workingdir", StringComparison.Ordinal) || !englishEngine) return null;
+        try
+        {
+            var path = Path.Combine(root, "FFNx.toml");
+            if (!File.Exists(path) || new FileInfo(path).Length > 1024 * 1024) return null;
+            var matches = FfnxGameLanguagePattern().Matches(File.ReadAllText(path));
+            if (matches.Count != 1 || !int.TryParse(matches[0].Groups[1].Value, out var value)) return null;
+            var language = value switch
+            {
+                1 => Ff7GameLanguage.English, 2 => Ff7GameLanguage.French,
+                3 => Ff7GameLanguage.German, 4 => Ff7GameLanguage.Spanish,
+                _ => (Ff7GameLanguage?)null
+            };
+            return language is { } known ? Ff7GameLanguages.Get(known) : null;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    [GeneratedRegex(@"^[\t ]*game_language[\t ]*=[\t ]*([0-9]+)[\t ]*(?:#[^\r\n]*)?\r?$", RegexOptions.Multiline | RegexOptions.CultureInvariant)]
+    private static partial Regex FfnxGameLanguagePattern();
 
     private static Ff7GameLanguageContext Select(
         Ff7GameLanguageDescriptor language,

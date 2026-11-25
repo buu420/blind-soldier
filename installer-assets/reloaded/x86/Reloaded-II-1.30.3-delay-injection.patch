@@ -1,0 +1,77 @@
+diff --git a/source/Reloaded.Mod.Loader/Utilities/DelayInjector.cs b/source/Reloaded.Mod.Loader/Utilities/DelayInjector.cs
+index 367dbf4..f792762 100644
+--- a/source/Reloaded.Mod.Loader/Utilities/DelayInjector.cs
++++ b/source/Reloaded.Mod.Loader/Utilities/DelayInjector.cs
+@@ -5,6 +5,9 @@ using static Reloaded.Mod.Loader.Utilities.Native.Kernel32.MEM_STATE;
+ 
+ namespace Reloaded.Mod.Loader.Utilities;
+ 
++// Modified by Blind Soldier on 2026-11-25: synchronize delayed initialization
++// and keep diagnostic entry races from preventing mod startup.
++
+ /// <summary>
+ /// Mass hooks Windows APIs to inject a callback which will be used to run a function once.
+ /// Then all hooks are undone.
+@@ -20,6 +23,8 @@ public unsafe class DelayInjector
+     private int* _asmEntryDllOrdinal;
+     private int* _asmEntryFunctionOrdinal;
+     private Logger _logger;
++    private int _constructionComplete;
++    private int _initializationStarted;
+ 
+     public DelayInjector(IReloadedHooks hooks, Action action, Logger logger)
+     {
+@@ -63,6 +68,10 @@ public unsafe class DelayInjector
+                     _hooks.Add(CreateHook((ulong)functionAddr, x, y, hooks));
+             }
+         }
++
++        // Activated hooks may run on another thread while the lists grow.
++        // Publish the completed lists without blocking a native caller.
++        Volatile.Write(ref _constructionComplete, 1);
+     }
+ 
+     /// <summary>
+@@ -117,9 +126,23 @@ public unsafe class DelayInjector
+     /// </summary>
+     private void HookImpl()
+     {
++        if (Volatile.Read(ref _constructionComplete) == 0 ||
++            Interlocked.CompareExchange(ref _initializationStarted, 1, 0) != 0)
++            return;
++
+         // Dispose first to prevent potential recursion.
+-        var entryDll = _dlls[*_asmEntryDllOrdinal];
+-        _logger.LogWriteLineAsync($"Delay Injection via Entry Point: {entryDll.Name}, {entryDll.Functions[*_asmEntryFunctionOrdinal]}", _logger.ColorInformation);
++        var dllOrdinal = *_asmEntryDllOrdinal;
++        var functionOrdinal = *_asmEntryFunctionOrdinal;
++        var entryName = "unknown entry";
++        // Other native threads can overwrite the diagnostic ordinals even
++        // after this callback wins initialization. They must never gate loading.
++        if ((uint)dllOrdinal < (uint)_dlls.Count)
++        {
++            var entryDll = _dlls[dllOrdinal];
++            if (entryDll.Functions != null && (uint)functionOrdinal < (uint)entryDll.Functions.Length)
++                entryName = $"{entryDll.Name}, {entryDll.Functions[functionOrdinal]}";
++        }
++        _logger.LogWriteLineAsync($"Delay Injection via Entry Point: {entryName}", _logger.ColorInformation);
+         Dispose();
+         _method?.Invoke();
+     }
+@@ -132,7 +155,8 @@ public unsafe class DelayInjector
+         foreach (var hook in _hooks)
+             hook.Disable();
+ 
+-        _wrappers.Clear();
++        // A native caller can already be inside a disabled hook. Keep its
++        // reverse wrapper rooted with this process-lifetime injector.
+     }
+ 
+     private struct DllEntry
+@@ -140,4 +164,4 @@ public unsafe class DelayInjector
+         public string Name { get; set; }
+         public string[] Functions { get; set; }
+     }
+-}
+\ No newline at end of file
++}

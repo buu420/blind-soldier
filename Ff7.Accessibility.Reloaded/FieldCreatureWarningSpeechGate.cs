@@ -51,6 +51,7 @@ internal sealed class FieldCreatureWarningReader
         {
             SupportedFieldScriptVariant.Vanilla => 10,
             SupportedFieldScriptVariant.EchoS124 => 9,
+            _ when LocalizedFieldDescriptionCueManifest.HasReviewedCreatureWarning(identity) => 10,
             _ => -1
         };
         if (dialog < 0 || !controller.TryRead(767, 3, 6, out var control) || !control.IsControllerActive) return false;

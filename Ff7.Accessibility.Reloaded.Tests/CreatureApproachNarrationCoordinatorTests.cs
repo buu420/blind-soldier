@@ -19,6 +19,7 @@ internal static class CreatureApproachNarrationCoordinatorTests
             CallbackAfterTheWorkerTimestampRemainsPendingWithoutRecapture,
             HiddenOrReplacedNativeGeometryInvalidatesPendingInformation,
             UnknownLocalizedAndChangingPrefixesNeverAuthorizeEnglishOffsets,
+            ReviewedLocalizedPrefixesDeliverTheirAlignedNativeEpisodes,
             ArbitraryC4AndUnmovedSamplesCannotOpenAnEpisode,
             LaterObservedBonesDoNotExtendTheOriginalEpisodeLifetime,
             FirstEpisodeIsPrioritizedBeforeTheSecond,
@@ -95,12 +96,35 @@ internal static class CreatureApproachNarrationCoordinatorTests
     }
     private static void UnknownLocalizedAndChangingPrefixesNeverAuthorizeEnglishOffsets()
     {
-        foreach (var hash in new[] { new string('A', 64), "58AA6DEDCE90CF9F9E9692A197801EB04A0BF10AC56FB4F834A8E72CAD6989CA" })
+        foreach (var hash in new[] { new string('A', 64), "58AA6DEDCE90CF9F9E9692A197801EB04A0BF10AC56FB4F834A8E72CAD6989CB" })
         { var c = Coordinator(() => new(767, hash)); c.Capture(Sample(), Start); True(!Speak(c, Start, [], out _), "unreviewed English description prefix cannot authorize offsets"); }
         LoadedFieldScriptIdentity? identity = new(767, Stock); var reads = 0;
         var changing = Coordinator(() => { reads++; return reads == 1 ? identity : new(767, Echo); }); changing.Capture(Sample(), Start);
         True(!Speak(changing, Start, [], out _), "prefix changed during worker validation");
         var wrongField = Coordinator(() => new(768, Stock)); wrongField.Capture(Sample(), Start); True(!Speak(wrongField, Start, [], out _), "current field does not match observed field");
+    }
+    // The installed fflevel, gflevel, sflevel and jfleve 767 prefixes and Bunio Polish V1.05 run
+    // entity 12's two OFSTW episodes at the stock bytes (tools/LocalizedDescriptionCueAligner,
+    // identical slots); one changed byte of the same prefix stays unreviewed above.
+    private static void ReviewedLocalizedPrefixesDeliverTheirAlignedNativeEpisodes()
+    {
+        foreach (var hash in new[]
+                 {
+                     "58AA6DEDCE90CF9F9E9692A197801EB04A0BF10AC56FB4F834A8E72CAD6989CA",
+                     "63FF2F81ED2D6AED215A15F911FDFBC20079654F10F2E8883EE7286B76A034CF",
+                     "8769A1729287EF62C123AC6668C617F2130F6D0E86B1B0AB559DE7C6050E042B",
+                     "6A1D66F7CB141D92CF81E78BF78E9AB7285C033796B23BF7D91DB231BB7458F3",
+                     "187C20C5C1FA0C92A181246E3956E8575BB120CA563F3442B6DBA95D1391FBAC"
+                 })
+        {
+            var c = Coordinator(() => new(767, hash)); var words = new List<string>();
+            c.Capture(Sample(), Start); c.Capture(Sample(4), Start);
+            True(Speak(c, Start, words, out var first), $"{hash[..8]} reviewed localized first episode is delivered");
+            True(Speak(c, Start, words, out var second), $"{hash[..8]} reviewed localized second episode is delivered");
+            Equal(new FieldCutsceneDescriptionKey(767, 12, 3, 12), first.Key, "first episode keeps its canonical English key");
+            Equal(new FieldCutsceneDescriptionKey(767, 12, 4, 22), second.Key, "second episode keeps its canonical English key");
+            Equal("The huge creature glides closer.|The creature closes in.", string.Join('|', words), "English catalog words, for the parent's translation step");
+        }
     }
     private static void ArbitraryC4AndUnmovedSamplesCannotOpenAnEpisode()
     {

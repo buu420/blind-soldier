@@ -164,6 +164,28 @@ int wmain() {
         CHECK(result.kind == SupportedHostKind::Steam2026X64);
     }
 
+    // The unmodified Steam 2013 ff7_en.exe (app 39140, build 115956) is the
+    // converted-output profile's sample. Point this at a private copy; the
+    // French, German and Spanish names stay outside the supported boundary.
+    wchar_t stock2013[MAX_PATH]{};
+    const DWORD stock2013Length = GetEnvironmentVariableW(
+        L"BLIND_SOLDIER_STOCK_2013_FF7_EN", stock2013, MAX_PATH);
+    if (stock2013Length > 0 && stock2013Length < MAX_PATH) {
+        const fs::path stock2013Path(stock2013);
+        auto result = ValidateSupportedHost(stock2013Path, ExpectedHostArchitecture::X86);
+        CHECK(result.supported);
+        CHECK(result.kind == SupportedHostKind::SevenHeavenX86);
+        CHECK(result.sha256 ==
+              L"68CF1B8C1D732CC00A1DDB02CED161F7C94B06680D9E8641A11C7361417375C2");
+        CHECK(result.diagnostic.find(L"7th-heaven-converted-output") != std::wstring::npos);
+        auto image = InspectPeImage(stock2013Path);
+        for (const auto* name : {L"ff7_fr.exe", L"ff7_de.exe", L"ff7_es.exe"}) {
+            CHECK(!ValidateSupportedHostEvidence(
+                name, ExpectedHostArchitecture::X86, image, result.sha256).supported);
+        }
+        fwprintf(stdout, L"Stock Steam 2013 ff7_en.exe: %ls\n", result.diagnostic.c_str());
+    }
+
     fwprintf(stdout, L"Blind Soldier host validation tests passed.\n");
     return 0;
 }

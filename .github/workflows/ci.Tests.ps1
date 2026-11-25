@@ -37,6 +37,10 @@ Describe 'Blind Soldier merge-time CI contract' {
             './PrismAbiContract.Tests.ps1',
             './Run-DualRuntimeVerification.Tests.ps1',
             './Build-AccessibleLauncherBundle.Tests.ps1',
+            './Build-Accessible2013LauncherBundle.Tests.ps1',
+            './FF7Launcher2013Install.Tests.ps1',
+            './Amm2013LauncherLifecycle.Tests.ps1',
+            './Build-BlindSoldierAmmSources.Tests.ps1',
             './.github/workflows/release.Tests.ps1',
             './.github/workflows/ci.Tests.ps1')) {
             $workflow | Should Match ([regex]::Escape($suite))
@@ -50,6 +54,8 @@ Describe 'Blind Soldier merge-time CI contract' {
         # reader or tracker is compiled into one runtime and not the other.
         $workflow | Should Match ([regex]::Escape(
             'launcher/Ff7.Launcher.Accessible.Tests/FFVII_LAUNCHER.Accessibility.Tests.csproj'))
+        $workflow | Should Match ([regex]::Escape(
+            'launcher/Ff7.Launcher2013.Accessible.Tests/FF7_Launcher.Accessibility2013.Tests.csproj'))
         $workflow | Should Match ([regex]::Escape('--dual-runtime-sources-only'))
     }
 

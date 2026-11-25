@@ -130,13 +130,17 @@ internal sealed class BattleAnimationNarrationRuntime : IDisposable
         Func<string, bool> speak,
         Func<bool> anotherDescriptionIsPlaying,
         Func<bool?>? speechIsPlaying = null,
-        Kernel2TextDatabase? kernelText = null)
+        Kernel2TextDatabase? kernelText = null,
+        bool useRecordedDescriptions = true,
+        Func<string, string>? localizeDescription = null)
     {
         try
         {
             return new BattleAnimationNarrationRuntime(
                 new BattleAnimationStateReader(memory),
-                CreateNarration(history, config, modDirectory, log, speak, anotherDescriptionIsPlaying, speechIsPlaying),
+                CreateNarration(history, config, modDirectory, log,
+                    text => speak(localizeDescription?.Invoke(text) ?? text),
+                    anotherDescriptionIsPlaying, speechIsPlaying, useRecordedDescriptions),
                 speak,
                 log,
                 kernelText);
@@ -155,7 +159,8 @@ internal sealed class BattleAnimationNarrationRuntime : IDisposable
         Action<string> log,
         Func<string, bool> speak,
         Func<bool> anotherDescriptionIsPlaying,
-        Func<bool?>? speechIsPlaying)
+        Func<bool?>? speechIsPlaying,
+        bool useRecordedDescriptions)
     {
         try
         {
@@ -165,8 +170,9 @@ internal sealed class BattleAnimationNarrationRuntime : IDisposable
             var voice = CutsceneVoiceManifest.Empty;
             try
             {
-                voice = CutsceneVoiceManifest.Parse(
-                    File.ReadAllText(Path.Combine(voiceDirectory, "manifest.json")), log);
+                if (useRecordedDescriptions)
+                    voice = CutsceneVoiceManifest.Parse(
+                        File.ReadAllText(Path.Combine(voiceDirectory, "manifest.json")), log);
             }
             catch (IOException ex)
             {
