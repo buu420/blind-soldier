@@ -80,6 +80,9 @@ jobs:
               throw "$suite failed: $($result.FailedCount) test(s)."
             }
           }
+          # Expected-failure fixtures can leave LASTEXITCODE nonzero. Every
+          # suite result has been checked; report that result to the host.
+          exit 0
 
       - name: Run the native Prism probe and the dual-runtime source guard
         shell: pwsh
