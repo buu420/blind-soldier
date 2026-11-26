@@ -51,7 +51,10 @@ internal sealed class FootstepSoundPlayer : IDisposable
             var reader = new VorbisWaveReader(playbackPath);
             var output = new WaveOutEvent
             {
-                DesiredLatency = 80
+                // Four 40 ms blocks give slower devices/refill scheduling more
+                // reserve without increasing the work done in each refill.
+                DesiredLatency = 160,
+                NumberOfBuffers = 4
             };
             var volumeProvider = new VolumeSampleProvider(reader.ToSampleProvider())
             {

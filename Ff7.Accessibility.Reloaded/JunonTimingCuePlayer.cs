@@ -16,8 +16,9 @@ internal sealed class JunonTimingCuePlayer : IDisposable
     public JunonTimingCuePlayer(string path, int volumePercent, Action<string> log)
         : this(path, volumePercent, log, () => new WaveOutEvent
         {
-            DesiredLatency = 40,
-            NumberOfBuffers = 2
+            // Keep timing-sensitive refills at 20 ms, with more queued reserve.
+            DesiredLatency = 80,
+            NumberOfBuffers = 4
         })
     {
     }
@@ -65,7 +66,7 @@ internal sealed class JunonTimingCuePlayer : IDisposable
             output.PlaybackStopped += OnPlaybackStopped;
             output.Init(mixer.ToWaveProvider());
             output.Play();
-            log($"Junon timing sound ready: samples={samples.Length}, volume={volumePercent}%, latencyMs=40.");
+            log($"Junon timing sound ready: samples={samples.Length}, volume={volumePercent}%, latencyMs=80, buffers=4.");
         }
         catch (Exception exception)
         {
