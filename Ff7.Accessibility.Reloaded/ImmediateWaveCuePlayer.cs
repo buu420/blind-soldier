@@ -70,8 +70,9 @@ internal sealed class ImmediateWaveCuePlayer : IDisposable
             reader = new WaveFileReader(path);
             output = new WaveOutEvent
             {
-                DesiredLatency = 40,
-                NumberOfBuffers = 2
+                // Timing cues retain 20 ms blocks, with more queued reserve.
+                DesiredLatency = 80,
+                NumberOfBuffers = 4
             };
             var volumeProvider = new VolumeSampleProvider(reader.ToSampleProvider())
             {

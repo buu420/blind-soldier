@@ -686,7 +686,10 @@ internal sealed class OpeningMovieAudioTrackPlayer : IFieldMovieNarrationOutput,
             reader = new VorbisWaveReader(path);
             var opening = new WaveOutEvent
             {
-                DesiredLatency = 80
+                // Extra queued audio covers brief decoder/device scheduling
+                // stalls; each refill remains 40 ms and EOF is still native.
+                DesiredLatency = 160,
+                NumberOfBuffers = 4
             };
             try
             {

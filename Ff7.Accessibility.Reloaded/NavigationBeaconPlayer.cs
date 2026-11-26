@@ -24,7 +24,9 @@ internal sealed class NavigationBeaconPlayer : IDisposable
     private bool missingSoundLogged;
 
     public NavigationBeaconPlayer(string soundPath, int volumePercent, Action<string> log)
-        : this(soundPath, volumePercent, log, () => new WaveOutEvent { DesiredLatency = 80 })
+        // Keep 40 ms refills, with four queued blocks instead of two. The
+        // persistent device still stays open between navigation cues.
+        : this(soundPath, volumePercent, log, () => new WaveOutEvent { DesiredLatency = 160, NumberOfBuffers = 4 })
     {
     }
 
