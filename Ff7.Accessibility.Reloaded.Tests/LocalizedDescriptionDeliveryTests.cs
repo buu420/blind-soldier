@@ -74,7 +74,8 @@ internal static class LocalizedDescriptionDeliveryTests
         foreach (var reviewed in polishOnly)
         {
             var identity = new LoadedFieldScriptIdentity(reviewed.FieldId, reviewed.PrefixSha256);
-            Equal(SupportedFieldScriptVariant.Unknown, WholeGameEchoNavigationManifest.ResolveVariant(identity), "navigation does not know it");
+            Equal(PolishNavigationManifest.IsReviewed(identity) ? SupportedFieldScriptVariant.Vanilla : SupportedFieldScriptVariant.Unknown,
+                WholeGameEchoNavigationManifest.ResolveVariant(identity), "navigation knows it only as a reviewed Polish navigation identity");
             True(LocalizedFieldScriptIdentityPolicy.AllowsDescriptions(identity), $"field {reviewed.FieldId} reviewed Polish prefix delivers descriptions");
             True(!LocalizedFieldScriptIdentityPolicy.AllowsDescriptions(NearMiss(identity)), $"field {reviewed.FieldId} one changed digit stays silent");
         }

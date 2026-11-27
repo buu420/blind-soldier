@@ -28,7 +28,8 @@ internal static class LocalizedDescriptionCueTests
             ExcludedAndUnknownIdentitiesNeverAuthorizeEnglishOffsets,
             RecurringGroupsReleaseOnTheLocalizedNativeReentry,
             AnotherCatalogsFieldInBetweenIsANewVisit,
-            ReviewedCreatureWarningsKeepTheStockMessage
+            ReviewedCreatureWarningsKeepTheStockMessage,
+            PolishNavigationManifestIsWellFormedAndDistinct
         };
         var failures = new List<string>();
         foreach (var test in tests)
@@ -44,10 +45,11 @@ internal static class LocalizedDescriptionCueTests
             Console.WriteLine("Localized cue installed-archive checks require FF7_ACCESSIBILITY_DATA_ROOT (and FF7_ACCESSIBILITY_POLISH_DATA_ROOT for Polish).");
         else
         {
-            try { InstalledArchivesRunEveryReviewedCue(root,
-                string.IsNullOrWhiteSpace(polish) ? [] : polish.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
-                string.IsNullOrWhiteSpace(russian) ? null : russian); }
+            var polishRoots = string.IsNullOrWhiteSpace(polish) ? [] : polish.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            try { InstalledArchivesRunEveryReviewedCue(root, polishRoots, string.IsNullOrWhiteSpace(russian) ? null : russian); }
             catch (Exception error) { failures.Add($"{nameof(InstalledArchivesRunEveryReviewedCue)}: {error.Message}"); Console.WriteLine($"FAIL installed archives: {error.Message}"); }
+            try { InstalledPolishArchivesHaveReviewedNavigationIdentities(root, polishRoots); }
+            catch (Exception error) { failures.Add($"{nameof(InstalledPolishArchivesHaveReviewedNavigationIdentities)}: {error.Message}"); Console.WriteLine($"FAIL Polish navigation: {error.Message}"); }
         }
 
         if (failures.Count > 0) throw new InvalidOperationException("Localized description cue failures:\n" + string.Join('\n', failures));
@@ -111,7 +113,8 @@ internal static class LocalizedDescriptionCueTests
             // Polish fan translation prefixes are exact description identities, not navigation identities:
             // both hosts deliver them through LocalizedFieldScriptIdentityPolicy.AllowsDescriptions.
             if (!isOfficial && !identity.Languages.Contains("ru"))
-                Equal(SupportedFieldScriptVariant.Unknown, WholeGameEchoNavigationManifest.ResolveVariant(loaded), "unreviewed navigation prefixes remain unknown");
+                Equal(PolishNavigationManifest.IsReviewed(loaded) ? SupportedFieldScriptVariant.Vanilla : SupportedFieldScriptVariant.Unknown,
+                    WholeGameEchoNavigationManifest.ResolveVariant(loaded), "Polish prefixes are navigation identities only when reviewed for navigation");
         }
 
         Equal(2378, checkedPrefixes, "official localized cue-field prefixes");
@@ -312,6 +315,82 @@ internal static class LocalizedDescriptionCueTests
                 .Select(i => $"{i.FieldId}:{i.PrefixSha256}").ToHashSet(StringComparer.OrdinalIgnoreCase);
             True(reviewed.SetEquals(seen), $"{code}: the manifest's identities are exactly the installed changed prefixes");
         }
+    }
+
+    // Fields whose Polish entity layout or Init/Main code differs from the English stock script:
+    // the 2013 entities missing from las0_4, las0_6 and las2_2, crater_1's rewritten party setup,
+    // and snw_w's Contact aliasing (the official Japanese archive differs there too).
+    private static readonly int[] PolishNavigationExcludedFields = [650, 700, 747, 749, 757];
+
+    private static void PolishNavigationManifestIsWellFormedAndDistinct()
+    {
+        Equal(0, PolishNavigationManifest.InvalidRows.Count, "every Polish navigation row parses: " + string.Join("; ", PolishNavigationManifest.InvalidRows.Take(5)));
+        var identities = PolishNavigationManifest.Identities.ToArray();
+        Equal(1228, identities.Length, "reviewed Polish navigation identities (V1.05 and V1.07)");
+        var official = OfficialPrefixes();
+        foreach (var identity in identities)
+        {
+            True(official.TryGetValue(identity.FieldId, out var row), $"field {identity.FieldId} has a navigation layout");
+            True(!row.Official.Contains(identity.ScriptPrefixSha256, StringComparer.OrdinalIgnoreCase), $"field {identity.FieldId} Polish prefix is not an official one");
+            True(!string.Equals(identity.ScriptPrefixSha256, EchoSCompatibilityManifest.GetEchoFingerprint(identity.FieldId), StringComparison.OrdinalIgnoreCase),
+                $"field {identity.FieldId} Polish prefix is not Echo-S");
+            True(!PolishNavigationExcludedFields.Contains(identity.FieldId), $"field {identity.FieldId} is not an excluded field");
+            Equal(SupportedFieldScriptVariant.Vanilla, WholeGameEchoNavigationManifest.ResolveVariant(identity), $"field {identity.FieldId} navigation uses the stock review");
+            Equal(SupportedFieldScriptVariant.Unknown, EchoSCompatibilityManifest.ResolveVariant(identity), $"field {identity.FieldId} English cue offsets stay unauthorized");
+            var near = identity with { ScriptPrefixSha256 = identity.ScriptPrefixSha256[..^1] + (identity.ScriptPrefixSha256[^1] == '0' ? '1' : '0') };
+            True(!PolishNavigationManifest.IsReviewed(near), $"field {identity.FieldId} one changed digit is unreviewed");
+            True(!PolishNavigationManifest.IsReviewed(new LoadedFieldScriptIdentity(identity.FieldId == 116 ? 117 : 116, identity.ScriptPrefixSha256)),
+                $"field {identity.FieldId} prefix is not reviewed for another field");
+        }
+    }
+
+    private static void InstalledPolishArchivesHaveReviewedNavigationIdentities(string root, IReadOnlyList<string> polishRoots)
+    {
+        if (polishRoots.Count == 0) return;
+        var english = new FlevelDataSource(root, new Ff7GameLanguageContext(Ff7GameLanguages.Get(Ff7GameLanguage.English),
+            Path.Combine(root, "data"), Ff7GameLanguageDetectionSource.Configuration, "Polish navigation regression"));
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var polishRoot in polishRoots)
+        {
+            var language = new Ff7GameLanguageContext(Ff7GameLanguages.PolishFanTranslation, Path.Combine(polishRoot, "data"),
+                Ff7GameLanguageDetectionSource.Configuration, "Polish navigation regression");
+            var source = new FlevelDataSource(polishRoot, language);
+            int stock = 0, reviewed = 0, excluded = 0;
+            foreach (var field in english.FieldNames.Keys.Order())
+            {
+                if (!source.TryReadField(field, out _)) continue;
+                var section = ReadSection(source, field);
+                if (!new LoadedFieldScriptIdentityReader(new SectionMemory(field, section)).TryRead(out var identity)) continue;
+                if (string.Equals(identity.ScriptPrefixSha256, EchoSCompatibilityManifest.GetVanillaFingerprint(field), StringComparison.OrdinalIgnoreCase))
+                {
+                    stock++;
+                    continue;
+                }
+
+                if (WholeGameEchoNavigationManifest.IsOfficialOrModIdentity(identity))
+                {
+                    stock++;
+                    continue;
+                }
+
+                if (PolishNavigationExcludedFields.Contains(field))
+                {
+                    Equal(SupportedFieldScriptVariant.Unknown, WholeGameEchoNavigationManifest.ResolveVariant(identity), $"Polish field {field} stays without navigation");
+                    excluded++;
+                    continue;
+                }
+
+                True(PolishNavigationManifest.IsReviewed(identity), $"Polish field {field} installed prefix {identity.ScriptPrefixSha256[..12]} is a reviewed navigation identity");
+                seen.Add($"{field}:{identity.ScriptPrefixSha256}");
+                reviewed++;
+            }
+
+            Equal(5, excluded, $"{Path.GetFileName(polishRoot)}: excluded Polish navigation fields");
+            Console.WriteLine($"PASS Polish navigation {polishRoot}: stock-identical {stock}, reviewed {reviewed}, excluded {excluded}");
+        }
+
+        var manifest = PolishNavigationManifest.Identities.Select(i => $"{i.FieldId}:{i.ScriptPrefixSha256}").ToHashSet(StringComparer.OrdinalIgnoreCase);
+        True(manifest.SetEquals(seen), "the Polish navigation manifest is exactly the installed reviewed Polish prefixes");
     }
 
     private static byte[] ReadSection(FlevelDataSource source, int field)

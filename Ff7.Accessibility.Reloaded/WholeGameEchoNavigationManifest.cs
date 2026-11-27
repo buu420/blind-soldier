@@ -17,12 +17,21 @@ public static class WholeGameEchoNavigationManifest
     public static bool SourceKnownExactPrefixHash(int fieldId, string hash) =>
         ResolveVariant(new LoadedFieldScriptIdentity(fieldId, hash)) != SupportedFieldScriptVariant.Unknown;
 
+    /// <summary>Whether the prefix is English or official localized stock, Echo-S or the Postscript opening.</summary>
+    public static bool IsOfficialOrModIdentity(LoadedFieldScriptIdentity identity) =>
+        PostscriptFieldCompatibility.IsSupportedOpeningIdentity(identity) ||
+        Layouts.TryGetValue(identity.FieldId, out var row) &&
+        (row.OfficialStock.Contains(identity.ScriptPrefixSha256, StringComparer.OrdinalIgnoreCase) ||
+         row.Echo.Contains(identity.ScriptPrefixSha256, StringComparer.OrdinalIgnoreCase));
+
     public static SupportedFieldScriptVariant ResolveVariant(LoadedFieldScriptIdentity identity)
     {
         if (PostscriptFieldCompatibility.IsSupportedOpeningIdentity(identity))
             return SupportedFieldScriptVariant.Postscript178;
         if (!Layouts.TryGetValue(identity.FieldId, out var row)) return SupportedFieldScriptVariant.Unknown;
         if (row.OfficialStock.Contains(identity.ScriptPrefixSha256, StringComparer.OrdinalIgnoreCase)) return SupportedFieldScriptVariant.Vanilla;
+        // A reviewed Polish fan translation prefix has the stock entity layout, like the official archives.
+        if (PolishNavigationManifest.IsReviewed(identity)) return SupportedFieldScriptVariant.Vanilla;
         return row.Echo.Contains(identity.ScriptPrefixSha256, StringComparer.OrdinalIgnoreCase)
             ? SupportedFieldScriptVariant.EchoS124 : SupportedFieldScriptVariant.Unknown;
     }
