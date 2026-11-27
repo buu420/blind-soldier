@@ -97,6 +97,12 @@ internal static class Ff7TextEncoding
         Ff7TextEncodingProfile profile,
         out char character)
     {
+        if (profile == Ff7TextEncodingProfile.RussianFfrttTranslation &&
+            Ff7RussianTextEncoding.TryReadCharacter(value, out character))
+        {
+            return true;
+        }
+
         if (profile == Ff7TextEncodingProfile.PolishFanTranslation &&
             TryReadPolishFanTranslationCharacter(value, out character))
         {

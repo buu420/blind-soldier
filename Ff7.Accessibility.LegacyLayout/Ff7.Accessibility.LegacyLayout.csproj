@@ -8,6 +8,6 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Localization\*.json" />
-    <EmbeddedResource Include="AudioDescriptionLocalization\en.json;AudioDescriptionLocalization\fr.json;AudioDescriptionLocalization\de.json;AudioDescriptionLocalization\es.json;AudioDescriptionLocalization\ja.json;AudioDescriptionLocalization\pl.json" />
+    <EmbeddedResource Include="AudioDescriptionLocalization\*.json" />
   </ItemGroup>
 </Project>

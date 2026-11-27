@@ -163,6 +163,8 @@ public sealed class NameEntryNativeNameTracker
         var spoken = decoded switch
         {
             _ when value == 0x00 => "space",
+            "3" when NameEntryCharacterTable.UsesRussianGrid => "З или 3",
+            "4" when NameEntryCharacterTable.UsesRussianGrid => "Ч или 4",
             [var letter] when char.IsUpper(letter) => $"capital {letter}",
             [var letter] when char.IsLower(letter) => $"lowercase {letter}",
             "," => "comma",

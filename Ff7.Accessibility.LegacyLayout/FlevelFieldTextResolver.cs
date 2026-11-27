@@ -1,3 +1,6 @@
+using Ff7.Accessibility.LegacyLayout;
+using System.Security.Cryptography;
+
 namespace Ff7.Accessibility.Reloaded;
 
 public sealed class FlevelFieldTextResolver
@@ -9,6 +12,8 @@ public sealed class FlevelFieldTextResolver
 
     private readonly FlevelDataSource flevelDataSource;
     private readonly Ff7GameLanguageDescriptor language;
+    private ILegacyAddressSpace? nativeMemory;
+    private FieldMessageReader? nativeMessages;
     private readonly Dictionary<string, IReadOnlyDictionary<int, FieldMessageText>> fieldMessageCache = new(StringComparer.OrdinalIgnoreCase);
 
     public FlevelFieldTextResolver(string gameRootDirectory)
@@ -19,7 +24,17 @@ public sealed class FlevelFieldTextResolver
     public FlevelFieldTextResolver(string gameRootDirectory, Ff7GameLanguageContext languageContext)
     {
         language = languageContext.Descriptor;
+        if (language.TextEncodingProfile == Ff7TextEncodingProfile.RussianFfrttTranslation &&
+            IsEnglishArchiveBehindRussianOverlay(languageContext.FieldArchivePath))
+            language = Ff7GameLanguages.Get(Ff7GameLanguage.English);
         flevelDataSource = new FlevelDataSource(gameRootDirectory, languageContext);
+    }
+
+    /// <summary>Prefer the current field's actual loaded text over an archive hidden by 7H overlays.</summary>
+    public void UseNativeText(ILegacyAddressSpace memory)
+    {
+        nativeMemory = memory ?? throw new ArgumentNullException(nameof(memory));
+        nativeMessages = new FieldMessageReader(memory);
     }
 
     public FieldMessageCandidate ReadMessageById(int fieldId, int messageId)
@@ -28,6 +43,10 @@ public sealed class FlevelFieldTextResolver
         {
             return new FieldMessageCandidate(string.Empty, string.Empty);
         }
+
+        if (TryReadNativePages(fieldId, messageId, out var nativePages))
+            return new FieldMessageCandidate("loaded field message", Ff7EncodedTextDecoder.NormalizeWhitespace(
+                string.Join(' ', nativePages.SelectMany(page => page.Lines).Select(line => line.Text))));
 
         var names = GetFieldNames();
         if (!names.TryGetValue(fieldId, out var fieldName) || string.IsNullOrWhiteSpace(fieldName))
@@ -51,6 +70,9 @@ public sealed class FlevelFieldTextResolver
             return Array.Empty<string>();
         }
 
+        if (TryReadNativePages(fieldId, messageId, out var nativePages, forNpcIdentity: true))
+            return nativePages.SelectMany(page => page.Lines).Select(line => line.Text).ToArray();
+
         var names = GetFieldNames();
         if (!names.TryGetValue(fieldId, out var fieldName) || string.IsNullOrWhiteSpace(fieldName))
         {
@@ -70,6 +92,8 @@ public sealed class FlevelFieldTextResolver
             return Array.Empty<Ff7DecodedTextPage>();
         }
 
+        if (TryReadNativePages(fieldId, messageId, out var nativePages)) return nativePages;
+
         var names = GetFieldNames();
         if (!names.TryGetValue(fieldId, out var fieldName) || string.IsNullOrWhiteSpace(fieldName))
         {
@@ -80,6 +104,43 @@ public sealed class FlevelFieldTextResolver
         return messages.TryGetValue(messageId, out var message)
             ? message.Pages
             : Array.Empty<Ff7DecodedTextPage>();
+    }
+
+    private bool TryReadNativePages(int fieldId, int messageId, out IReadOnlyList<Ff7DecodedTextPage> pages,
+        bool forNpcIdentity = false)
+    {
+        pages = [];
+        if (nativeMemory is not { } memory || nativeMessages is not { } reader) return false;
+        // An unreadable/transitioning current field cannot fall back to a stale
+        // archive. Other fields (world-map location names) still use disk data.
+        if (!memory.TryReadByte((uint)FieldPositionReader.AddressCurrentModule, out var module) ||
+            !memory.TryReadUInt16((uint)FieldPositionReader.AddressFieldId, out var currentField)) return true;
+        if (module != FieldPositionReader.FieldModule || currentField != fieldId) return false;
+        var read = forNpcIdentity
+            ? reader.TryReadMessageLabelPagesById(fieldId, messageId, out pages)
+            : reader.TryReadMessagePagesById(fieldId, messageId, out pages);
+        var observed = pages;
+        pages = [];
+        if (!read ||
+            !memory.TryReadByte((uint)FieldPositionReader.AddressCurrentModule, out var afterModule) || afterModule != module ||
+            !memory.TryReadUInt16((uint)FieldPositionReader.AddressFieldId, out var afterField) || afterField != currentField)
+            return true;
+        pages = observed;
+        return true;
+    }
+
+    private static bool IsEnglishArchiveBehindRussianOverlay(string path)
+    {
+        try
+        {
+            // 7H leaves this original archive on disk while substituting the IRO.
+            // Its bytes must never be decoded with the replacement Russian font.
+            if (!File.Exists(path) || new FileInfo(path).Length != 131_431_170) return false;
+            using var stream = File.OpenRead(path);
+            return Convert.ToHexString(SHA256.HashData(stream)) ==
+                "AF695CCF7C681BE222F5F716758160E39469EC02BC0AF3DD6F20A5E9C2A34807";
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { return false; }
     }
 
     private IReadOnlyDictionary<int, string> GetFieldNames()

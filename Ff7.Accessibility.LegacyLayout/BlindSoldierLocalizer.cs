@@ -17,7 +17,14 @@ public sealed partial class BlindSoldierLocalizer
     private readonly IReadOnlyDictionary<string, string> descriptionSources;
     private readonly IReadOnlyDictionary<string, string> descriptions;
     private static readonly ConcurrentDictionary<string, IReadOnlyDictionary<string, string>> DescriptionCatalogs = new(StringComparer.Ordinal);
+    // Known wrappers added to native ASK rows by the mod. Their contents stay
+    // native text; availability and cursor position are generated metadata.
+    private static readonly IReadOnlySet<string> NativeMetadataTemplates = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "{0}, choice {1} of {2}", "{0} unavailable, choice {1} of {2}", "{0}, {1} available", "{0} unavailable"
+    };
     private readonly IReadOnlyList<TemplateTranslation> templates;
+    private readonly IReadOnlyList<TemplateTranslation> modTemplates;
     private readonly Action<string>? log;
     private readonly HashSet<string> loggedFallbacks = new(StringComparer.Ordinal);
 
@@ -27,7 +34,8 @@ public sealed partial class BlindSoldierLocalizer
         IReadOnlyDictionary<string, string> localized,
         Action<string>? log,
         IReadOnlyDictionary<string, string>? descriptionSources = null,
-        IReadOnlyDictionary<string, string>? descriptions = null)
+        IReadOnlyDictionary<string, string>? descriptions = null,
+        IReadOnlySet<string>? modOnlyKeys = null)
     {
         this.language = language;
         this.english = english;
@@ -35,13 +43,19 @@ public sealed partial class BlindSoldierLocalizer
         this.descriptionSources = descriptionSources ?? new Dictionary<string, string>(StringComparer.Ordinal);
         this.descriptions = descriptions ?? new Dictionary<string, string>(StringComparer.Ordinal);
         this.log = log;
-        templates = english.Keys
+        modTemplates = english.Keys
             .Concat(localized.Keys)
             .Distinct(StringComparer.Ordinal)
             .Where(source => PlaceholderPattern().IsMatch(source))
-            .Select(source => TemplateTranslation.Create(source))
+            .Select(source => TemplateTranslation.Create(source, guardNativeAbbreviations: language.Code == "ru"))
             .OrderByDescending(template => template.LiteralLength)
             .ToArray();
+        // Short structural formats are useful for trusted, generated UI ("1 of
+        // 80.") but must not become patterns over arbitrary native dialogue.
+        templates = language.Code == "ru"
+            ? modTemplates.Where(template => modOnlyKeys?.Contains(template.Source) != true &&
+                (english.ContainsKey(template.Source) || NativeMetadataTemplates.Contains(template.Source))).ToArray()
+            : modTemplates;
     }
 
     public string LanguageCode => language.Code;
@@ -61,6 +75,12 @@ public sealed partial class BlindSoldierLocalizer
         var localized = string.Equals(language.Code, "en", StringComparison.OrdinalIgnoreCase)
             ? new Dictionary<string, string>(english, StringComparer.Ordinal)
             : LoadEmbedded(language.Code);
+        if (language.Code == "ru")
+            foreach (var pair in LoadResourceCatalog(".Localization.ru.runtime.json"))
+                localized.TryAdd(pair.Key, pair.Value);
+        var composition = language.Code == "ru"
+            ? LoadResourceCatalog(".Localization.ru.composition.json") : new Dictionary<string, string>();
+        foreach (var pair in composition) localized.TryAdd(pair.Key, pair.Value);
         var useDescriptions = !string.Equals(language.Code, "en", StringComparison.OrdinalIgnoreCase);
         IReadOnlyDictionary<string, string> descriptionSources = useDescriptions
             ? LoadEmbeddedDescriptions("en") : new Dictionary<string, string>(StringComparer.Ordinal);
@@ -83,7 +103,7 @@ public sealed partial class BlindSoldierLocalizer
         }
 
         return new BlindSoldierLocalizer(language, english, localized, log,
-            descriptionSources, descriptionOverrides ?? descriptions);
+            descriptionSources, descriptionOverrides ?? descriptions, composition.Keys.ToHashSet(StringComparer.Ordinal));
     }
 
     internal static BlindSoldierLocalizer CreateForTesting(
@@ -93,7 +113,11 @@ public sealed partial class BlindSoldierLocalizer
         Action<string>? log = null) =>
         new(language, english, localized, log);
 
-    public string Localize(string text)
+    public string Localize(string text) => LocalizeCore(text, templates,
+        language.Code == "ru" ? value => LocalizeCore(value, templates, LocalizeCapturedValue) : LocalizeCapturedValue);
+
+    private string LocalizeCore(string text, IReadOnlyList<TemplateTranslation> candidates, Func<string, string> localizeCapture,
+        Func<TemplateTranslation, Match, bool>? accepts = null)
     {
         if (string.IsNullOrWhiteSpace(text) ||
             string.Equals(language.Code, "en", StringComparison.OrdinalIgnoreCase))
@@ -112,10 +136,12 @@ public sealed partial class BlindSoldierLocalizer
             return english[text];
         }
 
-        foreach (var template in templates)
+        foreach (var template in candidates)
         {
-            var match = template.Pattern.Match(text);
-            if (!match.Success)
+            Match match;
+            try { match = template.Pattern.Match(text); }
+            catch (RegexMatchTimeoutException) { continue; }
+            if (!match.Success || accepts?.Invoke(template, match) == false)
             {
                 continue;
             }
@@ -131,10 +157,60 @@ public sealed partial class BlindSoldierLocalizer
                 LogEnglishFallback(template.Source);
             }
 
-            return template.Apply(target, match, LocalizeCapturedValue);
+            return template.Apply(target, match, localizeCapture);
         }
 
         return text;
+    }
+
+    /// <summary>
+    /// Translates composed mod-generated settings/navigation speech. Callers
+    /// must not send native dialogue, custom names or production credits here.
+    /// Other language pipelines retain their existing behavior.
+    /// </summary>
+    public string LocalizeModSpeech(string text) => language.Code == "ru"
+        ? LocalizeModParts(text, 0) : Localize(text);
+
+    private string LocalizeModParts(string text, int depth)
+    {
+        if (depth >= 10 || string.IsNullOrWhiteSpace(text)) return text;
+        var translated = LocalizeCore(text, modTemplates, value => LocalizeModParts(value, depth + 1), AcceptsModMatch);
+        if (translated != text) return translated;
+        // Sentences first, so a sentence template ("Enemies: {0}.") is still tried whole
+        // inside a longer line; clauses only within a sentence that has no entry.
+        foreach (var separators in new[] { ModSentenceBreak(), ModClauseBreak() })
+        {
+            var matches = separators.Matches(text);
+            if (matches.Count == 0) continue;
+            var result = new System.Text.StringBuilder();
+            var cursor = 0;
+            foreach (Match separator in matches)
+            {
+                var punctuation = separator.Value[0] is '.' or '!' or '?' ? 1 : 0;
+                result.Append(LocalizeModParts(text[cursor..(separator.Index + punctuation)], depth + 1));
+                result.Append(separator.Value[punctuation..]);
+                cursor = separator.Index + separator.Length;
+            }
+            result.Append(LocalizeModParts(text[cursor..], depth + 1));
+            return result.ToString();
+        }
+        if (text.Length > 1 && text[^1] is '.' or '!' or '?')
+            return LocalizeModParts(text[..^1], depth + 1) + text[^1];
+        return text;
+    }
+
+    // A capture enclosed by template text never runs across a sentence end ("Left {0}." must
+    // not swallow the next sentence; "Navigation menu. {0}" may still take the rest of the
+    // line). A frame with no word of its own ("{0} of {1}.") only counts beside a number, so
+    // "Let go of the keys" and "Temple of the Ancients" are not rewritten.
+    private static bool AcceptsModMatch(TemplateTranslation template, Match match)
+    {
+        var captures = template.GroupNames.Values.Select(name => match.Groups[name]).ToArray();
+        if (captures.Any(group => group.Index > 0 && group.Index + group.Length < match.Length &&
+                ModSentenceBreak().IsMatch(group.Value)))
+            return false;
+        return GeneralTemplateWord().IsMatch(PlaceholderPattern().Replace(template.Source, "")) ||
+            captures.Any(group => NumberAtEdge().IsMatch(group.Value));
     }
 
     // Only description delivery calls this. Movie sidecars can contain a line
@@ -249,13 +325,26 @@ public sealed partial class BlindSoldierLocalizer
     [GeneratedRegex("\\{([0-9]+)\\}", RegexOptions.CultureInvariant)]
     private static partial Regex PlaceholderPattern();
 
+    [GeneratedRegex("[A-Za-z]{3}", RegexOptions.CultureInvariant)]
+    private static partial Regex GeneralTemplateWord();
+
+    // "Mt. Nibel", "No. 1" and native "Мифрил. сабля" are labels, not two sentences.
+    [GeneratedRegex(@"(?<!\b(?:Mt|No|St|Dr|Mr|Mrs|Ms|Jr|vs))[.!?]\s+(?![а-яё])", RegexOptions.CultureInvariant)]
+    private static partial Regex ModSentenceBreak();
+
+    [GeneratedRegex(@"[:,;]\s+", RegexOptions.CultureInvariant)]
+    private static partial Regex ModClauseBreak();
+
+    [GeneratedRegex(@"^[0-9]|[0-9]$", RegexOptions.CultureInvariant)]
+    private static partial Regex NumberAtEdge();
+
     private sealed record TemplateTranslation(
         string Source,
         Regex Pattern,
         IReadOnlyDictionary<int, string> GroupNames,
         int LiteralLength)
     {
-        public static TemplateTranslation Create(string source)
+        public static TemplateTranslation Create(string source, bool guardNativeAbbreviations)
         {
             var groupNames = new Dictionary<int, string>();
             var pattern = new System.Text.StringBuilder("^");
@@ -265,7 +354,7 @@ public sealed partial class BlindSoldierLocalizer
             foreach (Match placeholder in PlaceholderPattern().Matches(source))
             {
                 var literal = source[cursor..placeholder.Index];
-                pattern.Append(Regex.Escape(literal));
+                pattern.Append(guardNativeAbbreviations ? EscapeLiteral(literal) : Regex.Escape(literal));
                 literalLength += literal.Length;
                 var index = int.Parse(placeholder.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
                 var groupName = $"p{index}_{occurrence++}";
@@ -275,14 +364,19 @@ public sealed partial class BlindSoldierLocalizer
             }
 
             var tail = source[cursor..];
-            pattern.Append(Regex.Escape(tail)).Append('$');
+            pattern.Append(guardNativeAbbreviations ? EscapeLiteral(tail) : Regex.Escape(tail)).Append('$');
             literalLength += tail.Length;
             return new TemplateTranslation(
                 source,
-                new Regex(pattern.ToString(), RegexOptions.CultureInvariant | RegexOptions.Singleline),
+                new Regex(pattern.ToString(), RegexOptions.CultureInvariant | RegexOptions.Singleline, TimeSpan.FromMilliseconds(20)),
                 groupNames,
                 literalLength);
         }
+
+        // A literal sentence end never lands inside a native Russian abbreviation such as
+        // "Критич. удар" (Deathblow): there the next word starts with a lowercase letter.
+        private static string EscapeLiteral(string literal) =>
+            Regex.Escape(literal).Replace(@"\.\ ", @"(?<!\b(?:Mt|No|St|Dr|Mr|Mrs|Ms|Jr|vs))\.\ (?![а-яё])");
 
         public string Apply(string target, Match match, Func<string, string> localizeCapture) =>
             PlaceholderPattern().Replace(target, placeholder =>

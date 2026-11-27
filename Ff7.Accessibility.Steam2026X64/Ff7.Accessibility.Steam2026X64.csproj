@@ -7,7 +7,7 @@
     <PlatformTarget>x64</PlatformTarget>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
-    <InformationalVersion>1.0.4</InformationalVersion>
+    <InformationalVersion>1.0.5</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
 
@@ -1106,6 +1106,7 @@
     <Compile Include="..\Ff7.Accessibility.Reloaded\Floor60SoldierTurnCueTracker.cs" Link="Shared\Floor60SoldierTurnCueTracker.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\ImmediateWaveCuePlayer.cs" Link="Shared\ImmediateWaveCuePlayer.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldScriptNavigationCatalog.cs" Link="Shared\FieldScriptNavigationCatalog.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\RussianFieldCompatibility*.cs" Link="Shared\%(Filename)%(Extension)" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\Sector7NavigationLayout.cs" Link="Shared\Sector7NavigationLayout.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\LoadedFieldScriptIdentityReader.cs" Link="Shared\LoadedFieldScriptIdentityReader.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\FieldScriptProgram.cs" Link="Shared\FieldScriptProgram.cs" />

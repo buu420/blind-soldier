@@ -18,7 +18,7 @@ internal static class AudioDescriptionLocalizationTests
     {
         var texts = EnglishTexts();
         foreach (var language in Ff7GameLanguages.All.Where(language => language.Code != "en")
-                     .Append(Ff7GameLanguages.PolishFanTranslation))
+                     .Append(Ff7GameLanguages.PolishFanTranslation).Append(Ff7GameLanguages.RussianFanTranslation))
         {
             var localizer = BlindSoldierLocalizer.Create(language, null);
             var assembly = typeof(BlindSoldierLocalizer).Assembly;
@@ -65,7 +65,7 @@ internal static class AudioDescriptionLocalizationTests
             throw new InvalidOperationException("Description language policy changed English defaults or ignored disabled options.");
         if (texts.Any(text => english.LocalizeDescription(text) != text))
             throw new InvalidOperationException("English descriptions changed.");
-        Console.WriteLine($"Description translations cover {texts.Count} distinct texts in five non-English languages.");
+        Console.WriteLine($"Description translations cover {texts.Count} distinct texts in six non-English languages.");
     }
 
     internal static void Export(string path) => File.WriteAllText(path,

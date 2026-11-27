@@ -403,7 +403,7 @@ internal sealed class AncientForestStoryGuide(
     private FieldNavigationTarget Hold(string label, string direction) => Cue(label, $"Hold {direction}.");
     private FieldNavigationTarget Wait(string label, string result) => Cue(label, result);
     private FieldNavigationTarget Restart(string reason) => Cue(reason,
-        $"{(state.Variant == SupportedFieldScriptVariant.EchoS124 ? "Press" : "Press and release")} Switch to return to the entrance. Collected treasures stay with you.");
+        $"{(state.ResetUsesPress || state.Variant == SupportedFieldScriptVariant.EchoS124 ? "Press" : "Press and release")} Switch to return to the entrance. Collected treasures stay with you.");
 
     private IEnumerable<FieldNavigationTarget> Named(string prefix) =>
         objects.Where(t => t.Label.StartsWith(prefix, StringComparison.Ordinal)).OrderBy(DistanceSquared);

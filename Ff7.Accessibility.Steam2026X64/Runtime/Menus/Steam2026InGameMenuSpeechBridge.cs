@@ -367,8 +367,16 @@ internal sealed class Steam2026InGameMenuSpeechBridge
         }
     }
 
+    /// <summary>
+    /// True when the last <see cref="Poll"/> returned the materia tutorial's rendered native
+    /// instruction rather than a line the menu trackers composed. The host keeps the strict
+    /// lookup for it, as the x86 host does.
+    /// </summary>
+    internal bool LastPollIsNativeText { get; private set; }
+
     internal string? Poll(DateTime now)
     {
+        LastPollIsNativeText = false;
         if (!ownsMenu || now.Kind != DateTimeKind.Utc)
         {
             return null;
@@ -411,6 +419,7 @@ internal sealed class Steam2026InGameMenuSpeechBridge
             if (materiaTutorial.IsActive(now))
             {
                 activeMenu.DiscardPending();
+                LastPollIsNativeText = true;
                 return materiaTutorial.Poll(now);
             }
 

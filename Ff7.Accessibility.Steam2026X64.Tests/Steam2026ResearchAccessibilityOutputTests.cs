@@ -21,7 +21,7 @@ internal static class Steam2026ResearchAccessibilityOutputTests
     private static void NonEnglishOpeningNeverPreparesOrStartsEnglishPlayback()
     {
         foreach (var language in Ff7GameLanguages.All.Where(language => language.Code != "en")
-                     .Append(Ff7GameLanguages.PolishFanTranslation))
+                     .Append(Ff7GameLanguages.PolishFanTranslation).Append(Ff7GameLanguages.RussianFanTranslation))
         {
             using var speaker = CreateUnavailableSpeaker();
             var playback = new RecordingNarrationPlayback();

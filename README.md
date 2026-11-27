@@ -108,7 +108,7 @@ English audio description includes the opening movie, 99 other movie tracks,
 and 1,515 short clips covering areas, cutscene actions, films, and battle
 animations. These recordings use Brice's approved voice.
 
-French, German, Spanish, Japanese, and Polish descriptions use translated text
+French, German, Spanish, Japanese, Polish, and Russian descriptions use translated text
 through your screen reader. This includes movies, summons, Limit Breaks, the
 ending, credits introduction, and post-credits scene. The language follows
 `GameLanguage` below. Set your screen reader's voice and volume for that
@@ -542,10 +542,10 @@ instead of reading unverified game memory.
 Choose one download from the
 [Blind Soldier Releases page](https://github.com/buu420/blind-soldier/releases):
 
-- [Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v1.0.4/Blind-Soldier-Portable.zip)
+- [Blind-Soldier-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v1.0.5/Blind-Soldier-Portable.zip)
   is the complete dual-runtime package. Use it for Steam 2026 x64 or when one
   extracted package must support both x86 and x64 installations.
-- [Blind-Soldier-2013-x86-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v1.0.4/Blind-Soldier-2013-x86-Portable.zip)
+- [Blind-Soldier-2013-x86-Portable.zip](https://github.com/buu420/blind-soldier/releases/download/v1.0.5/Blind-Soldier-2013-x86-Portable.zip)
   is the smaller legacy-only package. Use it for the 2013 x86 game, including
   stock 7th Heaven/FFNx. It deliberately contains no Steam 2026 launcher or
   x64 files.
@@ -650,18 +650,18 @@ called `ff7_en.exe`. Blind Soldier follows that setting when FFNx is loaded.
 An explicit `GameLanguage` override still takes precedence.
 
 Blind Soldier's own generated messages—such as navigation, battle status, and
-accessibility prompts—use its matching `en`, `fr`, `de`, `es`, or `ja`
+accessibility prompts—use its matching `en`, `fr`, `de`, `es`, `ja`, or `ru`
 translation catalog. If an individual generated message has not been
 translated yet, Blind Soldier speaks that message in English so the player
 still receives the information. Audio descriptions have separate, packaged
-text catalogs for all five supported non-English languages and use Prism
+text catalogs for all six supported non-English languages and use Prism
 instead of the English recordings. They work offline and preserve the native
 description triggers and reset history.
 
 To override automatic detection, edit
 `Reloaded-II\Mods\ff7.accessibility.reloaded\Configuration\config.json` and set
-`GameLanguage` to `en`, `fr`, `de`, `es`, `ja`, or `pl`. The full names
-`English`, `French`, `German`, `Spanish`, `Japanese`, and `Polish` are also
+`GameLanguage` to `en`, `fr`, `de`, `es`, `ja`, `pl`, or `ru`. The full names
+`English`, `French`, `German`, `Spanish`, `Japanese`, `Polish`, and `Russian` are also
 accepted. Use `auto` to restore detection. The Polish profile deliberately uses
 the translation's English asset paths while applying its Polish font mapping;
 Blind Soldier's generated interface prompts remain in English unless a Polish
@@ -669,6 +669,14 @@ override catalog is supplied. Polish audio descriptions use their packaged
 Polish text through the screen reader.
 Its reviewed field-description triggers include the Bunio V1.05 scripts;
 navigation in that translation's altered fields still needs separate mapping.
+
+Russian support targets [FFRTT's 7th Heaven translation, packaged by ayumosa](https://github.com/ayumosa/ff7-7h-russian),
+version 1.02. It detects the enabled patch's loaded menu strings, keeps the English
+engine layout, and decodes the replacement Russian font. Russian menus, navigation
+and text descriptions use the screen reader. The translation's font must take
+priority over incompatible font/UI replacements. Select a Russian screen-reader
+voice; `GameLanguage: "ru"` is available if an explicit override is needed. See
+[the compatibility and verification notes](docs/russian-support-20261127.md).
 
 Translators can override or extend generated messages without rebuilding the
 mod by creating

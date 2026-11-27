@@ -231,6 +231,9 @@ public sealed class FieldScriptNavigationCatalog
     private readonly object cacheLock = new();
     private readonly LoadedFieldScriptIdentityReader? loadedScripts;
     private readonly Dictionary<(int FieldId, string Hash, ushort? CharacterSeed), FieldScriptNavigationReadResult> loadedCache = new();
+    // The Russian 1.02 overlay is in use: its profile is selected, or a reviewed Russian script loaded.
+    private readonly bool russianProfile;
+    private volatile bool russianScriptLoaded;
 
     public FieldScriptNavigationCatalog(string gameRootDirectory)
         : this(gameRootDirectory, Ff7GameLanguageDetector.Detect(gameRootDirectory))
@@ -250,6 +253,7 @@ public sealed class FieldScriptNavigationCatalog
         LoadedFieldScriptIdentityReader? loadedScripts)
     {
         this.loadedScripts = loadedScripts;
+        russianProfile = language.Descriptor == Ff7GameLanguages.RussianFanTranslation;
         flevelDataSource = new FlevelDataSource(gameRootDirectory, language);
         fieldNames = flevelDataSource.FieldNames;
     }
@@ -285,10 +289,29 @@ public sealed class FieldScriptNavigationCatalog
     /// <summary>Audited future-route metadata; never used to authorize a current target.</summary>
     public FieldScriptNavigationReadResult ReadFutureFieldMetadata(int fieldId, bool reviewedEcho)
     {
+        // Under the Russian overlay the installed English field describes a field's Russian routes only
+        // where the audit proved it route-equivalent; elsewhere a route is not planned on English data.
+        if (!reviewedEcho && (russianProfile || russianScriptLoaded) &&
+            !RussianFieldCompatibility.EnglishDiskDescribesRussianRoutes(fieldId) && DiskHoldsEnglishStock(fieldId))
+            return FieldScriptNavigationReadResult.Invalid($"field={fieldId}, the installed English field does not describe its Russian routes");
         var result = reviewedEcho
             ? WholeGameEchoFutureMetadata.Read(fieldId) ?? FieldScriptNavigationReadResult.Invalid("Future Echo-S metadata unavailable")
             : ReadDiskField(fieldId);
         return result with { Exits = ApplyScaffoldExitTraversals(fieldId, result.Exits, result.Transitions) };
+    }
+
+    private bool DiskHoldsEnglishStock(int fieldId)
+    {
+        try
+        {
+            return fieldNames.TryGetValue(fieldId, out var name) && flevelDataSource.TryReadField(name, out var encoded) &&
+                TryReadSectionOne(Ff7LzsDecoder.DecodeFieldFile(encoded), out var section, out _) &&
+                string.Equals(ScriptPrefixHash(section), WholeGameEchoNavigationManifest.StockFingerprint(fieldId), StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception ex) when (ex is ArgumentException or IndexOutOfRangeException or InvalidDataException)
+        {
+            return true;
+        }
     }
 
     private static IReadOnlyList<FieldNavigationTarget> ApplyScaffoldExitTraversals(
@@ -329,15 +352,35 @@ public sealed class FieldScriptNavigationCatalog
             var variant = WholeGameEchoNavigationManifest.ResolveVariant(identity);
             if (variant == SupportedFieldScriptVariant.Postscript178 && characterSeed is null)
                 return FieldScriptNavigationReadResult.Invalid($"field={fieldId}, randomized opening requires verified native character execution mode");
-            var matchesDisk = ScriptPrefixHash(diskSection) == identity.ScriptPrefixSha256;
-            if (variant == SupportedFieldScriptVariant.Unknown ||
+            var diskPrefix = ScriptPrefixHash(diskSection);
+            var matchesDisk = diskPrefix == identity.ScriptPrefixSha256;
+            // 7th Heaven overlays the Russian 1.02 flevel while the English one stays on disk. Where
+            // the stock path would refuse the loaded script, an exact reviewed Russian prefix is stock
+            // native layout, and the disk may describe its models only when it holds that script or
+            // the exact English prefix and model loader the row was audited against.
+            var russian = variant == SupportedFieldScriptVariant.Unknown ||
+                          variant == SupportedFieldScriptVariant.Vanilla && !matchesDisk
+                ? RussianFieldCompatibility.Find(identity) : null;
+            if (russian is not null)
+            {
+                if (!RussianFieldCompatibility.AcceptsDiskMetadata(russian, diskPrefix, bytes, out var reason))
+                    return FieldScriptNavigationReadResult.Invalid($"field={fieldId}, reviewed Russian script {identity.ScriptPrefixSha256}: {reason}");
+                variant = SupportedFieldScriptVariant.Vanilla;
+                russianScriptLoaded = true;
+            }
+            else if (variant == SupportedFieldScriptVariant.Unknown ||
                 variant == SupportedFieldScriptVariant.Vanilla && !matchesDisk)
                 return FieldScriptNavigationReadResult.Invalid($"field={fieldId}, unreviewed loaded script {identity.ScriptPrefixSha256}");
             var echo = variant == SupportedFieldScriptVariant.EchoS124;
             var models = echo ? WholeGameEchoNavigationManifest.Models(fieldId) : null;
             var result = ReadFieldFromSection(fieldId, name, prefix,
                 StripFieldPrefix(models ?? ReadModelResourceNames(bytes), name), characterSeed);
-            var mapping = echo ? WholeGameEchoNavigationManifest.EntityMap(fieldId) : WholeGameEchoNavigationManifest.ReviewedOfficialStockEntityMap(identity);
+            var mapping = echo ? WholeGameEchoNavigationManifest.EntityMap(fieldId) :
+                russian?.Map ?? WholeGameEchoNavigationManifest.ReviewedOfficialStockEntityMap(identity);
+            // las0_8 retains its entities but moves the ladder LINEs. Rebase the
+            // English story/object approach to those actual Russian LINEs too.
+            if (russian is { Field: 751 } && mapping is null)
+                mapping = Enumerable.Range(0, prefix[2]).ToDictionary(entity => entity, entity => entity);
             if (result.IsUsable && mapping is not null)
             {
                 if (echo) result = ApplyReviewedEchoExitGuards(result, fieldId);

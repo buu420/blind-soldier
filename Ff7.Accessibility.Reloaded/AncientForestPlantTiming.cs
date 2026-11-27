@@ -32,7 +32,7 @@ internal sealed class AncientForestPlantTiming(ILegacyAddressSpace memory, ILega
                 counter != 0 || !identity.TryRead(out var loaded) || loaded.FieldId != context.FieldId)
                 return null;
 
-            var variant = EchoSCompatibilityManifest.ResolveVariant(loaded);
+            var variant = RussianFieldCompatibility.ResolveForestVariant(loaded);
             if (variant is not (SupportedFieldScriptVariant.Vanilla or SupportedFieldScriptVariant.EchoS124) ||
                 context.FieldId == 620 && (variant == SupportedFieldScriptVariant.Vanilla ? entity == 10 : entity == 13) ||
                 !ReadCursor(entity, out var cursor) ||

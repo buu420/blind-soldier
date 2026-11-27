@@ -9,7 +9,8 @@ public sealed class NameEntryMenuSpeechTracker
         "Space",
         "Delete",
         "Select",
-        "Default"
+        "Default",
+        "Пробел", "Удалить", "Выбор", "Вернуть", "Отмена"
     };
 
     private const int GridLeftCursorX = 33;
@@ -175,6 +176,10 @@ public sealed class NameEntryMenuSpeechTracker
 
         if (best is not null)
         {
+            var row = NearestIndex(snapshot.Y, GridTopCursorY, GridCellHeight);
+            var column = NearestIndex(snapshot.X, GridLeftCursorX, GridCellWidth);
+            if (NameEntryCharacterTable.TryDescribeRussianDrawnCell(
+                column, row, best.Value.Entry.Text, out text)) return true;
             text = NormalizeSpokenText(best.Value.Entry.Text);
             return true;
         }

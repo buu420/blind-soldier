@@ -70,6 +70,11 @@ internal static class FieldNpcIdentityCoverageTests
             ModelResourceName: "unclassified.char");
         if (Read(unbound, ["Cloud", "“A reply.”"]) is not null)
             failures.Add("an unrelated actor cannot acquire Cloud's name from a reply");
+        foreach (var heading in new[] { "Клауд", "Баррет", "Тифа", "Айрис", "Ред XIII", "Юффи", "Кайт Сит", "Винсент", "Сид" })
+            if (Read(unbound, [heading, "“Ответ другого персонажа.”"]) is not null)
+                failures.Add($"an unrelated Russian actor cannot acquire a party reply's heading: {heading}");
+        if (Read(unbound, ["Бугенхаген", "“Моя собственная реплика.”"])?.Label != "Бугенхаген")
+            failures.Add("a Russian non-party speaker's own heading remains available");
         if (Read(unbound with { ReviewedModelLabel = "Cloud" }, []) is not null)
             failures.Add("an uncorroborated cached party heading is not actor identity");
         var requestedWindows = unbound with { DialogIds = [1, 2], OwnDialogIds = [2] };

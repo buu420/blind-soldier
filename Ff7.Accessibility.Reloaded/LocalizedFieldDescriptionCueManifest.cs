@@ -18,7 +18,7 @@ namespace Ff7.Accessibility.Reloaded;
 /// </summary>
 public static partial class LocalizedFieldDescriptionCueManifest
 {
-    private static readonly IReadOnlySet<string> Languages = new HashSet<string>(StringComparer.Ordinal) { "fr", "de", "es", "ja", "pl" };
+    private static readonly IReadOnlySet<string> Languages = new HashSet<string>(StringComparer.Ordinal) { "fr", "de", "es", "ja", "pl", "ru" };
 
     public static bool IsReviewedIdentity(LoadedFieldScriptIdentity identity) => Find(identity) is not null;
 

@@ -687,7 +687,7 @@ public sealed class Mod : IModV1, IModV2
         wonderSquareArmWrestlingReadout?.Reset();
         wonderSquare3DBattlerReadout?.Reset();
         wonderSquare3DBattlerReader?.Reset();
-        Speak("Final Fantasy Seven accessibility mod suspended.");
+        SpeakModSpeech("Final Fantasy Seven accessibility mod suspended.");
     }
 
     public void Resume()
@@ -702,7 +702,7 @@ public sealed class Mod : IModV1, IModV2
         endgameMovieNarration?.Resume();
         creditsNarration?.Resume();
         creditsTitleNarration?.Resume();
-        Speak("Final Fantasy Seven accessibility mod resumed.");
+        SpeakModSpeech("Final Fantasy Seven accessibility mod resumed.");
     }
 
     public void Unload()
@@ -922,13 +922,16 @@ public sealed class Mod : IModV1, IModV2
         Log($"Game root directory: {gameRootDirectory ?? "<unknown>"}");
         var executablePath = Process.GetCurrentProcess().MainModule?.FileName;
         ffnxRuntimeLoaded = FfnxRuntimeDetector.IsLoaded(Process.GetCurrentProcess());
+        var legacyAddressSpace = new CurrentProcessLegacyAddressSpace();
+        currentProcessLegacyAddressSpace = legacyAddressSpace;
         gameLanguage = Ff7GameLanguageDetector.Detect(
             gameRootDirectory ?? AppContext.BaseDirectory,
             config.GameLanguage,
             executablePath,
             steamManifestPaths: null,
             log: Log,
-            ffnxLoaded: ffnxRuntimeLoaded);
+            ffnxLoaded: ffnxRuntimeLoaded,
+            liveLegacyMemory: legacyAddressSpace);
         Ff7EncodedTextDecoder.SetDefaultLanguage(gameLanguage.Descriptor);
         localizer = BlindSoldierLocalizer.Create(gameLanguage.Descriptor, modDirectory, Log);
         if (!localizer.UseRecordedAudioDescriptions)
@@ -992,8 +995,6 @@ public sealed class Mod : IModV1, IModV2
             () => cutsceneVoicePlayer?.IsPlaying == true || battleAnimationNarration?.IsPlaying == true);
         fieldVisibleWindowSpeechCoordinator = new FieldVisibleWindowSpeechCoordinator(
             TimeSpan.FromMilliseconds(Math.Max(100, config.FieldMessageStableMs)));
-        var legacyAddressSpace = new CurrentProcessLegacyAddressSpace();
-        currentProcessLegacyAddressSpace = legacyAddressSpace;
         var keyboardContext = new KeyboardInputContextReader(legacyAddressSpace, GetForegroundWindow,
             () => Volatile.Read(ref keyboardSettingsOwnsInput), () => Volatile.Read(ref keyboardFieldNavigationSuppressed),
             () => Volatile.Read(ref keyboardWorldNavigationSuppressed));
@@ -1152,7 +1153,7 @@ public sealed class Mod : IModV1, IModV2
             modDirectory,
             (text, interrupt) =>
             {
-                if (!Speak(text, interrupt))
+                if (!SpeakModSpeech(text, interrupt))
                     throw new InvalidOperationException("The highway announcement was not accepted by the speech backend.");
             },
             Log);
@@ -1162,7 +1163,7 @@ public sealed class Mod : IModV1, IModV2
         lastNavigationAutoWalkFailure = string.Empty;
         floor60GuardTimingStateReader = new Floor60GuardTimingStateReader(legacyAddressSpace);
         condorMinigameProbe = new CondorMinigameProbe(
-            legacyAddressSpace, Log, text => Speak(text, interrupt: false));
+            legacyAddressSpace, Log, text => SpeakModSpeech(text, interrupt: false));
         condorBattleStateReader = new CondorBattleStateReader(legacyAddressSpace);
         condorBattleSpeechTracker = new CondorBattleSpeechTracker(
             Log,
@@ -1329,9 +1330,9 @@ public sealed class Mod : IModV1, IModV2
             command => battleStatusHotkeyController.HandleController(
                 (BattleStatusControllerCommand)((int)command - (int)ControllerNavigationCommand.PartyPrevious),
                 ReadBattleStatusMember),
-            text => { if (speaker?.Speak(localizer.Localize(text), interrupt: true) != true)
+            text => { if (speaker?.Speak(localizer.LocalizeModSpeech(text), interrupt: true) != true)
                 throw new InvalidOperationException("Prism did not accept the settings line."); },
-            text => { if (!Speak(text, interrupt: true))
+            text => { if (!SpeakModSpeech(text, interrupt: true))
                 throw new InvalidOperationException("Prism did not accept the party readout."); }, () =>
             {
                 SuspendEveryControllerAutoWalk();
@@ -1344,6 +1345,7 @@ public sealed class Mod : IModV1, IModV2
         flevelFieldTextResolver = gameRootDirectory is null
             ? null
             : new FlevelFieldTextResolver(gameRootDirectory, gameLanguage);
+        if (gameLanguage.Code == "ru") flevelFieldTextResolver?.UseNativeText(legacyAddressSpace);
         fieldOpcodeAddressResolver = new FieldOpcodeAddressResolver(ReadInt32, ReadByte);
         fieldOpcodeParameterReader = new FieldOpcodeParameterReader(legacyAddressSpace);
         fieldScriptContextReader = new FieldScriptContextReader(legacyAddressSpace);
@@ -2303,8 +2305,10 @@ public sealed class Mod : IModV1, IModV2
                 return;
             }
 
+            // The activity line is the mod's own readout, raw; the last delivered
+            // line is already localized.
             if (fieldActivityCurrentLine is { } activity)
-                Repeat(activity);
+                Repeat(localizer.LocalizeModSpeech(activity));
             else
                 repeatLastSpeechController.Repeat(Repeat);
 
@@ -2368,7 +2372,7 @@ public sealed class Mod : IModV1, IModV2
                 () => ReadVisibleMenuGilScreen(now),
                 () => reader.TryReadGil(out var gil) ? gil : (uint?)null,
                 (text, interrupt) => foregroundProcessGate.IsCurrentProcessForeground() &&
-                    Speak(text, interrupt));
+                    SpeakModSpeech(text, interrupt));
             switch (result.Outcome)
             {
                 case MenuGilReadoutOutcome.Announced:
@@ -2672,7 +2676,7 @@ public sealed class Mod : IModV1, IModV2
             ranchChoice.DialogId == hookEvent.DialogId &&
             ranchChoice.SelectedIndex == hookEvent.CurrentQuestionLine)
         {
-            lines = ranchChoice.Rows;
+            lines = ranchChoice.Rows.Select(row => LocalizePieceForNativeLine(localizer, row, generated: false)).ToArray();
         }
 
         fieldAskChoiceSpeechTracker.Observe(new FieldAskChoiceObservation(
@@ -2768,7 +2772,7 @@ public sealed class Mod : IModV1, IModV2
             $"position={position.X},{position.Y},{position.Z}, triangle={position.TriangleId}, " +
             $"waiting={isAttemptWaiting}, controlLocked={isUserControlLocked}";
         swingingBarTimingCuePlayer?.Play(reason);
-        Speak("Jump now.", interrupt: true);
+        SpeakModSpeech("Jump now.", interrupt: true);
         Log($"Swinging-bar native success window announced: {reason}.");
     }
 
@@ -2900,13 +2904,13 @@ public sealed class Mod : IModV1, IModV2
                 openingStatusWillBeSpoken: enteringBattle) is { } status)
         {
             Log($"Fort Condor status: {status}");
-            Speak(status, interrupt: true);
+            SpeakModSpeech(status, interrupt: true);
         }
 
         if (condorBattleSpeechTracker.ConsumeRequestedPlacementLine(snapshot) is { } placementLine)
         {
             Log($"Fort Condor placement line: {placementLine}");
-            Speak(placementLine, interrupt: true);
+            SpeakModSpeech(placementLine, interrupt: true);
         }
 
         // A cursor-only batch interrupts: the player wants where the cursor is
@@ -2919,7 +2923,7 @@ public sealed class Mod : IModV1, IModV2
         foreach (var line in condorObservation)
         {
             Log($"Fort Condor speech: {line}");
-            Speak(line, interrupt: condorSupersedes);
+            SpeakModSpeech(line, interrupt: condorSupersedes);
         }
 
         // After Observe, so a unit that fell on this reading is already in the
@@ -2940,7 +2944,7 @@ public sealed class Mod : IModV1, IModV2
 
             // Interrupts: the player pressed a key and wants the answer to that
             // press, not to wait behind the running commentary.
-            Speak(spoken, interrupt: true);
+            SpeakModSpeech(spoken, interrupt: true);
         }
     }
 
@@ -3035,7 +3039,7 @@ public sealed class Mod : IModV1, IModV2
         if (step.Speech is { } speech)
         {
             Log($"Fort Condor steering: {speech}");
-            Speak(speech, interrupt: true);
+            SpeakModSpeech(speech, interrupt: true);
         }
     }
 
@@ -3068,7 +3072,7 @@ public sealed class Mod : IModV1, IModV2
         fieldNavigationController?.Reset();
         StopNavigationAutoWalk(NavigationAutoWalkDomain.Field, announce: false);
         if (foregroundProcessGate.IsCurrentProcessForeground())
-            Speak("Mutant Flytrap. Navigation off.", true);
+            SpeakModSpeech("Mutant Flytrap. Navigation off.", true);
     }
 
     /// <summary>
@@ -3145,7 +3149,7 @@ public sealed class Mod : IModV1, IModV2
 
         if (cue.Speech is not null && !cue.ReplacesEarlierLine)
         {
-            Speak(cue.Speech, false);
+            SpeakModSpeech(cue.Speech, false);
         }
     }
 
@@ -3161,7 +3165,7 @@ public sealed class Mod : IModV1, IModV2
             return false;
         }
 
-        var localizedText = localizer.Localize(text);
+        var localizedText = localizer.LocalizeModSpeech(text);
         if (!speaker.Speak(localizedText, interrupt: true))
         {
             return false;
@@ -3259,7 +3263,7 @@ public sealed class Mod : IModV1, IModV2
         // Interrupting is the point. A number the dial has already turned past must
         // never finish playing over the one that is on screen now.
         lastSafeDialSpeechAttempt = now;
-        if (Speak(pendingSafeDialSpeech, true))
+        if (SpeakModSpeech(pendingSafeDialSpeech, true))
         {
             pendingSafeDialSpeech = null;
         }
@@ -3288,7 +3292,7 @@ public sealed class Mod : IModV1, IModV2
         }
         if (speech is null) return;
         Log("Glacier Map screen opened.");
-        Speak(speech, true);
+        SpeakModSpeech(speech, true);
     }
 
     private void TickGlacierIceFloes()
@@ -3317,7 +3321,7 @@ public sealed class Mod : IModV1, IModV2
             position.Position.Direction, control.Transform.SignedControlDirection);
         if (speech is null) return;
         Log($"Glacier ice floes: floe={state.CurrentFloe}, facing={position.Position.Direction}; {speech}");
-        Speak(speech, true);
+        SpeakModSpeech(speech, true);
     }
 
     /// <summary>
@@ -3437,7 +3441,7 @@ public sealed class Mod : IModV1, IModV2
 
         if (cue.Speech is not null)
         {
-            Speak(cue.Speech, interrupt);
+            SpeakModSpeech(cue.Speech, interrupt);
         }
 
         if (config.EnableSubmarineMissionDiagnostics && submarineMissionOwnsInput &&
@@ -3469,7 +3473,7 @@ public sealed class Mod : IModV1, IModV2
             var left = speedSquareCoasterReadout.Observe(default);
             if (left is not null)
             {
-                Speak(left, false);
+                SpeakModSpeech(left, false);
             }
 
             return;
@@ -3488,7 +3492,7 @@ public sealed class Mod : IModV1, IModV2
 
         // The aim changes continuously while a direction is held, so a new readout
         // supersedes the previous one rather than queueing behind it.
-        Speak(speech, true);
+        SpeakModSpeech(speech, true);
     }
 
     private void TickSnowboardReadout()
@@ -3507,7 +3511,7 @@ public sealed class Mod : IModV1, IModV2
         var speech = snowboardReadout.Observe(state, DateTime.UtcNow);
         if (speech is null) return;
         Log($"Snowboard: {snowboardReader.LastDiagnostic}; speech={speech}");
-        Speak(speech, true);
+        SpeakModSpeech(speech, true);
     }
 
     /// <summary>
@@ -3558,7 +3562,7 @@ public sealed class Mod : IModV1, IModV2
 
         if (cue.Speech is { } speech)
         {
-            Speak(speech, true);
+            SpeakModSpeech(speech, true);
         }
     }
 
@@ -3616,12 +3620,12 @@ public sealed class Mod : IModV1, IModV2
             // landmark. This is bounded to one attempt per wind-up because the event
             // itself fires once, so a broken device cannot talk over native dialogue
             // on every tick.
-            Speak("Ball at the top.", false);
+            SpeakModSpeech("Ball at the top.", false);
         }
 
         if (cue.Speech is not null)
         {
-            Speak(cue.Speech, false);
+            SpeakModSpeech(cue.Speech, false);
         }
     }
 
@@ -3662,7 +3666,7 @@ public sealed class Mod : IModV1, IModV2
 
         // The lean changes as the bout swings, so a new reading supersedes the
         // previous one rather than queueing behind it.
-        Speak(speech, true);
+        SpeakModSpeech(speech, true);
     }
 
     private void PlayArmWrestlingPoseCue(WonderSquareArmWrestlingPose pose)
@@ -3736,7 +3740,7 @@ public sealed class Mod : IModV1, IModV2
 
         foreach (var line in lines)
         {
-            Speak(line, false);
+            SpeakModSpeech(line, false);
         }
     }
 
@@ -3794,7 +3798,7 @@ public sealed class Mod : IModV1, IModV2
         // the second cut off the first.
         foreach (var (text, interrupt) in WonderSquare3DBattlerReadout.Deliver(lines))
         {
-            Speak(text, interrupt);
+            SpeakModSpeech(text, interrupt);
         }
     }
 
@@ -3853,7 +3857,7 @@ public sealed class Mod : IModV1, IModV2
             return;
         }
 
-        Speak(prompt, interrupt: true);
+        SpeakModSpeech(prompt, interrupt: true);
         Log($"Wall Market squat visual step announced from native state: {prompt}.");
     }
 
@@ -3911,13 +3915,13 @@ public sealed class Mod : IModV1, IModV2
                 continue;
             }
 
-            Speak(cue.Text, cue.Interrupt);
+            SpeakModSpeech(cue.Text, cue.Interrupt);
             Log($"Junon visual minigame state announced from native data: {cue.Text}");
         }
 
         if (timingCueNeedsSpeechFallback)
         {
-            Speak("Now.", interrupt: true);
+            SpeakModSpeech("Now.", interrupt: true);
         }
     }
 
@@ -3946,7 +3950,7 @@ public sealed class Mod : IModV1, IModV2
             return;
         }
 
-        Speak(step.Speech, interrupt: true);
+        SpeakModSpeech(step.Speech, interrupt: true);
         Log($"Junon parade alignment assist announced: {step.Speech}");
     }
 
@@ -4118,7 +4122,7 @@ public sealed class Mod : IModV1, IModV2
         };
         if (speech.Length != 0)
         {
-            Speak(speech, interrupt: true);
+            SpeakModSpeech(speech, interrupt: true);
             Log(
                 $"Floor 60 native guard cue announced: cue={decision.SpeechCue}, {reason}.");
         }
@@ -4209,7 +4213,7 @@ public sealed class Mod : IModV1, IModV2
         }
 
         Log($"Battle status hotkey: slot={battleStatusHotkeyController.SelectedPartySlot + 1}, text={speech}");
-        Speak(speech, interrupt: true);
+        SpeakModSpeech(speech, interrupt: true);
     }
 
     private BattleStatusMemberSnapshot? ReadBattleStatusMember(int partySlot)
@@ -5006,7 +5010,7 @@ public sealed class Mod : IModV1, IModV2
 
         lastTitleMenuItem = detected.Item;
         Log($"Title menu visual reader detected: {detected.Item} (new={detected.NewGameCursorScore}, continue={detected.ContinueCursorScore})");
-        Speak(detected.Item);
+        SpeakModSpeech(detected.Item);
     }
 
     private void RegisterTitleMenuMiss()
@@ -5053,7 +5057,7 @@ public sealed class Mod : IModV1, IModV2
             return;
         }
 
-        if (Speak(announcement.Speech, interrupt: true))
+        if (SpeakModSpeech(announcement.Speech, interrupt: true))
         {
             fieldCountdownSpeechCoordinator.Acknowledge(announcement);
             Log(
@@ -5134,7 +5138,7 @@ public sealed class Mod : IModV1, IModV2
                     !fieldCountdownSpeechCoordinator.ShouldSuppressWindow(window) &&
                     !shinraMansionSafeDialReadout.OwnsWindow(window.WindowId))
                 .Select(window => window.SupplementalSpeech is { } supplement
-                    ? window with { Text = supplement }
+                    ? window with { Text = LocalizePieceForNativeLine(localizer, supplement, generated: true) }
                     : window)
                 .ToArray();
             if (activeMessageCount == 0 && ordinaryVisibleWindows.Any(window => window.IsSpeechReady))
@@ -6329,7 +6333,7 @@ public sealed class Mod : IModV1, IModV2
             if (entityResult.IsUsable && config.EnableWorldMapNavigationAssistant &&
                 runtime.ObserveUnderwaterSightings(state, higherPrioritySpeech, now) is { } emeraldSighting)
             {
-                Speak(emeraldSighting, interrupt: false);
+                SpeakModSpeech(emeraldSighting, interrupt: false);
                 higherPrioritySpeech = true;
             }
             var progressRevision = worldMapNavigationProgressSink?.PublicationRevision ?? 0;
@@ -6490,7 +6494,7 @@ public sealed class Mod : IModV1, IModV2
             Log(
                 $"Midgar Zolom crossing window: player={state.X},{state.Z}, " +
                 $"zolom={zolom.State.X},{zolom.State.Z}, shoreline={isAtMarshShore}.");
-            speechDelivered |= Speak(MidgarZolomCrossingTracker.CueText);
+            speechDelivered |= SpeakModSpeech(MidgarZolomCrossingTracker.CueText);
         }
 
         // The player's packed native walkmap word is already double-sampled by
@@ -6512,7 +6516,7 @@ public sealed class Mod : IModV1, IModV2
         Log(
             $"Midgar Zolom area: player={state.X},{state.Z}, model={state.PlayerModelId}, " +
             $"onMarsh={isOnMarsh}, zolom={zolom.State.IsActive}: {areaCue}");
-        var areaCueDelivered = Speak(areaCue);
+        var areaCueDelivered = SpeakModSpeech(areaCue);
         speechDelivered |= areaCueDelivered;
         if (areaCueDelivered)
         {
@@ -6549,7 +6553,7 @@ public sealed class Mod : IModV1, IModV2
         if (!string.IsNullOrWhiteSpace(value.Speech))
         {
             Log($"World-map navigation speech: {value.Speech}");
-            return Speak(value.Speech);
+            return SpeakModSpeech(value.Speech);
         }
 
         return false;
@@ -6644,7 +6648,7 @@ public sealed class Mod : IModV1, IModV2
             $"({WorldMapTerrainNames.GetName(surface.TerrainId)}), " +
             $"region={surface.RegionId?.ToString() ?? "unavailable"}, " +
             $"tracks={surface.HasChocoboTracks}: {ready.Speech}");
-        if (Speak(ready.Speech, interrupt: false))
+        if (SpeakModSpeech(ready.Speech, interrupt: false))
         {
             runtime.TerrainAnnouncements.AcknowledgeSpeech();
         }
@@ -6892,7 +6896,7 @@ public sealed class Mod : IModV1, IModV2
             {
                 fieldNavigationGuidanceRepeatGate.Reset();
                 Log($"Field navigation live tracking: {liveTrackingSpeech.Value.Speech}");
-                Speak(liveTrackingSpeech.Value.Speech, interrupt: !fieldNavigationController.IsFollowingForestRoute);
+                SpeakModSpeech(liveTrackingSpeech.Value.Speech, interrupt: !fieldNavigationController.IsFollowingForestRoute);
                 lastNavigationSpeechAt = now;
             }
 
@@ -6913,7 +6917,7 @@ public sealed class Mod : IModV1, IModV2
             {
                 fieldAutoWalkConvergence.Reset();
                 Log("Field navigation auto walk started for a destination that was held shut.");
-                Speak("Auto walk on.", interrupt: true);
+                SpeakModSpeech("Auto walk on.", interrupt: true);
                 lastNavigationSpeechAt = now;
             }
 
@@ -6970,13 +6974,15 @@ public sealed class Mod : IModV1, IModV2
                     && loadedFieldScriptIdentityReader?.TryRead(out var statusIdentity) == true
                     && statusIdentity.FieldId == result.Position.FieldId
                     && LocalizedFieldScriptIdentityPolicy.AllowsDescriptions(statusIdentity)
-                    ? FieldAreaDescriptionStatus.Append(localizer.Localize(speech.Value.Speech), result.Position.FieldId,
+                    ? FieldAreaDescriptionStatus.Append(localizer.LocalizeModSpeech(speech.Value.Speech), result.Position.FieldId,
                         localizer.LocalizeDescription)
-                    : speech.Value.Speech;
+                    : localizer.LocalizeModSpeech(speech.Value.Speech);
 
                 Log($"Field navigation speech: {line}");
                 fieldNavigationGuidanceRepeatGate.Reset();
-                Speak(line);
+                // The appended area description has its own localizer; the
+                // composition pass must not split it into clauses.
+                SpeakLocalized(line);
                 lastNavigationSpeechAt = now;
             }
 
@@ -7053,7 +7059,7 @@ public sealed class Mod : IModV1, IModV2
                 {
                     lastNavigationSpeechAt = now;
                     Log($"Field navigation guidance: {spokenGuidance.Value.Speech}");
-                    Speak(spokenGuidance.Value.Speech);
+                    SpeakModSpeech(spokenGuidance.Value.Speech);
                 }
             }
         }
@@ -7461,7 +7467,7 @@ public sealed class Mod : IModV1, IModV2
             SavePlayerShortcut(nameof(config.EnableNavigationProgressIndicators), config.EnableNavigationProgressIndicators ? 1 : 0);
             SavePlayerShortcut(nameof(config.NavigationProgressIntervalPercent), config.NavigationProgressIntervalPercent);
             Log($"Navigation progress control: {speech}");
-            Speak(speech, interrupt: true);
+            SpeakModSpeech(speech, interrupt: true);
         }
     }
 
@@ -7583,7 +7589,7 @@ public sealed class Mod : IModV1, IModV2
                 () => navigationAutoWalkController?.Suspend(),
                 () => fieldNavigationController.IsHoldingForNativeBoundary,
                 fieldNavigationController.RequestAutoWalkForHeldRoute),
-            speech => Speak(speech, interrupt: true),
+            speech => SpeakModSpeech(speech, interrupt: true),
             Log,
             fieldActivityStatus: () => AncientForestPuzzleReadout.HasPuzzle(controllerFieldPosition.FieldId)
                 ? fieldActivityCurrentLine ?? "Puzzle status unavailable."
@@ -7613,7 +7619,7 @@ public sealed class Mod : IModV1, IModV2
                 () => controllerWorldRuntime?.Navigation.IsHoldingDestination == true ||
                     controllerWorldRuntime?.Navigation.IsHoldingEntityTarget == true,
                 () => controllerWorldRuntime?.Navigation.NoteAutoWalkStarted()),
-            speech => Speak(speech, interrupt: true),
+            speech => SpeakModSpeech(speech, interrupt: true),
             Log);
     }
 
@@ -7892,7 +7898,7 @@ public sealed class Mod : IModV1, IModV2
             {
                 Log($"Field navigation speech: {value.Speech}");
                 fieldNavigationGuidanceRepeatGate.Reset();
-                Speak(value.Speech);
+                SpeakModSpeech(value.Speech);
                 lastNavigationSpeechAt = now;
             }
         }
@@ -7913,7 +7919,7 @@ public sealed class Mod : IModV1, IModV2
             fieldAutoWalkConvergence.Reset();
             fieldNavigationController.NoteAutoWalkStarted();
             Log("Field navigation auto walk started for the selected target.");
-            Speak("Auto walk on.", interrupt: !fieldNavigationController.IsFollowingForestRoute);
+            SpeakModSpeech("Auto walk on.", interrupt: !fieldNavigationController.IsFollowingForestRoute);
         }
     }
 
@@ -7934,7 +7940,7 @@ public sealed class Mod : IModV1, IModV2
             // leg to be walked, not for the selection to be toggled off.
             runtime.Navigation.NoteAutoWalkStarted();
             glacierRegion?.Resume(autoWalk: true);
-            return Speak("Auto walk on.", interrupt: true);
+            return SpeakModSpeech("Auto walk on.", interrupt: true);
         }
 
         if (!runtime.Navigation.BeaconEnabled)
@@ -7950,7 +7956,7 @@ public sealed class Mod : IModV1, IModV2
         {
             runtime.Navigation.NoteAutoWalkStarted();
             Log("World-map navigation auto walk started for the selected target.");
-            speechDelivered |= Speak("Auto walk on.", interrupt: true);
+            speechDelivered |= SpeakModSpeech("Auto walk on.", interrupt: true);
         }
 
         return speechDelivered;
@@ -8008,7 +8014,7 @@ public sealed class Mod : IModV1, IModV2
                 $"target={fieldNavigationController.CurrentTargetLabel}, position={position.X},{position.Y},{position.Z}");
             if (StopNavigationAutoWalk(NavigationAutoWalkDomain.Field, announce: false))
             {
-                Speak(handoff, interrupt: true);
+                SpeakModSpeech(handoff, interrupt: true);
             }
 
             return;
@@ -8080,7 +8086,7 @@ public sealed class Mod : IModV1, IModV2
             $"position={position.X},{position.Y},{position.Z}");
         if (StopNavigationAutoWalk(NavigationAutoWalkDomain.Field, announce: false))
         {
-            Speak(
+            SpeakModSpeech(
                 string.IsNullOrWhiteSpace(label)
                     ? "Auto walk stopped. Could not get any closer. Navigation is still on."
                     : $"Auto walk stopped. Could not get closer to {label}. Navigation is still on.",
@@ -8156,7 +8162,7 @@ public sealed class Mod : IModV1, IModV2
             worldMapSubmarineCompatibility is { AllowsAutomaticMovement: false } incompatible)
         {
             StopNavigationAutoWalk(NavigationAutoWalkDomain.WorldMap, announce: false);
-            return Speak(incompatible.SpokenReason, interrupt: true);
+            return SpeakModSpeech(incompatible.SpokenReason, interrupt: true);
         }
 
         var hasDirection = runtime.Navigation.TryResolveAutomaticInput(state, out var direction);
@@ -8185,7 +8191,7 @@ public sealed class Mod : IModV1, IModV2
             {
                 runtime.Navigation.Suspend("native dive input failed");
                 Log($"World-map automatic dive stopped: {result.Diagnostic}");
-                return Speak($"Automatic dive stopped. {result.Diagnostic}", interrupt: true);
+                return SpeakModSpeech($"Automatic dive stopped. {result.Diagnostic}", interrupt: true);
             }
         }
         return HandleNavigationAutoWalkInputResult(result, NavigationAutoWalkDomain.WorldMap);
@@ -8214,7 +8220,7 @@ public sealed class Mod : IModV1, IModV2
 
         lastNavigationAutoWalkFailure = result.Diagnostic;
         Log($"{domain} auto walk stopped: {result.Diagnostic}");
-        return Speak("Auto walk stopped. Directional input is unavailable.", interrupt: true);
+        return SpeakModSpeech("Auto walk stopped. Directional input is unavailable.", interrupt: true);
     }
 
     private bool StopNavigationAutoWalk(
@@ -8248,7 +8254,7 @@ public sealed class Mod : IModV1, IModV2
         Log($"{domain} auto walk stopped.");
         if (announce)
         {
-            Speak("Auto walk off.", interrupt: true);
+            SpeakModSpeech("Auto walk off.", interrupt: true);
         }
 
         return true;
@@ -8694,7 +8700,7 @@ public sealed class Mod : IModV1, IModV2
         Log(
             $"Native save menu speech: page={snapshot.Page}, file={snapshot.SaveFileNumber}, " +
             $"game={snapshot.GameNumber}, confirmation={snapshot.ConfirmationCursor}, text={pending.Text}");
-        if (Speak(pending.Text))
+        if (SpeakModSpeech(pending.Text))
         {
             saveMenuSpeechTracker.Acknowledge(pending.Id);
         }
@@ -8768,7 +8774,7 @@ public sealed class Mod : IModV1, IModV2
             if (config.SpeakMainMenuSelections)
             {
                 var speech = mainMenuSpeechScheduler.Observe(selection.SpokenText, now);
-                if (speech is not null && Speak(speech))
+                if (speech is not null && SpeakModSpeech(speech))
                 {
                     mainMenuSelectionDelivered = true;
                 }
@@ -9101,7 +9107,7 @@ public sealed class Mod : IModV1, IModV2
             if (formationSpeech is not null)
             {
                 Log($"In-game menu speech (Reform): {formationSpeech}");
-                Speak(formationSpeech);
+                SpeakModSpeech(formationSpeech);
             }
 
             return;
@@ -9140,7 +9146,7 @@ public sealed class Mod : IModV1, IModV2
         }
 
         Log($"In-game menu speech ({source}): {speech}");
-        Speak(speech);
+        SpeakModSpeech(speech);
     }
 
     private void TickShopMenuSpeech()
@@ -9162,7 +9168,7 @@ public sealed class Mod : IModV1, IModV2
             }
 
             Log($"Shop menu speech: {speech}");
-            if (!Speak(speech))
+            if (!SpeakModSpeech(speech))
             {
                 shopMenuSpeechTracker.Reset();
             }
@@ -9197,7 +9203,7 @@ public sealed class Mod : IModV1, IModV2
         }
 
         Log($"Title load menu speech: {speech}");
-        Speak(speech);
+        SpeakModSpeech(speech);
     }
 
     private NativeMenuSelection? ReadCurrentConfigValue(string nativeRowLabel)
@@ -9329,7 +9335,7 @@ public sealed class Mod : IModV1, IModV2
             $"grid={state.GridColumn},{state.GridRow} " +
             $"command={state.CommandRow} " +
             $"slot={state.SelectedSlot} text={speech}");
-        Speak(speech);
+        SpeakModSpeech(speech);
     }
 
     private bool ShouldDeferNameEntrySpeech() =>
@@ -10328,7 +10334,7 @@ public sealed class Mod : IModV1, IModV2
                 battleArenaScreenTracker.Observe(screen) is { } speech)
             {
                 Log($"Battle Square screen: {speech}");
-                Speak(speech);
+                SpeakModSpeech(speech);
             }
         }
         catch (Exception ex)
@@ -10431,7 +10437,7 @@ public sealed class Mod : IModV1, IModV2
                         Log($"Battle menu speech: state={rendererState}, text={speech}");
                     }
 
-                    Speak(speech);
+                    SpeakModSpeech(speech);
                 }
             }
             catch (Exception ex)
@@ -10559,7 +10565,7 @@ public sealed class Mod : IModV1, IModV2
                                     Log($"Battle status speech: {speech}");
                                 }
 
-                                Speak(speech, false);
+                                SpeakModSpeech(speech, false);
                             }
                         }
 
@@ -10597,7 +10603,7 @@ public sealed class Mod : IModV1, IModV2
                                     Log($"Battle target speech: target={target.SelectedTarget}, mask=0x{target.TargetMask:X4}, text={speech}");
                                 }
 
-                                Speak(speech);
+                                SpeakModSpeech(speech);
                             }
                         }
                     }
@@ -10630,7 +10636,7 @@ public sealed class Mod : IModV1, IModV2
             Log($"Battle encounter speech: formation={encounter.FormationId}, layout={encounter.LayoutType}, text={speech}");
         }
 
-        Speak(speech);
+        SpeakModSpeech(speech);
     }
 
     private void ObserveBattleEnemyActionSpeech(IReadOnlyList<BattleActorSnapshot> actors)
@@ -10656,7 +10662,7 @@ public sealed class Mod : IModV1, IModV2
                 $"action=0x{action.ActionId:X4}, rawTargets=0x{action.TargetMask:X4}, text={speech}");
         }
 
-        Speak(speech, false);
+        SpeakModSpeech(speech, false);
     }
 
     private void BattleTextActiveDetour(short bufferIndex)
@@ -10729,7 +10735,7 @@ public sealed class Mod : IModV1, IModV2
                             $"drain={result.IsDrainRecovery}, sources=0x{result.DrainSourceMask:X4}, text={damageSpeech}");
                     }
 
-                    Speak(damageSpeech, false);
+                    SpeakModSpeech(damageSpeech, false);
                 }
             }
 
@@ -10745,7 +10751,7 @@ public sealed class Mod : IModV1, IModV2
                         Log($"Battle status speech confirmed by damage popup: {statusSpeech}");
                     }
 
-                    Speak(statusSpeech, false);
+                    SpeakModSpeech(statusSpeech, false);
                 }
             }
         }
@@ -10866,7 +10872,7 @@ public sealed class Mod : IModV1, IModV2
                     $"text={pending.Text}");
             }
 
-            Speak(pending.Text, pending.Interrupt);
+            SpeakModSpeech(pending.Text, pending.Interrupt);
         }
     }
 
@@ -10890,7 +10896,7 @@ public sealed class Mod : IModV1, IModV2
             Log($"Tifa slot speech: {combined}");
         }
 
-        Speak(combined, true);
+        SpeakModSpeech(combined, true);
     }
 
     private void ResetBattleInteractionSpeech()
@@ -11600,7 +11606,9 @@ public sealed class Mod : IModV1, IModV2
             return;
         }
 
-        var choice = fieldAskChoiceSpeechTracker.Poll(observation.LifecycleToken);
+        var choice = fieldAskChoiceSpeechTracker.Poll(observation.LifecycleToken) is { } polledChoice
+            ? LocalizePieceForNativeLine(localizer, polledChoice, generated: false)
+            : null;
         if (nativeAskPollingFallbackState.IsFallback(ownershipIdentity))
         {
             // Polling owns recovery of the failed/missing prompt, but only the
@@ -12267,8 +12275,26 @@ public sealed class Mod : IModV1, IModV2
         }
 
         Log($"Title menu native cursor speech: {selection.SpokenText}");
-        Speak(selection.SpokenText);
+        SpeakModSpeech(selection.SpokenText);
     }
+
+    // Mod-generated lines only (navigation, readouts, settings, minigame status).
+    // Native dialogue, names and credits go through Speak, which keeps the strict
+    // catalog lookup. Delivered once: localizing the result again would differ from
+    // the single lookup every other language had before this path existed.
+    private bool SpeakModSpeech(string text, bool interrupt = true) =>
+        SpeakLocalized(localizer.LocalizeModSpeech(text), interrupt);
+
+    /// <summary>
+    /// Russian only. A mod piece joined to native text before Speak (an ASK choice position,
+    /// a ranch count, a window supplement) is localized alone first, so its own catalog
+    /// entry applies without native words around it; the native line keeps the strict lookup.
+    /// A piece that carries native text itself gets the strict lookup too. Other languages
+    /// leave the piece raw: their catalogs match the English composite at Speak.
+    /// </summary>
+    internal static string LocalizePieceForNativeLine(BlindSoldierLocalizer localizer, string piece, bool generated) =>
+        localizer.LanguageCode != "ru" || string.IsNullOrWhiteSpace(piece) ? piece
+        : generated ? localizer.LocalizeModSpeech(piece) : localizer.Localize(piece);
 
     private bool Speak(string text) => Speak(text, true);
 
@@ -12308,10 +12334,12 @@ public sealed class Mod : IModV1, IModV2
         config.EnableBattleResultsSpeech ||
         ShouldObserveInGameMenuDraws();
 
-    private bool Speak(string text, bool interrupt)
+    private bool Speak(string text, bool interrupt) => SpeakLocalized(localizer.Localize(text), interrupt);
+
+    /// <summary>Delivers text that has already been through the localizer.</summary>
+    private bool SpeakLocalized(string localizedText, bool interrupt = true)
     {
         if (modSettingsMenu?.IsOpen == true) return false;
-        var localizedText = localizer.Localize(text);
         Log($"Speak: {localizedText}");
         var delivered = config.EnableSpeech && speaker?.Speak(localizedText, interrupt) == true;
         if (config.EnableSpeech && !delivered)
@@ -12382,7 +12410,7 @@ public sealed class Mod : IModV1, IModV2
     {
         var saved = playerSettingsStore?.Record(key, value);
         if (saved?.SaveFailure is { } failure)
-            Speak($"Setting changed for this session but could not be saved. {failure}", interrupt: true);
+            SpeakModSpeech($"Setting changed for this session but could not be saved. {failure}", interrupt: true);
     }
 
     private string ResolveModDirectory(IModConfigV1? modConfig)

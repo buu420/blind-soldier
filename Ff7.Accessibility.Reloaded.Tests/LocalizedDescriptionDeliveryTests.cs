@@ -56,7 +56,7 @@ internal static class LocalizedDescriptionDeliveryTests
     {
         var polishOnly = LocalizedFieldDescriptionCueManifest.ReviewedIdentities
             .Where(i => i.Languages.Count == 1 && i.Languages[0] == "pl").ToArray();
-        Equal(586, polishOnly.Length, "Polish V1.05 prefixes no official archive shares");
+        Equal(585, polishOnly.Length, "Polish V1.05 prefixes no other reviewed archive shares");
         foreach (var reviewed in polishOnly)
         {
             var identity = new LoadedFieldScriptIdentity(reviewed.FieldId, reviewed.PrefixSha256);
@@ -199,7 +199,7 @@ internal static class LocalizedDescriptionDeliveryTests
             }
         }
 
-        Equal(429, mapped, "film anchors in reviewed localized identities");
+        Equal(518, mapped, "film anchors in reviewed localized identities");
     }
 
     private static void TheX86HostRoutesIdentityAndFilmDecisionsThroughThePolicy()

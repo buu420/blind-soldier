@@ -39,11 +39,13 @@ internal static class LocalizedDescriptionCueTests
 
         var root = Environment.GetEnvironmentVariable("FF7_ACCESSIBILITY_DATA_ROOT");
         var polish = Environment.GetEnvironmentVariable("FF7_ACCESSIBILITY_POLISH_DATA_ROOT");
+        var russian = Environment.GetEnvironmentVariable("FF7_ACCESSIBILITY_RUSSIAN_DATA_ROOT");
         if (string.IsNullOrWhiteSpace(root))
             Console.WriteLine("Localized cue installed-archive checks require FF7_ACCESSIBILITY_DATA_ROOT (and FF7_ACCESSIBILITY_POLISH_DATA_ROOT for Polish).");
         else
         {
-            try { InstalledArchivesRunEveryReviewedCue(root, string.IsNullOrWhiteSpace(polish) ? null : polish); }
+            try { InstalledArchivesRunEveryReviewedCue(root, string.IsNullOrWhiteSpace(polish) ? null : polish,
+                string.IsNullOrWhiteSpace(russian) ? null : russian); }
             catch (Exception error) { failures.Add($"{nameof(InstalledArchivesRunEveryReviewedCue)}: {error.Message}"); Console.WriteLine($"FAIL installed archives: {error.Message}"); }
         }
 
@@ -65,14 +67,14 @@ internal static class LocalizedDescriptionCueTests
         Equal(LocalizedFieldDescriptionCueManifest.GeneratedCatalogFingerprint, fingerprint,
             "English anchors changed: regenerate with tools/LocalizedDescriptionCueAligner");
         var identities = LocalizedFieldDescriptionCueManifest.ReviewedIdentities;
-        Equal(2964, identities.Count, "reviewed exact identities");
-        Equal(4539, identities.Sum(i => i.Cues.Count), "authorized localized cue rows");
+        Equal(3563, identities.Count, "reviewed exact identities including Russian 1.02");
+        Equal(5457, identities.Sum(i => i.Cues.Count), "authorized localized cue rows");
         Equal(1, identities.Sum(i => i.ExcludedEnglishKeys.Count), "explicit exclusions");
         foreach (var identity in identities)
         {
             Equal(identity.Cues.Count, identity.CanonicalKeys.Count, "each authorized row has one canonical key");
             Equal(identity.Cues.Count, identity.Cues.Select(c => c.Key).Distinct().Count(), "no two rows share loaded coordinates");
-            True(identity.Languages.Count > 0 && identity.Languages.All(l => Official.Contains(l) || l == "pl"), "reviewed archive codes");
+            True(identity.Languages.Count > 0 && identity.Languages.All(l => Official.Contains(l) || l is "pl" or "ru"), "reviewed archive codes");
             True(!string.Equals(identity.PrefixSha256, EchoSCompatibilityManifest.GetVanillaFingerprint(identity.FieldId), StringComparison.OrdinalIgnoreCase),
                 "the English stock prefix needs no localized row");
         }
@@ -107,7 +109,8 @@ internal static class LocalizedDescriptionCueTests
             Equal(identity.Languages.Any(Official.Contains), isOfficial, $"field {identity.FieldId} {identity.PrefixSha256[..12]} official membership");
             // Polish V1.05 prefixes are exact description identities, not navigation identities:
             // both hosts deliver them through LocalizedFieldScriptIdentityPolicy.AllowsDescriptions.
-            if (!isOfficial) Equal(SupportedFieldScriptVariant.Unknown, WholeGameEchoNavigationManifest.ResolveVariant(loaded), "Polish prefixes are not navigation identities");
+            if (!isOfficial && !identity.Languages.Contains("ru"))
+                Equal(SupportedFieldScriptVariant.Unknown, WholeGameEchoNavigationManifest.ResolveVariant(loaded), "unreviewed navigation prefixes remain unknown");
         }
 
         Equal(2378, checkedPrefixes, "official localized cue-field prefixes");
@@ -160,7 +163,7 @@ internal static class LocalizedDescriptionCueTests
             }
         }
 
-        Equal(4539, delivered, "every authorized row was delivered");
+        Equal(5457, delivered, "every authorized row was delivered");
     }
 
     private static void ExcludedAndUnknownIdentitiesNeverAuthorizeEnglishOffsets()
@@ -219,7 +222,7 @@ internal static class LocalizedDescriptionCueTests
     private static void ReviewedCreatureWarningsKeepTheStockMessage()
     {
         var creature = LocalizedFieldDescriptionCueManifest.ReviewedIdentities.Where(i => i.FieldId == 767).ToArray();
-        Equal("de|es|fr|ja|pl", string.Join('|', creature.SelectMany(i => i.Languages).Order(StringComparer.Ordinal)), "every reviewed 767 archive");
+        Equal("de|es|fr|ja|pl|ru", string.Join('|', creature.SelectMany(i => i.Languages).Order(StringComparer.Ordinal)), "every reviewed 767 archive");
         foreach (var identity in creature)
         {
             var loaded = new LoadedFieldScriptIdentity(767, identity.PrefixSha256);
@@ -233,12 +236,13 @@ internal static class LocalizedDescriptionCueTests
         Equal(false, LocalizedFieldDescriptionCueManifest.HasReviewedCreatureWarning(new LoadedFieldScriptIdentity(766, creature[0].PrefixSha256)), "another field");
     }
 
-    private static void InstalledArchivesRunEveryReviewedCue(string root, string? polishRoot)
+    private static void InstalledArchivesRunEveryReviewedCue(string root, string? polishRoot, string? russianRoot)
     {
         var catalog = Catalog;
         var byField = catalog.GroupBy(c => c.FieldId).ToDictionary(g => g.Key, g => g.ToArray());
         var targets = Ff7GameLanguages.All.Where(d => d.Language != Ff7GameLanguage.English).Select(d => (Descriptor: d, Root: root)).ToList();
         if (polishRoot is not null) targets.Add((Ff7GameLanguages.PolishFanTranslation, polishRoot));
+        if (russianRoot is not null) targets.Add((Ff7GameLanguages.RussianFanTranslation, russianRoot));
         foreach (var (descriptor, targetRoot) in targets)
         {
             var language = new Ff7GameLanguageContext(descriptor, Path.Combine(targetRoot, "data"), Ff7GameLanguageDetectionSource.Configuration, "localized cue regression");

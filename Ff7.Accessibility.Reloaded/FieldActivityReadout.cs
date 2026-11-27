@@ -2263,7 +2263,10 @@ public sealed class FieldActivityReadout
             // prints for this script.
             (JunonGasChairFieldId, JunonGasChairTifaEntityId) =>
             [
-                new FieldActivityWaitAnchor(48, HeldKeyOpcode, SwitchMask, 42, 400)
+                new FieldActivityWaitAnchor(48, HeldKeyOpcode, SwitchMask, 42, 400),
+                // FFRTT removes the one-frame WAIT before this loop. Each layout's
+                // opcode/mask is checked independently by the observation builder.
+                new FieldActivityWaitAnchor(45, HeldKeyOpcode, SwitchMask, 39, 397)
             ],
 
             // Held Confirm at 146, falling to 197 and jumping back from 200.
