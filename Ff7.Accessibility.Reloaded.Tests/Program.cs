@@ -7,6 +7,35 @@ using Ff7.Accessibility.Reloaded.Runtime;
 using Ff7.Accessibility.Runtime.Abstractions;
 using AccessibilityConfig = Ff7.Accessibility.Core.AccessibilityConfig;
 
+if (args.Contains("--russian-ui-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.RussianSpeechLocalizationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.RussianGeneratedSpeechIntegrationTests.Run();
+    return;
+}
+if (args.Contains("--russian-name-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.RussianNameEntryTests.Run();
+    return;
+}
+if (args.Contains("--russian-npc-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.FieldNpcIdentityCoverageTests.Run();
+    return;
+}
+if (args.Contains("--russian-navigation-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.RussianNavigationCompatibilityTests.Run();
+    return;
+}
+if (args.Length == 0)
+{
+    Ff7.Accessibility.Reloaded.Tests.RussianSpeechLocalizationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.RussianGeneratedSpeechIntegrationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.RussianNameEntryTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.RussianNavigationCompatibilityTests.Run();
+}
+
 if (args is ["--export-description-texts", var descriptionTextsPath])
 {
     Ff7.Accessibility.Reloaded.Tests.AudioDescriptionLocalizationTests.Export(descriptionTextsPath);

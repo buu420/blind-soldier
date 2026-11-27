@@ -17,7 +17,10 @@ internal sealed record AncientForestPuzzleSnapshot(
     IReadOnlySet<int>? ShakingPlants,
     IReadOnlyList<FieldActivityModelReading> Models);
 
-internal sealed record AncientForestStoryState(byte[] Bank, int Collected, SupportedFieldScriptVariant Variant);
+internal sealed record AncientForestStoryState(byte[] Bank, int Collected, SupportedFieldScriptVariant Variant)
+{
+    internal bool ResetUsesPress { get; init; }
+}
 
 /// <summary>
 /// A coherent native snapshot, admitted only for reviewed loaded forest scripts.
@@ -123,7 +126,7 @@ internal sealed class AncientForestPuzzleStateReader
         const uint pickupAddress = FieldNavigationObjectReader.AddressFieldBankBase + 0x400 + 37;
         if (!AncientForestStoryGuide.IsForest(fieldId) || identity() is not { } loaded ||
             loaded.FieldId != fieldId || !IsSameContext(loaded) || !PlayerHasControl()) return null;
-        var variant = EchoSCompatibilityManifest.ResolveVariant(loaded);
+        var variant = RussianFieldCompatibility.ResolveForestVariant(loaded);
         if (variant is not (SupportedFieldScriptVariant.Vanilla or SupportedFieldScriptVariant.EchoS124))
             return null;
 
@@ -140,7 +143,8 @@ internal sealed class AncientForestPuzzleStateReader
 
         if (puzzle && (!SameObservedFacts(fieldId, before, after) ||
             !SameStoryFacts(fieldId, before, after))) return null;
-        return new AncientForestStoryState(after, collectedAfter, variant);
+        return new AncientForestStoryState(after, collectedAfter, variant)
+        { ResetUsesPress = RussianFieldCompatibility.ForestResetUsesPress(loaded) };
     }
 
     private bool PlayerHasControl() =>
@@ -183,7 +187,7 @@ internal sealed class AncientForestPuzzleStateReader
         bank = [];
         if (!AncientForestPuzzleReadout.HasPuzzle(fieldId) || identity() is not { } loaded ||
             loaded.FieldId != fieldId) return false;
-        variant = EchoSCompatibilityManifest.ResolveVariant(loaded);
+        variant = RussianFieldCompatibility.ResolveForestVariant(loaded);
         if (variant is not (SupportedFieldScriptVariant.Vanilla or SupportedFieldScriptVariant.EchoS124) ||
             !IsSameContext(loaded)) return false;
 

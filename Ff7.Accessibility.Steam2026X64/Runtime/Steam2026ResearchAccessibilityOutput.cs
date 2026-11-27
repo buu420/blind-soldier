@@ -109,7 +109,19 @@ internal sealed class Steam2026ResearchAccessibilityOutput : IAccessibilityOutpu
             this.movieNarrationPlayback?.Prepare("runtime initialization");
     }
 
-    public void Speak(string text, bool interrupt)
+    public void Speak(string text, bool interrupt) => SpeakLocalized(text, interrupt, localizer.Localize);
+
+    /// <summary>
+    /// Mod-generated lines only (navigation, readouts, minigame status). Native dialogue,
+    /// names and credits go through <see cref="Speak"/>, which keeps the strict lookup.
+    /// </summary>
+    internal void SpeakModSpeech(string text, bool interrupt) =>
+        SpeakLocalized(text, interrupt, localizer.LocalizeModSpeech);
+
+    /// <summary>Delivers text a coordinator has already localized.</summary>
+    internal void SpeakLocalized(string text, bool interrupt) => SpeakLocalized(text, interrupt, static value => value);
+
+    private void SpeakLocalized(string text, bool interrupt, Func<string, string> localize)
     {
         // A declined line must remain retryable for description-history callers.
         if (SpeechIsAllowed?.Invoke() == false)
@@ -119,7 +131,7 @@ internal sealed class Steam2026ResearchAccessibilityOutput : IAccessibilityOutpu
             return;
         }
 
-        var localizedText = localizer.Localize(text);
+        var localizedText = localize(text);
         if (!speaker.Speak(localizedText, interrupt))
         {
             throw new InvalidOperationException("Prism did not accept the speech request.");

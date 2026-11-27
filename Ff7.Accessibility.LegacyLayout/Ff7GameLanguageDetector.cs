@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text.RegularExpressions;
+using Ff7.Accessibility.LegacyLayout;
 
 namespace Ff7.Accessibility.Reloaded;
 
@@ -15,7 +16,8 @@ public static partial class Ff7GameLanguageDetector
         string? executablePath = null,
         IReadOnlyList<string>? steamManifestPaths = null,
         Action<string>? log = null,
-        bool ffnxLoaded = false)
+        bool ffnxLoaded = false,
+        ILegacyAddressSpace? liveLegacyMemory = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(gameRootDirectory);
 
@@ -40,6 +42,19 @@ public static partial class Ff7GameLanguageDetector
         }
 
         var ffnxLanguage = TryReadFfnxMultilingualLanguage(gameRootDirectory, executablePath, ffnxLoaded);
+        var executableName = Path.GetFileName(executablePath);
+        if (ffnxLoaded && liveLegacyMemory is not null &&
+            (ffnxLanguage is null or { Code: "en" }) &&
+            (string.Equals(executableName, "ff7_en.exe", StringComparison.OrdinalIgnoreCase) ||
+             string.Equals(executableName, "ff7.exe", StringComparison.OrdinalIgnoreCase)) &&
+            HasUsableKernel(dataDirectory, Ff7GameLanguages.RussianFanTranslation) &&
+            Ff7RussianTranslationFingerprint.IsLoaded(liveLegacyMemory))
+        {
+            return Select(Ff7GameLanguages.RussianFanTranslation, dataDirectory,
+                Ff7GameLanguageDetectionSource.TranslationFingerprint,
+                "active FFRTT Russian 7H Hext strings", log);
+        }
+
         if (ffnxLanguage is { Code: not "en" } && HasUsableKernel(dataDirectory, ffnxLanguage))
         {
             return Select(ffnxLanguage, dataDirectory, Ff7GameLanguageDetectionSource.FfnxConfiguration,

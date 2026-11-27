@@ -1146,7 +1146,12 @@ public sealed class FieldNavigationNpcReader
         {
             "Cloud", "Barret", "Tifa", "Aerith", "Aeris", "Red XIII", "Red",
             "Yuffie", "Cait Sith", "Vincent", "Cid",
-            "Ballet", "Earith", "Yufi", "Ketcy"
+            "Ballet", "Earith", "Yufi", "Ketcy",
+            // FFRTT's Russian headings must not name an unrelated NPC that
+            // merely opens a party member's reply. Model binding still names
+            // the actual visible party actor before this heading fallback.
+            "Клауд", "Баррет", "Тифа", "Айрис", "Аэрис", "Ред XIII", "Ред",
+            "Юффи", "Кайт Сит", "Винсент", "Сид"
         };
 
     /// <summary>

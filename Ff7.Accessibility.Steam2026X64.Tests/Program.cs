@@ -7,6 +7,23 @@ using Ff7.Accessibility.Steam2026X64.Runtime.Field;
 using Ff7.Accessibility.LegacyLayout;
 using System.Text.Json;
 
+if (args.Contains("--russian-ui-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.RussianSpeechLocalizationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.RussianGeneratedSpeechIntegrationTests.Run();
+    return;
+}
+if (args.Contains("--russian-name-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.RussianNameEntryTests.Run();
+    return;
+}
+if (args.Contains("--russian-navigation-only", StringComparer.OrdinalIgnoreCase))
+{
+    Ff7.Accessibility.Reloaded.Tests.RussianNavigationCompatibilityTests.Run();
+    return;
+}
+
 if (args.Contains("--localized-descriptions-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.AudioDescriptionLocalizationTests.Run();
@@ -34,6 +51,10 @@ if (args.Contains("--localized-cues-only", StringComparer.OrdinalIgnoreCase))
 
 if (args.Length == 0)
 {
+    Ff7.Accessibility.Reloaded.Tests.RussianSpeechLocalizationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.RussianGeneratedSpeechIntegrationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.RussianNameEntryTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.RussianNavigationCompatibilityTests.Run();
     Ff7.Accessibility.Reloaded.Tests.AudioDescriptionLocalizationTests.Run();
     Ff7.Accessibility.Reloaded.Tests.MidgarModelPlacementTests.Run();
 }

@@ -247,6 +247,8 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             config.GameLanguage,
             log: log);
         descriptionLocalizer = BlindSoldierLocalizer.Create(language.Descriptor, modDirectory, log);
+        if (language.Code == "ru")
+            this.speak = (text, interrupt) => speak(descriptionLocalizer.LocalizeModSpeech(text), interrupt);
         scriptCatalog = new FieldScriptNavigationCatalog(gameRootDirectory, language,
             new LoadedFieldScriptIdentityReader(addressSpace, log));
         objectReader.SetNavigationDefinitionRemapper(scriptCatalog.RemapObjectDefinition);
@@ -264,6 +266,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             routePlanner);
 
         var textResolver = new FlevelFieldTextResolver(gameRootDirectory, language);
+        if (language.Code == "ru") textResolver.UseNativeText(addressSpace);
         var mapNames = new FieldMapNameCatalog(scriptCatalog, textResolver);
         var mapNameReader = new FieldMapNameReader(
             (address, length) => ReadEncodedText(addressSpace, address, length));

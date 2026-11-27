@@ -10,19 +10,21 @@ using LocalizedDescriptionCueAligner;
 if (args.Length < 2)
 {
     Console.Error.WriteLine(
-        "Usage: LocalizedDescriptionCueAligner <ff7-workingdir> <report-directory> [--polish <workingdir>] [--emit <generated.cs>]");
+        "Usage: LocalizedDescriptionCueAligner <ff7-workingdir> <report-directory> [--polish <workingdir>] [--russian <workingdir>] [--emit <generated.cs>]");
     return 2;
 }
 
 var root = Path.GetFullPath(args[0]);
 var reportDirectory = Path.GetFullPath(args[1]);
 string? polishRoot = null;
+string? russianRoot = null;
 string? emitPath = null;
 for (var index = 2; index < args.Length; index++)
 {
     switch (args[index])
     {
         case "--polish" when index + 1 < args.Length: polishRoot = Path.GetFullPath(args[++index]); break;
+        case "--russian" when index + 1 < args.Length: russianRoot = Path.GetFullPath(args[++index]); break;
         case "--emit" when index + 1 < args.Length: emitPath = Path.GetFullPath(args[++index]); break;
         default: Console.Error.WriteLine($"Unknown argument {args[index]}"); return 2;
     }
@@ -41,6 +43,7 @@ var englishDescriptor = Ff7GameLanguages.Get(Ff7GameLanguage.English);
 var targets = Ff7GameLanguages.All.Where(d => d.Language != Ff7GameLanguage.English)
     .Select(d => (Descriptor: d, Root: root))
     .Concat(polishRoot is null ? [] : [(Descriptor: Ff7GameLanguages.PolishFanTranslation, Root: polishRoot)])
+    .Concat(russianRoot is null ? [] : [(Descriptor: Ff7GameLanguages.RussianFanTranslation, Root: russianRoot)])
     .ToArray();
 var sources = new List<string>();
 foreach (var (descriptor, targetRoot) in new[] { (Descriptor: englishDescriptor, Root: root) }.Concat(targets))
@@ -94,6 +97,14 @@ foreach (var (descriptor, targetRoot) in targets)
         }
 
         var aligner = new CueAligner(english, target);
+        if (descriptor.Code == "ru" && fieldId == 700)
+        {
+            File.WriteAllLines(Path.Combine(reportDirectory, "russian-crater-area-entry.tsv"),
+                new[] { "language\tfield\tentity\tslot\tbyte\topcode\thex" }.Concat(
+                    new[] { (Code: "en", Field: english), (Code: "ru", Field: target) }
+                        .SelectMany(item => item.Field.Slot(1, 0)!.Select(op =>
+                            $"{item.Code}\t700\t1\t0\t{op.ByteIndex}\t{op.Opcode:X2}\t{op.Hex}"))));
+        }
         if (fieldCues.Length > 0 && !english.EntityNames.SequenceEqual(target.EntityNames, StringComparer.Ordinal))
             entityRows.Add(string.Join('\t', descriptor.Code, fieldId, english.Name, string.Join(',', english.EntityNames),
                 string.Join(',', target.EntityNames),
@@ -109,6 +120,16 @@ foreach (var (descriptor, targetRoot) in targets)
         foreach (var cue in fieldCues)
         {
             var result = aligner.Align(cue.EntityId, cue.ScriptId, cue.ByteIndex, cue.Opcode);
+            // Reviewed separately: FFRTT's crater_1 removes the English party
+            // mask initialization after the room-entry instruction. The loaded
+            // prefix, entry sequence, camera/models/palette/walkmesh/triggers and
+            // background image were checked; do not relax whole-slot alignment.
+            if (descriptor.Code == "ru" && fieldId == 700 && cue.EntityId == 1 &&
+                cue.ScriptId == 0 && cue.ByteIndex == 0 && cue.Opcode == 0x43 &&
+                target.PrefixSha256 == "2AEFA4D8984F70EC75FD5D5131E3E896AC30A08DDED69E2752CD324B4BC3336B" &&
+                target.Slot(1, 0)!.Take(3).Select(op => op.Hex).SequenceEqual(new[] { "4300", "F000", "F601" }))
+                result = new AnchorResult("reviewed-russian-area-entry", true, 1, 0, 0, Equivalence.Exact,
+                    "exact reviewed crater_1 prefix; unconditional MPNAM 4300 before unchanged fade; see docs/russian-support-20261127.md");
             counts[result.Status] = counts.GetValueOrDefault(result.Status) + 1;
             var evidence = result.Evidence;
             if (result.Authorized && aligner.RequestTargetEvidence(cue.EntityId, cue.ScriptId, cue.ByteIndex, cue.Opcode) is { Length: > 0 } requested)
@@ -197,7 +218,7 @@ Console.WriteLine(summary.ToString().TrimEnd().Split('\n')[^(sources.Count + 1)]
 if (emitPath is not null)
 {
     File.WriteAllText(emitPath, ManifestWriter.Write(identities.Values.ToArray(), catalog,
-        sources.Prepend($"Command: LocalizedDescriptionCueAligner <workingdir> <reports>{(polishRoot is null ? "" : " --polish <Bunio V1.05 workingdir>")} --emit <this file>").ToArray()),
+        sources.Prepend($"Command: LocalizedDescriptionCueAligner <workingdir> <reports>{(polishRoot is null ? "" : " --polish <Bunio V1.05 workingdir>")}{(russianRoot is null ? "" : " --russian <FFRTT 1.02 workingdir>")} --emit <this file>").ToArray()),
         new UTF8Encoding(false));
     Console.WriteLine($"Wrote {emitPath}");
 }

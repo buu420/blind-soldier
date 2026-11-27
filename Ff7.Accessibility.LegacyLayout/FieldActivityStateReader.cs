@@ -338,7 +338,8 @@ public sealed class FieldActivityStateReader
     public FieldActivityWaitState ReadWaitState(
         int fieldId,
         int entityId,
-        IReadOnlyList<FieldActivityWaitAnchor> anchors)
+        IReadOnlyList<FieldActivityWaitAnchor> anchors,
+        bool verifyEachLoop = false)
     {
         if (entityId < 0 || anchors is null || anchors.Count == 0)
         {
@@ -380,6 +381,8 @@ public sealed class FieldActivityStateReader
         for (var index = 0; index < anchors.Count; index++)
         {
             var anchor = anchors[index];
+            // Alternate native layouts must not borrow another layout's wider loop.
+            if (verifyEachLoop && !TryVerifyAnchor(before.ScriptSection, before.EntryOffset, anchor)) continue;
             if (relative >= anchor.LoopStart && relative <= anchor.LoopEnd)
             {
                 return new FieldActivityWaitState(true, index, relative);

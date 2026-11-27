@@ -61,6 +61,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
     /// <summary>Where every automatic direction is delivered; never a Windows key event.</summary>
     private readonly Steam2026NativeDirectionalInputSink directionalInput;
     private readonly Action<string, bool> speak;
+    private readonly Action<string, bool> speakMod;
     private readonly Action<string> log;
     private readonly Action<NavigationBeaconCue, float>? playEntranceCue;
     private DateTime nextScanUtc = DateTime.MinValue;
@@ -104,7 +105,8 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         Action<NavigationBeaconCue, float>? playEntranceCue = null,
         Func<ControllerNavigationCapture?>? controllerCapture = null,
         Steam2026NativeDirectionalInputSink? directionalInput = null,
-        GreatGlacierRegionalNavigator? glacierRegion = null)
+        GreatGlacierRegionalNavigator? glacierRegion = null,
+        Func<string, string>? localizeModSpeech = null)
     {
         this.glacierRegion = glacierRegion;
         // Never a Win32 sink. See the field coordinator: this host synthesizes the legacy
@@ -119,6 +121,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(gameWorkingDirectory);
         ArgumentException.ThrowIfNullOrWhiteSpace(modDirectory);
         this.speak = speak ?? throw new ArgumentNullException(nameof(speak));
+        speakMod = localizeModSpeech is null ? speak : (text, interrupt) => speak(localizeModSpeech(text), interrupt);
         this.log = log ?? throw new ArgumentNullException(nameof(log));
         this.playEntranceCue = playEntranceCue;
         this.autoWalk = autoWalk ?? NavigationAutoWalkController.CreateCurrentProcess(
@@ -337,7 +340,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
             _ = autoWalk.Stop();
             glacierRegion?.NoteAutoWalk(false);
             submarineJourney?.NoteAutoWalk(false);
-            speak("Auto walk off.", true);
+            speakMod("Auto walk off.", true);
             higherPrioritySpeech = true;
             log("Native Steam 2026 world-map auto walk: P toggle off.");
             autoWalkToggleRequested = false;
@@ -349,7 +352,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
             _ = autoWalk.Stop();
             glacierRegion?.NoteAutoWalk(false);
             submarineJourney?.NoteAutoWalk(false);
-            speak("Auto walk off.", true);
+            speakMod("Auto walk off.", true);
             higherPrioritySpeech = true;
             log("Native Steam 2026 world-map auto walk stopped because the selection changed.");
         }
@@ -461,7 +464,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         if (entityResult.IsUsable && config.EnableWorldMapNavigationAssistant &&
             runtime.ObserveUnderwaterSightings(state, higherPrioritySpeech, nowUtc) is { } emeraldSighting)
         {
-            speak(emeraldSighting, false);
+            speakMod(emeraldSighting, false);
             higherPrioritySpeech = true;
         }
         var progressRevision = progressSink?.PublicationRevision ?? 0;
@@ -513,7 +516,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
             autoWalkToggleRequested = false;
             runtime.Navigation.NoteAutoWalkStarted();
             glacierRegion?.Resume(autoWalk: true);
-            speak("Auto walk on.", true);
+            speakMod("Auto walk on.", true);
             higherPrioritySpeech = true;
         }
 
@@ -530,7 +533,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
                     runtime.Navigation.BeaconEnabled))
             {
                 runtime.Navigation.NoteAutoWalkStarted();
-                speak("Auto walk on.", true);
+                speakMod("Auto walk on.", true);
                 higherPrioritySpeech = true;
                 log("Native Steam 2026 world-map auto walk: P toggle on.");
             }
@@ -691,7 +694,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
     {
         try
         {
-            speak(text, true);
+            speakMod(text, true);
             return true;
         }
         catch (Exception ex)
@@ -747,7 +750,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         if (!string.IsNullOrWhiteSpace(value.Speech))
         {
             log($"Native Steam 2026 world-map speech: {value.Speech}");
-            speak(value.Speech, true);
+            speakMod(value.Speech, true);
             return true;
         }
 
@@ -804,7 +807,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
             $"tracks={surface.HasChocoboTracks}: {ready.Speech}");
         try
         {
-            speak(ready.Speech, false);
+            speakMod(ready.Speech, false);
             runtime.TerrainAnnouncements.AcknowledgeSpeech();
         }
         catch (Exception ex)
@@ -976,7 +979,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
                 () => controllerRuntime?.Navigation.IsHoldingDestination == true ||
                     controllerRuntime?.Navigation.IsHoldingEntityTarget == true,
                 () => controllerRuntime?.Navigation.NoteAutoWalkStarted()),
-            speech => { speak(speech, true); return true; },
+            speech => { speakMod(speech, true); return true; },
             log);
 
         var spoke = controllerNavigation.Drain(capture, ControllerNavigationDomain.WorldMap, controllerNowUtc);
@@ -1047,7 +1050,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         if (runtime.Navigation.AutomaticInputRequestsSubmarineDive)
         {
             runtime.Navigation.Suspend("native dive input failed");
-            speak($"Automatic dive stopped. {result.Diagnostic}", true);
+            speakMod($"Automatic dive stopped. {result.Diagnostic}", true);
             log($"Native Steam 2026 automatic dive failed: {result.Diagnostic}");
             lastAutoWalkFailure = result.Diagnostic;
             return true;
@@ -1056,7 +1059,7 @@ internal sealed class Steam2026WorldMapAccessibilityCoordinator : IDisposable
         {
             lastAutoWalkFailure = result.Diagnostic;
             log($"Native Steam 2026 world-map auto walk failed closed: {result.Diagnostic}");
-            speak("Auto walk stopped because directional input failed.", true);
+            speakMod("Auto walk stopped because directional input failed.", true);
             return true;
         }
 

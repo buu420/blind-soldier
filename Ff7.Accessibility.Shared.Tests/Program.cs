@@ -1,6 +1,13 @@
 using Ff7.Accessibility.LegacyLayout;
 using Ff7.Accessibility.Reloaded;
 
+if (args.Contains("--russian-only"))
+{
+    RussianTextSupportTests.Run();
+    Console.WriteLine("Russian support tests passed.");
+    return;
+}
+
 WorldMapDialogueTests.Run();
 BattleArenaScreenTests.Run();
 AssertTypedReadsAreExplicitLittleEndian();
@@ -48,6 +55,7 @@ HighwayRoadStateReaderTests.Run();
 WallMarketSquatCueTests.Run();
 GameLanguageDetectorTests.Run();
 LocalizedTextDecoderTests.Run();
+RussianTextSupportTests.Run();
 LocalizedKernel2Tests.Run();
 BlindSoldierLocalizerTests.Run();
 Console.WriteLine("FFVII shared layout tests passed.");

@@ -13,7 +13,8 @@ public enum Ff7TextEncodingProfile
 {
     Western,
     Japanese,
-    PolishFanTranslation
+    PolishFanTranslation,
+    RussianFfrttTranslation
 }
 
 public enum Ff7GameLanguageDetectionSource
@@ -83,8 +84,12 @@ public static class Ff7GameLanguages
             "flevel.lgp",
             Ff7TextEncodingProfile.PolishFanTranslation);
 
+    public static Ff7GameLanguageDescriptor RussianFanTranslation { get; } =
+        new(Ff7GameLanguage.English, "ru", "Russian", "russian", "lang-en", "flevel.lgp",
+            Ff7TextEncodingProfile.RussianFfrttTranslation);
+
     private static readonly Ff7GameLanguageDescriptor[] ParseableDescriptors =
-        [.. Descriptors, PolishFanTranslationDescriptor];
+        [.. Descriptors, PolishFanTranslationDescriptor, RussianFanTranslation];
 
     public static IReadOnlyList<Ff7GameLanguageDescriptor> All => Descriptors;
 
@@ -100,6 +105,14 @@ public static class Ff7GameLanguages
         if (string.IsNullOrEmpty(normalized))
         {
             return false;
+        }
+
+        if (normalized.Equals("ru-RU", StringComparison.OrdinalIgnoreCase) ||
+            normalized.Equals("ru_RU", StringComparison.OrdinalIgnoreCase) ||
+            normalized.Equals("русский", StringComparison.OrdinalIgnoreCase))
+        {
+            descriptor = RussianFanTranslation;
+            return true;
         }
 
         var match = ParseableDescriptors.FirstOrDefault(candidate =>

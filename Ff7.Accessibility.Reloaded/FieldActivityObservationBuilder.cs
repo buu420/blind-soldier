@@ -46,7 +46,8 @@ public static class FieldActivityObservationBuilder
             waits[entityId] = stateReader.ReadWaitState(
                 fieldId,
                 entityId,
-                FieldActivityReadout.WaitAnchors(fieldId, entityId));
+                FieldActivityReadout.WaitAnchors(fieldId, entityId),
+                verifyEachLoop: fieldId == FieldActivityReadout.JunonGasChairFieldId);
         }
 
         Func<int, bool>? isLineEnabled = null;

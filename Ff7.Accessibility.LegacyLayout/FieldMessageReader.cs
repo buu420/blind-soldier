@@ -479,14 +479,29 @@ public sealed class FieldMessageReader
     public bool TryReadMessagePagesById(
         int messageId,
         out IReadOnlyList<Ff7DecodedTextPage> pages)
+        => TryReadMessagePagesByIdCore(null, messageId, out pages);
+
+    /// <summary>Resolves only a message owned by the expected current field.</summary>
+    public bool TryReadMessagePagesById(int expectedFieldId, int messageId,
+        out IReadOnlyList<Ff7DecodedTextPage> pages) =>
+        TryReadMessagePagesByIdCore(expectedFieldId, messageId, out pages);
+
+    /// <summary>NPC identity evidence keeps canonical party tokens distinct from renamed speakers.</summary>
+    public bool TryReadMessageLabelPagesById(int expectedFieldId, int messageId,
+        out IReadOnlyList<Ff7DecodedTextPage> pages) =>
+        TryReadMessagePagesByIdCore(expectedFieldId, messageId, out pages, useSavedCanonicalNames: false);
+
+    private bool TryReadMessagePagesByIdCore(int? expectedFieldId, int messageId,
+        out IReadOnlyList<Ff7DecodedTextPage> pages, bool useSavedCanonicalNames = true)
     {
         pages = Array.Empty<Ff7DecodedTextPage>();
-        if (!TryReadCheckedMessageBytes(messageId, out var bytes, out var before))
+        if (!TryReadCheckedMessageBytes(messageId, out var bytes, out var before) ||
+            expectedFieldId is { } expected && before.FieldId != expected)
         {
             return false;
         }
 
-        pages = DecodeWithParty(bytes);
+        pages = DecodeWithParty(bytes, useSavedCanonicalNames);
         if (!TryCaptureFrame(out var after) || !before.Equals(after))
         {
             pages = Array.Empty<Ff7DecodedTextPage>();
@@ -500,7 +515,7 @@ public sealed class FieldMessageReader
     /// the savemap the way the game names them. The window's own rendered buffer already holds
     /// those names; the message table holds only the codes.
     /// </summary>
-    private IReadOnlyList<Ff7DecodedTextPage> DecodeWithParty(byte[] bytes)
+    private IReadOnlyList<Ff7DecodedTextPage> DecodeWithParty(byte[] bytes, bool useSavedCanonicalNames = true)
     {
         var party = new SavemapPartyReader(addressSpace!);
         var characterOrder = new PostscriptCharacterOrderReader(addressSpace!);
@@ -543,6 +558,16 @@ public sealed class FieldMessageReader
                     return null;
                 }
                 return party.TryReadCharacter(id, out var character) ? character.Name : null;
+            };
+        }
+        else if (useSavedCanonicalNames && Ff7EncodedTextDecoder.DefaultTextEncodingProfile ==
+                 Ff7TextEncodingProfile.RussianFfrttTranslation)
+        {
+            resolveRole = canonical =>
+            {
+                if (party.TryReadCharacter(canonical, out var character)) return character.Name;
+                unavailableRole = true;
+                return null;
             };
         }
         var pages = Ff7EncodedTextDecoder.DecodePages(

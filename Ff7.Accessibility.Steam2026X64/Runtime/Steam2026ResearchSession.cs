@@ -703,9 +703,9 @@ internal sealed class Steam2026ResearchSession : IDisposable
             command => battleStatusHotkeyController.HandleController(
                 (BattleStatusControllerCommand)((int)command - (int)ControllerNavigationCommand.PartyPrevious),
                 slot => battleStatusHotkeyReader?.ReadMember(slot)),
-            text => { if (!speaker.Speak(localizer.Localize(text), interrupt: true))
+            text => { if (!speaker.Speak(localizer.LocalizeModSpeech(text), interrupt: true))
                 throw new InvalidOperationException("Prism did not accept the settings line."); },
-            text => output.Speak(text, interrupt: true), () =>
+            text => output.SpeakModSpeech(text, interrupt: true), () =>
             { directionalInput.Clear(); submarineMission?.SuspendInput(); }, log);
 
         // Published for Suspend and Resume, which are called from the loader's
@@ -743,7 +743,7 @@ internal sealed class Steam2026ResearchSession : IDisposable
         var nameEntrySpeechCoordinator = new Steam2026NameEntrySpeechCoordinator(
             config.EnableNameEntryMenuSpeech,
             TimeSpan.FromMilliseconds(750),
-            (text, interrupt) => output.Speak(text, interrupt),
+            (text, interrupt) => output.SpeakModSpeech(text, interrupt),
             log);
         var nameEntryPromptSpeechCoordinator = new Steam2026NameEntryPromptSpeechCoordinator(
             config.EnableFieldDialogueDrawSpeech,
@@ -941,14 +941,14 @@ internal sealed class Steam2026ResearchSession : IDisposable
                         // would hand back a number the dial has already turned past.
                         if (pump?.SafeDialCurrentLine is { } safeDialLine)
                         {
-                            output.Speak(safeDialLine, interrupt: true);
+                            output.SpeakModSpeech(safeDialLine, interrupt: true);
                         }
                         else if (fieldNavigationCoordinator?.FieldActivityCurrentLine is { } activityLine)
                         {
                             // The same rule for every native activity: with the Temple
                             // clock in front of them, asking again means asking where
                             // its hands and bridges are now.
-                            output.Speak(activityLine, interrupt: true);
+                            output.SpeakModSpeech(activityLine, interrupt: true);
                         }
                         else
                         {
@@ -984,7 +984,7 @@ internal sealed class Steam2026ResearchSession : IDisposable
                         SavePlayerShortcut(nameof(config.EnableNavigationProgressIndicators), config.EnableNavigationProgressIndicators ? 1 : 0);
                         SavePlayerShortcut(nameof(config.NavigationProgressIntervalPercent), config.NavigationProgressIntervalPercent);
                         log($"Navigation progress control: {speech}");
-                        output.Speak(speech, interrupt: true);
+                        output.SpeakModSpeech(speech, interrupt: true);
                     }
                     catch (Exception ex)
                     {
@@ -1200,7 +1200,8 @@ internal sealed class Steam2026ResearchSession : IDisposable
                                     playEntranceCue: null,
                                     controllerCapture: () => controllerCaptureHook?.Capture,
                                     directionalInput: directionalInput,
-                                    glacierRegion: candidateGlacierRegion);
+                                    glacierRegion: candidateGlacierRegion,
+                                    localizeModSpeech: localizer.LocalizeModSpeech);
                         }
                         catch (Exception ex)
                         {
@@ -1213,7 +1214,7 @@ internal sealed class Steam2026ResearchSession : IDisposable
                                 config,
                                 sharedFieldAddressSpace,
                                 modDirectory,
-                                (text, interrupt) => output.Speak(text, interrupt),
+                                (text, interrupt) => output.SpeakModSpeech(text, interrupt),
                                 log,
                                 autoSteeringController: HighwayAutoSteeringController.CreateCurrentProcess(
                                     sharedFieldAddressSpace, directionalInput),
@@ -1963,7 +1964,7 @@ avigationield_zone_transition.wav"),
                                 submarineLockCue?.Play("submarine target lock");
                             if (submarineCue.Speech is { } submarineSpeech)
                             {
-                                output.Speak(submarineSpeech, interruptSubmarine);
+                                output.SpeakModSpeech(submarineSpeech, interruptSubmarine);
                                 log($"Native Steam 2026 submarine: {submarineSpeech}");
                             }
                             if (frame.Lifecycle.ModuleId == SubmarineMissionStateReader.MinigameModule &&
@@ -2032,7 +2033,7 @@ avigationield_zone_transition.wav"),
                                 : speedSquareCoasterReadout.Observe(default);
                             if (coasterSpeech is not null && config.EnableSpeech)
                             {
-                                output.Speak(coasterSpeech, true);
+                                output.SpeakModSpeech(coasterSpeech, true);
                             }
                         }
                     }
@@ -2056,7 +2057,7 @@ avigationield_zone_transition.wav"),
                             if (snowboardSpeech is not null && config.EnableSpeech)
                             {
                                 log($"Snowboard: {snowboardReader.LastDiagnostic}; speech={snowboardSpeech}");
-                                output.Speak(snowboardSpeech, true);
+                                output.SpeakModSpeech(snowboardSpeech, true);
                             }
                         }
                         else if (!snowboardReader.IsSnowboardModule) snowboardReadout.Reset();
@@ -2099,7 +2100,7 @@ avigationield_zone_transition.wav"),
 
                             if (aimCue.Speech is { } aimSpeech && config.EnableSpeech)
                             {
-                                output.Speak(aimSpeech, true);
+                                output.SpeakModSpeech(aimSpeech, true);
                             }
                         }
                     }
@@ -2174,7 +2175,7 @@ avigationield_zone_transition.wav"),
                             {
                                 foreach (var chocoboLine in chocoboLines)
                                 {
-                                    output.Speak(chocoboLine, false);
+                                    output.SpeakModSpeech(chocoboLine, false);
                                 }
                             }
                         }
@@ -2215,12 +2216,12 @@ avigationield_zone_transition.wav"),
                                 // A missing asset or an unopenable device must not
                                 // swallow the landmark. Bounded to one attempt per
                                 // wind-up, because the event itself fires once.
-                                output.Speak("Ball at the top.", false);
+                                output.SpeakModSpeech("Ball at the top.", false);
                             }
 
                             if (cue.Speech is not null && config.EnableSpeech)
                             {
-                                output.Speak(cue.Speech, false);
+                                output.SpeakModSpeech(cue.Speech, false);
                             }
                         }
                         else
@@ -2268,7 +2269,7 @@ avigationield_zone_transition.wav"),
                                 tone?.Play($"arm wrestling {pose}");
                                 if (config.EnableSpeech)
                                 {
-                                    output.Speak(lean, true);
+                                    output.SpeakModSpeech(lean, true);
                                 }
                             }
                         }
@@ -2307,7 +2308,7 @@ avigationield_zone_transition.wav"),
                             {
                                 if (config.EnableSpeech)
                                 {
-                                    output.Speak(battlerText, battlerInterrupt);
+                                    output.SpeakModSpeech(battlerText, battlerInterrupt);
                                 }
                             }
                         }
@@ -2378,7 +2379,7 @@ avigationield_zone_transition.wav"),
                         {
                             if (config.EnableSpeech && condorIsForeground)
                             {
-                                output.Speak(condorLine.Text, condorLine.Interrupt);
+                                output.SpeakModSpeech(condorLine.Text, condorLine.Interrupt);
                             }
                         }
                     }
@@ -2518,7 +2519,7 @@ avigationield_zone_transition.wav"),
                             // Interrupting is the point. A number the dial has already
                             // turned past must never finish playing over the one that
                             // is on screen now.
-                            output.Speak(safeDialSpeech, interrupt: true);
+                            output.SpeakModSpeech(safeDialSpeech, interrupt: true);
                             pump.AcknowledgeSafeDialSpeech(safeDialSpeech);
                             log($"Native Steam 2026 safe dial: {safeDialSpeech}");
                         }
@@ -2540,7 +2541,7 @@ avigationield_zone_transition.wav"),
                     {
                         try
                         {
-                            output.Speak(countdownAnnouncement.Speech, interrupt: true);
+                            output.SpeakModSpeech(countdownAnnouncement.Speech, interrupt: true);
                             pump.AcknowledgeCountdown(countdownAnnouncement);
                             log(
                                 $"Native Steam 2026 field countdown: " +
@@ -2660,7 +2661,7 @@ avigationield_zone_transition.wav"),
                                  battleArenaScreenTracker.Observe(arenaScreen) is { } arenaSpeech)
                         {
                             log($"Native Battle Square screen: {arenaSpeech}");
-                            output.Speak(arenaSpeech, interrupt: true);
+                            output.SpeakModSpeech(arenaSpeech, interrupt: true);
                         }
                     }
                     catch (Exception ex)
@@ -2705,7 +2706,7 @@ avigationield_zone_transition.wav"),
                                     battleQueryReadable && !battleQueryActive);
                         if (!string.IsNullOrWhiteSpace(statusSpeech))
                         {
-                            output.Speak(statusSpeech, interrupt: true);
+                            output.SpeakModSpeech(statusSpeech, interrupt: true);
                             log(
                                 $"Native Steam 2026 battle status hotkey: "
                                 + $"slot={battleStatusHotkeyController.SelectedPartySlot + 1}, "
@@ -3048,7 +3049,7 @@ avigationield_zone_transition.wav"),
                     {
                         try
                         {
-                            output.Speak(request.Text, request.Interrupt);
+                            output.SpeakModSpeech(request.Text, request.Interrupt);
                             log(
                                 $"Native Steam 2026 system menu: {request.Text}");
                         }
@@ -3110,7 +3111,7 @@ avigationield_zone_transition.wav"),
                     {
                         try
                         {
-                            output.Speak(nativeTitleSelection.Text, interrupt: true);
+                            output.SpeakModSpeech(nativeTitleSelection.Text, interrupt: true);
                             lastNativeTitleKey = nativeTitleSelection.Key;
                             log(
                                 $"Native Steam 2026 title selection: "
@@ -3154,7 +3155,7 @@ avigationield_zone_transition.wav"),
                 {
                     try
                     {
-                        output.Speak(titleLoadSpeech, interrupt: true);
+                        output.SpeakModSpeech(titleLoadSpeech, interrupt: true);
                         log($"Native Steam 2026 Continue menu: {titleLoadSpeech}");
                     }
                     catch (Exception ex)
@@ -3372,7 +3373,10 @@ avigationield_zone_transition.wav"),
                     {
                         try
                         {
-                            output.Speak(menuSpeech, interrupt: true);
+                            if (inGameMenuBridge.LastPollIsNativeText)
+                                output.Speak(menuSpeech, interrupt: true);
+                            else
+                                output.SpeakModSpeech(menuSpeech, interrupt: true);
                             inGameMenuBridge.AcknowledgeSaveMenuSpeech(menuSpeech);
                             log($"Native Steam 2026 in-game menu: {menuSpeech}");
                         }
@@ -3448,7 +3452,7 @@ avigationield_zone_transition.wav"),
                 {
                     try
                     {
-                        output.Speak(shopSpeech, interrupt: true);
+                        output.SpeakModSpeech(shopSpeech, interrupt: true);
                         log($"Native Steam 2026 shop menu: {shopSpeech}");
                     }
                     catch (Exception ex)
@@ -3490,7 +3494,7 @@ avigationield_zone_transition.wav"),
                                     return false;
                                 }
 
-                                output.Speak(text, interrupt);
+                                output.SpeakModSpeech(text, interrupt);
                                 return true;
                             });
                         switch (gilResult.Outcome)
@@ -3587,7 +3591,14 @@ avigationield_zone_transition.wav"),
                         while (battleAccessibilityCoordinator.TrySpeakPending(
                                    speech =>
                                    {
-                                       output.Speak(speech.Text, speech.Interrupt);
+                                       // Battle messages (kernel and runtime text, with
+                                       // Sense and Tifa's reels in the same domain) keep
+                                       // the strict lookup; every other domain is the
+                                       // mod's own sentence around native names.
+                                       if (speech.Domain == Steam2026BattleSpeechDomain.Message)
+                                           output.Speak(speech.Text, speech.Interrupt);
+                                       else
+                                           output.SpeakModSpeech(speech.Text, speech.Interrupt);
                                        return true;
                                    },
                                    out var battleSpeech))

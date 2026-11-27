@@ -24,6 +24,8 @@ public static class Ff7EncodedTextDecoder
     private static Ff7GameLanguageDescriptor DefaultLanguage =>
         Volatile.Read(ref defaultLanguage) ?? English;
 
+    public static Ff7TextEncodingProfile DefaultTextEncodingProfile => DefaultLanguage.TextEncodingProfile;
+
     public static void SetDefaultLanguage(Ff7GameLanguageDescriptor language)
     {
         ArgumentNullException.ThrowIfNull(language);
@@ -133,7 +135,7 @@ public static class Ff7EncodedTextDecoder
             builder.Append('\uFFFD');
         }
 
-        return NormalizeWhitespace(builder.ToString());
+        return NormalizeText(builder.ToString(), language);
     }
 
     /// <summary>Kernel text as the running game's language encodes it.</summary>
@@ -169,7 +171,7 @@ public static class Ff7EncodedTextDecoder
 
         void FinishLine()
         {
-            lines.Add(new Ff7DecodedTextLine(NormalizeWhitespace(builder.ToString()), isChoice));
+            lines.Add(new Ff7DecodedTextLine(NormalizeText(builder.ToString(), language), isChoice));
             builder.Clear();
             isChoice = false;
         }
@@ -268,16 +270,16 @@ public static class Ff7EncodedTextDecoder
                         index++;
                     }
 
-                    builder.Append(pairedButton ?? "[OK]");
+                    builder.Append(LocalizeButtonToken(pairedButton ?? "[OK]", encodingProfile));
                     break;
                 case 0xf7:
-                    builder.Append("[MENU]");
+                    builder.Append(LocalizeButtonToken("[MENU]", encodingProfile));
                     break;
                 case 0xf8:
-                    builder.Append("[SWITCH]");
+                    builder.Append(LocalizeButtonToken("[SWITCH]", encodingProfile));
                     break;
                 case 0xf9:
-                    builder.Append("[CANCEL]");
+                    builder.Append(LocalizeButtonToken("[CANCEL]", encodingProfile));
                     break;
                 case 0xfe:
                     if (index + 1 >= bytes.Length)
@@ -345,6 +347,10 @@ public static class Ff7EncodedTextDecoder
         return code is >= 0x33 and <= 0x3d ? PairedButtonNames[code - 0x33] : null;
     }
 
+    private static string LocalizeButtonToken(string token, Ff7TextEncodingProfile profile) =>
+        profile == Ff7TextEncodingProfile.RussianFfrttTranslation
+            ? Ff7RussianTextEncoding.LocalizeButtonToken(token) : token;
+
     private static void AppendNormal(
         StringBuilder builder,
         byte value,
@@ -382,6 +388,10 @@ public static class Ff7EncodedTextDecoder
         };
         index = Math.Min(bytes.Length - 1, index + argumentLength);
     }
+
+    private static string NormalizeText(string text, Ff7GameLanguageDescriptor language) =>
+        NormalizeWhitespace(language.TextEncodingProfile == Ff7TextEncodingProfile.RussianFfrttTranslation
+            ? Ff7RussianTextEncoding.NormalizeGlyphWords(text) : text);
 
     public static string NormalizeWhitespace(string text)
     {
