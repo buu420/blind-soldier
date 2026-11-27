@@ -6,8 +6,8 @@ namespace Ff7.Accessibility.Reloaded.Tests;
 
 /// <summary>
 /// Delivery of reviewed localized identities: the description gate and the identity cache both
-/// hosts use, and film anchors moved by the Bunio Polish V1.05 scripts (zcoal_2 English byte 104
-/// runs at Polish 101, zcoal_3 English 90 at Polish 70), resolved by their English anchor and
+/// hosts use, and film anchors moved by the Polish fan translation scripts (V1.05 and V1.07 alike:
+/// zcoal_2 English byte 104 runs at Polish 101, zcoal_3 English 90 at Polish 70), resolved by their English anchor and
 /// never by raw localized offsets. The x64 coordinator is exercised end to end in
 /// Steam2026LocalizedDeliveryTests; the x86 host cannot be constructed in a test, so its four
 /// call sites are held to the same shared policy here.
@@ -49,6 +49,20 @@ internal static class LocalizedDescriptionDeliveryTests
             .Select(i => new LoadedFieldScriptIdentity(field, i.PrefixSha256))
             .Single();
 
+    /// <summary>Every reviewed Polish release's prefix of a field; V1.05 and V1.07 usually differ.</summary>
+    private static LoadedFieldScriptIdentity[] PolishIdentities(int field)
+    {
+        var identities = LocalizedFieldDescriptionCueManifest.ReviewedIdentities
+            .Where(i => i.FieldId == field && i.Languages.Contains("pl"))
+            .Select(i => new LoadedFieldScriptIdentity(field, i.PrefixSha256))
+            .ToArray();
+        True(identities.Length > 0, $"field {field} has a reviewed Polish prefix");
+        return identities;
+    }
+
+    private static IEnumerable<(int Field, int EnglishByte, int Entity, int Script, int PolishByte, LoadedFieldScriptIdentity Polish)> MovedPolishFilmIdentities() =>
+        MovedPolishFilms.SelectMany(f => PolishIdentities(f.Field).Select(p => (f.Field, f.EnglishByte, f.Entity, f.Script, f.PolishByte, p)));
+
     private static LoadedFieldScriptIdentity NearMiss(LoadedFieldScriptIdentity identity) =>
         identity with { ScriptPrefixSha256 = identity.ScriptPrefixSha256[..^1] + (identity.ScriptPrefixSha256[^1] == '0' ? '1' : '0') };
 
@@ -56,7 +70,7 @@ internal static class LocalizedDescriptionDeliveryTests
     {
         var polishOnly = LocalizedFieldDescriptionCueManifest.ReviewedIdentities
             .Where(i => i.Languages.Count == 1 && i.Languages[0] == "pl").ToArray();
-        Equal(585, polishOnly.Length, "Polish V1.05 prefixes no other reviewed archive shares");
+        Equal(1124, polishOnly.Length, "Polish V1.05 and V1.07 prefixes no other reviewed archive shares");
         foreach (var reviewed in polishOnly)
         {
             var identity = new LoadedFieldScriptIdentity(reviewed.FieldId, reviewed.PrefixSha256);
@@ -73,16 +87,19 @@ internal static class LocalizedDescriptionDeliveryTests
 
         True(LocalizedFieldScriptIdentityPolicy.AllowsDescriptions(new(729, EchoSCompatibilityManifest.GetEchoFingerprint(729)!)), "Echo-S");
         True(!LocalizedFieldScriptIdentityPolicy.AllowsDescriptions(new(729, new string('A', 64))), "an unknown prefix");
-        True(!LocalizedFieldScriptIdentityPolicy.AllowsDescriptions(new(730, Identity(729, "pl").ScriptPrefixSha256)), "a reviewed prefix of another field");
+        foreach (var other in PolishIdentities(729))
+            True(!LocalizedFieldScriptIdentityPolicy.AllowsDescriptions(new(730, other.ScriptPrefixSha256)), "a reviewed prefix of another field");
     }
 
     private static void ReviewedLocalizedIdentitiesAreCachedLikeStockAndUnknownOnesAreNot()
     {
         foreach (var (field, _, _, _, _) in MovedPolishFilms)
         {
-            var polish = Identity(field, "pl");
-            True(LocalizedFieldScriptIdentityPolicy.IsReviewedLoadedIdentity(polish), $"{field} reviewed Polish prefix is cached");
-            True(!LocalizedFieldScriptIdentityPolicy.IsReviewedLoadedIdentity(NearMiss(polish)), $"{field} unknown prefix is re-read");
+            foreach (var polish in PolishIdentities(field))
+            {
+                True(LocalizedFieldScriptIdentityPolicy.IsReviewedLoadedIdentity(polish), $"{field} reviewed Polish prefix is cached");
+                True(!LocalizedFieldScriptIdentityPolicy.IsReviewedLoadedIdentity(NearMiss(polish)), $"{field} unknown prefix is re-read");
+            }
             True(LocalizedFieldScriptIdentityPolicy.IsReviewedLoadedIdentity(Identity(field, "ja")), $"{field} official Japanese is cached");
             True(LocalizedFieldScriptIdentityPolicy.IsReviewedLoadedIdentity(new(field, EchoSCompatibilityManifest.GetVanillaFingerprint(field)!)), "stock is cached as before");
         }
@@ -94,12 +111,11 @@ internal static class LocalizedDescriptionDeliveryTests
 
     private static void PolishMovedFilmAnchorsResolveTheirEnglishTracks()
     {
-        foreach (var (field, englishByte, entity, script, polishByte) in MovedPolishFilms)
+        foreach (var (field, englishByte, entity, script, polishByte, polish) in MovedPolishFilmIdentities())
         {
             var track = FieldMovieNarrationPolicy.All.Single(t => t.FieldId == field && t.ByteIndex == englishByte);
             var english = new FieldCutsceneDescriptionKey(field, track.EntityId, track.ScriptId, track.ByteIndex);
             Equal((entity, script), (track.EntityId, track.ScriptId), "the move is within the same entity and slot");
-            var polish = Identity(field, "pl");
             var native = new FieldScriptContext(field, entity, script, polishByte, FieldOpcodeAddressResolver.OpcodeMovieIndex);
             Equal(english, LocalizedFieldScriptIdentityPolicy.FilmAnchor(native, polish), $"{field}: Polish byte {polishByte} is the English film anchor");
             var cue = LocalizedFieldDescriptionCueManifest.CreateDescriptions(polish).Single(c => c.Key == new FieldCutsceneDescriptionKey(field, entity, script, polishByte));
@@ -113,9 +129,8 @@ internal static class LocalizedDescriptionDeliveryTests
 
     private static void TheSharedFilmTrackerStartsPolishMovedFilmsLikeEnglish()
     {
-        foreach (var (field, englishByte, entity, script, polishByte) in MovedPolishFilms)
+        foreach (var (field, englishByte, entity, script, polishByte, polish) in MovedPolishFilmIdentities())
         {
-            var polish = Identity(field, "pl");
             var anchor = LocalizedFieldScriptIdentityPolicy.FilmAnchor(
                 new FieldScriptContext(field, entity, script, polishByte, FieldOpcodeAddressResolver.OpcodeMovieIndex), polish);
             var waiting = new FieldMovieNarrationSample(false, 34, FieldPositionReader.FieldModule, field,
@@ -145,11 +160,11 @@ internal static class LocalizedDescriptionDeliveryTests
     private static void ReviewedLocalizedPrefixesNeverResolveFilmsFromRawOffsets()
     {
         var none = (LocalizedFieldScriptIdentityPolicy.NoAnchor, LocalizedFieldScriptIdentityPolicy.NoAnchor, LocalizedFieldScriptIdentityPolicy.NoAnchor);
-        foreach (var (field, englishByte, entity, script, _) in MovedPolishFilms)
+        foreach (var (field, englishByte, entity, script, _, polish) in MovedPolishFilmIdentities())
         {
             // The English byte inside the Polish script is some other instruction.
             var anchor = LocalizedFieldScriptIdentityPolicy.FilmAnchor(
-                new FieldScriptContext(field, entity, script, englishByte, FieldOpcodeAddressResolver.OpcodeMovieIndex), Identity(field, "pl"));
+                new FieldScriptContext(field, entity, script, englishByte, FieldOpcodeAddressResolver.OpcodeMovieIndex), polish);
             Equal((field, none), (anchor.FieldId, (anchor.EntityId, anchor.ScriptId, anchor.ByteIndex)), $"{field}: English byte {englishByte} is no Polish film anchor");
             True(!FieldMovieNarrationPolicy.TryResolve(anchor.FieldId, anchor.EntityId, anchor.ScriptId, anchor.ByteIndex, out _), "and names no track");
         }
@@ -176,7 +191,10 @@ internal static class LocalizedDescriptionDeliveryTests
                 Native(polishByte), new(field, EchoSCompatibilityManifest.GetEchoFingerprint(field)!)), "Echo-S is unchanged");
             Equal(new FieldCutsceneDescriptionKey(field, entity, script, englishByte), LocalizedFieldScriptIdentityPolicy.FilmAnchor(
                 Native(englishByte), Identity(field, "fr")), "official French runs it at the English byte");
-            foreach (var other in new LoadedFieldScriptIdentity?[] { null, new(field, new string('A', 64)), NearMiss(Identity(field, "pl")), Identity(field == 729 ? 730 : 729, "pl") })
+            var others = new LoadedFieldScriptIdentity?[] { null, new(field, new string('A', 64)) }
+                .Concat(PolishIdentities(field).Select(p => (LoadedFieldScriptIdentity?)NearMiss(p)))
+                .Concat(PolishIdentities(field == 729 ? 730 : 729).Select(p => (LoadedFieldScriptIdentity?)p));
+            foreach (var other in others)
                 Equal(new FieldCutsceneDescriptionKey(field, entity, script, polishByte), LocalizedFieldScriptIdentityPolicy.FilmAnchor(Native(polishByte), other),
                     "an unreadable, unknown or other field's identity keeps the raw coordinates it always used");
         }
@@ -199,7 +217,7 @@ internal static class LocalizedDescriptionDeliveryTests
             }
         }
 
-        Equal(518, mapped, "film anchors in reviewed localized identities");
+        Equal(596, mapped, "film anchors in reviewed localized identities (518 official, V1.05 and Russian, 78 V1.07)");
     }
 
     private static void TheX86HostRoutesIdentityAndFilmDecisionsThroughThePolicy()

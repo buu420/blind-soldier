@@ -4,26 +4,27 @@ using Ff7.Accessibility.Reloaded;
 using LocalizedDescriptionCueAligner;
 
 // Aligns every English field audio-description anchor with the native field scripts of the official
-// French, German, Spanish and Japanese archives (and, when supplied, the Polish fan translation),
-// and emits the exact per-identity map the runtime uses. See
+// French, German, Spanish and Japanese archives (and, when supplied, each Polish fan translation
+// release), and emits the exact per-identity map the runtime uses. --polish may be repeated: every
+// release is reviewed on its own and shares the "pl" archive code. See
 // docs/localized-description-triggers-20261125.md.
 if (args.Length < 2)
 {
     Console.Error.WriteLine(
-        "Usage: LocalizedDescriptionCueAligner <ff7-workingdir> <report-directory> [--polish <workingdir>] [--russian <workingdir>] [--emit <generated.cs>]");
+        "Usage: LocalizedDescriptionCueAligner <ff7-workingdir> <report-directory> [--polish <workingdir>]... [--russian <workingdir>] [--emit <generated.cs>]");
     return 2;
 }
 
 var root = Path.GetFullPath(args[0]);
 var reportDirectory = Path.GetFullPath(args[1]);
-string? polishRoot = null;
+var polishRoots = new List<string>();
 string? russianRoot = null;
 string? emitPath = null;
 for (var index = 2; index < args.Length; index++)
 {
     switch (args[index])
     {
-        case "--polish" when index + 1 < args.Length: polishRoot = Path.GetFullPath(args[++index]); break;
+        case "--polish" when index + 1 < args.Length: polishRoots.Add(Path.GetFullPath(args[++index])); break;
         case "--russian" when index + 1 < args.Length: russianRoot = Path.GetFullPath(args[++index]); break;
         case "--emit" when index + 1 < args.Length: emitPath = Path.GetFullPath(args[++index]); break;
         default: Console.Error.WriteLine($"Unknown argument {args[index]}"); return 2;
@@ -42,7 +43,7 @@ static string Sha256(string path)
 var englishDescriptor = Ff7GameLanguages.Get(Ff7GameLanguage.English);
 var targets = Ff7GameLanguages.All.Where(d => d.Language != Ff7GameLanguage.English)
     .Select(d => (Descriptor: d, Root: root))
-    .Concat(polishRoot is null ? [] : [(Descriptor: Ff7GameLanguages.PolishFanTranslation, Root: polishRoot)])
+    .Concat(polishRoots.Select(polishRoot => (Descriptor: Ff7GameLanguages.PolishFanTranslation, Root: polishRoot)))
     .Concat(russianRoot is null ? [] : [(Descriptor: Ff7GameLanguages.RussianFanTranslation, Root: russianRoot)])
     .ToArray();
 var sources = new List<string>();
@@ -218,7 +219,7 @@ Console.WriteLine(summary.ToString().TrimEnd().Split('\n')[^(sources.Count + 1)]
 if (emitPath is not null)
 {
     File.WriteAllText(emitPath, ManifestWriter.Write(identities.Values.ToArray(), catalog,
-        sources.Prepend($"Command: LocalizedDescriptionCueAligner <workingdir> <reports>{(polishRoot is null ? "" : " --polish <Bunio V1.05 workingdir>")}{(russianRoot is null ? "" : " --russian <FFRTT 1.02 workingdir>")} --emit <this file>").ToArray()),
+        sources.Prepend($"Command: LocalizedDescriptionCueAligner <workingdir> <reports>{string.Concat(polishRoots.Select(_ => " --polish <Polish fan translation workingdir>"))}{(russianRoot is null ? "" : " --russian <FFRTT 1.02 workingdir>")} --emit <this file>").ToArray()),
         new UTF8Encoding(false));
     Console.WriteLine($"Wrote {emitPath}");
 }

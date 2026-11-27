@@ -27,11 +27,13 @@ map authorizes it at its native coordinates. There are no official exclusions.
 | Spanish `sflevel.lgp` | 24 | 922 | 0 | 606 |
 | Japanese `jfleve.lgp` | 81 | 865 | 0 | 562 |
 | Polish V1.05 `flevel.lgp` | 39 | 906 | 1 | 586 |
+| Polish V1.07 `flevel.lgp` | 16 | 929 | 1 | 608 |
 
-The manifest holds 2,964 exact identities (five prefixes are shared by two official
-archives: fields 225, 459, 527, 710 and 742), 4,539 authorized rows and one exclusion.
+The manifest holds 3,504 exact identities (five prefixes are shared by two official
+archives: fields 225, 459, 527, 710 and 742, and 68 by both Polish releases), 5,371
+authorized rows and two exclusions (`crater_1` in each Polish release).
 All 97 `FieldMovieNarrationPolicy` film anchors are English catalog MOVIE cues, so the
-reviewed rows give every one of them an exact localized position: 429 anchor
+reviewed rows give every one of them an exact localized position: 507 anchor
 occurrences across the reviewed identities. They keep their English coordinates in all
 four official archives; Polish moves two of them (see below).
 
@@ -139,7 +141,27 @@ Within the changed fields 637 cues are in identical slots and 269 align; these P
 cues move: 290 MPNAM 5 to 3, 322 MPNAM 54 to 64 and WAIT 446 to 456, 607 MPNAM 32 to
 18, 729 MOVIE 104 to 101 and 730 MOVIE 90 to 70.
 
-Excluded: Polish 700 `crater_1` 1/0/0 MPNAM. The MPNAM is forced and identical, but
+### V1.07
+
+V1.07 (`Final Fantasy VII Steam spolszczenie V1.07.rar`, SHA-256
+`573E3566F209B8341E9DC30CD5A5974937348DB7025008B1CDECC4B38A0544BC`) replaces
+`data/field/flevel.lgp` (SHA-256
+`FE1EBCE2BD6E0D4A8DD3B9A82DA3B5B1BAFD28FFA1D4DF85EDC0BC9835CC7BB6`), adds
+`data/battle/scene.bin` and `data/lang-en/kernel/kernel.bin`, and replaces
+`kernel2.bin`. It ships no `WINDOW.BIN` and no executable (its menu text comes from a
+7th Heaven hext mod), so it is recognized by its kernel item descriptions instead of the
+font fingerprint. Its scripts keep V1.05's structure (the same 44 fields differ in
+length from the 2026 English data) but adjust window geometry in most fields: only 118
+of 702 prefixes equal V1.05, and 68 of the cue fields share one. Every cue resolves
+exactly as in V1.05, with the same six moved Polish cues (the two nvlmk films included)
+and the same `crater_1` exclusion. The aligner takes `--polish` once per release and
+reviews each archive on its own; both share the `pl` archive code.
+
+Its kernel2 leaves an empty 17th entry in the last section (summon attack names). The
+engine reads 16; `Kernel2TextDatabase` now drops empty entries past the fixed counts and
+still rejects any other count. V1.07 also writes `Ź` in the former `Ü` slot (0x66).
+
+Excluded: Polish 700 `crater_1` 1/0/0 MPNAM (both releases). The MPNAM is forced and identical, but
 only 23 of the English slot's 53 instructions align (the Polish slot lacks the 2013
 party setup), below the similarity rule. It stays silent rather than being argued
 into place.
@@ -208,6 +230,7 @@ dotnet build tools\LocalizedDescriptionCueAligner\LocalizedDescriptionCueAligner
 & D:\BlindSoldier-localized-model-launcher-20261125\localized-cues\localized-cues-artifacts\bin\LocalizedDescriptionCueAligner\debug\LocalizedDescriptionCueAligner.exe `
   "D:\SteamLibrary\steamapps\common\FINAL FANTASY VII Steam Edition\ff7\workingdir" D:\BlindSoldier-localized-model-launcher-20261125\localized-cues\report-final `
   --polish D:\BlindSoldier-localized-model-launcher-20261125\localized-cues\polish\workingdir `
+  --polish D:\BlindSoldier-localized-model-launcher-20261125\localized-cues\polish-v107\workingdir `
   --emit Ff7.Accessibility.Reloaded\LocalizedFieldDescriptionCueManifest.Generated.cs
 ```
 
@@ -218,21 +241,23 @@ Regeneration from the same archives is byte-identical.
 ```powershell
 dotnet build Ff7.Accessibility.Reloaded.Tests\Ff7.Accessibility.Reloaded.Tests.csproj -c Debug --artifacts-path D:\BlindSoldier-localized-model-launcher-20261125\localized-cues\localized-cues-artifacts
 $env:FF7_ACCESSIBILITY_DATA_ROOT = "D:\SteamLibrary\steamapps\common\FINAL FANTASY VII Steam Edition\ff7\workingdir"
-$env:FF7_ACCESSIBILITY_POLISH_DATA_ROOT = "D:\BlindSoldier-localized-model-launcher-20261125\localized-cues\polish\workingdir"
+# One or more Polish release roots, separated by ';'
+$env:FF7_ACCESSIBILITY_POLISH_DATA_ROOT = "D:\BlindSoldier-localized-model-launcher-20261125\localized-cues\polish\workingdir;D:\BlindSoldier-localized-model-launcher-20261125\localized-cues\polish-v107\workingdir"
 & D:\BlindSoldier-localized-model-launcher-20261125\localized-cues\localized-cues-artifacts\bin\Ff7.Accessibility.Reloaded.Tests\debug\Ff7.Accessibility.Reloaded.Tests.exe --localized-cues-only
 ```
 
 Without the data roots the manifest, tracker, canonical-key, recurring-group, revisit
 and creature tests still run. With them, every installed field is loaded through the
 production identity reader: stock-identical prefixes must resolve as stock, every
-other prefix must be in the manifest for that archive and nothing else may be, every
+other prefix must be in the manifest for that archive code and nothing else may be (for
+`pl`, the union of every supplied Polish release), every
 authorized row must be the installed native instruction and deliver its cue, and each
 archive's coverage must add up to all 946 anchors. If the English catalog's anchors
 change, the fingerprint test fails until the manifest is regenerated.
 
 `LocalizedDescriptionDeliveryTests` (in the same x86 flag, and linked into the x64 runner)
 cover:
-- the gate and cache rule for all 586 Polish prefixes against their one-digit
+- the gate and cache rule for all 1,126 Polish prefixes (V1.05 and V1.07) against their one-digit
   near-misses, stock, official, Echo-S, the Echo-S disclaimer and unknown prefixes;
 - both moved films resolving to their English anchors and starting through the shared
   film tracker, with no anchor taken from raw localized offsets;

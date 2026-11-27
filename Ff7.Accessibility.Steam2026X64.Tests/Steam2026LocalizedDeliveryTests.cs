@@ -3,8 +3,8 @@ using Ff7.Accessibility.Reloaded;
 using Ff7.Accessibility.Steam2026X64.Runtime.Field;
 
 /// <summary>
-/// The x64 coordinator with reviewed localized identities, end to end: a Bunio Polish V1.05
-/// prefix reaches description delivery while an unknown one stays silent, and the two films
+/// The x64 coordinator with reviewed localized identities, end to end: every reviewed Polish fan
+/// translation prefix (V1.05 and V1.07) reaches description delivery while an unknown one stays silent, and the two films
 /// Polish starts from moved bytes (zcoal_2 101 for English 104, zcoal_3 70 for English 90) are
 /// held until the native film starts and then described by the film's own track, exactly like
 /// English, instead of being read at once from raw localized offsets.
@@ -15,17 +15,24 @@ internal static class Steam2026LocalizedDeliveryTests
 
     public static void Run()
     {
-        ReviewedPolishPrefixDeliversItsMovedActionCueAndUnknownStaysSilent();
+        foreach (var polish in PolishIdentities(322))
+            ReviewedPolishPrefixDeliversItsMovedActionCueAndUnknownStaysSilent(polish);
         foreach (var (field, entity, script, polishByte) in new[] { (729, 4, 0, 101), (730, 11, 3, 70) })
-            PolishMovedFilmWaitsForTheNativeFilmAndStartsItsEnglishTrack(field, entity, script, polishByte);
+            foreach (var polish in PolishIdentities(field))
+                PolishMovedFilmWaitsForTheNativeFilmAndStartsItsEnglishTrack(field, entity, script, polishByte, polish);
         Console.WriteLine("Steam 2026 x64 localized delivery tests passed.");
     }
 
-    private static LoadedFieldScriptIdentity Polish(int field) =>
-        LocalizedFieldDescriptionCueManifest.ReviewedIdentities
+    /// <summary>Every reviewed Polish release's prefix of a field; V1.05 and V1.07 usually differ.</summary>
+    private static LoadedFieldScriptIdentity[] PolishIdentities(int field)
+    {
+        var identities = LocalizedFieldDescriptionCueManifest.ReviewedIdentities
             .Where(i => i.FieldId == field && i.Languages.Contains("pl"))
             .Select(i => new LoadedFieldScriptIdentity(field, i.PrefixSha256))
-            .Single();
+            .ToArray();
+        Equal(true, identities.Length > 0, $"field {field} has a reviewed Polish prefix");
+        return identities;
+    }
 
     private static LoadedFieldScriptIdentity NearMiss(LoadedFieldScriptIdentity identity) =>
         identity with { ScriptPrefixSha256 = identity.ScriptPrefixSha256[..^1] + (identity.ScriptPrefixSha256[^1] == '0' ? '1' : '0') };
@@ -36,9 +43,8 @@ internal static class Steam2026LocalizedDeliveryTests
             useLoadedScriptIdentity: true, readIdentity: () => identity);
 
     // nvmkin1 (322): Polish inserts an IFSW and a MUSIC, so the WAIT English runs at 446 runs at 456.
-    private static void ReviewedPolishPrefixDeliversItsMovedActionCueAndUnknownStaysSilent()
+    private static void ReviewedPolishPrefixDeliversItsMovedActionCueAndUnknownStaysSilent(LoadedFieldScriptIdentity polish)
     {
-        var polish = Polish(322);
         var cue = LocalizedFieldDescriptionCueManifest.CreateDescriptions(polish)
             .Single(c => c.Key == new FieldCutsceneDescriptionKey(322, 0, 0, 456));
         var english = FieldCutsceneDescriptionCatalog.CreateEarlyGameDescriptions().Single(c => c.Key == new FieldCutsceneDescriptionKey(322, 0, 0, 446));
@@ -61,9 +67,9 @@ internal static class Steam2026LocalizedDeliveryTests
             "and the English byte is not authorized for it either");
     }
 
-    private static void PolishMovedFilmWaitsForTheNativeFilmAndStartsItsEnglishTrack(int field, int entity, int script, int polishByte)
+    private static void PolishMovedFilmWaitsForTheNativeFilmAndStartsItsEnglishTrack(
+        int field, int entity, int script, int polishByte, LoadedFieldScriptIdentity polish)
     {
-        var polish = Polish(field);
         var snapshot = new Steam2026FieldCutsceneIngressSnapshot(1, Start,
             new FieldScriptContext(field, entity, script, polishByte, FieldOpcodeAddressResolver.OpcodeMovieIndex));
         var memory = new FakeAddressSpace { FieldId = (ushort)field };

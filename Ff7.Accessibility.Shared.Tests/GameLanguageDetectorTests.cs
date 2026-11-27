@@ -8,6 +8,8 @@ internal static class GameLanguageDetectorTests
         ParsesPolishFanTranslationProfile();
         RecognizesKnownPolishTranslationFingerprint();
         RecognizesPolishKernelTextWhenTheTranslationFontIsUnavailable();
+        RecognizesPolishV107KernelTextWithItsEmptyExtraSummonName();
+        RejectsANonEmptyEntryBeyondTheEngineSectionCount();
         ExplicitOverrideWinsWhenItsDataExists();
         ExplicitPolishOverrideUsesEnglishAssetPaths();
         ExecutableSuffixWinsDuringAutomaticDetection();
@@ -147,12 +149,29 @@ internal static class GameLanguageDetectorTests
             "Polish KERNEL2 detection detail");
     }
 
-    private static byte[] BuildPolishKernel2()
+    private static void RecognizesPolishV107KernelTextWithItsEmptyExtraSummonName()
+    {
+        using var game = TestGame.Create("en");
+        game.WriteKernel2(BuildPolishKernel2(v107: true, extraSummonName: ""));
+        var context = Ff7GameLanguageDetector.Detect(game.Root, "auto", Path.Combine(game.Root, "ff7_en.exe"), Array.Empty<string>());
+        Equal("pl", context.Code, "Polish V1.07 KERNEL2 semantic fingerprint");
+        Equal(Ff7GameLanguageDetectionSource.TranslationFingerprint, context.Source, "Polish V1.07 KERNEL2 detection source");
+    }
+
+    private static void RejectsANonEmptyEntryBeyondTheEngineSectionCount()
+    {
+        using var game = TestGame.Create("en");
+        game.WriteKernel2(BuildPolishKernel2(v107: true, extraSummonName: "Nadmiar"));
+        Equal("en", Ff7GameLanguageDetector.Detect(game.Root, "auto", Path.Combine(game.Root, "ff7_en.exe"), Array.Empty<string>()).Code,
+            "a kernel2 with real text past the fixed section count is not a usable Polish kernel");
+    }
+
+    private static byte[] BuildPolishKernel2(bool v107 = false, string? extraSummonName = null)
     {
         int[] sectionCounts =
         [
             32, 256, 128, 128, 32, 32, 96, 64, 32,
-            256, 128, 128, 32, 32, 96, 64, 128, 16
+            256, 128, 128, 32, 32, 96, 64, 128, extraSummonName is null ? 16 : 17
         ];
         using var decoded = new MemoryStream();
         for (var section = 0; section < sectionCounts.Length; section++)
@@ -161,11 +180,11 @@ internal static class GameLanguageDetectorTests
                 .Select(index => section == 2 ? index switch
                 {
                     0 => EncodePolish("Przywraca 100 HP"),
-                    2 => EncodePolish("W pełni odnawia HP"),
-                    20 => EncodePolish("Eksplozja rażąca przeciwnika"),
+                    2 => EncodePolish(v107 ? "Przywraca całe HP" : "W pełni odnawia HP"),
+                    20 => EncodePolish(v107 ? "Zadaje wybuchowe obrażenia jednemu wrogowi" : "Eksplozja rażąca przeciwnika"),
                     100 => EncodePolish("Autograf Mistrza Dio"),
                     _ => EncodePolish($"Opis {index}")
-                } : EncodePolish($"S{section:D2}I{index:D3}"))
+                } : section == 17 && index == 16 ? EncodePolish(extraSummonName!) : EncodePolish($"S{section:D2}I{index:D3}"))
                 .ToArray();
             var tableSize = strings.Length * sizeof(ushort);
             var sectionSize = tableSize + strings.Sum(value => value.Length);
@@ -202,6 +221,7 @@ internal static class GameLanguageDetectorTests
         {
             bytes.Add(character switch
             {
+                'Ź' => 0x66,
                 'ą' => 0x67,
                 'ć' => 0x74,
                 'ł' => 0x75,
