@@ -150,9 +150,11 @@ V1.07 (`Final Fantasy VII Steam spolszczenie V1.07.rar`, SHA-256
 `data/battle/scene.bin` and `data/lang-en/kernel/kernel.bin`, and replaces
 `kernel2.bin`. It ships no `WINDOW.BIN` and no executable (its menu text comes from a
 7th Heaven hext mod), so it is recognized by its kernel item descriptions instead of the
-font fingerprint. Its scripts keep V1.05's structure (the same 44 fields differ in
-length from the 2026 English data) but adjust window geometry in most fields: only 118
-of 702 prefixes equal V1.05, and 68 of the cue fields share one. Every cue resolves
+font fingerprint. Its script code is V1.05's (the same 44 fields differ in length from
+the 2026 English data) except 34 window instructions (24 WINDOW, 10 WSIZW), one ASK and
+one branch. Still only 118 of 702 prefixes equal V1.05, and 68 of the cue fields share
+one, because the rebuilt text tables move the AKAO offset table that the prefix also
+covers. Every cue resolves
 exactly as in V1.05, with the same six moved Polish cues (the two nvlmk films included)
 and the same `crater_1` exclusion. The aligner takes `--polish` once per release and
 reviews each archive on its own; both share the `pl` archive code.
