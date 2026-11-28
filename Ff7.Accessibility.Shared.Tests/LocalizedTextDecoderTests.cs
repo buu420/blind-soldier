@@ -75,6 +75,18 @@ internal static class LocalizedTextDecoderTests
                 },
                 polish),
             "Polish translated kernel text");
+
+        Equal(
+            "Źle oceniliśmy.",
+            Ff7EncodedTextDecoder.DecodeFieldTerminated(
+                new byte[]
+                {
+                    0x66, 0x4c, 0x45, 0x00,
+                    0x4f, 0x43, 0x45, 0x4e, 0x49, 0x4c, 0x49, 0xa0, 0x4d, 0x59, 0x0e,
+                    0xff
+                },
+                polish),
+            "Polish V1.07 Ź in the former Ü slot");
     }
 
     private static void DecodesJapaneseKanaAndKanji()

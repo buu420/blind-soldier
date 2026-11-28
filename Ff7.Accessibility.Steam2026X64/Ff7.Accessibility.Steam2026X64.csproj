@@ -13,6 +13,8 @@
 
   <ItemGroup>
     <Compile Include="..\Ff7.Accessibility.Reloaded\WholeGameEchoNavigationManifest.cs" Link="Shared\WholeGameEchoNavigationManifest.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\PolishNavigationManifest.cs" Link="Shared\PolishNavigationManifest.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded\PolishNavigationManifest.Generated.cs" Link="Shared\PolishNavigationManifest.Generated.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\EchoNpcIdentityCatalog.cs" Link="Shared\EchoNpcIdentityCatalog.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\WholeGameEchoFutureMetadata.cs" Link="Shared\WholeGameEchoFutureMetadata.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded\EchoSCompatibilityManifest.cs" Link="Shared\EchoSCompatibilityManifest.cs" />

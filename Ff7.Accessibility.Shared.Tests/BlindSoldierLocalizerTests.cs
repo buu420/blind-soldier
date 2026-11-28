@@ -5,6 +5,7 @@ internal static class BlindSoldierLocalizerTests
     public static void Run()
     {
         LocalizesExactCoreSpeechInEverySupportedLanguage();
+        LocalizesTheTitleMenuContinueEntry();
         LocalizesTemplatesWithoutChangingCapturedNativeNames();
         LocalizesGeneratedMenuSummaries();
         LeavesUnknownNativeTextUntouched();
@@ -23,6 +24,20 @@ internal static class BlindSoldierLocalizerTests
         Equal("Route abgeschlossen.", Create(Ff7GameLanguage.German).Localize("Route complete."), "German exact");
         Equal("Ruta completada.", Create(Ff7GameLanguage.Spanish).Localize("Route complete."), "Spanish exact");
         Equal("ルートが完了しました。", Create(Ff7GameLanguage.Japanese).Localize("Route complete."), "Japanese exact");
+    }
+
+    private static void LocalizesTheTitleMenuContinueEntry()
+    {
+        // TitleMenuCursorReader speaks "Continue" without the question mark the catalogs carry.
+        Equal("Continue", Create(Ff7GameLanguage.English).Localize("Continue"), "English title Continue");
+        Equal("Continuer", Create(Ff7GameLanguage.French).Localize("Continue"), "French title Continue");
+        Equal("Fortsetzen", Create(Ff7GameLanguage.German).Localize("Continue"), "German title Continue");
+        Equal("Continuar", Create(Ff7GameLanguage.Spanish).Localize("Continue"), "Spanish title Continue");
+        Equal("コンティニュー", Create(Ff7GameLanguage.Japanese).Localize("Continue"), "Japanese title Continue");
+        Equal("Kontynuuj", BlindSoldierLocalizer.Create(Ff7GameLanguages.PolishFanTranslation, modDirectory: null).Localize("Continue"),
+            "Polish title Continue from the embedded catalog");
+        Equal("Nawigacja włączona.", BlindSoldierLocalizer.Create(Ff7GameLanguages.PolishFanTranslation, modDirectory: null).Localize("Navigation on."),
+            "Polish embedded interface catalog");
     }
 
     private static void LocalizesTemplatesWithoutChangingCapturedNativeNames()

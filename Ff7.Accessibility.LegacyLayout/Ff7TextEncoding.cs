@@ -124,8 +124,10 @@ internal static class Ff7TextEncoding
     {
         // The Bunio Polish translation replaces these Western-font glyph slots.
         // Field and kernel text still carry the original one-byte slot numbers.
+        // V1.07 also writes Ź in the former Ü slot (V1.05 never uses 0x66).
         character = value switch
         {
+            0x66 => 'Ź',
             0x67 => 'ą',
             0x74 => 'ć',
             0x75 => 'ł',

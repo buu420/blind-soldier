@@ -207,15 +207,31 @@ public sealed class Kernel2TextDatabase
             return null;
         }
 
+        var accepted = new List<IndexedTextSection>(sections.Count);
         for (var index = 0; index < ExpectedSectionCounts.Length; index++)
         {
-            if (sections[index].Count != ExpectedSectionCounts[index])
+            var section = sections[index];
+            var expected = ExpectedSectionCounts[index];
+            if (section.Count == expected)
             {
-                return null;
+                accepted.Add(section);
+                continue;
             }
+
+            // A translation tool may leave empty entries past the engine's fixed count; Polish V1.07
+            // adds an empty 17th summon attack name. The engine never reads them, so they are dropped.
+            // Any other count, or a non-empty extra entry, still rejects the file.
+            if (section.Count > expected &&
+                Enumerable.Range(expected, section.Count - expected).All(id => section.Resolve(id) is null))
+            {
+                accepted.Add(section with { Count = expected });
+                continue;
+            }
+
+            return null;
         }
 
-        return new Kernel2TextDatabase(sections);
+        return new Kernel2TextDatabase(accepted);
     }
 
     private string? ResolveBattleActionText(IndexedTextSection section, int rawActionId, int bank)

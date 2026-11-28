@@ -10,6 +10,7 @@ using AccessibilityConfig = Ff7.Accessibility.Core.AccessibilityConfig;
 if (args.Contains("--russian-ui-only", StringComparer.OrdinalIgnoreCase))
 {
     Ff7.Accessibility.Reloaded.Tests.RussianSpeechLocalizationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.PolishSpeechLocalizationTests.Run();
     Ff7.Accessibility.Reloaded.Tests.RussianGeneratedSpeechIntegrationTests.Run();
     return;
 }
@@ -31,6 +32,7 @@ if (args.Contains("--russian-navigation-only", StringComparer.OrdinalIgnoreCase)
 if (args.Length == 0)
 {
     Ff7.Accessibility.Reloaded.Tests.RussianSpeechLocalizationTests.Run();
+    Ff7.Accessibility.Reloaded.Tests.PolishSpeechLocalizationTests.Run();
     Ff7.Accessibility.Reloaded.Tests.RussianGeneratedSpeechIntegrationTests.Run();
     Ff7.Accessibility.Reloaded.Tests.RussianNameEntryTests.Run();
     Ff7.Accessibility.Reloaded.Tests.RussianNavigationCompatibilityTests.Run();

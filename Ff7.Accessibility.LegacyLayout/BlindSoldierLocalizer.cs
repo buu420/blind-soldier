@@ -23,6 +23,10 @@ public sealed partial class BlindSoldierLocalizer
     {
         "{0}, choice {1} of {2}", "{0} unavailable, choice {1} of {2}", "{0}, {1} available", "{0} unavailable"
     };
+    // Languages whose own-speech catalogs include the generated runtime prompts and trusted
+    // composition entries: composed mod speech is localized by parts, and only base catalog
+    // templates ever match native text.
+    private static readonly IReadOnlySet<string> ComposingLanguages = new HashSet<string>(StringComparer.Ordinal) { "ru", "pl" };
     private readonly IReadOnlyList<TemplateTranslation> templates;
     private readonly IReadOnlyList<TemplateTranslation> modTemplates;
     private readonly Action<string>? log;
@@ -52,13 +56,16 @@ public sealed partial class BlindSoldierLocalizer
             .ToArray();
         // Short structural formats are useful for trusted, generated UI ("1 of
         // 80.") but must not become patterns over arbitrary native dialogue.
-        templates = language.Code == "ru"
+        templates = ComposingLanguages.Contains(language.Code)
             ? modTemplates.Where(template => modOnlyKeys?.Contains(template.Source) != true &&
                 (english.ContainsKey(template.Source) || NativeMetadataTemplates.Contains(template.Source))).ToArray()
             : modTemplates;
     }
 
     public string LanguageCode => language.Code;
+
+    /// <summary>Whether mod-generated speech is localized by parts (<see cref="LocalizeModSpeech"/>).</summary>
+    public bool ComposesModSpeech => ComposingLanguages.Contains(language.Code);
 
     // Polish uses the English game enum and a separate text encoding. The code,
     // not that enum, determines whether the packaged English recordings fit.
@@ -75,11 +82,12 @@ public sealed partial class BlindSoldierLocalizer
         var localized = string.Equals(language.Code, "en", StringComparison.OrdinalIgnoreCase)
             ? new Dictionary<string, string>(english, StringComparer.Ordinal)
             : LoadEmbedded(language.Code);
-        if (language.Code == "ru")
-            foreach (var pair in LoadResourceCatalog(".Localization.ru.runtime.json"))
+        var composing = ComposingLanguages.Contains(language.Code);
+        if (composing)
+            foreach (var pair in LoadResourceCatalog($".Localization.{language.Code}.runtime.json"))
                 localized.TryAdd(pair.Key, pair.Value);
-        var composition = language.Code == "ru"
-            ? LoadResourceCatalog(".Localization.ru.composition.json") : new Dictionary<string, string>();
+        var composition = composing
+            ? LoadResourceCatalog($".Localization.{language.Code}.composition.json") : new Dictionary<string, string>();
         foreach (var pair in composition) localized.TryAdd(pair.Key, pair.Value);
         var useDescriptions = !string.Equals(language.Code, "en", StringComparison.OrdinalIgnoreCase);
         IReadOnlyDictionary<string, string> descriptionSources = useDescriptions
@@ -114,7 +122,7 @@ public sealed partial class BlindSoldierLocalizer
         new(language, english, localized, log);
 
     public string Localize(string text) => LocalizeCore(text, templates,
-        language.Code == "ru" ? value => LocalizeCore(value, templates, LocalizeCapturedValue) : LocalizeCapturedValue);
+        ComposesModSpeech ? value => LocalizeCore(value, templates, LocalizeCapturedValue) : LocalizeCapturedValue);
 
     private string LocalizeCore(string text, IReadOnlyList<TemplateTranslation> candidates, Func<string, string> localizeCapture,
         Func<TemplateTranslation, Match, bool>? accepts = null)
@@ -157,7 +165,7 @@ public sealed partial class BlindSoldierLocalizer
                 LogEnglishFallback(template.Source);
             }
 
-            return template.Apply(target, match, localizeCapture);
+            return template.Apply(target, match, localizeCapture, language.Code);
         }
 
         return text;
@@ -168,7 +176,7 @@ public sealed partial class BlindSoldierLocalizer
     /// must not send native dialogue, custom names or production credits here.
     /// Other language pipelines retain their existing behavior.
     /// </summary>
-    public string LocalizeModSpeech(string text) => language.Code == "ru"
+    public string LocalizeModSpeech(string text) => ComposesModSpeech
         ? LocalizeModParts(text, 0) : Localize(text);
 
     private string LocalizeModParts(string text, int depth)
@@ -208,6 +216,10 @@ public sealed partial class BlindSoldierLocalizer
         var captures = template.GroupNames.Values.Select(name => match.Groups[name]).ToArray();
         if (captures.Any(group => group.Index > 0 && group.Index + group.Length < match.Length &&
                 ModSentenceBreak().IsMatch(group.Value)))
+            return false;
+        // A one-sentence frame ("{0}, {1} and {2}") never takes whole sentences at its edges
+        // either: "Mod settings. J and L move…, U and O change…" is three sentences, not a list.
+        if (!template.SpansSentences && captures.Any(group => ModSentenceBreak().IsMatch(group.Value)))
             return false;
         return GeneralTemplateWord().IsMatch(PlaceholderPattern().Replace(template.Source, "")) ||
             captures.Any(group => NumberAtEdge().IsMatch(group.Value));
@@ -325,6 +337,28 @@ public sealed partial class BlindSoldierLocalizer
     [GeneratedRegex("\\{([0-9]+)\\}", RegexOptions.CultureInvariant)]
     private static partial Regex PlaceholderPattern();
 
+    // A translation may choose a noun form by a captured number: "{0|minuta|minuty|minut}"
+    // inserts only the one/few/many word for the value of {0} under the language's rule.
+    [GeneratedRegex("\\{([0-9]+)\\|([^{}|]*)\\|([^{}|]*)\\|([^{}|]*)\\}", RegexOptions.CultureInvariant)]
+    private static partial Regex PluralPattern();
+
+    internal static string SelectPluralForm(string languageCode, string value, string one, string few, string many)
+    {
+        if (!long.TryParse(value.Trim(), System.Globalization.NumberStyles.Integer,
+                System.Globalization.CultureInfo.InvariantCulture, out var number))
+            return many;
+        number = Math.Abs(number);
+        var lastDigit = number % 10;
+        var lastTwoDigits = number % 100;
+        var isFew = lastDigit is >= 2 and <= 4 && lastTwoDigits is < 12 or > 14;
+        return languageCode switch
+        {
+            // Russian: 1, 21, 31 (not 11) take the singular.
+            "ru" => lastDigit == 1 && lastTwoDigits != 11 ? one : isFew ? few : many,
+            _ => number == 1 ? one : isFew ? few : many
+        };
+    }
+
     [GeneratedRegex("[A-Za-z]{3}", RegexOptions.CultureInvariant)]
     private static partial Regex GeneralTemplateWord();
 
@@ -344,6 +378,8 @@ public sealed partial class BlindSoldierLocalizer
         IReadOnlyDictionary<int, string> GroupNames,
         int LiteralLength)
     {
+        public bool SpansSentences { get; } = ModSentenceBreak().IsMatch(PlaceholderPattern().Replace(Source, "x"));
+
         public static TemplateTranslation Create(string source, bool guardNativeAbbreviations)
         {
             var groupNames = new Dictionary<int, string>();
@@ -378,13 +414,22 @@ public sealed partial class BlindSoldierLocalizer
         private static string EscapeLiteral(string literal) =>
             Regex.Escape(literal).Replace(@"\.\ ", @"(?<!\b(?:Mt|No|St|Dr|Mr|Mrs|Ms|Jr|vs))\.\ (?![а-яё])");
 
-        public string Apply(string target, Match match, Func<string, string> localizeCapture) =>
-            PlaceholderPattern().Replace(target, placeholder =>
+        public string Apply(string target, Match match, Func<string, string> localizeCapture, string languageCode)
+        {
+            var withPlurals = PluralPattern().Replace(target, plural =>
+            {
+                var index = int.Parse(plural.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
+                return GroupNames.TryGetValue(index, out var groupName)
+                    ? SelectPluralForm(languageCode, match.Groups[groupName].Value, plural.Groups[2].Value, plural.Groups[3].Value, plural.Groups[4].Value)
+                    : plural.Groups[4].Value;
+            });
+            return PlaceholderPattern().Replace(withPlurals, placeholder =>
             {
                 var index = int.Parse(placeholder.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
                 return GroupNames.TryGetValue(index, out var groupName)
                     ? localizeCapture(match.Groups[groupName].Value)
                     : placeholder.Value;
             });
+        }
     }
 }

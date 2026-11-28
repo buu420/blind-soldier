@@ -4,28 +4,31 @@ using Ff7.Accessibility.Reloaded;
 using LocalizedDescriptionCueAligner;
 
 // Aligns every English field audio-description anchor with the native field scripts of the official
-// French, German, Spanish and Japanese archives (and, when supplied, the Polish fan translation),
-// and emits the exact per-identity map the runtime uses. See
+// French, German, Spanish and Japanese archives (and, when supplied, each Polish fan translation
+// release), and emits the exact per-identity map the runtime uses. --polish may be repeated: every
+// release is reviewed on its own and shares the "pl" archive code. See
 // docs/localized-description-triggers-20261125.md.
 if (args.Length < 2)
 {
     Console.Error.WriteLine(
-        "Usage: LocalizedDescriptionCueAligner <ff7-workingdir> <report-directory> [--polish <workingdir>] [--russian <workingdir>] [--emit <generated.cs>]");
+        "Usage: LocalizedDescriptionCueAligner <ff7-workingdir> <report-directory> [--polish <workingdir>]... [--russian <workingdir>] [--emit <generated.cs>] [--navigation-emit <generated.cs>]");
     return 2;
 }
 
 var root = Path.GetFullPath(args[0]);
 var reportDirectory = Path.GetFullPath(args[1]);
-string? polishRoot = null;
+var polishRoots = new List<string>();
 string? russianRoot = null;
 string? emitPath = null;
+string? navigationEmitPath = null;
 for (var index = 2; index < args.Length; index++)
 {
     switch (args[index])
     {
-        case "--polish" when index + 1 < args.Length: polishRoot = Path.GetFullPath(args[++index]); break;
+        case "--polish" when index + 1 < args.Length: polishRoots.Add(Path.GetFullPath(args[++index])); break;
         case "--russian" when index + 1 < args.Length: russianRoot = Path.GetFullPath(args[++index]); break;
         case "--emit" when index + 1 < args.Length: emitPath = Path.GetFullPath(args[++index]); break;
+        case "--navigation-emit" when index + 1 < args.Length: navigationEmitPath = Path.GetFullPath(args[++index]); break;
         default: Console.Error.WriteLine($"Unknown argument {args[index]}"); return 2;
     }
 }
@@ -42,7 +45,7 @@ static string Sha256(string path)
 var englishDescriptor = Ff7GameLanguages.Get(Ff7GameLanguage.English);
 var targets = Ff7GameLanguages.All.Where(d => d.Language != Ff7GameLanguage.English)
     .Select(d => (Descriptor: d, Root: root))
-    .Concat(polishRoot is null ? [] : [(Descriptor: Ff7GameLanguages.PolishFanTranslation, Root: polishRoot)])
+    .Concat(polishRoots.Select(polishRoot => (Descriptor: Ff7GameLanguages.PolishFanTranslation, Root: polishRoot)))
     .Concat(russianRoot is null ? [] : [(Descriptor: Ff7GameLanguages.RussianFanTranslation, Root: russianRoot)])
     .ToArray();
 var sources = new List<string>();
@@ -218,9 +221,88 @@ Console.WriteLine(summary.ToString().TrimEnd().Split('\n')[^(sources.Count + 1)]
 if (emitPath is not null)
 {
     File.WriteAllText(emitPath, ManifestWriter.Write(identities.Values.ToArray(), catalog,
-        sources.Prepend($"Command: LocalizedDescriptionCueAligner <workingdir> <reports>{(polishRoot is null ? "" : " --polish <Bunio V1.05 workingdir>")}{(russianRoot is null ? "" : " --russian <FFRTT 1.02 workingdir>")} --emit <this file>").ToArray()),
+        sources.Prepend($"Command: LocalizedDescriptionCueAligner <workingdir> <reports>{string.Concat(polishRoots.Select(_ => " --polish <Polish fan translation workingdir>"))}{(russianRoot is null ? "" : " --russian <FFRTT 1.02 workingdir>")} --emit <this file>").ToArray()),
         new UTF8Encoding(false));
     Console.WriteLine($"Wrote {emitPath}");
+}
+
+// Navigation review for every field of every Polish release: a Polish prefix may use the
+// English navigation review only when its script is the English script up to presentation
+// (NavigationEquivalence). The official archives are compared the same way as a calibration.
+if (navigationEmitPath is not null)
+{
+    var navigationRows = new List<string> { "target\tfield\tname\tstatus\tequivalent\tevidence" };
+    var polishNavigation = new SortedSet<(int Field, string Prefix)>();
+    var officialStock = 0;
+    var officialRejected = new List<string>();
+    var allFields = englishData.FieldNames.Keys.Order().ToArray();
+    var englishAll = allFields.ToDictionary(f => f, f => NativeField.TryRead(englishData, englishScripts, f));
+    var navigationSummary = new StringBuilder();
+    foreach (var (descriptor, targetRoot) in targets)
+    {
+        var context = ContextAt(descriptor, targetRoot);
+        var data = new FlevelDataSource(targetRoot, context);
+        var scripts = new FieldScriptNavigationCatalog(targetRoot, context);
+        var counts = new SortedDictionary<string, int>(StringComparer.Ordinal);
+        foreach (var fieldId in allFields)
+        {
+            var english = englishAll[fieldId];
+            var target = NativeField.TryRead(data, scripts, fieldId);
+            if (english is null || target is null)
+            {
+                counts["unreadable"] = counts.GetValueOrDefault("unreadable") + 1;
+                continue;
+            }
+
+            var result = NavigationEquivalence.Compare(english, target);
+            counts[result.Status] = counts.GetValueOrDefault(result.Status) + 1;
+            navigationRows.Add(string.Join('\t', descriptor.Code, fieldId, english.Name, result.Status, result.Equivalent, Clean(result.Evidence)));
+            var reviewed = WholeGameEchoNavigationManifest.SourceKnownExactPrefixHash(fieldId, target.PrefixSha256);
+            if (descriptor.Code != "pl")
+            {
+                if (!reviewed) continue;
+                officialStock++;
+                if (!result.Equivalent) officialRejected.Add($"{descriptor.Code} {fieldId} {english.Name} {result.Status}");
+                continue;
+            }
+
+            // A Polish prefix equal to an official one is already a navigation identity.
+            if (result.Equivalent && result.Status != "identical-prefix" &&
+                !WholeGameEchoNavigationManifest.IsOfficialOrModIdentity(new LoadedFieldScriptIdentity(fieldId, target.PrefixSha256)))
+                polishNavigation.Add((fieldId, target.PrefixSha256));
+        }
+
+        navigationSummary.AppendLine($"{descriptor.Code} navigation: " + string.Join(' ', counts.Select(p => $"{p.Key}={p.Value}")));
+    }
+
+    navigationSummary.AppendLine($"official reviewed prefixes compared={officialStock} rejected-by-this-rule={officialRejected.Count}");
+    foreach (var rejected in officialRejected) navigationSummary.AppendLine("  " + rejected);
+    navigationSummary.AppendLine($"polish navigation identities={polishNavigation.Count}");
+    File.WriteAllLines(Path.Combine(reportDirectory, "navigation-equivalence.tsv"), navigationRows);
+    File.WriteAllText(Path.Combine(reportDirectory, "navigation-summary.txt"), navigationSummary.ToString());
+    Console.Write(navigationSummary.ToString());
+
+    var navigation = new StringBuilder();
+    navigation.AppendLine("// <auto-generated>");
+    navigation.AppendLine("// Generated by tools/LocalizedDescriptionCueAligner --navigation-emit. Do not edit; regenerate instead.");
+    navigation.AppendLine("// Polish fan translation field prefixes with the English stock entity layout whose slots stay the English");
+    navigation.AppendLine("// code (NavigationEquivalence), so the English navigation review applies as it does to the official archives.");
+    foreach (var source in sources.Where(s => s.StartsWith("en:", StringComparison.Ordinal) || s.StartsWith("pl:", StringComparison.Ordinal)))
+        navigation.AppendLine("// " + source);
+    navigation.AppendLine($"// Identities: {polishNavigation.Count}.");
+    navigation.AppendLine("// </auto-generated>");
+    navigation.AppendLine("namespace Ff7.Accessibility.Reloaded;");
+    navigation.AppendLine();
+    navigation.AppendLine("public static partial class PolishNavigationManifest");
+    navigation.AppendLine("{");
+    navigation.AppendLine("    // field,exact loaded prefix SHA-256 (same entity layout as the English stock script)");
+    navigation.AppendLine("    private const string RawIdentities = \"\"\"");
+    foreach (var (fieldId, prefix) in polishNavigation)
+        navigation.AppendLine($"{fieldId},{prefix}");
+    navigation.AppendLine("\"\"\";");
+    navigation.AppendLine("}");
+    File.WriteAllText(navigationEmitPath, navigation.ToString().Replace("\r\n", "\n"), new UTF8Encoding(false));
+    Console.WriteLine($"Wrote {navigationEmitPath}");
 }
 
 return failed ? 1 : 0;

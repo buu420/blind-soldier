@@ -200,6 +200,16 @@ public static partial class Ff7GameLanguageDetector
         return TryReadPolishKernelTextFingerprint(dataDirectory, out language);
     }
 
+    // Item descriptions of each known Polish release's kernel2.bin. V1.07 rewords the X-Potion and
+    // Grenade descriptions and ships no WINDOW.BIN, so it is only recognized by this table.
+    private static readonly (int Item, string Text)[][] PolishKernelItemDescriptions =
+    [
+        // V1.05
+        [(0, "Przywraca 100 HP"), (2, "W pełni odnawia HP"), (20, "Eksplozja rażąca przeciwnika"), (100, "Autograf Mistrza Dio")],
+        // V1.07
+        [(0, "Przywraca 100 HP"), (2, "Przywraca całe HP"), (20, "Zadaje wybuchowe obrażenia jednemu wrogowi"), (100, "Autograf Mistrza Dio")]
+    ];
+
     private static bool TryReadPolishKernelTextFingerprint(
         string dataDirectory,
         out Ff7GameLanguageDescriptor language)
@@ -212,10 +222,9 @@ public static partial class Ff7GameLanguageDetector
             var database = Kernel2TextDatabase.TryCreateFromDecodedKernel2(
                 decoded,
                 Ff7GameLanguages.PolishFanTranslation);
-            if (database?.ResolveItemDescription(0) != "Przywraca 100 HP" ||
-                database.ResolveItemDescription(2) != "W pełni odnawia HP" ||
-                database.ResolveItemDescription(20) != "Eksplozja rażąca przeciwnika" ||
-                database.ResolveItemDescription(100) != "Autograf Mistrza Dio")
+            if (database is null ||
+                !PolishKernelItemDescriptions.Any(release =>
+                    release.All(pair => database.ResolveItemDescription(pair.Item) == pair.Text)))
             {
                 return false;
             }
