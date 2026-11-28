@@ -12286,14 +12286,14 @@ public sealed class Mod : IModV1, IModV2
         SpeakLocalized(localizer.LocalizeModSpeech(text), interrupt);
 
     /// <summary>
-    /// Russian only. A mod piece joined to native text before Speak (an ASK choice position,
+    /// Composing languages only (Russian, Polish). A mod piece joined to native text before Speak (an ASK choice position,
     /// a ranch count, a window supplement) is localized alone first, so its own catalog
     /// entry applies without native words around it; the native line keeps the strict lookup.
     /// A piece that carries native text itself gets the strict lookup too. Other languages
     /// leave the piece raw: their catalogs match the English composite at Speak.
     /// </summary>
     internal static string LocalizePieceForNativeLine(BlindSoldierLocalizer localizer, string piece, bool generated) =>
-        localizer.LanguageCode != "ru" || string.IsNullOrWhiteSpace(piece) ? piece
+        !localizer.ComposesModSpeech || string.IsNullOrWhiteSpace(piece) ? piece
         : generated ? localizer.LocalizeModSpeech(piece) : localizer.Localize(piece);
 
     private bool Speak(string text) => Speak(text, true);

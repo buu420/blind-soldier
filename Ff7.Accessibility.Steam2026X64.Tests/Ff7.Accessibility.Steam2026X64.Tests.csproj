@@ -3,6 +3,7 @@
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\RussianNameEntryTests.cs" Link="SharedTests\RussianNameEntryTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\RussianNavigationCompatibilityTests.cs" Link="SharedTests\RussianNavigationCompatibilityTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\RussianSpeechLocalizationTests.cs" Link="SharedTests\RussianSpeechLocalizationTests.cs" />
+    <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\PolishSpeechLocalizationTests.cs" Link="SharedTests\PolishSpeechLocalizationTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\RussianGeneratedSpeechIntegrationTests.cs" Link="SharedTests\RussianGeneratedSpeechIntegrationTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\AudioDescriptionLocalizationTests.cs" Link="SharedTests\AudioDescriptionLocalizationTests.cs" />
     <Compile Include="..\Ff7.Accessibility.Reloaded.Tests\MidgarModelPlacementTests.cs" Link="SharedTests\MidgarModelPlacementTests.cs" />

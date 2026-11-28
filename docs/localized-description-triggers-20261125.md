@@ -28,12 +28,17 @@ map authorizes it at its native coordinates. There are no official exclusions.
 | Japanese `jfleve.lgp` | 81 | 865 | 0 | 562 |
 | Polish V1.05 `flevel.lgp` | 39 | 906 | 1 | 586 |
 | Polish V1.07 `flevel.lgp` | 16 | 929 | 1 | 608 |
+| Russian 1.02 (7th Heaven IRO) `flevel.lgp` | 21 | 925 | 0 | 604 |
 
-The manifest holds 3,504 exact identities (five prefixes are shared by two official
-archives: fields 225, 459, 527, 710 and 742, and 68 by both Polish releases), 5,371
-authorized rows and two exclusions (`crater_1` in each Polish release).
+The manifest holds 4,102 exact identities, 6,288 authorized rows and two exclusions
+(`crater_1` in each Polish release). A prefix shared by several archives is one identity:
+five are shared by two official archives (fields 225, 459, 527, 710 and 742), 68 by both
+Polish releases, one by French and Polish, and six by Russian and another archive (two
+each with German and Polish, one each with French and Spanish). The Russian rows are the
+ones 1.0.5 shipped; regenerating with both Polish releases and the Russian archive adds the
+V1.07 rows and changes no other row.
 All 97 `FieldMovieNarrationPolicy` film anchors are English catalog MOVIE cues, so the
-reviewed rows give every one of them an exact localized position: 507 anchor
+reviewed rows give every one of them an exact localized position: 596 anchor
 occurrences across the reviewed identities. They keep their English coordinates in all
 four official archives; Polish moves two of them (see below).
 
@@ -259,7 +264,7 @@ change, the fingerprint test fails until the manifest is regenerated.
 
 `LocalizedDescriptionDeliveryTests` (in the same x86 flag, and linked into the x64 runner)
 cover:
-- the gate and cache rule for all 1,126 Polish prefixes (V1.05 and V1.07) against their one-digit
+- the gate and cache rule for all 1,124 Polish-only prefixes (V1.05 and V1.07) against their one-digit
   near-misses, stock, official, Echo-S, the Echo-S disclaimer and unknown prefixes;
 - both moved films resolving to their English anchors and starting through the shared
   film tracker, with no anchor taken from raw localized offsets;

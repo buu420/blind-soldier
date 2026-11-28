@@ -247,7 +247,7 @@ internal sealed class Steam2026FieldNavigationCoordinator : IDisposable
             config.GameLanguage,
             log: log);
         descriptionLocalizer = BlindSoldierLocalizer.Create(language.Descriptor, modDirectory, log);
-        if (language.Code == "ru")
+        if (descriptionLocalizer.ComposesModSpeech)
             this.speak = (text, interrupt) => speak(descriptionLocalizer.LocalizeModSpeech(text), interrupt);
         scriptCatalog = new FieldScriptNavigationCatalog(gameRootDirectory, language,
             new LoadedFieldScriptIdentityReader(addressSpace, log));
